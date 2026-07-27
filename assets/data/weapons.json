@@ -1,0 +1,25 @@
+{
+  "rifle": {
+    "range": 30.0,
+    "damage": 2.0,
+    "damagePerLevel": 1.5,
+    "fireInterval": 0.25,
+    "fireRateBonusPerLevel": 0.2,
+    "reloadDuration": 1.5,
+    "reloadReductionPerLevel": 0.25,
+    "magazineSize": 8,
+    "magazineBonusPerLevel": 2,
+    "upgradeGold": [40, 80]
+  },
+  "bomb": {
+    "startingBombs": 3,
+    "throwSpeed": 6.0,
+    "upwardSpeed": 4.0,
+    "gravity": 9.8,
+    "fuseDuration": 1.2,
+    "groundHeight": 0.2,
+    "explosionRadius": 4.0,
+    "explosionDamage": 6.0,
+    "knockbackStrength": 8.0
+  }
+}

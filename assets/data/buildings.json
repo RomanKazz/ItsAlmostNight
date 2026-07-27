@@ -1,0 +1,30 @@
+{
+  "core": {
+    "wood": 30, "stone": 0, "gold": 0,
+    "maxHealth": 500, "unlockCoreLevel": 0, "maxCount": 1
+  },
+  "wall": {
+    "wood": 10, "stone": 0, "gold": 0,
+    "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 256
+  },
+  "turret": {
+    "wood": 25, "stone": 15, "gold": 0,
+    "maxHealth": 120, "unlockCoreLevel": 1, "maxCount": 64
+  },
+  "goldMine": {
+    "wood": 20, "stone": 10, "gold": 0,
+    "maxHealth": 140, "unlockCoreLevel": 1, "maxCount": 4
+  },
+  "cannon": {
+    "wood": 40, "stone": 30, "gold": 25,
+    "maxHealth": 180, "unlockCoreLevel": 2, "maxCount": 64
+  },
+  "slowTrap": {
+    "wood": 15, "stone": 20, "gold": 10,
+    "maxHealth": 100, "unlockCoreLevel": 2, "maxCount": 64
+  },
+  "gate": {
+    "wood": 15, "stone": 5, "gold": 0,
+    "maxHealth": 130, "unlockCoreLevel": 1, "maxCount": 128
+  }
+}

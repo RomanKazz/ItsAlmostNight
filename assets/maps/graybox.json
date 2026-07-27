@@ -1,0 +1,23 @@
+{
+  "playerSpawn": {"x": 0.0, "y": 0.0, "z": 6.0},
+  "worldLimit": 48.0,
+  "coreBuildRadius": 12,
+  "enemySpawnAnchors": [
+    {"x": 0.0, "y": 0.0, "z": -20.0},
+    {"x": 20.0, "y": 0.0, "z": 0.0},
+    {"x": -20.0, "y": 0.0, "z": 0.0}
+  ],
+  "resources": [
+    {"type": "wood", "position": {"x": 0.0, "y": 1.0, "z": 2.5}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
+    {"type": "wood", "position": {"x": -4.0, "y": 1.0, "z": -2.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
+    {"type": "wood", "position": {"x": 5.0, "y": 1.0, "z": -5.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
+    {"type": "wood", "position": {"x": -8.0, "y": 1.0, "z": -9.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
+    {"type": "stone", "position": {"x": 3.0, "y": 0.8, "z": 4.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0},
+    {"type": "stone", "position": {"x": 8.0, "y": 0.8, "z": -1.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0},
+    {"type": "stone", "position": {"x": -6.0, "y": 0.8, "z": -5.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0}
+  ],
+  "obstacles": [
+    {"minX": -9.0, "maxX": -7.0, "minZ": -8.0, "maxZ": -6.0, "height": 2.0},
+    {"minX": 7.5, "maxX": 10.5, "minZ": -13.5, "maxZ": -10.5, "height": 3.0}
+  ]
+}

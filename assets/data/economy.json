@@ -1,0 +1,10 @@
+{
+  "goldMineInterval": 5.0,
+  "goldMineAmount": 5,
+  "waveRewardPerWave": 15,
+  "repairCostFraction": 0.5,
+  "sellRefundFraction": 0.5,
+  "buildingUpgradeCostMultiplier": [0.5, 1.0],
+  "buildingUpgradeGoldBonus": [10, 25],
+  "coreUpgradeGold": [50, 100]
+}

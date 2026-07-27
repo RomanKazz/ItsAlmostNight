@@ -1,0 +1,70 @@
+#include "TestHarness.hpp"
+#include "combat/PlayerWeaponSystem.hpp"
+#include "enemies/EnemySystem.hpp"
+
+#include <array>
+
+void runPlayerWeaponSystemTests() {
+    ian::EnemySystem enemies;
+    constexpr std::array<ian::Vec3, 1> Spawn{{{0.0, 0.8, -10.0}}};
+    enemies.spawnWave(Spawn);
+
+    ian::PlayerWeaponSystem weapon;
+    const double baseFireInterval = weapon.fireInterval();
+    const double baseReloadDuration = weapon.reloadDuration();
+    const int baseMagazineSize = weapon.magazineSize();
+    weapon.toggleWeapon();
+    const ian::Vec3 origin{0.0, 0.8, 0.0};
+    const ian::Vec3 direction{0.0, 0.0, -1.0};
+
+    const auto firstShot = weapon.fireRifle(origin, direction, enemies);
+    require(firstShot.has_value() && firstShot->targetId.has_value(),
+            "rifle hits enemy on camera ray");
+    require(!firstShot->killed, "first rifle shot leaves basic enemy alive");
+    require(!weapon.fireRifle(origin, direction, enemies),
+            "rifle cooldown rejects immediate second shot");
+
+    weapon.tick(baseFireInterval);
+    const auto secondShot = weapon.fireRifle(origin, direction, enemies);
+    require(secondShot.has_value() && secondShot->killed, "second rifle shot kills basic enemy");
+
+    ian::EnemySystem emptyEnemies;
+    for (int shot = 2; shot < baseMagazineSize; ++shot) {
+        weapon.tick(baseFireInterval);
+        require(weapon.fireRifle(origin, direction, emptyEnemies).has_value(),
+                "rifle fires remaining magazine");
+    }
+    require(weapon.ammunition() == 0 && weapon.reloading(),
+            "empty magazine starts automatic reload");
+    weapon.tick(baseReloadDuration);
+    require(weapon.ammunition() == baseMagazineSize && !weapon.reloading(),
+            "reload restores full magazine");
+
+    ian::PlayerWeaponSystem upgradedWeapon;
+    require(upgradedWeapon.validateUpgrade(1, 40).error ==
+                ian::WeaponUpgradeError::CoreLevelRequired,
+            "rifle cannot exceed core level");
+    require(upgradedWeapon.validateUpgrade(2, 39).error ==
+                ian::WeaponUpgradeError::InsufficientGold,
+            "rifle upgrade validates gold");
+    const auto levelTwo = upgradedWeapon.upgrade(2, 40);
+    require(levelTwo.valid() && levelTwo.level == 2 && levelTwo.goldCost == 40,
+            "rifle reaches level two");
+    require(upgradedWeapon.magazineSize() == 10 && upgradedWeapon.ammunition() == 10,
+            "rifle upgrade expands current magazine");
+    requireNear(upgradedWeapon.rifleDamage(), 3.5, 1e-12,
+                "rifle upgrade increases damage");
+    require(upgradedWeapon.fireInterval() < baseFireInterval &&
+                upgradedWeapon.reloadDuration() < baseReloadDuration,
+            "rifle upgrade accelerates firing and reload");
+
+    ian::EnemySystem upgradedTargets;
+    upgradedTargets.spawnWave(Spawn);
+    upgradedWeapon.toggleWeapon();
+    const auto upgradedShot = upgradedWeapon.fireRifle(origin, direction, upgradedTargets);
+    require(upgradedShot.has_value() && upgradedShot->killed,
+            "level-two rifle kills basic enemy in one shot");
+    require(upgradedWeapon.upgrade(3, 80).valid(), "rifle reaches level three");
+    require(upgradedWeapon.validateUpgrade(3, 0).error == ian::WeaponUpgradeError::MaxLevel,
+            "rifle cannot exceed level three");
+}
