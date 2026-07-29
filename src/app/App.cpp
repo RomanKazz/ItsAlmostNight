@@ -46,6 +46,8 @@ const char* modularPlacementMessage(
         return "NO STRUCTURAL SUPPORT";
     case ModularPlacementError::ResourceBlocked:
         return "CLEAR RESOURCE FIRST";
+    case ModularPlacementError::InsufficientResources:
+        return "NOT ENOUGH RESOURCES";
     }
     return "CANNOT BUILD";
 }
@@ -1234,6 +1236,11 @@ void App::render() {
                     .showFlowField = showFlowField_,
                     .showSpatialHash = showSpatialHash_,
                     .hideBottomHints = hideBottomHud_,
+                    .foundationBuildMode =
+                        foundationBuildMode_,
+                    .selectedModularBuildPiece =
+                        static_cast<std::size_t>(
+                            modularBuildPiece_),
                     .showBuildingContextCard =
                         showBuildingContextCard,
                     .repairSweepActive =

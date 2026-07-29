@@ -19,6 +19,7 @@ enum class ModularPlacementError {
     MaximumStorey,
     NoSupport,
     ResourceBlocked,
+    InsufficientResources,
 };
 
 struct FoundationSupport {

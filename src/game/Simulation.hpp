@@ -135,6 +135,8 @@ struct SimulationSnapshot {
     std::optional<BuildingType> selectedBuilding;
     std::array<ResourceCost, GameBalance::BuildingTypeCount>
         buildingCosts;
+    std::array<ResourceCost, ModularBuildPieceCount>
+        modularBuildingCosts;
     std::optional<BuildingPreview> buildingPreview;
     std::span<const BuildingInstance> buildings;
     std::span<const PlatformFrameInstance> platformFrames;
@@ -301,6 +303,8 @@ class Simulation {
     int wood_{};
     int stone_{};
     int gold_{};
+    std::array<ResourceCost, ModularBuildPieceCount>
+        modularBuildingCosts_;
     struct PendingResourceGrant {
         ResourceType type;
         Vec3 position;

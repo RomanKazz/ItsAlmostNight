@@ -34,5 +34,10 @@
   "quarry": {
     "wood": 30, "stone": 40, "gold": 15,
     "maxHealth": 170, "unlockCoreLevel": 2, "maxCount": 2
+  },
+  "modular": {
+    "platform": {"wood": 20, "stone": 5, "gold": 0},
+    "wall": {"wood": 5, "stone": 10, "gold": 0},
+    "ramp": {"wood": 16, "stone": 4, "gold": 0}
   }
 }

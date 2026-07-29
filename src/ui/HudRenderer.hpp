@@ -5,6 +5,7 @@
 
 #include <raylib.h>
 
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -24,6 +25,8 @@ struct HudViewState {
     bool showFlowField{};
     bool showSpatialHash{};
     bool hideBottomHints{};
+    bool foundationBuildMode{};
+    std::size_t selectedModularBuildPiece{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
     double simulationTickMilliseconds{};

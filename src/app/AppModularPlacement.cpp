@@ -151,6 +151,26 @@ void App::clearModularPlacementDrag() {
     modularWallDragPreviews_.clear();
 }
 
+void App::selectModularBuildPiece(
+    ModularBuildPiece piece) {
+    modularBuildPiece_ = piece;
+    clearModularPlacementDrag();
+    platformFramePreview_.reset();
+    platformFrameColumnPreview_.reset();
+    wallPreview_.reset();
+    rampPreview_.reset();
+    foundationTerrainHit_.reset();
+    modularSnapHit_.reset();
+    modularSnapMarker_.reset();
+    modularPreviewAnchor_.reset();
+    modularRearmAnchor_.reset();
+    modularVerticalRearmBlocked_ = false;
+    rampSocketFrame_.reset();
+    rampSocketRotation_.reset();
+    rampSocketLostGraceRemaining_ = 0.0;
+    rampSocketManualOverrideRemaining_ = 0.0;
+}
+
 void App::setFoundationBuildMode(bool enabled) {
     foundationBuildMode_ = enabled;
     platformFramePreview_.reset();
@@ -540,11 +560,9 @@ void App::updateModularPlacementPreview(
             modularRearmAnchor_.reset();
         } else {
             platformFramePreview_.reset();
-            foundationTerrainHit_ =
-                *edgeExtensionHit;
-            modularSnapHit_ = *edgeExtensionHit;
-            modularSnapMarker_ =
-                *edgeExtensionHit;
+            foundationTerrainHit_.reset();
+            modularSnapHit_.reset();
+            modularSnapMarker_.reset();
             modularPreviewAnchor_ =
                 platformFrameColumnPreview_->anchor;
         }

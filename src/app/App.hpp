@@ -53,6 +53,7 @@ class App {
     void beginModularPlacementDrag();
     [[nodiscard]] bool finishModularPlacementDrag();
     void clearModularPlacementDrag();
+    void selectModularBuildPiece(ModularBuildPiece piece);
     void setFoundationBuildMode(bool enabled);
     void rebuildModularPlacementLine();
     void update();
@@ -273,11 +274,6 @@ class App {
     bool showFlowField_{};
     bool showSpatialHash_{};
     bool showTerrainWireframe_{};
-    enum class ModularBuildPiece {
-        PlatformFrame,
-        Wall,
-        Ramp,
-    };
     enum class BuildModePieChoice {
         Buildings,
         Foundations,

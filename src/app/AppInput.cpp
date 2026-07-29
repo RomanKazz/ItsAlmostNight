@@ -388,33 +388,48 @@ void App::processInput() {
         pendingYaw_ += static_cast<double>(mouseDelta.x) * MouseSensitivity;
         pendingPitch_ -= static_cast<double>(mouseDelta.y) * MouseSensitivity;
         pendingJump_ = pendingJump_ || IsKeyPressed(KEY_SPACE);
-        if (IsKeyPressed(KEY_ONE)) {
-            selectBuildingMode(BuildingType::Core);
-        }
-        if (IsKeyPressed(KEY_TWO)) {
-            selectBuildingMode(BuildingType::Wall);
-        }
-        if (IsKeyPressed(KEY_THREE)) {
-            selectBuildingMode(BuildingType::Turret);
-        }
-        if (IsKeyPressed(KEY_FOUR)) {
-            selectBuildingMode(BuildingType::GoldMine);
-        }
-        if (IsKeyPressed(KEY_FIVE)) {
-            selectBuildingMode(BuildingType::Cannon);
-        }
-        if (IsKeyPressed(KEY_SIX)) {
-            selectBuildingMode(BuildingType::SlowTrap);
-        }
-        if (IsKeyPressed(KEY_SEVEN)) {
-            selectBuildingMode(BuildingType::Gate);
-        }
-        if (IsKeyPressed(KEY_EIGHT)) {
-            selectBuildingMode(
-                BuildingType::LumberMill);
-        }
-        if (IsKeyPressed(KEY_NINE)) {
-            selectBuildingMode(BuildingType::Quarry);
+        if (foundationBuildMode_) {
+            if (IsKeyPressed(KEY_ONE)) {
+                selectModularBuildPiece(
+                    ModularBuildPiece::PlatformFrame);
+            }
+            if (IsKeyPressed(KEY_TWO)) {
+                selectModularBuildPiece(
+                    ModularBuildPiece::Wall);
+            }
+            if (IsKeyPressed(KEY_THREE)) {
+                selectModularBuildPiece(
+                    ModularBuildPiece::Ramp);
+            }
+        } else {
+            if (IsKeyPressed(KEY_ONE)) {
+                selectBuildingMode(BuildingType::Core);
+            }
+            if (IsKeyPressed(KEY_TWO)) {
+                selectBuildingMode(BuildingType::Wall);
+            }
+            if (IsKeyPressed(KEY_THREE)) {
+                selectBuildingMode(BuildingType::Turret);
+            }
+            if (IsKeyPressed(KEY_FOUR)) {
+                selectBuildingMode(BuildingType::GoldMine);
+            }
+            if (IsKeyPressed(KEY_FIVE)) {
+                selectBuildingMode(BuildingType::Cannon);
+            }
+            if (IsKeyPressed(KEY_SIX)) {
+                selectBuildingMode(BuildingType::SlowTrap);
+            }
+            if (IsKeyPressed(KEY_SEVEN)) {
+                selectBuildingMode(BuildingType::Gate);
+            }
+            if (IsKeyPressed(KEY_EIGHT)) {
+                selectBuildingMode(
+                    BuildingType::LumberMill);
+            }
+            if (IsKeyPressed(KEY_NINE)) {
+                selectBuildingMode(BuildingType::Quarry);
+            }
         }
         if (IsKeyPressed(KEY_ZERO)) {
             setFoundationBuildMode(
@@ -422,27 +437,18 @@ void App::processInput() {
         }
         if (foundationBuildMode_ &&
             IsKeyPressed(KEY_V)) {
-            clearModularPlacementDrag();
-            modularSnapHit_.reset();
-            modularSnapMarker_.reset();
-            modularPreviewAnchor_.reset();
-            rampSocketFrame_.reset();
-            rampSocketRotation_.reset();
-            rampSocketLostGraceRemaining_ = 0.0;
-            rampSocketManualOverrideRemaining_ = 0.0;
-            modularVerticalRearmBlocked_ = false;
             switch (modularBuildPiece_) {
             case ModularBuildPiece::PlatformFrame:
-                modularBuildPiece_ =
-                    ModularBuildPiece::Wall;
+                selectModularBuildPiece(
+                    ModularBuildPiece::Wall);
                 break;
             case ModularBuildPiece::Wall:
-                modularBuildPiece_ =
-                    ModularBuildPiece::Ramp;
+                selectModularBuildPiece(
+                    ModularBuildPiece::Ramp);
                 break;
             case ModularBuildPiece::Ramp:
-                modularBuildPiece_ =
-                    ModularBuildPiece::PlatformFrame;
+                selectModularBuildPiece(
+                    ModularBuildPiece::PlatformFrame);
                 break;
             }
         }
@@ -532,20 +538,20 @@ void App::processInput() {
                 if (frame !=
                     currentSnapshot.platformFrames.end()) {
                     setFoundationBuildMode(true);
-                    modularBuildPiece_ =
-                        ModularBuildPiece::PlatformFrame;
+                    selectModularBuildPiece(
+                        ModularBuildPiece::PlatformFrame);
                 } else if (
                     wall !=
                     currentSnapshot.modularWalls.end()) {
                     setFoundationBuildMode(true);
-                    modularBuildPiece_ =
-                        ModularBuildPiece::Wall;
+                    selectModularBuildPiece(
+                        ModularBuildPiece::Wall);
                     modularRotation_ = wall->rotation;
                 } else if (
                     ramp != currentSnapshot.ramps.end()) {
                     setFoundationBuildMode(true);
-                    modularBuildPiece_ =
-                        ModularBuildPiece::Ramp;
+                    selectModularBuildPiece(
+                        ModularBuildPiece::Ramp);
                     modularRotation_ = ramp->rotation;
                 }
             }

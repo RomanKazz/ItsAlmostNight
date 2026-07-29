@@ -39,6 +39,12 @@ struct BuildingBalanceDefinition {
     int maxCount;
 };
 
+struct ModularBuildingBalanceDefinition {
+    int wood;
+    int stone;
+    int gold;
+};
+
 struct RifleBalanceDefinition {
     double range;
     double damage;
@@ -108,6 +114,8 @@ struct GameBalance {
     std::array<EnemyDefinition, EnemyTypeCount> enemies;
     std::array<WaveDefinition, WaveCount> waves;
     std::array<BuildingBalanceDefinition, BuildingTypeCount> buildings;
+    std::array<ModularBuildingBalanceDefinition, 3>
+        modularBuildings;
     WeaponBalanceDefinition weapons;
     EconomyBalanceDefinition economy;
     GameplayBalanceDefinition gameplay;

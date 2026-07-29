@@ -15,6 +15,11 @@ void runGameBalanceTests() {
                              "assets/data/buildings.json", "assets/data/weapons.json",
                              "assets/data/economy.json", "assets/data/gameplay.json");
     require(assetBalance.valid(), "copied asset JSON files load from runtime path");
+    require(
+        assetBalance.balance.modularBuildings[0].wood == 20 &&
+            assetBalance.balance.modularBuildings[1].stone == 10 &&
+            assetBalance.balance.modularBuildings[2].wood == 16,
+        "asset balance exposes modular construction prices");
 
     constexpr std::string_view Enemies = R"json({
         "basic": {"health": 9, "speed": 2, "damage": 4},
@@ -105,6 +110,9 @@ void runGameBalanceTests() {
     const auto loaded =
         ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, Gameplay);
     require(loaded.valid(), "valid JSON balance parses");
+    require(
+        loaded.balance.modularBuildings[0].wood == 20,
+        "older building balance keeps default modular prices");
     require(loaded.balance.enemies[0].health == 9.0,
             "enemy stats come from JSON");
     require(loaded.balance.enemies[3].ramWindup == 1.0 &&

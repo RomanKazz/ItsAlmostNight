@@ -30,6 +30,24 @@ Vec3 lookDirection(double yaw, double pitch) {
     };
 }
 
+ResourceCost scaledCost(ResourceCost cost,
+                        std::size_t count) {
+    const int multiplier =
+        static_cast<int>(count);
+    return {
+        .wood = cost.wood * multiplier,
+        .stone = cost.stone * multiplier,
+        .gold = cost.gold * multiplier,
+    };
+}
+
+bool canAfford(ResourceCost cost, int wood, int stone,
+               int gold) {
+    return wood >= cost.wood &&
+           stone >= cost.stone &&
+           gold >= cost.gold;
+}
+
 double enemyHeight(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
@@ -68,6 +86,23 @@ Simulation::Simulation(
       worldConfig_(worldConfig),
       terrain_(worldConfig_),
       foundations_(terrain_, worldConfig_),
+      modularBuildingCosts_{{
+          {
+              balance.modularBuildings[0].wood,
+              balance.modularBuildings[0].stone,
+              balance.modularBuildings[0].gold,
+          },
+          {
+              balance.modularBuildings[1].wood,
+              balance.modularBuildings[1].stone,
+              balance.modularBuildings[1].gold,
+          },
+          {
+              balance.modularBuildings[2].wood,
+              balance.modularBuildings[2].stone,
+              balance.modularBuildings[2].gold,
+          },
+      }},
       resources_(scatterResources(
           map_.resources, map_.worldLimit,
           terrain_)),
@@ -357,14 +392,30 @@ Simulation::previewPlatformFrame(
         placement.error =
             ModularPlacementError::ResourceBlocked;
     }
+    if (placement.valid() && !unlimitedResources_ &&
+        !canAfford(
+            modularBuildingCosts_[0],
+            wood_, stone_, gold_)) {
+        placement.error =
+            ModularPlacementError::InsufficientResources;
+    }
     return placement;
 }
 
 std::optional<PlatformFrameInstance>
 Simulation::placePlatformFrame(Vec3 terrainHit) {
-    auto placed = foundations_.placePlatformFrame(
-        previewPlatformFrame(terrainHit));
+    const PlatformFramePlacement preview =
+        previewPlatformFrame(terrainHit);
+    auto placed =
+        foundations_.placePlatformFrame(preview);
     if (placed) {
+        if (!unlimitedResources_) {
+            const ResourceCost cost =
+                modularBuildingCosts_[0];
+            wood_ -= cost.wood;
+            stone_ -= cost.stone;
+            gold_ -= cost.gold;
+        }
         syncModularStructures();
         raisePlayerOntoGroundFrame(*placed);
     }
@@ -401,6 +452,16 @@ Simulation::previewPlatformFrameColumn(
             break;
         }
     }
+    const ResourceCost cost = scaledCost(
+        modularBuildingCosts_[0],
+        placement.frames.size());
+    if (placement.valid() && !unlimitedResources_ &&
+        !canAfford(cost, wood_, stone_, gold_)) {
+        placement.error =
+            ModularPlacementError::InsufficientResources;
+        placement.frames.back().error =
+            placement.error;
+    }
     return placement;
 }
 
@@ -416,6 +477,14 @@ Simulation::placePlatformFrameColumn(
         foundations_.placePlatformFrameColumn(
             placement);
     if (!placed.empty()) {
+        if (!unlimitedResources_) {
+            const ResourceCost cost = scaledCost(
+                modularBuildingCosts_[0],
+                placed.size());
+            wood_ -= cost.wood;
+            stone_ -= cost.stone;
+            gold_ -= cost.gold;
+        }
         syncModularStructures();
         for (const PlatformFrameInstance& frame :
              placed) {
@@ -442,15 +511,30 @@ WallPlacement Simulation::previewWall(
         placement.error =
             ModularPlacementError::ResourceBlocked;
     }
+    if (placement.valid() && !unlimitedResources_ &&
+        !canAfford(
+            modularBuildingCosts_[1],
+            wood_, stone_, gold_)) {
+        placement.error =
+            ModularPlacementError::InsufficientResources;
+    }
     return placement;
 }
 
 std::optional<WallInstance>
 Simulation::placeWall(
     Vec3 terrainHit, Rotation rotation) {
-    auto placed = foundations_.placeWall(
-        previewWall(terrainHit, rotation));
+    const WallPlacement preview =
+        previewWall(terrainHit, rotation);
+    auto placed = foundations_.placeWall(preview);
     if (placed) {
+        if (!unlimitedResources_) {
+            const ResourceCost cost =
+                modularBuildingCosts_[1];
+            wood_ -= cost.wood;
+            stone_ -= cost.stone;
+            gold_ -= cost.gold;
+        }
         syncModularStructures();
     }
     return placed;
@@ -484,15 +568,30 @@ RampPlacement Simulation::previewRamp(
         placement.error =
             ModularPlacementError::ResourceBlocked;
     }
+    if (placement.valid() && !unlimitedResources_ &&
+        !canAfford(
+            modularBuildingCosts_[2],
+            wood_, stone_, gold_)) {
+        placement.error =
+            ModularPlacementError::InsufficientResources;
+    }
     return placement;
 }
 
 std::optional<RampInstance>
 Simulation::placeRamp(
     Vec3 terrainHit, Rotation rotation) {
-    auto placed = foundations_.placeRamp(
-        previewRamp(terrainHit, rotation));
+    const RampPlacement preview =
+        previewRamp(terrainHit, rotation);
+    auto placed = foundations_.placeRamp(preview);
     if (placed) {
+        if (!unlimitedResources_) {
+            const ResourceCost cost =
+                modularBuildingCosts_[2];
+            wood_ -= cost.wood;
+            stone_ -= cost.stone;
+            gold_ -= cost.gold;
+        }
         syncModularStructures();
     }
     return placed;
@@ -2291,6 +2390,7 @@ SimulationSnapshot Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::LumberMill),
             buildings_.configuredCost(BuildingType::Quarry),
         },
+        .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
         .buildings = std::span<const BuildingInstance>{buildings_.buildings()},
         .platformFrames =

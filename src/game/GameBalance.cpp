@@ -95,6 +95,22 @@ BuildingBalanceDefinition parseBuilding(const Json& value) {
     return definition;
 }
 
+ModularBuildingBalanceDefinition
+parseModularBuilding(const Json& value) {
+    const ModularBuildingBalanceDefinition definition{
+        .wood = value.at("wood").get<int>(),
+        .stone = value.at("stone").get<int>(),
+        .gold = value.at("gold").get<int>(),
+    };
+    if (definition.wood < 0 ||
+        definition.stone < 0 ||
+        definition.gold < 0) {
+        throw std::runtime_error(
+            "invalid modular building definition");
+    }
+    return definition;
+}
+
 WeaponBalanceDefinition parseWeapons(const Json& document) {
     const Json& rifle = document.at("rifle");
     const Json& bomb = document.at("bomb");
@@ -240,6 +256,11 @@ GameBalance GameBalance::defaults() {
             {40, 15, 10, 150.0, 2, 2},
             {30, 40, 15, 170.0, 2, 2},
         }},
+        .modularBuildings = {{
+            {20, 5, 0},
+            {5, 10, 0},
+            {16, 4, 0},
+        }},
         .weapons = {
             .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {40, 80}},
             .bomb = {3, 6.0, 4.0, 9.8, 1.2, 0.2, 4.0, 6.0, 8.0},
@@ -319,6 +340,18 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             throw std::runtime_error("core must be unique and unlocked");
         }
         result.balance.buildings = parsed;
+        if (buildings.contains("modular")) {
+            const Json& modular =
+                buildings.at("modular");
+            result.balance.modularBuildings = {{
+                parseModularBuilding(
+                    modular.at("platform")),
+                parseModularBuilding(
+                    modular.at("wall")),
+                parseModularBuilding(
+                    modular.at("ramp")),
+            }};
+        }
     } catch (const std::exception& error) {
         result.errors.push_back("buildings.json: " + std::string(error.what()));
     }

@@ -433,8 +433,184 @@ void drawBuildingContextCard(
         UiResourceIcon::Crystal, cost.gold, snapshot.gold);
 }
 
-void drawBuildHotbar(GameUi& ui,
-                     const SimulationSnapshot& snapshot) {
+struct BuildHotbarSlot {
+    std::string_view key;
+    std::string_view label;
+    ResourceCost cost;
+    bool selected{};
+    bool available{};
+};
+
+void drawBuildHotbarSlots(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    std::span<const BuildHotbarSlot> slots) {
+    constexpr float Gap = 10.0F;
+    constexpr float MaximumSize = 112.0F;
+    const float screenWidth =
+        static_cast<float>(GetScreenWidth());
+    const float availableWidth = screenWidth - 32.0F;
+    const float gapWidth =
+        Gap * static_cast<float>(slots.size() - 1U);
+    const float slotSize = std::min(
+        MaximumSize,
+        (availableWidth - gapWidth) /
+            static_cast<float>(slots.size()));
+    const float totalWidth =
+        slotSize * static_cast<float>(slots.size()) +
+        gapWidth;
+    const float startX =
+        (screenWidth - totalWidth) * 0.5F;
+    const float slotY =
+        static_cast<float>(GetScreenHeight()) -
+        slotSize - 22.0F;
+    const auto centeredText =
+        [](std::string_view text, float centerX, float textY,
+           float fontSize, Color color) {
+            const float width =
+                measureUiText(text, fontSize).x;
+            drawUiText(
+                text, {centerX - width * 0.5F, textY},
+                fontSize, color);
+        };
+    constexpr std::array<UiResourceIcon, 3> CostIcons{
+        UiResourceIcon::Wood,
+        UiResourceIcon::Stone,
+        UiResourceIcon::Crystal,
+    };
+    const std::array<int, 3> inventory{
+        snapshot.wood, snapshot.stone, snapshot.gold};
+
+    for (std::size_t index = 0; index < slots.size();
+         ++index) {
+        const BuildHotbarSlot& slot = slots[index];
+        const float x =
+            startX + static_cast<float>(index) *
+                         (slotSize + Gap);
+        const Rectangle bounds{x, slotY, slotSize, slotSize};
+        ui.drawInsetPanel(
+            bounds, slot.available ? 238 : 188);
+        DrawRectangleLinesEx(
+            bounds, slot.selected ? 5.0F : 2.0F,
+            slot.selected
+                ? Color{255, 255, 255, 255}
+                : slot.available
+                      ? Color{185, 169, 139, 215}
+                      : Color{112, 101, 91, 180});
+
+        const float keySize = std::clamp(
+            slotSize * 0.27F, 22.0F, 30.0F);
+        const Rectangle keyBounds{
+            x + 7.0F, slotY + 7.0F,
+            keySize, keySize};
+        DrawRectangleRounded(
+            keyBounds, 0.22F, 4,
+            slot.selected
+                ? Color{240, 240, 232, 245}
+                : Color{35, 31, 27, 225});
+        centeredText(
+            slot.key,
+            keyBounds.x + keyBounds.width * 0.5F,
+            keyBounds.y + 4.0F, 10.0F,
+            slot.selected
+                ? Color{38, 34, 29, 255}
+                : Color{245, 238, 220, 255});
+        centeredText(
+            slot.label, x + slotSize * 0.5F,
+            slotY + slotSize * 0.56F, 9.0F,
+            slot.available
+                ? Color{235, 222, 190, 235}
+                : Color{132, 122, 110, 210});
+
+        const std::array<int, 3> amounts{
+            slot.cost.wood,
+            slot.cost.stone,
+            slot.cost.gold};
+        const float iconSize =
+            std::clamp(
+                slotSize * 0.3F, 28.0F, 34.0F);
+        constexpr float IconGap = 2.0F;
+        const float iconRowWidth =
+            iconSize * 3.0F + IconGap * 2.0F;
+        const float iconRowX =
+            x + (slotSize - iconRowWidth) * 0.5F;
+        const float iconY =
+            slotY - iconSize - 13.0F;
+        DrawRectangleRounded(
+            {x - 3.0F, iconY - 4.0F,
+             slotSize + 6.0F, iconSize + 12.0F},
+            0.2F, 5, Color{24, 21, 18, 205});
+        for (std::size_t resource = 0;
+             resource < CostIcons.size(); ++resource) {
+            const float iconX =
+                iconRowX +
+                static_cast<float>(resource) *
+                    (iconSize + IconGap);
+            ui.drawResourceIcon(
+                {iconX, iconY, iconSize, iconSize},
+                CostIcons[resource]);
+            const std::string amount =
+                std::to_string(amounts[resource]);
+            const float amountWidth =
+                measureUiText(amount, 10.0F).x;
+            const float badgeWidth =
+                std::max(25.0F, amountWidth + 9.0F);
+            const Rectangle badge{
+                iconX + iconSize - badgeWidth + 4.0F,
+                iconY + iconSize - 18.0F,
+                badgeWidth, 21.0F};
+            DrawRectangleRounded(
+                badge, 0.45F, 5,
+                Color{20, 18, 16, 245});
+            drawUiText(
+                amount,
+                {badge.x +
+                     (badge.width - amountWidth) * 0.5F,
+                 badge.y - 1.0F},
+                10.0F,
+                snapshot.unlimitedResources ||
+                        inventory[resource] >=
+                            amounts[resource]
+                    ? Color{244, 235, 214, 255}
+                    : Color{242, 103, 83, 255});
+        }
+    }
+}
+
+void drawFoundationHotbar(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    const HudViewState& view) {
+    constexpr std::array<std::string_view, 3> Labels{
+        "PLATFORM", "WALL", "RAMP"};
+    constexpr std::array<std::string_view, 3> Keys{
+        "1", "2", "3"};
+    std::array<BuildHotbarSlot, 3> slots{};
+    for (std::size_t index = 0;
+         index < slots.size(); ++index) {
+        const ResourceCost cost =
+            snapshot.modularBuildingCosts[index];
+        slots[index] = {
+            .key = Keys[index],
+            .label = Labels[index],
+            .cost = cost,
+            .selected =
+                view.selectedModularBuildPiece == index,
+            .available =
+                snapshot.unlimitedResources ||
+                (snapshot.wood >= cost.wood &&
+                 snapshot.stone >= cost.stone &&
+                 snapshot.gold >= cost.gold),
+        };
+    }
+    drawBuildHotbarSlots(ui, snapshot, slots);
+}
+
+void drawBuildHotbar(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    const HudViewState& view) {
+    if (view.foundationBuildMode) {
+        drawFoundationHotbar(ui, snapshot, view);
+        return;
+    }
     constexpr std::array<BuildingType, 9> Types{
         BuildingType::Core,     BuildingType::Wall,
         BuildingType::Turret,   BuildingType::GoldMine,
@@ -445,30 +621,7 @@ void drawBuildHotbar(GameUi& ui,
     constexpr std::array<const char*, 9> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9",
     };
-    const float screenWidth =
-        static_cast<float>(GetScreenWidth());
-    constexpr float Gap = 10.0F;
-    constexpr float MaximumSize = 112.0F;
-    const float availableWidth = screenWidth - 32.0F;
-    const float slotSize = std::min(
-        MaximumSize,
-        (availableWidth - Gap * 8.0F) / 9.0F);
-    const float totalWidth =
-        slotSize * 9.0F + Gap * 8.0F;
-    const float startX = (screenWidth - totalWidth) * 0.5F;
-    const float slotY =
-        static_cast<float>(GetScreenHeight()) - slotSize - 22.0F;
-
-    const auto centeredText =
-        [](std::string_view text, float centerX, float textY,
-           float fontSize, Color color) {
-            const float width =
-                measureUiText(text, fontSize).x;
-            drawUiText(
-                text, {centerX - width * 0.5F, textY},
-                fontSize, color);
-        };
-
+    std::array<BuildHotbarSlot, 9> slots{};
     for (std::size_t index = 0; index < Types.size();
          ++index) {
         const BuildingType type = Types[index];
@@ -493,93 +646,15 @@ void drawBuildHotbar(GameUi& ui,
              snapshot.stone >= cost.stone &&
              snapshot.gold >= cost.gold);
         const bool available = unlocked && affordable;
-        const float x =
-            startX + static_cast<float>(index) *
-                         (slotSize + Gap);
-        const Rectangle bounds{x, slotY, slotSize, slotSize};
-        ui.drawInsetPanel(bounds, available ? 238 : 188);
-        DrawRectangleLinesEx(
-            bounds, selected ? 5.0F : 2.0F,
-            selected
-                ? Color{255, 255, 255, 255}
-                : available
-                      ? Color{185, 169, 139, 215}
-                      : Color{112, 101, 91, 180});
-
-        const float keySize = std::clamp(
-            slotSize * 0.27F, 22.0F, 30.0F);
-        const Rectangle keyBounds{
-            x + 7.0F, slotY + 7.0F, keySize, keySize};
-        DrawRectangleRounded(
-            keyBounds, 0.22F, 4,
-            selected ? Color{240, 240, 232, 245}
-                     : Color{35, 31, 27, 225});
-        centeredText(
-            Keys[index], keyBounds.x + keyBounds.width * 0.5F,
-            keyBounds.y + 4.0F, 10.0F,
-            selected ? Color{38, 34, 29, 255}
-                     : Color{245, 238, 220, 255});
-
-        // Temporary label until building artwork is added.
-        centeredText(
-            buildingDisplayName(type), x + slotSize * 0.5F,
-            slotY + slotSize * 0.56F, 9.0F,
-            available ? Color{235, 222, 190, 235}
-                      : Color{132, 122, 110, 210});
-
-        constexpr std::array<UiResourceIcon, 3> CostIcons{
-            UiResourceIcon::Wood,
-            UiResourceIcon::Stone,
-            UiResourceIcon::Crystal,
+        slots[index] = {
+            .key = Keys[index],
+            .label = buildingDisplayName(type),
+            .cost = cost,
+            .selected = selected,
+            .available = available,
         };
-        const std::array<int, 3> CostAmounts{
-            cost.wood, cost.stone, cost.gold};
-        const std::array<int, 3> Inventory{
-            snapshot.wood, snapshot.stone, snapshot.gold};
-        const float iconSize =
-            std::clamp(slotSize * 0.3F, 28.0F, 34.0F);
-        constexpr float IconGap = 2.0F;
-        const float iconRowWidth =
-            iconSize * 3.0F + IconGap * 2.0F;
-        const float iconRowX =
-            x + (slotSize - iconRowWidth) * 0.5F;
-        const float iconY = slotY - iconSize - 13.0F;
-        DrawRectangleRounded(
-            {x - 3.0F, iconY - 4.0F, slotSize + 6.0F,
-             iconSize + 12.0F},
-            0.2F, 5, Color{24, 21, 18, 205});
-        for (std::size_t resource = 0;
-             resource < CostIcons.size(); ++resource) {
-            const float iconX =
-                iconRowX + static_cast<float>(resource) *
-                               (iconSize + IconGap);
-            ui.drawResourceIcon(
-                {iconX, iconY, iconSize, iconSize},
-                CostIcons[resource]);
-            const std::string amount =
-                std::to_string(CostAmounts[resource]);
-            const float amountWidth =
-                measureUiText(amount, 10.0F).x;
-            const float badgeWidth =
-                std::max(25.0F, amountWidth + 9.0F);
-            const Rectangle badge{
-                iconX + iconSize - badgeWidth + 4.0F,
-                iconY + iconSize - 18.0F,
-                badgeWidth, 21.0F};
-            DrawRectangleRounded(
-                badge, 0.45F, 5, Color{20, 18, 16, 245});
-            drawUiText(
-                amount,
-                {badge.x + (badge.width - amountWidth) * 0.5F,
-                 badge.y - 1.0F},
-                10.0F,
-                snapshot.unlimitedResources ||
-                        Inventory[resource] >=
-                            CostAmounts[resource]
-                    ? Color{244, 235, 214, 255}
-                    : Color{242, 103, 83, 255});
-        }
     }
+    drawBuildHotbarSlots(ui, snapshot, slots);
 }
 
 } // namespace
@@ -753,7 +828,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
 
     if (!view.hideBottomHints) {
-        drawBuildHotbar(ui, snapshot);
+        drawBuildHotbar(ui, snapshot, view);
     }
 
     const float hitProgress =

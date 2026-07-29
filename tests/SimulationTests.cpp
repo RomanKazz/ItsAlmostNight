@@ -339,6 +339,10 @@ void runSimulationTests() {
     {
         ian::Simulation platformAim;
         platformAim.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        platformAim.tick(1.0 / 60.0, unlimited);
         const auto frame = platformAim.placePlatformFrame(
             {0.2,
              platformAim.terrain().getHeight(
@@ -378,6 +382,11 @@ void runSimulationTests() {
             ian::GameBalance::defaults(),
             map, world};
         autoJumpSimulation.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        autoJumpSimulation.tick(
+            1.0 / 60.0, unlimited);
         const auto frame =
             autoJumpSimulation.placePlatformFrame(
                 {0.2, 0.0, 2.2});
@@ -460,6 +469,17 @@ void runSimulationTests() {
     require(simulation.snapshot().buildingCosts[0].wood == 30 &&
                 simulation.snapshot().buildingCosts[2].stone == 15,
             "snapshot exposes configured hotbar building costs");
+    require(
+        simulation.snapshot()
+                    .modularBuildingCosts[0]
+                    .wood == 20 &&
+            simulation.snapshot()
+                    .modularBuildingCosts[1]
+                    .stone == 10 &&
+            simulation.snapshot()
+                    .modularBuildingCosts[2]
+                    .wood == 16,
+        "snapshot exposes modular hotbar costs");
     require(simulation.snapshot().tick == 1, "running simulation advances");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "run starts with full player health");
