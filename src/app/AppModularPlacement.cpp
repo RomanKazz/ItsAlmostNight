@@ -1,5 +1,7 @@
 #include "app/App.hpp"
 
+#include "buildings/RampPlacementDirection.hpp"
+
 #include <raylib.h>
 
 #include <algorithm>
@@ -10,6 +12,105 @@ namespace ian {
 namespace {
 
 constexpr int MaximumModularLineLength = 48;
+
+struct RampEdgeTarget {
+    EntityId frameId;
+    Vec3 supportHit;
+    Vec3 edgeMarker;
+    GridCoord neighborAnchor;
+    Rotation rotation;
+};
+
+std::optional<RampEdgeTarget> rampEdgeTarget(
+    const PlatformFrameInstance& frame,
+    Vec3 playerPosition, Vec3 lookDirection,
+    double cellSize) {
+    if (std::abs(lookDirection.y) <= 1e-5) {
+        return std::nullopt;
+    }
+    const double distance =
+        (frame.floorHeight - playerPosition.y) /
+        lookDirection.y;
+    if (distance <= 0.0) {
+        return std::nullopt;
+    }
+
+    const double minimumX =
+        frame.anchor.x * cellSize;
+    const double minimumZ =
+        frame.anchor.z * cellSize;
+    const double maximumX =
+        (frame.anchor.x + PlatformFrameWidthCells) *
+        cellSize;
+    const double maximumZ =
+        (frame.anchor.z + PlatformFrameWidthCells) *
+        cellSize;
+    const double hitX =
+        playerPosition.x + lookDirection.x * distance;
+    const double hitZ =
+        playerPosition.z + lookDirection.z * distance;
+    if (hitX < minimumX || hitX > maximumX ||
+        hitZ < minimumZ || hitZ > maximumZ) {
+        return std::nullopt;
+    }
+
+    const Rotation rotation =
+        rampRotationFromDirection(
+            lookDirection.x, lookDirection.z);
+    const double centerX =
+        (minimumX + maximumX) * 0.5;
+    const double centerZ =
+        (minimumZ + maximumZ) * 0.5;
+    constexpr double EdgeCaptureDepthCells = 0.55;
+    const double edgeThreshold =
+        cellSize *
+        (PlatformFrameWidthCells * 0.5 -
+         EdgeCaptureDepthCells);
+    const double localX = hitX - centerX;
+    const double localZ = hitZ - centerZ;
+    bool pointsAtForwardEdge = false;
+    Vec3 marker{
+        centerX, frame.floorHeight, centerZ};
+    switch (rotation) {
+    case Rotation::Deg0:
+        pointsAtForwardEdge =
+            localZ >= edgeThreshold;
+        marker.z = maximumZ;
+        break;
+    case Rotation::Deg90:
+        pointsAtForwardEdge =
+            localX <= -edgeThreshold;
+        marker.x = minimumX;
+        break;
+    case Rotation::Deg180:
+        pointsAtForwardEdge =
+            localZ <= -edgeThreshold;
+        marker.z = minimumZ;
+        break;
+    case Rotation::Deg270:
+        pointsAtForwardEdge =
+            localX >= edgeThreshold;
+        marker.x = maximumX;
+        break;
+    }
+    if (!pointsAtForwardEdge) {
+        return std::nullopt;
+    }
+
+    return RampEdgeTarget{
+        .frameId = frame.id,
+        .supportHit = {
+            (frame.anchor.x + 0.5) * cellSize,
+            frame.floorHeight,
+            (frame.anchor.z + 0.5) * cellSize,
+        },
+        .edgeMarker = marker,
+        .neighborAnchor =
+            platformEdgeNeighborAnchor(
+                frame.anchor, rotation),
+        .rotation = rotation,
+    };
+}
 
 Vec3 platformFrameCenter(
     const PlatformFrameInstance& frame,
@@ -126,14 +227,72 @@ void App::updateModularPlacementPreview(
         std::sin(snapshot.playerPitch),
         -std::cos(snapshot.playerYaw) * cosPitch,
     };
-    const auto rawHit = simulation_.terrain().raycast(
-        snapshot.playerPosition, lookDirection, 12.0);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
 
     modularEdgeHoverFrame_.reset();
     modularEdgeExtensionAnchor_.reset();
+
+    if (modularBuildPiece_ == ModularBuildPiece::Ramp) {
+        std::optional<RampEdgeTarget> edgeTarget;
+        if (snapshot.aimedModularBuilding) {
+            const EntityId aimed =
+                *snapshot.aimedModularBuilding;
+            const auto frame = std::find_if(
+                snapshot.platformFrames.begin(),
+                snapshot.platformFrames.end(),
+                [aimed](
+                    const PlatformFrameInstance& candidate) {
+                    return candidate.id == aimed;
+                });
+            if (frame != snapshot.platformFrames.end()) {
+                edgeTarget = rampEdgeTarget(
+                    *frame, snapshot.playerPosition,
+                    lookDirection, cellSize);
+            }
+        }
+        if (!edgeTarget) {
+            platformFramePreview_.reset();
+            wallPreview_.reset();
+            rampPreview_.reset();
+            foundationTerrainHit_.reset();
+            modularSnapHit_.reset();
+            modularSnapMarker_.reset();
+            modularPreviewAnchor_.reset();
+            modularPreviewVisualOrigin_.reset();
+            modularVerticalRearmBlocked_ = false;
+            return;
+        }
+
+        modularRotation_ = edgeTarget->rotation;
+        modularEdgeHoverFrame_ = edgeTarget->frameId;
+        modularEdgeExtensionAnchor_ =
+            edgeTarget->neighborAnchor;
+        foundationTerrainHit_ =
+            edgeTarget->supportHit;
+        modularSnapHit_ = edgeTarget->supportHit;
+        modularSnapMarker_ = edgeTarget->edgeMarker;
+        rampPreview_ = simulation_.previewRamp(
+            edgeTarget->supportHit,
+            edgeTarget->rotation);
+        platformFramePreview_.reset();
+        wallPreview_.reset();
+        modularVerticalRearmBlocked_ = false;
+        if (rampPreview_) {
+            if (!modularPreviewAnchor_ ||
+                *modularPreviewAnchor_ !=
+                    rampPreview_->anchor) {
+                placementSnapPulseRemaining_ = 0.18;
+            }
+            modularPreviewAnchor_ =
+                rampPreview_->anchor;
+        }
+        return;
+    }
+
+    const auto rawHit = simulation_.terrain().raycast(
+        snapshot.playerPosition, lookDirection, 12.0);
     if (!rawHit) {
         platformFramePreview_.reset();
         wallPreview_.reset();

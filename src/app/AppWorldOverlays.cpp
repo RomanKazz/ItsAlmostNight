@@ -468,8 +468,10 @@ void App::drawWorldOverlays(
                              type, position);
         };
     if (foundationBuildMode_ &&
-        modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
+        (modularBuildPiece_ ==
+             ModularBuildPiece::PlatformFrame ||
+         modularBuildPiece_ ==
+             ModularBuildPiece::Ramp) &&
         modularEdgeHoverFrame_) {
         const EntityId target =
             *modularEdgeHoverFrame_;

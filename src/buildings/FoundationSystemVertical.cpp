@@ -27,13 +27,13 @@ GridCoord rampAnchorFromSupport(
     // The ramp footprint begins outside the supporting
     // PlatformFrame, with its low edge flush to the floor edge.
     if (rotation == Rotation::Deg0) {
-        support.z += 1;
+        support.z += PlatformFrameWidthCells;
     } else if (rotation == Rotation::Deg180) {
         support.z -= ModularRampRunCells;
     } else if (rotation == Rotation::Deg90) {
         support.x -= ModularRampRunCells;
     } else {
-        support.x += 1;
+        support.x += PlatformFrameWidthCells;
     }
     return support;
 }

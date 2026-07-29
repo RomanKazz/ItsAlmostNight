@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "buildings/FoundationSystem.hpp"
+#include "buildings/RampPlacementDirection.hpp"
 #include "buildings/StructuralSupportGraph.hpp"
 
 #include <algorithm>
@@ -329,7 +330,8 @@ void runFoundationSystemTests() {
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
                         ian::Rotation::Deg0)
-                    .anchor.z == 1 &&
+                    .anchor.z ==
+                ian::PlatformFrameWidthCells &&
             envelope
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
@@ -340,8 +342,19 @@ void runFoundationSystemTests() {
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
                         ian::Rotation::Deg270)
-                    .anchor.x == 1,
+                    .anchor.x ==
+                ian::PlatformFrameWidthCells,
         "ramp footprint begins outside the supporting platform edge");
+    require(
+        ian::rampRotationFromDirection(0.1, 1.0) ==
+                ian::Rotation::Deg0 &&
+            ian::rampRotationFromDirection(-1.0, 0.1) ==
+                ian::Rotation::Deg90 &&
+            ian::rampRotationFromDirection(0.1, -1.0) ==
+                ian::Rotation::Deg180 &&
+            ian::rampRotationFromDirection(1.0, 0.1) ==
+                ian::Rotation::Deg270,
+        "ramp rotation follows the dominant horizontal look direction");
     require(
         base && wall && ramp &&
             std::abs(

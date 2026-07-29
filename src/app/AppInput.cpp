@@ -707,7 +707,9 @@ void App::processInput() {
                 ToggleGateCommand{*actionBuilding};
         }
         const float wheel = GetMouseWheelMove();
-        if (foundationBuildMode_ ||
+        if ((foundationBuildMode_ &&
+             modularBuildPiece_ !=
+                 ModularBuildPiece::Ramp) ||
             currentSnapshot.selectedBuilding) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
