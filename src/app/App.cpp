@@ -1494,7 +1494,7 @@ void App::drawBuildModePie() const {
 
     constexpr float OuterRadius = 150.0F;
     constexpr float InnerRadius = 42.0F;
-    constexpr float ArrowRadius = 112.0F;
+    constexpr float ArrowRadius = 78.0F;
     const Vector2 center{
         static_cast<float>(GetScreenWidth()) * 0.5F,
         static_cast<float>(GetScreenHeight()) * 0.5F,
@@ -1575,30 +1575,36 @@ void App::drawBuildModePie() const {
             Vector2Scale(
                 buildModePieDirection_,
                 1.0F / length);
-        const Vector2 tip =
+        const Vector2 arrowCenter =
             Vector2Add(
                 center,
-                Vector2Scale(
-                    direction,
-                    std::min(length, ArrowRadius)));
+                Vector2Scale(direction, ArrowRadius));
+        const Vector2 tip =
+            Vector2Add(
+                arrowCenter,
+                Vector2Scale(direction, 17.0F));
         const Vector2 arrowBase =
             Vector2Subtract(
-                tip,
-                Vector2Scale(direction, 20.0F));
+                arrowCenter,
+                Vector2Scale(direction, 2.0F));
+        const Vector2 tail =
+            Vector2Subtract(
+                arrowCenter,
+                Vector2Scale(direction, 13.0F));
         const Vector2 perpendicular{
             -direction.y, direction.x};
         const Color arrowColor{
             255, 247, 224, 255};
-        DrawLineEx(center, arrowBase, 7.0F,
+        DrawLineEx(tail, arrowBase, 7.0F,
                    arrowColor);
         DrawTriangle(
             tip,
             Vector2Add(
                 arrowBase,
-                Vector2Scale(perpendicular, 10.0F)),
+                Vector2Scale(perpendicular, 9.0F)),
             Vector2Subtract(
                 arrowBase,
-                Vector2Scale(perpendicular, 10.0F)),
+                Vector2Scale(perpendicular, 9.0F)),
             arrowColor);
     } else {
         DrawCircleV(center, 7.0F,

@@ -415,8 +415,15 @@ void App::updateModularPlacementPreview(
         return;
     }
 
+    const double terrainRayDistance = std::max(
+        12.0,
+        modularStoreyHeight(terrain.config()) *
+                static_cast<double>(
+                    terrain.config().maxStoreys) +
+            12.0);
     const auto rawHit = simulation_.terrain().raycast(
-        snapshot.playerPosition, lookDirection, 12.0);
+        snapshot.playerPosition, lookDirection,
+        terrainRayDistance);
 
     std::optional<Vec3> edgeExtensionHit;
     std::optional<PlatformFrameColumnPlacement>
@@ -434,8 +441,15 @@ void App::updateModularPlacementPreview(
                 return candidate.id == aimed;
             });
         if (frame != snapshot.platformFrames.end()) {
-            modularEdgeHoverFrame_ = frame->id;
-            if (std::abs(lookDirection.y) > 1e-5) {
+            const bool useGroundFloorEdges =
+                frame->storey == 0 &&
+                !IsKeyDown(KEY_LEFT_CONTROL) &&
+                !IsKeyDown(KEY_RIGHT_CONTROL);
+            if (useGroundFloorEdges) {
+                modularEdgeHoverFrame_ = frame->id;
+            }
+            if (useGroundFloorEdges &&
+                std::abs(lookDirection.y) > 1e-5) {
                 const double distance =
                     (frame->floorHeight -
                      snapshot.playerPosition.y) /
@@ -570,6 +584,50 @@ void App::updateModularPlacementPreview(
         rampPreview_.reset();
         modularVerticalRearmBlocked_ = false;
         return;
+    }
+
+    if (modularBuildPiece_ ==
+            ModularBuildPiece::PlatformFrame &&
+        snapshot.aimedModularBuilding) {
+        const EntityId aimed =
+            *snapshot.aimedModularBuilding;
+        const auto frame = std::find_if(
+            snapshot.platformFrames.begin(),
+            snapshot.platformFrames.end(),
+            [aimed](
+                const PlatformFrameInstance& candidate) {
+                return candidate.id == aimed;
+            });
+        if (frame != snapshot.platformFrames.end() &&
+            (frame->storey > 0 ||
+             IsKeyDown(KEY_LEFT_CONTROL) ||
+             IsKeyDown(KEY_RIGHT_CONTROL))) {
+            const Vec3 stackHit{
+                (frame->anchor.x + 1.0) * cellSize,
+                terrain.getHeight(
+                    (frame->anchor.x + 1.0) * cellSize,
+                    (frame->anchor.z + 1.0) * cellSize),
+                (frame->anchor.z + 1.0) * cellSize,
+            };
+            platformFramePreview_ =
+                simulation_.previewPlatformFrame(
+                    stackHit);
+            platformFrameColumnPreview_.reset();
+            wallPreview_.reset();
+            rampPreview_.reset();
+            foundationTerrainHit_ = Vec3{
+                stackHit.x,
+                frame->floorHeight,
+                stackHit.z,
+            };
+            modularSnapHit_ = stackHit;
+            modularSnapMarker_ =
+                foundationTerrainHit_;
+            modularPreviewAnchor_ =
+                platformFramePreview_->anchor;
+            modularVerticalRearmBlocked_ = false;
+            return;
+        }
     }
 
     if (!rawHit) {

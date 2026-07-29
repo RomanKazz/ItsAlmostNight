@@ -482,7 +482,10 @@ void App::drawWorldOverlays(
                 const PlatformFrameInstance& candidate) {
                 return candidate.id == target;
             });
-        if (frame != snapshot.platformFrames.end()) {
+        if (frame != snapshot.platformFrames.end() &&
+            (modularBuildPiece_ ==
+                 ModularBuildPiece::Ramp ||
+             frame->storey == 0)) {
             const double cellSize =
                 simulation_.terrain()
                     .config().cellSize;
