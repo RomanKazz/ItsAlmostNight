@@ -392,6 +392,20 @@ void runFoundationSystemTests() {
         everyViewDirectionSelectsForwardEdge,
         "ramp edge direction follows the player's horizontal view");
     require(
+        ian::rampSocketContainsFloorAim(
+            rampSockets[0],
+            {1.0, 2.0, 1.5}, 1.0) &&
+            ian::rampSocketContainsFloorAim(
+                rampSockets[0],
+                {1.0, 2.0, 2.5}, 1.0) &&
+            !ian::rampSocketContainsFloorAim(
+                rampSockets[0],
+                {1.0, 2.0, 1.49}, 1.0) &&
+            !ian::rampSocketContainsFloorAim(
+                rampSockets[0],
+                {1.0, 2.0, 2.51}, 1.0),
+        "ramp edge safe zone spans half a cell on both sides");
+    require(
         base && wall && ramp &&
             std::abs(
                 wall->topHeight -

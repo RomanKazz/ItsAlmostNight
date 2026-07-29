@@ -206,13 +206,23 @@ void App::updateModularPlacementPreview(
                             return socket.rotation ==
                                    *rampSocketRotation_;
                         });
+                    const auto floorAim =
+                        rampSocketAimOnFloor(
+                            snapshot.playerPosition,
+                            lookDirection,
+                            retained->floorHeight);
                     targetIsWithinRetentionMargin =
                         previous != sockets.end() &&
-                        rampSocketAimScore(
-                            *previous,
-                            snapshot.playerPosition,
-                            lookDirection) <=
-                            RampSocketRetentionAimScore;
+                        ((floorAim &&
+                          rampSocketContainsFloorAim(
+                              *previous, *floorAim,
+                              cellSize)) ||
+                         (!floorAim &&
+                          rampSocketAimScore(
+                              *previous,
+                              snapshot.playerPosition,
+                              lookDirection) <=
+                              RampSocketRetentionAimScore));
                 }
                 if (targetIsWithinRetentionMargin ||
                     rampSocketLostGraceRemaining_ > 0.0) {
@@ -249,6 +259,16 @@ void App::updateModularPlacementPreview(
                                *rampSocketRotation_;
                     });
                 if (previous != sockets.end()) {
+                    const auto floorAim =
+                        rampSocketAimOnFloor(
+                            snapshot.playerPosition,
+                            lookDirection,
+                            targetFrame->floorHeight);
+                    const bool previousContainsFloorAim =
+                        floorAim &&
+                        rampSocketContainsFloorAim(
+                            *previous, *floorAim,
+                            cellSize);
                     const double previousAlignment =
                         rampSocketViewAlignment(
                             *previous,
@@ -262,9 +282,11 @@ void App::updateModularPlacementPreview(
                     if (!targetIsAimed ||
                         rampSocketManualOverrideRemaining_ >
                             0.0 ||
-                        previousAlignment +
-                                RampSocketDirectionSwitchMargin >=
-                            chosenAlignment) {
+                        previousContainsFloorAim ||
+                        (!floorAim &&
+                         previousAlignment +
+                                 RampSocketDirectionSwitchMargin >=
+                             chosenAlignment)) {
                         chosen = *previous;
                     }
                 }

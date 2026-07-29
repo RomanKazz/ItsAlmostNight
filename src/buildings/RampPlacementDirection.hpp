@@ -15,6 +15,7 @@ inline constexpr double RampSocketLostGraceSeconds = 0.65;
 // edge selected within roughly 23 degrees of the crosshair.
 inline constexpr double RampSocketRetentionAimScore = 0.18;
 inline constexpr double RampSocketDirectionSwitchMargin = 0.28;
+inline constexpr double RampSocketSafeZoneHalfCells = 0.5;
 
 [[nodiscard]] inline GridCoord platformEdgeNeighborAnchor(
     GridCoord frameAnchor, Rotation direction) {
@@ -70,6 +71,48 @@ struct RampEdgeSocket {
         (outward.x * lookDirection.x +
          outward.z * lookDirection.z) /
         horizontalLength;
+}
+
+[[nodiscard]] inline std::optional<Vec3>
+rampSocketAimOnFloor(
+    Vec3 playerPosition, Vec3 lookDirection,
+    double floorHeight) {
+    if (std::abs(lookDirection.y) <= 1e-9) {
+        return std::nullopt;
+    }
+    const double distance =
+        (floorHeight - playerPosition.y) /
+        lookDirection.y;
+    if (distance <= 0.0) {
+        return std::nullopt;
+    }
+    return Vec3{
+        playerPosition.x +
+            lookDirection.x * distance,
+        floorHeight,
+        playerPosition.z +
+            lookDirection.z * distance,
+    };
+}
+
+[[nodiscard]] inline double rampSocketOutwardOffset(
+    const RampEdgeSocket& socket, Vec3 point) {
+    const Vec3 outward =
+        rampSocketOutwardDirection(socket.rotation);
+    return
+        (point.x - socket.position.x) * outward.x +
+        (point.z - socket.position.z) * outward.z;
+}
+
+[[nodiscard]] inline bool rampSocketContainsFloorAim(
+    const RampEdgeSocket& socket, Vec3 floorAim,
+    double cellSize) {
+    const double halfSafeZone =
+        RampSocketSafeZoneHalfCells * cellSize;
+    const double outwardOffset =
+        rampSocketOutwardOffset(socket, floorAim);
+    return outwardOffset >= -halfSafeZone &&
+           outwardOffset <= halfSafeZone;
 }
 
 [[nodiscard]] inline std::array<RampEdgeSocket, 4>
