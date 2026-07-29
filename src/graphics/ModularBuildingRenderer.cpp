@@ -333,7 +333,8 @@ void ModularBuildingRenderer::drawWorld(
     if (preview.visualOrigin &&
         preview.platformFrameColumn.empty() &&
         preview.platformFrameLine.empty() &&
-        preview.wallLine.empty()) {
+        preview.wallLine.empty() &&
+        preview.rampLine.empty()) {
         std::optional<Vec3> targetOrigin;
         if (preview.platformFrame) {
             targetOrigin = Vec3{
@@ -417,6 +418,20 @@ void ModularBuildingRenderer::drawWorld(
                 buildings.cellSize,
                 previewColor(placement.valid()),
                 preview.rotationYaw);
+        }
+    } else if (!preview.rampLine.empty()) {
+        for (const RampPlacement& placement :
+             preview.rampLine) {
+            if (placement.topHeight <=
+                placement.bottomHeight) {
+                continue;
+            }
+            drawRamp(
+                placement.anchor, placement.rotation,
+                placement.bottomHeight,
+                placement.topHeight,
+                buildings.cellSize,
+                previewColor(placement.valid()));
         }
     } else if (preview.platformFrame) {
         drawPlatformFramePreview(

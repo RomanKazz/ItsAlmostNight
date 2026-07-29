@@ -1340,7 +1340,26 @@ void App::render() {
                     previewStorey =
                         platformFramePreview_->storey;
                 }
-                if (!modularPlatformDragPreviews_.empty()) {
+                if (!modularPlatformColumnDragPreviews_
+                         .empty()) {
+                    plannedCount = 0U;
+                    for (const auto& placement :
+                         modularPlatformColumnDragPreviews_) {
+                        plannedCount +=
+                            placement.frames.size();
+                    }
+                    previewValid = std::all_of(
+                        modularPlatformColumnDragPreviews_
+                            .begin(),
+                        modularPlatformColumnDragPreviews_
+                            .end(),
+                        [](
+                            const PlatformFrameColumnPlacement&
+                                placement) {
+                            return placement.valid();
+                        });
+                } else if (
+                    !modularPlatformDragPreviews_.empty()) {
                     plannedCount =
                         modularPlatformDragPreviews_.size();
                     previewValid = std::all_of(
@@ -1382,6 +1401,16 @@ void App::render() {
                         rampPreview_->error;
                     previewStorey =
                         rampPreview_->targetStorey;
+                }
+                if (!modularRampDragPreviews_.empty()) {
+                    plannedCount =
+                        modularRampDragPreviews_.size();
+                    previewValid = std::all_of(
+                        modularRampDragPreviews_.begin(),
+                        modularRampDragPreviews_.end(),
+                        [](const RampPlacement& placement) {
+                            return placement.valid();
+                        });
                 }
                 break;
             }

@@ -147,6 +147,7 @@ void App::drawWorldEntities(
                 rampPreview_ ? &*rampPreview_ : nullptr,
                 modularPlatformDragPreviews_,
                 modularWallDragPreviews_,
+                modularRampDragPreviews_,
                 foundationTerrainHit_ &&
                         !modularVerticalRearmBlocked_
                     ? &*foundationTerrainHit_
@@ -162,7 +163,8 @@ void App::drawWorldEntities(
                         modularPreviewVisualOrigin_
                     ? &*modularPreviewVisualOrigin_
                     : nullptr,
-                platformFrameColumnPreview_
+                platformFrameColumnPreview_ &&
+                        !modularDragPiece_
                     ? std::span<
                           const PlatformFramePlacement>{
                           platformFrameColumnPreview_

@@ -311,12 +311,18 @@ class App {
     std::optional<GridCoord> modularDragStart_;
     std::optional<GridCoord> modularDragEnd_;
     std::optional<int> modularDragStorey_;
+    std::optional<double> modularDragFloorHeight_;
+    std::optional<Rotation> modularDragRotation_;
     std::optional<ModularBuildPiece> modularDragPiece_;
     std::vector<Vec3> modularDragHits_;
     std::vector<PlatformFramePlacement>
         modularPlatformDragPreviews_;
+    std::vector<PlatformFrameColumnPlacement>
+        modularPlatformColumnDragPreviews_;
     std::vector<WallPlacement>
         modularWallDragPreviews_;
+    std::vector<RampPlacement>
+        modularRampDragPreviews_;
     bool hideBottomHud_{};
     double simulationTickMilliseconds_{};
     double peakSimulationTickMilliseconds_{};

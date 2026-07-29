@@ -31,6 +31,7 @@ struct ModularBuildingPreviewView {
     std::span<const PlatformFramePlacement>
         platformFrameLine;
     std::span<const WallPlacement> wallLine;
+    std::span<const RampPlacement> rampLine;
     const Vec3* terrainHit{};
     double maximumWoodSupportLength{2.4};
     std::optional<float> rotationYaw;

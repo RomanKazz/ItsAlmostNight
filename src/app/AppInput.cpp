@@ -21,26 +21,6 @@ using namespace app_detail;
 
 namespace {
 constexpr double MouseSensitivity = 0.002;
-
-Vec3 rampCenter(
-    const RampInstance& ramp, double cellSize) {
-    const bool alongZ =
-        ramp.rotation == Rotation::Deg0 ||
-        ramp.rotation == Rotation::Deg180;
-    const int widthCells =
-        alongZ ? ModularRampWidthCells
-               : ModularRampRunCells;
-    const int depthCells =
-        alongZ ? ModularRampRunCells
-               : ModularRampWidthCells;
-    return {
-        (ramp.anchor.x + widthCells * 0.5) *
-            cellSize,
-        ramp.bottomHeight,
-        (ramp.anchor.z + depthCells * 0.5) *
-            cellSize,
-    };
-}
 }
 
 void App::processInput() {
@@ -864,66 +844,13 @@ void App::processInput() {
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             if (foundationBuildMode_) {
-                bool placed = false;
-                const double modularCellSize =
-                    simulation_.terrain()
-                        .config().cellSize;
                 if (foundationTerrainHit_) {
                     switch (modularBuildPiece_) {
                     case ModularBuildPiece::PlatformFrame:
                         if (platformFrameColumnPreview_ &&
                             platformFrameColumnPreview_
                                 ->valid()) {
-                            const auto column =
-                                *platformFrameColumnPreview_;
-                            const auto frames =
-                                simulation_
-                                    .placePlatformFrameColumn(
-                                        column.anchor,
-                                        column.targetStorey,
-                                        column
-                                            .targetFloorHeight);
-                            placed =
-                                frames.size() ==
-                                column.frames.size();
-                            for (const auto& frame :
-                                 frames) {
-                                const Vec3 center{
-                                    (frame.anchor.x + 1.0) *
-                                        modularCellSize,
-                                    frame.floorHeight,
-                                    (frame.anchor.z + 1.0) *
-                                        modularCellSize,
-                                };
-                                addEffect(
-                                    PresentationEffectType::
-                                        BuildingPlaced,
-                                    center, 0.7, 1.25F);
-                                if (frame.storey == 0) {
-                                    grassClearAreas_
-                                        .push_back({
-                                            .center = {
-                                                static_cast<float>(
-                                                    center.x),
-                                                static_cast<float>(
-                                                    center.z),
-                                            },
-                                            .innerRadius =
-                                                static_cast<float>(
-                                                    modularCellSize *
-                                                    1.35),
-                                            .amount = 0.0F,
-                                        });
-                                }
-                            }
-                            if (placed) {
-                                modularRearmAnchor_ =
-                                    column.anchor;
-                                modularVerticalRearmBlocked_ =
-                                    true;
-                                platformFrameColumnPreview_
-                                    .reset();
-                            }
+                            beginModularPlacementDrag();
                         } else if (platformFramePreview_ &&
                             platformFramePreview_->valid()) {
                             beginModularPlacementDrag();
@@ -938,26 +865,10 @@ void App::processInput() {
                     case ModularBuildPiece::Ramp:
                         if (rampPreview_ &&
                             rampPreview_->valid()) {
-                            const auto ramp =
-                                simulation_.placeRamp(
-                                    *foundationTerrainHit_,
-                                    modularRotation_);
-                            placed = ramp.has_value();
-                            if (ramp) {
-                                addEffect(
-                                    PresentationEffectType::
-                                        BuildingPlaced,
-                                    rampCenter(
-                                        *ramp,
-                                        modularCellSize),
-                                    0.7, 1.35F);
-                            }
+                            beginModularPlacementDrag();
                         }
                         break;
                     }
-                }
-                if (placed) {
-                    audio_.playUiConfirm();
                 }
             } else if (currentSnapshot.buildingPreview &&
                 currentSnapshot.buildingPreview->type !=
