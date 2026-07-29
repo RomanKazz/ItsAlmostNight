@@ -21,9 +21,30 @@
 cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug
+git diff --check
 ```
 
-В отчёте указать изменённые публичные интерфейсы, проверки, ограничения.
+Для изменений в памяти, lifetime, контейнерах или указателях дополнительно:
+
+```bash
+cmake --preset sanitizers
+cmake --build --preset sanitizers
+ctest --preset sanitizers
+```
+
+## Git
+
+- После каждого завершённого результата создать тематический коммит.
+- Перед `git add` проверить `git status --short` и ignore-правила.
+- Не добавлять `build/`, `tmp/`, `.DS_Store`, логи и debug screenshots.
+- Не перезаписывать и не откатывать чужие незавершённые изменения.
+- Не использовать destructive-команды (`reset --hard`, `checkout --`) без
+  явного запроса.
+- В сообщении коммита кратко указать тип и результат:
+  `feat:`, `fix:`, `refactor:`, `docs:`, `test:` или `chore:`.
+
+В отчёте указать изменённые публичные интерфейсы, проверки, ограничения и hash
+созданного коммита.
 
 ## Формат задачи
 

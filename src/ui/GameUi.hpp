@@ -12,6 +12,12 @@ enum class UiBarColor {
     Yellow,
 };
 
+enum class UiResourceIcon {
+    Wood,
+    Stone,
+    Crystal,
+};
+
 class GameUi {
   public:
     GameUi() = default;
@@ -30,7 +36,16 @@ class GameUi {
                    int alignment = 0) const;
     void drawProgressBar(Rectangle bounds, float fraction,
                          UiBarColor color) const;
+    void drawResourceIcon(Rectangle bounds,
+                          UiResourceIcon icon,
+                          Color tint = WHITE) const;
+    [[nodiscard]] Texture2D resourceTexture(
+        UiResourceIcon icon) const;
     bool drawButton(Rectangle bounds, std::string_view text) const;
+    bool drawToggleButton(Rectangle bounds, std::string_view text,
+                          bool active) const;
+    float drawSliderBar(Rectangle bounds, float value,
+                        float minimum, float maximum) const;
 
   private:
     static Texture2D loadTexture(const char* path);
@@ -44,6 +59,9 @@ class GameUi {
     Texture2D barRed_{};
     Texture2D barGreen_{};
     Texture2D barYellow_{};
+    Texture2D resourceWood_{};
+    Texture2D resourceStone_{};
+    Texture2D resourceCrystal_{};
     bool initialized_{};
 };
 

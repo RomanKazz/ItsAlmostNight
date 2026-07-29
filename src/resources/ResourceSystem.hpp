@@ -1,8 +1,10 @@
 #pragma once
 
+#include "buildings/BuildingSystem.hpp"
 #include "core/Types.hpp"
 
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace ian {
@@ -20,8 +22,10 @@ struct ResourceNode {
     double health;
     double maxHealth;
     int yield;
+    int yieldRemaining;
     double respawnSeconds;
     double respawnRemaining;
+    std::uint32_t respawnGeneration{};
     bool active;
 };
 
@@ -48,7 +52,11 @@ class ResourceSystem {
     explicit ResourceSystem(std::vector<ResourceNodeDefinition> definitions);
 
     void reset();
-    void tick(double deltaSeconds);
+    void tick(
+        double deltaSeconds,
+        std::span<const BuildingInstance> buildings = {},
+        double worldLimit = 48.0,
+        std::optional<Vec3> playerPosition = std::nullopt);
 
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
@@ -58,6 +66,17 @@ class ResourceSystem {
 
   private:
     [[nodiscard]] std::vector<ResourceNode> makeNodes() const;
+    [[nodiscard]] std::optional<Vec3> findSafePosition(
+        const ResourceNode& node,
+        std::span<const BuildingInstance> buildings,
+        double worldLimit,
+        std::optional<Vec3> playerPosition) const;
+    [[nodiscard]] bool positionIsSafe(
+        const ResourceNode& node, Vec3 position,
+        std::span<const BuildingInstance> buildings,
+        double worldLimit,
+        std::optional<Vec3> playerPosition,
+        double buildingClearance) const;
 
     std::vector<ResourceNodeDefinition> definitions_;
     std::vector<ResourceNode> nodes_;

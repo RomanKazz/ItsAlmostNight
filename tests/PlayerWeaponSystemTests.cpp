@@ -26,10 +26,16 @@ void runPlayerWeaponSystemTests() {
 
     weapon.tick(baseFireInterval);
     const auto secondShot = weapon.fireRifle(origin, direction, enemies);
-    require(secondShot.has_value() && secondShot->killed, "second rifle shot kills basic enemy");
+    require(secondShot.has_value() && !secondShot->killed,
+            "stronger basic enemy survives second rifle shot");
+    weapon.tick(baseFireInterval);
+    const auto thirdShot =
+        weapon.fireRifle(origin, direction, enemies);
+    require(thirdShot.has_value() && thirdShot->killed,
+            "third rifle shot kills basic enemy");
 
     ian::EnemySystem emptyEnemies;
-    for (int shot = 2; shot < baseMagazineSize; ++shot) {
+    for (int shot = 3; shot < baseMagazineSize; ++shot) {
         weapon.tick(baseFireInterval);
         require(weapon.fireRifle(origin, direction, emptyEnemies).has_value(),
                 "rifle fires remaining magazine");
@@ -62,8 +68,8 @@ void runPlayerWeaponSystemTests() {
     upgradedTargets.spawnWave(Spawn);
     upgradedWeapon.toggleWeapon();
     const auto upgradedShot = upgradedWeapon.fireRifle(origin, direction, upgradedTargets);
-    require(upgradedShot.has_value() && upgradedShot->killed,
-            "level-two rifle kills basic enemy in one shot");
+    require(upgradedShot.has_value() && !upgradedShot->killed,
+            "stronger enemy survives one upgraded rifle shot");
     require(upgradedWeapon.upgrade(3, 80).valid(), "rifle reaches level three");
     require(upgradedWeapon.validateUpgrade(3, 0).error == ian::WeaponUpgradeError::MaxLevel,
             "rifle cannot exceed level three");

@@ -39,9 +39,20 @@ struct CannonExplosion {
     int killedCount;
 };
 
+struct CannonShot {
+    EntityId cannonId;
+    EntityId projectileId;
+    Vec3 position;
+};
+
 class CannonSystem {
   public:
     CannonSystem();
+
+    [[nodiscard]] static double attackRange(std::uint8_t level);
+    [[nodiscard]] static double fireInterval(std::uint8_t level);
+    [[nodiscard]] static double explosionRadius(std::uint8_t level);
+    [[nodiscard]] static double explosionDamage(std::uint8_t level);
 
     void reset();
     void clearProjectiles();
@@ -52,6 +63,7 @@ class CannonSystem {
 
     [[nodiscard]] const std::vector<CannonProjectile>& projectiles() const;
     [[nodiscard]] const std::vector<CannonRuntime>& cannons() const;
+    [[nodiscard]] std::span<const CannonShot> shots() const;
 
   private:
     void launch(const BuildingInstance& cannon, Vec3 targetPosition);
@@ -60,6 +72,7 @@ class CannonSystem {
     std::vector<CannonRuntime> cannons_;
     std::vector<CannonProjectile> projectiles_;
     std::vector<CannonExplosion> explosionBuffer_;
+    std::vector<CannonShot> shotBuffer_;
     std::uint32_t nextProjectileIndex_{4000};
 };
 

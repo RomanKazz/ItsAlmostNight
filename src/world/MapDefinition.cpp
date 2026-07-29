@@ -84,10 +84,7 @@ MapDefinition MapDefinition::defaults() {
             {ResourceType::Stone, {8.0, 0.8, -1.0}, 0.9, 4.0, 12, 15.0},
             {ResourceType::Stone, {-6.0, 0.8, -5.0}, 0.9, 4.0, 12, 15.0},
         },
-        .obstacles = {
-            {{-9.0, -7.0, -8.0, -6.0}, 2.0},
-            {{7.5, 10.5, -13.5, -10.5}, 3.0},
-        },
+        .obstacles = {},
     };
 }
 

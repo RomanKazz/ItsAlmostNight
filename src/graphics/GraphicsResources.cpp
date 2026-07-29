@@ -100,6 +100,34 @@ const Model& ModelResource::get() const {
     return model_;
 }
 
+ModelAnimationsResource::~ModelAnimationsResource() {
+    unload();
+}
+
+bool ModelAnimationsResource::load(const char* path) {
+    unload();
+    animations_ = LoadModelAnimations(path, &count_);
+    return animations_ != nullptr && count_ > 0;
+}
+
+void ModelAnimationsResource::unload() {
+    if (animations_ != nullptr) {
+        UnloadModelAnimations(animations_, count_);
+    }
+    animations_ = nullptr;
+    count_ = 0;
+}
+
+const ModelAnimation* ModelAnimationsResource::find(
+    std::string_view name) const {
+    for (int index = 0; index < count_; ++index) {
+        if (name == animations_[index].name) {
+            return &animations_[index];
+        }
+    }
+    return nullptr;
+}
+
 RenderTextureResource::~RenderTextureResource() {
     unload();
 }
@@ -113,7 +141,8 @@ bool RenderTextureResource::load(int width, int height) {
     target_ = LoadRenderTexture(width, height);
     loaded_ = IsRenderTextureValid(target_);
     if (loaded_) {
-        SetTextureFilter(target_.texture, TEXTURE_FILTER_BILINEAR);
+        SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
+        SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
     }
     return loaded_;
 }
@@ -234,14 +263,59 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     shadowShader_.load("assets/shaders/shadow.vs", "assets/shaders/shadow.fs");
     shadowDebugShader_.load(nullptr, "assets/shaders/shadow_debug.fs");
     skyShader_.load(nullptr, "assets/shaders/sky.fs");
+    selectionMaskShader_.load("assets/shaders/selection_mask.vs",
+                              "assets/shaders/selection_mask.fs");
+    selectionOutlineShader_.load(nullptr,
+                                 "assets/shaders/selection_outline.fs");
+    postProcessShader_.load(
+        nullptr, "assets/shaders/postprocess.fs");
+    grassShader_.load("assets/shaders/grass_instanced.vs",
+                      "assets/shaders/grass_instanced.fs");
+    upgradeEffectShader_.load("assets/shaders/upgrade_effect.vs",
+                              "assets/shaders/upgrade_effect.fs");
+    terrainTexture_.load("assets/textures/grass_watercolor.png");
+    if (terrainTexture_.valid()) {
+        Texture2D& texture = terrainTexture_.get();
+        GenTextureMipmaps(&texture);
+        SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+        SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
+    }
     cannonModel_.load("assets/models/cannon.glb");
     cannonballModel_.load("assets/models/cannonball.glb");
     arrowModel_.load("assets/models/arrow.glb");
     crossbowModel_.load("assets/models/crossbow.glb");
     coreModel_.load("assets/models/core.glb");
+    mineModel_.load("assets/models/mine.glb");
+    lumberMillModel_.load(
+        "assets/models/lumber_mill.glb");
+    quarryModel_.load("assets/models/quarry.glb");
     rockModel_.load("assets/models/rock.glb");
     treeModel_.load("assets/models/tree.glb");
+    wallIsolatedModel_.load("assets/models/walls/isolated.glb");
+    wallEndModel_.load("assets/models/walls/end.glb");
+    wallCornerModel_.load("assets/models/walls/corner.glb");
+    wallTModel_.load("assets/models/walls/t.glb");
+    wallCrossModel_.load("assets/models/walls/cross.glb");
+    grassModelB_.load(
+        "assets/models/grass/Grass_2_B_Singlesided_Color1.gltf");
+    grassModelC_.load(
+        "assets/models/grass/Grass_2_C_Singlesided_Color1.gltf");
+    grassModelD_.load(
+        "assets/models/grass/Grass_2_D_Singlesided_Color1.gltf");
+    enemyMinionModel_.load(
+        "assets/models/enemies/minion.glb");
+    enemyRogueModel_.load(
+        "assets/models/enemies/rogue.glb");
+    enemyWarriorModel_.load(
+        "assets/models/enemies/warrior.glb");
+    enemyMageModel_.load(
+        "assets/models/enemies/mage.glb");
+    enemyGeneralAnimations_.load(
+        "assets/models/enemies/animations/general.glb");
+    enemyMovementAnimations_.load(
+        "assets/models/enemies/animations/movement.glb");
     updateFramebuffer(settings);
+    updateSelectionMask(settings);
     updateShadowMap(settings);
 }
 
@@ -256,11 +330,11 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         return;
     }
 
-    const float scale = std::clamp(settings.renderScale, 0.5F, 1.0F);
+    const int pixelSize = std::clamp(settings.pixelSize, 1, 8);
     const int desiredWidth =
-        std::max(1, static_cast<int>(std::lround(static_cast<float>(framebufferWidth) * scale)));
+        std::max(1, (framebufferWidth + pixelSize - 1) / pixelSize);
     const int desiredHeight =
-        std::max(1, static_cast<int>(std::lround(static_cast<float>(framebufferHeight) * scale)));
+        std::max(1, (framebufferHeight + pixelSize - 1) / pixelSize);
     if (desiredWidth == requestedSceneWidth_ && desiredHeight == requestedSceneHeight_) {
         return;
     }
@@ -268,6 +342,29 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
     requestedSceneWidth_ = desiredWidth;
     requestedSceneHeight_ = desiredHeight;
     sceneTarget_.load(desiredWidth, desiredHeight);
+}
+
+void GraphicsResources::updateSelectionMask(
+    const GraphicsSettings& settings) {
+    if (!initialized_) {
+        return;
+    }
+
+    const bool useSceneTarget =
+        settings.postProcessing && sceneTarget_.valid();
+    const int desiredWidth =
+        useSceneTarget ? requestedSceneWidth_ : GetScreenWidth();
+    const int desiredHeight =
+        useSceneTarget ? requestedSceneHeight_ : GetScreenHeight();
+    if (desiredWidth <= 0 || desiredHeight <= 0 ||
+        (desiredWidth == requestedSelectionMaskWidth_ &&
+         desiredHeight == requestedSelectionMaskHeight_)) {
+        return;
+    }
+
+    requestedSelectionMaskWidth_ = desiredWidth;
+    requestedSelectionMaskHeight_ = desiredHeight;
+    selectionMaskTarget_.load(desiredWidth, desiredHeight);
 }
 
 void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
@@ -290,22 +387,48 @@ void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
 
 void GraphicsResources::shutdown() {
     shadowMap_.unload();
+    enemyMovementAnimations_.unload();
+    enemyGeneralAnimations_.unload();
+    enemyMageModel_.unload();
+    enemyWarriorModel_.unload();
+    enemyRogueModel_.unload();
+    enemyMinionModel_.unload();
+    grassModelD_.unload();
+    grassModelC_.unload();
+    grassModelB_.unload();
+    wallCrossModel_.unload();
+    wallTModel_.unload();
+    wallCornerModel_.unload();
+    wallEndModel_.unload();
+    wallIsolatedModel_.unload();
     treeModel_.unload();
     rockModel_.unload();
+    quarryModel_.unload();
+    lumberMillModel_.unload();
+    mineModel_.unload();
     coreModel_.unload();
     crossbowModel_.unload();
     arrowModel_.unload();
     cannonballModel_.unload();
     cannonModel_.unload();
     placeholderModel_.unload();
+    terrainTexture_.unload();
     fallbackTexture_.unload();
+    upgradeEffectShader_.unload();
+    grassShader_.unload();
+    postProcessShader_.unload();
+    selectionOutlineShader_.unload();
+    selectionMaskShader_.unload();
     skyShader_.unload();
     shadowDebugShader_.unload();
     shadowShader_.unload();
     worldShader_.unload();
     sceneTarget_.unload();
+    selectionMaskTarget_.unload();
     requestedSceneWidth_ = 0;
     requestedSceneHeight_ = 0;
+    requestedSelectionMaskWidth_ = 0;
+    requestedSelectionMaskHeight_ = 0;
     requestedShadowMapSize_ = 0;
     initialized_ = false;
 }
@@ -324,6 +447,22 @@ int GraphicsResources::sceneWidth() const {
 
 int GraphicsResources::sceneHeight() const {
     return requestedSceneHeight_;
+}
+
+bool GraphicsResources::selectionMaskValid() const {
+    return selectionMaskTarget_.valid();
+}
+
+const RenderTexture2D& GraphicsResources::selectionMask() const {
+    return selectionMaskTarget_.get();
+}
+
+int GraphicsResources::selectionMaskWidth() const {
+    return requestedSelectionMaskWidth_;
+}
+
+int GraphicsResources::selectionMaskHeight() const {
+    return requestedSelectionMaskHeight_;
 }
 
 ShaderResource& GraphicsResources::worldShader() {
@@ -358,8 +497,56 @@ const ShaderResource& GraphicsResources::skyShader() const {
     return skyShader_;
 }
 
+ShaderResource& GraphicsResources::selectionMaskShader() {
+    return selectionMaskShader_;
+}
+
+const ShaderResource& GraphicsResources::selectionMaskShader() const {
+    return selectionMaskShader_;
+}
+
+ShaderResource& GraphicsResources::selectionOutlineShader() {
+    return selectionOutlineShader_;
+}
+
+const ShaderResource& GraphicsResources::selectionOutlineShader() const {
+    return selectionOutlineShader_;
+}
+
+ShaderResource& GraphicsResources::postProcessShader() {
+    return postProcessShader_;
+}
+
+const ShaderResource& GraphicsResources::postProcessShader() const {
+    return postProcessShader_;
+}
+
+ShaderResource& GraphicsResources::grassShader() {
+    return grassShader_;
+}
+
+const ShaderResource& GraphicsResources::grassShader() const {
+    return grassShader_;
+}
+
+ShaderResource& GraphicsResources::upgradeEffectShader() {
+    return upgradeEffectShader_;
+}
+
+const ShaderResource& GraphicsResources::upgradeEffectShader() const {
+    return upgradeEffectShader_;
+}
+
 TextureResource& GraphicsResources::fallbackTexture() {
     return fallbackTexture_;
+}
+
+TextureResource& GraphicsResources::terrainTexture() {
+    return terrainTexture_;
+}
+
+const TextureResource& GraphicsResources::terrainTexture() const {
+    return terrainTexture_;
 }
 
 ModelResource& GraphicsResources::placeholderModel() {
@@ -386,12 +573,82 @@ ModelResource& GraphicsResources::coreModel() {
     return coreModel_;
 }
 
+ModelResource& GraphicsResources::mineModel() {
+    return mineModel_;
+}
+
+ModelResource& GraphicsResources::lumberMillModel() {
+    return lumberMillModel_;
+}
+
+ModelResource& GraphicsResources::quarryModel() {
+    return quarryModel_;
+}
+
 ModelResource& GraphicsResources::rockModel() {
     return rockModel_;
 }
 
 ModelResource& GraphicsResources::treeModel() {
     return treeModel_;
+}
+
+ModelResource& GraphicsResources::wallIsolatedModel() {
+    return wallIsolatedModel_;
+}
+
+ModelResource& GraphicsResources::wallEndModel() {
+    return wallEndModel_;
+}
+
+ModelResource& GraphicsResources::wallCornerModel() {
+    return wallCornerModel_;
+}
+
+ModelResource& GraphicsResources::wallTModel() {
+    return wallTModel_;
+}
+
+ModelResource& GraphicsResources::wallCrossModel() {
+    return wallCrossModel_;
+}
+
+ModelResource& GraphicsResources::grassModelB() {
+    return grassModelB_;
+}
+
+ModelResource& GraphicsResources::grassModelC() {
+    return grassModelC_;
+}
+
+ModelResource& GraphicsResources::grassModelD() {
+    return grassModelD_;
+}
+
+ModelResource& GraphicsResources::enemyMinionModel() {
+    return enemyMinionModel_;
+}
+
+ModelResource& GraphicsResources::enemyRogueModel() {
+    return enemyRogueModel_;
+}
+
+ModelResource& GraphicsResources::enemyWarriorModel() {
+    return enemyWarriorModel_;
+}
+
+ModelResource& GraphicsResources::enemyMageModel() {
+    return enemyMageModel_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemyGeneralAnimations() const {
+    return enemyGeneralAnimations_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemyMovementAnimations() const {
+    return enemyMovementAnimations_;
 }
 
 ShadowMapResource& GraphicsResources::shadowMap() {

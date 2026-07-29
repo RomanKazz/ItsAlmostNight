@@ -10,7 +10,7 @@ Date: 2026-07-26
 - Orthographic light camera following the player area.
 - Configurable constant and slope-scaled depth bias.
 - Configurable shadow strength and distance.
-- 3×3 percentage-closer filtering in the world shader.
+- 5×5 Gaussian-weighted percentage-closer filtering in the world shader.
 - Distance culling for shadow casters.
 - Runtime shadow disable through `F3`.
 - Runtime depth-map preview through `F1`.
@@ -107,7 +107,7 @@ GLSL validation therefore remains part of manual integration testing.
 
 ## Performance impact
 
-Shadows add one bounded caster pass and nine depth samples per shaded fragment.
+Shadows add one bounded caster pass and 25 depth samples per shaded fragment.
 The pass performs distance culling and omits transient, transparent, UI, and
 debug geometry. Disabling `F3` removes the pass, sampling, and shadow-map GPU
 allocation.

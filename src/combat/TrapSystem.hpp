@@ -31,6 +31,11 @@ class TrapSystem {
 
     TrapSystem();
 
+    [[nodiscard]] static double triggerRadius(std::uint8_t level);
+    [[nodiscard]] static double slowPercent(std::uint8_t level);
+    [[nodiscard]] static double slowDuration(std::uint8_t level);
+    [[nodiscard]] static double cooldown(std::uint8_t level);
+
     void reset();
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TrapActivation> tick(double deltaSeconds,

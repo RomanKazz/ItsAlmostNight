@@ -1,7 +1,10 @@
 #include "app/App.hpp"
+#include "app/AppRenderSupport.hpp"
+#include "ui/UiText.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
+#include <rlgl.h>
 
 #include <algorithm>
 #include <array>
@@ -11,63 +14,155 @@
 #include <utility>
 
 namespace ian {
-namespace {
+namespace app_detail {
 
-constexpr int ScreenWidth = 1280;
-constexpr int ScreenHeight = 720;
-constexpr double MouseSensitivity = 0.002;
+constexpr int InitialWindowWidth = 1280;
+constexpr int InitialWindowHeight = 720;
+constexpr double BuildingHealthBarDwellSeconds = 0.15;
+
+const char* modularPlacementMessage(
+    std::optional<ModularPlacementError> error) {
+    if (!error) {
+        return "AIM AT TERRAIN";
+    }
+    switch (*error) {
+    case ModularPlacementError::None:
+        return "LMB BUILD";
+    case ModularPlacementError::Occupied:
+        return "PLACE OCCUPIED";
+    case ModularPlacementError::OutOfBounds:
+        return "OUTSIDE MAP";
+    case ModularPlacementError::TooFar:
+        return "TOO FAR";
+    case ModularPlacementError::SupportTooLong:
+        return "SUPPORTS TOO LONG";
+    case ModularPlacementError::PlayerOverlap:
+        return "PLAYER IN THE WAY";
+    case ModularPlacementError::TerrainIntersection:
+        return "TERRAIN INTERSECTION";
+    case ModularPlacementError::MaximumStorey:
+        return "MAXIMUM STOREY";
+    case ModularPlacementError::NoSupport:
+        return "NO STRUCTURAL SUPPORT";
+    case ModularPlacementError::ResourceBlocked:
+        return "CLEAR RESOURCE FIRST";
+    }
+    return "CANNOT BUILD";
+}
+
+EnemyModelVisual enemyModelVisual(EnemyType type) {
+    switch (type) {
+    case EnemyType::Basic:
+    case EnemyType::Sapper:
+        return EnemyModelVisual::Minion;
+    case EnemyType::Fast:
+    case EnemyType::Flying:
+        return EnemyModelVisual::Rogue;
+    case EnemyType::Heavy:
+    case EnemyType::Boss:
+        return EnemyModelVisual::Warrior;
+    case EnemyType::Ranged:
+        return EnemyModelVisual::Mage;
+    }
+    return EnemyModelVisual::Minion;
+}
+
+EnemyAnimationVisual enemyAnimationVisual(
+    const EnemyInstance& enemy) {
+    if (enemy.hitAnimationRemaining > 0.0 &&
+        enemy.state != EnemyState::Dead) {
+        return EnemyAnimationVisual::Hit;
+    }
+    switch (enemy.state) {
+    case EnemyState::MoveToCore:
+    case EnemyState::ChasePlayer:
+        return enemy.type == EnemyType::Fast ||
+                       enemy.type == EnemyType::Flying
+                   ? EnemyAnimationVisual::Run
+                   : EnemyAnimationVisual::Walk;
+    case EnemyState::AttackBuilding:
+    case EnemyState::AttackCore:
+    case EnemyState::AttackPlayer:
+    case EnemyState::BossRamWindup:
+        if (enemy.type == EnemyType::Ranged) {
+            return EnemyAnimationVisual::RangedAttack;
+        }
+        if (enemy.type == EnemyType::Sapper) {
+            return EnemyAnimationVisual::SapperAttack;
+        }
+        return EnemyAnimationVisual::MeleeAttack;
+    case EnemyState::Spawn:
+        return EnemyAnimationVisual::Spawn;
+    case EnemyState::Dead:
+        return EnemyAnimationVisual::Death;
+    }
+    return EnemyAnimationVisual::Idle;
+}
+
+float enemyVisualScale(EnemyType type) {
+    switch (type) {
+    case EnemyType::Fast:
+    case EnemyType::Flying:
+        return 0.84F;
+    case EnemyType::Heavy:
+        return 1.18F;
+    case EnemyType::Boss:
+        return 1.8F;
+    case EnemyType::Ranged:
+        return 0.94F;
+    case EnemyType::Sapper:
+        return 1.02F;
+    case EnemyType::Basic:
+        return 1.0F;
+    }
+    return 1.0F;
+}
+
+Vector3 enemyRenderPosition(const EnemyInstance& enemy) {
+    return {
+        static_cast<float>(enemy.position.x),
+        enemy.type == EnemyType::Flying ? 1.25F : 0.02F,
+        static_cast<float>(enemy.position.z),
+    };
+}
+
+float enemyAnimationSeconds(
+    const EnemyInstance& enemy, double elapsedSeconds) {
+    if (enemy.hitAnimationRemaining > 0.0) {
+        return static_cast<float>(
+            0.22 - enemy.hitAnimationRemaining);
+    }
+    if (enemy.state == EnemyState::BossRamWindup) {
+        return static_cast<float>(
+            std::max(
+                0.0,
+                enemy.ramWindup -
+                    enemy.ramWindupRemaining));
+    }
+    if (enemy.state == EnemyState::AttackBuilding ||
+        enemy.state == EnemyState::AttackCore ||
+        enemy.state == EnemyState::AttackPlayer) {
+        double interval = 1.0;
+        if (enemy.type == EnemyType::Ranged) {
+            interval = 1.45;
+        } else if (enemy.type == EnemyType::Sapper) {
+            interval = 1.2;
+        }
+        return static_cast<float>(
+            std::max(
+                0.0,
+                interval -
+                    enemy.attackCooldownRemaining));
+    }
+    return static_cast<float>(
+        elapsedSeconds * enemy.locomotionRate +
+        static_cast<double>(enemy.id.index % 4U) *
+            0.173);
+}
 
 void drawCentered(const char* text, int y, int fontSize, Color color) {
-    const int width = MeasureText(text, fontSize);
-    DrawText(text, (GetScreenWidth() - width) / 2, y, fontSize, color);
-}
-
-const char* buildingName(BuildingType type) {
-    switch (type) {
-    case BuildingType::Core:
-        return "Core";
-    case BuildingType::Wall:
-        return "Wall";
-    case BuildingType::Turret:
-        return "Turret";
-    case BuildingType::GoldMine:
-        return "Gold Mine";
-    case BuildingType::Cannon:
-        return "Cannon";
-    case BuildingType::SlowTrap:
-        return "Slow Trap";
-    case BuildingType::Gate:
-        return "Gate";
-    }
-    return "";
-}
-
-const char* placementMessage(PlacementError error) {
-    switch (error) {
-    case PlacementError::None:
-        return "LMB: place   RMB: cancel   Wheel: rotate";
-    case PlacementError::CoreAlreadyPlaced:
-        return "Core already placed";
-    case PlacementError::CoreRequired:
-        return "Place Core first";
-    case PlacementError::InsufficientResources:
-        return "Not enough resources";
-    case PlacementError::Occupied:
-        return "Space occupied";
-    case PlacementError::OutsideCoreArea:
-        return "Outside Core area";
-    case PlacementError::PlayerOverlap:
-        return "Player blocks placement";
-    case PlacementError::WorldCollision:
-        return "Terrain blocks placement";
-    case PlacementError::LimitReached:
-        return "Building limit reached";
-    case PlacementError::OutOfRange:
-        return "Placement is too far";
-    case PlacementError::CoreLevelRequired:
-        return "Core level II required";
-    }
-    return "";
+    drawCenteredUiText(text, static_cast<float>(y),
+                       static_cast<float>(fontSize), color);
 }
 
 const char* upgradeErrorMessage(UpgradeError error) {
@@ -77,7 +172,7 @@ const char* upgradeErrorMessage(UpgradeError error) {
     case UpgradeError::NotFound:
         return "Building no longer exists";
     case UpgradeError::MaxLevel:
-        return "Building already level III";
+        return "Building is already at max level";
     case UpgradeError::Unsupported:
         return "Building cannot be upgraded";
     case UpgradeError::CoreLevelRequired:
@@ -113,66 +208,180 @@ const char* weaponUpgradeErrorMessage(WeaponUpgradeError error) {
     case WeaponUpgradeError::CoreLevelRequired:
         return "Upgrade Core before Rifle";
     case WeaponUpgradeError::InsufficientGold:
-        return "Not enough gold for Rifle upgrade";
+        return "Not enough crystals for Rifle upgrade";
     }
     return "";
-}
-
-const char* attackDirectionName(AttackDirection direction) {
-    switch (direction) {
-    case AttackDirection::North:
-        return "NORTH";
-    case AttackDirection::East:
-        return "EAST";
-    case AttackDirection::South:
-        return "SOUTH";
-    case AttackDirection::West:
-        return "WEST";
-    }
-    return "";
-}
-
-const char* enemyName(EnemyType type) {
-    switch (type) {
-    case EnemyType::Basic:
-        return "Basic";
-    case EnemyType::Fast:
-        return "Fast";
-    case EnemyType::Heavy:
-        return "Heavy";
-    case EnemyType::Boss:
-        return "Boss";
-    }
-    return "";
-}
-
-std::string tutorialText(const SimulationSnapshot& snapshot) {
-    if (!snapshot.tutorialObjective) {
-        return {};
-    }
-    switch (*snapshot.tutorialObjective) {
-    case TutorialObjective::MineWood:
-        return "OBJECTIVE: Mine trees - Wood " + std::to_string(snapshot.wood) + "/" +
-               std::to_string(snapshot.tutorialWoodTarget);
-    case TutorialObjective::PlaceCore:
-        return "OBJECTIVE: Place Core [1]";
-    case TutorialObjective::MineStone:
-        return "OBJECTIVE: Mine rocks - Stone " + std::to_string(snapshot.stone) + "/" +
-               std::to_string(snapshot.tutorialStoneTarget);
-    case TutorialObjective::BuildGoldMine:
-        return "OBJECTIVE: Build Gold Mine [4]";
-    case TutorialObjective::PrepareForNight:
-        return "OBJECTIVE: Build defenses - [N] starts sunset";
-    case TutorialObjective::SurviveFirstWave:
-        return "OBJECTIVE: Survive first night";
-    }
-    return {};
 }
 
 bool acceptsGameplayInput(RunState state) {
     return state == RunState::Gathering || state == RunState::BuildPhase ||
            state == RunState::Sunset || state == RunState::Wave ||
            state == RunState::WaveComplete;
+}
+
+std::vector<GridPosition> placementLine(
+    BuildingType type, GridPosition start, GridPosition end) {
+    std::vector<GridPosition> cells;
+    const int deltaX = end.x - start.x;
+    const int deltaZ = end.z - start.z;
+    const bool horizontal =
+        std::abs(deltaX) >= std::abs(deltaZ);
+    const int distance =
+        horizontal ? std::abs(deltaX) : std::abs(deltaZ);
+    const int spacing =
+        buildingFootprintHalfExtent(type) == 1.0 ? 2 : 1;
+    const int length = distance / spacing;
+    const int step =
+        horizontal ? (deltaX >= 0 ? 1 : -1)
+                   : (deltaZ >= 0 ? 1 : -1);
+    cells.reserve(static_cast<std::size_t>(length + 1));
+    for (int index = 0; index <= length; ++index) {
+        cells.push_back({
+            start.x +
+                (horizontal ? index * step * spacing : 0),
+            start.z +
+                (horizontal ? 0 : index * step * spacing),
+        });
+    }
+    return cells;
+}
+
+std::uint8_t wallConnectionToward(
+    GridPosition from, GridPosition neighbor) {
+    const int deltaX = neighbor.x - from.x;
+    const int deltaZ = neighbor.z - from.z;
+    if (deltaX == 0 && deltaZ == -1) {
+        return WallConnectionNorth;
+    }
+    if (deltaX == 1 && deltaZ == 0) {
+        return WallConnectionEast;
+    }
+    if (deltaX == 0 && deltaZ == 1) {
+        return WallConnectionSouth;
+    }
+    if (deltaX == -1 && deltaZ == 0) {
+        return WallConnectionWest;
+    }
+    return 0U;
+}
+
+Vector2 repelInvalidPreview(
+    Vector2 center, const BuildingPreview& preview,
+    Vec3 playerPosition) {
+    if (preview.placement.valid()) {
+        return center;
+    }
+    const float deltaX =
+        center.x - static_cast<float>(playerPosition.x);
+    const float deltaZ =
+        center.y - static_cast<float>(playerPosition.z);
+    const float length =
+        std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+    if (length <= 1e-4F) {
+        return center;
+    }
+    const float pulse =
+        0.08F +
+        std::sin(static_cast<float>(GetTime()) * 18.0F) *
+            0.025F;
+    center.x += deltaX / length * pulse;
+    center.y += deltaZ / length * pulse;
+    return center;
+}
+
+float cannonYaw(const SimulationSnapshot& snapshot,
+                const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.cannons.begin(), snapshot.cannons.end(),
+        [&building](const CannonRuntime& cannon) {
+            return cannon.buildingId == building.id;
+        });
+    if (runtime != snapshot.cannons.end()) {
+        return static_cast<float>(runtime->yaw);
+    }
+    constexpr float QuarterTurn = PI * 0.5F;
+    return static_cast<float>(building.rotation) * QuarterTurn;
+}
+
+float towerYaw(const SimulationSnapshot& snapshot,
+               const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.towers.begin(), snapshot.towers.end(),
+        [&building](const TowerRuntime& tower) {
+            return tower.buildingId == building.id;
+        });
+    if (runtime != snapshot.towers.end()) {
+        return static_cast<float>(runtime->yaw);
+    }
+    constexpr float QuarterTurn = PI * 0.5F;
+    return static_cast<float>(building.rotation) * QuarterTurn;
+}
+
+float cannonPitch(const SimulationSnapshot& snapshot,
+                  const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.cannons.begin(), snapshot.cannons.end(),
+        [&building](const CannonRuntime& cannon) {
+            return cannon.buildingId == building.id;
+        });
+    return runtime != snapshot.cannons.end()
+               ? static_cast<float>(runtime->pitch)
+               : 0.0F;
+}
+
+std::optional<EntityId> preciseBuildingAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot) {
+    constexpr double MaximumDistance = 4.0;
+    const double horizontal =
+        std::cos(snapshot.playerPitch);
+    const Ray ray{
+        {static_cast<float>(snapshot.playerPosition.x),
+         static_cast<float>(snapshot.playerPosition.y),
+         static_cast<float>(snapshot.playerPosition.z)},
+        {static_cast<float>(
+             std::sin(snapshot.playerYaw) * horizontal),
+         static_cast<float>(
+             std::sin(snapshot.playerPitch)),
+         static_cast<float>(
+             -std::cos(snapshot.playerYaw) * horizontal)},
+    };
+    std::optional<EntityId> result;
+    double closestDistance = MaximumDistance;
+    for (const auto& building : snapshot.buildings) {
+        const Vec3 center =
+            buildingWorldPosition(building);
+        const double offsetX =
+            center.x - snapshot.playerPosition.x;
+        const double offsetZ =
+            center.z - snapshot.playerPosition.z;
+        constexpr double BroadPhaseRadius =
+            MaximumDistance + 2.0;
+        if (offsetX * offsetX + offsetZ * offsetZ >
+            BroadPhaseRadius * BroadPhaseRadius) {
+            continue;
+        }
+        float yaw =
+            static_cast<float>(building.rotation) *
+            PI * 0.5F;
+        float pitch = 0.0F;
+        if (building.type == BuildingType::Turret) {
+            yaw = towerYaw(snapshot, building);
+        } else if (
+            building.type == BuildingType::Cannon) {
+            yaw = cannonYaw(snapshot, building);
+            pitch = cannonPitch(snapshot, building);
+        }
+        const auto distance =
+            renderer.buildingRaycastDistance(
+                building, snapshot.buildings, ray,
+                MaximumDistance, yaw, pitch);
+        if (distance && *distance < closestDistance) {
+            closestDistance = *distance;
+            result = building.id;
+        }
+    }
+    return result;
 }
 
 Vector3 colorToVector(Color color) {
@@ -269,6 +478,338 @@ void drawBuildGrid(Vector3 playerPosition, double worldLimit) {
     }
 }
 
+Color placementColor(
+    PlacementError error, bool border) {
+    const unsigned char alpha =
+        border ? 245 : 74;
+    switch (error) {
+    case PlacementError::None:
+        return border ? Color{106, 255, 146, 235}
+                      : Color{57, 224, 109, 64};
+    case PlacementError::InsufficientResources:
+        return {255, 176, 62, alpha};
+    case PlacementError::OutsideCoreArea:
+        return {187, 104, 255, alpha};
+    case PlacementError::OutOfRange:
+        return {94, 172, 255, alpha};
+    case PlacementError::PlayerOverlap:
+        return {255, 222, 82, alpha};
+    case PlacementError::CoreRequired:
+    case PlacementError::CoreLevelRequired:
+    case PlacementError::CoreAlreadyPlaced:
+    case PlacementError::LimitReached:
+        return {255, 132, 71, alpha};
+    case PlacementError::Occupied:
+    case PlacementError::WorldCollision:
+    case PlacementError::ResourceBlocked:
+        return {255, 88, 76, alpha};
+    }
+    return {255, 88, 76, alpha};
+}
+
+void drawPlacementFootprint(
+    const BuildingPreview& preview,
+    Vector2 visualCenter, float visualYaw) {
+    const float x = visualCenter.x;
+    const float z = visualCenter.y;
+    const float halfExtent = static_cast<float>(
+        buildingFootprintHalfExtent(preview.type));
+    const float size = halfExtent * 2.0F;
+    const Color fill =
+        placementColor(preview.placement.error, false);
+    const Color border =
+        placementColor(preview.placement.error, true);
+    const float height =
+        static_cast<float>(preview.baseHeight) +
+        0.055F;
+
+    DrawPlane({x, height, z}, {size, size}, fill);
+    DrawLine3D({x - halfExtent, height, z - halfExtent},
+               {x + halfExtent, height, z - halfExtent},
+               border);
+    DrawLine3D({x + halfExtent, height, z - halfExtent},
+               {x + halfExtent, height, z + halfExtent},
+               border);
+    DrawLine3D({x + halfExtent, height, z + halfExtent},
+               {x - halfExtent, height, z + halfExtent},
+               border);
+    DrawLine3D({x - halfExtent, height, z + halfExtent},
+               {x - halfExtent, height, z - halfExtent},
+               border);
+    if (halfExtent == 1.0F) {
+        DrawLine3D({x, height, z - halfExtent},
+                   {x, height, z + halfExtent}, border);
+        DrawLine3D({x - halfExtent, height, z},
+                   {x + halfExtent, height, z}, border);
+    }
+
+    const bool directional =
+        preview.type == BuildingType::Turret ||
+        preview.type == BuildingType::Cannon ||
+        preview.type == BuildingType::Gate;
+    if (!directional) {
+        return;
+    }
+    const Vector2 direction{
+        -std::sin(visualYaw), -std::cos(visualYaw)};
+    const Vector3 arrowStart{x, height + 0.04F, z};
+    const Vector3 arrowEnd{
+        x + direction.x * (halfExtent + 0.7F),
+        height + 0.04F,
+        z + direction.y * (halfExtent + 0.7F),
+    };
+    const Vector3 arrowBase{
+        arrowEnd.x - direction.x * 0.24F,
+        arrowEnd.y,
+        arrowEnd.z - direction.y * 0.24F,
+    };
+    DrawCylinderEx(
+        arrowStart, arrowBase, 0.045F, 0.045F, 10,
+        border);
+    DrawCylinderEx(
+        arrowBase, arrowEnd, 0.15F, 0.0F, 12, border);
+}
+
+std::optional<PlatformFrameInstance>
+automaticBuildingFoundation(
+    BuildingType type, GridPosition position,
+    double topHeight, double bottomHeight,
+    double cellSize, EntityId id) {
+    const double depth =
+        topHeight - bottomHeight;
+    if (depth <= 0.025) {
+        return std::nullopt;
+    }
+    const Vec3 worldCenter =
+        buildingWorldPosition(type, position);
+    const int anchorX =
+        snapPlatformFrameAxis(
+            static_cast<int>(std::floor(
+                worldCenter.x / cellSize)));
+    const int anchorZ =
+        snapPlatformFrameAxis(
+            static_cast<int>(std::floor(
+                worldCenter.z / cellSize)));
+    const double minimumX =
+        anchorX * cellSize;
+    const double maximumX =
+        (anchorX + PlatformFrameWidthCells) *
+        cellSize;
+    const double minimumZ =
+        anchorZ * cellSize;
+    const double maximumZ =
+        (anchorZ + PlatformFrameWidthCells) *
+        cellSize;
+    const auto support =
+        [topHeight, bottomHeight](
+            double x, double z) {
+            return FoundationSupport{
+                .top = {x, topHeight, z},
+                .bottom = {x, bottomHeight, z},
+                .length =
+                    topHeight - bottomHeight,
+            };
+        };
+    return PlatformFrameInstance{
+        .id = id,
+        .anchor = {
+            anchorX,
+            static_cast<int>(std::lround(
+                topHeight / cellSize)),
+            anchorZ,
+        },
+        .floorHeight = topHeight,
+        .storey = -1,
+        .supports = {
+            support(minimumX, minimumZ),
+            support(maximumX, minimumZ),
+            support(minimumX, maximumZ),
+            support(maximumX, maximumZ),
+        },
+    };
+}
+
+void drawTacticalGroundCircle(
+    Vector3 center, float radius, Color color,
+    bool emphasizeArea = false) {
+    if (radius <= 0.0F) {
+        return;
+    }
+    center.y = 0.085F;
+    const int segments = std::clamp(
+        static_cast<int>(std::ceil(radius * 7.0F)), 40, 112);
+    for (int index = 0; index < segments; ++index) {
+        const float angle0 =
+            static_cast<float>(index) /
+            static_cast<float>(segments) * PI * 2.0F;
+        const float angle1 =
+            static_cast<float>(index + 1) /
+            static_cast<float>(segments) * PI * 2.0F;
+        const Vector3 start{
+            center.x + std::cos(angle0) * radius,
+            center.y,
+            center.z + std::sin(angle0) * radius,
+        };
+        const Vector3 end{
+            center.x + std::cos(angle1) * radius,
+            center.y,
+            center.z + std::sin(angle1) * radius,
+        };
+        DrawCylinderEx(
+            start, end, 0.022F, 0.022F, 5, color);
+    }
+    const auto softAlpha =
+        static_cast<unsigned char>(
+            std::min(
+                static_cast<int>(color.a),
+                emphasizeArea ? 82 : 48));
+    const Color softColor{
+        color.r, color.g, color.b, softAlpha};
+    DrawCircle3D(
+        center, radius * 0.66F,
+        {1.0F, 0.0F, 0.0F}, 90.0F, softColor);
+    DrawCircle3D(
+        center, radius * 0.33F,
+        {1.0F, 0.0F, 0.0F}, 90.0F, softColor);
+    if (emphasizeArea) {
+        for (int spoke = 0; spoke < 8; ++spoke) {
+            const float angle =
+                static_cast<float>(spoke) *
+                PI * 0.25F;
+            DrawLine3D(
+                center,
+                {
+                    center.x + std::cos(angle) * radius,
+                    center.y,
+                    center.z + std::sin(angle) * radius,
+                },
+                softColor);
+        }
+    }
+}
+
+void drawTacticalTargetLink(
+    Vector3 start, Vector3 end, Color color) {
+    const Vector3 delta = Vector3Subtract(end, start);
+    const float length = Vector3Length(delta);
+    if (length <= 0.001F) {
+        return;
+    }
+    const Vector3 direction =
+        Vector3Scale(delta, 1.0F / length);
+    constexpr float DashLength = 0.42F;
+    constexpr float GapLength = 0.24F;
+    for (float distance = 0.0F; distance < length;
+         distance += DashLength + GapLength) {
+        const float endDistance =
+            std::min(distance + DashLength, length);
+        DrawCylinderEx(
+            Vector3Add(
+                start, Vector3Scale(direction, distance)),
+            Vector3Add(
+                start,
+                Vector3Scale(direction, endDistance)),
+            0.018F, 0.018F, 5, color);
+    }
+    DrawSphere(end, 0.075F, color);
+}
+
+void drawBuildingTacticalOverlay(
+    const SimulationSnapshot& snapshot) {
+    if (!snapshot.aimedBuilding) {
+        return;
+    }
+    const auto building = std::find_if(
+        snapshot.buildings.begin(), snapshot.buildings.end(),
+        [&snapshot](const BuildingInstance& candidate) {
+            return candidate.id == *snapshot.aimedBuilding;
+        });
+    if (building == snapshot.buildings.end()) {
+        return;
+    }
+
+    Vec3 center = buildingWorldPosition(*building);
+    std::optional<EntityId> targetId;
+    if (building->type == BuildingType::Turret) {
+        drawTacticalGroundCircle(
+            {static_cast<float>(center.x), 0.085F,
+             static_cast<float>(center.z)},
+            static_cast<float>(
+                TowerSystem::attackRange(building->level)),
+            {255, 226, 135, 165});
+        const auto runtime = std::find_if(
+            snapshot.towers.begin(), snapshot.towers.end(),
+            [&building](const TowerRuntime& tower) {
+                return tower.buildingId == building->id;
+            });
+        if (runtime != snapshot.towers.end()) {
+            targetId = runtime->targetId;
+        }
+        center.y = 1.42;
+    } else if (building->type == BuildingType::Cannon) {
+        drawTacticalGroundCircle(
+            {static_cast<float>(center.x), 0.085F,
+             static_cast<float>(center.z)},
+            static_cast<float>(
+                CannonSystem::attackRange(building->level)),
+            {255, 226, 135, 165});
+        const auto runtime = std::find_if(
+            snapshot.cannons.begin(), snapshot.cannons.end(),
+            [&building](const CannonRuntime& cannon) {
+                return cannon.buildingId == building->id;
+            });
+        if (runtime != snapshot.cannons.end()) {
+            targetId = runtime->targetId;
+        }
+        center.y = 1.5;
+    } else if (building->type == BuildingType::SlowTrap) {
+        drawTacticalGroundCircle(
+            {static_cast<float>(center.x), 0.085F,
+             static_cast<float>(center.z)},
+            static_cast<float>(
+                TrapSystem::triggerRadius(building->level)),
+            {91, 209, 255, 190}, true);
+        return;
+    } else {
+        return;
+    }
+
+    if (!targetId) {
+        return;
+    }
+    const auto target = std::find_if(
+        snapshot.enemies.begin(), snapshot.enemies.end(),
+        [&targetId](const EnemyInstance& enemy) {
+            return enemy.active && enemy.id == *targetId;
+        });
+    if (target == snapshot.enemies.end()) {
+        return;
+    }
+    Vec3 targetPosition = target->position;
+    targetPosition.y += 0.45;
+    drawTacticalTargetLink(
+        {static_cast<float>(center.x),
+         static_cast<float>(center.y),
+         static_cast<float>(center.z)},
+        {static_cast<float>(targetPosition.x),
+         static_cast<float>(targetPosition.y),
+         static_cast<float>(targetPosition.z)},
+        {255, 238, 184, 220});
+    if (building->type == BuildingType::Cannon) {
+        drawTacticalGroundCircle(
+            {static_cast<float>(target->position.x), 0.09F,
+             static_cast<float>(target->position.z)},
+            static_cast<float>(
+                CannonSystem::explosionRadius(building->level)),
+            {255, 129, 62, 210}, true);
+    } else {
+        drawTacticalGroundCircle(
+            {static_cast<float>(target->position.x), 0.09F,
+             static_cast<float>(target->position.z)},
+            0.38F, {255, 238, 184, 205});
+    }
+}
+
 GameBalance loadAppBalance() {
     return loadGameBalance("assets/data/enemies.json", "assets/data/waves.json",
                            "assets/data/buildings.json", "assets/data/weapons.json",
@@ -280,28 +821,47 @@ MapDefinition loadAppMap() {
     return loadMapDefinition("assets/maps/graybox.json").map;
 }
 
+WorldConfig loadAppWorldConfig() {
+    return loadWorldConfig(
+               "assets/data/world.json")
+        .config;
+}
+
 std::array<EnvironmentProfile, 4> loadAppEnvironment() {
     return loadEnvironmentProfiles("assets/data/environment.json").profiles;
 }
 
-} // namespace
+} // namespace app_detail
+
+using namespace app_detail;
 
 App::App()
-    : simulation_(loadAppBalance(), loadAppMap()),
+    : simulation_(
+          loadAppBalance(), loadAppMap(),
+          loadAppWorldConfig()),
       environment_(loadAppEnvironment()) {
     effects_.reserve(128);
     arrowVisuals_.reserve(64);
     damageIndicators_.reserve(12);
+    floatingDamageNumbers_.reserve(32);
+    resourceGainVisuals_.reserve(16);
+    destroyedResourceVisuals_.reserve(8);
+    destroyedEnemyVisuals_.reserve(16);
+    buildingShotRecoilVisuals_.reserve(32);
 }
 
 int App::run() {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT |
                    FLAG_MSAA_4X_HINT);
-    InitWindow(ScreenWidth, ScreenHeight, "It's Almost Night");
+    InitWindow(InitialWindowWidth, InitialWindowHeight,
+               "It's Almost Night");
+    ToggleBorderlessWindowed();
     SetTargetFPS(144);
     renderer_.emplace();
     renderer_->initialize();
+    renderer_->rebuildTerrain(simulation_.terrain());
     ui_.initialize();
+    audio_.initialize();
 
     while (!WindowShouldClose()) {
         processInput();
@@ -310,479 +870,23 @@ int App::run() {
     }
 
     ui_.shutdown();
+    audio_.shutdown();
     renderer_->shutdown();
     renderer_.reset();
     CloseWindow();
     return 0;
 }
 
-void App::processInput() {
-    renderer_->processInput();
-    const auto snapshot = simulation_.snapshot();
-    if (snapshot.state == RunState::MainMenu &&
-        (IsKeyPressed(KEY_ENTER) || pendingStartFromUi_)) {
-        pendingStartFromUi_ = false;
-        simulation_.startRun();
-        fixedStep_.reset();
-        statusMessage_.clear();
-        statusMessageRemaining_ = 0.0;
-        effects_.clear();
-        arrowVisuals_.clear();
-        buildingRotationWheelAccumulator_ = 0.0;
-        buildingRotationCooldownRemaining_ = 0.0;
-        cameraShakeRemaining_ = 0.0;
-        damageIndicators_.clear();
-        playerDamageFlashRemaining_ = 0.0;
-        DisableCursor();
-    }
-    if (IsKeyPressed(KEY_P)) {
-        simulation_.togglePause();
-        fixedStep_.reset();
-        if (simulation_.snapshot().state == RunState::Paused) {
-            EnableCursor();
-        } else if (simulation_.snapshot().state != RunState::MainMenu) {
-            DisableCursor();
-        }
-    }
-    if (snapshot.state != RunState::MainMenu && IsKeyPressed(KEY_R)) {
-        simulation_.restartRun();
-        fixedStep_.reset();
-        statusMessage_.clear();
-        statusMessageRemaining_ = 0.0;
-        effects_.clear();
-        arrowVisuals_.clear();
-        buildingRotationWheelAccumulator_ = 0.0;
-        buildingRotationCooldownRemaining_ = 0.0;
-        cameraShakeRemaining_ = 0.0;
-        damageIndicators_.clear();
-        playerDamageFlashRemaining_ = 0.0;
-    }
-    if (snapshot.state != RunState::MainMenu) {
-        if (IsKeyPressed(KEY_T)) {
-            slowMotion_ = !slowMotion_;
-            fixedStep_.reset();
-        }
-        if (IsKeyPressed(KEY_C)) {
-            showColliders_ = !showColliders_;
-        }
-        if (IsKeyPressed(KEY_H)) {
-            showFlowField_ = !showFlowField_;
-        }
-        if (IsKeyPressed(KEY_L)) {
-            showSpatialHash_ = !showSpatialHash_;
-        }
-        if (IsKeyPressed(KEY_J)) {
-            hideHud_ = !hideHud_;
-        }
-        if (IsKeyPressed(KEY_Y)) {
-            environment_.toggleFrozen();
-        }
-        if (IsKeyPressed(KEY_LEFT_BRACKET)) {
-            environment_.adjustTime(-0.025F);
-        }
-        if (IsKeyPressed(KEY_RIGHT_BRACKET)) {
-            environment_.adjustTime(0.025F);
-        }
-        if (IsKeyPressed(KEY_APOSTROPHE)) {
-            environment_.cycleProfile();
-        }
-        if (IsKeyPressed(KEY_BACKSLASH)) {
-            environment_.useAutomaticTime();
-        }
-    }
-
-    if (acceptsGameplayInput(simulation_.snapshot().state)) {
-        const auto currentSnapshot = simulation_.snapshot();
-        input_.moveForward =
-            static_cast<double>(IsKeyDown(KEY_W)) - static_cast<double>(IsKeyDown(KEY_S));
-        input_.moveRight =
-            static_cast<double>(IsKeyDown(KEY_D)) - static_cast<double>(IsKeyDown(KEY_A));
-        input_.sprint = IsKeyDown(KEY_LEFT_SHIFT);
-
-        const Vector2 mouseDelta = GetMouseDelta();
-        pendingYaw_ += static_cast<double>(mouseDelta.x) * MouseSensitivity;
-        pendingPitch_ -= static_cast<double>(mouseDelta.y) * MouseSensitivity;
-        pendingJump_ = pendingJump_ || IsKeyPressed(KEY_SPACE);
-        if (IsKeyPressed(KEY_ONE)) {
-            pendingBuildingSelection_ = BuildingType::Core;
-        }
-        if (IsKeyPressed(KEY_TWO)) {
-            pendingBuildingSelection_ = BuildingType::Wall;
-        }
-        if (IsKeyPressed(KEY_THREE)) {
-            pendingBuildingSelection_ = BuildingType::Turret;
-        }
-        if (IsKeyPressed(KEY_FOUR)) {
-            pendingBuildingSelection_ = BuildingType::GoldMine;
-        }
-        if (IsKeyPressed(KEY_FIVE)) {
-            pendingBuildingSelection_ = BuildingType::Cannon;
-        }
-        if (IsKeyPressed(KEY_SIX)) {
-            pendingBuildingSelection_ = BuildingType::SlowTrap;
-        }
-        if (IsKeyPressed(KEY_SEVEN)) {
-            pendingBuildingSelection_ = BuildingType::Gate;
-        }
-        pendingBuildingCancel_ =
-            pendingBuildingCancel_ || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
-        pendingStartWave_ = pendingStartWave_ || IsKeyPressed(KEY_N);
-        pendingUnlimitedResources_ =
-            pendingUnlimitedResources_ || IsKeyPressed(KEY_O);
-        pendingWeaponToggle_ = pendingWeaponToggle_ || IsKeyPressed(KEY_Q);
-        pendingWeaponUpgrade_ = pendingWeaponUpgrade_ || IsKeyPressed(KEY_V);
-        pendingBombThrow_ = pendingBombThrow_ || IsKeyPressed(KEY_G);
-        pendingDefeatAllEnemies_ =
-            pendingDefeatAllEnemies_ || IsKeyPressed(KEY_K);
-        pendingToggleInvulnerability_ =
-            pendingToggleInvulnerability_ || IsKeyPressed(KEY_I);
-        pendingDamageCore_ = pendingDamageCore_ || IsKeyPressed(KEY_M);
-        pendingSpawnEnemy_ = pendingSpawnEnemy_ || IsKeyPressed(KEY_B);
-        if (IsKeyPressed(KEY_Z)) {
-            switch (debugSpawnType_) {
-            case EnemyType::Basic:
-                debugSpawnType_ = EnemyType::Fast;
-                break;
-            case EnemyType::Fast:
-                debugSpawnType_ = EnemyType::Heavy;
-                break;
-            case EnemyType::Heavy:
-                debugSpawnType_ = EnemyType::Boss;
-                break;
-            case EnemyType::Boss:
-                debugSpawnType_ = EnemyType::Basic;
-                break;
-            }
-        }
-        if (IsKeyPressed(KEY_U)) {
-            if (!currentSnapshot.selectedBuilding && currentSnapshot.aimedBuilding) {
-                pendingBuildingUpgrade_ =
-                    UpgradeBuildingCommand{*currentSnapshot.aimedBuilding};
-            } else if (currentSnapshot.coreId) {
-                pendingBuildingUpgrade_ = UpgradeBuildingCommand{*currentSnapshot.coreId};
-            }
-        }
-        if (!currentSnapshot.selectedBuilding && currentSnapshot.aimedBuilding) {
-            if (IsKeyPressed(KEY_F)) {
-                pendingBuildingRepair_ =
-                    RepairBuildingCommand{*currentSnapshot.aimedBuilding};
-            }
-            if (IsKeyPressed(KEY_X)) {
-                pendingBuildingSale_ =
-                    SellBuildingCommand{*currentSnapshot.aimedBuilding};
-            }
-        }
-        if (IsKeyPressed(KEY_E) && currentSnapshot.aimedBuilding) {
-            pendingGateToggle_ = ToggleGateCommand{*currentSnapshot.aimedBuilding};
-        }
-        const float wheel = GetMouseWheelMove();
-        if (currentSnapshot.selectedBuilding) {
-            buildingRotationWheelAccumulator_ = std::clamp(
-                buildingRotationWheelAccumulator_ +
-                    static_cast<double>(wheel),
-                -1.0, 1.0);
-            if (buildingRotationCooldownRemaining_ <= 0.0 &&
-                std::abs(buildingRotationWheelAccumulator_) >= 1.0) {
-                pendingBuildingRotation_ +=
-                    buildingRotationWheelAccumulator_ > 0.0 ? 1 : -1;
-                buildingRotationWheelAccumulator_ = 0.0;
-                buildingRotationCooldownRemaining_ = 0.2;
-            }
-        } else {
-            buildingRotationWheelAccumulator_ = 0.0;
-        }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            if (currentSnapshot.buildingPreview) {
-                pendingBuildingPlacement_ = PlaceBuildingCommand{
-                    .type = currentSnapshot.buildingPreview->type,
-                    .gridPosition = currentSnapshot.buildingPreview->gridPosition,
-                    .rotation = currentSnapshot.buildingPreview->rotation,
-                };
-            } else if (!pendingBuildingSelection_ &&
-                       currentSnapshot.selectedWeapon == PlayerWeapon::Rifle) {
-                pendingRifleShot_ = true;
-            } else if (!pendingBuildingSelection_) {
-                pendingPickaxe_ = true;
-            }
-        }
-    } else {
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-    }
-}
-
-void App::update() {
-    const double frameSeconds = static_cast<double>(GetFrameTime());
-    statusMessageRemaining_ =
-        std::max(0.0, statusMessageRemaining_ - frameSeconds);
-    cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
-    playerDamageFlashRemaining_ =
-        std::max(0.0, playerDamageFlashRemaining_ - frameSeconds);
-    buildingRotationCooldownRemaining_ = std::max(
-        0.0, buildingRotationCooldownRemaining_ - frameSeconds);
-    if (cameraShakeRemaining_ <= 0.0) {
-        cameraShakeStrength_ = 0.0;
-    }
-    for (auto& effect : effects_) {
-        effect.remaining = std::max(0.0, effect.remaining - frameSeconds);
-    }
-    std::erase_if(effects_, [](const PresentationEffect& effect) {
-        return effect.remaining <= 0.0;
-    });
-    for (auto& arrow : arrowVisuals_) {
-        arrow.remaining =
-            std::max(0.0, arrow.remaining - frameSeconds);
-    }
-    std::erase_if(arrowVisuals_, [](const ArrowVisual& arrow) {
-        return arrow.remaining <= 0.0;
-    });
-    for (auto& indicator : damageIndicators_) {
-        indicator.remaining = std::max(0.0, indicator.remaining - frameSeconds);
-    }
-    std::erase_if(damageIndicators_, [](const DamageIndicator& indicator) {
-        return indicator.remaining <= 0.0;
-    });
-    bool consumedTransientInput = false;
-    double tickMilliseconds = 0.0;
-    std::size_t measuredTicks = 0;
-    const double simulationFrameSeconds = slowMotion_ ? frameSeconds * 0.2 : frameSeconds;
-    fixedStep_.advance(
-        simulationFrameSeconds,
-        [this, &consumedTransientInput, &tickMilliseconds,
-         &measuredTicks](double deltaSeconds) {
-        PlayerCommand tickInput = input_;
-        if (!consumedTransientInput) {
-            tickInput.lookYaw = pendingYaw_;
-            tickInput.lookPitch = pendingPitch_;
-            tickInput.jump = pendingJump_;
-            tickInput.usePickaxe = pendingPickaxe_;
-            tickInput.fireRifle = pendingRifleShot_;
-            tickInput.selectBuilding = pendingBuildingSelection_;
-            tickInput.cancelBuilding = pendingBuildingCancel_;
-            tickInput.placeBuilding = pendingBuildingPlacement_;
-            tickInput.rotateBuilding = pendingBuildingRotation_;
-            if (pendingStartWave_) {
-                tickInput.startWaveEarly = StartWaveEarlyCommand{};
-            }
-            if (pendingUnlimitedResources_) {
-                tickInput.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
-            }
-            tickInput.upgradeBuilding = pendingBuildingUpgrade_;
-            tickInput.repairBuilding = pendingBuildingRepair_;
-            tickInput.sellBuilding = pendingBuildingSale_;
-            if (pendingWeaponToggle_) {
-                tickInput.toggleWeapon = ToggleWeaponCommand{};
-            }
-            if (pendingWeaponUpgrade_) {
-                tickInput.upgradeWeapon = UpgradeWeaponCommand{};
-            }
-            if (pendingBombThrow_) {
-                tickInput.useConsumable = UseConsumableCommand{};
-            }
-            if (pendingDefeatAllEnemies_) {
-                tickInput.defeatAllEnemies = DefeatAllEnemiesCommand{};
-            }
-            if (pendingToggleInvulnerability_) {
-                tickInput.toggleInvulnerability = ToggleInvulnerabilityCommand{};
-            }
-            if (pendingDamageCore_) {
-                tickInput.damageCore = DamageCoreCommand{};
-            }
-            if (pendingSpawnEnemy_) {
-                tickInput.spawnEnemy = SpawnEnemyCommand{debugSpawnType_};
-            }
-            tickInput.toggleGate = pendingGateToggle_;
-            consumedTransientInput = true;
-        }
-        const auto tickStarted = std::chrono::steady_clock::now();
-        simulation_.tick(deltaSeconds, tickInput);
-        const auto tickFinished = std::chrono::steady_clock::now();
-        tickMilliseconds +=
-            std::chrono::duration<double, std::milli>(tickFinished - tickStarted)
-                .count();
-        ++measuredTicks;
-        });
-    if (measuredTicks > 0) {
-        const double average = tickMilliseconds / static_cast<double>(measuredTicks);
-        simulationTickMilliseconds_ =
-            simulationTickMilliseconds_ == 0.0
-                ? average
-                : simulationTickMilliseconds_ * 0.9 + average * 0.1;
-        peakSimulationTickMilliseconds_ =
-            std::max(peakSimulationTickMilliseconds_, average);
-    }
-    if (consumedTransientInput) {
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingPickaxe_ = false;
-        pendingRifleShot_ = false;
-        pendingBuildingSelection_.reset();
-        pendingBuildingCancel_ = false;
-        pendingBuildingPlacement_.reset();
-        pendingBuildingRotation_ = 0;
-        pendingStartWave_ = false;
-        pendingUnlimitedResources_ = false;
-        pendingBuildingUpgrade_.reset();
-        pendingBuildingRepair_.reset();
-        pendingBuildingSale_.reset();
-        pendingWeaponToggle_ = false;
-        pendingWeaponUpgrade_ = false;
-        pendingBombThrow_ = false;
-        pendingDefeatAllEnemies_ = false;
-        pendingToggleInvulnerability_ = false;
-        pendingDamageCore_ = false;
-        pendingSpawnEnemy_ = false;
-        pendingGateToggle_.reset();
-    }
-    const auto events = simulation_.takeEvents();
-    const auto eventSnapshot = simulation_.snapshot();
-    for (const auto& event : events) {
-        if (event.type == GameEventType::ProjectileHit &&
-            event.sourceId) {
-            const auto source = std::find_if(
-                eventSnapshot.buildings.begin(),
-                eventSnapshot.buildings.end(),
-                [&event](const BuildingInstance& building) {
-                    return building.id == *event.sourceId &&
-                           building.type == BuildingType::Turret;
-                });
-            if (source != eventSnapshot.buildings.end()) {
-                const Vec3 origin{
-                    static_cast<double>(source->gridPosition.x),
-                    1.4,
-                    static_cast<double>(source->gridPosition.z),
-                };
-                const double deltaX = event.position.x - origin.x;
-                const double deltaY = event.position.y - origin.y;
-                const double deltaZ = event.position.z - origin.z;
-                const double distance = std::sqrt(
-                    deltaX * deltaX + deltaY * deltaY +
-                    deltaZ * deltaZ);
-                const double duration =
-                    std::clamp(distance / 18.0, 0.08, 0.35);
-                arrowVisuals_.push_back({
-                    .origin = origin,
-                    .target = event.position,
-                    .remaining = duration,
-                    .duration = duration,
-                });
-            }
-        }
-        if (event.type == GameEventType::ResourceHit ||
-            event.type == GameEventType::ProjectileHit ||
-            event.type == GameEventType::EnemyKilled) {
-            addEffect(PresentationEffectType::Hit, event.position, 0.22);
-        } else if (event.type == GameEventType::ResourceCollected) {
-            addEffect(PresentationEffectType::ResourceBurst, event.position, 0.65);
-        } else if (event.type == GameEventType::Explosion) {
-            addEffect(PresentationEffectType::Explosion, event.position, 0.8);
-            addCameraShake(0.25, 0.12);
-        } else if (event.type == GameEventType::BuildingDestroyed) {
-            addEffect(PresentationEffectType::Debris, event.position, 0.8);
-            addCameraShake(0.18, 0.08);
-        } else if (event.type == GameEventType::BossRamImpact) {
-            addEffect(PresentationEffectType::RamImpact, event.position, 0.7);
-            addCameraShake(0.35, 0.2);
-        } else if (event.type == GameEventType::CoreDamaged) {
-            addCameraShake(0.1, 0.04);
-        }
-        if (event.type == GameEventType::PlayerDamaged) {
-            addDamageIndicator(event.position, eventSnapshot, false);
-            playerDamageFlashRemaining_ = 0.18;
-        } else if (event.type == GameEventType::CoreDamaged) {
-            addDamageIndicator(event.position, eventSnapshot, false);
-        } else if (event.type == GameEventType::BossRamImpact) {
-            addDamageIndicator(event.position, eventSnapshot, true);
-        }
-
-        std::string message;
-        if (event.type == GameEventType::BuildingUpgraded && event.buildingType) {
-            message = std::string(buildingName(*event.buildingType)) + " upgraded";
-        } else if (event.type == GameEventType::BuildingUpgradeRejected &&
-                   event.upgradeError) {
-            message = upgradeErrorMessage(*event.upgradeError);
-        } else if (event.type == GameEventType::BuildingRepaired && event.buildingType) {
-            message = std::string(buildingName(*event.buildingType)) + " repaired";
-        } else if ((event.type == GameEventType::BuildingRepairRejected ||
-                    event.type == GameEventType::BuildingSellRejected) &&
-                   event.buildingActionError) {
-            message = buildingActionErrorMessage(*event.buildingActionError);
-        } else if (event.type == GameEventType::BuildingSold && event.buildingType) {
-            message = std::string(buildingName(*event.buildingType)) + " sold";
-        } else if (event.type == GameEventType::WeaponUpgraded) {
-            message = "Rifle upgraded to level " + std::to_string(event.amount);
-        } else if (event.type == GameEventType::WeaponUpgradeRejected &&
-                   event.weaponUpgradeError) {
-            message = weaponUpgradeErrorMessage(*event.weaponUpgradeError);
-        } else if (event.type == GameEventType::GateToggleRejected) {
-            message = "Gate blocked or not under crosshair";
-        } else if (event.type == GameEventType::PlayerRespawned) {
-            message = "You died - respawned at Core";
-        } else if (event.type == GameEventType::WaveRewardGranted) {
-            message = "Night cleared: +" + std::to_string(event.amount) + " Gold";
-        }
-        if (!message.empty()) {
-            statusMessage_ = std::move(message);
-            statusMessageRemaining_ = 2.5;
-        }
-    }
-}
-
-void App::addEffect(PresentationEffectType type, Vec3 position, double duration) {
-    constexpr std::size_t MaxEffects = 128;
-    if (effects_.size() >= MaxEffects) {
-        effects_.erase(effects_.begin());
-    }
-    effects_.push_back({
-        .type = type,
-        .position = position,
-        .remaining = duration,
-        .duration = duration,
-    });
-}
-
-void App::addCameraShake(double duration, double strength) {
-    cameraShakeRemaining_ = std::max(cameraShakeRemaining_, duration);
-    cameraShakeStrength_ = std::max(cameraShakeStrength_, strength);
-}
-
-void App::addDamageIndicator(Vec3 sourcePosition,
-                             const SimulationSnapshot& snapshot, bool severe) {
-    const double offsetX = sourcePosition.x - snapshot.playerPosition.x;
-    const double offsetZ = sourcePosition.z - snapshot.playerPosition.z;
-    const double worldAngle = std::atan2(offsetX, -offsetZ);
-    const double relativeAngle =
-        std::atan2(std::sin(worldAngle - snapshot.playerYaw),
-                   std::cos(worldAngle - snapshot.playerYaw));
-    for (auto& indicator : damageIndicators_) {
-        const double difference =
-            std::atan2(std::sin(indicator.relativeAngle - relativeAngle),
-                       std::cos(indicator.relativeAngle - relativeAngle));
-        if (std::abs(difference) < 0.2) {
-            indicator.relativeAngle = relativeAngle;
-            indicator.severe = indicator.severe || severe;
-            indicator.duration = indicator.severe ? 1.4 : 1.0;
-            indicator.remaining = indicator.duration;
-            return;
-        }
-    }
-    constexpr std::size_t MaxDamageIndicators = 12;
-    if (damageIndicators_.size() >= MaxDamageIndicators) {
-        damageIndicators_.erase(damageIndicators_.begin());
-    }
-    const double duration = severe ? 1.4 : 1.0;
-    damageIndicators_.push_back({
-        .relativeAngle = relativeAngle,
-        .remaining = duration,
-        .duration = duration,
-        .severe = severe,
-    });
-}
-
 void App::render() {
     const auto snapshot = simulation_.snapshot();
+    auto presentationSnapshot = snapshot;
+    presentationSnapshot.aimedResource = hoveredResource_;
+    presentationSnapshot.aimedBuilding = hoveredBuilding_;
+    presentationSnapshot.aimedEnemy = hoveredEnemy_;
+    presentationSnapshot.aimedBuildingUpgradeCost =
+        hoveredBuildingUpgradeCost_;
+    presentationSnapshot.aimedBuildingStats =
+        hoveredBuildingStats_;
 
     if (snapshot.state == RunState::MainMenu) {
         renderer_->beginUiOnlyFrame({18, 22, 31, 255});
@@ -790,19 +894,19 @@ void App::render() {
             static_cast<float>(GetScreenWidth()) * 0.5F;
         const float centerY =
             static_cast<float>(GetScreenHeight()) * 0.5F;
-        ui_.drawPanel({centerX - 250.0F, centerY - 150.0F,
-                       500.0F, 300.0F});
-        ui_.drawInsetPanel({centerX - 210.0F, centerY - 112.0F,
-                            420.0F, 92.0F});
+        ui_.drawPanel({centerX - 420.0F, centerY - 210.0F,
+                       840.0F, 420.0F});
+        ui_.drawInsetPanel({centerX - 380.0F, centerY - 164.0F,
+                            760.0F, 128.0F});
         drawCentered("IT'S ALMOST NIGHT",
-                     static_cast<int>(centerY) - 92, 42,
+                     static_cast<int>(centerY) - 140, 42,
                      {245, 220, 174, 255});
         pendingStartFromUi_ =
-            ui_.drawButton({centerX - 140.0F, centerY + 34.0F,
-                            280.0F, 64.0F},
+            ui_.drawButton({centerX - 200.0F, centerY + 30.0F,
+                            400.0F, 82.0F},
                            "START RUN") ||
             pendingStartFromUi_;
-        drawCentered("ENTER", static_cast<int>(centerY) + 112, 16,
+        drawCentered("ENTER", static_cast<int>(centerY) + 136, 16,
                      {199, 174, 142, 255});
     } else {
         const double cosPitch = std::cos(snapshot.playerPitch);
@@ -811,11 +915,57 @@ void App::render() {
             static_cast<float>(snapshot.playerPosition.y),
             static_cast<float>(snapshot.playerPosition.z),
         };
-        const Vector3 forward = {
+        Vector3 forward = {
             static_cast<float>(std::sin(snapshot.playerYaw) * cosPitch),
             static_cast<float>(std::sin(snapshot.playerPitch)),
             static_cast<float>(-std::cos(snapshot.playerYaw) * cosPitch),
         };
+        const float bobAmount =
+            static_cast<float>(cameraBobAmount_) *
+            (input_.sprint ? 1.12F : 1.0F);
+        const float bobSide =
+            static_cast<float>(
+                std::sin(cameraBobPhase_)) *
+            0.012F * bobAmount;
+        const float bobVertical =
+            -static_cast<float>(
+                std::abs(std::sin(cameraBobPhase_))) *
+            0.024F * bobAmount;
+        const Vector3 bobRight = {
+            static_cast<float>(
+                std::cos(snapshot.playerYaw)),
+            0.0F,
+            static_cast<float>(
+                std::sin(snapshot.playerYaw)),
+        };
+        position = Vector3Add(
+            position,
+            Vector3Scale(bobRight, bobSide));
+        position.y += bobVertical;
+        const Vector3 bobCameraUp = Vector3Normalize(
+            Vector3Add(
+                {0.0F, 1.0F, 0.0F},
+                Vector3Scale(
+                    bobRight,
+                    -static_cast<float>(
+                        std::sin(cameraBobPhase_)) *
+                        0.0045F * bobAmount)));
+        if (weaponRecoilRemaining_ > 0.0 &&
+            weaponRecoilDuration_ > 0.0) {
+            const float progress = std::clamp(
+                static_cast<float>(
+                    1.0 -
+                    weaponRecoilRemaining_ /
+                        weaponRecoilDuration_),
+                0.0F, 1.0F);
+            const float recoil =
+                std::sin(progress * PI) *
+                weaponRecoilStrength_;
+            position = Vector3Subtract(
+                position, Vector3Scale(forward, recoil));
+            forward.y += recoil * 0.38F;
+            forward = Vector3Normalize(forward);
+        }
         if (cameraShakeRemaining_ > 0.0) {
             const double visualTime = GetTime();
             const float shake =
@@ -827,47 +977,12 @@ void App::render() {
         const Camera3D camera = {
             .position = position,
             .target = Vector3Add(position, forward),
-            .up = {0.0F, 1.0F, 0.0F},
-            .fovy = 75.0F,
+            .up = bobCameraUp,
+            .fovy = cameraFov_,
             .projection = CAMERA_PERSPECTIVE,
         };
-        const auto cannonYaw = [&snapshot](const BuildingInstance& building) {
-            const auto runtime = std::find_if(
-                snapshot.cannons.begin(), snapshot.cannons.end(),
-                [&building](const CannonRuntime& cannon) {
-                    return cannon.buildingId == building.id;
-                });
-            if (runtime != snapshot.cannons.end()) {
-                return static_cast<float>(runtime->yaw);
-            }
-            constexpr float QuarterTurn = PI * 0.5F;
-            return static_cast<float>(building.rotation) * QuarterTurn;
-        };
-        const auto towerYaw = [&snapshot](const BuildingInstance& building) {
-            const auto runtime = std::find_if(
-                snapshot.towers.begin(), snapshot.towers.end(),
-                [&building](const TowerRuntime& tower) {
-                    return tower.buildingId == building.id;
-                });
-            if (runtime != snapshot.towers.end()) {
-                return static_cast<float>(runtime->yaw);
-            }
-            constexpr float QuarterTurn = PI * 0.5F;
-            return static_cast<float>(building.rotation) * QuarterTurn;
-        };
-        const auto cannonPitch = [&snapshot](const BuildingInstance& building) {
-            const auto runtime = std::find_if(
-                snapshot.cannons.begin(), snapshot.cannons.end(),
-                [&building](const CannonRuntime& cannon) {
-                    return cannon.buildingId == building.id;
-                });
-            return runtime != snapshot.cannons.end()
-                       ? static_cast<float>(runtime->pitch)
-                       : 0.0F;
-        };
-
-        constexpr Color DayGround{48, 78, 52, 255};
-        constexpr Color NightGround{21, 38, 34, 255};
+        constexpr Color DayGround{66, 112, 67, 255};
+        constexpr Color NightGround{28, 52, 50, 255};
 
         float automaticTime = environment_.timeOfDay();
         if (snapshot.state == RunState::Gathering ||
@@ -939,794 +1054,92 @@ void App::render() {
             .celestialDirection = environment.celestialDirection,
             .celestialColor = environment.celestialColor,
             .celestialIntensity = environment.sunIntensity,
+            .nightAmount = nightAmount,
             .timeSeconds = static_cast<float>(GetTime()),
             .exposure = environment.exposure,
             .saturation = environment.saturation,
         };
-        const auto hitFlashAt = [this](Vec3 position, double radius) {
-            float amount = 0.0F;
-            const double radiusSquared = radius * radius;
-            for (const auto& effect : effects_) {
-                if (effect.type != PresentationEffectType::Hit) {
-                    continue;
-                }
-                const double offsetX = effect.position.x - position.x;
-                const double offsetY = effect.position.y - position.y;
-                const double offsetZ = effect.position.z - position.z;
-                const double distanceSquared =
-                    offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ;
-                if (distanceSquared <= radiusSquared) {
-                    amount =
-                        std::max(amount, static_cast<float>(
-                                             effect.remaining / effect.duration));
-                }
-            }
-            return amount;
-        };
 
-        const Vector3 shadowFocus{
-            static_cast<float>(snapshot.playerPosition.x),
-            0.0F,
-            static_cast<float>(snapshot.playerPosition.z),
-        };
-        const auto withinLocalShadowDistance =
-            [shadowFocus](Vector3 position, float maximumDistance) {
-                const float offsetX = position.x - shadowFocus.x;
-                const float offsetZ = position.z - shadowFocus.z;
-                return offsetX * offsetX + offsetZ * offsetZ <=
-                       maximumDistance * maximumDistance;
-            };
-        if (renderer_->beginShadowPass(lighting, shadowFocus)) {
-            const float mapSize =
-                static_cast<float>(snapshot.worldLimit * 2.0);
-            DrawPlane({0.0F, 0.0F, 0.0F}, {mapSize, mapSize}, WHITE);
-            for (const auto& obstacle : snapshot.mapObstacles) {
-                const float width = static_cast<float>(
-                    obstacle.collision.maxX - obstacle.collision.minX);
-                const float depth = static_cast<float>(
-                    obstacle.collision.maxZ - obstacle.collision.minZ);
-                const Vector3 center{
-                    static_cast<float>(
-                        (obstacle.collision.minX + obstacle.collision.maxX) *
-                        0.5),
-                    static_cast<float>(obstacle.height * 0.5),
-                    static_cast<float>(
-                        (obstacle.collision.minZ + obstacle.collision.maxZ) *
-                        0.5),
-                };
-                if (renderer_->shadowCasterVisible(
-                        center, std::max(width, depth) * 0.5F)) {
-                    DrawCube(center, width,
-                             static_cast<float>(obstacle.height), depth, WHITE);
-                }
-            }
-            for (const auto& node : snapshot.resourceNodes) {
-                if (!node.active) {
-                    continue;
-                }
-                const Vector3 nodePosition{
-                    static_cast<float>(node.position.x),
-                    static_cast<float>(node.position.y),
-                    static_cast<float>(node.position.z),
-                };
-                if (!renderer_->shadowCasterVisible(
-                        nodePosition, static_cast<float>(node.radius)) ||
-                    !withinLocalShadowDistance(nodePosition, 45.0F)) {
-                    continue;
-                }
-                if (node.type == ResourceType::Wood) {
-                    if (!renderer_->drawTree(
-                            {nodePosition.x, 0.0F, nodePosition.z})) {
-                        DrawCylinder(
-                            {nodePosition.x, 0.9F, nodePosition.z},
-                            0.32F, 0.42F, 1.8F, 8, WHITE);
-                        DrawSphere(
-                            {nodePosition.x, 2.2F, nodePosition.z},
-                            1.15F, WHITE);
-                    }
-                } else {
-                    if (!renderer_->drawRock(
-                            {nodePosition.x, 0.0F, nodePosition.z})) {
-                        DrawSphere(nodePosition, 0.9F, WHITE);
-                    }
-                }
-            }
-            for (const auto& building : snapshot.buildings) {
-                const float x =
-                    static_cast<float>(building.gridPosition.x);
-                const float z =
-                    static_cast<float>(building.gridPosition.z);
-                if (!renderer_->shadowCasterVisible({x, 1.0F, z}, 2.2F)) {
-                    continue;
-                }
-                if (building.type == BuildingType::Core) {
-                    constexpr float QuarterTurn = PI * 0.5F;
-                    if (!renderer_->drawCore(
-                            {x, 0.0F, z},
-                            static_cast<float>(building.rotation) *
-                                QuarterTurn)) {
-                        DrawCube({x, 1.25F, z}, 2.0F, 2.5F,
-                                 2.0F, WHITE);
-                    }
-                } else if (building.type == BuildingType::Wall) {
-                    const std::uint8_t connections = wallConnectionMask(
-                        snapshot.buildings, building.gridPosition);
-                    const auto drawSection =
-                        [x, z](float offsetX, float offsetZ, float width,
-                               float depth) {
-                            DrawCube({x + offsetX, 1.0F, z + offsetZ},
-                                     width, 2.0F, depth, WHITE);
-                        };
-                    if (connections == 0U) {
-                        drawSection(0.0F, 0.0F, 1.0F, 1.0F);
-                    } else {
-                        drawSection(0.0F, 0.0F, 0.5F, 0.5F);
-                        if ((connections & WallConnectionNorth) != 0U) {
-                            drawSection(0.0F, -0.35F, 0.5F, 0.7F);
-                        }
-                        if ((connections & WallConnectionEast) != 0U) {
-                            drawSection(0.35F, 0.0F, 0.7F, 0.5F);
-                        }
-                        if ((connections & WallConnectionSouth) != 0U) {
-                            drawSection(0.0F, 0.35F, 0.5F, 0.7F);
-                        }
-                        if ((connections & WallConnectionWest) != 0U) {
-                            drawSection(-0.35F, 0.0F, 0.7F, 0.5F);
-                        }
-                    }
-                } else if (building.type == BuildingType::Turret) {
-                    if (!renderer_->drawCrossbow(
-                            {x, 0.0F, z}, towerYaw(building))) {
-                        DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                                 WHITE);
-                        DrawCylinder({x, 1.45F, z}, 0.42F, 0.32F,
-                                     0.7F, 8, WHITE);
-                        DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
-                                 0.18F, 1.0F, WHITE);
-                    }
-                } else if (building.type == BuildingType::GoldMine) {
-                    DrawCube({x, 0.55F, z}, 1.0F, 1.1F, 1.0F, WHITE);
-                    DrawCylinder({x, 1.25F, z}, 0.32F, 0.48F, 0.7F,
-                                 8, WHITE);
-                    DrawSphere({x, 1.72F, z}, 0.22F, WHITE);
-                } else if (building.type == BuildingType::Cannon) {
-                    if (!renderer_->drawCannon({x, 0.0F, z},
-                                               cannonYaw(building),
-                                               cannonPitch(building))) {
-                        DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                                 WHITE);
-                        DrawSphere({x, 1.35F, z}, 0.48F, WHITE);
-                        DrawCube({x, 1.45F, z - 0.75F}, 0.28F,
-                                 0.28F, 1.4F, WHITE);
-                    }
-                } else if (building.type == BuildingType::SlowTrap) {
-                    DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F,
-                             WHITE);
-                } else if ((building.rotation % 2U) == 0U) {
-                    DrawCube({x - 0.38F, 1.0F, z}, 0.22F, 2.0F,
-                             1.0F, WHITE);
-                    DrawCube({x + 0.38F, 1.0F, z}, 0.22F, 2.0F,
-                             1.0F, WHITE);
-                    if (!building.open) {
-                        DrawCube({x, 1.0F, z}, 0.55F, 1.7F, 0.18F,
-                                 WHITE);
-                    }
-                } else {
-                    DrawCube({x, 1.0F, z - 0.38F}, 1.0F, 2.0F,
-                             0.22F, WHITE);
-                    DrawCube({x, 1.0F, z + 0.38F}, 1.0F, 2.0F,
-                             0.22F, WHITE);
-                    if (!building.open) {
-                        DrawCube({x, 1.0F, z}, 0.18F, 1.7F, 0.55F,
-                                 WHITE);
-                    }
-                }
-            }
-            for (const auto& enemy : snapshot.enemies) {
-                if (!enemy.active) {
-                    continue;
-                }
-                const Vector3 enemyPosition{
-                    static_cast<float>(enemy.position.x),
-                    static_cast<float>(enemy.position.y),
-                    static_cast<float>(enemy.position.z),
-                };
-                float width = 0.8F;
-                float height = 1.6F;
-                if (enemy.type == EnemyType::Fast) {
-                    width = 0.65F;
-                    height = 1.35F;
-                } else if (enemy.type == EnemyType::Heavy) {
-                    width = 1.15F;
-                    height = 2.0F;
-                } else if (enemy.type == EnemyType::Boss) {
-                    width = 2.0F;
-                    height = 3.2F;
-                }
-                float casterDistance = 36.0F;
-                if (enemy.type == EnemyType::Heavy) {
-                    casterDistance = 45.0F;
-                } else if (enemy.type == EnemyType::Boss) {
-                    casterDistance = 60.0F;
-                }
-                if (!renderer_->shadowCasterVisible(enemyPosition, width) ||
-                    !withinLocalShadowDistance(enemyPosition,
-                                               casterDistance)) {
-                    continue;
-                }
-                DrawCube(enemyPosition, width, height, width, WHITE);
-                DrawSphere(
-                    {enemyPosition.x,
-                     enemyPosition.y + height * 0.62F,
-                     enemyPosition.z},
-                    width * 0.52F, WHITE);
-            }
-            renderer_->endShadowPass();
-        }
-
+        drawShadowPass(snapshot, lighting);
+        drawSelectionPass(presentationSnapshot, camera);
         renderer_->beginWorldPass(environment.skyHorizon);
         renderer_->drawSky(skyState);
         BeginMode3D(camera);
         renderer_->beginWorldShader(lighting);
-        const float mapSize = static_cast<float>(snapshot.worldLimit * 2.0);
         WorldMaterialState terrainMaterial{};
         terrainMaterial.terrainAmount = 1.0F;
         terrainMaterial.bakedAo = 0.9F;
         renderer_->setWorldMaterial(terrainMaterial);
-        DrawPlane({0.0F, 0.0F, 0.0F}, {mapSize, mapSize}, ground);
-        WorldMaterialState obstacleMaterial{};
-        obstacleMaterial.bakedAo = 0.74F;
-        renderer_->setWorldMaterial(obstacleMaterial);
-        for (const auto& obstacle : snapshot.mapObstacles) {
-            const float width =
-                static_cast<float>(obstacle.collision.maxX - obstacle.collision.minX);
-            const float depth =
-                static_cast<float>(obstacle.collision.maxZ - obstacle.collision.minZ);
-            const Vector3 center{
-                static_cast<float>((obstacle.collision.minX + obstacle.collision.maxX) * 0.5),
-                static_cast<float>(obstacle.height * 0.5),
-                static_cast<float>((obstacle.collision.minZ + obstacle.collision.maxZ) * 0.5),
-            };
-            DrawCube(center, width, static_cast<float>(obstacle.height), depth,
-                     {99, 111, 122, 255});
-        }
-        for (const auto& node : snapshot.resourceNodes) {
-            if (!node.active) {
-                continue;
-            }
-
-            const Vector3 nodePosition = {
-                static_cast<float>(node.position.x),
-                static_cast<float>(node.position.y),
-                static_cast<float>(node.position.z),
-            };
-            const bool aimed = snapshot.aimedResource && *snapshot.aimedResource == node.id;
-            WorldMaterialState material{};
-            material.bakedAo = 0.78F;
-            material.hitFlashAmount = hitFlashAt(node.position, 1.5);
-            material.selectionAmount = aimed ? 0.28F : 0.0F;
-            material.selectionTint = {1.0F, 0.78F, 0.2F};
-            renderer_->setWorldMaterial(material);
-            if (node.type == ResourceType::Wood) {
-                if (!renderer_->drawTree(
-                        {nodePosition.x, 0.0F, nodePosition.z})) {
-                    DrawCylinder(
-                        {nodePosition.x, 0.9F, nodePosition.z}, 0.32F,
-                        0.42F, 1.8F, 8, {112, 74, 42, 255});
-                    DrawSphere(
-                        {nodePosition.x, 2.2F, nodePosition.z}, 1.15F,
-                        aimed ? Color{132, 205, 92, 255}
-                              : Color{58, 124, 67, 255});
-                }
-            } else {
-                if (!renderer_->drawRock(
-                        {nodePosition.x, 0.0F, nodePosition.z})) {
-                    DrawSphere(
-                        nodePosition, 0.9F,
-                        aimed ? Color{191, 205, 216, 255}
-                              : Color{104, 116, 128, 255});
-                }
-            }
-        }
-        for (const auto& building : snapshot.buildings) {
-            const float x = static_cast<float>(building.gridPosition.x);
-            const float z = static_cast<float>(building.gridPosition.z);
-            WorldMaterialState material{};
-            material.bakedAo = 0.72F;
-            material.selectionAmount =
-                snapshot.aimedBuilding && *snapshot.aimedBuilding == building.id
-                    ? 0.24F
-                    : 0.0F;
-            renderer_->setWorldMaterial(material);
-            if (building.type == BuildingType::Core) {
-                constexpr float QuarterTurn = PI * 0.5F;
-                if (!renderer_->drawCore(
-                        {x, 0.0F, z},
-                        static_cast<float>(building.rotation) *
-                            QuarterTurn)) {
-                    DrawCube({x, 1.25F, z}, 2.0F, 2.5F, 2.0F,
-                             {219, 151, 60, 255});
-                }
-                if (nightAmount > 0.0F) {
-                    const unsigned char alpha =
-                        static_cast<unsigned char>(80.0F + 120.0F * nightAmount);
-                    DrawSphere({x, 2.35F, z}, 0.22F, {255, 204, 91, alpha});
-                }
-            } else if (building.type == BuildingType::Wall) {
-                const std::uint8_t connections =
-                    wallConnectionMask(snapshot.buildings, building.gridPosition);
-                const auto drawSection = [x, z](float offsetX, float offsetZ, float width,
-                                                float depth) {
-                    DrawCube({x + offsetX, 1.0F, z + offsetZ}, width, 2.0F, depth,
-                             {126, 86, 54, 255});
-                };
-                if (connections == 0U) {
-                    drawSection(0.0F, 0.0F, 1.0F, 1.0F);
-                } else {
-                    drawSection(0.0F, 0.0F, 0.5F, 0.5F);
-                    if ((connections & WallConnectionNorth) != 0U) {
-                        drawSection(0.0F, -0.35F, 0.5F, 0.7F);
-                    }
-                    if ((connections & WallConnectionEast) != 0U) {
-                        drawSection(0.35F, 0.0F, 0.7F, 0.5F);
-                    }
-                    if ((connections & WallConnectionSouth) != 0U) {
-                        drawSection(0.0F, 0.35F, 0.5F, 0.7F);
-                    }
-                    if ((connections & WallConnectionWest) != 0U) {
-                        drawSection(-0.35F, 0.0F, 0.7F, 0.5F);
-                    }
-                }
-            } else if (building.type == BuildingType::Turret) {
-                if (!renderer_->drawCrossbow(
-                        {x, 0.0F, z}, towerYaw(building))) {
-                    DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                             {68, 83, 96, 255});
-                    DrawCylinder({x, 1.45F, z}, 0.42F, 0.32F,
-                                 0.7F, 8, {176, 128, 60, 255});
-                    DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
-                             0.18F, 1.0F, {50, 58, 67, 255});
-                }
-            } else if (building.type == BuildingType::GoldMine) {
-                DrawCube({x, 0.55F, z}, 1.0F, 1.1F, 1.0F, {71, 75, 82, 255});
-                DrawCylinder({x, 1.25F, z}, 0.32F, 0.48F, 0.7F, 8,
-                             {189, 142, 45, 255});
-                DrawSphere({x, 1.72F, z}, 0.22F, GOLD);
-            } else if (building.type == BuildingType::Cannon) {
-                if (!renderer_->drawCannon({x, 0.0F, z},
-                                           cannonYaw(building),
-                                           cannonPitch(building))) {
-                    DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                             {62, 70, 78, 255});
-                    DrawSphere({x, 1.35F, z}, 0.48F,
-                               {83, 91, 99, 255});
-                    DrawCube({x, 1.45F, z - 0.75F}, 0.28F, 0.28F,
-                             1.4F, {42, 48, 54, 255});
-                }
-            } else if (building.type == BuildingType::SlowTrap) {
-                DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F, {76, 110, 132, 255});
-            } else {
-                if ((building.rotation % 2U) == 0U) {
-                    DrawCube({x - 0.38F, 1.0F, z}, 0.22F, 2.0F, 1.0F,
-                             {112, 76, 48, 255});
-                    DrawCube({x + 0.38F, 1.0F, z}, 0.22F, 2.0F, 1.0F,
-                             {112, 76, 48, 255});
-                    if (!building.open) {
-                        DrawCube({x, 1.0F, z}, 0.55F, 1.7F, 0.18F,
-                                 {151, 105, 62, 255});
-                    }
-                } else {
-                    DrawCube({x, 1.0F, z - 0.38F}, 1.0F, 2.0F, 0.22F,
-                             {112, 76, 48, 255});
-                    DrawCube({x, 1.0F, z + 0.38F}, 1.0F, 2.0F, 0.22F,
-                             {112, 76, 48, 255});
-                    if (!building.open) {
-                        DrawCube({x, 1.0F, z}, 0.18F, 1.7F, 0.55F,
-                                 {151, 105, 62, 255});
-                    }
-                }
-            }
-        }
-        renderer_->setWorldMaterial({});
-        for (const auto& projectile : snapshot.cannonProjectiles) {
-            if (projectile.active) {
-                const Vector3 projectilePosition{
-                    static_cast<float>(projectile.position.x),
-                    static_cast<float>(projectile.position.y),
-                    static_cast<float>(projectile.position.z),
-                };
-                if (!renderer_->drawCannonball(projectilePosition)) {
-                    DrawSphere(projectilePosition, 0.2F,
-                               {36, 39, 43, 255});
-                }
-            }
-        }
-        for (const auto& arrow : arrowVisuals_) {
-            const double progress =
-                1.0 - arrow.remaining / arrow.duration;
-            const Vec3 arrowPosition{
-                arrow.origin.x +
-                    (arrow.target.x - arrow.origin.x) * progress,
-                arrow.origin.y +
-                    (arrow.target.y - arrow.origin.y) * progress,
-                arrow.origin.z +
-                    (arrow.target.z - arrow.origin.z) * progress,
-            };
-            (void)renderer_->drawArrow(
-                {static_cast<float>(arrowPosition.x),
-                 static_cast<float>(arrowPosition.y),
-                 static_cast<float>(arrowPosition.z)},
-                {static_cast<float>(arrow.target.x - arrow.origin.x),
-                 static_cast<float>(arrow.target.y - arrow.origin.y),
-                 static_cast<float>(arrow.target.z - arrow.origin.z)});
-        }
-        for (const auto& projectile : snapshot.bombProjectiles) {
-            if (projectile.active) {
-                DrawSphere({static_cast<float>(projectile.position.x),
-                            static_cast<float>(projectile.position.y),
-                            static_cast<float>(projectile.position.z)},
-                           0.16F, {52, 57, 62, 255});
-            }
-        }
-        for (const auto& enemy : snapshot.enemies) {
-            if (!enemy.active) {
-                continue;
-            }
-            const Vector3 enemyPosition = {
-                static_cast<float>(enemy.position.x),
-                static_cast<float>(enemy.position.y),
-                static_cast<float>(enemy.position.z),
-            };
-            const bool aimed = snapshot.aimedEnemy && *snapshot.aimedEnemy == enemy.id;
-            WorldMaterialState material{};
-            material.bakedAo = 0.82F;
-            material.hitFlashAmount = hitFlashAt(enemy.position, 1.6);
-            material.selectionAmount = aimed ? 0.32F : 0.0F;
-            material.selectionTint = {1.0F, 0.38F, 0.12F};
-            renderer_->setWorldMaterial(material);
-            float width = 0.8F;
-            float height = 1.6F;
-            Color body = {150, 55, 52, 255};
-            if (enemy.type == EnemyType::Fast) {
-                width = 0.65F;
-                height = 1.35F;
-                body = {191, 104, 52, 255};
-            } else if (enemy.type == EnemyType::Heavy) {
-                width = 1.15F;
-                height = 2.0F;
-                body = {93, 60, 105, 255};
-            } else if (enemy.type == EnemyType::Boss) {
-                width = 2.0F;
-                height = 3.2F;
-                body = {74, 35, 45, 255};
-            }
-            if (aimed) {
-                body = {242, 118, 76, 255};
-            } else if (enemy.slowRemaining > 0.0) {
-                body = {70, 128, 170, 255};
-            } else if (enemy.state == EnemyState::BossRamWindup) {
-                body = {235, 64, 45, 255};
-            }
-            DrawCube(enemyPosition, width, height, width, body);
-            DrawSphere({enemyPosition.x, enemyPosition.y + height * 0.62F, enemyPosition.z},
-                       width * 0.52F, aimed ? ORANGE : MAROON);
-        }
-        renderer_->endWorldShader();
-
-        if (renderer_->beginBlobShadowBatch(camera.position)) {
-            for (const auto& node : snapshot.resourceNodes) {
-                if (!node.active) {
-                    continue;
-                }
-                const float radius =
-                    std::max(static_cast<float>(node.radius), 0.45F);
-                renderer_->drawBlobShadow(
-                    {static_cast<float>(node.position.x), 0.018F,
-                     static_cast<float>(node.position.z)},
-                    radius, radius * 0.82F,
-                    node.type == ResourceType::Wood ? 0.24F : 0.2F);
-            }
-            for (const auto& building : snapshot.buildings) {
-                const float x =
-                    static_cast<float>(building.gridPosition.x);
-                const float z =
-                    static_cast<float>(building.gridPosition.z);
-                float radius = 0.62F;
-                float opacity = 0.2F;
-                if (building.type == BuildingType::Core) {
-                    radius = 1.1F;
-                    opacity = 0.24F;
-                } else if (building.type == BuildingType::SlowTrap) {
-                    radius = 0.54F;
-                    opacity = 0.1F;
-                }
-                renderer_->drawBlobShadow({x, 0.018F, z}, radius,
-                                          radius * 0.82F, opacity);
-            }
-            for (const auto& enemy : snapshot.enemies) {
-                if (!enemy.active) {
-                    continue;
-                }
-                float width = 0.8F;
-                if (enemy.type == EnemyType::Fast) {
-                    width = 0.65F;
-                } else if (enemy.type == EnemyType::Heavy) {
-                    width = 1.15F;
-                } else if (enemy.type == EnemyType::Boss) {
-                    width = 2.0F;
-                }
-                renderer_->drawBlobShadow(
-                    {static_cast<float>(enemy.position.x), 0.02F,
-                     static_cast<float>(enemy.position.z)},
-                    width * 0.72F, width * 0.6F,
-                    enemy.type == EnemyType::Boss ? 0.3F : 0.24F);
-            }
-            renderer_->endBlobShadowBatch();
-        }
-
-        if (snapshot.buildingPreview) {
-            drawBuildGrid(
-                {static_cast<float>(snapshot.playerPosition.x), 0.0F,
-                 static_cast<float>(snapshot.playerPosition.z)},
-                snapshot.worldLimit);
-        }
-        for (const auto& node : snapshot.resourceNodes) {
-            if (!node.active || !snapshot.aimedResource ||
-                *snapshot.aimedResource != node.id) {
-                continue;
-            }
-            const Vector3 nodePosition{
-                static_cast<float>(node.position.x),
-                static_cast<float>(node.position.y),
-                static_cast<float>(node.position.z),
-            };
-            DrawSphereWires(nodePosition, static_cast<float>(node.radius), 8, 8,
-                            YELLOW);
-        }
-        for (const auto& enemy : snapshot.enemies) {
-            if (!enemy.active) {
-                continue;
-            }
-            const Vector3 enemyPosition{
-                static_cast<float>(enemy.position.x),
-                static_cast<float>(enemy.position.y),
-                static_cast<float>(enemy.position.z),
-            };
-            float width = 0.8F;
-            float height = 1.6F;
-            if (enemy.type == EnemyType::Fast) {
-                width = 0.65F;
-                height = 1.35F;
-            } else if (enemy.type == EnemyType::Heavy) {
-                width = 1.15F;
-                height = 2.0F;
-            } else if (enemy.type == EnemyType::Boss) {
-                width = 2.0F;
-                height = 3.2F;
-            }
-            const bool aimed =
-                snapshot.aimedEnemy && *snapshot.aimedEnemy == enemy.id;
-            if (aimed) {
-                DrawCubeWires(enemyPosition, width + 0.1F, height + 0.1F, width + 0.1F, YELLOW);
-            } else if (enemy.state == EnemyState::BossRamWindup) {
-                const float pulse =
-                    0.12F + static_cast<float>(std::sin(snapshot.elapsedSeconds * 18.0)) * 0.06F;
-                DrawCubeWires(enemyPosition, width + pulse, height + pulse,
-                              width + pulse, ORANGE);
-            }
-        }
-        if (snapshot.buildingPreview) {
-            const auto& preview = *snapshot.buildingPreview;
-            const float x = static_cast<float>(preview.gridPosition.x);
-            const float z = static_cast<float>(preview.gridPosition.z);
-            const Color color =
-                preview.placement.valid() ? Color{67, 214, 112, 110} : Color{224, 67, 67, 110};
-            constexpr float QuarterTurn = PI * 0.5F;
-            const float yaw =
-                static_cast<float>(preview.rotation) * QuarterTurn;
-            WorldMaterialState previewMaterial{};
-            previewMaterial.baseColor = {
-                static_cast<float>(color.r) / 255.0F,
-                static_cast<float>(color.g) / 255.0F,
-                static_cast<float>(color.b) / 255.0F,
-                static_cast<float>(color.a) / 255.0F,
-            };
-            previewMaterial.bakedAo = 0.85F;
-            renderer_->beginWorldShader(lighting);
-            renderer_->setWorldMaterial(previewMaterial);
-
-            if (preview.type == BuildingType::Core) {
-                if (!renderer_->drawCore({x, 0.0F, z}, yaw)) {
-                    DrawCube({x, 1.25F, z}, 2.0F, 2.5F, 2.0F,
-                             WHITE);
-                }
-            } else if (preview.type == BuildingType::Turret) {
-                if (!renderer_->drawCrossbow({x, 0.0F, z}, yaw)) {
-                    DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                             WHITE);
-                    DrawCylinder({x, 1.45F, z}, 0.42F, 0.32F,
-                                 0.7F, 8, WHITE);
-                    DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
-                             0.18F, 1.0F, WHITE);
-                }
-            } else if (preview.type == BuildingType::Cannon) {
-                if (!renderer_->drawCannon({x, 0.0F, z}, yaw, 0.0F)) {
-                    DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
-                             WHITE);
-                    DrawSphere({x, 1.35F, z}, 0.48F, WHITE);
-                    DrawCube({x, 1.45F, z - 0.75F}, 0.28F,
-                             0.28F, 1.4F, WHITE);
-                }
-            } else if (preview.type == BuildingType::GoldMine) {
-                DrawCube({x, 0.55F, z}, 1.0F, 1.1F, 1.0F,
-                         WHITE);
-                DrawCylinder({x, 1.25F, z}, 0.32F, 0.48F, 0.7F,
-                             8, WHITE);
-                DrawSphere({x, 1.72F, z}, 0.22F, WHITE);
-            } else if (preview.type == BuildingType::SlowTrap) {
-                DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F,
-                         WHITE);
-            } else if (preview.type == BuildingType::Wall) {
-                const std::uint8_t connections = wallConnectionMask(
-                    snapshot.buildings, preview.gridPosition);
-                const auto drawSection =
-                    [x, z](float offsetX, float offsetZ, float width,
-                           float depth) {
-                        DrawCube({x + offsetX, 1.0F, z + offsetZ},
-                                 width, 2.0F, depth, WHITE);
-                    };
-                if (connections == 0U) {
-                    drawSection(0.0F, 0.0F, 1.0F, 1.0F);
-                } else {
-                    drawSection(0.0F, 0.0F, 0.5F, 0.5F);
-                    if ((connections & WallConnectionNorth) != 0U) {
-                        drawSection(0.0F, -0.35F, 0.5F, 0.7F);
-                    }
-                    if ((connections & WallConnectionEast) != 0U) {
-                        drawSection(0.35F, 0.0F, 0.7F, 0.5F);
-                    }
-                    if ((connections & WallConnectionSouth) != 0U) {
-                        drawSection(0.0F, 0.35F, 0.5F, 0.7F);
-                    }
-                    if ((connections & WallConnectionWest) != 0U) {
-                        drawSection(-0.35F, 0.0F, 0.7F, 0.5F);
-                    }
-                }
-            } else if ((preview.rotation % 2U) == 0U) {
-                DrawCube({x - 0.38F, 1.0F, z}, 0.22F, 2.0F,
-                         1.0F, WHITE);
-                DrawCube({x + 0.38F, 1.0F, z}, 0.22F, 2.0F,
-                         1.0F, WHITE);
-                DrawCube({x, 1.0F, z}, 0.55F, 1.7F, 0.18F,
-                         WHITE);
-            } else {
-                DrawCube({x, 1.0F, z - 0.38F}, 1.0F, 2.0F,
-                         0.22F, WHITE);
-                DrawCube({x, 1.0F, z + 0.38F}, 1.0F, 2.0F,
-                         0.22F, WHITE);
-                DrawCube({x, 1.0F, z}, 0.18F, 1.7F, 0.55F,
-                         WHITE);
-            }
-            renderer_->endWorldShader();
-
-        }
-        if (showColliders_) {
-            for (const auto& collider : snapshot.collisionBoxes) {
-                const float width = static_cast<float>(collider.maxX - collider.minX);
-                const float depth = static_cast<float>(collider.maxZ - collider.minZ);
-                const Vector3 center{
-                    static_cast<float>((collider.minX + collider.maxX) * 0.5),
-                    1.0F,
-                    static_cast<float>((collider.minZ + collider.maxZ) * 0.5),
-                };
-                DrawCubeWires(center, width, 2.0F, depth, MAGENTA);
-            }
-        }
-        if (showFlowField_) {
-            for (const auto& sample : snapshot.flowDebugVectors) {
-                const Vector3 start{
-                    static_cast<float>(sample.position.x),
-                    static_cast<float>(sample.position.y),
-                    static_cast<float>(sample.position.z),
-                };
-                if (sample.blocked) {
-                    DrawCubeWires(start, 0.45F, 0.08F, 0.45F, RED);
-                    continue;
-                }
-                const Vector3 end{
-                    start.x + static_cast<float>(sample.direction.x) * 0.75F,
-                    start.y,
-                    start.z + static_cast<float>(sample.direction.z) * 0.75F,
-                };
-                const Color color =
-                    sample.terrainCost >= FlowField::WallTraversalCost
-                        ? ORANGE
-                        : (sample.terrainCost > 1.0 ? YELLOW : LIME);
-                DrawLine3D(start, end, color);
-            }
-        }
-        if (showSpatialHash_) {
-            std::array<GridPosition, EnemySystem::MaxEnemies> occupiedCells{};
-            std::size_t occupiedCount = 0;
-            for (const auto& enemy : snapshot.enemies) {
-                if (!enemy.active) {
-                    continue;
-                }
-                const GridPosition cell{
-                    static_cast<int>(std::floor(
-                        (enemy.position.x - SpatialHash::MinimumCoordinate) /
-                        SpatialHash::CellSize)),
-                    static_cast<int>(std::floor(
-                        (enemy.position.z - SpatialHash::MinimumCoordinate) /
-                        SpatialHash::CellSize)),
-                };
-                const bool exists =
-                    std::find(occupiedCells.begin(),
-                              occupiedCells.begin() +
-                                  static_cast<std::ptrdiff_t>(occupiedCount),
-                              cell) !=
-                    occupiedCells.begin() +
-                        static_cast<std::ptrdiff_t>(occupiedCount);
-                if (!exists && occupiedCount < occupiedCells.size()) {
-                    occupiedCells[occupiedCount++] = cell;
-                }
-            }
-            for (std::size_t index = 0; index < occupiedCount; ++index) {
-                const float x = static_cast<float>(
-                    SpatialHash::MinimumCoordinate +
-                    (static_cast<double>(occupiedCells[index].x) + 0.5) *
-                        SpatialHash::CellSize);
-                const float z = static_cast<float>(
-                    SpatialHash::MinimumCoordinate +
-                    (static_cast<double>(occupiedCells[index].z) + 0.5) *
-                        SpatialHash::CellSize);
-                DrawCubeWires({x, 0.05F, z}, static_cast<float>(SpatialHash::CellSize),
-                              0.1F, static_cast<float>(SpatialHash::CellSize),
-                              PURPLE);
-            }
-        }
-        if (renderer_->settings().particles) {
-            for (const auto& effect : effects_) {
-                const float progress =
-                    static_cast<float>(1.0 - effect.remaining / effect.duration);
-                const Vector3 origin{
-                    static_cast<float>(effect.position.x),
-                    static_cast<float>(effect.position.y),
-                    static_cast<float>(effect.position.z),
-                };
-                if (effect.type == PresentationEffectType::Hit) {
-                    DrawSphere(origin, 0.18F * (1.0F - progress),
-                               {255, 220, 120, 255});
-                } else if (effect.type == PresentationEffectType::Explosion) {
-                    DrawSphereWires(origin, 0.3F + progress * 4.5F, 10, 10,
-                                    {255, 132, 48, 255});
-                } else if (effect.type == PresentationEffectType::RamImpact) {
-                    DrawSphereWires(origin, 0.4F + progress * 2.8F, 8, 8,
-                                    {255, 72, 45, 255});
-                    DrawSphereWires(origin, 0.2F + progress * 1.7F, 8, 8,
-                                    ORANGE);
-                } else {
-                    const Color color =
-                        effect.type == PresentationEffectType::ResourceBurst
-                            ? Color{184, 145, 82, 255}
-                            : Color{125, 112, 101, 255};
-                    for (int particle = 0; particle < 6; ++particle) {
-                        const float angle =
-                            static_cast<float>(particle) * 1.04719755F;
-                        const float distance = progress * 1.4F;
-                        const Vector3 particlePosition{
-                            origin.x + std::cos(angle) * distance,
-                            origin.y + 0.25F +
-                                progress * (1.0F - progress) * 2.0F,
-                            origin.z + std::sin(angle) * distance,
-                        };
-                        DrawCube(particlePosition, 0.12F, 0.12F, 0.12F, color);
-                    }
-                }
-            }
-        }
+        renderer_->drawTerrain(
+            ground, showTerrainWireframe_);
+        drawWorldEntities(presentationSnapshot, camera, nightAmount,
+                          lighting);
+        drawBlobShadows(snapshot, camera);
+        drawWorldOverlays(presentationSnapshot, lighting);
+        drawPresentationEffects();
         EndMode3D();
+        renderer_->drawSelectionOutline();
+
+        auto healthBarSnapshot = presentationSnapshot;
+        if (healthBarSnapshot.aimedBuilding &&
+            buildingHoverSeconds_ <
+                BuildingHealthBarDwellSeconds) {
+            healthBarSnapshot.aimedBuilding.reset();
+        }
+        if (!healthBarSnapshot.aimedBuilding &&
+            recentlyDamagedBuilding_ &&
+            damagedBuildingHealthBarRemaining_ > 0.0) {
+            const bool isBuilding =
+                std::any_of(
+                    healthBarSnapshot.buildings.begin(),
+                    healthBarSnapshot.buildings.end(),
+                    [this](
+                        const BuildingInstance& building) {
+                        return building.id ==
+                               *recentlyDamagedBuilding_;
+                    });
+            if (isBuilding) {
+                healthBarSnapshot.aimedBuilding =
+                    recentlyDamagedBuilding_;
+            } else {
+                const bool isModular =
+                    std::any_of(
+                        healthBarSnapshot.platformFrames.begin(),
+                        healthBarSnapshot.platformFrames.end(),
+                        [this](
+                            const PlatformFrameInstance& frame) {
+                            return frame.id ==
+                                   *recentlyDamagedBuilding_;
+                        }) ||
+                    std::any_of(
+                        healthBarSnapshot.modularWalls.begin(),
+                        healthBarSnapshot.modularWalls.end(),
+                        [this](const WallInstance& wall) {
+                            return wall.id ==
+                                   *recentlyDamagedBuilding_;
+                        }) ||
+                    std::any_of(
+                        healthBarSnapshot.ramps.begin(),
+                        healthBarSnapshot.ramps.end(),
+                        [this](const RampInstance& ramp) {
+                            return ramp.id ==
+                                   *recentlyDamagedBuilding_;
+                        });
+                if (isModular) {
+                    healthBarSnapshot
+                        .aimedModularBuilding =
+                        recentlyDamagedBuilding_;
+                }
+            }
+        }
         renderer_->endWorldPass();
+
+        // World-space UI is composited after post-processing so health bars,
+        // levels and production rewards remain crisp above pixelization.
+        BeginMode3D(camera);
+        targetHealthBar_.draw(healthBarSnapshot, camera);
+        drawProductionVisuals(camera);
+        EndMode3D();
 
         if (playerDamageFlashRemaining_ > 0.0) {
             const auto alpha = static_cast<unsigned char>(
@@ -1734,258 +1147,449 @@ void App::render() {
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                           {190, 24, 24, alpha});
         }
+        drawFloatingDamageNumbers(camera);
+        if (showTerrainWireframe_) {
+            drawUiText(
+                TextFormat(
+                    "TERRAIN SEED: %u  CTRL+F7 SAME  CTRL+F9 NEW",
+                    snapshot.terrainSeed),
+                {24.0F,
+                 static_cast<float>(
+                     GetScreenHeight()) -
+                     44.0F},
+                16.0F, {245, 224, 154, 235});
+        }
+        if (showColliders_) {
+            for (const SharedSupport& support :
+                 snapshot.sharedSupports) {
+                if (!support.active) {
+                    continue;
+                }
+                const Vector2 screen =
+                    GetWorldToScreen(
+                        {
+                            static_cast<float>(
+                                support.top.x),
+                            static_cast<float>(
+                                support.top.y + 0.18),
+                            static_cast<float>(
+                                support.top.z),
+                        },
+                        camera);
+                if (screen.x < 0.0F ||
+                    screen.y < 0.0F ||
+                    screen.x >
+                        static_cast<float>(
+                            GetScreenWidth()) ||
+                    screen.y >
+                        static_cast<float>(
+                            GetScreenHeight())) {
+                    continue;
+                }
+                drawUiText(
+                    TextFormat(
+                        "S%u x%u", support.id,
+                        support.referenceCount),
+                    screen, 12.0F,
+                    {255, 213, 91, 235});
+            }
+        }
 
-        if (!hideHud_) {
-        ui_.drawPanel({12.0F, 12.0F, 360.0F, 238.0F}, 232);
-        ui_.drawInsetPanel(
-            {20.0F, 72.0F, 344.0F, 54.0F}, 220);
-        ui_.drawPanel(
-            {12.0F, static_cast<float>(GetScreenHeight()) - 166.0F,
-             static_cast<float>(GetScreenWidth()) - 24.0F, 154.0F},
-            220);
-        if (snapshot.state == RunState::BuildPhase ||
-            snapshot.state == RunState::Sunset ||
-            snapshot.state == RunState::Wave ||
-            snapshot.state == RunState::WaveComplete) {
-            ui_.drawPanel(
-                {static_cast<float>(GetScreenWidth()) * 0.5F - 300.0F,
-                 10.0F, 600.0F, 76.0F},
-                226);
-        }
-        const std::string tickText = "Simulation tick: " + std::to_string(snapshot.tick);
-        DrawText(tickText.c_str(), 24, 24, 20, RAYWHITE);
-        DrawText("Milestone: One Night", 24, 52, 20, {245, 184, 76, 255});
-        const std::string resourcesText = "Wood: " + std::to_string(snapshot.wood) +
-                                          "   Stone: " + std::to_string(snapshot.stone) +
-                                          "   Gold: " + std::to_string(snapshot.gold);
-        DrawText(resourcesText.c_str(), 24, 80, 22, RAYWHITE);
-        const std::string playerHealthText =
-            "Health: " + std::to_string(static_cast<int>(snapshot.playerHealth)) + " / " +
-            std::to_string(static_cast<int>(snapshot.playerMaxHealth));
-        const double healthFraction = snapshot.playerHealth / snapshot.playerMaxHealth;
-        DrawText(playerHealthText.c_str(), 24, 108, 22,
-                 healthFraction > 0.3 ? Color{105, 220, 125, 255}
-                                      : Color{235, 92, 72, 255});
-        ui_.drawProgressBar(
-            {24.0F, 134.0F, 324.0F, 18.0F},
-            static_cast<float>(healthFraction),
-            healthFraction > 0.3 ? UiBarColor::Green
-                                 : UiBarColor::Red);
-        if (snapshot.unlimitedResources) {
-            DrawText("UNLIMITED RESOURCES", 24, 158, 18,
-                     {88, 220, 130, 255});
-        }
-        if (snapshot.coreMaxHealth > 0.0) {
-            const std::string coreText =
-                "Core L" + std::to_string(snapshot.coreLevel) + ": " +
-                std::to_string(static_cast<int>(snapshot.coreHealth)) + " / " +
-                std::to_string(static_cast<int>(snapshot.coreMaxHealth));
-            const int coreTextY =
-                snapshot.unlimitedResources ? 180 : 158;
-            DrawText(coreText.c_str(), 24, coreTextY, 20,
-                     {245, 184, 76, 255});
-            ui_.drawProgressBar(
-                {24.0F, static_cast<float>(coreTextY + 26), 324.0F,
-                 18.0F},
-                static_cast<float>(snapshot.coreHealth /
-                                   snapshot.coreMaxHealth),
-                UiBarColor::Yellow);
-        }
-        if (snapshot.state == RunState::BuildPhase) {
-            const std::string phaseText = "Wave " + std::to_string(snapshot.wave + 1) +
-                                          " in: " +
-                                          std::to_string(
-                                              static_cast<int>(snapshot.phaseTimeRemaining) + 1) +
-                                          "   N: start early";
-            drawCentered(phaseText.c_str(), 24, 24, {245, 184, 76, 255});
-        } else if (snapshot.state == RunState::Sunset) {
-            std::string sunsetText =
-                "SUNSET   Wave " + std::to_string(snapshot.wave + 1) + " in: " +
-                std::to_string(static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-            if (snapshot.upcomingAttackDirection) {
-                sunsetText += "   ATTACK: ";
-                sunsetText += attackDirectionName(*snapshot.upcomingAttackDirection);
-            }
-            drawCentered(sunsetText.c_str(), 24, 24, {255, 146, 79, 255});
-        } else if (snapshot.state == RunState::Wave) {
-            std::string waveText = "WAVE " + std::to_string(snapshot.wave) +
-                                   " / 6   Enemies: " +
-                                   std::to_string(snapshot.activeEnemyCount) +
-                                   "   Incoming: " +
-                                   std::to_string(snapshot.pendingEnemyCount);
-            const bool bossCharging =
-                std::any_of(snapshot.enemies.begin(), snapshot.enemies.end(),
-                            [](const EnemyInstance& enemy) {
-                                return enemy.active &&
-                                       enemy.state == EnemyState::BossRamWindup;
-                            });
-            if (bossCharging) {
-                waveText += "   BOSS RAM INCOMING";
-            }
-            drawCentered(waveText.c_str(), 24, 24, {235, 92, 72, 255});
-        } else if (snapshot.state == RunState::WaveComplete) {
-            const std::string completeText =
-                "DAWN   +" + std::to_string(snapshot.waveCompletionReward) +
-                " Gold   New day in: " +
-                std::to_string(static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-            drawCentered(completeText.c_str(), 24, 24, {255, 194, 92, 255});
-        }
-        const std::string objectiveText = tutorialText(snapshot);
-        if (!objectiveText.empty()) {
-            drawCentered(objectiveText.c_str(), 56, 20, {255, 224, 146, 255});
-        }
-        std::string weaponText =
-            snapshot.selectedWeapon == PlayerWeapon::Pickaxe
-                ? "Weapon: Pickaxe   Rifle L" + std::to_string(snapshot.rifleLevel)
-                : "Weapon: Rifle L" + std::to_string(snapshot.rifleLevel) + "   Ammo: " +
-                      std::to_string(snapshot.rifleAmmunition) + " / " +
-                      std::to_string(snapshot.rifleMagazineSize);
-        if (snapshot.rifleReloading) {
-            weaponText += "   RELOADING";
-        }
-        if (snapshot.rifleLevel < 3) {
-            weaponText +=
-                "   V Upgrade G:" + std::to_string(snapshot.rifleUpgradeGoldCost);
-        }
-        weaponText += "   Bombs: " + std::to_string(snapshot.bombsRemaining);
-        DrawText(weaponText.c_str(), 24, GetScreenHeight() - 88, 18, {245, 184, 76, 255});
-        DrawText("1 Core 2 Wall 3 Turret 4 Mine 5 Cannon 6 Trap 7 Gate U Upgrade O Unlimited", 24,
-                 GetScreenHeight() - 64, 18, RAYWHITE);
-        DrawText("LMB Use/Place  F Repair  X Sell  E Gate  Q Weapon  V Upgrade Rifle  G Bomb", 24,
-                 GetScreenHeight() - 40, 18, LIGHTGRAY);
-        DrawLine(GetScreenWidth() / 2 - 7, GetScreenHeight() / 2, GetScreenWidth() / 2 + 7,
-                 GetScreenHeight() / 2, RAYWHITE);
-        DrawLine(GetScreenWidth() / 2, GetScreenHeight() / 2 - 7, GetScreenWidth() / 2,
-                 GetScreenHeight() / 2 + 7, RAYWHITE);
-        const float indicatorRadius =
-            static_cast<float>(std::min(GetScreenWidth(), GetScreenHeight())) * 0.31F;
-        const Vector2 screenCenter{
-            static_cast<float>(GetScreenWidth()) * 0.5F,
-            static_cast<float>(GetScreenHeight()) * 0.5F,
-        };
-        for (const auto& indicator : damageIndicators_) {
-            const float outwardX =
-                static_cast<float>(std::sin(indicator.relativeAngle));
-            const float outwardY =
-                static_cast<float>(-std::cos(indicator.relativeAngle));
-            const Vector2 center{
-                screenCenter.x + outwardX * indicatorRadius,
-                screenCenter.y + outwardY * indicatorRadius,
-            };
-            const Vector2 perpendicular{-outwardY, outwardX};
-            const Vector2 tip{center.x + outwardX * 13.0F,
-                              center.y + outwardY * 13.0F};
-            const Vector2 baseLeft{
-                center.x - outwardX * 9.0F + perpendicular.x * 9.0F,
-                center.y - outwardY * 9.0F + perpendicular.y * 9.0F,
-            };
-            const Vector2 baseRight{
-                center.x - outwardX * 9.0F - perpendicular.x * 9.0F,
-                center.y - outwardY * 9.0F - perpendicular.y * 9.0F,
-            };
-            const double fade = indicator.remaining / indicator.duration;
-            const auto alpha =
-                static_cast<unsigned char>(220.0 * std::clamp(fade, 0.0, 1.0));
-            const Color color = indicator.severe ? Color{255, 92, 42, alpha}
-                                                 : Color{235, 62, 62, alpha};
-            DrawTriangle(tip, baseLeft, baseRight, color);
-        }
-        if (statusMessageRemaining_ > 0.0 && !statusMessage_.empty()) {
-            drawCentered(statusMessage_.c_str(), GetScreenHeight() / 2 + 78, 20,
-                         {255, 194, 92, 255});
-        }
-        if (snapshot.buildingPreview) {
-            const auto& preview = *snapshot.buildingPreview;
-            const ResourceCost cost = preview.placement.cost;
-            const std::string buildText =
-                std::string(buildingName(preview.type)) + "  W:" + std::to_string(cost.wood) +
-                " S:" + std::to_string(cost.stone) + " G:" + std::to_string(cost.gold);
-            drawCentered(buildText.c_str(), GetScreenHeight() / 2 + 24, 20, RAYWHITE);
-            drawCentered(placementMessage(preview.placement.error), GetScreenHeight() / 2 + 50, 18,
-                         preview.placement.valid() ? GREEN : RED);
-        } else if (snapshot.aimedBuilding) {
-            const auto aimed = std::find_if(
-                snapshot.buildings.begin(), snapshot.buildings.end(),
-                [&snapshot](const BuildingInstance& building) {
-                    return building.id == *snapshot.aimedBuilding;
+        auto hudSnapshot = presentationSnapshot;
+        bool showBuildingContextCard =
+            buildingContextCardTarget_.has_value();
+        if (buildingContextCardTarget_) {
+            const auto pinned = std::find_if(
+                snapshot.buildings.begin(),
+                snapshot.buildings.end(),
+                [this](const BuildingInstance& candidate) {
+                    return candidate.id ==
+                           *buildingContextCardTarget_;
                 });
-            if (aimed != snapshot.buildings.end()) {
-                std::string actionText =
-                    std::string(buildingName(aimed->type)) + " L" +
-                    std::to_string(aimed->level) + "  HP " +
-                    std::to_string(static_cast<int>(aimed->health)) + "/" +
-                    std::to_string(static_cast<int>(aimed->maxHealth));
-                if (snapshot.aimedBuildingUpgradeCost) {
-                    const ResourceCost upgradeCost = *snapshot.aimedBuildingUpgradeCost;
-                    actionText += "  U Upgrade W:" + std::to_string(upgradeCost.wood) +
-                                  " S:" + std::to_string(upgradeCost.stone) +
-                                  " G:" + std::to_string(upgradeCost.gold);
-                }
-                if (aimed->type == BuildingType::Core) {
-                    actionText += "  F Repair";
-                } else {
-                    actionText += "  F Repair  X Sell";
-                    if (aimed->type == BuildingType::Gate) {
-                        actionText += "  E Open/Close";
-                    }
-                }
-                drawCentered(actionText.c_str(), GetScreenHeight() / 2 + 24, 18,
-                             {245, 184, 76, 255});
+            if (pinned == snapshot.buildings.end()) {
+                buildingContextCardTarget_.reset();
+                buildingContextCardUpgradeCost_.reset();
+                buildingContextCardStats_.reset();
+                showBuildingContextCard = false;
+            } else {
+                hudSnapshot.aimedBuilding =
+                    buildingContextCardTarget_;
+                hudSnapshot.aimedBuildingUpgradeCost =
+                    buildingContextCardUpgradeCost_;
+                hudSnapshot.aimedBuildingStats =
+                    buildingContextCardStats_;
             }
-        } else if (snapshot.aimedEnemy) {
-            drawCentered("Attack", GetScreenHeight() / 2 + 24, 18, ORANGE);
-        } else if (snapshot.aimedResource) {
-            drawCentered("Mine", GetScreenHeight() / 2 + 24, 18, YELLOW);
         }
-        const std::string debugText =
-            "DEBUG  I Invulnerability:" +
-            std::string(snapshot.playerInvulnerable ? "ON" : "OFF") +
-            "  T Slow:" + (slowMotion_ ? "ON" : "OFF") +
-            "  C Colliders:" + (showColliders_ ? "ON" : "OFF") +
-            "  H Flow:" + (showFlowField_ ? "ON" : "OFF") +
-            "  L Hash:" + (showSpatialHash_ ? "ON" : "OFF") +
-            "  Z/B Spawn:" + enemyName(debugSpawnType_) +
-            "  M Damage Core  J Hide HUD  F2 Graphics";
-        DrawText(debugText.c_str(), 24, GetScreenHeight() - 112, 16,
-                 {199, 154, 235, 255});
-        const std::string timingText =
-            "Simulation: " + std::to_string(simulationTickMilliseconds_) +
-            " ms   Peak: " + std::to_string(peakSimulationTickMilliseconds_) +
-            " ms   Budget: 5.0 ms";
-        DrawText(timingText.c_str(), 24, GetScreenHeight() - 132, 16,
-                 {199, 154, 235, 255});
-        const std::string environmentText =
-            "Environment: " + std::string(environment_.nearestProfileName()) +
-            "  Time:" + std::to_string(environment_.timeOfDay()) +
-            "  Y Freeze:" + (environment_.frozen() ? "ON" : "OFF") +
-            "  Mode:" +
-            (environment_.manualOverride() ? "MANUAL" : "AUTO") +
-            "  [/] Time  ' Profile  \\ Auto";
-        DrawText(environmentText.c_str(), 24, GetScreenHeight() - 152, 16,
-                 {199, 154, 235, 255});
-        } else {
-            DrawText("HUD HIDDEN  [J]", 24, 24, 18, {199, 154, 235, 255});
+        drawHud(
+            ui_, hudSnapshot,
+            {
+                    .damageIndicators = damageIndicators_,
+                    .statusMessage = statusMessage_,
+                    .statusMessageRemaining = statusMessageRemaining_,
+                    .debugSpawnType = debugSpawnType_,
+                    .slowMotion = slowMotion_,
+                    .showColliders = showColliders_,
+                    .showFlowField = showFlowField_,
+                    .showSpatialHash = showSpatialHash_,
+                    .hideBottomHints = hideBottomHud_,
+                    .showBuildingContextCard =
+                        showBuildingContextCard,
+                    .repairSweepActive =
+                        repairSweepActive_,
+                    .simulationTickMilliseconds =
+                        simulationTickMilliseconds_,
+                    .peakSimulationTickMilliseconds =
+                        peakSimulationTickMilliseconds_,
+                    .woodResourceBounce =
+                        woodHudBounceRemaining_ > 0.0
+                            ? static_cast<float>(
+                                  std::sin(
+                                      (1.0 -
+                                       woodHudBounceRemaining_ /
+                                           0.28) *
+                                      PI) *
+                                  10.0)
+                            : 0.0F,
+                    .stoneResourceBounce =
+                        stoneHudBounceRemaining_ > 0.0
+                            ? static_cast<float>(
+                                  std::sin(
+                                      (1.0 -
+                                       stoneHudBounceRemaining_ /
+                                           0.28) *
+                                      PI) *
+                                  10.0)
+                            : 0.0F,
+                    .goldResourceBounce = 0.0F,
+                    .woodResourcePulse =
+                        static_cast<float>(
+                            woodHudBounceRemaining_ / 0.28),
+                    .stoneResourcePulse =
+                        static_cast<float>(
+                            stoneHudBounceRemaining_ / 0.28),
+                    .goldResourcePulse = 0.0F,
+                    .crosshairHitRemaining =
+                        crosshairHitRemaining_,
+                    .crosshairHitDuration =
+                        crosshairHitDuration_,
+                    .crosshairHitCritical =
+                        crosshairHitCritical_,
+                    .invalidActionRemaining =
+                        invalidActionRemaining_,
+                    .weaponRecoilAmount =
+                        weaponRecoilRemaining_ > 0.0 &&
+                                weaponRecoilDuration_ > 0.0
+                            ? std::sin(
+                                  static_cast<float>(
+                                      (1.0 -
+                                       weaponRecoilRemaining_ /
+                                           weaponRecoilDuration_) *
+                                      PI)) *
+                                  weaponRecoilStrength_ /
+                                  0.11F
+                            : 0.0F,
+                    .buildingStatsUpgradeEntity =
+                        buildingStatsUpgradeEntity_,
+                    .buildingStatsUpgradeRemaining =
+                        buildingStatsUpgradeRemaining_,
+                    .buildingStatsUpgradeDuration =
+                        buildingStatsUpgradeDuration_,
+                    .environmentProfile =
+                        environment_.nearestProfileName(),
+                    .environmentTime = environment_.timeOfDay(),
+                    .environmentFrozen = environment_.frozen(),
+                    .environmentManualOverride =
+                        environment_.manualOverride(),
+            },
+            camera);
+        if (foundationBuildMode_) {
+            const char* pieceName = "PLATFORM FRAME 2x2";
+            int previewStorey = 0;
+            bool previewValid = false;
+            std::size_t plannedCount = 1U;
+            std::optional<ModularPlacementError>
+                previewError;
+            switch (modularBuildPiece_) {
+            case ModularBuildPiece::PlatformFrame:
+                pieceName = "PLATFORM FRAME 2x2";
+                if (platformFramePreview_) {
+                    previewValid =
+                        platformFramePreview_->valid();
+                    previewError =
+                        platformFramePreview_->error;
+                    previewStorey =
+                        platformFramePreview_->storey;
+                }
+                if (!modularPlatformDragPreviews_.empty()) {
+                    plannedCount =
+                        modularPlatformDragPreviews_.size();
+                    previewValid = std::all_of(
+                        modularPlatformDragPreviews_.begin(),
+                        modularPlatformDragPreviews_.end(),
+                        [](const PlatformFramePlacement&
+                               placement) {
+                            return placement.valid();
+                        });
+                }
+                break;
+            case ModularBuildPiece::Wall:
+                pieceName = "WALL";
+                if (wallPreview_) {
+                    previewValid =
+                        wallPreview_->valid();
+                    previewError =
+                        wallPreview_->error;
+                    previewStorey =
+                        wallPreview_->storey;
+                }
+                if (!modularWallDragPreviews_.empty()) {
+                    plannedCount =
+                        modularWallDragPreviews_.size();
+                    previewValid = std::all_of(
+                        modularWallDragPreviews_.begin(),
+                        modularWallDragPreviews_.end(),
+                        [](const WallPlacement& placement) {
+                            return placement.valid();
+                        });
+                }
+                break;
+            case ModularBuildPiece::Ramp:
+                pieceName = "RAMP";
+                if (rampPreview_) {
+                    previewValid =
+                        rampPreview_->valid();
+                    previewError =
+                        rampPreview_->error;
+                    previewStorey =
+                        rampPreview_->targetStorey;
+                }
+                break;
+            }
+            std::string pieceLabel = pieceName;
+            if (modularDragPiece_) {
+                pieceLabel += " x" +
+                    std::to_string(plannedCount);
+            }
+            const std::string foundationHint =
+                modularVerticalRearmBlocked_
+                    ? pieceLabel +
+                          "   STACK PAUSED"
+                          "   CTRL STACK"
+                          "   V PIECE   RMB CANCEL"
+                    : pieceLabel +
+                          "   LEVEL " +
+                          std::to_string(previewStorey) +
+                          "   LMB DRAG   CTRL STACK"
+                          "   SHIFT LOCK   V PIECE"
+                          "   WHEEL ROTATE   RMB CANCEL";
+            const Color messageColor =
+                modularVerticalRearmBlocked_
+                    ? Color{255, 211, 92, 255}
+                    : previewValid
+                    ? Color{126, 239, 151, 255}
+                    : Color{246, 112, 94, 255};
+            drawCenteredUiText(
+                foundationHint,
+                static_cast<float>(
+                    GetScreenHeight() / 2 + 76),
+                18.0F, {245, 235, 214, 245});
+            drawCenteredUiText(
+                modularVerticalRearmBlocked_
+                    ? "MOVE AIM AWAY OR HOLD CTRL TO STACK"
+                    : modularPlacementMessage(
+                          previewError),
+                static_cast<float>(
+                    GetScreenHeight() / 2 + 102),
+                18.0F, messageColor);
         }
+        if (wallDragStart_ && wallDragEnd_ &&
+            placementDragType_) {
+            const auto cells =
+                placementLine(
+                    *placementDragType_, *wallDragStart_,
+                    *wallDragEnd_);
+            const ResourceCost buildingCost =
+                snapshot.buildingCosts[
+                    static_cast<std::size_t>(
+                        *placementDragType_)];
+            const int count =
+                static_cast<int>(cells.size());
+            const std::string lineCost =
+                std::to_string(count) +
+                " BUILDINGS    W:" +
+                std::to_string(buildingCost.wood * count) +
+                "  S:" +
+                std::to_string(buildingCost.stone * count) +
+                "  C:" +
+                std::to_string(buildingCost.gold * count);
+            constexpr float Width = 470.0F;
+            const float x =
+                static_cast<float>(GetScreenWidth()) * 0.5F -
+                Width * 0.5F;
+            const float y =
+                static_cast<float>(GetScreenHeight()) * 0.5F +
+                104.0F;
+            ui_.drawPanel({x, y, Width, 58.0F}, 230);
+            const float textWidth =
+                measureUiText(lineCost, 15.0F).x;
+            drawUiText(
+                lineCost,
+                {x + (Width - textWidth) * 0.5F,
+                 y + 14.0F},
+                15.0F, {255, 235, 184, 255});
+        }
+        if (removalDragActive_) {
+            const std::string removalHint =
+                "REMOVE x" +
+                std::to_string(
+                    removalDragTargets_.size()) +
+                "   RELEASE X TO CONFIRM";
+            drawCenteredUiText(
+                removalHint,
+                static_cast<float>(
+                    GetScreenHeight() / 2 + 76),
+                20.0F, {255, 104, 91, 255});
+        }
+        drawResourceGainVisuals(camera);
 
-        if (snapshot.state == RunState::Paused) {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), {0, 0, 0, 150});
-            drawCentered("PAUSED", GetScreenHeight() / 2 - 24, 48, RAYWHITE);
-        } else if (snapshot.state == RunState::Victory) {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), {0, 0, 0, 170});
-            drawCentered("VICTORY", GetScreenHeight() / 2 - 48, 56, {88, 220, 130, 255});
-            drawCentered("R: restart", GetScreenHeight() / 2 + 24, 24, RAYWHITE);
-        } else if (snapshot.state == RunState::Defeat) {
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), {0, 0, 0, 170});
-            drawCentered("CORE DESTROYED", GetScreenHeight() / 2 - 48, 48,
-                         {235, 92, 72, 255});
-            drawCentered("R: restart", GetScreenHeight() / 2 + 24, 24, RAYWHITE);
-        }
+        drawRunStateOverlay(snapshot);
     }
 
-    if (!hideHud_) {
-        DrawFPS(GetScreenWidth() - 100, 20);
+    drawBuildModePie();
+    if (renderer_->graphicsPanelVisible()) {
+        drawGraphicsPanel();
     }
+    drawEnemySpawnMenu();
+    drawUiText(TextFormat("%d FPS", GetFPS()),
+               {static_cast<float>(GetScreenWidth() - 110),
+                20.0F},
+               20.0F, LIME);
     renderer_->endFrame();
 }
+
+void App::drawBuildModePie() const {
+    if (!buildModePieVisible_) {
+        return;
+    }
+
+    constexpr float OuterRadius = 150.0F;
+    constexpr float InnerRadius = 42.0F;
+    constexpr float ArrowRadius = 112.0F;
+    const Vector2 center{
+        static_cast<float>(GetScreenWidth()) * 0.5F,
+        static_cast<float>(GetScreenHeight()) * 0.5F,
+    };
+    const bool buildingsSelected =
+        buildModePieChoice_ ==
+        BuildModePieChoice::Buildings;
+    const bool foundationsSelected =
+        buildModePieChoice_ ==
+        BuildModePieChoice::Foundations;
+
+    DrawCircleV(center, OuterRadius + 7.0F,
+                {247, 224, 173, 95});
+    DrawCircleV(center, OuterRadius,
+                {15, 18, 25, 238});
+    DrawCircleSector(
+        center, OuterRadius - 5.0F, 90.0F,
+        270.0F, 48,
+        buildingsSelected
+            ? Color{239, 197, 101, 225}
+            : Color{52, 62, 78, 220});
+    DrawCircleSector(
+        center, OuterRadius - 5.0F, -90.0F,
+        90.0F, 48,
+        foundationsSelected
+            ? Color{239, 197, 101, 225}
+            : Color{52, 62, 78, 220});
+    DrawLineEx(
+        {center.x, center.y - OuterRadius + 5.0F},
+        {center.x, center.y - InnerRadius},
+        3.0F, {20, 24, 32, 180});
+    DrawLineEx(
+        {center.x, center.y + InnerRadius},
+        {center.x, center.y + OuterRadius - 5.0F},
+        3.0F, {20, 24, 32, 180});
+    DrawCircleV(center, InnerRadius + 4.0F,
+                {247, 224, 173, 130});
+    DrawCircleV(center, InnerRadius,
+                {20, 24, 32, 255});
+
+    const auto drawLabel =
+        [](std::string_view label, Vector2 position,
+           bool selected, bool activeMode) {
+            const Color color =
+                selected
+                    ? Color{31, 27, 20, 255}
+                    : Color{242, 232, 211, 255};
+            const Vector2 size =
+                measureUiText(label, 16.0F);
+            drawUiText(
+                label,
+                {position.x - size.x * 0.5F,
+                 position.y - size.y * 0.5F},
+                16.0F, color);
+            if (activeMode) {
+                DrawCircleV(
+                    {position.x,
+                     position.y + 37.0F},
+                    5.0F,
+                    selected
+                        ? Color{31, 27, 20, 255}
+                        : Color{239, 197, 101, 255});
+            }
+        };
+    drawLabel("BUILDINGS",
+              {center.x - 93.0F, center.y},
+              buildingsSelected,
+              !foundationBuildMode_);
+    drawLabel("PLATFORMS",
+              {center.x + 93.0F, center.y},
+              foundationsSelected,
+              foundationBuildMode_);
+
+    const float length =
+        Vector2Length(buildModePieDirection_);
+    if (length > 1.0F) {
+        const Vector2 direction =
+            Vector2Scale(
+                buildModePieDirection_,
+                1.0F / length);
+        const Vector2 tip =
+            Vector2Add(
+                center,
+                Vector2Scale(
+                    direction,
+                    std::min(length, ArrowRadius)));
+        const Vector2 arrowBase =
+            Vector2Subtract(
+                tip,
+                Vector2Scale(direction, 20.0F));
+        const Vector2 perpendicular{
+            -direction.y, direction.x};
+        const Color arrowColor{
+            255, 247, 224, 255};
+        DrawLineEx(center, arrowBase, 7.0F,
+                   arrowColor);
+        DrawTriangle(
+            tip,
+            Vector2Add(
+                arrowBase,
+                Vector2Scale(perpendicular, 10.0F)),
+            Vector2Subtract(
+                arrowBase,
+                Vector2Scale(perpendicular, 10.0F)),
+            arrowColor);
+    } else {
+        DrawCircleV(center, 7.0F,
+                    {255, 247, 224, 255});
+    }
+
+    drawCenteredUiText(
+        "HOLD TAB  |  RELEASE TO SELECT",
+        center.y + OuterRadius + 20.0F,
+        14.0F, {242, 232, 211, 235});
+}
+
 
 } // namespace ian

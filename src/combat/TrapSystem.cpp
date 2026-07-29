@@ -9,6 +9,28 @@ TrapSystem::TrapSystem() {
     activationBuffer_.reserve(64);
 }
 
+double TrapSystem::triggerRadius(std::uint8_t level) {
+    return TriggerRadius +
+           0.12 * static_cast<double>(level - 1);
+}
+
+double TrapSystem::slowPercent(std::uint8_t level) {
+    const double multiplier =
+        SlowMultiplier -
+        0.03 * static_cast<double>(level - 1);
+    return (1.0 - multiplier) * 100.0;
+}
+
+double TrapSystem::slowDuration(std::uint8_t level) {
+    return SlowDuration +
+           0.2 * static_cast<double>(level - 1);
+}
+
+double TrapSystem::cooldown(std::uint8_t level) {
+    return Cooldown -
+           0.15 * static_cast<double>(level - 1);
+}
+
 void TrapSystem::reset() {
     traps_.clear();
     activationBuffer_.clear();
@@ -52,17 +74,15 @@ std::span<const TrapActivation> TrapSystem::tick(
             continue;
         }
 
-        const Vec3 position{
-            static_cast<double>(building->gridPosition.x),
-            0.0,
-            static_cast<double>(building->gridPosition.z),
-        };
+        const Vec3 position =
+            buildingWorldPosition(*building);
         const double levelBonus = static_cast<double>(building->level - 1);
-        const double triggerRadius = TriggerRadius + 0.3 * levelBonus;
-        const double slowMultiplier = SlowMultiplier - 0.1 * levelBonus;
-        const double slowDuration = SlowDuration + 0.5 * levelBonus;
-        const auto affected = enemies.applySlowInRadius(position, triggerRadius, slowMultiplier,
-                                                        slowDuration);
+        const double radius = triggerRadius(building->level);
+        const double multiplier =
+            1.0 - slowPercent(building->level) / 100.0;
+        const double duration = slowDuration(building->level);
+        const auto affected = enemies.applySlowInRadius(
+            position, radius, multiplier, duration);
         if (affected.empty()) {
             continue;
         }
@@ -70,9 +90,10 @@ std::span<const TrapActivation> TrapSystem::tick(
             .trapId = trap.buildingId,
             .position = position,
             .affectedCount = static_cast<int>(affected.size()),
-            .wearDamage = WearDamage / (1.0 + 0.5 * levelBonus),
+            .wearDamage =
+                WearDamage / (1.0 + 0.12 * levelBonus),
         });
-        trap.cooldownRemaining = Cooldown - 0.4 * levelBonus;
+        trap.cooldownRemaining = cooldown(building->level);
     }
     return activationBuffer_;
 }

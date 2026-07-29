@@ -60,9 +60,9 @@ coverage.
 
 Quality affects cost:
 
-- Low: 8 segments, reduced opacity;
-- Medium: 10 segments;
-- High: 12 segments.
+- Low: 12 segments, reduced opacity;
+- Medium: 18 segments;
+- High: 24 segments.
 
 The batch may flush internally if raylib's vertex capacity is reached, but it
 does not issue one high-level draw call per object.

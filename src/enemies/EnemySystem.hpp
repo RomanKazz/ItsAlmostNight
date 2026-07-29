@@ -19,11 +19,15 @@ enum class EnemyType {
     Fast,
     Heavy,
     Boss,
+    Ranged,
+    Sapper,
+    Flying,
 };
 
 enum class EnemyState {
     Spawn,
     MoveToCore,
+    ChasePlayer,
     AttackBuilding,
     AttackCore,
     AttackPlayer,
@@ -40,6 +44,7 @@ struct EnemyInstance {
     double speed;
     double damage;
     double attackCooldownRemaining;
+    double hitAnimationRemaining;
     double ramWindup;
     double ramDamageMultiplier;
     double ramCooldown;
@@ -48,6 +53,12 @@ struct EnemyInstance {
     double slowRemaining;
     double movementMultiplier;
     Vec3 knockbackVelocity;
+    double yaw;
+    double steeringTime;
+    double steeringPhase;
+    double steeringFrequency;
+    double turnRate;
+    double locomotionRate;
     EnemyState state;
     std::optional<EntityId> target;
     bool active;
@@ -65,6 +76,15 @@ struct EnemyAttack {
     bool ram;
 };
 
+struct EnemyStructureTarget {
+    EntityId id;
+    Vec3 position;
+    double radius;
+    std::optional<BuildingType> buildingType;
+    bool modular{};
+    std::size_t structuralImpact{};
+};
+
 struct EnemyDamageResult {
     EntityId id;
     Vec3 position;
@@ -79,7 +99,7 @@ struct EnemyPlayerAttack {
 
 class EnemySystem {
   public:
-    static constexpr std::size_t MaxEnemies = 200;
+    static constexpr std::size_t MaxEnemies = 2048;
 
     explicit EnemySystem(
         std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions =
@@ -93,7 +113,9 @@ class EnemySystem {
     std::span<const EnemyAttack> tick(double deltaSeconds,
                                       const std::vector<BuildingInstance>& buildings,
                                       const FlowField& flowField,
-                                      std::optional<Vec3> playerPosition = std::nullopt);
+                                      std::optional<Vec3> playerPosition = std::nullopt,
+                                      std::span<const EnemyStructureTarget>
+                                          additionalStructures = {});
 
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;

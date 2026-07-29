@@ -91,6 +91,8 @@ void runGameBalanceTests() {
         "playerMaxHealth": 125,
         "pickaxeRange": 5,
         "pickaxeDamage": 2,
+        "pickaxeDamageVariation": 0.25,
+        "pickaxeCriticalChance": 0.2,
         "pickaxeCooldown": 0.3,
         "firstBuildPhaseSeconds": 25,
         "betweenWaveSeconds": 70,
@@ -113,7 +115,9 @@ void runGameBalanceTests() {
                 loaded.balance.waves[0].groupInterval == 0.5,
             "wave group schedule comes from JSON");
     require(loaded.balance.gameplay.playerMaxHealth == 125.0 &&
-                loaded.balance.gameplay.maximumPlacementDistance == 12.0,
+                loaded.balance.gameplay.maximumPlacementDistance == 12.0 &&
+                loaded.balance.gameplay.pickaxeDamageVariation == 0.25 &&
+                loaded.balance.gameplay.pickaxeCriticalChance == 0.2,
             "gameplay parameters come from JSON");
     ian::Simulation configuredSimulation{loaded.balance};
     configuredSimulation.startRun();

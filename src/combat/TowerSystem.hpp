@@ -30,6 +30,10 @@ class TowerSystem {
   public:
     TowerSystem();
 
+    [[nodiscard]] static double attackRange(std::uint8_t level);
+    [[nodiscard]] static double attackDamage(std::uint8_t level);
+    [[nodiscard]] static double fireInterval(std::uint8_t level);
+
     void reset();
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TowerShot> tick(double deltaSeconds,

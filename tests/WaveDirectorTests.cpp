@@ -2,6 +2,7 @@
 #include "waves/WaveDirector.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cstddef>
 
 void runWaveDirectorTests() {
@@ -33,9 +34,37 @@ void runWaveDirectorTests() {
                 "wave spawn positions are deterministic");
     requireNear(repeatedBuild.spawns.front().position.z, firstPosition.z, 1e-12,
                 "wave spawn depth is deterministic");
+    for (const auto& spawn : repeatedBuild.spawns) {
+        const double distanceFromMovedCore = std::hypot(
+            spawn.position.x - 3.0,
+            spawn.position.z + 2.0);
+        require(distanceFromMovedCore >= 20.0,
+                "wave spawn remains outside base around moved core");
+    }
 
     const auto finalWave = director.buildWave(6, {0, 0});
     require(finalWave.spawns.size() <= 200, "final wave stays inside enemy pool budget");
+    require(
+        std::any_of(
+            finalWave.spawns.begin(), finalWave.spawns.end(),
+            [](const ian::EnemySpawn& spawn) {
+                return spawn.type == ian::EnemyType::Ranged;
+            }) &&
+            std::any_of(
+                finalWave.spawns.begin(),
+                finalWave.spawns.end(),
+                [](const ian::EnemySpawn& spawn) {
+                    return spawn.type ==
+                           ian::EnemyType::Sapper;
+                }) &&
+            std::any_of(
+                finalWave.spawns.begin(),
+                finalWave.spawns.end(),
+                [](const ian::EnemySpawn& spawn) {
+                    return spawn.type ==
+                           ian::EnemyType::Flying;
+                }),
+        "late waves contain ranged, sapper and flying roles");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
     requireNear(groupedWave.spawns[0].position.z, -20.0, 1e-12,

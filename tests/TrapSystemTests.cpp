@@ -27,9 +27,9 @@ void runTrapSystemTests() {
     const auto activation = traps.tick(1.0 / 60.0, buildings.buildings(), enemies);
     require(activation.size() == 1 && activation[0].affectedCount == 1,
             "trap activates for enemy in area");
-    requireNear(activation[0].wearDamage, 10.0 / 1.5, 1e-12,
+    requireNear(activation[0].wearDamage, 10.0 / 1.12, 1e-12,
                 "upgraded trap wears more slowly");
-    requireNear(enemies.enemies()[0].movementMultiplier, 0.35, 1e-12,
+    requireNear(enemies.enemies()[0].movementMultiplier, 0.42, 1e-12,
                 "upgraded trap applies stronger slow");
     ian::FlowField flow;
     flow.rebuild({0, 0}, buildings.buildings());
@@ -38,7 +38,7 @@ void runTrapSystemTests() {
     const double deltaX = enemies.enemies()[0].position.x - startPosition.x;
     const double deltaZ = enemies.enemies()[0].position.z - startPosition.z;
     const double movement = std::sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
-    require(movement > 0.6 && movement < 0.8, "upgraded slow reduces enemy movement speed");
+    require(movement > 0.8 && movement < 1.0, "upgraded slow reduces enemy movement speed");
     require(traps.tick(1.0, buildings.buildings(), enemies).empty(),
             "trap cooldown prevents immediate activation");
 }

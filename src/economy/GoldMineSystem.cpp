@@ -1,6 +1,7 @@
 #include "economy/GoldMineSystem.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace ian {
 
@@ -20,26 +21,34 @@ void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& building
         return std::none_of(buildings.begin(), buildings.end(),
                             [&mine](const BuildingInstance& building) {
                                 return building.id == mine.buildingId &&
-                                       building.type == BuildingType::GoldMine;
+                                       building.type == mine.buildingType;
                             });
     });
 
     for (const auto& building : buildings) {
-        if (building.type != BuildingType::GoldMine) {
+        if (building.type != BuildingType::GoldMine &&
+            building.type != BuildingType::LumberMill &&
+            building.type != BuildingType::Quarry) {
             continue;
         }
-        const bool exists =
-            std::any_of(mines_.begin(), mines_.end(), [&building](const GoldMineRuntime& mine) {
+        const auto runtime = std::find_if(
+            mines_.begin(), mines_.end(),
+            [&building](const GoldMineRuntime& mine) {
                 return mine.buildingId == building.id;
             });
-        if (!exists) {
-            mines_.push_back({.buildingId = building.id, .level = building.level});
+        if (runtime == mines_.end()) {
+            mines_.push_back({
+                .buildingId = building.id,
+                .buildingType = building.type,
+                .level = building.level,
+                .operational =
+                    building.health >= building.maxHealth,
+            });
         } else {
-            const auto runtime =
-                std::find_if(mines_.begin(), mines_.end(), [&building](const GoldMineRuntime& mine) {
-                    return mine.buildingId == building.id;
-                });
             runtime->level = building.level;
+            runtime->buildingType = building.type;
+            runtime->operational =
+                building.health >= building.maxHealth;
         }
     }
 }
@@ -47,17 +56,48 @@ void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& building
 std::span<const GoldProduced> GoldMineSystem::tick(double deltaSeconds) {
     productionBuffer_.clear();
     for (auto& mine : mines_) {
+        if (!mine.operational) {
+            continue;
+        }
         mine.productionProgress += deltaSeconds;
         int produced = 0;
-        while (mine.productionProgress >= definition_.goldMineInterval) {
-            mine.productionProgress -= definition_.goldMineInterval;
-            produced += definition_.goldMineAmount * static_cast<int>(mine.level);
+        const double interval =
+            productionInterval(mine.buildingType);
+        while (mine.productionProgress >= interval) {
+            mine.productionProgress -= interval;
+            produced += productionAmount(
+                mine.level, mine.buildingType);
         }
         if (produced > 0) {
-            productionBuffer_.push_back({mine.buildingId, produced});
+            productionBuffer_.push_back(
+                {mine.buildingId, mine.buildingType, produced});
         }
     }
     return productionBuffer_;
+}
+
+int GoldMineSystem::productionAmount(
+    std::uint8_t level, BuildingType type) const {
+    int baseAmount = definition_.goldMineAmount;
+    if (type == BuildingType::LumberMill) {
+        baseAmount = 3;
+    } else if (type == BuildingType::Quarry) {
+        baseAmount = 2;
+    }
+    return static_cast<int>(std::lround(
+        static_cast<double>(baseAmount) *
+        (1.0 + 0.15 * static_cast<double>(level - 1))));
+}
+
+double GoldMineSystem::productionInterval(
+    BuildingType type) const {
+    if (type == BuildingType::LumberMill) {
+        return 8.0;
+    }
+    if (type == BuildingType::Quarry) {
+        return 10.0;
+    }
+    return definition_.goldMineInterval;
 }
 
 const std::vector<GoldMineRuntime>& GoldMineSystem::mines() const {

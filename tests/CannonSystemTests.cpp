@@ -28,8 +28,8 @@ void runCannonSystemTests() {
     cannons.syncBuildings(buildings.buildings());
     cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
     require(!cannons.projectiles().empty() &&
-                cannons.projectiles().front().explosionDamage == 6.0 &&
-                cannons.projectiles().front().explosionRadius == 3.5,
+                cannons.projectiles().front().explosionDamage == 2.85 &&
+                cannons.projectiles().front().explosionRadius == 2.62,
             "level-two cannon launches upgraded shell");
     bool exploded = false;
     for (int tick = 0; tick < 179 && !exploded; ++tick) {
@@ -37,11 +37,12 @@ void runCannonSystemTests() {
         if (!explosions.empty()) {
             exploded = true;
             require(explosions.front().hitCount == 3, "explosion damages clustered enemies");
-            require(explosions.front().killedCount == 3, "explosion kills basic enemy cluster");
+            require(explosions.front().killedCount == 0,
+                    "weaker cannon does not erase healthy enemy cluster");
         }
     }
     require(exploded, "physical cannon projectile reaches target");
-    require(enemies.activeCount() == 1,
+    require(enemies.activeCount() == 4,
             "cannon targets dense group instead of closer isolated enemy");
 
     ian::EnemySystem angledEnemies;

@@ -1,7 +1,418 @@
 #include "TestHarness.hpp"
 #include "game/Simulation.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 void runSimulationTests() {
+    {
+        ian::Simulation productionSimulation;
+        productionSimulation.startRun();
+        const auto terrainSurface =
+            productionSimulation
+                .previewPlacementSurface(
+                    ian::BuildingType::Core,
+                    {8, 8});
+        require(
+            std::abs(
+                terrainSurface.height -
+                std::round(
+                    terrainSurface.height)) <
+                    1e-9 &&
+                std::abs(
+                    terrainSurface
+                            .foundationBottomHeight -
+                    std::round(
+                        terrainSurface
+                            .foundationBottomHeight)) <
+                    1e-9 &&
+                terrainSurface
+                        .foundationBottomHeight <=
+                    terrainSurface.height,
+            "terrain buildings use discrete one-cell levels with an automatic foundation");
+        const auto preferredSurface =
+            productionSimulation
+                .previewPlacementSurface(
+                    ian::BuildingType::Core,
+                    {8, 8},
+                    terrainSurface.height + 2.0);
+        require(
+            std::abs(
+                preferredSurface.height -
+                terrainSurface.height - 2.0) <
+                    1e-9 &&
+                preferredSurface.storey == -1 &&
+                preferredSurface
+                        .foundationBottomHeight ==
+                    terrainSurface
+                        .foundationBottomHeight,
+            "preferred standing level raises terrain building and extends its automatic foundation");
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        productionSimulation.tick(1.0 / 60.0, unlimited);
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        productionSimulation.tick(1.0 / 60.0, placeCore);
+        const auto coreId =
+            productionSimulation.snapshot().coreId;
+        require(coreId.has_value(),
+                "production fixture creates core");
+
+        ian::PlayerCommand upgradeCore;
+        upgradeCore.upgradeBuilding =
+            ian::UpgradeBuildingCommand{*coreId};
+        productionSimulation.tick(
+            1.0 / 60.0, upgradeCore);
+
+        require(
+            productionSimulation.previewPlacement(
+                ian::BuildingType::Wall,
+                {0, 2}).error ==
+                ian::PlacementError::ResourceBlocked,
+            "ordinary buildings cannot replace an active resource");
+        const auto firstResource =
+            std::find_if(
+                productionSimulation.snapshot()
+                    .resourceNodes.begin(),
+                productionSimulation.snapshot()
+                    .resourceNodes.end(),
+                [](const ian::ResourceNode& node) {
+                    return node.active;
+                });
+        require(
+            firstResource !=
+                    productionSimulation.snapshot()
+                        .resourceNodes.end() &&
+                productionSimulation
+                        .previewPlatformFrame(
+                            firstResource->position)
+                        .error ==
+                    ian::ModularPlacementError::
+                        ResourceBlocked,
+            "platform frames cannot replace an active resource");
+
+        const auto findPlacement =
+            [&productionSimulation](
+                ian::BuildingType type) {
+                for (int z = -8; z <= 8; ++z) {
+                    for (int x = -8; x <= 8; ++x) {
+                        const ian::GridPosition position{x, z};
+                        if (productionSimulation
+                                .previewPlacement(
+                                    type, position)
+                                .valid()) {
+                            return position;
+                        }
+                    }
+                }
+                return ian::GridPosition{1000, 1000};
+            };
+        const ian::GridPosition lumberPosition =
+            findPlacement(
+                ian::BuildingType::LumberMill);
+        ian::PlayerCommand placeLumberMill;
+        placeLumberMill.placeBuilding =
+            ian::PlaceBuildingCommand{
+                ian::BuildingType::LumberMill,
+                lumberPosition, 0};
+        productionSimulation.tick(
+            1.0 / 60.0, placeLumberMill);
+        const ian::GridPosition quarryPosition =
+            findPlacement(
+                ian::BuildingType::Quarry);
+        ian::PlayerCommand placeQuarry;
+        placeQuarry.placeBuilding =
+            ian::PlaceBuildingCommand{
+                ian::BuildingType::Quarry,
+                quarryPosition, 0};
+        productionSimulation.tick(
+            1.0 / 60.0, placeQuarry);
+
+        const int woodBefore =
+            productionSimulation.snapshot().wood;
+        const int stoneBefore =
+            productionSimulation.snapshot().stone;
+        productionSimulation.tick(10.0);
+        require(
+            productionSimulation.snapshot().wood ==
+                    woodBefore + 3 &&
+                productionSimulation.snapshot().stone ==
+                    stoneBefore + 2,
+            "autonomous buildings grant wood and stone");
+    }
+
+    {
+        ian::Simulation foundationLifecycle;
+        foundationLifecycle.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        foundationLifecycle.tick(1.0 / 60.0, unlimited);
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core,
+                .gridPosition = {0, 0},
+                .rotation = 0,
+            };
+        foundationLifecycle.tick(
+            1.0 / 60.0, placeCore);
+        require(
+            foundationLifecycle.snapshot()
+                .coreId.has_value(),
+            "foundation lifecycle fixture creates core");
+
+        const ian::GridPosition turretPosition{1, 5};
+        const auto terrainSurface =
+            foundationLifecycle
+                .previewPlacementSurface(
+                    ian::BuildingType::Turret,
+                    turretPosition);
+        const double playerHeightBefore =
+            foundationLifecycle.snapshot()
+                .playerPosition.y;
+        ian::PlayerCommand placeRaisedTurret;
+        placeRaisedTurret.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Turret,
+                .gridPosition = turretPosition,
+                .rotation = 0,
+                .baseHeight =
+                    terrainSurface.height + 1.0,
+                .platformStorey = -1,
+                .lockHeight = true,
+            };
+        foundationLifecycle.tick(
+            1.0 / 60.0, placeRaisedTurret);
+        const auto raisedSnapshot =
+            foundationLifecycle.snapshot();
+        const auto raisedTurret = std::find_if(
+            raisedSnapshot.buildings.begin(),
+            raisedSnapshot.buildings.end(),
+            [turretPosition](
+                const ian::BuildingInstance& building) {
+                return building.type ==
+                           ian::BuildingType::Turret &&
+                       building.gridPosition ==
+                           turretPosition;
+            });
+        require(
+            raisedTurret !=
+                    raisedSnapshot.buildings.end() &&
+                raisedSnapshot.platformFrames.size() ==
+                    1 &&
+                raisedTurret->platformStorey == 0,
+            "raised building creates a real ground platform");
+        require(
+            raisedSnapshot.playerPosition.y >
+                playerHeightBefore + 0.5,
+            "ground platform placed under player lifts player onto floor");
+
+        const ian::EntityId turretId =
+            raisedTurret->id;
+        const ian::EntityId foundationId =
+            raisedSnapshot.platformFrames.front().id;
+        ian::PlayerCommand sellTurret;
+        sellTurret.sellBuilding =
+            ian::SellBuildingCommand{turretId};
+        foundationLifecycle.tick(
+            1.0 / 60.0, sellTurret);
+        require(
+            foundationLifecycle.snapshot()
+                    .platformFrames.size() == 1 &&
+                foundationLifecycle.snapshot()
+                    .buildings.size() == 1,
+            "selling building leaves its automatic platform");
+
+        const auto platform =
+            foundationLifecycle.snapshot()
+                .platformFrames.front();
+        ian::PlayerCommand replaceTurret;
+        replaceTurret.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Turret,
+                .gridPosition = turretPosition,
+                .rotation = 0,
+                .baseHeight = platform.floorHeight,
+                .platformStorey = platform.storey,
+                .lockHeight = true,
+            };
+        foundationLifecycle.tick(
+            1.0 / 60.0, replaceTurret);
+        require(
+            foundationLifecycle.snapshot()
+                    .buildings.size() == 2,
+            "building can be placed again on retained platform");
+        static_cast<void>(
+            foundationLifecycle.takeEvents());
+
+        ian::PlayerCommand removeFoundation;
+        removeFoundation.removeModularBuilding =
+            ian::RemoveModularBuildingCommand{
+                foundationId};
+        foundationLifecycle.tick(
+            1.0 / 60.0, removeFoundation);
+        require(
+            foundationLifecycle.snapshot()
+                    .platformFrames.empty() &&
+                foundationLifecycle.snapshot()
+                    .buildings.size() == 1,
+            "removing platform destroys building supported by it");
+        const auto collapseEvents =
+            foundationLifecycle.takeEvents();
+        const auto destroyedBuilding =
+            std::find_if(
+                collapseEvents.begin(),
+                collapseEvents.end(),
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::
+                                   BuildingDestroyed &&
+                           event.building &&
+                           event.building->type ==
+                               ian::BuildingType::
+                                   Turret;
+                });
+        require(
+            destroyedBuilding !=
+                collapseEvents.end(),
+            "platform collapse event retains building visual snapshot");
+    }
+
+    {
+        ian::Simulation protectedCore;
+        protectedCore.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        protectedCore.tick(1.0 / 60.0, unlimited);
+
+        const auto coreFoundation =
+            protectedCore.placePlatformFrame(
+                {0.2,
+                 protectedCore.terrain().getHeight(
+                     0.2, 4.2),
+                 4.2});
+        require(
+            coreFoundation.has_value(),
+            "protected core fixture creates platform");
+        const ian::GridPosition corePosition{1, 5};
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core,
+                .gridPosition = corePosition,
+                .rotation = 0,
+                .baseHeight =
+                    coreFoundation->floorHeight,
+                .platformStorey =
+                    coreFoundation->storey,
+                .lockHeight = true,
+            };
+        protectedCore.tick(
+            1.0 / 60.0, placeCore);
+        const auto placed =
+            protectedCore.snapshot();
+        require(
+            placed.coreId &&
+                placed.platformFrames.size() == 1,
+            "protected core fixture creates automatic platform");
+
+        ian::PlayerCommand removeCoreFoundation;
+        removeCoreFoundation.removeModularBuilding =
+            ian::RemoveModularBuildingCommand{
+                coreFoundation->id};
+        protectedCore.tick(
+            1.0 / 60.0,
+            removeCoreFoundation);
+        require(
+            protectedCore.snapshot().coreId &&
+                protectedCore.snapshot()
+                    .platformFrames.size() == 1,
+            "platform supporting core cannot be removed");
+    }
+
+    {
+        ian::Simulation platformAim;
+        platformAim.startRun();
+        const auto frame = platformAim.placePlatformFrame(
+            {0.2,
+             platformAim.terrain().getHeight(
+                 0.2, 4.2),
+             4.2});
+        require(
+            frame.has_value(),
+            "platform aim fixture creates frame ahead of player");
+        ian::PlayerCommand aimAtPlatform;
+        aimAtPlatform.lookPitch = -1.0;
+        aimAtPlatform.selectBuilding =
+            ian::BuildingType::Turret;
+        platformAim.tick(
+            1.0 / 60.0, aimAtPlatform);
+        require(
+            platformAim.snapshot().buildingPreview &&
+                platformAim.snapshot()
+                        .buildingPreview
+                        ->gridPosition ==
+                    ian::GridPosition{1, 5} &&
+                platformAim.snapshot()
+                        .buildingPreview
+                        ->platformStorey ==
+                    frame->storey,
+            "ordinary building preview follows aimed platform surface");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        ian::Simulation autoJumpSimulation{
+            ian::GameBalance::defaults(),
+            map, world};
+        autoJumpSimulation.startRun();
+        const auto frame =
+            autoJumpSimulation.placePlatformFrame(
+                {0.2, 0.0, 2.2});
+        require(
+            frame && frame->storey == 0 &&
+                frame->floorHeight > 0.65,
+            "auto-jump fixture creates raised first-level platform");
+
+        ian::PlayerCommand walkForward;
+        walkForward.moveForward = 1.0;
+        bool becameAirborne = false;
+        bool landedOnFrame = false;
+        for (int tick = 0; tick < 120; ++tick) {
+            autoJumpSimulation.tick(
+                1.0 / 60.0, walkForward);
+            const auto snapshot =
+                autoJumpSimulation.snapshot();
+            becameAirborne =
+                becameAirborne ||
+                !snapshot.playerGrounded;
+            if (becameAirborne &&
+                snapshot.playerGrounded &&
+                std::abs(
+                    snapshot.playerPosition.y -
+                    frame->floorHeight -
+                    1.7) < 1e-6) {
+                landedOnFrame = true;
+                break;
+            }
+        }
+        require(
+            becameAirborne && landedOnFrame,
+            "walking into first-level platform automatically jumps onto it");
+    }
+
     {
         ian::Simulation daytimeSpawning;
         daytimeSpawning.startRun();
@@ -25,7 +436,7 @@ void runSimulationTests() {
         const double firstDistance =
             std::sqrt(firstPosition.x * firstPosition.x +
                       firstPosition.z * firstPosition.z);
-        require(firstDistance >= 7.0 && firstDistance <= 12.0,
+        require(firstDistance >= 18.0 && firstDistance <= 22.0,
                 "daytime debug enemy spawns in ring around core");
 
         daytimeSpawning.tick(1.0 / 60.0, spawn);
@@ -38,11 +449,17 @@ void runSimulationTests() {
                 "daytime debug spawns use different positions");
     }
 
-    ian::Simulation simulation;
+    auto simulationBalance = ian::GameBalance::defaults();
+    simulationBalance.gameplay.pickaxeDamageVariation = 0.0;
+    simulationBalance.gameplay.pickaxeCriticalChance = 0.0;
+    ian::Simulation simulation{simulationBalance};
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
 
     simulation.startRun();
     simulation.tick(1.0 / 60.0);
+    require(simulation.snapshot().buildingCosts[0].wood == 30 &&
+                simulation.snapshot().buildingCosts[2].stone == 15,
+            "snapshot exposes configured hotbar building costs");
     require(simulation.snapshot().tick == 1, "running simulation advances");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "run starts with full player health");
@@ -73,32 +490,79 @@ void runSimulationTests() {
     require(simulation.snapshot().tick == 0, "restart resets tick counter");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "restart restores player health");
+    const auto restartEvents = simulation.takeEvents();
+    require(
+        restartEvents.size() == 1U &&
+            restartEvents.front().type ==
+                ian::GameEventType::RunRestarted,
+        "restart discards stale events from previous run");
 
     ian::PlayerCommand attack;
     attack.usePickaxe = true;
     simulation.tick(1.0 / 60.0, attack);
-    require(simulation.snapshot().wood == 0, "first tree hit does not collect node");
+    require(simulation.snapshot().wood == 0,
+            "resource stays pending during pickup flight");
 
     simulation.tick(0.5);
     simulation.tick(1.0 / 60.0, attack);
     simulation.tick(0.5);
     simulation.tick(1.0 / 60.0, attack);
-    require(simulation.snapshot().wood == 15, "three tree hits collect wood");
+    require(simulation.snapshot().wood == 5,
+            "first resource grant lands after pickup delay");
+    simulation.tick(0.8);
+    require(simulation.snapshot().wood == 15,
+            "all resource grants land after their pickup delay");
 
     const auto events = simulation.takeEvents();
+    int gatheredWood = 0;
+    int grantedWood = 0;
     bool collectedEventFound = false;
     for (const auto& event : events) {
-        if (event.type == ian::GameEventType::ResourceCollected && event.amount == 15) {
+        if ((event.type == ian::GameEventType::ResourceHit ||
+             event.type == ian::GameEventType::ResourceCollected) &&
+            event.resourceType == ian::ResourceType::Wood) {
+            gatheredWood += event.amount;
+        }
+        if (event.type == ian::GameEventType::ResourceGranted &&
+            event.resourceType == ian::ResourceType::Wood) {
+            grantedWood += event.amount;
+        }
+        if (event.type == ian::GameEventType::ResourceCollected &&
+            event.amount == 5) {
             collectedEventFound = true;
         }
     }
+    require(gatheredWood == 15,
+            "resource hit events distribute exact tree capacity");
+    require(grantedWood == 15,
+            "delayed grant events deliver exact tree capacity");
     require(collectedEventFound, "collection emits ResourceCollected event");
+
+    auto criticalBalance = ian::GameBalance::defaults();
+    criticalBalance.gameplay.pickaxeDamageVariation = 0.0;
+    criticalBalance.gameplay.pickaxeCriticalChance = 1.0;
+    ian::Simulation criticalSimulation{criticalBalance};
+    criticalSimulation.startRun();
+    criticalSimulation.tick(1.0 / 60.0, attack);
+    const auto criticalEvents = criticalSimulation.takeEvents();
+    const auto criticalHit = std::find_if(
+        criticalEvents.begin(), criticalEvents.end(),
+        [](const ian::GameEvent& event) {
+            return event.type == ian::GameEventType::ResourceHit;
+        });
+    require(criticalHit != criticalEvents.end() &&
+                criticalHit->critical &&
+                criticalHit->damage ==
+                    criticalBalance.gameplay.pickaxeDamage * 2.0,
+            "pickaxe critical hit doubles damage and marks event");
 
     simulation.restartRun();
     ian::PlayerCommand unlimited;
     unlimited.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
     simulation.tick(1.0 / 60.0, unlimited);
     require(simulation.snapshot().unlimitedResources, "unlimited resource command enables cheat");
+    require(simulation.snapshot().playerInvulnerable,
+            "god mode makes player invulnerable");
     require(simulation.snapshot().tutorialObjective ==
                 ian::TutorialObjective::PlaceCore,
             "unlimited resources skip gathering objective");
@@ -120,21 +584,33 @@ void runSimulationTests() {
         ian::ToggleInvulnerabilityCommand{};
     simulation.tick(1.0 / 60.0, toggleInvulnerability);
     require(simulation.snapshot().playerInvulnerable,
-            "debug command toggles player invulnerability");
+            "player invulnerability cannot be disabled while god mode is active");
     const double coreHealthBeforeDebugDamage = simulation.snapshot().coreHealth;
     ian::PlayerCommand damageCore;
     damageCore.damageCore = ian::DamageCoreCommand{25.0};
     simulation.tick(1.0 / 60.0, damageCore);
     requireNear(simulation.snapshot().coreHealth,
-                coreHealthBeforeDebugDamage - 25.0, 1e-12,
-                "debug command damages core");
+                coreHealthBeforeDebugDamage, 1e-12,
+                "god mode prevents core damage");
 
     ian::PlayerCommand placeWall;
     placeWall.placeBuilding =
         ian::PlaceBuildingCommand{ian::BuildingType::Wall, {0, 4}, 0};
     simulation.tick(1.0 / 60.0, placeWall);
-    const auto wall = simulation.snapshot().aimedBuilding;
-    require(wall.has_value(), "placed wall is selected by building raycast");
+    const auto wallSnapshot = simulation.snapshot();
+    const auto wallBuilding = std::find_if(
+        wallSnapshot.buildings.begin(),
+        wallSnapshot.buildings.end(),
+        [](const ian::BuildingInstance& building) {
+            return building.type == ian::BuildingType::Wall &&
+                   building.gridPosition ==
+                       ian::GridPosition{0, 4};
+        });
+    require(
+        wallBuilding != wallSnapshot.buildings.end(),
+        "placed wall exists in simulation");
+    const std::optional<ian::EntityId> wall =
+        wallBuilding->id;
 
     ian::PlayerCommand lockedWeaponUpgrade;
     lockedWeaponUpgrade.upgradeWeapon = ian::UpgradeWeaponCommand{};
@@ -152,9 +628,22 @@ void runSimulationTests() {
     require(coreRequirementEventFound,
             "rifle upgrade rejection reports core-level requirement");
 
+    const auto coreId = *simulation.snapshot().coreId;
+    ian::PlayerCommand placementUpgradeConflict;
+    placementUpgradeConflict.selectBuilding =
+        ian::BuildingType::Turret;
+    placementUpgradeConflict.upgradeBuilding =
+        ian::UpgradeBuildingCommand{coreId};
+    simulation.tick(1.0 / 60.0, placementUpgradeConflict);
+    require(simulation.snapshot().coreLevel == 1,
+            "placement mode blocks stale building upgrade command");
+    ian::PlayerCommand cancelPlacement;
+    cancelPlacement.cancelBuilding = true;
+    simulation.tick(1.0 / 60.0, cancelPlacement);
+
     ian::PlayerCommand upgradeCore;
     upgradeCore.upgradeBuilding =
-        ian::UpgradeBuildingCommand{*simulation.snapshot().coreId};
+        ian::UpgradeBuildingCommand{coreId};
     simulation.tick(1.0 / 60.0, upgradeCore);
     ian::PlayerCommand upgradeWeapon;
     upgradeWeapon.upgradeWeapon = ian::UpgradeWeaponCommand{};
@@ -175,8 +664,10 @@ void runSimulationTests() {
     upgradeWall.upgradeBuilding = ian::UpgradeBuildingCommand{*wall};
     simulation.tick(1.0 / 60.0, upgradeWall);
     const auto upgradedWall = simulation.snapshot().buildings[1];
-    require(upgradedWall.level == 2 && upgradedWall.maxHealth == 150.0,
+    require(upgradedWall.level == 2,
             "simulation upgrades aimed building after core unlock");
+    requireNear(upgradedWall.maxHealth, 115.0, 1e-9,
+                "simulation uses gradual building health growth");
 
     ian::PlayerCommand repairFullWall;
     repairFullWall.repairBuilding = ian::RepairBuildingCommand{*wall};
@@ -208,37 +699,31 @@ void runSimulationTests() {
     ian::PlayerCommand startWaveEarly;
     startWaveEarly.startWaveEarly = ian::StartWaveEarlyCommand{};
     simulation.tick(1.0 / 60.0, startWaveEarly);
-    require(simulation.snapshot().state == ian::RunState::Sunset,
-            "early-wave command starts sunset warning");
-    const double sunsetDuration = simulation.snapshot().phaseDuration;
-    requireNear(simulation.snapshot().phaseTimeRemaining, sunsetDuration, 1e-12,
-                "sunset starts with configured duration");
+    require(simulation.snapshot().state == ian::RunState::Wave,
+            "early-wave command immediately starts wave");
     require(simulation.snapshot().upcomingAttackDirection ==
                 ian::AttackDirection::East,
-            "sunset warns about least-visible attack direction");
-    require(simulation.snapshot().activeEnemyCount == 0,
-            "enemies do not spawn before sunset ends");
+            "early wave uses least-visible attack direction");
+    require(simulation.snapshot().activeEnemyCount == 5 &&
+                simulation.snapshot().pendingEnemyCount == 10,
+            "early wave immediately spawns first enemy group");
     auto phaseEvents = simulation.takeEvents();
-    bool sunsetEventFound = false;
     bool directionWarningFound = false;
+    bool waveEventFound = false;
     for (const auto& event : phaseEvents) {
-        if (event.type == ian::GameEventType::SunsetStarted && event.amount == 1) {
-            sunsetEventFound = true;
-        }
         if (event.type == ian::GameEventType::AttackDirectionWarned &&
             event.amount == 1) {
             directionWarningFound = true;
         }
+        if (event.type == ian::GameEventType::WaveStarted &&
+            event.amount == 1) {
+            waveEventFound = true;
+        }
     }
-    require(sunsetEventFound, "sunset transition emits warning event");
-    require(directionWarningFound, "sunset emits attack-direction warning event");
-
-    simulation.tick(sunsetDuration - 1.0);
-    require(simulation.snapshot().state == ian::RunState::Sunset,
-            "sunset remains active before timer expires");
-    simulation.tick(1.0);
-    require(simulation.snapshot().state == ian::RunState::Wave,
-            "wave starts when sunset timer expires");
+    require(directionWarningFound,
+            "early wave emits attack-direction warning event");
+    require(waveEventFound,
+            "early wave emits WaveStarted event");
     require(simulation.snapshot().wave == 1 &&
                 simulation.snapshot().activeEnemyCount == 5 &&
                 simulation.snapshot().pendingEnemyCount == 10,
@@ -258,13 +743,6 @@ void runSimulationTests() {
     require(simulation.snapshot().activeEnemyCount == 11,
             "debug command spawns selected enemy during wave");
     phaseEvents = simulation.takeEvents();
-    bool waveEventFound = false;
-    for (const auto& event : phaseEvents) {
-        if (event.type == ian::GameEventType::WaveStarted && event.amount == 1) {
-            waveEventFound = true;
-        }
-    }
-    require(waveEventFound, "night transition emits WaveStarted event");
 
     ian::PlayerCommand defeatWave;
     defeatWave.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
@@ -303,4 +781,10 @@ void runSimulationTests() {
     requireNear(simulation.snapshot().phaseTimeRemaining,
                 simulation.snapshot().phaseDuration, 1e-12,
                 "new day receives full preparation timer");
+
+    simulation.tick(1.0 / 60.0, unlimited);
+    require(!simulation.snapshot().unlimitedResources,
+            "unlimited resource command toggles cheat off");
+    require(!simulation.snapshot().playerInvulnerable,
+            "disabling god mode also disables player invulnerability");
 }

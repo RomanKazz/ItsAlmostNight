@@ -29,6 +29,8 @@ uniform float terrainAmount;
 uniform vec3 terrainPrimaryTint;
 uniform vec3 terrainSecondaryTint;
 uniform vec3 terrainPatchTint;
+uniform sampler2D terrainTexture;
+uniform float terrainTextureEnabled;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
@@ -99,17 +101,24 @@ float sampleShadow(vec3 normal)
 
     float lightFacing = max(dot(normal, normalize(-sunDirection)), 0.0);
     float bias = constantBias + slopeBias*(1.0 - lightFacing);
+    const float kernel[5] = float[5](1.0, 2.0, 3.0, 2.0, 1.0);
     float occlusion = 0.0;
-    for (int offsetY = -1; offsetY <= 1; ++offsetY)
+    float totalWeight = 0.0;
+    for (int offsetY = -2; offsetY <= 2; ++offsetY)
     {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX)
+        for (int offsetX = -2; offsetX <= 2; ++offsetX)
         {
-            vec2 offset = vec2(float(offsetX), float(offsetY))*shadowMapTexelSize;
+            float weight = kernel[offsetX + 2]*kernel[offsetY + 2];
+            vec2 offset =
+                vec2(float(offsetX), float(offsetY))*
+                shadowMapTexelSize*1.35;
             float closestDepth = texture(shadowMap, projected.xy + offset).r;
-            occlusion += projected.z - bias > closestDepth ? 1.0 : 0.0;
+            occlusion +=
+                (projected.z - bias > closestDepth ? 1.0 : 0.0)*weight;
+            totalWeight += weight;
         }
     }
-    occlusion /= 9.0;
+    occlusion /= totalWeight;
     return 1.0 - occlusion*clamp(shadowStrength, 0.0, 1.0);
 }
 
@@ -117,34 +126,62 @@ void main()
 {
     vec3 normal = normalize(fragWorldNormal);
     vec3 lightDirection = normalize(-sunDirection);
-    float lambert = max(dot(normal, lightDirection), 0.0);
-    float stylizedDiffuse = mix(lambert, smoothstep(0.05, 0.95, lambert), 0.28);
+    vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
+    float lightFacing = dot(normal, lightDirection);
+    float lambert = max(lightFacing, 0.0);
+    float diffuseRamp = smoothstep(-0.08, 0.82, lightFacing);
+    float stylizedDiffuse = mix(lambert, diffuseRamp, 0.3);
 
     float hemisphere = normal.y*0.5 + 0.5;
     vec3 ambientColor = mix(groundAmbientColor, skyAmbientColor, hemisphere);
-    vec3 ambient = ambientColor*ambientIntensity;
+    float ambientShape = mix(0.78, 1.05, hemisphere);
+    vec3 ambient = ambientColor*ambientIntensity*ambientShape;
     float shadow = sampleShadow(normal);
     vec3 direct = sunColor*sunIntensity*stylizedDiffuse*shadow;
+    float rim =
+        pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
+        smoothstep(-0.2, 0.75, normal.y);
+    vec3 skyRim = skyAmbientColor*ambientIntensity*rim*0.08;
 
     vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
     albedo.a = baseColor.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
-    vec3 variedTerrain =
-        albedo.rgb*terrainTint(fragWorldPosition, normal);
+    vec3 terrainSample =
+        texture(terrainTexture, fragWorldPosition.xz*0.08).rgb;
+    vec3 terrainBase =
+        mix(albedo.rgb, terrainSample, terrainTextureEnabled);
+    vec3 terrainVariation =
+        mix(vec3(1.0), terrainTint(fragWorldPosition, normal), 0.3);
+    vec3 variedTerrain = terrainBase*terrainVariation;
     albedo.rgb = mix(albedo.rgb, variedTerrain,
                      clamp(terrainAmount, 0.0, 1.0));
     float vertexAo =
         mix(1.0, fragVertexColor.a, clamp(vertexAoAmount, 0.0, 1.0));
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
-    vec3 litColor = albedo.rgb*(ambient + direct)*ao;
+    vec3 litColor = albedo.rgb*(ambient + direct + skyRim)*ao;
     litColor *= dayNightTint;
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
     litColor = mix(litColor, vec3(1.0, 0.28, 0.12), clamp(hitFlashAmount, 0.0, 1.0));
 
-    float distanceToCamera = distance(cameraPosition, fragWorldPosition);
-    float fogAmount = smoothstep(fogStart, max(fogStart + 0.01, fogEnd), distanceToCamera);
-    litColor = mix(litColor, fogColor, fogAmount);
+    float horizontalDistance =
+        length(cameraPosition.xz - fragWorldPosition.xz);
+    float fogRange = max(fogEnd - fogStart, 0.01);
+    float fogDistance =
+        clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
+    float distanceFog =
+        (1.0 - exp(-2.5*fogDistance*fogDistance))*0.96;
+    float groundDensity = exp(-max(fragWorldPosition.y, 0.0)*0.16);
+    float fogAmount =
+        distanceFog*mix(0.72, 1.0, groundDensity);
+    vec3 atmosphereColor =
+        mix(fogColor, skyAmbientColor, 0.14 + fogDistance*0.08);
+    float preFogLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    litColor = mix(
+        litColor, vec3(preFogLuminance),
+        fogAmount*0.16);
+    litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(luminance), litColor, saturation);

@@ -22,7 +22,8 @@ void runBuildingSystemTests() {
     require(secondCore.error == ian::PlacementError::CoreAlreadyPlaced,
             "only one core can be placed");
 
-    const auto overlappingWall = buildings.validate(ian::BuildingType::Wall, {1, 0}, 10, 0);
+    const auto overlappingWall =
+        buildings.validate(ian::BuildingType::Wall, {0, 0}, 10, 0);
     require(overlappingWall.error == ian::PlacementError::Occupied,
             "wall cannot overlap core footprint");
 
@@ -59,13 +60,32 @@ void runBuildingSystemTests() {
     const auto levelTwo = buildings.upgrade(core->building.id, 0, 0, 50);
     require(levelTwo.valid() && levelTwo.building->level == 2,
             "first core upgrade reaches level two");
-    require(levelTwo.building->maxHealth == 750.0, "core upgrade increases max health");
+    require(levelTwo.building->maxHealth == 575.0, "core upgrade increases max health");
     const auto levelThree = buildings.upgrade(core->building.id, 0, 0, 100);
     require(levelThree.valid() && levelThree.building->level == 3,
             "second core upgrade reaches level three");
-    require(buildings.validateUpgrade(core->building.id, 0, 0, 100).error ==
-                ian::UpgradeError::MaxLevel,
-            "core cannot exceed level three");
+    require(buildings.validateUpgrade(core->building.id, 0, 0, 149).error ==
+                ian::UpgradeError::InsufficientResources,
+            "higher core levels use progressive upgrade costs");
+    for (int expectedLevel = 4;
+         expectedLevel <= ian::MaxBuildingLevel;
+         ++expectedLevel) {
+        const auto currentCore = buildings.core();
+        require(currentCore.has_value(),
+                "core remains available through progression");
+        const auto cost = buildings.upgradeCost(*currentCore);
+        const auto upgraded = buildings.upgrade(
+            currentCore->id, cost.wood, cost.stone, cost.gold);
+        require(
+            upgraded.valid() &&
+                upgraded.building->level == expectedLevel,
+            "core progresses through extended building levels");
+    }
+    require(
+        buildings.validateUpgrade(
+            core->building.id, 10000, 10000, 10000)
+                .error == ian::UpgradeError::MaxLevel,
+        "core stops at extended maximum level");
 
     ian::BuildingSystem cannonBuildings;
     const auto cannonCore =
@@ -78,20 +98,26 @@ void runBuildingSystemTests() {
     const auto cannon =
         cannonBuildings.place(ian::BuildingType::Cannon, {4, 0}, 0, 40, 30, 25);
     require(cannon.has_value(), "core level two unlocks cannon");
+    require(
+        cannonBuildings.upgradeCost(cannon->building) ==
+            ian::buildingUpgradeCost(cannon->building),
+        "default upgrade helpers share one pricing formula");
     const auto cannonLevelTwo =
         cannonBuildings.upgrade(cannon->building.id, 20, 15, 23);
-    require(cannonLevelTwo.valid() && cannonLevelTwo.building->level == 2 &&
-                cannonLevelTwo.building->maxHealth == 270.0,
+    require(cannonLevelTwo.valid() && cannonLevelTwo.building->level == 2,
             "building upgrade raises level and max health");
+    requireNear(cannonLevelTwo.building->maxHealth, 207.0, 1e-9,
+                "building upgrade gives gradual health increase");
     require(cannonBuildings.validateUpgrade(cannon->building.id, 40, 30, 50).error ==
                 ian::UpgradeError::CoreLevelRequired,
             "building level cannot exceed core level");
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 100);
     const auto cannonLevelThree =
         cannonBuildings.upgrade(cannon->building.id, 40, 30, 50);
-    require(cannonLevelThree.valid() && cannonLevelThree.building->level == 3 &&
-                cannonLevelThree.building->maxHealth == 360.0,
-            "core level three unlocks final building upgrade");
+    require(cannonLevelThree.valid() && cannonLevelThree.building->level == 3,
+            "core level three unlocks next building upgrade");
+    requireNear(cannonLevelThree.building->maxHealth, 234.0, 1e-9,
+                "next building level keeps gradual health curve");
     require(cannonBuildings.place(ian::BuildingType::SlowTrap, {4, 2}, 0, 15, 20, 10).has_value(),
             "core level two unlocks slow trap");
     require(!ian::buildingBlocksMovement(ian::BuildingType::SlowTrap),
@@ -101,9 +127,56 @@ void runBuildingSystemTests() {
     require(gate.has_value() && ian::buildingBlocksMovement(gate->building),
             "new gate starts closed");
     const auto aimedGate =
-        cannonBuildings.raycast({4.0, 1.0, 7.0}, {0.0, 0.0, -1.0}, 4.0);
+        cannonBuildings.raycast(
+            {4.5, 1.0, 7.0},
+            {0.0, 0.0, -1.0}, 4.0);
     require(aimedGate.has_value() && *aimedGate == gate->building.id,
             "building raycast selects gate under crosshair");
+
+    ian::BuildingSystem selectionBuildings;
+    require(
+        selectionBuildings
+            .place(ian::BuildingType::Core, {0, 0}, 0,
+                   30, 0)
+            .has_value(),
+        "selection fixture creates core");
+    const auto selectedWall = selectionBuildings.place(
+        ian::BuildingType::Wall, {4, 4}, 0, 10, 0);
+    const auto diagonalWall = selectionBuildings.place(
+        ian::BuildingType::Wall, {5, 5}, 0, 10, 0);
+    require(
+        selectedWall.has_value() &&
+            diagonalWall.has_value(),
+        "selection fixture creates neighboring walls");
+    const auto preciseWallAim = selectionBuildings.raycast(
+        {4.5, 1.0, 7.5}, {0.0, 0.0, -1.0}, 4.0);
+    require(
+        preciseWallAim.has_value() &&
+            *preciseWallAim == selectedWall->building.id,
+        "neighboring building does not steal precise aim");
+
+    ian::BuildingSystem elevatedBuildings;
+    require(
+        elevatedBuildings
+            .place(ian::BuildingType::Core, {0, 0}, 0,
+                   30, 0)
+            .has_value(),
+        "elevated fixture creates ground core");
+    const auto elevatedWall = elevatedBuildings.place(
+        ian::BuildingType::Wall, {0, 0}, 0,
+        10, 0, 0, 4.0, 0, 4.0);
+    require(
+        elevatedWall.has_value() &&
+            elevatedWall->building.baseHeight == 4.0 &&
+            elevatedWall->building.platformStorey == 0,
+        "building can occupy the same grid cell on a platform level");
+    const auto elevatedAim = elevatedBuildings.raycast(
+        {0.5, 5.0, 3.0}, {0.0, 0.0, -1.0},
+        4.0);
+    require(
+        elevatedAim == elevatedWall->building.id,
+        "raycast uses elevated building base height");
+
     const auto openedGate = cannonBuildings.toggleGate(gate->building.id);
     require(openedGate.has_value() && openedGate->open &&
                 !ian::buildingBlocksMovement(*openedGate),
@@ -113,6 +186,12 @@ void runBuildingSystemTests() {
     const auto repairCost = ian::buildingRepairCost(cannonBuildings.buildings().back());
     require(repairCost.wood == 4 && repairCost.stone == 2,
             "repair cost scales with missing health");
+    const auto repairValidation =
+        cannonBuildings.validateRepair(
+            gate->building.id, 4, 2, 0);
+    require(
+        repairValidation.cost == repairCost,
+        "default repair helpers share one pricing formula");
     require(cannonBuildings.validateRepair(gate->building.id, 3, 2, 0).error ==
                 ian::BuildingActionError::InsufficientResources,
             "repair validates available resources");
@@ -126,6 +205,10 @@ void runBuildingSystemTests() {
     const auto soldGate = cannonBuildings.sell(gate->building.id);
     require(soldGate.valid() && soldGate.refund.wood == 7 && soldGate.refund.stone == 2,
             "selling returns half base cost");
+    require(
+        soldGate.refund ==
+            ian::buildingSellRefund(*soldGate.building),
+        "default sell helpers share one pricing formula");
     require(cannonBuildings.sell(gate->building.id).error ==
                 ian::BuildingActionError::NotFound,
             "sold building no longer exists");
@@ -148,14 +231,50 @@ void runBuildingSystemTests() {
     const ian::Vec3 player{0.0, 1.7, 6.0};
     const auto closeAim =
         ian::aimedBuildingGridPosition(player, 0.0, -std::numbers::pi / 4.0);
-    require(closeAim == ian::GridPosition{0, 4},
-            "looking down places building close to player");
+    require(closeAim == ian::GridPosition{1, 5},
+            "two-cell building snaps to PlatformFrame center");
     const auto farAim = ian::aimedBuildingGridPosition(player, 0.0, -0.01);
-    require(farAim == ian::GridPosition{0, -4},
+    require(farAim == ian::GridPosition{1, -3},
             "shallow aim clamps placement to maximum distance");
     const auto rightAim = ian::aimedBuildingGridPosition(
         player, std::numbers::pi / 2.0, -std::numbers::pi / 4.0);
-    require(rightAim == ian::GridPosition{2, 6}, "yaw directs placement around player");
+    require(
+        rightAim == ian::GridPosition{1, 7},
+        "yaw keeps two-cell placement on PlatformFrame lattice");
+    const auto wallAim = ian::aimedBuildingGridPosition(
+        player, std::numbers::pi / 2.0,
+        -std::numbers::pi / 4.0,
+        ian::MinimumPlacementDistance,
+        ian::MaximumPlacementDistance,
+        ian::BuildingType::Wall);
+    require(wallAim == ian::GridPosition{1, 6},
+            "one-cell building uses containing grid cell");
+    const ian::Vec3 wallCenter = ian::buildingWorldPosition(
+        ian::BuildingType::Wall, wallAim);
+    require(
+        wallCenter.x == 1.5 && wallCenter.z == 6.5,
+        "one-cell building is centered inside grid cell");
+    const ian::Vec3 coreCenter = ian::buildingWorldPosition(
+        ian::BuildingType::Core, rightAim);
+    require(
+        coreCenter.x == 1.0 && coreCenter.z == 7.0 &&
+            (rightAim.x - 1) % 2 == 0 &&
+            (rightAim.z - 1) % 2 == 0,
+        "two-cell core center matches an even PlatformFrame anchor");
+    require(
+        ian::buildingFootprintHalfExtent(
+            ian::BuildingType::GoldMine) == 1.0 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::Turret) == 1.0 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::Cannon) == 1.0,
+        "mine turret and cannon use two-by-two footprints");
+    const ian::Vec3 turretCenter =
+        ian::buildingWorldPosition(
+            ian::BuildingType::Turret, {2, 6});
+    require(
+        turretCenter.x == 2.0 && turretCenter.z == 6.0,
+        "two-cell combat building remains centered on grid intersection");
 
     std::vector<ian::BuildingInstance> wallModules{
         {.id = {5000, 1}, .type = ian::BuildingType::Wall, .gridPosition = {0, 0}},
@@ -182,4 +301,37 @@ void runBuildingSystemTests() {
                              ian::WallConnectionNorth | ian::WallConnectionEast |
                              ian::WallConnectionSouth | ian::WallConnectionWest),
             "rotated gate completes four-way wall connection");
+
+    const std::vector<ian::BuildingInstance> brokenHorizontalLine{
+        {.id = {5100, 1},
+         .type = ian::BuildingType::Wall,
+         .gridPosition = {0, 0},
+         .rotation = 1},
+        {.id = {5101, 1},
+         .type = ian::BuildingType::Wall,
+         .gridPosition = {-3, 0}},
+        {.id = {5102, 1},
+         .type = ian::BuildingType::Wall,
+         .gridPosition = {4, 0}},
+    };
+    require(
+        ian::wallFallbackRotation(
+            brokenHorizontalLine,
+            brokenHorizontalLine.front()) == 0,
+        "isolated wall keeps horizontal line orientation across gaps");
+
+    const std::vector<ian::BuildingInstance> brokenVerticalLine{
+        {.id = {5200, 1},
+         .type = ian::BuildingType::Wall,
+         .gridPosition = {0, 0},
+         .rotation = 0},
+        {.id = {5201, 1},
+         .type = ian::BuildingType::Wall,
+         .gridPosition = {0, -4}},
+    };
+    require(
+        ian::wallFallbackRotation(
+            brokenVerticalLine,
+            brokenVerticalLine.front()) == 1,
+        "isolated wall keeps vertical line orientation across gaps");
 }

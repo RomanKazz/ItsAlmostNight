@@ -10,6 +10,8 @@
 
 namespace ian {
 
+inline constexpr std::uint8_t MaxBuildingLevel = 8;
+
 enum class BuildingType {
     Core,
     Wall,
@@ -18,6 +20,8 @@ enum class BuildingType {
     Cannon,
     SlowTrap,
     Gate,
+    LumberMill,
+    Quarry,
 };
 
 enum WallConnection : std::uint8_t {
@@ -38,6 +42,9 @@ struct ResourceCost {
     int wood{};
     int stone{};
     int gold{};
+
+    friend bool operator==(
+        const ResourceCost&, const ResourceCost&) = default;
 };
 
 struct BuildingInstance {
@@ -49,6 +56,9 @@ struct BuildingInstance {
     double health{};
     double maxHealth{};
     bool open{};
+    double baseHeight{};
+    int platformStorey{-1};
+    double foundationBottomHeight{};
 };
 
 enum class PlacementError {
@@ -63,6 +73,7 @@ enum class PlacementError {
     LimitReached,
     OutOfRange,
     CoreLevelRequired,
+    ResourceBlocked,
 };
 
 struct PlacementResult {
@@ -83,6 +94,7 @@ struct BuildingDamageResult {
     GridPosition gridPosition;
     double remainingHealth;
     bool destroyed;
+    double baseHeight{};
 };
 
 enum class UpgradeError {
@@ -144,12 +156,18 @@ struct BuildingPreview {
     GridPosition gridPosition;
     std::uint8_t rotation;
     PlacementResult placement;
+    double baseHeight{};
+    int platformStorey{-1};
+    double foundationBottomHeight{};
 };
 
 struct PlaceBuildingCommand {
     BuildingType type;
     GridPosition gridPosition;
     std::uint8_t rotation;
+    double baseHeight{};
+    int platformStorey{-1};
+    bool lockHeight{};
 };
 
 class BuildingSystem {
@@ -163,9 +181,14 @@ class BuildingSystem {
     void reset();
 
     [[nodiscard]] PlacementResult validate(BuildingType type, GridPosition position, int wood,
-                                           int stone, int gold = 0) const;
+                                           int stone, int gold = 0,
+                                           double baseHeight = 0.0) const;
     std::optional<PlacedBuilding> place(BuildingType type, GridPosition position,
-                                        std::uint8_t rotation, int wood, int stone, int gold = 0);
+                                        std::uint8_t rotation, int wood, int stone, int gold = 0,
+                                        double baseHeight = 0.0,
+                                        int platformStorey = -1,
+                                        double foundationBottomHeight = 0.0);
+    std::optional<BuildingInstance> remove(EntityId id);
     std::optional<BuildingDamageResult> damage(EntityId id, double amount);
     std::optional<BuildingInstance> toggleGate(EntityId id);
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
@@ -183,7 +206,8 @@ class BuildingSystem {
     [[nodiscard]] const std::vector<BuildingInstance>& buildings() const;
 
   private:
-    [[nodiscard]] bool overlaps(BuildingType type, GridPosition position) const;
+    [[nodiscard]] bool overlaps(BuildingType type, GridPosition position,
+                                double baseHeight) const;
     [[nodiscard]] const BuildingBalanceDefinition& definition(BuildingType type) const;
     [[nodiscard]] ResourceCost cost(BuildingType type) const;
     [[nodiscard]] ResourceCost repairCost(const BuildingInstance& building) const;
@@ -202,8 +226,20 @@ class BuildingSystem {
 [[nodiscard]] ResourceCost buildingUpgradeCost(const BuildingInstance& building);
 [[nodiscard]] bool buildingBlocksMovement(BuildingType type);
 [[nodiscard]] bool buildingBlocksMovement(const BuildingInstance& building);
+[[nodiscard]] double buildingFootprintHalfExtent(
+    BuildingType type);
+[[nodiscard]] Vec3 buildingWorldPosition(
+    BuildingType type, GridPosition position);
+[[nodiscard]] Vec3 buildingWorldPosition(
+    const BuildingInstance& building);
+[[nodiscard]] Vec3 buildingWorldPosition(
+    const BuildingDamageResult& building);
 [[nodiscard]] std::uint8_t wallConnectionMask(
-    std::span<const BuildingInstance> buildings, GridPosition position);
+    std::span<const BuildingInstance> buildings, GridPosition position,
+    double baseHeight = 0.0);
+[[nodiscard]] std::uint8_t wallFallbackRotation(
+    std::span<const BuildingInstance> buildings,
+    const BuildingInstance& wall);
 
 inline constexpr double MinimumPlacementDistance = 1.0;
 inline constexpr double MaximumPlacementDistance = 10.0;
@@ -211,6 +247,8 @@ inline constexpr double MaximumPlacementDistance = 10.0;
 [[nodiscard]] GridPosition aimedBuildingGridPosition(
     Vec3 playerPosition, double yaw, double pitch,
     double minimumDistance = MinimumPlacementDistance,
-    double maximumDistance = MaximumPlacementDistance);
+    double maximumDistance = MaximumPlacementDistance,
+    BuildingType type = BuildingType::Core,
+    double placementPlaneHeight = 0.0);
 
 } // namespace ian

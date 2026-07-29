@@ -1,0 +1,14 @@
+{
+  "cellSize": 1.0,
+  "verticalGridStep": 1.0,
+  "maxStoreys": 3,
+  "maxWoodSupportLength": 4.0,
+  "terrainResolution": 129,
+  "terrainWorldSize": 96.0,
+  "terrainAmplitude": 3.2,
+  "terrainFrequency": 0.032,
+  "terrainSeed": 73129,
+  "coreFlatRadius": 10.0,
+  "buildPreviewDistance": 10.0,
+  "minimumGroundClearance": 0.12
+}

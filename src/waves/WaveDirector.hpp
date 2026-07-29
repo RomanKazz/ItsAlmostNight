@@ -29,6 +29,7 @@ class WaveDirector {
 
     WavePlan buildWave(int wave, GridPosition corePosition,
                        std::size_t firstAnchorIndex = 0);
+    [[nodiscard]] const WaveDefinition& composition(int wave) const;
 
   private:
     void append(EnemyType type, int count, GridPosition corePosition, int groupSize);

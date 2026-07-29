@@ -20,6 +20,17 @@ void runPlayerWeaponSystemTests();
 void runBombSystemTests();
 void runGameBalanceTests();
 void runMapDefinitionTests();
+void runTerrainHeightfieldTests();
+void runBuildGridTests();
+void runPlacementValidatorTests();
+void runFoundationSystemTests();
+void runModularCombatTests();
+void runPresentationEffectQueryTests();
+void runResourceWorldTests();
+void runBuildingStatsTests();
+void runPresentationTimelineTests();
+void runUiLabelsTests();
+void runDeterministicRandomTests();
 
 namespace {
 
@@ -51,6 +62,17 @@ int main() {
     fixedStepClampsLongFrames();
     runGameBalanceTests();
     runMapDefinitionTests();
+    runTerrainHeightfieldTests();
+    runBuildGridTests();
+    runPlacementValidatorTests();
+    runFoundationSystemTests();
+    runModularCombatTests();
+    runPresentationEffectQueryTests();
+    runResourceWorldTests();
+    runBuildingStatsTests();
+    runPresentationTimelineTests();
+    runUiLabelsTests();
+    runDeterministicRandomTests();
     runBuildingSystemTests();
     runCollisionWorldTests();
     runEnemySystemTests();

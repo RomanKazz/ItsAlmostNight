@@ -26,5 +26,13 @@
   "gate": {
     "wood": 15, "stone": 5, "gold": 0,
     "maxHealth": 130, "unlockCoreLevel": 1, "maxCount": 128
+  },
+  "lumberMill": {
+    "wood": 40, "stone": 15, "gold": 10,
+    "maxHealth": 150, "unlockCoreLevel": 2, "maxCount": 2
+  },
+  "quarry": {
+    "wood": 30, "stone": 40, "gold": 15,
+    "maxHealth": 170, "unlockCoreLevel": 2, "maxCount": 2
   }
 }

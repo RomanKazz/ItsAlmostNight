@@ -11,17 +11,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CTest)
 include(FetchContent)
 
-find_package(raylib 6.0 EXACT CONFIG QUIET)
-if(NOT raylib_FOUND)
-    FetchContent_Declare(
-        raylib
-        GIT_REPOSITORY https://github.com/raysan5/raylib.git
-        GIT_TAG 6.0
-        GIT_SHALLOW TRUE
-    )
-    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(raylib)
-endif()
+# Homebrew raylib 6.0 is built without SUPPORT_GPU_SKINNING.
+# Enemy models require the bone VBOs and animation upload path.
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(CUSTOMIZE_BUILD ON CACHE BOOL "" FORCE)
+set(SUPPORT_GPU_SKINNING ON CACHE BOOL "" FORCE)
+# App uses raylib's normal EndDrawing() swap/input/frame loop.
+# CUSTOMIZE_BUILD otherwise enables manual frame control.
+set(SUPPORT_CUSTOM_FRAME_CONTROL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    raylib
+    GIT_REPOSITORY https://github.com/raysan5/raylib.git
+    GIT_TAG 6.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(raylib)
 
 find_package(nlohmann_json 3.11.3 CONFIG QUIET)
 if(NOT nlohmann_json_FOUND)
@@ -44,48 +48,104 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(raygui)
 
 add_library(ian_simulation
+    src/buildings/BuildGrid.cpp
+    src/buildings/FoundationSystem.cpp
+    src/buildings/FoundationSystemRaycast.cpp
+    src/buildings/FoundationSystemStructural.cpp
+    src/buildings/FoundationSystemVertical.cpp
+    src/buildings/PlacementValidator.cpp
+    src/buildings/StructuralSupportGraph.cpp
+    src/buildings/SupportSystem.cpp
     src/buildings/BuildingSystem.cpp
+    src/buildings/BuildingStats.cpp
     src/combat/TowerSystem.cpp
     src/combat/TrapSystem.cpp
     src/combat/CannonSystem.cpp
     src/combat/BombSystem.cpp
     src/combat/PlayerWeaponSystem.cpp
     src/economy/GoldMineSystem.cpp
+    src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
+    src/game/SimulationDefenses.cpp
+    src/game/ModularCombat.cpp
+    src/game/ResourceWorld.cpp
     src/game/GameBalance.cpp
     src/navigation/FlowField.cpp
     src/resources/ResourceSystem.cpp
     src/world/CollisionWorld.cpp
     src/world/MapDefinition.cpp
     src/world/SpatialHash.cpp
+    src/world/TerrainHeightfield.cpp
+    src/world/WorldConfig.cpp
     src/waves/WaveDirector.cpp
 )
 target_include_directories(ian_simulation PUBLIC src)
 target_link_libraries(ian_simulation PRIVATE nlohmann_json::nlohmann_json)
 
+add_library(ian_text
+    src/ui/UiLabels.cpp
+    src/ui/UiText.cpp
+)
+target_include_directories(ian_text PUBLIC src)
+target_link_libraries(ian_text PUBLIC raylib)
+
+add_library(ian_audio
+    src/audio/AudioSystem.cpp
+)
+target_include_directories(ian_audio PUBLIC src)
+target_link_libraries(ian_audio PUBLIC raylib)
+
+add_library(ian_presentation
+    src/presentation/PresentationEffectQueries.cpp
+)
+target_include_directories(ian_presentation PUBLIC src)
+
 add_library(ian_graphics
     src/graphics/EnvironmentSystem.cpp
     src/graphics/GraphicsResources.cpp
+    src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
+    src/graphics/RendererModels.cpp
+    src/graphics/TerrainRenderer.cpp
 )
 target_include_directories(ian_graphics PUBLIC src)
-target_link_libraries(ian_graphics PUBLIC raylib PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(ian_graphics PUBLIC raylib ian_text PRIVATE nlohmann_json::nlohmann_json)
 
 add_library(ian_ui
     src/ui/GameUi.cpp
+    src/ui/HudRenderer.cpp
+    src/ui/TargetHealthBar.cpp
+    src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
 target_include_directories(ian_ui SYSTEM PRIVATE "${raygui_SOURCE_DIR}/src")
-target_link_libraries(ian_ui PUBLIC raylib)
-
-file(COPY assets DESTINATION "${CMAKE_BINARY_DIR}")
+target_link_libraries(ian_ui PUBLIC raylib ian_text)
 
 add_executable(its_almost_night
     src/app/App.cpp
+    src/app/AppEffects.cpp
+    src/app/AppEnemySpawnMenu.cpp
+    src/app/AppGraphicsPanel.cpp
+    src/app/AppInput.cpp
+    src/app/AppModularPlacement.cpp
+    src/app/AppRenderPasses.cpp
+    src/app/AppUpdate.cpp
+    src/app/AppWorldRender.cpp
+    src/app/AppWorldOverlays.cpp
     src/app/main.cpp
 )
-target_link_libraries(its_almost_night PRIVATE ian_simulation ian_graphics ian_ui)
+target_link_libraries(its_almost_night PRIVATE
+    ian_simulation ian_graphics ian_ui ian_audio
+    ian_presentation
+)
+add_custom_command(
+    TARGET its_almost_night POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:its_almost_night>/assets"
+    COMMENT "Copying runtime assets"
+)
 
 function(ian_set_warnings target)
     if(MSVC)
@@ -102,12 +162,15 @@ function(ian_set_warnings target)
 endfunction()
 
 ian_set_warnings(ian_simulation)
+ian_set_warnings(ian_text)
+ian_set_warnings(ian_audio)
+ian_set_warnings(ian_presentation)
 ian_set_warnings(ian_graphics)
 ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
 
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-    foreach(target ian_simulation ian_graphics ian_ui its_almost_night)
+    foreach(target ian_simulation ian_text ian_audio ian_presentation ian_graphics ian_ui its_almost_night)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=address,undefined)
     endforeach()
@@ -116,7 +179,17 @@ endif()
 if(BUILD_TESTING)
     add_executable(ian_tests
         tests/FixedStepTests.cpp
+        tests/DeterministicRandomTests.cpp
         tests/BuildingSystemTests.cpp
+        tests/BuildingStatsTests.cpp
+        tests/BuildGridTests.cpp
+        tests/FoundationSystemTests.cpp
+        tests/ModularCombatTests.cpp
+        tests/PresentationEffectQueryTests.cpp
+        tests/PresentationTimelineTests.cpp
+        tests/UiLabelsTests.cpp
+        tests/ResourceWorldTests.cpp
+        tests/PlacementValidatorTests.cpp
         tests/BombSystemTests.cpp
         tests/CannonSystemTests.cpp
         tests/CollisionWorldTests.cpp
@@ -129,12 +202,14 @@ if(BUILD_TESTING)
         tests/SimulationTests.cpp
         tests/GameBalanceTests.cpp
         tests/MapDefinitionTests.cpp
+        tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
         tests/TowerSystemTests.cpp
         tests/TrapSystemTests.cpp
         tests/WaveDirectorTests.cpp
     )
-    target_link_libraries(ian_tests PRIVATE ian_simulation ian_graphics)
+    target_link_libraries(ian_tests PRIVATE
+        ian_simulation ian_graphics ian_presentation)
     ian_set_warnings(ian_tests)
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
         target_compile_options(ian_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)

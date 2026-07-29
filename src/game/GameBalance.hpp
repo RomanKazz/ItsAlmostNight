@@ -22,6 +22,9 @@ struct WaveDefinition {
     int basic;
     int fast;
     int heavy;
+    int ranged;
+    int sapper;
+    int flying;
     bool boss;
     int groupSize;
     double groupInterval;
@@ -86,6 +89,8 @@ struct GameplayBalanceDefinition {
     double playerMaxHealth;
     double pickaxeRange;
     double pickaxeDamage;
+    double pickaxeDamageVariation;
+    double pickaxeCriticalChance;
     double pickaxeCooldown;
     double firstBuildPhaseSeconds;
     double betweenWaveSeconds;
@@ -96,9 +101,9 @@ struct GameplayBalanceDefinition {
 };
 
 struct GameBalance {
-    static constexpr std::size_t EnemyTypeCount = 4;
+    static constexpr std::size_t EnemyTypeCount = 7;
     static constexpr std::size_t WaveCount = 6;
-    static constexpr std::size_t BuildingTypeCount = 7;
+    static constexpr std::size_t BuildingTypeCount = 9;
 
     std::array<EnemyDefinition, EnemyTypeCount> enemies;
     std::array<WaveDefinition, WaveCount> waves;

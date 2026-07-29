@@ -1,10 +1,12 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
+#include "enemies/EnemyCollision.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "navigation/FlowField.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 
 void runEnemySystemTests() {
@@ -54,16 +56,81 @@ void runEnemySystemTests() {
     for (int tick = 0; tick < 600 && !wallAttacked; ++tick) {
         const auto attacks = enemies.tick(1.0 / 60.0, buildings.buildings(), flowField);
         for (const auto& attack : attacks) {
-            if (attack.targetId == frontWall->building.id) {
+            if (attack.targetId != core->building.id) {
                 wallAttacked = true;
             }
         }
     }
     require(wallAttacked, "enemy on blocked route attacks wall");
 
+    ian::EnemySystem foundationEnemies;
+    constexpr std::array<ian::Vec3, 1>
+        FoundationSpawn{{{0.0, 0.8, -4.5}}};
+    foundationEnemies.spawnWave(FoundationSpawn);
+    constexpr ian::EntityId FoundationId{12000U, 1U};
+    const std::array<ian::EnemyStructureTarget, 1>
+        foundationTargets{{
+            {
+                .id = FoundationId,
+                .position = {0.0, 1.0, -3.0},
+                .radius = 1.1,
+                .buildingType = std::nullopt,
+                .modular = true,
+                .structuralImpact = 1U,
+            },
+        }};
+    const auto foundationAttacks =
+        foundationEnemies.tick(
+            1.0 / 60.0, buildings.buildings(),
+            flowField, std::nullopt,
+            foundationTargets);
+    require(
+        foundationAttacks.size() == 1 &&
+            foundationAttacks.front().targetId ==
+                FoundationId,
+        "enemy treats PlatformFrame as attackable structure");
+
+    ian::EnemySystem sapperEnemies;
+    constexpr std::array<ian::EnemySpawn, 1>
+        StructuralSapperSpawn{{
+            {
+                ian::EnemyType::Sapper,
+                {0.0, 0.8, -4.5},
+            },
+        }};
+    sapperEnemies.spawnWave(StructuralSapperSpawn);
+    constexpr ian::EntityId ModularWallId{12001U, 1U};
+    const std::array<ian::EnemyStructureTarget, 2>
+        sapperTargets{{
+            {
+                .id = ModularWallId,
+                .position = {0.0, 1.0, -3.3},
+                .radius = 0.55,
+                .buildingType = std::nullopt,
+                .modular = true,
+                .structuralImpact = 0U,
+            },
+            {
+                .id = FoundationId,
+                .position = {0.0, 1.0, -2.6},
+                .radius = 1.1,
+                .buildingType = std::nullopt,
+                .modular = true,
+                .structuralImpact = 4U,
+            },
+        }};
+    const auto sapperAttacks = sapperEnemies.tick(
+        1.0 / 60.0, buildings.buildings(),
+        flowField, std::nullopt, sapperTargets);
+    require(
+        sapperAttacks.size() == 1 &&
+            sapperAttacks.front().targetId ==
+                FoundationId,
+        "sapper prioritizes high-impact structural support");
+
     const auto centralEnemy = enemies.raycast({0.0, 0.8, -9.0}, {0.0, 0.0, 1.0}, 6.0);
     require(centralEnemy.has_value(), "enemy raycast finds target");
-    enemies.damage(*centralEnemy, 2.0);
+    enemies.damage(*centralEnemy, 4.0);
     const auto killed = enemies.damage(*centralEnemy, 1.0);
     require(killed.has_value() && killed->killed, "lethal damage kills enemy");
     require(enemies.activeCount() == 4, "dead enemy leaves active count");
@@ -78,6 +145,15 @@ void runEnemySystemTests() {
     const auto& separated = overlappingEnemies.enemies();
     require(separated[0].position.x < separated[1].position.x,
             "deterministic separation splits overlapping enemies");
+    const double separatedDistance = std::hypot(
+        separated[1].position.x - separated[0].position.x,
+        separated[1].position.z - separated[0].position.z);
+    const double requiredDistance =
+        ian::enemyCapsule(separated[0].type).radius +
+        ian::enemyCapsule(separated[1].type).radius;
+    require(
+        separatedDistance + 1e-6 >= requiredDistance,
+        "enemy capsules cannot overlap after movement");
 
     ian::EnemySystem typedEnemies;
     constexpr std::array<ian::EnemySpawn, 3> TypedSpawns{{
@@ -87,12 +163,71 @@ void runEnemySystemTests() {
     }};
     typedEnemies.spawnWave(TypedSpawns);
     const auto& typed = typedEnemies.enemies();
-    require(typed[0].speed > 3.0 && typed[0].health == 2.0,
+    require(typed[0].speed > 3.0 && typed[0].health == 4.0,
             "fast enemy uses fast low-health stats");
-    require(typed[1].speed < 2.0 && typed[1].health == 10.0,
+    require(typed[1].speed < 2.0 && typed[1].health == 16.0,
             "heavy enemy uses slow high-health stats");
-    require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 40.0,
+    require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 70.0,
             "boss uses final-wave stats");
+
+    ian::EnemySystem rangedEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> RangedSpawn{{
+        {ian::EnemyType::Ranged, {0.5, 0.85, -6.0}},
+    }};
+    rangedEnemy.spawnWave(RangedSpawn);
+    bool rangedAttackedWall = false;
+    for (int tick = 0; tick < 180 && !rangedAttackedWall;
+         ++tick) {
+        const auto attacks = rangedEnemy.tick(
+            1.0 / 60.0, buildings.buildings(), flowField);
+        rangedAttackedWall =
+            !attacks.empty() &&
+            attacks.front().targetId != core->building.id;
+    }
+    require(rangedAttackedWall &&
+                rangedEnemy.enemies().front().position.z <
+                    -4.0,
+            "ranged enemy attacks blocker from stand-off distance");
+
+    ian::EnemySystem sapperEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> SapperSpawn{{
+        {ian::EnemyType::Sapper, {0.5, 0.78, -2.7}},
+    }};
+    sapperEnemy.spawnWave(SapperSpawn);
+    bool sapperAmplifiedWallDamage = false;
+    for (int tick = 0;
+         tick < 120 && !sapperAmplifiedWallDamage; ++tick) {
+        const auto attacks = sapperEnemy.tick(
+            1.0 / 60.0, buildings.buildings(), flowField);
+        sapperAmplifiedWallDamage =
+            !attacks.empty() &&
+            attacks.front().targetId != core->building.id &&
+            attacks.front().damage == 30.0;
+    }
+    require(sapperAmplifiedWallDamage,
+            "sapper deals amplified damage to walls");
+
+    ian::EnemySystem flyingEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> FlyingSpawn{{
+        {ian::EnemyType::Flying, {0.0, 2.4, -5.0}},
+    }};
+    flyingEnemy.spawnWave(FlyingSpawn);
+    bool flyerAttackedCore = false;
+    bool flyerAttackedWall = false;
+    for (int tick = 0; tick < 300 && !flyerAttackedCore;
+         ++tick) {
+        const auto attacks = flyingEnemy.tick(
+            1.0 / 60.0, buildings.buildings(), flowField);
+        for (const auto& attack : attacks) {
+            flyerAttackedCore =
+                attack.targetId == core->building.id;
+            flyerAttackedWall =
+                flyerAttackedWall ||
+                attack.targetId != core->building.id;
+        }
+    }
+    require(flyerAttackedCore && !flyerAttackedWall,
+            "flying enemy bypasses walls and attacks core");
 
     ian::BuildingSystem ramBuildings;
     require(ramBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
@@ -136,28 +271,46 @@ void runEnemySystemTests() {
                         ian::Vec3{4.0, 1.7, 4.0});
     require(contactEnemies.playerAttacks().size() == 1,
             "enemy attacks player again after cooldown");
+
+    ian::EnemySystem chasingEnemies;
+    constexpr std::array<ian::Vec3, 1> ChasingSpawn{{
+        {4.0, 0.8, 4.0},
+    }};
+    chasingEnemies.spawnWave(ChasingSpawn);
+    chasingEnemies.tick(
+        1.0, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{8.0, 1.7, 4.0});
+    require(
+        chasingEnemies.enemies()[0].state ==
+                ian::EnemyState::ChasePlayer &&
+            chasingEnemies.enemies()[0].position.x > 4.0,
+        "enemy detects and chases player before attack range");
+
     require(contactEnemies.defeatAll() == 1 && contactEnemies.activeCount() == 0,
             "debug defeat clears all active enemies");
 
     std::vector<ian::EnemySpawn> stressSpawns;
-    stressSpawns.reserve(220);
-    for (int index = 0; index < 220; ++index) {
+    stressSpawns.reserve(ian::EnemySystem::MaxEnemies + 64);
+    for (std::size_t index = 0;
+         index < ian::EnemySystem::MaxEnemies + 64; ++index) {
         stressSpawns.push_back({
             .type = ian::EnemyType::Basic,
             .position = {
-                static_cast<double>((index % 20) - 10),
+                static_cast<double>(
+                    static_cast<int>(index % 40) - 20),
                 0.8,
-                -20.0 - static_cast<double>(index / 20),
+                -4.0 -
+                    static_cast<double>(index / 40) * 0.7,
             },
         });
     }
     ian::EnemySystem stressEnemies;
     stressEnemies.spawnWave(stressSpawns);
     require(stressEnemies.activeCount() == ian::EnemySystem::MaxEnemies,
-            "enemy pool caps wave at 200 entries");
+            "enemy pool caps oversized debug summon");
     stressEnemies.tick(1.0 / 60.0, buildings.buildings(), flowField);
     require(stressEnemies.activeCount() == ian::EnemySystem::MaxEnemies,
-            "200-enemy stress tick preserves active pool");
+            "large enemy stress tick preserves active pool");
 
     const ian::EntityId recycledId = stressEnemies.enemies().front().id;
     require(stressEnemies.damage(recycledId, 1000.0)->killed,

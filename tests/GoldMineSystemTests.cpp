@@ -2,6 +2,8 @@
 #include "buildings/BuildingSystem.hpp"
 #include "economy/GoldMineSystem.hpp"
 
+#include <algorithm>
+
 void runGoldMineSystemTests() {
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
@@ -22,10 +24,58 @@ void runGoldMineSystemTests() {
     require(upgradedMine.valid(), "mine fixture upgrades mine");
     mines.syncBuildings(buildings.buildings());
     const auto upgradedProduction = mines.tick(5.0);
-    require(upgradedProduction.size() == 1 && upgradedProduction[0].amount == 10,
-            "level-two mine doubles gold production");
+    require(upgradedProduction.size() == 1 && upgradedProduction[0].amount == 6,
+            "level-two mine gains gradual production");
+
+    const auto lumberMill = buildings.place(
+        ian::BuildingType::LumberMill, {7, 0}, 0,
+        40, 15, 10);
+    const auto quarry = buildings.place(
+        ian::BuildingType::Quarry, {10, 0}, 0,
+        30, 40, 15);
+    require(lumberMill.has_value() && quarry.has_value(),
+            "autonomous resource producers unlock at core level two");
+    mines.syncBuildings(buildings.buildings());
+    const auto resourceProduction = mines.tick(10.0);
+    const auto wood = std::find_if(
+        resourceProduction.begin(), resourceProduction.end(),
+        [](const ian::GoldProduced& produced) {
+            return produced.buildingType ==
+                       ian::BuildingType::LumberMill &&
+                   produced.amount == 3;
+        });
+    const auto stone = std::find_if(
+        resourceProduction.begin(), resourceProduction.end(),
+        [](const ian::GoldProduced& produced) {
+            return produced.buildingType ==
+                       ian::BuildingType::Quarry &&
+                   produced.amount == 2;
+        });
+    require(
+        wood != resourceProduction.end() &&
+            stone != resourceProduction.end(),
+        "lumber mill and quarry produce configured resources");
+
+    buildings.damage(lumberMill->building.id, 1.0);
+    mines.syncBuildings(buildings.buildings());
+    const auto damagedProduction = mines.tick(8.0);
+    require(
+        std::none_of(
+            damagedProduction.begin(), damagedProduction.end(),
+            [](const ian::GoldProduced& produced) {
+                return produced.buildingType ==
+                       ian::BuildingType::LumberMill;
+            }),
+        "damaged lumber mill pauses production");
 
     buildings.damage(mine->building.id, upgradedMine.building->maxHealth);
     mines.syncBuildings(buildings.buildings());
-    require(mines.mines().empty(), "destroyed mine removes runtime");
+    require(
+        std::none_of(
+            mines.mines().begin(), mines.mines().end(),
+            [](const ian::GoldMineRuntime& runtime) {
+                return runtime.buildingType ==
+                       ian::BuildingType::GoldMine;
+            }),
+        "destroyed mine removes its runtime");
 }

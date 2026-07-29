@@ -54,7 +54,13 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
     markStaticObstacles();
 
     for (const auto& building : buildings) {
-        const int halfExtent = building.type == BuildingType::Core ? 1 : 0;
+        if (building.platformStorey >= 0) {
+            continue;
+        }
+        const int halfExtent =
+            buildingFootprintHalfExtent(building.type) == 1.0
+                ? 1
+                : 0;
         for (int z = building.gridPosition.z - halfExtent;
              z <= building.gridPosition.z + halfExtent; ++z) {
             for (int x = building.gridPosition.x - halfExtent;
@@ -69,7 +75,10 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
                     cell.terrainCost = WallTraversalCost;
                 } else if (building.type == BuildingType::Turret) {
                     cell.terrainCost = 8.0;
-                } else if (building.type == BuildingType::GoldMine) {
+                } else if (
+                    building.type == BuildingType::GoldMine ||
+                    building.type == BuildingType::LumberMill ||
+                    building.type == BuildingType::Quarry) {
                     cell.terrainCost = 8.0;
                 } else if (building.type == BuildingType::Cannon) {
                     cell.terrainCost = 10.0;

@@ -11,12 +11,15 @@ namespace ian {
 
 struct GoldMineRuntime {
     EntityId buildingId;
+    BuildingType buildingType{BuildingType::GoldMine};
     std::uint8_t level{1};
     double productionProgress{};
+    bool operational{true};
 };
 
 struct GoldProduced {
     EntityId mineId;
+    BuildingType buildingType;
     int amount;
 };
 
@@ -29,6 +32,11 @@ class GoldMineSystem {
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const GoldProduced> tick(double deltaSeconds);
 
+    [[nodiscard]] int productionAmount(
+        std::uint8_t level,
+        BuildingType type = BuildingType::GoldMine) const;
+    [[nodiscard]] double productionInterval(
+        BuildingType type = BuildingType::GoldMine) const;
     [[nodiscard]] const std::vector<GoldMineRuntime>& mines() const;
 
   private:

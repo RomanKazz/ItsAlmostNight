@@ -6,9 +6,9 @@
 namespace ian {
 namespace {
 
-constexpr double BaseRange = 14.0;
+constexpr double BaseRange = 12.0;
 constexpr double ClusterRadius = 3.0;
-constexpr double BaseFireInterval = 2.5;
+constexpr double BaseFireInterval = 3.2;
 constexpr double SearchInterval = 0.5;
 constexpr double TurnSpeed = 12.0;
 constexpr double PitchSpeed = 8.0;
@@ -17,17 +17,15 @@ constexpr double MinimumPitch = -0.2617993877991494;
 constexpr double MaximumPitch = 0.9599310885968813;
 constexpr double ProjectileSpeed = 12.0;
 constexpr double Gravity = 9.8;
-constexpr double BaseExplosionRadius = 3.0;
-constexpr double BaseExplosionDamage = 4.0;
-constexpr double BaseExplosionImpulse = 5.0;
+constexpr double BaseExplosionRadius = 2.5;
+constexpr double BaseExplosionDamage = 2.5;
+constexpr double BaseExplosionImpulse = 3.5;
 constexpr std::size_t MaxProjectiles = 300;
 
 Vec3 cannonPosition(const BuildingInstance& building) {
-    return {
-        static_cast<double>(building.gridPosition.x),
-        1.5,
-        static_cast<double>(building.gridPosition.z),
-    };
+    Vec3 position = buildingWorldPosition(building);
+    position.y += 1.5;
+    return position;
 }
 
 double wrapAngle(double angle) {
@@ -48,12 +46,34 @@ CannonSystem::CannonSystem() {
     cannons_.reserve(64);
     projectiles_.reserve(MaxProjectiles);
     explosionBuffer_.reserve(32);
+    shotBuffer_.reserve(32);
+}
+
+double CannonSystem::attackRange(std::uint8_t level) {
+    return BaseRange +
+           0.35 * static_cast<double>(level - 1);
+}
+
+double CannonSystem::fireInterval(std::uint8_t level) {
+    const double levelBonus = static_cast<double>(level - 1);
+    return BaseFireInterval / (1.0 + 0.05 * levelBonus);
+}
+
+double CannonSystem::explosionRadius(std::uint8_t level) {
+    return BaseExplosionRadius +
+           0.12 * static_cast<double>(level - 1);
+}
+
+double CannonSystem::explosionDamage(std::uint8_t level) {
+    return BaseExplosionDamage +
+           0.35 * static_cast<double>(level - 1);
 }
 
 void CannonSystem::reset() {
     cannons_.clear();
     projectiles_.clear();
     explosionBuffer_.clear();
+    shotBuffer_.clear();
     nextProjectileIndex_ = 4000;
 }
 
@@ -92,6 +112,7 @@ void CannonSystem::syncBuildings(const std::vector<BuildingInstance>& buildings)
 std::span<const CannonExplosion> CannonSystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings, EnemySystem& enemies) {
     explosionBuffer_.clear();
+    shotBuffer_.clear();
     for (auto& cannon : cannons_) {
         const auto building =
             std::find_if(buildings.begin(), buildings.end(), [&cannon](const BuildingInstance& item) {
@@ -105,9 +126,8 @@ std::span<const CannonExplosion> CannonSystem::tick(
         cannon.targetSearchCooldownRemaining =
             std::max(0.0, cannon.targetSearchCooldownRemaining - deltaSeconds);
         const Vec3 origin = cannonPosition(*building);
-        const double levelBonus = static_cast<double>(building->level - 1);
-        const double range = BaseRange + levelBonus;
-        const double fireInterval = BaseFireInterval / (1.0 + 0.2 * levelBonus);
+        const double range = attackRange(building->level);
+        const double shotInterval = fireInterval(building->level);
         if (cannon.targetId) {
             const auto target = enemies.enemy(*cannon.targetId);
             if (!target) {
@@ -166,7 +186,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
             const auto target = enemies.enemy(*cannon.targetId);
             if (target) {
                 launch(*building, target->position);
-                cannon.fireCooldownRemaining = fireInterval;
+                cannon.fireCooldownRemaining = shotInterval;
             }
         }
     }
@@ -194,6 +214,10 @@ const std::vector<CannonProjectile>& CannonSystem::projectiles() const {
 
 const std::vector<CannonRuntime>& CannonSystem::cannons() const {
     return cannons_;
+}
+
+std::span<const CannonShot> CannonSystem::shots() const {
+    return shotBuffer_;
 }
 
 void CannonSystem::launch(const BuildingInstance& cannon, Vec3 targetPosition) {
@@ -229,10 +253,16 @@ void CannonSystem::launch(const BuildingInstance& cannon, Vec3 targetPosition) {
     };
     projectile->fuseRemaining = flightTime;
     const double levelBonus = static_cast<double>(cannon.level - 1);
-    projectile->explosionRadius = BaseExplosionRadius + 0.5 * levelBonus;
-    projectile->explosionDamage = BaseExplosionDamage + 2.0 * levelBonus;
-    projectile->explosionImpulse = BaseExplosionImpulse + 1.5 * levelBonus;
+    projectile->explosionRadius = explosionRadius(cannon.level);
+    projectile->explosionDamage = explosionDamage(cannon.level);
+    projectile->explosionImpulse =
+        BaseExplosionImpulse + 0.35 * levelBonus;
     projectile->active = true;
+    shotBuffer_.push_back({
+        .cannonId = cannon.id,
+        .projectileId = projectile->id,
+        .position = origin,
+    });
 }
 
 void CannonSystem::explode(CannonProjectile& projectile, EnemySystem& enemies) {

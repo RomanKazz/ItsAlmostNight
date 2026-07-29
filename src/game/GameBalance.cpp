@@ -46,22 +46,31 @@ WaveDefinition parseWave(const Json& value) {
         .basic = value.at("basic").get<int>(),
         .fast = value.at("fast").get<int>(),
         .heavy = value.at("heavy").get<int>(),
+        .ranged = value.value("ranged", 0),
+        .sapper = value.value("sapper", 0),
+        .flying = value.value("flying", 0),
         .boss = value.value("boss", false),
         .groupSize = value.at("groupSize").get<int>(),
         .groupInterval = value.at("groupInterval").get<double>(),
     };
     if (definition.budget <= 0 || definition.basic < 0 || definition.fast < 0 ||
-        definition.heavy < 0 || definition.groupSize <= 0 ||
+        definition.heavy < 0 || definition.ranged < 0 ||
+        definition.sapper < 0 || definition.flying < 0 ||
+        definition.groupSize <= 0 ||
         definition.groupInterval <= 0.0) {
         throw std::runtime_error("wave values must be non-negative");
     }
     const int calculatedBudget =
-        definition.basic + definition.fast * 2 + definition.heavy * 5;
+        definition.basic + definition.fast * 2 +
+        definition.heavy * 5 + definition.ranged * 3 +
+        definition.sapper * 4 + definition.flying * 3;
     if (calculatedBudget != definition.budget) {
         throw std::runtime_error("wave budget does not match composition");
     }
     const int spawnCount =
-        definition.basic + definition.fast + definition.heavy + (definition.boss ? 1 : 0);
+        definition.basic + definition.fast + definition.heavy +
+        definition.ranged + definition.sapper + definition.flying +
+        (definition.boss ? 1 : 0);
     if (spawnCount > 200) {
         throw std::runtime_error("wave exceeds enemy pool");
     }
@@ -170,6 +179,10 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .playerMaxHealth = value.at("playerMaxHealth").get<double>(),
         .pickaxeRange = value.at("pickaxeRange").get<double>(),
         .pickaxeDamage = value.at("pickaxeDamage").get<double>(),
+        .pickaxeDamageVariation =
+            value.value("pickaxeDamageVariation", 0.2),
+        .pickaxeCriticalChance =
+            value.value("pickaxeCriticalChance", 0.15),
         .pickaxeCooldown = value.at("pickaxeCooldown").get<double>(),
         .firstBuildPhaseSeconds = value.at("firstBuildPhaseSeconds").get<double>(),
         .betweenWaveSeconds = value.at("betweenWaveSeconds").get<double>(),
@@ -182,6 +195,10 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.sprintSpeed < definition.walkSpeed || definition.jumpSpeed <= 0.0 ||
         definition.gravity <= 0.0 || definition.playerMaxHealth <= 0.0 ||
         definition.pickaxeRange <= 0.0 || definition.pickaxeDamage <= 0.0 ||
+        definition.pickaxeDamageVariation < 0.0 ||
+        definition.pickaxeDamageVariation >= 1.0 ||
+        definition.pickaxeCriticalChance < 0.0 ||
+        definition.pickaxeCriticalChance > 1.0 ||
         definition.pickaxeCooldown <= 0.0 || definition.firstBuildPhaseSeconds <= 0.0 ||
         definition.betweenWaveSeconds <= 0.0 || definition.sunsetSeconds <= 0.0 ||
         definition.dawnSeconds <= 0.0 || definition.minimumPlacementDistance <= 0.0 ||
@@ -196,18 +213,21 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
 GameBalance GameBalance::defaults() {
     return {
         .enemies = {{
-            {3.0, 2.2, 10.0, 0.0, 1.0, 0.0},
-            {2.0, 3.4, 7.0, 0.0, 1.0, 0.0},
-            {10.0, 1.2, 25.0, 0.0, 1.0, 0.0},
-            {40.0, 0.9, 50.0, 1.5, 3.0, 6.0},
+            {5.0, 2.2, 10.0, 0.0, 1.0, 0.0},
+            {4.0, 3.4, 7.0, 0.0, 1.0, 0.0},
+            {16.0, 1.2, 25.0, 0.0, 1.0, 0.0},
+            {70.0, 0.9, 50.0, 1.5, 3.0, 6.0},
+            {7.0, 1.5, 8.0, 0.0, 1.0, 0.0},
+            {10.0, 1.8, 12.0, 0.0, 1.0, 0.0},
+            {5.0, 2.6, 8.0, 0.0, 1.0, 0.0},
         }},
         .waves = {{
-            {15, 15, 0, 0, false, 5, 2.0},
-            {25, 15, 5, 0, false, 6, 2.0},
-            {40, 20, 5, 2, false, 7, 1.8},
-            {55, 25, 10, 2, false, 8, 1.6},
-            {75, 30, 10, 5, false, 9, 1.4},
-            {100, 40, 15, 6, true, 10, 1.2},
+            {15, 15, 0, 0, 0, 0, 0, false, 5, 2.0},
+            {25, 12, 5, 0, 1, 0, 0, false, 6, 2.0},
+            {40, 14, 5, 2, 2, 0, 0, false, 7, 1.8},
+            {55, 15, 8, 2, 2, 2, 0, false, 8, 1.6},
+            {75, 19, 8, 4, 2, 2, 2, false, 9, 1.4},
+            {100, 20, 10, 6, 4, 3, 2, true, 10, 1.2},
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
@@ -217,14 +237,17 @@ GameBalance GameBalance::defaults() {
             {40, 30, 25, 180.0, 2, 64},
             {15, 20, 10, 100.0, 2, 64},
             {15, 5, 0, 130.0, 1, 128},
+            {40, 15, 10, 150.0, 2, 2},
+            {30, 40, 15, 170.0, 2, 2},
         }},
         .weapons = {
             .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {40, 80}},
             .bomb = {3, 6.0, 4.0, 9.8, 1.2, 0.2, 4.0, 6.0, 8.0},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
-        .gameplay = {1.7, 5.0, 8.0, 6.5, 18.0, 100.0, 4.0, 1.0, 0.45,
-                     30.0, 90.0, 10.0, 5.0, 1.0, 10.0},
+        .gameplay = {1.7, 5.0, 8.0, 6.5, 18.0, 100.0, 4.0, 1.0,
+                     0.2, 0.15, 0.45,
+                     15.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };
 }
 
@@ -242,6 +265,15 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             parseEnemy(enemies.at("fast"), false),
             parseEnemy(enemies.at("heavy"), false),
             parseEnemy(enemies.at("boss"), true),
+            enemies.contains("ranged")
+                ? parseEnemy(enemies.at("ranged"), false)
+                : result.balance.enemies[4],
+            enemies.contains("sapper")
+                ? parseEnemy(enemies.at("sapper"), false)
+                : result.balance.enemies[5],
+            enemies.contains("flying")
+                ? parseEnemy(enemies.at("flying"), false)
+                : result.balance.enemies[6],
         }};
         result.balance.enemies = parsed;
     } catch (const std::exception& error) {
@@ -276,6 +308,12 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             parseBuilding(buildings.at("cannon")),
             parseBuilding(buildings.at("slowTrap")),
             parseBuilding(buildings.at("gate")),
+            buildings.contains("lumberMill")
+                ? parseBuilding(buildings.at("lumberMill"))
+                : result.balance.buildings[7],
+            buildings.contains("quarry")
+                ? parseBuilding(buildings.at("quarry"))
+                : result.balance.buildings[8],
         }};
         if (parsed[0].maxCount != 1 || parsed[0].unlockCoreLevel != 0) {
             throw std::runtime_error("core must be unique and unlocked");

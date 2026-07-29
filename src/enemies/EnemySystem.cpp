@@ -1,4 +1,5 @@
 #include "enemies/EnemySystem.hpp"
+#include "enemies/EnemyCollision.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,11 +14,273 @@ constexpr double AttackRange = 0.55;
 constexpr double PlayerAttackRange = 1.0;
 constexpr double AttackInterval = 1.0;
 constexpr double BuildingLookAhead = 2.5;
+constexpr double SapperStructureSearchRadius = 6.0;
 constexpr double SeparationRadius = 1.1;
 constexpr double SeparationWeight = 0.65;
+constexpr double Pi = 3.14159265358979323846;
+constexpr double BuildingGridCellSize = 2.0;
+constexpr double BuildingGridMinimum = -64.0;
+constexpr int BuildingGridSize = 64;
+constexpr int BuildingGridCellCount =
+    BuildingGridSize * BuildingGridSize;
+
+class BuildingQueryGrid {
+  public:
+    explicit BuildingQueryGrid(
+        std::span<const EnemyStructureTarget> structures)
+        : structures_(structures),
+          next_(structures.size(), -1) {
+        heads_.fill(-1);
+        for (std::size_t index = 0;
+             index < structures.size(); ++index) {
+            const Vec3 center =
+                structures[index].position;
+            const int bucket = cellIndex(
+                coordinate(center.x),
+                coordinate(center.z));
+            next_[index] =
+                heads_[static_cast<std::size_t>(bucket)];
+            heads_[static_cast<std::size_t>(bucket)] =
+                static_cast<int>(index);
+        }
+    }
+
+    template <typename Callback>
+    void forEachNearby(
+        Vec3 position, double radius,
+        Callback&& callback) const {
+        const int minimumX = coordinate(
+            position.x - radius);
+        const int maximumX = coordinate(
+            position.x + radius);
+        const int minimumZ = coordinate(
+            position.z - radius);
+        const int maximumZ = coordinate(
+            position.z + radius);
+        for (int z = minimumZ; z <= maximumZ; ++z) {
+            for (int x = minimumX; x <= maximumX; ++x) {
+                int index = heads_[
+                    static_cast<std::size_t>(
+                        cellIndex(x, z))];
+                while (index >= 0) {
+                    callback(structures_[
+                        static_cast<std::size_t>(index)]);
+                    index = next_[
+                        static_cast<std::size_t>(index)];
+                }
+            }
+        }
+    }
+
+  private:
+    [[nodiscard]] static int coordinate(double value) {
+        return std::clamp(
+            static_cast<int>(std::floor(
+                (value - BuildingGridMinimum) /
+                BuildingGridCellSize)),
+            0, BuildingGridSize - 1);
+    }
+
+    [[nodiscard]] static int cellIndex(int x, int z) {
+        return z * BuildingGridSize + x;
+    }
+
+    std::span<const EnemyStructureTarget> structures_;
+    std::array<int, BuildingGridCellCount> heads_{};
+    std::vector<int> next_;
+};
+
+double hashUnit(std::uint32_t value) {
+    value ^= value >> 16U;
+    value *= 0x7feb352dU;
+    value ^= value >> 15U;
+    value *= 0x846ca68bU;
+    value ^= value >> 16U;
+    return static_cast<double>(value) /
+           static_cast<double>(
+               std::numeric_limits<std::uint32_t>::max());
+}
+
+void turnToward(
+    EnemyInstance& enemy, double targetYaw,
+    double deltaSeconds) {
+    const double difference = std::atan2(
+        std::sin(targetYaw - enemy.yaw),
+        std::cos(targetYaw - enemy.yaw));
+    const double maximumTurn =
+        enemy.turnRate * deltaSeconds;
+    enemy.yaw += std::clamp(
+        difference, -maximumTurn, maximumTurn);
+    enemy.yaw = std::atan2(
+        std::sin(enemy.yaw), std::cos(enemy.yaw));
+}
+
+double wanderStrength(EnemyType type) {
+    switch (type) {
+    case EnemyType::Fast:
+        return 0.2;
+    case EnemyType::Flying:
+        return 0.24;
+    case EnemyType::Heavy:
+        return 0.08;
+    case EnemyType::Boss:
+        return 0.045;
+    case EnemyType::Ranged:
+        return 0.13;
+    case EnemyType::Sapper:
+        return 0.16;
+    case EnemyType::Basic:
+        return 0.14;
+    }
+    return 0.14;
+}
 
 double enemyRadius(EnemyType type) {
     return type == EnemyType::Boss ? 1.0 : EnemyRadius;
+}
+
+double attackRange(EnemyType type) {
+    return type == EnemyType::Ranged ? 4.5 : AttackRange;
+}
+
+double playerAttackRange(EnemyType type) {
+    return type == EnemyType::Ranged ? 4.5 : PlayerAttackRange;
+}
+
+double buildingRadius(BuildingType type);
+
+double playerAggroRange(EnemyType type) {
+    switch (type) {
+    case EnemyType::Fast:
+        return 5.5;
+    case EnemyType::Flying:
+        return 6.0;
+    case EnemyType::Ranged:
+        return 6.0;
+    case EnemyType::Boss:
+        return 5.0;
+    case EnemyType::Heavy:
+        return 4.0;
+    case EnemyType::Sapper:
+        return 3.5;
+    case EnemyType::Basic:
+        return 4.5;
+    }
+    return 4.5;
+}
+
+bool buildingIsInAttackRange(
+    const EnemyInstance& enemy,
+    const BuildingQueryGrid& buildingGrid) {
+    bool found = false;
+    const double searchRadius =
+        attackRange(enemy.type) +
+        enemyRadius(enemy.type) + 1.6;
+    buildingGrid.forEachNearby(
+        enemy.position, searchRadius,
+        [&enemy, &found](
+            const EnemyStructureTarget& building) {
+        if (found) {
+            return;
+        }
+        if (enemy.type == EnemyType::Flying &&
+            building.buildingType != BuildingType::Core) {
+            return;
+        }
+        const Vec3 center = building.position;
+        const double offsetX = center.x - enemy.position.x;
+        const double offsetZ = center.z - enemy.position.z;
+        const double contactDistance =
+            std::sqrt(offsetX * offsetX + offsetZ * offsetZ) -
+            building.radius -
+            enemyRadius(enemy.type);
+        if (contactDistance <= attackRange(enemy.type)) {
+            found = true;
+        }
+    });
+    return found;
+}
+
+bool buildingBlocksPathToPlayer(
+    const EnemyInstance& enemy,
+    const BuildingQueryGrid& buildingGrid,
+    Vec3 playerPosition) {
+    if (enemy.type == EnemyType::Flying) {
+        return false;
+    }
+
+    const double pathX = playerPosition.x - enemy.position.x;
+    const double pathZ = playerPosition.z - enemy.position.z;
+    const double pathLengthSquared =
+        pathX * pathX + pathZ * pathZ;
+    if (pathLengthSquared <= 1e-9) {
+        return false;
+    }
+
+    bool blocked = false;
+    const Vec3 midpoint{
+        (enemy.position.x + playerPosition.x) * 0.5,
+        enemy.position.y,
+        (enemy.position.z + playerPosition.z) * 0.5,
+    };
+    const double searchRadius =
+        std::sqrt(pathLengthSquared) * 0.5 + 1.6;
+    buildingGrid.forEachNearby(
+        midpoint, searchRadius,
+        [&blocked, &enemy, pathX, pathZ,
+         pathLengthSquared](
+            const EnemyStructureTarget& building) {
+        if (blocked) {
+            return;
+        }
+        if (building.buildingType == BuildingType::Core) {
+            return;
+        }
+        const Vec3 center = building.position;
+        const double offsetX = center.x - enemy.position.x;
+        const double offsetZ = center.z - enemy.position.z;
+        const double progress = std::clamp(
+            (offsetX * pathX + offsetZ * pathZ) /
+                pathLengthSquared,
+            0.0, 1.0);
+        if (progress <= 0.0 || progress >= 1.0) {
+            return;
+        }
+        const double nearestX =
+            enemy.position.x + pathX * progress;
+        const double nearestZ =
+            enemy.position.z + pathZ * progress;
+        const double distanceX = center.x - nearestX;
+        const double distanceZ = center.z - nearestZ;
+        const double collisionRadius =
+            building.radius +
+            enemyRadius(enemy.type);
+        if (distanceX * distanceX + distanceZ * distanceZ <=
+            collisionRadius * collisionRadius) {
+            blocked = true;
+        }
+    });
+    return blocked;
+}
+
+double attackInterval(EnemyType type) {
+    if (type == EnemyType::Ranged) {
+        return 1.45;
+    }
+    if (type == EnemyType::Sapper) {
+        return 1.2;
+    }
+    return AttackInterval;
+}
+
+double buildingDamage(const EnemyInstance& enemy,
+                      BuildingType targetType) {
+    if (enemy.type == EnemyType::Sapper &&
+        (targetType == BuildingType::Wall ||
+         targetType == BuildingType::Gate)) {
+        return enemy.damage * 2.5;
+    }
+    return enemy.damage;
 }
 
 double knockbackMultiplier(EnemyType type) {
@@ -30,12 +293,23 @@ double knockbackMultiplier(EnemyType type) {
         return 0.3;
     case EnemyType::Boss:
         return 0.15;
+    case EnemyType::Ranged:
+        return 0.85;
+    case EnemyType::Sapper:
+        return 0.55;
+    case EnemyType::Flying:
+        return 0.7;
     }
     return 1.0;
 }
 
 double buildingRadius(BuildingType type) {
-    return type == BuildingType::Core ? 1.6 : 0.55;
+    if (type == BuildingType::Core) {
+        return 1.6;
+    }
+    return buildingFootprintHalfExtent(type) == 1.0
+               ? 1.1
+               : 0.55;
 }
 
 double dot(Vec3 left, Vec3 right) {
@@ -108,7 +382,8 @@ void EnemySystem::spawnGroup(std::span<const EnemySpawn> spawns) {
 
 std::span<const EnemyAttack> EnemySystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings,
-    const FlowField& flowField, std::optional<Vec3> playerPosition) {
+    const FlowField& flowField, std::optional<Vec3> playerPosition,
+    std::span<const EnemyStructureTarget> additionalStructures) {
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     const auto core =
@@ -119,7 +394,28 @@ std::span<const EnemyAttack> EnemySystem::tick(
         return attackBuffer_;
     }
 
+    std::vector<EnemyStructureTarget> structures;
+    structures.reserve(
+        buildings.size() + additionalStructures.size());
+    for (const BuildingInstance& building : buildings) {
+        if (!buildingBlocksMovement(building)) {
+            continue;
+        }
+        structures.push_back({
+            .id = building.id,
+            .position = buildingWorldPosition(building),
+            .radius = buildingRadius(building.type),
+            .buildingType = building.type,
+            .modular = false,
+            .structuralImpact = 0U,
+        });
+    }
+    structures.insert(
+        structures.end(), additionalStructures.begin(),
+        additionalStructures.end());
+
     rebuildSpatialIndex();
+    const BuildingQueryGrid buildingGrid(structures);
 
     for (auto& enemy : enemies_) {
         if (!enemy.active) {
@@ -128,13 +424,19 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
         enemy.attackCooldownRemaining =
             std::max(0.0, enemy.attackCooldownRemaining - deltaSeconds);
+        enemy.hitAnimationRemaining =
+            std::max(
+                0.0,
+                enemy.hitAnimationRemaining - deltaSeconds);
         enemy.ramCooldownRemaining =
             std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
         enemy.slowRemaining = std::max(0.0, enemy.slowRemaining - deltaSeconds);
         if (enemy.slowRemaining <= 0.0) {
             enemy.movementMultiplier = 1.0;
         }
-        const double movementSpeed = enemy.speed * enemy.movementMultiplier;
+        enemy.steeringTime += deltaSeconds;
+        const double movementSpeed =
+            enemy.speed * enemy.movementMultiplier;
         enemy.position.x += enemy.knockbackVelocity.x * deltaSeconds;
         enemy.position.z += enemy.knockbackVelocity.z * deltaSeconds;
         const double knockbackDecay = std::max(0.0, 1.0 - 5.0 * deltaSeconds);
@@ -143,11 +445,11 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
         if (enemy.state == EnemyState::BossRamWindup) {
             const auto target =
-                std::find_if(buildings.begin(), buildings.end(),
-                             [&enemy](const BuildingInstance& building) {
+                std::find_if(structures.begin(), structures.end(),
+                             [&enemy](const EnemyStructureTarget& building) {
                                  return enemy.target && building.id == *enemy.target;
                              });
-            if (target == buildings.end()) {
+            if (target == structures.end()) {
                 enemy.state = EnemyState::MoveToCore;
                 enemy.target.reset();
                 enemy.ramWindupRemaining = 0.0;
@@ -162,7 +464,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     enemy.damage * enemy.ramDamageMultiplier,
                     true,
                 });
-                enemy.state = target->type == BuildingType::Core
+                enemy.state =
+                    target->buildingType == BuildingType::Core
                                   ? EnemyState::AttackCore
                                   : EnemyState::AttackBuilding;
                 enemy.attackCooldownRemaining = AttackInterval;
@@ -176,12 +479,52 @@ std::span<const EnemyAttack> EnemySystem::tick(
             const double playerOffsetZ = playerPosition->z - enemy.position.z;
             const double playerDistanceSquared =
                 (playerOffsetX * playerOffsetX) + (playerOffsetZ * playerOffsetZ);
-            if (playerDistanceSquared <= PlayerAttackRange * PlayerAttackRange) {
-                enemy.state = EnemyState::AttackPlayer;
+            const bool alreadyAggroed =
+                enemy.state == EnemyState::ChasePlayer ||
+                enemy.state == EnemyState::AttackPlayer;
+            const double aggroRange =
+                playerAggroRange(enemy.type) +
+                (alreadyAggroed ? 1.5 : 0.0);
+            if (playerDistanceSquared <= aggroRange * aggroRange &&
+                !buildingIsInAttackRange(
+                    enemy, buildingGrid) &&
+                !buildingBlocksPathToPlayer(
+                    enemy, buildingGrid,
+                    *playerPosition)) {
+                const double playerDistance =
+                    std::sqrt(playerDistanceSquared);
+                const double directionX =
+                    playerDistance > 1e-9
+                        ? playerOffsetX / playerDistance
+                        : 0.0;
+                const double directionZ =
+                    playerDistance > 1e-9
+                        ? playerOffsetZ / playerDistance
+                        : 1.0;
+                turnToward(
+                    enemy,
+                    std::atan2(directionX, directionZ),
+                    deltaSeconds);
                 enemy.target.reset();
-                if (enemy.attackCooldownRemaining <= 0.0) {
-                    playerAttackBuffer_.push_back({enemy.id, enemy.damage});
-                    enemy.attackCooldownRemaining = AttackInterval;
+                const double playerRange =
+                    playerAttackRange(enemy.type);
+                if (playerDistance <= playerRange) {
+                    enemy.state = EnemyState::AttackPlayer;
+                    if (enemy.attackCooldownRemaining <= 0.0) {
+                        playerAttackBuffer_.push_back(
+                            {enemy.id, enemy.damage});
+                        enemy.attackCooldownRemaining =
+                            attackInterval(enemy.type);
+                    }
+                } else {
+                    enemy.state = EnemyState::ChasePlayer;
+                    const double movement = std::min(
+                        movementSpeed * deltaSeconds,
+                        playerDistance - playerRange);
+                    enemy.position.x +=
+                        std::sin(enemy.yaw) * movement;
+                    enemy.position.z +=
+                        std::cos(enemy.yaw) * movement;
                 }
                 continue;
             }
@@ -197,7 +540,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
         double directionX = toCoreX / coreDistance;
         double directionZ = toCoreZ / coreDistance;
-        const auto flowDirection = flowField.directionAt(enemy.position);
+        const auto flowDirection =
+            enemy.type == EnemyType::Flying
+                ? std::optional<Vec3>{}
+                : flowField.directionAt(enemy.position);
         if (flowDirection) {
             const double flowLength = std::sqrt((flowDirection->x * flowDirection->x) +
                                                 (flowDirection->z * flowDirection->z));
@@ -240,38 +586,128 @@ std::span<const EnemyAttack> EnemySystem::tick(
             directionX /= combinedLength;
             directionZ /= combinedLength;
         }
+        const double wander =
+            std::sin(
+                enemy.steeringTime *
+                    enemy.steeringFrequency +
+                enemy.steeringPhase) *
+                wanderStrength(enemy.type) +
+            std::sin(
+                enemy.steeringTime *
+                    enemy.steeringFrequency * 0.43 +
+                enemy.steeringPhase * 1.71) *
+                wanderStrength(enemy.type) * 0.35;
+        const double baseDirectionX = directionX;
+        directionX += directionZ * wander;
+        directionZ -= baseDirectionX * wander;
+        const double steeredLength = std::sqrt(
+            directionX * directionX +
+            directionZ * directionZ);
+        if (steeredLength > 1e-9) {
+            directionX /= steeredLength;
+            directionZ /= steeredLength;
+        }
+        turnToward(
+            enemy, std::atan2(directionX, directionZ),
+            deltaSeconds);
+        directionX = std::sin(enemy.yaw);
+        directionZ = std::cos(enemy.yaw);
 
-        const BuildingInstance* blocker = nullptr;
+        const EnemyStructureTarget* blocker = nullptr;
         double closestContactDistance = std::numeric_limits<double>::max();
-        for (const auto& building : buildings) {
-            if (!buildingBlocksMovement(building)) {
-                continue;
+        std::size_t greatestStructuralImpact = 0U;
+        if (enemy.type == EnemyType::Sapper) {
+            buildingGrid.forEachNearby(
+                enemy.position,
+                SapperStructureSearchRadius,
+                [&](const EnemyStructureTarget& building) {
+                    if (building.structuralImpact == 0U) {
+                        return;
+                    }
+                    const double offsetX =
+                        building.position.x -
+                        enemy.position.x;
+                    const double offsetZ =
+                        building.position.z -
+                        enemy.position.z;
+                    const double distance =
+                        std::hypot(offsetX, offsetZ);
+                    if (distance >
+                        SapperStructureSearchRadius +
+                            building.radius) {
+                        return;
+                    }
+                    if (building.structuralImpact >
+                            greatestStructuralImpact ||
+                        (building.structuralImpact ==
+                             greatestStructuralImpact &&
+                         distance <
+                             closestContactDistance)) {
+                        blocker = &building;
+                        greatestStructuralImpact =
+                            building.structuralImpact;
+                        closestContactDistance =
+                            std::max(
+                                0.0,
+                                distance -
+                                    building.radius -
+                                    enemyRadius(
+                                        enemy.type));
+                    }
+                });
+        }
+        buildingGrid.forEachNearby(
+            enemy.position,
+            BuildingLookAhead +
+                attackRange(enemy.type) + 1.6,
+            [&](const EnemyStructureTarget& building) {
+            if (enemy.type == EnemyType::Flying &&
+                building.buildingType != BuildingType::Core) {
+                return;
             }
+            const Vec3 center = building.position;
             const double offsetX =
-                static_cast<double>(building.gridPosition.x) - enemy.position.x;
+                center.x - enemy.position.x;
             const double offsetZ =
-                static_cast<double>(building.gridPosition.z) - enemy.position.z;
+                center.z - enemy.position.z;
             const double projection = (offsetX * directionX) + (offsetZ * directionZ);
+            const double lookAhead =
+                std::max(BuildingLookAhead,
+                         attackRange(enemy.type) + 0.75);
             if (projection < 0.0 ||
-                projection > BuildingLookAhead + buildingRadius(building.type)) {
-                continue;
+                projection > lookAhead + building.radius) {
+                return;
             }
 
             const double perpendicularX = offsetX - directionX * projection;
             const double perpendicularZ = offsetZ - directionZ * projection;
             const double perpendicularDistance =
                 std::sqrt((perpendicularX * perpendicularX) + (perpendicularZ * perpendicularZ));
-            const double combinedRadius = buildingRadius(building.type) + enemyRadius(enemy.type);
+            const double combinedRadius =
+                building.radius + enemyRadius(enemy.type);
             if (perpendicularDistance > combinedRadius) {
-                continue;
+                return;
             }
 
             const double contactDistance = std::max(0.0, projection - combinedRadius);
-            if (contactDistance < closestContactDistance) {
+            const bool sapperPriority =
+                enemy.type == EnemyType::Sapper &&
+                building.structuralImpact >
+                    greatestStructuralImpact;
+            const bool equalSapperPriority =
+                enemy.type != EnemyType::Sapper ||
+                building.structuralImpact ==
+                    greatestStructuralImpact;
+            if (sapperPriority ||
+                (equalSapperPriority &&
+                 contactDistance <
+                     closestContactDistance)) {
                 blocker = &building;
                 closestContactDistance = contactDistance;
+                greatestStructuralImpact =
+                    building.structuralImpact;
             }
-        }
+        });
 
         if (blocker == nullptr) {
             enemy.state = EnemyState::MoveToCore;
@@ -281,9 +717,35 @@ std::span<const EnemyAttack> EnemySystem::tick(
             continue;
         }
 
-        if (closestContactDistance > AttackRange) {
+        if (enemy.type == EnemyType::Sapper &&
+            blocker->structuralImpact > 0U) {
+            const double offsetX =
+                blocker->position.x - enemy.position.x;
+            const double offsetZ =
+                blocker->position.z - enemy.position.z;
+            const double distance =
+                std::hypot(offsetX, offsetZ);
+            if (distance > 1e-9) {
+                turnToward(
+                    enemy,
+                    std::atan2(offsetX, offsetZ),
+                    deltaSeconds);
+                directionX = std::sin(enemy.yaw);
+                directionZ = std::cos(enemy.yaw);
+                closestContactDistance = std::max(
+                    0.0,
+                    distance - blocker->radius -
+                        enemyRadius(enemy.type));
+            }
+        }
+
+        const double enemyAttackRange =
+            attackRange(enemy.type);
+        if (closestContactDistance > enemyAttackRange) {
             const double movement =
-                std::min(movementSpeed * deltaSeconds, closestContactDistance - AttackRange);
+                std::min(movementSpeed * deltaSeconds,
+                         closestContactDistance -
+                             enemyAttackRange);
             enemy.position.x += directionX * movement;
             enemy.position.z += directionZ * movement;
             enemy.state = EnemyState::MoveToCore;
@@ -292,19 +754,39 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
 
         enemy.target = blocker->id;
+        const Vec3 blockerCenter = blocker->position;
+        turnToward(
+            enemy,
+            std::atan2(
+                blockerCenter.x - enemy.position.x,
+                blockerCenter.z - enemy.position.z),
+            deltaSeconds);
         if (enemy.type == EnemyType::Boss && enemy.ramCooldownRemaining <= 0.0) {
             enemy.state = EnemyState::BossRamWindup;
             enemy.ramWindupRemaining = enemy.ramWindup;
             continue;
         }
-        enemy.state = blocker->type == BuildingType::Core ? EnemyState::AttackCore
-                                                          : EnemyState::AttackBuilding;
+        enemy.state =
+            blocker->buildingType == BuildingType::Core
+                ? EnemyState::AttackCore
+                : EnemyState::AttackBuilding;
         if (enemy.attackCooldownRemaining <= 0.0) {
-            attackBuffer_.push_back({enemy.id, blocker->id, enemy.damage, false});
-            enemy.attackCooldownRemaining = AttackInterval;
+            attackBuffer_.push_back({
+                enemy.id, blocker->id,
+                blocker->buildingType
+                    ? buildingDamage(
+                          enemy, *blocker->buildingType)
+                    : (enemy.type == EnemyType::Sapper &&
+                               blocker->modular
+                           ? enemy.damage * 2.5
+                           : enemy.damage),
+                false});
+            enemy.attackCooldownRemaining =
+                attackInterval(enemy.type);
         }
     }
 
+    resolveEnemyCapsuleCollisions(enemies_, buildings);
     rebuildSpatialIndex();
     return attackBuffer_;
 }
@@ -318,7 +800,10 @@ std::optional<EntityId> EnemySystem::raycast(Vec3 origin, Vec3 direction,
             continue;
         }
 
-        const double radius = enemy.type == EnemyType::Boss ? 1.25 : 0.65;
+        const double radius =
+            enemy.type == EnemyType::Boss ? 1.25
+            : enemy.type == EnemyType::Flying ? 0.72
+                                              : 0.65;
         const auto distance = raySphereDistance(origin, direction, enemy.position, radius);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {
             result = enemy.id;
@@ -338,6 +823,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     }
 
     iterator->health = std::max(0.0, iterator->health - amount);
+    iterator->hitAnimationRemaining = 0.22;
     const bool killed = iterator->health <= 0.0;
     if (killed) {
         iterator->active = false;
@@ -508,6 +994,19 @@ void EnemySystem::appendEnemy(EnemyType type, Vec3 position) {
         reusable == enemies_.end()
             ? EntityId{nextIndex_++, 1}
             : EntityId{reusable->id.index, reusable->id.generation + 1};
+    const double firstRandom =
+        hashUnit(id.index * 0x9e3779b9U + id.generation);
+    const double secondRandom =
+        hashUnit(id.index * 0x85ebca6bU +
+                 id.generation * 17U);
+    const double thirdRandom =
+        hashUnit(id.index * 0xc2b2ae35U +
+                 id.generation * 31U);
+    const double baseTurnRate =
+        type == EnemyType::Boss
+            ? 1.8
+            : type == EnemyType::Heavy ? 2.35
+                                       : 3.2;
     const EnemyInstance instance{
         .id = id,
         .type = type,
@@ -517,6 +1016,7 @@ void EnemySystem::appendEnemy(EnemyType type, Vec3 position) {
         .speed = stats.speed,
         .damage = stats.damage,
         .attackCooldownRemaining = 0.0,
+        .hitAnimationRemaining = 0.0,
         .ramWindup = stats.ramWindup,
         .ramDamageMultiplier = stats.ramDamageMultiplier,
         .ramCooldown = stats.ramCooldown,
@@ -525,6 +1025,13 @@ void EnemySystem::appendEnemy(EnemyType type, Vec3 position) {
         .slowRemaining = 0.0,
         .movementMultiplier = 1.0,
         .knockbackVelocity = {},
+        .yaw = 0.0,
+        .steeringTime = 0.0,
+        .steeringPhase = firstRandom * 2.0 * Pi,
+        .steeringFrequency = 0.7 + secondRandom * 0.65,
+        .turnRate = baseTurnRate *
+                    (0.88 + thirdRandom * 0.24),
+        .locomotionRate = 0.94 + secondRandom * 0.12,
         .state = EnemyState::Spawn,
         .target = std::nullopt,
         .active = true,

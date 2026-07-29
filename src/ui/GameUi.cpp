@@ -1,4 +1,5 @@
 #include "ui/GameUi.hpp"
+#include "ui/UiText.hpp"
 
 #define RAYGUI_IMPLEMENTATION
 #include <raygui.h>
@@ -48,9 +49,15 @@ void GameUi::initialize() {
     barRed_ = loadTexture("assets/ui/barRed_horizontalMid.png");
     barGreen_ = loadTexture("assets/ui/barGreen_horizontalMid.png");
     barYellow_ = loadTexture("assets/ui/barYellow_horizontalMid.png");
+    resourceWood_ = loadTexture("assets/ui/resource_wood.png");
+    resourceStone_ = loadTexture("assets/ui/resource_stone.png");
+    resourceCrystal_ =
+        loadTexture("assets/ui/resource_crystal.png");
+    initializeUiText();
     initialized_ = true;
 
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 18);
+    GuiSetFont(uiFont());
+    GuiSetStyle(DEFAULT, TEXT_SIZE, 31);
     GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL,
                 static_cast<int>(0xffead8ffU));
     GuiSetStyle(DEFAULT, TEXT_COLOR_FOCUSED,
@@ -71,9 +78,9 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
-    if (!initialized_) {
-        return;
-    }
+    unloadTexture(resourceCrystal_);
+    unloadTexture(resourceStone_);
+    unloadTexture(resourceWood_);
     unloadTexture(barYellow_);
     unloadTexture(barGreen_);
     unloadTexture(barRed_);
@@ -82,6 +89,7 @@ void GameUi::shutdown() {
     unloadTexture(button_);
     unloadTexture(insetPanel_);
     unloadTexture(panel_);
+    shutdownUiText();
     initialized_ = false;
 }
 
@@ -153,8 +161,39 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
     }
 }
 
+void GameUi::drawResourceIcon(Rectangle bounds,
+                              UiResourceIcon icon,
+                              Color tint) const {
+    const Texture2D texture = resourceTexture(icon);
+    if (!IsTextureValid(texture)) {
+        return;
+    }
+    DrawTexturePro(
+        texture,
+        {0.0F, 0.0F, static_cast<float>(texture.width),
+         static_cast<float>(texture.height)},
+        bounds, {0.0F, 0.0F}, 0.0F, tint);
+}
+
+Texture2D GameUi::resourceTexture(
+    UiResourceIcon icon) const {
+    if (icon == UiResourceIcon::Stone) {
+        return resourceStone_;
+    }
+    if (icon == UiResourceIcon::Crystal) {
+        return resourceCrystal_;
+    }
+    return resourceWood_;
+}
+
 bool GameUi::drawButton(Rectangle bounds,
                         std::string_view text) const {
+    return drawToggleButton(bounds, text, false);
+}
+
+bool GameUi::drawToggleButton(Rectangle bounds,
+                              std::string_view text,
+                              bool active) const {
     const bool pressed =
         CheckCollisionPointRec(GetMousePosition(), bounds) &&
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
@@ -162,14 +201,24 @@ bool GameUi::drawButton(Rectangle bounds,
         pressed && IsTextureValid(buttonPressed_) ? buttonPressed_
                                                   : button_;
     if (IsTextureValid(texture)) {
+        const Color tint =
+            active ? Color{205, 238, 190, 255} : WHITE;
         DrawTexturePro(
             texture,
             {0.0F, 0.0F, static_cast<float>(texture.width),
              static_cast<float>(texture.height)},
-            bounds, {0.0F, 0.0F}, 0.0F, WHITE);
+            bounds, {0.0F, 0.0F}, 0.0F, tint);
     }
     const std::string owned{text};
     return GuiButton(bounds, owned.c_str()) != 0;
+}
+
+float GameUi::drawSliderBar(
+    Rectangle bounds, float value,
+    float minimum, float maximum) const {
+    (void)GuiSliderBar(
+        bounds, nullptr, nullptr, &value, minimum, maximum);
+    return value;
 }
 
 Texture2D GameUi::loadTexture(const char* path) {

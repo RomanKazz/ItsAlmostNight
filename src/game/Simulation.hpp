@@ -1,6 +1,8 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/BuildingStats.hpp"
+#include "buildings/FoundationSystem.hpp"
 #include "combat/CannonSystem.hpp"
 #include "combat/BombSystem.hpp"
 #include "combat/PlayerWeaponSystem.hpp"
@@ -9,10 +11,13 @@
 #include "core/Types.hpp"
 #include "economy/GoldMineSystem.hpp"
 #include "enemies/EnemySystem.hpp"
+#include "game/GameEvent.hpp"
 #include "game/GameBalance.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
+#include "world/TerrainHeightfield.hpp"
+#include "world/WorldConfig.hpp"
 #include "waves/WaveDirector.hpp"
 
 #include <cstdint>
@@ -21,6 +26,8 @@
 #include <vector>
 
 namespace ian {
+
+inline constexpr double ResourcePickupFlightSeconds = 0.78;
 
 struct StartWaveEarlyCommand {};
 struct EnableUnlimitedResourcesCommand {};
@@ -34,9 +41,13 @@ struct DamageCoreCommand {
 };
 struct SpawnEnemyCommand {
     EnemyType type{EnemyType::Basic};
+    int count{1};
 };
 struct ToggleGateCommand {
     EntityId gateId;
+};
+struct RemoveModularBuildingCommand {
+    EntityId buildingId;
 };
 
 struct PlayerCommand {
@@ -44,6 +55,8 @@ struct PlayerCommand {
     double moveRight{};
     double lookYaw{};
     double lookPitch{};
+    bool overrideAimedBuilding{};
+    std::optional<EntityId> aimedBuildingOverride;
     bool jump{};
     bool sprint{};
     bool usePickaxe{};
@@ -65,6 +78,8 @@ struct PlayerCommand {
     std::optional<DamageCoreCommand> damageCore;
     std::optional<SpawnEnemyCommand> spawnEnemy;
     std::optional<ToggleGateCommand> toggleGate;
+    std::optional<RemoveModularBuildingCommand>
+        removeModularBuilding;
 };
 
 enum class RunState {
@@ -95,59 +110,6 @@ enum class AttackDirection {
     West,
 };
 
-enum class GameEventType {
-    RunStarted,
-    RunRestarted,
-    PauseChanged,
-    ResourceHit,
-    ResourceCollected,
-    BuildingPlaced,
-    BuildingRejected,
-    BuildingDestroyed,
-    CoreDamaged,
-    BossRamImpact,
-    PlayerDamaged,
-    PlayerDied,
-    PlayerRespawned,
-    EnemyKilled,
-    SunsetStarted,
-    AttackDirectionWarned,
-    WaveStarted,
-    WaveCompleted,
-    WaveRewardGranted,
-    RunEnded,
-    ProjectileHit,
-    GoldProduced,
-    BuildingUpgraded,
-    BuildingUpgradeRejected,
-    BuildingRepaired,
-    BuildingRepairRejected,
-    BuildingSold,
-    BuildingSellRejected,
-    Explosion,
-    TrapActivated,
-    WeaponFired,
-    WeaponUpgraded,
-    WeaponUpgradeRejected,
-    ConsumableUsed,
-    GateToggled,
-    GateToggleRejected,
-};
-
-struct GameEvent {
-    GameEventType type;
-    std::optional<EntityId> entityId;
-    std::optional<EntityId> sourceId;
-    std::optional<ResourceType> resourceType;
-    std::optional<BuildingType> buildingType;
-    std::optional<PlacementError> placementError;
-    std::optional<UpgradeError> upgradeError;
-    std::optional<BuildingActionError> buildingActionError;
-    std::optional<WeaponUpgradeError> weaponUpgradeError;
-    Vec3 position;
-    int amount{};
-};
-
 struct SimulationSnapshot {
     RunState state;
     std::uint64_t tick;
@@ -165,15 +127,25 @@ struct SimulationSnapshot {
     std::optional<EntityId> aimedResource;
     std::span<const ResourceNode> resourceNodes;
     double worldLimit;
+    double worldCellSize;
+    std::uint32_t terrainSeed;
     std::span<const MapObstacle> mapObstacles;
     std::span<const CollisionBox> collisionBoxes;
     std::span<const FlowDebugVector> flowDebugVectors;
     std::optional<BuildingType> selectedBuilding;
+    std::array<ResourceCost, GameBalance::BuildingTypeCount>
+        buildingCosts;
     std::optional<BuildingPreview> buildingPreview;
     std::span<const BuildingInstance> buildings;
+    std::span<const PlatformFrameInstance> platformFrames;
+    std::span<const SharedSupport> sharedSupports;
+    std::span<const WallInstance> modularWalls;
+    std::span<const RampInstance> ramps;
+    std::optional<EntityId> aimedModularBuilding;
     std::optional<EntityId> aimedEnemy;
     std::optional<EntityId> aimedBuilding;
     std::optional<ResourceCost> aimedBuildingUpgradeCost;
+    std::optional<BuildingStatComparison> aimedBuildingStats;
     std::span<const EnemyInstance> enemies;
     std::span<const TowerRuntime> towers;
     std::span<const CannonRuntime> cannons;
@@ -181,6 +153,9 @@ struct SimulationSnapshot {
     std::span<const BombProjectile> bombProjectiles;
     std::size_t activeEnemyCount;
     std::size_t pendingEnemyCount;
+    std::array<int, GameBalance::EnemyTypeCount>
+        upcomingEnemyCounts;
+    bool upcomingWaveHasBoss;
     std::optional<AttackDirection> upcomingAttackDirection;
     double phaseTimeRemaining;
     double phaseDuration;
@@ -192,12 +167,14 @@ struct SimulationSnapshot {
     bool unlimitedResources;
     bool playerInvulnerable;
     PlayerWeapon selectedWeapon;
+    double selectedWeaponDamage;
     int rifleLevel;
     int rifleAmmunition;
     int rifleMagazineSize;
     int rifleUpgradeGoldCost;
     bool rifleReloading;
     double rifleReloadRemaining;
+    double rifleReloadDuration;
     int bombsRemaining;
     int waveCompletionReward;
     int tutorialWoodTarget;
@@ -208,7 +185,9 @@ struct SimulationSnapshot {
 class Simulation {
   public:
     explicit Simulation(GameBalance balance = GameBalance::defaults(),
-                        MapDefinition map = MapDefinition::defaults());
+                        MapDefinition map = MapDefinition::defaults(),
+                        WorldConfig worldConfig =
+                            WorldConfig::defaults());
 
     void startRun();
     void restartRun();
@@ -216,12 +195,79 @@ class Simulation {
     void tick(double deltaSeconds, const PlayerCommand& command = {});
 
     [[nodiscard]] SimulationSnapshot snapshot() const;
+    [[nodiscard]] PlacementResult previewPlacement(
+        BuildingType type, GridPosition position) const;
+    [[nodiscard]] PlacementResult previewPlacement(
+        BuildingType type, GridPosition position,
+        double preferredHeight) const;
+    [[nodiscard]] BuildingPlatformSurface
+    previewPlacementSurface(
+        BuildingType type, GridPosition position) const;
+    [[nodiscard]] BuildingPlatformSurface
+    previewPlacementSurface(
+        BuildingType type, GridPosition position,
+        double preferredHeight) const;
+    [[nodiscard]] const TerrainHeightfield& terrain() const;
+    void regenerateTerrain(std::uint32_t seed);
+    [[nodiscard]] PlatformFramePlacement
+    previewPlatformFrame(Vec3 terrainHit) const;
+    [[nodiscard]] std::optional<PlatformFrameInstance>
+    placePlatformFrame(Vec3 terrainHit);
+    [[nodiscard]] WallPlacement previewWall(
+        Vec3 terrainHit, Rotation rotation) const;
+    [[nodiscard]] std::optional<WallInstance>
+    placeWall(Vec3 terrainHit, Rotation rotation);
+    [[nodiscard]] RampPlacement previewRamp(
+        Vec3 terrainHit, Rotation rotation) const;
+    [[nodiscard]] std::optional<RampInstance>
+    placeRamp(Vec3 terrainHit, Rotation rotation);
+    void setStructuralCollapseEnabled(bool enabled);
+    [[nodiscard]] bool structuralCollapseEnabled() const;
+    [[nodiscard]] std::size_t clearModularBuildings();
     std::vector<GameEvent> takeEvents();
 
   private:
+    void resetRun(GameEventType eventType);
+    void updatePlayer(double deltaSeconds,
+                      const PlayerCommand& command);
+    void processDebugCommands(const PlayerCommand& command);
+    void processBuildingCommands(const PlayerCommand& command);
+    void updatePlayerActions(double deltaSeconds,
+                             const PlayerCommand& command);
+    void updatePendingResourceGrants(double deltaSeconds);
+    void updateRunPhase(double deltaSeconds,
+                        const PlayerCommand& command);
+    void updateCombat(double deltaSeconds);
+    void updateTrapCombat(double deltaSeconds);
+    void updateTowerCombat(double deltaSeconds);
+    void updateCannonCombat(double deltaSeconds);
     [[nodiscard]] PlacementResult validatePlacement(BuildingType type,
                                                     GridPosition position) const;
+    [[nodiscard]] PlacementResult validatePlacement(
+        BuildingType type, GridPosition position,
+        const BuildingPlatformSurface& surface) const;
+    [[nodiscard]] BuildingPlatformSurface
+    placementSurface(BuildingType type,
+                     GridPosition position) const;
+    [[nodiscard]] BuildingPlatformSurface
+    placementSurfaceWithPreferredHeight(
+        BuildingType type, GridPosition position,
+        double preferredHeight) const;
+    [[nodiscard]] std::optional<
+        PlatformFramePlacement>
+    automaticFoundationPlacement(
+        BuildingType type, GridPosition position,
+        double floorHeight) const;
+    void raisePlayerOntoGroundFrame(
+        const PlatformFrameInstance& frame);
+    [[nodiscard]] bool shouldAutoJumpGroundFrame(
+        Vec3 movement) const;
+    [[nodiscard]] bool
+    modularRemovalWouldDestroyCore(
+        EntityId id) const;
     void syncWorldStructures();
+    void syncModularStructures();
+    void removeUnsupportedPlatformBuildings();
     void respawnPlayer();
     void prepareWave(const WavePlan& plan, GridPosition corePosition,
                      std::size_t firstAnchorIndex);
@@ -235,6 +281,9 @@ class Simulation {
     std::uint64_t tick_{};
     double elapsedSeconds_{};
     MapDefinition map_;
+    WorldConfig worldConfig_;
+    TerrainHeightfield terrain_;
+    FoundationSystem foundations_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     double verticalVelocity_{};
     double playerYaw_{};
@@ -244,9 +293,17 @@ class Simulation {
     int wood_{};
     int stone_{};
     int gold_{};
+    struct PendingResourceGrant {
+        ResourceType type;
+        Vec3 position;
+        int amount;
+        double remaining;
+    };
+    std::vector<PendingResourceGrant> pendingResourceGrants_;
     bool unlimitedResources_{};
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};
+    std::uint64_t pickaxeAttackSequence_{};
     double pickaxeCooldownRemaining_{};
     std::optional<EntityId> aimedResource_;
     ResourceSystem resources_;
@@ -259,6 +316,7 @@ class Simulation {
     std::vector<FlowDebugVector> flowDebugVectors_;
     std::optional<EntityId> aimedEnemy_;
     std::optional<EntityId> aimedBuilding_;
+    std::optional<EntityId> aimedModularBuilding_;
     EnemySystem enemies_;
     TowerSystem towers_;
     CannonSystem cannons_;

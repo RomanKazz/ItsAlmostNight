@@ -18,7 +18,7 @@ class SpatialHash {
     static constexpr double CellSize = 2.0;
     static constexpr double MinimumCoordinate = -48.0;
     static constexpr int GridSize = 48;
-    static constexpr std::size_t MaxEntries = 256;
+    static constexpr std::size_t MaxEntries = 4096;
 
     SpatialHash();
 

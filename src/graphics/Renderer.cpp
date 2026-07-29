@@ -1,28 +1,28 @@
 #include "graphics/Renderer.hpp"
 
+#include "buildings/BuildingSystem.hpp"
+#include "ui/UiText.hpp"
+
 #include <raymath.h>
 #include <rlgl.h>
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 namespace ian {
 namespace {
 
-const char* enabledText(bool enabled) {
-    return enabled ? "ON" : "OFF";
-}
-
-const char* qualityText(GraphicsQuality quality) {
-    switch (quality) {
-    case GraphicsQuality::Low:
-        return "LOW";
-    case GraphicsQuality::Medium:
-        return "MEDIUM";
-    case GraphicsQuality::High:
-        return "HIGH";
-    }
-    return "";
+void configureSkinningLocations(Shader& shader) {
+    shader.locs[SHADER_LOC_VERTEX_BONEIDS] =
+        GetShaderLocationAttrib(shader, "vertexBoneIndices");
+    shader.locs[SHADER_LOC_VERTEX_BONEWEIGHTS] =
+        GetShaderLocationAttrib(shader, "vertexBoneWeights");
+    shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS] =
+        GetShaderLocation(shader, "boneMatrices");
 }
 
 } // namespace
@@ -31,15 +31,95 @@ void Renderer::initialize() {
     resources_.initialize(settings_);
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
+    resolvePostProcessLocations();
+    if (resources_.selectionOutlineShader().valid()) {
+        selectionOutlineTexelSizeLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "texelSize");
+        selectionOutlineRadiusLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(),
+            "outlineRadius");
+    }
+    if (resources_.selectionMaskShader().valid()) {
+        Shader& shader = resources_.selectionMaskShader().get();
+        configureSkinningLocations(shader);
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        selectionMaskTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        selectionMaskWindLocation_ =
+            GetShaderLocation(shader, "windAmount");
+        selectionMaskSkinningEnabledLocation_ =
+            GetShaderLocation(shader, "skinningEnabled");
+    }
+    if (resources_.shadowShader().valid()) {
+        Shader& shader = resources_.shadowShader().get();
+        configureSkinningLocations(shader);
+        shadowSkinningEnabledLocation_ =
+            GetShaderLocation(shader, "skinningEnabled");
+    }
+    if (resources_.grassShader().valid()) {
+        Shader& shader = resources_.grassShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        grassTintLocation_ =
+            GetShaderLocation(shader, "grassTint");
+        grassTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        grassCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        grassSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        grassSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        grassSunIntensityLocation_ =
+            GetShaderLocation(shader, "sunIntensity");
+        grassSkyAmbientColorLocation_ =
+            GetShaderLocation(shader, "skyAmbientColor");
+        grassGroundAmbientColorLocation_ =
+            GetShaderLocation(shader, "groundAmbientColor");
+        grassAmbientIntensityLocation_ =
+            GetShaderLocation(shader, "ambientIntensity");
+        grassFogColorLocation_ =
+            GetShaderLocation(shader, "fogColor");
+        grassFogStartLocation_ =
+            GetShaderLocation(shader, "fogStart");
+        grassFogEndLocation_ =
+            GetShaderLocation(shader, "fogEnd");
+        grassDayNightTintLocation_ =
+            GetShaderLocation(shader, "dayNightTint");
+        grassExposureLocation_ =
+            GetShaderLocation(shader, "exposure");
+        grassSaturationLocation_ =
+            GetShaderLocation(shader, "saturation");
+    }
+    if (resources_.upgradeEffectShader().valid()) {
+        Shader& shader = resources_.upgradeEffectShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        upgradeEffectOriginLocation_ =
+            GetShaderLocation(shader, "effectOrigin");
+        upgradeEffectHeightLocation_ =
+            GetShaderLocation(shader, "effectHeight");
+        upgradeEffectProgressLocation_ =
+            GetShaderLocation(shader, "progress");
+        upgradeEffectTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+    }
 }
 
 void Renderer::shutdown() {
+    terrainRenderer_.shutdown();
     resources_.shutdown();
 }
 
 void Renderer::processInput() {
     const bool shiftDown =
         IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+    const bool controlDown =
+        IsKeyDown(KEY_LEFT_CONTROL) ||
+        IsKeyDown(KEY_RIGHT_CONTROL);
     if (IsKeyPressed(KEY_F2)) {
         showDebugPanel_ = !showDebugPanel_;
     }
@@ -55,31 +135,49 @@ void Renderer::processInput() {
     if (IsKeyPressed(KEY_F5)) {
         settings_.postProcessing = !settings_.postProcessing;
     }
-    if (IsKeyPressed(KEY_F6)) {
+    if (!controlDown && IsKeyPressed(KEY_F6)) {
         settings_.particles = !settings_.particles;
     }
-    if (shiftDown && IsKeyPressed(KEY_F7)) {
+    if (controlDown && IsKeyPressed(KEY_F7)) {
+        // Reserved for terrain regeneration.
+    } else if (shiftDown && IsKeyPressed(KEY_F7)) {
         cycleAoStrength();
     } else if (IsKeyPressed(KEY_F7)) {
         settings_.blobShadows = !settings_.blobShadows;
     }
-    if (IsKeyPressed(KEY_F8)) {
+    if (!controlDown && IsKeyPressed(KEY_F8)) {
         settings_.bloom = !settings_.bloom;
     }
-    if (IsKeyPressed(KEY_F9)) {
+    if (!controlDown && IsKeyPressed(KEY_F9)) {
         settings_.ssao = !settings_.ssao;
     }
-    if (IsKeyPressed(KEY_F10)) {
+    if (!controlDown && IsKeyPressed(KEY_F10)) {
         cycleQuality();
     }
-    if (IsKeyPressed(KEY_F11)) {
-        cycleRenderScale();
+    if (!controlDown && IsKeyPressed(KEY_F11)) {
+        adjustPixelSize(shiftDown ? -1 : 1);
     }
     if (shiftDown && IsKeyPressed(KEY_F12)) {
         settings_.sky = !settings_.sky;
     } else if (IsKeyPressed(KEY_F12)) {
         settings_.worldShader = !settings_.worldShader;
     }
+}
+
+bool Renderer::graphicsPanelVisible() const {
+    return showDebugPanel_;
+}
+
+void Renderer::setGraphicsPanelVisible(bool visible) {
+    showDebugPanel_ = visible;
+}
+
+bool Renderer::shadowMapVisible() const {
+    return showShadowMap_;
+}
+
+void Renderer::setShadowMapVisible(bool visible) {
+    showShadowMap_ = visible;
 }
 
 void Renderer::beginWorldPass(Color clearColor) {
@@ -139,6 +237,8 @@ void Renderer::drawSky(const SkyState& sky) {
                    &sky.celestialColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, skyShaderLocations_.celestialIntensity,
                    &sky.celestialIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, skyShaderLocations_.nightAmount,
+                   &sky.nightAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, skyShaderLocations_.timeSeconds,
                    &sky.timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, skyShaderLocations_.exposure,
@@ -174,9 +274,47 @@ void Renderer::endWorldPass() {
             static_cast<float>(GetScreenWidth()),
             static_cast<float>(GetScreenHeight()),
         };
-        DrawTexturePro(target.texture, source, destination, {0.0F, 0.0F}, 0.0F, WHITE);
+        if (resources_.postProcessShader().valid()) {
+            uploadPostProcessSettings();
+            BeginShaderMode(
+                resources_.postProcessShader().get());
+            DrawTexturePro(
+                target.texture, source, destination,
+                {0.0F, 0.0F}, 0.0F, WHITE);
+            EndShaderMode();
+        } else {
+            DrawTexturePro(
+                target.texture, source, destination,
+                {0.0F, 0.0F}, 0.0F, WHITE);
+        }
     }
     worldPassOpen_ = false;
+}
+
+void Renderer::drawScenePreview(Rectangle bounds) {
+    if (!resources_.sceneTargetValid() ||
+        bounds.width <= 0.0F || bounds.height <= 0.0F) {
+        return;
+    }
+    const auto& target = resources_.sceneTarget();
+    const Rectangle source{
+        0.0F, 0.0F,
+        static_cast<float>(target.texture.width),
+        -static_cast<float>(target.texture.height),
+    };
+    if (resources_.postProcessShader().valid()) {
+        uploadPostProcessSettings();
+        BeginShaderMode(
+            resources_.postProcessShader().get());
+        DrawTexturePro(
+            target.texture, source, bounds,
+            {0.0F, 0.0F}, 0.0F, WHITE);
+        EndShaderMode();
+    } else {
+        DrawTexturePro(
+            target.texture, source, bounds,
+            {0.0F, 0.0F}, 0.0F, WHITE);
+    }
 }
 
 void Renderer::beginUiOnlyFrame(Color clearColor) {
@@ -194,9 +332,6 @@ void Renderer::endFrame() {
     }
     if (worldPassOpen_) {
         endWorldPass();
-    }
-    if (showDebugPanel_) {
-        drawDebugPanel();
     }
     if (showShadowMap_) {
         drawShadowMapDebug();
@@ -256,6 +391,119 @@ void Renderer::endShadowPass() {
     shadowFrameValid_ = true;
 }
 
+bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
+    resources_.updateFramebuffer(settings_);
+    resources_.updateSelectionMask(settings_);
+    selectionMaskReady_ = false;
+    if (selectionMaskPassOpen_ ||
+        !resources_.selectionMaskValid() ||
+        !resources_.selectionMaskShader().valid()) {
+        return false;
+    }
+
+    BeginTextureMode(resources_.selectionMask());
+    ClearBackground(BLANK);
+    BeginMode3D(camera);
+    BeginShaderMode(resources_.selectionMaskShader().get());
+    const float timeSeconds = static_cast<float>(GetTime());
+    constexpr float NoWind = 0.0F;
+    SetShaderValue(resources_.selectionMaskShader().get(),
+                   selectionMaskTimeLocation_, &timeSeconds,
+                   SHADER_UNIFORM_FLOAT);
+    SetShaderValue(resources_.selectionMaskShader().get(),
+                   selectionMaskWindLocation_, &NoWind,
+                   SHADER_UNIFORM_FLOAT);
+    selectionMaskPassOpen_ = true;
+    return true;
+}
+
+void Renderer::setSelectionMaskWind(float amount) {
+    if (!selectionMaskPassOpen_ ||
+        !resources_.selectionMaskShader().valid()) {
+        return;
+    }
+    rlDrawRenderBatchActive();
+    SetShaderValue(resources_.selectionMaskShader().get(),
+                   selectionMaskWindLocation_, &amount,
+                   SHADER_UNIFORM_FLOAT);
+}
+
+void Renderer::endSelectionMaskPass() {
+    if (!selectionMaskPassOpen_) {
+        return;
+    }
+    EndShaderMode();
+    EndMode3D();
+    EndTextureMode();
+    selectionMaskPassOpen_ = false;
+    selectionMaskReady_ = true;
+}
+
+void Renderer::clearSelectionOutline() {
+    selectionMaskReady_ = false;
+}
+
+void Renderer::drawSelectionOutline() {
+    if (!selectionMaskReady_ ||
+        !resources_.selectionMaskValid() ||
+        !resources_.selectionOutlineShader().valid()) {
+        return;
+    }
+
+    const auto& target = resources_.selectionMask();
+    const Vector2 texelSize{
+        1.0F / static_cast<float>(std::max(target.texture.width, 1)),
+        1.0F / static_cast<float>(std::max(target.texture.height, 1)),
+    };
+    auto& shader = resources_.selectionOutlineShader().get();
+    SetShaderValue(shader, selectionOutlineTexelSizeLocation_,
+                   &texelSize, SHADER_UNIFORM_VEC2);
+    const float outputScaleX =
+        static_cast<float>(GetScreenWidth()) /
+        static_cast<float>(std::max(target.texture.width, 1));
+    const float outputScaleY =
+        static_cast<float>(GetScreenHeight()) /
+        static_cast<float>(std::max(target.texture.height, 1));
+    const float outputScale =
+        std::max(std::min(outputScaleX, outputScaleY), 0.001F);
+    const float pulse =
+        0.5F +
+        0.5F *
+            std::sin(
+                static_cast<float>(GetTime()) * 3.2F);
+    const int outlineRadius = std::clamp(
+        static_cast<int>(std::ceil(6.0F / outputScale)), 1, 6);
+    SetShaderValue(shader, selectionOutlineRadiusLocation_,
+                   &outlineRadius, SHADER_UNIFORM_INT);
+    const Rectangle source{
+        0.0F, 0.0F,
+        static_cast<float>(target.texture.width),
+        -static_cast<float>(target.texture.height),
+    };
+    const Rectangle destination{
+        0.0F, 0.0F,
+        usingOffscreenTarget_
+            ? static_cast<float>(resources_.sceneWidth())
+            : static_cast<float>(GetScreenWidth()),
+        usingOffscreenTarget_
+            ? static_cast<float>(resources_.sceneHeight())
+            : static_cast<float>(GetScreenHeight()),
+    };
+    BeginBlendMode(BLEND_ALPHA);
+    BeginShaderMode(shader);
+    const auto brightness =
+        static_cast<unsigned char>(
+            std::lround(244.0F + pulse * 11.0F));
+    const auto alpha =
+        static_cast<unsigned char>(
+            std::lround(238.0F + pulse * 17.0F));
+    DrawTexturePro(target.texture, source, destination,
+                   {0.0F, 0.0F}, 0.0F,
+                   {brightness, brightness, brightness, alpha});
+    EndShaderMode();
+    EndBlendMode();
+}
+
 bool Renderer::shadowCasterVisible(Vector3 position, float radius) const {
     const float offsetX = position.x - shadowFocus_.x;
     const float offsetZ = position.z - shadowFocus_.z;
@@ -275,6 +523,7 @@ void Renderer::beginWorldShader(const WorldLighting& lighting) {
     uploadWorldMaterial(worldMaterial_);
     BeginShaderMode(resources_.worldShader().get());
     worldShaderActive_ = true;
+    bindTerrainTexture();
     bindShadowMap();
 }
 
@@ -301,6 +550,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.terrainPatchTint.x == worldMaterial_.terrainPatchTint.x &&
         material.terrainPatchTint.y == worldMaterial_.terrainPatchTint.y &&
         material.terrainPatchTint.z == worldMaterial_.terrainPatchTint.z &&
+        material.windAmount == worldMaterial_.windAmount &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
@@ -319,6 +569,9 @@ void Renderer::endWorldShader() {
         return;
     }
     EndShaderMode();
+    constexpr int TerrainTextureSlot = 9;
+    rlActiveTextureSlot(TerrainTextureSlot);
+    rlDisableTexture();
     constexpr int ShadowTextureSlot = 10;
     rlActiveTextureSlot(ShadowTextureSlot);
     rlDisableTexture();
@@ -326,251 +579,364 @@ void Renderer::endWorldShader() {
     worldShaderActive_ = false;
 }
 
-bool Renderer::drawCannon(Vector3 position, float yawRadians,
-                          float pitchRadians, Color tint) {
-    auto& resource = resources_.cannonModel();
-    if (!resource.valid()) {
-        return false;
+void Renderer::rebuildTerrain(
+    const TerrainHeightfield& terrain) {
+    terrainHeightfield_ = &terrain;
+    terrainRenderer_.rebuild(terrain);
+}
+
+void Renderer::drawTerrain(
+    Color tint, bool wireframe) {
+    Shader shader{};
+    if (shadowPassOpen_ &&
+        resources_.shadowShader().valid()) {
+        shader = resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ &&
+        resources_.worldShader().valid()) {
+        shader = resources_.worldShader().get();
+    }
+    terrainRenderer_.draw(shader, tint);
+    if (wireframe) {
+        terrainRenderer_.drawWireframe(
+            {245, 224, 154, 150});
+    }
+}
+
+void Renderer::drawGrassInstances(Vector3 cameraPosition,
+                                  float worldLimit,
+                                  float nightAmount,
+                                  const WorldLighting& lighting,
+                                  std::span<const GrassClearArea>
+                                      clearAreas) {
+    if (!settings_.grass) {
+        return;
     }
 
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    constexpr std::size_t VariantCount = 3;
+    constexpr std::size_t MaximumInstancesPerVariant = 512;
+    constexpr float Spacing = 1.8F;
+    constexpr float DrawRadius = 27.0F;
+    std::array<std::array<Matrix, MaximumInstancesPerVariant>,
+               VariantCount>
+        transforms{};
+    std::array<std::size_t, VariantCount> counts{};
 
-    constexpr float ModelScale = 3.0F;
-    constexpr float GroundOffset = 0.155F;
-    constexpr float ModelForwardOffset = PI;
-    position.y += GroundOffset;
+    const int minimumX = static_cast<int>(
+        std::floor((cameraPosition.x - DrawRadius) / Spacing));
+    const int maximumX = static_cast<int>(
+        std::ceil((cameraPosition.x + DrawRadius) / Spacing));
+    const int minimumZ = static_cast<int>(
+        std::floor((cameraPosition.z - DrawRadius) / Spacing));
+    const int maximumZ = static_cast<int>(
+        std::ceil((cameraPosition.z + DrawRadius) / Spacing));
 
-    if (model.meshCount < 2) {
-        DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                    (yawRadians + ModelForwardOffset) * RAD2DEG,
-                    {ModelScale, ModelScale, ModelScale}, tint);
-        return true;
-    }
-
-    const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
-    const Matrix yaw =
-        MatrixRotateY(yawRadians + ModelForwardOffset);
-    const Matrix pitch = MatrixRotateX(pitchRadians);
-    const Matrix translation =
-        MatrixTranslate(position.x, position.y, position.z);
-    const Matrix baseTransform =
-        MatrixMultiply(MatrixMultiply(scale, yaw), translation);
-    const Matrix barrelTransform = MatrixMultiply(
-        MatrixMultiply(MatrixMultiply(scale, pitch), yaw), translation);
-
-    const auto drawMesh = [&model, tint](int meshIndex,
-                                         Matrix transform) {
-        const int materialIndex = model.meshMaterial[meshIndex];
-        Material& material = model.materials[materialIndex];
-        const Color original =
-            material.maps[MATERIAL_MAP_DIFFUSE].color;
-        material.maps[MATERIAL_MAP_DIFFUSE].color =
-            ColorTint(original, tint);
-        DrawMesh(model.meshes[meshIndex], material,
-                 MatrixMultiply(model.transform, transform));
-        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    const auto hashCell = [](int x, int z) {
+        std::uint32_t value =
+            static_cast<std::uint32_t>(x) * 0x8da6b343U ^
+            static_cast<std::uint32_t>(z) * 0xd8163841U;
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        return value ^ (value >> 16U);
+    };
+    const auto unitFloat = [](std::uint32_t value) {
+        return static_cast<float>(value & 0xffffU) /
+               65535.0F;
     };
 
-    // glTF order: barrel.002 (0), weapon-cannon/base (1).
-    drawMesh(1, baseTransform);
-    drawMesh(0, barrelTransform);
-    for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
-        drawMesh(meshIndex, baseTransform);
-    }
-    return true;
-}
+    for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+        for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+            const std::uint32_t hash = hashCell(cellX, cellZ);
+            const float jitterX =
+                (unitFloat(hash) - 0.5F) * Spacing * 0.72F;
+            const float jitterZ =
+                (unitFloat(hash >> 8U) - 0.5F) *
+                Spacing * 0.72F;
+            const float x =
+                (static_cast<float>(cellX) + 0.5F) * Spacing +
+                jitterX;
+            const float z =
+                (static_cast<float>(cellZ) + 0.5F) * Spacing +
+                jitterZ;
+            if (std::abs(x) > worldLimit - 0.5F ||
+                std::abs(z) > worldLimit - 0.5F) {
+                continue;
+            }
+            const float offsetX = x - cameraPosition.x;
+            const float offsetZ = z - cameraPosition.z;
+            const float distanceSquared =
+                offsetX * offsetX + offsetZ * offsetZ;
+            if (distanceSquared > DrawRadius * DrawRadius) {
+                continue;
+            }
 
-bool Renderer::drawCannonball(Vector3 position, Color tint) {
-    auto& resource = resources_.cannonballModel();
-    if (!resource.valid()) {
-        return false;
-    }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
+            const std::size_t variant =
+                static_cast<std::size_t>(hash % VariantCount);
+            if (counts[variant] >= MaximumInstancesPerVariant) {
+                continue;
+            }
+            const float baseScale =
+                0.58F + unitFloat(hash >> 16U) * 0.34F;
+            float visibility = 1.0F;
+            for (const GrassClearArea& area : clearAreas) {
+                const float deltaX = x - area.center.x;
+                const float deltaZ = z - area.center.y;
+                const float distance =
+                    std::sqrt(
+                        deltaX * deltaX + deltaZ * deltaZ);
+                constexpr float Feather = 0.85F;
+                const float proximity =
+                    1.0F -
+                    std::clamp(
+                        (distance - area.innerRadius) /
+                            Feather,
+                        0.0F, 1.0F);
+                const float clearing =
+                    std::clamp(area.amount, 0.0F, 1.0F) *
+                    proximity * proximity *
+                    (3.0F - 2.0F * proximity);
+                visibility *= 1.0F - clearing;
+            }
+            const float clearing = 1.0F - visibility;
+            if (clearing >= 0.68F) {
+                continue;
+            }
+            const float scale = baseScale * visibility;
+            const float sink = clearing * 0.4F;
+            const float terrainHeight =
+                terrainHeightfield_ != nullptr
+                    ? static_cast<float>(
+                          terrainHeightfield_->getHeight(
+                              x, z))
+                    : 0.0F;
+            const float rotation =
+                unitFloat(hash ^ 0xa511e9b3U) * PI * 2.0F;
+            transforms[variant][counts[variant]++] =
+                MatrixMultiply(
+                    MatrixScale(scale, scale, scale),
+                    MatrixMultiply(
+                        MatrixRotateY(rotation),
+                        MatrixTranslate(
+                            x,
+                            terrainHeight + 0.02F - sink,
+                            z)));
         }
     }
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {1.5F, 1.5F, 1.5F}, tint);
-    return true;
+
+    std::array<ModelResource*, VariantCount> variants{
+        &resources_.grassModelB(),
+        &resources_.grassModelC(),
+        &resources_.grassModelD(),
+    };
+    const float darkness =
+        1.0F - std::clamp(nightAmount, 0.0F, 1.0F) * 0.12F;
+    const Color tint{
+        static_cast<unsigned char>(255.0F * darkness),
+        static_cast<unsigned char>(255.0F * darkness),
+        static_cast<unsigned char>(
+            255.0F * std::min(darkness * 1.08F, 1.0F)),
+        255,
+    };
+    const Vector4 shaderTint = ColorNormalize(tint);
+    if (resources_.grassShader().valid()) {
+        Shader& shader = resources_.grassShader().get();
+        const float timeSeconds = static_cast<float>(GetTime());
+        const float fogStart =
+            settings_.fog ? lighting.fogStart : 1000000.0F;
+        const float fogEnd =
+            settings_.fog ? lighting.fogEnd : 1000001.0F;
+        SetShaderValue(shader, grassTintLocation_, &shaderTint,
+                       SHADER_UNIFORM_VEC4);
+        SetShaderValue(shader, grassTimeLocation_, &timeSeconds,
+                       SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassCameraPositionLocation_,
+                       &cameraPosition, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassSunDirectionLocation_,
+                       &lighting.sunDirection, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassSunColorLocation_,
+                       &lighting.sunColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassSunIntensityLocation_,
+                       &lighting.sunIntensity, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassSkyAmbientColorLocation_,
+                       &lighting.skyAmbientColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassGroundAmbientColorLocation_,
+                       &lighting.groundAmbientColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassAmbientIntensityLocation_,
+                       &lighting.ambientIntensity, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassFogColorLocation_,
+                       &lighting.fogColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassFogStartLocation_,
+                       &fogStart, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassFogEndLocation_,
+                       &fogEnd, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassDayNightTintLocation_,
+                       &lighting.dayNightTint, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, grassExposureLocation_,
+                       &lighting.exposure, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassSaturationLocation_,
+                       &lighting.saturation, SHADER_UNIFORM_FLOAT);
+    }
+
+    for (std::size_t variant = 0; variant < VariantCount;
+         ++variant) {
+        ModelResource& resource = *variants[variant];
+        if (!resource.valid() || counts[variant] == 0U) {
+            continue;
+        }
+        Model& model = resource.get();
+        for (int meshIndex = 0; meshIndex < model.meshCount;
+             ++meshIndex) {
+            const int materialIndex =
+                model.meshMaterial[meshIndex];
+            Material material = model.materials[materialIndex];
+            if (resources_.grassShader().valid()) {
+                material.shader = resources_.grassShader().get();
+                material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            } else {
+                material.maps[MATERIAL_MAP_DIFFUSE].color = tint;
+            }
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                transforms[variant].data(),
+                static_cast<int>(counts[variant]));
+        }
+    }
 }
 
-bool Renderer::drawArrow(Vector3 position, Vector3 direction, Color tint) {
-    auto& resource = resources_.arrowModel();
-    if (!resource.valid() ||
-        Vector3LengthSqr(direction) <= 0.000001F) {
-        return false;
+void Renderer::drawUpgradeEffect(Vector3 position, float progress,
+                                 float scale) {
+    progress = std::clamp(progress, 0.0F, 1.0F);
+    scale = std::max(scale, 0.1F);
+    const float radius = 0.82F * scale;
+    const float height = 3.2F * scale;
+    const Vector3 top{
+        position.x,
+        position.y + height,
+        position.z,
+    };
+    rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ADDITIVE);
+    rlDisableDepthMask();
+    if (resources_.upgradeEffectShader().valid()) {
+        Shader& shader = resources_.upgradeEffectShader().get();
+        const float timeSeconds =
+            static_cast<float>(GetTime());
+        SetShaderValue(
+            shader, upgradeEffectOriginLocation_, &position,
+            SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, upgradeEffectHeightLocation_, &height,
+            SHADER_UNIFORM_FLOAT);
+        SetShaderValue(
+            shader, upgradeEffectProgressLocation_, &progress,
+            SHADER_UNIFORM_FLOAT);
+        SetShaderValue(
+            shader, upgradeEffectTimeLocation_, &timeSeconds,
+            SHADER_UNIFORM_FLOAT);
+        BeginShaderMode(shader);
+        DrawCylinderEx(position, top, radius, radius, 48,
+                       WHITE);
+        EndShaderMode();
+    } else {
+        const float cylinderEnvelope =
+            std::sin(progress * PI);
+        const auto alpha = static_cast<unsigned char>(
+            std::lround(
+                std::max(cylinderEnvelope, 0.0F) * 70.0F));
+        DrawCylinderEx(
+            position, top, radius, radius, 48,
+            {255, 172, 48, alpha});
     }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
+
+    const float appear =
+        std::clamp(progress / 0.12F, 0.0F, 1.0F);
+    const float disappear =
+        1.0F -
+        std::clamp((progress - 0.62F) / 0.38F, 0.0F, 1.0F);
+    const float envelope =
+        appear * appear * (3.0F - 2.0F * appear) *
+        disappear * disappear *
+        (3.0F - 2.0F * disappear);
+    constexpr int RingCount = 7;
+    for (int index = 0; index < RingCount; ++index) {
+        const float phase = std::fmod(
+            progress * 1.65F +
+                static_cast<float>(index) /
+                    static_cast<float>(RingCount),
+            1.0F);
+        const float ringFade =
+            std::sin(phase * PI) * envelope;
+        const auto alpha = static_cast<unsigned char>(
+            std::lround(ringFade * 185.0F));
+        constexpr int RingLayers = 7;
+        for (int layer = 0; layer < RingLayers; ++layer) {
+            const float centeredLayer =
+                static_cast<float>(layer) -
+                static_cast<float>(RingLayers - 1) * 0.5F;
+            const float layerFade =
+                1.0F -
+                std::abs(centeredLayer) /
+                    (static_cast<float>(RingLayers) * 0.5F);
+            const auto layerAlpha =
+                static_cast<unsigned char>(
+                    std::lround(
+                        static_cast<float>(alpha) *
+                        layerFade));
+            DrawCircle3D(
+                {position.x,
+                 position.y + phase * height +
+                     centeredLayer * 0.012F * scale,
+                 position.z},
+                radius *
+                    (1.015F + ringFade * 0.045F +
+                     centeredLayer * 0.012F),
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 205, 82, layerAlpha});
         }
     }
 
-    const Vector3 forward = Vector3Normalize(direction);
-    const Vector3 referenceUp =
-        std::abs(Vector3DotProduct(forward, {0.0F, 1.0F, 0.0F})) > 0.98F
-            ? Vector3{1.0F, 0.0F, 0.0F}
-            : Vector3{0.0F, 1.0F, 0.0F};
-    const Vector3 right =
-        Vector3Normalize(Vector3CrossProduct(referenceUp, forward));
-    const Vector3 up = Vector3CrossProduct(forward, right);
-    Matrix rotation = MatrixIdentity();
-    rotation.m0 = right.x;
-    rotation.m1 = right.y;
-    rotation.m2 = right.z;
-    rotation.m4 = up.x;
-    rotation.m5 = up.y;
-    rotation.m6 = up.z;
-    rotation.m8 = forward.x;
-    rotation.m9 = forward.y;
-    rotation.m10 = forward.z;
-
-    constexpr float ArrowScale = 1.2F;
-    const Matrix transform = MatrixMultiply(
-        MatrixMultiply(
-            MatrixScale(ArrowScale, ArrowScale, ArrowScale), rotation),
-        MatrixTranslate(position.x, position.y, position.z));
-    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-        const int materialIndex = model.meshMaterial[meshIndex];
-        Material& material = model.materials[materialIndex];
-        const Color original =
-            material.maps[MATERIAL_MAP_DIFFUSE].color;
-        material.maps[MATERIAL_MAP_DIFFUSE].color =
-            ColorTint(original, tint);
-        DrawMesh(model.meshes[meshIndex], material,
-                 MatrixMultiply(model.transform, transform));
-        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    constexpr int StarCount = 14;
+    for (int index = 0; index < StarCount; ++index) {
+        const float seed =
+            static_cast<float>(index) /
+            static_cast<float>(StarCount);
+        const float angle =
+            seed * 2.0F * PI + progress * 2.4F;
+        const float phase = std::fmod(
+            seed * 3.731F + progress * 1.28F, 1.0F);
+        const float pulse =
+            (0.55F +
+             0.45F *
+                 std::sin(progress * 31.0F +
+                          static_cast<float>(index) * 2.17F)) *
+            envelope * std::sin(phase * PI);
+        const auto alpha = static_cast<unsigned char>(
+            std::lround(std::max(pulse, 0.0F) * 235.0F));
+        const Vector3 center{
+            position.x + std::cos(angle) * radius * 1.04F,
+            position.y + phase * height,
+            position.z + std::sin(angle) * radius * 1.04F,
+        };
+        const float starSize =
+            scale * (0.045F + pulse * 0.075F);
+        const Vector3 tangent{
+            -std::sin(angle), 0.0F, std::cos(angle)};
+        DrawLine3D(
+            {center.x - tangent.x * starSize, center.y,
+             center.z - tangent.z * starSize},
+            {center.x + tangent.x * starSize, center.y,
+             center.z + tangent.z * starSize},
+            {255, 242, 190, alpha});
+        DrawLine3D(
+            {center.x, center.y - starSize, center.z},
+            {center.x, center.y + starSize, center.z},
+            {255, 242, 190, alpha});
     }
-    return true;
-}
-
-bool Renderer::drawCrossbow(Vector3 position, float yawRadians, Color tint) {
-    auto& resource = resources_.crossbowModel();
-    if (!resource.valid()) {
-        return false;
-    }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
-    constexpr float ModelScale = 2.5F;
-    constexpr float GroundOffset = 0.13F;
-    constexpr float ModelForwardOffset = PI;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                (yawRadians + ModelForwardOffset) * RAD2DEG,
-                {ModelScale, ModelScale, ModelScale}, tint);
-    return true;
-}
-
-bool Renderer::drawCore(Vector3 position, float yawRadians, Color tint) {
-    auto& resource = resources_.coreModel();
-    if (!resource.valid()) {
-        return false;
-    }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
-    constexpr float ModelScale = 2.0F;
-    constexpr float GroundOffset = 0.005F;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                yawRadians * RAD2DEG,
-                {ModelScale, ModelScale, ModelScale}, tint);
-    return true;
-}
-
-bool Renderer::drawRock(Vector3 position, Color tint) {
-    auto& resource = resources_.rockModel();
-    if (!resource.valid()) {
-        return false;
-    }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
-    constexpr float ModelScale = 2.0F;
-    constexpr float GroundOffset = 0.204F;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {ModelScale, ModelScale, ModelScale}, tint);
-    return true;
-}
-
-bool Renderer::drawTree(Vector3 position, Color tint) {
-    auto& resource = resources_.treeModel();
-    if (!resource.valid()) {
-        return false;
-    }
-    Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
-    constexpr float ModelScale = 2.7F;
-    constexpr float GroundOffset = 0.144F;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {ModelScale, ModelScale, ModelScale}, tint);
-    return true;
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
+    EndBlendMode();
 }
 
 bool Renderer::beginBlobShadowBatch(Vector3 cameraPosition) {
@@ -607,13 +973,13 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
         return;
     }
 
-    int segmentCount = 12;
+    int segmentCount = 24;
     float qualityOpacity = 1.0F;
     if (settings_.quality == GraphicsQuality::Low) {
-        segmentCount = 8;
+        segmentCount = 12;
         qualityOpacity = 0.78F;
     } else if (settings_.quality == GraphicsQuality::Medium) {
-        segmentCount = 10;
+        segmentCount = 18;
         qualityOpacity = 0.9F;
     }
     const float finalOpacity =
@@ -621,9 +987,9 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
     const auto centerAlpha =
         static_cast<unsigned char>(finalOpacity * 255.0F);
     constexpr float Tau = 6.28318530718F;
-    constexpr unsigned char ShadowRed = 8;
-    constexpr unsigned char ShadowGreen = 11;
-    constexpr unsigned char ShadowBlue = 14;
+    constexpr unsigned char ShadowRed = 14;
+    constexpr unsigned char ShadowGreen = 18;
+    constexpr unsigned char ShadowBlue = 24;
 
     for (int segment = 0; segment < segmentCount; ++segment) {
         const float angle0 =
@@ -654,6 +1020,10 @@ void Renderer::endBlobShadowBatch() {
     blobShadowBatchOpen_ = false;
 }
 
+GraphicsSettings& Renderer::settings() {
+    return settings_;
+}
+
 const GraphicsSettings& Renderer::settings() const {
     return settings_;
 }
@@ -664,6 +1034,13 @@ void Renderer::resolveWorldShaderLocations() {
     }
 
     auto& shader = resources_.worldShader().get();
+    configureSkinningLocations(shader);
+    worldSkinningEnabledLocation_ =
+        GetShaderLocation(shader, "skinningEnabled");
+    worldInstancingEnabledLocation_ =
+        GetShaderLocation(shader, "instancingEnabled");
+    shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
+        GetShaderLocationAttrib(shader, "instanceTransform");
     shader.locs[SHADER_LOC_MATRIX_MODEL] = GetShaderLocation(shader, "matModel");
     shader.locs[SHADER_LOC_MATRIX_NORMAL] = GetShaderLocation(shader, "matNormal");
     worldShaderLocations_ = {
@@ -691,6 +1068,12 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "terrainSecondaryTint"),
         .terrainPatchTint =
             GetShaderLocation(shader, "terrainPatchTint"),
+        .terrainTexture =
+            GetShaderLocation(shader, "terrainTexture"),
+        .terrainTextureEnabled =
+            GetShaderLocation(shader, "terrainTextureEnabled"),
+        .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
+        .windAmount = GetShaderLocation(shader, "windAmount"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
@@ -702,7 +1085,34 @@ void Renderer::resolveWorldShaderLocations() {
         .shadowStrength = GetShaderLocation(shader, "shadowStrength"),
         .shadowMapTexelSize =
             GetShaderLocation(shader, "shadowMapTexelSize"),
+        .instancingEnabled = worldInstancingEnabledLocation_,
     };
+}
+
+void Renderer::setSkinningEnabled(
+    Shader& shader, bool enabled) {
+    int location = -1;
+    if (resources_.worldShader().valid() &&
+        shader.id == resources_.worldShader().get().id) {
+        location = worldSkinningEnabledLocation_;
+    } else if (
+        resources_.shadowShader().valid() &&
+        shader.id == resources_.shadowShader().get().id) {
+        location = shadowSkinningEnabledLocation_;
+    } else if (
+        resources_.selectionMaskShader().valid() &&
+        shader.id ==
+            resources_.selectionMaskShader().get().id) {
+        location =
+            selectionMaskSkinningEnabledLocation_;
+    }
+    if (location < 0) {
+        return;
+    }
+    const int value = enabled ? 1 : 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, location, &value, SHADER_UNIFORM_INT);
 }
 
 void Renderer::resolveSkyShaderLocations() {
@@ -726,10 +1136,86 @@ void Renderer::resolveSkyShaderLocations() {
         .celestialColor = GetShaderLocation(shader, "celestialColor"),
         .celestialIntensity =
             GetShaderLocation(shader, "celestialIntensity"),
+        .nightAmount = GetShaderLocation(shader, "nightAmount"),
         .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
         .exposure = GetShaderLocation(shader, "exposure"),
         .saturation = GetShaderLocation(shader, "saturation"),
     };
+}
+
+void Renderer::resolvePostProcessLocations() {
+    if (!resources_.postProcessShader().valid()) {
+        return;
+    }
+    const auto& shader =
+        resources_.postProcessShader().get();
+    postProcessLocations_ = {
+        .exposure =
+            GetShaderLocation(shader, "postExposure"),
+        .brightness =
+            GetShaderLocation(shader, "brightness"),
+        .contrast =
+            GetShaderLocation(shader, "contrast"),
+        .saturation =
+            GetShaderLocation(shader, "saturation"),
+        .hueDegrees =
+            GetShaderLocation(shader, "hueDegrees"),
+        .temperature =
+            GetShaderLocation(shader, "temperature"),
+        .tint = GetShaderLocation(shader, "tint"),
+        .gamma = GetShaderLocation(shader, "gammaValue"),
+        .blackPoint =
+            GetShaderLocation(shader, "blackPoint"),
+        .curveShadows =
+            GetShaderLocation(shader, "curveShadows"),
+        .curveMidtones =
+            GetShaderLocation(shader, "curveMidtones"),
+        .curveHighlights =
+            GetShaderLocation(shader, "curveHighlights"),
+        .sharpness =
+            GetShaderLocation(shader, "sharpness"),
+        .vignette =
+            GetShaderLocation(shader, "vignette"),
+    };
+}
+
+void Renderer::uploadPostProcessSettings() {
+    if (!resources_.postProcessShader().valid()) {
+        return;
+    }
+    auto& shader = resources_.postProcessShader().get();
+    const auto upload =
+        [&shader](int location, const float& value) {
+            SetShaderValue(
+                shader, location, &value,
+                SHADER_UNIFORM_FLOAT);
+        };
+    upload(postProcessLocations_.exposure,
+           settings_.postExposure);
+    upload(postProcessLocations_.brightness,
+           settings_.brightness);
+    upload(postProcessLocations_.contrast,
+           settings_.contrast);
+    upload(postProcessLocations_.saturation,
+           settings_.colorSaturation);
+    upload(postProcessLocations_.hueDegrees,
+           settings_.hueDegrees);
+    upload(postProcessLocations_.temperature,
+           settings_.temperature);
+    upload(postProcessLocations_.tint, settings_.tint);
+    upload(postProcessLocations_.gamma, settings_.gamma);
+    upload(postProcessLocations_.blackPoint,
+           settings_.blackPoint);
+    upload(postProcessLocations_.curveShadows,
+           settings_.curveShadows);
+    upload(postProcessLocations_.curveMidtones,
+           settings_.curveMidtones);
+    upload(postProcessLocations_.curveHighlights,
+           settings_.curveHighlights);
+    upload(postProcessLocations_.sharpness,
+           settings_.sharpness);
+    upload(postProcessLocations_.vignette,
+           settings_.vignette);
 }
 
 void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
@@ -772,6 +1258,9 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &lighting.exposure, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.saturation,
                    &lighting.saturation, SHADER_UNIFORM_FLOAT);
+    const float timeSeconds = static_cast<float>(GetTime());
+    SetShaderValue(shader, worldShaderLocations_.timeSeconds,
+                   &timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.shadowsEnabled,
                    &shadowsEnabled, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.constantBias,
@@ -802,6 +1291,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.terrainSecondaryTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.terrainPatchTint,
                    &material.terrainPatchTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.windAmount,
+                   &material.windAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,
@@ -810,6 +1301,28 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.selectionTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.aoStrength,
                    &settings_.aoStrength, SHADER_UNIFORM_FLOAT);
+}
+
+void Renderer::bindTerrainTexture() {
+    if (!worldShaderActive_) {
+        return;
+    }
+
+    constexpr int TerrainTextureSlot = 9;
+    auto& shader = resources_.worldShader().get();
+    const int textureSlot = TerrainTextureSlot;
+    const float enabled =
+        resources_.terrainTexture().valid() ? 1.0F : 0.0F;
+    SetShaderValue(shader, worldShaderLocations_.terrainTexture,
+                   &textureSlot, SHADER_UNIFORM_INT);
+    SetShaderValue(shader,
+                   worldShaderLocations_.terrainTextureEnabled,
+                   &enabled, SHADER_UNIFORM_FLOAT);
+    if (enabled > 0.5F) {
+        rlActiveTextureSlot(TerrainTextureSlot);
+        rlEnableTexture(resources_.terrainTexture().get().id);
+        rlActiveTextureSlot(0);
+    }
 }
 
 void Renderer::bindShadowMap() {
@@ -825,60 +1338,6 @@ void Renderer::bindShadowMap() {
     rlSetUniform(worldShaderLocations_.shadowMap, &ShadowTextureSlot,
                  SHADER_UNIFORM_INT, 1);
     rlActiveTextureSlot(0);
-}
-
-void Renderer::drawDebugPanel() const {
-    constexpr int PanelX = 18;
-    constexpr int PanelY = 18;
-    constexpr int PanelWidth = 370;
-    constexpr int PanelHeight = 358;
-    constexpr int TextX = PanelX + 14;
-
-    DrawRectangle(PanelX, PanelY, PanelWidth, PanelHeight, {10, 13, 20, 226});
-    DrawRectangleLines(PanelX, PanelY, PanelWidth, PanelHeight, {110, 145, 180, 255});
-    DrawText("GRAPHICS [F2]", TextX, PanelY + 12, 20, {245, 184, 76, 255});
-    DrawText(TextFormat("Framebuffer: %d x %d", GetRenderWidth(), GetRenderHeight()),
-             TextX, PanelY + 42, 17, RAYWHITE);
-    DrawText(TextFormat("Scene target: %d x %d  %s",
-                        resources_.sceneWidth(), resources_.sceneHeight(),
-                        resources_.sceneTargetValid() ? "READY" : "FALLBACK"),
-             TextX, PanelY + 64, 17, RAYWHITE);
-    DrawText(TextFormat("F3 Shadows: %s   F4 Fog: %s",
-                        enabledText(settings_.shadows), enabledText(settings_.fog)),
-             TextX, PanelY + 90, 17, LIGHTGRAY);
-    DrawText(TextFormat("F5 Pipeline: %s   F6 Particles: %s",
-                        enabledText(settings_.postProcessing),
-                        enabledText(settings_.particles)),
-             TextX, PanelY + 112, 17, LIGHTGRAY);
-    DrawText(TextFormat("F7 Blob: %s   F8 Bloom: %s",
-                        enabledText(settings_.blobShadows), enabledText(settings_.bloom)),
-             TextX, PanelY + 134, 17, LIGHTGRAY);
-    DrawText(TextFormat("F9 SSAO: %s   Shift+F7 AO: %.2f",
-                        enabledText(settings_.ssao), settings_.aoStrength),
-             TextX, PanelY + 156, 17, LIGHTGRAY);
-    DrawText(TextFormat("F10 Quality: %s   Shadow map: %d",
-                        qualityText(settings_.quality), settings_.shadowMapSize),
-             TextX, PanelY + 182, 17, LIGHTGRAY);
-    DrawText(TextFormat("F11 Render scale: %.2f", settings_.renderScale),
-             TextX, PanelY + 204, 17, LIGHTGRAY);
-    DrawText(TextFormat("Shadow distance: %.0f", settings_.shadowDistance),
-             TextX, PanelY + 226, 17, LIGHTGRAY);
-    DrawText(TextFormat("F12 World shader: %s  %s",
-                        enabledText(settings_.worldShader),
-                        resources_.worldShader().valid() ? "READY" : "FALLBACK"),
-             TextX, PanelY + 248, 17, LIGHTGRAY);
-    DrawText(TextFormat("F1 Shadow map view   Shadow: %s",
-                        resources_.shadowMap().valid() ? "READY" : "FALLBACK"),
-             TextX, PanelY + 270, 17, LIGHTGRAY);
-    DrawText(TextFormat("Bias: %.5f + slope %.5f",
-                        settings_.constantBias, settings_.slopeBias),
-             TextX, PanelY + 292, 17, LIGHTGRAY);
-    DrawText(TextFormat("Shadow strength: %.2f", settings_.shadowStrength),
-             TextX, PanelY + 314, 17, LIGHTGRAY);
-    DrawText(TextFormat("Shift+F12 Sky: %s  %s",
-                        enabledText(settings_.sky),
-                        resources_.skyShader().valid() ? "READY" : "FALLBACK"),
-             TextX, PanelY + 336, 17, LIGHTGRAY);
 }
 
 void Renderer::drawShadowMapDebug() const {
@@ -912,8 +1371,9 @@ void Renderer::drawShadowMapDebug() const {
                        static_cast<int>(destination.y),
                        static_cast<int>(destination.width),
                        static_cast<int>(destination.height), YELLOW);
-    DrawText("SHADOW MAP [F1]", static_cast<int>(destination.x),
-             static_cast<int>(destination.y) - 24, 18, YELLOW);
+    drawUiText("SHADOW MAP [F1]",
+               {destination.x, destination.y - 24.0F}, 18.0F,
+               YELLOW);
 }
 
 void Renderer::cycleQuality() {
@@ -948,14 +1408,19 @@ void Renderer::cycleAoStrength() {
     }
 }
 
-void Renderer::cycleRenderScale() {
-    if (settings_.renderScale > 0.9F) {
-        settings_.renderScale = 0.75F;
-    } else if (settings_.renderScale > 0.6F) {
-        settings_.renderScale = 0.5F;
-    } else {
-        settings_.renderScale = 1.0F;
-    }
+void Renderer::adjustPixelSize(int direction) {
+    constexpr int PixelSizes[]{1, 2, 3, 4, 6, 8};
+    const auto current =
+        std::lower_bound(std::begin(PixelSizes), std::end(PixelSizes),
+                         settings_.pixelSize);
+    const auto currentIndex =
+        current == std::end(PixelSizes)
+            ? static_cast<int>(std::size(PixelSizes)) - 1
+            : static_cast<int>(current - std::begin(PixelSizes));
+    const int nextIndex =
+        std::clamp(currentIndex + direction, 0,
+                   static_cast<int>(std::size(PixelSizes)) - 1);
+    settings_.pixelSize = PixelSizes[nextIndex];
 }
 
 } // namespace ian

@@ -14,11 +14,9 @@ constexpr double TurnSpeed = 12.0;
 constexpr double AimTolerance = 0.08726646259971647;
 
 Vec3 towerPosition(const BuildingInstance& building) {
-    return {
-        static_cast<double>(building.gridPosition.x),
-        1.4,
-        static_cast<double>(building.gridPosition.z),
-    };
+    Vec3 position = buildingWorldPosition(building);
+    position.y += 1.4;
+    return position;
 }
 
 bool withinRange(Vec3 origin, Vec3 target, double range) {
@@ -44,6 +42,21 @@ double wrapAngle(double angle) {
 TowerSystem::TowerSystem() {
     towers_.reserve(64);
     shotBuffer_.reserve(64);
+}
+
+double TowerSystem::attackRange(std::uint8_t level) {
+    return BaseRange +
+           0.3 * static_cast<double>(level - 1);
+}
+
+double TowerSystem::attackDamage(std::uint8_t level) {
+    return BaseDamage +
+           0.2 * static_cast<double>(level - 1);
+}
+
+double TowerSystem::fireInterval(std::uint8_t level) {
+    const double levelBonus = static_cast<double>(level - 1);
+    return BaseFireInterval / (1.0 + 0.05 * levelBonus);
 }
 
 void TowerSystem::reset() {
@@ -95,10 +108,9 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         tower.targetSearchCooldownRemaining =
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
         const Vec3 origin = towerPosition(*building);
-        const double levelBonus = static_cast<double>(building->level - 1);
-        const double range = BaseRange + levelBonus;
-        const double damage = BaseDamage + levelBonus;
-        const double fireInterval = BaseFireInterval / (1.0 + 0.25 * levelBonus);
+        const double range = attackRange(building->level);
+        const double damage = attackDamage(building->level);
+        const double shotInterval = fireInterval(building->level);
 
         if (tower.targetId) {
             const auto target = enemies.enemy(*tower.targetId);
@@ -146,7 +158,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             .hitPosition = target->position,
             .killed = damageResult->killed,
         });
-        tower.fireCooldownRemaining = fireInterval;
+        tower.fireCooldownRemaining = shotInterval;
         if (damageResult->killed) {
             tower.targetId.reset();
         }

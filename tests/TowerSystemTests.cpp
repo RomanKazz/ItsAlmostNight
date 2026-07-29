@@ -39,7 +39,7 @@ void runTowerSystemTests() {
             killed = killed || shot.killed;
         }
     }
-    require(shotCount == 2, "level-two turret deals upgraded damage");
+    require(shotCount >= 4, "level-two turret deals gradual upgraded damage");
     require(killed, "turret can kill target");
     require(enemies.activeCount() == 0, "tower damage updates enemy system");
 }

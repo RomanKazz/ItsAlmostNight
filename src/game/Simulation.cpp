@@ -1,4 +1,7 @@
 #include "game/Simulation.hpp"
+#include "core/DeterministicRandom.hpp"
+#include "game/ModularCombat.hpp"
+#include "game/ResourceWorld.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,8 +13,8 @@ namespace ian {
 namespace {
 
 constexpr double PitchLimit = 1.5533430342749532;
-constexpr double DebugSpawnMinimumRadius = 7.0;
-constexpr double DebugSpawnMaximumRadius = 12.0;
+constexpr double DebugSpawnMinimumRadius = 18.0;
+constexpr double DebugSpawnMaximumRadius = 22.0;
 constexpr double DebugSpawnCollisionRadius = 0.6;
 
 double clampAxis(double value) {
@@ -27,19 +30,6 @@ Vec3 lookDirection(double yaw, double pitch) {
     };
 }
 
-std::uint64_t mixBits(std::uint64_t value) {
-    value ^= value >> 30U;
-    value *= 0xbf58476d1ce4e5b9ULL;
-    value ^= value >> 27U;
-    value *= 0x94d049bb133111ebULL;
-    return value ^ (value >> 31U);
-}
-
-double randomUnit(std::uint64_t seed) {
-    constexpr double Scale = 1.0 / 9007199254740992.0;
-    return static_cast<double>(mixBits(seed) >> 11U) * Scale;
-}
-
 double enemyHeight(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
@@ -48,6 +38,12 @@ double enemyHeight(EnemyType type) {
         return 1.0;
     case EnemyType::Boss:
         return 1.6;
+    case EnemyType::Ranged:
+        return 0.85;
+    case EnemyType::Sapper:
+        return 0.78;
+    case EnemyType::Flying:
+        return 2.4;
     case EnemyType::Basic:
         return 0.8;
     }
@@ -65,8 +61,16 @@ AttackDirection attackDirection(Vec3 anchor, GridPosition corePosition) {
 
 } // namespace
 
-Simulation::Simulation(GameBalance balance, MapDefinition map)
-    : map_(std::move(map)), resources_(map_.resources),
+Simulation::Simulation(
+    GameBalance balance, MapDefinition map,
+    WorldConfig worldConfig)
+    : map_(std::move(map)),
+      worldConfig_(worldConfig),
+      terrain_(worldConfig_),
+      foundations_(terrain_, worldConfig_),
+      resources_(scatterResources(
+          map_.resources, map_.worldLimit,
+          terrain_)),
       buildings_(balance.buildings, balance.economy, map_.coreBuildRadius),
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
       flowField_(mapCollisionBoxes(map_)),
@@ -75,8 +79,14 @@ Simulation::Simulation(GameBalance balance, MapDefinition map)
       goldMines_(balance.economy),
       waveDirector_(balance.waves, map_.enemySpawnAnchors),
       economy_(balance.economy), gameplay_(balance.gameplay) {
-    playerPosition_ = {map_.playerSpawn.x, map_.playerSpawn.y + gameplay_.eyeHeight,
-                       map_.playerSpawn.z};
+    playerPosition_ = {
+        map_.playerSpawn.x,
+        terrain_.getHeight(
+            map_.playerSpawn.x,
+            map_.playerSpawn.z) +
+            map_.playerSpawn.y +
+            gameplay_.eyeHeight,
+        map_.playerSpawn.z};
     playerHealth_ = gameplay_.playerMaxHealth;
     waveSpawnQueue_.reserve(200);
 }
@@ -85,58 +95,26 @@ void Simulation::startRun() {
     if (state_ != RunState::MainMenu) {
         return;
     }
-
-    state_ = RunState::Gathering;
-    tick_ = 0;
-    elapsedSeconds_ = 0.0;
-    playerPosition_ = {map_.playerSpawn.x, map_.playerSpawn.y + gameplay_.eyeHeight,
-                       map_.playerSpawn.z};
-    verticalVelocity_ = 0.0;
-    playerYaw_ = 0.0;
-    playerPitch_ = 0.0;
-    playerGrounded_ = true;
-    playerHealth_ = gameplay_.playerMaxHealth;
-    wood_ = 0;
-    stone_ = 0;
-    gold_ = 0;
-    unlimitedResources_ = false;
-    playerInvulnerable_ = false;
-    debugSpawnSequence_ = 0;
-    pickaxeCooldownRemaining_ = 0.0;
-    aimedResource_.reset();
-    resources_.reset();
-    selectedBuilding_.reset();
-    buildingRotation_ = 0;
-    buildingPreview_.reset();
-    buildings_.reset();
-    collisionWorld_.reset();
-    flowField_.reset();
-    flowDebugVectors_.clear();
-    aimedEnemy_.reset();
-    aimedBuilding_.reset();
-    enemies_.reset();
-    towers_.reset();
-    cannons_.reset();
-    traps_.reset();
-    playerWeapons_.reset();
-    bombs_.reset();
-    goldMines_.reset();
-    phaseTimeRemaining_ = 0.0;
-    phaseDuration_ = 0.0;
-    wave_ = 0;
-    waveSpawnQueue_.clear();
-    nextWaveSpawnIndex_ = 0;
-    waveSpawnTimeRemaining_ = 0.0;
-    upcomingAttackDirection_.reset();
-    events_.push_back({.type = GameEventType::RunStarted});
+    resetRun(GameEventType::RunStarted);
 }
 
 void Simulation::restartRun() {
+    resetRun(GameEventType::RunRestarted);
+}
+
+void Simulation::resetRun(GameEventType eventType) {
     state_ = RunState::Gathering;
+    stateBeforePause_ = RunState::Gathering;
     tick_ = 0;
     elapsedSeconds_ = 0.0;
-    playerPosition_ = {map_.playerSpawn.x, map_.playerSpawn.y + gameplay_.eyeHeight,
-                       map_.playerSpawn.z};
+    playerPosition_ = {
+        map_.playerSpawn.x,
+        terrain_.getHeight(
+            map_.playerSpawn.x,
+            map_.playerSpawn.z) +
+            map_.playerSpawn.y +
+            gameplay_.eyeHeight,
+        map_.playerSpawn.z};
     verticalVelocity_ = 0.0;
     playerYaw_ = 0.0;
     playerPitch_ = 0.0;
@@ -145,9 +123,11 @@ void Simulation::restartRun() {
     wood_ = 0;
     stone_ = 0;
     gold_ = 0;
+    pendingResourceGrants_.clear();
     unlimitedResources_ = false;
     playerInvulnerable_ = false;
     debugSpawnSequence_ = 0;
+    pickaxeAttackSequence_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
     aimedResource_.reset();
     resources_.reset();
@@ -155,11 +135,13 @@ void Simulation::restartRun() {
     buildingRotation_ = 0;
     buildingPreview_.reset();
     buildings_.reset();
+    foundations_.reset();
     collisionWorld_.reset();
     flowField_.reset();
     flowDebugVectors_.clear();
     aimedEnemy_.reset();
     aimedBuilding_.reset();
+    aimedModularBuilding_.reset();
     enemies_.reset();
     towers_.reset();
     cannons_.reset();
@@ -172,9 +154,12 @@ void Simulation::restartRun() {
     wave_ = 0;
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
+    waveSpawnGroupSize_ = 1;
+    waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
     upcomingAttackDirection_.reset();
-    events_.push_back({.type = GameEventType::RunRestarted});
+    events_.clear();
+    events_.push_back({.type = eventType});
 }
 
 void Simulation::togglePause() {
@@ -197,6 +182,53 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         return;
     }
 
+    updatePlayer(deltaSeconds, command);
+    updatePendingResourceGrants(deltaSeconds);
+    processDebugCommands(command);
+    processBuildingCommands(command);
+    if (foundations_.updateStructuralSupport(
+            deltaSeconds)) {
+        for (const ModularBuildingDamageResult& collapsed :
+             foundations_.takeCollapsedBuildings()) {
+            events_.push_back({
+                .type =
+                    GameEventType::
+                        ModularBuildingDestroyed,
+                .entityId = collapsed.id,
+                .platformFrame =
+                    collapsed.platformFrame,
+                .modularWall = collapsed.wall,
+                .ramp = collapsed.ramp,
+                .position = modularBaseCenter(
+                    collapsed, worldConfig_),
+            });
+        }
+        syncModularStructures();
+        const bool coreWasSupported =
+            buildings_.hasCore();
+        removeUnsupportedPlatformBuildings();
+        if (coreWasSupported && !buildings_.hasCore()) {
+            cannons_.clearProjectiles();
+            bombs_.clearProjectiles();
+            state_ = RunState::Defeat;
+            events_.push_back({
+                .type = GameEventType::RunEnded,
+            });
+            ++tick_;
+            elapsedSeconds_ += deltaSeconds;
+            return;
+        }
+    }
+    updatePlayerActions(deltaSeconds, command);
+    updateRunPhase(deltaSeconds, command);
+    updateCombat(deltaSeconds);
+
+    ++tick_;
+    elapsedSeconds_ += deltaSeconds;
+}
+
+void Simulation::updatePlayer(double deltaSeconds,
+                              const PlayerCommand& command) {
     playerYaw_ += command.lookYaw;
     playerPitch_ = std::clamp(playerPitch_ + command.lookPitch, -PitchLimit, PitchLimit);
 
@@ -213,13 +245,52 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     const double directionX = (sinYaw * forward) + (cosYaw * right);
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed = command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed;
+    const Vec3 movement{
+        directionX * speed * deltaSeconds,
+        0.0,
+        directionZ * speed * deltaSeconds,
+    };
+    const bool autoJump =
+        playerGrounded_ &&
+        shouldAutoJumpGroundFrame(movement);
 
     playerPosition_ = collisionWorld_.moveCircle(
-        playerPosition_, {directionX * speed * deltaSeconds, 0.0,
-                          directionZ * speed * deltaSeconds},
+        playerPosition_, movement,
         CollisionWorld::PlayerRadius);
 
-    if (command.jump && playerGrounded_) {
+    constexpr double MaximumStepUp = 0.65;
+    constexpr double MaximumGroundSnapDown = 0.35;
+    const double terrainSurface =
+        terrain_.getHeight(
+            playerPosition_.x,
+            playerPosition_.z);
+    const double currentFeetHeight =
+        playerPosition_.y - gameplay_.eyeHeight;
+    double standingSurface = terrainSurface;
+    const auto modularSurface =
+        collisionWorld_.modularSurfaceHeight(
+            playerPosition_.x,
+            playerPosition_.z,
+            currentFeetHeight + MaximumStepUp);
+    if (modularSurface) {
+        standingSurface =
+            std::max(standingSurface, *modularSurface);
+    }
+    const double standingHeight =
+        standingSurface + gameplay_.eyeHeight;
+    if (playerGrounded_) {
+        if (standingSurface >=
+            currentFeetHeight -
+                MaximumGroundSnapDown) {
+            playerPosition_.y = standingHeight;
+        } else {
+            playerGrounded_ = false;
+            verticalVelocity_ = 0.0;
+        }
+    }
+
+    if ((command.jump || autoJump) &&
+        playerGrounded_) {
         verticalVelocity_ = gameplay_.jumpSpeed;
         playerGrounded_ = false;
     }
@@ -227,25 +298,183 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (!playerGrounded_) {
         verticalVelocity_ -= gameplay_.gravity * deltaSeconds;
         playerPosition_.y += verticalVelocity_ * deltaSeconds;
-        const double standingHeight = map_.playerSpawn.y + gameplay_.eyeHeight;
-        if (playerPosition_.y <= standingHeight) {
+        if (verticalVelocity_ <= 0.0 &&
+            playerPosition_.y <= standingHeight) {
             playerPosition_.y = standingHeight;
             verticalVelocity_ = 0.0;
             playerGrounded_ = true;
         }
     }
 
-    resources_.tick(deltaSeconds);
+    resources_.tick(
+        deltaSeconds, buildings_.buildings(),
+        map_.worldLimit, playerPosition_);
     pickaxeCooldownRemaining_ = std::max(0.0, pickaxeCooldownRemaining_ - deltaSeconds);
     playerWeapons_.tick(deltaSeconds);
+}
 
+const TerrainHeightfield& Simulation::terrain() const {
+    return terrain_;
+}
+
+void Simulation::regenerateTerrain(
+    std::uint32_t seed) {
+    terrain_.generate(seed);
+    resources_ = ResourceSystem(
+        scatterResources(
+            map_.resources, map_.worldLimit,
+            terrain_));
+    foundations_.reset();
+    syncModularStructures();
+    playerPosition_.y =
+        terrain_.getHeight(
+            playerPosition_.x,
+            playerPosition_.z) +
+        gameplay_.eyeHeight;
+    verticalVelocity_ = 0.0;
+    playerGrounded_ = true;
+}
+
+PlatformFramePlacement
+Simulation::previewPlatformFrame(
+    Vec3 terrainHit) const {
+    PlatformFramePlacement placement =
+        foundations_.previewPlatformFrame(
+        terrainHit, playerPosition_);
+    const double cellSize =
+        worldConfig_.cellSize;
+    if (placement.valid() &&
+        resourceOverlapsRectangle(
+            resources_.nodes(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x +
+             PlatformFrameWidthCells) *
+                cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z +
+             PlatformFrameWidthCells) *
+                cellSize)) {
+        placement.error =
+            ModularPlacementError::ResourceBlocked;
+    }
+    return placement;
+}
+
+std::optional<PlatformFrameInstance>
+Simulation::placePlatformFrame(Vec3 terrainHit) {
+    auto placed = foundations_.placePlatformFrame(
+        previewPlatformFrame(terrainHit));
+    if (placed) {
+        syncModularStructures();
+        raisePlayerOntoGroundFrame(*placed);
+    }
+    return placed;
+}
+
+WallPlacement Simulation::previewWall(
+    Vec3 terrainHit, Rotation rotation) const {
+    WallPlacement placement =
+        foundations_.previewWall(
+        terrainHit, playerPosition_, rotation);
+    const double cellSize =
+        worldConfig_.cellSize;
+    if (placement.valid() &&
+        resourceOverlapsRectangle(
+            resources_.nodes(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + 1) * cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + 1) * cellSize)) {
+        placement.error =
+            ModularPlacementError::ResourceBlocked;
+    }
+    return placement;
+}
+
+std::optional<WallInstance>
+Simulation::placeWall(
+    Vec3 terrainHit, Rotation rotation) {
+    auto placed = foundations_.placeWall(
+        previewWall(terrainHit, rotation));
+    if (placed) {
+        syncModularStructures();
+    }
+    return placed;
+}
+
+RampPlacement Simulation::previewRamp(
+    Vec3 terrainHit, Rotation rotation) const {
+    RampPlacement placement =
+        foundations_.previewRamp(
+        terrainHit, playerPosition_, rotation);
+    const bool alongZ =
+        placement.rotation == Rotation::Deg0 ||
+        placement.rotation == Rotation::Deg180;
+    const int widthCells =
+        alongZ ? ModularRampWidthCells
+               : ModularRampRunCells;
+    const int depthCells =
+        alongZ ? ModularRampRunCells
+               : ModularRampWidthCells;
+    const double cellSize =
+        worldConfig_.cellSize;
+    if (placement.valid() &&
+        resourceOverlapsRectangle(
+            resources_.nodes(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + widthCells) *
+                cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + depthCells) *
+                cellSize)) {
+        placement.error =
+            ModularPlacementError::ResourceBlocked;
+    }
+    return placement;
+}
+
+std::optional<RampInstance>
+Simulation::placeRamp(
+    Vec3 terrainHit, Rotation rotation) {
+    auto placed = foundations_.placeRamp(
+        previewRamp(terrainHit, rotation));
+    if (placed) {
+        syncModularStructures();
+    }
+    return placed;
+}
+
+void Simulation::setStructuralCollapseEnabled(
+    bool enabled) {
+    foundations_.setStructuralCollapseEnabled(enabled);
+}
+
+bool Simulation::structuralCollapseEnabled() const {
+    return foundations_.structuralCollapseEnabled();
+}
+
+std::size_t Simulation::clearModularBuildings() {
+    aimedModularBuilding_.reset();
+    const std::size_t removed = foundations_.clear();
+    syncModularStructures();
+    removeUnsupportedPlatformBuildings();
+    return removed;
+}
+
+void Simulation::processDebugCommands(const PlayerCommand& command) {
     if (command.enableUnlimitedResources) {
-        unlimitedResources_ = true;
+        unlimitedResources_ = !unlimitedResources_;
+        playerInvulnerable_ = unlimitedResources_;
+        if (unlimitedResources_) {
+            playerHealth_ = gameplay_.playerMaxHealth;
+        }
     }
     if (command.toggleInvulnerability) {
-        playerInvulnerable_ = !playerInvulnerable_;
+        if (!unlimitedResources_) {
+            playerInvulnerable_ = !playerInvulnerable_;
+        }
     }
-    if (command.damageCore) {
+    if (command.damageCore && !unlimitedResources_) {
         const auto core = buildings_.core();
         if (core) {
             const auto damage =
@@ -255,8 +484,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                     .type = GameEventType::CoreDamaged,
                     .entityId = damage->id,
                     .buildingType = damage->type,
-                    .position = {static_cast<double>(damage->gridPosition.x), 0.0,
-                                 static_cast<double>(damage->gridPosition.z)},
+                    .position =
+                        buildingWorldPosition(*damage),
                     .amount = static_cast<int>(command.damageCore->amount),
                 });
                 if (damage->destroyed) {
@@ -266,11 +495,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                         .type = GameEventType::BuildingDestroyed,
                         .entityId = damage->id,
                         .buildingType = damage->type,
-                        .position = {
-                            static_cast<double>(damage->gridPosition.x),
-                            0.0,
-                            static_cast<double>(damage->gridPosition.z),
-                        },
+                        .position =
+                            buildingWorldPosition(*damage),
                     });
                     events_.push_back({.type = GameEventType::RunEnded});
                 }
@@ -281,46 +507,72 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         const auto core = buildings_.core();
         if (core) {
             constexpr double TwoPi = 6.28318530717958647692;
-            const std::uint64_t sequence = debugSpawnSequence_++;
-            for (std::uint64_t attempt = 0; attempt < 12; ++attempt) {
-                const std::uint64_t seed =
-                    mixBits(tick_ ^ (sequence * 0x9e3779b97f4a7c15ULL) ^
+            const int requestedCount = std::clamp(
+                command.spawnEnemy->count, 1, 1000);
+            std::vector<EnemySpawn> spawns;
+            spawns.reserve(
+                static_cast<std::size_t>(requestedCount));
+            for (int index = 0; index < requestedCount; ++index) {
+                const std::uint64_t sequence =
+                    debugSpawnSequence_++;
+                for (std::uint64_t attempt = 0;
+                     attempt < 12; ++attempt) {
+                    const std::uint64_t seed =
+                        mixBits64(
+                            tick_ ^
+                            (sequence *
+                             0x9e3779b97f4a7c15ULL) ^
                             attempt);
-                const double angle = randomUnit(seed) * TwoPi;
-                const double radius =
-                    DebugSpawnMinimumRadius +
-                    randomUnit(seed ^ 0xd1b54a32d192ed03ULL) *
-                        (DebugSpawnMaximumRadius - DebugSpawnMinimumRadius);
-                const Vec3 position{
-                    static_cast<double>(core->gridPosition.x) +
-                        std::cos(angle) * radius,
-                    enemyHeight(command.spawnEnemy->type),
-                    static_cast<double>(core->gridPosition.z) +
-                        std::sin(angle) * radius,
-                };
-                if (std::abs(position.x) >
-                        map_.worldLimit - DebugSpawnCollisionRadius ||
-                    std::abs(position.z) >
-                        map_.worldLimit - DebugSpawnCollisionRadius) {
-                    continue;
-                }
-                const bool blocked = std::any_of(
-                    collisionWorld_.colliders().begin(),
-                    collisionWorld_.colliders().end(),
-                    [this, position](const CollisionBox& collider) {
-                        return collisionWorld_.overlapsCircle(
-                            position, DebugSpawnCollisionRadius, collider);
+                    const double angle =
+                        unitRandom(seed) * TwoPi;
+                    const double radius =
+                        DebugSpawnMinimumRadius +
+                        unitRandom(
+                            seed ^
+                            0xd1b54a32d192ed03ULL) *
+                            (DebugSpawnMaximumRadius -
+                             DebugSpawnMinimumRadius);
+                    const Vec3 position{
+                        static_cast<double>(
+                            core->gridPosition.x) +
+                            std::cos(angle) * radius,
+                        enemyHeight(
+                            command.spawnEnemy->type),
+                        static_cast<double>(
+                            core->gridPosition.z) +
+                            std::sin(angle) * radius,
+                    };
+                    if (std::abs(position.x) >
+                            map_.worldLimit -
+                                DebugSpawnCollisionRadius ||
+                        std::abs(position.z) >
+                            map_.worldLimit -
+                                DebugSpawnCollisionRadius) {
+                        continue;
+                    }
+                    const bool blocked = std::any_of(
+                        collisionWorld_.colliders().begin(),
+                        collisionWorld_.colliders().end(),
+                        [this, position](
+                            const CollisionBox& collider) {
+                            return collisionWorld_.overlapsCircle(
+                                position,
+                                DebugSpawnCollisionRadius,
+                                collider);
+                        });
+                    if (blocked) {
+                        continue;
+                    }
+                    spawns.push_back({
+                        .type =
+                            command.spawnEnemy->type,
+                        .position = position,
                     });
-                if (blocked) {
-                    continue;
+                    break;
                 }
-                const EnemySpawn spawn{
-                    .type = command.spawnEnemy->type,
-                    .position = position,
-                };
-                enemies_.spawnGroup(
-                    std::span<const EnemySpawn>{&spawn, 1});
-                break;
+            }
+            if (!spawns.empty()) {
+                enemies_.spawnGroup(spawns);
             }
         }
     }
@@ -356,7 +608,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         }
         enemies_.defeatAll();
     }
+}
 
+void Simulation::processBuildingCommands(const PlayerCommand& command) {
     if (command.selectBuilding) {
         selectedBuilding_ = command.selectBuilding;
     }
@@ -369,64 +623,303 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     }
 
     if (selectedBuilding_) {
+        const double playerFeetHeight =
+            playerPosition_.y - gameplay_.eyeHeight;
+        const auto standingSurface =
+            collisionWorld_.modularSurfaceHeight(
+                playerPosition_.x,
+                playerPosition_.z,
+                playerFeetHeight + 0.35);
+        const bool standingOnFoundation =
+            playerGrounded_ &&
+            standingSurface &&
+            std::abs(
+                *standingSurface -
+                playerFeetHeight) < 0.45;
+        const double placementPlaneHeight =
+            standingOnFoundation
+                ? *standingSurface
+                : terrain_.getHeight(
+                      playerPosition_.x,
+                      playerPosition_.z);
+        const auto aimedPlatformSurface =
+            foundations_.raycastPlatformSurface(
+                playerPosition_,
+                lookDirection(
+                    playerYaw_, playerPitch_),
+                gameplay_.maximumPlacementDistance +
+                    modularStoreyHeight(
+                        worldConfig_));
+        const double horizontalAimDistance =
+            aimedPlatformSurface
+                ? std::max(
+                      gameplay_
+                          .minimumPlacementDistance,
+                      std::hypot(
+                          aimedPlatformSurface->x -
+                              playerPosition_.x,
+                          aimedPlatformSurface->z -
+                              playerPosition_.z))
+                : 0.0;
         const GridPosition gridPosition =
-            aimedBuildingGridPosition(playerPosition_, playerYaw_, playerPitch_,
-                                      gameplay_.minimumPlacementDistance,
-                                      gameplay_.maximumPlacementDistance);
+            aimedBuildingGridPosition(
+                playerPosition_, playerYaw_,
+                playerPitch_,
+                aimedPlatformSurface
+                    ? horizontalAimDistance
+                    : gameplay_
+                          .minimumPlacementDistance,
+                aimedPlatformSurface
+                    ? horizontalAimDistance
+                    : gameplay_
+                          .maximumPlacementDistance,
+                *selectedBuilding_,
+                aimedPlatformSurface
+                    ? aimedPlatformSurface->y
+                    : placementPlaneHeight);
+        BuildingPlatformSurface surface =
+            aimedPlatformSurface
+                ? placementSurfaceWithPreferredHeight(
+                      *selectedBuilding_,
+                      gridPosition,
+                      aimedPlatformSurface->y)
+            : standingOnFoundation
+                ? placementSurfaceWithPreferredHeight(
+                      *selectedBuilding_,
+                      gridPosition,
+                      *standingSurface)
+                : placementSurface(
+                      *selectedBuilding_,
+                      gridPosition);
+        const bool needsAutomaticFoundation =
+            surface.storey < 0 &&
+            surface.height -
+                    surface.foundationBottomHeight >
+                0.025;
+        const auto automaticFoundation =
+            needsAutomaticFoundation
+                ? automaticFoundationPlacement(
+                      *selectedBuilding_,
+                      gridPosition,
+                      surface.height)
+                : std::nullopt;
+        if (automaticFoundation &&
+            automaticFoundation->valid()) {
+            surface.height =
+                automaticFoundation->floorHeight;
+            surface.foundationBottomHeight =
+                std::min_element(
+                    automaticFoundation
+                        ->supports.begin(),
+                    automaticFoundation
+                        ->supports.end(),
+                    [](const FoundationSupport& left,
+                       const FoundationSupport& right) {
+                        return left.bottom.y <
+                               right.bottom.y;
+                    })
+                    ->bottom.y;
+        }
+        PlacementResult previewPlacement =
+            validatePlacement(
+                *selectedBuilding_,
+                gridPosition, surface);
+        if (automaticFoundation &&
+            !automaticFoundation->valid() &&
+            previewPlacement.valid()) {
+            previewPlacement.error =
+                automaticFoundation->error ==
+                        ModularPlacementError::
+                            ResourceBlocked
+                    ? PlacementError::ResourceBlocked
+                    : PlacementError::WorldCollision;
+        }
         buildingPreview_ = BuildingPreview{
             .type = *selectedBuilding_,
             .gridPosition = gridPosition,
             .rotation = buildingRotation_,
-            .placement = validatePlacement(*selectedBuilding_, gridPosition),
+            .placement = previewPlacement,
+            .baseHeight = surface.height,
+            .platformStorey = surface.storey,
+            .foundationBottomHeight =
+                surface.foundationBottomHeight,
         };
     } else {
         buildingPreview_.reset();
     }
 
     if (command.placeBuilding) {
-        const PlacementResult placement =
-            validatePlacement(command.placeBuilding->type, command.placeBuilding->gridPosition);
+        const BuildingPlatformSurface naturalSurface =
+            placementSurface(
+                command.placeBuilding->type,
+                command.placeBuilding->gridPosition);
+        BuildingPlatformSurface surface =
+            command.placeBuilding->lockHeight
+                ? placementSurfaceWithPreferredHeight(
+                      command.placeBuilding->type,
+                      command.placeBuilding
+                          ->gridPosition,
+                      command.placeBuilding
+                          ->baseHeight)
+                : naturalSurface;
+        const bool needsAutomaticFoundation =
+            surface.storey < 0 &&
+            surface.height -
+                    surface.foundationBottomHeight >
+                0.025;
+        auto automaticFoundation =
+            needsAutomaticFoundation
+                ? automaticFoundationPlacement(
+                      command.placeBuilding->type,
+                      command.placeBuilding
+                          ->gridPosition,
+                      surface.height)
+                : std::nullopt;
+        if (automaticFoundation &&
+            automaticFoundation->valid()) {
+            surface.height =
+                automaticFoundation->floorHeight;
+            surface.foundationBottomHeight =
+                std::min_element(
+                    automaticFoundation
+                        ->supports.begin(),
+                    automaticFoundation
+                        ->supports.end(),
+                    [](const FoundationSupport& left,
+                       const FoundationSupport& right) {
+                        return left.bottom.y <
+                               right.bottom.y;
+                    })
+                    ->bottom.y;
+        }
+        PlacementResult placement =
+            validatePlacement(
+                command.placeBuilding->type,
+                command.placeBuilding
+                    ->gridPosition,
+                surface);
+        if (command.placeBuilding->lockHeight &&
+            command.placeBuilding->platformStorey >= 0 &&
+            (naturalSurface.storey !=
+                 command.placeBuilding
+                     ->platformStorey ||
+             std::abs(
+                 naturalSurface.height -
+                 command.placeBuilding
+                     ->baseHeight) > 0.05)) {
+            placement.error =
+                PlacementError::WorldCollision;
+        }
+        if (automaticFoundation &&
+            !automaticFoundation->valid() &&
+            placement.valid()) {
+            placement.error =
+                automaticFoundation->error ==
+                        ModularPlacementError::
+                            ResourceBlocked
+                    ? PlacementError::ResourceBlocked
+                    : PlacementError::WorldCollision;
+        }
         if (placement.valid()) {
-            const auto placed = buildings_.place(
-                command.placeBuilding->type, command.placeBuilding->gridPosition,
-                command.placeBuilding->rotation,
-                unlimitedResources_ ? std::numeric_limits<int>::max() : wood_,
-                unlimitedResources_ ? std::numeric_limits<int>::max() : stone_,
-                unlimitedResources_ ? std::numeric_limits<int>::max() : gold_);
-            if (placed) {
-                if (!unlimitedResources_) {
-                    wood_ -= placed->cost.wood;
-                    stone_ -= placed->cost.stone;
-                    gold_ -= placed->cost.gold;
-                }
-                syncWorldStructures();
-                events_.push_back({
-                    .type = GameEventType::BuildingPlaced,
-                    .entityId = placed->building.id,
-                    .buildingType = placed->building.type,
-                    .position = {static_cast<double>(placed->building.gridPosition.x), 0.0,
-                                 static_cast<double>(placed->building.gridPosition.z)},
-                });
-                if (placed->building.type == BuildingType::Core) {
-                    selectedBuilding_.reset();
-                    buildingPreview_.reset();
-                    state_ = RunState::BuildPhase;
-                    phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
-                    phaseDuration_ = phaseTimeRemaining_;
+            std::optional<PlatformFrameInstance>
+                createdFoundation;
+            if (automaticFoundation) {
+                createdFoundation =
+                    foundations_.placePlatformFrame(
+                        *automaticFoundation);
+                if (!createdFoundation) {
+                    placement.error =
+                        PlacementError::WorldCollision;
+                } else {
+                    syncModularStructures();
+                    raisePlayerOntoGroundFrame(
+                        *createdFoundation);
+                    surface = placementSurface(
+                        command.placeBuilding->type,
+                        command.placeBuilding
+                            ->gridPosition);
+                    placement = validatePlacement(
+                        command.placeBuilding->type,
+                        command.placeBuilding
+                            ->gridPosition,
+                        surface);
                 }
             }
-        } else {
+            if (!placement.valid()) {
+                if (createdFoundation) {
+                    static_cast<void>(
+                        foundations_.remove(
+                            createdFoundation->id));
+                    syncModularStructures();
+                }
+            } else {
+                const auto placed = buildings_.place(
+                    command.placeBuilding->type,
+                    command.placeBuilding->gridPosition,
+                    command.placeBuilding->rotation,
+                    unlimitedResources_
+                        ? std::numeric_limits<int>::max()
+                        : wood_,
+                    unlimitedResources_
+                        ? std::numeric_limits<int>::max()
+                        : stone_,
+                    unlimitedResources_
+                        ? std::numeric_limits<int>::max()
+                        : gold_,
+                    surface.height, surface.storey,
+                    surface.foundationBottomHeight);
+                if (placed) {
+                    if (!unlimitedResources_) {
+                        wood_ -= placed->cost.wood;
+                        stone_ -= placed->cost.stone;
+                        gold_ -= placed->cost.gold;
+                    }
+                    syncWorldStructures();
+                    events_.push_back({
+                        .type =
+                            GameEventType::BuildingPlaced,
+                        .entityId = placed->building.id,
+                        .buildingType =
+                            placed->building.type,
+                        .position = buildingWorldPosition(
+                            placed->building),
+                    });
+                    if (placed->building.type ==
+                        BuildingType::Core) {
+                        selectedBuilding_.reset();
+                        buildingPreview_.reset();
+                        state_ = RunState::BuildPhase;
+                        phaseTimeRemaining_ =
+                            gameplay_
+                                .firstBuildPhaseSeconds;
+                        phaseDuration_ =
+                            phaseTimeRemaining_;
+                    }
+                } else if (createdFoundation) {
+                    static_cast<void>(
+                        foundations_.remove(
+                            createdFoundation->id));
+                    syncModularStructures();
+                }
+            }
+        }
+        if (!placement.valid()) {
+            Vec3 rejectedPosition =
+                buildingWorldPosition(
+                    command.placeBuilding->type,
+                    command.placeBuilding
+                        ->gridPosition);
+            rejectedPosition.y = surface.height;
             events_.push_back({
                 .type = GameEventType::BuildingRejected,
                 .buildingType = command.placeBuilding->type,
                 .placementError = placement.error,
-                .position = {static_cast<double>(command.placeBuilding->gridPosition.x), 0.0,
-                             static_cast<double>(command.placeBuilding->gridPosition.z)},
+                .position = rejectedPosition,
             });
         }
     }
 
-    if (command.upgradeBuilding) {
+    if (!selectedBuilding_ && command.upgradeBuilding) {
         const int availableWood =
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =
@@ -447,6 +940,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                 .type = GameEventType::BuildingUpgraded,
                 .entityId = result.building->id,
                 .buildingType = result.building->type,
+                .position =
+                    buildingWorldPosition(*result.building),
             });
         } else {
             events_.push_back({
@@ -457,7 +952,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         }
     }
 
-    if (command.repairBuilding) {
+    if (!selectedBuilding_ && command.repairBuilding) {
         const int availableWood =
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =
@@ -473,12 +968,54 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                 stone_ -= result.cost.stone;
                 gold_ -= result.cost.gold;
             }
+            goldMines_.syncBuildings(
+                buildings_.buildings());
             events_.push_back({
                 .type = GameEventType::BuildingRepaired,
                 .entityId = result.building->id,
                 .buildingType = result.building->type,
+                .position =
+                    buildingWorldPosition(*result.building),
                 .amount = static_cast<int>(result.repairedHealth),
             });
+        } else if (
+            result.error == BuildingActionError::NotFound) {
+            const ModularBuildingRepairResult
+                modularResult = foundations_.repair(
+                    command.repairBuilding->buildingId,
+                    availableWood, availableStone);
+            if (modularResult.valid()) {
+                if (!unlimitedResources_) {
+                    wood_ -= modularResult.cost.wood;
+                    stone_ -= modularResult.cost.stone;
+                }
+                events_.push_back({
+                    .type =
+                        GameEventType::
+                            ModularBuildingRepaired,
+                    .entityId = modularResult.id,
+                    .platformFrame =
+                        modularResult.platformFrame,
+                    .modularWall =
+                        modularResult.wall,
+                    .ramp = modularResult.ramp,
+                    .position = modularBaseCenter(
+                        modularResult, worldConfig_),
+                    .amount = static_cast<int>(
+                        modularResult.repairedHealth),
+                });
+            } else {
+                events_.push_back({
+                    .type =
+                        GameEventType::
+                            BuildingRepairRejected,
+                    .entityId =
+                        command.repairBuilding
+                            ->buildingId,
+                    .buildingActionError =
+                        modularResult.error,
+                });
+            }
         } else {
             events_.push_back({
                 .type = GameEventType::BuildingRepairRejected,
@@ -488,7 +1025,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         }
     }
 
-    if (command.sellBuilding) {
+    if (!selectedBuilding_ && command.sellBuilding) {
         const SellResult result = buildings_.sell(command.sellBuilding->buildingId);
         if (result.valid() && result.building) {
             if (!unlimitedResources_) {
@@ -502,8 +1039,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                 .type = GameEventType::BuildingSold,
                 .entityId = result.building->id,
                 .buildingType = result.building->type,
-                .position = {static_cast<double>(result.building->gridPosition.x), 0.0,
-                             static_cast<double>(result.building->gridPosition.z)},
+                .position =
+                    buildingWorldPosition(*result.building),
             });
         } else {
             events_.push_back({
@@ -514,7 +1051,31 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         }
     }
 
-    if (command.toggleGate) {
+    if (!selectedBuilding_ &&
+        command.removeModularBuilding) {
+        const EntityId target =
+            command.removeModularBuilding->buildingId;
+        if (modularRemovalWouldDestroyCore(
+                target)) {
+            events_.push_back({
+                .type =
+                    GameEventType::
+                        BuildingSellRejected,
+                .entityId = target,
+                .buildingType =
+                    BuildingType::Core,
+                .buildingActionError =
+                    BuildingActionError::
+                        Unsupported,
+            });
+        } else if (foundations_.remove(target)) {
+            aimedModularBuilding_.reset();
+            syncModularStructures();
+            removeUnsupportedPlatformBuildings();
+        }
+    }
+
+    if (!selectedBuilding_ && command.toggleGate) {
         const auto gate =
             std::find_if(buildings_.buildings().begin(), buildings_.buildings().end(),
                          [&command](const BuildingInstance& building) {
@@ -524,7 +1085,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         bool rejected = gate == buildings_.buildings().end();
         if (!rejected && gate->open) {
             const CollisionBox gateBox =
-                buildingCollisionBox(gate->type, gate->gridPosition);
+                buildingCollisionBox(
+                    gate->type, gate->gridPosition,
+                    gate->baseHeight);
             rejected = collisionWorld_.overlapsCircle(
                 playerPosition_, CollisionWorld::PlayerRadius, gateBox);
         }
@@ -541,26 +1104,68 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                     .type = GameEventType::GateToggled,
                     .entityId = toggled->id,
                     .buildingType = toggled->type,
-                    .position = {static_cast<double>(toggled->gridPosition.x), 0.0,
-                                 static_cast<double>(toggled->gridPosition.z)},
+                    .position =
+                        buildingWorldPosition(*toggled),
                     .amount = toggled->open ? 1 : 0,
                 });
             }
         }
     }
+}
 
+void Simulation::updatePlayerActions(
+    double deltaSeconds, const PlayerCommand& command) {
     const auto production = goldMines_.tick(deltaSeconds);
     for (const auto& produced : production) {
-        gold_ += produced.amount;
-        events_.push_back({
-            .type = GameEventType::GoldProduced,
-            .entityId = produced.mineId,
-            .amount = produced.amount,
-        });
+        const auto building = std::find_if(
+            buildings_.buildings().begin(),
+            buildings_.buildings().end(),
+            [&produced](const BuildingInstance& candidate) {
+                return candidate.id == produced.mineId;
+            });
+        const Vec3 productionPosition =
+            building != buildings_.buildings().end()
+                ? buildingWorldPosition(*building)
+                : Vec3{};
+        if (produced.buildingType == BuildingType::GoldMine) {
+            gold_ += produced.amount;
+            events_.push_back({
+                .type = GameEventType::GoldProduced,
+                .entityId = produced.mineId,
+                .buildingType = produced.buildingType,
+                .position = productionPosition,
+                .amount = produced.amount,
+            });
+        } else {
+            const ResourceType resourceType =
+                produced.buildingType ==
+                        BuildingType::LumberMill
+                    ? ResourceType::Wood
+                    : ResourceType::Stone;
+            if (resourceType == ResourceType::Wood) {
+                wood_ += produced.amount;
+            } else {
+                stone_ += produced.amount;
+            }
+            events_.push_back({
+                .type = GameEventType::ResourceGranted,
+                .entityId = produced.mineId,
+                .resourceType = resourceType,
+                .buildingType = produced.buildingType,
+                .position = productionPosition,
+                .amount = produced.amount,
+            });
+        }
     }
 
     const Vec3 direction = lookDirection(playerYaw_, playerPitch_);
     aimedBuilding_ = buildings_.raycast(playerPosition_, direction, 4.0);
+    aimedModularBuilding_ = foundations_.raycast(
+        playerPosition_, direction, 6.0);
+    if (command.overrideAimedBuilding) {
+        aimedBuilding_ =
+            command.aimedBuildingOverride;
+    }
     aimedResource_ = playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe
                          ? resources_.raycast(playerPosition_, direction, gameplay_.pickaxeRange)
                          : std::nullopt;
@@ -601,33 +1206,65 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (command.usePickaxe && playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown;
+        const std::uint64_t attackSeed = mixBits64(
+            tick_ ^ (pickaxeAttackSequence_++ *
+                     0x9e3779b97f4a7c15ULL));
+        const double variation =
+            (unitRandom(attackSeed) * 2.0 - 1.0) *
+            gameplay_.pickaxeDamageVariation;
+        const bool critical =
+            unitRandom(
+                attackSeed ^ 0xd1b54a32d192ed03ULL) <
+            gameplay_.pickaxeCriticalChance;
+        const double damage =
+            gameplay_.pickaxeDamage * (1.0 + variation) *
+            (critical ? 2.0 : 1.0);
         if (aimedEnemy_) {
-            const auto damage = enemies_.damage(*aimedEnemy_, gameplay_.pickaxeDamage);
-            if (damage && damage->killed) {
+            const auto result = enemies_.damage(*aimedEnemy_, damage);
+            if (result) {
+                events_.push_back({
+                    .type = GameEventType::PickaxeHit,
+                    .entityId = result->id,
+                    .position = result->position,
+                    .damage = damage,
+                    .critical = critical,
+                });
+            }
+            if (result && result->killed) {
                 events_.push_back({
                     .type = GameEventType::EnemyKilled,
-                    .entityId = damage->id,
-                    .position = damage->position,
+                    .entityId = result->id,
+                    .position = result->position,
                 });
                 aimedEnemy_.reset();
             }
         } else if (aimedResource_) {
-            const auto hit = resources_.damage(*aimedResource_, gameplay_.pickaxeDamage);
+            const Vec3 impactPosition = resourceImpactPosition(
+                resources_.nodes(), *aimedResource_,
+                playerPosition_, direction);
+            const auto hit =
+                resources_.damage(*aimedResource_, damage);
             if (hit) {
                 events_.push_back({
                     .type =
                         hit->collected ? GameEventType::ResourceCollected : GameEventType::ResourceHit,
                     .entityId = hit->nodeId,
                     .resourceType = hit->type,
-                    .position = hit->position,
+                    .position = impactPosition,
                     .amount = hit->amount,
+                    .damage = damage,
+                    .critical = critical,
                 });
+                if (hit->amount > 0) {
+                    pendingResourceGrants_.push_back({
+                        .type = hit->type,
+                        .position = impactPosition,
+                        .amount = hit->amount,
+                        .remaining =
+                            ResourcePickupFlightSeconds,
+                    });
+                }
                 if (hit->collected) {
-                    if (hit->type == ResourceType::Wood) {
-                        wood_ += hit->amount;
-                    } else {
-                        stone_ += hit->amount;
-                    }
                     aimedResource_.reset();
                 }
             }
@@ -643,7 +1280,36 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             .amount = explosion.killedCount,
         });
     }
+}
 
+void Simulation::updatePendingResourceGrants(
+    double deltaSeconds) {
+    for (auto& grant : pendingResourceGrants_) {
+        grant.remaining -= deltaSeconds;
+        if (grant.remaining > 0.0) {
+            continue;
+        }
+        if (grant.type == ResourceType::Wood) {
+            wood_ += grant.amount;
+        } else {
+            stone_ += grant.amount;
+        }
+        events_.push_back({
+            .type = GameEventType::ResourceGranted,
+            .resourceType = grant.type,
+            .position = grant.position,
+            .amount = grant.amount,
+        });
+    }
+    std::erase_if(
+        pendingResourceGrants_,
+        [](const PendingResourceGrant& grant) {
+            return grant.remaining <= 0.0;
+        });
+}
+
+void Simulation::updateRunPhase(
+    double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::BuildPhase) {
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) {
@@ -664,14 +1330,26 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                     .amount = wave_ + 1,
                 });
             }
-            events_.push_back({
-                .type = GameEventType::SunsetStarted,
-                .amount = wave_ + 1,
-            });
+            if (command.startWaveEarly) {
+                ++wave_;
+                beginPreparedWave();
+                state_ = RunState::Wave;
+                phaseTimeRemaining_ = 0.0;
+                phaseDuration_ = 0.0;
+                events_.push_back({
+                    .type = GameEventType::WaveStarted,
+                    .amount = wave_,
+                });
+            } else {
+                events_.push_back({
+                    .type = GameEventType::SunsetStarted,
+                    .amount = wave_ + 1,
+                });
+            }
         }
     } else if (state_ == RunState::Sunset) {
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
-        if (phaseTimeRemaining_ <= 0.0) {
+        if (phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) {
             const auto core = buildings_.core();
             if (core) {
                 ++wave_;
@@ -692,40 +1370,28 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             phaseDuration_ = phaseTimeRemaining_;
         }
     }
+}
 
+void Simulation::updateCombat(double deltaSeconds) {
     if (state_ == RunState::Wave || enemies_.activeCount() > 0) {
         if (state_ == RunState::Wave) {
             tickWaveSpawning(deltaSeconds);
         }
-        const auto activations =
-            traps_.tick(deltaSeconds, buildings_.buildings(), enemies_);
-        for (const auto& activation : activations) {
-            events_.push_back({
-                .type = GameEventType::TrapActivated,
-                .entityId = activation.trapId,
-                .position = activation.position,
-                .amount = activation.affectedCount,
-            });
-            const auto wear = buildings_.damage(activation.trapId, activation.wearDamage);
-            if (wear && wear->destroyed) {
-                events_.push_back({
-                    .type = GameEventType::BuildingDestroyed,
-                    .entityId = wear->id,
-                    .buildingType = wear->type,
-                    .position = {static_cast<double>(wear->gridPosition.x), 0.0,
-                                 static_cast<double>(wear->gridPosition.z)},
-                });
-                syncWorldStructures();
-            }
-        }
+        updateTrapCombat(deltaSeconds);
 
-        const auto attacks =
-            enemies_.tick(deltaSeconds, buildings_.buildings(), flowField_, playerPosition_);
+        const std::vector<EnemyStructureTarget>
+            modularTargets =
+                buildModularEnemyTargets(
+                    foundations_, worldConfig_);
+        const auto attacks = enemies_.tick(
+            deltaSeconds, buildings_.buildings(), flowField_,
+            playerPosition_, modularTargets);
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             const Vec3 attackPosition =
                 attacker ? attacker->position : playerPosition_;
-            if (playerInvulnerable_) {
+            if (unlimitedResources_ ||
+                playerInvulnerable_) {
                 continue;
             }
             playerHealth_ = std::max(0.0, playerHealth_ - attack.damage);
@@ -751,14 +1417,129 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         }
         for (const auto& attack : attacks) {
             const auto attacker = enemies_.enemy(attack.enemyId);
-            const auto damage = buildings_.damage(attack.targetId, attack.damage);
+            if (unlimitedResources_) {
+                const auto core = buildings_.core();
+                if (core && core->id == attack.targetId) {
+                    continue;
+                }
+            }
+            const auto damage =
+                buildings_.damage(
+                    attack.targetId, attack.damage);
             if (!damage) {
+                if (unlimitedResources_) {
+                    continue;
+                }
+                const auto modularDamage =
+                    foundations_.damage(
+                        attack.targetId, attack.damage);
+                if (!modularDamage) {
+                    continue;
+                }
+                const auto target = std::find_if(
+                    modularTargets.begin(),
+                    modularTargets.end(),
+                    [&attack](
+                        const EnemyStructureTarget&
+                            candidate) {
+                        return candidate.id ==
+                               attack.targetId;
+                    });
+                const Vec3 targetCenter =
+                    target != modularTargets.end()
+                        ? target->position
+                        : Vec3{};
+                Vec3 effectCenter = targetCenter;
+                if (modularDamage->wall) {
+                    effectCenter.y =
+                        modularDamage->wall
+                            ->bottomHeight;
+                } else if (modularDamage->ramp) {
+                    effectCenter.y =
+                        modularDamage->ramp
+                            ->bottomHeight;
+                }
+                events_.push_back({
+                    .type =
+                        GameEventType::
+                            ModularBuildingDamaged,
+                    .entityId = modularDamage->id,
+                    .sourceId = attack.enemyId,
+                    .platformFrame =
+                        modularDamage->platformFrame,
+                    .modularWall = modularDamage->wall,
+                    .ramp = modularDamage->ramp,
+                    .position = effectCenter,
+                    .amount =
+                        static_cast<int>(attack.damage),
+                });
+                if (attack.ram) {
+                    events_.push_back({
+                        .type = GameEventType::BossRamImpact,
+                        .entityId =
+                            modularDamage->id,
+                        .sourceId = attack.enemyId,
+                        .platformFrame =
+                            modularDamage
+                                ->platformFrame,
+                        .modularWall =
+                            modularDamage->wall,
+                        .ramp =
+                            modularDamage->ramp,
+                        .position =
+                            attacker
+                                ? attacker->position
+                                : effectCenter,
+                        .amount =
+                            static_cast<int>(
+                                attack.damage),
+                    });
+                }
+                if (modularDamage->destroyed) {
+                    events_.push_back({
+                        .type =
+                            GameEventType::
+                                ModularBuildingDestroyed,
+                        .entityId =
+                            modularDamage->id,
+                        .platformFrame =
+                            modularDamage
+                                ->platformFrame,
+                        .modularWall =
+                            modularDamage->wall,
+                        .ramp =
+                            modularDamage->ramp,
+                        .position = effectCenter,
+                    });
+                    syncModularStructures();
+                    removeUnsupportedPlatformBuildings();
+                    if (!buildings_.core()) {
+                        cannons_.clearProjectiles();
+                        bombs_.clearProjectiles();
+                        state_ = RunState::Defeat;
+                        events_.push_back({
+                            .type =
+                                GameEventType::RunEnded,
+                        });
+                        break;
+                    }
+                }
                 continue;
             }
+            goldMines_.syncBuildings(
+                buildings_.buildings());
             const Vec3 attackPosition =
                 attacker ? attacker->position
-                         : Vec3{static_cast<double>(damage->gridPosition.x), 0.0,
-                                static_cast<double>(damage->gridPosition.z)};
+                         : buildingWorldPosition(*damage);
+            events_.push_back({
+                .type = GameEventType::BuildingDamaged,
+                .entityId = damage->id,
+                .sourceId = attack.enemyId,
+                .buildingType = damage->type,
+                .position =
+                    buildingWorldPosition(*damage),
+                .amount = static_cast<int>(attack.damage),
+            });
             if (attack.ram) {
                 events_.push_back({
                     .type = GameEventType::BossRamImpact,
@@ -784,8 +1565,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                     .type = GameEventType::BuildingDestroyed,
                     .entityId = damage->id,
                     .buildingType = damage->type,
-                    .position = {static_cast<double>(damage->gridPosition.x), 0.0,
-                                 static_cast<double>(damage->gridPosition.z)},
+                    .position =
+                        buildingWorldPosition(*damage),
                 });
                 syncWorldStructures();
                 if (damage->type == BuildingType::Core) {
@@ -798,82 +1579,388 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             }
         }
 
-        if (state_ != RunState::Defeat &&
-            enemies_.activeCount() > 0) {
-            const auto shots = towers_.tick(deltaSeconds, buildings_.buildings(), enemies_);
-            for (const auto& shot : shots) {
-                events_.push_back({
-                    .type = GameEventType::ProjectileHit,
-                    .entityId = shot.targetId,
-                    .sourceId = shot.towerId,
-                    .position = shot.hitPosition,
-                });
-                if (shot.killed) {
-                    events_.push_back({
-                        .type = GameEventType::EnemyKilled,
-                        .entityId = shot.targetId,
-                        .position = shot.hitPosition,
-                    });
-                }
-            }
-        }
-
-        if (state_ != RunState::Defeat &&
-            (state_ == RunState::Wave ||
-             enemies_.activeCount() > 0)) {
-            const auto explosions =
-                cannons_.tick(deltaSeconds, buildings_.buildings(), enemies_);
-            for (const auto& explosion : explosions) {
-                events_.push_back({
-                    .type = GameEventType::Explosion,
-                    .entityId = explosion.projectileId,
-                    .position = explosion.position,
-                    .amount = explosion.killedCount,
-                });
-            }
-            if (state_ == RunState::Wave &&
-                enemies_.activeCount() == 0 &&
-                nextWaveSpawnIndex_ >= waveSpawnQueue_.size()) {
-                completeWave();
-            }
-        }
+        updateTowerCombat(deltaSeconds);
+        updateCannonCombat(deltaSeconds);
     }
-
-    ++tick_;
-    elapsedSeconds_ += deltaSeconds;
 }
 
 PlacementResult Simulation::validatePlacement(BuildingType type, GridPosition position) const {
+    return validatePlacement(
+        type, position,
+        placementSurface(type, position));
+}
+
+PlacementResult Simulation::validatePlacement(
+    BuildingType type, GridPosition position,
+    const BuildingPlatformSurface& surface) const {
     const int availableWood =
         unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
     const int availableStone =
         unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
     const int availableGold =
         unlimitedResources_ ? std::numeric_limits<int>::max() : gold_;
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    const int footprintWidth = twoByTwo ? 2 : 1;
+    const int footprintMinimumX =
+        twoByTwo ? position.x - 1 : position.x;
+    const int footprintMinimumZ =
+        twoByTwo ? position.z - 1 : position.z;
+    const bool partialPlatformSupport =
+        surface.storey < 0 &&
+        foundations_
+            .buildingFootprintIntersectsPlatform(
+                footprintMinimumX,
+                footprintMinimumZ,
+                footprintWidth);
     const PlacementResult buildingValidation =
-        buildings_.validate(type, position, availableWood, availableStone, availableGold);
+        buildings_.validate(
+            type, position, availableWood,
+            availableStone, availableGold,
+            surface.height);
     if (!buildingValidation.valid()) {
         return buildingValidation;
     }
+    if (partialPlatformSupport) {
+        return {
+            PlacementError::WorldCollision,
+            buildingValidation.cost,
+        };
+    }
 
-    const double deltaX = static_cast<double>(position.x) - playerPosition_.x;
-    const double deltaZ = static_cast<double>(position.z) - playerPosition_.z;
+    const double cellSize =
+        worldConfig_.cellSize;
+    if (resourceOverlapsRectangle(
+            resources_.nodes(),
+            footprintMinimumX * cellSize,
+            (footprintMinimumX + footprintWidth) *
+                cellSize,
+            footprintMinimumZ * cellSize,
+            (footprintMinimumZ + footprintWidth) *
+                cellSize)) {
+        return {
+            PlacementError::ResourceBlocked,
+            buildingValidation.cost,
+        };
+    }
+
+    const Vec3 center = buildingWorldPosition(type, position);
+    const double deltaX = center.x - playerPosition_.x;
+    const double deltaZ = center.z - playerPosition_.z;
     const double distance = std::sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
     if (distance > gameplay_.maximumPlacementDistance + 0.75) {
         return {PlacementError::OutOfRange, buildingValidation.cost};
     }
 
-    const CollisionBox candidate = buildingCollisionBox(type, position);
-    if (collisionWorld_.overlapsCircle(playerPosition_, CollisionWorld::PlayerRadius, candidate)) {
-        return {PlacementError::PlayerOverlap, buildingValidation.cost};
-    }
+    const CollisionBox candidate =
+        buildingCollisionBox(
+            type, position, surface.height);
     if (collisionWorld_.overlapsBox(candidate)) {
         return {PlacementError::WorldCollision, buildingValidation.cost};
     }
     return buildingValidation;
 }
 
+BuildingPlatformSurface
+Simulation::placementSurface(
+    BuildingType type, GridPosition position) const {
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    const int widthCells = twoByTwo ? 2 : 1;
+    const int minimumX =
+        twoByTwo ? position.x - 1 : position.x;
+    const int minimumZ =
+        twoByTwo ? position.z - 1 : position.z;
+    if (const auto surface =
+            foundations_.buildingSurface(
+                minimumX, minimumZ, widthCells)) {
+        return *surface;
+    }
+    const Vec3 center =
+        buildingWorldPosition(type, position);
+    const double halfExtent =
+        buildingFootprintHalfExtent(type);
+    const double inset =
+        std::min(0.05, halfExtent * 0.1);
+    const double sampleHalfExtent =
+        std::max(0.0, halfExtent - inset);
+    double highestTerrain =
+        -std::numeric_limits<double>::infinity();
+    double lowestTerrain =
+        std::numeric_limits<double>::infinity();
+    constexpr int TerrainSamplesPerRadius = 4;
+    for (int zIndex = -TerrainSamplesPerRadius;
+         zIndex <= TerrainSamplesPerRadius;
+         ++zIndex) {
+        for (int xIndex = -TerrainSamplesPerRadius;
+             xIndex <= TerrainSamplesPerRadius;
+             ++xIndex) {
+            const double sampleX =
+                center.x +
+                static_cast<double>(xIndex) /
+                    static_cast<double>(
+                        TerrainSamplesPerRadius) *
+                    sampleHalfExtent;
+            const double sampleZ =
+                center.z +
+                static_cast<double>(zIndex) /
+                    static_cast<double>(
+                        TerrainSamplesPerRadius) *
+                    sampleHalfExtent;
+            const double terrainHeight =
+                terrain_.getHeight(
+                    sampleX, sampleZ);
+            highestTerrain =
+                std::max(
+                    highestTerrain,
+                    terrainHeight);
+            lowestTerrain =
+                std::min(
+                    lowestTerrain,
+                    terrainHeight);
+        }
+    }
+    const double verticalCell =
+        worldConfig_.verticalGridStep;
+    constexpr double SnapEpsilon = 1e-6;
+    const double snappedTop =
+        std::ceil(
+            (highestTerrain - SnapEpsilon) /
+            verticalCell) *
+        verticalCell;
+    const double snappedBottom =
+        std::floor(
+            (lowestTerrain + SnapEpsilon) /
+            verticalCell) *
+        verticalCell;
+    return {
+        .height = snappedTop,
+        .foundationBottomHeight =
+            std::min(snappedBottom, snappedTop),
+        .storey = -1,
+    };
+}
+
+BuildingPlatformSurface
+Simulation::placementSurfaceWithPreferredHeight(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    BuildingPlatformSurface surface =
+        placementSurface(type, position);
+    if (surface.storey >= 0 ||
+        preferredHeight <= surface.height + 1e-6) {
+        return surface;
+    }
+    surface.height = preferredHeight;
+    surface.foundationBottomHeight =
+        std::min(
+            surface.foundationBottomHeight,
+            preferredHeight);
+    return surface;
+}
+
+std::optional<PlatformFramePlacement>
+Simulation::automaticFoundationPlacement(
+    BuildingType type, GridPosition position,
+    double floorHeight) const {
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    GridCoord anchor{
+        twoByTwo ? position.x - 1 : position.x,
+        0,
+        twoByTwo ? position.z - 1 : position.z};
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    const double cellSize =
+        worldConfig_.cellSize;
+    const Vec3 terrainHit{
+        (anchor.x + 0.5) * cellSize,
+        terrain_.getHeight(
+            (anchor.x + 0.5) * cellSize,
+            (anchor.z + 0.5) * cellSize),
+        (anchor.z + 0.5) * cellSize,
+    };
+    PlatformFramePlacement placement =
+        previewPlatformFrame(terrainHit);
+    if (!placement.valid() ||
+        placement.storey != 0) {
+        return placement;
+    }
+    placement.floorHeight =
+        std::max(
+            placement.floorHeight,
+            floorHeight);
+    placement.anchor.yLevel =
+        static_cast<int>(std::lround(
+            placement.floorHeight /
+            worldConfig_.verticalGridStep));
+    for (FoundationSupport& support :
+         placement.supports) {
+        support.top.y =
+            placement.floorHeight;
+        support.length =
+            placement.floorHeight -
+            support.bottom.y;
+        if (support.length >
+            worldConfig_.maxWoodSupportLength) {
+            placement.error =
+                ModularPlacementError::
+                    SupportTooLong;
+        }
+    }
+    return placement;
+}
+
+void Simulation::raisePlayerOntoGroundFrame(
+    const PlatformFrameInstance& frame) {
+    if (frame.storey != 0) {
+        return;
+    }
+    const double cellSize =
+        worldConfig_.cellSize;
+    const double minimumX =
+        frame.anchor.x * cellSize;
+    const double maximumX =
+        (frame.anchor.x +
+         PlatformFrameWidthCells) *
+        cellSize;
+    const double minimumZ =
+        frame.anchor.z * cellSize;
+    const double maximumZ =
+        (frame.anchor.z +
+         PlatformFrameWidthCells) *
+        cellSize;
+    const double playerFeet =
+        playerPosition_.y -
+        gameplay_.eyeHeight;
+    if (playerPosition_.x < minimumX ||
+        playerPosition_.x > maximumX ||
+        playerPosition_.z < minimumZ ||
+        playerPosition_.z > maximumZ ||
+        playerFeet >= frame.floorHeight - 1e-6) {
+        return;
+    }
+    playerPosition_.y =
+        frame.floorHeight +
+        gameplay_.eyeHeight;
+    verticalVelocity_ = 0.0;
+    playerGrounded_ = true;
+}
+
+bool Simulation::shouldAutoJumpGroundFrame(
+    Vec3 movement) const {
+    const double movementLength =
+        std::hypot(movement.x, movement.z);
+    if (movementLength <= 1e-9) {
+        return false;
+    }
+    constexpr double MaximumStepUp = 0.65;
+    const double maximumJumpRise =
+        gameplay_.jumpSpeed *
+            gameplay_.jumpSpeed /
+        (2.0 * gameplay_.gravity);
+    const double playerFeet =
+        playerPosition_.y -
+        gameplay_.eyeHeight;
+    const Vec3 next{
+        playerPosition_.x + movement.x,
+        playerPosition_.y,
+        playerPosition_.z + movement.z,
+    };
+    const double cellSize =
+        worldConfig_.cellSize;
+    const auto distanceSquared =
+        [](Vec3 point, double minimumX,
+           double maximumX, double minimumZ,
+           double maximumZ) {
+            const double closestX =
+                std::clamp(
+                    point.x, minimumX, maximumX);
+            const double closestZ =
+                std::clamp(
+                    point.z, minimumZ, maximumZ);
+            const double deltaX =
+                point.x - closestX;
+            const double deltaZ =
+                point.z - closestZ;
+            return deltaX * deltaX +
+                   deltaZ * deltaZ;
+        };
+    const double radiusSquared =
+        CollisionWorld::PlayerRadius *
+        CollisionWorld::PlayerRadius;
+    for (const PlatformFrameInstance& frame :
+         foundations_.platformFrames()) {
+        if (frame.storey != 0) {
+            continue;
+        }
+        const double rise =
+            frame.floorHeight - playerFeet;
+        if (rise <= MaximumStepUp ||
+            rise > maximumJumpRise + 0.10) {
+            continue;
+        }
+        const double minimumX =
+            frame.anchor.x * cellSize;
+        const double maximumX =
+            (frame.anchor.x +
+             PlatformFrameWidthCells) *
+            cellSize;
+        const double minimumZ =
+            frame.anchor.z * cellSize;
+        const double maximumZ =
+            (frame.anchor.z +
+             PlatformFrameWidthCells) *
+            cellSize;
+        const double currentDistance =
+            distanceSquared(
+                playerPosition_, minimumX,
+                maximumX, minimumZ, maximumZ);
+        const double nextDistance =
+            distanceSquared(
+                next, minimumX, maximumX,
+                minimumZ, maximumZ);
+        if (currentDistance >
+                radiusSquared &&
+            nextDistance <= radiusSquared &&
+            nextDistance < currentDistance) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Simulation::modularRemovalWouldDestroyCore(
+    EntityId id) const {
+    const auto core = buildings_.core();
+    if (!core || core->platformStorey < 0) {
+        return false;
+    }
+    const auto frame = std::find_if(
+        foundations_.platformFrames().begin(),
+        foundations_.platformFrames().end(),
+        [id](const PlatformFrameInstance& candidate) {
+            return candidate.id == id;
+        });
+    if (frame ==
+        foundations_.platformFrames().end()) {
+        return false;
+    }
+    const int coreAnchorX =
+        snapPlatformFrameAxis(
+            core->gridPosition.x - 1);
+    const int coreAnchorZ =
+        snapPlatformFrameAxis(
+            core->gridPosition.z - 1);
+    return frame->anchor.x == coreAnchorX &&
+           frame->anchor.z == coreAnchorZ &&
+           frame->storey <= core->platformStorey;
+}
+
 void Simulation::syncWorldStructures() {
+    resources_.tick(
+        0.0, buildings_.buildings(),
+        map_.worldLimit, playerPosition_);
     collisionWorld_.syncBuildings(buildings_.buildings());
     towers_.syncBuildings(buildings_.buildings());
     cannons_.syncBuildings(buildings_.buildings());
@@ -889,6 +1976,67 @@ void Simulation::syncWorldStructures() {
     }
 }
 
+void Simulation::syncModularStructures() {
+    collisionWorld_.syncModularBuildings({
+        foundations_.platformFrames(),
+        foundations_.walls(),
+        foundations_.ramps(),
+        worldConfig_.cellSize,
+    });
+}
+
+void Simulation::removeUnsupportedPlatformBuildings() {
+    std::vector<EntityId> unsupported;
+    for (const BuildingInstance& building :
+         buildings_.buildings()) {
+        if (building.platformStorey < 0) {
+            continue;
+        }
+        const bool twoByTwo =
+            buildingFootprintHalfExtent(
+                building.type) > 0.75;
+        const int widthCells = twoByTwo ? 2 : 1;
+        const int minimumX =
+            twoByTwo
+                ? building.gridPosition.x - 1
+                : building.gridPosition.x;
+        const int minimumZ =
+            twoByTwo
+                ? building.gridPosition.z - 1
+                : building.gridPosition.z;
+        const auto surface =
+            foundations_.buildingSurface(
+                minimumX, minimumZ, widthCells);
+        if (!surface ||
+            surface->storey !=
+                building.platformStorey ||
+            std::abs(
+                surface->height -
+                building.baseHeight) > 0.05) {
+            unsupported.push_back(building.id);
+        }
+    }
+    if (unsupported.empty()) {
+        return;
+    }
+    for (EntityId id : unsupported) {
+        const auto removed = buildings_.remove(id);
+        if (!removed) {
+            continue;
+        }
+        events_.push_back({
+            .type = GameEventType::BuildingDestroyed,
+            .entityId = removed->id,
+            .buildingType = removed->type,
+            .building = *removed,
+            .position =
+                buildingWorldPosition(*removed),
+        });
+    }
+    aimedBuilding_.reset();
+    syncWorldStructures();
+}
+
 void Simulation::respawnPlayer() {
     constexpr std::array<GridPosition, 4> RespawnOffsets{{
         {0, 3},
@@ -896,16 +2044,25 @@ void Simulation::respawnPlayer() {
         {0, -3},
         {-3, 0},
     }};
-    Vec3 respawn{map_.playerSpawn.x, map_.playerSpawn.y + gameplay_.eyeHeight,
-                 map_.playerSpawn.z};
+    Vec3 respawn{
+        map_.playerSpawn.x,
+        terrain_.getHeight(
+            map_.playerSpawn.x,
+            map_.playerSpawn.z) +
+            gameplay_.eyeHeight,
+        map_.playerSpawn.z};
     const auto core = buildings_.core();
     if (core) {
         for (const GridPosition offset : RespawnOffsets) {
-            const Vec3 candidate{
+            Vec3 candidate{
                 static_cast<double>(core->gridPosition.x + offset.x),
-                gameplay_.eyeHeight,
+                0.0,
                 static_cast<double>(core->gridPosition.z + offset.z),
             };
+            candidate.y =
+                terrain_.getHeight(
+                    candidate.x, candidate.z) +
+                gameplay_.eyeHeight;
             const bool blocked = std::any_of(
                 collisionWorld_.colliders().begin(), collisionWorld_.colliders().end(),
                 [this, candidate](const CollisionBox& collider) {
@@ -1026,16 +2183,24 @@ std::optional<TutorialObjective> Simulation::tutorialObjective() const {
 SimulationSnapshot Simulation::snapshot() const {
     const auto core = buildings_.core();
     std::optional<ResourceCost> aimedUpgradeCost;
+    std::optional<BuildingStatComparison> aimedStats;
     if (aimedBuilding_) {
         const auto aimed =
             std::find_if(buildings_.buildings().begin(), buildings_.buildings().end(),
                          [this](const BuildingInstance& building) {
                              return building.id == *aimedBuilding_;
                          });
-        if (aimed != buildings_.buildings().end() && aimed->level < 3) {
+        if (aimed != buildings_.buildings().end() &&
+            aimed->level < MaxBuildingLevel) {
             aimedUpgradeCost = buildings_.upgradeCost(*aimed);
         }
+        if (aimed != buildings_.buildings().end()) {
+            aimedStats = compareBuildingStats(
+                *aimed, goldMines_, MaxBuildingLevel);
+        }
     }
+    const WaveDefinition& upcomingComposition =
+        waveDirector_.composition(wave_ + 1);
     return {
         .state = state_,
         .tick = tick_,
@@ -1053,17 +2218,39 @@ SimulationSnapshot Simulation::snapshot() const {
         .aimedResource = aimedResource_,
         .resourceNodes = std::span<const ResourceNode>{resources_.nodes()},
         .worldLimit = map_.worldLimit,
+        .worldCellSize = worldConfig_.cellSize,
+        .terrainSeed = terrain_.seed(),
         .mapObstacles = std::span<const MapObstacle>{map_.obstacles},
         .collisionBoxes =
             std::span<const CollisionBox>{collisionWorld_.colliders()},
         .flowDebugVectors =
             std::span<const FlowDebugVector>{flowDebugVectors_},
         .selectedBuilding = selectedBuilding_,
+        .buildingCosts = {
+            buildings_.configuredCost(BuildingType::Core),
+            buildings_.configuredCost(BuildingType::Wall),
+            buildings_.configuredCost(BuildingType::Turret),
+            buildings_.configuredCost(BuildingType::GoldMine),
+            buildings_.configuredCost(BuildingType::Cannon),
+            buildings_.configuredCost(BuildingType::SlowTrap),
+            buildings_.configuredCost(BuildingType::Gate),
+            buildings_.configuredCost(BuildingType::LumberMill),
+            buildings_.configuredCost(BuildingType::Quarry),
+        },
         .buildingPreview = buildingPreview_,
         .buildings = std::span<const BuildingInstance>{buildings_.buildings()},
+        .platformFrames =
+            foundations_.platformFrames(),
+        .sharedSupports =
+            foundations_.supportSystem().supports(),
+        .modularWalls = foundations_.walls(),
+        .ramps = foundations_.ramps(),
+        .aimedModularBuilding =
+            aimedModularBuilding_,
         .aimedEnemy = aimedEnemy_,
         .aimedBuilding = aimedBuilding_,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
+        .aimedBuildingStats = aimedStats,
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .towers = std::span<const TowerRuntime>{towers_.towers()},
         .cannons = std::span<const CannonRuntime>{cannons_.cannons()},
@@ -1072,6 +2259,16 @@ SimulationSnapshot Simulation::snapshot() const {
         .bombProjectiles = std::span<const BombProjectile>{bombs_.projectiles()},
         .activeEnemyCount = enemies_.activeCount(),
         .pendingEnemyCount = waveSpawnQueue_.size() - nextWaveSpawnIndex_,
+        .upcomingEnemyCounts = {
+            upcomingComposition.basic,
+            upcomingComposition.fast,
+            upcomingComposition.heavy,
+            upcomingComposition.boss ? 1 : 0,
+            upcomingComposition.ranged,
+            upcomingComposition.sapper,
+            upcomingComposition.flying,
+        },
+        .upcomingWaveHasBoss = upcomingComposition.boss,
         .upcomingAttackDirection = upcomingAttackDirection_,
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
@@ -1083,18 +2280,53 @@ SimulationSnapshot Simulation::snapshot() const {
         .unlimitedResources = unlimitedResources_,
         .playerInvulnerable = playerInvulnerable_,
         .selectedWeapon = playerWeapons_.selectedWeapon(),
+        .selectedWeaponDamage =
+            playerWeapons_.selectedWeapon() ==
+                    PlayerWeapon::Pickaxe
+                ? gameplay_.pickaxeDamage
+                : playerWeapons_.rifleDamage(),
         .rifleLevel = playerWeapons_.rifleLevel(),
         .rifleAmmunition = playerWeapons_.ammunition(),
         .rifleMagazineSize = playerWeapons_.magazineSize(),
         .rifleUpgradeGoldCost = playerWeapons_.upgradeGoldCost(),
         .rifleReloading = playerWeapons_.reloading(),
         .rifleReloadRemaining = playerWeapons_.reloadRemaining(),
+        .rifleReloadDuration = playerWeapons_.reloadDuration(),
         .bombsRemaining = bombs_.remainingBombs(),
         .waveCompletionReward = economy_.waveRewardPerWave * wave_,
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
         .tutorialStoneTarget = buildings_.configuredCost(BuildingType::GoldMine).stone,
         .tutorialObjective = tutorialObjective(),
     };
+}
+
+PlacementResult Simulation::previewPlacement(
+    BuildingType type, GridPosition position) const {
+    return validatePlacement(type, position);
+}
+
+PlacementResult Simulation::previewPlacement(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    const BuildingPlatformSurface surface =
+        placementSurfaceWithPreferredHeight(
+            type, position, preferredHeight);
+    return validatePlacement(
+        type, position, surface);
+}
+
+BuildingPlatformSurface
+Simulation::previewPlacementSurface(
+    BuildingType type, GridPosition position) const {
+    return placementSurface(type, position);
+}
+
+BuildingPlatformSurface
+Simulation::previewPlacementSurface(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    return placementSurfaceWithPreferredHeight(
+        type, position, preferredHeight);
 }
 
 std::vector<GameEvent> Simulation::takeEvents() {
