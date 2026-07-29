@@ -391,28 +391,6 @@ void runFoundationSystemTests() {
     require(
         everyViewDirectionSelectsForwardEdge,
         "ramp edge direction follows the player's horizontal view");
-    const auto floorAimAtPlatformCenter =
-        ian::rampSocketAimOnFloor(
-            {1.0, 4.0, -2.0},
-            {0.0, -2.0, 3.0}, 2.0);
-    require(
-        floorAimAtPlatformCenter &&
-            ian::rampSocketContainsFloorAim(
-                rampSockets[0],
-                *floorAimAtPlatformCenter, 1.0),
-        "ramp edge remains selected through the platform center");
-    require(
-        ian::rampSocketContainsFloorAim(
-            rampSockets[0],
-            {1.0, 2.0, 2.5}, 1.0) &&
-            !ian::rampSocketContainsFloorAim(
-                rampSockets[0],
-                {1.0, 2.0, 2.51}, 1.0) &&
-            !ian::rampSocketContainsFloorAim(
-                rampSockets[0],
-                {1.0, 2.0, 0.99}, 1.0),
-        "ramp edge changes only beyond the platform center or "
-        "the outside cell center");
     require(
         base && wall && ramp &&
             std::abs(

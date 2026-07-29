@@ -14,6 +14,7 @@ inline constexpr double RampSocketLostGraceSeconds = 0.65;
 // rampSocketAimScore() is approximately tan(angle)^2. This keeps an
 // edge selected within roughly 23 degrees of the crosshair.
 inline constexpr double RampSocketRetentionAimScore = 0.18;
+inline constexpr double RampSocketDirectionSwitchMargin = 0.28;
 
 [[nodiscard]] inline GridCoord platformEdgeNeighborAnchor(
     GridCoord frameAnchor, Rotation direction) {
@@ -69,50 +70,6 @@ struct RampEdgeSocket {
         (outward.x * lookDirection.x +
          outward.z * lookDirection.z) /
         horizontalLength;
-}
-
-[[nodiscard]] inline std::optional<Vec3>
-rampSocketAimOnFloor(
-    Vec3 playerPosition, Vec3 lookDirection,
-    double floorHeight) {
-    if (std::abs(lookDirection.y) <= 1e-9) {
-        return std::nullopt;
-    }
-    const double distance =
-        (floorHeight - playerPosition.y) /
-        lookDirection.y;
-    if (distance <= 0.0) {
-        return std::nullopt;
-    }
-    return Vec3{
-        playerPosition.x +
-            lookDirection.x * distance,
-        floorHeight,
-        playerPosition.z +
-            lookDirection.z * distance,
-    };
-}
-
-[[nodiscard]] inline double rampSocketOutwardOffset(
-    const RampEdgeSocket& socket, Vec3 point) {
-    const Vec3 outward =
-        rampSocketOutwardDirection(socket.rotation);
-    return
-        (point.x - socket.position.x) * outward.x +
-        (point.z - socket.position.z) * outward.z;
-}
-
-[[nodiscard]] inline bool rampSocketContainsFloorAim(
-    const RampEdgeSocket& socket, Vec3 floorAim,
-    double cellSize) {
-    const double outwardOffset =
-        rampSocketOutwardOffset(socket, floorAim);
-    const double platformCenterOffset =
-        -0.5 * PlatformFrameWidthCells * cellSize;
-    const double outsideCellCenterOffset =
-        0.5 * cellSize;
-    return outwardOffset >= platformCenterOffset &&
-           outwardOffset <= outsideCellCenterOffset;
 }
 
 [[nodiscard]] inline std::array<RampEdgeSocket, 4>
@@ -240,31 +197,6 @@ mostViewAlignedRampEdgeSocket(
         if (alignment > bestAlignment) {
             best = &socket;
             bestAlignment = alignment;
-        }
-    }
-    return best ? std::optional<RampEdgeSocket>{*best}
-                : std::nullopt;
-}
-
-[[nodiscard]] inline std::optional<RampEdgeSocket>
-nearestRampEdgeSocketToPoint(
-    GridCoord frameAnchor, double floorHeight,
-    double cellSize, Vec3 point) {
-    const auto sockets = platformRampEdgeSockets(
-        frameAnchor, floorHeight, cellSize);
-    const RampEdgeSocket* best = nullptr;
-    double bestDistanceSquared =
-        std::numeric_limits<double>::infinity();
-    for (const RampEdgeSocket& socket : sockets) {
-        const double offsetX =
-            socket.position.x - point.x;
-        const double offsetZ =
-            socket.position.z - point.z;
-        const double distanceSquared =
-            offsetX * offsetX + offsetZ * offsetZ;
-        if (distanceSquared < bestDistanceSquared) {
-            best = &socket;
-            bestDistanceSquared = distanceSquared;
         }
     }
     return best ? std::optional<RampEdgeSocket>{*best}
