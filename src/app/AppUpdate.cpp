@@ -77,6 +77,12 @@ void App::update() {
         std::max(0.0, stoneHudBounceRemaining_ - frameSeconds);
     buildingRotationCooldownRemaining_ = std::max(
         0.0, buildingRotationCooldownRemaining_ - frameSeconds);
+    rampSocketLostGraceRemaining_ = std::max(
+        0.0,
+        rampSocketLostGraceRemaining_ - frameSeconds);
+    rampSocketManualOverrideRemaining_ = std::max(
+        0.0,
+        rampSocketManualOverrideRemaining_ - frameSeconds);
     if (cameraShakeRemaining_ <= 0.0) {
         cameraShakeStrength_ = 0.0;
     }

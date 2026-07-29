@@ -21,82 +21,9 @@ struct RampEdgeTarget {
     Rotation rotation;
 };
 
-std::optional<RampEdgeTarget> rampEdgeTarget(
+RampEdgeTarget rampEdgeTarget(
     const PlatformFrameInstance& frame,
-    Vec3 playerPosition, Vec3 lookDirection,
-    double cellSize) {
-    if (std::abs(lookDirection.y) <= 1e-5) {
-        return std::nullopt;
-    }
-    const double distance =
-        (frame.floorHeight - playerPosition.y) /
-        lookDirection.y;
-    if (distance <= 0.0) {
-        return std::nullopt;
-    }
-
-    const double minimumX =
-        frame.anchor.x * cellSize;
-    const double minimumZ =
-        frame.anchor.z * cellSize;
-    const double maximumX =
-        (frame.anchor.x + PlatformFrameWidthCells) *
-        cellSize;
-    const double maximumZ =
-        (frame.anchor.z + PlatformFrameWidthCells) *
-        cellSize;
-    const double hitX =
-        playerPosition.x + lookDirection.x * distance;
-    const double hitZ =
-        playerPosition.z + lookDirection.z * distance;
-    if (hitX < minimumX || hitX > maximumX ||
-        hitZ < minimumZ || hitZ > maximumZ) {
-        return std::nullopt;
-    }
-
-    const Rotation rotation =
-        rampRotationFromDirection(
-            lookDirection.x, lookDirection.z);
-    const double centerX =
-        (minimumX + maximumX) * 0.5;
-    const double centerZ =
-        (minimumZ + maximumZ) * 0.5;
-    constexpr double EdgeCaptureDepthCells = 0.55;
-    const double edgeThreshold =
-        cellSize *
-        (PlatformFrameWidthCells * 0.5 -
-         EdgeCaptureDepthCells);
-    const double localX = hitX - centerX;
-    const double localZ = hitZ - centerZ;
-    bool pointsAtForwardEdge = false;
-    Vec3 marker{
-        centerX, frame.floorHeight, centerZ};
-    switch (rotation) {
-    case Rotation::Deg0:
-        pointsAtForwardEdge =
-            localZ >= edgeThreshold;
-        marker.z = maximumZ;
-        break;
-    case Rotation::Deg90:
-        pointsAtForwardEdge =
-            localX <= -edgeThreshold;
-        marker.x = minimumX;
-        break;
-    case Rotation::Deg180:
-        pointsAtForwardEdge =
-            localZ <= -edgeThreshold;
-        marker.z = minimumZ;
-        break;
-    case Rotation::Deg270:
-        pointsAtForwardEdge =
-            localX >= edgeThreshold;
-        marker.x = maximumX;
-        break;
-    }
-    if (!pointsAtForwardEdge) {
-        return std::nullopt;
-    }
-
+    const RampEdgeSocket& socket, double cellSize) {
     return RampEdgeTarget{
         .frameId = frame.id,
         .supportHit = {
@@ -104,11 +31,9 @@ std::optional<RampEdgeTarget> rampEdgeTarget(
             frame.floorHeight,
             (frame.anchor.z + 0.5) * cellSize,
         },
-        .edgeMarker = marker,
-        .neighborAnchor =
-            platformEdgeNeighborAnchor(
-                frame.anchor, rotation),
-        .rotation = rotation,
+        .edgeMarker = socket.position,
+        .neighborAnchor = socket.neighborAnchor,
+        .rotation = socket.rotation,
     };
 }
 
@@ -191,6 +116,10 @@ void App::setFoundationBuildMode(bool enabled) {
     modularSnapMarker_.reset();
     modularEdgeHoverFrame_.reset();
     modularEdgeExtensionAnchor_.reset();
+    rampSocketFrame_.reset();
+    rampSocketRotation_.reset();
+    rampSocketLostGraceRemaining_ = 0.0;
+    rampSocketManualOverrideRemaining_ = 0.0;
     modularPreviewAnchor_.reset();
     modularPreviewVisualOrigin_.reset();
     modularRearmAnchor_.reset();
@@ -236,6 +165,9 @@ void App::updateModularPlacementPreview(
 
     if (modularBuildPiece_ == ModularBuildPiece::Ramp) {
         std::optional<RampEdgeTarget> edgeTarget;
+        const PlatformFrameInstance* targetFrame =
+            nullptr;
+        bool targetIsAimed = false;
         if (snapshot.aimedModularBuilding) {
             const EntityId aimed =
                 *snapshot.aimedModularBuilding;
@@ -247,12 +179,97 @@ void App::updateModularPlacementPreview(
                     return candidate.id == aimed;
                 });
             if (frame != snapshot.platformFrames.end()) {
+                targetFrame = &*frame;
+                targetIsAimed = true;
+            }
+        }
+        if (!targetFrame &&
+            rampSocketFrame_ &&
+            rampSocketLostGraceRemaining_ > 0.0) {
+            const auto retained = std::find_if(
+                snapshot.platformFrames.begin(),
+                snapshot.platformFrames.end(),
+                [this](
+                    const PlatformFrameInstance& candidate) {
+                    return candidate.id ==
+                           *rampSocketFrame_;
+                });
+            if (retained !=
+                snapshot.platformFrames.end()) {
+                targetFrame = &*retained;
+            }
+        }
+        if (targetFrame) {
+            const bool changedFrame =
+                !rampSocketFrame_ ||
+                *rampSocketFrame_ != targetFrame->id;
+            if (changedFrame) {
+                rampSocketManualOverrideRemaining_ =
+                    0.0;
+            }
+            const auto sockets =
+                platformRampEdgeSockets(
+                    targetFrame->anchor,
+                    targetFrame->floorHeight,
+                    cellSize);
+            std::optional<RampEdgeSocket> chosen =
+                nearestRampEdgeSocket(
+                    targetFrame->anchor,
+                    targetFrame->floorHeight,
+                    cellSize,
+                    snapshot.playerPosition,
+                    lookDirection);
+            if (!changedFrame &&
+                rampSocketRotation_) {
+                const auto previous = std::find_if(
+                    sockets.begin(), sockets.end(),
+                    [this](
+                        const RampEdgeSocket& socket) {
+                        return socket.rotation ==
+                               *rampSocketRotation_;
+                    });
+                if (previous != sockets.end()) {
+                    const double previousScore =
+                        rampSocketAimScore(
+                            *previous,
+                            snapshot.playerPosition,
+                            lookDirection);
+                    const double chosenScore =
+                        chosen
+                            ? rampSocketAimScore(
+                                  *chosen,
+                                  snapshot.playerPosition,
+                                  lookDirection)
+                            : std::numeric_limits<
+                                  double>::infinity();
+                    constexpr double SwitchBias =
+                        0.003;
+                    if (!targetIsAimed ||
+                        rampSocketManualOverrideRemaining_ >
+                            0.0 ||
+                        previousScore <=
+                            chosenScore * 1.25 +
+                                SwitchBias) {
+                        chosen = *previous;
+                    }
+                }
+            }
+            if (chosen) {
+                rampSocketFrame_ = targetFrame->id;
+                rampSocketRotation_ =
+                    chosen->rotation;
+                if (targetIsAimed) {
+                    rampSocketLostGraceRemaining_ = 0.2;
+                }
                 edgeTarget = rampEdgeTarget(
-                    *frame, snapshot.playerPosition,
-                    lookDirection, cellSize);
+                    *targetFrame, *chosen, cellSize);
             }
         }
         if (!edgeTarget) {
+            rampSocketFrame_.reset();
+            rampSocketRotation_.reset();
+            rampSocketLostGraceRemaining_ = 0.0;
+            rampSocketManualOverrideRemaining_ = 0.0;
             platformFramePreview_.reset();
             wallPreview_.reset();
             rampPreview_.reset();

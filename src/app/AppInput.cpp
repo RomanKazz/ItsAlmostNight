@@ -153,6 +153,10 @@ void App::processInput() {
         modularSnapMarker_.reset();
         modularEdgeHoverFrame_.reset();
         modularEdgeExtensionAnchor_.reset();
+        rampSocketFrame_.reset();
+        rampSocketRotation_.reset();
+        rampSocketLostGraceRemaining_ = 0.0;
+        rampSocketManualOverrideRemaining_ = 0.0;
         modularPreviewAnchor_.reset();
         modularRearmAnchor_.reset();
         modularVerticalRearmBlocked_ = false;
@@ -224,6 +228,10 @@ void App::processInput() {
         modularSnapMarker_.reset();
         modularEdgeHoverFrame_.reset();
         modularEdgeExtensionAnchor_.reset();
+        rampSocketFrame_.reset();
+        rampSocketRotation_.reset();
+        rampSocketLostGraceRemaining_ = 0.0;
+        rampSocketManualOverrideRemaining_ = 0.0;
         modularPreviewAnchor_.reset();
         modularRearmAnchor_.reset();
         modularVerticalRearmBlocked_ = false;
@@ -417,6 +425,10 @@ void App::processInput() {
             modularSnapHit_.reset();
             modularSnapMarker_.reset();
             modularPreviewAnchor_.reset();
+            rampSocketFrame_.reset();
+            rampSocketRotation_.reset();
+            rampSocketLostGraceRemaining_ = 0.0;
+            rampSocketManualOverrideRemaining_ = 0.0;
             modularVerticalRearmBlocked_ = false;
             switch (modularBuildPiece_) {
             case ModularBuildPiece::PlatformFrame:
@@ -707,9 +719,7 @@ void App::processInput() {
                 ToggleGateCommand{*actionBuilding};
         }
         const float wheel = GetMouseWheelMove();
-        if ((foundationBuildMode_ &&
-             modularBuildPiece_ !=
-                 ModularBuildPiece::Ramp) ||
+        if (foundationBuildMode_ ||
             currentSnapshot.selectedBuilding) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
@@ -722,13 +732,31 @@ void App::processInput() {
                         ? 1
                         : -1;
                 if (foundationBuildMode_) {
+                    const Rotation currentRotation =
+                        modularBuildPiece_ ==
+                                    ModularBuildPiece::Ramp &&
+                                rampSocketRotation_
+                            ? *rampSocketRotation_
+                            : modularRotation_;
                     const int rotation =
                         (static_cast<int>(
-                             modularRotation_) +
+                             currentRotation) +
                          (direction > 0 ? 1 : 3)) %
                         4;
                     modularRotation_ =
                         static_cast<Rotation>(rotation);
+                    if (modularBuildPiece_ ==
+                            ModularBuildPiece::Ramp &&
+                        rampSocketFrame_) {
+                        rampSocketRotation_ =
+                            modularRotation_;
+                        rampSocketManualOverrideRemaining_ =
+                            0.75;
+                        rampSocketLostGraceRemaining_ =
+                            std::max(
+                                rampSocketLostGraceRemaining_,
+                                0.2);
+                    }
                 } else {
                     pendingBuildingRotation_ +=
                         direction;

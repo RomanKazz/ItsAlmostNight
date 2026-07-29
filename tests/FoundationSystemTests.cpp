@@ -345,16 +345,33 @@ void runFoundationSystemTests() {
                     .anchor.x ==
                 ian::PlatformFrameWidthCells,
         "ramp footprint begins outside the supporting platform edge");
+    const auto rampSockets =
+        ian::platformRampEdgeSockets(
+            {0, 0, 0}, 2.0, 1.0);
+    bool everySocketWinsAtCrosshair = true;
+    const ian::Vec3 socketViewer{1.0, 5.0, -5.0};
+    for (const ian::RampEdgeSocket& socket :
+         rampSockets) {
+        const ian::Vec3 look{
+            socket.position.x - socketViewer.x,
+            socket.position.y - socketViewer.y,
+            socket.position.z - socketViewer.z,
+        };
+        const auto nearest =
+            ian::nearestRampEdgeSocket(
+                {0, 0, 0}, 2.0, 1.0,
+                socketViewer, look);
+        everySocketWinsAtCrosshair &=
+            nearest &&
+            nearest->rotation == socket.rotation;
+    }
     require(
-        ian::rampRotationFromDirection(0.1, 1.0) ==
-                ian::Rotation::Deg0 &&
-            ian::rampRotationFromDirection(-1.0, 0.1) ==
-                ian::Rotation::Deg90 &&
-            ian::rampRotationFromDirection(0.1, -1.0) ==
-                ian::Rotation::Deg180 &&
-            ian::rampRotationFromDirection(1.0, 0.1) ==
-                ian::Rotation::Deg270,
-        "ramp rotation follows the dominant horizontal look direction");
+        everySocketWinsAtCrosshair &&
+            rampSockets[0].neighborAnchor.z == 2 &&
+            rampSockets[1].neighborAnchor.x == -2 &&
+            rampSockets[2].neighborAnchor.z == -2 &&
+            rampSockets[3].neighborAnchor.x == 2,
+        "ramp sockets select the platform edge nearest the crosshair");
     require(
         base && wall && ramp &&
             std::abs(

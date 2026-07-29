@@ -300,6 +300,10 @@ class App {
     std::optional<EntityId> modularEdgeHoverFrame_;
     std::optional<GridCoord>
         modularEdgeExtensionAnchor_;
+    std::optional<EntityId> rampSocketFrame_;
+    std::optional<Rotation> rampSocketRotation_;
+    double rampSocketLostGraceRemaining_{};
+    double rampSocketManualOverrideRemaining_{};
     std::optional<GridCoord> modularPreviewAnchor_;
     std::optional<Vec3> modularPreviewVisualOrigin_;
     std::optional<GridCoord> modularRearmAnchor_;

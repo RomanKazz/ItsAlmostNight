@@ -502,18 +502,33 @@ void App::drawWorldOverlays(
                 (minimumX + maximumX) * 0.5;
             const double centerZ =
                 (minimumZ + maximumZ) * 0.5;
-            const std::array<
-                std::pair<Vector3, GridCoord>, 4>
-                edges{{
+            struct EdgeVisual {
+                Vector3 center;
+                Vector3 start;
+                Vector3 end;
+                GridCoord neighborAnchor;
+            };
+            const float edgeHeight =
+                static_cast<float>(
+                    frame->floorHeight + 0.055);
+            const std::array<EdgeVisual, 4> edges{{
                     {
-                        {
+                        .center = {
                             static_cast<float>(minimumX),
-                            static_cast<float>(
-                                frame->floorHeight +
-                                0.055),
+                            edgeHeight,
                             static_cast<float>(centerZ),
                         },
-                        {
+                        .start = {
+                            static_cast<float>(minimumX),
+                            edgeHeight,
+                            static_cast<float>(minimumZ),
+                        },
+                        .end = {
+                            static_cast<float>(minimumX),
+                            edgeHeight,
+                            static_cast<float>(maximumZ),
+                        },
+                        .neighborAnchor = {
                             frame->anchor.x -
                                 PlatformFrameWidthCells,
                             frame->anchor.yLevel,
@@ -521,14 +536,22 @@ void App::drawWorldOverlays(
                         },
                     },
                     {
-                        {
+                        .center = {
                             static_cast<float>(maximumX),
-                            static_cast<float>(
-                                frame->floorHeight +
-                                0.055),
+                            edgeHeight,
                             static_cast<float>(centerZ),
                         },
-                        {
+                        .start = {
+                            static_cast<float>(maximumX),
+                            edgeHeight,
+                            static_cast<float>(minimumZ),
+                        },
+                        .end = {
+                            static_cast<float>(maximumX),
+                            edgeHeight,
+                            static_cast<float>(maximumZ),
+                        },
+                        .neighborAnchor = {
                             frame->anchor.x +
                                 PlatformFrameWidthCells,
                             frame->anchor.yLevel,
@@ -536,14 +559,22 @@ void App::drawWorldOverlays(
                         },
                     },
                     {
-                        {
+                        .center = {
                             static_cast<float>(centerX),
-                            static_cast<float>(
-                                frame->floorHeight +
-                                0.055),
+                            edgeHeight,
                             static_cast<float>(minimumZ),
                         },
-                        {
+                        .start = {
+                            static_cast<float>(minimumX),
+                            edgeHeight,
+                            static_cast<float>(minimumZ),
+                        },
+                        .end = {
+                            static_cast<float>(maximumX),
+                            edgeHeight,
+                            static_cast<float>(minimumZ),
+                        },
+                        .neighborAnchor = {
                             frame->anchor.x,
                             frame->anchor.yLevel,
                             frame->anchor.z -
@@ -551,14 +582,22 @@ void App::drawWorldOverlays(
                         },
                     },
                     {
-                        {
+                        .center = {
                             static_cast<float>(centerX),
-                            static_cast<float>(
-                                frame->floorHeight +
-                                0.055),
+                            edgeHeight,
                             static_cast<float>(maximumZ),
                         },
-                        {
+                        .start = {
+                            static_cast<float>(minimumX),
+                            edgeHeight,
+                            static_cast<float>(maximumZ),
+                        },
+                        .end = {
+                            static_cast<float>(maximumX),
+                            edgeHeight,
+                            static_cast<float>(maximumZ),
+                        },
+                        .neighborAnchor = {
                             frame->anchor.x,
                             frame->anchor.yLevel,
                             frame->anchor.z +
@@ -566,21 +605,27 @@ void App::drawWorldOverlays(
                         },
                     },
                 }};
-            for (const auto& [position, anchor] :
-                 edges) {
+            for (const EdgeVisual& edge : edges) {
                 const bool selected =
                     modularEdgeExtensionAnchor_ &&
                     modularEdgeExtensionAnchor_->x ==
-                        anchor.x &&
+                        edge.neighborAnchor.x &&
                     modularEdgeExtensionAnchor_->z ==
-                        anchor.z;
-                DrawCircle3D(
-                    position,
-                    selected ? 0.15F : 0.09F,
-                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                        edge.neighborAnchor.z;
+                const Color edgeColor =
                     selected
                         ? Color{126, 255, 158, 245}
-                        : Color{235, 240, 226, 190});
+                        : Color{235, 240, 226, 135};
+                DrawCylinderEx(
+                    edge.start, edge.end,
+                    selected ? 0.035F : 0.012F,
+                    selected ? 0.035F : 0.012F,
+                    8, edgeColor);
+                DrawCircle3D(
+                    edge.center,
+                    selected ? 0.15F : 0.09F,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    edgeColor);
             }
         }
     }
