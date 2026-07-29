@@ -1,6 +1,7 @@
 #include "ui/TargetHealthBar.hpp"
 
 #include "game/Simulation.hpp"
+#include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
 
@@ -50,31 +51,13 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 return candidate.id == *snapshot.aimedBuilding;
             });
         if (building != snapshot.buildings.end()) {
-            float anchorHeight = 1.68F;
-            if (building->type == BuildingType::Core) {
-                anchorHeight = 2.08F;
-            } else if (building->type == BuildingType::Turret) {
-                anchorHeight = 1.52F;
-            } else if (building->type == BuildingType::GoldMine) {
-                anchorHeight = 1.44F;
-            } else if (
-                building->type ==
-                BuildingType::LumberMill) {
-                anchorHeight = 1.7F;
-            } else if (
-                building->type == BuildingType::Quarry) {
-                anchorHeight = 1.12F;
-            } else if (building->type == BuildingType::Cannon) {
-                anchorHeight = 1.76F;
-            } else if (building->type == BuildingType::SlowTrap) {
-                anchorHeight = 0.224F;
-            }
-            const Vec3 center =
-                buildingWorldPosition(*building);
+            const Vec3 anchor =
+                buildingHealthBarWorldAnchor(*building);
             drawBillboard(
                 {TargetKind::Building, building->id},
-                {static_cast<float>(center.x), anchorHeight,
-                 static_cast<float>(center.z)},
+                {static_cast<float>(anchor.x),
+                 static_cast<float>(anchor.y),
+                 static_cast<float>(anchor.z)},
                 building->health, building->maxHealth,
                 {82, 210, 103, 255}, camera,
                 static_cast<int>(building->level));

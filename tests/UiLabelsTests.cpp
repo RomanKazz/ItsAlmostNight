@@ -1,7 +1,9 @@
 #include "TestHarness.hpp"
+#include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiLabels.hpp"
 
 #include <array>
+#include <cmath>
 
 void runUiLabelsTests() {
     constexpr std::array BuildingTypes{
@@ -25,4 +27,20 @@ void runUiLabelsTests() {
             ian::BuildingType::GoldMine) ==
             "Crystal Mine",
         "gold mine label follows crystal currency");
+
+    ian::BuildingInstance elevatedTurret{
+        .id = {42U, 1U},
+        .type = ian::BuildingType::Turret,
+        .gridPosition = {4, 6},
+        .baseHeight = 8.0,
+    };
+    const ian::Vec3 healthBarAnchor =
+        ian::buildingHealthBarWorldAnchor(
+            elevatedTurret);
+    require(
+        std::abs(
+            healthBarAnchor.y -
+            (elevatedTurret.baseHeight + 1.52)) <
+            1e-9,
+        "building health bar follows elevated base height");
 }

@@ -299,10 +299,12 @@ void runFoundationSystemTests() {
         envelope.previewWall(
             {0.2, 0.0, 1.2}, player,
             ian::Rotation::Deg90));
-    const auto ramp = envelope.placeRamp(
+    const auto rampPreview =
         envelope.previewRamp(
             {0.2, 0.0, 0.2}, player,
-            ian::Rotation::Deg180));
+            ian::Rotation::Deg180);
+    const auto ramp = envelope.placeRamp(
+        rampPreview);
     const auto rampSnapA =
         envelope.previewRamp(
             {0.2, 0.0, 0.2}, player,
@@ -319,6 +321,27 @@ void runFoundationSystemTests() {
         rampSnapA.anchor == rampSnapB.anchor &&
             rampSnapA.anchor != rampSnapC.anchor,
         "ramp anchor snaps in two-cell platform steps");
+    require(
+        rampPreview.anchor.x == 0 &&
+            rampPreview.anchor.z ==
+                -ian::ModularRampRunCells &&
+            envelope
+                    .previewRamp(
+                        {0.2, 0.0, 0.2}, player,
+                        ian::Rotation::Deg0)
+                    .anchor.z == 1 &&
+            envelope
+                    .previewRamp(
+                        {0.2, 0.0, 0.2}, player,
+                        ian::Rotation::Deg90)
+                    .anchor.x ==
+                -ian::ModularRampRunCells &&
+            envelope
+                    .previewRamp(
+                        {0.2, 0.0, 0.2}, player,
+                        ian::Rotation::Deg270)
+                    .anchor.x == 1,
+        "ramp footprint begins outside the supporting platform edge");
     require(
         base && wall && ramp &&
             std::abs(

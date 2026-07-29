@@ -22,31 +22,41 @@ int rampDepthCells(Rotation rotation) {
                : ModularRampWidthCells;
 }
 
-GridCoord rampAnchorFromBottom(
-    GridCoord bottom, Rotation rotation) {
-    if (rotation == Rotation::Deg180) {
-        bottom.z -= ModularRampRunCells - 1;
+GridCoord rampAnchorFromSupport(
+    GridCoord support, Rotation rotation) {
+    // The ramp footprint begins outside the supporting
+    // PlatformFrame, with its low edge flush to the floor edge.
+    if (rotation == Rotation::Deg0) {
+        support.z += 1;
+    } else if (rotation == Rotation::Deg180) {
+        support.z -= ModularRampRunCells;
     } else if (rotation == Rotation::Deg90) {
-        bottom.x -= ModularRampRunCells - 1;
+        support.x -= ModularRampRunCells;
+    } else {
+        support.x += 1;
     }
-    return bottom;
+    return support;
 }
 
-GridCoord rampBottomCell(
+GridCoord rampSupportCell(
     GridCoord anchor, Rotation rotation) {
-    if (rotation == Rotation::Deg180) {
-        anchor.z += ModularRampRunCells - 1;
+    if (rotation == Rotation::Deg0) {
+        anchor.z -= 1;
+    } else if (rotation == Rotation::Deg180) {
+        anchor.z += ModularRampRunCells;
     } else if (rotation == Rotation::Deg90) {
-        anchor.x += ModularRampRunCells - 1;
+        anchor.x += ModularRampRunCells;
+    } else {
+        anchor.x -= 1;
     }
     return anchor;
 }
 
 std::array<GridCoord, ModularRampWidthCells>
-rampBottomCells(
+rampSupportCells(
     GridCoord anchor, Rotation rotation) {
     const GridCoord first =
-        rampBottomCell(anchor, rotation);
+        rampSupportCell(anchor, rotation);
     std::array<GridCoord, ModularRampWidthCells>
         cells{};
     for (int index = 0;
@@ -173,7 +183,7 @@ RampPlacement FoundationSystem::previewRamp(
     bottomCell.z =
         snapPlatformFrameAxis(bottomCell.z);
     RampPlacement placement{
-        .anchor = rampAnchorFromBottom(
+        .anchor = rampAnchorFromSupport(
             bottomCell, rotation),
         .rotation = rotation,
     };
@@ -211,21 +221,21 @@ RampPlacement FoundationSystem::previewRamp(
             ModularPlacementError::TooFar;
         return placement;
     }
-    const auto bottomCells =
-        rampBottomCells(
+    const auto supportCells =
+        rampSupportCells(
             placement.anchor, rotation);
     auto floor = topFloorAtCell(
-        bottomCells[0].x, bottomCells[0].z);
+        supportCells[0].x, supportCells[0].z);
     if (!floor) {
         placement.error =
             ModularPlacementError::NoSupport;
         return placement;
     }
     for (std::size_t index = 1;
-         index < bottomCells.size(); ++index) {
+         index < supportCells.size(); ++index) {
         const auto supportedFloor = topFloorAtCell(
-            bottomCells[index].x,
-            bottomCells[index].z);
+            supportCells[index].x,
+            supportCells[index].z);
         if (!supportedFloor ||
             std::abs(
                 floor->height -
@@ -296,11 +306,11 @@ FoundationSystem::placeRamp(
             OccupancyLayer::Volume)) {
         return std::nullopt;
     }
-    const auto bottomCells =
-        rampBottomCells(
+    const auto supportCells =
+        rampSupportCells(
             instance.anchor, instance.rotation);
     std::vector<EntityId> sources;
-    for (const GridCoord cell : bottomCells) {
+    for (const GridCoord cell : supportCells) {
         const auto source =
             topFloorAtCell(cell.x, cell.z);
         if (!source) {
