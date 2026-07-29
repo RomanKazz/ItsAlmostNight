@@ -614,7 +614,11 @@ void App::drawWorldOverlays(
                         edge.neighborAnchor.z;
                 const Color edgeColor =
                     selected
-                        ? Color{126, 255, 158, 245}
+                        ? platformFrameColumnPreview_ &&
+                                  !platformFrameColumnPreview_
+                                       ->valid()
+                              ? Color{255, 88, 76, 245}
+                              : Color{126, 255, 158, 245}
                         : Color{235, 240, 226, 135};
                 DrawCylinderEx(
                     edge.start, edge.end,
@@ -634,6 +638,18 @@ void App::drawWorldOverlays(
         !modularVerticalRearmBlocked_) {
         const bool locked =
             IsKeyDown(KEY_LEFT_SHIFT);
+        bool placementValid = true;
+        if (platformFrameColumnPreview_) {
+            placementValid =
+                platformFrameColumnPreview_->valid();
+        } else if (platformFramePreview_) {
+            placementValid =
+                platformFramePreview_->valid();
+        } else if (wallPreview_) {
+            placementValid = wallPreview_->valid();
+        } else if (rampPreview_) {
+            placementValid = rampPreview_->valid();
+        }
         double snapHeight =
             foundationTerrainHit_->y;
         if (platformFramePreview_) {
@@ -666,7 +682,9 @@ void App::drawWorldOverlays(
             {1.0F, 0.0F, 0.0F}, 90.0F,
             locked
                 ? Color{255, 211, 92, 210}
-                : Color{135, 244, 169, 190});
+                : placementValid
+                      ? Color{135, 244, 169, 190}
+                      : Color{255, 88, 76, 220});
     }
     if (snapshot.buildingPreview) {
         const Vec3 targetCenter = buildingWorldPosition(
@@ -885,9 +903,13 @@ void App::drawWorldOverlays(
             static_cast<float>(color.a) / 255.0F,
         };
         previewMaterial.bakedAo = 0.85F;
-        renderer_->beginWorldShader(lighting);
-        renderer_->setWorldMaterial(
-            previewMaterial);
+        const bool drawPreviewModel =
+            visualPreview.placement.error !=
+            PlacementError::Occupied;
+        if (drawPreviewModel) {
+            renderer_->beginWorldShader(lighting);
+            renderer_->setWorldMaterial(
+                previewMaterial);
         const Vec3 visualTargetCenter =
             buildingWorldPosition(
                 visualPreview.type,
@@ -1254,7 +1276,8 @@ void App::drawWorldOverlays(
                      WHITE);
         }
         rlPopMatrix();
-        renderer_->endWorldShader();
+            renderer_->endWorldShader();
+        }
 
     }
     drawCancelledPlacementPreview(lighting);

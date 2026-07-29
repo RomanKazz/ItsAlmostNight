@@ -540,8 +540,13 @@ void App::updateModularPlacementPreview(
             modularRearmAnchor_.reset();
         } else {
             platformFramePreview_.reset();
-            foundationTerrainHit_.reset();
-            modularPreviewAnchor_.reset();
+            foundationTerrainHit_ =
+                *edgeExtensionHit;
+            modularSnapHit_ = *edgeExtensionHit;
+            modularSnapMarker_ =
+                *edgeExtensionHit;
+            modularPreviewAnchor_ =
+                platformFrameColumnPreview_->anchor;
         }
         wallPreview_.reset();
         rampPreview_.reset();

@@ -878,7 +878,8 @@ void App::update() {
                 effectScale = 0.68F;
             }
             addEffect(PresentationEffectType::BuildingPlaced,
-                      event.position, 0.7, effectScale);
+                      event.position, 0.7, effectScale,
+                      event.entityId);
         } else if (event.type == GameEventType::BuildingUpgraded &&
                    event.buildingType) {
             if (event.entityId) {

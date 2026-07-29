@@ -268,7 +268,9 @@ std::uint8_t wallConnectionToward(
 Vector2 repelInvalidPreview(
     Vector2 center, const BuildingPreview& preview,
     Vec3 playerPosition) {
-    if (preview.placement.valid()) {
+    if (preview.placement.valid() ||
+        preview.placement.error ==
+            PlacementError::Occupied) {
         return center;
     }
     const float deltaX =
@@ -1312,7 +1314,18 @@ void App::render() {
             switch (modularBuildPiece_) {
             case ModularBuildPiece::PlatformFrame:
                 pieceName = "PLATFORM FRAME 2x2";
-                if (platformFramePreview_) {
+                if (platformFrameColumnPreview_) {
+                    previewValid =
+                        platformFrameColumnPreview_->valid();
+                    previewError =
+                        platformFrameColumnPreview_->error;
+                    previewStorey =
+                        platformFrameColumnPreview_
+                            ->targetStorey;
+                    plannedCount =
+                        platformFrameColumnPreview_
+                            ->frames.size();
+                } else if (platformFramePreview_) {
                     previewValid =
                         platformFramePreview_->valid();
                     previewError =

@@ -608,7 +608,8 @@ float App::buildingAnimationScaleAt(
 }
 
 float App::buildingAnimationScaleAt(
-    Vec3 center) const {
+    Vec3 center,
+    std::optional<EntityId> entityId) const {
     float scale = 1.0F;
     for (const PresentationEffect& effect : effects_) {
         if (effect.type !=
@@ -617,6 +618,10 @@ float App::buildingAnimationScaleAt(
                 PresentationEffectType::BuildingUpgrade &&
             effect.type !=
                 PresentationEffectType::BuildingDamaged) {
+            continue;
+        }
+        if (effect.entityId && entityId &&
+            effect.entityId != entityId) {
             continue;
         }
         if (std::abs(
@@ -670,7 +675,7 @@ App::modularAnimationScales(
     const auto addScale =
         [this, &scales](EntityId id, Vec3 center) {
             const float scale =
-                buildingAnimationScaleAt(center);
+                buildingAnimationScaleAt(center, id);
             if (std::abs(scale - 1.0F) > 1e-4F) {
                 scales.push_back({
                     .id = id,

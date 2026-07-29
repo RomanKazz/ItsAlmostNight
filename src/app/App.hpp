@@ -82,7 +82,9 @@ class App {
     [[nodiscard]] float buildingAnimationScaleAt(
         BuildingType type, GridPosition position) const;
     [[nodiscard]] float buildingAnimationScaleAt(
-        Vec3 position) const;
+        Vec3 position,
+        std::optional<EntityId> entityId =
+            std::nullopt) const;
     [[nodiscard]] std::vector<ModularAnimationScale>
     modularAnimationScales(
         const SimulationSnapshot& snapshot) const;
