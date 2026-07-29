@@ -234,11 +234,10 @@ void App::updateModularPlacementPreview(
                     targetFrame->floorHeight,
                     cellSize);
             std::optional<RampEdgeSocket> chosen =
-                nearestRampEdgeSocket(
+                mostViewAlignedRampEdgeSocket(
                     targetFrame->anchor,
                     targetFrame->floorHeight,
                     cellSize,
-                    snapshot.playerPosition,
                     lookDirection);
             if (!changedFrame &&
                 rampSocketRotation_) {
@@ -250,27 +249,22 @@ void App::updateModularPlacementPreview(
                                *rampSocketRotation_;
                     });
                 if (previous != sockets.end()) {
-                    const double previousScore =
-                        rampSocketAimScore(
+                    const double previousAlignment =
+                        rampSocketViewAlignment(
                             *previous,
-                            snapshot.playerPosition,
                             lookDirection);
-                    const double chosenScore =
+                    const double chosenAlignment =
                         chosen
-                            ? rampSocketAimScore(
+                            ? rampSocketViewAlignment(
                                   *chosen,
-                                  snapshot.playerPosition,
                                   lookDirection)
-                            : std::numeric_limits<
-                                  double>::infinity();
-                    constexpr double SwitchBias =
-                        0.003;
+                            : -1.0;
                     if (!targetIsAimed ||
                         rampSocketManualOverrideRemaining_ >
                             0.0 ||
-                        previousScore <=
-                            chosenScore * 1.25 +
-                                SwitchBias) {
+                        previousAlignment +
+                                RampSocketDirectionSwitchMargin >=
+                            chosenAlignment) {
                         chosen = *previous;
                     }
                 }

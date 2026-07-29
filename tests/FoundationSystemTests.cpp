@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <utility>
 
 void runFoundationSystemTests() {
     {
@@ -372,6 +373,24 @@ void runFoundationSystemTests() {
             rampSockets[2].neighborAnchor.z == -2 &&
             rampSockets[3].neighborAnchor.x == 2,
         "ramp sockets select the platform edge nearest the crosshair");
+    const std::array<std::pair<ian::Vec3, ian::Rotation>, 4>
+        viewDirections{{
+            {{0.0, -0.4, 1.0}, ian::Rotation::Deg0},
+            {{-1.0, -0.4, 0.0}, ian::Rotation::Deg90},
+            {{0.0, -0.4, -1.0}, ian::Rotation::Deg180},
+            {{1.0, -0.4, 0.0}, ian::Rotation::Deg270},
+        }};
+    bool everyViewDirectionSelectsForwardEdge = true;
+    for (const auto& [look, expected] : viewDirections) {
+        const auto aligned =
+            ian::mostViewAlignedRampEdgeSocket(
+                {0, 0, 0}, 2.0, 1.0, look);
+        everyViewDirectionSelectsForwardEdge &=
+            aligned && aligned->rotation == expected;
+    }
+    require(
+        everyViewDirectionSelectsForwardEdge,
+        "ramp edge direction follows the player's horizontal view");
     require(
         base && wall && ramp &&
             std::abs(

@@ -14,6 +14,7 @@ inline constexpr double RampSocketLostGraceSeconds = 0.65;
 // rampSocketAimScore() is approximately tan(angle)^2. This keeps an
 // edge selected within roughly 23 degrees of the crosshair.
 inline constexpr double RampSocketRetentionAimScore = 0.18;
+inline constexpr double RampSocketDirectionSwitchMargin = 0.28;
 
 [[nodiscard]] inline GridCoord platformEdgeNeighborAnchor(
     GridCoord frameAnchor, Rotation direction) {
@@ -39,6 +40,37 @@ struct RampEdgeSocket {
     GridCoord neighborAnchor;
     Vec3 position;
 };
+
+[[nodiscard]] inline Vec3 rampSocketOutwardDirection(
+    Rotation rotation) {
+    switch (rotation) {
+    case Rotation::Deg0:
+        return {0.0, 0.0, 1.0};
+    case Rotation::Deg90:
+        return {-1.0, 0.0, 0.0};
+    case Rotation::Deg180:
+        return {0.0, 0.0, -1.0};
+    case Rotation::Deg270:
+        return {1.0, 0.0, 0.0};
+    }
+    return {};
+}
+
+[[nodiscard]] inline double rampSocketViewAlignment(
+    const RampEdgeSocket& socket, Vec3 lookDirection) {
+    const double horizontalLength = std::sqrt(
+        lookDirection.x * lookDirection.x +
+        lookDirection.z * lookDirection.z);
+    if (horizontalLength <= 1e-9) {
+        return -1.0;
+    }
+    const Vec3 outward =
+        rampSocketOutwardDirection(socket.rotation);
+    return
+        (outward.x * lookDirection.x +
+         outward.z * lookDirection.z) /
+        horizontalLength;
+}
 
 [[nodiscard]] inline std::array<RampEdgeSocket, 4>
 platformRampEdgeSockets(
@@ -145,6 +177,26 @@ nearestRampEdgeSocket(
         if (score < bestScore) {
             best = &socket;
             bestScore = score;
+        }
+    }
+    return best ? std::optional<RampEdgeSocket>{*best}
+                : std::nullopt;
+}
+
+[[nodiscard]] inline std::optional<RampEdgeSocket>
+mostViewAlignedRampEdgeSocket(
+    GridCoord frameAnchor, double floorHeight,
+    double cellSize, Vec3 lookDirection) {
+    const auto sockets = platformRampEdgeSockets(
+        frameAnchor, floorHeight, cellSize);
+    const RampEdgeSocket* best = nullptr;
+    double bestAlignment = -2.0;
+    for (const RampEdgeSocket& socket : sockets) {
+        const double alignment =
+            rampSocketViewAlignment(socket, lookDirection);
+        if (alignment > bestAlignment) {
+            best = &socket;
+            bestAlignment = alignment;
         }
     }
     return best ? std::optional<RampEdgeSocket>{*best}
