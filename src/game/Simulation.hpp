@@ -213,6 +213,14 @@ class Simulation {
     previewPlatformFrame(Vec3 terrainHit) const;
     [[nodiscard]] std::optional<PlatformFrameInstance>
     placePlatformFrame(Vec3 terrainHit);
+    [[nodiscard]] PlatformFrameColumnPlacement
+    previewPlatformFrameColumn(
+        GridCoord anchor, int targetStorey,
+        double targetFloorHeight) const;
+    [[nodiscard]] std::vector<PlatformFrameInstance>
+    placePlatformFrameColumn(
+        GridCoord anchor, int targetStorey,
+        double targetFloorHeight);
     [[nodiscard]] WallPlacement previewWall(
         Vec3 terrainHit, Rotation rotation) const;
     [[nodiscard]] std::optional<WallInstance>

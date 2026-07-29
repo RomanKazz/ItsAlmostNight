@@ -35,6 +35,8 @@ struct ModularBuildingPreviewView {
     double maximumWoodSupportLength{2.4};
     std::optional<float> rotationYaw;
     const Vec3* visualOrigin{};
+    std::span<const PlatformFramePlacement>
+        platformFrameColumn{};
 };
 
 class ModularBuildingRenderer {

@@ -194,6 +194,71 @@ void runFoundationSystemTests() {
                 .error ==
             ian::ModularPlacementError::MaximumStorey,
         "frame stack respects maximum storeys");
+    ian::FoundationSystem bridgeFrames{
+        terrain, config};
+    const auto bridgeGround =
+        bridgeFrames.placePlatformFrame(
+            bridgeFrames.previewPlatformFrame(
+                {0.2, 0.0, 0.2}, player));
+    const auto bridgeUpper =
+        bridgeFrames.placePlatformFrame(
+            bridgeFrames.previewPlatformFrame(
+                {0.2, 0.0, 0.2}, player));
+    require(
+        bridgeGround && bridgeUpper,
+        "edge extension fixture builds its source stack");
+    const auto bridgeColumn =
+        bridgeFrames.previewPlatformFrameColumn(
+            {2, 0, 0}, bridgeUpper->storey,
+            bridgeUpper->floorHeight, player);
+    require(
+        bridgeColumn.valid() &&
+            bridgeColumn.frames.size() == 2U &&
+            bridgeColumn.frames.front().storey == 0 &&
+            bridgeColumn.frames.back().storey == 1 &&
+            std::abs(
+                bridgeColumn.frames.back().floorHeight -
+                bridgeUpper->floorHeight) < 1e-9,
+        "elevated edge extension previews every missing lower frame");
+    const auto placedBridgeColumn =
+        bridgeFrames.placePlatformFrameColumn(
+            bridgeColumn);
+    require(
+        placedBridgeColumn.size() == 2U &&
+            placedBridgeColumn.back().storey ==
+                upper->storey &&
+            bridgeFrames.structuralGraph().dependentCount(
+                placedBridgeColumn.front().id) == 1U,
+        "elevated edge extension atomically builds a supported frame column");
+    const auto occupiedBridgeColumn =
+        bridgeFrames.previewPlatformFrameColumn(
+            {2, 0, 0}, bridgeUpper->storey,
+            bridgeUpper->floorHeight, player);
+    require(
+        !occupiedBridgeColumn.valid() &&
+            occupiedBridgeColumn.error ==
+                ian::ModularPlacementError::Occupied,
+        "edge extension rejects an already occupied target floor");
+    ian::FoundationSystem supportedEdgeFrames{
+        terrain, config};
+    const auto existingLowerFrame =
+        supportedEdgeFrames.placePlatformFrame(
+            supportedEdgeFrames.previewPlatformFrame(
+                {2.2, 0.0, 0.2}, player));
+    require(
+        existingLowerFrame.has_value(),
+        "supported edge fixture builds its lower frame");
+    const auto upperOnlyColumn =
+        supportedEdgeFrames.previewPlatformFrameColumn(
+            {2, 0, 0}, 1,
+            existingLowerFrame->floorHeight +
+                storeyHeight,
+            player);
+    require(
+        upperOnlyColumn.valid() &&
+            upperOnlyColumn.frames.size() == 1U &&
+            upperOnlyColumn.frames.front().storey == 1,
+        "edge extension reuses an existing lower floor and adds only the upper frame");
 
     ian::WorldConfig scaledConfig = config;
     scaledConfig.cellSize = 1.25;
@@ -391,6 +456,23 @@ void runFoundationSystemTests() {
     require(
         everyViewDirectionSelectsForwardEdge,
         "ramp edge direction follows the player's horizontal view");
+    require(
+        ian::rampTopPlatformAnchor(
+            {0, 0, 2}, ian::Rotation::Deg0) ==
+                ian::GridCoord{0, 0, 6} &&
+            ian::rampTopPlatformAnchor(
+                {-4, 0, 0},
+                ian::Rotation::Deg90) ==
+                ian::GridCoord{-6, 0, 0} &&
+            ian::rampTopPlatformAnchor(
+                {0, 0, -4},
+                ian::Rotation::Deg180) ==
+                ian::GridCoord{0, 0, -6} &&
+            ian::rampTopPlatformAnchor(
+                {2, 0, 0},
+                ian::Rotation::Deg270) ==
+                ian::GridCoord{6, 0, 0},
+        "ramp top edge maps to the adjacent PlatformFrame anchor");
     require(
         ian::rampSocketContainsFloorAim(
             rampSockets[0],

@@ -56,6 +56,52 @@ Vec3 wallCenter(
     };
 }
 
+GridCoord platformAnchorBeyondRampTop(
+    const RampInstance& ramp) {
+    return rampTopPlatformAnchor(
+        ramp.anchor, ramp.rotation);
+}
+
+Vec3 rampTopEdgeCenter(
+    const RampInstance& ramp, double cellSize) {
+    const GridCoord anchor =
+        platformAnchorBeyondRampTop(ramp);
+    Vec3 center{
+        (anchor.x + 1.0) * cellSize,
+        ramp.topHeight,
+        (anchor.z + 1.0) * cellSize,
+    };
+    const Vec3 outward =
+        rampSocketOutwardDirection(ramp.rotation);
+    center.x -= outward.x * cellSize;
+    center.z -= outward.z * cellSize;
+    return center;
+}
+
+double distanceSquaredFromAimRay(
+    Vec3 point, Vec3 origin, Vec3 direction) {
+    const Vec3 offset{
+        point.x - origin.x,
+        point.y - origin.y,
+        point.z - origin.z,
+    };
+    const double forward =
+        offset.x * direction.x +
+        offset.y * direction.y +
+        offset.z * direction.z;
+    if (forward <= 0.0) {
+        return std::numeric_limits<double>::infinity();
+    }
+    const Vec3 rejection{
+        offset.x - direction.x * forward,
+        offset.y - direction.y * forward,
+        offset.z - direction.z * forward,
+    };
+    return rejection.x * rejection.x +
+           rejection.y * rejection.y +
+           rejection.z * rejection.z;
+}
+
 Vec3 cellHit(
     GridCoord cell, const TerrainHeightfield& terrain,
     double cellSize) {
@@ -108,6 +154,7 @@ void App::clearModularPlacementDrag() {
 void App::setFoundationBuildMode(bool enabled) {
     foundationBuildMode_ = enabled;
     platformFramePreview_.reset();
+    platformFrameColumnPreview_.reset();
     wallPreview_.reset();
     rampPreview_.reset();
     foundationTerrainHit_.reset();
@@ -162,6 +209,7 @@ void App::updateModularPlacementPreview(
 
     modularEdgeHoverFrame_.reset();
     modularEdgeExtensionAnchor_.reset();
+    platformFrameColumnPreview_.reset();
 
     if (modularBuildPiece_ == ModularBuildPiece::Ramp) {
         std::optional<RampEdgeTarget> edgeTarget;
@@ -349,21 +397,10 @@ void App::updateModularPlacementPreview(
 
     const auto rawHit = simulation_.terrain().raycast(
         snapshot.playerPosition, lookDirection, 12.0);
-    if (!rawHit) {
-        platformFramePreview_.reset();
-        wallPreview_.reset();
-        rampPreview_.reset();
-        foundationTerrainHit_.reset();
-        modularPreviewAnchor_.reset();
-        modularVerticalRearmBlocked_ = false;
-        if (!IsKeyDown(KEY_LEFT_SHIFT)) {
-            modularSnapHit_.reset();
-            modularSnapMarker_.reset();
-        }
-        return;
-    }
 
     std::optional<Vec3> edgeExtensionHit;
+    std::optional<PlatformFrameColumnPlacement>
+        edgeExtensionColumn;
     if (modularBuildPiece_ ==
             ModularBuildPiece::PlatformFrame &&
         snapshot.aimedModularBuilding) {
@@ -422,13 +459,108 @@ void App::updateModularPlacementPreview(
                         }
                         modularEdgeExtensionAnchor_ =
                             extension;
-                        edgeExtensionHit = cellHit(
-                            extension, terrain,
-                            cellSize);
+                        edgeExtensionHit = Vec3{
+                            (extension.x + 1.0) *
+                                cellSize,
+                            frame->floorHeight,
+                            (extension.z + 1.0) *
+                                cellSize,
+                        };
+                        edgeExtensionColumn =
+                            simulation_
+                                .previewPlatformFrameColumn(
+                                    extension,
+                                    frame->storey,
+                                    frame->floorHeight);
                     }
                 }
             }
+        } else {
+            const auto ramp = std::find_if(
+                snapshot.ramps.begin(),
+                snapshot.ramps.end(),
+                [aimed](const RampInstance& candidate) {
+                    return candidate.id == aimed;
+                });
+            if (ramp != snapshot.ramps.end()) {
+                const Vec3 edgeCenter =
+                    rampTopEdgeCenter(
+                        *ramp, cellSize);
+                constexpr double RampEdgeAimRadiusCells =
+                    0.9;
+                if (distanceSquaredFromAimRay(
+                        edgeCenter,
+                        snapshot.playerPosition,
+                        lookDirection) <=
+                    cellSize * cellSize *
+                        RampEdgeAimRadiusCells *
+                        RampEdgeAimRadiusCells) {
+                    const GridCoord extension =
+                        platformAnchorBeyondRampTop(
+                            *ramp);
+                    modularEdgeExtensionAnchor_ =
+                        extension;
+                    edgeExtensionHit = Vec3{
+                        (extension.x + 1.0) *
+                            cellSize,
+                        ramp->topHeight,
+                        (extension.z + 1.0) *
+                            cellSize,
+                    };
+                    edgeExtensionColumn =
+                        simulation_
+                            .previewPlatformFrameColumn(
+                                extension,
+                                ramp->targetStorey,
+                                ramp->topHeight);
+                }
+            }
         }
+    }
+
+    if (edgeExtensionHit && edgeExtensionColumn) {
+        platformFrameColumnPreview_ =
+            *edgeExtensionColumn;
+        const PlatformFramePlacement* target =
+            platformFrameColumnPreview_->target();
+        if (target) {
+            platformFramePreview_ = *target;
+            foundationTerrainHit_ =
+                *edgeExtensionHit;
+            modularSnapHit_ = *edgeExtensionHit;
+            modularSnapMarker_ =
+                *edgeExtensionHit;
+            if (!modularPreviewAnchor_ ||
+                *modularPreviewAnchor_ !=
+                    target->anchor) {
+                placementSnapPulseRemaining_ = 0.18;
+            }
+            modularPreviewAnchor_ =
+                target->anchor;
+            modularRearmAnchor_.reset();
+        } else {
+            platformFramePreview_.reset();
+            foundationTerrainHit_.reset();
+            modularPreviewAnchor_.reset();
+        }
+        wallPreview_.reset();
+        rampPreview_.reset();
+        modularVerticalRearmBlocked_ = false;
+        return;
+    }
+
+    if (!rawHit) {
+        platformFramePreview_.reset();
+        wallPreview_.reset();
+        rampPreview_.reset();
+        foundationTerrainHit_.reset();
+        modularPreviewAnchor_.reset();
+        modularVerticalRearmBlocked_ = false;
+        if (!IsKeyDown(KEY_LEFT_SHIFT)) {
+            modularSnapHit_.reset();
+            modularSnapMarker_.reset();
+        }
+        return;
     }
 
     const auto evaluate =
@@ -551,16 +683,6 @@ void App::updateModularPlacementPreview(
             modularSnapMarker_.reset();
         }
     }
-    if (edgeExtensionHit) {
-        chosenHit = *edgeExtensionHit;
-        const auto edge =
-            evaluate(chosenHit);
-        chosenAnchor = edge.first;
-        chosenValid = edge.second;
-        modularSnapHit_ = chosenHit;
-        modularSnapMarker_ = chosenHit;
-    }
-
     if (!modularPreviewAnchor_ ||
         *modularPreviewAnchor_ != chosenAnchor) {
         placementSnapPulseRemaining_ = 0.18;

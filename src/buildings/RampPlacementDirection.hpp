@@ -36,6 +36,25 @@ inline constexpr double RampSocketSafeZoneHalfCells = 0.5;
     return frameAnchor;
 }
 
+[[nodiscard]] inline GridCoord rampTopPlatformAnchor(
+    GridCoord rampAnchor, Rotation rotation) {
+    switch (rotation) {
+    case Rotation::Deg0:
+        rampAnchor.z += ModularRampRunCells;
+        break;
+    case Rotation::Deg90:
+        rampAnchor.x -= PlatformFrameWidthCells;
+        break;
+    case Rotation::Deg180:
+        rampAnchor.z -= PlatformFrameWidthCells;
+        break;
+    case Rotation::Deg270:
+        rampAnchor.x += ModularRampRunCells;
+        break;
+    }
+    return rampAnchor;
+}
+
 struct RampEdgeSocket {
     Rotation rotation;
     GridCoord neighborAnchor;

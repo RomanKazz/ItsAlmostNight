@@ -331,6 +331,7 @@ void ModularBuildingRenderer::drawWorld(
 
     bool translatedPreview = false;
     if (preview.visualOrigin &&
+        preview.platformFrameColumn.empty() &&
         preview.platformFrameLine.empty() &&
         preview.wallLine.empty()) {
         std::optional<Vec3> targetOrigin;
@@ -388,7 +389,14 @@ void ModularBuildingRenderer::drawWorld(
         }
     }
 
-    if (!preview.platformFrameLine.empty()) {
+    if (!preview.platformFrameColumn.empty()) {
+        for (const PlatformFramePlacement& placement :
+             preview.platformFrameColumn) {
+            drawPlatformFramePreview(
+                placement,
+                preview.maximumWoodSupportLength);
+        }
+    } else if (!preview.platformFrameLine.empty()) {
         for (const PlatformFramePlacement& placement :
              preview.platformFrameLine) {
             drawPlatformFramePreview(

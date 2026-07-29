@@ -14,15 +14,76 @@ PlacementValidator::PlacementValidator(
 PlatformFramePlacement
 PlacementValidator::validateGroundPlatformFrame(
     Vec3 terrainHit, Vec3 playerPosition) const {
-    PlatformFramePlacement placement{
-        .anchor = grid_.worldToGrid(terrainHit),
-    };
-    placement.anchor.x =
-        snapPlatformFrameAxis(placement.anchor.x);
-    placement.anchor.z =
-        snapPlatformFrameAxis(placement.anchor.z);
-    placement.anchor.yLevel = 0;
+    GridCoord anchor = grid_.worldToGrid(terrainHit);
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
     const WorldConfig& config = grid_.config();
+    const double minimumX =
+        static_cast<double>(anchor.x) *
+        config.cellSize;
+    const double minimumZ =
+        static_cast<double>(anchor.z) *
+        config.cellSize;
+    const double maximumX =
+        minimumX +
+        PlatformFrameWidthCells * config.cellSize;
+    const double maximumZ =
+        minimumZ +
+        PlatformFrameWidthCells * config.cellSize;
+    const std::array<Vec3, 4> corners{{
+        {minimumX, 0.0, minimumZ},
+        {maximumX, 0.0, minimumZ},
+        {minimumX, 0.0, maximumZ},
+        {maximumX, 0.0, maximumZ},
+    }};
+    if (std::any_of(
+            corners.begin(), corners.end(),
+            [this](Vec3 corner) {
+                return !terrain_.isInside(
+                    corner.x, corner.z);
+            })) {
+        return PlatformFramePlacement{
+            .error =
+                ModularPlacementError::OutOfBounds,
+            .anchor = anchor,
+        };
+    }
+
+    double highestGround =
+        -std::numeric_limits<double>::infinity();
+    for (const Vec3 corner : corners) {
+        highestGround =
+            std::max(
+                highestGround,
+                terrain_.getHeight(
+                    corner.x, corner.z));
+    }
+    const double floorHeight =
+        std::ceil(
+            (highestGround +
+             config.minimumGroundClearance) /
+            config.verticalGridStep) *
+        config.verticalGridStep;
+    return validateGroundPlatformFrameAt(
+        anchor, floorHeight, playerPosition);
+}
+
+PlatformFramePlacement
+PlacementValidator::validateGroundPlatformFrameAt(
+    GridCoord anchor, double floorHeight,
+    Vec3 playerPosition) const {
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    PlatformFramePlacement placement{
+        .anchor = anchor,
+        .floorHeight = floorHeight,
+        .storey = 0,
+    };
+    const WorldConfig& config = grid_.config();
+    placement.anchor.yLevel =
+        static_cast<int>(std::lround(
+            placement.floorHeight /
+            config.verticalGridStep));
     const double minimumX =
         static_cast<double>(placement.anchor.x) *
         config.cellSize;
@@ -36,10 +97,10 @@ PlacementValidator::validateGroundPlatformFrame(
         minimumZ +
         PlatformFrameWidthCells * config.cellSize;
     const std::array<Vec3, 4> corners{{
-        {minimumX, 0.0, minimumZ},
-        {maximumX, 0.0, minimumZ},
-        {minimumX, 0.0, maximumZ},
-        {maximumX, 0.0, maximumZ},
+        {minimumX, floorHeight, minimumZ},
+        {maximumX, floorHeight, minimumZ},
+        {minimumX, floorHeight, maximumZ},
+        {maximumX, floorHeight, maximumZ},
     }};
 
     if (std::any_of(
@@ -55,36 +116,11 @@ PlacementValidator::validateGroundPlatformFrame(
     const Vec3 center =
         grid_.worldCenter(
             placement.anchor, Footprint::TwoByTwo);
-    const double distance = std::hypot(
-        center.x - playerPosition.x,
-        center.z - playerPosition.z);
     const bool tooFar =
-        distance > config.buildPreviewDistance;
-
-    std::array<double, 4> groundHeights{};
-    double highestGround =
-        -std::numeric_limits<double>::infinity();
-    for (std::size_t index = 0;
-         index < corners.size(); ++index) {
-        groundHeights[index] =
-            terrain_.getHeight(
-                corners[index].x,
-                corners[index].z);
-        highestGround =
-            std::max(
-                highestGround,
-                groundHeights[index]);
-    }
-    placement.floorHeight =
-        std::ceil(
-            (highestGround +
-             config.minimumGroundClearance) /
-            config.verticalGridStep) *
-        config.verticalGridStep;
-    placement.anchor.yLevel =
-        static_cast<int>(std::lround(
-            placement.floorHeight /
-            config.verticalGridStep));
+        std::hypot(
+            center.x - playerPosition.x,
+            center.z - playerPosition.z) >
+        config.buildPreviewDistance;
 
     const bool occupied = !grid_.canOccupy(
         placement.anchor, Footprint::TwoByTwo, 1,
@@ -94,9 +130,13 @@ PlacementValidator::validateGroundPlatformFrame(
     bool terrainIntersection = false;
     for (std::size_t index = 0;
          index < corners.size(); ++index) {
+        const double groundHeight =
+            terrain_.getHeight(
+                corners[index].x,
+                corners[index].z);
         const double length =
             placement.floorHeight -
-            groundHeights[index];
+            groundHeight;
         placement.supports[index] = {
             .top = {
                 corners[index].x,
@@ -105,7 +145,7 @@ PlacementValidator::validateGroundPlatformFrame(
             },
             .bottom = {
                 corners[index].x,
-                groundHeights[index],
+                groundHeight,
                 corners[index].z,
             },
             .length = length,

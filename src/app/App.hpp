@@ -291,6 +291,8 @@ class App {
         ModularBuildPiece::PlatformFrame};
     std::optional<PlatformFramePlacement>
         platformFramePreview_;
+    std::optional<PlatformFrameColumnPlacement>
+        platformFrameColumnPreview_;
     std::optional<WallPlacement> wallPreview_;
     std::optional<RampPlacement> rampPreview_;
     Rotation modularRotation_{Rotation::Deg0};

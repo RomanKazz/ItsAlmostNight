@@ -66,12 +66,32 @@ FoundationSystem::previewPlatformFrame(
                 terrainHit, playerPosition);
     }
 
+    return previewPlatformFrameAt(
+        anchor, previous->storey + 1,
+        previous->floorHeight +
+            modularStoreyHeight(grid_.config()),
+        playerPosition);
+}
+
+PlatformFramePlacement
+FoundationSystem::previewPlatformFrameAt(
+    GridCoord anchor, int storey,
+    double floorHeight,
+    Vec3 playerPosition) const {
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    if (storey == 0) {
+        return PlacementValidator{
+            terrain_, grid_}
+            .validateGroundPlatformFrameAt(
+                anchor, floorHeight,
+                playerPosition);
+    }
+
     PlatformFramePlacement placement{
         .anchor = anchor,
-        .floorHeight =
-            previous->floorHeight +
-            modularStoreyHeight(grid_.config()),
-        .storey = previous->storey + 1,
+        .floorHeight = floorHeight,
+        .storey = storey,
     };
     const WorldConfig& config = grid_.config();
     placement.anchor.yLevel =
@@ -98,13 +118,17 @@ FoundationSystem::previewPlatformFrame(
             .top = corners[index],
             .bottom = {
                 corners[index].x,
-                previous->floorHeight,
+                floorHeight -
+                    modularStoreyHeight(config),
                 corners[index].z,
             },
             .length = modularStoreyHeight(config),
         };
     }
-    if (previous->supportState !=
+    const PlatformFrameInstance* previous =
+        frameAt(anchor, storey - 1);
+    if (!previous ||
+        previous->supportState !=
         StructuralSupportState::Supported) {
         placement.error =
             ModularPlacementError::NoSupport;
@@ -134,6 +158,70 @@ FoundationSystem::previewPlatformFrame(
     }
 
     return placement;
+}
+
+PlatformFrameColumnPlacement
+FoundationSystem::previewPlatformFrameColumn(
+    GridCoord anchor, int targetStorey,
+    double targetFloorHeight,
+    Vec3 playerPosition) const {
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    PlatformFrameColumnPlacement result{
+        .anchor = anchor,
+        .targetFloorHeight = targetFloorHeight,
+        .targetStorey = targetStorey,
+    };
+    if (targetStorey < 0 ||
+        targetStorey >= grid_.config().maxStoreys) {
+        result.error =
+            ModularPlacementError::MaximumStorey;
+        return result;
+    }
+
+    FoundationSystem preview = *this;
+    const double storeyHeight =
+        modularStoreyHeight(grid_.config());
+    for (int storey = 0;
+         storey <= targetStorey; ++storey) {
+        const double floorHeight =
+            targetFloorHeight -
+            (targetStorey - storey) *
+                storeyHeight;
+        if (const PlatformFrameInstance* existing =
+                preview.frameAt(anchor, storey)) {
+            if (std::abs(
+                    existing->floorHeight -
+                    floorHeight) > 1e-6 ||
+                existing->supportState !=
+                    StructuralSupportState::Supported) {
+                result.error =
+                    ModularPlacementError::NoSupport;
+                return result;
+            }
+            if (storey == targetStorey) {
+                result.error =
+                    ModularPlacementError::Occupied;
+                return result;
+            }
+            continue;
+        }
+        PlatformFramePlacement frame =
+            preview.previewPlatformFrameAt(
+                anchor, storey, floorHeight,
+                playerPosition);
+        result.frames.push_back(frame);
+        if (!frame.valid()) {
+            result.error = frame.error;
+            return result;
+        }
+        if (!preview.placePlatformFrame(frame)) {
+            result.error =
+                ModularPlacementError::Occupied;
+            return result;
+        }
+    }
+    return result;
 }
 
 std::optional<PlatformFrameInstance>
@@ -182,6 +270,33 @@ FoundationSystem::placePlatformFrame(
     }
     platformFrames_.push_back(instance);
     return instance;
+}
+
+std::vector<PlatformFrameInstance>
+FoundationSystem::placePlatformFrameColumn(
+    const PlatformFrameColumnPlacement& placement) {
+    std::vector<PlatformFrameInstance> placed;
+    if (!placement.valid()) {
+        return placed;
+    }
+    placed.reserve(placement.frames.size());
+    for (const PlatformFramePlacement& frame :
+         placement.frames) {
+        const auto instance =
+            placePlatformFrame(frame);
+        if (!instance) {
+            for (auto placedFrame = placed.rbegin();
+                 placedFrame != placed.rend();
+                 ++placedFrame) {
+                static_cast<void>(
+                    remove(placedFrame->id));
+            }
+            placed.clear();
+            return placed;
+        }
+        placed.push_back(*instance);
+    }
+    return placed;
 }
 
 std::optional<FoundationSystem::FloorSurface>

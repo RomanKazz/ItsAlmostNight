@@ -371,6 +371,60 @@ Simulation::placePlatformFrame(Vec3 terrainHit) {
     return placed;
 }
 
+PlatformFrameColumnPlacement
+Simulation::previewPlatformFrameColumn(
+    GridCoord anchor, int targetStorey,
+    double targetFloorHeight) const {
+    PlatformFrameColumnPlacement placement =
+        foundations_.previewPlatformFrameColumn(
+            anchor, targetStorey,
+            targetFloorHeight, playerPosition_);
+    const double cellSize = worldConfig_.cellSize;
+    for (PlatformFramePlacement& frame :
+         placement.frames) {
+        if (!frame.valid()) {
+            break;
+        }
+        if (resourceOverlapsRectangle(
+                resources_.nodes(),
+                frame.anchor.x * cellSize,
+                (frame.anchor.x +
+                 PlatformFrameWidthCells) *
+                    cellSize,
+                frame.anchor.z * cellSize,
+                (frame.anchor.z +
+                 PlatformFrameWidthCells) *
+                    cellSize)) {
+            frame.error =
+                ModularPlacementError::ResourceBlocked;
+            placement.error = frame.error;
+            break;
+        }
+    }
+    return placement;
+}
+
+std::vector<PlatformFrameInstance>
+Simulation::placePlatformFrameColumn(
+    GridCoord anchor, int targetStorey,
+    double targetFloorHeight) {
+    const PlatformFrameColumnPlacement placement =
+        previewPlatformFrameColumn(
+            anchor, targetStorey,
+            targetFloorHeight);
+    auto placed =
+        foundations_.placePlatformFrameColumn(
+            placement);
+    if (!placed.empty()) {
+        syncModularStructures();
+        for (const PlatformFrameInstance& frame :
+             placed) {
+            raisePlayerOntoGroundFrame(frame);
+        }
+    }
+    return placed;
+}
+
 WallPlacement Simulation::previewWall(
     Vec3 terrainHit, Rotation rotation) const {
     WallPlacement placement =

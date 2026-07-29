@@ -840,6 +840,7 @@ void App::processInput() {
                 currentSnapshot);
         } else {
             platformFramePreview_.reset();
+            platformFrameColumnPreview_.reset();
             wallPreview_.reset();
             rampPreview_.reset();
             foundationTerrainHit_.reset();
@@ -864,7 +865,60 @@ void App::processInput() {
                 if (foundationTerrainHit_) {
                     switch (modularBuildPiece_) {
                     case ModularBuildPiece::PlatformFrame:
-                        if (platformFramePreview_ &&
+                        if (platformFrameColumnPreview_ &&
+                            platformFrameColumnPreview_
+                                ->valid()) {
+                            const auto column =
+                                *platformFrameColumnPreview_;
+                            const auto frames =
+                                simulation_
+                                    .placePlatformFrameColumn(
+                                        column.anchor,
+                                        column.targetStorey,
+                                        column
+                                            .targetFloorHeight);
+                            placed =
+                                frames.size() ==
+                                column.frames.size();
+                            for (const auto& frame :
+                                 frames) {
+                                const Vec3 center{
+                                    (frame.anchor.x + 1.0) *
+                                        modularCellSize,
+                                    frame.floorHeight,
+                                    (frame.anchor.z + 1.0) *
+                                        modularCellSize,
+                                };
+                                addEffect(
+                                    PresentationEffectType::
+                                        BuildingPlaced,
+                                    center, 0.7, 1.25F);
+                                if (frame.storey == 0) {
+                                    grassClearAreas_
+                                        .push_back({
+                                            .center = {
+                                                static_cast<float>(
+                                                    center.x),
+                                                static_cast<float>(
+                                                    center.z),
+                                            },
+                                            .innerRadius =
+                                                static_cast<float>(
+                                                    modularCellSize *
+                                                    1.35),
+                                            .amount = 0.0F,
+                                        });
+                                }
+                            }
+                            if (placed) {
+                                modularRearmAnchor_ =
+                                    column.anchor;
+                                modularVerticalRearmBlocked_ =
+                                    true;
+                                platformFrameColumnPreview_
+                                    .reset();
+                            }
+                        } else if (platformFramePreview_ &&
                             platformFramePreview_->valid()) {
                             beginModularPlacementDrag();
                         }

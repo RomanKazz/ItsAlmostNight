@@ -162,6 +162,13 @@ void App::drawWorldEntities(
                         modularPreviewVisualOrigin_
                     ? &*modularPreviewVisualOrigin_
                     : nullptr,
+                platformFrameColumnPreview_
+                    ? std::span<
+                          const PlatformFramePlacement>{
+                          platformFrameColumnPreview_
+                              ->frames}
+                    : std::span<
+                          const PlatformFramePlacement>{},
             });
     }
     for (const auto& building : snapshot.buildings) {
