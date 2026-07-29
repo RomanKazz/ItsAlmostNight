@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 
+#include "buildings/RampPlacementDirection.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
@@ -755,7 +756,7 @@ void App::processInput() {
                         rampSocketLostGraceRemaining_ =
                             std::max(
                                 rampSocketLostGraceRemaining_,
-                                0.2);
+                                RampSocketLostGraceSeconds);
                     }
                 } else {
                     pendingBuildingRotation_ +=

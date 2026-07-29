@@ -168,6 +168,7 @@ void App::updateModularPlacementPreview(
         const PlatformFrameInstance* targetFrame =
             nullptr;
         bool targetIsAimed = false;
+        bool targetIsWithinRetentionMargin = false;
         if (snapshot.aimedModularBuilding) {
             const EntityId aimed =
                 *snapshot.aimedModularBuilding;
@@ -183,9 +184,7 @@ void App::updateModularPlacementPreview(
                 targetIsAimed = true;
             }
         }
-        if (!targetFrame &&
-            rampSocketFrame_ &&
-            rampSocketLostGraceRemaining_ > 0.0) {
+        if (!targetFrame && rampSocketFrame_) {
             const auto retained = std::find_if(
                 snapshot.platformFrames.begin(),
                 snapshot.platformFrames.end(),
@@ -194,9 +193,31 @@ void App::updateModularPlacementPreview(
                     return candidate.id ==
                            *rampSocketFrame_;
                 });
-            if (retained !=
-                snapshot.platformFrames.end()) {
-                targetFrame = &*retained;
+            if (retained != snapshot.platformFrames.end()) {
+                if (rampSocketRotation_) {
+                    const auto sockets =
+                        platformRampEdgeSockets(
+                            retained->anchor,
+                            retained->floorHeight,
+                            cellSize);
+                    const auto previous = std::find_if(
+                        sockets.begin(), sockets.end(),
+                        [this](const RampEdgeSocket& socket) {
+                            return socket.rotation ==
+                                   *rampSocketRotation_;
+                        });
+                    targetIsWithinRetentionMargin =
+                        previous != sockets.end() &&
+                        rampSocketAimScore(
+                            *previous,
+                            snapshot.playerPosition,
+                            lookDirection) <=
+                            RampSocketRetentionAimScore;
+                }
+                if (targetIsWithinRetentionMargin ||
+                    rampSocketLostGraceRemaining_ > 0.0) {
+                    targetFrame = &*retained;
+                }
             }
         }
         if (targetFrame) {
@@ -258,8 +279,10 @@ void App::updateModularPlacementPreview(
                 rampSocketFrame_ = targetFrame->id;
                 rampSocketRotation_ =
                     chosen->rotation;
-                if (targetIsAimed) {
-                    rampSocketLostGraceRemaining_ = 0.2;
+                if (targetIsAimed ||
+                    targetIsWithinRetentionMargin) {
+                    rampSocketLostGraceRemaining_ =
+                        RampSocketLostGraceSeconds;
                 }
                 edgeTarget = rampEdgeTarget(
                     *targetFrame, *chosen, cellSize);
