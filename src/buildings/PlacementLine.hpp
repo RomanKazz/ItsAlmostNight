@@ -14,7 +14,6 @@ enum class PlacementLineAxis {
 };
 
 inline constexpr std::size_t MaximumPlacementLineLength = 48U;
-inline constexpr std::size_t MaximumPlacementRectangleArea = 256U;
 
 [[nodiscard]] inline std::optional<PlacementLineAxis>
 stabilizePlacementLineAxis(
@@ -84,66 +83,6 @@ template <typename GridPoint>
             point.z += offset;
         }
         result.push_back(point);
-    }
-    return result;
-}
-
-template <typename GridPoint>
-[[nodiscard]] std::vector<GridPoint> placementRectangle(
-    GridPoint start, GridPoint end, int spacing,
-    std::size_t maximumArea =
-        MaximumPlacementRectangleArea,
-    std::size_t maximumSideLength =
-        MaximumPlacementLineLength) {
-    if (spacing <= 0 || maximumArea == 0U ||
-        maximumSideLength == 0U) {
-        return {};
-    }
-    const long long deltaX =
-        static_cast<long long>(end.x) -
-        static_cast<long long>(start.x);
-    const long long deltaZ =
-        static_cast<long long>(end.z) -
-        static_cast<long long>(start.z);
-    const std::size_t countX = std::min(
-        static_cast<std::size_t>(
-            std::abs(deltaX) / spacing + 1),
-        maximumSideLength);
-    const std::size_t countZ = std::min(
-        static_cast<std::size_t>(
-            std::abs(deltaZ) / spacing + 1),
-        maximumSideLength);
-    const int directionX = deltaX >= 0 ? 1 : -1;
-    const int directionZ = deltaZ >= 0 ? 1 : -1;
-
-    std::vector<GridPoint> result;
-    result.reserve(std::min(
-        maximumArea, countX * countZ));
-    for (std::size_t distance = 0;
-         distance < countX + countZ - 1 &&
-         result.size() < maximumArea;
-         ++distance) {
-        const std::size_t minimumZ =
-            distance >= countX
-                ? distance - countX + 1
-                : 0U;
-        const std::size_t maximumZ =
-            std::min(distance, countZ - 1);
-        for (std::size_t indexZ = minimumZ;
-             indexZ <= maximumZ &&
-             result.size() < maximumArea;
-             ++indexZ) {
-            const std::size_t indexX =
-                distance - indexZ;
-            GridPoint point = start;
-            point.x +=
-                static_cast<int>(indexX) *
-                spacing * directionX;
-            point.z +=
-                static_cast<int>(indexZ) *
-                spacing * directionZ;
-            result.push_back(point);
-        }
     }
     return result;
 }

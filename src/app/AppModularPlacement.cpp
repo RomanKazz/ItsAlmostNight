@@ -732,7 +732,20 @@ void App::updateModularPlacementPreview(
                 modularDragCandidateFrames_ = 0;
             }
         }
-        modularDragAxis_.reset();
+        modularDragAxis_ =
+            stabilizePlacementLineAxis(
+                dragEnd.x - modularDragStart_->x,
+                dragEnd.z - modularDragStart_->z,
+                modularDragAxis_,
+                PlatformFrameWidthCells);
+        if (modularDragAxis_ ==
+            PlacementLineAxis::X) {
+            dragEnd.z = modularDragStart_->z;
+        } else if (
+            modularDragAxis_ ==
+            PlacementLineAxis::Z) {
+            dragEnd.x = modularDragStart_->x;
+        }
         // Debounce only click-to-drag transition. Requiring
         // confirmation after every endpoint change makes the
         // preview collapse to its first cell while moving.
@@ -1306,24 +1319,13 @@ void App::rebuildModularPlacementLine() {
                     ModularBuildPiece::Wall
             ? 1
             : PlatformFrameWidthCells;
-    std::vector<GridCoord> cells;
-    if (*modularDragPiece_ ==
-        ModularBuildPiece::PlatformFrame) {
-        modularDragAxis_.reset();
-        cells = ian::placementRectangle(
-            *modularDragStart_, *modularDragEnd_,
-            spacing);
-    } else {
-        modularDragAxis_ = stabilizePlacementLineAxis(
-            modularDragEnd_->x -
-                modularDragStart_->x,
-            modularDragEnd_->z -
-                modularDragStart_->z,
-            modularDragAxis_, spacing);
-        cells = ian::placementLine(
-            *modularDragStart_, *modularDragEnd_,
-            spacing, modularDragAxis_);
-    }
+    modularDragAxis_ = stabilizePlacementLineAxis(
+        modularDragEnd_->x - modularDragStart_->x,
+        modularDragEnd_->z - modularDragStart_->z,
+        modularDragAxis_, spacing);
+    const auto cells = ian::placementLine(
+        *modularDragStart_, *modularDragEnd_,
+        spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const auto snapshot = simulation_.snapshot();
@@ -1418,39 +1420,12 @@ bool App::finishModularPlacementDrag() {
     const double cellSize =
         simulation_.terrain().config().cellSize;
     constexpr double PlacementBounceDelay = 0.065;
-    constexpr double MaximumPlacementBounceSpan = 1.5;
-    std::size_t previewOrdinalCount = 1U;
-    switch (*modularDragPiece_) {
-    case ModularBuildPiece::PlatformFrame:
-        previewOrdinalCount =
-            modularDragFloorHeight_
-                ? modularPlatformColumnDragPreviews_
-                      .size()
-                : modularPlatformDragPreviews_.size();
-        break;
-    case ModularBuildPiece::Wall:
-        previewOrdinalCount =
-            modularWallDragPreviews_.size();
-        break;
-    case ModularBuildPiece::Ramp:
-        previewOrdinalCount =
-            modularRampDragPreviews_.size();
-        break;
-    }
-    const double placementBounceStep =
-        previewOrdinalCount > 1U
-            ? std::min(
-                  PlacementBounceDelay,
-                  MaximumPlacementBounceSpan /
-                      static_cast<double>(
-                          previewOrdinalCount - 1U))
-            : PlacementBounceDelay;
     std::size_t placedOrdinal = 0;
     const auto bounceDelayFor =
-        [placementBounceStep](
+        [bounceStep = PlacementBounceDelay](
             std::size_t ordinal) {
             return static_cast<double>(ordinal) *
-                placementBounceStep;
+                bounceStep;
         };
     bool placedAny = false;
     if (*modularDragPiece_ ==

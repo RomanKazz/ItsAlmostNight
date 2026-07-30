@@ -55,39 +55,4 @@ void runPlacementLineTests() {
     require(
         empty.empty(),
         "invalid spacing produces no placements");
-
-    const auto rectangle = ian::placementRectangle(
-        ian::GridPosition{4, 6},
-        ian::GridPosition{0, 2}, 2);
-    require(
-        rectangle.size() == 9U &&
-            rectangle.front() ==
-                ian::GridPosition{4, 6} &&
-            rectangle[1] ==
-                ian::GridPosition{2, 6} &&
-            rectangle[2] ==
-                ian::GridPosition{4, 4} &&
-            rectangle.back() ==
-                ian::GridPosition{0, 2},
-        "rectangle fills both axes from start toward end");
-
-    const auto rectangleLine =
-        ian::placementRectangle(
-            ian::GridPosition{0, 0},
-            ian::GridPosition{1000, 0}, 1);
-    require(
-        rectangleLine.size() ==
-                ian::MaximumPlacementLineLength &&
-            rectangleLine.back() ==
-                ian::GridPosition{47, 0},
-        "rectangle preserves maximum single-axis drag length");
-
-    const auto cappedRectangle =
-        ian::placementRectangle(
-            ian::GridPosition{0, 0},
-            ian::GridPosition{1000, 1000}, 1);
-    require(
-        cappedRectangle.size() ==
-            ian::MaximumPlacementRectangleArea,
-        "rectangle area cap limits preview and placement");
 }
