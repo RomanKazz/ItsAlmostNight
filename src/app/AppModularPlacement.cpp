@@ -715,6 +715,7 @@ void App::updateModularPlacementPreview(
             });
         if (frame != snapshot.platformFrames.end()) {
             const bool usePlatformEdges =
+                frame->storey > 0 &&
                 !IsKeyDown(KEY_LEFT_CONTROL) &&
                 !IsKeyDown(KEY_RIGHT_CONTROL);
             if (usePlatformEdges) {
