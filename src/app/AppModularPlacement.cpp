@@ -565,6 +565,44 @@ void App::updateModularPlacementPreview(
         }
     }
 
+    if (rawHit &&
+        modularBuildPiece_ ==
+            ModularBuildPiece::PlatformFrame &&
+        modularDragPiece_ ==
+            ModularBuildPiece::PlatformFrame &&
+        modularDragFloorHeight_ &&
+        modularDragPlaneHeight_) {
+        // Once an edge-column drag has begun, use its fixed
+        // storey grid directly. Running the normal valid-cell
+        // magnet here can skip the occupied source platform and
+        // snap to the free cell on its opposite side, causing one
+        // click on an outer edge to place two platforms.
+        modularDragEnd_ = GridCoord{
+            snapPlatformFrameAxis(
+                static_cast<int>(std::floor(
+                    rawHit->x / cellSize))),
+            0,
+            snapPlatformFrameAxis(
+                static_cast<int>(std::floor(
+                    rawHit->z / cellSize))),
+        };
+        const Vec3 snappedHit{
+            (modularDragEnd_->x + 1.0) * cellSize,
+            *modularDragPlaneHeight_,
+            (modularDragEnd_->z + 1.0) * cellSize,
+        };
+        foundationTerrainHit_ = snappedHit;
+        modularSnapHit_ = snappedHit;
+        modularSnapMarker_ = snappedHit;
+        platformFramePreview_.reset();
+        platformFrameColumnPreview_.reset();
+        wallPreview_.reset();
+        rampPreview_.reset();
+        modularVerticalRearmBlocked_ = false;
+        rebuildModularPlacementLine();
+        return;
+    }
+
     std::optional<Vec3> edgeExtensionHit;
     std::optional<PlatformFrameColumnPlacement>
         edgeExtensionColumn;
