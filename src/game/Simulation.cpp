@@ -16,6 +16,7 @@ constexpr double PitchLimit = 1.5533430342749532;
 constexpr double DebugSpawnMinimumRadius = 18.0;
 constexpr double DebugSpawnMaximumRadius = 22.0;
 constexpr double DebugSpawnCollisionRadius = 0.6;
+constexpr double ResourcePlacementClearance = 0.08;
 
 double clampAxis(double value) {
     return std::clamp(value, -1.0, 1.0);
@@ -46,6 +47,42 @@ bool canAfford(ResourceCost cost, int wood, int stone,
     return wood >= cost.wood &&
            stone >= cost.stone &&
            gold >= cost.gold;
+}
+
+bool resourceOverlapsBox(
+    std::span<const ResourceNode> nodes,
+    const CollisionBox& box) {
+    return std::any_of(
+        nodes.begin(), nodes.end(),
+        [&box](const ResourceNode& node) {
+            if (!node.active) {
+                return false;
+            }
+            const double distanceX = std::max(
+                0.0,
+                std::max(
+                    box.minX - node.position.x,
+                    node.position.x - box.maxX));
+            const double distanceY = std::max(
+                0.0,
+                std::max(
+                    box.minimumBlockingEyeY -
+                        node.position.y,
+                    node.position.y -
+                        box.maximumBlockingEyeY));
+            const double distanceZ = std::max(
+                0.0,
+                std::max(
+                    box.minZ - node.position.z,
+                    node.position.z - box.maxZ));
+            const double required =
+                node.radius +
+                ResourcePlacementClearance;
+            return distanceX * distanceX +
+                       distanceY * distanceY +
+                       distanceZ * distanceZ <
+                   required * required;
+        });
 }
 
 CollisionBox platformFloorCollisionBox(
@@ -580,15 +617,6 @@ RampPlacement Simulation::previewRamp(
     RampPlacement placement =
         foundations_.previewRamp(
         terrainHit, playerPosition_, rotation);
-    const bool alongZ =
-        placement.rotation == Rotation::Deg0 ||
-        placement.rotation == Rotation::Deg180;
-    const int widthCells =
-        alongZ ? ModularRampWidthCells
-               : ModularRampRunCells;
-    const int depthCells =
-        alongZ ? ModularRampRunCells
-               : ModularRampWidthCells;
     const double cellSize =
         worldConfig_.cellSize;
     if (placement.valid()) {
@@ -626,23 +654,21 @@ RampPlacement Simulation::previewRamp(
                                 rampBox, buildingBox);
                         });
                 });
+        const bool blockedByResource =
+            std::any_of(
+                rampBoxes.begin(), rampBoxes.end(),
+                [this](const CollisionBox& box) {
+                    return resourceOverlapsBox(
+                        resources_.nodes(), box);
+                });
         if (blockedByWorld ||
             blockedByBuilding) {
             placement.error =
                 ModularPlacementError::Occupied;
+        } else if (blockedByResource) {
+            placement.error =
+                ModularPlacementError::ResourceBlocked;
         }
-    }
-    if (placement.valid() &&
-        resourceOverlapsRectangle(
-            resources_.nodes(),
-            placement.anchor.x * cellSize,
-            (placement.anchor.x + widthCells) *
-                cellSize,
-            placement.anchor.z * cellSize,
-            (placement.anchor.z + depthCells) *
-                cellSize)) {
-        placement.error =
-            ModularPlacementError::ResourceBlocked;
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(

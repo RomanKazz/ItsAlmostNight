@@ -373,6 +373,63 @@ void runSimulationTests() {
     {
         ian::MapDefinition map =
             ian::MapDefinition::defaults();
+        map.resources = {
+            {
+                .type = ian::ResourceType::Wood,
+                .position = {1.0, 1.0, 1.5},
+                .radius = 1.0,
+                .health = 3.0,
+                .yield = 15,
+                .respawnSeconds = 12.0,
+            },
+        };
+        ian::Simulation raisedRampResources{
+            ian::GameBalance::defaults(), map};
+        raisedRampResources.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        raisedRampResources.tick(
+            1.0 / 60.0, unlimited);
+        const ian::Vec3 supportHit{
+            0.2,
+            raisedRampResources.terrain().getHeight(
+                0.2, 4.2),
+            4.2,
+        };
+        const auto groundFrame =
+            raisedRampResources.placePlatformFrame(
+                supportHit);
+        require(
+            groundFrame.has_value(),
+            "raised ramp resource fixture creates ground frame");
+        require(
+            raisedRampResources
+                    .previewRamp(
+                        supportHit,
+                        ian::Rotation::Deg180)
+                    .error ==
+                ian::ModularPlacementError::
+                    ResourceBlocked,
+            "ground ramp remains blocked by resource");
+        const auto upperFrame =
+            raisedRampResources.placePlatformFrame(
+                supportHit);
+        require(
+            upperFrame.has_value(),
+            "raised ramp resource fixture creates upper frame");
+        require(
+            raisedRampResources
+                .previewRamp(
+                    supportHit,
+                    ian::Rotation::Deg180)
+                .valid(),
+            "resource below raised ramp does not block placement");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
         map.resources.clear();
         map.obstacles.clear();
         ian::WorldConfig world =
