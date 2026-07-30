@@ -31,17 +31,6 @@ Vec3 lookDirection(double yaw, double pitch) {
     };
 }
 
-ResourceCost scaledCost(ResourceCost cost,
-                        std::size_t count) {
-    const int multiplier =
-        static_cast<int>(count);
-    return {
-        .wood = cost.wood * multiplier,
-        .stone = cost.stone * multiplier,
-        .gold = cost.gold * multiplier,
-    };
-}
-
 bool canAfford(ResourceCost cost, int wood, int stone,
                int gold) {
     return wood >= cost.wood &&
@@ -143,6 +132,11 @@ Simulation::Simulation(
       terrain_(worldConfig_),
       foundations_(terrain_, worldConfig_),
       modularBuildingCosts_{{
+          {
+              balance.modularBuildings[0].wood,
+              balance.modularBuildings[0].stone,
+              balance.modularBuildings[0].gold,
+          },
           {
               balance.modularBuildings[0].wood,
               balance.modularBuildings[0].stone,
@@ -428,10 +422,10 @@ void Simulation::regenerateTerrain(
 }
 
 PlatformFramePlacement
-Simulation::previewPlatformFrame(
+Simulation::previewFoundation(
     Vec3 terrainHit) const {
     PlatformFramePlacement placement =
-        foundations_.previewPlatformFrame(
+        foundations_.previewFoundation(
         terrainHit, playerPosition_);
     const double cellSize =
         worldConfig_.cellSize;
@@ -458,7 +452,9 @@ Simulation::previewPlatformFrame(
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
-            modularBuildingCosts_[0],
+            modularBuildingCosts_[
+                static_cast<std::size_t>(
+                    ModularBuildPiece::Foundation)],
             wood_, stone_, gold_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
@@ -467,15 +463,18 @@ Simulation::previewPlatformFrame(
 }
 
 std::optional<PlatformFrameInstance>
-Simulation::placePlatformFrame(Vec3 terrainHit) {
+Simulation::placeFoundation(Vec3 terrainHit) {
     const PlatformFramePlacement preview =
-        previewPlatformFrame(terrainHit);
+        previewFoundation(terrainHit);
     auto placed =
         foundations_.placePlatformFrame(preview);
     if (placed) {
         if (!unlimitedResources_) {
             const ResourceCost cost =
-                modularBuildingCosts_[0];
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::
+                            Foundation)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
             gold_ -= cost.gold;
@@ -486,82 +485,65 @@ Simulation::placePlatformFrame(Vec3 terrainHit) {
     return placed;
 }
 
-PlatformFrameColumnPlacement
-Simulation::previewPlatformFrameColumn(
-    GridCoord anchor, int targetStorey,
-    double targetFloorHeight) const {
-    PlatformFrameColumnPlacement placement =
-        foundations_.previewPlatformFrameColumn(
-            anchor, targetStorey,
-            targetFloorHeight, playerPosition_);
+PlatformFramePlacement
+Simulation::previewFloorPlatform(
+    GridCoord anchor, int storey,
+    double floorHeight) const {
+    PlatformFramePlacement placement =
+        foundations_.previewFloorPlatform(
+            anchor, storey, floorHeight,
+            playerPosition_);
     const double cellSize = worldConfig_.cellSize;
-    for (PlatformFramePlacement& frame :
-         placement.frames) {
-        if (!frame.valid()) {
-            break;
-        }
-        if (collisionWorld_.overlapsRampBox(
-                platformFloorCollisionBox(
-                    frame, cellSize))) {
-            frame.error =
-                ModularPlacementError::Occupied;
-            placement.error = frame.error;
-            break;
-        }
-        if (resourceOverlapsRectangle(
-                resources_.nodes(),
-                frame.anchor.x * cellSize,
-                (frame.anchor.x +
-                 PlatformFrameWidthCells) *
-                    cellSize,
-                frame.anchor.z * cellSize,
-                (frame.anchor.z +
-                 PlatformFrameWidthCells) *
-                    cellSize)) {
-            frame.error =
-                ModularPlacementError::ResourceBlocked;
-            placement.error = frame.error;
-            break;
-        }
+    const CollisionBox floorBox =
+        platformFloorCollisionBox(
+            placement, cellSize);
+    if (placement.valid() &&
+        collisionWorld_.overlapsRampBox(floorBox)) {
+        placement.error =
+            ModularPlacementError::Occupied;
     }
-    const ResourceCost cost = scaledCost(
-        modularBuildingCosts_[0],
-        placement.frames.size());
-    if (placement.valid() && !unlimitedResources_ &&
-        !canAfford(cost, wood_, stone_, gold_)) {
+    if (placement.valid() &&
+        resourceOverlapsBox(
+            resources_.nodes(), floorBox)) {
+        placement.error =
+            ModularPlacementError::ResourceBlocked;
+    }
+    if (placement.valid() &&
+        !unlimitedResources_ &&
+        !canAfford(
+            modularBuildingCosts_[
+                static_cast<std::size_t>(
+                    ModularBuildPiece::
+                        FloorPlatform)],
+            wood_, stone_, gold_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
-        placement.frames.back().error =
-            placement.error;
     }
     return placement;
 }
 
-std::vector<PlatformFrameInstance>
-Simulation::placePlatformFrameColumn(
-    GridCoord anchor, int targetStorey,
-    double targetFloorHeight) {
-    const PlatformFrameColumnPlacement placement =
-        previewPlatformFrameColumn(
-            anchor, targetStorey,
-            targetFloorHeight);
+std::optional<PlatformFrameInstance>
+Simulation::placeFloorPlatform(
+    GridCoord anchor, int storey,
+    double floorHeight) {
+    const PlatformFramePlacement placement =
+        previewFloorPlatform(
+            anchor, storey, floorHeight);
     auto placed =
-        foundations_.placePlatformFrameColumn(
+        foundations_.placePlatformFrame(
             placement);
-    if (!placed.empty()) {
+    if (placed) {
         if (!unlimitedResources_) {
-            const ResourceCost cost = scaledCost(
-                modularBuildingCosts_[0],
-                placed.size());
+            const ResourceCost cost =
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::
+                            FloorPlatform)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
             gold_ -= cost.gold;
         }
         syncModularStructures();
-        for (const PlatformFrameInstance& frame :
-             placed) {
-            raisePlayerOntoGroundFrame(frame);
-        }
     }
     return placed;
 }
@@ -585,7 +567,9 @@ WallPlacement Simulation::previewWall(
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
-            modularBuildingCosts_[1],
+            modularBuildingCosts_[
+                static_cast<std::size_t>(
+                    ModularBuildPiece::Wall)],
             wood_, stone_, gold_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
@@ -602,7 +586,9 @@ Simulation::placeWall(
     if (placed) {
         if (!unlimitedResources_) {
             const ResourceCost cost =
-                modularBuildingCosts_[1];
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::Wall)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
             gold_ -= cost.gold;
@@ -672,7 +658,9 @@ RampPlacement Simulation::previewRamp(
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
-            modularBuildingCosts_[2],
+            modularBuildingCosts_[
+                static_cast<std::size_t>(
+                    ModularBuildPiece::Ramp)],
             wood_, stone_, gold_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
@@ -689,7 +677,9 @@ Simulation::placeRamp(
     if (placed) {
         if (!unlimitedResources_) {
             const ResourceCost cost =
-                modularBuildingCosts_[2];
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::Ramp)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
             gold_ -= cost.gold;
@@ -2036,7 +2026,7 @@ Simulation::automaticFoundationPlacement(
         (anchor.z + 0.5) * cellSize,
     };
     PlatformFramePlacement placement =
-        previewPlatformFrame(terrainHit);
+        previewFoundation(terrainHit);
     if (!placement.valid() ||
         placement.storey != 0) {
         return placement;

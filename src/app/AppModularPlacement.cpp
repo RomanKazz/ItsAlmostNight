@@ -146,13 +146,18 @@ Vec3 cellHit(
     return {x, terrain.getHeight(x, z), z};
 }
 
+bool isPlatformBuildPiece(ModularBuildPiece piece) {
+    return piece == ModularBuildPiece::Foundation ||
+           piece == ModularBuildPiece::FloorPlatform;
+}
+
 } // namespace
 
 void App::clearModularPlacementDrag() {
     modularDragStart_.reset();
     modularDragEnd_.reset();
     modularDragStorey_.reset();
-    modularDragFloorHeight_.reset();
+    modularDragTargetFloorHeight_.reset();
     modularDragPlaneHeight_.reset();
     modularDragRotation_.reset();
     modularDragPiece_.reset();
@@ -163,7 +168,6 @@ void App::clearModularPlacementDrag() {
     modularDragExtended_ = false;
     modularDragHits_.clear();
     modularPlatformDragPreviews_.clear();
-    modularPlatformColumnDragPreviews_.clear();
     modularWallDragPreviews_.clear();
     modularRampDragPreviews_.clear();
 }
@@ -173,15 +177,12 @@ void App::selectModularBuildPiece(
     modularBuildPiece_ = piece;
     clearModularPlacementDrag();
     platformFramePreview_.reset();
-    platformFrameColumnPreview_.reset();
     wallPreview_.reset();
     rampPreview_.reset();
     foundationTerrainHit_.reset();
     modularSnapHit_.reset();
     modularSnapMarker_.reset();
     modularPreviewAnchor_.reset();
-    modularRearmAnchor_.reset();
-    modularVerticalRearmBlocked_ = false;
     rampSocketFrame_.reset();
     rampSocketRotation_.reset();
     rampSocketLostGraceRemaining_ = 0.0;
@@ -191,7 +192,6 @@ void App::selectModularBuildPiece(
 void App::setFoundationBuildMode(bool enabled) {
     foundationBuildMode_ = enabled;
     platformFramePreview_.reset();
-    platformFrameColumnPreview_.reset();
     wallPreview_.reset();
     rampPreview_.reset();
     foundationTerrainHit_.reset();
@@ -206,8 +206,6 @@ void App::setFoundationBuildMode(bool enabled) {
     rampSocketManualOverrideRemaining_ = 0.0;
     modularPreviewAnchor_.reset();
     modularPreviewVisualOrigin_.reset();
-    modularRearmAnchor_.reset();
-    modularVerticalRearmBlocked_ = false;
     buildingRotationWheelAccumulator_ = 0.0;
     buildingRotationCooldownRemaining_ = 0.0;
 
@@ -247,7 +245,6 @@ void App::updateModularPlacementPreview(
 
     modularEdgeHoverFrame_.reset();
     modularEdgeExtensionAnchor_.reset();
-    platformFrameColumnPreview_.reset();
 
     if (modularBuildPiece_ == ModularBuildPiece::Ramp) {
         std::optional<RampEdgeTarget> edgeTarget;
@@ -562,7 +559,6 @@ void App::updateModularPlacementPreview(
                 rampPreview_.reset();
                 platformFramePreview_.reset();
                 wallPreview_.reset();
-                modularVerticalRearmBlocked_ = false;
                 rebuildModularPlacementLine();
                 return;
             }
@@ -580,7 +576,6 @@ void App::updateModularPlacementPreview(
             modularSnapMarker_.reset();
             modularPreviewAnchor_.reset();
             modularPreviewVisualOrigin_.reset();
-            modularVerticalRearmBlocked_ = false;
             return;
         }
 
@@ -613,7 +608,6 @@ void App::updateModularPlacementPreview(
         }
         platformFramePreview_.reset();
         wallPreview_.reset();
-        modularVerticalRearmBlocked_ = false;
         if (rampPreview_) {
             if (!modularPreviewAnchor_ ||
                 *modularPreviewAnchor_ !=
@@ -669,10 +663,10 @@ void App::updateModularPlacementPreview(
     }
 
     if (rawHit &&
-        modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
+        isPlatformBuildPiece(
+            modularBuildPiece_) &&
         modularDragPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
+            modularBuildPiece_ &&
         modularDragStart_ &&
         modularDragPlaneHeight_) {
         // Once a platform drag has begun, use its fixed storey
@@ -784,19 +778,14 @@ void App::updateModularPlacementPreview(
         modularSnapHit_ = snappedHit;
         modularSnapMarker_ = snappedHit;
         platformFramePreview_.reset();
-        platformFrameColumnPreview_.reset();
         wallPreview_.reset();
         rampPreview_.reset();
-        modularVerticalRearmBlocked_ = false;
         rebuildModularPlacementLine();
         return;
     }
 
-    std::optional<Vec3> edgeExtensionHit;
-    std::optional<PlatformFrameColumnPlacement>
-        edgeExtensionColumn;
     if (modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
+            ModularBuildPiece::FloorPlatform &&
         snapshot.aimedModularBuilding) {
         const EntityId aimed =
             *snapshot.aimedModularBuilding;
@@ -806,15 +795,18 @@ void App::updateModularPlacementPreview(
             [aimed](
                 const PlatformFrameInstance& candidate) {
                 return candidate.id == aimed;
-            });
+                });
         if (frame != snapshot.platformFrames.end()) {
             const bool usePlatformEdges =
-                frame->storey > 0 &&
-                !IsKeyDown(KEY_LEFT_CONTROL) &&
-                !IsKeyDown(KEY_RIGHT_CONTROL);
+                frame->storey > 0;
             if (usePlatformEdges) {
                 modularEdgeHoverFrame_ = frame->id;
             }
+            std::optional<GridCoord> targetAnchor;
+            int targetStorey = frame->storey + 1;
+            double targetFloorHeight =
+                frame->floorHeight +
+                modularStoreyHeight(terrain.config());
             if (usePlatformEdges &&
                 std::abs(lookDirection.y) > 1e-5) {
                 const double distance =
@@ -860,178 +852,98 @@ void App::updateModularPlacementPreview(
                         }
                         modularEdgeExtensionAnchor_ =
                             extension;
-                        edgeExtensionHit = Vec3{
-                            (extension.x + 1.0) *
-                                cellSize,
-                            frame->floorHeight,
-                            (extension.z + 1.0) *
-                                cellSize,
-                        };
-                        edgeExtensionColumn =
-                            simulation_
-                                .previewPlatformFrameColumn(
-                                    extension,
-                                    frame->storey,
-                                    frame->floorHeight);
+                        targetAnchor = extension;
+                        targetStorey = frame->storey;
+                        targetFloorHeight =
+                            frame->floorHeight;
                     }
                 }
             }
-        } else {
-            const auto ramp = std::find_if(
-                snapshot.ramps.begin(),
-                snapshot.ramps.end(),
-                [aimed](const RampInstance& candidate) {
-                    return candidate.id == aimed;
-                });
-            if (ramp != snapshot.ramps.end()) {
-                const Vec3 edgeCenter =
-                    rampTopEdgeCenter(
-                        *ramp, cellSize);
-                constexpr double RampEdgeAimRadiusCells =
-                    0.9;
-                if (distanceSquaredFromAimRay(
-                        edgeCenter,
-                        snapshot.playerPosition,
-                        lookDirection) <=
-                    cellSize * cellSize *
-                        RampEdgeAimRadiusCells *
-                        RampEdgeAimRadiusCells) {
-                    const GridCoord extension =
-                        platformAnchorBeyondRampTop(
-                            *ramp);
-                    modularEdgeExtensionAnchor_ =
-                        extension;
-                    edgeExtensionHit = Vec3{
-                        (extension.x + 1.0) *
-                            cellSize,
-                        ramp->topHeight,
-                        (extension.z + 1.0) *
-                            cellSize,
-                    };
-                    edgeExtensionColumn =
-                        simulation_
-                            .previewPlatformFrameColumn(
-                                extension,
-                                ramp->targetStorey,
-                                ramp->topHeight);
-                }
+            if (!targetAnchor) {
+                targetAnchor = frame->anchor;
             }
-        }
-    }
-
-    if (edgeExtensionHit && edgeExtensionColumn) {
-        platformFrameColumnPreview_ =
-            *edgeExtensionColumn;
-        const PlatformFramePlacement* target =
-            platformFrameColumnPreview_->target();
-        if (target) {
-            platformFramePreview_ = *target;
-            foundationTerrainHit_ =
-                *edgeExtensionHit;
-            modularSnapHit_ = *edgeExtensionHit;
-            modularSnapMarker_ =
-                *edgeExtensionHit;
+            platformFramePreview_ =
+                simulation_.previewFloorPlatform(
+                    *targetAnchor, targetStorey,
+                    targetFloorHeight);
+            const Vec3 targetHit{
+                (targetAnchor->x + 1.0) * cellSize,
+                targetFloorHeight,
+                (targetAnchor->z + 1.0) * cellSize,
+            };
+            foundationTerrainHit_ = targetHit;
+            modularSnapHit_ = targetHit;
+            modularSnapMarker_ = targetHit;
             if (!modularPreviewAnchor_ ||
-                *modularPreviewAnchor_ !=
-                    target->anchor) {
+                *modularPreviewAnchor_ != *targetAnchor) {
                 placementSnapPulseRemaining_ = 0.18;
             }
-            modularPreviewAnchor_ =
-                target->anchor;
-            modularRearmAnchor_.reset();
-        } else {
-            platformFramePreview_.reset();
-            foundationTerrainHit_.reset();
-            modularSnapHit_.reset();
-            modularSnapMarker_.reset();
-            modularPreviewAnchor_ =
-                platformFrameColumnPreview_->anchor;
+            modularPreviewAnchor_ = *targetAnchor;
+            wallPreview_.reset();
+            rampPreview_.reset();
+            return;
         }
-        wallPreview_.reset();
-        rampPreview_.reset();
-        modularVerticalRearmBlocked_ = false;
-        if (modularDragPiece_ ==
-                ModularBuildPiece::PlatformFrame) {
-            modularDragEnd_ =
-                edgeExtensionColumn->anchor;
-            rebuildModularPlacementLine();
+
+        const auto ramp = std::find_if(
+            snapshot.ramps.begin(),
+            snapshot.ramps.end(),
+            [aimed](const RampInstance& candidate) {
+                return candidate.id == aimed;
+            });
+        if (ramp != snapshot.ramps.end()) {
+            const Vec3 edgeCenter =
+                rampTopEdgeCenter(*ramp, cellSize);
+            constexpr double RampEdgeAimRadiusCells =
+                0.9;
+            if (distanceSquaredFromAimRay(
+                    edgeCenter,
+                    snapshot.playerPosition,
+                    lookDirection) <=
+                cellSize * cellSize *
+                    RampEdgeAimRadiusCells *
+                    RampEdgeAimRadiusCells) {
+                const GridCoord targetAnchor =
+                    platformAnchorBeyondRampTop(*ramp);
+                modularEdgeExtensionAnchor_ =
+                    targetAnchor;
+                platformFramePreview_ =
+                    simulation_.previewFloorPlatform(
+                        targetAnchor,
+                        ramp->targetStorey,
+                        ramp->topHeight);
+                const Vec3 targetHit{
+                    (targetAnchor.x + 1.0) *
+                        cellSize,
+                    ramp->topHeight,
+                    (targetAnchor.z + 1.0) *
+                        cellSize,
+                };
+                foundationTerrainHit_ = targetHit;
+                modularSnapHit_ = targetHit;
+                modularSnapMarker_ = targetHit;
+                if (!modularPreviewAnchor_ ||
+                    *modularPreviewAnchor_ !=
+                        targetAnchor) {
+                    placementSnapPulseRemaining_ = 0.18;
+                }
+                modularPreviewAnchor_ = targetAnchor;
+                wallPreview_.reset();
+                rampPreview_.reset();
+                return;
+            }
         }
-        return;
     }
 
     if (modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
-        snapshot.aimedModularBuilding) {
-        const EntityId aimed =
-            *snapshot.aimedModularBuilding;
-        const auto frame = std::find_if(
-            snapshot.platformFrames.begin(),
-            snapshot.platformFrames.end(),
-            [aimed](
-                const PlatformFrameInstance& candidate) {
-                return candidate.id == aimed;
-            });
-        if (frame != snapshot.platformFrames.end()) {
-            const Vec3 stackHit{
-                (frame->anchor.x + 1.0) * cellSize,
-                terrain.getHeight(
-                    (frame->anchor.x + 1.0) * cellSize,
-                    (frame->anchor.z + 1.0) * cellSize),
-                (frame->anchor.z + 1.0) * cellSize,
-            };
-            const bool verticalOverride =
-                IsKeyDown(KEY_LEFT_CONTROL) ||
-                IsKeyDown(KEY_RIGHT_CONTROL);
-            const bool rearmBlocked =
-                modularRearmAnchor_ &&
-                modularRearmAnchor_->x ==
-                    frame->anchor.x &&
-                modularRearmAnchor_->z ==
-                    frame->anchor.z &&
-                !verticalOverride;
-            if (rearmBlocked) {
-                platformFramePreview_.reset();
-                platformFrameColumnPreview_.reset();
-                wallPreview_.reset();
-                rampPreview_.reset();
-                foundationTerrainHit_ = Vec3{
-                    stackHit.x,
-                    frame->floorHeight,
-                    stackHit.z,
-                };
-                modularSnapHit_ = stackHit;
-                modularSnapMarker_ =
-                    foundationTerrainHit_;
-                modularPreviewAnchor_ =
-                    frame->anchor;
-                modularVerticalRearmBlocked_ = true;
-                return;
-            }
-            platformFramePreview_ =
-                simulation_.previewPlatformFrame(
-                    stackHit);
-            platformFrameColumnPreview_.reset();
-            wallPreview_.reset();
-            rampPreview_.reset();
-            foundationTerrainHit_ = Vec3{
-                stackHit.x,
-                frame->floorHeight,
-                stackHit.z,
-            };
-            modularSnapHit_ = stackHit;
-            modularSnapMarker_ =
-                foundationTerrainHit_;
-            modularPreviewAnchor_ =
-                platformFramePreview_->anchor;
-            modularVerticalRearmBlocked_ = false;
-            if (modularDragPiece_ ==
-                    ModularBuildPiece::PlatformFrame &&
-                modularDragFloorHeight_) {
-                modularDragEnd_ = frame->anchor;
-                rebuildModularPlacementLine();
-            }
-            return;
-        }
+        ModularBuildPiece::FloorPlatform) {
+        platformFramePreview_.reset();
+        wallPreview_.reset();
+        rampPreview_.reset();
+        foundationTerrainHit_.reset();
+        modularSnapHit_.reset();
+        modularSnapMarker_.reset();
+        modularPreviewAnchor_.reset();
+        return;
     }
 
     if (!rawHit) {
@@ -1040,7 +952,6 @@ void App::updateModularPlacementPreview(
         rampPreview_.reset();
         foundationTerrainHit_.reset();
         modularPreviewAnchor_.reset();
-        modularVerticalRearmBlocked_ = false;
         if (!IsKeyDown(KEY_LEFT_SHIFT)) {
             modularSnapHit_.reset();
             modularSnapMarker_.reset();
@@ -1051,13 +962,15 @@ void App::updateModularPlacementPreview(
     const auto evaluate =
         [this](Vec3 hit) {
             switch (modularBuildPiece_) {
-            case ModularBuildPiece::PlatformFrame: {
+            case ModularBuildPiece::Foundation: {
                 const auto placement =
-                    simulation_.previewPlatformFrame(hit);
+                    simulation_.previewFoundation(hit);
                 return std::pair{
                     placement.anchor,
                     placement.valid()};
             }
+            case ModularBuildPiece::FloorPlatform:
+                return std::pair{GridCoord{}, false};
             case ModularBuildPiece::Wall: {
                 const auto placement =
                     simulation_.previewWall(
@@ -1174,33 +1087,16 @@ void App::updateModularPlacementPreview(
     }
     modularPreviewAnchor_ = chosenAnchor;
     foundationTerrainHit_ = chosenHit;
-    if (modularRearmAnchor_ &&
-        (modularRearmAnchor_->x != chosenAnchor.x ||
-         modularRearmAnchor_->z != chosenAnchor.z)) {
-        modularRearmAnchor_.reset();
-    }
-    const bool verticalOverride =
-        IsKeyDown(KEY_LEFT_CONTROL) ||
-        IsKeyDown(KEY_RIGHT_CONTROL);
-    modularVerticalRearmBlocked_ =
-        modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
-        modularRearmAnchor_ &&
-        modularRearmAnchor_->x == chosenAnchor.x &&
-        modularRearmAnchor_->z == chosenAnchor.z &&
-        !verticalOverride;
 
     switch (modularBuildPiece_) {
-    case ModularBuildPiece::PlatformFrame:
-        if (modularVerticalRearmBlocked_) {
-            platformFramePreview_.reset();
-        } else {
-            platformFramePreview_ =
-                simulation_.previewPlatformFrame(
-                    chosenHit);
-        }
+    case ModularBuildPiece::Foundation:
+        platformFramePreview_ =
+            simulation_.previewFoundation(
+                chosenHit);
         wallPreview_.reset();
         rampPreview_.reset();
+        break;
+    case ModularBuildPiece::FloorPlatform:
         break;
     case ModularBuildPiece::Wall:
         wallPreview_ = simulation_.previewWall(
@@ -1218,12 +1114,6 @@ void App::updateModularPlacementPreview(
 
     if (modularDragPiece_) {
         if (*modularDragPiece_ ==
-                ModularBuildPiece::PlatformFrame &&
-            (platformFramePreview_ ||
-             modularDragFloorHeight_)) {
-            modularDragEnd_ = chosenAnchor;
-        } else if (
-            *modularDragPiece_ ==
                 ModularBuildPiece::Wall &&
             wallPreview_) {
             modularDragEnd_ = wallPreview_->anchor;
@@ -1233,23 +1123,7 @@ void App::updateModularPlacementPreview(
 }
 
 void App::beginModularPlacementDrag() {
-    if (modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
-        platformFrameColumnPreview_ &&
-        platformFrameColumnPreview_->valid()) {
-        modularDragStart_ =
-            platformFrameColumnPreview_->anchor;
-        modularDragStorey_ =
-            platformFrameColumnPreview_->targetStorey;
-        modularDragFloorHeight_ =
-            platformFrameColumnPreview_
-                ->targetFloorHeight;
-        modularDragPlaneHeight_ =
-            platformFrameColumnPreview_
-                ->targetFloorHeight;
-    } else if (
-        modularBuildPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
+    if (isPlatformBuildPiece(modularBuildPiece_) &&
         platformFramePreview_ &&
         platformFramePreview_->valid()) {
         modularDragStart_ =
@@ -1258,6 +1132,11 @@ void App::beginModularPlacementDrag() {
             platformFramePreview_->storey;
         modularDragPlaneHeight_ =
             platformFramePreview_->floorHeight;
+        if (modularBuildPiece_ ==
+            ModularBuildPiece::FloorPlatform) {
+            modularDragTargetFloorHeight_ =
+                platformFramePreview_->floorHeight;
+        }
     } else if (
         modularBuildPiece_ == ModularBuildPiece::Wall &&
         wallPreview_ && wallPreview_->valid()) {
@@ -1306,7 +1185,6 @@ void App::beginModularPlacementDrag() {
 void App::rebuildModularPlacementLine() {
     modularDragHits_.clear();
     modularPlatformDragPreviews_.clear();
-    modularPlatformColumnDragPreviews_.clear();
     modularWallDragPreviews_.clear();
     modularRampDragPreviews_.clear();
     if (!modularDragStart_ || !modularDragEnd_ ||
@@ -1346,30 +1224,29 @@ void App::rebuildModularPlacementLine() {
         const Vec3 hit =
             cellHit(cell, terrain, cellSize);
         if (*modularDragPiece_ ==
-            ModularBuildPiece::PlatformFrame) {
-            if (modularDragFloorHeight_) {
-                PlatformFrameColumnPlacement preview =
-                    simulation_
-                        .previewPlatformFrameColumn(
-                            cell,
-                            *modularDragStorey_,
-                            *modularDragFloorHeight_);
-                modularDragHits_.push_back(hit);
-                modularPlatformDragPreviews_.insert(
-                    modularPlatformDragPreviews_.end(),
-                    preview.frames.begin(),
-                    preview.frames.end());
-                modularPlatformColumnDragPreviews_
-                    .push_back(std::move(preview));
-                continue;
-            }
+            ModularBuildPiece::Foundation) {
             PlatformFramePlacement preview =
-                simulation_.previewPlatformFrame(hit);
+                simulation_.previewFoundation(hit);
             if (preview.storey !=
                 *modularDragStorey_) {
                 continue;
             }
             modularDragHits_.push_back(hit);
+            modularPlatformDragPreviews_.push_back(
+                preview);
+        } else if (
+            *modularDragPiece_ ==
+                ModularBuildPiece::FloorPlatform &&
+            modularDragTargetFloorHeight_) {
+            PlatformFramePlacement preview =
+                simulation_.previewFloorPlatform(
+                    cell, *modularDragStorey_,
+                    *modularDragTargetFloorHeight_);
+            modularDragHits_.push_back(Vec3{
+                (cell.x + 1.0) * cellSize,
+                *modularDragTargetFloorHeight_,
+                (cell.z + 1.0) * cellSize,
+            });
             modularPlatformDragPreviews_.push_back(
                 preview);
         } else if (
@@ -1428,73 +1305,8 @@ bool App::finishModularPlacementDrag() {
                 bounceStep;
         };
     bool placedAny = false;
-    if (*modularDragPiece_ ==
-            ModularBuildPiece::PlatformFrame &&
-        modularDragFloorHeight_) {
-        const std::size_t previewCount =
-            modularDragExtended_
-                ? modularPlatformColumnDragPreviews_
-                      .size()
-                : std::min<std::size_t>(
-                      1U,
-                      modularPlatformColumnDragPreviews_
-                          .size());
-        for (std::size_t index = 0;
-             index < previewCount; ++index) {
-            const PlatformFrameColumnPlacement&
-                preview =
-                    modularPlatformColumnDragPreviews_
-                        [index];
-            const PlatformFrameColumnPlacement current =
-                simulation_.previewPlatformFrameColumn(
-                    preview.anchor,
-                    preview.targetStorey,
-                    preview.targetFloorHeight);
-            if (!current.valid()) {
-                continue;
-            }
-            const auto frames =
-                simulation_.placePlatformFrameColumn(
-                    current.anchor,
-                    current.targetStorey,
-                    current.targetFloorHeight);
-            if (frames.size() !=
-                current.frames.size()) {
-                continue;
-            }
-            placedAny = true;
-            const double startDelay =
-                bounceDelayFor(placedOrdinal);
-            for (const PlatformFrameInstance& frame :
-                 frames) {
-                const Vec3 center =
-                    platformFrameCenter(
-                        frame, cellSize);
-                addEffect(
-                    PresentationEffectType::
-                        BuildingPlaced,
-                    center, 0.7, 1.25F,
-                    std::nullopt, startDelay);
-                if (frame.storey == 0) {
-                    grassClearAreas_.push_back({
-                        .center = {
-                            static_cast<float>(
-                                center.x),
-                            static_cast<float>(
-                                center.z),
-                        },
-                        .innerRadius =
-                            static_cast<float>(
-                                cellSize * 1.35),
-                        .amount = 0.0F,
-                    });
-                }
-            }
-            ++placedOrdinal;
-        }
-    } else if (
-        *modularDragPiece_ ==
-            ModularBuildPiece::PlatformFrame) {
+    if (isPlatformBuildPiece(
+            *modularDragPiece_)) {
         const std::size_t previewCount =
             modularDragExtended_
                 ? std::min(
@@ -1515,8 +1327,16 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             const PlatformFramePlacement current =
-                simulation_.previewPlatformFrame(
-                    modularDragHits_[index]);
+                *modularDragPiece_ ==
+                        ModularBuildPiece::Foundation
+                    ? simulation_.previewFoundation(
+                          modularDragHits_[index])
+                    : simulation_.previewFloorPlatform(
+                          modularPlatformDragPreviews_
+                              [index]
+                                  .anchor,
+                          *modularDragStorey_,
+                          *modularDragTargetFloorHeight_);
             if (!current.valid() ||
                 !modularDragStorey_ ||
                 current.storey !=
@@ -1524,8 +1344,14 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             const auto frame =
-                simulation_.placePlatformFrame(
-                    modularDragHits_[index]);
+                *modularDragPiece_ ==
+                        ModularBuildPiece::Foundation
+                    ? simulation_.placeFoundation(
+                          modularDragHits_[index])
+                    : simulation_.placeFloorPlatform(
+                          current.anchor,
+                          current.storey,
+                          current.floorHeight);
             if (!frame) {
                 continue;
             }
@@ -1626,18 +1452,10 @@ bool App::finishModularPlacementDrag() {
             ++placedOrdinal;
         }
     }
-    const std::optional<GridCoord> placedEnd =
-        modularDragEnd_;
     clearModularPlacementDrag();
     modularSnapHit_.reset();
     modularSnapMarker_.reset();
     if (placedAny) {
-        if (placedEnd &&
-            modularBuildPiece_ ==
-                ModularBuildPiece::PlatformFrame) {
-            modularRearmAnchor_ = placedEnd;
-            modularVerticalRearmBlocked_ = true;
-        }
         audio_.playUiConfirm();
     }
     return placedAny;

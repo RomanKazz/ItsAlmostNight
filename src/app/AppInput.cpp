@@ -140,8 +140,6 @@ void App::processInput() {
         rampSocketLostGraceRemaining_ = 0.0;
         rampSocketManualOverrideRemaining_ = 0.0;
         modularPreviewAnchor_.reset();
-        modularRearmAnchor_.reset();
-        modularVerticalRearmBlocked_ = false;
         buildModePieVisible_ = false;
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
@@ -216,8 +214,6 @@ void App::processInput() {
         rampSocketLostGraceRemaining_ = 0.0;
         rampSocketManualOverrideRemaining_ = 0.0;
         modularPreviewAnchor_.reset();
-        modularRearmAnchor_.reset();
-        modularVerticalRearmBlocked_ = false;
         buildModePieVisible_ = false;
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
@@ -379,13 +375,17 @@ void App::processInput() {
         if (foundationBuildMode_) {
             if (IsKeyPressed(KEY_ONE)) {
                 selectModularBuildPiece(
-                    ModularBuildPiece::PlatformFrame);
+                    ModularBuildPiece::Foundation);
             }
             if (IsKeyPressed(KEY_TWO)) {
                 selectModularBuildPiece(
-                    ModularBuildPiece::Wall);
+                    ModularBuildPiece::FloorPlatform);
             }
             if (IsKeyPressed(KEY_THREE)) {
+                selectModularBuildPiece(
+                    ModularBuildPiece::Wall);
+            }
+            if (IsKeyPressed(KEY_FOUR)) {
                 selectModularBuildPiece(
                     ModularBuildPiece::Ramp);
             }
@@ -426,7 +426,11 @@ void App::processInput() {
         if (foundationBuildMode_ &&
             IsKeyPressed(KEY_V)) {
             switch (modularBuildPiece_) {
-            case ModularBuildPiece::PlatformFrame:
+            case ModularBuildPiece::Foundation:
+                selectModularBuildPiece(
+                    ModularBuildPiece::FloorPlatform);
+                break;
+            case ModularBuildPiece::FloorPlatform:
                 selectModularBuildPiece(
                     ModularBuildPiece::Wall);
                 break;
@@ -436,7 +440,7 @@ void App::processInput() {
                 break;
             case ModularBuildPiece::Ramp:
                 selectModularBuildPiece(
-                    ModularBuildPiece::PlatformFrame);
+                    ModularBuildPiece::Foundation);
                 break;
             }
         }
@@ -527,7 +531,10 @@ void App::processInput() {
                     currentSnapshot.platformFrames.end()) {
                     setFoundationBuildMode(true);
                     selectModularBuildPiece(
-                        ModularBuildPiece::PlatformFrame);
+                        frame->storey == 0
+                            ? ModularBuildPiece::Foundation
+                            : ModularBuildPiece::
+                                  FloorPlatform);
                 } else if (
                     wall !=
                     currentSnapshot.modularWalls.end()) {
@@ -850,7 +857,6 @@ void App::processInput() {
                 currentSnapshot);
         } else {
             platformFramePreview_.reset();
-            platformFrameColumnPreview_.reset();
             wallPreview_.reset();
             rampPreview_.reset();
             foundationTerrainHit_.reset();
@@ -870,12 +876,9 @@ void App::processInput() {
             if (foundationBuildMode_) {
                 if (foundationTerrainHit_) {
                     switch (modularBuildPiece_) {
-                    case ModularBuildPiece::PlatformFrame:
-                        if (platformFrameColumnPreview_ &&
-                            platformFrameColumnPreview_
-                                ->valid()) {
-                            beginModularPlacementDrag();
-                        } else if (platformFramePreview_ &&
+                    case ModularBuildPiece::Foundation:
+                    case ModularBuildPiece::FloorPlatform:
+                        if (platformFramePreview_ &&
                             platformFramePreview_->valid()) {
                             beginModularPlacementDrag();
                         }

@@ -579,11 +579,11 @@ void drawBuildHotbarSlots(
 void drawFoundationHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const HudViewState& view) {
-    constexpr std::array<std::string_view, 3> Labels{
-        "PLATFORM", "WALL", "RAMP"};
-    constexpr std::array<std::string_view, 3> Keys{
-        "1", "2", "3"};
-    std::array<BuildHotbarSlot, 3> slots{};
+    constexpr std::array<std::string_view, 4> Labels{
+        "FOUNDATION", "FLOOR", "WALL", "RAMP"};
+    constexpr std::array<std::string_view, 4> Keys{
+        "1", "2", "3", "4"};
+    std::array<BuildHotbarSlot, 4> slots{};
     for (std::size_t index = 0;
          index < slots.size(); ++index) {
         const ResourceCost cost =

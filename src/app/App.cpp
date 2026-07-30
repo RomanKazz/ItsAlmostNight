@@ -1294,27 +1294,21 @@ void App::render() {
             },
             camera);
         if (foundationBuildMode_) {
-            const char* pieceName = "PLATFORM FRAME 2x2";
+            const char* pieceName = "FOUNDATION 2x2";
             int previewStorey = 0;
             bool previewValid = false;
             std::size_t plannedCount = 1U;
             std::optional<ModularPlacementError>
                 previewError;
             switch (modularBuildPiece_) {
-            case ModularBuildPiece::PlatformFrame:
-                pieceName = "PLATFORM FRAME 2x2";
-                if (platformFrameColumnPreview_) {
-                    previewValid =
-                        platformFrameColumnPreview_->valid();
-                    previewError =
-                        platformFrameColumnPreview_->error;
-                    previewStorey =
-                        platformFrameColumnPreview_
-                            ->targetStorey;
-                    plannedCount =
-                        platformFrameColumnPreview_
-                            ->frames.size();
-                } else if (platformFramePreview_) {
+            case ModularBuildPiece::Foundation:
+            case ModularBuildPiece::FloorPlatform:
+                pieceName =
+                    modularBuildPiece_ ==
+                            ModularBuildPiece::Foundation
+                        ? "FOUNDATION 2x2"
+                        : "FLOOR PLATFORM 2x2";
+                if (platformFramePreview_) {
                     previewValid =
                         platformFramePreview_->valid();
                     previewError =
@@ -1322,35 +1316,27 @@ void App::render() {
                     previewStorey =
                         platformFramePreview_->storey;
                 }
-                if (!modularPlatformColumnDragPreviews_
-                         .empty()) {
-                    plannedCount = 0U;
-                    for (const auto& placement :
-                         modularPlatformColumnDragPreviews_) {
-                        plannedCount +=
-                            placement.frames.size();
-                    }
-                    previewValid = std::all_of(
-                        modularPlatformColumnDragPreviews_
-                            .begin(),
-                        modularPlatformColumnDragPreviews_
-                            .end(),
-                        [](
-                            const PlatformFrameColumnPlacement&
-                                placement) {
-                            return placement.valid();
-                        });
-                } else if (
-                    !modularPlatformDragPreviews_.empty()) {
+                if (!modularPlatformDragPreviews_.empty()) {
                     plannedCount =
                         modularPlatformDragPreviews_.size();
-                    previewValid = std::all_of(
+                    previewStorey =
+                        modularPlatformDragPreviews_
+                            .front()
+                            .storey;
+                    const auto invalid = std::find_if(
                         modularPlatformDragPreviews_.begin(),
                         modularPlatformDragPreviews_.end(),
                         [](const PlatformFramePlacement&
                                placement) {
-                            return placement.valid();
+                            return !placement.valid();
                         });
+                    previewValid =
+                        invalid ==
+                        modularPlatformDragPreviews_.end();
+                    previewError =
+                        previewValid
+                            ? ModularPlacementError::None
+                            : invalid->error;
                 }
                 break;
             case ModularBuildPiece::Wall:
@@ -1366,12 +1352,23 @@ void App::render() {
                 if (!modularWallDragPreviews_.empty()) {
                     plannedCount =
                         modularWallDragPreviews_.size();
-                    previewValid = std::all_of(
+                    previewStorey =
+                        modularWallDragPreviews_
+                            .front()
+                            .storey;
+                    const auto invalid = std::find_if(
                         modularWallDragPreviews_.begin(),
                         modularWallDragPreviews_.end(),
                         [](const WallPlacement& placement) {
-                            return placement.valid();
+                            return !placement.valid();
                         });
+                    previewValid =
+                        invalid ==
+                        modularWallDragPreviews_.end();
+                    previewError =
+                        previewValid
+                            ? ModularPlacementError::None
+                            : invalid->error;
                 }
                 break;
             case ModularBuildPiece::Ramp:
@@ -1387,12 +1384,23 @@ void App::render() {
                 if (!modularRampDragPreviews_.empty()) {
                     plannedCount =
                         modularRampDragPreviews_.size();
-                    previewValid = std::all_of(
+                    previewStorey =
+                        modularRampDragPreviews_
+                            .front()
+                            .targetStorey;
+                    const auto invalid = std::find_if(
                         modularRampDragPreviews_.begin(),
                         modularRampDragPreviews_.end(),
                         [](const RampPlacement& placement) {
-                            return placement.valid();
+                            return !placement.valid();
                         });
+                    previewValid =
+                        invalid ==
+                        modularRampDragPreviews_.end();
+                    previewError =
+                        previewValid
+                            ? ModularPlacementError::None
+                            : invalid->error;
                 }
                 break;
             }
@@ -1401,22 +1409,26 @@ void App::render() {
                 pieceLabel += " x" +
                     std::to_string(plannedCount);
             }
-            const std::string foundationHint =
-                modularVerticalRearmBlocked_
-                    ? pieceLabel +
-                          "   STACK PAUSED"
-                          "   CTRL STACK"
-                          "   V PIECE   RMB CANCEL"
-                    : pieceLabel +
-                          "   LEVEL " +
-                          std::to_string(previewStorey) +
-                          "   LMB DRAG   CTRL STACK"
-                          "   SHIFT LOCK   V PIECE"
-                          "   WHEEL ROTATE   RMB CANCEL";
+            std::string foundationHint =
+                pieceLabel + "   LEVEL " +
+                std::to_string(previewStorey) +
+                "   LMB DRAG";
+            if (modularBuildPiece_ ==
+                    ModularBuildPiece::Foundation ||
+                modularBuildPiece_ ==
+                    ModularBuildPiece::Wall) {
+                foundationHint += "   SHIFT LOCK";
+            }
+            foundationHint += "   V PIECE";
+            if (modularBuildPiece_ ==
+                    ModularBuildPiece::Wall ||
+                modularBuildPiece_ ==
+                    ModularBuildPiece::Ramp) {
+                foundationHint += "   WHEEL ROTATE";
+            }
+            foundationHint += "   RMB CANCEL";
             const Color messageColor =
-                modularVerticalRearmBlocked_
-                    ? Color{255, 211, 92, 255}
-                    : previewValid
+                previewValid
                     ? Color{126, 239, 151, 255}
                     : Color{246, 112, 94, 255};
             drawCenteredUiText(
@@ -1425,8 +1437,11 @@ void App::render() {
                     GetScreenHeight() / 2 + 76),
                 18.0F, {245, 235, 214, 245});
             drawCenteredUiText(
-                modularVerticalRearmBlocked_
-                    ? "MOVE AIM AWAY OR HOLD CTRL TO STACK"
+                modularBuildPiece_ ==
+                            ModularBuildPiece::
+                                FloorPlatform &&
+                        !previewError
+                    ? "AIM AT PLATFORM OR RAMP"
                     : modularPlacementMessage(
                           previewError),
                 static_cast<float>(

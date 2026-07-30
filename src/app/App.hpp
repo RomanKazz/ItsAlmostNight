@@ -289,11 +289,9 @@ class App {
         BuildingType::Wall};
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
-        ModularBuildPiece::PlatformFrame};
+        ModularBuildPiece::Foundation};
     std::optional<PlatformFramePlacement>
         platformFramePreview_;
-    std::optional<PlatformFrameColumnPlacement>
-        platformFrameColumnPreview_;
     std::optional<WallPlacement> wallPreview_;
     std::optional<RampPlacement> rampPreview_;
     Rotation modularRotation_{Rotation::Deg0};
@@ -309,12 +307,11 @@ class App {
     double rampSocketManualOverrideRemaining_{};
     std::optional<GridCoord> modularPreviewAnchor_;
     std::optional<Vec3> modularPreviewVisualOrigin_;
-    std::optional<GridCoord> modularRearmAnchor_;
-    bool modularVerticalRearmBlocked_{};
     std::optional<GridCoord> modularDragStart_;
     std::optional<GridCoord> modularDragEnd_;
     std::optional<int> modularDragStorey_;
-    std::optional<double> modularDragFloorHeight_;
+    std::optional<double>
+        modularDragTargetFloorHeight_;
     std::optional<double> modularDragPlaneHeight_;
     std::optional<Rotation> modularDragRotation_;
     std::optional<ModularBuildPiece> modularDragPiece_;
@@ -327,8 +324,6 @@ class App {
     std::vector<Vec3> modularDragHits_;
     std::vector<PlatformFramePlacement>
         modularPlatformDragPreviews_;
-    std::vector<PlatformFrameColumnPlacement>
-        modularPlatformColumnDragPreviews_;
     std::vector<WallPlacement>
         modularWallDragPreviews_;
     std::vector<RampPlacement>

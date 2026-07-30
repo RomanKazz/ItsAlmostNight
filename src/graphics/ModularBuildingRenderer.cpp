@@ -331,7 +331,6 @@ void ModularBuildingRenderer::drawWorld(
 
     bool translatedPreview = false;
     if (preview.visualOrigin &&
-        preview.platformFrameColumn.empty() &&
         preview.platformFrameLine.empty() &&
         preview.wallLine.empty() &&
         preview.rampLine.empty()) {
@@ -390,14 +389,7 @@ void ModularBuildingRenderer::drawWorld(
         }
     }
 
-    if (!preview.platformFrameColumn.empty()) {
-        for (const PlatformFramePlacement& placement :
-             preview.platformFrameColumn) {
-            drawPlatformFramePreview(
-                placement,
-                preview.maximumWoodSupportLength);
-        }
-    } else if (!preview.platformFrameLine.empty()) {
+    if (!preview.platformFrameLine.empty()) {
         for (const PlatformFramePlacement& placement :
              preview.platformFrameLine) {
             drawPlatformFramePreview(

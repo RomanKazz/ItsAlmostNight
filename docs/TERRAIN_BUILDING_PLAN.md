@@ -22,9 +22,12 @@
 - `BuildGrid`: 3D discrete coordinates and layered occupancy with stable
   entity ownership.
 
-The public floor module is `PlatformFrame`. It always occupies a 2x2 block
-whose anchor is aligned to the even frame grid. The one-cell unit remains an
-internal `BuildGrid` detail for walls, stairs and occupancy calculations.
+The simulation floor entity is `PlatformFrame`. It always occupies a 2x2
+block whose anchor is aligned to the even frame grid. Placement exposes
+separate foundation and upper-floor tools: foundations validate terrain at
+storey zero, while floor platforms require an existing supported frame below.
+The one-cell unit remains an internal `BuildGrid` detail for walls, stairs and
+occupancy calculations.
 
 Each frame owns its floor, four terrain- or floor-reaching supports and
 perimeter beams. Frames above ground depend directly on the frame below.

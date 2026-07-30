@@ -9,12 +9,13 @@
 namespace ian {
 
 enum class ModularBuildPiece {
-    PlatformFrame,
+    Foundation,
+    FloorPlatform,
     Wall,
     Ramp,
 };
 
-inline constexpr std::size_t ModularBuildPieceCount = 3;
+inline constexpr std::size_t ModularBuildPieceCount = 4;
 inline constexpr int PlatformFrameWidthCells = 2;
 inline constexpr int ModularStoreyHeightCells = 4;
 inline constexpr int ModularRampWidthCells = 2;

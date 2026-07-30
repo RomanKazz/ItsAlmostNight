@@ -52,11 +52,11 @@ void runFoundationSystemTests() {
 
     ian::FoundationSystem frames{terrain, config};
     const auto first = frames.placePlatformFrame(
-        frames.previewPlatformFrame(
+        frames.previewFoundation(
             {0.2, 0.0, 0.2}, player));
     const auto neighbour =
         frames.placePlatformFrame(
-            frames.previewPlatformFrame(
+            frames.previewFoundation(
                 {2.2, 0.0, 0.2}, player));
     require(
         first && neighbour &&
@@ -65,6 +65,15 @@ void runFoundationSystemTests() {
             neighbour->anchor.x == 2 &&
             frames.platformFrames().size() == 2,
         "only 2x2 PlatformFrames place on frame grid");
+    const auto occupiedFoundation =
+        frames.previewFoundation(
+            {0.2, 0.0, 0.2}, player);
+    require(
+        !occupiedFoundation.valid() &&
+            occupiedFoundation.storey == 0 &&
+            occupiedFoundation.error ==
+                ian::ModularPlacementError::Occupied,
+        "foundation stays on terrain instead of auto-stacking");
     require(
         first->health == ian::PlatformFrameMaxHealth &&
             first->maxHealth ==
@@ -129,7 +138,7 @@ void runFoundationSystemTests() {
         terrain, config};
     const auto destructible =
         destructibleFrames.placePlatformFrame(
-            destructibleFrames.previewPlatformFrame(
+            destructibleFrames.previewFoundation(
                 {0.2, 0.0, 0.2}, player));
     const auto destroyedFrame =
         destructible
@@ -146,17 +155,23 @@ void runFoundationSystemTests() {
 
     ian::FoundationSystem tower{terrain, config};
     const auto ground = tower.placePlatformFrame(
-        tower.previewPlatformFrame(
+        tower.previewFoundation(
             {0.2, 0.0, 0.2}, player));
     const auto upperPreview =
-        tower.previewPlatformFrame(
-            {0.2, 0.0, 0.2}, player);
+        tower.previewFloorPlatform(
+            ground->anchor, 1,
+            ground->floorHeight +
+                ian::modularStoreyHeight(config),
+            player);
     const auto upper =
         tower.placePlatformFrame(upperPreview);
     const auto roof =
         tower.placePlatformFrame(
-            tower.previewPlatformFrame(
-                {0.2, 0.0, 0.2}, player));
+            tower.previewFloorPlatform(
+                upper->anchor, 2,
+                upper->floorHeight +
+                    ian::modularStoreyHeight(config),
+                player));
     const double storeyHeight =
         ian::modularStoreyHeight(config);
     require(
@@ -189,8 +204,10 @@ void runFoundationSystemTests() {
         "upper frame includes four full-height supports");
     require(
         tower
-                .previewPlatformFrame(
-                    {0.2, 0.0, 0.2}, player)
+                .previewFloorPlatform(
+                    roof->anchor, 3,
+                    roof->floorHeight + storeyHeight,
+                    player)
                 .error ==
             ian::ModularPlacementError::MaximumStorey,
         "frame stack respects maximum storeys");
@@ -198,67 +215,62 @@ void runFoundationSystemTests() {
         terrain, config};
     const auto bridgeGround =
         bridgeFrames.placePlatformFrame(
-            bridgeFrames.previewPlatformFrame(
+            bridgeFrames.previewFoundation(
                 {0.2, 0.0, 0.2}, player));
     const auto bridgeUpper =
         bridgeFrames.placePlatformFrame(
-            bridgeFrames.previewPlatformFrame(
-                {0.2, 0.0, 0.2}, player));
+            bridgeFrames.previewFloorPlatform(
+                bridgeGround->anchor, 1,
+                bridgeGround->floorHeight +
+                    storeyHeight,
+                player));
     require(
         bridgeGround && bridgeUpper,
         "edge extension fixture builds its source stack");
-    const auto bridgeColumn =
-        bridgeFrames.previewPlatformFrameColumn(
+    const auto unsupportedEdge =
+        bridgeFrames.previewFloorPlatform(
             {2, 0, 0}, bridgeUpper->storey,
             bridgeUpper->floorHeight, player);
     require(
-        bridgeColumn.valid() &&
-            bridgeColumn.frames.size() == 2U &&
-            bridgeColumn.frames.front().storey == 0 &&
-            bridgeColumn.frames.back().storey == 1 &&
-            std::abs(
-                bridgeColumn.frames.back().floorHeight -
-                bridgeUpper->floorHeight) < 1e-9,
-        "elevated edge extension previews every missing lower frame");
-    const auto placedBridgeColumn =
-        bridgeFrames.placePlatformFrameColumn(
-            bridgeColumn);
+        !unsupportedEdge.valid() &&
+            unsupportedEdge.error ==
+                ian::ModularPlacementError::NoSupport,
+        "floor platform never creates a hidden foundation column");
     require(
-        placedBridgeColumn.size() == 2U &&
-            placedBridgeColumn.back().storey ==
-                upper->storey &&
+        bridgeFrames
+                .previewFloorPlatform(
+                    bridgeGround->anchor, 0,
+                    bridgeGround->floorHeight, player)
+                .error ==
+            ian::ModularPlacementError::NoSupport,
+        "floor platform tool rejects the foundation storey");
+    const auto edgeFoundation =
+        bridgeFrames.placePlatformFrame(
+            bridgeFrames.previewFoundation(
+                {2.2, 0.0, 0.2}, player));
+    const auto supportedEdge =
+        bridgeFrames.previewFloorPlatform(
+            {2, 0, 0}, bridgeUpper->storey,
+            bridgeUpper->floorHeight, player);
+    const auto placedEdge =
+        bridgeFrames.placePlatformFrame(
+            supportedEdge);
+    require(
+        edgeFoundation && supportedEdge.valid() &&
+            placedEdge &&
+            placedEdge->storey == upper->storey &&
             bridgeFrames.structuralGraph().dependentCount(
-                placedBridgeColumn.front().id) == 1U,
-        "elevated edge extension atomically builds a supported frame column");
-    const auto occupiedBridgeColumn =
-        bridgeFrames.previewPlatformFrameColumn(
+                edgeFoundation->id) == 1U,
+        "floor platform uses an existing foundation below");
+    const auto occupiedEdge =
+        bridgeFrames.previewFloorPlatform(
             {2, 0, 0}, bridgeUpper->storey,
             bridgeUpper->floorHeight, player);
     require(
-        !occupiedBridgeColumn.valid() &&
-            occupiedBridgeColumn.error ==
+        !occupiedEdge.valid() &&
+            occupiedEdge.error ==
                 ian::ModularPlacementError::Occupied,
         "edge extension rejects an already occupied target floor");
-    ian::FoundationSystem supportedEdgeFrames{
-        terrain, config};
-    const auto existingLowerFrame =
-        supportedEdgeFrames.placePlatformFrame(
-            supportedEdgeFrames.previewPlatformFrame(
-                {2.2, 0.0, 0.2}, player));
-    require(
-        existingLowerFrame.has_value(),
-        "supported edge fixture builds its lower frame");
-    const auto upperOnlyColumn =
-        supportedEdgeFrames.previewPlatformFrameColumn(
-            {2, 0, 0}, 1,
-            existingLowerFrame->floorHeight +
-                storeyHeight,
-            player);
-    require(
-        upperOnlyColumn.valid() &&
-            upperOnlyColumn.frames.size() == 1U &&
-            upperOnlyColumn.frames.front().storey == 1,
-        "edge extension reuses an existing lower floor and adds only the upper frame");
 
     ian::WorldConfig scaledConfig = config;
     scaledConfig.cellSize = 1.25;
@@ -269,12 +281,16 @@ void runFoundationSystemTests() {
         scaledTerrain, scaledConfig};
     const auto scaledGround =
         scaledFrames.placePlatformFrame(
-            scaledFrames.previewPlatformFrame(
+            scaledFrames.previewFoundation(
                 {0.2, 0.0, 0.2}, player));
     const auto scaledUpper =
         scaledFrames.placePlatformFrame(
-            scaledFrames.previewPlatformFrame(
-                {0.2, 0.0, 0.2}, player));
+            scaledFrames.previewFloorPlatform(
+                scaledGround->anchor, 1,
+                scaledGround->floorHeight +
+                    ian::modularStoreyHeight(
+                        scaledConfig),
+                player));
     require(
         scaledGround && scaledUpper &&
             std::abs(
@@ -360,7 +376,7 @@ void runFoundationSystemTests() {
 
     ian::FoundationSystem envelope{terrain, config};
     const auto base = envelope.placePlatformFrame(
-        envelope.previewPlatformFrame(
+        envelope.previewFoundation(
             {0.2, 0.0, 0.2}, player));
     const auto wall = envelope.placeWall(
         envelope.previewWall(
@@ -594,7 +610,7 @@ void runFoundationSystemTests() {
     require(
         envelope
             .placePlatformFrame(
-                envelope.previewPlatformFrame(
+                envelope.previewFoundation(
                     {0.2, 0.0, 0.2}, player))
             .has_value(),
         "cleared PlatformFrame cells can be rebuilt");

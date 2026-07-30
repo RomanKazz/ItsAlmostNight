@@ -16,7 +16,7 @@ void runModularCombatTests() {
     const ian::Vec3 player{-4.0, 1.7, 0.0};
 
     const auto frame = foundations.placePlatformFrame(
-        foundations.previewPlatformFrame(
+        foundations.previewFoundation(
             {0.2, 0.0, 0.2}, player));
     require(frame.has_value(),
             "modular combat fixture places frame");

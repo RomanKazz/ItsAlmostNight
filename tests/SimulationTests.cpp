@@ -87,7 +87,7 @@ void runSimulationTests() {
                     productionSimulation.snapshot()
                         .resourceNodes.end() &&
                 productionSimulation
-                        .previewPlatformFrame(
+                        .previewFoundation(
                             firstResource->position)
                         .error ==
                     ian::ModularPlacementError::
@@ -292,7 +292,7 @@ void runSimulationTests() {
         protectedCore.tick(1.0 / 60.0, unlimited);
 
         const auto coreFoundation =
-            protectedCore.placePlatformFrame(
+            protectedCore.placeFoundation(
                 {0.2,
                  protectedCore.terrain().getHeight(
                      0.2, 4.2),
@@ -343,7 +343,7 @@ void runSimulationTests() {
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
         platformAim.tick(1.0 / 60.0, unlimited);
-        const auto frame = platformAim.placePlatformFrame(
+        const auto frame = platformAim.placeFoundation(
             {0.2,
              platformAim.terrain().getHeight(
                  0.2, 4.2),
@@ -398,7 +398,7 @@ void runSimulationTests() {
             4.2,
         };
         const auto groundFrame =
-            raisedRampResources.placePlatformFrame(
+            raisedRampResources.placeFoundation(
                 supportHit);
         require(
             groundFrame.has_value(),
@@ -413,8 +413,13 @@ void runSimulationTests() {
                     ResourceBlocked,
             "ground ramp remains blocked by resource");
         const auto upperFrame =
-            raisedRampResources.placePlatformFrame(
-                supportHit);
+            raisedRampResources.placeFloorPlatform(
+                groundFrame->anchor, 1,
+                groundFrame->floorHeight +
+                    ian::modularStoreyHeight(
+                        raisedRampResources
+                            .terrain()
+                            .config()));
         require(
             upperFrame.has_value(),
             "raised ramp resource fixture creates upper frame");
@@ -445,7 +450,7 @@ void runSimulationTests() {
         autoJumpSimulation.tick(
             1.0 / 60.0, unlimited);
         const auto frame =
-            autoJumpSimulation.placePlatformFrame(
+            autoJumpSimulation.placeFoundation(
                 {0.2, 0.0, 2.2});
         require(
             frame && frame->storey == 0 &&
@@ -532,9 +537,12 @@ void runSimulationTests() {
                     .wood == 20 &&
             simulation.snapshot()
                     .modularBuildingCosts[1]
-                    .stone == 10 &&
+                    .wood == 20 &&
             simulation.snapshot()
                     .modularBuildingCosts[2]
+                    .stone == 10 &&
+            simulation.snapshot()
+                    .modularBuildingCosts[3]
                     .wood == 16,
         "snapshot exposes modular hotbar costs");
     require(simulation.snapshot().tick == 1, "running simulation advances");

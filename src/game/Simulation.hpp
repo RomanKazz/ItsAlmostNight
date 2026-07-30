@@ -212,17 +212,17 @@ class Simulation {
     [[nodiscard]] const TerrainHeightfield& terrain() const;
     void regenerateTerrain(std::uint32_t seed);
     [[nodiscard]] PlatformFramePlacement
-    previewPlatformFrame(Vec3 terrainHit) const;
+    previewFoundation(Vec3 terrainHit) const;
     [[nodiscard]] std::optional<PlatformFrameInstance>
-    placePlatformFrame(Vec3 terrainHit);
-    [[nodiscard]] PlatformFrameColumnPlacement
-    previewPlatformFrameColumn(
-        GridCoord anchor, int targetStorey,
-        double targetFloorHeight) const;
-    [[nodiscard]] std::vector<PlatformFrameInstance>
-    placePlatformFrameColumn(
-        GridCoord anchor, int targetStorey,
-        double targetFloorHeight);
+    placeFoundation(Vec3 terrainHit);
+    [[nodiscard]] PlatformFramePlacement
+    previewFloorPlatform(
+        GridCoord anchor, int storey,
+        double floorHeight) const;
+    [[nodiscard]] std::optional<PlatformFrameInstance>
+    placeFloorPlatform(
+        GridCoord anchor, int storey,
+        double floorHeight);
     [[nodiscard]] WallPlacement previewWall(
         Vec3 terrainHit, Rotation rotation) const;
     [[nodiscard]] std::optional<WallInstance>

@@ -150,8 +150,7 @@ void App::drawWorldEntities(
                 modularPlatformDragPreviews_,
                 modularWallDragPreviews_,
                 modularRampDragPreviews_,
-                foundationTerrainHit_ &&
-                        !modularVerticalRearmBlocked_
+                foundationTerrainHit_
                     ? &*foundationTerrainHit_
                     : nullptr,
                 simulation_.terrain().config()
@@ -165,14 +164,6 @@ void App::drawWorldEntities(
                         modularPreviewVisualOrigin_
                     ? &*modularPreviewVisualOrigin_
                     : nullptr,
-                platformFrameColumnPreview_ &&
-                        !modularDragPiece_
-                    ? std::span<
-                          const PlatformFramePlacement>{
-                          platformFrameColumnPreview_
-                              ->frames}
-                    : std::span<
-                          const PlatformFramePlacement>{},
             });
     }
     for (const auto& building : snapshot.buildings) {

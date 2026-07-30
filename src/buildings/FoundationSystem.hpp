@@ -25,25 +25,6 @@ struct PlatformFrameInstance {
         StructuralSupportState::Supported};
 };
 
-struct PlatformFrameColumnPlacement {
-    ModularPlacementError error{
-        ModularPlacementError::None};
-    GridCoord anchor;
-    double targetFloorHeight{};
-    int targetStorey{};
-    std::vector<PlatformFramePlacement> frames;
-
-    [[nodiscard]] bool valid() const {
-        return error == ModularPlacementError::None &&
-               !frames.empty();
-    }
-
-    [[nodiscard]] const PlatformFramePlacement*
-    target() const {
-        return frames.empty() ? nullptr : &frames.back();
-    }
-};
-
 struct WallPlacement {
     ModularPlacementError error{
         ModularPlacementError::None};
@@ -135,19 +116,16 @@ class FoundationSystem {
 
     void reset();
     [[nodiscard]] PlatformFramePlacement
-    previewPlatformFrame(
+    previewFoundation(
         Vec3 terrainHit, Vec3 playerPosition) const;
+    [[nodiscard]] PlatformFramePlacement
+    previewFloorPlatform(
+        GridCoord anchor, int storey,
+        double floorHeight,
+        Vec3 playerPosition) const;
     [[nodiscard]] std::optional<PlatformFrameInstance>
     placePlatformFrame(
         const PlatformFramePlacement& placement);
-    [[nodiscard]] PlatformFrameColumnPlacement
-    previewPlatformFrameColumn(
-        GridCoord anchor, int targetStorey,
-        double targetFloorHeight,
-        Vec3 playerPosition) const;
-    [[nodiscard]] std::vector<PlatformFrameInstance>
-    placePlatformFrameColumn(
-        const PlatformFrameColumnPlacement& placement);
     [[nodiscard]] WallPlacement previewWall(
         Vec3 terrainHit, Vec3 playerPosition,
         Rotation rotation) const;
@@ -208,11 +186,6 @@ class FoundationSystem {
     topFloorAtCell(int x, int z) const;
     [[nodiscard]] const PlatformFrameInstance*
     frameAt(GridCoord anchor, int storey) const;
-    [[nodiscard]] PlatformFramePlacement
-    previewPlatformFrameAt(
-        GridCoord anchor, int storey,
-        double floorHeight,
-        Vec3 playerPosition) const;
     void syncStructuralStates();
     [[nodiscard]] bool eraseInstance(
         EntityId id, bool releaseFoundationSupports);

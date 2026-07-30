@@ -469,7 +469,7 @@ void App::drawWorldOverlays(
         };
     if (foundationBuildMode_ &&
         (modularBuildPiece_ ==
-             ModularBuildPiece::PlatformFrame ||
+             ModularBuildPiece::FloorPlatform ||
          modularBuildPiece_ ==
              ModularBuildPiece::Ramp) &&
         modularEdgeHoverFrame_) {
@@ -614,8 +614,8 @@ void App::drawWorldOverlays(
                         edge.neighborAnchor.z;
                 const Color edgeColor =
                     selected
-                        ? platformFrameColumnPreview_ &&
-                                  !platformFrameColumnPreview_
+                        ? platformFramePreview_ &&
+                                  !platformFramePreview_
                                        ->valid()
                               ? Color{255, 88, 76, 245}
                               : Color{126, 255, 158, 245}
@@ -634,15 +634,11 @@ void App::drawWorldOverlays(
         }
     }
     if (foundationBuildMode_ &&
-        foundationTerrainHit_ &&
-        !modularVerticalRearmBlocked_) {
+        foundationTerrainHit_) {
         const bool locked =
             IsKeyDown(KEY_LEFT_SHIFT);
         bool placementValid = true;
-        if (platformFrameColumnPreview_) {
-            placementValid =
-                platformFrameColumnPreview_->valid();
-        } else if (platformFramePreview_) {
+        if (platformFramePreview_) {
             placementValid =
                 platformFramePreview_->valid();
         } else if (wallPreview_) {
