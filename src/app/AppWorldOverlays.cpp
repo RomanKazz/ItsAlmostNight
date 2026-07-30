@@ -710,7 +710,7 @@ void App::drawWorldOverlays(
             const auto cells =
                 placementLine(
                     dragType, *wallDragStart_,
-                    *wallDragEnd_);
+                    *wallDragEnd_, placementDragAxis_);
             const ResourceCost cost =
                 snapshot.buildingCosts[
                     static_cast<std::size_t>(
@@ -842,7 +842,7 @@ void App::drawWorldOverlays(
             const auto cells =
                 placementLine(
                     preview.type, *wallDragStart_,
-                    *wallDragEnd_);
+                    *wallDragEnd_, placementDragAxis_);
             if (!cells.empty()) {
                 const Vec3 lineEnd =
                     buildingWorldPosition(
@@ -948,7 +948,7 @@ void App::drawWorldOverlays(
             *placementDragType_ == preview.type) {
             const auto cells = placementLine(
                 preview.type, *wallDragStart_,
-                *wallDragEnd_);
+                *wallDragEnd_, placementDragAxis_);
             for (std::size_t index = 0;
                  index + 1U < cells.size(); ++index) {
                 const BuildingPlatformSurface surface =
@@ -1020,7 +1020,7 @@ void App::drawWorldOverlays(
             preview.type != BuildingType::Wall) {
             const auto cells = placementLine(
                 preview.type, *wallDragStart_,
-                *wallDragEnd_);
+                *wallDragEnd_, placementDragAxis_);
             const ResourceCost cost =
                 snapshot.buildingCosts[
                     static_cast<std::size_t>(preview.type)];
@@ -1149,7 +1149,8 @@ void App::drawWorldOverlays(
                 const auto cells =
                     placementLine(
                         BuildingType::Wall,
-                        *wallDragStart_, *wallDragEnd_);
+                        *wallDragStart_, *wallDragEnd_,
+                        placementDragAxis_);
                 const ResourceCost cost =
                     snapshot.buildingCosts[
                         static_cast<std::size_t>(

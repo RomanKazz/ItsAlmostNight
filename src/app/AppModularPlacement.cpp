@@ -11,8 +11,6 @@
 namespace ian {
 namespace {
 
-constexpr int MaximumModularLineLength = 48;
-
 struct RampEdgeTarget {
     EntityId frameId;
     Vec3 supportHit;
@@ -132,33 +130,6 @@ Vec3 cellHit(
     return {x, terrain.getHeight(x, z), z};
 }
 
-std::vector<GridCoord> modularLine(
-    GridCoord start, GridCoord end, int spacing) {
-    const int deltaX = end.x - start.x;
-    const int deltaZ = end.z - start.z;
-    const bool alongX =
-        std::abs(deltaX) >= std::abs(deltaZ);
-    const int distance =
-        alongX ? std::abs(deltaX) : std::abs(deltaZ);
-    const int count = std::min(
-        distance / spacing + 1,
-        MaximumModularLineLength);
-    const int direction =
-        (alongX ? deltaX : deltaZ) >= 0 ? 1 : -1;
-    std::vector<GridCoord> result;
-    result.reserve(static_cast<std::size_t>(count));
-    for (int index = 0; index < count; ++index) {
-        GridCoord cell = start;
-        if (alongX) {
-            cell.x += index * spacing * direction;
-        } else {
-            cell.z += index * spacing * direction;
-        }
-        result.push_back(cell);
-    }
-    return result;
-}
-
 } // namespace
 
 void App::clearModularPlacementDrag() {
@@ -169,6 +140,7 @@ void App::clearModularPlacementDrag() {
     modularDragPlaneHeight_.reset();
     modularDragRotation_.reset();
     modularDragPiece_.reset();
+    modularDragAxis_.reset();
     modularDragCandidateEnd_.reset();
     modularDragCandidateFrames_ = 0;
     modularDragLookMovement_ = 0.0;
@@ -231,6 +203,7 @@ void App::setFoundationBuildMode(bool enabled) {
         wallDragEnd_.reset();
         placementDragType_.reset();
         placementDragSurface_.reset();
+        placementDragAxis_.reset();
         pendingWallPlacements_.clear();
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();
@@ -1174,6 +1147,7 @@ void App::beginModularPlacementDrag() {
     }
     modularDragEnd_ = modularDragStart_;
     modularDragPiece_ = modularBuildPiece_;
+    modularDragAxis_.reset();
     modularDragCandidateEnd_.reset();
     modularDragCandidateFrames_ = 0;
     modularDragLookMovement_ = 0.0;
@@ -1197,9 +1171,14 @@ void App::rebuildModularPlacementLine() {
                     ModularBuildPiece::Wall
             ? 1
             : PlatformFrameWidthCells;
-    const auto cells = modularLine(
+    constexpr int AxisSwitchMarginCells = 2;
+    modularDragAxis_ = stabilizePlacementLineAxis(
+        modularDragEnd_->x - modularDragStart_->x,
+        modularDragEnd_->z - modularDragStart_->z,
+        modularDragAxis_, AxisSwitchMarginCells);
+    const auto cells = ian::placementLine(
         *modularDragStart_, *modularDragEnd_,
-        spacing);
+        spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
@@ -1208,9 +1187,10 @@ void App::rebuildModularPlacementLine() {
     Rotation wallRotation = modularRotation_;
     if (*modularDragPiece_ ==
             ModularBuildPiece::Wall &&
-        cells.size() > 1U) {
+        cells.size() > 1U && modularDragAxis_) {
         wallRotation =
-            cells.front().x != cells.back().x
+            *modularDragAxis_ ==
+                    PlacementLineAxis::X
                 ? Rotation::Deg0
                 : Rotation::Deg90;
     }

@@ -128,6 +128,7 @@ void App::processInput() {
         wallDragEnd_.reset();
         placementDragType_.reset();
         placementDragSurface_.reset();
+        placementDragAxis_.reset();
         pendingWallPlacements_.clear();
         clearModularPlacementDrag();
         modularSnapHit_.reset();
@@ -203,6 +204,7 @@ void App::processInput() {
         wallDragEnd_.reset();
         placementDragType_.reset();
         placementDragSurface_.reset();
+        placementDragAxis_.reset();
         pendingWallPlacements_.clear();
         clearModularPlacementDrag();
         modularSnapHit_.reset();
@@ -295,6 +297,7 @@ void App::processInput() {
             wallDragEnd_.reset();
             placementDragType_.reset();
             placementDragSurface_.reset();
+            placementDragAxis_.reset();
         }
         input_.moveForward =
             static_cast<double>(IsKeyDown(KEY_W)) - static_cast<double>(IsKeyDown(KEY_S));
@@ -764,6 +767,7 @@ void App::processInput() {
             wallDragEnd_.reset();
             placementDragType_.reset();
             placementDragSurface_.reset();
+            placementDragAxis_.reset();
             pendingWallPlacements_.clear();
         }
         if (wallDragStart_ &&
@@ -772,6 +776,15 @@ void App::processInput() {
                 currentSnapshot.buildingPreview->type) {
             wallDragEnd_ =
                 currentSnapshot.buildingPreview->gridPosition;
+            constexpr int AxisSwitchMarginCells = 2;
+            placementDragAxis_ =
+                stabilizePlacementLineAxis(
+                    wallDragEnd_->x -
+                        wallDragStart_->x,
+                    wallDragEnd_->z -
+                        wallDragStart_->z,
+                    placementDragAxis_,
+                    AxisSwitchMarginCells);
         }
         if (wallDragStart_ &&
             placementDragType_ &&
@@ -780,10 +793,9 @@ void App::processInput() {
                 *placementDragType_;
             const auto cells = placementLine(
                 dragType, *wallDragStart_,
-                wallDragEnd_.value_or(*wallDragStart_));
-            constexpr std::size_t MaximumWallLine = 48;
-            const std::size_t count =
-                std::min(cells.size(), MaximumWallLine);
+                wallDragEnd_.value_or(*wallDragStart_),
+                placementDragAxis_);
+            const std::size_t count = cells.size();
             std::uint8_t dragRotation =
                 static_cast<std::uint8_t>(
                     currentSnapshot.buildingPreview
@@ -791,9 +803,11 @@ void App::processInput() {
                               .buildingPreview->rotation
                         : 0);
             if (dragType == BuildingType::Wall &&
-                cells.size() > 1U) {
+                cells.size() > 1U &&
+                placementDragAxis_) {
                 dragRotation =
-                    cells.front().x != cells.back().x
+                    *placementDragAxis_ ==
+                            PlacementLineAxis::X
                         ? 0U
                         : 1U;
             }
@@ -825,6 +839,7 @@ void App::processInput() {
             wallDragEnd_.reset();
             placementDragType_.reset();
             placementDragSurface_.reset();
+            placementDragAxis_.reset();
         }
         if (foundationBuildMode_) {
             updateModularPlacementPreview(
@@ -884,6 +899,7 @@ void App::processInput() {
                 wallDragEnd_ = wallDragStart_;
                 placementDragType_ =
                     currentSnapshot.buildingPreview->type;
+                placementDragAxis_.reset();
                 placementDragSurface_ =
                     BuildingPlatformSurface{
                         .height =

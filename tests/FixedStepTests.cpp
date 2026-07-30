@@ -31,6 +31,7 @@ void runBuildingStatsTests();
 void runPresentationTimelineTests();
 void runUiLabelsTests();
 void runDeterministicRandomTests();
+void runPlacementLineTests();
 
 namespace {
 
@@ -73,6 +74,7 @@ int main() {
     runPresentationTimelineTests();
     runUiLabelsTests();
     runDeterministicRandomTests();
+    runPlacementLineTests();
     runBuildingSystemTests();
     runCollisionWorldTests();
     runEnemySystemTests();

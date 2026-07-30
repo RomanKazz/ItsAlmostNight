@@ -144,7 +144,9 @@ void App::drawWorldEntities(
                 wallPreview_ && !modularDragPiece_
                     ? &*wallPreview_
                     : nullptr,
-                rampPreview_ ? &*rampPreview_ : nullptr,
+                rampPreview_ && !modularDragPiece_
+                    ? &*rampPreview_
+                    : nullptr,
                 modularPlatformDragPreviews_,
                 modularWallDragPreviews_,
                 modularRampDragPreviews_,

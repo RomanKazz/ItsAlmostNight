@@ -222,30 +222,12 @@ bool acceptsGameplayInput(RunState state) {
 }
 
 std::vector<GridPosition> placementLine(
-    BuildingType type, GridPosition start, GridPosition end) {
-    std::vector<GridPosition> cells;
-    const int deltaX = end.x - start.x;
-    const int deltaZ = end.z - start.z;
-    const bool horizontal =
-        std::abs(deltaX) >= std::abs(deltaZ);
-    const int distance =
-        horizontal ? std::abs(deltaX) : std::abs(deltaZ);
+    BuildingType type, GridPosition start, GridPosition end,
+    std::optional<PlacementLineAxis> axis) {
     const int spacing =
         buildingFootprintHalfExtent(type) == 1.0 ? 2 : 1;
-    const int length = distance / spacing;
-    const int step =
-        horizontal ? (deltaX >= 0 ? 1 : -1)
-                   : (deltaZ >= 0 ? 1 : -1);
-    cells.reserve(static_cast<std::size_t>(length + 1));
-    for (int index = 0; index <= length; ++index) {
-        cells.push_back({
-            start.x +
-                (horizontal ? index * step * spacing : 0),
-            start.z +
-                (horizontal ? 0 : index * step * spacing),
-        });
-    }
-    return cells;
+    return ian::placementLine(
+        start, end, spacing, axis);
 }
 
 std::uint8_t wallConnectionToward(
@@ -1456,7 +1438,7 @@ void App::render() {
             const auto cells =
                 placementLine(
                     *placementDragType_, *wallDragStart_,
-                    *wallDragEnd_);
+                    *wallDragEnd_, placementDragAxis_);
             const ResourceCost buildingCost =
                 snapshot.buildingCosts[
                     static_cast<std::size_t>(

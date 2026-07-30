@@ -190,6 +190,7 @@ if(BUILD_TESTING)
         tests/UiLabelsTests.cpp
         tests/ResourceWorldTests.cpp
         tests/PlacementValidatorTests.cpp
+        tests/PlacementLineTests.cpp
         tests/BombSystemTests.cpp
         tests/CannonSystemTests.cpp
         tests/CollisionWorldTests.cpp

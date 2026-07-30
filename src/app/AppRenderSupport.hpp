@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/App.hpp"
+#include "buildings/PlacementLine.hpp"
 #include "world/WorldConfig.hpp"
 
 #include <array>
@@ -30,7 +31,9 @@ void drawCentered(
 
 [[nodiscard]] std::vector<GridPosition> placementLine(
     BuildingType type, GridPosition start,
-    GridPosition end);
+    GridPosition end,
+    std::optional<PlacementLineAxis> axis =
+        std::nullopt);
 [[nodiscard]] std::uint8_t wallConnectionToward(
     GridPosition from, GridPosition to);
 [[nodiscard]] Vector2 repelInvalidPreview(

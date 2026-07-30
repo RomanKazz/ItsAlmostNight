@@ -1,6 +1,7 @@
 #pragma once
 
 #include "audio/AudioSystem.hpp"
+#include "buildings/PlacementLine.hpp"
 #include "core/FixedStep.hpp"
 #include "game/Simulation.hpp"
 #include "graphics/EnvironmentSystem.hpp"
@@ -139,6 +140,7 @@ class App {
     std::optional<BuildingType> placementDragType_;
     std::optional<BuildingPlatformSurface>
         placementDragSurface_;
+    std::optional<PlacementLineAxis> placementDragAxis_;
     std::vector<PlaceBuildingCommand> pendingWallPlacements_;
     int pendingBuildingRotation_{};
     double buildingRotationWheelAccumulator_{};
@@ -315,6 +317,7 @@ class App {
     std::optional<double> modularDragPlaneHeight_;
     std::optional<Rotation> modularDragRotation_;
     std::optional<ModularBuildPiece> modularDragPiece_;
+    std::optional<PlacementLineAxis> modularDragAxis_;
     std::optional<GridCoord>
         modularDragCandidateEnd_;
     int modularDragCandidateFrames_{};
