@@ -1167,7 +1167,8 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
 
 void App::addEffect(PresentationEffectType type, Vec3 position,
                     double duration, float scale,
-                    std::optional<EntityId> entityId) {
+                    std::optional<EntityId> entityId,
+                    double startDelay) {
     constexpr std::size_t MaxEffects = 128;
     if (effects_.size() >= MaxEffects) {
         effects_.erase(effects_.begin());
@@ -1178,6 +1179,8 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
         .position = position,
         .remaining = duration,
         .duration = duration,
+        .startDelayRemaining =
+            std::max(0.0, startDelay),
         .scale = scale,
     });
 }

@@ -28,6 +28,7 @@ struct PresentationEffect {
     Vec3 position;
     double remaining;
     double duration;
+    double startDelayRemaining{};
     float scale{1.0F};
 };
 

@@ -15,7 +15,9 @@ bool targetsResource(
             PresentationEffectType::ResourceHitWood ||
         effect.type ==
             PresentationEffectType::ResourceHitStone;
-    return resourceHit && effect.entityId == id;
+    return resourceHit &&
+           effect.startDelayRemaining <= 0.0 &&
+           effect.entityId == id;
 }
 
 } // namespace

@@ -1,10 +1,40 @@
 #pragma once
 
+#include "presentation/PresentationTypes.hpp"
+
 #include <algorithm>
 #include <optional>
 #include <vector>
 
 namespace ian::presentation {
+
+inline void advanceTimeline(
+    std::vector<PresentationEffect>& effects,
+    double deltaSeconds) {
+    for (PresentationEffect& effect : effects) {
+        const double activeDelta =
+            std::max(
+                0.0,
+                deltaSeconds -
+                    effect.startDelayRemaining);
+        effect.startDelayRemaining =
+            std::max(
+                0.0,
+                effect.startDelayRemaining -
+                    deltaSeconds);
+        effect.remaining =
+            std::max(
+                0.0,
+                effect.remaining -
+                    activeDelta);
+    }
+    std::erase_if(
+        effects,
+        [](const PresentationEffect& effect) {
+            return effect.startDelayRemaining <= 0.0 &&
+                   effect.remaining <= 0.0;
+        });
+}
 
 template <typename Visual>
 void advanceTimeline(

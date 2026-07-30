@@ -1324,6 +1324,14 @@ bool App::finishModularPlacementDrag() {
     }
     const double cellSize =
         simulation_.terrain().config().cellSize;
+    constexpr double PlacementBounceDelay = 0.065;
+    std::size_t placedOrdinal = 0;
+    const auto bounceDelayFor =
+        [bounceStep = PlacementBounceDelay](
+            std::size_t ordinal) {
+            return static_cast<double>(ordinal) *
+                bounceStep;
+        };
     bool placedAny = false;
     if (*modularDragPiece_ ==
             ModularBuildPiece::PlatformFrame &&
@@ -1360,6 +1368,8 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             placedAny = true;
+            const double startDelay =
+                bounceDelayFor(placedOrdinal);
             for (const PlatformFrameInstance& frame :
                  frames) {
                 const Vec3 center =
@@ -1368,7 +1378,8 @@ bool App::finishModularPlacementDrag() {
                 addEffect(
                     PresentationEffectType::
                         BuildingPlaced,
-                    center, 0.7, 1.25F);
+                    center, 0.7, 1.25F,
+                    std::nullopt, startDelay);
                 if (frame.storey == 0) {
                     grassClearAreas_.push_back({
                         .center = {
@@ -1384,6 +1395,7 @@ bool App::finishModularPlacementDrag() {
                     });
                 }
             }
+            ++placedOrdinal;
         }
     } else if (
         *modularDragPiece_ ==
@@ -1423,11 +1435,15 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             placedAny = true;
+            const double startDelay =
+                bounceDelayFor(placedOrdinal);
             const Vec3 center =
                 platformFrameCenter(*frame, cellSize);
             addEffect(
                 PresentationEffectType::BuildingPlaced,
-                center, 0.7, 1.25F);
+                center, 0.7, 1.25F,
+                std::nullopt, startDelay);
+            ++placedOrdinal;
             if (frame->storey == 0) {
                 grassClearAreas_.push_back({
                     .center = {
@@ -1473,7 +1489,9 @@ bool App::finishModularPlacementDrag() {
             addEffect(
                 PresentationEffectType::BuildingPlaced,
                 wallCenter(*wall, cellSize),
-                0.7, 0.78F);
+                0.7, 0.78F, std::nullopt,
+                bounceDelayFor(placedOrdinal));
+            ++placedOrdinal;
         }
     } else if (
         *modularDragPiece_ ==
@@ -1508,7 +1526,9 @@ bool App::finishModularPlacementDrag() {
             addEffect(
                 PresentationEffectType::BuildingPlaced,
                 rampCenter(*ramp, cellSize),
-                0.7, 1.35F);
+                0.7, 1.35F, std::nullopt,
+                bounceDelayFor(placedOrdinal));
+            ++placedOrdinal;
         }
     }
     const std::optional<GridCoord> placedEnd =

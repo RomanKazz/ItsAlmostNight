@@ -567,6 +567,17 @@ bool CollisionWorld::overlapsBox(const CollisionBox& candidate) const {
                overlapsCandidate);
 }
 
+bool CollisionWorld::overlapsRampBox(
+    const CollisionBox& candidate) const {
+    return std::any_of(
+        rampPlacementColliders_.begin(),
+        rampPlacementColliders_.end(),
+        [candidate](const CollisionBox& collider) {
+            return collisionBoxesOverlap(
+                candidate, collider);
+        });
+}
+
 const std::vector<CollisionBox>& CollisionWorld::colliders() const {
     return colliders_;
 }

@@ -48,6 +48,25 @@ bool canAfford(ResourceCost cost, int wood, int stone,
            gold >= cost.gold;
 }
 
+CollisionBox platformFloorCollisionBox(
+    const PlatformFramePlacement& placement,
+    double cellSize) {
+    constexpr double PlatformFloorThickness = 0.18;
+    return {
+        placement.anchor.x * cellSize,
+        (placement.anchor.x +
+         PlatformFrameWidthCells) *
+            cellSize,
+        placement.anchor.z * cellSize,
+        (placement.anchor.z +
+         PlatformFrameWidthCells) *
+            cellSize,
+        placement.floorHeight,
+        placement.floorHeight -
+            PlatformFloorThickness,
+    };
+}
+
 double enemyHeight(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
@@ -380,6 +399,13 @@ Simulation::previewPlatformFrame(
     const double cellSize =
         worldConfig_.cellSize;
     if (placement.valid() &&
+        collisionWorld_.overlapsRampBox(
+            platformFloorCollisionBox(
+                placement, cellSize))) {
+        placement.error =
+            ModularPlacementError::Occupied;
+    }
+    if (placement.valid() &&
         resourceOverlapsRectangle(
             resources_.nodes(),
             placement.anchor.x * cellSize,
@@ -435,6 +461,14 @@ Simulation::previewPlatformFrameColumn(
     for (PlatformFramePlacement& frame :
          placement.frames) {
         if (!frame.valid()) {
+            break;
+        }
+        if (collisionWorld_.overlapsRampBox(
+                platformFloorCollisionBox(
+                    frame, cellSize))) {
+            frame.error =
+                ModularPlacementError::Occupied;
+            placement.error = frame.error;
             break;
         }
         if (resourceOverlapsRectangle(

@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
 
 #include <optional>
@@ -32,4 +33,30 @@ void runPresentationTimelineTests() {
     require(
         !optional.has_value(),
         "presentation timeline resets expired optional visual");
+
+    std::vector<ian::PresentationEffect> delayed{{
+        .type =
+            ian::PresentationEffectType::BuildingPlaced,
+        .position = {},
+        .remaining = 0.7,
+        .duration = 0.7,
+        .startDelayRemaining = 0.15,
+    }};
+    ian::presentation::advanceTimeline(delayed, 0.1);
+    require(
+        delayed.size() == 1U,
+        "delayed presentation effect waits before"
+        " advancing its active animation");
+    requireNear(
+        delayed.front().startDelayRemaining,
+        0.05, 1e-9,
+        "presentation timeline advances effect delay");
+    requireNear(
+        delayed.front().remaining, 0.7, 1e-9,
+        "delayed effect animation remains paused");
+    ian::presentation::advanceTimeline(delayed, 0.1);
+    requireNear(
+        delayed.front().remaining, 0.65, 1e-9,
+        "presentation timeline applies frame time"
+        " remaining after delay");
 }

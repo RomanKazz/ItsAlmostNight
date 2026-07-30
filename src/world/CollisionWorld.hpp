@@ -53,6 +53,8 @@ class CollisionWorld {
     [[nodiscard]] bool overlapsCircle(Vec3 position, double radius,
                                       const CollisionBox& box) const;
     [[nodiscard]] bool overlapsBox(const CollisionBox& candidate) const;
+    [[nodiscard]] bool overlapsRampBox(
+        const CollisionBox& candidate) const;
     [[nodiscard]] const std::vector<CollisionBox>& colliders() const;
 
   private:

@@ -106,7 +106,8 @@ class App {
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
                    std::optional<EntityId> entityId =
-                       std::nullopt);
+                       std::nullopt,
+                   double startDelay = 0.0);
     void addCameraShake(double duration, double strength);
     void addDamageIndicator(Vec3 sourcePosition,
                             const SimulationSnapshot& snapshot, bool severe);

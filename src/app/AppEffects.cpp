@@ -17,6 +17,9 @@ using namespace app_detail;
 
 void App::drawPresentationEffects() {
     for (const auto& effect : effects_) {
+        if (effect.startDelayRemaining > 0.0) {
+            continue;
+        }
         const float progress =
             static_cast<float>(
                 1.0 - effect.remaining / effect.duration);
@@ -612,6 +615,9 @@ float App::buildingAnimationScaleAt(
     std::optional<EntityId> entityId) const {
     float scale = 1.0F;
     for (const PresentationEffect& effect : effects_) {
+        if (effect.startDelayRemaining > 0.0) {
+            continue;
+        }
         if (effect.type !=
                 PresentationEffectType::BuildingPlaced &&
             effect.type !=
