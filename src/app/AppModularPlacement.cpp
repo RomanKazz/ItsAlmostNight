@@ -270,6 +270,46 @@ void App::updateModularPlacementPreview(
                 });
             if (frame != snapshot.platformFrames.end()) {
                 targetFrame = &*frame;
+                const auto floorAim =
+                    rampSocketAimOnFloor(
+                        snapshot.playerPosition,
+                        lookDirection,
+                        frame->floorHeight);
+                if (floorAim) {
+                    const GridCoord shiftedAnchor =
+                        rampSupportAnchorAtAim(
+                            *floorAim,
+                            lookDirection,
+                            cellSize);
+                    const int targetStorey =
+                        frame->storey;
+                    const double targetFloorHeight =
+                        frame->floorHeight;
+                    const auto shiftedFrame =
+                        std::find_if(
+                            snapshot.platformFrames.begin(),
+                            snapshot.platformFrames.end(),
+                            [shiftedAnchor,
+                             targetStorey,
+                             targetFloorHeight](
+                                const PlatformFrameInstance&
+                                    candidate) {
+                                return candidate.anchor.x ==
+                                           shiftedAnchor.x &&
+                                       candidate.anchor.z ==
+                                           shiftedAnchor.z &&
+                                       candidate.storey ==
+                                           targetStorey &&
+                                       std::abs(
+                                           candidate.floorHeight -
+                                           targetFloorHeight) <=
+                                           1e-6;
+                            });
+                    if (shiftedFrame !=
+                        snapshot.platformFrames.end()) {
+                        targetFrame = &*shiftedFrame;
+                    }
+                }
                 targetIsAimed = true;
             }
         }

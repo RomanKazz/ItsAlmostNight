@@ -476,6 +476,25 @@ void runFoundationSystemTests() {
         everyViewDirectionSelectsForwardEdge,
         "ramp edge direction follows the player's horizontal view");
     require(
+        ian::rampSupportAnchorAtAim(
+            {1.0, 2.0, 0.99},
+            {0.0, -0.4, 1.0}, 1.0) ==
+                ian::GridCoord{0, 0, 0} &&
+            ian::rampSupportAnchorAtAim(
+                {1.0, 2.0, 1.01},
+                {0.0, -0.4, 1.0}, 1.0) ==
+                ian::GridCoord{0, 0, 2} &&
+            ian::rampSupportAnchorAtAim(
+                {1.0, 2.0, -1.01},
+                {0.0, -0.4, 1.0}, 1.0) ==
+                ian::GridCoord{0, 0, -2} &&
+            ian::rampSupportAnchorAtAim(
+                {0.99, 2.0, 1.0},
+                {-1.0, -0.4, 0.0}, 1.0) ==
+                ian::GridCoord{-2, 0, 0},
+        "ramp support selection switches at platform"
+        " half-way boundaries");
+    require(
         ian::rampTopPlatformAnchor(
             {0, 0, 2}, ian::Rotation::Deg0) ==
                 ian::GridCoord{0, 0, 6} &&

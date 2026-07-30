@@ -116,6 +116,33 @@ rampSocketAimOnFloor(
     };
 }
 
+[[nodiscard]] inline GridCoord rampSupportAnchorAtAim(
+    Vec3 floorAim, Vec3 lookDirection,
+    double cellSize) {
+    const double forwardShift =
+        PlatformFrameWidthCells *
+        cellSize * 0.5;
+    if (std::abs(lookDirection.z) >=
+            std::abs(lookDirection.x) &&
+        std::abs(lookDirection.z) > 1e-9) {
+        floorAim.z += std::copysign(
+            forwardShift, lookDirection.z);
+    } else if (
+        std::abs(lookDirection.x) > 1e-9) {
+        floorAim.x += std::copysign(
+            forwardShift, lookDirection.x);
+    }
+    return {
+        snapPlatformFrameAxis(
+            static_cast<int>(std::floor(
+                floorAim.x / cellSize))),
+        0,
+        snapPlatformFrameAxis(
+            static_cast<int>(std::floor(
+                floorAim.z / cellSize))),
+    };
+}
+
 [[nodiscard]] inline double rampSocketOutwardOffset(
     const RampEdgeSocket& socket, Vec3 point) {
     const Vec3 outward =
