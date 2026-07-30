@@ -258,7 +258,69 @@ void App::updateModularPlacementPreview(
         bool targetIsAimed = false;
         bool targetIsWithinRetentionMargin = false;
         bool targetWasSocketAcquired = false;
-        if (snapshot.aimedModularBuilding) {
+        const bool rampDragActive =
+            modularDragPiece_ ==
+                ModularBuildPiece::Ramp &&
+            modularDragStorey_ &&
+            modularDragPlaneHeight_;
+        if (rampDragActive) {
+            const auto floorAim =
+                rampSocketAimOnFloor(
+                    snapshot.playerPosition,
+                    lookDirection,
+                    *modularDragPlaneHeight_);
+            if (floorAim) {
+                const int supportStorey =
+                    *modularDragStorey_ - 1;
+                const double supportFloorHeight =
+                    *modularDragPlaneHeight_;
+                const auto frameAtAnchor =
+                    [&snapshot, supportStorey,
+                     supportFloorHeight](
+                        GridCoord anchor)
+                    -> const PlatformFrameInstance* {
+                    const auto frame = std::find_if(
+                        snapshot.platformFrames.begin(),
+                        snapshot.platformFrames.end(),
+                        [anchor, supportStorey,
+                         supportFloorHeight](
+                            const PlatformFrameInstance&
+                                candidate) {
+                            return candidate.anchor.x ==
+                                       anchor.x &&
+                                   candidate.anchor.z ==
+                                       anchor.z &&
+                                   candidate.storey ==
+                                       supportStorey &&
+                                   std::abs(
+                                       candidate.floorHeight -
+                                       supportFloorHeight) <=
+                                       1e-6;
+                        });
+                    return frame !=
+                                   snapshot.platformFrames.end()
+                               ? &*frame
+                               : nullptr;
+                };
+                targetFrame = frameAtAnchor(
+                    rampSupportAnchorAtAim(
+                        *floorAim, lookDirection, cellSize));
+                if (!targetFrame) {
+                    targetFrame = frameAtAnchor(GridCoord{
+                        snapPlatformFrameAxis(
+                            static_cast<int>(std::floor(
+                                floorAim->x / cellSize))),
+                        0,
+                        snapPlatformFrameAxis(
+                            static_cast<int>(std::floor(
+                                floorAim->z / cellSize))),
+                    });
+                }
+                targetIsAimed = targetFrame != nullptr;
+            }
+        }
+        if (!targetFrame && !rampDragActive &&
+            snapshot.aimedModularBuilding) {
             const EntityId aimed =
                 *snapshot.aimedModularBuilding;
             const auto frame = std::find_if(
@@ -313,7 +375,8 @@ void App::updateModularPlacementPreview(
                 targetIsAimed = true;
             }
         }
-        if (!targetFrame && rampSocketFrame_) {
+        if (!targetFrame && !rampDragActive &&
+            rampSocketFrame_) {
             const auto retained = std::find_if(
                 snapshot.platformFrames.begin(),
                 snapshot.platformFrames.end(),
@@ -359,7 +422,7 @@ void App::updateModularPlacementPreview(
                 }
             }
         }
-        if (!targetFrame) {
+        if (!targetFrame && !rampDragActive) {
             double bestScore =
                 RampSocketAcquisitionAimScore;
             for (const PlatformFrameInstance& frame :
@@ -487,19 +550,10 @@ void App::updateModularPlacementPreview(
                     lookDirection,
                     *modularDragPlaneHeight_);
             if (dragPlaneHit) {
-                modularDragEnd_ = GridCoord{
-                    snapPlatformFrameAxis(
-                        static_cast<int>(
-                            std::floor(
-                                dragPlaneHit->x /
-                                cellSize))),
-                    0,
-                    snapPlatformFrameAxis(
-                        static_cast<int>(
-                            std::floor(
-                                dragPlaneHit->z /
-                                cellSize))),
-                };
+                modularDragEnd_ =
+                    rampSupportAnchorAtAim(
+                        *dragPlaneHit,
+                        lookDirection, cellSize);
                 foundationTerrainHit_ =
                     *dragPlaneHit;
                 modularSnapHit_ = *dragPlaneHit;
