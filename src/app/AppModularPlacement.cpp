@@ -166,6 +166,7 @@ void App::clearModularPlacementDrag() {
     modularDragEnd_.reset();
     modularDragStorey_.reset();
     modularDragFloorHeight_.reset();
+    modularDragPlaneHeight_.reset();
     modularDragRotation_.reset();
     modularDragPiece_.reset();
     modularDragHits_.clear();
@@ -259,8 +260,11 @@ void App::updateModularPlacementPreview(
         std::optional<RampEdgeTarget> edgeTarget;
         const PlatformFrameInstance* targetFrame =
             nullptr;
+        std::optional<RampEdgeSocket>
+            acquiredSocket;
         bool targetIsAimed = false;
         bool targetIsWithinRetentionMargin = false;
+        bool targetWasSocketAcquired = false;
         if (snapshot.aimedModularBuilding) {
             const EntityId aimed =
                 *snapshot.aimedModularBuilding;
@@ -322,6 +326,47 @@ void App::updateModularPlacementPreview(
                 }
             }
         }
+        if (!targetFrame) {
+            double bestScore =
+                RampSocketAcquisitionAimScore;
+            for (const PlatformFrameInstance& frame :
+                 snapshot.platformFrames) {
+                const double centerX =
+                    (frame.anchor.x + 1.0) *
+                    cellSize;
+                const double centerZ =
+                    (frame.anchor.z + 1.0) *
+                    cellSize;
+                if (std::hypot(
+                        centerX -
+                            snapshot.playerPosition.x,
+                        centerZ -
+                            snapshot.playerPosition.z) >
+                    terrain.config()
+                        .buildPreviewDistance +
+                        cellSize) {
+                    continue;
+                }
+                for (const RampEdgeSocket& socket :
+                     platformRampEdgeSockets(
+                         frame.anchor,
+                         frame.floorHeight,
+                         cellSize)) {
+                    const double score =
+                        rampSocketAimScore(
+                            socket,
+                            snapshot.playerPosition,
+                            lookDirection);
+                    if (score > bestScore) {
+                        continue;
+                    }
+                    bestScore = score;
+                    targetFrame = &frame;
+                    acquiredSocket = socket;
+                    targetWasSocketAcquired = true;
+                }
+            }
+        }
         if (targetFrame) {
             const bool changedFrame =
                 !rampSocketFrame_ ||
@@ -336,11 +381,13 @@ void App::updateModularPlacementPreview(
                     targetFrame->floorHeight,
                     cellSize);
             std::optional<RampEdgeSocket> chosen =
-                mostViewAlignedRampEdgeSocket(
-                    targetFrame->anchor,
-                    targetFrame->floorHeight,
-                    cellSize,
-                    lookDirection);
+                acquiredSocket
+                    ? acquiredSocket
+                    : mostViewAlignedRampEdgeSocket(
+                          targetFrame->anchor,
+                          targetFrame->floorHeight,
+                          cellSize,
+                          lookDirection);
             if (!changedFrame &&
                 rampSocketRotation_) {
                 const auto previous = std::find_if(
@@ -388,12 +435,49 @@ void App::updateModularPlacementPreview(
                 rampSocketRotation_ =
                     chosen->rotation;
                 if (targetIsAimed ||
-                    targetIsWithinRetentionMargin) {
+                    targetIsWithinRetentionMargin ||
+                    targetWasSocketAcquired) {
                     rampSocketLostGraceRemaining_ =
                         RampSocketLostGraceSeconds;
                 }
                 edgeTarget = rampEdgeTarget(
                     *targetFrame, *chosen, cellSize);
+            }
+        }
+        if (!edgeTarget &&
+            modularDragPiece_ ==
+                ModularBuildPiece::Ramp &&
+            modularDragPlaneHeight_) {
+            const auto dragPlaneHit =
+                rampSocketAimOnFloor(
+                    snapshot.playerPosition,
+                    lookDirection,
+                    *modularDragPlaneHeight_);
+            if (dragPlaneHit) {
+                modularDragEnd_ = GridCoord{
+                    snapPlatformFrameAxis(
+                        static_cast<int>(
+                            std::floor(
+                                dragPlaneHit->x /
+                                cellSize))),
+                    0,
+                    snapPlatformFrameAxis(
+                        static_cast<int>(
+                            std::floor(
+                                dragPlaneHit->z /
+                                cellSize))),
+                };
+                foundationTerrainHit_ =
+                    *dragPlaneHit;
+                modularSnapHit_ = *dragPlaneHit;
+                modularSnapMarker_ =
+                    *dragPlaneHit;
+                rampPreview_.reset();
+                platformFramePreview_.reset();
+                wallPreview_.reset();
+                modularVerticalRearmBlocked_ = false;
+                rebuildModularPlacementLine();
+                return;
             }
         }
         if (!edgeTarget) {
@@ -464,9 +548,22 @@ void App::updateModularPlacementPreview(
                 static_cast<double>(
                     terrain.config().maxStoreys) +
             12.0);
-    const auto rawHit = simulation_.terrain().raycast(
+    auto rawHit = simulation_.terrain().raycast(
         snapshot.playerPosition, lookDirection,
         terrainRayDistance);
+    if (modularDragPiece_ &&
+        modularDragPlaneHeight_) {
+        // Keep the drag axis on the floor where it began. A
+        // terrain hit below an elevated floor otherwise skews
+        // the X/Z endpoint and can flip the dominant line axis.
+        if (const auto dragPlaneHit =
+                rampSocketAimOnFloor(
+                    snapshot.playerPosition,
+                    lookDirection,
+                    *modularDragPlaneHeight_)) {
+            rawHit = *dragPlaneHit;
+        }
+    }
 
     std::optional<Vec3> edgeExtensionHit;
     std::optional<PlatformFrameColumnPlacement>
@@ -919,6 +1016,9 @@ void App::beginModularPlacementDrag() {
         modularDragFloorHeight_ =
             platformFrameColumnPreview_
                 ->targetFloorHeight;
+        modularDragPlaneHeight_ =
+            platformFrameColumnPreview_
+                ->targetFloorHeight;
     } else if (
         modularBuildPiece_ ==
             ModularBuildPiece::PlatformFrame &&
@@ -928,11 +1028,15 @@ void App::beginModularPlacementDrag() {
             platformFramePreview_->anchor;
         modularDragStorey_ =
             platformFramePreview_->storey;
+        modularDragPlaneHeight_ =
+            platformFramePreview_->floorHeight;
     } else if (
         modularBuildPiece_ == ModularBuildPiece::Wall &&
         wallPreview_ && wallPreview_->valid()) {
         modularDragStart_ = wallPreview_->anchor;
         modularDragStorey_ = wallPreview_->storey;
+        modularDragPlaneHeight_ =
+            wallPreview_->bottomHeight;
     } else if (
         modularBuildPiece_ == ModularBuildPiece::Ramp &&
         rampPreview_ && rampPreview_->valid() &&
@@ -954,6 +1058,8 @@ void App::beginModularPlacementDrag() {
                 modularDragStart_->z);
         modularDragStorey_ =
             rampPreview_->targetStorey;
+        modularDragPlaneHeight_ =
+            rampPreview_->bottomHeight;
         modularDragRotation_ =
             rampPreview_->rotation;
     } else {

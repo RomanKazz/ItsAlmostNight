@@ -438,6 +438,25 @@ void runFoundationSystemTests() {
             rampSockets[2].neighborAnchor.z == -2 &&
             rampSockets[3].neighborAnchor.x == 2,
         "ramp sockets select the platform edge nearest the crosshair");
+    const ian::Vec3 freeEdgeViewer{1.0, 5.0, -5.0};
+    const ian::Vec3 exactFreeEdgeAim{
+        rampSockets[0].position.x - freeEdgeViewer.x,
+        rampSockets[0].position.y - freeEdgeViewer.y,
+        rampSockets[0].position.z - freeEdgeViewer.z,
+    };
+    require(
+        ian::rampSocketAimScore(
+            rampSockets[0],
+            freeEdgeViewer,
+            exactFreeEdgeAim) <=
+                ian::RampSocketAcquisitionAimScore &&
+            ian::rampSocketAimScore(
+                rampSockets[0],
+                freeEdgeViewer,
+                {1.0, 0.0, 0.0}) >
+                ian::RampSocketAcquisitionAimScore,
+        "a free ramp edge can be acquired through open air without "
+        "capturing a clearly off-axis edge");
     const std::array<std::pair<ian::Vec3, ian::Rotation>, 4>
         viewDirections{{
             {{0.0, -0.4, 1.0}, ian::Rotation::Deg0},

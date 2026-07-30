@@ -11,6 +11,8 @@
 namespace ian {
 
 inline constexpr double RampSocketLostGraceSeconds = 0.65;
+inline constexpr double RampSocketAcquisitionAimScore =
+    0.055;
 // rampSocketAimScore() is approximately tan(angle)^2. This keeps an
 // edge selected within roughly 23 degrees of the crosshair.
 inline constexpr double RampSocketRetentionAimScore = 0.18;
