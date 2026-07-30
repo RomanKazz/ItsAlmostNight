@@ -570,14 +570,13 @@ void App::updateModularPlacementPreview(
             ModularBuildPiece::PlatformFrame &&
         modularDragPiece_ ==
             ModularBuildPiece::PlatformFrame &&
-        modularDragFloorHeight_ &&
+        modularDragStart_ &&
         modularDragPlaneHeight_) {
-        // Once an edge-column drag has begun, use its fixed
-        // storey grid directly. Running the normal valid-cell
-        // magnet here can skip the occupied source platform and
-        // snap to the free cell on its opposite side, causing one
-        // click on an outer edge to place two platforms.
-        modularDragEnd_ = GridCoord{
+        // Once a platform drag has begun, use its fixed storey
+        // grid directly. The general valid-cell magnet may choose
+        // opposite sides of an exact grid edge on press/release,
+        // turning a stationary click into a two-platform drag.
+        GridCoord dragEnd{
             snapPlatformFrameAxis(
                 static_cast<int>(std::floor(
                     rawHit->x / cellSize))),
@@ -586,6 +585,37 @@ void App::updateModularPlacementPreview(
                 static_cast<int>(std::floor(
                     rawHit->z / cellSize))),
         };
+        if (dragEnd.x != modularDragStart_->x ||
+            dragEnd.z != modularDragStart_->z) {
+            const double startCenterX =
+                (modularDragStart_->x + 1.0) *
+                cellSize;
+            const double startCenterZ =
+                (modularDragStart_->z + 1.0) *
+                cellSize;
+            const double endCenterX =
+                (dragEnd.x + 1.0) * cellSize;
+            const double endCenterZ =
+                (dragEnd.z + 1.0) * cellSize;
+            const double distanceToStart =
+                std::hypot(
+                    rawHit->x - startCenterX,
+                    rawHit->z - startCenterZ);
+            const double distanceToEnd =
+                std::hypot(
+                    rawHit->x - endCenterX,
+                    rawHit->z - endCenterZ);
+            constexpr double
+                PlatformDragSwitchHysteresisCells =
+                    0.28;
+            if (distanceToEnd +
+                    PlatformDragSwitchHysteresisCells *
+                        cellSize >=
+                distanceToStart) {
+                dragEnd = *modularDragStart_;
+            }
+        }
+        modularDragEnd_ = dragEnd;
         const Vec3 snappedHit{
             (modularDragEnd_->x + 1.0) * cellSize,
             *modularDragPlaneHeight_,
