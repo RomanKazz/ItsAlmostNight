@@ -315,6 +315,11 @@ class App {
     std::optional<double> modularDragPlaneHeight_;
     std::optional<Rotation> modularDragRotation_;
     std::optional<ModularBuildPiece> modularDragPiece_;
+    std::optional<GridCoord>
+        modularDragCandidateEnd_;
+    int modularDragCandidateFrames_{};
+    double modularDragLookMovement_{};
+    bool modularDragExtended_{};
     std::vector<Vec3> modularDragHits_;
     std::vector<PlatformFramePlacement>
         modularPlatformDragPreviews_;

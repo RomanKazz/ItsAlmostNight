@@ -310,6 +310,11 @@ void App::processInput() {
                 pendingBuildingSelection_ = type;
             };
         const Vector2 mouseDelta = GetMouseDelta();
+        if (modularDragPiece_) {
+            modularDragLookMovement_ +=
+                static_cast<double>(
+                    Vector2Length(mouseDelta));
+        }
         if (IsKeyPressed(KEY_TAB)) {
             buildModePieVisible_ = true;
             buildModePieDirection_ = {};

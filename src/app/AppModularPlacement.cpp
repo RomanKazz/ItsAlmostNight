@@ -169,6 +169,10 @@ void App::clearModularPlacementDrag() {
     modularDragPlaneHeight_.reset();
     modularDragRotation_.reset();
     modularDragPiece_.reset();
+    modularDragCandidateEnd_.reset();
+    modularDragCandidateFrames_ = 0;
+    modularDragLookMovement_ = 0.0;
+    modularDragExtended_ = false;
     modularDragHits_.clear();
     modularPlatformDragPreviews_.clear();
     modularPlatformColumnDragPreviews_.clear();
@@ -613,6 +617,41 @@ void App::updateModularPlacementPreview(
                         cellSize >=
                 distanceToStart) {
                 dragEnd = *modularDragStart_;
+            }
+        }
+        if (dragEnd.x == modularDragStart_->x &&
+            dragEnd.z == modularDragStart_->z) {
+            modularDragCandidateEnd_.reset();
+            modularDragCandidateFrames_ = 0;
+        } else {
+            constexpr double
+                PlatformDragMinimumLookPixels = 3.0;
+            if (modularDragLookMovement_ <
+                PlatformDragMinimumLookPixels) {
+                dragEnd = *modularDragStart_;
+                modularDragCandidateEnd_.reset();
+                modularDragCandidateFrames_ = 0;
+            }
+        }
+        if ((dragEnd.x != modularDragStart_->x ||
+             dragEnd.z != modularDragStart_->z)) {
+            if (modularDragCandidateEnd_ &&
+                modularDragCandidateEnd_->x ==
+                    dragEnd.x &&
+                modularDragCandidateEnd_->z ==
+                    dragEnd.z) {
+                ++modularDragCandidateFrames_;
+            } else {
+                modularDragCandidateEnd_ = dragEnd;
+                modularDragCandidateFrames_ = 1;
+            }
+            constexpr int
+                PlatformDragConfirmationFrames = 2;
+            if (modularDragCandidateFrames_ <
+                PlatformDragConfirmationFrames) {
+                dragEnd = *modularDragStart_;
+            } else {
+                modularDragExtended_ = true;
             }
         }
         modularDragEnd_ = dragEnd;
@@ -1135,6 +1174,10 @@ void App::beginModularPlacementDrag() {
     }
     modularDragEnd_ = modularDragStart_;
     modularDragPiece_ = modularBuildPiece_;
+    modularDragCandidateEnd_.reset();
+    modularDragCandidateFrames_ = 0;
+    modularDragLookMovement_ = 0.0;
+    modularDragExtended_ = false;
     rebuildModularPlacementLine();
 }
 
@@ -1244,9 +1287,20 @@ bool App::finishModularPlacementDrag() {
     if (*modularDragPiece_ ==
             ModularBuildPiece::PlatformFrame &&
         modularDragFloorHeight_) {
-        for (const PlatformFrameColumnPlacement&
-                 preview :
-             modularPlatformColumnDragPreviews_) {
+        const std::size_t previewCount =
+            modularDragExtended_
+                ? modularPlatformColumnDragPreviews_
+                      .size()
+                : std::min<std::size_t>(
+                      1U,
+                      modularPlatformColumnDragPreviews_
+                          .size());
+        for (std::size_t index = 0;
+             index < previewCount; ++index) {
+            const PlatformFrameColumnPlacement&
+                preview =
+                    modularPlatformColumnDragPreviews_
+                        [index];
             const PlatformFrameColumnPlacement current =
                 simulation_.previewPlatformFrameColumn(
                     preview.anchor,
@@ -1292,11 +1346,21 @@ bool App::finishModularPlacementDrag() {
         }
     } else if (
         *modularDragPiece_ ==
-        ModularBuildPiece::PlatformFrame) {
+            ModularBuildPiece::PlatformFrame) {
+        const std::size_t previewCount =
+            modularDragExtended_
+                ? std::min(
+                      modularDragHits_.size(),
+                      modularPlatformDragPreviews_
+                          .size())
+                : std::min<std::size_t>(
+                      1U,
+                      std::min(
+                          modularDragHits_.size(),
+                          modularPlatformDragPreviews_
+                              .size()));
         for (std::size_t index = 0;
-             index < modularDragHits_.size() &&
-             index <
-                 modularPlatformDragPreviews_.size();
+             index < previewCount;
              ++index) {
             if (!modularPlatformDragPreviews_[index]
                      .valid()) {
