@@ -74,6 +74,22 @@ Vec3 rampCenter(
     };
 }
 
+bool sameRampFootprint(
+    const RampPlacement& placement,
+    const RampInstance& ramp) {
+    const bool placementAlongZ =
+        placement.rotation == Rotation::Deg0 ||
+        placement.rotation == Rotation::Deg180;
+    const bool rampAlongZ =
+        ramp.rotation == Rotation::Deg0 ||
+        ramp.rotation == Rotation::Deg180;
+    return placement.anchor.x == ramp.anchor.x &&
+           placement.anchor.z == ramp.anchor.z &&
+           placement.targetStorey ==
+               ramp.targetStorey &&
+           placementAlongZ == rampAlongZ;
+}
+
 GridCoord platformAnchorBeyondRampTop(
     const RampInstance& ramp) {
     return rampTopPlatformAnchor(
@@ -485,6 +501,22 @@ void App::updateModularPlacementPreview(
         rampPreview_ = simulation_.previewRamp(
             edgeTarget->supportHit,
             edgeTarget->rotation);
+        if (rampPreview_ &&
+            std::any_of(
+                snapshot.ramps.begin(),
+                snapshot.ramps.end(),
+                [this](const RampInstance& ramp) {
+                    return sameRampFootprint(
+                        *rampPreview_, ramp);
+                })) {
+            rampPreview_.reset();
+            foundationTerrainHit_.reset();
+            modularSnapHit_.reset();
+            modularSnapMarker_.reset();
+            modularPreviewAnchor_.reset();
+            modularPreviewVisualOrigin_.reset();
+            return;
+        }
         platformFramePreview_.reset();
         wallPreview_.reset();
         modularVerticalRearmBlocked_ = false;
@@ -1201,6 +1233,7 @@ void App::rebuildModularPlacementLine() {
         spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
+    const auto snapshot = simulation_.snapshot();
     const double cellSize = terrain.config().cellSize;
     modularDragHits_.reserve(cells.size());
 
@@ -1267,7 +1300,15 @@ void App::rebuildModularPlacementLine() {
                 simulation_.previewRamp(
                     hit, rotation);
             if (preview.targetStorey !=
-                *modularDragStorey_) {
+                    *modularDragStorey_ ||
+                std::any_of(
+                    snapshot.ramps.begin(),
+                    snapshot.ramps.end(),
+                    [&preview](
+                        const RampInstance& ramp) {
+                        return sameRampFootprint(
+                            preview, ramp);
+                    })) {
                 continue;
             }
             modularDragHits_.push_back(hit);

@@ -557,6 +557,47 @@ RampPlacement Simulation::previewRamp(
                : ModularRampWidthCells;
     const double cellSize =
         worldConfig_.cellSize;
+    if (placement.valid()) {
+        const auto rampBoxes =
+            rampCollisionBoxes(
+                placement.anchor,
+                placement.rotation,
+                placement.bottomHeight,
+                placement.topHeight,
+                cellSize);
+        const bool blockedByWorld =
+            std::any_of(
+                rampBoxes.begin(), rampBoxes.end(),
+                [this](const CollisionBox& box) {
+                    return collisionWorld_
+                        .overlapsBox(box);
+                });
+        const bool blockedByBuilding =
+            std::any_of(
+                buildings_.buildings().begin(),
+                buildings_.buildings().end(),
+                [&rampBoxes](
+                    const BuildingInstance& building) {
+                    const CollisionBox buildingBox =
+                        buildingCollisionBox(
+                            building.type,
+                            building.gridPosition,
+                            building.baseHeight);
+                    return std::any_of(
+                        rampBoxes.begin(),
+                        rampBoxes.end(),
+                        [&buildingBox](
+                            const CollisionBox& rampBox) {
+                            return collisionBoxesOverlap(
+                                rampBox, buildingBox);
+                        });
+                });
+        if (blockedByWorld ||
+            blockedByBuilding) {
+            placement.error =
+                ModularPlacementError::Occupied;
+        }
+    }
     if (placement.valid() &&
         resourceOverlapsRectangle(
             resources_.nodes(),

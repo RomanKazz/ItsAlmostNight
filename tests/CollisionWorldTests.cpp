@@ -203,6 +203,21 @@ void runCollisionWorldTests() {
         sweepRamp,
         1.0,
     });
+    const ian::CollisionBox lowFirstCell{
+        0.2, 0.8, 0.2, 0.8, 0.5, 0.0};
+    const ian::CollisionBox lowSecondCell{
+        1.2, 1.8, 0.2, 0.8, 0.5, 0.0};
+    const ian::CollisionBox tallSecondCell{
+        1.2, 1.8, 0.2, 0.8, 1.7, 0.0};
+    require(
+        rampSweepCollision.overlapsBox(
+            lowFirstCell) &&
+            !rampSweepCollision.overlapsBox(
+                lowSecondCell) &&
+            rampSweepCollision.overlapsBox(
+                tallSecondCell),
+        "ramp collision blocks its low start but"
+        " preserves usable clearance under higher cells");
     const auto stoppedOnRamp =
         rampSweepCollision.moveCircle(
             {-1.0, 1.7, 1.0},

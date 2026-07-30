@@ -4,6 +4,7 @@
 #include "buildings/FoundationSystem.hpp"
 #include "core/Types.hpp"
 
+#include <array>
 #include <limits>
 #include <optional>
 #include <span>
@@ -77,6 +78,7 @@ class CollisionWorld {
     std::vector<CollisionBox> staticColliders_;
     std::vector<CollisionBox> buildingColliders_;
     std::vector<CollisionBox> modularColliders_;
+    std::vector<CollisionBox> rampPlacementColliders_;
     std::vector<CollisionBox> colliders_;
     std::vector<WalkableSurface> buildingSurfaces_;
     std::vector<WalkableSurface> modularSurfaces_;
@@ -85,5 +87,14 @@ class CollisionWorld {
 [[nodiscard]] CollisionBox buildingCollisionBox(
     BuildingType type, GridPosition position,
     double baseHeight = 0.0);
+[[nodiscard]] std::array<
+    CollisionBox, ModularRampRunCells>
+rampCollisionBoxes(
+    GridCoord anchor, Rotation rotation,
+    double bottomHeight, double topHeight,
+    double cellSize);
+[[nodiscard]] bool collisionBoxesOverlap(
+    const CollisionBox& left,
+    const CollisionBox& right);
 
 } // namespace ian

@@ -137,6 +137,75 @@ CollisionBox buildingCollisionBox(
     };
 }
 
+std::array<CollisionBox, ModularRampRunCells>
+rampCollisionBoxes(
+    GridCoord anchor, Rotation rotation,
+    double bottomHeight, double topHeight,
+    double cellSize) {
+    std::array<
+        CollisionBox, ModularRampRunCells> boxes{};
+    const double risePerCell =
+        (topHeight - bottomHeight) /
+        static_cast<double>(ModularRampRunCells);
+    constexpr double HalfBoardThickness = 0.08;
+    for (int runCell = 0;
+         runCell < ModularRampRunCells; ++runCell) {
+        int minimumX = anchor.x;
+        int maximumX =
+            anchor.x + ModularRampWidthCells;
+        int minimumZ = anchor.z;
+        int maximumZ =
+            anchor.z + ModularRampWidthCells;
+        switch (rotation) {
+        case Rotation::Deg0:
+            minimumZ += runCell;
+            maximumZ = minimumZ + 1;
+            break;
+        case Rotation::Deg90:
+            minimumX +=
+                ModularRampRunCells - runCell - 1;
+            maximumX = minimumX + 1;
+            break;
+        case Rotation::Deg180:
+            minimumZ +=
+                ModularRampRunCells - runCell - 1;
+            maximumZ = minimumZ + 1;
+            break;
+        case Rotation::Deg270:
+            minimumX += runCell;
+            maximumX = minimumX + 1;
+            break;
+        }
+        const double segmentBottom =
+            bottomHeight +
+            static_cast<double>(runCell) *
+                risePerCell;
+        boxes[static_cast<std::size_t>(runCell)] = {
+            minimumX * cellSize,
+            maximumX * cellSize,
+            minimumZ * cellSize,
+            maximumZ * cellSize,
+            segmentBottom + risePerCell +
+                HalfBoardThickness,
+            segmentBottom - HalfBoardThickness,
+        };
+    }
+    return boxes;
+}
+
+bool collisionBoxesOverlap(
+    const CollisionBox& left,
+    const CollisionBox& right) {
+    return left.minX < right.maxX &&
+           left.maxX > right.minX &&
+           left.minZ < right.maxZ &&
+           left.maxZ > right.minZ &&
+           left.minimumBlockingEyeY <
+               right.maximumBlockingEyeY &&
+           left.maximumBlockingEyeY >
+               right.minimumBlockingEyeY;
+}
+
 CollisionWorld::CollisionWorld() : CollisionWorld(48.0, defaultStaticColliders()) {}
 
 CollisionWorld::CollisionWorld(double worldLimit, std::vector<CollisionBox> staticColliders)
@@ -148,6 +217,7 @@ CollisionWorld::CollisionWorld(double worldLimit, std::vector<CollisionBox> stat
 void CollisionWorld::reset() {
     buildingColliders_.clear();
     modularColliders_.clear();
+    rampPlacementColliders_.clear();
     buildingSurfaces_.clear();
     modularSurfaces_.clear();
     rebuildColliders();
@@ -198,8 +268,13 @@ void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& building
 void CollisionWorld::syncModularBuildings(
     const ModularCollisionView& buildings) {
     modularColliders_.clear();
+    rampPlacementColliders_.clear();
     modularSurfaces_.clear();
-    modularColliders_.reserve(buildings.walls.size());
+    modularColliders_.reserve(
+        buildings.walls.size());
+    rampPlacementColliders_.reserve(
+        buildings.ramps.size() *
+            ModularRampRunCells);
     modularSurfaces_.reserve(
         buildings.platformFrames.size() +
         buildings.ramps.size());
@@ -279,6 +354,16 @@ void CollisionWorld::syncModularBuildings(
             .rotation = ramp.rotation,
             .kind = SurfaceKind::Ramp,
         });
+        const auto rampBoxes =
+            rampCollisionBoxes(
+                ramp.anchor, ramp.rotation,
+                ramp.bottomHeight, ramp.topHeight,
+                buildings.cellSize);
+        // Ramp surface handles player movement. These
+        // boxes only reject intersecting placement.
+        rampPlacementColliders_.insert(
+            rampPlacementColliders_.end(),
+            rampBoxes.begin(), rampBoxes.end());
     }
     rebuildColliders();
 }
@@ -468,17 +553,18 @@ bool CollisionWorld::overlapsBox(const CollisionBox& candidate) const {
         candidate.minZ < -worldLimit_ || candidate.maxZ > worldLimit_) {
         return true;
     }
-    return std::any_of(colliders_.begin(), colliders_.end(),
-                       [candidate](const CollisionBox& collider) {
-                           return candidate.minX < collider.maxX &&
-                                  candidate.maxX > collider.minX &&
-                                  candidate.minZ < collider.maxZ &&
-                                  candidate.maxZ > collider.minZ &&
-                                  candidate.minimumBlockingEyeY <
-                                      collider.maximumBlockingEyeY &&
-                                  candidate.maximumBlockingEyeY >
-                                      collider.minimumBlockingEyeY;
-                       });
+    const auto overlapsCandidate =
+        [candidate](const CollisionBox& collider) {
+            return collisionBoxesOverlap(
+                candidate, collider);
+        };
+    return std::any_of(
+               colliders_.begin(), colliders_.end(),
+               overlapsCandidate) ||
+           std::any_of(
+               rampPlacementColliders_.begin(),
+               rampPlacementColliders_.end(),
+               overlapsCandidate);
 }
 
 const std::vector<CollisionBox>& CollisionWorld::colliders() const {
