@@ -182,6 +182,71 @@ void runCollisionWorldTests() {
             std::abs(*rampLow - 3.0) < 1e-9 &&
             std::abs(*rampHigh - 5.0) < 1e-9,
         "ramp exposes continuous directional surface");
+
+    ian::CollisionWorld rampSweepCollision(
+        48.0, {});
+    const std::array<ian::RampInstance, 1>
+        sweepRamp{{
+            {
+                .id = {103U, 1U},
+                .anchor = {0, 0, 0},
+                .rotation = ian::Rotation::Deg270,
+                .bottomHeight = 0.0,
+                .topHeight = 4.0,
+                .targetStorey = 1,
+            },
+        }};
+    rampSweepCollision.syncModularBuildings({
+        std::span<
+            const ian::PlatformFrameInstance>{},
+        std::span<const ian::WallInstance>{},
+        sweepRamp,
+        1.0,
+    });
+    const auto stoppedOnRamp =
+        rampSweepCollision.moveCircle(
+            {-1.0, 1.7, 1.0},
+            {6.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.65);
+    const auto clearedRamp =
+        rampSweepCollision.moveCircle(
+            {-1.0, 5.7, 1.0},
+            {6.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            4.65);
+    require(
+        stoppedOnRamp.x < 0.7 &&
+            clearedRamp.x > 4.5,
+        "swept movement cannot tunnel through a ramp"
+        " above the reachable step height");
+    const std::array<ian::PlatformFrameInstance, 1>
+        overheadFrame{{
+            {
+                .id = {104U, 1U},
+                .anchor = {0, 0, 0},
+                .floorHeight = 4.0,
+                .storey = 1,
+            },
+        }};
+    rampSweepCollision.syncModularBuildings({
+        overheadFrame,
+        std::span<const ian::WallInstance>{},
+        std::span<const ian::RampInstance>{},
+        1.0,
+    });
+    require(
+        rampSweepCollision
+                .moveCircle(
+                    {-1.0, 1.7, 1.0},
+                    {4.0, 0.0, 0.0},
+                    ian::CollisionWorld::
+                        PlayerRadius,
+                    0.65)
+                .x > 2.5,
+        "raised-surface sweep does not block"
+        " movement below an upper floor");
+
     const auto belowUpperWall =
         modularCollision.moveCircle(
             {18.5, 1.7, 2.0},

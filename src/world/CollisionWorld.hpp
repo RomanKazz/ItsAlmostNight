@@ -41,7 +41,10 @@ class CollisionWorld {
     void syncModularBuildings(
         const ModularCollisionView& buildings);
 
-    [[nodiscard]] Vec3 moveCircle(Vec3 position, Vec3 delta, double radius) const;
+    [[nodiscard]] Vec3 moveCircle(
+        Vec3 position, Vec3 delta, double radius,
+        double maximumWalkableSurfaceHeight =
+            std::numeric_limits<double>::infinity()) const;
     [[nodiscard]] std::optional<double>
     modularSurfaceHeight(
         double worldX, double worldZ,

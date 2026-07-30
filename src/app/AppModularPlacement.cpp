@@ -484,14 +484,13 @@ void App::updateModularPlacementPreview(
                 return candidate.id == aimed;
             });
         if (frame != snapshot.platformFrames.end()) {
-            const bool useGroundFloorEdges =
-                frame->storey == 0 &&
+            const bool usePlatformEdges =
                 !IsKeyDown(KEY_LEFT_CONTROL) &&
                 !IsKeyDown(KEY_RIGHT_CONTROL);
-            if (useGroundFloorEdges) {
+            if (usePlatformEdges) {
                 modularEdgeHoverFrame_ = frame->id;
             }
-            if (useGroundFloorEdges &&
+            if (usePlatformEdges &&
                 std::abs(lookDirection.y) > 1e-5) {
                 const double distance =
                     (frame->floorHeight -

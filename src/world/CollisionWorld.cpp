@@ -1,6 +1,7 @@
 #include "world/CollisionWorld.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -301,12 +302,51 @@ void CollisionWorld::rebuildColliders() {
         modularColliders_.end());
 }
 
-Vec3 CollisionWorld::moveCircle(Vec3 position, Vec3 delta, double radius) const {
+Vec3 CollisionWorld::moveCircle(
+    Vec3 position, Vec3 delta, double radius,
+    double maximumWalkableSurfaceHeight) const {
     const double distance = std::sqrt((delta.x * delta.x) + (delta.z * delta.z));
     const int stepCount =
         std::max(1, static_cast<int>(std::ceil(distance / MaxMovementStep)));
     const double stepX = delta.x / static_cast<double>(stepCount);
     const double stepZ = delta.z / static_cast<double>(stepCount);
+    const auto blockedByRaisedSurface =
+        [this, maximumWalkableSurfaceHeight,
+         radius](Vec3 candidate) {
+            if (!std::isfinite(
+                    maximumWalkableSurfaceHeight)) {
+                return false;
+            }
+            const std::array<Vec3, 5> samples{{
+                candidate,
+                {candidate.x + radius,
+                 candidate.y, candidate.z},
+                {candidate.x - radius,
+                 candidate.y, candidate.z},
+                {candidate.x,
+                 candidate.y, candidate.z + radius},
+                {candidate.x,
+                 candidate.y, candidate.z - radius},
+            }};
+            return std::any_of(
+                samples.begin(), samples.end(),
+                [this,
+                 maximumWalkableSurfaceHeight](
+                    Vec3 sample) {
+                    constexpr double SurfaceEpsilon =
+                        1e-6;
+                    constexpr double HeadAboveEye =
+                        0.15;
+                    const auto surface =
+                        modularSurfaceHeight(
+                            sample.x, sample.z,
+                            sample.y + HeadAboveEye);
+                    return surface &&
+                        *surface >
+                            maximumWalkableSurfaceHeight +
+                                SurfaceEpsilon;
+                });
+        };
 
     for (int step = 0; step < stepCount; ++step) {
         const bool escapingCollider =
@@ -319,12 +359,15 @@ Vec3 CollisionWorld::moveCircle(Vec3 position, Vec3 delta, double radius) const 
         Vec3 candidate = position;
         candidate.x =
             std::clamp(candidate.x + stepX, -worldLimit_ + radius, worldLimit_ - radius);
-        const bool blockedX = !escapingCollider &&
-            std::any_of(colliders_.begin(), colliders_.end(),
-                        [candidate, radius](const auto& box) {
-                return pointInsideExpandedBox(
-                    candidate, radius, box);
-            });
+        const bool blockedX =
+            blockedByRaisedSurface(candidate) ||
+            (!escapingCollider &&
+             std::any_of(
+                 colliders_.begin(), colliders_.end(),
+                 [candidate, radius](const auto& box) {
+                     return pointInsideExpandedBox(
+                         candidate, radius, box);
+                 }));
         if (!blockedX) {
             position.x = candidate.x;
         }
@@ -332,12 +375,15 @@ Vec3 CollisionWorld::moveCircle(Vec3 position, Vec3 delta, double radius) const 
         candidate = position;
         candidate.z =
             std::clamp(candidate.z + stepZ, -worldLimit_ + radius, worldLimit_ - radius);
-        const bool blockedZ = !escapingCollider &&
-            std::any_of(colliders_.begin(), colliders_.end(),
-                        [candidate, radius](const auto& box) {
-                return pointInsideExpandedBox(
-                    candidate, radius, box);
-            });
+        const bool blockedZ =
+            blockedByRaisedSurface(candidate) ||
+            (!escapingCollider &&
+             std::any_of(
+                 colliders_.begin(), colliders_.end(),
+                 [candidate, radius](const auto& box) {
+                     return pointInsideExpandedBox(
+                         candidate, radius, box);
+                 }));
         if (!blockedZ) {
             position.z = candidate.z;
         }

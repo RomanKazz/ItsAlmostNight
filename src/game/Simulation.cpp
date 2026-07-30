@@ -289,18 +289,19 @@ void Simulation::updatePlayer(double deltaSeconds,
         playerGrounded_ &&
         shouldAutoJumpGroundFrame(movement);
 
-    playerPosition_ = collisionWorld_.moveCircle(
-        playerPosition_, movement,
-        CollisionWorld::PlayerRadius);
-
     constexpr double MaximumStepUp = 0.65;
     constexpr double MaximumGroundSnapDown = 0.35;
+    const double currentFeetHeight =
+        playerPosition_.y - gameplay_.eyeHeight;
+    playerPosition_ = collisionWorld_.moveCircle(
+        playerPosition_, movement,
+        CollisionWorld::PlayerRadius,
+        currentFeetHeight + MaximumStepUp);
+
     const double terrainSurface =
         terrain_.getHeight(
             playerPosition_.x,
             playerPosition_.z);
-    const double currentFeetHeight =
-        playerPosition_.y - gameplay_.eyeHeight;
     double standingSurface = terrainSurface;
     const auto modularSurface =
         collisionWorld_.modularSurfaceHeight(
