@@ -119,18 +119,18 @@ rampSocketAimOnFloor(
 [[nodiscard]] inline GridCoord rampSupportAnchorAtAim(
     Vec3 floorAim, Vec3 lookDirection,
     double cellSize) {
-    const double forwardShift =
+    const double closerShift =
         PlatformFrameWidthCells *
         cellSize * 0.5;
     if (std::abs(lookDirection.z) >=
             std::abs(lookDirection.x) &&
         std::abs(lookDirection.z) > 1e-9) {
-        floorAim.z += std::copysign(
-            forwardShift, lookDirection.z);
+        floorAim.z -= std::copysign(
+            closerShift, lookDirection.z);
     } else if (
         std::abs(lookDirection.x) > 1e-9) {
-        floorAim.x += std::copysign(
-            forwardShift, lookDirection.x);
+        floorAim.x -= std::copysign(
+            closerShift, lookDirection.x);
     }
     return {
         snapPlatformFrameAxis(

@@ -479,21 +479,21 @@ void runFoundationSystemTests() {
         ian::rampSupportAnchorAtAim(
             {1.0, 2.0, 0.99},
             {0.0, -0.4, 1.0}, 1.0) ==
-                ian::GridCoord{0, 0, 0} &&
+                ian::GridCoord{0, 0, -2} &&
             ian::rampSupportAnchorAtAim(
                 {1.0, 2.0, 1.01},
                 {0.0, -0.4, 1.0}, 1.0) ==
+                ian::GridCoord{0, 0, 0} &&
+            ian::rampSupportAnchorAtAim(
+                {1.0, 2.0, 3.01},
+                {0.0, -0.4, 1.0}, 1.0) ==
                 ian::GridCoord{0, 0, 2} &&
             ian::rampSupportAnchorAtAim(
-                {1.0, 2.0, -1.01},
-                {0.0, -0.4, 1.0}, 1.0) ==
-                ian::GridCoord{0, 0, -2} &&
-            ian::rampSupportAnchorAtAim(
-                {0.99, 2.0, 1.0},
+                {1.01, 2.0, 1.0},
                 {-1.0, -0.4, 0.0}, 1.0) ==
-                ian::GridCoord{-2, 0, 0},
+                ian::GridCoord{2, 0, 0},
         "ramp support selection switches at platform"
-        " half-way boundaries");
+        " half-way boundaries one platform closer");
     require(
         ian::rampTopPlatformAnchor(
             {0, 0, 2}, ian::Rotation::Deg0) ==
