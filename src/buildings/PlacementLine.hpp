@@ -31,11 +31,11 @@ stabilizePlacementLineAxis(
                    : PlacementLineAxis::Z;
     }
     if (*current == PlacementLineAxis::X &&
-        distanceZ > distanceX + switchMargin) {
+        distanceZ >= distanceX + switchMargin) {
         return PlacementLineAxis::Z;
     }
     if (*current == PlacementLineAxis::Z &&
-        distanceX > distanceZ + switchMargin) {
+        distanceX >= distanceZ + switchMargin) {
         return PlacementLineAxis::X;
     }
     return current;

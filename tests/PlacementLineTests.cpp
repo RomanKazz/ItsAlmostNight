@@ -16,10 +16,15 @@ void runPlacementLineTests() {
         axis == PlacementLineAxis::X,
         "near-diagonal cursor noise keeps current axis");
     axis = ian::stabilizePlacementLineAxis(
-        2, 5, axis, 2);
+        2, 4, axis, 2);
     require(
         axis == PlacementLineAxis::Z,
-        "decisive movement can switch line axis");
+        "switch occurs at one modular grid step");
+    axis = ian::stabilizePlacementLineAxis(
+        2, 0, axis, 2);
+    require(
+        axis == PlacementLineAxis::X,
+        "axis can change beside blocked neighboring cells");
 
     const auto negative = ian::placementLine(
         ian::GridPosition{3, 2},

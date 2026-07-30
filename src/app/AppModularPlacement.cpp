@@ -606,8 +606,26 @@ void App::updateModularPlacementPreview(
                 modularDragCandidateFrames_ = 0;
             }
         }
+        modularDragAxis_ =
+            stabilizePlacementLineAxis(
+                dragEnd.x - modularDragStart_->x,
+                dragEnd.z - modularDragStart_->z,
+                modularDragAxis_,
+                PlatformFrameWidthCells);
+        if (modularDragAxis_ ==
+            PlacementLineAxis::X) {
+            dragEnd.z = modularDragStart_->z;
+        } else if (
+            modularDragAxis_ ==
+            PlacementLineAxis::Z) {
+            dragEnd.x = modularDragStart_->x;
+        }
+        // Debounce only click-to-drag transition. Requiring
+        // confirmation after every endpoint change makes the
+        // preview collapse to its first cell while moving.
         if ((dragEnd.x != modularDragStart_->x ||
-             dragEnd.z != modularDragStart_->z)) {
+             dragEnd.z != modularDragStart_->z) &&
+            !modularDragExtended_) {
             if (modularDragCandidateEnd_ &&
                 modularDragCandidateEnd_->x ==
                     dragEnd.x &&
@@ -626,6 +644,9 @@ void App::updateModularPlacementPreview(
             } else {
                 modularDragExtended_ = true;
             }
+        } else if (modularDragExtended_) {
+            modularDragCandidateEnd_ = dragEnd;
+            modularDragCandidateFrames_ = 0;
         }
         modularDragEnd_ = dragEnd;
         const Vec3 snappedHit{
@@ -1171,11 +1192,10 @@ void App::rebuildModularPlacementLine() {
                     ModularBuildPiece::Wall
             ? 1
             : PlatformFrameWidthCells;
-    constexpr int AxisSwitchMarginCells = 2;
     modularDragAxis_ = stabilizePlacementLineAxis(
         modularDragEnd_->x - modularDragStart_->x,
         modularDragEnd_->z - modularDragStart_->z,
-        modularDragAxis_, AxisSwitchMarginCells);
+        modularDragAxis_, spacing);
     const auto cells = ian::placementLine(
         *modularDragStart_, *modularDragEnd_,
         spacing, modularDragAxis_);
