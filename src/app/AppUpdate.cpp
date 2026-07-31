@@ -348,6 +348,29 @@ void App::update() {
     }
     const auto events = simulation_.takeEvents();
     const auto eventSnapshot = simulation_.snapshot();
+    if (!groundCameraSmoothingInitialized_ ||
+        !eventSnapshot.playerGrounded ||
+        !groundCameraWasGrounded_) {
+        smoothedGroundCameraY_ =
+            eventSnapshot.playerPosition.y;
+        groundCameraSmoothingInitialized_ = true;
+    } else {
+        constexpr double MaximumRampCameraLag = 0.16;
+        smoothedGroundCameraY_ = std::clamp(
+            smoothedGroundCameraY_,
+            eventSnapshot.playerPosition.y -
+                MaximumRampCameraLag,
+            eventSnapshot.playerPosition.y +
+                MaximumRampCameraLag);
+        const double heightBlend =
+            1.0 - std::exp(-14.0 * frameSeconds);
+        smoothedGroundCameraY_ +=
+            (eventSnapshot.playerPosition.y -
+             smoothedGroundCameraY_) *
+            heightBlend;
+    }
+    groundCameraWasGrounded_ =
+        eventSnapshot.playerGrounded;
     if (!cameraInertiaInitialized_) {
         previousVisualYaw_ = eventSnapshot.playerYaw;
         previousVisualPitch_ = eventSnapshot.playerPitch;

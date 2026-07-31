@@ -257,6 +257,7 @@ class Simulation {
     void resetRun(GameEventType eventType);
     void updatePlayer(double deltaSeconds,
                       const PlayerCommand& command);
+    void recoverPlayerFromInvalidPosition();
     void processDebugCommands(const PlayerCommand& command);
     void processBuildingCommands(const PlayerCommand& command);
     void updatePlayerActions(double deltaSeconds,
@@ -324,6 +325,11 @@ class Simulation {
     double jumpBufferRemaining_{};
     double autoJumpAssistRemaining_{};
     Vec3 autoJumpAssistDirection_{};
+    double edgeSupportGraceRemaining_{};
+    double lastGroundSurfaceHeight_{};
+    Vec3 lastSafePlayerPosition_{0.0, 1.7, 6.0};
+    bool hasSafePlayerPosition_{};
+    double invalidPlayerPositionSeconds_{};
     double playerYaw_{};
     double playerPitch_{};
     bool playerGrounded_{true};

@@ -297,6 +297,18 @@ void runCollisionWorldTests() {
             clearedRamp.x > 4.5,
         "swept movement cannot tunnel through a ramp"
         " above the reachable step height");
+    require(
+        rampSweepCollision.playerVolumeIntersectsSolid(
+            {2.0, 3.6, 1.0},
+            ian::CollisionWorld::PlayerRadius,
+            1.9, 3.75) &&
+            !rampSweepCollision
+                 .playerVolumeIntersectsSolid(
+                     {2.0, 3.7, 1.0},
+                     ian::CollisionWorld::PlayerRadius,
+                     2.0, 3.85),
+        "stuck detection distinguishes a player inside a ramp"
+        " from one standing on it");
     const auto escapedEmbeddedRamp =
         rampSweepCollision.moveCircle(
             {2.0, 2.0, 1.0},
@@ -307,6 +319,25 @@ void runCollisionWorldTests() {
         escapedEmbeddedRamp.x < -0.3,
         "player can escape a ramp intersection caused by"
         " vertical movement");
+
+    ian::CollisionWorld penetrationRecovery(
+        10.0,
+        {{0.0, 1.0, 0.0, 1.0, 2.2, 0.0}});
+    const ian::Vec3 embedded{0.5, 1.7, 0.5};
+    const ian::Vec3 recovered =
+        penetrationRecovery.resolvePlayerPenetration(
+            embedded,
+            ian::CollisionWorld::PlayerRadius);
+    require(
+        penetrationRecovery.playerVolumeIntersectsSolid(
+            embedded,
+            ian::CollisionWorld::PlayerRadius,
+            0.0, 1.85) &&
+            !penetrationRecovery.playerVolumeIntersectsSolid(
+                recovered,
+                ian::CollisionWorld::PlayerRadius,
+                0.0, 1.85),
+        "embedded player is moved to the nearest free side");
     const std::array<ian::PlatformFrameInstance, 1>
         overheadFrame{{
             {

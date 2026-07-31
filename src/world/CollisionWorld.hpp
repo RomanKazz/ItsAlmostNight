@@ -64,6 +64,11 @@ class CollisionWorld {
         Vec3 startPosition, Vec3 endPosition,
         double radius, double startFeetHeight,
         double endFeetHeight) const;
+    [[nodiscard]] bool playerVolumeIntersectsSolid(
+        Vec3 eyePosition, double radius,
+        double feetHeight, double headHeight) const;
+    [[nodiscard]] Vec3 resolvePlayerPenetration(
+        Vec3 eyePosition, double radius) const;
     [[nodiscard]] std::optional<double>
     modularCeilingHeight(
         double worldX, double worldZ,

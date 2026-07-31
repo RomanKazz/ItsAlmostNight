@@ -946,7 +946,10 @@ void App::render() {
         const double cosPitch = std::cos(visualPitch);
         Vector3 position = {
             static_cast<float>(snapshot.playerPosition.x),
-            static_cast<float>(snapshot.playerPosition.y),
+            static_cast<float>(
+                groundCameraSmoothingInitialized_
+                    ? smoothedGroundCameraY_
+                    : snapshot.playerPosition.y),
             static_cast<float>(snapshot.playerPosition.z),
         };
         Vector3 forward = {

@@ -108,6 +108,8 @@ void App::processInput() {
         cameraImpulseOffset_ = {};
         landingResponseRemaining_ = 0.0;
         cameraInertiaInitialized_ = false;
+        groundCameraSmoothingInitialized_ = false;
+        groundCameraWasGrounded_ = false;
         cameraBobPositionInitialized_ = false;
         damageIndicators_.clear();
         playerDamageFlashRemaining_ = 0.0;
@@ -190,6 +192,8 @@ void App::processInput() {
         cameraImpulseOffset_ = {};
         landingResponseRemaining_ = 0.0;
         cameraInertiaInitialized_ = false;
+        groundCameraSmoothingInitialized_ = false;
+        groundCameraWasGrounded_ = false;
         cameraBobPositionInitialized_ = false;
         damageIndicators_.clear();
         playerDamageFlashRemaining_ = 0.0;

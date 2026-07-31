@@ -194,6 +194,9 @@ class App {
     double previousVisualYaw_{};
     double previousVisualPitch_{};
     bool cameraInertiaInitialized_{};
+    double smoothedGroundCameraY_{};
+    bool groundCameraSmoothingInitialized_{};
+    bool groundCameraWasGrounded_{};
     Vec3 cameraImpulseOffset_{};
     double landingResponseRemaining_{};
     double landingResponseDuration_{0.24};
