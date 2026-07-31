@@ -223,6 +223,8 @@ void Simulation::resetRun(GameEventType eventType) {
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    autoJumpAssistRemaining_ = 0.0;
+    autoJumpAssistDirection_ = {};
     playerYaw_ = 0.0;
     playerPitch_ = 0.0;
     playerGrounded_ = true;
@@ -358,6 +360,9 @@ void Simulation::updatePlayer(double deltaSeconds,
                               const PlayerCommand& command) {
     constexpr double CoyoteTime = 0.10;
     constexpr double JumpBufferTime = 0.12;
+    autoJumpAssistRemaining_ = std::max(
+        0.0,
+        autoJumpAssistRemaining_ - deltaSeconds);
     if (command.jump) {
         jumpBufferRemaining_ = JumpBufferTime;
     } else {
@@ -409,9 +414,38 @@ void Simulation::updatePlayer(double deltaSeconds,
         velocityChangeRate *=
             hasMovementInput ? 0.55 : 0.35;
     }
+    if (!hasMovementInput &&
+        autoJumpAssistRemaining_ > 0.0) {
+        velocityChangeRate = 0.0;
+    }
     playerHorizontalVelocity_ = moveHorizontalToward(
         playerHorizontalVelocity_, targetVelocity,
         velocityChangeRate * deltaSeconds);
+    if (autoJumpAssistRemaining_ > 0.0) {
+        const double inputAlongAssist =
+            directionX * autoJumpAssistDirection_.x +
+            directionZ * autoJumpAssistDirection_.z;
+        if (hasMovementInput && inputAlongAssist < -0.1) {
+            autoJumpAssistRemaining_ = 0.0;
+            autoJumpAssistDirection_ = {};
+        } else {
+            const double minimumAutoJumpSpeed =
+                gameplay_.walkSpeed * 0.75;
+            const double speedAlongAssist =
+                playerHorizontalVelocity_.x *
+                    autoJumpAssistDirection_.x +
+                playerHorizontalVelocity_.z *
+                    autoJumpAssistDirection_.z;
+            if (speedAlongAssist < minimumAutoJumpSpeed) {
+                const double missingSpeed =
+                    minimumAutoJumpSpeed - speedAlongAssist;
+                playerHorizontalVelocity_.x +=
+                    autoJumpAssistDirection_.x * missingSpeed;
+                playerHorizontalVelocity_.z +=
+                    autoJumpAssistDirection_.z * missingSpeed;
+            }
+        }
+    }
     const Vec3 movement{
         playerHorizontalVelocity_.x * deltaSeconds,
         0.0,
@@ -456,9 +490,10 @@ void Simulation::updatePlayer(double deltaSeconds,
             playerPosition_.z);
     double standingSurface = terrainSurface;
     const auto modularSurface =
-        collisionWorld_.modularSurfaceHeight(
+        collisionWorld_.playerSupportHeight(
             playerPosition_.x,
             playerPosition_.z,
+            CollisionWorld::PlayerRadius,
             currentFeetHeight + MaximumStepUp);
     if (modularSurface) {
         standingSurface =
@@ -481,6 +516,20 @@ void Simulation::updatePlayer(double deltaSeconds,
         jumpBufferRemaining_ > 0.0 &&
         (playerGrounded_ || coyoteTimeRemaining_ > 0.0);
     if (bufferedJump || autoJump) {
+        if (autoJump) {
+            constexpr double AutoJumpAssistSeconds = 0.65;
+            const double horizontalSpeed = std::hypot(
+                movement.x, movement.z);
+            if (horizontalSpeed > 1e-9) {
+                autoJumpAssistDirection_ = {
+                    movement.x / horizontalSpeed,
+                    0.0,
+                    movement.z / horizontalSpeed,
+                };
+            }
+            autoJumpAssistRemaining_ =
+                AutoJumpAssistSeconds;
+        }
         verticalVelocity_ = gameplay_.jumpSpeed;
         playerGrounded_ = false;
         coyoteTimeRemaining_ = 0.0;
@@ -517,9 +566,10 @@ void Simulation::updatePlayer(double deltaSeconds,
         double landingSurface = terrainSurface;
         if (verticalVelocity_ <= 0.0) {
             const auto sweptSurface =
-                collisionWorld_.modularSurfaceHeight(
+                collisionWorld_.playerSupportHeight(
                     playerPosition_.x,
                     playerPosition_.z,
+                    CollisionWorld::PlayerRadius,
                     previousFeetHeight + 1e-6);
             if (sweptSurface) {
                 landingSurface = std::max(
@@ -576,6 +626,8 @@ void Simulation::regenerateTerrain(
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    autoJumpAssistRemaining_ = 0.0;
+    autoJumpAssistDirection_ = {};
     playerGrounded_ = true;
 }
 
@@ -2288,6 +2340,8 @@ void Simulation::raisePlayerOntoGroundFrame(
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    autoJumpAssistRemaining_ = 0.0;
+    autoJumpAssistDirection_ = {};
     playerGrounded_ = true;
 }
 
@@ -2524,6 +2578,8 @@ void Simulation::respawnPlayer() {
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    autoJumpAssistRemaining_ = 0.0;
+    autoJumpAssistDirection_ = {};
     playerGrounded_ = true;
     playerHealth_ = gameplay_.playerMaxHealth;
 }
@@ -2572,6 +2628,8 @@ void Simulation::beginPlayerRespawn(
     playerHorizontalVelocity_ = {};
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    autoJumpAssistRemaining_ = 0.0;
+    autoJumpAssistDirection_ = {};
     playerGrounded_ = true;
     buildingPreview_.reset();
     aimedResource_.reset();

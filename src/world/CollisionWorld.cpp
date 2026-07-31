@@ -551,6 +551,76 @@ CollisionWorld::modularSurfaceHeight(
 }
 
 std::optional<double>
+CollisionWorld::playerSupportHeight(
+    double worldX, double worldZ, double radius,
+    double maximumSurfaceHeight) const {
+    std::optional<double> result =
+        modularSurfaceHeight(
+            worldX, worldZ, maximumSurfaceHeight);
+    constexpr double EdgeEpsilon = 1e-6;
+    const auto sampleSupport =
+        [worldX, worldZ, radius,
+         maximumSurfaceHeight, &result](
+            const WalkableSurface& surface) {
+            const double closestX = std::clamp(
+                worldX, surface.minX, surface.maxX);
+            const double closestZ = std::clamp(
+                worldZ, surface.minZ, surface.maxZ);
+            const double deltaX = worldX - closestX;
+            const double deltaZ = worldZ - closestZ;
+            if (deltaX * deltaX + deltaZ * deltaZ >
+                radius * radius + EdgeEpsilon) {
+                return;
+            }
+            double height = surface.topHeight;
+            if (surface.kind == SurfaceKind::Ramp) {
+                const double widthX =
+                    surface.maxX - surface.minX;
+                const double widthZ =
+                    surface.maxZ - surface.minZ;
+                double progress = 0.0;
+                switch (surface.rotation) {
+                case Rotation::Deg0:
+                    progress =
+                        (closestZ - surface.minZ) / widthZ;
+                    break;
+                case Rotation::Deg90:
+                    progress =
+                        (surface.maxX - closestX) / widthX;
+                    break;
+                case Rotation::Deg180:
+                    progress =
+                        (surface.maxZ - closestZ) / widthZ;
+                    break;
+                case Rotation::Deg270:
+                    progress =
+                        (closestX - surface.minX) / widthX;
+                    break;
+                }
+                height = surface.bottomHeight +
+                    std::clamp(progress, 0.0, 1.0) *
+                        (surface.topHeight -
+                         surface.bottomHeight);
+            }
+            if (height > maximumSurfaceHeight +
+                    EdgeEpsilon ||
+                (result && height <= *result)) {
+                return;
+            }
+            result = height;
+        };
+    for (const WalkableSurface& surface :
+         buildingSurfaces_) {
+        sampleSupport(surface);
+    }
+    for (const WalkableSurface& surface :
+         modularSurfaces_) {
+        sampleSupport(surface);
+    }
+    return result;
+}
+
+std::optional<double>
 CollisionWorld::modularCeilingHeight(
     double worldX, double worldZ,
     double minimumHeadHeight,

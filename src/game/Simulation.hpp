@@ -322,6 +322,8 @@ class Simulation {
     double verticalVelocity_{};
     double coyoteTimeRemaining_{};
     double jumpBufferRemaining_{};
+    double autoJumpAssistRemaining_{};
+    Vec3 autoJumpAssistDirection_{};
     double playerYaw_{};
     double playerPitch_{};
     bool playerGrounded_{true};

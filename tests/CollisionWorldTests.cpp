@@ -172,6 +172,19 @@ void runCollisionWorldTests() {
                 15.5, 0.5, 1.0),
         "modular floor supports player without upward teleport");
     require(
+        !modularCollision.modularSurfaceHeight(
+            14.7, 0.5, 2.1) &&
+            modularCollision.playerSupportHeight(
+                14.7, 0.5,
+                ian::CollisionWorld::PlayerRadius,
+                2.1) == std::optional<double>{2.0} &&
+            !modularCollision.playerSupportHeight(
+                14.6, 0.5,
+                ian::CollisionWorld::PlayerRadius,
+                2.1),
+        "player radius remains supported at a platform edge"
+        " without extending support too far");
+    require(
         modularCollision.modularCeilingHeight(
             15.5, 0.5, 1.2, 1.9) ==
             std::optional<double>{1.5} &&

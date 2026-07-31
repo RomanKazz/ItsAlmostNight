@@ -51,6 +51,10 @@ class CollisionWorld {
         double worldX, double worldZ,
         double maximumSurfaceHeight) const;
     [[nodiscard]] std::optional<double>
+    playerSupportHeight(
+        double worldX, double worldZ, double radius,
+        double maximumSurfaceHeight) const;
+    [[nodiscard]] std::optional<double>
     modularCeilingHeight(
         double worldX, double worldZ,
         double minimumHeadHeight,

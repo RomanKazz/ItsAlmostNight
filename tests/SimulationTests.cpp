@@ -570,6 +570,46 @@ void runSimulationTests() {
             autoJumpSimulation.snapshot()
                     .playerVerticalVelocity > 0.0,
             "coyote time accepts jump shortly after leaving platform");
+
+        ian::Simulation tapAutoJumpSimulation{
+            ian::GameBalance::defaults(), map, world};
+        tapAutoJumpSimulation.startRun();
+        tapAutoJumpSimulation.tick(
+            1.0 / 60.0, unlimited);
+        const auto tapFrame =
+            tapAutoJumpSimulation.placeFoundation(
+                {0.2, 0.0, 2.2});
+        require(
+            tapFrame.has_value(),
+            "tap auto-jump fixture creates platform");
+        bool tapBecameAirborne = false;
+        bool tapLandedOnFrame = false;
+        for (int tick = 0; tick < 150; ++tick) {
+            ian::PlayerCommand command;
+            if (!tapBecameAirborne) {
+                command.moveForward = 1.0;
+            }
+            tapAutoJumpSimulation.tick(
+                1.0 / 60.0, command);
+            const auto tapSnapshot =
+                tapAutoJumpSimulation.snapshot();
+            tapBecameAirborne =
+                tapBecameAirborne ||
+                !tapSnapshot.playerGrounded;
+            if (tapBecameAirborne &&
+                tapSnapshot.playerGrounded &&
+                std::abs(
+                    tapSnapshot.playerPosition.y -
+                    tapFrame->floorHeight - 1.7) <
+                    1e-6) {
+                tapLandedOnFrame = true;
+                break;
+            }
+        }
+        require(
+            tapBecameAirborne && tapLandedOnFrame,
+            "auto-jump carries a released input safely onto"
+            " the platform");
     }
 
     {
