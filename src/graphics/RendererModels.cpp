@@ -788,6 +788,49 @@ bool Renderer::drawPlatformFrameModel(
     return true;
 }
 
+bool Renderer::drawRampModel(
+    Vector3 footprintCenter, float yawRadians,
+    Color tint, float scale) {
+    auto& resource = resources_.rampModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (
+        shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount;
+             ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+
+    // RampDeck is authored 0.1505 m behind RampRoot along its
+    // run. Rotate the correction with the model so its low and
+    // high edges remain exactly on the 4 m grid footprint.
+    constexpr float AuthoredRunCenterOffset = 0.15052F;
+    footprintCenter.x +=
+        std::sin(yawRadians) *
+        AuthoredRunCenterOffset * scale;
+    footprintCenter.z +=
+        std::cos(yawRadians) *
+        AuthoredRunCenterOffset * scale;
+    DrawModelEx(
+        model, footprintCenter,
+        {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
+        {scale, scale, scale}, tint);
+    return true;
+}
+
 bool Renderer::drawResourceProducer(
     BuildingType type, Vector3 position, float yawRadians,
     Color tint, float scale) {

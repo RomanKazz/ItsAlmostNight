@@ -175,7 +175,8 @@ void drawWall(GridCoord anchor, Rotation rotation,
     rlPopMatrix();
 }
 
-void drawRamp(GridCoord anchor, Rotation rotation,
+void drawRamp(Renderer* renderer,
+              GridCoord anchor, Rotation rotation,
               double bottomHeight, double topHeight,
               double cellSize, Color color,
               std::optional<float> yawOverride =
@@ -201,14 +202,30 @@ void drawRamp(GridCoord anchor, Rotation rotation,
         yawOverride.value_or(
             -static_cast<float>(rotation) *
             PI * 0.5F);
+    const float centerX = static_cast<float>(
+        (anchor.x + widthCells * 0.5) * cellSize);
+    const float centerZ = static_cast<float>(
+        (anchor.z + depthCells * 0.5) * cellSize);
+    const Color modelTint =
+        color.r == rampColor.r &&
+                color.g == rampColor.g &&
+                color.b == rampColor.b
+            ? Color{255, 255, 255, color.a}
+            : color;
+    if (renderer != nullptr &&
+        renderer->drawRampModel(
+            {centerX, static_cast<float>(bottomHeight),
+             centerZ},
+            yaw, modelTint,
+            static_cast<float>(cellSize))) {
+        return;
+    }
     rlPushMatrix();
     rlTranslatef(
-        static_cast<float>(
-            (anchor.x + widthCells * 0.5) * cellSize),
+        centerX,
         static_cast<float>(
             (bottomHeight + topHeight) * 0.5),
-        static_cast<float>(
-            (anchor.z + depthCells * 0.5) * cellSize));
+        centerZ);
     rlRotatef(yaw * RAD2DEG, 0.0F, 1.0F, 0.0F);
     rlRotatef(-angle, 1.0F, 0.0F, 0.0F);
     DrawCube({0.0F, 0.0F, 0.0F},
@@ -396,6 +413,7 @@ void ModularBuildingRenderer::drawWorld(
                 ramp.id, buildings.animationScales),
             [&] {
                 drawRamp(
+                    renderer_,
                     ramp.anchor, ramp.rotation,
                     ramp.bottomHeight, ramp.topHeight,
                     buildings.cellSize,
@@ -534,6 +552,7 @@ void ModularBuildingRenderer::drawWorld(
                 continue;
             }
             drawRamp(
+                renderer_,
                 placement.anchor, placement.rotation,
                 placement.bottomHeight,
                 placement.topHeight,
@@ -581,6 +600,7 @@ void ModularBuildingRenderer::drawWorld(
                 *preview.ramp, buildings.cellSize);
         } else {
             drawRamp(
+                renderer_,
                 preview.ramp->anchor,
                 preview.ramp->rotation,
                 preview.ramp->bottomHeight,
@@ -675,6 +695,7 @@ void ModularBuildingRenderer::drawShadow(
                 ramp.id, buildings.animationScales),
             [&] {
                 drawRamp(
+                    renderer_,
                     ramp.anchor, ramp.rotation,
                     ramp.bottomHeight, ramp.topHeight,
                     buildings.cellSize, WHITE);
