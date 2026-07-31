@@ -87,8 +87,12 @@ std::optional<double> raySphereDistance(Vec3 origin, Vec3 direction, const Resou
 
 ResourceSystem::ResourceSystem() : ResourceSystem(defaultDefinitions()) {}
 
-ResourceSystem::ResourceSystem(std::vector<ResourceNodeDefinition> definitions)
-    : definitions_(std::move(definitions)), nodes_(makeNodes()) {}
+ResourceSystem::ResourceSystem(
+    std::vector<ResourceNodeDefinition> definitions,
+    GroundHeightProvider groundHeight)
+    : definitions_(std::move(definitions)),
+      groundHeight_(std::move(groundHeight)),
+      nodes_(makeNodes()) {}
 
 std::vector<ResourceNode> ResourceSystem::makeNodes() const {
     std::vector<ResourceNode> nodes;
@@ -101,11 +105,19 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             variedCapacity(
                 definition.health, definition.yield,
                 id, 0);
+        const double groundOffset =
+            groundHeight_
+                ? definition.position.y -
+                      groundHeight_(
+                          definition.position.x,
+                          definition.position.z)
+                : definition.position.y;
         nodes.push_back({
             .id = id,
             .type = definition.type,
             .position = definition.position,
             .radius = definition.radius,
+            .groundOffset = groundOffset,
             .health = capacity.health,
             .maxHealth = capacity.health,
             .yield = capacity.yield,
@@ -185,14 +197,20 @@ std::optional<Vec3> ResourceSystem::findSafePosition(
                  node.respawnGeneration)
              << 8U) ^
             static_cast<std::uint64_t>(attempt);
-        const Vec3 candidate{
-            (unitRandom(seed) * 2.0 - 1.0) * usableLimit,
-            node.position.y,
+        const double candidateX =
+            (unitRandom(seed) * 2.0 - 1.0) * usableLimit;
+        const double candidateZ =
             (unitRandom(
                  seed ^ 0xd1b54a32d192ed03ULL) *
-                 2.0 -
-             1.0) *
-                usableLimit,
+                 2.0 - 1.0) *
+            usableLimit;
+        const Vec3 candidate{
+            candidateX,
+            groundHeight_
+                ? groundHeight_(candidateX, candidateZ) +
+                      node.groundOffset
+                : node.position.y,
+            candidateZ,
         };
         if (positionIsSafe(
                 node, candidate, buildings, worldLimit,

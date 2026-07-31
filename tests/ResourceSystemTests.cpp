@@ -50,6 +50,32 @@ void runResourceSystemTests() {
             respawnHit->amount == expectedRespawnGrant,
             "respawn restores full resource capacity");
 
+    const auto slopedGround = [](double x, double z) {
+        return 2.0 + x * 0.15 - z * 0.08;
+    };
+    ian::ResourceSystem terrainResources(
+        {{ian::ResourceType::Wood,
+          {0.0, slopedGround(0.0, 0.0) + 1.0, 0.0},
+          1.0, 3.0, 15, 1.0}},
+        slopedGround);
+    require(
+        terrainResources.damage({0, 1}, 100.0)->collected,
+        "terrain resource fixture is collected");
+    terrainResources.tick(1.0);
+    const auto& relocated = terrainResources.nodes().front();
+    require(
+        relocated.active &&
+            (relocated.position.x != 0.0 ||
+             relocated.position.z != 0.0),
+        "terrain resource respawns at a new position");
+    requireNear(
+        relocated.position.y,
+        slopedGround(
+            relocated.position.x,
+            relocated.position.z) + 1.0,
+        1e-9,
+        "respawned resource collider follows terrain height");
+
     std::vector<ian::ResourceNodeDefinition>
         variedDefinitions;
     for (int index = 0; index < 32; ++index) {

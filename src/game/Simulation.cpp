@@ -155,7 +155,10 @@ Simulation::Simulation(
       }},
       resources_(scatterResources(
           map_.resources, map_.worldLimit,
-          terrain_)),
+          terrain_),
+          [this](double x, double z) {
+              return terrain_.getHeight(x, z);
+          }),
       buildings_(balance.buildings, balance.economy, map_.coreBuildRadius),
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
       flowField_(mapCollisionBoxes(map_)),
@@ -409,7 +412,10 @@ void Simulation::regenerateTerrain(
     resources_ = ResourceSystem(
         scatterResources(
             map_.resources, map_.worldLimit,
-            terrain_));
+            terrain_),
+        [this](double x, double z) {
+            return terrain_.getHeight(x, z);
+        });
     foundations_.reset();
     syncModularStructures();
     playerPosition_.y =

@@ -113,7 +113,7 @@ float enemyVisualScale(EnemyType type) {
     case EnemyType::Heavy:
         return 1.18F;
     case EnemyType::Boss:
-        return 1.05F;
+        return 0.85F;
     case EnemyType::Ranged:
         return 0.94F;
     case EnemyType::Sapper:

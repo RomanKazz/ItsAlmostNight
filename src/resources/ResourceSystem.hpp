@@ -3,6 +3,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "core/Types.hpp"
 
+#include <functional>
 #include <optional>
 #include <span>
 #include <vector>
@@ -19,6 +20,7 @@ struct ResourceNode {
     ResourceType type;
     Vec3 position;
     double radius;
+    double groundOffset{};
     double health;
     double maxHealth;
     int yield;
@@ -48,8 +50,13 @@ struct ResourceHit {
 
 class ResourceSystem {
   public:
+    using GroundHeightProvider =
+        std::function<double(double, double)>;
+
     ResourceSystem();
-    explicit ResourceSystem(std::vector<ResourceNodeDefinition> definitions);
+    explicit ResourceSystem(
+        std::vector<ResourceNodeDefinition> definitions,
+        GroundHeightProvider groundHeight = {});
 
     void reset();
     void tick(
@@ -79,6 +86,7 @@ class ResourceSystem {
         double buildingClearance) const;
 
     std::vector<ResourceNodeDefinition> definitions_;
+    GroundHeightProvider groundHeight_;
     std::vector<ResourceNode> nodes_;
 };
 

@@ -131,15 +131,15 @@ EnemyAnimationSource enemyAnimationFor(
             clip = "Walk";
             break;
         case EnemyAnimationVisual::Run:
-            clip = "Run";
+            clip = "Walk";
             break;
         case EnemyAnimationVisual::MeleeAttack:
         case EnemyAnimationVisual::RangedAttack:
         case EnemyAnimationVisual::SapperAttack:
-            clip = "Punch";
+            clip = "Bite_Front";
             break;
         case EnemyAnimationVisual::Hit:
-            clip = "HitReact";
+            clip = "HitRecieve";
             break;
         case EnemyAnimationVisual::Death:
             clip = "Death";
@@ -924,7 +924,9 @@ bool Renderer::drawEnemy(
                     ? frame % clip->keyframeCount
                     : std::min(frame, clip->keyframeCount - 1);
         if (animation.nativeSkeleton) {
-            UpdateModelAnimation(model, *clip, frame);
+            UpdateModelAnimation(
+                model, *clip,
+                static_cast<float>(frame));
         } else {
             enemyAnimationPose_.resize(
                 static_cast<std::size_t>(model.skeleton.boneCount));
@@ -1119,7 +1121,9 @@ bool Renderer::drawEnemiesInstanced(
                     representative.animationSeconds * 30.0F),
                 clip->keyframeCount - 1);
             if (animation.nativeSkeleton) {
-                UpdateModelAnimation(model, *clip, frame);
+                UpdateModelAnimation(
+                    model, *clip,
+                    static_cast<float>(frame));
             } else {
                 enemyAnimationPose_.resize(
                     static_cast<std::size_t>(
