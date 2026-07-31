@@ -209,10 +209,19 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& enemyRogueModel();
     [[nodiscard]] ModelResource& enemyWarriorModel();
     [[nodiscard]] ModelResource& enemyMageModel();
+    [[nodiscard]] ModelResource& enemySapperModel();
+    [[nodiscard]] ModelResource& enemyFlyingModel();
+    [[nodiscard]] ModelResource& enemyBossModel();
     [[nodiscard]] const ModelAnimationsResource&
         enemyGeneralAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyMovementAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemySapperAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemyFlyingAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemyBossAnimations() const;
     [[nodiscard]] ShadowMapResource& shadowMap();
     [[nodiscard]] const ShadowMapResource& shadowMap() const;
 
@@ -251,8 +260,14 @@ class GraphicsResources {
     ModelResource enemyRogueModel_;
     ModelResource enemyWarriorModel_;
     ModelResource enemyMageModel_;
+    ModelResource enemySapperModel_;
+    ModelResource enemyFlyingModel_;
+    ModelResource enemyBossModel_;
     ModelAnimationsResource enemyGeneralAnimations_;
     ModelAnimationsResource enemyMovementAnimations_;
+    ModelAnimationsResource enemySapperAnimations_;
+    ModelAnimationsResource enemyFlyingAnimations_;
+    ModelAnimationsResource enemyBossAnimations_;
     RenderTextureResource sceneTarget_;
     RenderTextureResource selectionMaskTarget_;
     ShadowMapResource shadowMap_;

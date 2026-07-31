@@ -55,16 +55,19 @@ const char* modularPlacementMessage(
 EnemyModelVisual enemyModelVisual(EnemyType type) {
     switch (type) {
     case EnemyType::Basic:
-    case EnemyType::Sapper:
         return EnemyModelVisual::Minion;
     case EnemyType::Fast:
-    case EnemyType::Flying:
         return EnemyModelVisual::Rogue;
     case EnemyType::Heavy:
-    case EnemyType::Boss:
         return EnemyModelVisual::Warrior;
     case EnemyType::Ranged:
         return EnemyModelVisual::Mage;
+    case EnemyType::Sapper:
+        return EnemyModelVisual::Sapper;
+    case EnemyType::Flying:
+        return EnemyModelVisual::Flying;
+    case EnemyType::Boss:
+        return EnemyModelVisual::Boss;
     }
     return EnemyModelVisual::Minion;
 }
@@ -104,16 +107,17 @@ EnemyAnimationVisual enemyAnimationVisual(
 float enemyVisualScale(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
-    case EnemyType::Flying:
         return 0.84F;
+    case EnemyType::Flying:
+        return 0.52F;
     case EnemyType::Heavy:
         return 1.18F;
     case EnemyType::Boss:
-        return 1.8F;
+        return 1.05F;
     case EnemyType::Ranged:
         return 0.94F;
     case EnemyType::Sapper:
-        return 1.02F;
+        return 0.52F;
     case EnemyType::Basic:
         return 1.0F;
     }

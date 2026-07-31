@@ -310,10 +310,22 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/enemies/warrior.glb");
     enemyMageModel_.load(
         "assets/models/enemies/mage.glb");
+    enemySapperModel_.load(
+        "assets/models/enemies/ultimate/sapper.gltf");
+    enemyFlyingModel_.load(
+        "assets/models/enemies/ultimate/flying.gltf");
+    enemyBossModel_.load(
+        "assets/models/enemies/ultimate/boss.gltf");
     enemyGeneralAnimations_.load(
         "assets/models/enemies/animations/general.glb");
     enemyMovementAnimations_.load(
         "assets/models/enemies/animations/movement.glb");
+    enemySapperAnimations_.load(
+        "assets/models/enemies/ultimate/sapper.gltf");
+    enemyFlyingAnimations_.load(
+        "assets/models/enemies/ultimate/flying.gltf");
+    enemyBossAnimations_.load(
+        "assets/models/enemies/ultimate/boss.gltf");
     updateFramebuffer(settings);
     updateSelectionMask(settings);
     updateShadowMap(settings);
@@ -387,8 +399,14 @@ void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
 
 void GraphicsResources::shutdown() {
     shadowMap_.unload();
+    enemyBossAnimations_.unload();
+    enemyFlyingAnimations_.unload();
+    enemySapperAnimations_.unload();
     enemyMovementAnimations_.unload();
     enemyGeneralAnimations_.unload();
+    enemyBossModel_.unload();
+    enemyFlyingModel_.unload();
+    enemySapperModel_.unload();
     enemyMageModel_.unload();
     enemyWarriorModel_.unload();
     enemyRogueModel_.unload();
@@ -641,6 +659,18 @@ ModelResource& GraphicsResources::enemyMageModel() {
     return enemyMageModel_;
 }
 
+ModelResource& GraphicsResources::enemySapperModel() {
+    return enemySapperModel_;
+}
+
+ModelResource& GraphicsResources::enemyFlyingModel() {
+    return enemyFlyingModel_;
+}
+
+ModelResource& GraphicsResources::enemyBossModel() {
+    return enemyBossModel_;
+}
+
 const ModelAnimationsResource&
 GraphicsResources::enemyGeneralAnimations() const {
     return enemyGeneralAnimations_;
@@ -649,6 +679,21 @@ GraphicsResources::enemyGeneralAnimations() const {
 const ModelAnimationsResource&
 GraphicsResources::enemyMovementAnimations() const {
     return enemyMovementAnimations_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemySapperAnimations() const {
+    return enemySapperAnimations_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemyFlyingAnimations() const {
+    return enemyFlyingAnimations_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemyBossAnimations() const {
+    return enemyBossAnimations_;
 }
 
 ShadowMapResource& GraphicsResources::shadowMap() {

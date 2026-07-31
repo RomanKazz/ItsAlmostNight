@@ -72,6 +72,9 @@ enum class EnemyModelVisual {
     Rogue,
     Warrior,
     Mage,
+    Sapper,
+    Flying,
+    Boss,
 };
 
 enum class EnemyAnimationVisual {

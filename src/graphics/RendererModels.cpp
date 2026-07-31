@@ -36,6 +36,156 @@ constexpr std::array<const char*, 23> MovementAnimationBones{
     "toes.l",
 };
 
+struct EnemyAnimationSource {
+    const ModelAnimationsResource* animations{};
+    const std::array<const char*, 23>* sourceBones{};
+    const char* clipName{};
+    bool nativeSkeleton{};
+};
+
+ModelResource* enemyModelFor(
+    GraphicsResources& resources, EnemyModelVisual visual) {
+    switch (visual) {
+    case EnemyModelVisual::Minion:
+        return &resources.enemyMinionModel();
+    case EnemyModelVisual::Rogue:
+        return &resources.enemyRogueModel();
+    case EnemyModelVisual::Warrior:
+        return &resources.enemyWarriorModel();
+    case EnemyModelVisual::Mage:
+        return &resources.enemyMageModel();
+    case EnemyModelVisual::Sapper:
+        return &resources.enemySapperModel();
+    case EnemyModelVisual::Flying:
+        return &resources.enemyFlyingModel();
+    case EnemyModelVisual::Boss:
+        return &resources.enemyBossModel();
+    }
+    return nullptr;
+}
+
+EnemyAnimationSource enemyAnimationFor(
+    const GraphicsResources& resources,
+    EnemyModelVisual modelVisual,
+    EnemyAnimationVisual animationVisual) {
+    const ModelAnimationsResource* animations =
+        &resources.enemyGeneralAnimations();
+    const std::array<const char*, 23>* bones =
+        &GeneralAnimationBones;
+    const char* clip = "Idle_A";
+    bool native = false;
+
+    if (modelVisual == EnemyModelVisual::Sapper) {
+        animations = &resources.enemySapperAnimations();
+        native = true;
+        switch (animationVisual) {
+        case EnemyAnimationVisual::Walk:
+        case EnemyAnimationVisual::Run:
+            clip = "Walk";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
+        case EnemyAnimationVisual::RangedAttack:
+        case EnemyAnimationVisual::SapperAttack:
+            clip = "Bite_Front";
+            break;
+        case EnemyAnimationVisual::Hit:
+            clip = "HitRecieve";
+            break;
+        case EnemyAnimationVisual::Death:
+            clip = "Death";
+            break;
+        case EnemyAnimationVisual::Idle:
+        case EnemyAnimationVisual::Spawn:
+            clip = "Idle";
+            break;
+        }
+    } else if (modelVisual == EnemyModelVisual::Flying) {
+        animations = &resources.enemyFlyingAnimations();
+        native = true;
+        switch (animationVisual) {
+        case EnemyAnimationVisual::Walk:
+        case EnemyAnimationVisual::Run:
+            clip = "Fast_Flying";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
+        case EnemyAnimationVisual::RangedAttack:
+        case EnemyAnimationVisual::SapperAttack:
+            clip = "Headbutt";
+            break;
+        case EnemyAnimationVisual::Hit:
+            clip = "HitReact";
+            break;
+        case EnemyAnimationVisual::Death:
+            clip = "Death";
+            break;
+        case EnemyAnimationVisual::Idle:
+        case EnemyAnimationVisual::Spawn:
+            clip = "Flying_Idle";
+            break;
+        }
+    } else if (modelVisual == EnemyModelVisual::Boss) {
+        animations = &resources.enemyBossAnimations();
+        native = true;
+        switch (animationVisual) {
+        case EnemyAnimationVisual::Walk:
+            clip = "Walk";
+            break;
+        case EnemyAnimationVisual::Run:
+            clip = "Run";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
+        case EnemyAnimationVisual::RangedAttack:
+        case EnemyAnimationVisual::SapperAttack:
+            clip = "Punch";
+            break;
+        case EnemyAnimationVisual::Hit:
+            clip = "HitReact";
+            break;
+        case EnemyAnimationVisual::Death:
+            clip = "Death";
+            break;
+        case EnemyAnimationVisual::Idle:
+        case EnemyAnimationVisual::Spawn:
+            clip = "Idle";
+            break;
+        }
+    } else {
+        switch (animationVisual) {
+        case EnemyAnimationVisual::Idle:
+            break;
+        case EnemyAnimationVisual::Walk:
+            animations = &resources.enemyMovementAnimations();
+            bones = &MovementAnimationBones;
+            clip = "Walking_A";
+            break;
+        case EnemyAnimationVisual::Run:
+            animations = &resources.enemyMovementAnimations();
+            bones = &MovementAnimationBones;
+            clip = "Running_A";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
+            clip = "Use_Item";
+            break;
+        case EnemyAnimationVisual::RangedAttack:
+            clip = "Throw";
+            break;
+        case EnemyAnimationVisual::SapperAttack:
+            clip = "Interact";
+            break;
+        case EnemyAnimationVisual::Hit:
+            clip = "Hit_A";
+            break;
+        case EnemyAnimationVisual::Death:
+            clip = "Death_A";
+            break;
+        case EnemyAnimationVisual::Spawn:
+            clip = "Spawn_Ground";
+            break;
+        }
+    }
+    return {animations, bones, clip, native};
+}
+
 } // namespace
 
 std::optional<double> Renderer::buildingRaycastDistance(
@@ -753,66 +903,18 @@ bool Renderer::drawEnemy(
     EnemyAnimationVisual animationVisual,
     float animationSeconds, Vector3 position,
     float yawRadians, Color tint, float scale, bool loop) {
-    ModelResource* modelResource = nullptr;
-    switch (modelVisual) {
-    case EnemyModelVisual::Minion:
-        modelResource = &resources_.enemyMinionModel();
-        break;
-    case EnemyModelVisual::Rogue:
-        modelResource = &resources_.enemyRogueModel();
-        break;
-    case EnemyModelVisual::Warrior:
-        modelResource = &resources_.enemyWarriorModel();
-        break;
-    case EnemyModelVisual::Mage:
-        modelResource = &resources_.enemyMageModel();
-        break;
-    }
+    ModelResource* modelResource =
+        enemyModelFor(resources_, modelVisual);
     if (modelResource == nullptr || !modelResource->valid()) {
         return false;
     }
 
-    const ModelAnimationsResource* animations =
-        &resources_.enemyGeneralAnimations();
-    const std::array<const char*, 23>* sourceBones =
-        &GeneralAnimationBones;
-    const char* clipName = "Idle_A";
-    switch (animationVisual) {
-    case EnemyAnimationVisual::Idle:
-        clipName = "Idle_A";
-        break;
-    case EnemyAnimationVisual::Walk:
-        animations = &resources_.enemyMovementAnimations();
-        sourceBones = &MovementAnimationBones;
-        clipName = "Walking_A";
-        break;
-    case EnemyAnimationVisual::Run:
-        animations = &resources_.enemyMovementAnimations();
-        sourceBones = &MovementAnimationBones;
-        clipName = "Running_A";
-        break;
-    case EnemyAnimationVisual::MeleeAttack:
-        clipName = "Use_Item";
-        break;
-    case EnemyAnimationVisual::RangedAttack:
-        clipName = "Throw";
-        break;
-    case EnemyAnimationVisual::SapperAttack:
-        clipName = "Interact";
-        break;
-    case EnemyAnimationVisual::Hit:
-        clipName = "Hit_A";
-        break;
-    case EnemyAnimationVisual::Death:
-        clipName = "Death_A";
-        break;
-    case EnemyAnimationVisual::Spawn:
-        clipName = "Spawn_Ground";
-        break;
-    }
+    const EnemyAnimationSource animation =
+        enemyAnimationFor(resources_, modelVisual, animationVisual);
 
     Model& model = modelResource->get();
-    const ModelAnimation* clip = animations->find(clipName);
+    const ModelAnimation* clip =
+        animation.animations->find(animation.clipName);
     if (clip != nullptr && clip->keyframeCount > 0 &&
         model.skeleton.boneCount > 0) {
         const float frameValue =
@@ -821,35 +923,40 @@ bool Renderer::drawEnemy(
         frame = loop
                     ? frame % clip->keyframeCount
                     : std::min(frame, clip->keyframeCount - 1);
-        enemyAnimationPose_.resize(
-            static_cast<std::size_t>(model.skeleton.boneCount));
-        for (int modelBone = 0;
-             modelBone < model.skeleton.boneCount; ++modelBone) {
-            int sourceBone = -1;
-            for (std::size_t sourceIndex = 0;
-                 sourceIndex < sourceBones->size(); ++sourceIndex) {
-                if (std::strcmp(
-                        model.skeleton.bones[modelBone].name,
-                        (*sourceBones)[sourceIndex]) == 0) {
-                    sourceBone =
-                        static_cast<int>(sourceIndex);
-                    break;
+        if (animation.nativeSkeleton) {
+            UpdateModelAnimation(model, *clip, frame);
+        } else {
+            enemyAnimationPose_.resize(
+                static_cast<std::size_t>(model.skeleton.boneCount));
+            for (int modelBone = 0;
+                 modelBone < model.skeleton.boneCount; ++modelBone) {
+                int sourceBone = -1;
+                for (std::size_t sourceIndex = 0;
+                     sourceIndex < animation.sourceBones->size();
+                     ++sourceIndex) {
+                    if (std::strcmp(
+                            model.skeleton.bones[modelBone].name,
+                            (*animation.sourceBones)[sourceIndex]) == 0) {
+                        sourceBone =
+                            static_cast<int>(sourceIndex);
+                        break;
+                    }
                 }
+                enemyAnimationPose_[
+                    static_cast<std::size_t>(modelBone)] =
+                    sourceBone >= 0 && sourceBone < clip->boneCount
+                        ? clip->keyframePoses[frame][sourceBone]
+                        : model.skeleton.bindPose[modelBone];
             }
-            enemyAnimationPose_[
-                static_cast<std::size_t>(modelBone)] =
-                sourceBone >= 0 && sourceBone < clip->boneCount
-                    ? clip->keyframePoses[frame][sourceBone]
-                    : model.skeleton.bindPose[modelBone];
+            enemyAnimationFrames_.assign(
+                1U, enemyAnimationPose_.data());
+            ModelAnimation remapped{};
+            remapped.boneCount = model.skeleton.boneCount;
+            remapped.keyframeCount = 1;
+            remapped.keyframePoses =
+                enemyAnimationFrames_.data();
+            UpdateModelAnimation(model, remapped, 0);
         }
-        enemyAnimationFrames_.assign(
-            1U, enemyAnimationPose_.data());
-        ModelAnimation remapped{};
-        remapped.boneCount = model.skeleton.boneCount;
-        remapped.keyframeCount = 1;
-        remapped.keyframePoses =
-            enemyAnimationFrames_.data();
-        UpdateModelAnimation(model, remapped, 0);
     }
 
     Shader* shader = nullptr;
@@ -913,61 +1020,12 @@ bool Renderer::drawEnemiesInstanced(
 
     const auto modelFor = [this](EnemyModelVisual visual)
         -> ModelResource* {
-        switch (visual) {
-        case EnemyModelVisual::Minion:
-            return &resources_.enemyMinionModel();
-        case EnemyModelVisual::Rogue:
-            return &resources_.enemyRogueModel();
-        case EnemyModelVisual::Warrior:
-            return &resources_.enemyWarriorModel();
-        case EnemyModelVisual::Mage:
-            return &resources_.enemyMageModel();
-        }
-        return nullptr;
+        return enemyModelFor(resources_, visual);
     };
     const auto animationFor =
-        [this](EnemyAnimationVisual visual)
-        -> std::tuple<const ModelAnimationsResource*,
-                      const std::array<const char*, 23>*,
-                      const char*> {
-        const ModelAnimationsResource* animations =
-            &resources_.enemyGeneralAnimations();
-        const std::array<const char*, 23>* bones =
-            &GeneralAnimationBones;
-        const char* clip = "Idle_A";
-        switch (visual) {
-        case EnemyAnimationVisual::Idle:
-            break;
-        case EnemyAnimationVisual::Walk:
-            animations = &resources_.enemyMovementAnimations();
-            bones = &MovementAnimationBones;
-            clip = "Walking_A";
-            break;
-        case EnemyAnimationVisual::Run:
-            animations = &resources_.enemyMovementAnimations();
-            bones = &MovementAnimationBones;
-            clip = "Running_A";
-            break;
-        case EnemyAnimationVisual::MeleeAttack:
-            clip = "Use_Item";
-            break;
-        case EnemyAnimationVisual::RangedAttack:
-            clip = "Throw";
-            break;
-        case EnemyAnimationVisual::SapperAttack:
-            clip = "Interact";
-            break;
-        case EnemyAnimationVisual::Hit:
-            clip = "Hit_A";
-            break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death_A";
-            break;
-        case EnemyAnimationVisual::Spawn:
-            clip = "Spawn_Ground";
-            break;
-        }
-        return {animations, bones, clip};
+        [this](EnemyModelVisual model,
+               EnemyAnimationVisual animation) {
+        return enemyAnimationFor(resources_, model, animation);
     };
 
     constexpr int CrowdPoseCount = 6;
@@ -979,10 +1037,11 @@ bool Renderer::drawEnemiesInstanced(
         if (resource == nullptr || !resource->valid()) {
             return false;
         }
-        const auto [animations, bones, clipName] =
-            animationFor(instance.animationVisual);
-        (void)bones;
-        const ModelAnimation* clip = animations->find(clipName);
+        const EnemyAnimationSource animation =
+            animationFor(instance.modelVisual,
+                         instance.animationVisual);
+        const ModelAnimation* clip =
+            animation.animations->find(animation.clipName);
         int frame = 0;
         if (clip != nullptr && clip->keyframeCount > 0) {
             const int sourceFrame = static_cast<int>(
@@ -1048,48 +1107,55 @@ bool Renderer::drawEnemiesInstanced(
         ModelResource* resource =
             modelFor(representative.modelVisual);
         Model& model = resource->get();
-        const auto [animations, sourceBones, clipName] =
-            animationFor(representative.animationVisual);
-        const ModelAnimation* clip = animations->find(clipName);
+        const EnemyAnimationSource animation =
+            animationFor(representative.modelVisual,
+                         representative.animationVisual);
+        const ModelAnimation* clip =
+            animation.animations->find(animation.clipName);
         if (clip != nullptr && clip->keyframeCount > 0 &&
             model.skeleton.boneCount > 0) {
             const int frame = std::min(
                 static_cast<int>(
                     representative.animationSeconds * 30.0F),
                 clip->keyframeCount - 1);
-            enemyAnimationPose_.resize(
-                static_cast<std::size_t>(
-                    model.skeleton.boneCount));
-            for (int modelBone = 0;
-                 modelBone < model.skeleton.boneCount;
-                 ++modelBone) {
-                int sourceBone = -1;
-                for (std::size_t sourceIndex = 0;
-                     sourceIndex < sourceBones->size();
-                     ++sourceIndex) {
-                    if (std::strcmp(
-                            model.skeleton.bones[modelBone].name,
-                            (*sourceBones)[sourceIndex]) == 0) {
-                        sourceBone =
-                            static_cast<int>(sourceIndex);
-                        break;
+            if (animation.nativeSkeleton) {
+                UpdateModelAnimation(model, *clip, frame);
+            } else {
+                enemyAnimationPose_.resize(
+                    static_cast<std::size_t>(
+                        model.skeleton.boneCount));
+                for (int modelBone = 0;
+                     modelBone < model.skeleton.boneCount;
+                     ++modelBone) {
+                    int sourceBone = -1;
+                    for (std::size_t sourceIndex = 0;
+                         sourceIndex <
+                             animation.sourceBones->size();
+                         ++sourceIndex) {
+                        if (std::strcmp(
+                                model.skeleton.bones[modelBone].name,
+                                (*animation.sourceBones)[sourceIndex]) == 0) {
+                            sourceBone =
+                                static_cast<int>(sourceIndex);
+                            break;
+                        }
                     }
+                    enemyAnimationPose_[
+                        static_cast<std::size_t>(modelBone)] =
+                        sourceBone >= 0 &&
+                                sourceBone < clip->boneCount
+                            ? clip->keyframePoses[frame][sourceBone]
+                            : model.skeleton.bindPose[modelBone];
                 }
-                enemyAnimationPose_[
-                    static_cast<std::size_t>(modelBone)] =
-                    sourceBone >= 0 &&
-                            sourceBone < clip->boneCount
-                        ? clip->keyframePoses[frame][sourceBone]
-                        : model.skeleton.bindPose[modelBone];
+                enemyAnimationFrames_.assign(
+                    1U, enemyAnimationPose_.data());
+                ModelAnimation remapped{};
+                remapped.boneCount = model.skeleton.boneCount;
+                remapped.keyframeCount = 1;
+                remapped.keyframePoses =
+                    enemyAnimationFrames_.data();
+                UpdateModelAnimation(model, remapped, 0);
             }
-            enemyAnimationFrames_.assign(
-                1U, enemyAnimationPose_.data());
-            ModelAnimation remapped{};
-            remapped.boneCount = model.skeleton.boneCount;
-            remapped.keyframeCount = 1;
-            remapped.keyframePoses =
-                enemyAnimationFrames_.data();
-            UpdateModelAnimation(model, remapped, 0);
         }
 
         for (int meshIndex = 0; meshIndex < model.meshCount;
