@@ -171,6 +171,14 @@ void runCollisionWorldTests() {
             !modularCollision.modularSurfaceHeight(
                 15.5, 0.5, 1.0),
         "modular floor supports player without upward teleport");
+    require(
+        modularCollision.modularCeilingHeight(
+            15.5, 0.5, 1.2, 1.9) ==
+            std::optional<double>{1.5} &&
+            !modularCollision.modularCeilingHeight(
+                14.0, 0.5, 1.2, 1.9),
+        "platform underside stops upward movement only inside"
+        " its footprint");
     const auto rampLow =
         modularCollision.modularSurfaceHeight(
             17.0, 0.5, 6.1);
@@ -182,6 +190,13 @@ void runCollisionWorldTests() {
             std::abs(*rampLow - 3.0) < 1e-9 &&
             std::abs(*rampHigh - 5.0) < 1e-9,
         "ramp exposes continuous directional surface");
+    const auto rampCeiling =
+        modularCollision.modularCeilingHeight(
+            17.0, 0.5, 2.0, 3.0);
+    require(
+        rampCeiling &&
+            std::abs(*rampCeiling - 2.82) < 1e-9,
+        "ramp underside follows its continuous slope");
     const auto escapedEmbeddedPlatform =
         modularCollision.moveCircle(
             {15.5, 1.9, 0.5},

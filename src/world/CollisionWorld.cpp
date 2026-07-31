@@ -550,6 +550,83 @@ CollisionWorld::modularSurfaceHeight(
     return result;
 }
 
+std::optional<double>
+CollisionWorld::modularCeilingHeight(
+    double worldX, double worldZ,
+    double minimumHeadHeight,
+    double maximumHeadHeight) const {
+    if (maximumHeadHeight < minimumHeadHeight) {
+        std::swap(
+            minimumHeadHeight, maximumHeadHeight);
+    }
+    std::optional<double> result;
+    constexpr double EdgeEpsilon = 1e-6;
+    constexpr double PlatformThickness = 0.50;
+    constexpr double RampThickness = 0.18;
+    const auto sampleCeiling =
+        [worldX, worldZ, minimumHeadHeight,
+         maximumHeadHeight, &result](
+            const WalkableSurface& surface) {
+            if (worldX < surface.minX - EdgeEpsilon ||
+                worldX > surface.maxX + EdgeEpsilon ||
+                worldZ < surface.minZ - EdgeEpsilon ||
+                worldZ > surface.maxZ + EdgeEpsilon) {
+                return;
+            }
+            double surfaceHeight = surface.topHeight;
+            if (surface.kind == SurfaceKind::Ramp) {
+                const double widthX =
+                    surface.maxX - surface.minX;
+                const double widthZ =
+                    surface.maxZ - surface.minZ;
+                double progress = 0.0;
+                switch (surface.rotation) {
+                case Rotation::Deg0:
+                    progress =
+                        (worldZ - surface.minZ) / widthZ;
+                    break;
+                case Rotation::Deg90:
+                    progress =
+                        (surface.maxX - worldX) / widthX;
+                    break;
+                case Rotation::Deg180:
+                    progress =
+                        (surface.maxZ - worldZ) / widthZ;
+                    break;
+                case Rotation::Deg270:
+                    progress =
+                        (worldX - surface.minX) / widthX;
+                    break;
+                }
+                surfaceHeight = surface.bottomHeight +
+                    std::clamp(progress, 0.0, 1.0) *
+                        (surface.topHeight -
+                         surface.bottomHeight);
+            }
+            const double underside = surfaceHeight -
+                (surface.kind == SurfaceKind::Ramp
+                     ? RampThickness
+                     : PlatformThickness);
+            if (underside < minimumHeadHeight -
+                    EdgeEpsilon ||
+                underside > maximumHeadHeight +
+                    EdgeEpsilon ||
+                (result && underside >= *result)) {
+                return;
+            }
+            result = underside;
+        };
+    for (const WalkableSurface& surface :
+         buildingSurfaces_) {
+        sampleCeiling(surface);
+    }
+    for (const WalkableSurface& surface :
+         modularSurfaces_) {
+        sampleCeiling(surface);
+    }
+    return result;
+}
+
 bool CollisionWorld::overlapsCircle(Vec3 position, double radius, const CollisionBox& box) const {
     const double closestX = std::clamp(position.x, box.minX, box.maxX);
     const double closestZ = std::clamp(position.z, box.minZ, box.maxZ);

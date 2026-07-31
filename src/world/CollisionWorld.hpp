@@ -50,6 +50,11 @@ class CollisionWorld {
     modularSurfaceHeight(
         double worldX, double worldZ,
         double maximumSurfaceHeight) const;
+    [[nodiscard]] std::optional<double>
+    modularCeilingHeight(
+        double worldX, double worldZ,
+        double minimumHeadHeight,
+        double maximumHeadHeight) const;
     [[nodiscard]] bool overlapsCircle(Vec3 position, double radius,
                                       const CollisionBox& box) const;
     [[nodiscard]] bool overlapsBox(const CollisionBox& candidate) const;

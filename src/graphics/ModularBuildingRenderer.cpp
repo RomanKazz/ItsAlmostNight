@@ -426,6 +426,26 @@ void ModularBuildingRenderer::drawWorld(
             });
     }
 
+    const bool hasGhostPreview =
+        preview.platformFrame != nullptr ||
+        preview.wall != nullptr ||
+        preview.ramp != nullptr ||
+        !preview.platformFrameLine.empty() ||
+        !preview.wallLine.empty() ||
+        !preview.rampLine.empty() ||
+        preview.terrainHit != nullptr;
+    if (hasGhostPreview) {
+        // Preview geometry must test against the completed world,
+        // but must not write depth itself. This keeps overlapping
+        // translucent pieces stable during drag placement.
+        rlDrawRenderBatchActive();
+        BeginBlendMode(BLEND_ALPHA);
+        rlDisableDepthMask();
+        if (renderer_ != nullptr) {
+            renderer_->beginGhostPreviewMaterial();
+        }
+    }
+
     const bool obstructedSinglePreview =
         (preview.platformFrame &&
          previewOccupiesExistingBuilding(
@@ -625,6 +645,14 @@ void ModularBuildingRenderer::drawWorld(
     }
     if (translatedPreview) {
         rlPopMatrix();
+    }
+    if (hasGhostPreview) {
+        rlDrawRenderBatchActive();
+        if (renderer_ != nullptr) {
+            renderer_->endGhostPreviewMaterial();
+        }
+        rlEnableDepthMask();
+        EndBlendMode();
     }
 }
 

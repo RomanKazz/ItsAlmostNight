@@ -146,7 +146,7 @@ void main()
     vec3 skyRim = skyAmbientColor*ambientIntensity*rim*0.08;
 
     vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
-    albedo.a = baseColor.a*
+    albedo.a = baseColor.a*colDiffuse.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
     vec3 terrainSample =
         texture(terrainTexture, fragWorldPosition.xz*0.08).rgb;

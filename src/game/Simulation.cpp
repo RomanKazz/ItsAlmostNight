@@ -422,7 +422,12 @@ void Simulation::updatePlayer(double deltaSeconds,
         shouldAutoJumpGroundFrame(movement);
 
     constexpr double MaximumStepUp = 0.65;
-    constexpr double MaximumGroundSnapDown = 0.35;
+    constexpr double MinimumGroundSnapDown = 0.35;
+    constexpr double MaximumGroundSnapDown = 0.85;
+    const double groundSnapDown = std::clamp(
+        std::hypot(movement.x, movement.z) + 0.10,
+        MinimumGroundSnapDown,
+        MaximumGroundSnapDown);
     const double currentFeetHeight =
         playerPosition_.y - gameplay_.eyeHeight;
     const Vec3 movementOrigin = playerPosition_;
@@ -464,7 +469,7 @@ void Simulation::updatePlayer(double deltaSeconds,
     if (playerGrounded_) {
         if (standingSurface >=
             currentFeetHeight -
-                MaximumGroundSnapDown) {
+                groundSnapDown) {
             playerPosition_.y = standingHeight;
         } else {
             playerGrounded_ = false;
@@ -483,12 +488,50 @@ void Simulation::updatePlayer(double deltaSeconds,
     }
 
     if (!playerGrounded_) {
+        constexpr double HeadAboveEye = 0.15;
+        const double previousEyeHeight =
+            playerPosition_.y;
+        const double previousFeetHeight =
+            previousEyeHeight - gameplay_.eyeHeight;
         verticalVelocity_ -= gameplay_.gravity * deltaSeconds;
-        playerPosition_.y += verticalVelocity_ * deltaSeconds;
+        const double nextEyeHeight =
+            previousEyeHeight +
+            verticalVelocity_ * deltaSeconds;
+        if (verticalVelocity_ > 0.0) {
+            const auto ceiling =
+                collisionWorld_.modularCeilingHeight(
+                    playerPosition_.x,
+                    playerPosition_.z,
+                    previousEyeHeight + HeadAboveEye,
+                    nextEyeHeight + HeadAboveEye);
+            if (ceiling) {
+                playerPosition_.y =
+                    *ceiling - HeadAboveEye;
+                verticalVelocity_ = 0.0;
+            } else {
+                playerPosition_.y = nextEyeHeight;
+            }
+        } else {
+            playerPosition_.y = nextEyeHeight;
+        }
+        double landingSurface = terrainSurface;
+        if (verticalVelocity_ <= 0.0) {
+            const auto sweptSurface =
+                collisionWorld_.modularSurfaceHeight(
+                    playerPosition_.x,
+                    playerPosition_.z,
+                    previousFeetHeight + 1e-6);
+            if (sweptSurface) {
+                landingSurface = std::max(
+                    landingSurface, *sweptSurface);
+            }
+        }
+        const double landingHeight =
+            landingSurface + gameplay_.eyeHeight;
         if (verticalVelocity_ <= 0.0 &&
-            playerPosition_.y <= standingHeight) {
+            playerPosition_.y <= landingHeight) {
             const double landingSpeed = -verticalVelocity_;
-            playerPosition_.y = standingHeight;
+            playerPosition_.y = landingHeight;
             verticalVelocity_ = 0.0;
             playerGrounded_ = true;
             if (landingSpeed > 1.0) {

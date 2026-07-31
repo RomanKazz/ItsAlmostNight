@@ -142,6 +142,8 @@ class Renderer {
 
     void beginWorldShader(const WorldLighting& lighting);
     void setWorldMaterial(const WorldMaterialState& material);
+    void beginGhostPreviewMaterial();
+    void endGhostPreviewMaterial();
     void endWorldShader();
     void rebuildTerrain(
         const TerrainHeightfield& terrain);
@@ -325,6 +327,8 @@ class Renderer {
     SkyShaderLocations skyShaderLocations_;
     PostProcessLocations postProcessLocations_;
     WorldMaterialState worldMaterial_;
+    std::optional<WorldMaterialState>
+        ghostPreviewRestoreMaterial_;
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
     int selectionMaskTimeLocation_{-1};

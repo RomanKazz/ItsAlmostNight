@@ -568,6 +568,29 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
     uploadWorldMaterial(worldMaterial_);
 }
 
+void Renderer::beginGhostPreviewMaterial() {
+    if (!worldShaderActive_ ||
+        ghostPreviewRestoreMaterial_) {
+        return;
+    }
+    ghostPreviewRestoreMaterial_ = worldMaterial_;
+    WorldMaterialState ghost = worldMaterial_;
+    ghost.bakedAo = std::max(ghost.bakedAo, 0.88F);
+    ghost.selectionAmount = 0.16F;
+    ghost.selectionTint = {1.0F, 1.0F, 1.0F};
+    setWorldMaterial(ghost);
+}
+
+void Renderer::endGhostPreviewMaterial() {
+    if (!ghostPreviewRestoreMaterial_) {
+        return;
+    }
+    const WorldMaterialState restore =
+        *ghostPreviewRestoreMaterial_;
+    ghostPreviewRestoreMaterial_.reset();
+    setWorldMaterial(restore);
+}
+
 void Renderer::endWorldShader() {
     if (!worldShaderActive_) {
         return;
@@ -581,6 +604,7 @@ void Renderer::endWorldShader() {
     rlDisableTexture();
     rlActiveTextureSlot(0);
     worldShaderActive_ = false;
+    ghostPreviewRestoreMaterial_.reset();
 }
 
 void Renderer::rebuildTerrain(
