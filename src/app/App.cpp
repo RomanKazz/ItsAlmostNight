@@ -1504,12 +1504,6 @@ void App::render() {
                 pieceLabel + "   LEVEL " +
                 std::to_string(previewStorey) +
                 "   LMB DRAG";
-            if (modularBuildPiece_ ==
-                    ModularBuildPiece::Foundation ||
-                modularBuildPiece_ ==
-                    ModularBuildPiece::Wall) {
-                foundationHint += "   SHIFT LOCK";
-            }
             foundationHint += "   V PIECE";
             if (modularBuildPiece_ ==
                     ModularBuildPiece::Wall ||

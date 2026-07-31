@@ -743,8 +743,11 @@ bool Renderer::drawPlatformFrameModel(
 
     const Matrix worldTranslation = MatrixTranslate(
         topCenter.x, topCenter.y, topCenter.z);
+    const Matrix modelRotation = MatrixRotateY(PI);
     const Matrix topTransform = MatrixMultiply(
-        MatrixScale(scale, 1.0F, scale),
+        MatrixMultiply(
+            MatrixScale(scale, 1.0F, scale),
+            modelRotation),
         worldTranslation);
     drawMesh(TopMeshIndex, topTransform);
 
@@ -753,10 +756,18 @@ bool Renderer::drawPlatformFrameModel(
     // so uneven terrain keeps all feet on the ground.
     constexpr float LegTopY = -0.12480831F;
     constexpr float LegSpan = 3.87519169F;
+    // GLB mesh order is BL, BR, FL, FR. The authored platform
+    // faces opposite the game's world convention, so after the
+    // 180-degree rotation those meshes land at supports 1, 0, 3, 2.
+    constexpr std::array<std::size_t, LegCount>
+        RotatedSupportIndices{1U, 0U, 3U, 2U};
     for (int legIndex = 0; legIndex < LegCount;
          ++legIndex) {
+        const std::size_t supportIndex =
+            RotatedSupportIndices[
+                static_cast<std::size_t>(legIndex)];
         const float length = std::max(
-            supportLengths[static_cast<std::size_t>(legIndex)],
+            supportLengths[supportIndex],
             -LegTopY);
         const float verticalScale =
             std::max((length + LegTopY) / LegSpan, 0.01F);
@@ -768,6 +779,8 @@ bool Renderer::drawPlatformFrameModel(
         transform = MatrixMultiply(
             transform,
             MatrixTranslate(0.0F, LegTopY, 0.0F));
+        transform = MatrixMultiply(
+            transform, modelRotation);
         transform = MatrixMultiply(
             transform, worldTranslation);
         drawMesh(legIndex, transform);

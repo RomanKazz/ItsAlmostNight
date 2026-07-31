@@ -970,10 +970,8 @@ void App::updateModularPlacementPreview(
         rampPreview_.reset();
         foundationTerrainHit_.reset();
         modularPreviewAnchor_.reset();
-        if (!IsKeyDown(KEY_LEFT_SHIFT)) {
-            modularSnapHit_.reset();
-            modularSnapMarker_.reset();
-        }
+        modularSnapHit_.reset();
+        modularSnapMarker_.reset();
         return;
     }
 
@@ -1013,91 +1011,81 @@ void App::updateModularPlacementPreview(
     auto [chosenAnchor, chosenValid] =
         evaluate(chosenHit);
 
-    const bool lockCurrent =
-        IsKeyDown(KEY_LEFT_SHIFT) &&
-        modularSnapHit_.has_value();
-    if (lockCurrent) {
-        chosenHit = *modularSnapHit_;
-        const auto locked = evaluate(chosenHit);
-        chosenAnchor = locked.first;
-        chosenValid = locked.second;
-    } else {
-        bool keptPrevious = false;
-        if (modularSnapHit_) {
-            const double deltaX =
-                rawHit->x - modularSnapHit_->x;
-            const double deltaZ =
-                rawHit->z - modularSnapHit_->z;
-            const auto previous =
-                evaluate(*modularSnapHit_);
-            constexpr double HysteresisCells = 0.62;
-            if (previous.second &&
-                deltaX * deltaX + deltaZ * deltaZ <=
-                    cellSize * cellSize *
-                        HysteresisCells *
-                        HysteresisCells) {
-                chosenHit = *modularSnapHit_;
-                chosenAnchor = previous.first;
-                chosenValid = true;
-                keptPrevious = true;
-            }
+    bool keptPrevious = false;
+    if (modularSnapHit_) {
+        const double deltaX =
+            rawHit->x - modularSnapHit_->x;
+        const double deltaZ =
+            rawHit->z - modularSnapHit_->z;
+        const auto previous =
+            evaluate(*modularSnapHit_);
+        constexpr double HysteresisCells = 0.62;
+        if (previous.second &&
+            deltaX * deltaX + deltaZ * deltaZ <=
+                cellSize * cellSize *
+                    HysteresisCells *
+                    HysteresisCells) {
+            chosenHit = *modularSnapHit_;
+            chosenAnchor = previous.first;
+            chosenValid = true;
+            keptPrevious = true;
         }
-        if (!keptPrevious) {
-            const int rawX = static_cast<int>(
-                std::floor(rawHit->x / cellSize));
-            const int rawZ = static_cast<int>(
-                std::floor(rawHit->z / cellSize));
-            double bestDistance =
-                std::numeric_limits<double>::max();
-            std::optional<Vec3> bestHit;
-            GridCoord bestAnchor{};
-            constexpr int SearchRadiusCells = 2;
-            constexpr double MagnetRadiusCells = 1.15;
-            for (int offsetZ = -SearchRadiusCells;
-                 offsetZ <= SearchRadiusCells; ++offsetZ) {
-                for (int offsetX = -SearchRadiusCells;
-                     offsetX <= SearchRadiusCells; ++offsetX) {
-                    const Vec3 candidate = cellHit(
-                        {rawX + offsetX, 0,
-                         rawZ + offsetZ},
-                        terrain, cellSize);
-                    const double deltaX =
-                        candidate.x - rawHit->x;
-                    const double deltaZ =
-                        candidate.z - rawHit->z;
-                    const double distance =
-                        deltaX * deltaX +
-                        deltaZ * deltaZ;
-                    if (distance >
-                            cellSize * cellSize *
-                                MagnetRadiusCells *
-                                MagnetRadiusCells ||
-                        distance >= bestDistance) {
-                        continue;
-                    }
-                    const auto candidateResult =
-                        evaluate(candidate);
-                    if (!candidateResult.second) {
-                        continue;
-                    }
-                    bestDistance = distance;
-                    bestHit = candidate;
-                    bestAnchor = candidateResult.first;
+    }
+    if (!keptPrevious) {
+        const int rawX = static_cast<int>(
+            std::floor(rawHit->x / cellSize));
+        const int rawZ = static_cast<int>(
+            std::floor(rawHit->z / cellSize));
+        double bestDistance =
+            std::numeric_limits<double>::max();
+        std::optional<Vec3> bestHit;
+        GridCoord bestAnchor{};
+        constexpr int SearchRadiusCells = 2;
+        constexpr double MagnetRadiusCells = 1.15;
+        for (int offsetZ = -SearchRadiusCells;
+             offsetZ <= SearchRadiusCells; ++offsetZ) {
+            for (int offsetX = -SearchRadiusCells;
+                 offsetX <= SearchRadiusCells; ++offsetX) {
+                const Vec3 candidate = cellHit(
+                    {rawX + offsetX, 0,
+                     rawZ + offsetZ},
+                    terrain, cellSize);
+                const double deltaX =
+                    candidate.x - rawHit->x;
+                const double deltaZ =
+                    candidate.z - rawHit->z;
+                const double distance =
+                    deltaX * deltaX +
+                    deltaZ * deltaZ;
+                if (distance >
+                        cellSize * cellSize *
+                            MagnetRadiusCells *
+                            MagnetRadiusCells ||
+                    distance >= bestDistance) {
+                    continue;
                 }
-            }
-            if (bestHit) {
-                chosenHit = *bestHit;
-                chosenAnchor = bestAnchor;
-                chosenValid = true;
+                const auto candidateResult =
+                    evaluate(candidate);
+                if (!candidateResult.second) {
+                    continue;
+                }
+                bestDistance = distance;
+                bestHit = candidate;
+                bestAnchor = candidateResult.first;
             }
         }
-        if (chosenValid) {
-            modularSnapHit_ = chosenHit;
-            modularSnapMarker_ = chosenHit;
-        } else {
-            modularSnapHit_.reset();
-            modularSnapMarker_.reset();
+        if (bestHit) {
+            chosenHit = *bestHit;
+            chosenAnchor = bestAnchor;
+            chosenValid = true;
         }
+    }
+    if (chosenValid) {
+        modularSnapHit_ = chosenHit;
+        modularSnapMarker_ = chosenHit;
+    } else {
+        modularSnapHit_.reset();
+        modularSnapMarker_.reset();
     }
     if (!modularPreviewAnchor_ ||
         *modularPreviewAnchor_ != chosenAnchor) {

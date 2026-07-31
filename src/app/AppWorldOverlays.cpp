@@ -716,8 +716,6 @@ void App::drawWorldOverlays(
     }
     if (foundationBuildMode_ &&
         foundationTerrainHit_) {
-        const bool locked =
-            IsKeyDown(KEY_LEFT_SHIFT);
         bool placementValid = true;
         if (platformFramePreview_) {
             placementValid =
@@ -757,11 +755,9 @@ void App::drawWorldOverlays(
             },
             0.18F + pulse,
             {1.0F, 0.0F, 0.0F}, 90.0F,
-            locked
-                ? Color{255, 211, 92, 210}
-                : placementValid
-                      ? Color{135, 244, 169, 190}
-                      : Color{255, 88, 76, 220});
+            placementValid
+                ? Color{135, 244, 169, 190}
+                : Color{255, 88, 76, 220});
     }
     if (snapshot.buildingPreview) {
         const Vec3 targetCenter = buildingWorldPosition(
