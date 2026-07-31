@@ -19,6 +19,59 @@ constexpr Color invalidPreviewColor{231, 82, 76, 168};
 constexpr Color unsupportedColor{204, 55, 51, 255};
 constexpr Color selectedColor{255, 229, 132, 255};
 
+bool previewObstructed(ModularPlacementError error) {
+    return error == ModularPlacementError::Occupied ||
+           error == ModularPlacementError::ResourceBlocked;
+}
+
+void drawOccupiedFootprint(
+    GridCoord anchor, int widthCells, int depthCells,
+    double height, double cellSize) {
+    constexpr Color Fill{255, 58, 52, 92};
+    constexpr Color Border{255, 88, 76, 245};
+    const float minimumX =
+        static_cast<float>(anchor.x * cellSize);
+    const float minimumZ =
+        static_cast<float>(anchor.z * cellSize);
+    const float width =
+        static_cast<float>(widthCells * cellSize);
+    const float depth =
+        static_cast<float>(depthCells * cellSize);
+    const float y = static_cast<float>(height + 0.055);
+    DrawPlane(
+        {minimumX + width * 0.5F, y,
+         minimumZ + depth * 0.5F},
+        {width, depth}, Fill);
+    for (int x = 0; x <= widthCells; ++x) {
+        const float lineX =
+            minimumX + static_cast<float>(x * cellSize);
+        DrawLine3D(
+            {lineX, y, minimumZ},
+            {lineX, y, minimumZ + depth}, Border);
+    }
+    for (int z = 0; z <= depthCells; ++z) {
+        const float lineZ =
+            minimumZ + static_cast<float>(z * cellSize);
+        DrawLine3D(
+            {minimumX, y, lineZ},
+            {minimumX + width, y, lineZ}, Border);
+    }
+}
+
+void drawOccupiedRampFootprint(
+    const RampPlacement& placement, double cellSize) {
+    const bool alongZ =
+        placement.rotation == Rotation::Deg0 ||
+        placement.rotation == Rotation::Deg180;
+    drawOccupiedFootprint(
+        placement.anchor,
+        alongZ ? ModularRampWidthCells
+               : ModularRampRunCells,
+        alongZ ? ModularRampRunCells
+               : ModularRampWidthCells,
+        placement.bottomHeight, cellSize);
+}
+
 void drawPlatformFrame(
     double floorHeight,
     const std::array<FoundationSupport, 4>& supports,
@@ -329,8 +382,16 @@ void ModularBuildingRenderer::drawWorld(
             });
     }
 
+    const bool obstructedSinglePreview =
+        (preview.platformFrame &&
+         previewObstructed(preview.platformFrame->error)) ||
+        (preview.wall &&
+         previewObstructed(preview.wall->error)) ||
+        (preview.ramp &&
+         previewObstructed(preview.ramp->error));
     bool translatedPreview = false;
     if (preview.visualOrigin &&
+        !obstructedSinglePreview &&
         preview.platformFrameLine.empty() &&
         preview.wallLine.empty() &&
         preview.rampLine.empty()) {
@@ -392,6 +453,15 @@ void ModularBuildingRenderer::drawWorld(
     if (!preview.platformFrameLine.empty()) {
         for (const PlatformFramePlacement& placement :
              preview.platformFrameLine) {
+            if (previewObstructed(placement.error)) {
+                drawOccupiedFootprint(
+                    placement.anchor,
+                    PlatformFrameWidthCells,
+                    PlatformFrameWidthCells,
+                    placement.floorHeight,
+                    buildings.cellSize);
+                continue;
+            }
             drawPlatformFramePreview(
                 placement,
                 preview.maximumWoodSupportLength);
@@ -399,6 +469,13 @@ void ModularBuildingRenderer::drawWorld(
     } else if (!preview.wallLine.empty()) {
         for (const WallPlacement& placement :
              preview.wallLine) {
+            if (previewObstructed(placement.error)) {
+                drawOccupiedFootprint(
+                    placement.anchor, 1, 1,
+                    placement.bottomHeight,
+                    buildings.cellSize);
+                continue;
+            }
             if (placement.topHeight <=
                 placement.bottomHeight) {
                 continue;
@@ -414,6 +491,11 @@ void ModularBuildingRenderer::drawWorld(
     } else if (!preview.rampLine.empty()) {
         for (const RampPlacement& placement :
              preview.rampLine) {
+            if (previewObstructed(placement.error)) {
+                drawOccupiedRampFootprint(
+                    placement, buildings.cellSize);
+                continue;
+            }
             if (placement.topHeight <=
                 placement.bottomHeight) {
                 continue;
@@ -426,30 +508,54 @@ void ModularBuildingRenderer::drawWorld(
                 previewColor(placement.valid()));
         }
     } else if (preview.platformFrame) {
-        drawPlatformFramePreview(
-            *preview.platformFrame,
-            preview.maximumWoodSupportLength);
+        if (previewObstructed(
+                preview.platformFrame->error)) {
+            drawOccupiedFootprint(
+                preview.platformFrame->anchor,
+                PlatformFrameWidthCells,
+                PlatformFrameWidthCells,
+                preview.platformFrame->floorHeight,
+                buildings.cellSize);
+        } else {
+            drawPlatformFramePreview(
+                *preview.platformFrame,
+                preview.maximumWoodSupportLength);
+        }
     } else if (preview.wall &&
                preview.wall->topHeight >
                    preview.wall->bottomHeight) {
-        drawWall(
-            preview.wall->anchor, preview.wall->rotation,
-            preview.wall->bottomHeight,
-            preview.wall->topHeight, buildings.cellSize,
-            previewColor(preview.wall->valid()),
-            preview.rotationYaw);
+        if (previewObstructed(preview.wall->error)) {
+            drawOccupiedFootprint(
+                preview.wall->anchor, 1, 1,
+                preview.wall->bottomHeight,
+                buildings.cellSize);
+        } else {
+            drawWall(
+                preview.wall->anchor, preview.wall->rotation,
+                preview.wall->bottomHeight,
+                preview.wall->topHeight, buildings.cellSize,
+                previewColor(preview.wall->valid()),
+                preview.rotationYaw);
+        }
     } else if (preview.ramp &&
                preview.ramp->topHeight >
                    preview.ramp->bottomHeight) {
-        drawRamp(
-            preview.ramp->anchor, preview.ramp->rotation,
-            preview.ramp->bottomHeight,
-            preview.ramp->topHeight, buildings.cellSize,
-            previewColor(preview.ramp->valid()),
-            preview.rotationYaw
-                ? std::optional<float>{
-                      -*preview.rotationYaw}
-                : std::nullopt);
+        if (previewObstructed(preview.ramp->error)) {
+            drawOccupiedRampFootprint(
+                *preview.ramp, buildings.cellSize);
+        } else {
+            drawRamp(
+                preview.ramp->anchor,
+                preview.ramp->rotation,
+                preview.ramp->bottomHeight,
+                preview.ramp->topHeight,
+                buildings.cellSize,
+                previewColor(preview.ramp->valid()),
+                preview.rotationYaw
+                    ? std::optional<float>{
+                          -*preview.rotationYaw}
+                    : std::nullopt);
+        }
     } else if (preview.terrainHit) {
         DrawCylinder(
             {

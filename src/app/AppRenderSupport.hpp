@@ -60,6 +60,8 @@ void drawBuildGrid(
     Vector3 playerPosition, double worldLimit);
 [[nodiscard]] Color placementColor(
     PlacementError error, bool fill);
+[[nodiscard]] bool placementPreviewObstructed(
+    PlacementError error);
 void drawPlacementFootprint(
     const BuildingPreview& preview, Vector2 visualCenter,
     float visualYaw);

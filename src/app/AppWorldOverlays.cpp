@@ -981,8 +981,8 @@ void App::drawWorldOverlays(
         };
         previewMaterial.bakedAo = 0.85F;
         const bool drawPreviewModel =
-            visualPreview.placement.error !=
-            PlacementError::Occupied;
+            !placementPreviewObstructed(
+                visualPreview.placement.error);
         if (drawPreviewModel) {
             renderer_->beginWorldShader(lighting);
             renderer_->setWorldMaterial(
@@ -1028,6 +1028,12 @@ void App::drawWorldOverlays(
                 *wallDragEnd_, placementDragAxis_);
             for (std::size_t index = 0;
                  index + 1U < cells.size(); ++index) {
+                if (placementPreviewObstructed(
+                        dragPlacement(
+                            preview.type, cells[index])
+                            .error)) {
+                    continue;
+                }
                 const BuildingPlatformSurface surface =
                     dragPlacementSurface(
                         preview.type, cells[index]);
@@ -1116,6 +1122,10 @@ void App::drawWorldOverlays(
                 if (!affordable && placement.valid()) {
                     placement.error =
                         PlacementError::InsufficientResources;
+                }
+                if (placementPreviewObstructed(
+                        placement.error)) {
+                    continue;
                 }
                 Color cellColor =
                     placementColor(
@@ -1238,6 +1248,10 @@ void App::drawWorldOverlays(
                         dragPlacement(
                             BuildingType::Wall,
                             cells[index]);
+                    if (placementPreviewObstructed(
+                            placement.error)) {
+                        continue;
+                    }
                     const int count =
                         static_cast<int>(index + 1U);
                     const bool affordable =

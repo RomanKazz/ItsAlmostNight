@@ -497,6 +497,12 @@ Color placementColor(
     return {255, 88, 76, alpha};
 }
 
+bool placementPreviewObstructed(PlacementError error) {
+    return error == PlacementError::Occupied ||
+           error == PlacementError::WorldCollision ||
+           error == PlacementError::ResourceBlocked;
+}
+
 void drawPlacementFootprint(
     const BuildingPreview& preview,
     Vector2 visualCenter, float visualYaw) {

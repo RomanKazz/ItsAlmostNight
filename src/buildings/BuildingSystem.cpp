@@ -449,12 +449,12 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
             return {PlacementError::CoreLevelRequired, requiredCost};
         }
     }
+    if (overlaps(type, position, baseHeight)) {
+        return {PlacementError::Occupied, requiredCost};
+    }
     if (wood < requiredCost.wood || stone < requiredCost.stone ||
         gold < requiredCost.gold) {
         return {PlacementError::InsufficientResources, requiredCost};
-    }
-    if (overlaps(type, position, baseHeight)) {
-        return {PlacementError::Occupied, requiredCost};
     }
 
     if (type != BuildingType::Core) {

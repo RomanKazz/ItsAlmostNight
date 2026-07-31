@@ -38,6 +38,13 @@ void runBuildingSystemTests() {
     const auto occupiedWall = buildings.validate(ian::BuildingType::Wall, {4, 0}, 10, 0);
     require(occupiedWall.error == ian::PlacementError::Occupied,
             "buildings cannot share occupied cell");
+    const auto poorOccupiedWall =
+        buildings.validate(
+            ian::BuildingType::Wall, {4, 0}, 0, 0);
+    require(
+        poorOccupiedWall.error ==
+            ian::PlacementError::Occupied,
+        "occupied preview takes priority over resource shortage");
 
     const auto damagedWall = buildings.damage(wall->building.id, 40.0);
     require(damagedWall.has_value() && damagedWall->remainingHealth == 60.0 &&
