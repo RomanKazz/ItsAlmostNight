@@ -25,6 +25,21 @@ void runPlacementLineTests() {
     require(
         axis == PlacementLineAxis::X,
         "axis can change beside blocked neighboring cells");
+    axis = ian::stabilizePlacementLineAxis(
+        0.0, 0.4, PlacementLineAxis::X, 2.0);
+    require(
+        axis == PlacementLineAxis::Z,
+        "axis switches when its projected line collapses");
+    axis = ian::stabilizePlacementLineAxis(
+        2.0, 2.2, PlacementLineAxis::X, 0.32);
+    require(
+        axis == PlacementLineAxis::X,
+        "small raw aim jitter does not flip drag axis");
+    axis = ian::stabilizePlacementLineAxis(
+        2.0, 2.4, axis, 0.32);
+    require(
+        axis == PlacementLineAxis::Z,
+        "raw aim switches axis after a clear margin");
 
     const auto negative = ian::placementLine(
         ian::GridPosition{3, 2},

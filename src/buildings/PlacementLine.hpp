@@ -17,18 +17,33 @@ inline constexpr std::size_t MaximumPlacementLineLength = 48U;
 
 [[nodiscard]] inline std::optional<PlacementLineAxis>
 stabilizePlacementLineAxis(
-    long long deltaX, long long deltaZ,
+    double deltaX, double deltaZ,
     std::optional<PlacementLineAxis> current,
-    long long switchMargin) {
-    const long long distanceX = std::abs(deltaX);
-    const long long distanceZ = std::abs(deltaZ);
-    if (distanceX == 0 && distanceZ == 0) {
+    double switchMargin) {
+    const double distanceX = std::abs(deltaX);
+    const double distanceZ = std::abs(deltaZ);
+    constexpr double Epsilon = 1e-6;
+    if (distanceX <= Epsilon &&
+        distanceZ <= Epsilon) {
         return current;
     }
     if (!current) {
         return distanceX >= distanceZ
                    ? PlacementLineAxis::X
                    : PlacementLineAxis::Z;
+    }
+    // Never let hysteresis keep an axis whose projected line has
+    // collapsed to one cell. This was the main source of a drag
+    // visibly continuing in the direction perpendicular to the aim.
+    if (*current == PlacementLineAxis::X &&
+        distanceX <= Epsilon &&
+        distanceZ > Epsilon) {
+        return PlacementLineAxis::Z;
+    }
+    if (*current == PlacementLineAxis::Z &&
+        distanceZ <= Epsilon &&
+        distanceX > Epsilon) {
+        return PlacementLineAxis::X;
     }
     if (*current == PlacementLineAxis::X &&
         distanceZ >= distanceX + switchMargin) {

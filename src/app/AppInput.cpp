@@ -799,11 +799,7 @@ void App::processInput() {
                 currentSnapshot.buildingPreview->type) {
             wallDragEnd_ =
                 currentSnapshot.buildingPreview->gridPosition;
-            const int axisSwitchMargin =
-                buildingFootprintHalfExtent(
-                    *placementDragType_) == 1.0
-                    ? 2
-                    : 1;
+            constexpr double AxisSwitchMarginCells = 1.0;
             placementDragAxis_ =
                 stabilizePlacementLineAxis(
                     wallDragEnd_->x -
@@ -811,7 +807,7 @@ void App::processInput() {
                     wallDragEnd_->z -
                         wallDragStart_->z,
                     placementDragAxis_,
-                    axisSwitchMargin);
+                    AxisSwitchMarginCells);
         }
         if (wallDragStart_ &&
             placementDragType_ &&

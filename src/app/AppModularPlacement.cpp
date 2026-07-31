@@ -156,6 +156,7 @@ bool isPlatformBuildPiece(ModularBuildPiece piece) {
 void App::clearModularPlacementDrag() {
     modularDragStart_.reset();
     modularDragEnd_.reset();
+    modularDragOrigin_.reset();
     modularDragStorey_.reset();
     modularDragTargetFloorHeight_.reset();
     modularDragPlaneHeight_.reset();
@@ -267,6 +268,8 @@ void App::updateModularPlacementPreview(
                     lookDirection,
                     *modularDragPlaneHeight_);
             if (floorAim) {
+                updateModularDragAxis(
+                    *floorAim, cellSize);
                 const int supportStorey =
                     *modularDragStorey_ - 1;
                 const double supportFloorHeight =
@@ -547,10 +550,21 @@ void App::updateModularPlacementPreview(
                     lookDirection,
                     *modularDragPlaneHeight_);
             if (dragPlaneHit) {
+                updateModularDragAxis(
+                    *dragPlaneHit, cellSize);
                 modularDragEnd_ =
                     rampSupportAnchorAtAim(
                         *dragPlaneHit,
                         lookDirection, cellSize);
+                if (modularDragAxis_ ==
+                    PlacementLineAxis::X) {
+                    modularDragEnd_->z =
+                        modularDragStart_->z;
+                } else if (modularDragAxis_ ==
+                           PlacementLineAxis::Z) {
+                    modularDragEnd_->x =
+                        modularDragStart_->x;
+                }
                 foundationTerrainHit_ =
                     *dragPlaneHit;
                 modularSnapHit_ = *dragPlaneHit;
@@ -634,6 +648,15 @@ void App::updateModularPlacementPreview(
             modularDragEnd_->z =
                 snapPlatformFrameAxis(
                     modularDragEnd_->z);
+            if (modularDragAxis_ ==
+                PlacementLineAxis::X) {
+                modularDragEnd_->z =
+                    modularDragStart_->z;
+            } else if (modularDragAxis_ ==
+                       PlacementLineAxis::Z) {
+                modularDragEnd_->x =
+                    modularDragStart_->x;
+            }
             rebuildModularPlacementLine();
         }
         return;
@@ -669,6 +692,7 @@ void App::updateModularPlacementPreview(
             modularBuildPiece_ &&
         modularDragStart_ &&
         modularDragPlaneHeight_) {
+        updateModularDragAxis(*rawHit, cellSize);
         // Once a platform drag has begun, use its fixed storey
         // grid directly. The general valid-cell magnet may choose
         // opposite sides of an exact grid edge on press/release,
@@ -726,12 +750,6 @@ void App::updateModularPlacementPreview(
                 modularDragCandidateFrames_ = 0;
             }
         }
-        modularDragAxis_ =
-            stabilizePlacementLineAxis(
-                dragEnd.x - modularDragStart_->x,
-                dragEnd.z - modularDragStart_->z,
-                modularDragAxis_,
-                PlatformFrameWidthCells);
         if (modularDragAxis_ ==
             PlacementLineAxis::X) {
             dragEnd.z = modularDragStart_->z;
@@ -1116,7 +1134,17 @@ void App::updateModularPlacementPreview(
         if (*modularDragPiece_ ==
                 ModularBuildPiece::Wall &&
             wallPreview_) {
+            updateModularDragAxis(*rawHit, cellSize);
             modularDragEnd_ = wallPreview_->anchor;
+            if (modularDragAxis_ ==
+                PlacementLineAxis::X) {
+                modularDragEnd_->z =
+                    modularDragStart_->z;
+            } else if (modularDragAxis_ ==
+                       PlacementLineAxis::Z) {
+                modularDragEnd_->x =
+                    modularDragStart_->x;
+            }
         }
         rebuildModularPlacementLine();
     }
@@ -1173,6 +1201,22 @@ void App::beginModularPlacementDrag() {
         return;
     }
     modularDragEnd_ = modularDragStart_;
+    modularDragOrigin_ = foundationTerrainHit_;
+    if (modularDragPlaneHeight_) {
+        const auto snapshot = simulation_.snapshot();
+        const double cosPitch =
+            std::cos(snapshot.playerPitch);
+        const Vec3 lookDirection{
+            std::sin(snapshot.playerYaw) * cosPitch,
+            std::sin(snapshot.playerPitch),
+            -std::cos(snapshot.playerYaw) * cosPitch,
+        };
+        if (const auto planeAim = rampSocketAimOnFloor(
+                snapshot.playerPosition, lookDirection,
+                *modularDragPlaneHeight_)) {
+            modularDragOrigin_ = *planeAim;
+        }
+    }
     modularDragPiece_ = modularBuildPiece_;
     modularDragAxis_.reset();
     modularDragCandidateEnd_.reset();
@@ -1180,6 +1224,28 @@ void App::beginModularPlacementDrag() {
     modularDragLookMovement_ = 0.0;
     modularDragExtended_ = false;
     rebuildModularPlacementLine();
+}
+
+void App::updateModularDragAxis(
+    Vec3 aimHit, double cellSize) {
+    if (!modularDragStart_ || !modularDragOrigin_ ||
+        cellSize <= 0.0) {
+        return;
+    }
+    const double deltaX =
+        (aimHit.x - modularDragOrigin_->x) / cellSize;
+    const double deltaZ =
+        (aimHit.z - modularDragOrigin_->z) / cellSize;
+    constexpr double ActivationDistanceCells = 0.18;
+    if (!modularDragAxis_ &&
+        std::max(std::abs(deltaX), std::abs(deltaZ)) <
+            ActivationDistanceCells) {
+        return;
+    }
+    constexpr double AxisSwitchMarginCells = 0.32;
+    modularDragAxis_ = stabilizePlacementLineAxis(
+        deltaX, deltaZ, modularDragAxis_,
+        AxisSwitchMarginCells);
 }
 
 void App::rebuildModularPlacementLine() {

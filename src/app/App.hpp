@@ -52,6 +52,8 @@ class App {
     void updateModularPlacementPreview(
         const SimulationSnapshot& snapshot);
     void beginModularPlacementDrag();
+    void updateModularDragAxis(Vec3 aimHit,
+                               double cellSize);
     [[nodiscard]] bool finishModularPlacementDrag();
     void clearModularPlacementDrag();
     void selectModularBuildPiece(ModularBuildPiece piece);
@@ -320,6 +322,7 @@ class App {
     std::optional<Vec3> modularPreviewVisualOrigin_;
     std::optional<GridCoord> modularDragStart_;
     std::optional<GridCoord> modularDragEnd_;
+    std::optional<Vec3> modularDragOrigin_;
     std::optional<int> modularDragStorey_;
     std::optional<double>
         modularDragTargetFloorHeight_;
