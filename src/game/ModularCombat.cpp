@@ -1,5 +1,7 @@
 #include "game/ModularCombat.hpp"
 
+#include <algorithm>
+
 namespace ian {
 
 Vec3 modularBaseCenter(
@@ -95,9 +97,17 @@ buildModularEnemyTargets(
             StructuralSupportState::Supported) {
             continue;
         }
+        Vec3 position = modularBaseCenter(frame, config);
+        if (frame.storey == 0) {
+            for (const FoundationSupport& support :
+                 frame.supports) {
+                position.y = std::min(
+                    position.y, support.bottom.y);
+            }
+        }
         targets.push_back({
             .id = frame.id,
-            .position = modularBaseCenter(frame, config),
+            .position = position,
             .radius =
                 PlatformFrameWidthCells *
                 config.cellSize * 0.55,
@@ -117,8 +127,7 @@ buildModularEnemyTargets(
             continue;
         }
         Vec3 position = modularBaseCenter(wall, config);
-        position.y =
-            (wall.bottomHeight + wall.topHeight) * 0.5;
+        position.y = wall.bottomHeight;
         targets.push_back({
             .id = wall.id,
             .position = position,
@@ -136,8 +145,7 @@ buildModularEnemyTargets(
             continue;
         }
         Vec3 position = modularBaseCenter(ramp, config);
-        position.y =
-            (ramp.bottomHeight + ramp.topHeight) * 0.5;
+        position.y = ramp.bottomHeight;
         targets.push_back({
             .id = ramp.id,
             .position = position,

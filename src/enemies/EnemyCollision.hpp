@@ -12,6 +12,8 @@ struct EnemyCapsule {
 };
 
 [[nodiscard]] EnemyCapsule enemyCapsule(EnemyType type);
+[[nodiscard]] double maximumGroundStructureInteractionHeight(
+    EnemyType type, double enemyCenterHeight);
 
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,

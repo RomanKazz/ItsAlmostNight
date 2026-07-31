@@ -123,6 +123,22 @@ constexpr int CollisionCellCount =
         return false;
     }
 
+    if (enemy.type != EnemyType::Flying) {
+        double collisionBaseHeight = building.baseHeight;
+        if (building.platformStorey < 0) {
+            collisionBaseHeight = std::min(
+                collisionBaseHeight,
+                building.foundationBottomHeight);
+        }
+        const double maximumCollisionHeight =
+            maximumGroundStructureInteractionHeight(
+                enemy.type, enemy.position.y);
+        if (collisionBaseHeight >
+            maximumCollisionHeight) {
+            return false;
+        }
+    }
+
     const Vec3 center = buildingWorldPosition(building);
     const double minimumDistance =
         enemyCapsule(enemy.type).radius +
@@ -168,6 +184,15 @@ EnemyCapsule enemyCapsule(EnemyType type) {
         return {.radius = 0.43, .segmentHalfHeight = 0.32};
     }
     return {.radius = 0.43, .segmentHalfHeight = 0.32};
+}
+
+double maximumGroundStructureInteractionHeight(
+    EnemyType type, double enemyCenterHeight) {
+    const EnemyCapsule capsule = enemyCapsule(type);
+    constexpr double ReachAboveBody = 0.85;
+    return enemyCenterHeight +
+           capsule.segmentHalfHeight + capsule.radius +
+           ReachAboveBody;
 }
 
 void resolveEnemyCapsuleCollisions(

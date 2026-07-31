@@ -90,6 +90,37 @@ void runEnemySystemTests() {
                 FoundationId,
         "enemy treats PlatformFrame as attackable structure");
 
+    ian::EnemySystem stackedEnemies;
+    stackedEnemies.spawnWave(FoundationSpawn);
+    constexpr ian::EntityId UpperStructureId{12002U, 1U};
+    const std::array<ian::EnemyStructureTarget, 2>
+        stackedTargets{{
+            {
+                .id = FoundationId,
+                .position = {0.0, 1.0, -3.0},
+                .radius = 1.1,
+                .buildingType = std::nullopt,
+                .modular = true,
+                .structuralImpact = 4U,
+            },
+            {
+                .id = UpperStructureId,
+                .position = {0.0, 5.0, -3.0},
+                .radius = 1.1,
+                .buildingType = std::nullopt,
+                .modular = true,
+                .structuralImpact = 1U,
+            },
+        }};
+    const auto stackedAttacks = stackedEnemies.tick(
+        1.0 / 60.0, buildings.buildings(),
+        flowField, std::nullopt, stackedTargets);
+    require(
+        stackedAttacks.size() == 1 &&
+            stackedAttacks.front().targetId ==
+                FoundationId,
+        "ground enemy attacks reachable lower support instead of upper floor");
+
     ian::EnemySystem sapperEnemies;
     constexpr std::array<ian::EnemySpawn, 1>
         StructuralSapperSpawn{{

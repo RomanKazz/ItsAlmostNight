@@ -169,6 +169,19 @@ double playerAggroRange(EnemyType type) {
     return 4.5;
 }
 
+bool structureIsVerticallyReachable(
+    const EnemyInstance& enemy,
+    const EnemyStructureTarget& structure) {
+    if (enemy.type == EnemyType::Flying) {
+        return structure.buildingType ==
+               BuildingType::Core;
+    }
+    const double maximumAttackHeight =
+        maximumGroundStructureInteractionHeight(
+            enemy.type, enemy.position.y);
+    return structure.position.y <= maximumAttackHeight;
+}
+
 bool buildingIsInAttackRange(
     const EnemyInstance& enemy,
     const BuildingQueryGrid& buildingGrid) {
@@ -183,8 +196,8 @@ bool buildingIsInAttackRange(
         if (found) {
             return;
         }
-        if (enemy.type == EnemyType::Flying &&
-            building.buildingType != BuildingType::Core) {
+        if (!structureIsVerticallyReachable(
+                enemy, building)) {
             return;
         }
         const Vec3 center = building.position;
@@ -234,6 +247,10 @@ bool buildingBlocksPathToPlayer(
             return;
         }
         if (building.buildingType == BuildingType::Core) {
+            return;
+        }
+        if (!structureIsVerticallyReachable(
+                enemy, building)) {
             return;
         }
         const Vec3 center = building.position;
@@ -401,9 +418,16 @@ std::span<const EnemyAttack> EnemySystem::tick(
         if (!buildingBlocksMovement(building)) {
             continue;
         }
+        Vec3 attackPosition =
+            buildingWorldPosition(building);
+        if (building.platformStorey < 0) {
+            attackPosition.y = std::min(
+                building.baseHeight,
+                building.foundationBottomHeight);
+        }
         structures.push_back({
             .id = building.id,
-            .position = buildingWorldPosition(building),
+            .position = attackPosition,
             .radius = buildingRadius(building.type),
             .buildingType = building.type,
             .modular = false,
@@ -621,6 +645,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 enemy.position,
                 SapperStructureSearchRadius,
                 [&](const EnemyStructureTarget& building) {
+                    if (!structureIsVerticallyReachable(
+                            enemy, building)) {
+                        return;
+                    }
                     if (building.structuralImpact == 0U) {
                         return;
                     }
@@ -661,8 +689,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
             BuildingLookAhead +
                 attackRange(enemy.type) + 1.6,
             [&](const EnemyStructureTarget& building) {
-            if (enemy.type == EnemyType::Flying &&
-                building.buildingType != BuildingType::Core) {
+            if (!structureIsVerticallyReachable(
+                    enemy, building)) {
                 return;
             }
             const Vec3 center = building.position;
