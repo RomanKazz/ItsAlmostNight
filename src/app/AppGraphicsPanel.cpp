@@ -12,10 +12,15 @@ namespace ian {
 void App::drawGraphicsPanel() {
     auto& settings = renderer_->settings();
     constexpr float PanelWidth = 900.0F;
-    constexpr float PanelHeight = 920.0F;
-    constexpr float Margin = 28.0F;
-    constexpr float Gap = 14.0F;
-    constexpr float ButtonHeight = 64.0F;
+    const bool compact = GetScreenHeight() < 900;
+    const float PanelHeight = compact
+                                  ? static_cast<float>(GetScreenHeight()) - 32.0F
+                                  : 920.0F;
+    const float Margin = compact ? 16.0F : 28.0F;
+    const float Gap = compact ? 8.0F : 14.0F;
+    const float ButtonHeight = compact ? 46.0F : 64.0F;
+    const float ControlStartY = compact ? 172.0F : 226.0F;
+    const float RowHeight = compact ? 52.0F : 76.0F;
     const float panelX =
         static_cast<float>(GetScreenWidth()) - PanelWidth - Margin;
     const float panelY = 28.0F;
@@ -24,31 +29,41 @@ void App::drawGraphicsPanel() {
     const float columnWidth = (contentWidth - Gap) * 0.5F;
 
     ui_.drawPanel({panelX, panelY, PanelWidth, PanelHeight}, 250);
+    const float headerY = compact ? 40.0F : 56.0F;
+    const float headerHeight = compact ? 56.0F : 76.0F;
     ui_.drawInsetPanel(
-        {contentX, panelY + 56.0F, contentWidth, 76.0F}, 245);
+        {contentX, panelY + headerY, contentWidth, headerHeight}, 245);
     ui_.drawLabel(
-        {contentX + 16.0F, panelY + 66.0F,
-         contentWidth - 32.0F, 52.0F},
+        {contentX + 16.0F, panelY + headerY + 8.0F,
+         contentWidth - 32.0F, headerHeight - 16.0F},
         "GRAPHICS SETTINGS", 1);
 
-    constexpr float TabY = 150.0F;
-    constexpr float TabHeight = 58.0F;
+    const float TabY = compact ? 108.0F : 150.0F;
+    const float TabHeight = compact ? 44.0F : 58.0F;
+    const float tabWidth =
+        (contentWidth - Gap * 2.0F) / 3.0F;
     if (ui_.drawToggleButton(
-            {contentX, panelY + TabY, columnWidth,
+            {contentX, panelY + TabY, tabWidth,
              TabHeight},
             "DISPLAY", graphicsPanelTab_ == 0)) {
         graphicsPanelTab_ = 0;
     }
     if (ui_.drawToggleButton(
-            {contentX + columnWidth + Gap,
-             panelY + TabY, columnWidth, TabHeight},
+            {contentX + tabWidth + Gap,
+             panelY + TabY, tabWidth, TabHeight},
             "COLOR & CURVES",
             graphicsPanelTab_ == 1)) {
         graphicsPanelTab_ = 1;
     }
+    if (ui_.drawToggleButton(
+            {contentX + (tabWidth + Gap) * 2.0F,
+             panelY + TabY, tabWidth, TabHeight},
+            "STYLE LAB", graphicsPanelTab_ == 2)) {
+        graphicsPanelTab_ = 2;
+    }
 
     const auto toggleButton =
-        [this, contentX, columnWidth](
+        [this, contentX, columnWidth, Gap, ButtonHeight](
             int column, float y, const char* name, bool& value) {
             const Rectangle bounds{
                 contentX +
@@ -62,7 +77,7 @@ void App::drawGraphicsPanel() {
         };
 
     if (graphicsPanelTab_ == 0) {
-    float y = panelY + 226.0F;
+    float y = panelY + ControlStartY;
     toggleButton(0, y, "SHADOWS", settings.shadows);
     toggleButton(1, y, "FOG", settings.fog);
     y += ButtonHeight + Gap;
@@ -76,7 +91,7 @@ void App::drawGraphicsPanel() {
     toggleButton(0, y, "PROCEDURAL SKY", settings.sky);
     toggleButton(1, y, "INSTANCED GRASS", settings.grass);
     y += ButtonHeight + Gap;
-    toggleButton(0, y, "BLOOM (RESERVED)", settings.bloom);
+    toggleButton(0, y, "PIXEL BLOOM", settings.bloom);
     toggleButton(1, y, "SSAO (RESERVED)", settings.ssao);
     y += ButtonHeight + Gap;
     if (ui_.drawButton(
@@ -137,18 +152,18 @@ void App::drawGraphicsPanel() {
             "CLOSE [F2]")) {
         renderer_->setGraphicsPanelVisible(false);
     }
-    } else {
+    } else if (graphicsPanelTab_ == 1) {
         const auto colorSlider =
-            [this, contentX, columnWidth, panelY](
+            [this, contentX, columnWidth, panelY, Gap,
+             ControlStartY, RowHeight, compact](
                 int column, int row, const char* label,
                 float& value, float minimum, float maximum) {
-                constexpr float RowHeight = 76.0F;
                 const float x =
                     contentX +
                     static_cast<float>(column) *
                         (columnWidth + Gap);
                 const float y =
-                    panelY + 226.0F +
+                    panelY + ControlStartY +
                     static_cast<float>(row) * RowHeight;
                 drawUiText(
                     TextFormat(
@@ -156,11 +171,13 @@ void App::drawGraphicsPanel() {
                     {x, y}, 15.0F,
                     {245, 220, 174, 255});
                 ui_.drawInsetPanel(
-                    {x, y + 29.0F, columnWidth, 36.0F},
+                    {x, y + (compact ? 20.0F : 29.0F),
+                     columnWidth, compact ? 27.0F : 36.0F},
                     235);
                 value = ui_.drawSliderBar(
-                    {x + 8.0F, y + 35.0F,
-                     columnWidth - 16.0F, 24.0F},
+                    {x + 8.0F, y + (compact ? 23.0F : 35.0F),
+                     columnWidth - 16.0F,
+                     compact ? 20.0F : 24.0F},
                     value, minimum, maximum);
             };
         colorSlider(
@@ -207,7 +224,9 @@ void App::drawGraphicsPanel() {
             1, 6, "VIGNETTE",
             settings.vignette, 0.0F, 0.7F);
 
-        constexpr float ActionY = 770.0F;
+        const float ActionY =
+            ControlStartY + RowHeight * 7.0F +
+            (compact ? 4.0F : 12.0F);
         if (ui_.drawButton(
                 {contentX, panelY + ActionY,
                  columnWidth, ButtonHeight},
@@ -235,6 +254,109 @@ void App::drawGraphicsPanel() {
             renderer_->setGraphicsPanelVisible(false);
         }
         settings.postProcessing = true;
+    } else {
+        const auto styleSlider =
+            [this, contentX, columnWidth, panelY, Gap,
+             ControlStartY, RowHeight, compact](
+                int row, const char* label, float& value,
+                float minimum, float maximum) {
+                const float x =
+                    contentX + columnWidth + Gap;
+                const float y =
+                    panelY + ControlStartY +
+                    static_cast<float>(row) * RowHeight;
+                drawUiText(
+                    TextFormat("%s  %.2f", label, value),
+                    {x, y}, 15.0F,
+                    {245, 220, 174, 255});
+                ui_.drawInsetPanel(
+                    {x, y + (compact ? 20.0F : 29.0F),
+                     columnWidth, compact ? 27.0F : 36.0F},
+                    235);
+                value = ui_.drawSliderBar(
+                    {x + 8.0F, y + (compact ? 23.0F : 35.0F),
+                     columnWidth - 16.0F,
+                     compact ? 20.0F : 24.0F},
+                    value, minimum, maximum);
+            };
+
+        float y = panelY + ControlStartY;
+        toggleButton(0, y, "LIMITED PALETTE",
+                     settings.paletteQuantization);
+        styleSlider(0, "COLOR LEVELS", settings.paletteLevels,
+                    2.0F, 16.0F);
+        y += RowHeight;
+        toggleButton(0, y, "BAYER DITHER",
+                     settings.dithering);
+        styleSlider(1, "DITHER STRENGTH",
+                    settings.ditherStrength, 0.0F, 1.0F);
+        y += RowHeight;
+        toggleButton(0, y, "LIGHT STEPS",
+                     settings.posterizedLighting);
+        styleSlider(2, "LIGHT LEVELS", settings.lightingSteps,
+                    2.0F, 12.0F);
+        y += RowHeight;
+        toggleButton(0, y, "PIXEL BLOOM", settings.bloom);
+        styleSlider(3, "BLOOM STRENGTH",
+                    settings.bloomStrength, 0.0F, 1.0F);
+        y += RowHeight;
+        toggleButton(0, y, "INK OUTLINES",
+                     settings.inkOutlines);
+        styleSlider(4, "OUTLINE STRENGTH",
+                    settings.outlineStrength, 0.0F, 1.0F);
+        y += RowHeight;
+        toggleButton(0, y, "FOG BANDS", settings.fogBands);
+        styleSlider(5, "FOG LEVELS", settings.fogBandCount,
+                    2.0F, 12.0F);
+        y += RowHeight;
+        toggleButton(0, y, "PAPER GRAIN",
+                     settings.paperGrain);
+        styleSlider(6, "GRAIN STRENGTH",
+                    settings.paperGrainStrength, 0.0F, 0.15F);
+
+        const float ActionY =
+            ControlStartY + RowHeight * 7.0F +
+            (compact ? 4.0F : 12.0F);
+        if (ui_.drawButton(
+                {contentX, panelY + ActionY,
+                 columnWidth, ButtonHeight},
+                "SIGNATURE PRESET")) {
+            settings.paletteQuantization = true;
+            settings.dithering = true;
+            settings.posterizedLighting = true;
+            settings.bloom = true;
+            settings.inkOutlines = true;
+            settings.fogBands = true;
+            settings.paperGrain = true;
+            settings.paletteLevels = 9.0F;
+            settings.ditherStrength = 0.42F;
+            settings.lightingSteps = 6.0F;
+            settings.bloomStrength = 0.24F;
+            settings.outlineStrength = 0.3F;
+            settings.fogBandCount = 6.0F;
+            settings.paperGrainStrength = 0.025F;
+        }
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap,
+                 panelY + ActionY,
+                 columnWidth, ButtonHeight},
+                "RESET STYLE")) {
+            settings.paletteQuantization = false;
+            settings.dithering = false;
+            settings.posterizedLighting = false;
+            settings.bloom = false;
+            settings.inkOutlines = false;
+            settings.fogBands = false;
+            settings.paperGrain = false;
+            settings.paletteLevels = 8.0F;
+            settings.ditherStrength = 0.35F;
+            settings.lightingSteps = 5.0F;
+            settings.bloomStrength = 0.28F;
+            settings.outlineStrength = 0.35F;
+            settings.fogBandCount = 5.0F;
+            settings.paperGrainStrength = 0.035F;
+        }
+        settings.postProcessing = true;
     }
 
     drawUiText(
@@ -244,7 +366,7 @@ void App::drawGraphicsPanel() {
         {contentX, panelY + PanelHeight - 48.0F}, 16.0F,
         {245, 220, 174, 255});
 
-    if (graphicsPanelTab_ == 1) {
+    if (graphicsPanelTab_ != 0) {
         constexpr float PreviewGap = 18.0F;
         const float previewPanelX = Margin;
         const float previewPanelWidth =

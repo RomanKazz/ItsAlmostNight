@@ -85,6 +85,10 @@ void Renderer::initialize() {
             GetShaderLocation(shader, "fogStart");
         grassFogEndLocation_ =
             GetShaderLocation(shader, "fogEnd");
+        grassFogBandsEnabledLocation_ =
+            GetShaderLocation(shader, "fogBandsEnabled");
+        grassFogBandCountLocation_ =
+            GetShaderLocation(shader, "fogBandCount");
         grassDayNightTintLocation_ =
             GetShaderLocation(shader, "dayNightTint");
         grassExposureLocation_ =
@@ -771,6 +775,13 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                        &fogStart, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, grassFogEndLocation_,
                        &fogEnd, SHADER_UNIFORM_FLOAT);
+        const float fogBandsEnabled =
+            settings_.fogBands ? 1.0F : 0.0F;
+        SetShaderValue(shader, grassFogBandsEnabledLocation_,
+                       &fogBandsEnabled, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, grassFogBandCountLocation_,
+                       &settings_.fogBandCount,
+                       SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, grassDayNightTintLocation_,
                        &lighting.dayNightTint, SHADER_UNIFORM_VEC3);
         SetShaderValue(shader, grassExposureLocation_,
@@ -1055,6 +1066,10 @@ void Renderer::resolveWorldShaderLocations() {
         .fogColor = GetShaderLocation(shader, "fogColor"),
         .fogStart = GetShaderLocation(shader, "fogStart"),
         .fogEnd = GetShaderLocation(shader, "fogEnd"),
+        .fogBandsEnabled =
+            GetShaderLocation(shader, "fogBandsEnabled"),
+        .fogBandCount =
+            GetShaderLocation(shader, "fogBandCount"),
         .dayNightTint = GetShaderLocation(shader, "dayNightTint"),
         .exposure = GetShaderLocation(shader, "exposure"),
         .saturation = GetShaderLocation(shader, "saturation"),
@@ -1176,6 +1191,30 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "sharpness"),
         .vignette =
             GetShaderLocation(shader, "vignette"),
+        .paletteEnabled =
+            GetShaderLocation(shader, "paletteEnabled"),
+        .paletteLevels =
+            GetShaderLocation(shader, "paletteLevels"),
+        .ditherEnabled =
+            GetShaderLocation(shader, "ditherEnabled"),
+        .ditherStrength =
+            GetShaderLocation(shader, "ditherStrength"),
+        .posterizedLightingEnabled = GetShaderLocation(
+            shader, "posterizedLightingEnabled"),
+        .lightingSteps =
+            GetShaderLocation(shader, "lightingSteps"),
+        .bloomEnabled =
+            GetShaderLocation(shader, "bloomEnabled"),
+        .bloomStrength =
+            GetShaderLocation(shader, "bloomStrength"),
+        .inkOutlinesEnabled = GetShaderLocation(
+            shader, "inkOutlinesEnabled"),
+        .outlineStrength =
+            GetShaderLocation(shader, "outlineStrength"),
+        .paperGrainEnabled =
+            GetShaderLocation(shader, "paperGrainEnabled"),
+        .paperGrainStrength = GetShaderLocation(
+            shader, "paperGrainStrength"),
     };
 }
 
@@ -1216,6 +1255,30 @@ void Renderer::uploadPostProcessSettings() {
            settings_.sharpness);
     upload(postProcessLocations_.vignette,
            settings_.vignette);
+    upload(postProcessLocations_.paletteEnabled,
+           settings_.paletteQuantization ? 1.0F : 0.0F);
+    upload(postProcessLocations_.paletteLevels,
+           settings_.paletteLevels);
+    upload(postProcessLocations_.ditherEnabled,
+           settings_.dithering ? 1.0F : 0.0F);
+    upload(postProcessLocations_.ditherStrength,
+           settings_.ditherStrength);
+    upload(postProcessLocations_.posterizedLightingEnabled,
+           settings_.posterizedLighting ? 1.0F : 0.0F);
+    upload(postProcessLocations_.lightingSteps,
+           settings_.lightingSteps);
+    upload(postProcessLocations_.bloomEnabled,
+           settings_.bloom ? 1.0F : 0.0F);
+    upload(postProcessLocations_.bloomStrength,
+           settings_.bloomStrength);
+    upload(postProcessLocations_.inkOutlinesEnabled,
+           settings_.inkOutlines ? 1.0F : 0.0F);
+    upload(postProcessLocations_.outlineStrength,
+           settings_.outlineStrength);
+    upload(postProcessLocations_.paperGrainEnabled,
+           settings_.paperGrain ? 1.0F : 0.0F);
+    upload(postProcessLocations_.paperGrainStrength,
+           settings_.paperGrainStrength);
 }
 
 void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
@@ -1252,6 +1315,15 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &fogStart, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.fogEnd,
                    &fogEnd, SHADER_UNIFORM_FLOAT);
+    const float fogBandsEnabled =
+        settings_.fogBands ? 1.0F : 0.0F;
+    SetShaderValue(shader,
+                   worldShaderLocations_.fogBandsEnabled,
+                   &fogBandsEnabled, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader,
+                   worldShaderLocations_.fogBandCount,
+                   &settings_.fogBandCount,
+                   SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.dayNightTint,
                    &lighting.dayNightTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.exposure,

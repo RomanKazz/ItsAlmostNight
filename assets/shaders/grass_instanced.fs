@@ -17,6 +17,8 @@ uniform float ambientIntensity;
 uniform vec3 fogColor;
 uniform float fogStart;
 uniform float fogEnd;
+uniform float fogBandsEnabled;
+uniform float fogBandCount;
 uniform vec3 dayNightTint;
 uniform float exposure;
 uniform float saturation;
@@ -55,6 +57,12 @@ void main()
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
     float fogAmount =
         (1.0 - exp(-2.5*fogDistance*fogDistance))*0.96;
+    if (fogBandsEnabled > 0.5)
+    {
+        float bands = max(round(fogBandCount), 2.0);
+        fogAmount = floor(fogAmount*(bands - 1.0) + 0.5)/
+            (bands - 1.0);
+    }
     vec3 atmosphereColor =
         mix(fogColor, skyAmbientColor, 0.14 + fogDistance*0.08);
     litColor = mix(litColor, atmosphereColor, fogAmount);

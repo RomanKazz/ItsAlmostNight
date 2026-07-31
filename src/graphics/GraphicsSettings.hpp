@@ -19,6 +19,12 @@ struct GraphicsSettings {
     bool blobShadows{true};
     bool bloom{false};
     bool ssao{false};
+    bool paletteQuantization{false};
+    bool dithering{false};
+    bool posterizedLighting{false};
+    bool inkOutlines{false};
+    bool fogBands{false};
+    bool paperGrain{false};
 
     int shadowMapSize{2048};
 
@@ -43,6 +49,13 @@ struct GraphicsSettings {
     float curveHighlights{};
     float sharpness{};
     float vignette{};
+    float paletteLevels{8.0F};
+    float ditherStrength{0.35F};
+    float lightingSteps{5.0F};
+    float bloomStrength{0.28F};
+    float outlineStrength{0.35F};
+    float fogBandCount{5.0F};
+    float paperGrainStrength{0.035F};
 
     GraphicsQuality quality{GraphicsQuality::High};
 };

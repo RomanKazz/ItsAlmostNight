@@ -19,6 +19,8 @@ uniform float ambientIntensity;
 uniform vec3 fogColor;
 uniform float fogStart;
 uniform float fogEnd;
+uniform float fogBandsEnabled;
+uniform float fogBandCount;
 uniform vec3 dayNightTint;
 uniform float exposure;
 uniform float saturation;
@@ -174,6 +176,12 @@ void main()
     float groundDensity = exp(-max(fragWorldPosition.y, 0.0)*0.16);
     float fogAmount =
         distanceFog*mix(0.72, 1.0, groundDensity);
+    if (fogBandsEnabled > 0.5)
+    {
+        float bands = max(round(fogBandCount), 2.0);
+        fogAmount = floor(fogAmount*(bands - 1.0) + 0.5)/
+            (bands - 1.0);
+    }
     vec3 atmosphereColor =
         mix(fogColor, skyAmbientColor, 0.14 + fogDistance*0.08);
     float preFogLuminance =

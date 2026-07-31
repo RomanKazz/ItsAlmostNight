@@ -222,6 +222,8 @@ class Renderer {
         int fogColor{-1};
         int fogStart{-1};
         int fogEnd{-1};
+        int fogBandsEnabled{-1};
+        int fogBandCount{-1};
         int dayNightTint{-1};
         int exposure{-1};
         int saturation{-1};
@@ -283,6 +285,18 @@ class Renderer {
         int curveHighlights{-1};
         int sharpness{-1};
         int vignette{-1};
+        int paletteEnabled{-1};
+        int paletteLevels{-1};
+        int ditherEnabled{-1};
+        int ditherStrength{-1};
+        int posterizedLightingEnabled{-1};
+        int lightingSteps{-1};
+        int bloomEnabled{-1};
+        int bloomStrength{-1};
+        int inkOutlinesEnabled{-1};
+        int outlineStrength{-1};
+        int paperGrainEnabled{-1};
+        int paperGrainStrength{-1};
     };
 
     void resolveWorldShaderLocations();
@@ -323,6 +337,8 @@ class Renderer {
     int grassFogColorLocation_{-1};
     int grassFogStartLocation_{-1};
     int grassFogEndLocation_{-1};
+    int grassFogBandsEnabledLocation_{-1};
+    int grassFogBandCountLocation_{-1};
     int grassDayNightTintLocation_{-1};
     int grassExposureLocation_{-1};
     int grassSaturationLocation_{-1};
