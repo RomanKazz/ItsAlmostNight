@@ -27,6 +27,10 @@ struct HudViewState {
     bool hideBottomHints{};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
+    float buildHotbarSelectionPosition{};
+    float buildHotbarSelectionAlpha{};
+    float foundationHotbarSelectionPosition{};
+    float foundationHotbarSelectionAlpha{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
     double simulationTickMilliseconds{};

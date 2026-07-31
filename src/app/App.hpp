@@ -305,6 +305,10 @@ class App {
         buildModePieChoice_;
     BuildingType lastBuildingSelection_{
         BuildingType::Wall};
+    float buildHotbarSelectionPosition_{1.0F};
+    float buildHotbarSelectionAlpha_{};
+    float foundationHotbarSelectionPosition_{};
+    float foundationHotbarSelectionAlpha_{};
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};

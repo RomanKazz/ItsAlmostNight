@@ -1314,6 +1314,14 @@ void App::render() {
                     .selectedModularBuildPiece =
                         static_cast<std::size_t>(
                             modularBuildPiece_),
+                    .buildHotbarSelectionPosition =
+                        buildHotbarSelectionPosition_,
+                    .buildHotbarSelectionAlpha =
+                        buildHotbarSelectionAlpha_,
+                    .foundationHotbarSelectionPosition =
+                        foundationHotbarSelectionPosition_,
+                    .foundationHotbarSelectionAlpha =
+                        foundationHotbarSelectionAlpha_,
                     .showBuildingContextCard =
                         showBuildingContextCard,
                     .repairSweepActive =

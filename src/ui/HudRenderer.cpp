@@ -443,7 +443,8 @@ struct BuildHotbarSlot {
 
 void drawBuildHotbarSlots(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    std::span<const BuildHotbarSlot> slots) {
+    std::span<const BuildHotbarSlot> slots,
+    float selectionPosition, float selectionAlpha) {
     constexpr float Gap = 10.0F;
     constexpr float MaximumSize = 112.0F;
     const float screenWidth =
@@ -490,12 +491,10 @@ void drawBuildHotbarSlots(
         ui.drawInsetPanel(
             bounds, slot.available ? 238 : 188);
         DrawRectangleLinesEx(
-            bounds, slot.selected ? 5.0F : 2.0F,
-            slot.selected
-                ? Color{255, 255, 255, 255}
-                : slot.available
-                      ? Color{185, 169, 139, 215}
-                      : Color{112, 101, 91, 180});
+            bounds, 2.0F,
+            slot.available
+                ? Color{185, 169, 139, 215}
+                : Color{112, 101, 91, 180});
 
         const float keySize = std::clamp(
             slotSize * 0.27F, 22.0F, 30.0F);
@@ -574,6 +573,32 @@ void drawBuildHotbarSlots(
                     : Color{242, 103, 83, 255});
         }
     }
+
+    if (selectionAlpha > 0.01F && !slots.empty()) {
+        selectionPosition = std::clamp(
+            selectionPosition, 0.0F,
+            static_cast<float>(slots.size() - 1U));
+        const float selectionX =
+            startX + selectionPosition *
+                         (slotSize + Gap);
+        const auto alpha =
+            [selectionAlpha](float value) {
+                return static_cast<unsigned char>(
+                    std::clamp(
+                        value * selectionAlpha,
+                        0.0F, 255.0F));
+            };
+        DrawRectangleLinesEx(
+            {selectionX - 5.0F, slotY - 5.0F,
+             slotSize + 10.0F, slotSize + 10.0F},
+            8.0F,
+            {255, 218, 132, alpha(42.0F)});
+        DrawRectangleLinesEx(
+            {selectionX - 2.0F, slotY - 2.0F,
+             slotSize + 4.0F, slotSize + 4.0F},
+            4.0F,
+            {255, 255, 246, alpha(255.0F)});
+    }
 }
 
 void drawFoundationHotbar(
@@ -601,7 +626,10 @@ void drawFoundationHotbar(
                  snapshot.gold >= cost.gold),
         };
     }
-    drawBuildHotbarSlots(ui, snapshot, slots);
+    drawBuildHotbarSlots(
+        ui, snapshot, slots,
+        view.foundationHotbarSelectionPosition,
+        view.foundationHotbarSelectionAlpha);
 }
 
 void drawBuildHotbar(
@@ -654,7 +682,10 @@ void drawBuildHotbar(
             .available = available,
         };
     }
-    drawBuildHotbarSlots(ui, snapshot, slots);
+    drawBuildHotbarSlots(
+        ui, snapshot, slots,
+        view.buildHotbarSelectionPosition,
+        view.buildHotbarSelectionAlpha);
 }
 
 } // namespace

@@ -22,6 +22,39 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
+    const auto hotbarSnapshot = simulation_.snapshot();
+    const float hotbarBlend =
+        1.0F - std::exp(
+                   -14.0F *
+                   static_cast<float>(frameSeconds));
+    const float buildingTarget = static_cast<float>(
+        hotbarSnapshot.selectedBuilding
+            ? static_cast<std::size_t>(
+                  *hotbarSnapshot.selectedBuilding)
+            : static_cast<std::size_t>(
+                  lastBuildingSelection_));
+    buildHotbarSelectionPosition_ +=
+        (buildingTarget -
+         buildHotbarSelectionPosition_) *
+        hotbarBlend;
+    foundationHotbarSelectionPosition_ +=
+        (static_cast<float>(modularBuildPiece_) -
+         foundationHotbarSelectionPosition_) *
+        hotbarBlend;
+    const float buildAlphaTarget =
+        !foundationBuildMode_ &&
+                hotbarSnapshot.selectedBuilding
+            ? 1.0F
+            : 0.0F;
+    const float foundationAlphaTarget =
+        foundationBuildMode_ ? 1.0F : 0.0F;
+    buildHotbarSelectionAlpha_ +=
+        (buildAlphaTarget - buildHotbarSelectionAlpha_) *
+        hotbarBlend;
+    foundationHotbarSelectionAlpha_ +=
+        (foundationAlphaTarget -
+         foundationHotbarSelectionAlpha_) *
+        hotbarBlend;
     const bool hitStopActive = hitStopRemaining_ > 0.0;
     hitStopRemaining_ =
         std::max(0.0, hitStopRemaining_ - frameSeconds);
