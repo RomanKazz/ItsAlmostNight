@@ -559,6 +559,21 @@ void runSimulationTests() {
     simulation.tick(1.0, movement);
     require(simulation.snapshot().playerPosition.z < startPosition.z,
             "forward command moves player forward");
+    const auto positionBeforeBraking =
+        simulation.snapshot().playerPosition;
+    simulation.tick(1.0 / 60.0);
+    require(
+        simulation.snapshot().playerPosition.z <
+            positionBeforeBraking.z,
+        "player keeps a short horizontal coast after input release");
+    simulation.tick(0.5);
+    const auto stoppedPosition =
+        simulation.snapshot().playerPosition;
+    simulation.tick(0.25);
+    requireNear(
+        simulation.snapshot().playerPosition.z,
+        stoppedPosition.z, 1e-9,
+        "player braking reaches a stable stop");
 
     ian::PlayerCommand jump;
     jump.jump = true;

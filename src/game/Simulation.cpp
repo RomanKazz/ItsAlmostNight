@@ -22,6 +22,22 @@ double clampAxis(double value) {
     return std::clamp(value, -1.0, 1.0);
 }
 
+Vec3 moveHorizontalToward(
+    Vec3 current, Vec3 target, double maximumChange) {
+    const double deltaX = target.x - current.x;
+    const double deltaZ = target.z - current.z;
+    const double distance = std::hypot(deltaX, deltaZ);
+    if (distance <= maximumChange || distance <= 1e-9) {
+        return {target.x, 0.0, target.z};
+    }
+    const double scale = maximumChange / distance;
+    return {
+        current.x + deltaX * scale,
+        0.0,
+        current.z + deltaZ * scale,
+    };
+}
+
 Vec3 lookDirection(double yaw, double pitch) {
     const double cosPitch = std::cos(pitch);
     return {
@@ -203,6 +219,7 @@ void Simulation::resetRun(GameEventType eventType) {
             map_.playerSpawn.y +
             gameplay_.eyeHeight,
         map_.playerSpawn.z};
+    playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
     playerYaw_ = 0.0;
     playerPitch_ = 0.0;
@@ -353,10 +370,35 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionX = (sinYaw * forward) + (cosYaw * right);
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed = command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed;
-    const Vec3 movement{
-        directionX * speed * deltaSeconds,
+    const bool hasMovementInput =
+        std::hypot(directionX, directionZ) > 1e-6;
+    const Vec3 targetVelocity{
+        directionX * speed,
         0.0,
-        directionZ * speed * deltaSeconds,
+        directionZ * speed,
+    };
+    double velocityChangeRate =
+        hasMovementInput
+            ? gameplay_.playerAcceleration
+            : gameplay_.playerDeceleration;
+    if (hasMovementInput &&
+        playerHorizontalVelocity_.x * targetVelocity.x +
+                playerHorizontalVelocity_.z * targetVelocity.z <
+            0.0) {
+        velocityChangeRate =
+            gameplay_.playerDeceleration;
+    }
+    if (!playerGrounded_) {
+        velocityChangeRate *=
+            hasMovementInput ? 0.55 : 0.35;
+    }
+    playerHorizontalVelocity_ = moveHorizontalToward(
+        playerHorizontalVelocity_, targetVelocity,
+        velocityChangeRate * deltaSeconds);
+    const Vec3 movement{
+        playerHorizontalVelocity_.x * deltaSeconds,
+        0.0,
+        playerHorizontalVelocity_.z * deltaSeconds,
     };
     const bool autoJump =
         playerGrounded_ &&
@@ -366,10 +408,25 @@ void Simulation::updatePlayer(double deltaSeconds,
     constexpr double MaximumGroundSnapDown = 0.35;
     const double currentFeetHeight =
         playerPosition_.y - gameplay_.eyeHeight;
+    const Vec3 movementOrigin = playerPosition_;
     playerPosition_ = collisionWorld_.moveCircle(
         playerPosition_, movement,
         CollisionWorld::PlayerRadius,
         currentFeetHeight + MaximumStepUp);
+    if (deltaSeconds > 1e-9) {
+        const double actualX =
+            playerPosition_.x - movementOrigin.x;
+        const double actualZ =
+            playerPosition_.z - movementOrigin.z;
+        if (std::abs(actualX - movement.x) > 1e-6) {
+            playerHorizontalVelocity_.x =
+                actualX / deltaSeconds;
+        }
+        if (std::abs(actualZ - movement.z) > 1e-6) {
+            playerHorizontalVelocity_.z =
+                actualZ / deltaSeconds;
+        }
+    }
 
     const double terrainSurface =
         terrain_.getHeight(
@@ -438,6 +495,7 @@ void Simulation::regenerateTerrain(
         });
     foundations_.reset();
     syncModularStructures();
+    playerHorizontalVelocity_ = {};
     playerPosition_.y =
         terrain_.getHeight(
             playerPosition_.x,
@@ -2340,6 +2398,7 @@ void Simulation::respawnPlayer() {
         }
     }
     playerPosition_ = respawn;
+    playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
     playerGrounded_ = true;
     playerHealth_ = gameplay_.playerMaxHealth;
@@ -2386,6 +2445,7 @@ void Simulation::beginPlayerRespawn(
     playerRespawnTimeRemaining_ =
         gameplay_.playerRespawnSeconds;
     verticalVelocity_ = 0.0;
+    playerHorizontalVelocity_ = {};
     playerGrounded_ = true;
     buildingPreview_.reset();
     aimedResource_.reset();

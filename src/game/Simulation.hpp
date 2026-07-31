@@ -314,6 +314,7 @@ class Simulation {
     TerrainHeightfield terrain_;
     FoundationSystem foundations_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
+    Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};
     double playerYaw_{};
     double playerPitch_{};

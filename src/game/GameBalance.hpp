@@ -90,6 +90,8 @@ struct GameplayBalanceDefinition {
     double eyeHeight;
     double walkSpeed;
     double sprintSpeed;
+    double playerAcceleration;
+    double playerDeceleration;
     double jumpSpeed;
     double gravity;
     double playerMaxHealth;

@@ -91,6 +91,8 @@ void runGameBalanceTests() {
         "eyeHeight": 1.8,
         "walkSpeed": 4,
         "sprintSpeed": 7,
+        "playerAcceleration": 30,
+        "playerDeceleration": 45,
         "jumpSpeed": 5,
         "gravity": 16,
         "playerMaxHealth": 125,
@@ -125,6 +127,8 @@ void runGameBalanceTests() {
                 loaded.balance.waves[0].groupInterval == 0.5,
             "wave group schedule comes from JSON");
     require(loaded.balance.gameplay.playerMaxHealth == 125.0 &&
+                loaded.balance.gameplay.playerAcceleration == 30.0 &&
+                loaded.balance.gameplay.playerDeceleration == 45.0 &&
                 loaded.balance.gameplay.playerRespawnSeconds == 4.0 &&
                 loaded.balance.gameplay.playerDeathResourceLossFraction == 0.4 &&
                 loaded.balance.gameplay.maximumPlacementDistance == 12.0 &&
