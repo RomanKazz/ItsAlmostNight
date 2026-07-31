@@ -1059,8 +1059,14 @@ void App::update() {
             message = weaponUpgradeErrorMessage(*event.weaponUpgradeError);
         } else if (event.type == GameEventType::GateToggleRejected) {
             message = "Gate blocked or not under crosshair";
+        } else if (event.type == GameEventType::PlayerDied) {
+            message = event.amount > 0
+                          ? "You died: " +
+                                std::to_string(event.amount) +
+                                " resources lost"
+                          : "You died";
         } else if (event.type == GameEventType::PlayerRespawned) {
-            message = "You died - respawned at Core";
+            message = "Respawned at Core";
         } else if (event.type == GameEventType::WaveRewardGranted) {
             message =
                 "Night cleared: +" +

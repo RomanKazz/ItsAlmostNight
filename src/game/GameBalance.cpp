@@ -193,6 +193,10 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .jumpSpeed = value.at("jumpSpeed").get<double>(),
         .gravity = value.at("gravity").get<double>(),
         .playerMaxHealth = value.at("playerMaxHealth").get<double>(),
+        .playerRespawnSeconds =
+            value.value("playerRespawnSeconds", 5.0),
+        .playerDeathResourceLossFraction =
+            value.value("playerDeathResourceLossFraction", 0.25),
         .pickaxeRange = value.at("pickaxeRange").get<double>(),
         .pickaxeDamage = value.at("pickaxeDamage").get<double>(),
         .pickaxeDamageVariation =
@@ -210,6 +214,9 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
     if (definition.eyeHeight <= 0.0 || definition.walkSpeed <= 0.0 ||
         definition.sprintSpeed < definition.walkSpeed || definition.jumpSpeed <= 0.0 ||
         definition.gravity <= 0.0 || definition.playerMaxHealth <= 0.0 ||
+        definition.playerRespawnSeconds <= 0.0 ||
+        definition.playerDeathResourceLossFraction < 0.0 ||
+        definition.playerDeathResourceLossFraction > 1.0 ||
         definition.pickaxeRange <= 0.0 || definition.pickaxeDamage <= 0.0 ||
         definition.pickaxeDamageVariation < 0.0 ||
         definition.pickaxeDamageVariation >= 1.0 ||
@@ -266,7 +273,7 @@ GameBalance GameBalance::defaults() {
             .bomb = {3, 6.0, 4.0, 9.8, 1.2, 0.2, 4.0, 6.0, 8.0},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
-        .gameplay = {1.7, 5.0, 8.0, 6.5, 18.0, 100.0, 4.0, 1.0,
+        .gameplay = {1.7, 5.0, 8.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 1.0,
                      0.2, 0.15, 0.45,
                      15.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };

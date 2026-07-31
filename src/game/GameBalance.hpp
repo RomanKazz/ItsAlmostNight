@@ -93,6 +93,8 @@ struct GameplayBalanceDefinition {
     double jumpSpeed;
     double gravity;
     double playerMaxHealth;
+    double playerRespawnSeconds;
+    double playerDeathResourceLossFraction;
     double pickaxeRange;
     double pickaxeDamage;
     double pickaxeDamageVariation;

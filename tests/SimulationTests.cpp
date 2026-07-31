@@ -523,6 +523,7 @@ void runSimulationTests() {
     auto simulationBalance = ian::GameBalance::defaults();
     simulationBalance.gameplay.pickaxeDamageVariation = 0.0;
     simulationBalance.gameplay.pickaxeCriticalChance = 0.0;
+    simulationBalance.gameplay.playerRespawnSeconds = 1.0;
     ian::Simulation simulation{simulationBalance};
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
 
@@ -622,6 +623,46 @@ void runSimulationTests() {
     require(grantedWood == 15,
             "delayed grant events deliver exact tree capacity");
     require(collectedEventFound, "collection emits ResourceCollected event");
+
+    const auto deathPosition =
+        simulation.snapshot().playerPosition;
+    ian::PlayerCommand lethalDamage;
+    lethalDamage.damagePlayer =
+        ian::DamagePlayerCommand{1000.0};
+    simulation.tick(1.0 / 60.0, lethalDamage);
+    require(
+        simulation.snapshot().playerRespawning &&
+            simulation.snapshot().playerHealth == 0.0,
+        "lethal damage starts delayed respawn");
+    require(
+        simulation.snapshot().wood == 11 &&
+            simulation.snapshot().deathLostWood == 4,
+        "death loses rounded-up resource fraction");
+    ian::PlayerCommand deadMovement;
+    deadMovement.moveForward = 1.0;
+    simulation.tick(0.5, deadMovement);
+    require(
+        simulation.snapshot().playerRespawning &&
+            simulation.snapshot().playerPosition.x ==
+                deathPosition.x &&
+            simulation.snapshot().playerPosition.z ==
+                deathPosition.z,
+        "respawning player cannot move");
+    simulation.tick(0.51);
+    require(
+        !simulation.snapshot().playerRespawning &&
+            simulation.snapshot().playerHealth ==
+                simulation.snapshot().playerMaxHealth,
+        "respawn restores player after configured delay");
+    const auto respawnEvents = simulation.takeEvents();
+    require(
+        std::any_of(
+            respawnEvents.begin(), respawnEvents.end(),
+            [](const ian::GameEvent& event) {
+                return event.type ==
+                       ian::GameEventType::PlayerRespawned;
+            }),
+        "delayed respawn emits completion event");
 
     auto criticalBalance = ian::GameBalance::defaults();
     criticalBalance.gameplay.pickaxeDamageVariation = 0.0;

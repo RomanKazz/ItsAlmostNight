@@ -39,6 +39,9 @@ struct ToggleInvulnerabilityCommand {};
 struct DamageCoreCommand {
     double amount{50.0};
 };
+struct DamagePlayerCommand {
+    double amount{25.0};
+};
 struct SpawnEnemyCommand {
     EnemyType type{EnemyType::Basic};
     int count{1};
@@ -76,6 +79,7 @@ struct PlayerCommand {
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
     std::optional<ToggleInvulnerabilityCommand> toggleInvulnerability;
     std::optional<DamageCoreCommand> damageCore;
+    std::optional<DamagePlayerCommand> damagePlayer;
     std::optional<SpawnEnemyCommand> spawnEnemy;
     std::optional<ToggleGateCommand> toggleGate;
     std::optional<RemoveModularBuildingCommand>
@@ -119,6 +123,12 @@ struct SimulationSnapshot {
     bool playerGrounded;
     double playerHealth;
     double playerMaxHealth;
+    bool playerRespawning;
+    double playerRespawnTimeRemaining;
+    double playerRespawnDuration;
+    int deathLostWood;
+    int deathLostStone;
+    int deathLostGold;
     int wood;
     int stone;
     int gold;
@@ -281,6 +291,12 @@ class Simulation {
     void syncWorldStructures();
     void syncModularStructures();
     void removeUnsupportedPlatformBuildings();
+    void damagePlayer(
+        double damage, std::optional<EntityId> attackerId,
+        Vec3 attackPosition);
+    void beginPlayerRespawn(
+        std::optional<EntityId> attackerId);
+    void updatePlayerRespawn(double deltaSeconds);
     void respawnPlayer();
     void prepareWave(const WavePlan& plan, GridPosition corePosition,
                      std::size_t firstAnchorIndex);
@@ -303,6 +319,11 @@ class Simulation {
     double playerPitch_{};
     bool playerGrounded_{true};
     double playerHealth_{100.0};
+    bool playerRespawning_{};
+    double playerRespawnTimeRemaining_{};
+    int deathLostWood_{};
+    int deathLostStone_{};
+    int deathLostGold_{};
     int wood_{};
     int stone_{};
     int gold_{};

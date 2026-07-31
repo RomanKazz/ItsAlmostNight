@@ -5,6 +5,8 @@
   "jumpSpeed": 6.5,
   "gravity": 18.0,
   "playerMaxHealth": 100.0,
+  "playerRespawnSeconds": 5.0,
+  "playerDeathResourceLossFraction": 0.25,
   "pickaxeRange": 4.0,
   "pickaxeDamage": 1.0,
   "pickaxeDamageVariation": 0.2,

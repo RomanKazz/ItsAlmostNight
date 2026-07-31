@@ -94,6 +94,8 @@ void runGameBalanceTests() {
         "jumpSpeed": 5,
         "gravity": 16,
         "playerMaxHealth": 125,
+        "playerRespawnSeconds": 4,
+        "playerDeathResourceLossFraction": 0.4,
         "pickaxeRange": 5,
         "pickaxeDamage": 2,
         "pickaxeDamageVariation": 0.25,
@@ -123,6 +125,8 @@ void runGameBalanceTests() {
                 loaded.balance.waves[0].groupInterval == 0.5,
             "wave group schedule comes from JSON");
     require(loaded.balance.gameplay.playerMaxHealth == 125.0 &&
+                loaded.balance.gameplay.playerRespawnSeconds == 4.0 &&
+                loaded.balance.gameplay.playerDeathResourceLossFraction == 0.4 &&
                 loaded.balance.gameplay.maximumPlacementDistance == 12.0 &&
                 loaded.balance.gameplay.pickaxeDamageVariation == 0.25 &&
                 loaded.balance.gameplay.pickaxeCriticalChance == 0.2,

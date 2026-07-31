@@ -208,6 +208,11 @@ void Simulation::resetRun(GameEventType eventType) {
     playerPitch_ = 0.0;
     playerGrounded_ = true;
     playerHealth_ = gameplay_.playerMaxHealth;
+    playerRespawning_ = false;
+    playerRespawnTimeRemaining_ = 0.0;
+    deathLostWood_ = 0;
+    deathLostStone_ = 0;
+    deathLostGold_ = 0;
     wood_ = 0;
     stone_ = 0;
     gold_ = 0;
@@ -270,10 +275,15 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         return;
     }
 
-    updatePlayer(deltaSeconds, command);
+    updatePlayerRespawn(deltaSeconds);
+    updatePlayer(
+        deltaSeconds,
+        playerRespawning_ ? PlayerCommand{} : command);
     updatePendingResourceGrants(deltaSeconds);
-    processDebugCommands(command);
-    processBuildingCommands(command);
+    if (!playerRespawning_) {
+        processDebugCommands(command);
+        processBuildingCommands(command);
+    }
     if (foundations_.updateStructuralSupport(
             deltaSeconds)) {
         for (const ModularBuildingDamageResult& collapsed :
@@ -307,8 +317,18 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             return;
         }
     }
-    updatePlayerActions(deltaSeconds, command);
-    updateRunPhase(deltaSeconds, command);
+    updatePlayerActions(
+        deltaSeconds,
+        playerRespawning_ ? PlayerCommand{} : command);
+    if (playerRespawning_) {
+        aimedResource_.reset();
+        aimedEnemy_.reset();
+        aimedBuilding_.reset();
+        aimedModularBuilding_.reset();
+    }
+    updateRunPhase(
+        deltaSeconds,
+        playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
 
     ++tick_;
@@ -753,6 +773,11 @@ void Simulation::processDebugCommands(const PlayerCommand& command) {
                 }
             }
         }
+    }
+    if (command.damagePlayer) {
+        damagePlayer(
+            command.damagePlayer->amount, std::nullopt,
+            playerPosition_);
     }
     if (command.spawnEnemy) {
         const auto core = buildings_.core();
@@ -1636,33 +1661,21 @@ void Simulation::updateCombat(double deltaSeconds) {
                     foundations_, worldConfig_);
         const auto attacks = enemies_.tick(
             deltaSeconds, buildings_.buildings(), flowField_,
-            playerPosition_, modularTargets);
+            playerRespawning_ ? std::nullopt
+                              : std::optional<Vec3>{playerPosition_},
+            modularTargets);
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             const Vec3 attackPosition =
                 attacker ? attacker->position : playerPosition_;
-            if (unlimitedResources_ ||
+            if (playerRespawning_ || unlimitedResources_ ||
                 playerInvulnerable_) {
                 continue;
             }
-            playerHealth_ = std::max(0.0, playerHealth_ - attack.damage);
-            events_.push_back({
-                .type = GameEventType::PlayerDamaged,
-                .sourceId = attack.enemyId,
-                .position = attackPosition,
-                .amount = static_cast<int>(attack.damage),
-            });
-            if (playerHealth_ <= 0.0) {
-                events_.push_back({
-                    .type = GameEventType::PlayerDied,
-                    .sourceId = attack.enemyId,
-                    .position = playerPosition_,
-                });
-                respawnPlayer();
-                events_.push_back({
-                    .type = GameEventType::PlayerRespawned,
-                    .position = playerPosition_,
-                });
+            damagePlayer(
+                attack.damage, attack.enemyId,
+                attackPosition);
+            if (playerRespawning_) {
                 break;
             }
         }
@@ -2332,6 +2345,79 @@ void Simulation::respawnPlayer() {
     playerHealth_ = gameplay_.playerMaxHealth;
 }
 
+void Simulation::damagePlayer(
+    double damage, std::optional<EntityId> attackerId,
+    Vec3 attackPosition) {
+    if (damage <= 0.0 || playerRespawning_ ||
+        unlimitedResources_ || playerInvulnerable_) {
+        return;
+    }
+    playerHealth_ = std::max(0.0, playerHealth_ - damage);
+    events_.push_back({
+        .type = GameEventType::PlayerDamaged,
+        .sourceId = attackerId,
+        .position = attackPosition,
+        .amount = static_cast<int>(damage),
+    });
+    if (playerHealth_ <= 0.0) {
+        beginPlayerRespawn(attackerId);
+    }
+}
+
+void Simulation::beginPlayerRespawn(
+    std::optional<EntityId> attackerId) {
+    const auto loss = [this](int carried) {
+        if (carried <= 0) {
+            return 0;
+        }
+        return std::min(
+            carried,
+            static_cast<int>(std::ceil(
+                static_cast<double>(carried) *
+                gameplay_.playerDeathResourceLossFraction)));
+    };
+    deathLostWood_ = loss(wood_);
+    deathLostStone_ = loss(stone_);
+    deathLostGold_ = loss(gold_);
+    wood_ -= deathLostWood_;
+    stone_ -= deathLostStone_;
+    gold_ -= deathLostGold_;
+    playerRespawning_ = true;
+    playerRespawnTimeRemaining_ =
+        gameplay_.playerRespawnSeconds;
+    verticalVelocity_ = 0.0;
+    playerGrounded_ = true;
+    buildingPreview_.reset();
+    aimedResource_.reset();
+    aimedEnemy_.reset();
+    aimedBuilding_.reset();
+    aimedModularBuilding_.reset();
+    events_.push_back({
+        .type = GameEventType::PlayerDied,
+        .sourceId = attackerId,
+        .position = playerPosition_,
+        .amount = deathLostWood_ + deathLostStone_ +
+                  deathLostGold_,
+    });
+}
+
+void Simulation::updatePlayerRespawn(double deltaSeconds) {
+    if (!playerRespawning_) {
+        return;
+    }
+    playerRespawnTimeRemaining_ = std::max(
+        0.0, playerRespawnTimeRemaining_ - deltaSeconds);
+    if (playerRespawnTimeRemaining_ > 0.0) {
+        return;
+    }
+    respawnPlayer();
+    playerRespawning_ = false;
+    events_.push_back({
+        .type = GameEventType::PlayerRespawned,
+        .position = playerPosition_,
+    });
+}
+
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
                              std::size_t firstAnchorIndex) {
     waveSpawnQueue_.assign(plan.spawns.begin(), plan.spawns.end());
@@ -2471,6 +2557,14 @@ SimulationSnapshot Simulation::snapshot() const {
         .playerGrounded = playerGrounded_,
         .playerHealth = playerHealth_,
         .playerMaxHealth = gameplay_.playerMaxHealth,
+        .playerRespawning = playerRespawning_,
+        .playerRespawnTimeRemaining =
+            playerRespawnTimeRemaining_,
+        .playerRespawnDuration =
+            gameplay_.playerRespawnSeconds,
+        .deathLostWood = deathLostWood_,
+        .deathLostStone = deathLostStone_,
+        .deathLostGold = deathLostGold_,
         .wood = wood_,
         .stone = stone_,
         .gold = gold_,
