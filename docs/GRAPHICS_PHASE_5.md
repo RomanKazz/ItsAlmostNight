@@ -27,7 +27,7 @@ waves or own simulation timing.
 - Sunset: Day through Dusk to Night (`0.25`–`0.75`).
 - Wave: Night (`0.75`).
 - Wave Complete: Night through Dawn to Day (`0.75`–`1.25`, cyclic).
-- Paused, Victory, and Defeat: retain the last visual time.
+- Paused and Defeat: retain the last visual time.
 
 This keeps the visual system downstream of game state while allowing debug
 time to run independently.

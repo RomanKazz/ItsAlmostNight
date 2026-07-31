@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cmath>
+#include <numeric>
 #include <utility>
 
 namespace ian {
@@ -11,6 +12,7 @@ namespace {
 
 constexpr double MinimumSpawnRadius = 20.0;
 constexpr double Pi = 3.14159265358979323846;
+constexpr int MaximumQuantityGrowthSteps = 90;
 
 std::vector<Vec3> defaultSpawnAnchors() {
     return {
@@ -82,32 +84,62 @@ WaveDirector::WaveDirector(
 
 WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
                                  std::size_t firstAnchorIndex) {
-    const int clampedWave = std::clamp(wave, 1, WaveCount);
-    const WaveDefinition& composition =
-        definitions_[static_cast<std::size_t>(clampedWave - 1)];
+    const int normalizedWave = std::max(1, wave);
+    const WaveDefinition composition =
+        this->composition(normalizedWave);
+    const double waveIndex =
+        static_cast<double>(normalizedWave - 1);
+    const double healthMultiplier =
+        1.0 + waveIndex * 0.10;
+    const double damageMultiplier =
+        1.0 + waveIndex * 0.06;
     firstAnchorIndex_ = firstAnchorIndex % spawnAnchors_.size();
     spawnBuffer_.clear();
-    append(EnemyType::Basic, composition.basic, corePosition, composition.groupSize);
-    append(EnemyType::Fast, composition.fast, corePosition, composition.groupSize);
-    append(EnemyType::Heavy, composition.heavy, corePosition, composition.groupSize);
+    spawnLimit_ = MaximumWaveEnemies -
+        static_cast<std::size_t>(composition.boss);
+    append(EnemyType::Basic, composition.basic, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
+    append(EnemyType::Fast, composition.fast, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
+    append(EnemyType::Heavy, composition.heavy, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Ranged, composition.ranged, corePosition,
-           composition.groupSize);
+           composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Sapper, composition.sapper, corePosition,
-           composition.groupSize);
+           composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Flying, composition.flying, corePosition,
-           composition.groupSize);
+           composition.groupSize, healthMultiplier, damageMultiplier);
     if (composition.boss) {
+        const int bossCycle = normalizedWave / ConfiguredWaveCount;
+        const double bossHealthMultiplier =
+            healthMultiplier *
+            (1.0 + 0.35 * static_cast<double>(bossCycle - 1));
+        const double bossDamageMultiplier =
+            damageMultiplier *
+            (1.0 + 0.20 * static_cast<double>(bossCycle - 1));
         const Vec3 anchor = safeSpawnAnchor(
             spawnAnchors_[firstAnchorIndex_], corePosition,
             firstAnchorIndex_, spawnAnchors_.size());
-        spawnBuffer_.push_back({
-            .type = EnemyType::Boss,
-            .position = {anchor.x, 1.6, anchor.z},
-        });
+        if (spawnBuffer_.size() < MaximumWaveEnemies) {
+            spawnBuffer_.push_back({
+                .type = EnemyType::Boss,
+                .position = {anchor.x, 1.6, anchor.z},
+                .healthMultiplier = bossHealthMultiplier,
+                .damageMultiplier = bossDamageMultiplier,
+            });
+        }
     }
+    const int actualRegularBudget =
+        std::accumulate(
+            spawnBuffer_.begin(), spawnBuffer_.end(), 0,
+            [](int budget, const EnemySpawn& spawn) {
+                return spawn.type == EnemyType::Boss
+                           ? budget
+                           : budget + enemyBudgetCost(spawn.type);
+            });
     return {
-        .wave = clampedWave,
-        .regularBudget = composition.budget,
+        .wave = normalizedWave,
+        .regularBudget = actualRegularBudget,
         .hasBoss = composition.boss,
         .groupSize = composition.groupSize,
         .groupInterval = composition.groupInterval,
@@ -115,14 +147,44 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     };
 }
 
-const WaveDefinition& WaveDirector::composition(int wave) const {
-    const int clampedWave = std::clamp(wave, 1, WaveCount);
-    return definitions_[static_cast<std::size_t>(clampedWave - 1)];
+WaveDefinition WaveDirector::composition(int wave) const {
+    const int normalizedWave = std::max(1, wave);
+    if (normalizedWave <= ConfiguredWaveCount) {
+        return definitions_[static_cast<std::size_t>(normalizedWave - 1)];
+    }
+
+    WaveDefinition result = definitions_.back();
+    const int extraWaves =
+        normalizedWave - ConfiguredWaveCount;
+    const int growth = std::min(
+        extraWaves, MaximumQuantityGrowthSteps);
+    result.basic += growth * 2;
+    result.fast += growth;
+    result.heavy += (growth + 1) / 2;
+    result.ranged += growth / 2;
+    result.sapper += (growth + 2) / 3;
+    result.flying += growth / 3;
+    result.boss = normalizedWave % ConfiguredWaveCount == 0;
+    result.groupSize = std::min(24, 10 + extraWaves / 4);
+    result.groupInterval = std::max(
+        0.35, 1.2 - 0.02 * static_cast<double>(extraWaves));
+    result.budget =
+        result.basic * enemyBudgetCost(EnemyType::Basic) +
+        result.fast * enemyBudgetCost(EnemyType::Fast) +
+        result.heavy * enemyBudgetCost(EnemyType::Heavy) +
+        result.ranged * enemyBudgetCost(EnemyType::Ranged) +
+        result.sapper * enemyBudgetCost(EnemyType::Sapper) +
+        result.flying * enemyBudgetCost(EnemyType::Flying);
+    return result;
 }
 
 void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
-                          int groupSize) {
-    for (int index = 0; index < count; ++index) {
+                          int groupSize, double healthMultiplier,
+                          double damageMultiplier) {
+    for (int index = 0;
+         index < count &&
+         spawnBuffer_.size() < spawnLimit_;
+         ++index) {
         const std::size_t globalIndex = spawnBuffer_.size();
         const std::size_t configuredGroupSize = static_cast<std::size_t>(groupSize);
         const std::size_t groupIndex = globalIndex / configuredGroupSize;
@@ -161,7 +223,12 @@ void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
             height,
             anchor.z + tangentZ * lane + outwardZ * depth,
         };
-        spawnBuffer_.push_back({type, position});
+        spawnBuffer_.push_back({
+            .type = type,
+            .position = position,
+            .healthMultiplier = healthMultiplier,
+            .damageMultiplier = damageMultiplier,
+        });
     }
 }
 

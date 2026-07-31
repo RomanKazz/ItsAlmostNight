@@ -720,8 +720,13 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const std::string tickText =
         "Simulation tick: " + std::to_string(snapshot.tick);
     drawUiText(tickText, {24.0F, 162.0F}, 20.0F, RAYWHITE);
-    drawUiText("Milestone: One Night", {24.0F, 206.0F}, 20.0F,
+    drawUiText("Mode: Endless Defense", {24.0F, 206.0F}, 20.0F,
                {245, 184, 76, 255});
+    drawUiText(
+        "Wave: " + std::to_string(snapshot.wave) +
+            "   Best: " + std::to_string(snapshot.bestWave),
+        {24.0F, 228.0F}, 18.0F,
+        {235, 218, 181, 245});
 
     const std::string playerHealthText =
         "Health: " +
@@ -790,7 +795,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     } else if (snapshot.state == RunState::Wave) {
         std::string text =
             "WAVE " + std::to_string(snapshot.wave) +
-            " / 6   Enemies: " +
+            "   BEST " + std::to_string(snapshot.bestWave) +
+            "   Enemies: " +
             std::to_string(snapshot.activeEnemyCount) +
             "   Incoming: " +
             std::to_string(snapshot.pendingEnemyCount);
@@ -1071,15 +1077,6 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
         drawCenteredUiText(
             "PAUSED", static_cast<float>(GetScreenHeight() / 2 - 24),
             48.0F, RAYWHITE);
-    } else if (snapshot.state == RunState::Victory) {
-        DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                      {0, 0, 0, 170});
-        drawCenteredUiText(
-            "VICTORY", static_cast<float>(GetScreenHeight() / 2 - 48),
-            56.0F, {88, 220, 130, 255});
-        drawCenteredUiText(
-            "R: restart", static_cast<float>(GetScreenHeight() / 2 + 24),
-            24.0F, RAYWHITE);
     } else if (snapshot.state == RunState::Defeat) {
         DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                       {0, 0, 0, 170});

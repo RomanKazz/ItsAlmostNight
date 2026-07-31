@@ -363,7 +363,7 @@ void EnemySystem::reset() {
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
     enemies_.clear();
     for (const Vec3 position : positions) {
-        appendEnemy(EnemyType::Basic, position);
+        appendEnemy({EnemyType::Basic, position});
     }
     rebuildSpatialIndex();
 }
@@ -375,7 +375,7 @@ void EnemySystem::spawnWave(std::span<const EnemySpawn> spawns) {
 
 void EnemySystem::spawnGroup(std::span<const EnemySpawn> spawns) {
     for (const EnemySpawn& spawn : spawns) {
-        appendEnemy(spawn.type, spawn.position);
+        appendEnemy(spawn);
     }
     rebuildSpatialIndex();
 }
@@ -982,8 +982,18 @@ std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {
     return playerAttackBuffer_;
 }
 
-void EnemySystem::appendEnemy(EnemyType type, Vec3 position) {
-    const EnemyDefinition stats = definitions_[static_cast<std::size_t>(type)];
+void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
+    if (activeCount() >= MaxActiveEnemies) {
+        return;
+    }
+    const EnemyType type = spawn.type;
+    const Vec3 position = spawn.position;
+    const EnemyDefinition stats =
+        definitions_[static_cast<std::size_t>(type)];
+    const double healthMultiplier =
+        std::max(0.01, spawn.healthMultiplier);
+    const double damageMultiplier =
+        std::max(0.01, spawn.damageMultiplier);
     const auto reusable =
         std::find_if(enemies_.begin(), enemies_.end(),
                      [](const EnemyInstance& enemy) { return !enemy.active; });
@@ -1011,10 +1021,10 @@ void EnemySystem::appendEnemy(EnemyType type, Vec3 position) {
         .id = id,
         .type = type,
         .position = position,
-        .health = stats.health,
-        .maxHealth = stats.health,
+        .health = stats.health * healthMultiplier,
+        .maxHealth = stats.health * healthMultiplier,
         .speed = stats.speed,
-        .damage = stats.damage,
+        .damage = stats.damage * damageMultiplier,
         .attackCooldownRemaining = 0.0,
         .hitAnimationRemaining = 0.0,
         .ramWindup = stats.ramWindup,

@@ -263,7 +263,7 @@ void Simulation::togglePause() {
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::MainMenu || state_ == RunState::Paused ||
-        state_ == RunState::Victory || state_ == RunState::Defeat) {
+        state_ == RunState::Defeat) {
         return;
     }
 
@@ -2338,8 +2338,10 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
 }
 
 void Simulation::beginPreparedWave() {
-    const std::size_t firstGroupSize =
-        std::min(static_cast<std::size_t>(waveSpawnGroupSize_), waveSpawnQueue_.size());
+    bestWave_ = std::max(bestWave_, wave_);
+    const std::size_t firstGroupSize = std::min({
+        static_cast<std::size_t>(waveSpawnGroupSize_),
+        waveSpawnQueue_.size(), MaximumActiveEnemies});
     enemies_.spawnWave(
         std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
@@ -2352,13 +2354,27 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
     waveSpawnTimeRemaining_ -= deltaSeconds;
     while (waveSpawnTimeRemaining_ <= 0.0 &&
            nextWaveSpawnIndex_ < waveSpawnQueue_.size()) {
-        const std::size_t remaining = waveSpawnQueue_.size() - nextWaveSpawnIndex_;
-        const std::size_t groupSize =
-            std::min(static_cast<std::size_t>(waveSpawnGroupSize_), remaining);
+        const std::size_t active = enemies_.activeCount();
+        if (active >= MaximumActiveEnemies) {
+            return;
+        }
+        const std::size_t remaining =
+            waveSpawnQueue_.size() - nextWaveSpawnIndex_;
+        const std::size_t groupSize = std::min({
+            static_cast<std::size_t>(waveSpawnGroupSize_),
+            remaining, MaximumActiveEnemies - active});
         enemies_.spawnGroup(std::span<const EnemySpawn>{
             waveSpawnQueue_.data() + nextWaveSpawnIndex_, groupSize});
         nextWaveSpawnIndex_ += groupSize;
-        waveSpawnTimeRemaining_ += waveSpawnInterval_;
+        if (groupSize <
+            std::min(
+                static_cast<std::size_t>(waveSpawnGroupSize_),
+                remaining)) {
+            waveSpawnTimeRemaining_ = 0.0;
+            return;
+        }
+        waveSpawnTimeRemaining_ +=
+            waveSpawnInterval_;
     }
 }
 
@@ -2378,22 +2394,15 @@ void Simulation::completeWave() {
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,
     });
-    if (wave_ >= WaveDirector::WaveCount) {
-        state_ = RunState::Victory;
-        phaseTimeRemaining_ = 0.0;
-        phaseDuration_ = 0.0;
-        events_.push_back({.type = GameEventType::RunEnded});
-    } else {
-        state_ = RunState::WaveComplete;
-        phaseTimeRemaining_ = gameplay_.dawnSeconds;
-        phaseDuration_ = phaseTimeRemaining_;
-    }
+    state_ = RunState::WaveComplete;
+    phaseTimeRemaining_ = gameplay_.dawnSeconds;
+    phaseDuration_ = phaseTimeRemaining_;
 }
 
 std::optional<TutorialObjective> Simulation::tutorialObjective() const {
     const RunState effectiveState =
         state_ == RunState::Paused ? stateBeforePause_ : state_;
-    if (effectiveState == RunState::MainMenu || effectiveState == RunState::Victory ||
+    if (effectiveState == RunState::MainMenu ||
         effectiveState == RunState::Defeat || effectiveState == RunState::WaveComplete ||
         wave_ > 1) {
         return std::nullopt;
@@ -2444,7 +2453,7 @@ SimulationSnapshot Simulation::snapshot() const {
                 *aimed, goldMines_, MaxBuildingLevel);
         }
     }
-    const WaveDefinition& upcomingComposition =
+    const WaveDefinition upcomingComposition =
         waveDirector_.composition(wave_ + 1);
     return {
         .state = state_,
@@ -2519,6 +2528,7 @@ SimulationSnapshot Simulation::snapshot() const {
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .wave = wave_,
+        .bestWave = bestWave_,
         .coreHealth = core ? core->health : 0.0,
         .coreMaxHealth = core ? core->maxHealth : 0.0,
         .coreId = core ? std::optional<EntityId>{core->id} : std::nullopt,

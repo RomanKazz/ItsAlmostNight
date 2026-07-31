@@ -20,7 +20,8 @@ struct WavePlan {
 
 class WaveDirector {
   public:
-    static constexpr int WaveCount = 6;
+    static constexpr int ConfiguredWaveCount = 6;
+    static constexpr std::size_t MaximumWaveEnemies = 512;
 
     explicit WaveDirector(
         std::array<WaveDefinition, GameBalance::WaveCount> definitions =
@@ -29,14 +30,19 @@ class WaveDirector {
 
     WavePlan buildWave(int wave, GridPosition corePosition,
                        std::size_t firstAnchorIndex = 0);
-    [[nodiscard]] const WaveDefinition& composition(int wave) const;
+    [[nodiscard]] WaveDefinition composition(int wave) const;
 
   private:
-    void append(EnemyType type, int count, GridPosition corePosition, int groupSize);
+    void append(
+        EnemyType type, int count,
+        GridPosition corePosition, int groupSize,
+        double healthMultiplier,
+        double damageMultiplier);
 
     std::vector<EnemySpawn> spawnBuffer_;
     std::vector<Vec3> spawnAnchors_;
     std::size_t firstAnchorIndex_{};
+    std::size_t spawnLimit_{MaximumWaveEnemies};
     std::array<WaveDefinition, GameBalance::WaveCount> definitions_;
 };
 

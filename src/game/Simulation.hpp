@@ -89,7 +89,6 @@ enum class RunState {
     Sunset,
     Wave,
     WaveComplete,
-    Victory,
     Defeat,
     Paused,
 };
@@ -162,6 +161,7 @@ struct SimulationSnapshot {
     double phaseTimeRemaining;
     double phaseDuration;
     int wave;
+    int bestWave;
     double coreHealth;
     double coreMaxHealth;
     std::optional<EntityId> coreId;
@@ -186,6 +186,9 @@ struct SimulationSnapshot {
 
 class Simulation {
   public:
+    static constexpr std::size_t MaximumActiveEnemies =
+        EnemySystem::MaxActiveEnemies;
+
     explicit Simulation(GameBalance balance = GameBalance::defaults(),
                         MapDefinition map = MapDefinition::defaults(),
                         WorldConfig worldConfig =
@@ -342,6 +345,7 @@ class Simulation {
     double phaseTimeRemaining_{};
     double phaseDuration_{};
     int wave_{};
+    int bestWave_{};
     std::vector<EnemySpawn> waveSpawnQueue_;
     std::size_t nextWaveSpawnIndex_{};
     int waveSpawnGroupSize_{1};

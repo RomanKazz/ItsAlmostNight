@@ -119,7 +119,6 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
-        snapshot.state != RunState::Victory &&
         snapshot.state != RunState::Defeat &&
         snapshot.playerGrounded;
     if (!movementAudible || !previousPlayerPosition_) {

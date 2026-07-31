@@ -867,9 +867,45 @@ void runSimulationTests() {
                 simulation.snapshot().phaseDuration, 1e-12,
                 "new day receives full preparation timer");
 
-    simulation.tick(1.0 / 60.0, unlimited);
+    for (int expectedWave = 2; expectedWave <= 7;
+         ++expectedWave) {
+        simulation.tick(1.0 / 60.0, startWaveEarly);
+        require(
+            simulation.snapshot().state ==
+                    ian::RunState::Wave &&
+                simulation.snapshot().wave == expectedWave,
+            "infinite cycle starts the next numbered wave");
+        const int goldBeforeReward =
+            simulation.snapshot().gold;
+        simulation.tick(1.0 / 60.0, defeatWave);
+        require(
+            simulation.snapshot().state ==
+                ian::RunState::WaveComplete,
+            "every cleared wave returns to dawn without victory");
+        require(
+            simulation.snapshot().gold ==
+                goldBeforeReward + 15 * expectedWave,
+            "endless wave reward remains fifteen times wave number");
+        if (expectedWave < 7) {
+            simulation.tick(
+                simulation.snapshot().phaseDuration);
+            require(
+                simulation.snapshot().state ==
+                    ian::RunState::BuildPhase,
+                "dawn returns to preparation after every wave");
+        }
+    }
+    require(
+        simulation.snapshot().wave == 7 &&
+            simulation.snapshot().bestWave == 7,
+        "snapshot exposes current wave and best reached record");
+    simulation.restartRun();
+    require(
+        simulation.snapshot().wave == 0 &&
+            simulation.snapshot().bestWave == 7,
+        "run restart preserves session wave record");
     require(!simulation.snapshot().unlimitedResources,
-            "unlimited resource command toggles cheat off");
+            "run restart disables unlimited resources");
     require(!simulation.snapshot().playerInvulnerable,
-            "disabling god mode also disables player invulnerability");
+            "run restart disables player invulnerability");
 }

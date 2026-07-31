@@ -305,14 +305,16 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
         const Json document = Json::parse(wavesJson);
         const Json& waves = document.at("waves");
         if (!waves.is_array() || waves.size() != GameBalance::WaveCount) {
-            throw std::runtime_error("expected exactly six waves");
+            throw std::runtime_error(
+                "expected six configured wave templates");
         }
         std::array<WaveDefinition, GameBalance::WaveCount> parsed{};
         for (std::size_t index = 0; index < parsed.size(); ++index) {
             parsed[index] = parseWave(waves.at(index));
         }
         if (!parsed.back().boss) {
-            throw std::runtime_error("final wave must contain boss");
+            throw std::runtime_error(
+                "sixth wave template must contain boss");
         }
         result.balance.waves = parsed;
     } catch (const std::exception& error) {

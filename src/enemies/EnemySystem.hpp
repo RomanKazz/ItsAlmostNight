@@ -67,6 +67,8 @@ struct EnemyInstance {
 struct EnemySpawn {
     EnemyType type;
     Vec3 position;
+    double healthMultiplier{1.0};
+    double damageMultiplier{1.0};
 };
 
 struct EnemyAttack {
@@ -100,6 +102,7 @@ struct EnemyPlayerAttack {
 class EnemySystem {
   public:
     static constexpr std::size_t MaxEnemies = 2048;
+    static constexpr std::size_t MaxActiveEnemies = 160;
 
     explicit EnemySystem(
         std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions =
@@ -135,7 +138,7 @@ class EnemySystem {
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
 
   private:
-    void appendEnemy(EnemyType type, Vec3 position);
+    void appendEnemy(const EnemySpawn& spawn);
     void rebuildSpatialIndex();
 
     std::vector<EnemyInstance> enemies_;

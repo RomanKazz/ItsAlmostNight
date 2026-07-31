@@ -170,6 +170,21 @@ void runEnemySystemTests() {
     require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 70.0,
             "boss uses final-wave stats");
 
+    ian::EnemySystem scaledEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> ScaledSpawn{{
+        {
+            .type = ian::EnemyType::Basic,
+            .position = {0.0, 0.8, -8.0},
+            .healthMultiplier = 2.5,
+            .damageMultiplier = 1.75,
+        },
+    }};
+    scaledEnemy.spawnWave(ScaledSpawn);
+    require(
+        scaledEnemy.enemies().front().health == 12.5 &&
+            scaledEnemy.enemies().front().damage == 17.5,
+        "wave multipliers scale enemy health and damage");
+
     ian::EnemySystem rangedEnemy;
     constexpr std::array<ian::EnemySpawn, 1> RangedSpawn{{
         {ian::EnemyType::Ranged, {0.5, 0.85, -6.0}},
@@ -306,11 +321,15 @@ void runEnemySystemTests() {
     }
     ian::EnemySystem stressEnemies;
     stressEnemies.spawnWave(stressSpawns);
-    require(stressEnemies.activeCount() == ian::EnemySystem::MaxEnemies,
-            "enemy pool caps oversized debug summon");
+    require(
+        stressEnemies.activeCount() ==
+            ian::EnemySystem::MaxActiveEnemies,
+        "enemy system caps simultaneous active enemies");
     stressEnemies.tick(1.0 / 60.0, buildings.buildings(), flowField);
-    require(stressEnemies.activeCount() == ian::EnemySystem::MaxEnemies,
-            "large enemy stress tick preserves active pool");
+    require(
+        stressEnemies.activeCount() ==
+            ian::EnemySystem::MaxActiveEnemies,
+        "large enemy stress tick preserves active cap");
 
     const ian::EntityId recycledId = stressEnemies.enemies().front().id;
     require(stressEnemies.damage(recycledId, 1000.0)->killed,
