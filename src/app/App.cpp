@@ -886,6 +886,7 @@ void App::render() {
             }
         };
     if (!foundationBuildMode_ &&
+        !snapshot.selectedBuilding &&
         snapshot.aimedModularBuilding &&
         std::ranges::any_of(
             snapshot.platformFrames,

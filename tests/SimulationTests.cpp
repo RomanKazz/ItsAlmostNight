@@ -373,6 +373,75 @@ void runSimulationTests() {
     {
         ian::MapDefinition map =
             ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        ian::Simulation elevatedBuilding{
+            ian::GameBalance::defaults(), map, world};
+        elevatedBuilding.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        elevatedBuilding.tick(1.0 / 60.0, unlimited);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core,
+                .gridPosition = {0, 0},
+            };
+        elevatedBuilding.tick(1.0 / 60.0, placeCore);
+        const auto ground =
+            elevatedBuilding.placeFoundation({4.2, 0.0, 4.2});
+        require(
+            ground.has_value(),
+            "elevated building fixture creates ground frame");
+        const auto upper = elevatedBuilding.placeFloorPlatform(
+            ground->anchor, 1,
+            ground->floorHeight +
+                ian::modularStoreyHeight(world));
+        require(
+            upper.has_value(),
+            "elevated building fixture creates upper platform");
+        const ian::GridPosition turretPosition{
+            upper->anchor.x + 1,
+            upper->anchor.z + 1};
+        require(
+            elevatedBuilding
+                .previewPlacement(
+                    ian::BuildingType::Turret,
+                    turretPosition,
+                    upper->floorHeight)
+                .valid(),
+            "ordinary building remains placeable on upper platform");
+        ian::PlayerCommand placeTurret;
+        placeTurret.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Turret,
+                .gridPosition = turretPosition,
+                .baseHeight = upper->floorHeight,
+                .platformStorey = upper->storey,
+                .lockHeight = true,
+            };
+        elevatedBuilding.tick(1.0 / 60.0, placeTurret);
+        require(
+            std::ranges::any_of(
+                elevatedBuilding.snapshot().buildings,
+                [turretPosition](
+                    const ian::BuildingInstance& building) {
+                    return building.type ==
+                               ian::BuildingType::Turret &&
+                           building.gridPosition ==
+                               turretPosition &&
+                           building.platformStorey == 1;
+                }),
+            "ordinary building is placed on upper platform");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
         map.resources = {
             {
                 .type = ian::ResourceType::Wood,

@@ -834,6 +834,10 @@ void App::processInput() {
                         ? 0U
                         : 1U;
             }
+            const ResourceCost dragCost =
+                currentSnapshot.buildingCosts[
+                    static_cast<std::size_t>(dragType)];
+            int queuedCount = 0;
             for (std::size_t index = 0;
                  index < count; ++index) {
                 const BuildingPlatformSurface surface =
@@ -848,6 +852,23 @@ void App::processInput() {
                               .previewPlacementSurface(
                                   dragType,
                                   cells[index]);
+                const PlacementResult placement =
+                    simulation_.previewPlacement(
+                        dragType, cells[index],
+                        surface.height);
+                if (!placement.valid()) {
+                    continue;
+                }
+                const int nextCount = queuedCount + 1;
+                if (!currentSnapshot.unlimitedResources &&
+                    (currentSnapshot.wood <
+                         dragCost.wood * nextCount ||
+                     currentSnapshot.stone <
+                         dragCost.stone * nextCount ||
+                     currentSnapshot.gold <
+                         dragCost.gold * nextCount)) {
+                    continue;
+                }
                 pendingWallPlacements_.push_back({
                     .type = dragType,
                     .gridPosition = cells[index],
@@ -857,6 +878,7 @@ void App::processInput() {
                         surface.storey,
                     .lockHeight = true,
                 });
+                queuedCount = nextCount;
             }
             wallDragStart_.reset();
             wallDragEnd_.reset();
