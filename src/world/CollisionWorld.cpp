@@ -441,11 +441,20 @@ Vec3 CollisionWorld::moveCircle(
                     return pointInsideExpandedBox(
                         position, radius, box);
                 });
+        // A jump can move the player's vertical range into a
+        // platform or ramp while their horizontal center is
+        // already inside its footprint. In that state the normal
+        // raised-surface sweep must permit movement until the
+        // expanded footprint has been exited, or every direction
+        // remains blocked forever.
+        const bool escapingRaisedSurface =
+            blockedByRaisedSurface(position);
         Vec3 candidate = position;
         candidate.x =
             std::clamp(candidate.x + stepX, -worldLimit_ + radius, worldLimit_ - radius);
         const bool blockedX =
-            blockedByRaisedSurface(candidate) ||
+            (!escapingRaisedSurface &&
+             blockedByRaisedSurface(candidate)) ||
             (!escapingCollider &&
              std::any_of(
                  colliders_.begin(), colliders_.end(),
@@ -461,7 +470,8 @@ Vec3 CollisionWorld::moveCircle(
         candidate.z =
             std::clamp(candidate.z + stepZ, -worldLimit_ + radius, worldLimit_ - radius);
         const bool blockedZ =
-            blockedByRaisedSurface(candidate) ||
+            (!escapingRaisedSurface &&
+             blockedByRaisedSurface(candidate)) ||
             (!escapingCollider &&
              std::any_of(
                  colliders_.begin(), colliders_.end(),

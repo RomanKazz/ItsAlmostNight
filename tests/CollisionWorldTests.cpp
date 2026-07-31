@@ -182,6 +182,16 @@ void runCollisionWorldTests() {
             std::abs(*rampLow - 3.0) < 1e-9 &&
             std::abs(*rampHigh - 5.0) < 1e-9,
         "ramp exposes continuous directional surface");
+    const auto escapedEmbeddedPlatform =
+        modularCollision.moveCircle(
+            {15.5, 1.9, 0.5},
+            {-2.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.85);
+    require(
+        escapedEmbeddedPlatform.x < 14.7,
+        "player can escape a platform intersection caused by"
+        " vertical movement");
 
     ian::CollisionWorld rampSweepCollision(
         48.0, {});
@@ -242,6 +252,16 @@ void runCollisionWorldTests() {
             clearedRamp.x > 4.5,
         "swept movement cannot tunnel through a ramp"
         " above the reachable step height");
+    const auto escapedEmbeddedRamp =
+        rampSweepCollision.moveCircle(
+            {2.0, 2.0, 1.0},
+            {-3.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.95);
+    require(
+        escapedEmbeddedRamp.x < -0.3,
+        "player can escape a ramp intersection caused by"
+        " vertical movement");
     const std::array<ian::PlatformFrameInstance, 1>
         overheadFrame{{
             {
