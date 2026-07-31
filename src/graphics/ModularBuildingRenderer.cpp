@@ -20,9 +20,9 @@ constexpr Color invalidPreviewColor{231, 82, 76, 168};
 constexpr Color unsupportedColor{204, 55, 51, 255};
 constexpr Color selectedColor{255, 229, 132, 255};
 
-bool previewObstructed(ModularPlacementError error) {
-    return error == ModularPlacementError::Occupied ||
-           error == ModularPlacementError::ResourceBlocked;
+bool previewOccupiesExistingBuilding(
+    ModularPlacementError error) {
+    return error == ModularPlacementError::Occupied;
 }
 
 void drawOccupiedFootprint(
@@ -94,11 +94,24 @@ void drawPlatformFrame(
         static_cast<float>(maximumX - minimumX);
     const float widthZ =
         static_cast<float>(maximumZ - minimumZ);
+    std::array<float, 4> supportLengths{};
+    for (std::size_t index = 0;
+         index < supports.size(); ++index) {
+        supportLengths[index] = static_cast<float>(
+            std::max(supports[index].length, 0.0));
+    }
+    const Color modelTint =
+        color.r == platformFrameColor.r &&
+                color.g == platformFrameColor.g &&
+                color.b == platformFrameColor.b
+            ? Color{255, 255, 255, color.a}
+            : color;
     if (includeSupports && renderer != nullptr &&
         renderer->drawPlatformFrameModel(
             {centerX, static_cast<float>(floorHeight),
              centerZ},
-            color, widthX * 0.5F)) {
+            modelTint, widthX * 0.5F,
+            supportLengths)) {
         return;
     }
     DrawCube(
@@ -397,11 +410,14 @@ void ModularBuildingRenderer::drawWorld(
 
     const bool obstructedSinglePreview =
         (preview.platformFrame &&
-         previewObstructed(preview.platformFrame->error)) ||
+         previewOccupiesExistingBuilding(
+             preview.platformFrame->error)) ||
         (preview.wall &&
-         previewObstructed(preview.wall->error)) ||
+         previewOccupiesExistingBuilding(
+             preview.wall->error)) ||
         (preview.ramp &&
-         previewObstructed(preview.ramp->error));
+         previewOccupiesExistingBuilding(
+             preview.ramp->error));
     bool translatedPreview = false;
     if (preview.visualOrigin &&
         !obstructedSinglePreview &&
@@ -466,7 +482,8 @@ void ModularBuildingRenderer::drawWorld(
     if (!preview.platformFrameLine.empty()) {
         for (const PlatformFramePlacement& placement :
              preview.platformFrameLine) {
-            if (previewObstructed(placement.error)) {
+            if (previewOccupiesExistingBuilding(
+                    placement.error)) {
                 drawOccupiedFootprint(
                     placement.anchor,
                     PlatformFrameWidthCells,
@@ -483,7 +500,8 @@ void ModularBuildingRenderer::drawWorld(
     } else if (!preview.wallLine.empty()) {
         for (const WallPlacement& placement :
              preview.wallLine) {
-            if (previewObstructed(placement.error)) {
+            if (previewOccupiesExistingBuilding(
+                    placement.error)) {
                 drawOccupiedFootprint(
                     placement.anchor, 1, 1,
                     placement.bottomHeight,
@@ -505,7 +523,8 @@ void ModularBuildingRenderer::drawWorld(
     } else if (!preview.rampLine.empty()) {
         for (const RampPlacement& placement :
              preview.rampLine) {
-            if (previewObstructed(placement.error)) {
+            if (previewOccupiesExistingBuilding(
+                    placement.error)) {
                 drawOccupiedRampFootprint(
                     placement, buildings.cellSize);
                 continue;
@@ -522,7 +541,7 @@ void ModularBuildingRenderer::drawWorld(
                 previewColor(placement.valid()));
         }
     } else if (preview.platformFrame) {
-        if (previewObstructed(
+        if (previewOccupiesExistingBuilding(
                 preview.platformFrame->error)) {
             drawOccupiedFootprint(
                 preview.platformFrame->anchor,
@@ -539,7 +558,8 @@ void ModularBuildingRenderer::drawWorld(
     } else if (preview.wall &&
                preview.wall->topHeight >
                    preview.wall->bottomHeight) {
-        if (previewObstructed(preview.wall->error)) {
+        if (previewOccupiesExistingBuilding(
+                preview.wall->error)) {
             drawOccupiedFootprint(
                 preview.wall->anchor, 1, 1,
                 preview.wall->bottomHeight,
@@ -555,7 +575,8 @@ void ModularBuildingRenderer::drawWorld(
     } else if (preview.ramp &&
                preview.ramp->topHeight >
                    preview.ramp->bottomHeight) {
-        if (previewObstructed(preview.ramp->error)) {
+        if (previewOccupiesExistingBuilding(
+                preview.ramp->error)) {
             drawOccupiedRampFootprint(
                 *preview.ramp, buildings.cellSize);
         } else {

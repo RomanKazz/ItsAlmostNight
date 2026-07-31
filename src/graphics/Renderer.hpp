@@ -7,6 +7,7 @@
 
 #include <raylib.h>
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -169,7 +170,8 @@ class Renderer {
                                 float scale = 1.0F);
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
-        float scale = 1.0F);
+        float scale = 1.0F,
+        const std::array<float, 4>& supportLengths = {});
     [[nodiscard]] bool drawMine(Vector3 position,
                                 float yawRadians = 0.0F,
                                 Color tint = WHITE,

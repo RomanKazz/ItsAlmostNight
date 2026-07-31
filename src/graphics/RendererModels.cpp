@@ -696,12 +696,18 @@ bool Renderer::drawMine(Vector3 position, float yawRadians,
 }
 
 bool Renderer::drawPlatformFrameModel(
-    Vector3 topCenter, Color tint, float scale) {
+    Vector3 topCenter, Color tint, float scale,
+    const std::array<float, 4>& supportLengths) {
     auto& resource = resources_.platformModel();
     if (!resource.valid()) {
         return false;
     }
     Model& model = resource.get();
+    constexpr int LegCount = 4;
+    constexpr int TopMeshIndex = 4;
+    if (model.meshCount <= TopMeshIndex) {
+        return false;
+    }
     Shader* shader = nullptr;
     if (selectionMaskPassOpen_ &&
         resources_.selectionMaskShader().valid()) {
@@ -719,9 +725,53 @@ bool Renderer::drawPlatformFrameModel(
             model.materials[index].shader = *shader;
         }
     }
-    DrawModelEx(
-        model, topCenter, {0.0F, 1.0F, 0.0F}, 0.0F,
-        {scale, scale, scale}, tint);
+    const auto drawMesh = [&model, tint](
+                              int meshIndex,
+                              Matrix transform) {
+        const int materialIndex =
+            model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint(original, tint);
+        DrawMesh(
+            model.meshes[meshIndex], material,
+            MatrixMultiply(model.transform, transform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+
+    const Matrix worldTranslation = MatrixTranslate(
+        topCenter.x, topCenter.y, topCenter.z);
+    const Matrix topTransform = MatrixMultiply(
+        MatrixScale(scale, 1.0F, scale),
+        worldTranslation);
+    drawMesh(TopMeshIndex, topTransform);
+
+    // The authored legs start 0.1248 m below the grid plane and
+    // end exactly 4 m below it. Scale every leg around its own top
+    // so uneven terrain keeps all feet on the ground.
+    constexpr float LegTopY = -0.12480831F;
+    constexpr float LegSpan = 3.87519169F;
+    for (int legIndex = 0; legIndex < LegCount;
+         ++legIndex) {
+        const float length = std::max(
+            supportLengths[static_cast<std::size_t>(legIndex)],
+            -LegTopY);
+        const float verticalScale =
+            std::max((length + LegTopY) / LegSpan, 0.01F);
+        Matrix transform = MatrixTranslate(
+            0.0F, -LegTopY, 0.0F);
+        transform = MatrixMultiply(
+            transform,
+            MatrixScale(scale, verticalScale, scale));
+        transform = MatrixMultiply(
+            transform,
+            MatrixTranslate(0.0F, LegTopY, 0.0F));
+        transform = MatrixMultiply(
+            transform, worldTranslation);
+        drawMesh(legIndex, transform);
+    }
     return true;
 }
 
