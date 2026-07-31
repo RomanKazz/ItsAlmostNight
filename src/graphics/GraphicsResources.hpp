@@ -192,6 +192,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& arrowModel();
     [[nodiscard]] ModelResource& crossbowModel();
     [[nodiscard]] ModelResource& coreModel();
+    [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& mineModel();
     [[nodiscard]] ModelResource& lumberMillModel();
     [[nodiscard]] ModelResource& quarryModel();
@@ -243,6 +244,7 @@ class GraphicsResources {
     ModelResource arrowModel_;
     ModelResource crossbowModel_;
     ModelResource coreModel_;
+    ModelResource platformModel_;
     ModelResource mineModel_;
     ModelResource lumberMillModel_;
     ModelResource quarryModel_;

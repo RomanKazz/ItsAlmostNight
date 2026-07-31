@@ -7,6 +7,8 @@
 
 namespace ian {
 
+class Renderer;
+
 struct ModularAnimationScale {
     EntityId id;
     float scale{1.0F};
@@ -40,11 +42,15 @@ struct ModularBuildingPreviewView {
 
 class ModularBuildingRenderer {
   public:
+    void setRenderer(Renderer* renderer);
     void drawWorld(
         const ModularBuildingView& buildings,
         const ModularBuildingPreviewView& preview) const;
     void drawShadow(
         const ModularBuildingView& buildings) const;
+
+  private:
+    Renderer* renderer_{};
 };
 
 } // namespace ian

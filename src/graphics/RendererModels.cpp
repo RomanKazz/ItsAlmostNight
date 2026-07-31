@@ -695,6 +695,36 @@ bool Renderer::drawMine(Vector3 position, float yawRadians,
         tint, scale);
 }
 
+bool Renderer::drawPlatformFrameModel(
+    Vector3 topCenter, Color tint, float scale) {
+    auto& resource = resources_.platformModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (
+        shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount;
+             ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    DrawModelEx(
+        model, topCenter, {0.0F, 1.0F, 0.0F}, 0.0F,
+        {scale, scale, scale}, tint);
+    return true;
+}
+
 bool Renderer::drawResourceProducer(
     BuildingType type, Vector3 position, float yawRadians,
     Color tint, float scale) {

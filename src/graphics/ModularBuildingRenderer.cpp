@@ -1,4 +1,5 @@
 #include "graphics/ModularBuildingRenderer.hpp"
+#include "graphics/Renderer.hpp"
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -73,6 +74,7 @@ void drawOccupiedRampFootprint(
 }
 
 void drawPlatformFrame(
+    Renderer* renderer,
     double floorHeight,
     const std::array<FoundationSupport, 4>& supports,
     Color color, bool includeSupports) {
@@ -84,14 +86,6 @@ void drawPlatformFrame(
         supports[0].top.z, supports[1].top.z);
     const double maximumZ = std::max(
         supports[2].top.z, supports[3].top.z);
-    DrawCube(
-        {
-            static_cast<float>((minimumX + maximumX) * 0.5),
-            static_cast<float>(floorHeight - 0.09),
-            static_cast<float>((minimumZ + maximumZ) * 0.5),
-        },
-        static_cast<float>(maximumX - minimumX), 0.18F,
-        static_cast<float>(maximumZ - minimumZ), color);
     const float centerX =
         static_cast<float>((minimumX + maximumX) * 0.5);
     const float centerZ =
@@ -100,6 +94,17 @@ void drawPlatformFrame(
         static_cast<float>(maximumX - minimumX);
     const float widthZ =
         static_cast<float>(maximumZ - minimumZ);
+    if (includeSupports && renderer != nullptr &&
+        renderer->drawPlatformFrameModel(
+            {centerX, static_cast<float>(floorHeight),
+             centerZ},
+            color, widthX * 0.5F)) {
+        return;
+    }
+    DrawCube(
+        {centerX, static_cast<float>(floorHeight - 0.09),
+         centerZ},
+        widthX, 0.18F, widthZ, color);
     const float beamY =
         static_cast<float>(floorHeight - 0.24);
     constexpr float BeamThickness = 0.14F;
@@ -204,6 +209,7 @@ Color previewColor(bool valid) {
 }
 
 void drawPlatformFramePreview(
+    Renderer* renderer,
     const PlatformFramePlacement& placement,
     double maximumWoodSupportLength) {
     const double widthX = std::abs(
@@ -231,6 +237,7 @@ void drawPlatformFramePreview(
             : (longSupports ? warningPreviewColor
                             : validPreviewColor);
     drawPlatformFrame(
+        renderer,
         placement.floorHeight, placement.supports,
         color, true);
 }
@@ -287,6 +294,11 @@ void drawScaled(
 
 } // namespace
 
+void ModularBuildingRenderer::setRenderer(
+    Renderer* renderer) {
+    renderer_ = renderer;
+}
+
 void ModularBuildingRenderer::drawWorld(
     const ModularBuildingView& buildings,
     const ModularBuildingPreviewView& preview) const {
@@ -311,6 +323,7 @@ void ModularBuildingRenderer::drawWorld(
                 frame.id, buildings.animationScales),
             [&] {
                 drawPlatformFrame(
+                    renderer_,
                     frame.floorHeight, frame.supports,
                     Fade(
                         instanceColor(
@@ -463,6 +476,7 @@ void ModularBuildingRenderer::drawWorld(
                 continue;
             }
             drawPlatformFramePreview(
+                renderer_,
                 placement,
                 preview.maximumWoodSupportLength);
         }
@@ -518,6 +532,7 @@ void ModularBuildingRenderer::drawWorld(
                 buildings.cellSize);
         } else {
             drawPlatformFramePreview(
+                renderer_,
                 *preview.platformFrame,
                 preview.maximumWoodSupportLength);
         }
@@ -594,6 +609,7 @@ void ModularBuildingRenderer::drawShadow(
                 frame.id, buildings.animationScales),
             [&] {
                 drawPlatformFrame(
+                    renderer_,
                     frame.floorHeight, frame.supports,
                     WHITE, true);
             });

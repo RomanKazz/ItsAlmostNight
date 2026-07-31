@@ -285,6 +285,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     arrowModel_.load("assets/models/arrow.glb");
     crossbowModel_.load("assets/models/crossbow.glb");
     coreModel_.load("assets/models/core.glb");
+    platformModel_.load("assets/models/platform.glb");
     mineModel_.load("assets/models/mine.glb");
     lumberMillModel_.load(
         "assets/models/lumber_mill.glb");
@@ -424,6 +425,7 @@ void GraphicsResources::shutdown() {
     quarryModel_.unload();
     lumberMillModel_.unload();
     mineModel_.unload();
+    platformModel_.unload();
     coreModel_.unload();
     crossbowModel_.unload();
     arrowModel_.unload();
@@ -589,6 +591,10 @@ ModelResource& GraphicsResources::crossbowModel() {
 
 ModelResource& GraphicsResources::coreModel() {
     return coreModel_;
+}
+
+ModelResource& GraphicsResources::platformModel() {
+    return platformModel_;
 }
 
 ModelResource& GraphicsResources::mineModel() {

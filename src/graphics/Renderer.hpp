@@ -167,6 +167,9 @@ class Renderer {
     [[nodiscard]] bool drawCore(Vector3 position, float yawRadians = 0.0F,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
+    [[nodiscard]] bool drawPlatformFrameModel(
+        Vector3 topCenter, Color tint = WHITE,
+        float scale = 1.0F);
     [[nodiscard]] bool drawMine(Vector3 position,
                                 float yawRadians = 0.0F,
                                 Color tint = WHITE,

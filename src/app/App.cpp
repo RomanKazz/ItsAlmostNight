@@ -855,6 +855,7 @@ int App::run() {
     SetTargetFPS(144);
     renderer_.emplace();
     renderer_->initialize();
+    modularBuildingRenderer_.setRenderer(&*renderer_);
     renderer_->rebuildTerrain(simulation_.terrain());
     ui_.initialize();
     audio_.initialize();
@@ -867,6 +868,7 @@ int App::run() {
 
     ui_.shutdown();
     audio_.shutdown();
+    modularBuildingRenderer_.setRenderer(nullptr);
     renderer_->shutdown();
     renderer_.reset();
     CloseWindow();
