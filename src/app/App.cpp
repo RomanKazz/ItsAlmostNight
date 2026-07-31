@@ -869,6 +869,39 @@ int App::run() {
 
 void App::render() {
     const auto snapshot = simulation_.snapshot();
+    structuralRiskIds_.clear();
+    std::vector<EntityId> structuralRiskRoots;
+    const auto addStructuralRiskRoot =
+        [&structuralRiskRoots](EntityId support) {
+            if (std::ranges::find(
+                    structuralRiskRoots, support) ==
+                structuralRiskRoots.end()) {
+                structuralRiskRoots.push_back(support);
+            }
+        };
+    if (!foundationBuildMode_ &&
+        snapshot.aimedModularBuilding &&
+        std::ranges::any_of(
+            snapshot.platformFrames,
+            [&snapshot](const PlatformFrameInstance& frame) {
+                return frame.id ==
+                       *snapshot.aimedModularBuilding;
+            })) {
+        addStructuralRiskRoot(
+            *snapshot.aimedModularBuilding);
+    }
+    for (const EntityId target : removalDragTargets_) {
+        if (std::ranges::any_of(
+                snapshot.platformFrames,
+                [target](const PlatformFrameInstance& frame) {
+                    return frame.id == target;
+                })) {
+            addStructuralRiskRoot(target);
+        }
+    }
+    structuralRiskIds_ =
+        simulation_.structuralCollapseRisk(
+            structuralRiskRoots);
     auto presentationSnapshot = snapshot;
     presentationSnapshot.aimedResource = hoveredResource_;
     presentationSnapshot.aimedBuilding = hoveredBuilding_;
@@ -914,7 +947,8 @@ void App::render() {
         };
         const float bobAmount =
             static_cast<float>(cameraBobAmount_) *
-            (input_.sprint ? 1.12F : 1.0F);
+            (input_.sprint ? 1.12F : 1.0F) *
+            motionBobIntensity_;
         const float bobSide =
             static_cast<float>(
                 std::sin(cameraBobPhase_)) *
@@ -934,9 +968,11 @@ void App::render() {
             position,
             Vector3Scale(
                 bobRight,
-                static_cast<float>(cameraLookYawLag_ * 0.42)));
+                static_cast<float>(cameraLookYawLag_ * 0.42) *
+                    motionSwayIntensity_));
         position.y += static_cast<float>(
-            cameraLookPitchLag_ * 0.32);
+            cameraLookPitchLag_ * 0.32) *
+            motionSwayIntensity_;
         position = Vector3Add(
             position,
             Vector3Scale(bobRight, bobSide));
@@ -946,11 +982,12 @@ void App::render() {
                 {0.0F, 1.0F, 0.0F},
                 Vector3Scale(
                     bobRight,
-                    -static_cast<float>(
-                        std::sin(cameraBobPhase_)) *
-                        0.0045F * bobAmount -
-                        static_cast<float>(
-                            cameraStrafeLean_))));
+                    (-static_cast<float>(
+                         std::sin(cameraBobPhase_)) *
+                         0.0045F * bobAmount -
+                     static_cast<float>(
+                         cameraStrafeLean_) *
+                         motionSwayIntensity_))));
         if (landingResponseRemaining_ > 0.0 &&
             landingResponseDuration_ > 0.0) {
             const double progress = std::clamp(
@@ -959,7 +996,8 @@ void App::render() {
                 0.0, 1.0);
             const float landingCurve = static_cast<float>(
                 std::sin(progress * PI) *
-                landingResponseStrength_);
+                landingResponseStrength_) *
+                motionLandingIntensity_;
             position.y -= landingCurve * 0.052F;
             forward.y -= landingCurve * 0.012F;
             forward = Vector3Normalize(forward);
@@ -968,14 +1006,17 @@ void App::render() {
             position,
             Vector3Scale(
                 bobRight,
-                static_cast<float>(cameraImpulseOffset_.x)));
+                static_cast<float>(cameraImpulseOffset_.x) *
+                    motionShakeIntensity_));
         position.y +=
-            static_cast<float>(cameraImpulseOffset_.y);
+            static_cast<float>(cameraImpulseOffset_.y) *
+            motionShakeIntensity_;
         position = Vector3Add(
             position,
             Vector3Scale(
                 forward,
-                static_cast<float>(cameraImpulseOffset_.z)));
+                static_cast<float>(cameraImpulseOffset_.z) *
+                    motionShakeIntensity_));
         if (weaponRecoilRemaining_ > 0.0 &&
             weaponRecoilDuration_ > 0.0) {
             const float progress = std::clamp(
@@ -995,7 +1036,8 @@ void App::render() {
         if (cameraShakeRemaining_ > 0.0) {
             const double visualTime = GetTime();
             const float shake =
-                static_cast<float>(cameraShakeStrength_ * cameraShakeRemaining_ / 0.35);
+                static_cast<float>(cameraShakeStrength_ * cameraShakeRemaining_ / 0.35) *
+                motionShakeIntensity_;
             position.x += static_cast<float>(std::sin(visualTime * 83.0)) * shake;
             position.y += static_cast<float>(std::cos(visualTime * 97.0)) * shake * 0.7F;
             position.z += static_cast<float>(std::sin(visualTime * 71.0)) * shake * 0.5F;
@@ -1487,6 +1529,40 @@ void App::render() {
                 static_cast<float>(
                     GetScreenHeight() / 2 + 102),
                 18.0F, messageColor);
+            if (modularDragPiece_) {
+                const ResourceCost cost =
+                    snapshot.modularBuildingCosts[
+                        static_cast<std::size_t>(
+                            *modularDragPiece_)];
+                const int count =
+                    static_cast<int>(plannedCount);
+                const std::string lineCost =
+                    std::to_string(count) +
+                    " PIECES    W:" +
+                    std::to_string(cost.wood * count) +
+                    "  S:" +
+                    std::to_string(cost.stone * count) +
+                    "  C:" +
+                    std::to_string(cost.gold * count);
+                constexpr float Width = 470.0F;
+                const float x =
+                    static_cast<float>(GetScreenWidth()) *
+                        0.5F -
+                    Width * 0.5F;
+                const float y =
+                    static_cast<float>(GetScreenHeight()) *
+                        0.5F +
+                    130.0F;
+                ui_.drawPanel(
+                    {x, y, Width, 54.0F}, 230);
+                const float textWidth =
+                    measureUiText(lineCost, 15.0F).x;
+                drawUiText(
+                    lineCost,
+                    {x + (Width - textWidth) * 0.5F,
+                     y + 12.0F},
+                    15.0F, {255, 235, 184, 255});
+            }
         }
         if (wallDragStart_ && wallDragEnd_ &&
             placementDragType_) {
@@ -1535,6 +1611,17 @@ void App::render() {
                 static_cast<float>(
                     GetScreenHeight() / 2 + 76),
                 20.0F, {255, 104, 91, 255});
+        }
+        if (!structuralRiskIds_.empty()) {
+            drawCenteredUiText(
+                "COLLAPSE RISK: " +
+                    std::to_string(
+                        structuralRiskIds_.size()) +
+                    " DEPENDENT PARTS",
+                static_cast<float>(
+                    GetScreenHeight() / 2 +
+                    (removalDragActive_ ? 106 : 132)),
+                17.0F, {255, 197, 82, 255});
         }
         drawResourceGainVisuals(camera);
 

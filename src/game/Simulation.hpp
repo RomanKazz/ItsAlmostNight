@@ -248,6 +248,8 @@ class Simulation {
     placeRamp(Vec3 terrainHit, Rotation rotation);
     void setStructuralCollapseEnabled(bool enabled);
     [[nodiscard]] bool structuralCollapseEnabled() const;
+    [[nodiscard]] std::vector<EntityId> structuralCollapseRisk(
+        std::span<const EntityId> supports) const;
     [[nodiscard]] std::size_t clearModularBuildings();
     std::vector<GameEvent> takeEvents();
 

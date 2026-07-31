@@ -41,7 +41,7 @@ void App::drawGraphicsPanel() {
     const float TabY = compact ? 108.0F : 150.0F;
     const float TabHeight = compact ? 44.0F : 58.0F;
     const float tabWidth =
-        (contentWidth - Gap * 2.0F) / 3.0F;
+        (contentWidth - Gap * 3.0F) / 4.0F;
     if (ui_.drawToggleButton(
             {contentX, panelY + TabY, tabWidth,
              TabHeight},
@@ -60,6 +60,12 @@ void App::drawGraphicsPanel() {
              panelY + TabY, tabWidth, TabHeight},
             "STYLE LAB", graphicsPanelTab_ == 2)) {
         graphicsPanelTab_ = 2;
+    }
+    if (ui_.drawToggleButton(
+            {contentX + (tabWidth + Gap) * 3.0F,
+             panelY + TabY, tabWidth, TabHeight},
+            "MOTION", graphicsPanelTab_ == 3)) {
+        graphicsPanelTab_ = 3;
     }
 
     const auto toggleButton =
@@ -254,7 +260,7 @@ void App::drawGraphicsPanel() {
             renderer_->setGraphicsPanelVisible(false);
         }
         settings.postProcessing = true;
-    } else {
+    } else if (graphicsPanelTab_ == 2) {
         const auto styleSlider =
             [this, contentX, columnWidth, panelY, Gap,
              ControlStartY, RowHeight, compact](
@@ -357,6 +363,62 @@ void App::drawGraphicsPanel() {
             settings.paperGrainStrength = 0.035F;
         }
         settings.postProcessing = true;
+    } else {
+        const auto motionSlider =
+            [this, contentX, contentWidth, panelY,
+             ControlStartY, RowHeight, compact](
+                int row, const char* label, float& value) {
+                const float y =
+                    panelY + ControlStartY +
+                    static_cast<float>(row) * RowHeight;
+                drawUiText(
+                    TextFormat("%s  %d%%", label,
+                               static_cast<int>(
+                                   std::lround(value * 100.0F))),
+                    {contentX, y}, 15.0F,
+                    {245, 220, 174, 255});
+                ui_.drawInsetPanel(
+                    {contentX,
+                     y + (compact ? 20.0F : 29.0F),
+                     contentWidth,
+                     compact ? 27.0F : 36.0F},
+                    235);
+                value = ui_.drawSliderBar(
+                    {contentX + 8.0F,
+                     y + (compact ? 23.0F : 35.0F),
+                     contentWidth - 16.0F,
+                     compact ? 20.0F : 24.0F},
+                    value, 0.0F, 1.5F);
+            };
+        motionSlider(
+            0, "CAMERA BOB", motionBobIntensity_);
+        motionSlider(
+            1, "CAMERA SHAKE", motionShakeIntensity_);
+        motionSlider(
+            2, "LANDING RESPONSE", motionLandingIntensity_);
+        motionSlider(
+            3, "LOOK & STRAFE SWAY", motionSwayIntensity_);
+
+        const float actionY =
+            panelY + ControlStartY + RowHeight * 4.0F +
+            (compact ? 8.0F : 16.0F);
+        if (ui_.drawButton(
+                {contentX, actionY, columnWidth, ButtonHeight},
+                "RESET MOTION")) {
+            motionBobIntensity_ = 1.0F;
+            motionShakeIntensity_ = 1.0F;
+            motionLandingIntensity_ = 1.0F;
+            motionSwayIntensity_ = 1.0F;
+        }
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap, actionY,
+                 columnWidth, ButtonHeight},
+                "DISABLE MOTION")) {
+            motionBobIntensity_ = 0.0F;
+            motionShakeIntensity_ = 0.0F;
+            motionLandingIntensity_ = 0.0F;
+            motionSwayIntensity_ = 0.0F;
+        }
     }
 
     drawUiText(

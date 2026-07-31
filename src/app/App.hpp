@@ -164,6 +164,7 @@ class App {
         queuedModularBuildingRemovals_;
     bool removalDragActive_{};
     std::vector<EntityId> removalDragTargets_;
+    std::vector<EntityId> structuralRiskIds_;
     std::optional<BuildingInstance> pendingSoldBuildingVisual_;
     std::uint8_t pendingSoldWallConnections_{};
     bool pendingWeaponToggle_{};
@@ -197,6 +198,10 @@ class App {
     double landingResponseRemaining_{};
     double landingResponseDuration_{0.24};
     double landingResponseStrength_{};
+    float motionBobIntensity_{1.0F};
+    float motionShakeIntensity_{1.0F};
+    float motionLandingIntensity_{1.0F};
+    float motionSwayIntensity_{1.0F};
     std::vector<DamageIndicator> damageIndicators_;
     std::vector<FloatingDamageNumber> floatingDamageNumbers_;
     std::vector<ResourceGainVisual> resourceGainVisuals_;

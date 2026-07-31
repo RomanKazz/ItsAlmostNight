@@ -30,6 +30,18 @@ void runFoundationSystemTests() {
                 graph.dependentCount(upper) == 1U &&
                 graph.dependentCount(roof) == 0U,
             "structural graph reports recursive collapse impact");
+        const auto collapsePreview =
+            graph.dependentIds(ground);
+        require(
+            collapsePreview.size() == 2U &&
+                std::ranges::find(collapsePreview, upper) !=
+                    collapsePreview.end() &&
+                std::ranges::find(collapsePreview, roof) !=
+                    collapsePreview.end(),
+            "structural graph exposes collapse preview ids");
+        require(
+            graph.collapseRiskIds(ground) == collapsePreview,
+            "single support collapse preview matches dependents");
         require(
             graph.remove(ground) &&
                 graph.unsupportedCount() == 2,
@@ -39,6 +51,26 @@ void runFoundationSystemTests() {
                 graph.update(0.5, true, 1.0).size() ==
                     2,
             "unsupported frames collapse after delay");
+    }
+    {
+        ian::StructuralSupportGraph graph;
+        const ian::EntityId left{10U, 1U};
+        const ian::EntityId right{11U, 1U};
+        const ian::EntityId bridge{12U, 1U};
+        const std::array supports{left, right};
+        require(
+            graph.add(left, true) &&
+                graph.add(right, true) &&
+                graph.add(bridge, false, supports),
+            "structural graph creates redundant support");
+        require(
+            graph.dependentCount(left) == 1U &&
+                graph.collapseRiskIds(left).empty(),
+            "collapse preview respects alternate support");
+        require(
+            graph.collapseRiskIds(supports) ==
+                std::vector<ian::EntityId>{bridge},
+            "collapse preview combines multiple removed supports");
     }
 
     ian::WorldConfig config =

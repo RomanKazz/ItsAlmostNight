@@ -813,6 +813,52 @@ bool Simulation::structuralCollapseEnabled() const {
     return foundations_.structuralCollapseEnabled();
 }
 
+std::vector<EntityId> Simulation::structuralCollapseRisk(
+    std::span<const EntityId> supports) const {
+    std::vector<EntityId> result =
+        foundations_.structuralGraph().collapseRiskIds(supports);
+    std::vector<EntityId> affectedFrames = result;
+    affectedFrames.insert(
+        affectedFrames.end(), supports.begin(), supports.end());
+    for (const BuildingInstance& building :
+         buildings_.buildings()) {
+        if (building.platformStorey < 0) {
+            continue;
+        }
+        const bool twoByTwo =
+            buildingFootprintHalfExtent(building.type) > 0.75;
+        const int widthCells = twoByTwo ? 2 : 1;
+        const int minimumX =
+            twoByTwo ? building.gridPosition.x - 1
+                     : building.gridPosition.x;
+        const int minimumZ =
+            twoByTwo ? building.gridPosition.z - 1
+                     : building.gridPosition.z;
+        const bool losesPlatform = std::ranges::any_of(
+            foundations_.platformFrames(),
+            [&](const PlatformFrameInstance& frame) {
+                return std::ranges::find(
+                           affectedFrames, frame.id) !=
+                           affectedFrames.end() &&
+                       frame.storey == building.platformStorey &&
+                       std::abs(frame.floorHeight -
+                                building.baseHeight) <= 0.05 &&
+                       minimumX >= frame.anchor.x &&
+                       minimumZ >= frame.anchor.z &&
+                       minimumX + widthCells <=
+                           frame.anchor.x +
+                               PlatformFrameWidthCells &&
+                       minimumZ + widthCells <=
+                           frame.anchor.z +
+                               PlatformFrameWidthCells;
+            });
+        if (losesPlatform) {
+            result.push_back(building.id);
+        }
+    }
+    return result;
+}
+
 std::size_t Simulation::clearModularBuildings() {
     aimedModularBuilding_.reset();
     const std::size_t removed = foundations_.clear();

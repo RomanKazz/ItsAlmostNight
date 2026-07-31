@@ -467,6 +467,87 @@ void App::drawWorldOverlays(
                        : simulation_.previewPlacement(
                              type, position);
         };
+    const auto drawDirectionArrow =
+        [](Vector3 start, Vector3 end) {
+            const Vector3 delta = Vector3Subtract(end, start);
+            const float length = Vector3Length(delta);
+            if (length < 0.2F) {
+                return;
+            }
+            const Vector3 direction =
+                Vector3Scale(delta, 1.0F / length);
+            const Vector3 side{
+                -direction.z, 0.0F, direction.x};
+            constexpr Color ArrowColor{255, 205, 74, 245};
+            DrawCylinderEx(
+                start, end, 0.035F, 0.035F, 8,
+                ArrowColor);
+            const Vector3 headBase = Vector3Subtract(
+                end, Vector3Scale(direction, 0.42F));
+            DrawCylinderEx(
+                end,
+                Vector3Add(
+                    headBase, Vector3Scale(side, 0.25F)),
+                0.045F, 0.018F, 8, ArrowColor);
+            DrawCylinderEx(
+                end,
+                Vector3Subtract(
+                    headBase, Vector3Scale(side, 0.25F)),
+                0.045F, 0.018F, 8, ArrowColor);
+        };
+    if (modularDragStart_ && modularDragEnd_ &&
+        modularDragPiece_) {
+        const double cellSize =
+            simulation_.terrain().config().cellSize;
+        const double centerOffset =
+            *modularDragPiece_ == ModularBuildPiece::Wall
+                ? 0.5
+                : 1.0;
+        const float height = static_cast<float>(
+            modularDragPlaneHeight_.value_or(0.0) + 0.22);
+        drawDirectionArrow(
+            {static_cast<float>(
+                 (modularDragStart_->x + centerOffset) *
+                 cellSize),
+             height,
+             static_cast<float>(
+                 (modularDragStart_->z + centerOffset) *
+                 cellSize)},
+            {static_cast<float>(
+                 (modularDragEnd_->x + centerOffset) *
+                 cellSize),
+             height,
+             static_cast<float>(
+                 (modularDragEnd_->z + centerOffset) *
+                 cellSize)});
+    }
+    if (wallDragStart_ && wallDragEnd_ &&
+        placementDragType_) {
+        const auto cells = placementLine(
+            *placementDragType_, *wallDragStart_,
+            *wallDragEnd_, placementDragAxis_);
+        if (cells.size() > 1U) {
+            const Vec3 first = buildingWorldPosition(
+                *placementDragType_, cells.front());
+            const Vec3 last = buildingWorldPosition(
+                *placementDragType_, cells.back());
+            drawDirectionArrow(
+                {static_cast<float>(first.x),
+                 static_cast<float>(
+                     dragPlacementSurface(
+                         *placementDragType_, cells.front())
+                         .height +
+                     0.22),
+                 static_cast<float>(first.z)},
+                {static_cast<float>(last.x),
+                 static_cast<float>(
+                     dragPlacementSurface(
+                         *placementDragType_, cells.back())
+                         .height +
+                     0.22),
+                 static_cast<float>(last.z)});
+        }
+    }
     if (foundationBuildMode_ &&
         (modularBuildPiece_ ==
              ModularBuildPiece::FloorPlatform ||
@@ -1278,6 +1359,117 @@ void App::drawWorldOverlays(
 
     }
     drawCancelledPlacementPreview(lighting);
+    if (!structuralRiskIds_.empty()) {
+        const float pulse =
+            0.045F +
+            0.025F * static_cast<float>(
+                std::sin(snapshot.elapsedSeconds * 7.0));
+        constexpr Color RiskColor{255, 190, 62, 235};
+        const double cellSize =
+            simulation_.terrain().config().cellSize;
+        for (const EntityId target : structuralRiskIds_) {
+            if (const auto building = std::ranges::find_if(
+                    snapshot.buildings,
+                    [target](const BuildingInstance& item) {
+                        return item.id == target;
+                    });
+                building != snapshot.buildings.end()) {
+                const Vec3 center =
+                    buildingWorldPosition(*building);
+                const float width = static_cast<float>(
+                    buildingFootprintHalfExtent(
+                        building->type) *
+                    2.0);
+                DrawCubeWires(
+                    {static_cast<float>(center.x),
+                     static_cast<float>(center.y + 1.1),
+                     static_cast<float>(center.z)},
+                    width + pulse, 2.2F + pulse,
+                    width + pulse, RiskColor);
+                continue;
+            }
+            if (const auto frame = std::ranges::find_if(
+                    snapshot.platformFrames,
+                    [target](const PlatformFrameInstance& item) {
+                        return item.id == target;
+                    });
+                frame != snapshot.platformFrames.end()) {
+                DrawCubeWires(
+                    {static_cast<float>(
+                         (frame->anchor.x + 1.0) * cellSize),
+                     static_cast<float>(frame->floorHeight),
+                     static_cast<float>(
+                         (frame->anchor.z + 1.0) * cellSize)},
+                    static_cast<float>(
+                        PlatformFrameWidthCells * cellSize) +
+                        pulse,
+                    0.24F + pulse,
+                    static_cast<float>(
+                        PlatformFrameWidthCells * cellSize) +
+                        pulse,
+                    RiskColor);
+                continue;
+            }
+            if (const auto wall = std::ranges::find_if(
+                    snapshot.modularWalls,
+                    [target](const WallInstance& item) {
+                        return item.id == target;
+                    });
+                wall != snapshot.modularWalls.end()) {
+                DrawCubeWires(
+                    {static_cast<float>(
+                         (wall->anchor.x + 0.5) * cellSize),
+                     static_cast<float>(
+                         (wall->bottomHeight +
+                          wall->topHeight) *
+                         0.5),
+                     static_cast<float>(
+                         (wall->anchor.z + 0.5) * cellSize)},
+                    static_cast<float>(cellSize) + pulse,
+                    static_cast<float>(
+                        wall->topHeight - wall->bottomHeight) +
+                        pulse,
+                    static_cast<float>(cellSize) + pulse,
+                    RiskColor);
+                continue;
+            }
+            const auto ramp = std::ranges::find_if(
+                snapshot.ramps,
+                [target](const RampInstance& item) {
+                    return item.id == target;
+                });
+            if (ramp == snapshot.ramps.end()) {
+                continue;
+            }
+            const bool alongZ =
+                ramp->rotation == Rotation::Deg0 ||
+                ramp->rotation == Rotation::Deg180;
+            const int widthCells =
+                alongZ ? ModularRampWidthCells
+                       : ModularRampRunCells;
+            const int depthCells =
+                alongZ ? ModularRampRunCells
+                       : ModularRampWidthCells;
+            DrawCubeWires(
+                {static_cast<float>(
+                     (ramp->anchor.x + widthCells * 0.5) *
+                     cellSize),
+                 static_cast<float>(
+                     (ramp->bottomHeight + ramp->topHeight) *
+                     0.5),
+                 static_cast<float>(
+                     (ramp->anchor.z + depthCells * 0.5) *
+                     cellSize)},
+                static_cast<float>(widthCells * cellSize) +
+                    pulse,
+                static_cast<float>(
+                    ramp->topHeight - ramp->bottomHeight) +
+                    pulse,
+                static_cast<float>(depthCells * cellSize) +
+                    pulse,
+                RiskColor);
+        }
+    }
     if (removalDragActive_ &&
         !removalDragTargets_.empty()) {
         const float pulse =

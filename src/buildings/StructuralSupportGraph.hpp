@@ -36,6 +36,12 @@ class StructuralSupportGraph {
     [[nodiscard]] std::size_t unsupportedCount() const;
     [[nodiscard]] std::size_t dependentCount(
         EntityId id, bool recursive = true) const;
+    [[nodiscard]] std::vector<EntityId> dependentIds(
+        EntityId id, bool recursive = true) const;
+    [[nodiscard]] std::vector<EntityId> collapseRiskIds(
+        EntityId removedSupport) const;
+    [[nodiscard]] std::vector<EntityId> collapseRiskIds(
+        std::span<const EntityId> removedSupports) const;
 
   private:
     struct Node {

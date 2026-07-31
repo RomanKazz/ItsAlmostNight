@@ -131,12 +131,26 @@ StructuralSupportGraph::unsupportedCount() const {
 
 std::size_t StructuralSupportGraph::dependentCount(
     EntityId id, bool recursive) const {
+    return dependentIds(id, recursive).size();
+}
+
+std::vector<EntityId> StructuralSupportGraph::dependentIds(
+    EntityId id, bool recursive) const {
     const auto root = nodes_.find(key(id));
     if (root == nodes_.end()) {
-        return 0U;
+        return {};
     }
     if (!recursive) {
-        return root->second.dependents.size();
+        std::vector<EntityId> result;
+        result.reserve(root->second.dependents.size());
+        for (const std::uint64_t dependent :
+             root->second.dependents) {
+            if (const auto node = nodes_.find(dependent);
+                node != nodes_.end()) {
+                result.push_back(node->second.id);
+            }
+        }
+        return result;
     }
 
     std::unordered_set<std::uint64_t> visited;
@@ -157,7 +171,99 @@ std::size_t StructuralSupportGraph::dependentCount(
             node->second.dependents.begin(),
             node->second.dependents.end());
     }
-    return visited.size();
+    std::vector<EntityId> result;
+    result.reserve(visited.size());
+    for (const std::uint64_t dependent : visited) {
+        if (const auto node = nodes_.find(dependent);
+            node != nodes_.end()) {
+            result.push_back(node->second.id);
+        }
+    }
+    std::ranges::sort(
+        result, [](EntityId left, EntityId right) {
+            return key(left) < key(right);
+        });
+    return result;
+}
+
+std::vector<EntityId> StructuralSupportGraph::collapseRiskIds(
+    EntityId removedSupport) const {
+    return collapseRiskIds(
+        std::span<const EntityId>{&removedSupport, 1U});
+}
+
+std::vector<EntityId> StructuralSupportGraph::collapseRiskIds(
+    std::span<const EntityId> removedSupports) const {
+    std::unordered_set<std::uint64_t> removedKeys;
+    for (const EntityId support : removedSupports) {
+        const std::uint64_t supportKey = key(support);
+        if (nodes_.contains(supportKey)) {
+            removedKeys.insert(supportKey);
+        }
+    }
+    if (removedKeys.empty()) {
+        return {};
+    }
+
+    std::unordered_set<std::uint64_t> reachable;
+    std::vector<std::uint64_t> pending;
+    for (const std::uint64_t removedKey : removedKeys) {
+        const auto& dependents = nodes_.at(removedKey).dependents;
+        pending.insert(
+            pending.end(), dependents.begin(), dependents.end());
+    }
+    while (!pending.empty()) {
+        const std::uint64_t current = pending.back();
+        pending.pop_back();
+        if (!reachable.insert(current).second) {
+            continue;
+        }
+        if (const auto node = nodes_.find(current);
+            node != nodes_.end()) {
+            pending.insert(
+                pending.end(), node->second.dependents.begin(),
+                node->second.dependents.end());
+        }
+    }
+
+    std::unordered_set<std::uint64_t> supported;
+    for (const auto& [nodeKey, node] : nodes_) {
+        if (!removedKeys.contains(nodeKey) && node.grounded) {
+            supported.insert(nodeKey);
+        }
+    }
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (const auto& [nodeKey, node] : nodes_) {
+            if (removedKeys.contains(nodeKey) ||
+                supported.contains(nodeKey)) {
+                continue;
+            }
+            if (std::ranges::any_of(
+                    node.supports,
+                    [&supported](std::uint64_t support) {
+                        return supported.contains(support);
+                    })) {
+                supported.insert(nodeKey);
+                changed = true;
+            }
+        }
+    }
+
+    std::vector<EntityId> result;
+    result.reserve(reachable.size());
+    for (const std::uint64_t nodeKey : reachable) {
+        if (!removedKeys.contains(nodeKey) &&
+            !supported.contains(nodeKey)) {
+            result.push_back(nodes_.at(nodeKey).id);
+        }
+    }
+    std::ranges::sort(
+        result, [](EntityId left, EntityId right) {
+            return key(left) < key(right);
+        });
+    return result;
 }
 
 void StructuralSupportGraph::markDirty(
