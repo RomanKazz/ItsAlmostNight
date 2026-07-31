@@ -221,6 +221,8 @@ void Simulation::resetRun(GameEventType eventType) {
         map_.playerSpawn.z};
     playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
+    coyoteTimeRemaining_ = 0.0;
+    jumpBufferRemaining_ = 0.0;
     playerYaw_ = 0.0;
     playerPitch_ = 0.0;
     playerGrounded_ = true;
@@ -354,6 +356,21 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
 
 void Simulation::updatePlayer(double deltaSeconds,
                               const PlayerCommand& command) {
+    constexpr double CoyoteTime = 0.10;
+    constexpr double JumpBufferTime = 0.12;
+    if (command.jump) {
+        jumpBufferRemaining_ = JumpBufferTime;
+    } else {
+        jumpBufferRemaining_ = std::max(
+            0.0, jumpBufferRemaining_ - deltaSeconds);
+    }
+    if (playerGrounded_) {
+        coyoteTimeRemaining_ = CoyoteTime;
+    } else {
+        coyoteTimeRemaining_ = std::max(
+            0.0, coyoteTimeRemaining_ - deltaSeconds);
+    }
+
     playerYaw_ += command.lookYaw;
     playerPitch_ = std::clamp(playerPitch_ + command.lookPitch, -PitchLimit, PitchLimit);
 
@@ -455,10 +472,14 @@ void Simulation::updatePlayer(double deltaSeconds,
         }
     }
 
-    if ((command.jump || autoJump) &&
-        playerGrounded_) {
+    const bool bufferedJump =
+        jumpBufferRemaining_ > 0.0 &&
+        (playerGrounded_ || coyoteTimeRemaining_ > 0.0);
+    if (bufferedJump || autoJump) {
         verticalVelocity_ = gameplay_.jumpSpeed;
         playerGrounded_ = false;
+        coyoteTimeRemaining_ = 0.0;
+        jumpBufferRemaining_ = 0.0;
     }
 
     if (!playerGrounded_) {
@@ -466,9 +487,17 @@ void Simulation::updatePlayer(double deltaSeconds,
         playerPosition_.y += verticalVelocity_ * deltaSeconds;
         if (verticalVelocity_ <= 0.0 &&
             playerPosition_.y <= standingHeight) {
+            const double landingSpeed = -verticalVelocity_;
             playerPosition_.y = standingHeight;
             verticalVelocity_ = 0.0;
             playerGrounded_ = true;
+            if (landingSpeed > 1.0) {
+                events_.push_back({
+                    .type = GameEventType::PlayerLanded,
+                    .position = playerPosition_,
+                    .intensity = landingSpeed,
+                });
+            }
         }
     }
 
@@ -502,6 +531,8 @@ void Simulation::regenerateTerrain(
             playerPosition_.z) +
         gameplay_.eyeHeight;
     verticalVelocity_ = 0.0;
+    coyoteTimeRemaining_ = 0.0;
+    jumpBufferRemaining_ = 0.0;
     playerGrounded_ = true;
 }
 
@@ -2166,6 +2197,8 @@ void Simulation::raisePlayerOntoGroundFrame(
         frame.floorHeight +
         gameplay_.eyeHeight;
     verticalVelocity_ = 0.0;
+    coyoteTimeRemaining_ = 0.0;
+    jumpBufferRemaining_ = 0.0;
     playerGrounded_ = true;
 }
 
@@ -2400,6 +2433,8 @@ void Simulation::respawnPlayer() {
     playerPosition_ = respawn;
     playerHorizontalVelocity_ = {};
     verticalVelocity_ = 0.0;
+    coyoteTimeRemaining_ = 0.0;
+    jumpBufferRemaining_ = 0.0;
     playerGrounded_ = true;
     playerHealth_ = gameplay_.playerMaxHealth;
 }
@@ -2446,6 +2481,8 @@ void Simulation::beginPlayerRespawn(
         gameplay_.playerRespawnSeconds;
     verticalVelocity_ = 0.0;
     playerHorizontalVelocity_ = {};
+    coyoteTimeRemaining_ = 0.0;
+    jumpBufferRemaining_ = 0.0;
     playerGrounded_ = true;
     buildingPreview_.reset();
     aimedResource_.reset();
@@ -2615,6 +2652,9 @@ SimulationSnapshot Simulation::snapshot() const {
         .playerYaw = playerYaw_,
         .playerPitch = playerPitch_,
         .playerGrounded = playerGrounded_,
+        .playerHorizontalVelocity =
+            playerHorizontalVelocity_,
+        .playerVerticalVelocity = verticalVelocity_,
         .playerHealth = playerHealth_,
         .playerMaxHealth = gameplay_.playerMaxHealth,
         .playerRespawning = playerRespawning_,

@@ -899,16 +899,18 @@ void App::render() {
         drawCentered("ENTER", static_cast<int>(centerY) + 136, 16,
                      {199, 174, 142, 255});
     } else {
-        const double cosPitch = std::cos(snapshot.playerPitch);
+        const double visualYaw = snapshot.playerYaw;
+        const double visualPitch = snapshot.playerPitch;
+        const double cosPitch = std::cos(visualPitch);
         Vector3 position = {
             static_cast<float>(snapshot.playerPosition.x),
             static_cast<float>(snapshot.playerPosition.y),
             static_cast<float>(snapshot.playerPosition.z),
         };
         Vector3 forward = {
-            static_cast<float>(std::sin(snapshot.playerYaw) * cosPitch),
-            static_cast<float>(std::sin(snapshot.playerPitch)),
-            static_cast<float>(-std::cos(snapshot.playerYaw) * cosPitch),
+            static_cast<float>(std::sin(visualYaw) * cosPitch),
+            static_cast<float>(std::sin(visualPitch)),
+            static_cast<float>(-std::cos(visualYaw) * cosPitch),
         };
         const float bobAmount =
             static_cast<float>(cameraBobAmount_) *
@@ -923,23 +925,57 @@ void App::render() {
             0.024F * bobAmount;
         const Vector3 bobRight = {
             static_cast<float>(
-                std::cos(snapshot.playerYaw)),
+                std::cos(visualYaw)),
             0.0F,
             static_cast<float>(
-                std::sin(snapshot.playerYaw)),
+                std::sin(visualYaw)),
         };
+        position = Vector3Add(
+            position,
+            Vector3Scale(
+                bobRight,
+                static_cast<float>(cameraLookYawLag_ * 0.42)));
+        position.y += static_cast<float>(
+            cameraLookPitchLag_ * 0.32);
         position = Vector3Add(
             position,
             Vector3Scale(bobRight, bobSide));
         position.y += bobVertical;
-        const Vector3 bobCameraUp = Vector3Normalize(
+        Vector3 bobCameraUp = Vector3Normalize(
             Vector3Add(
                 {0.0F, 1.0F, 0.0F},
                 Vector3Scale(
                     bobRight,
                     -static_cast<float>(
                         std::sin(cameraBobPhase_)) *
-                        0.0045F * bobAmount)));
+                        0.0045F * bobAmount -
+                        static_cast<float>(
+                            cameraStrafeLean_))));
+        if (landingResponseRemaining_ > 0.0 &&
+            landingResponseDuration_ > 0.0) {
+            const double progress = std::clamp(
+                1.0 - landingResponseRemaining_ /
+                          landingResponseDuration_,
+                0.0, 1.0);
+            const float landingCurve = static_cast<float>(
+                std::sin(progress * PI) *
+                landingResponseStrength_);
+            position.y -= landingCurve * 0.052F;
+            forward.y -= landingCurve * 0.012F;
+            forward = Vector3Normalize(forward);
+        }
+        position = Vector3Add(
+            position,
+            Vector3Scale(
+                bobRight,
+                static_cast<float>(cameraImpulseOffset_.x)));
+        position.y +=
+            static_cast<float>(cameraImpulseOffset_.y);
+        position = Vector3Add(
+            position,
+            Vector3Scale(
+                forward,
+                static_cast<float>(cameraImpulseOffset_.z)));
         if (weaponRecoilRemaining_ > 0.0 &&
             weaponRecoilDuration_ > 0.0) {
             const float progress = std::clamp(

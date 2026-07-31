@@ -121,6 +121,8 @@ struct SimulationSnapshot {
     double playerYaw;
     double playerPitch;
     bool playerGrounded;
+    Vec3 playerHorizontalVelocity;
+    double playerVerticalVelocity;
     double playerHealth;
     double playerMaxHealth;
     bool playerRespawning;
@@ -316,6 +318,8 @@ class Simulation {
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};
+    double coyoteTimeRemaining_{};
+    double jumpBufferRemaining_{};
     double playerYaw_{};
     double playerPitch_{};
     bool playerGrounded_{true};

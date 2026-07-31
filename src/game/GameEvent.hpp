@@ -53,6 +53,7 @@ enum class GameEventType {
     ConsumableUsed,
     GateToggled,
     GateToggleRejected,
+    PlayerLanded,
 };
 
 struct GameEvent {
@@ -72,6 +73,7 @@ struct GameEvent {
     Vec3 position;
     int amount{};
     double damage{};
+    double intensity{};
     bool critical{};
 };
 

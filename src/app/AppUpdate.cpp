@@ -63,6 +63,8 @@ void App::update() {
     statusMessageRemaining_ =
         std::max(0.0, statusMessageRemaining_ - frameSeconds);
     cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
+    landingResponseRemaining_ = std::max(
+        0.0, landingResponseRemaining_ - frameSeconds);
     playerDamageFlashRemaining_ =
         std::max(0.0, playerDamageFlashRemaining_ - frameSeconds);
     damagedBuildingHealthBarRemaining_ = std::max(
@@ -313,6 +315,44 @@ void App::update() {
     }
     const auto events = simulation_.takeEvents();
     const auto eventSnapshot = simulation_.snapshot();
+    if (!cameraInertiaInitialized_) {
+        previousVisualYaw_ = eventSnapshot.playerYaw;
+        previousVisualPitch_ = eventSnapshot.playerPitch;
+        cameraInertiaInitialized_ = true;
+    }
+    const double yawDelta = std::atan2(
+        std::sin(eventSnapshot.playerYaw - previousVisualYaw_),
+        std::cos(eventSnapshot.playerYaw - previousVisualYaw_));
+    const double pitchDelta =
+        eventSnapshot.playerPitch - previousVisualPitch_;
+    previousVisualYaw_ = eventSnapshot.playerYaw;
+    previousVisualPitch_ = eventSnapshot.playerPitch;
+    cameraLookYawLag_ = std::clamp(
+        cameraLookYawLag_ - yawDelta * 0.22,
+        -0.032, 0.032);
+    cameraLookPitchLag_ = std::clamp(
+        cameraLookPitchLag_ - pitchDelta * 0.18,
+        -0.024, 0.024);
+    const double lookLagDecay = std::exp(-17.0 * frameSeconds);
+    cameraLookYawLag_ *= lookLagDecay;
+    cameraLookPitchLag_ *= lookLagDecay;
+
+    const double yawSin = std::sin(eventSnapshot.playerYaw);
+    const double yawCos = std::cos(eventSnapshot.playerYaw);
+    const double lateralSpeed =
+        eventSnapshot.playerHorizontalVelocity.x * yawCos +
+        eventSnapshot.playerHorizontalVelocity.z * yawSin;
+    const double targetStrafeLean = std::clamp(
+        -lateralSpeed / 6.5 * 0.013,
+        -0.013, 0.013);
+    const double leanBlend =
+        1.0 - std::exp(-10.0 * frameSeconds);
+    cameraStrafeLean_ +=
+        (targetStrafeLean - cameraStrafeLean_) * leanBlend;
+    const double impulseDecay = std::exp(-15.0 * frameSeconds);
+    cameraImpulseOffset_.x *= impulseDecay;
+    cameraImpulseOffset_.y *= impulseDecay;
+    cameraImpulseOffset_.z *= impulseDecay;
     if (pendingSoldModularVisual_ &&
         consumedTransientInput) {
         const SoldBuildingVisual& pending =
@@ -419,10 +459,11 @@ void App::update() {
         acceptsGameplayInput(eventSnapshot.state) &&
         eventSnapshot.playerGrounded &&
         bobDistance < 1.5;
-    const double measuredBobSpeed =
-        canBob && frameSeconds > 1e-6
-            ? bobDistance / frameSeconds
-            : 0.0;
+    const double measuredBobSpeed = canBob
+        ? std::hypot(
+              eventSnapshot.playerHorizontalVelocity.x,
+              eventSnapshot.playerHorizontalVelocity.z)
+        : 0.0;
     const double bobSpeedBlend =
         1.0 - std::exp(-12.0 * frameSeconds);
     cameraBobSpeed_ +=
@@ -651,6 +692,7 @@ void App::update() {
             weaponRecoilDuration_ = 0.16;
             weaponRecoilRemaining_ = weaponRecoilDuration_;
             weaponRecoilStrength_ = 0.045F;
+            addCameraImpulse({0.0, 0.008, -0.012});
         } else if (
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::ResourceHit ||
@@ -660,6 +702,7 @@ void App::update() {
             weaponRecoilRemaining_ = weaponRecoilDuration_;
             weaponRecoilStrength_ =
                 event.critical ? 0.035F : 0.024F;
+            addCameraImpulse({0.0, -0.006, 0.008});
         }
         if (event.critical) {
             hitStopRemaining_ =
@@ -760,6 +803,13 @@ void App::update() {
         } else if (event.type == GameEventType::Explosion) {
             addEffect(PresentationEffectType::Explosion, event.position, 0.8);
             addCameraShake(0.25, 0.12);
+            const double distance = std::hypot(
+                event.position.x - eventSnapshot.playerPosition.x,
+                event.position.z - eventSnapshot.playerPosition.z);
+            const double proximity = std::clamp(
+                1.0 - distance / 30.0, 0.0, 1.0);
+            addCameraImpulse({0.0, 0.035 * proximity,
+                              -0.025 * proximity});
         } else if (
             event.type == GameEventType::BuildingDestroyed ||
             event.type ==
@@ -854,6 +904,16 @@ void App::update() {
             addCameraShake(0.35, 0.2);
         } else if (event.type == GameEventType::CoreDamaged) {
             addCameraShake(0.1, 0.04);
+            addCameraImpulse({0.0, -0.008, 0.012});
+        } else if (event.type == GameEventType::PlayerLanded) {
+            landingResponseDuration_ = 0.24;
+            landingResponseRemaining_ = landingResponseDuration_;
+            landingResponseStrength_ = std::clamp(
+                (event.intensity - 1.0) / 7.0,
+                0.25, 1.0);
+            addCameraImpulse({0.0,
+                              -0.012 * landingResponseStrength_,
+                              0.0});
         } else if (event.type == GameEventType::BuildingPlaced &&
                    event.buildingType) {
             grassClearAreas_.push_back({
@@ -1019,6 +1079,23 @@ void App::update() {
         if (event.type == GameEventType::PlayerDamaged) {
             addDamageIndicator(event.position, eventSnapshot, false);
             playerDamageFlashRemaining_ = 0.18;
+            const double deltaX =
+                event.position.x - eventSnapshot.playerPosition.x;
+            const double deltaZ =
+                event.position.z - eventSnapshot.playerPosition.z;
+            const double length = std::hypot(deltaX, deltaZ);
+            if (length > 1e-6) {
+                const double rightX =
+                    std::cos(eventSnapshot.playerYaw);
+                const double rightZ =
+                    std::sin(eventSnapshot.playerYaw);
+                addCameraImpulse({
+                    -(deltaX * rightX + deltaZ * rightZ) /
+                        length * 0.025,
+                    0.012,
+                    0.018,
+                });
+            }
         } else if (event.type == GameEventType::CoreDamaged) {
             addDamageIndicator(event.position, eventSnapshot, false);
         } else if (event.type == GameEventType::BossRamImpact) {
@@ -1194,6 +1271,18 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
 void App::addCameraShake(double duration, double strength) {
     cameraShakeRemaining_ = std::max(cameraShakeRemaining_, duration);
     cameraShakeStrength_ = std::max(cameraShakeStrength_, strength);
+}
+
+void App::addCameraImpulse(Vec3 localOffset) {
+    cameraImpulseOffset_.x = std::clamp(
+        cameraImpulseOffset_.x + localOffset.x,
+        -0.06, 0.06);
+    cameraImpulseOffset_.y = std::clamp(
+        cameraImpulseOffset_.y + localOffset.y,
+        -0.07, 0.07);
+    cameraImpulseOffset_.z = std::clamp(
+        cameraImpulseOffset_.z + localOffset.z,
+        -0.06, 0.06);
 }
 
 void App::addDamageIndicator(Vec3 sourcePosition,

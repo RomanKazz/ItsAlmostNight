@@ -109,6 +109,7 @@ class App {
                        std::nullopt,
                    double startDelay = 0.0);
     void addCameraShake(double duration, double strength);
+    void addCameraImpulse(Vec3 localOffset);
     void addDamageIndicator(Vec3 sourcePosition,
                             const SimulationSnapshot& snapshot, bool severe);
     void addFloatingDamageNumber(Vec3 position, double damage,
@@ -184,6 +185,16 @@ class App {
     double cameraBobSpeed_{};
     Vec3 cameraBobPreviousPosition_{};
     bool cameraBobPositionInitialized_{};
+    double cameraLookYawLag_{};
+    double cameraLookPitchLag_{};
+    double cameraStrafeLean_{};
+    double previousVisualYaw_{};
+    double previousVisualPitch_{};
+    bool cameraInertiaInitialized_{};
+    Vec3 cameraImpulseOffset_{};
+    double landingResponseRemaining_{};
+    double landingResponseDuration_{0.24};
+    double landingResponseStrength_{};
     std::vector<DamageIndicator> damageIndicators_;
     std::vector<FloatingDamageNumber> floatingDamageNumbers_;
     std::vector<ResourceGainVisual> resourceGainVisuals_;

@@ -141,19 +141,27 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         return;
     }
     footstepDistance_ += distance;
-    constexpr double StepDistance = 1.55;
-    if (footstepDistance_ < StepDistance) {
+    const double movementSpeed = std::hypot(
+        snapshot.playerHorizontalVelocity.x,
+        snapshot.playerHorizontalVelocity.z);
+    const double speedAmount = std::clamp(
+        (movementSpeed - 0.4) / 5.6, 0.0, 1.0);
+    const double stepDistance =
+        1.35 + speedAmount * 0.32;
+    if (footstepDistance_ < stepDistance) {
         return;
     }
     footstepDistance_ =
-        std::fmod(footstepDistance_, StepDistance);
+        std::fmod(footstepDistance_, stepDistance);
     sequence_ = sequence_ * 1664525U + 1013904223U;
     const std::size_t index =
         static_cast<std::size_t>(sequence_) %
         grassFootsteps_.size();
     play(
-        grassFootsteps_[index], 0.28F,
-        variedPitch(0.065F));
+        grassFootsteps_[index],
+        static_cast<float>(0.18 + speedAmount * 0.14),
+        variedPitch(0.045F) *
+            static_cast<float>(0.96 + speedAmount * 0.08));
 }
 
 void AudioSystem::playEvent(
@@ -280,6 +288,20 @@ void AudioSystem::playEvent(
     case GameEventType::BossRamImpact:
         play(playerHit_, 0.72F, variedPitch(0.06F));
         break;
+    case GameEventType::PlayerLanded: {
+        sequence_ = sequence_ * 1664525U + 1013904223U;
+        const std::size_t index =
+            static_cast<std::size_t>(sequence_) %
+            grassFootsteps_.size();
+        const float strength = static_cast<float>(
+            std::clamp((event.intensity - 1.0) / 7.0,
+                       0.25, 1.0));
+        play(grassFootsteps_[index],
+             0.2F + strength * 0.2F,
+             variedPitch(0.04F) * (0.94F - strength * 0.08F));
+        footstepDistance_ = 0.0;
+        break;
+    }
     case GameEventType::TrapActivated:
         playAt(
             turretHit_, event.position, snapshot, 0.42F, 0.72F);

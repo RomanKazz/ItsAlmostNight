@@ -482,6 +482,77 @@ void runSimulationTests() {
         require(
             becameAirborne && landedOnFrame,
             "walking into first-level platform automatically jumps onto it");
+
+        bool steppedOffFrame = false;
+        for (int tick = 0; tick < 90; ++tick) {
+            autoJumpSimulation.tick(
+                1.0 / 60.0, walkForward);
+            if (!autoJumpSimulation.snapshot().playerGrounded) {
+                steppedOffFrame = true;
+                break;
+            }
+        }
+        require(steppedOffFrame,
+                "coyote-time fixture walks off raised platform");
+        ian::PlayerCommand lateJump;
+        lateJump.jump = true;
+        autoJumpSimulation.tick(1.0 / 60.0, lateJump);
+        require(
+            autoJumpSimulation.snapshot()
+                    .playerVerticalVelocity > 0.0,
+            "coyote time accepts jump shortly after leaving platform");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        ian::Simulation bufferedJumpSimulation{
+            ian::GameBalance::defaults(), map, world};
+        bufferedJumpSimulation.startRun();
+        const double groundEyeHeight =
+            bufferedJumpSimulation.snapshot()
+                .playerPosition.y;
+        ian::PlayerCommand initialJump;
+        initialJump.jump = true;
+        bufferedJumpSimulation.tick(
+            1.0 / 60.0, initialJump);
+        for (int tick = 0; tick < 180; ++tick) {
+            const auto snapshot =
+                bufferedJumpSimulation.snapshot();
+            if (snapshot.playerVerticalVelocity < 0.0 &&
+                snapshot.playerPosition.y - groundEyeHeight <
+                    0.12) {
+                break;
+            }
+            bufferedJumpSimulation.tick(1.0 / 60.0);
+        }
+        ian::PlayerCommand bufferedJump;
+        bufferedJump.jump = true;
+        bufferedJumpSimulation.tick(
+            1.0 / 60.0, bufferedJump);
+        bufferedJumpSimulation.tick(1.0 / 60.0);
+        require(
+            !bufferedJumpSimulation.snapshot()
+                 .playerGrounded &&
+                bufferedJumpSimulation.snapshot()
+                        .playerVerticalVelocity > 0.0,
+            "jump buffer launches player when input arrives before landing");
+        const auto landingEvents =
+            bufferedJumpSimulation.takeEvents();
+        require(
+            std::any_of(
+                landingEvents.begin(), landingEvents.end(),
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::PlayerLanded &&
+                           event.intensity > 1.0;
+                }),
+            "landing emits impact event for presentation and audio");
     }
 
     {
