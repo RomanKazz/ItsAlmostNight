@@ -620,6 +620,154 @@ CollisionWorld::playerSupportHeight(
     return result;
 }
 
+std::optional<PlayerSurfaceLanding>
+CollisionWorld::sweptPlayerLanding(
+    Vec3 startPosition, Vec3 endPosition,
+    double radius, double startFeetHeight,
+    double endFeetHeight) const {
+    const double deltaX =
+        endPosition.x - startPosition.x;
+    const double deltaZ =
+        endPosition.z - startPosition.z;
+    const double deltaFeet =
+        endFeetHeight - startFeetHeight;
+    const double sweepDistance = std::max(
+        std::hypot(deltaX, deltaZ),
+        std::abs(deltaFeet));
+    const double maximumStep =
+        std::max(0.025, radius * 0.2);
+    const int stepCount = std::clamp(
+        static_cast<int>(std::ceil(
+            sweepDistance / maximumStep)),
+        1, 256);
+    constexpr double SurfaceEpsilon = 1e-6;
+    std::optional<PlayerSurfaceLanding> result;
+    double earliestTime = 2.0;
+
+    const auto supportHeight =
+        [radius](const WalkableSurface& surface,
+                 double worldX, double worldZ)
+            -> std::optional<double> {
+            const double closestX = std::clamp(
+                worldX, surface.minX, surface.maxX);
+            const double closestZ = std::clamp(
+                worldZ, surface.minZ, surface.maxZ);
+            const double offsetX = worldX - closestX;
+            const double offsetZ = worldZ - closestZ;
+            if (offsetX * offsetX + offsetZ * offsetZ >
+                radius * radius + SurfaceEpsilon) {
+                return std::nullopt;
+            }
+            if (surface.kind != SurfaceKind::Ramp) {
+                return surface.topHeight;
+            }
+            double progress = 0.0;
+            switch (surface.rotation) {
+            case Rotation::Deg0:
+                progress =
+                    (closestZ - surface.minZ) /
+                    (surface.maxZ - surface.minZ);
+                break;
+            case Rotation::Deg90:
+                progress =
+                    (surface.maxX - closestX) /
+                    (surface.maxX - surface.minX);
+                break;
+            case Rotation::Deg180:
+                progress =
+                    (surface.maxZ - closestZ) /
+                    (surface.maxZ - surface.minZ);
+                break;
+            case Rotation::Deg270:
+                progress =
+                    (closestX - surface.minX) /
+                    (surface.maxX - surface.minX);
+                break;
+            }
+            return surface.bottomHeight +
+                std::clamp(progress, 0.0, 1.0) *
+                    (surface.topHeight -
+                     surface.bottomHeight);
+        };
+
+    const auto sampleSurface =
+        [&](const WalkableSurface& surface) {
+            auto previousSurface = supportHeight(
+                surface, startPosition.x,
+                startPosition.z);
+            double previousGap = previousSurface
+                ? startFeetHeight - *previousSurface
+                : 0.0;
+            for (int step = 1; step <= stepCount;
+                 ++step) {
+                const double time =
+                    static_cast<double>(step) /
+                    static_cast<double>(stepCount);
+                if (time > earliestTime) {
+                    break;
+                }
+                const double worldX =
+                    startPosition.x + deltaX * time;
+                const double worldZ =
+                    startPosition.z + deltaZ * time;
+                const double feetHeight =
+                    startFeetHeight + deltaFeet * time;
+                const auto currentSurface =
+                    supportHeight(
+                        surface, worldX, worldZ);
+                if (currentSurface) {
+                    const double currentGap =
+                        feetHeight - *currentSurface;
+                    const double entryTolerance =
+                        sweepDistance /
+                            static_cast<double>(stepCount) +
+                        SurfaceEpsilon;
+                    const bool crossedFromAbove =
+                        previousSurface &&
+                        previousGap >= -SurfaceEpsilon &&
+                        currentGap <= SurfaceEpsilon;
+                    const bool enteredAtSurface =
+                        !previousSurface &&
+                        currentGap <= SurfaceEpsilon &&
+                        currentGap >= -entryTolerance;
+                    if (crossedFromAbove ||
+                        enteredAtSurface) {
+                        if (time < earliestTime -
+                                       SurfaceEpsilon ||
+                            (!result ||
+                             (std::abs(time - earliestTime) <=
+                                  SurfaceEpsilon &&
+                              *currentSurface >
+                                  result->surfaceHeight))) {
+                            earliestTime = time;
+                            result = PlayerSurfaceLanding{
+                                .position = {
+                                    worldX,
+                                    endPosition.y,
+                                    worldZ,
+                                },
+                                .surfaceHeight =
+                                    *currentSurface,
+                            };
+                        }
+                        break;
+                    }
+                    previousGap = currentGap;
+                }
+                previousSurface = currentSurface;
+            }
+        };
+    for (const WalkableSurface& surface :
+         buildingSurfaces_) {
+        sampleSurface(surface);
+    }
+    for (const WalkableSurface& surface :
+         modularSurfaces_) {
+        sampleSurface(surface);
+    }
+    return result;
+}
+
 std::optional<double>
 CollisionWorld::modularCeilingHeight(
     double worldX, double worldZ,

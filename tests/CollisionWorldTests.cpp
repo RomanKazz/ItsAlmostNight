@@ -203,6 +203,23 @@ void runCollisionWorldTests() {
             std::abs(*rampLow - 3.0) < 1e-9 &&
             std::abs(*rampHigh - 5.0) < 1e-9,
         "ramp exposes continuous directional surface");
+    const auto sprintLanding =
+        modularCollision.sweptPlayerLanding(
+            {16.8, 4.0, 0.5},
+            {17.1, 3.8, 0.5},
+            ian::CollisionWorld::PlayerRadius,
+            3.0, 2.9);
+    require(
+        sprintLanding &&
+            sprintLanding->surfaceHeight >= 2.8 &&
+            sprintLanding->surfaceHeight <= 3.1 &&
+            !modularCollision.sweptPlayerLanding(
+                {16.8, 2.7, 0.5},
+                {17.1, 2.6, 0.5},
+                ian::CollisionWorld::PlayerRadius,
+                0.9, 0.8),
+        "descending sprint lands on a rising ramp without"
+        " pulling a player up from below");
     const auto rampCeiling =
         modularCollision.modularCeilingHeight(
             17.0, 0.5, 2.0, 3.0);

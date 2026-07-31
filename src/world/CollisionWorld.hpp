@@ -30,6 +30,11 @@ struct ModularCollisionView {
     double cellSize{1.0};
 };
 
+struct PlayerSurfaceLanding {
+    Vec3 position;
+    double surfaceHeight{};
+};
+
 class CollisionWorld {
   public:
     static constexpr double PlayerRadius = 0.35;
@@ -54,6 +59,11 @@ class CollisionWorld {
     playerSupportHeight(
         double worldX, double worldZ, double radius,
         double maximumSurfaceHeight) const;
+    [[nodiscard]] std::optional<PlayerSurfaceLanding>
+    sweptPlayerLanding(
+        Vec3 startPosition, Vec3 endPosition,
+        double radius, double startFeetHeight,
+        double endFeetHeight) const;
     [[nodiscard]] std::optional<double>
     modularCeilingHeight(
         double worldX, double worldZ,

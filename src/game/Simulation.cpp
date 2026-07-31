@@ -565,15 +565,23 @@ void Simulation::updatePlayer(double deltaSeconds,
         }
         double landingSurface = terrainSurface;
         if (verticalVelocity_ <= 0.0) {
-            const auto sweptSurface =
-                collisionWorld_.playerSupportHeight(
-                    playerPosition_.x,
-                    playerPosition_.z,
+            const auto sweptLanding =
+                collisionWorld_.sweptPlayerLanding(
+                    movementOrigin, playerPosition_,
                     CollisionWorld::PlayerRadius,
-                    previousFeetHeight + 1e-6);
-            if (sweptSurface) {
+                    previousFeetHeight,
+                    playerPosition_.y -
+                        gameplay_.eyeHeight);
+            if (sweptLanding) {
+                playerPosition_.x =
+                    sweptLanding->position.x;
+                playerPosition_.z =
+                    sweptLanding->position.z;
                 landingSurface = std::max(
-                    landingSurface, *sweptSurface);
+                    terrain_.getHeight(
+                        playerPosition_.x,
+                        playerPosition_.z),
+                    sweptLanding->surfaceHeight);
             }
         }
         const double landingHeight =
