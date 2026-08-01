@@ -176,7 +176,8 @@ std::optional<ModelColliderType> colliderType(
             typeName = "BOX";
         } else if (upperName.starts_with("COL_CYLINDER")) {
             typeName = "CYLINDER";
-        } else if (upperName.starts_with("COL_SLOPE")) {
+        } else if (upperName.starts_with("COL_SLOPE") ||
+                   upperName.starts_with("COL_RAMP")) {
             typeName = "SLOPE";
         } else {
             return std::nullopt;
@@ -188,7 +189,7 @@ std::optional<ModelColliderType> colliderType(
     if (typeName == "CYLINDER") {
         return ModelColliderType::Cylinder;
     }
-    if (typeName == "SLOPE") {
+    if (typeName == "SLOPE" || typeName == "RAMP") {
         return ModelColliderType::Slope;
     }
     return std::nullopt;

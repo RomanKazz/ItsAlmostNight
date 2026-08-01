@@ -92,6 +92,7 @@ class CollisionWorld {
         double maxZ{};
         double bottomHeight{};
         double topHeight{};
+        double undersideOffset{};
         Rotation rotation{Rotation::Deg0};
         SurfaceKind kind{SurfaceKind::Flat};
     };

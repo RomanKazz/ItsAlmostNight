@@ -84,4 +84,21 @@ void runGlbCollisionTests() {
                 "platform collider underside must match model");
     requireNear(platformBox.maximum.y, 0.0, 1e-4,
                 "platform collider top must stay on grid plane");
+
+    const GlbCollisionAsset ramp =
+        loadGlbCollisionAsset(
+            IAN_SOURCE_DIR "/assets/models/ramp.glb");
+    require(ramp.valid() && ramp.colliders.size() == 1,
+            "shipped ramp GLB must contain one valid collider");
+    require(ramp.renderMeshIndices.size() == 1 &&
+                ramp.renderMeshIndices[0] == 0,
+            "shipped ramp collider mesh must be hidden");
+    const ModelCollider& rampSlope = ramp.colliders[0];
+    require(rampSlope.type == ModelColliderType::Slope &&
+                rampSlope.walkable,
+            "COL_RAMP_WALK alias must create walkable slope");
+    requireNear(rampSlope.minimum.y, -0.065073, 1e-4,
+                "ramp collider underside must match model");
+    requireNear(rampSlope.maximum.y, 3.999996, 1e-4,
+                "ramp collider high edge must match model");
 }

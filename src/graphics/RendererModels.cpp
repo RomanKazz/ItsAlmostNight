@@ -920,16 +920,6 @@ bool Renderer::drawRampModel(
         }
     }
 
-    // RampDeck is authored 0.1505 m behind RampRoot along its
-    // run. Rotate the correction with the model so its low and
-    // high edges remain exactly on the 4 m grid footprint.
-    constexpr float AuthoredRunCenterOffset = 0.15052F;
-    footprintCenter.x +=
-        std::sin(yawRadians) *
-        AuthoredRunCenterOffset * scale;
-    footprintCenter.z +=
-        std::cos(yawRadians) *
-        AuthoredRunCenterOffset * scale;
     DrawModelEx(
         model, footprintCenter,
         {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,

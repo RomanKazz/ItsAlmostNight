@@ -168,12 +168,23 @@ void runCollisionWorldTests() {
                 .maximum = {1.0, 0.0, 1.0},
             },
         }};
+    const std::array<ian::ModelCollider, 1>
+        rampColliders{{
+            {
+                .name = "COL_RAMP_WALK_00",
+                .type = ian::ModelColliderType::Slope,
+                .walkable = true,
+                .minimum = {-1.0, -0.065, -2.0},
+                .maximum = {1.0, 4.0, 2.065},
+            },
+        }};
     modularCollision.syncModularBuildings({
         modularFrames,
         modularWalls,
         modularRamps,
         1.0,
         platformColliders,
+        rampColliders,
     });
     require(
         modularCollision.modularSurfaceHeight(
@@ -236,8 +247,8 @@ void runCollisionWorldTests() {
             17.0, 0.5, 2.0, 3.0);
     require(
         rampCeiling &&
-            std::abs(*rampCeiling - 2.82) < 1e-9,
-        "ramp underside follows its continuous slope");
+            std::abs(*rampCeiling - 2.935) < 1e-9,
+        "ramp underside follows authored collider thickness");
     const auto escapedEmbeddedPlatform =
         modularCollision.moveCircle(
             {15.5, 1.9, 0.5},

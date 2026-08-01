@@ -379,6 +379,18 @@ void CollisionWorld::syncModularBuildings(
         const int depthCells =
             alongZ ? ModularRampRunCells
                    : ModularRampWidthCells;
+        double undersideOffset = 0.18;
+        for (const ModelCollider& collider :
+             buildings.rampColliders) {
+            if (collider.walkable &&
+                collider.type == ModelColliderType::Slope &&
+                collider.minimum.y < 0.0) {
+                undersideOffset = std::max(
+                    -collider.minimum.y * buildings.cellSize,
+                    0.01);
+                break;
+            }
+        }
         modularSurfaces_.push_back({
             .minX =
                 ramp.anchor.x * buildings.cellSize,
@@ -392,6 +404,7 @@ void CollisionWorld::syncModularBuildings(
                 buildings.cellSize,
             .bottomHeight = ramp.bottomHeight,
             .topHeight = ramp.topHeight,
+            .undersideOffset = undersideOffset,
             .rotation = ramp.rotation,
             .kind = SurfaceKind::Ramp,
         });
@@ -918,7 +931,6 @@ CollisionWorld::modularCeilingHeight(
     }
     std::optional<double> result;
     constexpr double EdgeEpsilon = 1e-6;
-    constexpr double RampThickness = 0.18;
     const auto sampleCeiling =
         [worldX, worldZ, minimumHeadHeight,
          maximumHeadHeight, &result](
@@ -961,7 +973,8 @@ CollisionWorld::modularCeilingHeight(
             }
             const double underside =
                 surface.kind == SurfaceKind::Ramp
-                    ? surfaceHeight - RampThickness
+                    ? surfaceHeight -
+                          surface.undersideOffset
                     : surface.bottomHeight;
             if (underside < minimumHeadHeight -
                     EdgeEpsilon ||
