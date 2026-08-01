@@ -69,16 +69,25 @@ vec3 terrainTint(vec3 worldPosition, vec3 normal)
     vec2 worldXZ = worldPosition.xz;
     float broadNoise = valueNoise(worldXZ*0.055);
     float mediumNoise = valueNoise(worldXZ*0.14 + vec2(19.3, -7.1));
+    float regionNoise = valueNoise(worldXZ*0.018 + vec2(8.4, 27.2));
     float colorBlend = clamp(broadNoise*0.72 + mediumNoise*0.18, 0.0, 1.0);
 
     float heightBlend = smoothstep(-0.5, 5.0, worldPosition.y);
     colorBlend = clamp(colorBlend + heightBlend*0.14, 0.0, 1.0);
     vec3 tint = mix(terrainPrimaryTint, terrainSecondaryTint, colorBlend);
+    vec3 regionTint = mix(
+        vec3(0.86, 0.92, 0.78),
+        vec3(1.04, 0.95, 0.76),
+        smoothstep(0.24, 0.78, regionNoise));
+    tint *= regionTint;
 
     float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
     float rarePatchNoise =
         valueNoise(worldXZ*0.038 + vec2(-31.7, 42.9));
-    float rarePatch = smoothstep(0.76, 0.91, rarePatchNoise);
+    float rarePatch = smoothstep(
+        0.72 - regionNoise*0.05,
+        0.89 - regionNoise*0.04,
+        rarePatchNoise);
     float exposedSlope = smoothstep(0.22, 0.72, slope);
     float patchAmount = clamp(max(rarePatch*0.72, exposedSlope*0.88),
                               0.0, 0.88);
@@ -172,7 +181,7 @@ void main()
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
     float distanceFog =
-        (1.0 - exp(-2.5*fogDistance*fogDistance))*0.96;
+        (1.0 - exp(-2.8*fogDistance*fogDistance))*0.98;
     float groundDensity = exp(-max(fragWorldPosition.y, 0.0)*0.16);
     float fogAmount =
         distanceFog*mix(0.72, 1.0, groundDensity);
@@ -188,7 +197,7 @@ void main()
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(
         litColor, vec3(preFogLuminance),
-        fogAmount*0.16);
+        fogAmount*0.34);
     litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));

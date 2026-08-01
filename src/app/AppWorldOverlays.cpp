@@ -264,6 +264,16 @@ void App::drawBlobShadows(
                 radius * 0.52F, radius * 0.42F,
                 node.type == ResourceType::Wood ? 0.25F : 0.22F);
         }
+        for (const SharedSupport& support : snapshot.sharedSupports) {
+            if (!support.active || support.length <= 0.05) {
+                continue;
+            }
+            renderer_->drawBlobShadow(
+                {static_cast<float>(support.bottom.x),
+                 static_cast<float>(support.bottom.y) + 0.018F,
+                 static_cast<float>(support.bottom.z)},
+                0.24F, 0.2F, 0.28F);
+        }
         for (const auto& building : snapshot.buildings) {
             const Vec3 center =
                 buildingWorldPosition(building);

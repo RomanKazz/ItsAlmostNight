@@ -19,11 +19,6 @@ struct HudViewState {
     std::span<const DamageIndicator> damageIndicators;
     std::string_view statusMessage;
     double statusMessageRemaining{};
-    EnemyType debugSpawnType{EnemyType::Basic};
-    bool slowMotion{};
-    bool showColliders{};
-    bool showFlowField{};
-    bool showSpatialHash{};
     bool hideBottomHints{};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
@@ -33,8 +28,6 @@ struct HudViewState {
     float foundationHotbarSelectionAlpha{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
-    double simulationTickMilliseconds{};
-    double peakSimulationTickMilliseconds{};
     float woodResourceBounce{};
     float stoneResourceBounce{};
     float goldResourceBounce{};
@@ -49,10 +42,6 @@ struct HudViewState {
     std::optional<EntityId> buildingStatsUpgradeEntity;
     double buildingStatsUpgradeRemaining{};
     double buildingStatsUpgradeDuration{};
-    std::string_view environmentProfile;
-    float environmentTime{};
-    bool environmentFrozen{};
-    bool environmentManualOverride{};
 };
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,

@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -249,8 +248,6 @@ void App::update() {
         }
     }
     bool consumedTransientInput = false;
-    double tickMilliseconds = 0.0;
-    std::size_t measuredTicks = 0;
     const double simulationFrameSeconds =
         hitStopActive
             ? 0.0
@@ -258,8 +255,7 @@ void App::update() {
                           : frameSeconds;
     fixedStep_.advance(
         simulationFrameSeconds,
-        [this, &consumedTransientInput, &tickMilliseconds,
-         &measuredTicks](double deltaSeconds) {
+        [this, &consumedTransientInput](double deltaSeconds) {
         PlayerCommand tickInput = input_;
         if (!consumedTransientInput) {
             tickInput.lookYaw = pendingYaw_;
@@ -307,23 +303,8 @@ void App::update() {
             tickInput.toggleGate = pendingGateToggle_;
             consumedTransientInput = true;
         }
-        const auto tickStarted = std::chrono::steady_clock::now();
         simulation_.tick(deltaSeconds, tickInput);
-        const auto tickFinished = std::chrono::steady_clock::now();
-        tickMilliseconds +=
-            std::chrono::duration<double, std::milli>(tickFinished - tickStarted)
-                .count();
-        ++measuredTicks;
         });
-    if (measuredTicks > 0) {
-        const double average = tickMilliseconds / static_cast<double>(measuredTicks);
-        simulationTickMilliseconds_ =
-            simulationTickMilliseconds_ == 0.0
-                ? average
-                : simulationTickMilliseconds_ * 0.9 + average * 0.1;
-        peakSimulationTickMilliseconds_ =
-            std::max(peakSimulationTickMilliseconds_, average);
-    }
     if (consumedTransientInput) {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;

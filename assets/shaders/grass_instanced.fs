@@ -32,7 +32,16 @@ void main()
     float luminance =
         dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
     albedo.rgb =
-        mix(vec3(luminance), albedo.rgb, 1.38);
+        mix(vec3(luminance), albedo.rgb, 0.88);
+    float region =
+        sin(fragWorldPosition.x*0.052 +
+            sin(fragWorldPosition.z*0.031)*1.7)*
+        sin(fragWorldPosition.z*0.043 -
+            sin(fragWorldPosition.x*0.024));
+    region = region*0.5 + 0.5;
+    albedo.rgb *= mix(
+        vec3(0.82, 0.90, 0.72),
+        vec3(1.0, 0.93, 0.74), region);
     vec3 normal = normalize(fragNormal);
     if (!gl_FrontFacing)
     {
@@ -56,7 +65,7 @@ void main()
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
     float fogAmount =
-        (1.0 - exp(-2.5*fogDistance*fogDistance))*0.96;
+        (1.0 - exp(-2.8*fogDistance*fogDistance))*0.98;
     if (fogBandsEnabled > 0.5)
     {
         float bands = max(round(fogBandCount), 2.0);
@@ -65,6 +74,10 @@ void main()
     }
     vec3 atmosphereColor =
         mix(fogColor, skyAmbientColor, 0.14 + fogDistance*0.08);
+    float preFogLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    litColor = mix(
+        litColor, vec3(preFogLuminance), fogAmount*0.34);
     litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float litLuminance =

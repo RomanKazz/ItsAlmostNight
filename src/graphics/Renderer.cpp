@@ -1022,9 +1022,9 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
     const auto centerAlpha =
         static_cast<unsigned char>(finalOpacity * 255.0F);
     constexpr float Tau = 6.28318530718F;
-    constexpr unsigned char ShadowRed = 14;
-    constexpr unsigned char ShadowGreen = 18;
-    constexpr unsigned char ShadowBlue = 24;
+    constexpr unsigned char ShadowRed = 25;
+    constexpr unsigned char ShadowGreen = 32;
+    constexpr unsigned char ShadowBlue = 38;
 
     for (int segment = 0; segment < segmentCount; ++segment) {
         const float angle0 =

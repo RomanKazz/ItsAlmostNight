@@ -86,24 +86,18 @@ const char* attackDirectionName(AttackDirection direction) {
     return "";
 }
 
-std::string waveForecastText(
-    const SimulationSnapshot& snapshot) {
-    static constexpr std::array<const char*, 7> Names{{
-        "GRUNT", "RUNNER", "TANK", "BOSS",
-        "SHOOTER", "SAPPER", "FLYER",
-    }};
-    std::string text = "FORECAST";
-    for (std::size_t index = 0;
-         index < snapshot.upcomingEnemyCounts.size(); ++index) {
-        const int count =
-            snapshot.upcomingEnemyCounts[index];
-        if (count <= 0) {
-            continue;
-        }
-        text += "   ";
-        text += Names[index];
-        text += " x";
-        text += std::to_string(count);
+std::string compactAmount(int amount) {
+    if (amount < 1000) {
+        return std::to_string(amount);
+    }
+    char text[24]{};
+    if (amount < 10000) {
+        std::snprintf(
+            text, sizeof(text), "%.1fk",
+            static_cast<double>(amount) / 1000.0);
+    } else {
+        std::snprintf(
+            text, sizeof(text), "%dk", amount / 1000);
     }
     return text;
 }
@@ -695,22 +689,22 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float woodY = -view.woodResourceBounce;
     const float stoneY = -view.stoneResourceBounce;
     const float goldY = -view.goldResourceBounce;
-    ui.drawPanel({12.0F, 12.0F, 600.0F, 116.0F}, 232);
-    ui.drawResourceIcon({24.0F, 20.0F + woodY, 92.0F, 92.0F},
+    ui.drawPanel({12.0F, 12.0F, 398.0F, 68.0F}, 218);
+    ui.drawResourceIcon({22.0F, 20.0F + woodY, 48.0F, 48.0F},
                         UiResourceIcon::Wood);
-    drawUiText(std::to_string(snapshot.wood),
-               {126.0F, 40.0F + woodY},
-               30.0F, RAYWHITE);
-    ui.drawResourceIcon({214.0F, 20.0F + stoneY, 92.0F, 92.0F},
+    drawUiText(compactAmount(snapshot.wood),
+               {76.0F, 28.0F + woodY},
+               20.0F, RAYWHITE);
+    ui.drawResourceIcon({144.0F, 20.0F + stoneY, 48.0F, 48.0F},
                         UiResourceIcon::Stone);
-    drawUiText(std::to_string(snapshot.stone),
-               {316.0F, 40.0F + stoneY},
-               30.0F, RAYWHITE);
-    ui.drawResourceIcon({404.0F, 20.0F + goldY, 92.0F, 92.0F},
+    drawUiText(compactAmount(snapshot.stone),
+               {198.0F, 28.0F + stoneY},
+               20.0F, RAYWHITE);
+    ui.drawResourceIcon({276.0F, 20.0F + goldY, 48.0F, 48.0F},
                         UiResourceIcon::Crystal);
-    drawUiText(std::to_string(snapshot.gold),
-               {506.0F, 40.0F + goldY},
-               30.0F, RAYWHITE);
+    drawUiText(compactAmount(snapshot.gold),
+               {330.0F, 28.0F + goldY},
+               20.0F, RAYWHITE);
     const auto drawResourcePulse =
         [](Rectangle bounds, float remaining) {
             if (remaining <= 0.0F) {
@@ -727,109 +721,90 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 {255, 236, 160, alpha});
         };
     drawResourcePulse(
-        {18.0F, 17.0F, 178.0F, 106.0F},
+        {17.0F, 17.0F, 116.0F, 58.0F},
         view.woodResourcePulse);
     drawResourcePulse(
-        {208.0F, 17.0F, 178.0F, 106.0F},
+        {139.0F, 17.0F, 126.0F, 58.0F},
         view.stoneResourcePulse);
     drawResourcePulse(
-        {398.0F, 17.0F, 208.0F, 106.0F},
+        {271.0F, 17.0F, 134.0F, 58.0F},
         view.goldResourcePulse);
 
-    ui.drawPanel({12.0F, 142.0F, 440.0F, 348.0F}, 232);
-    ui.drawInsetPanel({20.0F, 254.0F, 424.0F, 92.0F}, 220);
+    ui.drawPanel({12.0F, 90.0F, 314.0F, 158.0F}, 216);
+    const double healthFraction =
+        snapshot.playerHealth / snapshot.playerMaxHealth;
+    drawUiText(
+        "YOU  " +
+            std::to_string(static_cast<int>(snapshot.playerHealth)) +
+            " / " +
+            std::to_string(static_cast<int>(snapshot.playerMaxHealth)),
+        {26.0F, 104.0F}, 16.0F,
+        healthFraction > 0.3 ? Color{176, 225, 179, 255}
+                             : Color{240, 116, 98, 255});
+    ui.drawProgressBar(
+        {26.0F, 135.0F, 286.0F, 17.0F},
+        static_cast<float>(healthFraction),
+        healthFraction > 0.3 ? UiBarColor::Green : UiBarColor::Red);
+
+    if (snapshot.coreMaxHealth > 0.0) {
+        drawUiText(
+            "CORE L" + std::to_string(snapshot.coreLevel) + "  " +
+                std::to_string(static_cast<int>(snapshot.coreHealth)) +
+                " / " +
+                std::to_string(static_cast<int>(snapshot.coreMaxHealth)),
+            {26.0F, 166.0F}, 16.0F,
+            {232, 196, 123, 255});
+        ui.drawProgressBar(
+            {26.0F, 197.0F, 286.0F, 17.0F},
+            static_cast<float>(snapshot.coreHealth /
+                               snapshot.coreMaxHealth),
+            UiBarColor::Yellow);
+    } else {
+        drawUiText("CORE NOT BUILT", {26.0F, 178.0F}, 16.0F,
+                   {180, 154, 116, 255});
+    }
+    if (snapshot.unlimitedResources) {
+        drawUiText("∞", {286.0F, 103.0F}, 20.0F,
+                   {111, 220, 151, 255});
+    }
+    drawUiText(
+        "WAVE " + std::to_string(snapshot.wave) +
+            "   •   BEST " + std::to_string(snapshot.bestWave),
+        {26.0F, 219.0F}, 12.0F,
+        {190, 184, 169, 235});
+
     if (snapshot.state == RunState::BuildPhase ||
         snapshot.state == RunState::Sunset ||
         snapshot.state == RunState::Wave ||
         snapshot.state == RunState::WaveComplete) {
         ui.drawPanel(
-            {static_cast<float>(GetScreenWidth()) * 0.5F - 300.0F,
-             142.0F, 600.0F, 112.0F},
-            226);
-    }
-
-    const std::string tickText =
-        "Simulation tick: " + std::to_string(snapshot.tick);
-    drawUiText(tickText, {24.0F, 162.0F}, 20.0F, RAYWHITE);
-    drawUiText("Mode: Endless Defense", {24.0F, 206.0F}, 20.0F,
-               {245, 184, 76, 255});
-    drawUiText(
-        "Wave: " + std::to_string(snapshot.wave) +
-            "   Best: " + std::to_string(snapshot.bestWave),
-        {24.0F, 228.0F}, 18.0F,
-        {235, 218, 181, 245});
-
-    const std::string playerHealthText =
-        "Health: " +
-        std::to_string(static_cast<int>(snapshot.playerHealth)) +
-        " / " +
-        std::to_string(static_cast<int>(snapshot.playerMaxHealth));
-    const double healthFraction =
-        snapshot.playerHealth / snapshot.playerMaxHealth;
-    drawUiText(playerHealthText, {24.0F, 266.0F}, 22.0F,
-               healthFraction > 0.3 ? Color{105, 220, 125, 255}
-                                    : Color{235, 92, 72, 255});
-    ui.drawProgressBar(
-        {24.0F, 314.0F, 400.0F, 24.0F},
-        static_cast<float>(healthFraction),
-        healthFraction > 0.3 ? UiBarColor::Green : UiBarColor::Red);
-
-    if (snapshot.unlimitedResources) {
-        drawUiText("UNLIMITED RESOURCES", {24.0F, 356.0F}, 18.0F,
-                   {88, 220, 130, 255});
-    }
-    if (snapshot.coreMaxHealth > 0.0) {
-        const std::string coreText =
-            "Core L" + std::to_string(snapshot.coreLevel) + ": " +
-            std::to_string(static_cast<int>(snapshot.coreHealth)) +
-            " / " +
-            std::to_string(static_cast<int>(snapshot.coreMaxHealth));
-        const int coreTextY =
-            snapshot.unlimitedResources ? 402 : 356;
-        drawUiText(coreText, {24.0F, static_cast<float>(coreTextY)},
-                   20.0F, {245, 184, 76, 255});
-        ui.drawProgressBar(
-            {24.0F, static_cast<float>(coreTextY + 42), 400.0F,
-             24.0F},
-            static_cast<float>(snapshot.coreHealth /
-                               snapshot.coreMaxHealth),
-            UiBarColor::Yellow);
+            {static_cast<float>(GetScreenWidth()) * 0.5F - 235.0F,
+             12.0F, 470.0F, 68.0F},
+            210);
     }
 
     if (snapshot.state == RunState::BuildPhase) {
         const std::string text =
-            "Wave " + std::to_string(snapshot.wave + 1) + " in: " +
+            "WAVE " + std::to_string(snapshot.wave + 1) + " IN " +
             std::to_string(
                 static_cast<int>(snapshot.phaseTimeRemaining) + 1) +
-            "   N: start early";
-        drawCenteredUiText(text, 152.0F, 24.0F,
+            "   •   N START";
+        drawCenteredUiText(text, 25.0F, 16.0F,
                            {245, 184, 76, 255});
-        drawCenteredUiText(
-            waveForecastText(snapshot), 196.0F, 18.0F,
-            {235, 218, 181, 245});
     } else if (snapshot.state == RunState::Sunset) {
         std::string text =
-            "SUNSET   Wave " + std::to_string(snapshot.wave + 1) +
-            " in: " +
+            "SUNSET   •   WAVE " +
+            std::to_string(snapshot.wave + 1) + " IN " +
             std::to_string(
                 static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-        if (snapshot.upcomingAttackDirection) {
-            text += "   ATTACK: ";
-            text += attackDirectionName(
-                *snapshot.upcomingAttackDirection);
-        }
-        drawCenteredUiText(text, 152.0F, 24.0F,
+        drawCenteredUiText(text, 25.0F, 16.0F,
                            {255, 146, 79, 255});
-        drawCenteredUiText(
-            waveForecastText(snapshot), 196.0F, 18.0F,
-            {255, 205, 145, 255});
     } else if (snapshot.state == RunState::Wave) {
         std::string text =
             "WAVE " + std::to_string(snapshot.wave) +
-            "   BEST " + std::to_string(snapshot.bestWave) +
-            "   Enemies: " +
+            "   •   " +
             std::to_string(snapshot.activeEnemyCount) +
-            "   Incoming: " +
+            " ACTIVE   •   " +
             std::to_string(snapshot.pendingEnemyCount);
         const bool bossCharging = std::any_of(
             snapshot.enemies.begin(), snapshot.enemies.end(),
@@ -840,27 +815,57 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         if (bossCharging) {
             text += "   BOSS RAM INCOMING";
         }
-        drawCenteredUiText(text, 152.0F, 24.0F,
+        drawCenteredUiText(text, 25.0F, 16.0F,
                            {235, 92, 72, 255});
     } else if (snapshot.state == RunState::WaveComplete) {
         const std::string text =
             "DAWN   +" +
             std::to_string(snapshot.waveCompletionReward) +
-            " Crystals   New day in: " +
+            " CRYSTALS   •   DAY IN " +
             std::to_string(
                 static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-        drawCenteredUiText(text, 152.0F, 24.0F,
+        drawCenteredUiText(text, 25.0F, 16.0F,
                            {255, 194, 92, 255});
+    }
+
+    if (snapshot.state == RunState::Sunset &&
+        snapshot.upcomingAttackDirection &&
+        snapshot.phaseDuration > 0.0) {
+        const double elapsed =
+            snapshot.phaseDuration - snapshot.phaseTimeRemaining;
+        if (elapsed < 3.2) {
+            const float fade = std::clamp(
+                static_cast<float>((3.2 - elapsed) / 0.65),
+                0.0F, 1.0F);
+            const std::string warning =
+                "ATTACK FROM " + std::string(attackDirectionName(
+                    *snapshot.upcomingAttackDirection));
+            const float warningWidth =
+                measureUiText(warning, 32.0F).x;
+            DrawRectangleRounded(
+                {static_cast<float>(GetScreenWidth()) * 0.5F -
+                     warningWidth * 0.5F - 28.0F,
+                 104.0F, warningWidth + 56.0F, 66.0F},
+                0.22F, 8,
+                {32, 10, 9,
+                 static_cast<unsigned char>(fade * 190.0F)});
+            drawCenteredUiText(
+                warning, 113.0F, 32.0F,
+                {255, 134, 88,
+                 static_cast<unsigned char>(fade * 255.0F)});
+        }
     }
 
     const std::string objective = tutorialText(snapshot);
     if (!objective.empty()) {
-        const float objectiveY =
-            snapshot.state == RunState::BuildPhase ||
-                    snapshot.state == RunState::Sunset
-                ? 238.0F
-                : 200.0F;
-        drawCenteredUiText(objective, objectiveY, 20.0F,
+        const bool attackWarningVisible =
+            snapshot.state == RunState::Sunset &&
+            snapshot.upcomingAttackDirection &&
+            snapshot.phaseDuration > 0.0 &&
+            snapshot.phaseDuration - snapshot.phaseTimeRemaining < 3.2;
+        drawCenteredUiText(
+            objective, attackWarningVisible ? 184.0F : 91.0F,
+            16.0F,
                            {255, 224, 146, 255});
     }
 

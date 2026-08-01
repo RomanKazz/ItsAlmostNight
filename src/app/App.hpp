@@ -360,8 +360,6 @@ class App {
     std::vector<RampPlacement>
         modularRampDragPreviews_;
     bool hideBottomHud_{};
-    double simulationTickMilliseconds_{};
-    double peakSimulationTickMilliseconds_{};
 };
 
 } // namespace ian

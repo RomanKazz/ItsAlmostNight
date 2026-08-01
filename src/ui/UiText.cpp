@@ -64,6 +64,14 @@ void drawUiText(std::string_view text, Vector2 position,
                 float fontSize, Color color) {
     const std::string owned{text};
     const float scaledSize = fontSize * UiTextScale;
+    const Color shadow{
+        7, 9, 11,
+        static_cast<unsigned char>(
+            static_cast<unsigned int>(color.a) * 3U / 4U),
+    };
+    DrawTextEx(uiFont(), owned.c_str(),
+               {position.x + 1.5F, position.y + 2.0F},
+               scaledSize, scaledSize * 0.02F, shadow);
     DrawTextEx(uiFont(), owned.c_str(), position, scaledSize,
                scaledSize * 0.02F, color);
 }

@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cmath>
 #include <string>
 #include <utility>
@@ -1375,11 +1374,6 @@ void App::render() {
                     .damageIndicators = damageIndicators_,
                     .statusMessage = statusMessage_,
                     .statusMessageRemaining = statusMessageRemaining_,
-                    .debugSpawnType = debugSpawnType_,
-                    .slowMotion = slowMotion_,
-                    .showColliders = showColliders_,
-                    .showFlowField = showFlowField_,
-                    .showSpatialHash = showSpatialHash_,
                     .hideBottomHints = hideBottomHud_,
                     .foundationBuildMode =
                         foundationBuildMode_,
@@ -1398,10 +1392,6 @@ void App::render() {
                         showBuildingContextCard,
                     .repairSweepActive =
                         repairSweepActive_,
-                    .simulationTickMilliseconds =
-                        simulationTickMilliseconds_,
-                    .peakSimulationTickMilliseconds =
-                        peakSimulationTickMilliseconds_,
                     .woodResourceBounce =
                         woodHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
@@ -1456,12 +1446,6 @@ void App::render() {
                         buildingStatsUpgradeRemaining_,
                     .buildingStatsUpgradeDuration =
                         buildingStatsUpgradeDuration_,
-                    .environmentProfile =
-                        environment_.nearestProfileName(),
-                    .environmentTime = environment_.timeOfDay(),
-                    .environmentFrozen = environment_.frozen(),
-                    .environmentManualOverride =
-                        environment_.manualOverride(),
             },
             camera);
         if (foundationBuildMode_) {
@@ -1719,10 +1703,6 @@ void App::render() {
             drawGraphicsPanel();
         }
         drawEnemySpawnMenu();
-        drawUiText(TextFormat("%d FPS", GetFPS()),
-                   {static_cast<float>(GetScreenWidth() - 110),
-                    20.0F},
-                   20.0F, LIME);
     }
     renderer_->endFrame();
 }
