@@ -156,6 +156,11 @@ class Renderer {
         Ray ray, double maxDistance,
         float defensiveYaw = 0.0F,
         float cannonPitch = 0.0F);
+    [[nodiscard]] std::optional<double>
+    platformFrameRaycastDistance(
+        Vector3 topCenter, float scale,
+        const std::array<float, 4>& supportLengths,
+        Ray ray, double maxDistance);
     [[nodiscard]] bool drawCannon(Vector3 position, float yawRadians,
                                   float pitchRadians,
                                   Color tint = WHITE,

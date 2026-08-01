@@ -43,6 +43,79 @@ struct EnemyAnimationSource {
     bool nativeSkeleton{};
 };
 
+constexpr int PlatformLegCount = 4;
+constexpr int PlatformTopMeshIndex = 4;
+constexpr int PlatformMeshCount = PlatformTopMeshIndex + 1;
+constexpr float PlatformLegTopY = -0.12480831F;
+constexpr float PlatformLegSpan = 3.87519169F;
+constexpr std::array<std::size_t, PlatformLegCount>
+    RotatedPlatformSupportIndices{1U, 0U, 3U, 2U};
+
+BoundingBox transformedBoundingBox(
+    const BoundingBox& bounds, Matrix transform) {
+    BoundingBox result{};
+    for (int corner = 0; corner < 8; ++corner) {
+        const Vector3 point{
+            (corner & 1) != 0 ? bounds.max.x : bounds.min.x,
+            (corner & 2) != 0 ? bounds.max.y : bounds.min.y,
+            (corner & 4) != 0 ? bounds.max.z : bounds.min.z,
+        };
+        const Vector3 transformed =
+            Vector3Transform(point, transform);
+        if (corner == 0) {
+            result.min = transformed;
+            result.max = transformed;
+            continue;
+        }
+        result.min.x = std::min(result.min.x, transformed.x);
+        result.min.y = std::min(result.min.y, transformed.y);
+        result.min.z = std::min(result.min.z, transformed.z);
+        result.max.x = std::max(result.max.x, transformed.x);
+        result.max.y = std::max(result.max.y, transformed.y);
+        result.max.z = std::max(result.max.z, transformed.z);
+    }
+    return result;
+}
+
+std::array<Matrix, PlatformLegCount + 1>
+platformMeshTransforms(
+    Vector3 topCenter, float scale,
+    const std::array<float, 4>& supportLengths) {
+    std::array<Matrix, PlatformLegCount + 1> transforms{};
+    const Matrix worldTranslation = MatrixTranslate(
+        topCenter.x, topCenter.y, topCenter.z);
+    const Matrix modelRotation = MatrixRotateY(PI);
+    transforms[PlatformTopMeshIndex] = MatrixMultiply(
+        MatrixMultiply(
+            MatrixScale(scale, 1.0F, scale),
+            modelRotation),
+        worldTranslation);
+    for (int legIndex = 0; legIndex < PlatformLegCount;
+         ++legIndex) {
+        const std::size_t supportIndex =
+            RotatedPlatformSupportIndices[
+                static_cast<std::size_t>(legIndex)];
+        const float length = std::max(
+            supportLengths[supportIndex],
+            -PlatformLegTopY);
+        const float verticalScale = std::max(
+            (length + PlatformLegTopY) / PlatformLegSpan,
+            0.01F);
+        Matrix transform = MatrixTranslate(
+            0.0F, -PlatformLegTopY, 0.0F);
+        transform = MatrixMultiply(
+            transform,
+            MatrixScale(scale, verticalScale, scale));
+        transform = MatrixMultiply(
+            transform,
+            MatrixTranslate(0.0F, PlatformLegTopY, 0.0F));
+        transform = MatrixMultiply(transform, modelRotation);
+        transforms[static_cast<std::size_t>(legIndex)] =
+            MatrixMultiply(transform, worldTranslation);
+    }
+    return transforms;
+}
+
 ModelResource* enemyModelFor(
     GraphicsResources& resources, EnemyModelVisual visual) {
     switch (visual) {
@@ -359,7 +432,16 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (!articulatedCannon &&
+            !acceptCollision(GetRayCollisionBox(
+                ray,
+                transformedBoundingBox(
+                    resource->visualBounds(),
+                    baseTransform)))) {
+            return std::nullopt;
+        }
         std::optional<double> closest;
+        const auto meshBounds = resource->meshBounds();
         for (int meshIndex = 0;
              meshIndex < model.meshCount; ++meshIndex) {
             Matrix transform = baseTransform;
@@ -374,6 +456,16 @@ std::optional<double> Renderer::buildingRaycastDistance(
                                     cannonPitchRadians)),
                             rotation),
                         translation));
+            }
+            if (static_cast<std::size_t>(meshIndex) <
+                    meshBounds.size() &&
+                !acceptCollision(GetRayCollisionBox(
+                    ray,
+                    transformedBoundingBox(
+                        meshBounds[static_cast<std::size_t>(
+                            meshIndex)],
+                        transform)))) {
+                continue;
             }
             const auto distance = acceptCollision(
                 GetRayCollisionMesh(
@@ -460,6 +552,55 @@ std::optional<double> Renderer::buildingRaycastDistance(
         addBox(
             {position.x, size.y * 0.5F, position.z},
             size);
+    }
+    return closest;
+}
+
+std::optional<double>
+Renderer::platformFrameRaycastDistance(
+    Vector3 topCenter, float scale,
+    const std::array<float, 4>& supportLengths,
+    Ray ray, double maxDistance) {
+    auto& resource = resources_.platformModel();
+    if (!resource.valid() || maxDistance <= 0.0 ||
+        resource.get().meshCount <= PlatformTopMeshIndex) {
+        return std::nullopt;
+    }
+    const Model& model = resource.get();
+    const auto meshBounds = resource.meshBounds();
+    if (meshBounds.size() <
+        static_cast<std::size_t>(PlatformMeshCount)) {
+        return std::nullopt;
+    }
+    const auto transforms = platformMeshTransforms(
+        topCenter, scale, supportLengths);
+    std::optional<double> closest;
+    for (int meshIndex = 0; meshIndex < PlatformMeshCount;
+         ++meshIndex) {
+        const Matrix transform = MatrixMultiply(
+            model.transform,
+            transforms[static_cast<std::size_t>(meshIndex)]);
+        const BoundingBox worldBounds = transformedBoundingBox(
+            meshBounds[static_cast<std::size_t>(meshIndex)],
+            transform);
+        const RayCollision boundsHit =
+            GetRayCollisionBox(ray, worldBounds);
+        if (!boundsHit.hit || boundsHit.distance < 0.0F ||
+            static_cast<double>(boundsHit.distance) >
+                maxDistance) {
+            continue;
+        }
+        const RayCollision meshHit = GetRayCollisionMesh(
+            ray, model.meshes[meshIndex], transform);
+        if (!meshHit.hit || meshHit.distance < 0.0F ||
+            static_cast<double>(meshHit.distance) >
+                maxDistance) {
+            continue;
+        }
+        const double distance = meshHit.distance;
+        if (!closest || distance < *closest) {
+            closest = distance;
+        }
     }
     return closest;
 }
@@ -703,9 +844,7 @@ bool Renderer::drawPlatformFrameModel(
         return false;
     }
     Model& model = resource.get();
-    constexpr int LegCount = 4;
-    constexpr int TopMeshIndex = 4;
-    if (model.meshCount <= TopMeshIndex) {
+    if (model.meshCount <= PlatformTopMeshIndex) {
         return false;
     }
     Shader* shader = nullptr;
@@ -741,49 +880,16 @@ bool Renderer::drawPlatformFrameModel(
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
 
-    const Matrix worldTranslation = MatrixTranslate(
-        topCenter.x, topCenter.y, topCenter.z);
-    const Matrix modelRotation = MatrixRotateY(PI);
-    const Matrix topTransform = MatrixMultiply(
-        MatrixMultiply(
-            MatrixScale(scale, 1.0F, scale),
-            modelRotation),
-        worldTranslation);
-    drawMesh(TopMeshIndex, topTransform);
-
-    // The authored legs start 0.1248 m below the grid plane and
-    // end exactly 4 m below it. Scale every leg around its own top
-    // so uneven terrain keeps all feet on the ground.
-    constexpr float LegTopY = -0.12480831F;
-    constexpr float LegSpan = 3.87519169F;
-    // GLB mesh order is BL, BR, FL, FR. The authored platform
-    // faces opposite the game's world convention, so after the
-    // 180-degree rotation those meshes land at supports 1, 0, 3, 2.
-    constexpr std::array<std::size_t, LegCount>
-        RotatedSupportIndices{1U, 0U, 3U, 2U};
-    for (int legIndex = 0; legIndex < LegCount;
+    const auto transforms = platformMeshTransforms(
+        topCenter, scale, supportLengths);
+    drawMesh(
+        PlatformTopMeshIndex,
+        transforms[PlatformTopMeshIndex]);
+    for (int legIndex = 0; legIndex < PlatformLegCount;
          ++legIndex) {
-        const std::size_t supportIndex =
-            RotatedSupportIndices[
-                static_cast<std::size_t>(legIndex)];
-        const float length = std::max(
-            supportLengths[supportIndex],
-            -LegTopY);
-        const float verticalScale =
-            std::max((length + LegTopY) / LegSpan, 0.01F);
-        Matrix transform = MatrixTranslate(
-            0.0F, -LegTopY, 0.0F);
-        transform = MatrixMultiply(
-            transform,
-            MatrixScale(scale, verticalScale, scale));
-        transform = MatrixMultiply(
-            transform,
-            MatrixTranslate(0.0F, LegTopY, 0.0F));
-        transform = MatrixMultiply(
-            transform, modelRotation);
-        transform = MatrixMultiply(
-            transform, worldTranslation);
-        drawMesh(legIndex, transform);
+        drawMesh(
+            legIndex,
+            transforms[static_cast<std::size_t>(legIndex)]);
     }
     return true;
 }

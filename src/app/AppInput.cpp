@@ -298,9 +298,15 @@ void App::processInput() {
         currentSnapshot.aimedBuilding =
             preciseBuildingAim(
                 *renderer_, currentSnapshot);
+        currentSnapshot.aimedModularBuilding =
+            preciseModularBuildingAim(
+                *renderer_, currentSnapshot);
         input_.overrideAimedBuilding = true;
         input_.aimedBuildingOverride =
             currentSnapshot.aimedBuilding;
+        input_.overrideAimedModularBuilding = true;
+        input_.aimedModularBuildingOverride =
+            currentSnapshot.aimedModularBuilding;
         const std::optional<EntityId> actionBuilding =
             buildingContextCardTarget_
                 ? buildingContextCardTarget_

@@ -5,7 +5,9 @@
 
 #include <raylib.h>
 
+#include <span>
 #include <string_view>
+#include <vector>
 
 namespace ian {
 
@@ -71,10 +73,15 @@ class ModelResource {
     [[nodiscard]] const Model& get() const;
     [[nodiscard]] const GlbCollisionAsset&
     collisionAsset() const;
+    [[nodiscard]] const BoundingBox& visualBounds() const;
+    [[nodiscard]] std::span<const BoundingBox>
+    meshBounds() const;
 
   private:
     Model model_{};
     GlbCollisionAsset collisionAsset_;
+    BoundingBox visualBounds_{};
+    std::vector<BoundingBox> meshBounds_;
     bool loaded_{};
 };
 

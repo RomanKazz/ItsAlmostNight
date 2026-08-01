@@ -374,6 +374,67 @@ std::optional<EntityId> preciseBuildingAim(
     return result;
 }
 
+std::optional<EntityId> preciseModularBuildingAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot) {
+    if (!snapshot.aimedModularBuilding) {
+        return std::nullopt;
+    }
+    const EntityId candidate =
+        *snapshot.aimedModularBuilding;
+    const auto frame = std::find_if(
+        snapshot.platformFrames.begin(),
+        snapshot.platformFrames.end(),
+        [candidate](const PlatformFrameInstance& item) {
+            return item.id == candidate;
+        });
+    if (frame == snapshot.platformFrames.end()) {
+        return candidate;
+    }
+
+    constexpr double MaximumDistance = 6.0;
+    const double horizontal =
+        std::cos(snapshot.playerPitch);
+    const Ray ray{
+        {static_cast<float>(snapshot.playerPosition.x),
+         static_cast<float>(snapshot.playerPosition.y),
+         static_cast<float>(snapshot.playerPosition.z)},
+        {static_cast<float>(
+             std::sin(snapshot.playerYaw) * horizontal),
+         static_cast<float>(
+             std::sin(snapshot.playerPitch)),
+         static_cast<float>(
+             -std::cos(snapshot.playerYaw) * horizontal)},
+    };
+    const double minimumX = std::min(
+        frame->supports[0].top.x,
+        frame->supports[2].top.x);
+    const double maximumX = std::max(
+        frame->supports[1].top.x,
+        frame->supports[3].top.x);
+    const double minimumZ = std::min(
+        frame->supports[0].top.z,
+        frame->supports[1].top.z);
+    const double maximumZ = std::max(
+        frame->supports[2].top.z,
+        frame->supports[3].top.z);
+    std::array<float, 4> supportLengths{};
+    for (std::size_t index = 0;
+         index < frame->supports.size(); ++index) {
+        supportLengths[index] = static_cast<float>(
+            std::max(frame->supports[index].length, 0.0));
+    }
+    const auto distance =
+        renderer.platformFrameRaycastDistance(
+            {static_cast<float>((minimumX + maximumX) * 0.5),
+             static_cast<float>(frame->floorHeight),
+             static_cast<float>((minimumZ + maximumZ) * 0.5)},
+            static_cast<float>(maximumX - minimumX) * 0.5F,
+            supportLengths, ray, MaximumDistance);
+    return distance ? std::optional<EntityId>{candidate}
+                    : std::nullopt;
+}
+
 Vector3 colorToVector(Color color) {
     constexpr float ChannelScale = 1.0F / 255.0F;
     return {

@@ -60,6 +60,8 @@ struct PlayerCommand {
     double lookPitch{};
     bool overrideAimedBuilding{};
     std::optional<EntityId> aimedBuildingOverride;
+    bool overrideAimedModularBuilding{};
+    std::optional<EntityId> aimedModularBuildingOverride;
     bool jump{};
     bool sprint{};
     bool usePickaxe{};

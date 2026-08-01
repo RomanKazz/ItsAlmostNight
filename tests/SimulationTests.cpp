@@ -368,6 +368,16 @@ void runSimulationTests() {
                         ->platformStorey ==
                     frame->storey,
             "ordinary building preview follows aimed platform surface");
+        ian::PlayerCommand preciseAimMiss;
+        preciseAimMiss.overrideAimedModularBuilding = true;
+        preciseAimMiss.aimedModularBuildingOverride =
+            std::nullopt;
+        platformAim.tick(
+            1.0 / 60.0, preciseAimMiss);
+        require(
+            !platformAim.snapshot().aimedModularBuilding,
+            "render-side precise platform picking can reject a"
+            " broad-phase candidate");
     }
 
     {

@@ -114,7 +114,9 @@ std::optional<EntityId> FoundationSystem::raycast(
             frame.floorHeight));
         for (const FoundationSupport& support :
              frame.supports) {
-            constexpr double HalfSupportWidth = 0.10;
+            // Conservative proxy. Renderer confirms the exact
+            // visual leg hit before accepting the selection.
+            constexpr double HalfSupportWidth = 0.18;
             consider({
                 .id = frame.id,
                 .minimum = {

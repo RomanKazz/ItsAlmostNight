@@ -1708,6 +1708,10 @@ void Simulation::updatePlayerActions(
         aimedBuilding_ =
             command.aimedBuildingOverride;
     }
+    if (command.overrideAimedModularBuilding) {
+        aimedModularBuilding_ =
+            command.aimedModularBuildingOverride;
+    }
     aimedResource_ = playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe
                          ? resources_.raycast(playerPosition_, direction, gameplay_.pickaxeRange)
                          : std::nullopt;

@@ -52,6 +52,10 @@ void drawCentered(
 [[nodiscard]] std::optional<EntityId> preciseBuildingAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot);
+[[nodiscard]] std::optional<EntityId>
+preciseModularBuildingAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot);
 [[nodiscard]] Vector3 colorToVector(Color color);
 
 [[nodiscard]] float smoothstep(

@@ -100,6 +100,29 @@ bool ModelResource::load(const char* path) {
             }
             --model_.meshCount;
         }
+        meshBounds_.reserve(
+            static_cast<std::size_t>(model_.meshCount));
+        for (int index = 0; index < model_.meshCount; ++index) {
+            const BoundingBox bounds =
+                GetMeshBoundingBox(model_.meshes[index]);
+            meshBounds_.push_back(bounds);
+            if (index == 0) {
+                visualBounds_ = bounds;
+            } else {
+                visualBounds_.min.x = std::min(
+                    visualBounds_.min.x, bounds.min.x);
+                visualBounds_.min.y = std::min(
+                    visualBounds_.min.y, bounds.min.y);
+                visualBounds_.min.z = std::min(
+                    visualBounds_.min.z, bounds.min.z);
+                visualBounds_.max.x = std::max(
+                    visualBounds_.max.x, bounds.max.x);
+                visualBounds_.max.y = std::max(
+                    visualBounds_.max.y, bounds.max.y);
+                visualBounds_.max.z = std::max(
+                    visualBounds_.max.z, bounds.max.z);
+            }
+        }
     }
     return loaded_;
 }
@@ -111,6 +134,8 @@ void ModelResource::unload() {
         loaded_ = false;
     }
     collisionAsset_ = {};
+    visualBounds_ = {};
+    meshBounds_.clear();
 }
 
 bool ModelResource::valid() const {
@@ -128,6 +153,15 @@ const Model& ModelResource::get() const {
 const GlbCollisionAsset&
 ModelResource::collisionAsset() const {
     return collisionAsset_;
+}
+
+const BoundingBox& ModelResource::visualBounds() const {
+    return visualBounds_;
+}
+
+std::span<const BoundingBox>
+ModelResource::meshBounds() const {
+    return meshBounds_;
 }
 
 ModelAnimationsResource::~ModelAnimationsResource() {
