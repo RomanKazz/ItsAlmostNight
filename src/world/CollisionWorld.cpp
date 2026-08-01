@@ -395,73 +395,177 @@ Vec3 CollisionWorld::moveCircle(
         std::max(1, static_cast<int>(std::ceil(distance / MaxMovementStep)));
     const double stepX = delta.x / static_cast<double>(stepCount);
     const double stepZ = delta.z / static_cast<double>(stepCount);
-    const auto blockedByRaisedSurface =
-        [this, maximumWalkableSurfaceHeight,
-         radius](Vec3 candidate) {
+    constexpr double CollisionEpsilon = 1e-6;
+    const auto circleRectanglePenetration =
+        [radius](Vec3 point, double minimumX,
+                 double maximumX, double minimumZ,
+                 double maximumZ) {
+            const double closestX = std::clamp(
+                point.x, minimumX, maximumX);
+            const double closestZ = std::clamp(
+                point.z, minimumZ, maximumZ);
+            const double offsetX = point.x - closestX;
+            const double offsetZ = point.z - closestZ;
+            const double distance =
+                std::hypot(offsetX, offsetZ);
+            if (distance >= radius) {
+                return 0.0;
+            }
+            const bool centerInside =
+                point.x >= minimumX &&
+                point.x <= maximumX &&
+                point.z >= minimumZ &&
+                point.z <= maximumZ;
+            if (!centerInside) {
+                return radius - distance;
+            }
+            return std::min({
+                point.x - (minimumX - radius),
+                maximumX + radius - point.x,
+                point.z - (minimumZ - radius),
+                maximumZ + radius - point.z,
+            });
+        };
+    const auto raisedSurfacePenetration =
+        [maximumWalkableSurfaceHeight,
+         &circleRectanglePenetration](
+            const WalkableSurface& surface,
+            Vec3 point) {
             if (!std::isfinite(
                     maximumWalkableSurfaceHeight)) {
-                return false;
+                return 0.0;
             }
-            const std::array<Vec3, 5> samples{{
-                candidate,
-                {candidate.x + radius,
-                 candidate.y, candidate.z},
-                {candidate.x - radius,
-                 candidate.y, candidate.z},
-                {candidate.x,
-                 candidate.y, candidate.z + radius},
-                {candidate.x,
-                 candidate.y, candidate.z - radius},
-            }};
+            const double closestX = std::clamp(
+                point.x, surface.minX, surface.maxX);
+            const double closestZ = std::clamp(
+                point.z, surface.minZ, surface.maxZ);
+            double surfaceHeight = surface.topHeight;
+            if (surface.kind == SurfaceKind::Ramp) {
+                double progress = 0.0;
+                switch (surface.rotation) {
+                case Rotation::Deg0:
+                    progress =
+                        (closestZ - surface.minZ) /
+                        (surface.maxZ - surface.minZ);
+                    break;
+                case Rotation::Deg90:
+                    progress =
+                        (surface.maxX - closestX) /
+                        (surface.maxX - surface.minX);
+                    break;
+                case Rotation::Deg180:
+                    progress =
+                        (surface.maxZ - closestZ) /
+                        (surface.maxZ - surface.minZ);
+                    break;
+                case Rotation::Deg270:
+                    progress =
+                        (closestX - surface.minX) /
+                        (surface.maxX - surface.minX);
+                    break;
+                }
+                surfaceHeight = surface.bottomHeight +
+                    std::clamp(progress, 0.0, 1.0) *
+                        (surface.topHeight -
+                         surface.bottomHeight);
+            }
+            constexpr double HeadAboveEye = 0.15;
+            if (surfaceHeight <=
+                    maximumWalkableSurfaceHeight +
+                        CollisionEpsilon ||
+                surfaceHeight >
+                    point.y + HeadAboveEye +
+                        CollisionEpsilon) {
+                return 0.0;
+            }
+            return circleRectanglePenetration(
+                point, surface.minX, surface.maxX,
+                surface.minZ, surface.maxZ);
+        };
+    const auto raisedSurfaceBlocksMovement =
+        [this, &raisedSurfacePenetration](
+            Vec3 from, Vec3 candidate) {
+            const auto blocks =
+                [&raisedSurfacePenetration,
+                 from, candidate](
+                    const WalkableSurface& surface) {
+                    const double candidateDepth =
+                        raisedSurfacePenetration(
+                            surface, candidate);
+                    if (candidateDepth <=
+                        CollisionEpsilon) {
+                        return false;
+                    }
+                    const double currentDepth =
+                        raisedSurfacePenetration(
+                            surface, from);
+                    return currentDepth <=
+                               CollisionEpsilon ||
+                           candidateDepth >
+                               currentDepth +
+                                   CollisionEpsilon;
+                };
             return std::any_of(
-                samples.begin(), samples.end(),
-                [this,
-                 maximumWalkableSurfaceHeight](
-                    Vec3 sample) {
-                    constexpr double SurfaceEpsilon =
-                        1e-6;
-                    constexpr double HeadAboveEye =
-                        0.15;
-                    const auto surface =
-                        modularSurfaceHeight(
-                            sample.x, sample.z,
-                            sample.y + HeadAboveEye);
-                    return surface &&
-                        *surface >
-                            maximumWalkableSurfaceHeight +
-                                SurfaceEpsilon;
+                       buildingSurfaces_.begin(),
+                       buildingSurfaces_.end(), blocks) ||
+                   std::any_of(
+                       modularSurfaces_.begin(),
+                       modularSurfaces_.end(), blocks);
+        };
+    const auto colliderPenetration =
+        [radius](Vec3 point, const CollisionBox& box) {
+            if (point.y <= box.minimumBlockingEyeY ||
+                point.y >= box.maximumBlockingEyeY) {
+                return 0.0;
+            }
+            const double minimumX = box.minX - radius;
+            const double maximumX = box.maxX + radius;
+            const double minimumZ = box.minZ - radius;
+            const double maximumZ = box.maxZ + radius;
+            if (point.x <= minimumX ||
+                point.x >= maximumX ||
+                point.z <= minimumZ ||
+                point.z >= maximumZ) {
+                return 0.0;
+            }
+            return std::min({
+                point.x - minimumX,
+                maximumX - point.x,
+                point.z - minimumZ,
+                maximumZ - point.z,
+            });
+        };
+    const auto colliderBlocksMovement =
+        [this, &colliderPenetration](
+            Vec3 from, Vec3 candidate) {
+            return std::any_of(
+                colliders_.begin(), colliders_.end(),
+                [&colliderPenetration,
+                 from, candidate](const CollisionBox& box) {
+                    const double candidateDepth =
+                        colliderPenetration(candidate, box);
+                    if (candidateDepth <=
+                        CollisionEpsilon) {
+                        return false;
+                    }
+                    const double currentDepth =
+                        colliderPenetration(from, box);
+                    return currentDepth <=
+                               CollisionEpsilon ||
+                           candidateDepth >
+                               currentDepth +
+                                   CollisionEpsilon;
                 });
         };
 
     for (int step = 0; step < stepCount; ++step) {
-        const bool escapingCollider =
-            std::any_of(
-                colliders_.begin(), colliders_.end(),
-                [position, radius](const auto& box) {
-                    return pointInsideExpandedBox(
-                        position, radius, box);
-                });
-        // A jump can move the player's vertical range into a
-        // platform or ramp while their horizontal center is
-        // already inside its footprint. In that state the normal
-        // raised-surface sweep must permit movement until the
-        // expanded footprint has been exited, or every direction
-        // remains blocked forever.
-        const bool escapingRaisedSurface =
-            blockedByRaisedSurface(position);
         Vec3 candidate = position;
         candidate.x =
             std::clamp(candidate.x + stepX, -worldLimit_ + radius, worldLimit_ - radius);
         const bool blockedX =
-            (!escapingRaisedSurface &&
-             blockedByRaisedSurface(candidate)) ||
-            (!escapingCollider &&
-             std::any_of(
-                 colliders_.begin(), colliders_.end(),
-                 [candidate, radius](const auto& box) {
-                     return pointInsideExpandedBox(
-                         candidate, radius, box);
-                 }));
+            raisedSurfaceBlocksMovement(
+                position, candidate) ||
+            colliderBlocksMovement(position, candidate);
         if (!blockedX) {
             position.x = candidate.x;
         }
@@ -470,15 +574,9 @@ Vec3 CollisionWorld::moveCircle(
         candidate.z =
             std::clamp(candidate.z + stepZ, -worldLimit_ + radius, worldLimit_ - radius);
         const bool blockedZ =
-            (!escapingRaisedSurface &&
-             blockedByRaisedSurface(candidate)) ||
-            (!escapingCollider &&
-             std::any_of(
-                 colliders_.begin(), colliders_.end(),
-                 [candidate, radius](const auto& box) {
-                     return pointInsideExpandedBox(
-                         candidate, radius, box);
-                 }));
+            raisedSurfaceBlocksMovement(
+                position, candidate) ||
+            colliderBlocksMovement(position, candidate);
         if (!blockedZ) {
             position.z = candidate.z;
         }

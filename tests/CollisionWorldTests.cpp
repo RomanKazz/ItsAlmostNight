@@ -319,6 +319,25 @@ void runCollisionWorldTests() {
         escapedEmbeddedRamp.x < -0.3,
         "player can escape a ramp intersection caused by"
         " vertical movement");
+    const auto heldIntoEmbeddedRamp =
+        rampSweepCollision.moveCircle(
+            {0.9, 1.7, 1.0},
+            {3.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.65);
+    const auto heldIntoEmbeddedRampAgain =
+        rampSweepCollision.moveCircle(
+            heldIntoEmbeddedRamp,
+            {3.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.65);
+    require(
+        std::abs(heldIntoEmbeddedRamp.x - 0.9) < 1e-6 &&
+            std::abs(
+                heldIntoEmbeddedRampAgain.x -
+                heldIntoEmbeddedRamp.x) < 1e-6,
+        "airborne collision cannot move deeper through a ramp"
+        " or repeatedly push the player backward");
 
     ian::CollisionWorld penetrationRecovery(
         10.0,
@@ -328,6 +347,12 @@ void runCollisionWorldTests() {
         penetrationRecovery.resolvePlayerPenetration(
             embedded,
             ian::CollisionWorld::PlayerRadius);
+    const ian::Vec3 wallContact{-0.3501, 1.7, 0.5};
+    const ian::Vec3 heldAgainstWall =
+        penetrationRecovery.moveCircle(
+            wallContact, {2.0, 0.0, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            0.65);
     require(
         penetrationRecovery.playerVolumeIntersectsSolid(
             embedded,
@@ -338,6 +363,11 @@ void runCollisionWorldTests() {
                 ian::CollisionWorld::PlayerRadius,
                 0.0, 1.85),
         "embedded player is moved to the nearest free side");
+    require(
+        std::abs(
+            heldAgainstWall.x - wallContact.x) < 1e-6,
+        "holding movement into a wall remains stable without"
+        " repeated pushback");
     const std::array<ian::PlatformFrameInstance, 1>
         overheadFrame{{
             {

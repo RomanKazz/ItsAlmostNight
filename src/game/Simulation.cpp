@@ -478,16 +478,6 @@ void Simulation::updatePlayer(double deltaSeconds,
         playerPosition_, movement,
         CollisionWorld::PlayerRadius,
         currentFeetHeight + MaximumStepUp);
-    const Vec3 resolvedPosition =
-        collisionWorld_.resolvePlayerPenetration(
-            playerPosition_,
-            CollisionWorld::PlayerRadius);
-    const bool correctedPenetration =
-        std::hypot(
-            resolvedPosition.x - playerPosition_.x,
-            resolvedPosition.z - playerPosition_.z) >
-        1e-6;
-    playerPosition_ = resolvedPosition;
     if (deltaSeconds > 1e-9) {
         const double actualX =
             playerPosition_.x - movementOrigin.x;
@@ -502,10 +492,6 @@ void Simulation::updatePlayer(double deltaSeconds,
                 actualZ / deltaSeconds;
         }
     }
-    if (correctedPenetration) {
-        playerHorizontalVelocity_ = {};
-    }
-
     const double terrainSurface =
         terrain_.getHeight(
             playerPosition_.x,
