@@ -2897,6 +2897,11 @@ SimulationSnapshot Simulation::snapshot() const {
         .ramps = foundations_.ramps(),
         .aimedModularBuilding =
             aimedModularBuilding_,
+        .aimedModularBuildingCandidate =
+            foundations_.raycast(
+                playerPosition_,
+                lookDirection(playerYaw_, playerPitch_),
+                6.0),
         .aimedEnemy = aimedEnemy_,
         .aimedBuilding = aimedBuilding_,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,

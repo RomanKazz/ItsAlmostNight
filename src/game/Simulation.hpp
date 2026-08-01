@@ -157,6 +157,7 @@ struct SimulationSnapshot {
     std::span<const WallInstance> modularWalls;
     std::span<const RampInstance> ramps;
     std::optional<EntityId> aimedModularBuilding;
+    std::optional<EntityId> aimedModularBuildingCandidate;
     std::optional<EntityId> aimedEnemy;
     std::optional<EntityId> aimedBuilding;
     std::optional<ResourceCost> aimedBuildingUpgradeCost;

@@ -377,11 +377,11 @@ std::optional<EntityId> preciseBuildingAim(
 std::optional<EntityId> preciseModularBuildingAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot) {
-    if (!snapshot.aimedModularBuilding) {
+    if (!snapshot.aimedModularBuildingCandidate) {
         return std::nullopt;
     }
     const EntityId candidate =
-        *snapshot.aimedModularBuilding;
+        *snapshot.aimedModularBuildingCandidate;
     const auto frame = std::find_if(
         snapshot.platformFrames.begin(),
         snapshot.platformFrames.end(),

@@ -375,9 +375,12 @@ void runSimulationTests() {
         platformAim.tick(
             1.0 / 60.0, preciseAimMiss);
         require(
-            !platformAim.snapshot().aimedModularBuilding,
+            !platformAim.snapshot().aimedModularBuilding &&
+                platformAim.snapshot()
+                        .aimedModularBuildingCandidate ==
+                    frame->id,
             "render-side precise platform picking can reject a"
-            " broad-phase candidate");
+            " broad-phase candidate without erasing that candidate");
     }
 
     {
