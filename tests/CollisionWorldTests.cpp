@@ -242,6 +242,18 @@ void runCollisionWorldTests() {
                 0.9, 0.8),
         "descending sprint lands on a rising ramp without"
         " pulling a player up from below");
+    const auto diagonalRampEntry =
+        modularCollision.sweptPlayerLanding(
+            {18.0, 5.7, -0.36},
+            {19.0, 5.55, 0.0},
+            ian::CollisionWorld::PlayerRadius,
+            4.0, 3.85);
+    require(
+        diagonalRampEntry &&
+            diagonalRampEntry->surfaceHeight >= 4.0 &&
+            diagonalRampEntry->surfaceHeight < 4.2,
+        "diagonal falling entry cannot tunnel through a rising"
+        " ramp between sweep samples");
     const auto rampCeiling =
         modularCollision.modularCeilingHeight(
             17.0, 0.5, 2.0, 3.0);

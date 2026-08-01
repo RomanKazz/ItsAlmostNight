@@ -117,7 +117,8 @@ class CollisionWorld {
 rampCollisionBoxes(
     GridCoord anchor, Rotation rotation,
     double bottomHeight, double topHeight,
-    double cellSize);
+    double cellSize,
+    double undersideOffset = 0.08);
 [[nodiscard]] bool collisionBoxesOverlap(
     const CollisionBox& left,
     const CollisionBox& right);

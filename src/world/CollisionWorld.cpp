@@ -19,13 +19,6 @@ std::vector<CollisionBox> defaultStaticColliders() {
     };
 }
 
-bool pointInsideExpandedBox(Vec3 point, double radius, const CollisionBox& box) {
-    return point.y > box.minimumBlockingEyeY &&
-           point.y < box.maximumBlockingEyeY &&
-           point.x > box.minX - radius && point.x < box.maxX + radius &&
-           point.z > box.minZ - radius && point.z < box.maxZ + radius;
-}
-
 bool buildingBlocksPlayer(
     const BuildingInstance& building) {
     switch (building.type) {
@@ -141,13 +134,13 @@ std::array<CollisionBox, ModularRampRunCells>
 rampCollisionBoxes(
     GridCoord anchor, Rotation rotation,
     double bottomHeight, double topHeight,
-    double cellSize) {
+    double cellSize, double undersideOffset) {
     std::array<
         CollisionBox, ModularRampRunCells> boxes{};
     const double risePerCell =
         (topHeight - bottomHeight) /
         static_cast<double>(ModularRampRunCells);
-    constexpr double HalfBoardThickness = 0.08;
+    undersideOffset = std::max(undersideOffset, 0.0);
     for (int runCell = 0;
          runCell < ModularRampRunCells; ++runCell) {
         int minimumX = anchor.x;
@@ -185,9 +178,8 @@ rampCollisionBoxes(
             maximumX * cellSize,
             minimumZ * cellSize,
             maximumZ * cellSize,
-            segmentBottom + risePerCell +
-                HalfBoardThickness,
-            segmentBottom - HalfBoardThickness,
+            segmentBottom + risePerCell,
+            segmentBottom - undersideOffset,
         };
     }
     return boxes;
@@ -412,7 +404,8 @@ void CollisionWorld::syncModularBuildings(
             rampCollisionBoxes(
                 ramp.anchor, ramp.rotation,
                 ramp.bottomHeight, ramp.topHeight,
-                buildings.cellSize);
+                buildings.cellSize,
+                undersideOffset);
         // Ramp surface handles player movement. These
         // boxes only reject intersecting placement.
         rampPlacementColliders_.insert(
@@ -795,6 +788,12 @@ CollisionWorld::sweptPlayerLanding(
     constexpr double SurfaceEpsilon = 1e-6;
     std::optional<PlayerSurfaceLanding> result;
     double earliestTime = 2.0;
+    const double timeStep =
+        1.0 / static_cast<double>(stepCount);
+    const double verticalTravelPerStep =
+        std::abs(deltaFeet) * timeStep;
+    const double horizontalTravelPerStep =
+        std::hypot(deltaX, deltaZ) * timeStep;
 
     const auto supportHeight =
         [radius](const WalkableSurface& surface,
@@ -844,6 +843,26 @@ CollisionWorld::sweptPlayerLanding(
 
     const auto sampleSurface =
         [&](const WalkableSurface& surface) {
+            double surfaceSlope = 0.0;
+            if (surface.kind == SurfaceKind::Ramp) {
+                const double run =
+                    surface.rotation == Rotation::Deg0 ||
+                            surface.rotation == Rotation::Deg180
+                        ? surface.maxZ - surface.minZ
+                        : surface.maxX - surface.minX;
+                if (run > SurfaceEpsilon) {
+                    surfaceSlope = std::abs(
+                        surface.topHeight -
+                        surface.bottomHeight) / run;
+                }
+            }
+            // Gap can close from both falling feet and a rising
+            // slope. Ignoring the second term loses the first
+            // contact when entering a ramp diagonally.
+            const double entryTolerance =
+                verticalTravelPerStep +
+                surfaceSlope * horizontalTravelPerStep +
+                SurfaceEpsilon;
             auto previousSurface = supportHeight(
                 surface, startPosition.x,
                 startPosition.z);
@@ -870,10 +889,6 @@ CollisionWorld::sweptPlayerLanding(
                 if (currentSurface) {
                     const double currentGap =
                         feetHeight - *currentSurface;
-                    const double entryTolerance =
-                        sweepDistance /
-                            static_cast<double>(stepCount) +
-                        SurfaceEpsilon;
                     const bool crossedFromAbove =
                         previousSurface &&
                         previousGap >= -SurfaceEpsilon &&
@@ -884,22 +899,55 @@ CollisionWorld::sweptPlayerLanding(
                         currentGap >= -entryTolerance;
                     if (crossedFromAbove ||
                         enteredAtSurface) {
-                        if (time < earliestTime -
+                        double collisionTime = time;
+                        double collisionX = worldX;
+                        double collisionZ = worldZ;
+                        double collisionSurface =
+                            *currentSurface;
+                        if (crossedFromAbove) {
+                            const double gapDelta =
+                                previousGap - currentGap;
+                            const double fraction =
+                                gapDelta > SurfaceEpsilon
+                                    ? std::clamp(
+                                          previousGap /
+                                              gapDelta,
+                                          0.0, 1.0)
+                                    : 1.0;
+                            collisionTime =
+                                (static_cast<double>(step - 1) +
+                                 fraction) *
+                                timeStep;
+                            collisionX = startPosition.x +
+                                deltaX * collisionTime;
+                            collisionZ = startPosition.z +
+                                deltaZ * collisionTime;
+                            if (const auto exactSurface =
+                                    supportHeight(
+                                        surface, collisionX,
+                                        collisionZ)) {
+                                collisionSurface =
+                                    *exactSurface;
+                            }
+                        }
+                        if (collisionTime < earliestTime -
                                        SurfaceEpsilon ||
                             (!result ||
-                             (std::abs(time - earliestTime) <=
+                             (std::abs(
+                                  collisionTime -
+                                  earliestTime) <=
                                   SurfaceEpsilon &&
-                              *currentSurface >
+                              collisionSurface >
                                   result->surfaceHeight))) {
-                            earliestTime = time;
+                            earliestTime = collisionTime;
                             result = PlayerSurfaceLanding{
                                 .position = {
-                                    worldX,
+                                    collisionX,
                                     endPosition.y,
-                                    worldZ,
+                                    collisionZ,
                                 },
                                 .surfaceHeight =
-                                    *currentSurface,
+                                    collisionSurface,
                             };
                         }
                         break;
