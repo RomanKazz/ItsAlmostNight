@@ -100,18 +100,6 @@ vec3 rotateHue(vec3 color, float angle)
     return rotation*color;
 }
 
-vec3 filmicToneMap(vec3 color)
-{
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
-    return clamp(
-        (color*(a*color + b))/(color*(c*color + d) + e),
-        0.0, 1.0);
-}
-
 void main()
 {
     vec4 source = texture(texture0, fragTexCoord)*fragColor;
@@ -156,7 +144,6 @@ void main()
         curveMidtones*midtoneWeight +
         curveHighlights*highlightWeight;
     color *= exp2(curveExposure*0.85);
-    color = filmicToneMap(max(color, vec3(0.0)));
     color = pow(
         max(color, vec3(0.0)),
         vec3(1.0/max(gammaValue, 0.01)));

@@ -50,10 +50,6 @@ void App::drawWorldEntities(
         };
         WorldMaterialState material{};
         material.bakedAo = 0.78F;
-        material.baseColor =
-            node.type == ResourceType::Wood
-                ? Vector4{0.88F, 0.91F, 0.79F, 1.0F}
-                : Vector4{0.91F, 0.93F, 0.94F, 1.0F};
         material.windAmount =
             node.type == ResourceType::Wood ? 1.0F : 0.0F;
         material.hitFlashAmount =
