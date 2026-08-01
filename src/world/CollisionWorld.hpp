@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/GlbCollision.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/FoundationSystem.hpp"
 #include "core/Types.hpp"
@@ -28,6 +29,8 @@ struct ModularCollisionView {
     std::span<const WallInstance> walls;
     std::span<const RampInstance> ramps;
     double cellSize{1.0};
+    std::span<const ModelCollider> platformColliders{};
+    std::span<const ModelCollider> rampColliders{};
 };
 
 struct PlayerSurfaceLanding {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/GlbCollision.hpp"
 #include "graphics/GraphicsSettings.hpp"
 
 #include <raylib.h>
@@ -68,9 +69,12 @@ class ModelResource {
     [[nodiscard]] bool valid() const;
     [[nodiscard]] Model& get();
     [[nodiscard]] const Model& get() const;
+    [[nodiscard]] const GlbCollisionAsset&
+    collisionAsset() const;
 
   private:
     Model model_{};
+    GlbCollisionAsset collisionAsset_;
     bool loaded_{};
 };
 

@@ -47,6 +47,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raygui)
 
+add_library(ian_assets
+    src/assets/GlbCollision.cpp
+)
+target_include_directories(ian_assets PUBLIC src)
+target_link_libraries(ian_assets PRIVATE
+    nlohmann_json::nlohmann_json)
+
 add_library(ian_simulation
     src/buildings/BuildGrid.cpp
     src/buildings/FoundationSystem.cpp
@@ -81,7 +88,8 @@ add_library(ian_simulation
     src/waves/WaveDirector.cpp
 )
 target_include_directories(ian_simulation PUBLIC src)
-target_link_libraries(ian_simulation PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(ian_simulation PRIVATE
+    nlohmann_json::nlohmann_json ian_assets)
 
 add_library(ian_text
     src/ui/UiLabels.cpp
@@ -110,7 +118,8 @@ add_library(ian_graphics
     src/graphics/TerrainRenderer.cpp
 )
 target_include_directories(ian_graphics PUBLIC src)
-target_link_libraries(ian_graphics PUBLIC raylib ian_text PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(ian_graphics PUBLIC raylib ian_text
+    PRIVATE nlohmann_json::nlohmann_json ian_assets)
 
 add_library(ian_ui
     src/ui/GameUi.cpp
@@ -162,6 +171,7 @@ function(ian_set_warnings target)
 endfunction()
 
 ian_set_warnings(ian_simulation)
+ian_set_warnings(ian_assets)
 ian_set_warnings(ian_text)
 ian_set_warnings(ian_audio)
 ian_set_warnings(ian_presentation)
@@ -170,7 +180,7 @@ ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
 
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-    foreach(target ian_simulation ian_text ian_audio ian_presentation ian_graphics ian_ui its_almost_night)
+    foreach(target ian_assets ian_simulation ian_text ian_audio ian_presentation ian_graphics ian_ui its_almost_night)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=address,undefined)
     endforeach()
@@ -203,6 +213,7 @@ if(BUILD_TESTING)
         tests/SimulationTests.cpp
         tests/GameBalanceTests.cpp
         tests/MapDefinitionTests.cpp
+        tests/GlbCollisionTests.cpp
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
         tests/TowerSystemTests.cpp
@@ -211,6 +222,8 @@ if(BUILD_TESTING)
     )
     target_link_libraries(ian_tests PRIVATE
         ian_simulation ian_graphics ian_presentation)
+    target_compile_definitions(ian_tests PRIVATE
+        IAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     ian_set_warnings(ian_tests)
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
         target_compile_options(ian_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)

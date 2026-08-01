@@ -32,6 +32,7 @@ void runPresentationTimelineTests();
 void runUiLabelsTests();
 void runDeterministicRandomTests();
 void runPlacementLineTests();
+void runGlbCollisionTests();
 
 namespace {
 
@@ -75,6 +76,7 @@ int main() {
     runUiLabelsTests();
     runDeterministicRandomTests();
     runPlacementLineTests();
+    runGlbCollisionTests();
     runBuildingSystemTests();
     runCollisionWorldTests();
     runEnemySystemTests();

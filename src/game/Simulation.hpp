@@ -317,6 +317,8 @@ class Simulation {
     WorldConfig worldConfig_;
     TerrainHeightfield terrain_;
     FoundationSystem foundations_;
+    GlbCollisionAsset platformCollisionAsset_;
+    GlbCollisionAsset rampCollisionAsset_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};

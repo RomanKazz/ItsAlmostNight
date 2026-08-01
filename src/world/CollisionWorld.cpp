@@ -243,7 +243,7 @@ void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& building
                 .minZ = center.z - halfExtent,
                 .maxZ = center.z + halfExtent,
                 .bottomHeight =
-                    building.baseHeight,
+                    building.baseHeight - 0.50,
                 .topHeight = building.baseHeight,
                 .kind = SurfaceKind::Flat,
             });
@@ -280,22 +280,63 @@ void CollisionWorld::syncModularBuildings(
         buildings.ramps.size());
 
     const auto addFloor =
-        [this, cellSize = buildings.cellSize](
+        [this, cellSize = buildings.cellSize,
+         colliders = buildings.platformColliders](
             GridCoord anchor,
             double height) {
-            modularSurfaces_.push_back({
-                .minX = anchor.x * cellSize,
-                .maxX =
-                    (anchor.x + PlatformFrameWidthCells) *
-                    cellSize,
-                .minZ = anchor.z * cellSize,
-                .maxZ =
-                    (anchor.z + PlatformFrameWidthCells) *
-                    cellSize,
-                .bottomHeight = height,
-                .topHeight = height,
-                .kind = SurfaceKind::Flat,
-            });
+            const double centerX =
+                (anchor.x +
+                 PlatformFrameWidthCells * 0.5) *
+                cellSize;
+            const double centerZ =
+                (anchor.z +
+                 PlatformFrameWidthCells * 0.5) *
+                cellSize;
+            bool importedWalkable = false;
+            for (const ModelCollider& collider : colliders) {
+                if (!collider.walkable ||
+                    collider.type !=
+                        ModelColliderType::Box) {
+                    continue;
+                }
+                // Platform visuals are rotated 180 degrees by
+                // RendererModels before being placed in world.
+                modularSurfaces_.push_back({
+                    .minX = centerX -
+                        collider.maximum.x * cellSize,
+                    .maxX = centerX -
+                        collider.minimum.x * cellSize,
+                    .minZ = centerZ -
+                        collider.maximum.z * cellSize,
+                    .maxZ = centerZ -
+                        collider.minimum.z * cellSize,
+                    .bottomHeight = height +
+                        collider.minimum.y * cellSize,
+                    .topHeight = height +
+                        collider.maximum.y * cellSize,
+                    .kind = SurfaceKind::Flat,
+                });
+                importedWalkable = true;
+            }
+            if (!importedWalkable) {
+                constexpr double FallbackThickness = 0.50;
+                modularSurfaces_.push_back({
+                    .minX = anchor.x * cellSize,
+                    .maxX =
+                        (anchor.x +
+                         PlatformFrameWidthCells) *
+                        cellSize,
+                    .minZ = anchor.z * cellSize,
+                    .maxZ =
+                        (anchor.z +
+                         PlatformFrameWidthCells) *
+                        cellSize,
+                    .bottomHeight =
+                        height - FallbackThickness,
+                    .topHeight = height,
+                    .kind = SurfaceKind::Flat,
+                });
+            }
         };
     for (const PlatformFrameInstance& frame :
          buildings.platformFrames) {
@@ -877,7 +918,6 @@ CollisionWorld::modularCeilingHeight(
     }
     std::optional<double> result;
     constexpr double EdgeEpsilon = 1e-6;
-    constexpr double PlatformThickness = 0.50;
     constexpr double RampThickness = 0.18;
     const auto sampleCeiling =
         [worldX, worldZ, minimumHeadHeight,
@@ -919,10 +959,10 @@ CollisionWorld::modularCeilingHeight(
                         (surface.topHeight -
                          surface.bottomHeight);
             }
-            const double underside = surfaceHeight -
-                (surface.kind == SurfaceKind::Ramp
-                     ? RampThickness
-                     : PlatformThickness);
+            const double underside =
+                surface.kind == SurfaceKind::Ramp
+                    ? surfaceHeight - RampThickness
+                    : surface.bottomHeight;
             if (underside < minimumHeadHeight -
                     EdgeEpsilon ||
                 underside > maximumHeadHeight +

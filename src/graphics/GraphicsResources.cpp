@@ -75,8 +75,32 @@ ModelResource::~ModelResource() {
 
 bool ModelResource::load(const char* path) {
     unload();
+    collisionAsset_ = loadGlbCollisionAsset(path);
     model_ = LoadModel(path);
     loaded_ = IsModelValid(model_);
+    if (loaded_) {
+        for (auto iterator =
+                 collisionAsset_.renderMeshIndices.rbegin();
+             iterator !=
+                 collisionAsset_.renderMeshIndices.rend();
+             ++iterator) {
+            const std::size_t meshIndex = *iterator;
+            if (meshIndex >=
+                static_cast<std::size_t>(model_.meshCount)) {
+                continue;
+            }
+            UnloadMesh(model_.meshes[meshIndex]);
+            for (int index =
+                     static_cast<int>(meshIndex);
+                 index + 1 < model_.meshCount; ++index) {
+                model_.meshes[index] =
+                    model_.meshes[index + 1];
+                model_.meshMaterial[index] =
+                    model_.meshMaterial[index + 1];
+            }
+            --model_.meshCount;
+        }
+    }
     return loaded_;
 }
 
@@ -86,6 +110,7 @@ void ModelResource::unload() {
         model_ = {};
         loaded_ = false;
     }
+    collisionAsset_ = {};
 }
 
 bool ModelResource::valid() const {
@@ -98,6 +123,11 @@ Model& ModelResource::get() {
 
 const Model& ModelResource::get() const {
     return model_;
+}
+
+const GlbCollisionAsset&
+ModelResource::collisionAsset() const {
+    return collisionAsset_;
 }
 
 ModelAnimationsResource::~ModelAnimationsResource() {

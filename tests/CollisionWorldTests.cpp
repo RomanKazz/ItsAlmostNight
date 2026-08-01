@@ -158,11 +158,22 @@ void runCollisionWorldTests() {
                 .targetStorey = 1,
             },
         }};
+    const std::array<ian::ModelCollider, 1>
+        platformColliders{{
+            {
+                .name = "COL_BOX_WALK_00",
+                .type = ian::ModelColliderType::Box,
+                .walkable = true,
+                .minimum = {-1.0, -0.25, -1.0},
+                .maximum = {1.0, 0.0, 1.0},
+            },
+        }};
     modularCollision.syncModularBuildings({
         modularFrames,
         modularWalls,
         modularRamps,
         1.0,
+        platformColliders,
     });
     require(
         modularCollision.modularSurfaceHeight(
@@ -187,11 +198,11 @@ void runCollisionWorldTests() {
     require(
         modularCollision.modularCeilingHeight(
             15.5, 0.5, 1.2, 1.9) ==
-            std::optional<double>{1.5} &&
+            std::optional<double>{1.75} &&
             !modularCollision.modularCeilingHeight(
                 14.0, 0.5, 1.2, 1.9),
-        "platform underside stops upward movement only inside"
-        " its footprint");
+        "imported platform underside stops upward movement only"
+        " inside its footprint");
     const auto rampLow =
         modularCollision.modularSurfaceHeight(
             17.0, 0.5, 6.1);

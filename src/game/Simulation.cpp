@@ -147,6 +147,10 @@ Simulation::Simulation(
       worldConfig_(worldConfig),
       terrain_(worldConfig_),
       foundations_(terrain_, worldConfig_),
+      platformCollisionAsset_(loadGlbCollisionAsset(
+          "assets/models/platform.glb")),
+      rampCollisionAsset_(loadGlbCollisionAsset(
+          "assets/models/ramp.glb")),
       modularBuildingCosts_{{
           {
               balance.modularBuildings[0].wood,
@@ -2514,6 +2518,8 @@ void Simulation::syncModularStructures() {
         foundations_.walls(),
         foundations_.ramps(),
         worldConfig_.cellSize,
+        platformCollisionAsset_.colliders,
+        rampCollisionAsset_.colliders,
     });
 }
 
