@@ -37,6 +37,33 @@ void App::processInput() {
         }
         graphicsPanelWasVisible_ = graphicsPanelVisible;
     }
+    if (skillTree_.isOpen()) {
+        if (IsKeyPressed(KEY_K) || IsKeyPressed(KEY_ESCAPE)) {
+            setSkillTreeVisible(false);
+            audio_.playUiConfirm();
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        return;
+    }
+    if (!graphicsPanelVisible &&
+        (IsKeyPressed(KEY_K) || pendingOpenSkillTreeFromUi_)) {
+        pendingOpenSkillTreeFromUi_ = false;
+        setSkillTreeVisible(true);
+        audio_.playUiConfirm();
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        return;
+    }
     if (graphicsPanelVisible) {
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;

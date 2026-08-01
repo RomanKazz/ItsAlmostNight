@@ -22,6 +22,9 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
+    if (skillTree_.update(static_cast<float>(frameSeconds))) {
+        audio_.playUiConfirm();
+    }
     const auto hotbarSnapshot = simulation_.snapshot();
     const float hotbarBlend =
         1.0F - std::exp(

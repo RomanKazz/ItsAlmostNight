@@ -109,6 +109,11 @@ add_library(ian_presentation
 )
 target_include_directories(ian_presentation PUBLIC src)
 
+add_library(ian_progression
+    src/progression/SkillTree.cpp
+)
+target_include_directories(ian_progression PUBLIC src)
+
 add_library(ian_graphics
     src/graphics/EnvironmentSystem.cpp
     src/graphics/GraphicsResources.cpp
@@ -124,12 +129,13 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 add_library(ian_ui
     src/ui/GameUi.cpp
     src/ui/HudRenderer.cpp
+    src/ui/SkillTreeScreen.cpp
     src/ui/TargetHealthBar.cpp
     src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
 target_include_directories(ian_ui SYSTEM PRIVATE "${raygui_SOURCE_DIR}/src")
-target_link_libraries(ian_ui PUBLIC raylib ian_text)
+target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression)
 
 add_executable(its_almost_night
     src/app/App.cpp
@@ -139,6 +145,7 @@ add_executable(its_almost_night
     src/app/AppInput.cpp
     src/app/AppModularPlacement.cpp
     src/app/AppRenderPasses.cpp
+    src/app/AppSkillTree.cpp
     src/app/AppUpdate.cpp
     src/app/AppWorldRender.cpp
     src/app/AppWorldOverlays.cpp
@@ -175,12 +182,13 @@ ian_set_warnings(ian_assets)
 ian_set_warnings(ian_text)
 ian_set_warnings(ian_audio)
 ian_set_warnings(ian_presentation)
+ian_set_warnings(ian_progression)
 ian_set_warnings(ian_graphics)
 ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
 
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-    foreach(target ian_assets ian_simulation ian_text ian_audio ian_presentation ian_graphics ian_ui its_almost_night)
+    foreach(target ian_assets ian_simulation ian_text ian_audio ian_presentation ian_progression ian_graphics ian_ui its_almost_night)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=address,undefined)
     endforeach()
@@ -216,12 +224,14 @@ if(BUILD_TESTING)
         tests/GlbCollisionTests.cpp
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
+        tests/SkillTreeTests.cpp
         tests/TowerSystemTests.cpp
         tests/TrapSystemTests.cpp
         tests/WaveDirectorTests.cpp
     )
     target_link_libraries(ian_tests PRIVATE
-        ian_simulation ian_graphics ian_presentation)
+        ian_simulation ian_graphics ian_presentation
+        ian_progression)
     target_compile_definitions(ian_tests PRIVATE
         IAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     ian_set_warnings(ian_tests)

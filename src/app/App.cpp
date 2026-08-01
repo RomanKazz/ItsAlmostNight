@@ -912,6 +912,7 @@ int App::run() {
                    FLAG_MSAA_4X_HINT);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "It's Almost Night");
+    SetExitKey(KEY_NULL);
     ToggleBorderlessWindowed();
     SetTargetFPS(144);
     renderer_.emplace();
@@ -987,19 +988,26 @@ void App::render() {
             static_cast<float>(GetScreenWidth()) * 0.5F;
         const float centerY =
             static_cast<float>(GetScreenHeight()) * 0.5F;
-        ui_.drawPanel({centerX - 420.0F, centerY - 210.0F,
-                       840.0F, 420.0F});
+        ui_.drawPanel({centerX - 420.0F, centerY - 250.0F,
+                       840.0F, 500.0F});
         ui_.drawInsetPanel({centerX - 380.0F, centerY - 164.0F,
                             760.0F, 128.0F});
         drawCentered("IT'S ALMOST NIGHT",
                      static_cast<int>(centerY) - 140, 42,
                      {245, 220, 174, 255});
         pendingStartFromUi_ =
-            ui_.drawButton({centerX - 200.0F, centerY + 30.0F,
-                            400.0F, 82.0F},
+            ui_.drawButton({centerX - 200.0F, centerY + 4.0F,
+                            400.0F, 72.0F},
                            "START RUN") ||
             pendingStartFromUi_;
-        drawCentered("ENTER", static_cast<int>(centerY) + 136, 16,
+        pendingOpenSkillTreeFromUi_ =
+            ui_.drawButton(
+                {centerX - 200.0F, centerY + 90.0F,
+                 400.0F, 72.0F},
+                "TREE OF KNOWLEDGE") ||
+            pendingOpenSkillTreeFromUi_;
+        drawCentered("ENTER  •  K: TREE",
+                     static_cast<int>(centerY) + 196, 16,
                      {199, 174, 142, 255});
     } else {
         const double visualYaw = snapshot.playerYaw;
@@ -1703,15 +1711,19 @@ void App::render() {
         drawRunStateOverlay(snapshot);
     }
 
-    drawBuildModePie();
-    if (renderer_->graphicsPanelVisible()) {
-        drawGraphicsPanel();
+    if (skillTree_.isOpen()) {
+        skillTree_.draw(ui_);
+    } else {
+        drawBuildModePie();
+        if (renderer_->graphicsPanelVisible()) {
+            drawGraphicsPanel();
+        }
+        drawEnemySpawnMenu();
+        drawUiText(TextFormat("%d FPS", GetFPS()),
+                   {static_cast<float>(GetScreenWidth() - 110),
+                    20.0F},
+                   20.0F, LIME);
     }
-    drawEnemySpawnMenu();
-    drawUiText(TextFormat("%d FPS", GetFPS()),
-               {static_cast<float>(GetScreenWidth() - 110),
-                20.0F},
-               20.0F, LIME);
     renderer_->endFrame();
 }
 

@@ -10,6 +10,7 @@
 #include "presentation/PresentationTypes.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudRenderer.hpp"
+#include "ui/SkillTreeScreen.hpp"
 #include "ui/TargetHealthBar.hpp"
 
 #include <optional>
@@ -104,6 +105,7 @@ class App {
         const WorldLighting& lighting);
     void drawGraphicsPanel();
     void drawEnemySpawnMenu();
+    void setSkillTreeVisible(bool visible);
     void drawBuildModePie() const;
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
@@ -126,7 +128,10 @@ class App {
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
     GameUi ui_;
+    SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
+    bool pendingOpenSkillTreeFromUi_{};
+    bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     int graphicsPanelTab_{};
     TargetHealthBar targetHealthBar_;
