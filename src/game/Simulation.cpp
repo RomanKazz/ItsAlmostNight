@@ -228,9 +228,6 @@ void Simulation::resetRun(GameEventType eventType) {
     edgeSupportGraceRemaining_ = 0.0;
     lastGroundSurfaceHeight_ =
         playerPosition_.y - gameplay_.eyeHeight;
-    lastSafePlayerPosition_ = playerPosition_;
-    hasSafePlayerPosition_ = true;
-    invalidPlayerPositionSeconds_ = 0.0;
     playerYaw_ = 0.0;
     playerPitch_ = 0.0;
     playerGrounded_ = true;
@@ -626,162 +623,11 @@ void Simulation::updatePlayer(double deltaSeconds,
         }
     }
 
-    constexpr double HeadAboveEye = 0.15;
-    const double finalFeetHeight =
-        playerPosition_.y - gameplay_.eyeHeight;
-    double finalGroundSurface = terrain_.getHeight(
-        playerPosition_.x, playerPosition_.z);
-    const auto finalModularSupport =
-        collisionWorld_.playerSupportHeight(
-            playerPosition_.x, playerPosition_.z,
-            CollisionWorld::PlayerRadius,
-            finalFeetHeight + 0.08);
-    if (finalModularSupport) {
-        finalGroundSurface = std::max(
-            finalGroundSurface, *finalModularSupport);
-    }
-    const bool safelySupported =
-        std::abs(finalGroundSurface - finalFeetHeight) <=
-        0.08;
-    const bool invalidPlayerPosition =
-        collisionWorld_.playerVolumeIntersectsSolid(
-            playerPosition_, CollisionWorld::PlayerRadius,
-            finalFeetHeight,
-            playerPosition_.y + HeadAboveEye);
-    if (invalidPlayerPosition) {
-        invalidPlayerPositionSeconds_ += deltaSeconds;
-        constexpr double StuckRecoveryDelay = 0.14;
-        if (invalidPlayerPositionSeconds_ >=
-            StuckRecoveryDelay) {
-            recoverPlayerFromInvalidPosition();
-        }
-    } else {
-        invalidPlayerPositionSeconds_ = 0.0;
-        if (playerGrounded_ && safelySupported) {
-            lastSafePlayerPosition_ = playerPosition_;
-            hasSafePlayerPosition_ = true;
-        }
-    }
-
     resources_.tick(
         deltaSeconds, buildings_.buildings(),
         map_.worldLimit, playerPosition_);
     pickaxeCooldownRemaining_ = std::max(0.0, pickaxeCooldownRemaining_ - deltaSeconds);
     playerWeapons_.tick(deltaSeconds);
-}
-
-void Simulation::recoverPlayerFromInvalidPosition() {
-    constexpr double MaximumStepUp = 0.65;
-    constexpr double HeadAboveEye = 0.15;
-    constexpr std::array<Vec3, 13> RecoveryOffsets{{
-        {0.0, 0.0, 0.0},
-        {0.45, 0.0, 0.0},
-        {-0.45, 0.0, 0.0},
-        {0.0, 0.0, 0.45},
-        {0.0, 0.0, -0.45},
-        {0.45, 0.0, 0.45},
-        {-0.45, 0.0, 0.45},
-        {0.45, 0.0, -0.45},
-        {-0.45, 0.0, -0.45},
-        {0.9, 0.0, 0.0},
-        {-0.9, 0.0, 0.0},
-        {0.0, 0.0, 0.9},
-        {0.0, 0.0, -0.9},
-    }};
-    Vec3 recoveryOrigin = hasSafePlayerPosition_
-        ? lastSafePlayerPosition_
-        : Vec3{
-              map_.playerSpawn.x,
-              terrain_.getHeight(
-                  map_.playerSpawn.x,
-                  map_.playerSpawn.z) +
-                  gameplay_.eyeHeight,
-              map_.playerSpawn.z,
-          };
-    if (!std::isfinite(recoveryOrigin.x) ||
-        !std::isfinite(recoveryOrigin.y) ||
-        !std::isfinite(recoveryOrigin.z)) {
-        recoveryOrigin = {
-            map_.playerSpawn.x,
-            terrain_.getHeight(
-                map_.playerSpawn.x,
-                map_.playerSpawn.z) +
-                gameplay_.eyeHeight,
-            map_.playerSpawn.z,
-        };
-    }
-
-    std::optional<Vec3> recoveryPosition;
-    for (const Vec3 offset : RecoveryOffsets) {
-        Vec3 candidate{
-            recoveryOrigin.x + offset.x,
-            recoveryOrigin.y,
-            recoveryOrigin.z + offset.z,
-        };
-        candidate.x = std::clamp(
-            candidate.x,
-            -map_.worldLimit +
-                CollisionWorld::PlayerRadius,
-            map_.worldLimit -
-                CollisionWorld::PlayerRadius);
-        candidate.z = std::clamp(
-            candidate.z,
-            -map_.worldLimit +
-                CollisionWorld::PlayerRadius,
-            map_.worldLimit -
-                CollisionWorld::PlayerRadius);
-        const double previousFeetHeight =
-            recoveryOrigin.y - gameplay_.eyeHeight;
-        double surfaceHeight = terrain_.getHeight(
-            candidate.x, candidate.z);
-        const auto modularSurface =
-            collisionWorld_.playerSupportHeight(
-                candidate.x, candidate.z,
-                CollisionWorld::PlayerRadius,
-                previousFeetHeight + MaximumStepUp);
-        if (modularSurface) {
-            surfaceHeight = std::max(
-                surfaceHeight, *modularSurface);
-        }
-        candidate.y =
-            surfaceHeight + gameplay_.eyeHeight;
-        if (collisionWorld_.playerVolumeIntersectsSolid(
-                candidate, CollisionWorld::PlayerRadius,
-                surfaceHeight,
-                candidate.y + HeadAboveEye)) {
-            continue;
-        }
-        recoveryPosition = candidate;
-        lastGroundSurfaceHeight_ = surfaceHeight;
-        break;
-    }
-    if (!recoveryPosition) {
-        Vec3 fallback{
-            map_.playerSpawn.x,
-            terrain_.getHeight(
-                map_.playerSpawn.x,
-                map_.playerSpawn.z) +
-                gameplay_.eyeHeight,
-            map_.playerSpawn.z,
-        };
-        recoveryPosition =
-            collisionWorld_.resolvePlayerPenetration(
-                fallback, CollisionWorld::PlayerRadius);
-        lastGroundSurfaceHeight_ =
-            recoveryPosition->y - gameplay_.eyeHeight;
-    }
-    playerPosition_ = *recoveryPosition;
-    lastSafePlayerPosition_ = playerPosition_;
-    hasSafePlayerPosition_ = true;
-    invalidPlayerPositionSeconds_ = 0.0;
-    playerHorizontalVelocity_ = {};
-    verticalVelocity_ = 0.0;
-    coyoteTimeRemaining_ = 0.0;
-    jumpBufferRemaining_ = 0.0;
-    autoJumpAssistRemaining_ = 0.0;
-    autoJumpAssistDirection_ = {};
-    edgeSupportGraceRemaining_ = 0.085;
-    playerGrounded_ = true;
 }
 
 const TerrainHeightfield& Simulation::terrain() const {
@@ -814,9 +660,6 @@ void Simulation::regenerateTerrain(
     edgeSupportGraceRemaining_ = 0.0;
     lastGroundSurfaceHeight_ =
         playerPosition_.y - gameplay_.eyeHeight;
-    lastSafePlayerPosition_ = playerPosition_;
-    hasSafePlayerPosition_ = true;
-    invalidPlayerPositionSeconds_ = 0.0;
     playerGrounded_ = true;
 }
 
@@ -2533,9 +2376,6 @@ void Simulation::raisePlayerOntoGroundFrame(
     autoJumpAssistDirection_ = {};
     edgeSupportGraceRemaining_ = 0.085;
     lastGroundSurfaceHeight_ = frame.floorHeight;
-    lastSafePlayerPosition_ = playerPosition_;
-    hasSafePlayerPosition_ = true;
-    invalidPlayerPositionSeconds_ = 0.0;
     playerGrounded_ = true;
 }
 
@@ -2777,9 +2617,6 @@ void Simulation::respawnPlayer() {
     edgeSupportGraceRemaining_ = 0.0;
     lastGroundSurfaceHeight_ =
         playerPosition_.y - gameplay_.eyeHeight;
-    lastSafePlayerPosition_ = playerPosition_;
-    hasSafePlayerPosition_ = true;
-    invalidPlayerPositionSeconds_ = 0.0;
     playerGrounded_ = true;
     playerHealth_ = gameplay_.playerMaxHealth;
 }
