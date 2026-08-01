@@ -802,11 +802,33 @@ void App::updateModularPlacementPreview(
         return;
     }
 
+    // Floor placement needs a continuous grid target. Exact visual
+    // picking contains intentional gaps between platform parts and
+    // may briefly return no hit while crossing a mesh or grid edge.
+    // Keep exact picking for outline/actions; use the broad-phase
+    // platform proxy for placement only.
+    std::optional<EntityId> floorPlacementTarget =
+        snapshot.aimedModularBuilding;
     if (modularBuildPiece_ ==
             ModularBuildPiece::FloorPlatform &&
-        snapshot.aimedModularBuilding) {
-        const EntityId aimed =
-            *snapshot.aimedModularBuilding;
+        snapshot.aimedModularBuildingCandidate) {
+        const EntityId candidate =
+            *snapshot.aimedModularBuildingCandidate;
+        const bool candidateIsFrame = std::any_of(
+            snapshot.platformFrames.begin(),
+            snapshot.platformFrames.end(),
+            [candidate](
+                const PlatformFrameInstance& frame) {
+                return frame.id == candidate;
+            });
+        if (candidateIsFrame) {
+            floorPlacementTarget = candidate;
+        }
+    }
+    if (modularBuildPiece_ ==
+            ModularBuildPiece::FloorPlatform &&
+        floorPlacementTarget) {
+        const EntityId aimed = *floorPlacementTarget;
         const auto frame = std::find_if(
             snapshot.platformFrames.begin(),
             snapshot.platformFrames.end(),
