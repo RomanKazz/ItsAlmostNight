@@ -119,6 +119,7 @@ void App::update() {
         toolSwapRemaining_ = toolSwapDuration_;
     }
     if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
+        toolSwingRemaining_ <= 0.0 &&
         displayedToolUsesAxe_ == toolSwingUsesAxe_) {
         toolSwingDuration_ = toolTuning_.swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;

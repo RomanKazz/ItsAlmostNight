@@ -1034,7 +1034,9 @@ void App::processInput() {
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingPickaxe_ = true;
-                if (currentSnapshot.pickaxeCooldownRemaining <= 0.0) {
+                constexpr double ToolInputBufferSeconds = 0.14;
+                if (currentSnapshot.pickaxeCooldownRemaining <=
+                    ToolInputBufferSeconds) {
                     toolSwingUsesAxe_ = displayedToolUsesAxe_;
                     if (currentSnapshot.aimedResource) {
                         const auto resource = std::find_if(
@@ -1050,7 +1052,8 @@ void App::processInput() {
                     }
                     if (toolSwingUsesAxe_ ==
                             displayedToolUsesAxe_ &&
-                        toolSwapRemaining_ <= 0.0) {
+                        toolSwapRemaining_ <= 0.0 &&
+                        toolSwingRemaining_ <= 0.0) {
                         toolSwingDuration_ =
                             toolTuning_.swingDuration;
                         toolSwingRemaining_ =

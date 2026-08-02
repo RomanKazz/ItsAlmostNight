@@ -6,6 +6,20 @@
 
 void runSimulationTests() {
     {
+        ian::Simulation bufferedAttackSimulation;
+        bufferedAttackSimulation.startRun();
+        ian::PlayerCommand attack;
+        attack.usePickaxe = true;
+        bufferedAttackSimulation.tick(1.0 / 60.0, attack);
+        bufferedAttackSimulation.tick(0.32);
+        bufferedAttackSimulation.tick(1.0 / 60.0, attack);
+        bufferedAttackSimulation.tick(0.12);
+        require(
+            bufferedAttackSimulation.snapshot()
+                    .pickaxeCooldownRemaining > 0.4,
+            "pickaxe input shortly before cooldown end is buffered");
+    }
+    {
         ian::Simulation productionSimulation;
         productionSimulation.startRun();
         const auto terrainSurface =

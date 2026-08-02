@@ -250,6 +250,7 @@ void Simulation::resetRun(GameEventType eventType) {
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
+    pickaxeInputBufferRemaining_ = 0.0;
     aimedResource_.reset();
     resources_.reset();
     selectedBuilding_.reset();
@@ -1751,8 +1752,20 @@ void Simulation::updatePlayerActions(
             }
         }
     }
-    if (command.usePickaxe && playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
+    constexpr double PickaxeInputBufferSeconds = 0.14;
+    if (command.usePickaxe &&
+        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
+        !selectedBuilding_) {
+        pickaxeInputBufferRemaining_ = PickaxeInputBufferSeconds;
+    } else {
+        pickaxeInputBufferRemaining_ = std::max(
+            0.0,
+            pickaxeInputBufferRemaining_ - deltaSeconds);
+    }
+    if (pickaxeInputBufferRemaining_ > 0.0 &&
+        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
+        pickaxeInputBufferRemaining_ = 0.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown;
         const std::uint64_t attackSeed = mixBits64(
             tick_ ^ (pickaxeAttackSequence_++ *

@@ -357,6 +357,7 @@ class Simulation {
     std::uint64_t debugSpawnSequence_{};
     std::uint64_t pickaxeAttackSequence_{};
     double pickaxeCooldownRemaining_{};
+    double pickaxeInputBufferRemaining_{};
     std::optional<EntityId> aimedResource_;
     ResourceSystem resources_;
     std::optional<BuildingType> selectedBuilding_;
