@@ -8,6 +8,22 @@
 #include <limits>
 
 namespace ian {
+namespace {
+
+ResourceCost addCosts(ResourceCost left, ResourceCost right) {
+    return {
+        saturatingAdd(left.wood, right.wood),
+        saturatingAdd(left.stone, right.stone),
+        saturatingAdd(left.gold, right.gold),
+    };
+}
+
+bool canPay(ResourceCost cost, int wood, int stone, int gold) {
+    return wood >= cost.wood && stone >= cost.stone &&
+           gold >= cost.gold;
+}
+
+} // namespace
 
 void Simulation::processBuildingCommands(const PlayerCommand& command) {
     if (command.selectBuilding) {
@@ -124,6 +140,22 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 *selectedBuilding_,
                 gridPosition, surface);
         if (automaticFoundation &&
+            automaticFoundation->valid()) {
+            previewPlacement.cost = addCosts(
+                previewPlacement.cost,
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::Foundation)]);
+            if (previewPlacement.valid() &&
+                !unlimitedResources_ &&
+                !canPay(
+                    previewPlacement.cost,
+                    wood_, stone_, gold_)) {
+                previewPlacement.error =
+                    PlacementError::InsufficientResources;
+            }
+        }
+        if (automaticFoundation &&
             !automaticFoundation->valid() &&
             previewPlacement.valid()) {
             previewPlacement.error =
@@ -197,6 +229,22 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 command.placeBuilding
                     ->gridPosition,
                 surface);
+        if (automaticFoundation &&
+            automaticFoundation->valid()) {
+            placement.cost = addCosts(
+                placement.cost,
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::Foundation)]);
+            if (placement.valid() &&
+                !unlimitedResources_ &&
+                !canPay(
+                    placement.cost,
+                    wood_, stone_, gold_)) {
+                placement.error =
+                    PlacementError::InsufficientResources;
+            }
+        }
         if (command.placeBuilding->lockHeight &&
             command.placeBuilding->platformStorey >= 0 &&
             (naturalSurface.storey !=
@@ -269,9 +317,18 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                     surface.foundationBottomHeight);
                 if (placed) {
                     if (!unlimitedResources_) {
-                        wood_ -= placed->cost.wood;
-                        stone_ -= placed->cost.stone;
-                        gold_ -= placed->cost.gold;
+                        ResourceCost transactionCost =
+                            placed->cost;
+                        if (createdFoundation) {
+                            transactionCost = addCosts(
+                                transactionCost,
+                                modularBuildingCosts_[
+                                    static_cast<std::size_t>(
+                                        ModularBuildPiece::Foundation)]);
+                        }
+                        wood_ -= transactionCost.wood;
+                        stone_ -= transactionCost.stone;
+                        gold_ -= transactionCost.gold;
                     }
                     syncWorldStructures();
                     events_.push_back({

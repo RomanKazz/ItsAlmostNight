@@ -18,20 +18,22 @@ void runSimulationTests() {
         coreDefinition.wood = 5;
         coreDefinition.stone = 0;
         coreDefinition.gold = 0;
-        auto& wallDefinition =
+        auto& turretDefinition =
             transactionBalance.buildings[
                 static_cast<std::size_t>(
-                    ian::BuildingType::Wall)];
-        wallDefinition.wood = 4;
-        wallDefinition.stone = 0;
-        wallDefinition.gold = 0;
+                    ian::BuildingType::Turret)];
+        turretDefinition.wood = 4;
+        turretDefinition.stone = 0;
+        turretDefinition.gold = 0;
+        transactionBalance.modularBuildings[0] = {
+            .wood = 3,
+            .stone = 0,
+            .gold = 0,
+        };
 
         ian::Simulation transactions{transactionBalance};
         transactions.startRun();
         static_cast<void>(transactions.takeEvents());
-        ian::PlayerCommand placeCore;
-        placeCore.placeBuilding = ian::PlaceBuildingCommand{
-            ian::BuildingType::Core, {0, 0}, 0};
         const auto coreSurface =
             transactions.previewPlacementSurface(
                 ian::BuildingType::Core, {0, 0});
@@ -64,37 +66,55 @@ void runSimulationTests() {
         require(transactions.snapshot().wood == 15,
                 "transaction fixture gathers deterministic inventory");
 
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
         transactions.tick(1.0 / 60.0, placeCore);
         require(
             transactions.snapshot().coreId.has_value() &&
                 transactions.snapshot().wood == 10,
             "successful placement spends configured cost exactly once");
-        ian::PlayerCommand placeWall;
-        placeWall.placeBuilding = ian::PlaceBuildingCommand{
-            ian::BuildingType::Wall, {0, 4}, 0};
-        transactions.tick(1.0 / 60.0, placeWall);
-        const auto wall = std::find_if(
+
+        const ian::GridPosition turretPosition{1, 5};
+        const auto turretSurface =
+            transactions.previewPlacementSurface(
+                ian::BuildingType::Turret,
+                turretPosition);
+        ian::PlayerCommand placeRaisedTurret;
+        placeRaisedTurret.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Turret,
+                .gridPosition = turretPosition,
+                .rotation = 0,
+                .baseHeight = turretSurface.height + 1.0,
+                .platformStorey = -1,
+                .lockHeight = true,
+            };
+        transactions.tick(
+            1.0 / 60.0, placeRaisedTurret);
+        const auto turret = std::find_if(
             transactions.snapshot().buildings.begin(),
             transactions.snapshot().buildings.end(),
             [](const ian::BuildingInstance& building) {
-                return building.type == ian::BuildingType::Wall;
+                return building.type == ian::BuildingType::Turret;
             });
         require(
-            wall != transactions.snapshot().buildings.end() &&
-                transactions.snapshot().wood == 6,
-            "second placement performs one atomic deduction");
-        const ian::EntityId wallId = wall->id;
-        ian::PlayerCommand sellWall;
-        sellWall.sellBuilding =
-            ian::SellBuildingCommand{wallId};
-        transactions.tick(1.0 / 60.0, sellWall);
+            turret != transactions.snapshot().buildings.end() &&
+                transactions.snapshot().platformFrames.size() == 1U &&
+                transactions.snapshot().wood == 3,
+            "raised placement atomically spends building and foundation costs");
+        const ian::EntityId turretId = turret->id;
+        ian::PlayerCommand sellTurret;
+        sellTurret.sellBuilding =
+            ian::SellBuildingCommand{turretId};
+        transactions.tick(1.0 / 60.0, sellTurret);
         require(
             transactions.snapshot().buildings.size() == 1U &&
-                transactions.snapshot().wood == 8,
+                transactions.snapshot().wood == 5,
             "sell removes building and credits configured refund once");
-        transactions.tick(1.0 / 60.0, sellWall);
+        transactions.tick(1.0 / 60.0, sellTurret);
         require(
-            transactions.snapshot().wood == 8,
+            transactions.snapshot().wood == 5,
             "repeated stale sell cannot credit a second refund");
     }
     {
