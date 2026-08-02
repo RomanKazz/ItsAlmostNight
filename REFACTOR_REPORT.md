@@ -77,6 +77,9 @@ Graphics lifecycle smoke and shader fallback: `b575a2b`
 Enemy skeleton remap cache: `802fb94`
 (`perf: cache enemy skeleton remapping`).
 
+Modular drag placement batching: `a365b31`
+(`perf: batch modular placement sync`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -298,6 +301,11 @@ damage вместо повторения полного rebuild для кажд�
 - Remap обычных enemy animation skeleton больше не сравнивает каждое имя кости
   с 23 source names каждый batch/кадр. Mapping кэшируется для пары
   model/source skeleton и очищается при initialize/shutdown renderer.
+- Multiple modular placement выполняет occupancy/support/resource validation и
+  списание последовательно, но откладывает `syncModularBuildings()` до конца
+  линии. Для N успешно поставленных foundation/floor/wall/ramp полный rebuild
+  collision structures снижен с N до 1; это устраняет квадратичный spike при
+  быстром drag-placement.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -381,6 +389,8 @@ damage вместо повторения полного rebuild для кажд�
   Он создаёт hidden raylib context, проверяет missing resources, render targets,
   два initialize/shutdown cycle и idempotent unload. На macOS тест запускался
   вне filesystem sandbox: sandbox блокировал создание окна до входа в test.
+- после modular drag batching: Debug 1/1 за 1,13 с; ASan+UBSan 1/1 за 2,25 с;
+  Release 1/1 за 0,34 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
