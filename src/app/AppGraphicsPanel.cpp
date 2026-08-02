@@ -563,6 +563,10 @@ void App::drawGraphicsPanel() {
         return;
     }
 
+    if (graphicsPanelTab_ == 4) {
+        return;
+    }
+
     constexpr float AudioPanelWidth = 320.0F;
     constexpr float AudioPanelHeight = 552.0F;
     constexpr float AudioGap = 18.0F;
