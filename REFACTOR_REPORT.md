@@ -29,6 +29,9 @@ traversal`).
 Тесты building transactions: `f65dbf9`
 (`test: cover building resource transactions`).
 
+Стоимость automatic foundation: `4788919`
+(`fix: charge automatic foundation cost`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -118,10 +121,9 @@ raylib-ресурсы в основном уже закрыты некопиру
    systems возвращали счётчики индексов к начальному значению. Долгоживущий
    `EntityId` прошлого забега мог совпасть с объектом нового забега; stale
    building command тогда воздействовал на новый объект.
-13. Автоматически созданная под обычным зданием платформа не имеет отдельной
-   цены и остаётся после продажи здания. Архитектурная документация подтверждает
-   время жизни, но не ценовую политику. Изменение затронуло бы баланс, поэтому
-   самостоятельно не вносилось.
+13. **Бесплатная automatic foundation.** При автоматической установке
+   foundation проверялась и списывалась только стоимость обычного здания.
+   Игрок получал полноценную сохраняющуюся платформу без её настроенной цены.
 
 ## Исправления
 
@@ -150,6 +152,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Reset building, enemy и modular systems очищает состояние, но сохраняет
   монотонность ID. Ссылки прошлого забега больше не разрешаются в новые
   сущности с тем же индексом и generation.
+- Preview и execution автоматической foundation используют объединённую
+  стоимость здания и платформы. Проверка выполняется до изменения мира;
+  списание — только после успешного создания обоих объектов.
 
 ## Архитектурный рефакторинг
 
@@ -214,8 +219,8 @@ damage вместо повторения полного rebuild для кажд�
   невозможность upgrade через stale ID. Отдельные тесты закрывают enemy и
   modular foundation ID после reset.
 - Command-level building transaction test проверяет отсутствие списания и
-  auto-foundation при отказе, точное однократное списание двух размещений,
-  sell refund и защиту от повторной продажи по stale ID.
+  auto-foundation при отказе, суммарное списание здания и foundation, sell
+  refund здания и защиту от повторной продажи по stale ID.
 
 Фактически выполненные команды и результаты:
 
@@ -237,20 +242,19 @@ damage вместо повторения полного rebuild для кажд�
   Release 1/1 за 0,39 с; `git diff --check` успешно.
 - после building transaction tests: Debug 1/1 за 0,96 с; ASan+UBSan 1/1 за
   2,44 с; Release 1/1 за 0,37 с; `git diff --check` успешно.
+- после automatic foundation cost fix: Debug 1/1 за 1,09 с; ASan+UBSan 1/1 за
+  2,65 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
-1. Решить, должна ли автоматически созданная платформа иметь отдельную цену и
-   refund policy. Это решение меняет баланс; текущую семантику покрывают тесты
-   только в части атомарности отказа.
-2. Отделять resource transaction от placement side effects теперь можно под
+1. Отделять resource transaction от placement side effects теперь можно под
    защитой command-level regression tests; выполнять только вместе с дальнейшим
    разделением `SimulationBuildingCommands.cpp`.
-3. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
+2. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
-4. Добавить integration smoke test с невидимым raylib-контекстом для missing
+3. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
-5. Профилировать renderer draw calls, animated model updates, shadows, grass и
+4. Профилировать renderer draw calls, animated model updates, shadows, grass и
    particles на фиксированном replay; без измерения оптимизации не вносить.
 
 ## Основные изменённые файлы
