@@ -97,7 +97,7 @@ enum class FirstPersonToolVisual {
 
 struct FirstPersonToolTuning {
     Vector3 position{0.34F, -0.40F, -0.92F};
-    Vector3 rotation{-8.0F, 62.0F, 22.0F};
+    Vector3 rotation{-8.0F, -118.0F, 22.0F};
     float scale{0.78F};
     float windupDegrees{30.0F};
     float strikeDegrees{-75.0F};
