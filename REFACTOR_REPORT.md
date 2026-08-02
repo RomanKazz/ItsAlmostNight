@@ -26,6 +26,9 @@ traversal`).
 Устойчивые ID между забегами: `a61bb45`
 (`fix: preserve entity identity across restarts`).
 
+Тесты building transactions: `f65dbf9`
+(`test: cover building resource transactions`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -115,6 +118,10 @@ raylib-ресурсы в основном уже закрыты некопиру
    systems возвращали счётчики индексов к начальному значению. Долгоживущий
    `EntityId` прошлого забега мог совпасть с объектом нового забега; stale
    building command тогда воздействовал на новый объект.
+13. Автоматически созданная под обычным зданием платформа не имеет отдельной
+   цены и остаётся после продажи здания. Архитектурная документация подтверждает
+   время жизни, но не ценовую политику. Изменение затронуло бы баланс, поэтому
+   самостоятельно не вносилось.
 
 ## Исправления
 
@@ -206,6 +213,9 @@ damage вместо повторения полного rebuild для кажд�
 - 128 последовательных restart проверяют очистку событий, новое core ID и
   невозможность upgrade через stale ID. Отдельные тесты закрывают enemy и
   modular foundation ID после reset.
+- Command-level building transaction test проверяет отсутствие списания и
+  auto-foundation при отказе, точное однократное списание двух размещений,
+  sell refund и защиту от повторной продажи по stale ID.
 
 Фактически выполненные команды и результаты:
 
@@ -225,16 +235,22 @@ damage вместо повторения полного rebuild для кажд�
   Release 1/1 за 0,30 с; `git diff --check` успешно.
 - после restart/ID stress: Debug 1/1 за 1,06 с; ASan+UBSan 1/1 за 2,51 с;
   Release 1/1 за 0,39 с; `git diff --check` успешно.
+- после building transaction tests: Debug 1/1 за 0,96 с; ASan+UBSan 1/1 за
+  2,44 с; Release 1/1 за 0,37 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
-1. Отделять resource transaction от placement side effects только после
-   добавления command-level regression tests.
-2. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
+1. Решить, должна ли автоматически созданная платформа иметь отдельную цену и
+   refund policy. Это решение меняет баланс; текущую семантику покрывают тесты
+   только в части атомарности отказа.
+2. Отделять resource transaction от placement side effects теперь можно под
+   защитой command-level regression tests; выполнять только вместе с дальнейшим
+   разделением `SimulationBuildingCommands.cpp`.
+3. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
-3. Добавить integration smoke test с невидимым raylib-контекстом для missing
+4. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
-4. Профилировать renderer draw calls, animated model updates, shadows, grass и
+5. Профилировать renderer draw calls, animated model updates, shadows, grass и
    particles на фиксированном replay; без измерения оптимизации не вносить.
 
 ## Основные изменённые файлы
