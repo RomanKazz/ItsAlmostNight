@@ -44,6 +44,9 @@ Placement query extraction: `457db2d`
 Projectile ID restart safety: `ca57cdb`
 (`fix: preserve projectile identity across restarts`).
 
+Resource ID restart safety: `1de6c9d`
+(`fix: rotate resource generation on restart`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -139,6 +142,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 14. **Повторное использование projectile ID после restart.** Bomb и Cannon
    systems сбрасывали индекс снаряда к начальному значению. Presentation/event
    ссылка прошлого забега могла совпасть с новым снарядом.
+15. **Повторное использование resource ID после restart.** Resource nodes
+   пересоздавались с generation `1`. Hover/healthbar ссылка прошлого забега
+   могла разрешиться в ресурс нового забега с тем же slot index.
 
 ## Исправления
 
@@ -175,6 +181,8 @@ raylib-ресурсы в основном уже закрыты некопиру
   сохраняют `InsufficientResources`, но показывают стоимость обоих объектов.
 - Bomb/Cannon reset очищает projectile storage, но не откатывает монотонный ID
   allocator. Новый забег не переиспользует ID снарядов прошлого забега.
+- Resource reset сохраняет детерминированные slot indices, но увеличивает run
+  generation. Обычный respawn внутри забега сохраняет прежнюю идентичность.
 
 ## Архитектурный рефакторинг
 
@@ -251,6 +259,8 @@ damage вместо повторения полного rebuild для кажд�
   5 дерева за здание плюс 3 дерева за automatic foundation.
 - Bomb и cannon reset tests создают снаряд до и после reset и проверяют разные
   `EntityId`; cannon test одновременно сохраняет level-dependent параметры.
+- Resource reset test проверяет стабильный slot index и новую generation между
+  забегами.
 
 Фактически выполненные команды и результаты:
 
@@ -282,6 +292,8 @@ damage вместо повторения полного rebuild для кажд�
   Release 1/1 за 0,35 с; `git diff --check` успешно.
 - после projectile ID restart fix: Debug 1/1 за 1,16 с; ASan+UBSan 1/1 за
   2,45 с; Release 1/1 за 0,39 с; `git diff --check` успешно.
+- после resource ID restart fix: Debug 1/1 за 1,06 с; ASan+UBSan 1/1 за 2,28 с;
+  Release 1/1 за 0,37 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -304,6 +316,8 @@ damage вместо повторения полного rebuild для кажд�
   таймеров;
 - `src/combat/BombSystem.cpp`, `src/combat/CannonSystem.cpp` — projectile ID
   не переиспользуются между restart;
+- `src/resources/ResourceSystem.cpp` — resource generation меняется между
+  restart;
 - `src/buildings/BuildingSystem.cpp`, `src/buildings/FoundationSystem.cpp`,
   `src/enemies/EnemySystem.cpp` — ID не переиспользуются между restart;
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
