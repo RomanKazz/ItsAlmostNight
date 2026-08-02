@@ -1825,6 +1825,13 @@ Simulation::automaticFoundationPlacement(
     };
     PlatformFramePlacement placement =
         previewFoundation(terrainHit);
+    if (placement.error ==
+        ModularPlacementError::InsufficientResources) {
+        // Automatic placement validates the combined building + foundation
+        // transaction in processBuildingCommands(). Keep geometry available
+        // so preview cost does not omit the foundation when inventory is low.
+        placement.error = ModularPlacementError::None;
+    }
     if (!placement.valid() ||
         placement.storey != 0) {
         return placement;
@@ -2395,7 +2402,9 @@ SimulationSnapshot Simulation::snapshot() const {
 
 PlacementResult Simulation::previewPlacement(
     BuildingType type, GridPosition position) const {
-    return validatePlacement(type, position);
+    return previewPlacement(
+        type, position,
+        placementSurface(type, position).height);
 }
 
 PlacementResult Simulation::previewPlacement(
@@ -2404,8 +2413,48 @@ PlacementResult Simulation::previewPlacement(
     const BuildingPlatformSurface surface =
         placementSurfaceWithPreferredHeight(
             type, position, preferredHeight);
-    return validatePlacement(
+    PlacementResult placement = validatePlacement(
         type, position, surface);
+    const bool needsAutomaticFoundation =
+        surface.storey < 0 &&
+        surface.height - surface.foundationBottomHeight > 0.025;
+    if (!needsAutomaticFoundation) {
+        return placement;
+    }
+    const auto automaticFoundation =
+        automaticFoundationPlacement(
+            type, position, surface.height);
+    if (!automaticFoundation ||
+        !automaticFoundation->valid()) {
+        if (placement.valid() && automaticFoundation) {
+            placement.error =
+                automaticFoundation->error ==
+                        ModularPlacementError::ResourceBlocked
+                    ? PlacementError::ResourceBlocked
+                    : PlacementError::WorldCollision;
+        }
+        return placement;
+    }
+    const ResourceCost foundationCost =
+        modularBuildingCosts_[
+            static_cast<std::size_t>(
+                ModularBuildPiece::Foundation)];
+    placement.cost = {
+        saturatingAdd(placement.cost.wood,
+                      foundationCost.wood),
+        saturatingAdd(placement.cost.stone,
+                      foundationCost.stone),
+        saturatingAdd(placement.cost.gold,
+                      foundationCost.gold),
+    };
+    if (placement.valid() && !unlimitedResources_ &&
+        (wood_ < placement.cost.wood ||
+         stone_ < placement.cost.stone ||
+         gold_ < placement.cost.gold)) {
+        placement.error =
+            PlacementError::InsufficientResources;
+    }
+    return placement;
 }
 
 BuildingPlatformSurface

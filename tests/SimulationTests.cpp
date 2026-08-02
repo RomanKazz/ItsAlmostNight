@@ -37,6 +37,14 @@ void runSimulationTests() {
         const auto coreSurface =
             transactions.previewPlacementSurface(
                 ian::BuildingType::Core, {0, 0});
+        const auto raisedCorePreview =
+            transactions.previewPlacement(
+                ian::BuildingType::Core, {0, 0},
+                coreSurface.height + 1.0);
+        require(
+            raisedCorePreview.cost ==
+                ian::ResourceCost{8, 0, 0},
+            "low-inventory preview includes automatic foundation cost");
         ian::PlayerCommand rejectedRaisedCore;
         rejectedRaisedCore.placeBuilding =
             ian::PlaceBuildingCommand{
