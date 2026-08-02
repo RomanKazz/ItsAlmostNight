@@ -454,35 +454,35 @@ void App::drawGraphicsPanel() {
                     value, minimum, maximum);
             };
 
-        if (!toolPanelStylePage_) {
+        if (toolPanelPage_ == 0) {
             toolSlider(0, 0, "POSITION X", toolTuning_.position.x,
                        -0.8F, 0.8F);
             toolSlider(0, 1, "POSITION Y", toolTuning_.position.y,
                        -1.0F, 0.3F);
             toolSlider(0, 2, "POSITION Z", toolTuning_.position.z,
                        -2.0F, -0.25F);
-            toolSlider(0, 3, "ROTATION X", toolTuning_.rotation.x,
-                       -180.0F, 180.0F);
-            toolSlider(0, 4, "ROTATION Y", toolTuning_.rotation.y,
-                       -180.0F, 180.0F);
-            toolSlider(0, 5, "ROTATION Z", toolTuning_.rotation.z,
-                       -180.0F, 180.0F);
-            toolSlider(0, 6, "SCALE", toolTuning_.scale,
+            toolSlider(0, 3, "SCALE", toolTuning_.scale,
                        0.2F, 2.0F);
-
-            toolSlider(1, 0, "WINDUP ANGLE",
+            toolSlider(1, 0, "ROTATION X", toolTuning_.rotation.x,
+                       -180.0F, 180.0F);
+            toolSlider(1, 1, "ROTATION Y", toolTuning_.rotation.y,
+                       -180.0F, 180.0F);
+            toolSlider(1, 2, "ROTATION Z", toolTuning_.rotation.z,
+                       -180.0F, 180.0F);
+        } else if (toolPanelPage_ == 1) {
+            toolSlider(0, 0, "WINDUP ANGLE",
                        toolTuning_.windupDegrees,
                        -140.0F, 140.0F);
-            toolSlider(1, 1, "STRIKE ANGLE",
+            toolSlider(0, 1, "STRIKE ANGLE",
                        toolTuning_.strikeDegrees,
                        -160.0F, 160.0F);
-            toolSlider(1, 2, "DEPTH PUSH",
+            toolSlider(0, 2, "DEPTH PUSH",
                        toolTuning_.depthPush,
                        -0.25F, 0.25F);
-            toolSlider(1, 3, "SWING DURATION",
+            toolSlider(1, 0, "SWING DURATION",
                        toolTuning_.swingDuration,
                        0.15F, 1.5F);
-            toolSlider(1, 4, "WALK BOB",
+            toolSlider(1, 1, "WALK BOB",
                        toolTuning_.movementBob,
                        0.0F, 2.0F);
         } else {
@@ -516,14 +516,16 @@ void App::drawGraphicsPanel() {
         }
 
         const float modelY =
-            panelY + ControlStartY + RowHeight * 5.0F;
+            panelY + ControlStartY + RowHeight * 4.0F;
         if (ui_.drawButton(
                 {contentX, modelY,
                  columnWidth, ButtonHeight},
-                toolPanelStylePage_
-                    ? "PAGE: STYLE"
-                    : "PAGE: POSE")) {
-            toolPanelStylePage_ = !toolPanelStylePage_;
+                toolPanelPage_ == 0
+                    ? "PAGE: POSE"
+                    : toolPanelPage_ == 1
+                          ? "PAGE: ANIMATION"
+                          : "PAGE: STYLE")) {
+            toolPanelPage_ = (toolPanelPage_ + 1) % 3;
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, modelY,
@@ -535,7 +537,7 @@ void App::drawGraphicsPanel() {
                 !toolPanelPreviewUsesAxe_;
         }
         const float actionY =
-            panelY + ControlStartY + RowHeight * 6.0F;
+            panelY + ControlStartY + RowHeight * 5.0F;
         if (ui_.drawButton(
                 {contentX, actionY,
                  columnWidth, ButtonHeight},
