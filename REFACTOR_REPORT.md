@@ -15,6 +15,9 @@ inputs`).
 
 Оптимизация collision tick: `c763c2e` (`perf: reuse enemy collision links`).
 
+Оптимизация structural graph: `cb6d465` (`perf: linearize collapse risk
+traversal`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
