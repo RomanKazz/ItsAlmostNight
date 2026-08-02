@@ -1331,15 +1331,18 @@ void App::render() {
                 .fovy = 58.0F,
                 .projection = CAMERA_PERSPECTIVE,
             };
-            BeginMode3D(viewModelCamera);
-            static_cast<void>(renderer_->drawFirstPersonTool(
-                useAxe ? FirstPersonToolVisual::Axe
-                       : FirstPersonToolVisual::Pickaxe,
-                swingProgress,
-                static_cast<float>(cameraBobPhase_),
-                static_cast<float>(cameraBobAmount_),
-                toolTuning_));
-            EndMode3D();
+            if (renderer_->beginFirstPersonToolPass()) {
+                BeginMode3D(viewModelCamera);
+                static_cast<void>(renderer_->drawFirstPersonTool(
+                    useAxe ? FirstPersonToolVisual::Axe
+                           : FirstPersonToolVisual::Pickaxe,
+                    swingProgress,
+                    static_cast<float>(cameraBobPhase_),
+                    static_cast<float>(cameraBobAmount_),
+                    toolTuning_));
+                EndMode3D();
+                renderer_->endFirstPersonToolPass(toolTuning_);
+            }
         }
 
         // World-space UI is composited after post-processing so health bars,

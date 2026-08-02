@@ -333,6 +333,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                                  "assets/shaders/selection_outline.fs");
     postProcessShader_.load(
         nullptr, "assets/shaders/postprocess.fs");
+    viewModelCompositeShader_.load(
+        nullptr, "assets/shaders/viewmodel_composite.fs");
     grassShader_.load("assets/shaders/grass_instanced.vs",
                       "assets/shaders/grass_instanced.fs");
     upgradeEffectShader_.load("assets/shaders/upgrade_effect.vs",
@@ -395,8 +397,29 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     enemyBossAnimations_.load(
         "assets/models/enemies/ultimate/boss.gltf");
     updateFramebuffer(settings);
+    updateViewModelTarget();
     updateSelectionMask(settings);
     updateShadowMap(settings);
+}
+
+void GraphicsResources::updateViewModelTarget() {
+    if (!initialized_) {
+        return;
+    }
+    const int width = GetRenderWidth();
+    const int height = GetRenderHeight();
+    if (width <= 0 || height <= 0 ||
+        (width == requestedViewModelWidth_ &&
+         height == requestedViewModelHeight_)) {
+        return;
+    }
+    requestedViewModelWidth_ = width;
+    requestedViewModelHeight_ = height;
+    viewModelTarget_.load(width, height);
+    if (viewModelTarget_.valid()) {
+        SetTextureFilter(viewModelTarget_.get().texture,
+                         TEXTURE_FILTER_BILINEAR);
+    }
 }
 
 void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
@@ -466,6 +489,7 @@ void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
 }
 
 void GraphicsResources::shutdown() {
+    viewModelTarget_.unload();
     shadowMap_.unload();
     enemyBossAnimations_.unload();
     enemyFlyingAnimations_.unload();
@@ -507,6 +531,7 @@ void GraphicsResources::shutdown() {
     upgradeEffectShader_.unload();
     grassShader_.unload();
     postProcessShader_.unload();
+    viewModelCompositeShader_.unload();
     selectionOutlineShader_.unload();
     selectionMaskShader_.unload();
     skyShader_.unload();
@@ -517,6 +542,8 @@ void GraphicsResources::shutdown() {
     selectionMaskTarget_.unload();
     requestedSceneWidth_ = 0;
     requestedSceneHeight_ = 0;
+    requestedViewModelWidth_ = 0;
+    requestedViewModelHeight_ = 0;
     requestedSelectionMaskWidth_ = 0;
     requestedSelectionMaskHeight_ = 0;
     requestedShadowMapSize_ = 0;
@@ -553,6 +580,14 @@ int GraphicsResources::selectionMaskWidth() const {
 
 int GraphicsResources::selectionMaskHeight() const {
     return requestedSelectionMaskHeight_;
+}
+
+bool GraphicsResources::viewModelTargetValid() const {
+    return viewModelTarget_.valid();
+}
+
+const RenderTexture2D& GraphicsResources::viewModelTarget() const {
+    return viewModelTarget_.get();
 }
 
 ShaderResource& GraphicsResources::worldShader() {
@@ -609,6 +644,14 @@ ShaderResource& GraphicsResources::postProcessShader() {
 
 const ShaderResource& GraphicsResources::postProcessShader() const {
     return postProcessShader_;
+}
+
+ShaderResource& GraphicsResources::viewModelCompositeShader() {
+    return viewModelCompositeShader_;
+}
+
+const ShaderResource& GraphicsResources::viewModelCompositeShader() const {
+    return viewModelCompositeShader_;
 }
 
 ShaderResource& GraphicsResources::grassShader() {

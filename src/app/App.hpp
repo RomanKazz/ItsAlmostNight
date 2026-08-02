@@ -136,6 +136,7 @@ class App {
     int graphicsPanelTab_{};
     FirstPersonToolTuning toolTuning_{};
     bool toolPanelPreviewUsesAxe_{};
+    bool toolPanelStylePage_{};
     TargetHealthBar targetHealthBar_;
     PlayerCommand input_;
     double pendingYaw_{};

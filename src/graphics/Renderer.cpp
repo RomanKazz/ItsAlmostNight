@@ -295,6 +295,75 @@ void Renderer::endWorldPass() {
     worldPassOpen_ = false;
 }
 
+bool Renderer::beginFirstPersonToolPass() {
+    resources_.updateViewModelTarget();
+    if (!resources_.viewModelTargetValid()) {
+        return false;
+    }
+    BeginTextureMode(resources_.viewModelTarget());
+    ClearBackground(BLANK);
+    return true;
+}
+
+void Renderer::endFirstPersonToolPass(
+    const FirstPersonToolTuning& tuning) {
+    if (!resources_.viewModelTargetValid()) {
+        return;
+    }
+    EndTextureMode();
+    const RenderTexture2D& target =
+        resources_.viewModelTarget();
+    const Rectangle source{
+        0.0F, 0.0F,
+        static_cast<float>(target.texture.width),
+        -static_cast<float>(target.texture.height),
+    };
+    const Rectangle destination{
+        0.0F, 0.0F,
+        static_cast<float>(GetScreenWidth()),
+        static_cast<float>(GetScreenHeight()),
+    };
+    if (resources_.viewModelCompositeShader().valid()) {
+        Shader& shader =
+            resources_.viewModelCompositeShader().get();
+        const Vector2 texelSize{
+            1.0F / static_cast<float>(
+                       std::max(target.texture.width, 1)),
+            1.0F / static_cast<float>(
+                       std::max(target.texture.height, 1)),
+        };
+        const float outlineEnabled =
+            tuning.outlineEnabled ? 1.0F : 0.0F;
+        SetShaderValue(shader, GetShaderLocation(shader, "texelSize"),
+                       &texelSize, SHADER_UNIFORM_VEC2);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "outlineEnabled"),
+                       &outlineEnabled, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "outlineWidth"),
+                       &tuning.outlineWidth, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "outlineStrength"),
+                       &tuning.outlineStrength, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "rimStrength"),
+                       &tuning.rimStrength, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "brightness"),
+                       &tuning.brightness, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader,
+                       GetShaderLocation(shader, "saturation"),
+                       &tuning.saturation, SHADER_UNIFORM_FLOAT);
+        BeginShaderMode(shader);
+        DrawTexturePro(target.texture, source, destination,
+                       {}, 0.0F, WHITE);
+        EndShaderMode();
+        return;
+    }
+    DrawTexturePro(target.texture, source, destination,
+                   {}, 0.0F, WHITE);
+}
+
 void Renderer::drawScenePreview(Rectangle bounds) {
     if (!resources_.sceneTargetValid() ||
         bounds.width <= 0.0F || bounds.height <= 0.0F) {

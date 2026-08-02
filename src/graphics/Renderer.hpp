@@ -105,6 +105,12 @@ struct FirstPersonToolTuning {
     float depthPush{-0.055F};
     float swingDuration{0.48F};
     float movementBob{1.0F};
+    bool outlineEnabled{true};
+    float outlineWidth{2.0F};
+    float outlineStrength{0.82F};
+    float rimStrength{0.28F};
+    float brightness{1.12F};
+    float saturation{1.0F};
 };
 
 [[nodiscard]] bool loadFirstPersonToolTuning(
@@ -150,6 +156,9 @@ class Renderer {
     void beginUiOnlyFrame(Color clearColor);
     void endFrame();
     void drawScenePreview(Rectangle bounds);
+    [[nodiscard]] bool beginFirstPersonToolPass();
+    void endFirstPersonToolPass(
+        const FirstPersonToolTuning& tuning);
 
     [[nodiscard]] bool beginShadowPass(const WorldLighting& lighting,
                                        Vector3 focus);

@@ -67,6 +67,23 @@ bool loadFirstPersonToolTuning(
         loaded.movementBob = finiteClamped(
             value.value("movementBob", loaded.movementBob),
             loaded.movementBob, 0.0F, 2.0F);
+        loaded.outlineEnabled = value.value(
+            "outlineEnabled", loaded.outlineEnabled);
+        loaded.outlineWidth = finiteClamped(
+            value.value("outlineWidth", loaded.outlineWidth),
+            loaded.outlineWidth, 0.5F, 5.0F);
+        loaded.outlineStrength = finiteClamped(
+            value.value("outlineStrength", loaded.outlineStrength),
+            loaded.outlineStrength, 0.0F, 1.0F);
+        loaded.rimStrength = finiteClamped(
+            value.value("rimStrength", loaded.rimStrength),
+            loaded.rimStrength, 0.0F, 1.5F);
+        loaded.brightness = finiteClamped(
+            value.value("brightness", loaded.brightness),
+            loaded.brightness, 0.5F, 2.0F);
+        loaded.saturation = finiteClamped(
+            value.value("saturation", loaded.saturation),
+            loaded.saturation, 0.0F, 2.0F);
         tuning = loaded;
         return true;
     } catch (...) {
@@ -98,6 +115,12 @@ bool saveFirstPersonToolTuning(
             {"depthPush", tuning.depthPush},
             {"swingDuration", tuning.swingDuration},
             {"movementBob", tuning.movementBob},
+            {"outlineEnabled", tuning.outlineEnabled},
+            {"outlineWidth", tuning.outlineWidth},
+            {"outlineStrength", tuning.outlineStrength},
+            {"rimStrength", tuning.rimStrength},
+            {"brightness", tuning.brightness},
+            {"saturation", tuning.saturation},
         };
         std::ofstream stream(filePath);
         if (!stream) {

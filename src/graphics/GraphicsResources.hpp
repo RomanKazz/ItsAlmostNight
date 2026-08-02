@@ -163,6 +163,7 @@ class GraphicsResources {
 
     void initialize(const GraphicsSettings& settings);
     void updateFramebuffer(const GraphicsSettings& settings);
+    void updateViewModelTarget();
     void updateSelectionMask(const GraphicsSettings& settings);
     void updateShadowMap(const GraphicsSettings& settings);
     void shutdown();
@@ -175,6 +176,8 @@ class GraphicsResources {
     [[nodiscard]] const RenderTexture2D& selectionMask() const;
     [[nodiscard]] int selectionMaskWidth() const;
     [[nodiscard]] int selectionMaskHeight() const;
+    [[nodiscard]] bool viewModelTargetValid() const;
+    [[nodiscard]] const RenderTexture2D& viewModelTarget() const;
 
     [[nodiscard]] ShaderResource& worldShader();
     [[nodiscard]] const ShaderResource& worldShader() const;
@@ -190,6 +193,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& selectionOutlineShader() const;
     [[nodiscard]] ShaderResource& postProcessShader();
     [[nodiscard]] const ShaderResource& postProcessShader() const;
+    [[nodiscard]] ShaderResource& viewModelCompositeShader();
+    [[nodiscard]] const ShaderResource& viewModelCompositeShader() const;
     [[nodiscard]] ShaderResource& grassShader();
     [[nodiscard]] const ShaderResource& grassShader() const;
     [[nodiscard]] ShaderResource& upgradeEffectShader();
@@ -248,6 +253,7 @@ class GraphicsResources {
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
     ShaderResource postProcessShader_;
+    ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
     TextureResource fallbackTexture_;
@@ -288,10 +294,13 @@ class GraphicsResources {
     ModelAnimationsResource enemyFlyingAnimations_;
     ModelAnimationsResource enemyBossAnimations_;
     RenderTextureResource sceneTarget_;
+    RenderTextureResource viewModelTarget_;
     RenderTextureResource selectionMaskTarget_;
     ShadowMapResource shadowMap_;
     int requestedSceneWidth_{};
     int requestedSceneHeight_{};
+    int requestedViewModelWidth_{};
+    int requestedViewModelHeight_{};
     int requestedSelectionMaskWidth_{};
     int requestedSelectionMaskHeight_{};
     int requestedShadowMapSize_{};

@@ -454,46 +454,76 @@ void App::drawGraphicsPanel() {
                     value, minimum, maximum);
             };
 
-        toolSlider(0, 0, "POSITION X", toolTuning_.position.x,
-                   -0.8F, 0.8F);
-        toolSlider(0, 1, "POSITION Y", toolTuning_.position.y,
-                   -1.0F, 0.3F);
-        toolSlider(0, 2, "POSITION Z", toolTuning_.position.z,
-                   -2.0F, -0.25F);
-        toolSlider(0, 3, "ROTATION X", toolTuning_.rotation.x,
-                   -180.0F, 180.0F);
-        toolSlider(0, 4, "ROTATION Y", toolTuning_.rotation.y,
-                   -180.0F, 180.0F);
-        toolSlider(0, 5, "ROTATION Z", toolTuning_.rotation.z,
-                   -180.0F, 180.0F);
-        toolSlider(0, 6, "SCALE", toolTuning_.scale,
-                   0.2F, 2.0F);
+        if (!toolPanelStylePage_) {
+            toolSlider(0, 0, "POSITION X", toolTuning_.position.x,
+                       -0.8F, 0.8F);
+            toolSlider(0, 1, "POSITION Y", toolTuning_.position.y,
+                       -1.0F, 0.3F);
+            toolSlider(0, 2, "POSITION Z", toolTuning_.position.z,
+                       -2.0F, -0.25F);
+            toolSlider(0, 3, "ROTATION X", toolTuning_.rotation.x,
+                       -180.0F, 180.0F);
+            toolSlider(0, 4, "ROTATION Y", toolTuning_.rotation.y,
+                       -180.0F, 180.0F);
+            toolSlider(0, 5, "ROTATION Z", toolTuning_.rotation.z,
+                       -180.0F, 180.0F);
+            toolSlider(0, 6, "SCALE", toolTuning_.scale,
+                       0.2F, 2.0F);
 
-        toolSlider(1, 0, "WINDUP ANGLE",
-                   toolTuning_.windupDegrees,
-                   -140.0F, 140.0F);
-        toolSlider(1, 1, "STRIKE ANGLE",
-                   toolTuning_.strikeDegrees,
-                   -160.0F, 160.0F);
-        toolSlider(1, 2, "DEPTH PUSH",
-                   toolTuning_.depthPush,
-                   -0.25F, 0.25F);
-        toolSlider(1, 3, "SWING DURATION",
-                   toolTuning_.swingDuration,
-                   0.15F, 1.5F);
-        toolSlider(1, 4, "WALK BOB",
-                   toolTuning_.movementBob,
-                   0.0F, 2.0F);
+            toolSlider(1, 0, "WINDUP ANGLE",
+                       toolTuning_.windupDegrees,
+                       -140.0F, 140.0F);
+            toolSlider(1, 1, "STRIKE ANGLE",
+                       toolTuning_.strikeDegrees,
+                       -160.0F, 160.0F);
+            toolSlider(1, 2, "DEPTH PUSH",
+                       toolTuning_.depthPush,
+                       -0.25F, 0.25F);
+            toolSlider(1, 3, "SWING DURATION",
+                       toolTuning_.swingDuration,
+                       0.15F, 1.5F);
+            toolSlider(1, 4, "WALK BOB",
+                       toolTuning_.movementBob,
+                       0.0F, 2.0F);
+        } else {
+            toolSlider(0, 0, "OUTLINE WIDTH",
+                       toolTuning_.outlineWidth,
+                       0.5F, 5.0F);
+            toolSlider(0, 1, "OUTLINE STRENGTH",
+                       toolTuning_.outlineStrength,
+                       0.0F, 1.0F);
+            toolSlider(0, 2, "RIM LIGHT",
+                       toolTuning_.rimStrength,
+                       0.0F, 1.5F);
+            toolSlider(1, 0, "BRIGHTNESS",
+                       toolTuning_.brightness,
+                       0.5F, 2.0F);
+            toolSlider(1, 1, "SATURATION",
+                       toolTuning_.saturation,
+                       0.0F, 2.0F);
+            const float toggleY =
+                panelY + ControlStartY + RowHeight * 2.0F;
+            if (ui_.drawToggleButton(
+                    {contentX + columnWidth + Gap, toggleY,
+                     columnWidth, ButtonHeight},
+                    toolTuning_.outlineEnabled
+                        ? "OUTLINE: ON"
+                        : "OUTLINE: OFF",
+                    toolTuning_.outlineEnabled)) {
+                toolTuning_.outlineEnabled =
+                    !toolTuning_.outlineEnabled;
+            }
+        }
 
         const float modelY =
             panelY + ControlStartY + RowHeight * 5.0F;
         if (ui_.drawButton(
                 {contentX, modelY,
                  columnWidth, ButtonHeight},
-                "SAVE TOOL")) {
-            static_cast<void>(saveFirstPersonToolTuning(
-                "user_settings/first_person_tool.json",
-                toolTuning_));
+                toolPanelStylePage_
+                    ? "PAGE: STYLE"
+                    : "PAGE: POSE")) {
+            toolPanelStylePage_ = !toolPanelStylePage_;
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, modelY,
@@ -506,6 +536,14 @@ void App::drawGraphicsPanel() {
         }
         const float actionY =
             panelY + ControlStartY + RowHeight * 6.0F;
+        if (ui_.drawButton(
+                {contentX, actionY,
+                 columnWidth, ButtonHeight},
+                "SAVE TOOL")) {
+            static_cast<void>(saveFirstPersonToolTuning(
+                "user_settings/first_person_tool.json",
+                toolTuning_));
+        }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, actionY,
                  columnWidth, ButtonHeight},
