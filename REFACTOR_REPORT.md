@@ -71,6 +71,12 @@ UI text allocation optimization: `45a6b4a`
 Simulation lifecycle extraction: `99b9476`
 (`refactor: isolate simulation lifecycle tools`).
 
+Graphics lifecycle smoke and shader fallback: `b575a2b`
+(`test: cover graphics resource lifecycle`).
+
+Enemy skeleton remap cache: `802fb94`
+(`perf: cache enemy skeleton remapping`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -151,7 +157,7 @@ raylib-ресурсы в основном уже закрыты некопиру
 9. **Signed overflow в бесконечном режиме.** Счётчик волны, начисления ресурсов
    и произведение награды использовали обычную арифметику `int`. После
    практически недостижимого числа волн это приводило бы к UB.
-10. Автоматизированный тест не создаёт графический контекст и потому не может
+10. Автоматизированный тест не создавал графический контекст и потому не мог
    напрямую проверить реальные GPU failure paths и порядок shutdown окна.
 11. **Неограниченный catch-up производства.** `GoldMineSystem::tick()`
    выполнял отдельную итерацию на каждый пропущенный интервал. Большой конечный
@@ -176,6 +182,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 17. **Необязательный cleanup terrain model.** `TerrainRenderer` владел
    raylib `Model`, но destructor был default. Без явного `shutdown()` ресурс
    оставался загруженным.
+18. **Ложный успех загрузки отсутствующего shader.** Raylib возвращает default
+   shader при ошибке чтения файла. `ShaderResource` принимал его за успешно
+   загруженный requested shader, поэтому fallback/error path не включался.
 
 ## Исправления
 
@@ -187,6 +196,8 @@ raylib-ресурсы в основном уже закрыты некопиру
 - `ShaderResource`, `ModelResource` и `RenderTextureResource` теперь очищают
   частично созданные ресурсы сразу после неуспешной загрузки. Для текстуры
   также закрывается редкий случай невалидного объекта с ненулевым handle.
+- `ShaderResource` до `LoadShader()` проверяет каждый заданный путь. Отсутствие
+  файла больше не маскируется встроенным default shader raylib.
 - `EnemySystem::damageInRadius()` применяет урон к собранному стабильному
   набору ID и перестраивает spatial hash один раз после всего batch, если были
   убийства. Результаты, hit animation, knockback и порядок целей сохранены.
@@ -284,6 +295,9 @@ damage вместо повторения полного rebuild для кажд�
 - `drawUiText`, `measureUiText`, label и button больше не создают heap-строку
   для текста короче 256 байт. Общий helper даёт raylib/raygui корректную
   NUL-terminated копию в stack buffer; длинные строки сохраняют heap fallback.
+- Remap обычных enemy animation skeleton больше не сравнивает каждое имя кости
+  с 23 source names каждый batch/кадр. Mapping кэшируется для пары
+  model/source skeleton и очищается при initialize/shutdown renderer.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -361,16 +375,24 @@ damage вместо повторения полного rebuild для кажд�
   Release 1/1 за 0,24 с; `git diff --check` успешно.
 - после simulation lifecycle extraction: Debug 1/1 за 1,11 с;
   ASan+UBSan 1/1 за 2,17 с; Release 1/1 за 0,42 с; `git diff --check` успешно.
+- финальный unit matrix: Debug 1/1 за 1,10 с; ASan+UBSan 1/1 за 2,55 с;
+  Release 1/1 за 0,36 с.
+- Новый `ian_graphics_smoke` фактически прошёл в Debug, ASan+UBSan и Release.
+  Он создаёт hidden raylib context, проверяет missing resources, render targets,
+  два initialize/shutdown cycle и idempotent unload. На macOS тест запускался
+  вне filesystem sandbox: sandbox блокировал создание окна до входа в test.
 
 ## Оставшиеся риски и следующий этап
 
 1. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
-2. Добавить integration smoke test с невидимым raylib-контекстом для missing
-   shaders/models и многократных initialize/shutdown.
-3. Профилировать renderer draw calls, animated model updates, shadows, grass и
-   particles на фиксированном replay; отдельно измерить временный batch map и
-   remap bone names. Без измерения структуру batching не менять.
+2. Профилировать renderer draw calls, shadows, grass, particles и временный
+   enemy batch map на фиксированном replay. Без одинакового replay численное
+   сравнение frame time недостоверно.
+3. `AppWorldOverlays.cpp`, `AppModularPlacement.cpp` и `AppUpdate.cpp` всё ещё
+   крупные, но основные функции внутри тесно связаны общим pass/transaction;
+   дальнейшее деление требует сначала выделить интерфейсы данных, а не просто
+   переносить строки.
 
 ## Основные изменённые файлы
 
@@ -393,6 +415,8 @@ damage вместо повторения полного rebuild для кажд�
 - `src/enemies/EnemySystem.cpp` — безопасная query grid и один rebuild на
   area-damage batch, O(1) active count;
 - `src/graphics/GraphicsResources.cpp` — очистка partial/failed loads;
+- `src/graphics/Renderer.cpp`, `src/graphics/RendererModels.cpp` — lifecycle
+  enemy bone mapping cache;
 - `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
   `src/game/SimulationBuildingCommands.cpp`,
   `src/game/SimulationBuildingActions.cpp`,
@@ -409,3 +433,4 @@ damage вместо повторения полного rebuild для кажд�
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
 - `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
   area damage и арифметические границы.
+- `tests/GraphicsResourceSmokeTests.cpp` — hidden-context GPU lifecycle smoke.
