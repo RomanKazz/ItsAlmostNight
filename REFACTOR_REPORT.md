@@ -148,6 +148,9 @@ damage вместо повторения полного rebuild для кажд�
   переиспользуют capacity. Данные пересобираются каждый тик; stale cache нет.
 - Enemy capsule collision также переиспользует enemy/building link buffers;
   ещё две allocations удалены из каждого AI collision tick.
+- `StructuralSupportGraph::collapseRiskIds()` заменил repeated full scan на
+  queue traversal. Worst-case снижен с O(V²) до O(V+E). Stress-тест строит
+  цепь 2048 узлов, проверяет preview, propagation, полный cascade без recursion.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -184,8 +187,8 @@ damage вместо повторения полного rebuild для кажд�
 
 ## Оставшиеся риски и следующий этап
 
-1. Расширить существующий headless stress test сценариями cascade collapse и
-   многократного restart run; измерять tick budgets.
+1. Расширить существующий headless stress test многократным restart run;
+   измерять tick budgets.
 2. Отделять resource transaction от placement side effects только после
    добавления command-level regression tests.
 3. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в

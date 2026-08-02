@@ -227,26 +227,39 @@ std::vector<EntityId> StructuralSupportGraph::collapseRiskIds(
     }
 
     std::unordered_set<std::uint64_t> supported;
+    std::vector<std::uint64_t> supportQueue;
+    supportQueue.reserve(nodes_.size());
     for (const auto& [nodeKey, node] : nodes_) {
         if (!removedKeys.contains(nodeKey) && node.grounded) {
             supported.insert(nodeKey);
+            supportQueue.push_back(nodeKey);
         }
     }
-    bool changed = true;
-    while (changed) {
-        changed = false;
-        for (const auto& [nodeKey, node] : nodes_) {
-            if (removedKeys.contains(nodeKey) ||
-                supported.contains(nodeKey)) {
+    for (std::size_t queueIndex = 0;
+         queueIndex < supportQueue.size(); ++queueIndex) {
+        const auto support = nodes_.find(
+            supportQueue[queueIndex]);
+        if (support == nodes_.end()) {
+            continue;
+        }
+        for (const std::uint64_t dependentKey :
+             support->second.dependents) {
+            if (removedKeys.contains(dependentKey) ||
+                supported.contains(dependentKey)) {
+                continue;
+            }
+            const auto dependent = nodes_.find(dependentKey);
+            if (dependent == nodes_.end()) {
                 continue;
             }
             if (std::ranges::any_of(
-                    node.supports,
-                    [&supported](std::uint64_t support) {
-                        return supported.contains(support);
+                    dependent->second.supports,
+                    [&supported](std::uint64_t supportKey) {
+                        return supported.contains(supportKey);
                     })) {
-                supported.insert(nodeKey);
-                changed = true;
+                if (supported.insert(dependentKey).second) {
+                    supportQueue.push_back(dependentKey);
+                }
             }
         }
     }

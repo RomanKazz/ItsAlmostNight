@@ -72,6 +72,36 @@ void runFoundationSystemTests() {
                 std::vector<ian::EntityId>{bridge},
             "collapse preview combines multiple removed supports");
     }
+    {
+        constexpr std::size_t ChainLength = 2048;
+        ian::StructuralSupportGraph graph;
+        ian::EntityId previous{1000U, 1U};
+        require(graph.add(previous, true),
+                "stress graph creates grounded root");
+        for (std::size_t index = 1; index < ChainLength; ++index) {
+            const ian::EntityId current{
+                1000U + static_cast<std::uint32_t>(index), 1U};
+            require(
+                graph.add(
+                    current, false,
+                    std::span<const ian::EntityId>{&previous, 1U}),
+                "stress graph extends support chain");
+            previous = current;
+        }
+        const ian::EntityId root{1000U, 1U};
+        require(
+            graph.collapseRiskIds(root).size() == ChainLength - 1U,
+            "collapse preview scales across deep support chain");
+        require(
+            graph.remove(root) &&
+                graph.unsupportedCount() == ChainLength - 1U,
+            "deep support loss propagates without recursion");
+        require(
+            graph.update(0.0, true, 0.0).size() ==
+                    ChainLength - 1U &&
+                graph.nodeCount() == 0U,
+            "deep cascade removes every unsupported node");
+    }
 
     ian::WorldConfig config =
         ian::WorldConfig::defaults();
