@@ -32,6 +32,9 @@ traversal`).
 Стоимость automatic foundation: `4788919`
 (`fix: charge automatic foundation cost`).
 
+Полная стоимость low-resource preview: `96d785a`
+(`fix: include foundation in low-resource preview`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -155,6 +158,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Preview и execution автоматической foundation используют объединённую
   стоимость здания и платформы. Проверка выполняется до изменения мира;
   списание — только после успешного создания обоих объектов.
+- Недостаток ресурсов больше не делает geometry preview foundation невалидным
+  до расчёта общей цены. Snapshot preview и публичные `previewPlacement()` API
+  сохраняют `InsufficientResources`, но показывают стоимость обоих объектов.
 
 ## Архитектурный рефакторинг
 
@@ -221,6 +227,8 @@ damage вместо повторения полного rebuild для кажд�
 - Command-level building transaction test проверяет отсутствие списания и
   auto-foundation при отказе, суммарное списание здания и foundation, sell
   refund здания и защиту от повторной продажи по stale ID.
+- Low-inventory regression проверяет полную preview-стоимость поднятого Core:
+  5 дерева за здание плюс 3 дерева за automatic foundation.
 
 Фактически выполненные команды и результаты:
 
@@ -244,6 +252,8 @@ damage вместо повторения полного rebuild для кажд�
   2,44 с; Release 1/1 за 0,37 с; `git diff --check` успешно.
 - после automatic foundation cost fix: Debug 1/1 за 1,09 с; ASan+UBSan 1/1 за
   2,65 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
+- после low-resource preview fix: Debug 1/1 за 1,07 с; ASan+UBSan 1/1 за
+  2,36 с; Release 1/1 за 0,35 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
