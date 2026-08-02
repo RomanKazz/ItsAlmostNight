@@ -207,10 +207,21 @@ double maximumGroundStructureInteractionHeight(
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,
     std::span<const BuildingInstance> buildings) {
+    std::vector<int> enemyLinks;
+    std::vector<int> buildingLinks;
+    resolveEnemyCapsuleCollisions(
+        enemies, buildings, enemyLinks, buildingLinks);
+}
+
+void resolveEnemyCapsuleCollisions(
+    std::span<EnemyInstance> enemies,
+    std::span<const BuildingInstance> buildings,
+    std::vector<int>& enemyLinks,
+    std::vector<int>& buildingLinks) {
     std::array<int, CollisionCellCount> bucketHeads{};
     std::array<int, CollisionCellCount> buildingBucketHeads{};
-    std::vector<int> nextEnemy(enemies.size(), -1);
-    std::vector<int> nextBuilding(buildings.size(), -1);
+    enemyLinks.assign(enemies.size(), -1);
+    buildingLinks.assign(buildings.size(), -1);
     buildingBucketHeads.fill(-1);
     for (std::size_t index = 0;
          index < buildings.size(); ++index) {
@@ -225,7 +236,7 @@ void resolveEnemyCapsuleCollisions(
             collisionCellCoordinate(center.z);
         const int bucket =
             collisionCellIndex(cellX, cellZ);
-        nextBuilding[index] =
+        buildingLinks[index] =
             buildingBucketHeads[
                 static_cast<std::size_t>(bucket)];
         buildingBucketHeads[
@@ -242,7 +253,7 @@ void resolveEnemyCapsuleCollisions(
          ++iteration) {
         bool corrected = false;
         bucketHeads.fill(-1);
-        std::fill(nextEnemy.begin(), nextEnemy.end(), -1);
+        std::fill(enemyLinks.begin(), enemyLinks.end(), -1);
         for (std::size_t index = 0;
              index < enemies.size(); ++index) {
             if (!enemies[index].active) {
@@ -254,7 +265,7 @@ void resolveEnemyCapsuleCollisions(
                 enemies[index].position.z);
             const int bucket =
                 collisionCellIndex(cellX, cellZ);
-            nextEnemy[index] =
+            enemyLinks[index] =
                 bucketHeads[static_cast<std::size_t>(bucket)];
             bucketHeads[static_cast<std::size_t>(bucket)] =
                 static_cast<int>(index);
@@ -292,7 +303,7 @@ void resolveEnemyCapsuleCollisions(
                                         rightIndex)]) ||
                                 corrected;
                         }
-                        rightIndex = nextEnemy[
+                        rightIndex = enemyLinks[
                             static_cast<std::size_t>(
                                 rightIndex)];
                     }
@@ -333,7 +344,7 @@ void resolveEnemyCapsuleCollisions(
                                         buildingIndex)]) ||
                             corrected;
                         buildingIndex =
-                            nextBuilding[
+                            buildingLinks[
                                 static_cast<std::size_t>(
                                     buildingIndex)];
                     }

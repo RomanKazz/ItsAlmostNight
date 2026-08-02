@@ -379,6 +379,8 @@ EnemySystem::EnemySystem(
     statusTargetBuffer_.reserve(MaxEnemies);
     structureBuffer_.reserve(256);
     structureNextBuffer_.reserve(256);
+    collisionEnemyLinks_.reserve(MaxEnemies);
+    collisionBuildingLinks_.reserve(256);
 }
 
 void EnemySystem::reset() {
@@ -389,6 +391,8 @@ void EnemySystem::reset() {
     statusTargetBuffer_.clear();
     structureBuffer_.clear();
     structureNextBuffer_.clear();
+    collisionEnemyLinks_.clear();
+    collisionBuildingLinks_.clear();
     nextIndex_ = 2000;
     spatialHash_.clear();
 }
@@ -831,7 +835,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
     }
 
-    resolveEnemyCapsuleCollisions(enemies_, buildings);
+    resolveEnemyCapsuleCollisions(
+        enemies_, buildings, collisionEnemyLinks_,
+        collisionBuildingLinks_);
     rebuildSpatialIndex();
     return attackBuffer_;
 }

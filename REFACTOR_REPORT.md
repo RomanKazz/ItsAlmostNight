@@ -144,6 +144,8 @@ damage вместо повторения полного rebuild для кажд�
 - Убраны повторные heap allocation каждого combat tick: буферы modular enemy
   targets, объединённых structure targets и linked-list индексов теперь
   переиспользуют capacity. Данные пересобираются каждый тик; stale cache нет.
+- Enemy capsule collision также переиспользует enemy/building link buffers;
+  ещё две allocations удалены из каждого AI collision tick.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
