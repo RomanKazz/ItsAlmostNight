@@ -20,6 +20,9 @@ traversal`).
 
 Кэш structural impact: `1688229` (`perf: cache structural dependent counts`).
 
+Ограничение production catch-up: `272a6ca`
+(`fix: bound production timer catch-up`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -101,6 +104,10 @@ raylib-ресурсы в основном уже закрыты некопиру
    практически недостижимого числа волн это приводило бы к UB.
 10. Автоматизированный тест не создаёт графический контекст и потому не может
    напрямую проверить реальные GPU failure paths и порядок shutdown окна.
+11. **Неограниченный catch-up производства.** `GoldMineSystem::tick()`
+   выполнял отдельную итерацию на каждый пропущенный интервал. Большой конечный
+   delta time мог надолго заблокировать simulation thread, а сумма результата
+   могла переполнить `int`.
 
 ## Исправления
 
@@ -123,6 +130,9 @@ raylib-ресурсы в основном уже закрыты некопиру
   экстремальные значения фиксируются на границе `int` вместо UB.
 - Flow field и terrain отклоняют нечисловые координаты до integer conversion;
   Simulation игнорирует отрицательный и нечисловой delta time.
+- Таймеры производства считают пропущенные интервалы за O(1), насыщают итог на
+  границе `int` и отклоняют отрицательные/нечисловые delta time без повреждения
+  накопленного прогресса.
 
 ## Архитектурный рефакторинг
 
@@ -159,6 +169,9 @@ damage вместо повторения полного rebuild для кажд�
 - Recursive dependent counts кэшируются до следующей мутации structural graph.
   Это убирает повторные graph traversal и allocations для structural impact
   каждой платформы каждого combat tick. Add/remove/reset инвалидируют cache.
+- Catch-up шахт, лесопилок и карьеров больше не выполняет цикл по каждому
+  пропущенному интервалу. Стоимость большого скачка времени теперь O(1),
+  результат насыщается вместо signed overflow.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -177,6 +190,9 @@ damage вместо повторения полного rebuild для кажд�
   сохраняет generation-safe повторное использование слота;
 - saturating add/multiply сохраняют обычные результаты и закрывают обе границы
   `int`.
+- production catch-up обрабатывает `double::max()` за постоянное число
+  операций, насыщает output до `INT_MAX`, игнорирует `NaN` и отрицательный
+  delta time.
 
 Фактически выполненные команды и результаты:
 
@@ -192,6 +208,8 @@ damage вместо повторения полного rebuild для кажд�
   raygui финальная Release-сборка и тесты завершились успешно: 1/1 CTest,
   0,32 с;
 - финальный `git diff --check`: успешно.
+- после production timer fix: Debug 1/1 за 0,77 с; ASan+UBSan 1/1 за 1,25 с;
+  Release 1/1 за 0,30 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -211,6 +229,8 @@ damage вместо повторения полного rebuild для кажд�
 - `CMakeLists.txt` — новый simulation source и системные include paths raylib;
 - `src/core/FixedStep.hpp` — защита accumulator;
 - `src/core/SaturatingArithmetic.hpp` — определённая арифметика счётчиков;
+- `src/economy/GoldMineSystem.cpp` — O(1) catch-up производства и защита
+  таймеров;
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
 - `src/enemies/EnemyCollision.cpp` — безопасная collision-grid конверсия;
 - `src/enemies/EnemySystem.cpp` — безопасная query grid и один rebuild на
