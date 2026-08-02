@@ -277,18 +277,18 @@ bool Renderer::drawFirstPersonTool(
         value = std::clamp(value, 0.0F, 1.0F);
         return value * value * (3.0F - 2.0F * value);
     };
-    float swingAngle = 22.0F;
+    float swingPitch = 0.0F;
     float swingPush = 0.0F;
     if (progress > 0.0F && progress < 0.22F) {
         const float phase = smoothStep(progress / 0.22F);
-        swingAngle = 22.0F + (-31.0F - 22.0F) * phase;
+        swingPitch = 30.0F * phase;
     } else if (progress >= 0.22F && progress < 0.53F) {
         const float phase = smoothStep((progress - 0.22F) / 0.31F);
-        swingAngle = -31.0F + (76.0F + 31.0F) * phase;
-        swingPush = std::sin(phase * PI) * 0.055F;
+        swingPitch = 30.0F + (-75.0F - 30.0F) * phase;
+        swingPush = -std::sin(phase * PI) * 0.055F;
     } else if (progress >= 0.53F) {
         const float phase = smoothStep((progress - 0.53F) / 0.47F);
-        swingAngle = 76.0F + (22.0F - 76.0F) * phase;
+        swingPitch = -75.0F + 75.0F * phase;
     }
 
     const float bob = std::clamp(movementAmount, 0.0F, 1.0F);
@@ -302,8 +302,9 @@ bool Renderer::drawFirstPersonTool(
     // Blender exports the handle along local +Y. With the origin at the
     // grip, these rotations move the head without making the hand slide.
     rlRotatef(-8.0F, 1.0F, 0.0F, 0.0F);
-    rlRotatef(swingAngle, 0.0F, 0.0F, 1.0F);
-    rlRotatef(90.0F, 0.0F, 1.0F, 0.0F);
+    rlRotatef(-28.0F, 0.0F, 1.0F, 0.0F);
+    rlRotatef(22.0F, 0.0F, 0.0F, 1.0F);
+    rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
     rlScalef(0.78F, 0.78F, 0.78F);
     DrawModel(model, {}, 1.0F, WHITE);
     rlPopMatrix();
