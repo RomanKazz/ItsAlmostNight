@@ -23,6 +23,9 @@ traversal`).
 Ограничение production catch-up: `272a6ca`
 (`fix: bound production timer catch-up`).
 
+Устойчивые ID между забегами: `a61bb45`
+(`fix: preserve entity identity across restarts`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -108,6 +111,10 @@ raylib-ресурсы в основном уже закрыты некопиру
    выполнял отдельную итерацию на каждый пропущенный интервал. Большой конечный
    delta time мог надолго заблокировать simulation thread, а сумма результата
    могла переполнить `int`.
+12. **Повторное использование ID после restart.** Building, enemy и modular
+   systems возвращали счётчики индексов к начальному значению. Долгоживущий
+   `EntityId` прошлого забега мог совпасть с объектом нового забега; stale
+   building command тогда воздействовал на новый объект.
 
 ## Исправления
 
@@ -133,6 +140,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Таймеры производства считают пропущенные интервалы за O(1), насыщают итог на
   границе `int` и отклоняют отрицательные/нечисловые delta time без повреждения
   накопленного прогресса.
+- Reset building, enemy и modular systems очищает состояние, но сохраняет
+  монотонность ID. Ссылки прошлого забега больше не разрешаются в новые
+  сущности с тем же индексом и generation.
 
 ## Архитектурный рефакторинг
 
@@ -193,6 +203,9 @@ damage вместо повторения полного rebuild для кажд�
 - production catch-up обрабатывает `double::max()` за постоянное число
   операций, насыщает output до `INT_MAX`, игнорирует `NaN` и отрицательный
   delta time.
+- 128 последовательных restart проверяют очистку событий, новое core ID и
+  невозможность upgrade через stale ID. Отдельные тесты закрывают enemy и
+  modular foundation ID после reset.
 
 Фактически выполненные команды и результаты:
 
@@ -210,18 +223,18 @@ damage вместо повторения полного rebuild для кажд�
 - финальный `git diff --check`: успешно.
 - после production timer fix: Debug 1/1 за 0,77 с; ASan+UBSan 1/1 за 1,25 с;
   Release 1/1 за 0,30 с; `git diff --check` успешно.
+- после restart/ID stress: Debug 1/1 за 1,06 с; ASan+UBSan 1/1 за 2,51 с;
+  Release 1/1 за 0,39 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
-1. Расширить существующий headless stress test многократным restart run;
-   измерять tick budgets.
-2. Отделять resource transaction от placement side effects только после
+1. Отделять resource transaction от placement side effects только после
    добавления command-level regression tests.
-3. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
+2. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
-4. Добавить integration smoke test с невидимым raylib-контекстом для missing
+3. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
-5. Профилировать renderer draw calls, animated model updates, shadows, grass и
+4. Профилировать renderer draw calls, animated model updates, shadows, grass и
    particles на фиксированном replay; без измерения оптимизации не вносить.
 
 ## Основные изменённые файлы
@@ -231,6 +244,8 @@ damage вместо повторения полного rebuild для кажд�
 - `src/core/SaturatingArithmetic.hpp` — определённая арифметика счётчиков;
 - `src/economy/GoldMineSystem.cpp` — O(1) catch-up производства и защита
   таймеров;
+- `src/buildings/BuildingSystem.cpp`, `src/buildings/FoundationSystem.cpp`,
+  `src/enemies/EnemySystem.cpp` — ID не переиспользуются между restart;
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
 - `src/enemies/EnemyCollision.cpp` — безопасная collision-grid конверсия;
 - `src/enemies/EnemySystem.cpp` — безопасная query grid и один rebuild на
