@@ -1332,7 +1332,6 @@ void App::render() {
                 .projection = CAMERA_PERSPECTIVE,
             };
             BeginMode3D(viewModelCamera);
-            rlDisableDepthTest();
             static_cast<void>(renderer_->drawFirstPersonTool(
                 useAxe ? FirstPersonToolVisual::Axe
                        : FirstPersonToolVisual::Pickaxe,
@@ -1340,15 +1339,19 @@ void App::render() {
                 static_cast<float>(cameraBobPhase_),
                 static_cast<float>(cameraBobAmount_),
                 toolTuning_));
-            rlEnableDepthTest();
             EndMode3D();
         }
 
         // World-space UI is composited after post-processing so health bars,
         // levels and production rewards remain crisp above pixelization.
         BeginMode3D(camera);
+        // These are overlays. Keeping them out of the depth buffer also
+        // prevents the viewmodel's independent camera depth from affecting
+        // their visibility.
+        rlDisableDepthTest();
         targetHealthBar_.draw(healthBarSnapshot, camera);
         drawProductionVisuals(camera);
+        rlEnableDepthTest();
         EndMode3D();
 
         if (playerDamageFlashRemaining_ > 0.0) {
