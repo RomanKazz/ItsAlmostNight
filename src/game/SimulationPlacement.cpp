@@ -1,0 +1,267 @@
+#include "game/Simulation.hpp"
+
+#include "core/SaturatingArithmetic.hpp"
+#include "game/ResourceWorld.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace ian {
+
+PlacementResult Simulation::validatePlacement(
+    BuildingType type, GridPosition position) const {
+    return validatePlacement(
+        type, position,
+        placementSurface(type, position));
+}
+
+PlacementResult Simulation::validatePlacement(
+    BuildingType type, GridPosition position,
+    const BuildingPlatformSurface& surface) const {
+    const int availableWood =
+        unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
+    const int availableStone =
+        unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
+    const int availableGold =
+        unlimitedResources_ ? std::numeric_limits<int>::max() : gold_;
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    const int footprintWidth = twoByTwo ? 2 : 1;
+    const int footprintMinimumX =
+        twoByTwo ? position.x - 1 : position.x;
+    const int footprintMinimumZ =
+        twoByTwo ? position.z - 1 : position.z;
+    const bool partialPlatformSupport =
+        surface.storey < 0 &&
+        foundations_.buildingFootprintIntersectsPlatform(
+            footprintMinimumX, footprintMinimumZ,
+            footprintWidth);
+    const PlacementResult buildingValidation =
+        buildings_.validate(
+            type, position, availableWood,
+            availableStone, availableGold,
+            surface.height);
+    if (!buildingValidation.valid()) {
+        return buildingValidation;
+    }
+    if (partialPlatformSupport) {
+        return {
+            PlacementError::WorldCollision,
+            buildingValidation.cost,
+        };
+    }
+
+    const double cellSize = worldConfig_.cellSize;
+    if (resourceOverlapsRectangle(
+            resources_.nodes(),
+            footprintMinimumX * cellSize,
+            (footprintMinimumX + footprintWidth) * cellSize,
+            footprintMinimumZ * cellSize,
+            (footprintMinimumZ + footprintWidth) * cellSize)) {
+        return {
+            PlacementError::ResourceBlocked,
+            buildingValidation.cost,
+        };
+    }
+
+    const Vec3 center = buildingWorldPosition(type, position);
+    const double deltaX = center.x - playerPosition_.x;
+    const double deltaZ = center.z - playerPosition_.z;
+    const double distance =
+        std::sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
+    if (distance > gameplay_.maximumPlacementDistance + 0.75) {
+        return {PlacementError::OutOfRange, buildingValidation.cost};
+    }
+
+    const CollisionBox candidate =
+        buildingCollisionBox(type, position, surface.height);
+    if (collisionWorld_.overlapsBox(candidate)) {
+        return {PlacementError::WorldCollision, buildingValidation.cost};
+    }
+    return buildingValidation;
+}
+
+BuildingPlatformSurface Simulation::placementSurface(
+    BuildingType type, GridPosition position) const {
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    const int widthCells = twoByTwo ? 2 : 1;
+    const int minimumX = twoByTwo ? position.x - 1 : position.x;
+    const int minimumZ = twoByTwo ? position.z - 1 : position.z;
+    if (const auto surface = foundations_.buildingSurface(
+            minimumX, minimumZ, widthCells)) {
+        return *surface;
+    }
+    const Vec3 center = buildingWorldPosition(type, position);
+    const double halfExtent = buildingFootprintHalfExtent(type);
+    const double inset = std::min(0.05, halfExtent * 0.1);
+    const double sampleHalfExtent =
+        std::max(0.0, halfExtent - inset);
+    double highestTerrain =
+        -std::numeric_limits<double>::infinity();
+    double lowestTerrain =
+        std::numeric_limits<double>::infinity();
+    constexpr int TerrainSamplesPerRadius = 4;
+    for (int zIndex = -TerrainSamplesPerRadius;
+         zIndex <= TerrainSamplesPerRadius; ++zIndex) {
+        for (int xIndex = -TerrainSamplesPerRadius;
+             xIndex <= TerrainSamplesPerRadius; ++xIndex) {
+            const double sampleX =
+                center.x +
+                static_cast<double>(xIndex) /
+                    static_cast<double>(TerrainSamplesPerRadius) *
+                    sampleHalfExtent;
+            const double sampleZ =
+                center.z +
+                static_cast<double>(zIndex) /
+                    static_cast<double>(TerrainSamplesPerRadius) *
+                    sampleHalfExtent;
+            const double terrainHeight =
+                terrain_.getHeight(sampleX, sampleZ);
+            highestTerrain = std::max(highestTerrain, terrainHeight);
+            lowestTerrain = std::min(lowestTerrain, terrainHeight);
+        }
+    }
+    const double verticalCell = worldConfig_.verticalGridStep;
+    constexpr double SnapEpsilon = 1e-6;
+    const double snappedTop =
+        std::ceil((highestTerrain - SnapEpsilon) / verticalCell) *
+        verticalCell;
+    const double snappedBottom =
+        std::floor((lowestTerrain + SnapEpsilon) / verticalCell) *
+        verticalCell;
+    return {
+        .height = snappedTop,
+        .foundationBottomHeight =
+            std::min(snappedBottom, snappedTop),
+        .storey = -1,
+    };
+}
+
+BuildingPlatformSurface
+Simulation::placementSurfaceWithPreferredHeight(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    BuildingPlatformSurface surface =
+        placementSurface(type, position);
+    if (surface.storey >= 0 ||
+        preferredHeight <= surface.height + 1e-6) {
+        return surface;
+    }
+    surface.height = preferredHeight;
+    surface.foundationBottomHeight =
+        std::min(surface.foundationBottomHeight, preferredHeight);
+    return surface;
+}
+
+std::optional<PlatformFramePlacement>
+Simulation::automaticFoundationPlacement(
+    BuildingType type, GridPosition position,
+    double floorHeight) const {
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    GridCoord anchor{
+        twoByTwo ? position.x - 1 : position.x,
+        0,
+        twoByTwo ? position.z - 1 : position.z,
+    };
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    const double cellSize = worldConfig_.cellSize;
+    const Vec3 terrainHit{
+        (anchor.x + 0.5) * cellSize,
+        terrain_.getHeight(
+            (anchor.x + 0.5) * cellSize,
+            (anchor.z + 0.5) * cellSize),
+        (anchor.z + 0.5) * cellSize,
+    };
+    PlatformFramePlacement placement = previewFoundation(terrainHit);
+    if (placement.error ==
+        ModularPlacementError::InsufficientResources) {
+        // Combined affordability is checked after adding building cost.
+        placement.error = ModularPlacementError::None;
+    }
+    if (!placement.valid() || placement.storey != 0) {
+        return placement;
+    }
+    placement.floorHeight =
+        std::max(placement.floorHeight, floorHeight);
+    placement.anchor.yLevel = static_cast<int>(std::lround(
+        placement.floorHeight / worldConfig_.verticalGridStep));
+    for (FoundationSupport& support : placement.supports) {
+        support.top.y = placement.floorHeight;
+        support.length =
+            placement.floorHeight - support.bottom.y;
+        if (support.length > worldConfig_.maxWoodSupportLength) {
+            placement.error =
+                ModularPlacementError::SupportTooLong;
+        }
+    }
+    return placement;
+}
+
+PlacementResult Simulation::previewPlacement(
+    BuildingType type, GridPosition position) const {
+    return previewPlacement(
+        type, position,
+        placementSurface(type, position).height);
+}
+
+PlacementResult Simulation::previewPlacement(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    const BuildingPlatformSurface surface =
+        placementSurfaceWithPreferredHeight(
+            type, position, preferredHeight);
+    PlacementResult placement =
+        validatePlacement(type, position, surface);
+    const bool needsAutomaticFoundation =
+        surface.storey < 0 &&
+        surface.height - surface.foundationBottomHeight > 0.025;
+    if (!needsAutomaticFoundation) {
+        return placement;
+    }
+    const auto automaticFoundation =
+        automaticFoundationPlacement(
+            type, position, surface.height);
+    if (!automaticFoundation || !automaticFoundation->valid()) {
+        if (placement.valid() && automaticFoundation) {
+            placement.error =
+                automaticFoundation->error ==
+                        ModularPlacementError::ResourceBlocked
+                    ? PlacementError::ResourceBlocked
+                    : PlacementError::WorldCollision;
+        }
+        return placement;
+    }
+    const ResourceCost foundationCost =
+        modularBuildingCosts_[static_cast<std::size_t>(
+            ModularBuildPiece::Foundation)];
+    placement.cost = {
+        saturatingAdd(placement.cost.wood, foundationCost.wood),
+        saturatingAdd(placement.cost.stone, foundationCost.stone),
+        saturatingAdd(placement.cost.gold, foundationCost.gold),
+    };
+    if (placement.valid() && !unlimitedResources_ &&
+        (wood_ < placement.cost.wood ||
+         stone_ < placement.cost.stone ||
+         gold_ < placement.cost.gold)) {
+        placement.error = PlacementError::InsufficientResources;
+    }
+    return placement;
+}
+
+BuildingPlatformSurface Simulation::previewPlacementSurface(
+    BuildingType type, GridPosition position) const {
+    return placementSurface(type, position);
+}
+
+BuildingPlatformSurface Simulation::previewPlacementSurface(
+    BuildingType type, GridPosition position,
+    double preferredHeight) const {
+    return placementSurfaceWithPreferredHeight(
+        type, position, preferredHeight);
+}
+
+} // namespace ian

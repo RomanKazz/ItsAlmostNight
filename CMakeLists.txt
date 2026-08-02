@@ -76,6 +76,7 @@ add_library(ian_simulation
     src/game/Simulation.cpp
     src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDefenses.cpp
+    src/game/SimulationPlacement.cpp
     src/game/SimulationWaves.cpp
     src/game/ModularCombat.cpp
     src/game/ResourceWorld.cpp
