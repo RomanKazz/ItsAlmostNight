@@ -1,8 +1,8 @@
 #include "ui/UiText.hpp"
+#include "ui/UiCString.hpp"
 
 #include <array>
 #include <cstddef>
-#include <string>
 
 namespace ian {
 namespace {
@@ -54,26 +54,34 @@ Font uiFont() {
 }
 
 Vector2 measureUiText(std::string_view text, float fontSize) {
-    const std::string owned{text};
     const float scaledSize = fontSize * UiTextScale;
-    return MeasureTextEx(uiFont(), owned.c_str(), scaledSize,
-                         scaledSize * 0.02F);
+    return withNullTerminatedUiText(
+        text, [scaledSize](const char* value) {
+            return MeasureTextEx(
+                uiFont(), value, scaledSize,
+                scaledSize * 0.02F);
+        });
 }
 
 void drawUiText(std::string_view text, Vector2 position,
                 float fontSize, Color color) {
-    const std::string owned{text};
     const float scaledSize = fontSize * UiTextScale;
     const Color shadow{
         7, 9, 11,
         static_cast<unsigned char>(
             static_cast<unsigned int>(color.a) * 3U / 4U),
     };
-    DrawTextEx(uiFont(), owned.c_str(),
-               {position.x + 1.5F, position.y + 2.0F},
-               scaledSize, scaledSize * 0.02F, shadow);
-    DrawTextEx(uiFont(), owned.c_str(), position, scaledSize,
-               scaledSize * 0.02F, color);
+    withNullTerminatedUiText(
+        text, [position, scaledSize, shadow, color](
+                  const char* value) {
+            DrawTextEx(
+                uiFont(), value,
+                {position.x + 1.5F, position.y + 2.0F},
+                scaledSize, scaledSize * 0.02F, shadow);
+            DrawTextEx(
+                uiFont(), value, position, scaledSize,
+                scaledSize * 0.02F, color);
+        });
 }
 
 void drawCenteredUiText(std::string_view text, float y,

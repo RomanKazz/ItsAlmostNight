@@ -1,11 +1,11 @@
 #include "ui/GameUi.hpp"
+#include "ui/UiCString.hpp"
 #include "ui/UiText.hpp"
 
 #define RAYGUI_IMPLEMENTATION
 #include <raygui.h>
 
 #include <algorithm>
-#include <string>
 
 namespace ian {
 namespace {
@@ -117,8 +117,9 @@ void GameUi::drawInsetPanel(Rectangle bounds,
 void GameUi::drawLabel(Rectangle bounds, std::string_view text,
                        int alignment) const {
     GuiSetStyle(LABEL, TEXT_ALIGNMENT, alignment);
-    const std::string owned{text};
-    (void)GuiLabel(bounds, owned.c_str());
+    withNullTerminatedUiText(text, [bounds](const char* value) {
+        (void)GuiLabel(bounds, value);
+    });
 }
 
 void GameUi::drawProgressBar(Rectangle bounds, float fraction,
@@ -209,8 +210,10 @@ bool GameUi::drawToggleButton(Rectangle bounds,
              static_cast<float>(texture.height)},
             bounds, {0.0F, 0.0F}, 0.0F, tint);
     }
-    const std::string owned{text};
-    return GuiButton(bounds, owned.c_str()) != 0;
+    return withNullTerminatedUiText(
+        text, [bounds](const char* value) {
+            return GuiButton(bounds, value) != 0;
+        });
 }
 
 float GameUi::drawSliderBar(
