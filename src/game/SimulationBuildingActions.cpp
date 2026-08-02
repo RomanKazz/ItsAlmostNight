@@ -26,7 +26,7 @@ void Simulation::processBuildingActions(
                 stone_ -= result.cost.stone;
                 gold_ -= result.cost.gold;
             }
-            syncWorldStructures();
+            syncBuildingRuntimeSystems();
             events_.push_back({
                 .type = GameEventType::BuildingUpgraded,
                 .entityId = result.building->id,

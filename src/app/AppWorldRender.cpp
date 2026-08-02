@@ -396,8 +396,8 @@ void App::drawWorldEntities(
                        0.16F, {52, 57, 62, 255});
         }
     }
-    std::vector<EnemyDrawInstance> enemyInstances;
-    enemyInstances.reserve(snapshot.enemies.size());
+    enemyDrawInstances_.clear();
+    enemyDrawInstances_.reserve(snapshot.enemies.size());
     const Vector3 cameraForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
     for (const auto& enemy : snapshot.enemies) {
@@ -477,7 +477,7 @@ void App::drawWorldEntities(
                 animationTime = static_cast<float>(
                     snapshot.elapsedSeconds);
             }
-            enemyInstances.push_back({
+            enemyDrawInstances_.push_back({
                 .modelVisual = enemyModelVisual(enemy.type),
                 .animationVisual =
                     enemyAnimationVisual(enemy),
@@ -548,13 +548,14 @@ void App::drawWorldEntities(
                 aimed ? ORANGE : MAROON);
         }
     }
-    if (!enemyInstances.empty()) {
+    if (!enemyDrawInstances_.empty()) {
         WorldMaterialState material{};
         material.bakedAo = 0.82F;
         renderer_->setWorldMaterial(material);
-        if (!renderer_->drawEnemiesInstanced(enemyInstances)) {
+        if (!renderer_->drawEnemiesInstanced(
+                enemyDrawInstances_)) {
             for (const EnemyDrawInstance& instance :
-                 enemyInstances) {
+                 enemyDrawInstances_) {
                 static_cast<void>(renderer_->drawEnemy(
                     instance.modelVisual,
                     instance.animationVisual,
@@ -566,8 +567,8 @@ void App::drawWorldEntities(
             }
         }
     }
-    std::vector<EnemyDrawInstance> destroyedEnemyInstances;
-    destroyedEnemyInstances.reserve(
+    destroyedEnemyDrawInstances_.clear();
+    destroyedEnemyDrawInstances_.reserve(
         destroyedEnemyVisuals_.size());
     for (const DestroyedEnemyVisual& visual :
          destroyedEnemyVisuals_) {
@@ -606,7 +607,7 @@ void App::drawWorldEntities(
                 continue;
             }
         }
-        destroyedEnemyInstances.push_back({
+        destroyedEnemyDrawInstances_.push_back({
             .modelVisual =
                 enemyModelVisual(visual.type),
             .animationVisual =
@@ -622,14 +623,14 @@ void App::drawWorldEntities(
             .loop = false,
         });
     }
-    if (!destroyedEnemyInstances.empty()) {
+    if (!destroyedEnemyDrawInstances_.empty()) {
         WorldMaterialState material{};
         material.bakedAo = 0.82F;
         renderer_->setWorldMaterial(material);
         if (!renderer_->drawEnemiesInstanced(
-                destroyedEnemyInstances)) {
+                destroyedEnemyDrawInstances_)) {
             for (const EnemyDrawInstance& instance :
-                 destroyedEnemyInstances) {
+                 destroyedEnemyDrawInstances_) {
                 static_cast<void>(renderer_->drawEnemy(
                     instance.modelVisual,
                     instance.animationVisual,

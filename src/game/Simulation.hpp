@@ -298,6 +298,7 @@ class Simulation {
     [[nodiscard]] bool
     modularRemovalWouldDestroyCore(
         EntityId id) const;
+    void syncBuildingRuntimeSystems();
     void syncWorldStructures();
     void syncModularStructures();
     void removeUnsupportedPlatformBuildings();

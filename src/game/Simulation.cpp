@@ -1779,15 +1779,19 @@ bool Simulation::modularRemovalWouldDestroyCore(
            frame->storey <= core->platformStorey;
 }
 
+void Simulation::syncBuildingRuntimeSystems() {
+    towers_.syncBuildings(buildings_.buildings());
+    cannons_.syncBuildings(buildings_.buildings());
+    traps_.syncBuildings(buildings_.buildings());
+    goldMines_.syncBuildings(buildings_.buildings());
+}
+
 void Simulation::syncWorldStructures() {
     resources_.tick(
         0.0, buildings_.buildings(),
         map_.worldLimit, playerPosition_);
     collisionWorld_.syncBuildings(buildings_.buildings());
-    towers_.syncBuildings(buildings_.buildings());
-    cannons_.syncBuildings(buildings_.buildings());
-    traps_.syncBuildings(buildings_.buildings());
-    goldMines_.syncBuildings(buildings_.buildings());
+    syncBuildingRuntimeSystems();
     const auto core = buildings_.core();
     if (core) {
         flowField_.rebuild(core->gridPosition, buildings_.buildings());

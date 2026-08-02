@@ -243,6 +243,10 @@ class App {
     };
     std::vector<DestroyedEnemyVisual>
         destroyedEnemyVisuals_;
+    std::vector<EnemyDrawInstance>
+        enemyDrawInstances_;
+    std::vector<EnemyDrawInstance>
+        destroyedEnemyDrawInstances_;
     struct SoldBuildingVisual {
         std::optional<BuildingInstance> building;
         std::optional<PlatformFrameInstance>
