@@ -74,6 +74,7 @@ add_library(ian_simulation
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
+    src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDefenses.cpp
     src/game/SimulationPlacement.cpp

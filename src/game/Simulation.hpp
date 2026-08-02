@@ -264,6 +264,7 @@ class Simulation {
                       const PlayerCommand& command);
     void processDebugCommands(const PlayerCommand& command);
     void processBuildingCommands(const PlayerCommand& command);
+    void processBuildingActions(const PlayerCommand& command);
     void updatePlayerActions(double deltaSeconds,
                              const PlayerCommand& command);
     void updatePendingResourceGrants(double deltaSeconds);
