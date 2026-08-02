@@ -1186,6 +1186,38 @@ bool Renderer::drawWall(Vector3 position,
     return true;
 }
 
+const std::vector<int>& Renderer::enemyBoneMapping(
+    EnemyModelVisual visual, const Model& model,
+    const std::array<const char*, 23>& sourceBones) {
+    const std::size_t modelIndex =
+        static_cast<std::size_t>(visual);
+    const std::size_t sourceIndex =
+        &sourceBones == &MovementAnimationBones ? 1U : 0U;
+    std::vector<int>& mapping =
+        enemyBoneMappings_[modelIndex][sourceIndex];
+    const std::size_t boneCount = static_cast<std::size_t>(
+        model.skeleton.boneCount);
+    if (mapping.size() == boneCount) {
+        return mapping;
+    }
+
+    mapping.assign(boneCount, -1);
+    for (std::size_t modelBone = 0;
+         modelBone < boneCount; ++modelBone) {
+        for (std::size_t sourceBone = 0;
+             sourceBone < sourceBones.size(); ++sourceBone) {
+            if (std::strcmp(
+                    model.skeleton.bones[modelBone].name,
+                    sourceBones[sourceBone]) == 0) {
+                mapping[modelBone] =
+                    static_cast<int>(sourceBone);
+                break;
+            }
+        }
+    }
+    return mapping;
+}
+
 bool Renderer::drawEnemy(
     EnemyModelVisual modelVisual,
     EnemyAnimationVisual animationVisual,
@@ -1216,22 +1248,16 @@ bool Renderer::drawEnemy(
                 model, *clip,
                 static_cast<float>(frame));
         } else {
+            const std::vector<int>& boneMapping =
+                enemyBoneMapping(
+                    modelVisual, model,
+                    *animation.sourceBones);
             enemyAnimationPose_.resize(
                 static_cast<std::size_t>(model.skeleton.boneCount));
             for (int modelBone = 0;
                  modelBone < model.skeleton.boneCount; ++modelBone) {
-                int sourceBone = -1;
-                for (std::size_t sourceIndex = 0;
-                     sourceIndex < animation.sourceBones->size();
-                     ++sourceIndex) {
-                    if (std::strcmp(
-                            model.skeleton.bones[modelBone].name,
-                            (*animation.sourceBones)[sourceIndex]) == 0) {
-                        sourceBone =
-                            static_cast<int>(sourceIndex);
-                        break;
-                    }
-                }
+                const int sourceBone = boneMapping[
+                    static_cast<std::size_t>(modelBone)];
                 enemyAnimationPose_[
                     static_cast<std::size_t>(modelBone)] =
                     sourceBone >= 0 && sourceBone < clip->boneCount
@@ -1413,25 +1439,18 @@ bool Renderer::drawEnemiesInstanced(
                     model, *clip,
                     static_cast<float>(frame));
             } else {
+                const std::vector<int>& boneMapping =
+                    enemyBoneMapping(
+                        representative.modelVisual, model,
+                        *animation.sourceBones);
                 enemyAnimationPose_.resize(
                     static_cast<std::size_t>(
                         model.skeleton.boneCount));
                 for (int modelBone = 0;
                      modelBone < model.skeleton.boneCount;
                      ++modelBone) {
-                    int sourceBone = -1;
-                    for (std::size_t sourceIndex = 0;
-                         sourceIndex <
-                             animation.sourceBones->size();
-                         ++sourceIndex) {
-                        if (std::strcmp(
-                                model.skeleton.bones[modelBone].name,
-                                (*animation.sourceBones)[sourceIndex]) == 0) {
-                            sourceBone =
-                                static_cast<int>(sourceIndex);
-                            break;
-                        }
-                    }
+                    const int sourceBone = boneMapping[
+                        static_cast<std::size_t>(modelBone)];
                     enemyAnimationPose_[
                         static_cast<std::size_t>(modelBone)] =
                         sourceBone >= 0 &&

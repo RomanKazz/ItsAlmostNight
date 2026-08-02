@@ -361,6 +361,9 @@ class Renderer {
     void bindTerrainTexture();
     void bindShadowMap();
     void setSkinningEnabled(Shader& shader, bool enabled);
+    [[nodiscard]] const std::vector<int>& enemyBoneMapping(
+        EnemyModelVisual visual, const Model& model,
+        const std::array<const char*, 23>& sourceBones);
     void drawShadowMapDebug() const;
     GraphicsSettings settings_;
     GraphicsResources resources_;
@@ -417,6 +420,8 @@ class Renderer {
     bool blobShadowBatchOpen_{};
     std::vector<Transform> enemyAnimationPose_;
     std::vector<Transform*> enemyAnimationFrames_;
+    std::array<std::array<std::vector<int>, 2>, 7>
+        enemyBoneMappings_;
 };
 
 } // namespace ian

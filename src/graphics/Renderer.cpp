@@ -28,6 +28,11 @@ void configureSkinningLocations(Shader& shader) {
 } // namespace
 
 void Renderer::initialize() {
+    for (auto& modelMappings : enemyBoneMappings_) {
+        for (auto& mapping : modelMappings) {
+            mapping.clear();
+        }
+    }
     resources_.initialize(settings_);
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
@@ -114,6 +119,11 @@ void Renderer::initialize() {
 }
 
 void Renderer::shutdown() {
+    for (auto& modelMappings : enemyBoneMappings_) {
+        for (auto& mapping : modelMappings) {
+            mapping.clear();
+        }
+    }
     terrainRenderer_.shutdown();
     resources_.shutdown();
 }
