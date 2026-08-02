@@ -7,6 +7,97 @@
 
 void runSimulationTests() {
     {
+        auto transactionBalance =
+            ian::GameBalance::defaults();
+        transactionBalance.gameplay.pickaxeDamageVariation = 0.0;
+        transactionBalance.gameplay.pickaxeCriticalChance = 0.0;
+        auto& coreDefinition =
+            transactionBalance.buildings[
+                static_cast<std::size_t>(
+                    ian::BuildingType::Core)];
+        coreDefinition.wood = 5;
+        coreDefinition.stone = 0;
+        coreDefinition.gold = 0;
+        auto& wallDefinition =
+            transactionBalance.buildings[
+                static_cast<std::size_t>(
+                    ian::BuildingType::Wall)];
+        wallDefinition.wood = 4;
+        wallDefinition.stone = 0;
+        wallDefinition.gold = 0;
+
+        ian::Simulation transactions{transactionBalance};
+        transactions.startRun();
+        static_cast<void>(transactions.takeEvents());
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        const auto coreSurface =
+            transactions.previewPlacementSurface(
+                ian::BuildingType::Core, {0, 0});
+        ian::PlayerCommand rejectedRaisedCore;
+        rejectedRaisedCore.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core,
+                .gridPosition = {0, 0},
+                .rotation = 0,
+                .baseHeight = coreSurface.height + 1.0,
+                .platformStorey = -1,
+                .lockHeight = true,
+            };
+        transactions.tick(
+            1.0 / 60.0, rejectedRaisedCore);
+        require(
+            !transactions.snapshot().coreId &&
+                transactions.snapshot().wood == 0 &&
+                transactions.snapshot().platformFrames.empty(),
+            "rejected placement changes neither inventory nor structures");
+
+        ian::PlayerCommand gather;
+        gather.usePickaxe = true;
+        transactions.tick(1.0 / 60.0, gather);
+        transactions.tick(0.5);
+        transactions.tick(1.0 / 60.0, gather);
+        transactions.tick(0.5);
+        transactions.tick(1.0 / 60.0, gather);
+        transactions.tick(0.8);
+        require(transactions.snapshot().wood == 15,
+                "transaction fixture gathers deterministic inventory");
+
+        transactions.tick(1.0 / 60.0, placeCore);
+        require(
+            transactions.snapshot().coreId.has_value() &&
+                transactions.snapshot().wood == 10,
+            "successful placement spends configured cost exactly once");
+        ian::PlayerCommand placeWall;
+        placeWall.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Wall, {0, 4}, 0};
+        transactions.tick(1.0 / 60.0, placeWall);
+        const auto wall = std::find_if(
+            transactions.snapshot().buildings.begin(),
+            transactions.snapshot().buildings.end(),
+            [](const ian::BuildingInstance& building) {
+                return building.type == ian::BuildingType::Wall;
+            });
+        require(
+            wall != transactions.snapshot().buildings.end() &&
+                transactions.snapshot().wood == 6,
+            "second placement performs one atomic deduction");
+        const ian::EntityId wallId = wall->id;
+        ian::PlayerCommand sellWall;
+        sellWall.sellBuilding =
+            ian::SellBuildingCommand{wallId};
+        transactions.tick(1.0 / 60.0, sellWall);
+        require(
+            transactions.snapshot().buildings.size() == 1U &&
+                transactions.snapshot().wood == 8,
+            "sell removes building and credits configured refund once");
+        transactions.tick(1.0 / 60.0, sellWall);
+        require(
+            transactions.snapshot().wood == 8,
+            "repeated stale sell cannot credit a second refund");
+    }
+    {
         ian::Simulation restartStress;
         restartStress.startRun();
         std::optional<ian::EntityId> previousCoreId;
