@@ -272,6 +272,7 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
     upcomingAttackDirection_.reset();
+    modularTargetBuffer_.clear();
     events_.clear();
     events_.push_back({.type = eventType});
 }
@@ -1432,10 +1433,11 @@ void Simulation::updateCombat(double deltaSeconds) {
         }
         updateTrapCombat(deltaSeconds);
 
-        const std::vector<EnemyStructureTarget>
-            modularTargets =
-                buildModularEnemyTargets(
-                    foundations_, worldConfig_);
+        buildModularEnemyTargets(
+            foundations_, worldConfig_,
+            modularTargetBuffer_);
+        const auto& modularTargets =
+            modularTargetBuffer_;
         const auto attacks = enemies_.tick(
             deltaSeconds, buildings_.buildings(), flowField_,
             playerRespawning_ ? std::nullopt

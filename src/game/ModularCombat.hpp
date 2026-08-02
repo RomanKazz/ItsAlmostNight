@@ -28,5 +28,9 @@ namespace ian {
 buildModularEnemyTargets(
     const FoundationSystem& foundations,
     const WorldConfig& config);
+void buildModularEnemyTargets(
+    const FoundationSystem& foundations,
+    const WorldConfig& config,
+    std::vector<EnemyStructureTarget>& targets);
 
 } // namespace ian

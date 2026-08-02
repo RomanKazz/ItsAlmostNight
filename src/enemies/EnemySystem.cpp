@@ -27,9 +27,11 @@ constexpr int BuildingGridCellCount =
 class BuildingQueryGrid {
   public:
     explicit BuildingQueryGrid(
-        std::span<const EnemyStructureTarget> structures)
+        std::span<const EnemyStructureTarget> structures,
+        std::vector<int>& next)
         : structures_(structures),
-          next_(structures.size(), -1) {
+          next_(next) {
+        next_.assign(structures.size(), -1);
         heads_.fill(-1);
         for (std::size_t index = 0;
              index < structures.size(); ++index) {
@@ -97,7 +99,7 @@ class BuildingQueryGrid {
 
     std::span<const EnemyStructureTarget> structures_;
     std::array<int, BuildingGridCellCount> heads_{};
-    std::vector<int> next_;
+    std::vector<int>& next_;
 };
 
 double hashUnit(std::uint32_t value) {
@@ -375,6 +377,8 @@ EnemySystem::EnemySystem(
     playerAttackBuffer_.reserve(MaxEnemies);
     areaDamageBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
+    structureBuffer_.reserve(256);
+    structureNextBuffer_.reserve(256);
 }
 
 void EnemySystem::reset() {
@@ -383,6 +387,8 @@ void EnemySystem::reset() {
     playerAttackBuffer_.clear();
     areaDamageBuffer_.clear();
     statusTargetBuffer_.clear();
+    structureBuffer_.clear();
+    structureNextBuffer_.clear();
     nextIndex_ = 2000;
     spatialHash_.clear();
 }
@@ -421,8 +427,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
         return attackBuffer_;
     }
 
-    std::vector<EnemyStructureTarget> structures;
-    structures.reserve(
+    structureBuffer_.clear();
+    structureBuffer_.reserve(
         buildings.size() + additionalStructures.size());
     for (const BuildingInstance& building : buildings) {
         if (!buildingBlocksMovement(building)) {
@@ -435,7 +441,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 building.baseHeight,
                 building.foundationBottomHeight);
         }
-        structures.push_back({
+        structureBuffer_.push_back({
             .id = building.id,
             .position = attackPosition,
             .radius = buildingRadius(building.type),
@@ -444,12 +450,13 @@ std::span<const EnemyAttack> EnemySystem::tick(
             .structuralImpact = 0U,
         });
     }
-    structures.insert(
-        structures.end(), additionalStructures.begin(),
+    structureBuffer_.insert(
+        structureBuffer_.end(), additionalStructures.begin(),
         additionalStructures.end());
 
     rebuildSpatialIndex();
-    const BuildingQueryGrid buildingGrid(structures);
+    const BuildingQueryGrid buildingGrid(
+        structureBuffer_, structureNextBuffer_);
 
     for (auto& enemy : enemies_) {
         if (!enemy.active) {
@@ -479,11 +486,11 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
         if (enemy.state == EnemyState::BossRamWindup) {
             const auto target =
-                std::find_if(structures.begin(), structures.end(),
+                std::find_if(structureBuffer_.begin(), structureBuffer_.end(),
                              [&enemy](const EnemyStructureTarget& building) {
                                  return enemy.target && building.id == *enemy.target;
                              });
-            if (target == structures.end()) {
+            if (target == structureBuffer_.end()) {
                 enemy.state = EnemyState::MoveToCore;
                 enemy.target.reset();
                 enemy.ramWindupRemaining = 0.0;

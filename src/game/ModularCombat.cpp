@@ -86,6 +86,16 @@ buildModularEnemyTargets(
     const FoundationSystem& foundations,
     const WorldConfig& config) {
     std::vector<EnemyStructureTarget> targets;
+    buildModularEnemyTargets(
+        foundations, config, targets);
+    return targets;
+}
+
+void buildModularEnemyTargets(
+    const FoundationSystem& foundations,
+    const WorldConfig& config,
+    std::vector<EnemyStructureTarget>& targets) {
+    targets.clear();
     targets.reserve(
         foundations.platformFrames().size() +
         foundations.walls().size() +
@@ -155,7 +165,6 @@ buildModularEnemyTargets(
             .structuralImpact = 0U,
         });
     }
-    return targets;
 }
 
 } // namespace ian

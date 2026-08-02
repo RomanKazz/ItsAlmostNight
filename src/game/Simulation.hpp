@@ -392,6 +392,7 @@ class Simulation {
     double waveSpawnInterval_{1.0};
     double waveSpawnTimeRemaining_{};
     std::optional<AttackDirection> upcomingAttackDirection_;
+    std::vector<EnemyStructureTarget> modularTargetBuffer_;
     std::vector<GameEvent> events_;
 };
 

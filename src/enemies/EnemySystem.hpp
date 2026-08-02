@@ -146,6 +146,8 @@ class EnemySystem {
     std::vector<EnemyPlayerAttack> playerAttackBuffer_;
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
+    std::vector<EnemyStructureTarget> structureBuffer_;
+    std::vector<int> structureNextBuffer_;
     std::array<EntityId, SpatialHash::MaxEntries> areaTargetBuffer_{};
     std::uint32_t nextIndex_{2000};
     SpatialHash spatialHash_;

@@ -139,6 +139,9 @@ damage вместо повторения полного rebuild для кажд�
 
 - В горячем пути area damage число rebuild spatial hash снижено с `K` до
   максимум одного, где `K` — число убитых одним взрывом врагов.
+- Убраны повторные heap allocation каждого combat tick: буферы modular enemy
+  targets, объединённых structure targets и linked-list индексов теперь
+  переиспользуют capacity. Данные пересобираются каждый тик; stale cache нет.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
