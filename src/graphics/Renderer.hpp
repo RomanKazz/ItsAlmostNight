@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace ian {
@@ -105,6 +106,11 @@ struct FirstPersonToolTuning {
     float swingDuration{0.48F};
     float movementBob{1.0F};
 };
+
+[[nodiscard]] bool loadFirstPersonToolTuning(
+    std::string_view path, FirstPersonToolTuning& tuning);
+[[nodiscard]] bool saveFirstPersonToolTuning(
+    std::string_view path, const FirstPersonToolTuning& tuning);
 
 struct EnemyDrawInstance {
     EnemyModelVisual modelVisual{EnemyModelVisual::Minion};

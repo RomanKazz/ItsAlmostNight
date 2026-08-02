@@ -896,6 +896,8 @@ App::App()
           loadAppBalance(), loadAppMap(),
           loadAppWorldConfig()),
       environment_(loadAppEnvironment()) {
+    static_cast<void>(loadFirstPersonToolTuning(
+        "user_settings/first_person_tool.json", toolTuning_));
     effects_.reserve(128);
     arrowVisuals_.reserve(64);
     damageIndicators_.reserve(12);
@@ -926,6 +928,9 @@ int App::run() {
         update();
         render();
     }
+
+    static_cast<void>(saveFirstPersonToolTuning(
+        "user_settings/first_person_tool.json", toolTuning_));
 
     ui_.shutdown();
     audio_.shutdown();

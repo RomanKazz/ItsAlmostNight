@@ -488,6 +488,14 @@ void App::drawGraphicsPanel() {
         const float modelY =
             panelY + ControlStartY + RowHeight * 5.0F;
         if (ui_.drawButton(
+                {contentX, modelY,
+                 columnWidth, ButtonHeight},
+                "SAVE TOOL")) {
+            static_cast<void>(saveFirstPersonToolTuning(
+                "user_settings/first_person_tool.json",
+                toolTuning_));
+        }
+        if (ui_.drawButton(
                 {contentX + columnWidth + Gap, modelY,
                  columnWidth, ButtonHeight},
                 toolPanelPreviewUsesAxe_
@@ -512,12 +520,20 @@ void App::drawGraphicsPanel() {
                 {contentX, bottomY, columnWidth, ButtonHeight},
                 "RESET TOOL")) {
             toolTuning_ = {};
+            static_cast<void>(saveFirstPersonToolTuning(
+                "user_settings/first_person_tool.json",
+                toolTuning_));
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, bottomY,
                  columnWidth, ButtonHeight},
                 "CLOSE [F2]")) {
             renderer_->setGraphicsPanelVisible(false);
+        }
+        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+            static_cast<void>(saveFirstPersonToolTuning(
+                "user_settings/first_person_tool.json",
+                toolTuning_));
         }
     }
 

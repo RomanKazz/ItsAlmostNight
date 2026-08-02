@@ -120,6 +120,7 @@ add_library(ian_graphics
     src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
     src/graphics/RendererModels.cpp
+    src/graphics/FirstPersonToolTuning.cpp
     src/graphics/TerrainRenderer.cpp
 )
 target_include_directories(ian_graphics PUBLIC src)
