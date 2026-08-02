@@ -9,7 +9,7 @@ namespace ian {
 class TerrainRenderer {
   public:
     TerrainRenderer() = default;
-    ~TerrainRenderer() = default;
+    ~TerrainRenderer();
 
     TerrainRenderer(const TerrainRenderer&) = delete;
     TerrainRenderer& operator=(const TerrainRenderer&) = delete;

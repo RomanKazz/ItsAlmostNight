@@ -8,6 +8,10 @@
 
 namespace ian {
 
+TerrainRenderer::~TerrainRenderer() {
+    shutdown();
+}
+
 void TerrainRenderer::rebuild(
     const TerrainHeightfield& terrain) {
     shutdown();
