@@ -146,6 +146,7 @@ class App {
     bool toolSwingUsesAxe_{};
     bool toolSwingQueued_{};
     bool toolQueuedSwingHasAttack_{};
+    std::optional<EntityId> toolQueuedResourceTarget_;
     bool toolSwingAttackPending_{};
     double toolSwingQueueRemaining_{};
     double toolSwingRemaining_{};

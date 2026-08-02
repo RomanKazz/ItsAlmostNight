@@ -1062,10 +1062,13 @@ void App::processInput() {
                         toolSwingAttackPending_ = true;
                         toolSwingQueued_ = false;
                         toolQueuedSwingHasAttack_ = false;
+                        toolQueuedResourceTarget_.reset();
                         toolSwingQueueRemaining_ = 0.0;
                     } else {
                         toolSwingQueued_ = true;
                         toolQueuedSwingHasAttack_ = true;
+                        toolQueuedResourceTarget_ =
+                            currentSnapshot.aimedResource;
                         toolSwingQueueRemaining_ = 0.75;
                     }
                 }

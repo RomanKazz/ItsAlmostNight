@@ -97,6 +97,7 @@ void App::update() {
     if (toolSwingQueueRemaining_ <= 0.0) {
         toolSwingQueued_ = false;
         toolQueuedSwingHasAttack_ = false;
+        toolQueuedResourceTarget_.reset();
     }
     const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
     toolSwapRemaining_ = std::max(
@@ -141,6 +142,23 @@ void App::update() {
             0.05);
         toolSwapRemaining_ = toolSwapDuration_;
     }
+    const bool queuedResourceStillTargeted =
+        !toolQueuedResourceTarget_ ||
+        (hotbarSnapshot.aimedResource ==
+             toolQueuedResourceTarget_ &&
+         std::any_of(
+             hotbarSnapshot.resourceNodes.begin(),
+             hotbarSnapshot.resourceNodes.end(),
+             [this](const ResourceNode& resource) {
+                 return resource.id ==
+                        *toolQueuedResourceTarget_;
+             }));
+    if (toolSwingQueued_ && !queuedResourceStillTargeted) {
+        toolSwingQueued_ = false;
+        toolQueuedSwingHasAttack_ = false;
+        toolQueuedResourceTarget_.reset();
+        toolSwingQueueRemaining_ = 0.0;
+    }
     if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
         toolSwingRemaining_ <= 0.0 &&
         displayedToolUsesAxe_ == toolSwingUsesAxe_) {
@@ -150,6 +168,7 @@ void App::update() {
             toolQueuedSwingHasAttack_;
         toolQueuedSwingHasAttack_ = false;
         toolSwingQueued_ = false;
+        toolQueuedResourceTarget_.reset();
         toolSwingQueueRemaining_ = 0.0;
     }
     const bool sprinting =
