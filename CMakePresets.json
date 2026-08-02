@@ -70,6 +70,13 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

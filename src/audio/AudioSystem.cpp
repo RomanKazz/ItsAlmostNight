@@ -35,6 +35,10 @@ constexpr std::array<std::string_view, 5> GrassFootstepPaths{
 
 } // namespace
 
+AudioSystem::~AudioSystem() {
+    shutdown();
+}
+
 void AudioSystem::initialize() {
     if (initialized_) {
         return;
@@ -363,6 +367,12 @@ void AudioSystem::load(Clip& clip, std::string_view path) {
     }
     clip.sound = LoadSound(pathString.c_str());
     clip.loaded = IsSoundValid(clip.sound);
+    if (!clip.loaded) {
+        // A failed format conversion can still leave an allocated raylib
+        // AudioBuffer even though IsSoundValid() rejects the Sound.
+        UnloadSound(clip.sound);
+        clip.sound = {};
+    }
 }
 
 void AudioSystem::unload(Clip& clip) {
