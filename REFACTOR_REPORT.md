@@ -65,6 +65,9 @@ App render support extraction: `67a2f1f`
 World rebuild/render-buffer optimization: `74ea595`
 (`perf: avoid redundant world rebuild work`).
 
+UI text allocation optimization: `45a6b4a`
+(`perf: avoid short UI text allocations`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -272,6 +275,9 @@ damage вместо повторения полного rebuild для кажд�
   геометрия действительно меняется.
 - Массивы обычных и уничтожаемых `EnemyDrawInstance` переиспользуют capacity
   между кадрами вместо создания двух временных heap-контейнеров каждый кадр.
+- `drawUiText`, `measureUiText`, label и button больше не создают heap-строку
+  для текста короче 256 байт. Общий helper даёт raylib/raygui корректную
+  NUL-terminated копию в stack buffer; длинные строки сохраняют heap fallback.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -345,6 +351,8 @@ damage вместо повторения полного rebuild для кажд�
   2,33 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
 - после world-rebuild/render-buffer пакета: Debug 1/1 за 1,06 с;
   ASan+UBSan 1/1 за 2,22 с; Release 1/1 за 0,50 с; `git diff --check` успешно.
+- после UI-text пакета: Debug 1/1 за 0,95 с; ASan+UBSan 1/1 за 2,20 с;
+  Release 1/1 за 0,24 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -353,7 +361,8 @@ damage вместо повторения полного rebuild для кажд�
 2. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
 3. Профилировать renderer draw calls, animated model updates, shadows, grass и
-   particles на фиксированном replay; без измерения оптимизации не вносить.
+   particles на фиксированном replay; отдельно измерить временный batch map и
+   remap bone names. Без измерения структуру batching не менять.
 
 ## Основные изменённые файлы
 
@@ -385,6 +394,8 @@ damage вместо повторения полного rebuild для кажд�
   shared rendering/query helpers;
 - `src/app/App.hpp`, `src/app/AppWorldRender.cpp` — reusable enemy draw
   buffers без покадрового освобождения capacity;
+- `src/ui/UiCString.hpp`, `src/ui/UiText.cpp`, `src/ui/GameUi.cpp` — общий
+  stack-backed NUL-terminated UI text path;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
 - `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
   area damage и арифметические границы.
