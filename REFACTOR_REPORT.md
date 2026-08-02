@@ -38,6 +38,9 @@ traversal`).
 Area-damage lookup: `c5ffd94`
 (`perf: remove duplicate area damage lookup`).
 
+Placement query extraction: `457db2d`
+(`refactor: isolate simulation placement queries`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -172,8 +175,11 @@ raylib-ресурсы в основном уже закрыты некопиру
   `SimulationWaves.cpp`.
 - Весь lifecycle building commands — preview, placement с automatic
   foundation, upgrade, repair, sell, modular removal и gate toggle — перенесён
-  в `SimulationBuildingCommands.cpp`. `Simulation.cpp` уменьшен с 3007 строк
-  исходного состояния до 2422 строк.
+  в `SimulationBuildingCommands.cpp`.
+- Placement validation, terrain/platform surface selection, automatic
+  foundation geometry и публичные preview query перенесены в
+  `SimulationPlacement.cpp`. `Simulation.cpp` уменьшен с 3007 строк исходного
+  состояния до 2171 строки; новый модуль содержит 266 строк связанной логики.
 - Публичный интерфейс не менялся. Перемещение соответствует обязанности
   систем и не дробит связанные транзакции между разными файлами.
 
@@ -262,6 +268,8 @@ damage вместо повторения полного rebuild для кажд�
   2,36 с; Release 1/1 за 0,35 с; `git diff --check` успешно.
 - после area-damage lookup fix: Debug 1/1 за 1,13 с; ASan+UBSan 1/1 за 2,76 с;
   Release 1/1 за 0,44 с; `git diff --check` успешно.
+- после placement extraction: Debug 1/1 за 1,14 с; ASan+UBSan 1/1 за 2,42 с;
+  Release 1/1 за 0,35 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -290,8 +298,9 @@ damage вместо повторения полного rebuild для кажд�
   area-damage batch;
 - `src/graphics/GraphicsResources.cpp` — очистка partial/failed loads;
 - `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
-  `src/game/SimulationBuildingCommands.cpp` — выделение lifecycle волн и
-  building commands;
+  `src/game/SimulationBuildingCommands.cpp`,
+  `src/game/SimulationPlacement.cpp` — выделение lifecycle волн,
+  building commands и placement queries;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
 - `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
   area damage и арифметические границы.
