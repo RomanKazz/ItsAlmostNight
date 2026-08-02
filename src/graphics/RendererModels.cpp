@@ -303,12 +303,14 @@ bool Renderer::drawFirstPersonTool(
     rlTranslatef(tuning.position.x + bobX,
                  tuning.position.y - bobY,
                  tuning.position.z + swingPush);
+    // Swing in camera space. Applying this before the model's local pose
+    // keeps the strike aimed forward even when the tool is yawed in-hand.
+    rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
     // Blender exports the handle along local +Y. With the origin at the
     // grip, these rotations move the head without making the hand slide.
     rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
     rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
     rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
-    rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
     rlScalef(tuning.scale, tuning.scale, tuning.scale);
     DrawModel(model, {}, 1.0F, WHITE);
     rlPopMatrix();
