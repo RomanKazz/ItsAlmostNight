@@ -13,6 +13,10 @@ ShaderResource::~ShaderResource() {
 
 bool ShaderResource::load(const char* vertexPath, const char* fragmentPath) {
     unload();
+    if ((vertexPath != nullptr && !FileExists(vertexPath)) ||
+        (fragmentPath != nullptr && !FileExists(fragmentPath))) {
+        return false;
+    }
     shader_ = LoadShader(vertexPath, fragmentPath);
     loaded_ = IsShaderValid(shader_);
     if (!loaded_) {

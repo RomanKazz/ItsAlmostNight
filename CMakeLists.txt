@@ -258,4 +258,27 @@ if(BUILD_TESTING)
         target_link_options(ian_tests PRIVATE -fsanitize=address,undefined)
     endif()
     add_test(NAME ian_tests COMMAND ian_tests)
+
+    add_executable(ian_graphics_smoke
+        tests/GraphicsResourceSmokeTests.cpp
+    )
+    target_link_libraries(ian_graphics_smoke PRIVATE
+        ian_graphics)
+    target_include_directories(ian_graphics_smoke SYSTEM PRIVATE
+        "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_graphics_smoke)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_graphics_smoke PRIVATE
+            -fsanitize=address,undefined
+            -fno-omit-frame-pointer)
+        target_link_options(ian_graphics_smoke PRIVATE
+            -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_graphics_smoke
+        COMMAND ian_graphics_smoke)
+    set_tests_properties(ian_graphics_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 60
+        LABELS "graphics;integration")
 endif()
