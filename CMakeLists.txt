@@ -155,6 +155,7 @@ add_executable(its_almost_night
     src/app/AppInput.cpp
     src/app/AppModularPlacement.cpp
     src/app/AppRenderPasses.cpp
+    src/app/AppRenderSupport.cpp
     src/app/AppSkillTree.cpp
     src/app/AppUpdate.cpp
     src/app/AppWorldRender.cpp
