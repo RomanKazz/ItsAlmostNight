@@ -78,7 +78,9 @@ void App::update() {
     const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
     toolSwapRemaining_ = std::max(
         0.0, toolSwapRemaining_ - frameSeconds);
-    bool desiredToolUsesAxe = false;
+    bool desiredToolUsesAxe = toolSwapWasActive
+        ? toolSwapDestinationUsesAxe_
+        : displayedToolUsesAxe_;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == 4) {
         desiredToolUsesAxe = toolPanelPreviewUsesAxe_;
@@ -89,9 +91,10 @@ void App::update() {
             [&hotbarSnapshot](const ResourceNode& node) {
                 return node.id == *hotbarSnapshot.aimedResource;
             });
-        desiredToolUsesAxe =
-            resource != hotbarSnapshot.resourceNodes.end() &&
-            resource->type == ResourceType::Wood;
+        if (resource != hotbarSnapshot.resourceNodes.end()) {
+            desiredToolUsesAxe =
+                resource->type == ResourceType::Wood;
+        }
     }
     if (desiredToolUsesAxe != toolSwapCandidateUsesAxe_) {
         toolSwapCandidateUsesAxe_ = desiredToolUsesAxe;

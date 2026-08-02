@@ -1035,7 +1035,7 @@ void App::processInput() {
                 buildingContextCardStats_.reset();
                 pendingPickaxe_ = true;
                 if (currentSnapshot.pickaxeCooldownRemaining <= 0.0) {
-                    toolSwingUsesAxe_ = false;
+                    toolSwingUsesAxe_ = displayedToolUsesAxe_;
                     if (currentSnapshot.aimedResource) {
                         const auto resource = std::find_if(
                             currentSnapshot.resourceNodes.begin(),
