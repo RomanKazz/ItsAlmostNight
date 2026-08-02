@@ -74,7 +74,6 @@ void CannonSystem::reset() {
     projectiles_.clear();
     explosionBuffer_.clear();
     shotBuffer_.clear();
-    nextProjectileIndex_ = 4000;
 }
 
 void CannonSystem::clearProjectiles() {

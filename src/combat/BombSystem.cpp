@@ -18,7 +18,6 @@ BombSystem::BombSystem(BombBalanceDefinition definition)
 void BombSystem::reset() {
     projectiles_.clear();
     explosionBuffer_.clear();
-    nextProjectileIndex_ = 5000;
     remainingBombs_ = definition_.startingBombs;
 }
 

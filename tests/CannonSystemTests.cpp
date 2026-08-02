@@ -27,10 +27,17 @@ void runCannonSystemTests() {
     ian::CannonSystem cannons;
     cannons.syncBuildings(buildings.buildings());
     cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    const ian::EntityId firstRunProjectile =
+        cannons.projectiles().front().id;
+    cannons.reset();
+    cannons.syncBuildings(buildings.buildings());
+    cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
     require(!cannons.projectiles().empty() &&
+                cannons.projectiles().front().id !=
+                    firstRunProjectile &&
                 cannons.projectiles().front().explosionDamage == 2.85 &&
                 cannons.projectiles().front().explosionRadius == 2.62,
-            "level-two cannon launches upgraded shell");
+            "cannon reset preserves ID safety and upgraded shell stats");
     bool exploded = false;
     for (int tick = 0; tick < 179 && !exploded; ++tick) {
         const auto explosions = cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);

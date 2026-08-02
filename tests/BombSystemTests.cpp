@@ -17,6 +17,14 @@ void runBombSystemTests() {
     require(bombs.throwBomb({0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}),
             "bomb throw consumes available bomb");
     require(bombs.remainingBombs() == 2, "bomb stock decreases after throw");
+    const ian::EntityId firstRunProjectile =
+        bombs.projectiles().front().id;
+    bombs.reset();
+    require(
+        bombs.throwBomb(
+            {0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}) &&
+            bombs.projectiles().front().id != firstRunProjectile,
+        "bomb reset never aliases a previous run projectile ID");
 
     bool exploded = false;
     for (int tick = 0; tick < 120 && !exploded; ++tick) {
