@@ -5,6 +5,9 @@
 Основной тематический коммит: `7becb51` (`fix: harden simulation and resource
 lifetime`).
 
+Второй тематический коммит: `576f2c9` (`refactor: isolate building command
+orchestration`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
