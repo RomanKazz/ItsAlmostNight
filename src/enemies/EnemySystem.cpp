@@ -953,7 +953,6 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
     });
     bool spatialIndexDirty = false;
     for (std::size_t index = 0; index < targetCount; ++index) {
-        const auto target = enemy(areaTargetBuffer_[index]);
         const auto iterator = std::find_if(
             enemies_.begin(), enemies_.end(),
             [id = areaTargetBuffer_[index]](const EnemyInstance& enemy) {
@@ -977,14 +976,14 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             .remainingHealth = iterator->health,
             .killed = killed,
         });
-        if (!target || killed || knockbackStrength <= 0.0) {
+        if (killed || knockbackStrength <= 0.0) {
             continue;
         }
-        double offsetX = target->position.x - position.x;
-        double offsetZ = target->position.z - position.z;
+        double offsetX = iterator->position.x - position.x;
+        double offsetZ = iterator->position.z - position.z;
         double distance = std::sqrt((offsetX * offsetX) + (offsetZ * offsetZ));
         if (distance <= 1e-9) {
-            offsetX = (target->id.index % 2U) == 0U ? -1.0 : 1.0;
+            offsetX = (iterator->id.index % 2U) == 0U ? -1.0 : 1.0;
             offsetZ = 0.0;
             distance = 1.0;
         }
