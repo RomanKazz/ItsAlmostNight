@@ -41,6 +41,9 @@ Area-damage lookup: `c5ffd94`
 Placement query extraction: `457db2d`
 (`refactor: isolate simulation placement queries`).
 
+Projectile ID restart safety: `ca57cdb`
+(`fix: preserve projectile identity across restarts`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -133,6 +136,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 13. **Бесплатная automatic foundation.** При автоматической установке
    foundation проверялась и списывалась только стоимость обычного здания.
    Игрок получал полноценную сохраняющуюся платформу без её настроенной цены.
+14. **Повторное использование projectile ID после restart.** Bomb и Cannon
+   systems сбрасывали индекс снаряда к начальному значению. Presentation/event
+   ссылка прошлого забега могла совпасть с новым снарядом.
 
 ## Исправления
 
@@ -167,6 +173,8 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Недостаток ресурсов больше не делает geometry preview foundation невалидным
   до расчёта общей цены. Snapshot preview и публичные `previewPlacement()` API
   сохраняют `InsufficientResources`, но показывают стоимость обоих объектов.
+- Bomb/Cannon reset очищает projectile storage, но не откатывает монотонный ID
+  allocator. Новый забег не переиспользует ID снарядов прошлого забега.
 
 ## Архитектурный рефакторинг
 
@@ -241,6 +249,8 @@ damage вместо повторения полного rebuild для кажд�
   refund здания и защиту от повторной продажи по stale ID.
 - Low-inventory regression проверяет полную preview-стоимость поднятого Core:
   5 дерева за здание плюс 3 дерева за automatic foundation.
+- Bomb и cannon reset tests создают снаряд до и после reset и проверяют разные
+  `EntityId`; cannon test одновременно сохраняет level-dependent параметры.
 
 Фактически выполненные команды и результаты:
 
@@ -270,6 +280,8 @@ damage вместо повторения полного rebuild для кажд�
   Release 1/1 за 0,44 с; `git diff --check` успешно.
 - после placement extraction: Debug 1/1 за 1,14 с; ASan+UBSan 1/1 за 2,42 с;
   Release 1/1 за 0,35 с; `git diff --check` успешно.
+- после projectile ID restart fix: Debug 1/1 за 1,16 с; ASan+UBSan 1/1 за
+  2,45 с; Release 1/1 за 0,39 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -290,6 +302,8 @@ damage вместо повторения полного rebuild для кажд�
 - `src/core/SaturatingArithmetic.hpp` — определённая арифметика счётчиков;
 - `src/economy/GoldMineSystem.cpp` — O(1) catch-up производства и защита
   таймеров;
+- `src/combat/BombSystem.cpp`, `src/combat/CannonSystem.cpp` — projectile ID
+  не переиспользуются между restart;
 - `src/buildings/BuildingSystem.cpp`, `src/buildings/FoundationSystem.cpp`,
   `src/enemies/EnemySystem.cpp` — ID не переиспользуются между restart;
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
