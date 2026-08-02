@@ -142,6 +142,7 @@ void App::processInput() {
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
         hitStopRemaining_ = 0.0;
+        toolContactHoldRemaining_ = 0.0;
         crosshairHitRemaining_ = 0.0;
         invalidActionRemaining_ = 0.0;
         buildingHoverSeconds_ = 0.0;
@@ -226,6 +227,7 @@ void App::processInput() {
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
         hitStopRemaining_ = 0.0;
+        toolContactHoldRemaining_ = 0.0;
         crosshairHitRemaining_ = 0.0;
         invalidActionRemaining_ = 0.0;
         buildingHoverSeconds_ = 0.0;

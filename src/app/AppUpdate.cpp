@@ -60,6 +60,11 @@ void App::update() {
     const bool hitStopActive = hitStopRemaining_ > 0.0;
     hitStopRemaining_ =
         std::max(0.0, hitStopRemaining_ - frameSeconds);
+    const bool toolContactHoldActive =
+        toolContactHoldRemaining_ > 0.0;
+    toolContactHoldRemaining_ = std::max(
+        0.0,
+        toolContactHoldRemaining_ - frameSeconds);
     crosshairHitRemaining_ =
         std::max(0.0, crosshairHitRemaining_ - frameSeconds);
     invalidActionRemaining_ =
@@ -73,7 +78,9 @@ void App::update() {
     toolSwingRemaining_ = std::max(
         0.0,
         toolSwingRemaining_ -
-            (hitStopActive ? 0.0 : frameSeconds));
+            (hitStopActive || toolContactHoldActive
+                 ? 0.0
+                 : frameSeconds));
     const double toolContactProgress = std::clamp(
         static_cast<double>(toolTuning_.hitProgress),
         0.25, 0.65);
@@ -821,16 +828,19 @@ void App::update() {
                 event.critical ? 0.035F : 0.024F;
             addCameraImpulse({0.0, -0.006, 0.008});
         }
-        if (event.critical) {
+        const bool resourceImpact =
+            event.type == GameEventType::ResourceHit ||
+            event.type == GameEventType::ResourceCollected;
+        if (event.critical && !resourceImpact) {
             hitStopRemaining_ =
                 std::max(hitStopRemaining_, 0.045);
         }
         if (event.type == GameEventType::ResourceHit) {
-            hitStopRemaining_ =
-                std::max(hitStopRemaining_, 0.03);
+            toolContactHoldRemaining_ = std::max(
+                toolContactHoldRemaining_, 0.025);
         } else if (event.type == GameEventType::ResourceCollected) {
-            hitStopRemaining_ =
-                std::max(hitStopRemaining_, 0.06);
+            toolContactHoldRemaining_ = std::max(
+                toolContactHoldRemaining_, 0.04);
         } else if (
             event.type == GameEventType::BuildingDestroyed ||
             event.type ==

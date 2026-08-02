@@ -150,6 +150,7 @@ class App {
     double toolSwingQueueRemaining_{};
     double toolSwingRemaining_{};
     double toolSwingDuration_{0.48};
+    double toolContactHoldRemaining_{};
     bool displayedToolUsesAxe_{};
     bool toolSwapCandidateUsesAxe_{};
     bool toolSwapDestinationUsesAxe_{};
