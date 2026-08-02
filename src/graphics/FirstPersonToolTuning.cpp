@@ -67,6 +67,12 @@ bool loadFirstPersonToolTuning(
         loaded.movementBob = finiteClamped(
             value.value("movementBob", loaded.movementBob),
             loaded.movementBob, 0.0F, 2.0F);
+        loaded.swapDuration = finiteClamped(
+            value.value("swapDuration", loaded.swapDuration),
+            loaded.swapDuration, 0.1F, 1.2F);
+        loaded.swapDrop = finiteClamped(
+            value.value("swapDrop", loaded.swapDrop),
+            loaded.swapDrop, 0.2F, 1.5F);
         loaded.outlineEnabled = value.value(
             "outlineEnabled", loaded.outlineEnabled);
         loaded.outlineWidth = finiteClamped(
@@ -115,6 +121,8 @@ bool saveFirstPersonToolTuning(
             {"depthPush", tuning.depthPush},
             {"swingDuration", tuning.swingDuration},
             {"movementBob", tuning.movementBob},
+            {"swapDuration", tuning.swapDuration},
+            {"swapDrop", tuning.swapDrop},
             {"outlineEnabled", tuning.outlineEnabled},
             {"outlineWidth", tuning.outlineWidth},
             {"outlineStrength", tuning.outlineStrength},

@@ -70,6 +70,58 @@ void App::update() {
         0.0, weaponRecoilRemaining_ - frameSeconds);
     toolSwingRemaining_ = std::max(
         0.0, toolSwingRemaining_ - frameSeconds);
+    toolSwingQueueRemaining_ = std::max(
+        0.0, toolSwingQueueRemaining_ - frameSeconds);
+    if (toolSwingQueueRemaining_ <= 0.0) {
+        toolSwingQueued_ = false;
+    }
+    const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
+    toolSwapRemaining_ = std::max(
+        0.0, toolSwapRemaining_ - frameSeconds);
+    bool desiredToolUsesAxe = false;
+    if (renderer_ && renderer_->graphicsPanelVisible() &&
+        graphicsPanelTab_ == 4) {
+        desiredToolUsesAxe = toolPanelPreviewUsesAxe_;
+    } else if (hotbarSnapshot.aimedResource) {
+        const auto resource = std::find_if(
+            hotbarSnapshot.resourceNodes.begin(),
+            hotbarSnapshot.resourceNodes.end(),
+            [&hotbarSnapshot](const ResourceNode& node) {
+                return node.id == *hotbarSnapshot.aimedResource;
+            });
+        desiredToolUsesAxe =
+            resource != hotbarSnapshot.resourceNodes.end() &&
+            resource->type == ResourceType::Wood;
+    }
+    if (desiredToolUsesAxe != toolSwapCandidateUsesAxe_) {
+        toolSwapCandidateUsesAxe_ = desiredToolUsesAxe;
+        toolSwapCandidateSeconds_ = 0.0;
+    } else {
+        toolSwapCandidateSeconds_ += frameSeconds;
+    }
+    if (toolSwapWasActive &&
+        toolSwapRemaining_ <= toolSwapDuration_ * 0.5) {
+        displayedToolUsesAxe_ =
+            toolSwapDestinationUsesAxe_;
+    }
+    if (toolSwapRemaining_ <= 0.0 &&
+        toolSwapCandidateSeconds_ >= 0.07 &&
+        toolSwapCandidateUsesAxe_ !=
+            displayedToolUsesAxe_) {
+        toolSwapDestinationUsesAxe_ =
+            toolSwapCandidateUsesAxe_;
+        toolSwapDuration_ = std::max(
+            static_cast<double>(toolTuning_.swapDuration),
+            0.05);
+        toolSwapRemaining_ = toolSwapDuration_;
+    }
+    if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
+        displayedToolUsesAxe_ == toolSwingUsesAxe_) {
+        toolSwingDuration_ = toolTuning_.swingDuration;
+        toolSwingRemaining_ = toolSwingDuration_;
+        toolSwingQueued_ = false;
+        toolSwingQueueRemaining_ = 0.0;
+    }
     const bool sprinting =
         acceptsGameplayInput(
             simulation_.snapshot().state) &&

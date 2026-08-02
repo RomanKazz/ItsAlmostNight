@@ -1048,8 +1048,19 @@ void App::processInput() {
                             resource != currentSnapshot.resourceNodes.end() &&
                             resource->type == ResourceType::Wood;
                     }
-                    toolSwingDuration_ = toolTuning_.swingDuration;
-                    toolSwingRemaining_ = toolSwingDuration_;
+                    if (toolSwingUsesAxe_ ==
+                            displayedToolUsesAxe_ &&
+                        toolSwapRemaining_ <= 0.0) {
+                        toolSwingDuration_ =
+                            toolTuning_.swingDuration;
+                        toolSwingRemaining_ =
+                            toolSwingDuration_;
+                        toolSwingQueued_ = false;
+                        toolSwingQueueRemaining_ = 0.0;
+                    } else {
+                        toolSwingQueued_ = true;
+                        toolSwingQueueRemaining_ = 0.75;
+                    }
                 }
             }
         }

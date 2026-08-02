@@ -105,6 +105,8 @@ struct FirstPersonToolTuning {
     float depthPush{-0.055F};
     float swingDuration{0.48F};
     float movementBob{1.0F};
+    float swapDuration{0.32F};
+    float swapDrop{0.72F};
     bool outlineEnabled{true};
     float outlineWidth{2.0F};
     float outlineStrength{0.82F};

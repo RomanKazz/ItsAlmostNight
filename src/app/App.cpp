@@ -1297,24 +1297,7 @@ void App::render() {
              !foundationBuildMode_ &&
              !snapshot.playerRespawning);
         if (showFirstPersonTool) {
-            bool useAxe = false;
-            if (snapshot.aimedResource) {
-                const auto resource = std::find_if(
-                    snapshot.resourceNodes.begin(),
-                    snapshot.resourceNodes.end(),
-                    [&snapshot](const ResourceNode& node) {
-                        return node.id == *snapshot.aimedResource;
-                    });
-                useAxe =
-                    resource != snapshot.resourceNodes.end() &&
-                    resource->type == ResourceType::Wood;
-            }
-            if (toolSwingRemaining_ > 0.0) {
-                useAxe = toolSwingUsesAxe_;
-            }
-            if (tuningPreview) {
-                useAxe = toolPanelPreviewUsesAxe_;
-            }
+            const bool useAxe = displayedToolUsesAxe_;
             const float swingProgress =
                 toolSwingRemaining_ > 0.0 &&
                         toolSwingDuration_ > 0.0
@@ -1331,6 +1314,24 @@ void App::render() {
                 .fovy = 58.0F,
                 .projection = CAMERA_PERSPECTIVE,
             };
+            FirstPersonToolTuning renderTuning = toolTuning_;
+            if (toolSwapRemaining_ > 0.0 &&
+                toolSwapDuration_ > 0.0) {
+                const float progress = std::clamp(
+                    static_cast<float>(
+                        1.0 - toolSwapRemaining_ /
+                                  toolSwapDuration_),
+                    0.0F, 1.0F);
+                const float halfProgress =
+                    progress < 0.5F
+                        ? progress * 2.0F
+                        : (1.0F - progress) * 2.0F;
+                const float smooth =
+                    halfProgress * halfProgress *
+                    (3.0F - 2.0F * halfProgress);
+                renderTuning.position.y -=
+                    toolTuning_.swapDrop * smooth;
+            }
             if (renderer_->beginFirstPersonToolPass()) {
                 BeginMode3D(viewModelCamera);
                 static_cast<void>(renderer_->drawFirstPersonTool(
@@ -1339,7 +1340,7 @@ void App::render() {
                     swingProgress,
                     static_cast<float>(cameraBobPhase_),
                     static_cast<float>(cameraBobAmount_),
-                    toolTuning_));
+                    renderTuning));
                 EndMode3D();
                 renderer_->endFirstPersonToolPass(toolTuning_);
             }

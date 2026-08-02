@@ -485,6 +485,12 @@ void App::drawGraphicsPanel() {
             toolSlider(1, 1, "WALK BOB",
                        toolTuning_.movementBob,
                        0.0F, 2.0F);
+            toolSlider(1, 2, "SWAP DURATION",
+                       toolTuning_.swapDuration,
+                       0.1F, 1.2F);
+            toolSlider(1, 3, "SWAP DROP",
+                       toolTuning_.swapDrop,
+                       0.2F, 1.5F);
         } else {
             toolSlider(0, 0, "OUTLINE WIDTH",
                        toolTuning_.outlineWidth,

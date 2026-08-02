@@ -144,8 +144,16 @@ class App {
     bool pendingJump_{};
     bool pendingPickaxe_{};
     bool toolSwingUsesAxe_{};
+    bool toolSwingQueued_{};
+    double toolSwingQueueRemaining_{};
     double toolSwingRemaining_{};
     double toolSwingDuration_{0.48};
+    bool displayedToolUsesAxe_{};
+    bool toolSwapCandidateUsesAxe_{};
+    bool toolSwapDestinationUsesAxe_{};
+    double toolSwapCandidateSeconds_{};
+    double toolSwapRemaining_{};
+    double toolSwapDuration_{0.32};
     bool pendingRifleShot_{};
     std::optional<BuildingType> pendingBuildingSelection_;
     bool pendingBuildingCancel_{};
