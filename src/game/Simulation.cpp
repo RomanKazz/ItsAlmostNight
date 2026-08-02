@@ -227,6 +227,8 @@ void Simulation::resetRun(GameEventType eventType) {
     buildingPreview_.reset();
     buildings_.reset();
     foundations_.reset();
+    modularPlacementBatchDepth_ = 0;
+    modularStructuresDirty_ = false;
     collisionWorld_.reset();
     flowField_.reset();
     flowDebugVectors_.clear();
@@ -1626,6 +1628,10 @@ void Simulation::syncWorldStructures() {
 }
 
 void Simulation::syncModularStructures() {
+    if (modularPlacementBatchDepth_ > 0) {
+        modularStructuresDirty_ = true;
+        return;
+    }
     collisionWorld_.syncModularBuildings({
         foundations_.platformFrames(),
         foundations_.walls(),
@@ -1634,6 +1640,22 @@ void Simulation::syncModularStructures() {
         platformCollisionAsset_.colliders,
         rampCollisionAsset_.colliders,
     });
+}
+
+void Simulation::beginModularPlacementBatch() {
+    ++modularPlacementBatchDepth_;
+}
+
+void Simulation::endModularPlacementBatch() {
+    if (modularPlacementBatchDepth_ <= 0) {
+        return;
+    }
+    --modularPlacementBatchDepth_;
+    if (modularPlacementBatchDepth_ == 0 &&
+        modularStructuresDirty_) {
+        modularStructuresDirty_ = false;
+        syncModularStructures();
+    }
 }
 
 void Simulation::removeUnsupportedPlatformBuildings() {

@@ -1381,6 +1381,7 @@ bool App::finishModularPlacementDrag() {
                 bounceStep;
         };
     bool placedAny = false;
+    simulation_.beginModularPlacementBatch();
     if (isPlatformBuildPiece(
             *modularDragPiece_)) {
         const std::size_t previewCount =
@@ -1528,6 +1529,7 @@ bool App::finishModularPlacementDrag() {
             ++placedOrdinal;
         }
     }
+    simulation_.endModularPlacementBatch();
     clearModularPlacementDrag();
     modularSnapHit_.reset();
     modularSnapMarker_.reset();
