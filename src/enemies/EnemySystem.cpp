@@ -393,11 +393,13 @@ void EnemySystem::reset() {
     structureNextBuffer_.clear();
     collisionEnemyLinks_.clear();
     collisionBuildingLinks_.clear();
+    activeCount_ = 0;
     spatialHash_.clear();
 }
 
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
     enemies_.clear();
+    activeCount_ = 0;
     for (const Vec3 position : positions) {
         appendEnemy({EnemyType::Basic, position});
     }
@@ -406,6 +408,7 @@ void EnemySystem::spawnWave(std::span<const Vec3> positions) {
 
 void EnemySystem::spawnWave(std::span<const EnemySpawn> spawns) {
     enemies_.clear();
+    activeCount_ = 0;
     spawnGroup(spawns);
 }
 
@@ -877,6 +880,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     const bool killed = iterator->health <= 0.0;
     if (killed) {
         iterator->active = false;
+        --activeCount_;
         iterator->state = EnemyState::Dead;
         iterator->target.reset();
         rebuildSpatialIndex();
@@ -966,6 +970,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         const bool killed = iterator->health <= 0.0;
         if (killed) {
             iterator->active = false;
+            --activeCount_;
             iterator->state = EnemyState::Dead;
             iterator->target.reset();
             spatialIndexDirty = true;
@@ -1029,14 +1034,13 @@ std::size_t EnemySystem::defeatAll() {
         enemy.target.reset();
         ++defeated;
     }
+    activeCount_ = 0;
     rebuildSpatialIndex();
     return defeated;
 }
 
 std::size_t EnemySystem::activeCount() const {
-    return static_cast<std::size_t>(
-        std::count_if(enemies_.begin(), enemies_.end(),
-                      [](const EnemyInstance& enemy) { return enemy.active; }));
+    return activeCount_;
 }
 
 const std::vector<EnemyInstance>& EnemySystem::enemies() const {
@@ -1116,6 +1120,7 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
     } else {
         *reusable = instance;
     }
+    ++activeCount_;
 }
 
 void EnemySystem::rebuildSpatialIndex() {

@@ -151,6 +151,7 @@ class EnemySystem {
     std::vector<int> collisionEnemyLinks_;
     std::vector<int> collisionBuildingLinks_;
     std::array<EntityId, SpatialHash::MaxEntries> areaTargetBuffer_{};
+    std::size_t activeCount_{};
     std::uint32_t nextIndex_{2000};
     SpatialHash spatialHash_;
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions_;
