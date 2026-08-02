@@ -74,6 +74,7 @@ void App::update() {
         0.0, toolSwingQueueRemaining_ - frameSeconds);
     if (toolSwingQueueRemaining_ <= 0.0) {
         toolSwingQueued_ = false;
+        toolAttackQueuedForSwap_ = false;
     }
     const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
     toolSwapRemaining_ = std::max(
@@ -121,6 +122,10 @@ void App::update() {
     if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
         toolSwingRemaining_ <= 0.0 &&
         displayedToolUsesAxe_ == toolSwingUsesAxe_) {
+        if (toolAttackQueuedForSwap_) {
+            pendingPickaxe_ = true;
+            toolAttackQueuedForSwap_ = false;
+        }
         toolSwingDuration_ = toolTuning_.swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;
         toolSwingQueued_ = false;

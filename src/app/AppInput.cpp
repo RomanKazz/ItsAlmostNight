@@ -1050,6 +1050,15 @@ void App::processInput() {
                             resource != currentSnapshot.resourceNodes.end() &&
                             resource->type == ResourceType::Wood;
                     }
+                    const bool waitingForTool =
+                        toolSwingUsesAxe_ != displayedToolUsesAxe_ ||
+                        toolSwapRemaining_ > 0.0;
+                    if (waitingForTool) {
+                        pendingPickaxe_ = false;
+                        toolAttackQueuedForSwap_ = true;
+                    } else {
+                        toolAttackQueuedForSwap_ = false;
+                    }
                     if (toolSwingUsesAxe_ ==
                             displayedToolUsesAxe_ &&
                         toolSwapRemaining_ <= 0.0 &&
