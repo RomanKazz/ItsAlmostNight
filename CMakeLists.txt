@@ -75,6 +75,7 @@ add_library(ian_simulation
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
     src/game/SimulationDefenses.cpp
+    src/game/SimulationWaves.cpp
     src/game/ModularCombat.cpp
     src/game/ResourceWorld.cpp
     src/game/GameBalance.cpp
@@ -96,12 +97,14 @@ add_library(ian_text
     src/ui/UiText.cpp
 )
 target_include_directories(ian_text PUBLIC src)
+target_include_directories(ian_text SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
 target_link_libraries(ian_text PUBLIC raylib)
 
 add_library(ian_audio
     src/audio/AudioSystem.cpp
 )
 target_include_directories(ian_audio PUBLIC src)
+target_include_directories(ian_audio SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
 target_link_libraries(ian_audio PUBLIC raylib)
 
 add_library(ian_presentation
@@ -124,6 +127,7 @@ add_library(ian_graphics
     src/graphics/TerrainRenderer.cpp
 )
 target_include_directories(ian_graphics PUBLIC src)
+target_include_directories(ian_graphics SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
 target_link_libraries(ian_graphics PUBLIC raylib ian_text
     PRIVATE nlohmann_json::nlohmann_json ian_assets)
 
@@ -135,7 +139,9 @@ add_library(ian_ui
     src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
-target_include_directories(ian_ui SYSTEM PRIVATE "${raygui_SOURCE_DIR}/src")
+target_include_directories(ian_ui SYSTEM PRIVATE
+    "${raylib_SOURCE_DIR}/src"
+    "${raygui_SOURCE_DIR}/src")
 target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression)
 
 add_executable(its_almost_night
@@ -156,6 +162,8 @@ target_link_libraries(its_almost_night PRIVATE
     ian_simulation ian_graphics ian_ui ian_audio
     ian_presentation
 )
+target_include_directories(its_almost_night SYSTEM PRIVATE
+    "${raylib_SOURCE_DIR}/src")
 add_custom_command(
     TARGET its_almost_night POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
@@ -235,6 +243,8 @@ if(BUILD_TESTING)
         ian_progression)
     target_compile_definitions(ian_tests PRIVATE
         IAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_include_directories(ian_tests SYSTEM PRIVATE
+        "${raylib_SOURCE_DIR}/src")
     ian_set_warnings(ian_tests)
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
         target_compile_options(ian_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)

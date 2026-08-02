@@ -1,5 +1,7 @@
 #include "world/SpatialHash.hpp"
 
+#include <cmath>
+
 namespace ian {
 
 SpatialHash::SpatialHash() {
@@ -31,6 +33,16 @@ std::size_t SpatialHash::entryCount() const {
 }
 
 int SpatialHash::cellCoordinate(double coordinate) {
+    if (!std::isfinite(coordinate)) {
+        return coordinate < 0.0 ? -1 : GridSize;
+    }
+    if (coordinate < MinimumCoordinate) {
+        return -1;
+    }
+    if (coordinate >=
+        MinimumCoordinate + CellSize * static_cast<double>(GridSize)) {
+        return GridSize;
+    }
     return static_cast<int>(std::floor((coordinate - MinimumCoordinate) / CellSize));
 }
 

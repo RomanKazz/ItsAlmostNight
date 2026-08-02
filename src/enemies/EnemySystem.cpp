@@ -74,10 +74,20 @@ class BuildingQueryGrid {
 
   private:
     [[nodiscard]] static int coordinate(double value) {
+        if (!std::isfinite(value)) {
+            return value < 0.0 ? 0 : BuildingGridSize - 1;
+        }
+        const double scaled =
+            (value - BuildingGridMinimum) /
+            BuildingGridCellSize;
+        if (scaled <= 0.0) {
+            return 0;
+        }
+        if (scaled >= static_cast<double>(BuildingGridSize - 1)) {
+            return BuildingGridSize - 1;
+        }
         return std::clamp(
-            static_cast<int>(std::floor(
-                (value - BuildingGridMinimum) /
-                BuildingGridCellSize)),
+            static_cast<int>(std::floor(scaled)),
             0, BuildingGridSize - 1);
     }
 
@@ -929,20 +939,33 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             areaTargetBuffer_[targetCount++] = entry.id;
         }
     });
+    bool spatialIndexDirty = false;
     for (std::size_t index = 0; index < targetCount; ++index) {
         const auto target = enemy(areaTargetBuffer_[index]);
-        const auto result = damage(areaTargetBuffer_[index], amount);
-        if (result) {
-            areaDamageBuffer_.push_back(*result);
-        }
-        if (!target || !result || result->killed || knockbackStrength <= 0.0) {
+        const auto iterator = std::find_if(
+            enemies_.begin(), enemies_.end(),
+            [id = areaTargetBuffer_[index]](const EnemyInstance& enemy) {
+                return enemy.id == id;
+            });
+        if (iterator == enemies_.end() || !iterator->active || amount <= 0.0) {
             continue;
         }
-        const auto iterator =
-            std::find_if(enemies_.begin(), enemies_.end(), [&result](const EnemyInstance& enemy) {
-                return enemy.id == result->id;
-            });
-        if (iterator == enemies_.end()) {
+        iterator->health = std::max(0.0, iterator->health - amount);
+        iterator->hitAnimationRemaining = 0.22;
+        const bool killed = iterator->health <= 0.0;
+        if (killed) {
+            iterator->active = false;
+            iterator->state = EnemyState::Dead;
+            iterator->target.reset();
+            spatialIndexDirty = true;
+        }
+        areaDamageBuffer_.push_back({
+            .id = iterator->id,
+            .position = iterator->position,
+            .remainingHealth = iterator->health,
+            .killed = killed,
+        });
+        if (!target || killed || knockbackStrength <= 0.0) {
             continue;
         }
         double offsetX = target->position.x - position.x;
@@ -958,6 +981,9 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             knockbackStrength * falloff * knockbackMultiplier(iterator->type);
         iterator->knockbackVelocity.x += (offsetX / distance) * impulse;
         iterator->knockbackVelocity.z += (offsetZ / distance) * impulse;
+    }
+    if (spatialIndexDirty) {
+        rebuildSpatialIndex();
     }
     return areaDamageBuffer_;
 }

@@ -15,6 +15,10 @@ bool ShaderResource::load(const char* vertexPath, const char* fragmentPath) {
     unload();
     shader_ = LoadShader(vertexPath, fragmentPath);
     loaded_ = IsShaderValid(shader_);
+    if (!loaded_) {
+        UnloadShader(shader_);
+        shader_ = {};
+    }
     return loaded_;
 }
 
@@ -46,6 +50,10 @@ bool TextureResource::load(const char* path) {
     unload();
     texture_ = LoadTexture(path);
     loaded_ = IsTextureValid(texture_);
+    if (!loaded_ && texture_.id != 0U) {
+        UnloadTexture(texture_);
+        texture_ = {};
+    }
     return loaded_;
 }
 
@@ -78,7 +86,12 @@ bool ModelResource::load(const char* path) {
     collisionAsset_ = loadGlbCollisionAsset(path);
     model_ = LoadModel(path);
     loaded_ = IsModelValid(model_);
-    if (loaded_) {
+    if (!loaded_) {
+        // LoadModel creates a default material even when no mesh could be
+        // loaded, so an invalid model can still own heap allocations.
+        UnloadModel(model_);
+        model_ = {};
+    } else {
         for (auto iterator =
                  collisionAsset_.renderMeshIndices.rbegin();
              iterator !=
@@ -204,7 +217,19 @@ bool RenderTextureResource::load(int width, int height) {
 
     target_ = LoadRenderTexture(width, height);
     loaded_ = IsRenderTextureValid(target_);
-    if (loaded_) {
+    if (!loaded_) {
+        if (target_.id != 0U) {
+            UnloadRenderTexture(target_);
+        } else {
+            if (target_.texture.id != 0U) {
+                rlUnloadTexture(target_.texture.id);
+            }
+            if (target_.depth.id != 0U) {
+                rlUnloadTexture(target_.depth.id);
+            }
+        }
+        target_ = {};
+    } else {
         SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
         SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
     }

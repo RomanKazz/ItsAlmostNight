@@ -2,6 +2,7 @@
 #include "world/SpatialHash.hpp"
 
 #include <cstddef>
+#include <limits>
 
 void runSpatialHashTests() {
     ian::SpatialHash hash;
@@ -19,6 +20,25 @@ void runSpatialHashTests() {
     hash.forEachNearby({0.0, 0.0, 0.0}, 1.0,
                        [&distantCount](const ian::SpatialEntry&) { ++distantCount; });
     require(distantCount == 1, "spatial query filters by exact radius");
+
+    hash.insert(
+        {4, 1},
+        {std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0});
+    hash.insert(
+        {5, 1},
+        {std::numeric_limits<double>::infinity(), 0.0, 0.0});
+    require(hash.entryCount() == 3,
+            "spatial hash rejects non-finite positions");
+
+    std::size_t unboundedCount = 0;
+    hash.forEachNearby(
+        {0.0, 0.0, 0.0},
+        std::numeric_limits<double>::infinity(),
+        [&unboundedCount](const ian::SpatialEntry&) {
+            ++unboundedCount;
+        });
+    require(unboundedCount == 3,
+            "unbounded spatial query remains defined");
 
     hash.clear();
     require(hash.entryCount() == 0, "clear removes active entries");

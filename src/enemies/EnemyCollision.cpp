@@ -18,10 +18,19 @@ constexpr int CollisionCellCount =
     CollisionGridSize * CollisionGridSize;
 
 [[nodiscard]] int collisionCellCoordinate(double value) {
+    if (!std::isfinite(value)) {
+        return value < 0.0 ? 0 : CollisionGridSize - 1;
+    }
+    const double scaled =
+        (value - CollisionGridMinimum) / CollisionCellSize;
+    if (scaled <= 0.0) {
+        return 0;
+    }
+    if (scaled >= static_cast<double>(CollisionGridSize - 1)) {
+        return CollisionGridSize - 1;
+    }
     return std::clamp(
-        static_cast<int>(std::floor(
-            (value - CollisionGridMinimum) /
-            CollisionCellSize)),
+        static_cast<int>(std::floor(scaled)),
         0, CollisionGridSize - 1);
 }
 

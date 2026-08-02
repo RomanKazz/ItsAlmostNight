@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace ian {
@@ -12,6 +13,9 @@ class FixedStep {
 
     template <typename TickFunction>
     std::size_t advance(double frameSeconds, TickFunction&& tick) {
+        if (!std::isfinite(frameSeconds)) {
+            frameSeconds = 0.0;
+        }
         accumulator_ += std::clamp(frameSeconds, 0.0, MaxFrameSeconds);
 
         std::size_t tickCount = 0;

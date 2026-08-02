@@ -2,6 +2,7 @@
 #include "core/FixedStep.hpp"
 
 #include <cstddef>
+#include <limits>
 
 void runSimulationTests();
 void runResourceSystemTests();
@@ -58,11 +59,28 @@ void fixedStepClampsLongFrames() {
     require(ticks == 15, "long frame must be clamped to 250 ms");
 }
 
+void fixedStepIgnoresNonFiniteFrames() {
+    ian::FixedStep fixedStep;
+    std::size_t ticks = 0;
+    fixedStep.advance(
+        std::numeric_limits<double>::quiet_NaN(),
+        [&ticks](double) { ++ticks; });
+    fixedStep.advance(
+        std::numeric_limits<double>::infinity(),
+        [&ticks](double) { ++ticks; });
+    fixedStep.advance(
+        ian::FixedStep::TickSeconds,
+        [&ticks](double) { ++ticks; });
+    require(ticks == 1,
+            "non-finite frame times do not poison the accumulator");
+}
+
 } // namespace
 
 int main() {
     fixedStepProducesSixtyTicksPerSecond();
     fixedStepClampsLongFrames();
+    fixedStepIgnoresNonFiniteFrames();
     runGameBalanceTests();
     runMapDefinitionTests();
     runTerrainHeightfieldTests();
