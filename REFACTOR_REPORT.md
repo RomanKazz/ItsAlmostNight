@@ -68,6 +68,9 @@ World rebuild/render-buffer optimization: `74ea595`
 UI text allocation optimization: `45a6b4a`
 (`perf: avoid short UI text allocations`).
 
+Simulation lifecycle extraction: `99b9476`
+(`refactor: isolate simulation lifecycle tools`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -234,6 +237,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Shared `app_detail` rendering/query helpers перенесены из lifecycle-файла в
   `AppRenderSupport.cpp`. `App.cpp` уменьшен с 1910 до 1074 строк; window/run,
   frame render orchestration и локальные UI helpers остались вместе.
+- Debug-команды перенесены в `SimulationDebug.cpp`; player death, respawn и
+  tutorial lifecycle — в `SimulationPlayerLifecycle.cpp`. `Simulation.cpp`
+  уменьшен с 2177 до 1834 строк без изменения интерфейса и порядка вызовов.
 - Публичный интерфейс не менялся. Перемещение соответствует обязанности
   систем и не дробит связанные транзакции между разными файлами.
 
@@ -353,6 +359,8 @@ damage вместо повторения полного rebuild для кажд�
   ASan+UBSan 1/1 за 2,22 с; Release 1/1 за 0,50 с; `git diff --check` успешно.
 - после UI-text пакета: Debug 1/1 за 0,95 с; ASan+UBSan 1/1 за 2,20 с;
   Release 1/1 за 0,24 с; `git diff --check` успешно.
+- после simulation lifecycle extraction: Debug 1/1 за 1,11 с;
+  ASan+UBSan 1/1 за 2,17 с; Release 1/1 за 0,42 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -388,6 +396,8 @@ damage вместо повторения полного rebuild для кажд�
 - `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
   `src/game/SimulationBuildingCommands.cpp`,
   `src/game/SimulationBuildingActions.cpp`,
+  `src/game/SimulationDebug.cpp`,
+  `src/game/SimulationPlayerLifecycle.cpp`,
   `src/game/SimulationPlacement.cpp` — выделение lifecycle волн,
   building commands и placement queries;
 - `src/app/App.cpp`, `src/app/AppRenderSupport.cpp` — lifecycle отделён от
