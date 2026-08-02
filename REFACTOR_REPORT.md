@@ -56,6 +56,12 @@ Audio cleanup hardening: `b1ccd56`
 Terrain model RAII: `f75d3ae`
 (`fix: make terrain model ownership RAII`).
 
+Active enemy count cache: `76a4209`
+(`perf: cache active enemy count`).
+
+App render support extraction: `67a2f1f`
+(`refactor: isolate app render support`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -126,9 +132,10 @@ raylib-ресурсы в основном уже закрыты некопиру
 
 ### Низкая серьёзность / технический долг
 
-7. `Simulation.cpp` (3007 строк до работ), `App.cpp` (1910) и несколько
-   renderer/UI файлов остаются крупными. Это реальные orchestration-монолиты,
-   но их нельзя безопасно делить только по размеру.
+7. `Simulation.cpp` (3007 строк до работ) и `App.cpp` (1910) были крупными
+   orchestration-монолитами. Они уменьшены до 2173 и 1074 строк соответственно;
+   `AppWorldOverlays.cpp`, `AppModularPlacement.cpp`, `AppUpdate.cpp` остаются
+   крупными и требуют разделения только по обязанностям.
 8. Значительная часть поиска сущности по стабильному ID использует линейный
    `find_if`. При текущем лимите 160 активных врагов это ограничено, но
    `densestEnemy()` остаётся квадратичным внутри spatially filtered набора.
@@ -218,6 +225,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Upgrade, repair, sell, modular removal и gate toggle перенесены из placement
   orchestration в `SimulationBuildingActions.cpp`. Building command transaction
   tests защищают порядок и однократность списаний/возвратов.
+- Shared `app_detail` rendering/query helpers перенесены из lifecycle-файла в
+  `AppRenderSupport.cpp`. `App.cpp` уменьшен с 1910 до 1074 строк; window/run,
+  frame render orchestration и локальные UI helpers остались вместе.
 - Публичный интерфейс не менялся. Перемещение соответствует обязанности
   систем и не дробит связанные транзакции между разными файлами.
 
@@ -236,6 +246,9 @@ damage вместо повторения полного rebuild для кажд�
 - Тот же area-damage batch больше не вызывает `enemy()` перед собственным
   mutable lookup. Число линейных ID-поисков снижено с `2K` до `K`; при лимите
   160 целей один взрыв избегает до 160 лишних проходов и копий `EnemyInstance`.
+- `EnemySystem::activeCount()` теперь O(1). Cached count обновляется при reset,
+  wave replacement, spawn, single/area kill и defeat-all. Burst spawn больше
+  не пересчитывает весь растущий pool перед каждым добавлением.
 - Убраны повторные heap allocation каждого combat tick: буферы modular enemy
   targets, объединённых structure targets и linked-list индексов теперь
   переиспользуют capacity. Данные пересобираются каждый тик; stale cache нет.
@@ -319,6 +332,8 @@ damage вместо повторения полного rebuild для кажд�
 - после building-actions/audio/terrain пакета: Debug 1/1 за 0,96 с;
   ASan+UBSan 1/1 за 2,32 с; Release 1/1 за 0,32 с; `git diff --check` успешно.
 - Добавлен `ctest --preset release`; preset фактически выполнен успешно.
+- после enemy-count/App-support пакета: Debug 1/1 за 0,61 с; ASan+UBSan 1/1 за
+  2,33 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -348,13 +363,15 @@ damage вместо повторения полного rebuild для кажд�
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
 - `src/enemies/EnemyCollision.cpp` — безопасная collision-grid конверсия;
 - `src/enemies/EnemySystem.cpp` — безопасная query grid и один rebuild на
-  area-damage batch;
+  area-damage batch, O(1) active count;
 - `src/graphics/GraphicsResources.cpp` — очистка partial/failed loads;
 - `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
   `src/game/SimulationBuildingCommands.cpp`,
   `src/game/SimulationBuildingActions.cpp`,
   `src/game/SimulationPlacement.cpp` — выделение lifecycle волн,
   building commands и placement queries;
+- `src/app/App.cpp`, `src/app/AppRenderSupport.cpp` — lifecycle отделён от
+  shared rendering/query helpers;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
 - `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
   area damage и арифметические границы.
