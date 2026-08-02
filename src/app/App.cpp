@@ -1282,11 +1282,15 @@ void App::render() {
         }
         renderer_->endWorldPass();
 
+        const bool tuningPreview =
+            renderer_->graphicsPanelVisible() &&
+            graphicsPanelTab_ == 4;
         const bool showFirstPersonTool =
-            snapshot.selectedWeapon == PlayerWeapon::Pickaxe &&
-            !snapshot.selectedBuilding &&
-            !foundationBuildMode_ &&
-            !snapshot.playerRespawning;
+            tuningPreview ||
+            (snapshot.selectedWeapon == PlayerWeapon::Pickaxe &&
+             !snapshot.selectedBuilding &&
+             !foundationBuildMode_ &&
+             !snapshot.playerRespawning);
         if (showFirstPersonTool) {
             bool useAxe = false;
             if (snapshot.aimedResource) {
@@ -1302,6 +1306,9 @@ void App::render() {
             }
             if (toolSwingRemaining_ > 0.0) {
                 useAxe = toolSwingUsesAxe_;
+            }
+            if (tuningPreview) {
+                useAxe = toolPanelPreviewUsesAxe_;
             }
             const float swingProgress =
                 toolSwingRemaining_ > 0.0 &&
@@ -1326,7 +1333,8 @@ void App::render() {
                        : FirstPersonToolVisual::Pickaxe,
                 swingProgress,
                 static_cast<float>(cameraBobPhase_),
-                static_cast<float>(cameraBobAmount_)));
+                static_cast<float>(cameraBobAmount_),
+                toolTuning_));
             rlEnableDepthTest();
             EndMode3D();
         }

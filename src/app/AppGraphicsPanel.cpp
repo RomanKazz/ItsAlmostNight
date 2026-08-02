@@ -21,8 +21,10 @@ void App::drawGraphicsPanel() {
     const float ButtonHeight = compact ? 46.0F : 64.0F;
     const float ControlStartY = compact ? 172.0F : 226.0F;
     const float RowHeight = compact ? 52.0F : 76.0F;
-    const float panelX =
-        static_cast<float>(GetScreenWidth()) - PanelWidth - Margin;
+    const float panelX = graphicsPanelTab_ == 4
+                             ? Margin
+                             : static_cast<float>(GetScreenWidth()) -
+                                   PanelWidth - Margin;
     const float panelY = 28.0F;
     const float contentX = panelX + 28.0F;
     const float contentWidth = PanelWidth - 56.0F;
@@ -41,7 +43,7 @@ void App::drawGraphicsPanel() {
     const float TabY = compact ? 108.0F : 150.0F;
     const float TabHeight = compact ? 44.0F : 58.0F;
     const float tabWidth =
-        (contentWidth - Gap * 3.0F) / 4.0F;
+        (contentWidth - Gap * 4.0F) / 5.0F;
     if (ui_.drawToggleButton(
             {contentX, panelY + TabY, tabWidth,
              TabHeight},
@@ -51,7 +53,7 @@ void App::drawGraphicsPanel() {
     if (ui_.drawToggleButton(
             {contentX + tabWidth + Gap,
              panelY + TabY, tabWidth, TabHeight},
-            "COLOR & CURVES",
+            "COLOR",
             graphicsPanelTab_ == 1)) {
         graphicsPanelTab_ = 1;
     }
@@ -66,6 +68,12 @@ void App::drawGraphicsPanel() {
              panelY + TabY, tabWidth, TabHeight},
             "MOTION", graphicsPanelTab_ == 3)) {
         graphicsPanelTab_ = 3;
+    }
+    if (ui_.drawToggleButton(
+            {contentX + (tabWidth + Gap) * 4.0F,
+             panelY + TabY, tabWidth, TabHeight},
+            "TOOL", graphicsPanelTab_ == 4)) {
+        graphicsPanelTab_ = 4;
     }
 
     const auto toggleButton =
@@ -363,7 +371,7 @@ void App::drawGraphicsPanel() {
             settings.paperGrainStrength = 0.035F;
         }
         settings.postProcessing = true;
-    } else {
+    } else if (graphicsPanelTab_ == 3) {
         const auto motionSlider =
             [this, contentX, contentWidth, panelY,
              ControlStartY, RowHeight, compact](
@@ -419,6 +427,98 @@ void App::drawGraphicsPanel() {
             motionLandingIntensity_ = 0.0F;
             motionSwayIntensity_ = 0.0F;
         }
+    } else {
+        const auto toolSlider =
+            [this, contentX, columnWidth, panelY, Gap,
+             ControlStartY, RowHeight, compact](
+                int column, int row, const char* label,
+                float& value, float minimum, float maximum) {
+                const float x =
+                    contentX + static_cast<float>(column) *
+                                   (columnWidth + Gap);
+                const float y =
+                    panelY + ControlStartY +
+                    static_cast<float>(row) * RowHeight;
+                drawUiText(
+                    TextFormat("%s  %.2f", label, value),
+                    {x, y}, 15.0F, {245, 220, 174, 255});
+                ui_.drawInsetPanel(
+                    {x, y + (compact ? 20.0F : 29.0F),
+                     columnWidth, compact ? 27.0F : 36.0F},
+                    235);
+                value = ui_.drawSliderBar(
+                    {x + 8.0F,
+                     y + (compact ? 23.0F : 35.0F),
+                     columnWidth - 16.0F,
+                     compact ? 20.0F : 24.0F},
+                    value, minimum, maximum);
+            };
+
+        toolSlider(0, 0, "POSITION X", toolTuning_.position.x,
+                   -0.8F, 0.8F);
+        toolSlider(0, 1, "POSITION Y", toolTuning_.position.y,
+                   -1.0F, 0.3F);
+        toolSlider(0, 2, "POSITION Z", toolTuning_.position.z,
+                   -2.0F, -0.25F);
+        toolSlider(0, 3, "ROTATION X", toolTuning_.rotation.x,
+                   -180.0F, 180.0F);
+        toolSlider(0, 4, "ROTATION Y", toolTuning_.rotation.y,
+                   -180.0F, 180.0F);
+        toolSlider(0, 5, "ROTATION Z", toolTuning_.rotation.z,
+                   -180.0F, 180.0F);
+        toolSlider(0, 6, "SCALE", toolTuning_.scale,
+                   0.2F, 2.0F);
+
+        toolSlider(1, 0, "WINDUP ANGLE",
+                   toolTuning_.windupDegrees,
+                   -140.0F, 140.0F);
+        toolSlider(1, 1, "STRIKE ANGLE",
+                   toolTuning_.strikeDegrees,
+                   -160.0F, 160.0F);
+        toolSlider(1, 2, "DEPTH PUSH",
+                   toolTuning_.depthPush,
+                   -0.25F, 0.25F);
+        toolSlider(1, 3, "SWING DURATION",
+                   toolTuning_.swingDuration,
+                   0.15F, 1.5F);
+        toolSlider(1, 4, "WALK BOB",
+                   toolTuning_.movementBob,
+                   0.0F, 2.0F);
+
+        const float modelY =
+            panelY + ControlStartY + RowHeight * 5.0F;
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap, modelY,
+                 columnWidth, ButtonHeight},
+                toolPanelPreviewUsesAxe_
+                    ? "MODEL: AXE"
+                    : "MODEL: PICKAXE")) {
+            toolPanelPreviewUsesAxe_ =
+                !toolPanelPreviewUsesAxe_;
+        }
+        const float actionY =
+            panelY + ControlStartY + RowHeight * 6.0F;
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap, actionY,
+                 columnWidth, ButtonHeight},
+                "PLAY SWING")) {
+            toolSwingUsesAxe_ = toolPanelPreviewUsesAxe_;
+            toolSwingDuration_ = toolTuning_.swingDuration;
+            toolSwingRemaining_ = toolSwingDuration_;
+        }
+        const float bottomY =
+            actionY + ButtonHeight + Gap;
+        if (ui_.drawButton(
+                {contentX, bottomY, columnWidth, ButtonHeight},
+                "RESET TOOL")) {
+            toolTuning_ = {};
+        }
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap, bottomY,
+                 columnWidth, ButtonHeight},
+                "CLOSE [F2]")) {
+            renderer_->setGraphicsPanelVisible(false);
+        }
     }
 
     drawUiText(
@@ -428,7 +528,7 @@ void App::drawGraphicsPanel() {
         {contentX, panelY + PanelHeight - 48.0F}, 16.0F,
         {245, 220, 174, 255});
 
-    if (graphicsPanelTab_ != 0) {
+    if (graphicsPanelTab_ != 0 && graphicsPanelTab_ != 4) {
         constexpr float PreviewGap = 18.0F;
         const float previewPanelX = Margin;
         const float previewPanelWidth =

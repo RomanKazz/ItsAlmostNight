@@ -95,6 +95,17 @@ enum class FirstPersonToolVisual {
     Pickaxe,
 };
 
+struct FirstPersonToolTuning {
+    Vector3 position{0.34F, -0.40F, -0.92F};
+    Vector3 rotation{-8.0F, -28.0F, 22.0F};
+    float scale{0.78F};
+    float windupDegrees{30.0F};
+    float strikeDegrees{-75.0F};
+    float depthPush{-0.055F};
+    float swingDuration{0.48F};
+    float movementBob{1.0F};
+};
+
 struct EnemyDrawInstance {
     EnemyModelVisual modelVisual{EnemyModelVisual::Minion};
     EnemyAnimationVisual animationVisual{EnemyAnimationVisual::Idle};
@@ -182,7 +193,8 @@ class Renderer {
                                 float scale = 1.0F);
     [[nodiscard]] bool drawFirstPersonTool(
         FirstPersonToolVisual visual, float swingProgress,
-        float movementPhase, float movementAmount);
+        float movementPhase, float movementAmount,
+        const FirstPersonToolTuning& tuning);
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,

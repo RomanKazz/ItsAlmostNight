@@ -1048,6 +1048,7 @@ void App::processInput() {
                             resource != currentSnapshot.resourceNodes.end() &&
                             resource->type == ResourceType::Wood;
                     }
+                    toolSwingDuration_ = toolTuning_.swingDuration;
                     toolSwingRemaining_ = toolSwingDuration_;
                 }
             }

@@ -134,6 +134,8 @@ class App {
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     int graphicsPanelTab_{};
+    FirstPersonToolTuning toolTuning_{};
+    bool toolPanelPreviewUsesAxe_{};
     TargetHealthBar targetHealthBar_;
     PlayerCommand input_;
     double pendingYaw_{};

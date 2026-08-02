@@ -263,7 +263,8 @@ EnemyAnimationSource enemyAnimationFor(
 
 bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
-    float movementPhase, float movementAmount) {
+    float movementPhase, float movementAmount,
+    const FirstPersonToolTuning& tuning) {
     ModelResource& resource =
         visual == FirstPersonToolVisual::Axe
             ? resources_.axeModel()
@@ -281,31 +282,34 @@ bool Renderer::drawFirstPersonTool(
     float swingPush = 0.0F;
     if (progress > 0.0F && progress < 0.22F) {
         const float phase = smoothStep(progress / 0.22F);
-        swingPitch = 30.0F * phase;
+        swingPitch = tuning.windupDegrees * phase;
     } else if (progress >= 0.22F && progress < 0.53F) {
         const float phase = smoothStep((progress - 0.22F) / 0.31F);
-        swingPitch = 30.0F + (-75.0F - 30.0F) * phase;
-        swingPush = -std::sin(phase * PI) * 0.055F;
+        swingPitch = tuning.windupDegrees +
+                     (tuning.strikeDegrees - tuning.windupDegrees) * phase;
+        swingPush = std::sin(phase * PI) * tuning.depthPush;
     } else if (progress >= 0.53F) {
         const float phase = smoothStep((progress - 0.53F) / 0.47F);
-        swingPitch = -75.0F + 75.0F * phase;
+        swingPitch = tuning.strikeDegrees * (1.0F - phase);
     }
 
-    const float bob = std::clamp(movementAmount, 0.0F, 1.0F);
+    const float bob = std::clamp(movementAmount, 0.0F, 1.0F) *
+                      std::max(tuning.movementBob, 0.0F);
     const float bobX = std::sin(movementPhase) * 0.012F * bob;
     const float bobY =
         std::abs(std::cos(movementPhase)) * 0.014F * bob;
     Model& model = resource.get();
     rlPushMatrix();
-    rlTranslatef(0.34F + bobX, -0.40F - bobY,
-                 -0.92F + swingPush);
+    rlTranslatef(tuning.position.x + bobX,
+                 tuning.position.y - bobY,
+                 tuning.position.z + swingPush);
     // Blender exports the handle along local +Y. With the origin at the
     // grip, these rotations move the head without making the hand slide.
-    rlRotatef(-8.0F, 1.0F, 0.0F, 0.0F);
-    rlRotatef(-28.0F, 0.0F, 1.0F, 0.0F);
-    rlRotatef(22.0F, 0.0F, 0.0F, 1.0F);
+    rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
+    rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
+    rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
     rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
-    rlScalef(0.78F, 0.78F, 0.78F);
+    rlScalef(tuning.scale, tuning.scale, tuning.scale);
     DrawModel(model, {}, 1.0F, WHITE);
     rlPopMatrix();
     return true;
