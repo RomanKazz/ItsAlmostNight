@@ -145,7 +145,8 @@ class App {
     bool pendingPickaxe_{};
     bool toolSwingUsesAxe_{};
     bool toolSwingQueued_{};
-    bool toolAttackQueuedForSwap_{};
+    bool toolQueuedSwingHasAttack_{};
+    bool toolSwingAttackPending_{};
     double toolSwingQueueRemaining_{};
     double toolSwingRemaining_{};
     double toolSwingDuration_{0.48};

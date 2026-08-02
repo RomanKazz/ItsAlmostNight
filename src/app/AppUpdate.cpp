@@ -68,13 +68,26 @@ void App::update() {
         0.0, placementSnapPulseRemaining_ - frameSeconds);
     weaponRecoilRemaining_ = std::max(
         0.0, weaponRecoilRemaining_ - frameSeconds);
+    const double previousToolSwingRemaining =
+        toolSwingRemaining_;
     toolSwingRemaining_ = std::max(
-        0.0, toolSwingRemaining_ - frameSeconds);
+        0.0,
+        toolSwingRemaining_ -
+            (hitStopActive ? 0.0 : frameSeconds));
+    constexpr double ToolContactProgress = 0.53;
+    const double toolContactRemaining =
+        toolSwingDuration_ * (1.0 - ToolContactProgress);
+    if (toolSwingAttackPending_ &&
+        previousToolSwingRemaining > toolContactRemaining &&
+        toolSwingRemaining_ <= toolContactRemaining) {
+        pendingPickaxe_ = true;
+        toolSwingAttackPending_ = false;
+    }
     toolSwingQueueRemaining_ = std::max(
         0.0, toolSwingQueueRemaining_ - frameSeconds);
     if (toolSwingQueueRemaining_ <= 0.0) {
         toolSwingQueued_ = false;
-        toolAttackQueuedForSwap_ = false;
+        toolQueuedSwingHasAttack_ = false;
     }
     const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
     toolSwapRemaining_ = std::max(
@@ -122,12 +135,11 @@ void App::update() {
     if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
         toolSwingRemaining_ <= 0.0 &&
         displayedToolUsesAxe_ == toolSwingUsesAxe_) {
-        if (toolAttackQueuedForSwap_) {
-            pendingPickaxe_ = true;
-            toolAttackQueuedForSwap_ = false;
-        }
         toolSwingDuration_ = toolTuning_.swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;
+        toolSwingAttackPending_ =
+            toolQueuedSwingHasAttack_;
+        toolQueuedSwingHasAttack_ = false;
         toolSwingQueued_ = false;
         toolSwingQueueRemaining_ = 0.0;
     }
@@ -811,7 +823,10 @@ void App::update() {
             hitStopRemaining_ =
                 std::max(hitStopRemaining_, 0.045);
         }
-        if (event.type == GameEventType::ResourceCollected) {
+        if (event.type == GameEventType::ResourceHit) {
+            hitStopRemaining_ =
+                std::max(hitStopRemaining_, 0.03);
+        } else if (event.type == GameEventType::ResourceCollected) {
             hitStopRemaining_ =
                 std::max(hitStopRemaining_, 0.06);
         } else if (

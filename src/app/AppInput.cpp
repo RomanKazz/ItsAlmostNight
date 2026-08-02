@@ -1033,7 +1033,6 @@ void App::processInput() {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
-                pendingPickaxe_ = true;
                 constexpr double ToolInputBufferSeconds = 0.14;
                 if (currentSnapshot.pickaxeCooldownRemaining <=
                     ToolInputBufferSeconds) {
@@ -1050,15 +1049,6 @@ void App::processInput() {
                             resource != currentSnapshot.resourceNodes.end() &&
                             resource->type == ResourceType::Wood;
                     }
-                    const bool waitingForTool =
-                        toolSwingUsesAxe_ != displayedToolUsesAxe_ ||
-                        toolSwapRemaining_ > 0.0;
-                    if (waitingForTool) {
-                        pendingPickaxe_ = false;
-                        toolAttackQueuedForSwap_ = true;
-                    } else {
-                        toolAttackQueuedForSwap_ = false;
-                    }
                     if (toolSwingUsesAxe_ ==
                             displayedToolUsesAxe_ &&
                         toolSwapRemaining_ <= 0.0 &&
@@ -1067,10 +1057,13 @@ void App::processInput() {
                             toolTuning_.swingDuration;
                         toolSwingRemaining_ =
                             toolSwingDuration_;
+                        toolSwingAttackPending_ = true;
                         toolSwingQueued_ = false;
+                        toolQueuedSwingHasAttack_ = false;
                         toolSwingQueueRemaining_ = 0.0;
                     } else {
                         toolSwingQueued_ = true;
+                        toolQueuedSwingHasAttack_ = true;
                         toolSwingQueueRemaining_ = 0.75;
                     }
                 }
