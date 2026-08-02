@@ -7,6 +7,15 @@
 
 void runResourceSystemTests() {
     ian::ResourceSystem resources;
+    const ian::EntityId firstRunResource =
+        resources.nodes().front().id;
+    resources.reset();
+    require(
+        resources.nodes().front().id.index ==
+                firstRunResource.index &&
+            resources.nodes().front().id.generation !=
+                firstRunResource.generation,
+        "resource reset preserves slot but changes run generation");
     const ian::Vec3 origin{0.0, 1.7, 6.0};
     const ian::Vec3 direction{0.0, 0.0, -1.0};
 

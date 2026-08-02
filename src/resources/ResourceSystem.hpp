@@ -87,6 +87,7 @@ class ResourceSystem {
 
     std::vector<ResourceNodeDefinition> definitions_;
     GroundHeightProvider groundHeight_;
+    std::uint32_t runGeneration_{1U};
     std::vector<ResourceNode> nodes_;
 };
 

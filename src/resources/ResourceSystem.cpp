@@ -100,7 +100,8 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
     for (std::size_t index = 0; index < definitions_.size(); ++index) {
         const auto& definition = definitions_[index];
         const EntityId id{
-            static_cast<std::uint32_t>(index), 1};
+            static_cast<std::uint32_t>(index),
+            runGeneration_};
         const ResourceCapacity capacity =
             variedCapacity(
                 definition.health, definition.yield,
@@ -132,6 +133,10 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
 }
 
 void ResourceSystem::reset() {
+    ++runGeneration_;
+    if (runGeneration_ == 0U) {
+        ++runGeneration_;
+    }
     nodes_ = makeNodes();
 }
 
