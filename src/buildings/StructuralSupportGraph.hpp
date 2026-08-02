@@ -62,6 +62,8 @@ class StructuralSupportGraph {
     std::vector<std::uint64_t> dirty_;
     std::unordered_set<std::uint64_t> dirtySet_;
     std::unordered_set<std::uint64_t> unsupported_;
+    mutable std::unordered_map<std::uint64_t, std::size_t>
+        recursiveDependentCountCache_;
 };
 
 } // namespace ian

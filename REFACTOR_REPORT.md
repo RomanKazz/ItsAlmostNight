@@ -154,6 +154,9 @@ damage вместо повторения полного rebuild для кажд�
 - `StructuralSupportGraph::collapseRiskIds()` заменил repeated full scan на
   queue traversal. Worst-case снижен с O(V²) до O(V+E). Stress-тест строит
   цепь 2048 узлов, проверяет preview, propagation, полный cascade без recursion.
+- Recursive dependent counts кэшируются до следующей мутации structural graph.
+  Это убирает повторные graph traversal и allocations для structural impact
+  каждой платформы каждого combat tick. Add/remove/reset инвалидируют cache.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.

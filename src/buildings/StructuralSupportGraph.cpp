@@ -15,6 +15,7 @@ void StructuralSupportGraph::reset() {
     dirty_.clear();
     dirtySet_.clear();
     unsupported_.clear();
+    recursiveDependentCountCache_.clear();
 }
 
 bool StructuralSupportGraph::add(
@@ -24,6 +25,7 @@ bool StructuralSupportGraph::add(
     if (nodes_.contains(nodeKey)) {
         return false;
     }
+    recursiveDependentCountCache_.clear();
     Node node{
         .id = id,
         .grounded = grounded,
@@ -55,6 +57,7 @@ bool StructuralSupportGraph::remove(EntityId id) {
     if (iterator == nodes_.end()) {
         return false;
     }
+    recursiveDependentCountCache_.clear();
     const std::vector<std::uint64_t> supports =
         iterator->second.supports;
     const std::vector<std::uint64_t> dependents =
@@ -131,7 +134,22 @@ StructuralSupportGraph::unsupportedCount() const {
 
 std::size_t StructuralSupportGraph::dependentCount(
     EntityId id, bool recursive) const {
-    return dependentIds(id, recursive).size();
+    const auto root = nodes_.find(key(id));
+    if (root == nodes_.end()) {
+        return 0U;
+    }
+    if (!recursive) {
+        return root->second.dependents.size();
+    }
+    const std::uint64_t nodeKey = key(id);
+    if (const auto cached =
+            recursiveDependentCountCache_.find(nodeKey);
+        cached != recursiveDependentCountCache_.end()) {
+        return cached->second;
+    }
+    const std::size_t count = dependentIds(id, true).size();
+    recursiveDependentCountCache_.emplace(nodeKey, count);
+    return count;
 }
 
 std::vector<EntityId> StructuralSupportGraph::dependentIds(

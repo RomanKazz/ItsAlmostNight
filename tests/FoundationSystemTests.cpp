@@ -73,6 +73,29 @@ void runFoundationSystemTests() {
             "collapse preview combines multiple removed supports");
     }
     {
+        ian::StructuralSupportGraph graph;
+        const ian::EntityId root{20U, 1U};
+        const ian::EntityId child{21U, 1U};
+        const ian::EntityId grandchild{22U, 1U};
+        require(
+            graph.add(root, true) &&
+                graph.add(
+                    child, false,
+                    std::span<const ian::EntityId>{&root, 1U}) &&
+                graph.dependentCount(root) == 1U,
+            "dependent count cache stores initial traversal");
+        require(
+            graph.add(
+                grandchild, false,
+                std::span<const ian::EntityId>{&child, 1U}) &&
+                graph.dependentCount(root) == 2U,
+            "adding support invalidates dependent count cache");
+        require(
+            graph.remove(grandchild) &&
+                graph.dependentCount(root) == 1U,
+            "removing support invalidates dependent count cache");
+    }
+    {
         constexpr std::size_t ChainLength = 2048;
         ian::StructuralSupportGraph graph;
         ian::EntityId previous{1000U, 1U};
