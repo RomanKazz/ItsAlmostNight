@@ -74,9 +74,11 @@ void App::update() {
         0.0,
         toolSwingRemaining_ -
             (hitStopActive ? 0.0 : frameSeconds));
-    constexpr double ToolContactProgress = 0.53;
+    const double toolContactProgress = std::clamp(
+        static_cast<double>(toolTuning_.hitProgress),
+        0.25, 0.65);
     const double toolContactRemaining =
-        toolSwingDuration_ * (1.0 - ToolContactProgress);
+        toolSwingDuration_ * (1.0 - toolContactProgress);
     if (toolSwingAttackPending_ &&
         previousToolSwingRemaining > toolContactRemaining &&
         toolSwingRemaining_ <= toolContactRemaining) {

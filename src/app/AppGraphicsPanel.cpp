@@ -479,6 +479,9 @@ void App::drawGraphicsPanel() {
             toolSlider(0, 2, "DEPTH PUSH",
                        toolTuning_.depthPush,
                        -0.25F, 0.25F);
+            toolSlider(0, 3, "HIT POINT",
+                       toolTuning_.hitProgress,
+                       0.25F, 0.65F);
             toolSlider(1, 0, "SWING DURATION",
                        toolTuning_.swingDuration,
                        0.15F, 1.5F);

@@ -104,6 +104,7 @@ struct FirstPersonToolTuning {
     float strikeDegrees{-75.0F};
     float depthPush{-0.055F};
     float swingDuration{0.48F};
+    float hitProgress{0.42F};
     float movementBob{1.0F};
     float swapDuration{0.32F};
     float swapDrop{0.72F};

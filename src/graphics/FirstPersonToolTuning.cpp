@@ -64,6 +64,9 @@ bool loadFirstPersonToolTuning(
         loaded.swingDuration = finiteClamped(
             value.value("swingDuration", loaded.swingDuration),
             loaded.swingDuration, 0.15F, 1.5F);
+        loaded.hitProgress = finiteClamped(
+            value.value("hitProgress", loaded.hitProgress),
+            loaded.hitProgress, 0.25F, 0.65F);
         loaded.movementBob = finiteClamped(
             value.value("movementBob", loaded.movementBob),
             loaded.movementBob, 0.0F, 2.0F);
@@ -120,6 +123,7 @@ bool saveFirstPersonToolTuning(
             {"strikeDegrees", tuning.strikeDegrees},
             {"depthPush", tuning.depthPush},
             {"swingDuration", tuning.swingDuration},
+            {"hitProgress", tuning.hitProgress},
             {"movementBob", tuning.movementBob},
             {"swapDuration", tuning.swapDuration},
             {"swapDrop", tuning.swapDrop},
