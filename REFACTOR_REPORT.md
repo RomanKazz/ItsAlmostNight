@@ -8,6 +8,9 @@ lifetime`).
 Второй тематический коммит: `576f2c9` (`refactor: isolate building command
 orchestration`).
 
+Третий тематический коммит: `d46a78a` (`fix: reject non-finite simulation
+inputs`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
