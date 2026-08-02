@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 void runTerrainHeightfieldTests() {
     ian::WorldConfig config =
@@ -16,6 +17,11 @@ void runTerrainHeightfieldTests() {
 
     ian::TerrainHeightfield first{config};
     ian::TerrainHeightfield second{config};
+    requireNear(
+        first.getHeight(
+            std::numeric_limits<double>::quiet_NaN(), 0.0),
+        0.0, 1e-12,
+        "terrain returns safe height for non-finite coordinates");
     require(
         first.samples().size() ==
                 second.samples().size() &&

@@ -292,7 +292,8 @@ void Simulation::togglePause() {
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::MainMenu || state_ == RunState::Paused ||
-        state_ == RunState::Defeat) {
+        state_ == RunState::Defeat || !std::isfinite(deltaSeconds) ||
+        deltaSeconds < 0.0) {
         return;
     }
 

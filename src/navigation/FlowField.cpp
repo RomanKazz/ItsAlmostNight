@@ -133,7 +133,8 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
 }
 
 std::optional<Vec3> FlowField::directionAt(Vec3 worldPosition) const {
-    if (!ready_) {
+    if (!ready_ || !std::isfinite(worldPosition.x) ||
+        !std::isfinite(worldPosition.z)) {
         return std::nullopt;
     }
 

@@ -3,6 +3,7 @@
 #include "navigation/FlowField.hpp"
 
 #include <cmath>
+#include <limits>
 
 void runFlowFieldTests() {
     ian::BuildingSystem buildings;
@@ -15,6 +16,12 @@ void runFlowFieldTests() {
     require(openDirection.has_value() && openDirection->x < 0.0,
             "open field points toward core");
     requireNear(openField.distanceAt({0, 0}), 0.0, 1e-12, "core distance is zero");
+    require(
+        !openField.directionAt({
+            std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0}) &&
+            !openField.directionAt({
+                std::numeric_limits<double>::infinity(), 0.0, 0.0}),
+        "flow field rejects non-finite query coordinates");
     const auto* obstacleCell = openField.cellAt({-8, -7});
     require(obstacleCell != nullptr && obstacleCell->blocked,
             "graybox obstacle marks navigation cells blocked");

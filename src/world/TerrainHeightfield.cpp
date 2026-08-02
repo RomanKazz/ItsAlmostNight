@@ -160,6 +160,9 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
 
 double TerrainHeightfield::getHeight(
     double worldX, double worldZ) const {
+    if (!std::isfinite(worldX) || !std::isfinite(worldZ)) {
+        return 0.0;
+    }
     const double halfSize =
         config_.terrainWorldSize * 0.5;
     const double sampleX = std::clamp(

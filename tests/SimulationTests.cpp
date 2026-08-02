@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 void runSimulationTests() {
     {
@@ -735,6 +736,12 @@ void runSimulationTests() {
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
 
     simulation.startRun();
+    simulation.tick(std::numeric_limits<double>::quiet_NaN());
+    simulation.tick(-1.0);
+    require(
+        simulation.snapshot().tick == 0 &&
+            std::isfinite(simulation.snapshot().playerPosition.x),
+        "simulation rejects invalid delta times without mutating state");
     simulation.tick(1.0 / 60.0);
     require(simulation.snapshot().buildingCosts[0].wood == 30 &&
                 simulation.snapshot().buildingCosts[2].stone == 15,
