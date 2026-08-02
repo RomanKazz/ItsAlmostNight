@@ -11,6 +11,8 @@ orchestration`).
 Третий тематический коммит: `d46a78a` (`fix: reject non-finite simulation
 inputs`).
 
+Оптимизация combat tick: `0a2a75c` (`perf: reuse combat structure buffers`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
