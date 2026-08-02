@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Its Almost Night — Skill Tree Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">✦</span>
+      <div><strong>Its Almost Night</strong><small>Skill Tree Lab</small></div>
+    </div>
+    <div class="toolbar">
+      <button id="addNode" class="primary">＋ Новый нод</button>
+      <button id="resetLayout">Выровнять</button>
+      <button id="exportTree">Экспорт</button>
+      <label class="button" for="importTree">Импорт</label>
+      <input id="importTree" type="file" accept="application/json" hidden>
+      <span id="saveState" class="save-state">Сохранено</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar left-panel">
+      <section>
+        <p class="eyebrow">Ветки</p>
+        <div id="legend" class="legend"></div>
+      </section>
+      <section class="notes-section">
+        <div class="section-heading"><p class="eyebrow">Идеи</p><button id="addNote" class="icon-button" title="Добавить идею">＋</button></div>
+        <div id="notes" class="notes"></div>
+      </section>
+      <section class="rules">
+        <p class="eyebrow">Правила графа</p>
+        <p>Все ноды стоят на единой сетке. Перетаскивание всегда фиксируется в ближайшей ячейке.</p>
+        <p>Зависимости могут идти в любую сторону и по диагонали. Циклы запрещены.</p>
+      </section>
+    </aside>
+
+    <section class="workspace-shell">
+      <div class="workspace-head">
+        <div><b>Свободный граф</b><span>Сетка 200 × 190</span></div>
+        <div class="zoom-controls">
+          <button id="zoomOut" aria-label="Уменьшить">−</button>
+          <button id="zoomValue">100%</button>
+          <button id="zoomIn" aria-label="Увеличить">＋</button>
+        </div>
+      </div>
+      <div id="viewport" class="viewport">
+        <div id="canvas" class="canvas">
+          <svg id="connections" class="connections" aria-hidden="true"></svg>
+          <div id="nodes" class="nodes"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar inspector">
+      <div id="emptyInspector" class="empty-inspector">
+        <span>◇</span><b>Выберите нод</b><p>Нажмите на квадрат в графе, чтобы изменить его свойства и зависимости.</p>
+      </div>
+      <form id="nodeForm" hidden>
+        <div class="inspector-title"><div><p class="eyebrow">Редактор</p><h2 id="selectedLabel">Нод</h2></div><button id="deleteNode" type="button" class="danger icon-button" title="Удалить">×</button></div>
+        <label>Название<input id="nodeTitle" maxlength="42"></label>
+        <label>Описание<textarea id="nodeDescription" rows="5" maxlength="240"></textarea></label>
+        <div class="form-row">
+          <label>Ветка<select id="nodeBranch"></select></label>
+          <label>Цена<input id="nodeCost" type="number" min="0" max="999"></label>
+        </div>
+        <fieldset><legend>Требует</legend><div id="dependencies" class="dependencies"></div></fieldset>
+      </form>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
