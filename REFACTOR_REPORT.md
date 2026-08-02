@@ -18,6 +18,8 @@ inputs`).
 Оптимизация structural graph: `cb6d465` (`perf: linearize collapse risk
 traversal`).
 
+Кэш structural impact: `1688229` (`perf: cache structural dependent counts`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
