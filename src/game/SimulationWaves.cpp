@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "core/SaturatingArithmetic.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -79,8 +81,9 @@ void Simulation::completeWave() {
         .type = GameEventType::WaveCompleted,
         .amount = wave_,
     });
-    const int reward = economy_.waveRewardPerWave * wave_;
-    gold_ += reward;
+    const int reward = saturatingMultiplyNonNegative(
+        economy_.waveRewardPerWave, wave_);
+    gold_ = saturatingAdd(gold_, reward);
     events_.push_back({
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,

@@ -257,6 +257,8 @@ class Simulation {
     std::vector<GameEvent> takeEvents();
 
   private:
+    [[nodiscard]] static Vec3 lookDirection(double yaw,
+                                            double pitch);
     void resetRun(GameEventType eventType);
     void updatePlayer(double deltaSeconds,
                       const PlayerCommand& command);

@@ -35,6 +35,7 @@ void runDeterministicRandomTests();
 void runPlacementLineTests();
 void runGlbCollisionTests();
 void runSkillTreeTests();
+void runSaturatingArithmeticTests();
 
 namespace {
 
@@ -81,6 +82,7 @@ int main() {
     fixedStepProducesSixtyTicksPerSecond();
     fixedStepClampsLongFrames();
     fixedStepIgnoresNonFiniteFrames();
+    runSaturatingArithmeticTests();
     runGameBalanceTests();
     runMapDefinitionTests();
     runTerrainHeightfieldTests();

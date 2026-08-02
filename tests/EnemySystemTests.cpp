@@ -377,4 +377,39 @@ void runEnemySystemTests() {
     require(recycled != stressEnemies.enemies().end() && recycled->active &&
                 recycled->id.generation == recycledId.generation + 1,
             "enemy pool reuses slot with incremented generation");
+
+    std::vector<ian::EnemySpawn> blastSpawns;
+    blastSpawns.reserve(ian::EnemySystem::MaxActiveEnemies);
+    for (std::size_t index = 0;
+         index < ian::EnemySystem::MaxActiveEnemies; ++index) {
+        blastSpawns.push_back({
+            .type = ian::EnemyType::Basic,
+            .position = {
+                (static_cast<double>(index % 16U) - 7.5) * 0.25,
+                0.8,
+                (static_cast<double>(index / 16U) - 4.5) * 0.25,
+            },
+        });
+    }
+    ian::EnemySystem blastEnemies;
+    blastEnemies.spawnWave(blastSpawns);
+    const ian::EntityId firstBlastId =
+        blastEnemies.enemies().front().id;
+    const auto blastDamage = blastEnemies.damageInRadius(
+        {0.0, 0.8, 0.0}, 4.0, 1000.0, 2.0);
+    require(
+        blastDamage.size() ==
+                ian::EnemySystem::MaxActiveEnemies &&
+            blastEnemies.activeCount() == 0 &&
+            !blastEnemies.nearestEnemy(
+                {0.0, 0.8, 0.0}, 4.0),
+        "area damage atomically removes a full active wave from the spatial index");
+    blastEnemies.spawnGroup(Replacement);
+    require(
+        blastEnemies.enemies().front().active &&
+            blastEnemies.enemies().front().id.index ==
+                firstBlastId.index &&
+            blastEnemies.enemies().front().id.generation ==
+                firstBlastId.generation + 1,
+        "area damage preserves generation-safe pool reuse");
 }

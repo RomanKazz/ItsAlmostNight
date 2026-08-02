@@ -78,10 +78,9 @@ raylib-ресурсы в основном уже закрыты некопиру
 7. Значительная часть поиска сущности по стабильному ID использует линейный
    `find_if`. При текущем лимите 160 активных врагов это ограничено, но
    `densestEnemy()` остаётся квадратичным внутри spatially filtered набора.
-8. Счётчик волны и ресурсы имеют тип `int`. Переполнение возможно лишь после
-   практически недостижимого числа волн/накоплений, но для строго бесконечного
-   режима нужна отдельная политика saturation или более широкие типы. Такое
-   изменение может затронуть snapshot/UI/форматы и в этом этапе не сделано.
+8. **Signed overflow в бесконечном режиме.** Счётчик волны, начисления ресурсов
+   и произведение награды использовали обычную арифметику `int`. После
+   практически недостижимого числа волн это приводило бы к UB.
 9. Автоматизированный тест не создаёт графический контекст и потому не может
    напрямую проверить реальные GPU failure paths и порядок shutdown окна.
 
@@ -101,19 +100,21 @@ raylib-ресурсы в основном уже закрыты некопиру
 - Заголовки raylib/raymath помечены как `SYSTEM` для собственных целей.
   Предупреждения зависимости больше не маскируют предупреждения проекта;
   warnings не подавлялись глобально и строгие флаги проекта сохранены.
+- Начисления ресурсов, возвраты, награда и переход к следующему номеру волны
+  используют saturating arithmetic. Форматы и обычные значения не изменены;
+  экстремальные значения фиксируются на границе `int` вместо UB.
 
 ## Архитектурный рефакторинг
 
 - Lifecycle волн (`prepareWave`, `beginPreparedWave`, дозированный spawn и
   `completeWave`) перенесён из общего `Simulation.cpp` в
   `SimulationWaves.cpp`.
+- Весь lifecycle building commands — preview, placement с automatic
+  foundation, upgrade, repair, sell, modular removal и gate toggle — перенесён
+  в `SimulationBuildingCommands.cpp`. `Simulation.cpp` уменьшен с 3007 строк
+  исходного состояния до 2422 строк.
 - Публичный интерфейс не менялся. Перемещение соответствует обязанности
-  системы волн и уменьшает центральный implementation-файл примерно на 80
-  строк без механического дробления несвязанных функций.
-- Следующая оправданная граница — building command processing, но его большой
-  блок тесно связан с resource accounting, событиями и structural collapse;
-  его следует переносить отдельным behavior-preserving этапом с тестами на
-  каждую команду.
+  систем и не дробит связанные транзакции между разными файлами.
 
 ## Чистка кода
 
@@ -140,7 +141,11 @@ damage вместо повторения полного rebuild для кажд�
 
 - `FixedStep` восстанавливается после `NaN` и `Inf` frame times;
 - spatial hash отклоняет нечисловые позиции;
-- запрос с бесконечным радиусом остаётся определённым и не вызывает UB.
+- запрос с бесконечным радиусом остаётся определённым и не вызывает UB;
+- area damage по полному лимиту из 160 врагов атомарно очищает spatial index и
+  сохраняет generation-safe повторное использование слота;
+- saturating add/multiply сохраняют обычные результаты и закрывают обе границы
+  `int`.
 
 Фактически выполненные команды и результаты:
 
@@ -150,39 +155,39 @@ damage вместо повторения полного rebuild для кажд�
 - промежуточная Debug-проверка после исправлений: успешно, 1/1 CTest;
 - промежуточная ASan+UBSan-проверка после memory/container изменений:
   успешно, 1/1 CTest, 0,98 с;
-- финальная ASan+UBSan-сборка после всех изменений: успешно, 1/1 CTest,
-  1,15 с;
-- финальная Release-конфигурация: **не завершена**. Первый запуск не смог
-  разрешить `github.com` при загрузке отдельного FetchContent-кэша; повторный
-  разрешённый запуск не выдал прогресса и был остановлен после ожидания.
-  Успешная Release-сборка поэтому не заявляется;
+- ASan+UBSan-сборка после второго этапа: успешно, 1/1 CTest, 1,13 с;
+- Release сначала не смог загрузить отдельный FetchContent-кэш из-за DNS.
+  После явного использования уже загруженных закреплённых исходников raylib и
+  raygui финальная Release-сборка и тесты завершились успешно: 1/1 CTest,
+  0,32 с;
 - финальный `git diff --check`: успешно.
 
 ## Оставшиеся риски и следующий этап
 
-1. Добавить deterministic headless stress scenario на 160 врагов, массовые
-   взрывы, cascade collapse и многократный restart run; измерять tick budgets.
-2. Вынести building command processing из `Simulation.cpp` простым переносом,
-   затем отделить resource transaction от placement side effects.
+1. Расширить существующий headless stress test сценариями cascade collapse и
+   многократного restart run; измерять tick budgets.
+2. Отделять resource transaction от placement side effects только после
+   добавления command-level regression tests.
 3. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
 4. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
-5. Определить продуктовую политику для saturation wave/resource counters до
-   изменения типов. Это потенциально влияет на UI и будущие save/network
-   форматы, поэтому решение оставлено владельцу проекта.
-6. Профилировать renderer draw calls, animated model updates, shadows, grass и
+5. Профилировать renderer draw calls, animated model updates, shadows, grass и
    particles на фиксированном replay; без измерения оптимизации не вносить.
 
 ## Основные изменённые файлы
 
 - `CMakeLists.txt` — новый simulation source и системные include paths raylib;
 - `src/core/FixedStep.hpp` — защита accumulator;
+- `src/core/SaturatingArithmetic.hpp` — определённая арифметика счётчиков;
 - `src/world/SpatialHash.cpp` — безопасная конверсия координат;
 - `src/enemies/EnemyCollision.cpp` — безопасная collision-grid конверсия;
 - `src/enemies/EnemySystem.cpp` — безопасная query grid и один rebuild на
   area-damage batch;
 - `src/graphics/GraphicsResources.cpp` — очистка partial/failed loads;
-- `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp` — выделение
-  lifecycle волн;
+- `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
+  `src/game/SimulationBuildingCommands.cpp` — выделение lifecycle волн и
+  building commands;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
+- `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
+  area damage и арифметические границы.

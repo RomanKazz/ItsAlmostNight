@@ -74,6 +74,7 @@ add_library(ian_simulation
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
+    src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDefenses.cpp
     src/game/SimulationWaves.cpp
     src/game/ModularCombat.cpp
@@ -206,6 +207,7 @@ endif()
 if(BUILD_TESTING)
     add_executable(ian_tests
         tests/FixedStepTests.cpp
+        tests/SaturatingArithmeticTests.cpp
         tests/DeterministicRandomTests.cpp
         tests/BuildingSystemTests.cpp
         tests/BuildingStatsTests.cpp
