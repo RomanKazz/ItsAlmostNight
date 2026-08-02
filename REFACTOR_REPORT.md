@@ -62,6 +62,9 @@ Active enemy count cache: `76a4209`
 App render support extraction: `67a2f1f`
 (`refactor: isolate app render support`).
 
+World rebuild/render-buffer optimization: `74ea595`
+(`perf: avoid redundant world rebuild work`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -263,6 +266,12 @@ damage вместо повторения полного rebuild для кажд�
 - Catch-up шахт, лесопилок и карьеров больше не выполняет цикл по каждому
   пропущенному интервалу. Стоимость большого скачка времени теперь O(1),
   результат насыщается вместо signed overflow.
+- Upgrade здания больше не пересобирает collision world и flow field 96×96:
+  обновляются только tower/cannon/trap/production runtime-системы. Полная
+  синхронизация сохранена для размещения, удаления и переключения ворот, где
+  геометрия действительно меняется.
+- Массивы обычных и уничтожаемых `EnemyDrawInstance` переиспользуют capacity
+  между кадрами вместо создания двух временных heap-контейнеров каждый кадр.
 - Spawn buffers, event buffers, projectile pools, enemy storage и основные
   spatial structures уже переиспользуют память или имеют `reserve()`/фиксированный
   размер. Слепые изменения этих контейнеров не выполнялись.
@@ -334,6 +343,8 @@ damage вместо повторения полного rebuild для кажд�
 - Добавлен `ctest --preset release`; preset фактически выполнен успешно.
 - после enemy-count/App-support пакета: Debug 1/1 за 0,61 с; ASan+UBSan 1/1 за
   2,33 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
+- после world-rebuild/render-buffer пакета: Debug 1/1 за 1,06 с;
+  ASan+UBSan 1/1 за 2,22 с; Release 1/1 за 0,50 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
@@ -372,6 +383,8 @@ damage вместо повторения полного rebuild для кажд�
   building commands и placement queries;
 - `src/app/App.cpp`, `src/app/AppRenderSupport.cpp` — lifecycle отделён от
   shared rendering/query helpers;
+- `src/app/App.hpp`, `src/app/AppWorldRender.cpp` — reusable enemy draw
+  buffers без покадрового освобождения capacity;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
 - `tests/EnemySystemTests.cpp`, `tests/SaturatingArithmeticTests.cpp` — stress
   area damage и арифметические границы.
