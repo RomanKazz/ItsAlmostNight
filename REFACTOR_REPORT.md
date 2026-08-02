@@ -35,6 +35,9 @@ traversal`).
 Полная стоимость low-resource preview: `96d785a`
 (`fix: include foundation in low-resource preview`).
 
+Area-damage lookup: `c5ffd94`
+(`perf: remove duplicate area damage lookup`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -186,6 +189,9 @@ damage вместо повторения полного rebuild для кажд�
 
 - В горячем пути area damage число rebuild spatial hash снижено с `K` до
   максимум одного, где `K` — число убитых одним взрывом врагов.
+- Тот же area-damage batch больше не вызывает `enemy()` перед собственным
+  mutable lookup. Число линейных ID-поисков снижено с `2K` до `K`; при лимите
+  160 целей один взрыв избегает до 160 лишних проходов и копий `EnemyInstance`.
 - Убраны повторные heap allocation каждого combat tick: буферы modular enemy
   targets, объединённых structure targets и linked-list индексов теперь
   переиспользуют capacity. Данные пересобираются каждый тик; stale cache нет.
@@ -254,6 +260,8 @@ damage вместо повторения полного rebuild для кажд�
   2,65 с; Release 1/1 за 0,46 с; `git diff --check` успешно.
 - после low-resource preview fix: Debug 1/1 за 1,07 с; ASan+UBSan 1/1 за
   2,36 с; Release 1/1 за 0,35 с; `git diff --check` успешно.
+- после area-damage lookup fix: Debug 1/1 за 1,13 с; ASan+UBSan 1/1 за 2,76 с;
+  Release 1/1 за 0,44 с; `git diff --check` успешно.
 
 ## Оставшиеся риски и следующий этап
 
