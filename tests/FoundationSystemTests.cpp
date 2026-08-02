@@ -136,6 +136,21 @@ void runFoundationSystemTests() {
     const ian::Vec3 player{-5.0, 1.7, 0.0};
 
     ian::FoundationSystem frames{terrain, config};
+    {
+        ian::FoundationSystem resetIds{terrain, config};
+        const auto beforeReset = resetIds.placePlatformFrame(
+            resetIds.previewFoundation(
+                {0.2, 0.0, 0.2}, player));
+        require(beforeReset.has_value(),
+                "foundation reset fixture places first frame");
+        resetIds.reset();
+        const auto afterReset = resetIds.placePlatformFrame(
+            resetIds.previewFoundation(
+                {0.2, 0.0, 0.2}, player));
+        require(
+            afterReset && afterReset->id != beforeReset->id,
+            "foundation reset never aliases a previous run ID");
+    }
     const auto first = frames.placePlatformFrame(
         frames.previewFoundation(
             {0.2, 0.0, 0.2}, player));

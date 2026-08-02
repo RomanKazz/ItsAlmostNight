@@ -393,7 +393,6 @@ void EnemySystem::reset() {
     structureNextBuffer_.clear();
     collisionEnemyLinks_.clear();
     collisionBuildingLinks_.clear();
-    nextIndex_ = 2000;
     spatialHash_.clear();
 }
 

@@ -422,7 +422,6 @@ ResourceCost BuildingSystem::upgradeCost(const BuildingInstance& building) const
 
 void BuildingSystem::reset() {
     buildings_.clear();
-    nextIndex_ = 1000;
 }
 
 PlacementResult BuildingSystem::validate(BuildingType type, GridPosition position, int wood,

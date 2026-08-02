@@ -10,6 +10,20 @@
 #include <vector>
 
 void runEnemySystemTests() {
+    {
+        ian::EnemySystem resetIds;
+        constexpr std::array<ian::Vec3, 1> Spawn{{
+            {0.0, 0.8, -14.0},
+        }};
+        resetIds.spawnWave(Spawn);
+        const ian::EntityId beforeReset =
+            resetIds.enemies().front().id;
+        resetIds.reset();
+        resetIds.spawnWave(Spawn);
+        require(
+            resetIds.enemies().front().id != beforeReset,
+            "enemy reset never aliases a previous run ID");
+    }
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "enemy fixture creates core");

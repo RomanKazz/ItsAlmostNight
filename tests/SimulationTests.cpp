@@ -7,6 +7,55 @@
 
 void runSimulationTests() {
     {
+        ian::Simulation restartStress;
+        restartStress.startRun();
+        std::optional<ian::EntityId> previousCoreId;
+        std::optional<ian::EntityId> staleCoreId;
+        for (int restart = 0; restart < 128; ++restart) {
+            if (restart > 0) {
+                restartStress.restartRun();
+            }
+            const auto resetEvents = restartStress.takeEvents();
+            require(
+                resetEvents.size() == 1U &&
+                    resetEvents.front().type ==
+                        (restart == 0
+                             ? ian::GameEventType::RunStarted
+                             : ian::GameEventType::RunRestarted),
+                "restart stress discards stale events");
+
+            ian::PlayerCommand unlimited;
+            unlimited.enableUnlimitedResources =
+                ian::EnableUnlimitedResourcesCommand{};
+            restartStress.tick(1.0 / 60.0, unlimited);
+            ian::PlayerCommand placeCore;
+            placeCore.placeBuilding = ian::PlaceBuildingCommand{
+                ian::BuildingType::Core, {0, 0}, 0};
+            restartStress.tick(1.0 / 60.0, placeCore);
+            const auto coreId = restartStress.snapshot().coreId;
+            require(
+                coreId.has_value() &&
+                    (!previousCoreId || *coreId != *previousCoreId),
+                "restart never aliases a previous run building ID");
+
+            if (staleCoreId) {
+                const auto levelBefore =
+                    restartStress.snapshot().buildings.front().level;
+                ian::PlayerCommand staleUpgrade;
+                staleUpgrade.upgradeBuilding =
+                    ian::UpgradeBuildingCommand{*staleCoreId};
+                restartStress.tick(
+                    1.0 / 60.0, staleUpgrade);
+                require(
+                    restartStress.snapshot().buildings.front().level ==
+                        levelBefore,
+                    "stale building ID cannot mutate a restarted run");
+            }
+            staleCoreId = coreId;
+            previousCoreId = coreId;
+        }
+    }
+    {
         ian::Simulation bufferedAttackSimulation;
         bufferedAttackSimulation.startRun();
         ian::PlayerCommand attack;

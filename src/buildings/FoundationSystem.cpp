@@ -21,7 +21,6 @@ void FoundationSystem::reset() {
     grid_ = BuildGrid{grid_.config()};
     supports_.reset();
     structuralGraph_.reset();
-    nextIndex_ = 12000U;
 }
 
 const PlatformFrameInstance*
