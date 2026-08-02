@@ -47,6 +47,15 @@ Projectile ID restart safety: `ca57cdb`
 Resource ID restart safety: `1de6c9d`
 (`fix: rotate resource generation on restart`).
 
+Building actions extraction: `d75af44`
+(`refactor: isolate building actions`).
+
+Audio cleanup hardening: `b1ccd56`
+(`fix: harden audio resource cleanup`).
+
+Terrain model RAII: `f75d3ae`
+(`fix: make terrain model ownership RAII`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
@@ -145,6 +154,12 @@ raylib-ресурсы в основном уже закрыты некопиру
 15. **Повторное использование resource ID после restart.** Resource nodes
    пересоздавались с generation `1`. Hover/healthbar ссылка прошлого забега
    могла разрешиться в ресурс нового забега с тем же slot index.
+16. **Утечка partial audio load.** Raylib может создать `AudioBuffer`, но
+   вернуть `Sound`, не прошедший `IsSoundValid()`. Такой buffer не освобождался,
+   потому что cleanup зависел только от флага `loaded`.
+17. **Необязательный cleanup terrain model.** `TerrainRenderer` владел
+   raylib `Model`, но destructor был default. Без явного `shutdown()` ресурс
+   оставался загруженным.
 
 ## Исправления
 
@@ -183,6 +198,10 @@ raylib-ресурсы в основном уже закрыты некопиру
   allocator. Новый забег не переиспользует ID снарядов прошлого забега.
 - Resource reset сохраняет детерминированные slot indices, но увеличивает run
   generation. Обычный respawn внутри забега сохраняет прежнюю идентичность.
+- Audio load немедленно освобождает invalid/partial `Sound`; `AudioSystem`
+  некопируем и вызывает idempotent `shutdown()` из destructor.
+- `TerrainRenderer` освобождает `Model` из destructor; явный shutdown App
+  остаётся корректным и безопасным при повторном вызове.
 
 ## Архитектурный рефакторинг
 
@@ -196,6 +215,9 @@ raylib-ресурсы в основном уже закрыты некопиру
   foundation geometry и публичные preview query перенесены в
   `SimulationPlacement.cpp`. `Simulation.cpp` уменьшен с 3007 строк исходного
   состояния до 2173 строк; новый модуль содержит 267 строк связанной логики.
+- Upgrade, repair, sell, modular removal и gate toggle перенесены из placement
+  orchestration в `SimulationBuildingActions.cpp`. Building command transaction
+  tests защищают порядок и однократность списаний/возвратов.
 - Публичный интерфейс не менялся. Перемещение соответствует обязанности
   систем и не дробит связанные транзакции между разными файлами.
 
@@ -294,28 +316,31 @@ damage вместо повторения полного rebuild для кажд�
   2,45 с; Release 1/1 за 0,39 с; `git diff --check` успешно.
 - после resource ID restart fix: Debug 1/1 за 1,06 с; ASan+UBSan 1/1 за 2,28 с;
   Release 1/1 за 0,37 с; `git diff --check` успешно.
+- после building-actions/audio/terrain пакета: Debug 1/1 за 0,96 с;
+  ASan+UBSan 1/1 за 2,32 с; Release 1/1 за 0,32 с; `git diff --check` успешно.
+- Добавлен `ctest --preset release`; preset фактически выполнен успешно.
 
 ## Оставшиеся риски и следующий этап
 
-1. Отделять resource transaction от placement side effects теперь можно под
-   защитой command-level regression tests; выполнять только вместе с дальнейшим
-   разделением `SimulationBuildingCommands.cpp`.
-2. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
+1. Добавить индекс `EntityId -> slot` только после benchmark линейных lookup в
    enemy/tower/cannon paths; generation должен проверяться при каждом lookup.
-3. Добавить integration smoke test с невидимым raylib-контекстом для missing
+2. Добавить integration smoke test с невидимым raylib-контекстом для missing
    shaders/models и многократных initialize/shutdown.
-4. Профилировать renderer draw calls, animated model updates, shadows, grass и
+3. Профилировать renderer draw calls, animated model updates, shadows, grass и
    particles на фиксированном replay; без измерения оптимизации не вносить.
 
 ## Основные изменённые файлы
 
-- `CMakeLists.txt` — новый simulation source и системные include paths raylib;
+- `CMakeLists.txt`, `CMakePresets.json` — новые simulation sources, системные
+  include paths raylib и Release test preset;
 - `src/core/FixedStep.hpp` — защита accumulator;
 - `src/core/SaturatingArithmetic.hpp` — определённая арифметика счётчиков;
 - `src/economy/GoldMineSystem.cpp` — O(1) catch-up производства и защита
   таймеров;
 - `src/combat/BombSystem.cpp`, `src/combat/CannonSystem.cpp` — projectile ID
   не переиспользуются между restart;
+- `src/audio/AudioSystem.cpp` — RAII и cleanup partial sound loads;
+- `src/graphics/TerrainRenderer.cpp` — RAII-владение terrain model;
 - `src/resources/ResourceSystem.cpp` — resource generation меняется между
   restart;
 - `src/buildings/BuildingSystem.cpp`, `src/buildings/FoundationSystem.cpp`,
@@ -327,6 +352,7 @@ damage вместо повторения полного rebuild для кажд�
 - `src/graphics/GraphicsResources.cpp` — очистка partial/failed loads;
 - `src/game/Simulation.cpp`, `src/game/SimulationWaves.cpp`,
   `src/game/SimulationBuildingCommands.cpp`,
+  `src/game/SimulationBuildingActions.cpp`,
   `src/game/SimulationPlacement.cpp` — выделение lifecycle волн,
   building commands и placement queries;
 - `tests/FixedStepTests.cpp`, `tests/SpatialHashTests.cpp` — граничные тесты.
