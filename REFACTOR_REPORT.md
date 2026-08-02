@@ -13,6 +13,8 @@ inputs`).
 
 Оптимизация combat tick: `0a2a75c` (`perf: reuse combat structure buffers`).
 
+Оптимизация collision tick: `c763c2e` (`perf: reuse enemy collision links`).
+
 ## Исходное состояние
 
 - Репозиторий перед началом работ был чистым (`git status --short` не вывел
