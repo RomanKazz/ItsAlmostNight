@@ -3,6 +3,7 @@
 #include "economy/GoldMineSystem.hpp"
 
 #include <algorithm>
+#include <limits>
 
 void runGoldMineSystemTests() {
     ian::BuildingSystem buildings;
@@ -55,6 +56,26 @@ void runGoldMineSystemTests() {
         wood != resourceProduction.end() &&
             stone != resourceProduction.end(),
         "lumber mill and quarry produce configured resources");
+
+    ian::GoldMineSystem largeDeltaMines;
+    largeDeltaMines.syncBuildings(buildings.buildings());
+    const auto largeDeltaProduction = largeDeltaMines.tick(
+        std::numeric_limits<double>::max());
+    require(
+        !largeDeltaProduction.empty() &&
+            std::all_of(
+                largeDeltaProduction.begin(),
+                largeDeltaProduction.end(),
+                [](const ian::GoldProduced& produced) {
+                    return produced.amount ==
+                           std::numeric_limits<int>::max();
+                }),
+        "production handles huge time jumps in constant time with saturation");
+    require(
+        largeDeltaMines.tick(
+            std::numeric_limits<double>::quiet_NaN()).empty() &&
+            largeDeltaMines.tick(-1.0).empty(),
+        "production rejects invalid delta times without poisoning timers");
 
     buildings.damage(lumberMill->building.id, 1.0);
     mines.syncBuildings(buildings.buildings());

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace ian {
 
@@ -55,19 +56,42 @@ void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& building
 
 std::span<const GoldProduced> GoldMineSystem::tick(double deltaSeconds) {
     productionBuffer_.clear();
+    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
+        return productionBuffer_;
+    }
     for (auto& mine : mines_) {
         if (!mine.operational) {
             continue;
         }
-        mine.productionProgress += deltaSeconds;
-        int produced = 0;
         const double interval =
             productionInterval(mine.buildingType);
-        while (mine.productionProgress >= interval) {
-            mine.productionProgress -= interval;
-            produced += productionAmount(
-                mine.level, mine.buildingType);
+        const double totalProgress =
+            mine.productionProgress + deltaSeconds;
+        double completedIntervals = 0.0;
+        if (std::isfinite(totalProgress)) {
+            completedIntervals =
+                std::floor(totalProgress / interval);
+            mine.productionProgress =
+                std::fmod(totalProgress, interval);
+        } else {
+            completedIntervals =
+                std::numeric_limits<double>::infinity();
+            mine.productionProgress = std::fmod(
+                std::fmod(mine.productionProgress, interval) +
+                    std::fmod(deltaSeconds, interval),
+                interval);
         }
+        const int amountPerInterval = productionAmount(
+            mine.level, mine.buildingType);
+        const double maximumIntervals =
+            static_cast<double>(
+                std::numeric_limits<int>::max() /
+                amountPerInterval);
+        const int produced =
+            completedIntervals > maximumIntervals
+                ? std::numeric_limits<int>::max()
+                : static_cast<int>(completedIntervals) *
+                      amountPerInterval;
         if (produced > 0) {
             productionBuffer_.push_back(
                 {mine.buildingId, mine.buildingType, produced});
