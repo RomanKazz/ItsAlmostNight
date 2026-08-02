@@ -302,8 +302,8 @@ bool Renderer::drawFirstPersonTool(
     // Blender exports the handle along local +Y. With the origin at the
     // grip, these rotations move the head without making the hand slide.
     rlRotatef(-8.0F, 1.0F, 0.0F, 0.0F);
-    rlRotatef(-28.0F, 0.0F, 1.0F, 0.0F);
     rlRotatef(swingAngle, 0.0F, 0.0F, 1.0F);
+    rlRotatef(90.0F, 0.0F, 1.0F, 0.0F);
     rlScalef(0.78F, 0.78F, 0.78F);
     DrawModel(model, {}, 1.0F, WHITE);
     rlPopMatrix();
