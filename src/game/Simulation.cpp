@@ -1713,7 +1713,9 @@ void Simulation::updatePlayerActions(
             command.aimedModularBuildingOverride;
     }
     aimedResource_ = playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe
-                         ? resources_.raycast(playerPosition_, direction, gameplay_.pickaxeRange)
+                         ? resources_.raycast(
+                               playerPosition_, direction,
+                               gameplay_.resourceGatherRange)
                          : std::nullopt;
     const double enemyAimRange = playerWeapons_.selectedWeapon() == PlayerWeapon::Rifle
                                      ? playerWeapons_.rifleRange()

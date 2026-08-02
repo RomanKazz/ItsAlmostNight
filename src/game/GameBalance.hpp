@@ -98,6 +98,7 @@ struct GameplayBalanceDefinition {
     double playerRespawnSeconds;
     double playerDeathResourceLossFraction;
     double pickaxeRange;
+    double resourceGatherRange;
     double pickaxeDamage;
     double pickaxeDamageVariation;
     double pickaxeCriticalChance;

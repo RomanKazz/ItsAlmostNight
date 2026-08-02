@@ -68,6 +68,8 @@ void App::update() {
         0.0, placementSnapPulseRemaining_ - frameSeconds);
     weaponRecoilRemaining_ = std::max(
         0.0, weaponRecoilRemaining_ - frameSeconds);
+    toolSwingRemaining_ = std::max(
+        0.0, toolSwingRemaining_ - frameSeconds);
     const bool sprinting =
         acceptsGameplayInput(
             simulation_.snapshot().state) &&

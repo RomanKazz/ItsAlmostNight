@@ -1034,6 +1034,22 @@ void App::processInput() {
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingPickaxe_ = true;
+                if (currentSnapshot.pickaxeCooldownRemaining <= 0.0) {
+                    toolSwingUsesAxe_ = false;
+                    if (currentSnapshot.aimedResource) {
+                        const auto resource = std::find_if(
+                            currentSnapshot.resourceNodes.begin(),
+                            currentSnapshot.resourceNodes.end(),
+                            [&currentSnapshot](const ResourceNode& node) {
+                                return node.id ==
+                                       *currentSnapshot.aimedResource;
+                            });
+                        toolSwingUsesAxe_ =
+                            resource != currentSnapshot.resourceNodes.end() &&
+                            resource->type == ResourceType::Wood;
+                    }
+                    toolSwingRemaining_ = toolSwingDuration_;
+                }
             }
         }
     } else {

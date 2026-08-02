@@ -261,6 +261,55 @@ EnemyAnimationSource enemyAnimationFor(
 
 } // namespace
 
+bool Renderer::drawFirstPersonTool(
+    FirstPersonToolVisual visual, float swingProgress,
+    float movementPhase, float movementAmount) {
+    ModelResource& resource =
+        visual == FirstPersonToolVisual::Axe
+            ? resources_.axeModel()
+            : resources_.pickaxeModel();
+    if (!resource.valid()) {
+        return false;
+    }
+
+    const float progress = std::clamp(swingProgress, 0.0F, 1.0F);
+    const auto smoothStep = [](float value) {
+        value = std::clamp(value, 0.0F, 1.0F);
+        return value * value * (3.0F - 2.0F * value);
+    };
+    float swingAngle = 22.0F;
+    float swingPush = 0.0F;
+    if (progress > 0.0F && progress < 0.22F) {
+        const float phase = smoothStep(progress / 0.22F);
+        swingAngle = 22.0F + (-31.0F - 22.0F) * phase;
+    } else if (progress >= 0.22F && progress < 0.53F) {
+        const float phase = smoothStep((progress - 0.22F) / 0.31F);
+        swingAngle = -31.0F + (76.0F + 31.0F) * phase;
+        swingPush = std::sin(phase * PI) * 0.055F;
+    } else if (progress >= 0.53F) {
+        const float phase = smoothStep((progress - 0.53F) / 0.47F);
+        swingAngle = 76.0F + (22.0F - 76.0F) * phase;
+    }
+
+    const float bob = std::clamp(movementAmount, 0.0F, 1.0F);
+    const float bobX = std::sin(movementPhase) * 0.012F * bob;
+    const float bobY =
+        std::abs(std::cos(movementPhase)) * 0.014F * bob;
+    Model& model = resource.get();
+    rlPushMatrix();
+    rlTranslatef(0.34F + bobX, -0.40F - bobY,
+                 -0.92F + swingPush);
+    // Blender exports the handle along local +Y. With the origin at the
+    // grip, these rotations move the head without making the hand slide.
+    rlRotatef(-8.0F, 1.0F, 0.0F, 0.0F);
+    rlRotatef(-28.0F, 0.0F, 1.0F, 0.0F);
+    rlRotatef(swingAngle, 0.0F, 0.0F, 1.0F);
+    rlScalef(0.78F, 0.78F, 0.78F);
+    DrawModel(model, {}, 1.0F, WHITE);
+    rlPopMatrix();
+    return true;
+}
+
 std::optional<double> Renderer::buildingRaycastDistance(
     const BuildingInstance& building,
     std::span<const BuildingInstance> buildings, Ray ray,

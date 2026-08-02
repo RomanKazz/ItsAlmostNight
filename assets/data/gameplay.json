@@ -10,6 +10,7 @@
   "playerRespawnSeconds": 5.0,
   "playerDeathResourceLossFraction": 0.25,
   "pickaxeRange": 4.0,
+  "resourceGatherRange": 2.6,
   "pickaxeDamage": 1.0,
   "pickaxeDamageVariation": 0.2,
   "pickaxeCriticalChance": 0.15,

@@ -90,6 +90,11 @@ enum class EnemyAnimationVisual {
     Spawn,
 };
 
+enum class FirstPersonToolVisual {
+    Axe,
+    Pickaxe,
+};
+
 struct EnemyDrawInstance {
     EnemyModelVisual modelVisual{EnemyModelVisual::Minion};
     EnemyAnimationVisual animationVisual{EnemyAnimationVisual::Idle};
@@ -175,6 +180,9 @@ class Renderer {
     [[nodiscard]] bool drawCore(Vector3 position, float yawRadians = 0.0F,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
+    [[nodiscard]] bool drawFirstPersonTool(
+        FirstPersonToolVisual visual, float swingProgress,
+        float movementPhase, float movementAmount);
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,

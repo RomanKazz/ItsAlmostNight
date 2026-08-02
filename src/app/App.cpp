@@ -1282,6 +1282,55 @@ void App::render() {
         }
         renderer_->endWorldPass();
 
+        const bool showFirstPersonTool =
+            snapshot.selectedWeapon == PlayerWeapon::Pickaxe &&
+            !snapshot.selectedBuilding &&
+            !foundationBuildMode_ &&
+            !snapshot.playerRespawning;
+        if (showFirstPersonTool) {
+            bool useAxe = false;
+            if (snapshot.aimedResource) {
+                const auto resource = std::find_if(
+                    snapshot.resourceNodes.begin(),
+                    snapshot.resourceNodes.end(),
+                    [&snapshot](const ResourceNode& node) {
+                        return node.id == *snapshot.aimedResource;
+                    });
+                useAxe =
+                    resource != snapshot.resourceNodes.end() &&
+                    resource->type == ResourceType::Wood;
+            }
+            if (toolSwingRemaining_ > 0.0) {
+                useAxe = toolSwingUsesAxe_;
+            }
+            const float swingProgress =
+                toolSwingRemaining_ > 0.0 &&
+                        toolSwingDuration_ > 0.0
+                    ? std::clamp(
+                          static_cast<float>(
+                              1.0 - toolSwingRemaining_ /
+                                        toolSwingDuration_),
+                          0.0F, 1.0F)
+                    : 0.0F;
+            const Camera3D viewModelCamera{
+                .position = {},
+                .target = {0.0F, 0.0F, -1.0F},
+                .up = {0.0F, 1.0F, 0.0F},
+                .fovy = 58.0F,
+                .projection = CAMERA_PERSPECTIVE,
+            };
+            BeginMode3D(viewModelCamera);
+            rlDisableDepthTest();
+            static_cast<void>(renderer_->drawFirstPersonTool(
+                useAxe ? FirstPersonToolVisual::Axe
+                       : FirstPersonToolVisual::Pickaxe,
+                swingProgress,
+                static_cast<float>(cameraBobPhase_),
+                static_cast<float>(cameraBobAmount_)));
+            rlEnableDepthTest();
+            EndMode3D();
+        }
+
         // World-space UI is composited after post-processing so health bars,
         // levels and production rewards remain crisp above pixelization.
         BeginMode3D(camera);

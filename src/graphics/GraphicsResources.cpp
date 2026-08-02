@@ -349,6 +349,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     arrowModel_.load("assets/models/arrow.glb");
     crossbowModel_.load("assets/models/crossbow.glb");
     coreModel_.load("assets/models/core.glb");
+    axeModel_.load("assets/models/tools/axe.glb");
+    pickaxeModel_.load("assets/models/tools/pickaxe.glb");
     platformModel_.load("assets/models/platform.glb");
     rampModel_.load("assets/models/ramp.glb");
     mineModel_.load("assets/models/mine.glb");
@@ -492,6 +494,8 @@ void GraphicsResources::shutdown() {
     mineModel_.unload();
     rampModel_.unload();
     platformModel_.unload();
+    pickaxeModel_.unload();
+    axeModel_.unload();
     coreModel_.unload();
     crossbowModel_.unload();
     arrowModel_.unload();
@@ -657,6 +661,14 @@ ModelResource& GraphicsResources::crossbowModel() {
 
 ModelResource& GraphicsResources::coreModel() {
     return coreModel_;
+}
+
+ModelResource& GraphicsResources::axeModel() {
+    return axeModel_;
+}
+
+ModelResource& GraphicsResources::pickaxeModel() {
+    return pickaxeModel_;
 }
 
 ModelResource& GraphicsResources::platformModel() {

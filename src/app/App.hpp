@@ -140,6 +140,9 @@ class App {
     double pendingPitch_{};
     bool pendingJump_{};
     bool pendingPickaxe_{};
+    bool toolSwingUsesAxe_{};
+    double toolSwingRemaining_{};
+    double toolSwingDuration_{0.48};
     bool pendingRifleShot_{};
     std::optional<BuildingType> pendingBuildingSelection_;
     bool pendingBuildingCancel_{};

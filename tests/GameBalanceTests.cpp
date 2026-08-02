@@ -20,6 +20,10 @@ void runGameBalanceTests() {
             assetBalance.balance.modularBuildings[1].stone == 10 &&
             assetBalance.balance.modularBuildings[2].wood == 16,
         "asset balance exposes modular construction prices");
+    require(
+        assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
+            assetBalance.balance.gameplay.pickaxeRange == 4.0,
+        "resource gathering range is tuned separately from melee range");
 
     constexpr std::string_view Enemies = R"json({
         "basic": {"health": 9, "speed": 2, "damage": 4},
@@ -114,6 +118,10 @@ void runGameBalanceTests() {
     const auto loaded =
         ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, Gameplay);
     require(loaded.valid(), "valid JSON balance parses");
+    require(
+        loaded.balance.gameplay.resourceGatherRange ==
+            loaded.balance.gameplay.pickaxeRange,
+        "older gameplay balance uses pickaxe range for gathering");
     require(
         loaded.balance.modularBuildings[0].wood == 20,
         "older building balance keeps default modular prices");

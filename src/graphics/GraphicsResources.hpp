@@ -203,6 +203,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& arrowModel();
     [[nodiscard]] ModelResource& crossbowModel();
     [[nodiscard]] ModelResource& coreModel();
+    [[nodiscard]] ModelResource& axeModel();
+    [[nodiscard]] ModelResource& pickaxeModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
@@ -256,6 +258,8 @@ class GraphicsResources {
     ModelResource arrowModel_;
     ModelResource crossbowModel_;
     ModelResource coreModel_;
+    ModelResource axeModel_;
+    ModelResource pickaxeModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;

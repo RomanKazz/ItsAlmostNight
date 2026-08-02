@@ -202,6 +202,9 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .playerDeathResourceLossFraction =
             value.value("playerDeathResourceLossFraction", 0.25),
         .pickaxeRange = value.at("pickaxeRange").get<double>(),
+        .resourceGatherRange = value.value(
+            "resourceGatherRange",
+            value.at("pickaxeRange").get<double>()),
         .pickaxeDamage = value.at("pickaxeDamage").get<double>(),
         .pickaxeDamageVariation =
             value.value("pickaxeDamageVariation", 0.2),
@@ -224,7 +227,9 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.playerRespawnSeconds <= 0.0 ||
         definition.playerDeathResourceLossFraction < 0.0 ||
         definition.playerDeathResourceLossFraction > 1.0 ||
-        definition.pickaxeRange <= 0.0 || definition.pickaxeDamage <= 0.0 ||
+        definition.pickaxeRange <= 0.0 ||
+        definition.resourceGatherRange <= 0.0 ||
+        definition.pickaxeDamage <= 0.0 ||
         definition.pickaxeDamageVariation < 0.0 ||
         definition.pickaxeDamageVariation >= 1.0 ||
         definition.pickaxeCriticalChance < 0.0 ||
@@ -280,8 +285,8 @@ GameBalance GameBalance::defaults() {
             .bomb = {3, 6.0, 4.0, 9.8, 1.2, 0.2, 4.0, 6.0, 8.0},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
-        .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 1.0,
-                     0.2, 0.15, 0.45,
+        .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,
+                     1.0, 0.2, 0.15, 0.45,
                      15.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };
 }
