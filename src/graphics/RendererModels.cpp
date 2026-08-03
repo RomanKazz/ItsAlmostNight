@@ -51,8 +51,50 @@ constexpr float PlatformLegSpan = 3.87519169F;
 constexpr float TreeModelScale = 1.0F;
 constexpr float RockModelScale = 2.0F;
 constexpr float RockGroundOffset = 0.204F;
+constexpr float DecorativeRockClusterSize = 18.0F;
 constexpr std::array<std::size_t, PlatformLegCount>
     RotatedPlatformSupportIndices{1U, 0U, 3U, 2U};
+
+std::uint32_t decorativeRockClusterHash(int x, int z) {
+    std::uint32_t value =
+        static_cast<std::uint32_t>(x) * 0x8da6b343U ^
+        static_cast<std::uint32_t>(z) * 0xd8163841U ^
+        0x27d4eb2fU;
+    value ^= value >> 16U;
+    value *= 0x7feb352dU;
+    value ^= value >> 15U;
+    value *= 0x846ca68bU;
+    return value ^ (value >> 16U);
+}
+
+float decorativeRockClusterDensity(float x, float z) {
+    const float sampleX = x / DecorativeRockClusterSize;
+    const float sampleZ = z / DecorativeRockClusterSize;
+    const int cellX = static_cast<int>(std::floor(sampleX));
+    const int cellZ = static_cast<int>(std::floor(sampleZ));
+    float blendX = sampleX - static_cast<float>(cellX);
+    float blendZ = sampleZ - static_cast<float>(cellZ);
+    blendX = blendX * blendX * (3.0F - 2.0F * blendX);
+    blendZ = blendZ * blendZ * (3.0F - 2.0F * blendZ);
+    const auto sample = [](int sampleCellX, int sampleCellZ) {
+        return static_cast<float>(
+                   decorativeRockClusterHash(
+                       sampleCellX, sampleCellZ) &
+                   0xffffU) /
+               65535.0F;
+    };
+    const float lower = sample(cellX, cellZ) +
+        (sample(cellX + 1, cellZ) - sample(cellX, cellZ)) *
+            blendX;
+    const float upper = sample(cellX, cellZ + 1) +
+        (sample(cellX + 1, cellZ + 1) -
+         sample(cellX, cellZ + 1)) *
+            blendX;
+    const float cluster = lower + (upper - lower) * blendZ;
+    return std::clamp(
+        0.04F + (cluster - 0.40F) * 1.9F,
+        0.04F, 0.78F);
+}
 
 BoundingBox transformedBoundingBox(
     const BoundingBox& bounds, Matrix transform) {
@@ -1190,9 +1232,6 @@ void Renderer::drawDecorativeRocks(
     for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
         for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
             const std::uint32_t hash = hashCell(cellX, cellZ);
-            if (unitFloat(hash) > 0.48F) {
-                continue;
-            }
             const float jitterX =
                 (unitFloat(hash >> 7U) - 0.5F) * Spacing * 0.78F;
             const float jitterZ =
@@ -1203,6 +1242,10 @@ void Renderer::drawDecorativeRocks(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 jitterZ;
+            if (unitFloat(hash) >
+                decorativeRockClusterDensity(x, z)) {
+                continue;
+            }
             if (std::abs(x) > worldLimit - 0.7F ||
                 std::abs(z) > worldLimit - 0.7F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
@@ -1215,7 +1258,7 @@ void Renderer::drawDecorativeRocks(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 1.0F, 0.65F);
+                {x, z}, clearAreas, 1.8F, 0.65F);
             if (visibility <= 0.01F) {
                 continue;
             }
@@ -1285,15 +1328,16 @@ void Renderer::drawDecorativeRockAo(
     for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
         for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
             const std::uint32_t hash = hashCell(cellX, cellZ);
-            if (unitFloat(hash) > 0.48F) {
-                continue;
-            }
             const float x =
                 (static_cast<float>(cellX) + 0.5F) * Spacing +
                 (unitFloat(hash >> 7U) - 0.5F) * Spacing * 0.78F;
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.78F;
+            if (unitFloat(hash) >
+                decorativeRockClusterDensity(x, z)) {
+                continue;
+            }
             if (std::abs(x) > worldLimit - 0.7F ||
                 std::abs(z) > worldLimit - 0.7F ||
                 x * x + z * z <
@@ -1307,7 +1351,7 @@ void Renderer::drawDecorativeRockAo(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 1.0F, 0.65F);
+                {x, z}, clearAreas, 1.8F, 0.65F);
             if (visibility <= 0.01F) {
                 continue;
             }
