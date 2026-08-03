@@ -46,6 +46,8 @@ struct HudViewState {
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera);
+void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
+                    float expansion);
 void drawRunStateOverlay(const SimulationSnapshot& snapshot);
 
 } // namespace ian

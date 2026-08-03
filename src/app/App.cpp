@@ -966,6 +966,10 @@ void App::render() {
         }
         drawResourceGainVisuals(camera);
 
+        drawMinimapHud(
+            ui_, presentationSnapshot,
+            minimapExpansion_);
+
         drawRunStateOverlay(snapshot);
     }
 

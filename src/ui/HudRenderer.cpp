@@ -682,38 +682,67 @@ void drawBuildHotbar(
         view.buildHotbarSelectionAlpha);
 }
 
-void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
+void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
+                 float expansion) {
+    const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
+    const float expanded =
+        rawExpansion * rawExpansion * (3.0F - 2.0F * rawExpansion);
     const float screenMinimum = static_cast<float>(
         std::min(GetScreenWidth(), GetScreenHeight()));
-    const float mapSize = std::clamp(
+    const float collapsedMapSize = std::clamp(
         screenMinimum * 0.28F, 164.0F, 228.0F);
-    constexpr float PanelPadding = 13.0F;
-    constexpr float HeaderHeight = 30.0F;
-    const float panelWidth = mapSize + PanelPadding * 2.0F;
+    const float expandedMapSize = std::max(
+        collapsedMapSize,
+        std::min(
+            static_cast<float>(GetScreenWidth()) * 0.68F,
+            static_cast<float>(GetScreenHeight()) * 0.70F));
+    const float mapSize = std::lerp(
+        collapsedMapSize, expandedMapSize, expanded);
+    const float panelPadding = std::lerp(13.0F, 20.0F, expanded);
+    const float headerHeight = std::lerp(30.0F, 42.0F, expanded);
+    const float panelWidth = mapSize + panelPadding * 2.0F;
     const float panelHeight =
-        mapSize + HeaderHeight + PanelPadding * 2.0F;
-    const float panelX =
-        static_cast<float>(GetScreenWidth()) - panelWidth - 12.0F;
-    constexpr float PanelY = 12.0F;
+        mapSize + headerHeight + panelPadding * 2.0F;
+    const float collapsedPanelWidth =
+        collapsedMapSize + 13.0F * 2.0F;
+    const float collapsedPanelX =
+        static_cast<float>(GetScreenWidth()) -
+        collapsedPanelWidth - 12.0F;
+    const float expandedPanelX =
+        (static_cast<float>(GetScreenWidth()) - panelWidth) * 0.5F;
+    const float expandedPanelY =
+        static_cast<float>(GetScreenHeight()) * 0.5F -
+        mapSize * 0.5F - panelPadding - headerHeight;
+    const float panelX = std::lerp(
+        collapsedPanelX, expandedPanelX, expanded);
+    const float panelY = std::lerp(12.0F, expandedPanelY, expanded);
     const Rectangle mapBounds{
-        panelX + PanelPadding,
-        PanelY + PanelPadding + HeaderHeight,
+        panelX + panelPadding,
+        panelY + panelPadding + headerHeight,
         mapSize, mapSize,
     };
     const float worldLimit = std::max(
         static_cast<float>(snapshot.worldLimit), 1.0F);
     const float mapScale = mapSize * 0.5F / worldLimit;
 
+    if (expanded > 0.001F) {
+        DrawRectangle(
+            0, 0, GetScreenWidth(), GetScreenHeight(),
+            {24, 11, 5,
+             static_cast<unsigned char>(
+                 std::lround(168.0F * expanded))});
+    }
     ui.drawPanel(
-        {panelX, PanelY, panelWidth, panelHeight}, 218);
+        {panelX, panelY, panelWidth, panelHeight}, 218);
     drawUiText(
         snapshot.activeEnemyCount > 0U
-            ? "MAP  •  " +
+            ? (expanded > 0.5F ? "TACTICAL MAP  •  " : "MAP  •  ") +
                   std::to_string(snapshot.activeEnemyCount) +
                   " HOSTILES"
-            : "MAP",
-        {panelX + PanelPadding, PanelY + 11.0F},
-        13.0F,
+            : expanded > 0.5F ? "TACTICAL MAP" : "MAP",
+        {panelX + panelPadding,
+         panelY + std::lerp(11.0F, 15.0F, expanded)},
+        std::lerp(13.0F, 18.0F, expanded),
         snapshot.activeEnemyCount > 0U
             ? Color{246, 131, 95, 255}
             : Color{224, 205, 171, 255});
@@ -741,6 +770,7 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
          mapBounds.y + mapSize * 0.5F},
         1.0F, {214, 205, 169, 24});
 
+    const float symbolScale = std::lerp(1.0F, 1.55F, expanded);
     const auto mapPoint =
         [mapBounds, mapScale](double worldX, double worldZ) {
             return Vector2{
@@ -764,7 +794,9 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
         const Vector2 point = mapPoint(
             resource.position.x, resource.position.z);
         DrawCircleV(
-            point, resource.type == ResourceType::Wood ? 1.35F : 1.2F,
+            point,
+            (resource.type == ResourceType::Wood ? 1.35F : 1.2F) *
+                symbolScale,
             resource.type == ResourceType::Wood
                 ? Color{91, 143, 75, 125}
                 : Color{143, 149, 145, 135});
@@ -786,7 +818,9 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
             frame.anchor, PlatformFrameWidthCells,
             PlatformFrameWidthCells);
         DrawRectangleRec(
-            {point.x - 1.7F, point.y - 1.7F, 3.4F, 3.4F},
+            {point.x - 1.7F * symbolScale,
+             point.y - 1.7F * symbolScale,
+             3.4F * symbolScale, 3.4F * symbolScale},
             {164, 144, 111, 185});
     }
     for (const WallInstance& wall : snapshot.modularWalls) {
@@ -795,10 +829,10 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
             wall.rotation == Rotation::Deg0 ||
             wall.rotation == Rotation::Deg180;
         DrawRectangleRec(
-            {point.x - (alongX ? 2.5F : 0.8F),
-             point.y - (alongX ? 0.8F : 2.5F),
-             alongX ? 5.0F : 1.6F,
-             alongX ? 1.6F : 5.0F},
+            {point.x - (alongX ? 2.5F : 0.8F) * symbolScale,
+             point.y - (alongX ? 0.8F : 2.5F) * symbolScale,
+             (alongX ? 5.0F : 1.6F) * symbolScale,
+             (alongX ? 1.6F : 5.0F) * symbolScale},
             {194, 160, 108, 210});
     }
     for (const RampInstance& ramp : snapshot.ramps) {
@@ -809,7 +843,9 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
             ramp.anchor,
             alongZ ? ModularRampWidthCells : ModularRampRunCells,
             alongZ ? ModularRampRunCells : ModularRampWidthCells);
-        DrawCircleV(point, 2.0F, {205, 174, 119, 190});
+        DrawCircleV(
+            point, 2.0F * symbolScale,
+            {205, 174, 119, 190});
     }
 
     for (const BuildingInstance& building : snapshot.buildings) {
@@ -817,28 +853,36 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
         const Vector2 point = mapPoint(position.x, position.z);
         switch (building.type) {
         case BuildingType::Core:
-            DrawPoly(point, 4, 5.5F, 45.0F,
+            DrawPoly(point, 4, 5.5F * symbolScale, 45.0F,
                      {255, 210, 83, 255});
-            DrawCircleV(point, 1.7F, {255, 245, 188, 255});
+            DrawCircleV(
+                point, 1.7F * symbolScale,
+                {255, 245, 188, 255});
             break;
         case BuildingType::Turret:
         case BuildingType::Cannon:
             DrawCircleV(
                 point,
-                building.type == BuildingType::Cannon ? 3.5F : 3.0F,
+                (building.type == BuildingType::Cannon ? 3.5F : 3.0F) *
+                    symbolScale,
                 {238, 182, 89, 245});
-            DrawCircleV(point, 1.1F, {73, 54, 38, 255});
+            DrawCircleV(
+                point, 1.1F * symbolScale,
+                {73, 54, 38, 255});
             break;
         case BuildingType::Wall:
         case BuildingType::Gate:
             DrawRectangleRec(
-                {point.x - 2.5F, point.y - 1.4F, 5.0F, 2.8F},
+                {point.x - 2.5F * symbolScale,
+                 point.y - 1.4F * symbolScale,
+                 5.0F * symbolScale, 2.8F * symbolScale},
                 building.type == BuildingType::Gate
                     ? Color{231, 203, 131, 240}
                     : Color{188, 142, 86, 230});
             break;
         case BuildingType::SlowTrap:
-            DrawRing(point, 2.1F, 3.0F, 0.0F, 360.0F, 12,
+            DrawRing(point, 2.1F * symbolScale,
+                     3.0F * symbolScale, 0.0F, 360.0F, 12,
                      {102, 190, 220, 235});
             break;
         case BuildingType::GoldMine:
@@ -851,7 +895,9 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
                 color = {167, 174, 171, 240};
             }
             DrawRectangleRec(
-                {point.x - 3.0F, point.y - 3.0F, 6.0F, 6.0F},
+                {point.x - 3.0F * symbolScale,
+                 point.y - 3.0F * symbolScale,
+                 6.0F * symbolScale, 6.0F * symbolScale},
                 color);
             break;
         }
@@ -875,8 +921,10 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
         } else if (enemy.type == EnemyType::Flying) {
             color = {220, 105, 232, 250};
         }
-        DrawCircleV(point, radius + 1.0F, {51, 16, 17, 210});
-        DrawCircleV(point, radius, color);
+        DrawCircleV(
+            point, (radius + 1.0F) * symbolScale,
+            {51, 16, 17, 210});
+        DrawCircleV(point, radius * symbolScale, color);
     }
 
     const Vector2 player = mapPoint(
@@ -887,29 +935,37 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
     };
     const Vector2 side{-direction.y, direction.x};
     const Vector2 tip{
-        player.x + direction.x * 7.5F,
-        player.y + direction.y * 7.5F,
+        player.x + direction.x * 7.5F * symbolScale,
+        player.y + direction.y * 7.5F * symbolScale,
     };
     const Vector2 left{
-        player.x - direction.x * 4.2F + side.x * 4.2F,
-        player.y - direction.y * 4.2F + side.y * 4.2F,
+        player.x - direction.x * 4.2F * symbolScale +
+            side.x * 4.2F * symbolScale,
+        player.y - direction.y * 4.2F * symbolScale +
+            side.y * 4.2F * symbolScale,
     };
     const Vector2 right{
-        player.x - direction.x * 4.2F - side.x * 4.2F,
-        player.y - direction.y * 4.2F - side.y * 4.2F,
+        player.x - direction.x * 4.2F * symbolScale -
+            side.x * 4.2F * symbolScale,
+        player.y - direction.y * 4.2F * symbolScale -
+            side.y * 4.2F * symbolScale,
     };
     DrawTriangle(tip, left, right, {53, 66, 70, 255});
     const Vector2 insetTip{
-        player.x + direction.x * 5.8F,
-        player.y + direction.y * 5.8F,
+        player.x + direction.x * 5.8F * symbolScale,
+        player.y + direction.y * 5.8F * symbolScale,
     };
     const Vector2 insetLeft{
-        player.x - direction.x * 2.7F + side.x * 2.9F,
-        player.y - direction.y * 2.7F + side.y * 2.9F,
+        player.x - direction.x * 2.7F * symbolScale +
+            side.x * 2.9F * symbolScale,
+        player.y - direction.y * 2.7F * symbolScale +
+            side.y * 2.9F * symbolScale,
     };
     const Vector2 insetRight{
-        player.x - direction.x * 2.7F - side.x * 2.9F,
-        player.y - direction.y * 2.7F - side.y * 2.9F,
+        player.x - direction.x * 2.7F * symbolScale -
+            side.x * 2.9F * symbolScale,
+        player.y - direction.y * 2.7F * symbolScale -
+            side.y * 2.9F * symbolScale,
     };
     DrawTriangle(
         insetTip, insetLeft, insetRight,
@@ -963,6 +1019,11 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
 
 } // namespace
 
+void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
+                    float expansion) {
+    drawMinimap(ui, snapshot, expansion);
+}
+
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera) {
     const float woodY = -view.woodResourceBounce;
@@ -1008,8 +1069,6 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     drawResourcePulse(
         {271.0F, 17.0F, 134.0F, 58.0F},
         view.goldResourcePulse);
-
-    drawMinimap(ui, snapshot);
 
     ui.drawPanel({12.0F, 90.0F, 314.0F, 158.0F}, 216);
     const double healthFraction =

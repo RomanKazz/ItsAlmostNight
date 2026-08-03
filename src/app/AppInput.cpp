@@ -636,7 +636,8 @@ void App::processInput() {
             pendingDefeatAllEnemies_ || IsKeyPressed(KEY_K);
         pendingToggleInvulnerability_ =
             pendingToggleInvulnerability_ || IsKeyPressed(KEY_I);
-        pendingDamageCore_ = pendingDamageCore_ || IsKeyPressed(KEY_M);
+        pendingDamageCore_ = pendingDamageCore_ ||
+            (controlDown && IsKeyPressed(KEY_M));
         if (IsKeyPressed(KEY_Z)) {
             switch (debugSpawnType_) {
             case EnemyType::Basic:

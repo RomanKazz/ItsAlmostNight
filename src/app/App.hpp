@@ -347,6 +347,7 @@ class App {
     float buildHotbarSelectionAlpha_{};
     float foundationHotbarSelectionPosition_{};
     float foundationHotbarSelectionAlpha_{};
+    float minimapExpansion_{};
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};

@@ -63,6 +63,22 @@ void App::update() {
         (foundationAlphaTarget -
          foundationHotbarSelectionAlpha_) *
         hotbarBlend;
+    const bool minimapHeld =
+        hotbarSnapshot.state != RunState::MainMenu &&
+        !skillTree_.isOpen() &&
+        !renderer_->graphicsPanelVisible() &&
+        !IsKeyDown(KEY_LEFT_CONTROL) &&
+        !IsKeyDown(KEY_RIGHT_CONTROL) &&
+        IsKeyDown(KEY_M);
+    const float minimapTarget = minimapHeld ? 1.0F : 0.0F;
+    const float minimapBlend =
+        1.0F - std::exp(
+                   -18.0F * static_cast<float>(frameSeconds));
+    minimapExpansion_ +=
+        (minimapTarget - minimapExpansion_) * minimapBlend;
+    if (!minimapHeld && minimapExpansion_ < 0.001F) {
+        minimapExpansion_ = 0.0F;
+    }
     const bool hitStopActive = hitStopRemaining_ > 0.0;
     hitStopRemaining_ =
         std::max(0.0, hitStopRemaining_ - frameSeconds);
