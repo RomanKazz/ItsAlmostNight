@@ -4,11 +4,16 @@
 #include "core/Types.hpp"
 
 #include <functional>
+#include <array>
 #include <optional>
 #include <span>
 #include <vector>
 
 namespace ian {
+
+inline constexpr std::size_t TreeVisualVariantCount = 3U;
+inline constexpr std::array<double, TreeVisualVariantCount>
+    TreeVisualGroundOffsets{0.262, 0.290, 0.208};
 
 enum class ResourceType {
     Wood,
@@ -28,6 +33,8 @@ struct ResourceNode {
     double respawnSeconds;
     double respawnRemaining;
     std::uint32_t respawnGeneration{};
+    double visualYaw{};
+    double visualScale{1.0};
     bool active;
 };
 

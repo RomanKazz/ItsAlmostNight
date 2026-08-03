@@ -216,7 +216,11 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& lumberMillModel();
     [[nodiscard]] ModelResource& quarryModel();
     [[nodiscard]] ModelResource& rockModel();
-    [[nodiscard]] ModelResource& treeModel();
+    [[nodiscard]] ModelResource& treeModel(std::size_t variant = 0U);
+    [[nodiscard]] ModelResource& boundaryTreeModel(
+        std::size_t variant = 0U);
+    [[nodiscard]] ModelResource& decorativeRockModel(
+        std::size_t variant);
     [[nodiscard]] ModelResource& wallIsolatedModel();
     [[nodiscard]] ModelResource& wallEndModel();
     [[nodiscard]] ModelResource& wallCornerModel();
@@ -272,7 +276,9 @@ class GraphicsResources {
     ModelResource lumberMillModel_;
     ModelResource quarryModel_;
     ModelResource rockModel_;
-    ModelResource treeModel_;
+    std::array<ModelResource, 3> treeModels_;
+    std::array<ModelResource, 2> boundaryTreeModels_;
+    std::array<ModelResource, 4> decorativeRockModels_;
     ModelResource wallIsolatedModel_;
     ModelResource wallEndModel_;
     ModelResource wallCornerModel_;

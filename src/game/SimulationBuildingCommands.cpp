@@ -114,8 +114,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             needsAutomaticFoundation
                 ? automaticFoundationPlacement(
                       *selectedBuilding_,
-                      gridPosition,
-                      surface.height)
+                      gridPosition)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {
@@ -202,8 +201,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 ? automaticFoundationPlacement(
                       command.placeBuilding->type,
                       command.placeBuilding
-                          ->gridPosition,
-                      surface.height)
+                          ->gridPosition)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {

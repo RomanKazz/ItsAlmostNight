@@ -60,6 +60,8 @@ struct PlayerCommand {
     double lookPitch{};
     bool overrideAimedBuilding{};
     std::optional<EntityId> aimedBuildingOverride;
+    bool overrideAimedResource{};
+    std::optional<EntityId> aimedResourceOverride;
     bool overrideAimedModularBuilding{};
     std::optional<EntityId> aimedModularBuildingOverride;
     bool jump{};
@@ -231,8 +233,14 @@ class Simulation {
     void regenerateTerrain(std::uint32_t seed);
     [[nodiscard]] PlatformFramePlacement
     previewFoundation(Vec3 terrainHit) const;
+    [[nodiscard]] PlatformFramePlacement
+    previewFoundationAtHeight(
+        Vec3 terrainHit, double floorHeight) const;
     [[nodiscard]] std::optional<PlatformFrameInstance>
     placeFoundation(Vec3 terrainHit);
+    [[nodiscard]] std::optional<PlatformFrameInstance>
+    placeFoundationAtHeight(
+        Vec3 terrainHit, double floorHeight);
     [[nodiscard]] PlatformFramePlacement
     previewFloorPlatform(
         GridCoord anchor, int storey,
@@ -291,8 +299,7 @@ class Simulation {
     [[nodiscard]] std::optional<
         PlatformFramePlacement>
     automaticFoundationPlacement(
-        BuildingType type, GridPosition position,
-        double floorHeight) const;
+        BuildingType type, GridPosition position) const;
     void raisePlayerOntoGroundFrame(
         const PlatformFrameInstance& frame);
     [[nodiscard]] bool shouldAutoJumpGroundFrame(
@@ -330,6 +337,8 @@ class Simulation {
     bool modularStructuresDirty_{};
     GlbCollisionAsset platformCollisionAsset_;
     GlbCollisionAsset rampCollisionAsset_;
+    std::array<GlbCollisionAsset, TreeVisualVariantCount>
+        treeCollisionAssets_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};

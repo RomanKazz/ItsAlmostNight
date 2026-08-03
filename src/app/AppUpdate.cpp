@@ -944,6 +944,20 @@ void App::update() {
                 addEffect(type, center, 0.92, 1.0F);
                 destroyedResourceVisuals_.push_back({
                     .type = *event.resourceType,
+                    .visualVariant =
+                        node != eventSnapshot.resourceNodes.end()
+                            ? static_cast<std::size_t>(
+                                  node->id.index %
+                                  TreeVisualVariantCount)
+                            : 0U,
+                    .visualYaw =
+                        node != eventSnapshot.resourceNodes.end()
+                            ? static_cast<float>(node->visualYaw)
+                            : 0.0F,
+                    .visualScale =
+                        node != eventSnapshot.resourceNodes.end()
+                            ? static_cast<float>(node->visualScale)
+                            : 1.0F,
                     .position = center,
                     .remaining = 0.42,
                     .duration = 0.42,

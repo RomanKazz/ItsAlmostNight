@@ -3,6 +3,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 
@@ -15,17 +16,48 @@ TerrainRenderer::~TerrainRenderer() {
 void TerrainRenderer::rebuild(
     const TerrainHeightfield& terrain) {
     shutdown();
+    terrain_ = &terrain;
+    ready_ = true;
+}
 
-    const int resolution = terrain.resolution();
-    const int vertexCount = resolution * resolution;
+Model TerrainRenderer::buildChunk(
+    int chunkX, int chunkZ) const {
+    if (terrain_ == nullptr) {
+        return {};
+    }
+    const auto& config = terrain_->config();
+    const double halfSize = config.terrainWorldSize * 0.5;
+    const double minimumX = -halfSize +
+        static_cast<double>(chunkX) *
+            config.terrainChunkWorldSize;
+    const double minimumZ = -halfSize +
+        static_cast<double>(chunkZ) *
+            config.terrainChunkWorldSize;
+    const double maximumX = std::min(
+        minimumX + config.terrainChunkWorldSize, halfSize);
+    const double maximumZ = std::min(
+        minimumZ + config.terrainChunkWorldSize, halfSize);
+    const double width = maximumX - minimumX;
+    const double depth = maximumZ - minimumZ;
+    if (width <= 0.0 || depth <= 0.0) {
+        return {};
+    }
+    const int cellsX = std::clamp(
+        static_cast<int>(std::ceil(width / terrain_->spacing())),
+        2, 128);
+    const int cellsZ = std::clamp(
+        static_cast<int>(std::ceil(depth / terrain_->spacing())),
+        2, 128);
+    const int resolutionX = cellsX + 1;
+    const int resolutionZ = cellsZ + 1;
+    const int vertexCount = resolutionX * resolutionZ;
     if (vertexCount <= 0 ||
         vertexCount >
             static_cast<int>(
                 std::numeric_limits<unsigned short>::max())) {
-        return;
+        return {};
     }
-    const int cellCount =
-        (resolution - 1) * (resolution - 1);
+    const int cellCount = cellsX * cellsZ;
     Mesh mesh{};
     mesh.vertexCount = vertexCount;
     mesh.triangleCount = cellCount * 2;
@@ -66,28 +98,27 @@ void TerrainRenderer::rebuild(
         if (mesh.indices != nullptr) {
             MemFree(mesh.indices);
         }
-        return;
+        return {};
     }
 
-    const double halfSize =
-        terrain.config().terrainWorldSize * 0.5;
-    const double spacing = terrain.spacing();
-    for (int z = 0; z < resolution; ++z) {
-        for (int x = 0; x < resolution; ++x) {
-            const int index = z * resolution + x;
+    for (int z = 0; z < resolutionZ; ++z) {
+        for (int x = 0; x < resolutionX; ++x) {
+            const int index = z * resolutionX + x;
             const double worldX =
-                -halfSize +
-                static_cast<double>(x) * spacing;
+                minimumX + width *
+                    static_cast<double>(x) /
+                    static_cast<double>(cellsX);
             const double worldZ =
-                -halfSize +
-                static_cast<double>(z) * spacing;
+                minimumZ + depth *
+                    static_cast<double>(z) /
+                    static_cast<double>(cellsZ);
             const ian::Vec3 normal =
-                terrain.getNormal(worldX, worldZ);
+                terrain_->getNormal(worldX, worldZ);
             mesh.vertices[index * 3] =
                 static_cast<float>(worldX);
             mesh.vertices[index * 3 + 1] =
                 static_cast<float>(
-                    terrain.getHeight(worldX, worldZ));
+                    terrain_->getHeight(worldX, worldZ));
             mesh.vertices[index * 3 + 2] =
                 static_cast<float>(worldZ);
             mesh.normals[index * 3] =
@@ -98,32 +129,30 @@ void TerrainRenderer::rebuild(
                 static_cast<float>(normal.z);
             mesh.texcoords[index * 2] =
                 static_cast<float>(
-                    static_cast<double>(x) /
-                    static_cast<double>(
-                        resolution - 1));
+                    (worldX + halfSize) /
+                    config.terrainWorldSize);
             mesh.texcoords[index * 2 + 1] =
                 static_cast<float>(
-                    static_cast<double>(z) /
-                    static_cast<double>(
-                        resolution - 1));
+                    (worldZ + halfSize) /
+                    config.terrainWorldSize);
         }
     }
 
     int index = 0;
-    for (int z = 0; z < resolution - 1; ++z) {
-        for (int x = 0; x < resolution - 1; ++x) {
+    for (int z = 0; z < cellsZ; ++z) {
+        for (int x = 0; x < cellsX; ++x) {
             const auto northWest =
                 static_cast<unsigned short>(
-                    z * resolution + x);
+                    z * resolutionX + x);
             const auto northEast =
                 static_cast<unsigned short>(
-                    z * resolution + x + 1);
+                    z * resolutionX + x + 1);
             const auto southWest =
                 static_cast<unsigned short>(
-                    (z + 1) * resolution + x);
+                    (z + 1) * resolutionX + x);
             const auto southEast =
                 static_cast<unsigned short>(
-                    (z + 1) * resolution + x + 1);
+                    (z + 1) * resolutionX + x + 1);
             mesh.indices[index++] = northWest;
             mesh.indices[index++] = southWest;
             mesh.indices[index++] = northEast;
@@ -134,42 +163,83 @@ void TerrainRenderer::rebuild(
     }
 
     UploadMesh(&mesh, false);
-    model_ = LoadModelFromMesh(mesh);
-    ready_ = IsModelValid(model_);
-    if (!ready_) {
-        UnloadModel(model_);
-        model_ = {};
+    Model model = LoadModelFromMesh(mesh);
+    if (!IsModelValid(model)) {
+        UnloadModel(model);
+        return {};
     }
+    return model;
+}
+
+void TerrainRenderer::updateVisibleChunks(
+    Vector3 focusPosition) {
+    if (terrain_ == nullptr) {
+        return;
+    }
+    const auto& config = terrain_->config();
+    const double chunkSize = config.terrainChunkWorldSize;
+    const int chunkCount = std::max(
+        1, static_cast<int>(
+               std::ceil(config.terrainWorldSize / chunkSize)));
+    (void)focusPosition;
+    for (int z = 0; z < chunkCount; ++z) {
+        for (int x = 0; x < chunkCount; ++x) {
+            const auto existing = std::find_if(
+                chunks_.begin(), chunks_.end(),
+                [x, z](const TerrainChunk& chunk) {
+                    return chunk.x == x && chunk.z == z;
+                });
+            if (existing != chunks_.end()) {
+                continue;
+            }
+            Model model = buildChunk(x, z);
+            if (IsModelValid(model)) {
+                chunks_.push_back({x, z, model});
+            }
+        }
+    }
+
 }
 
 void TerrainRenderer::draw(
-    Shader shader, Color tint) {
+    Shader shader, Color tint,
+    Vector3 focusPosition) {
     if (!ready_) {
         return;
     }
-    if (shader.id != 0U) {
-        for (int index = 0;
-             index < model_.materialCount; ++index) {
-            model_.materials[index].shader = shader;
+    updateVisibleChunks(focusPosition);
+    for (auto& chunk : chunks_) {
+        if (shader.id != 0U) {
+            for (int index = 0;
+                 index < chunk.model.materialCount; ++index) {
+                chunk.model.materials[index].shader = shader;
+            }
         }
+        DrawModel(
+            chunk.model, {0.0F, 0.0F, 0.0F},
+            1.0F, tint);
     }
-    DrawModel(model_, {0.0F, 0.0F, 0.0F}, 1.0F, tint);
 }
 
 void TerrainRenderer::drawWireframe(Color tint) const {
     if (!ready_) {
         return;
     }
-    DrawModelWires(
-        model_, {0.0F, 0.0F, 0.0F}, 1.0F, tint);
+    for (const auto& chunk : chunks_) {
+        DrawModelWires(
+            chunk.model, {0.0F, 0.0F, 0.0F},
+            1.0F, tint);
+    }
 }
 
 void TerrainRenderer::shutdown() {
-    if (!ready_) {
-        return;
+    for (auto& chunk : chunks_) {
+        if (IsModelValid(chunk.model)) {
+            UnloadModel(chunk.model);
+        }
     }
-    UnloadModel(model_);
-    model_ = {};
+    chunks_.clear();
+    terrain_ = nullptr;
     ready_ = false;
 }
 

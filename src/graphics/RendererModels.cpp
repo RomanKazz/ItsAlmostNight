@@ -48,6 +48,9 @@ constexpr int PlatformTopMeshIndex = 4;
 constexpr int PlatformMeshCount = PlatformTopMeshIndex + 1;
 constexpr float PlatformLegTopY = -0.12480831F;
 constexpr float PlatformLegSpan = 3.87519169F;
+constexpr float TreeModelScale = 1.0F;
+constexpr float RockModelScale = 2.0F;
+constexpr float RockGroundOffset = 0.204F;
 constexpr std::array<std::size_t, PlatformLegCount>
     RotatedPlatformSupportIndices{1U, 0U, 3U, 2U};
 
@@ -75,6 +78,105 @@ BoundingBox transformedBoundingBox(
         result.max.z = std::max(result.max.z, transformed.z);
     }
     return result;
+}
+
+std::optional<double> rayCylinderDistance(
+    Ray ray, const BoundingBox& bounds, double maxDistance) {
+    const double centerX =
+        (static_cast<double>(bounds.min.x) + bounds.max.x) * 0.5;
+    const double centerZ =
+        (static_cast<double>(bounds.min.z) + bounds.max.z) * 0.5;
+    const double radius = std::max(
+        static_cast<double>(bounds.max.x - bounds.min.x),
+        static_cast<double>(bounds.max.z - bounds.min.z)) * 0.5;
+    const double offsetX = ray.position.x - centerX;
+    const double offsetZ = ray.position.z - centerZ;
+    const double a = ray.direction.x * ray.direction.x +
+                     ray.direction.z * ray.direction.z;
+    const double b = 2.0 *
+                     (offsetX * ray.direction.x +
+                      offsetZ * ray.direction.z);
+    const double c = offsetX * offsetX + offsetZ * offsetZ -
+                     radius * radius;
+    std::optional<double> closest;
+    const auto accept = [&](double distance) {
+        if (distance < 0.0 || distance > maxDistance) {
+            return;
+        }
+        const double y = ray.position.y +
+                         ray.direction.y * distance;
+        if (y >= bounds.min.y && y <= bounds.max.y &&
+            (!closest || distance < *closest)) {
+            closest = distance;
+        }
+    };
+    const double discriminant = b * b - 4.0 * a * c;
+    if (a > 1e-12 && discriminant >= 0.0) {
+        const double root = std::sqrt(discriminant);
+        accept((-b - root) / (2.0 * a));
+        accept((-b + root) / (2.0 * a));
+    }
+    if (std::abs(ray.direction.y) > 1e-12) {
+        for (const float capY : {bounds.min.y, bounds.max.y}) {
+            const double distance =
+                (static_cast<double>(capY) - ray.position.y) /
+                ray.direction.y;
+            const double x = offsetX + ray.direction.x * distance;
+            const double z = offsetZ + ray.direction.z * distance;
+            if (distance >= 0.0 && distance <= maxDistance &&
+                x * x + z * z <= radius * radius &&
+                (!closest || distance < *closest)) {
+                closest = distance;
+            }
+        }
+    }
+    return closest;
+}
+
+std::optional<double> modelColliderRaycastDistance(
+    const ModelResource& resource, Matrix transform,
+    Ray ray, double maxDistance) {
+    const auto accept =
+        [maxDistance](RayCollision collision)
+            -> std::optional<double> {
+            if (!collision.hit || collision.distance < 0.0F ||
+                static_cast<double>(collision.distance) > maxDistance) {
+                return std::nullopt;
+            }
+            return static_cast<double>(collision.distance);
+        };
+
+    std::optional<double> closest;
+    const auto addBounds = [&](const BoundingBox& bounds,
+                               ModelColliderType type) {
+        const BoundingBox worldBounds =
+            transformedBoundingBox(bounds, transform);
+        const auto distance = type == ModelColliderType::Cylinder
+                                  ? rayCylinderDistance(
+                                        ray, worldBounds, maxDistance)
+                                  : accept(GetRayCollisionBox(
+                                        ray, worldBounds));
+        if (distance && (!closest || *distance < *closest)) {
+            closest = distance;
+        }
+    };
+
+    const auto& collisionAsset = resource.collisionAsset();
+    if (!collisionAsset.colliders.empty()) {
+        for (const ModelCollider& collider : collisionAsset.colliders) {
+            addBounds(
+                {{static_cast<float>(collider.minimum.x),
+                  static_cast<float>(collider.minimum.y),
+                  static_cast<float>(collider.minimum.z)},
+                 {static_cast<float>(collider.maximum.x),
+                  static_cast<float>(collider.maximum.y),
+                  static_cast<float>(collider.maximum.z)}},
+                collider.type);
+        }
+    } else {
+        addBounds(resource.visualBounds(), ModelColliderType::Box);
+    }
+    return closest;
 }
 
 std::array<Matrix, PlatformLegCount + 1>
@@ -332,7 +434,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     float modelScale = 1.0F;
     float yaw = 0.0F;
     float groundOffset = 0.0F;
-    bool articulatedCannon = false;
+    static_cast<void>(cannonPitchRadians);
 
     constexpr float QuarterTurn = PI * 0.5F;
     switch (building.type) {
@@ -456,7 +558,6 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 3.0F;
         yaw = defensiveYaw + PI;
         groundOffset = 0.155F;
-        articulatedCannon = true;
         break;
     case BuildingType::SlowTrap:
     case BuildingType::Gate:
@@ -466,14 +567,11 @@ std::optional<double> Renderer::buildingRaycastDistance(
     const auto acceptCollision =
         [maxDistance](RayCollision collision)
             -> std::optional<double> {
-            if (!collision.hit ||
-                collision.distance < 0.0F ||
-                static_cast<double>(collision.distance) >
-                    maxDistance) {
+            if (!collision.hit || collision.distance < 0.0F ||
+                static_cast<double>(collision.distance) > maxDistance) {
                 return std::nullopt;
             }
-            return static_cast<double>(
-                collision.distance);
+            return static_cast<double>(collision.distance);
         };
     if (resource != nullptr && resource->valid()) {
         Model& model = resource->get();
@@ -488,51 +586,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
-        if (!articulatedCannon &&
-            !acceptCollision(GetRayCollisionBox(
-                ray,
-                transformedBoundingBox(
-                    resource->visualBounds(),
-                    baseTransform)))) {
-            return std::nullopt;
-        }
-        std::optional<double> closest;
-        const auto meshBounds = resource->meshBounds();
-        for (int meshIndex = 0;
-             meshIndex < model.meshCount; ++meshIndex) {
-            Matrix transform = baseTransform;
-            if (articulatedCannon && meshIndex == 0) {
-                transform = MatrixMultiply(
-                    model.transform,
-                    MatrixMultiply(
-                        MatrixMultiply(
-                            MatrixMultiply(
-                                scale,
-                                MatrixRotateX(
-                                    cannonPitchRadians)),
-                            rotation),
-                        translation));
-            }
-            if (static_cast<std::size_t>(meshIndex) <
-                    meshBounds.size() &&
-                !acceptCollision(GetRayCollisionBox(
-                    ray,
-                    transformedBoundingBox(
-                        meshBounds[static_cast<std::size_t>(
-                            meshIndex)],
-                        transform)))) {
-                continue;
-            }
-            const auto distance = acceptCollision(
-                GetRayCollisionMesh(
-                    ray, model.meshes[meshIndex],
-                    transform));
-            if (distance &&
-                (!closest || *distance < *closest)) {
-                closest = distance;
-            }
-        }
-        return closest;
+        return modelColliderRaycastDistance(
+            *resource, baseTransform, ray, maxDistance);
     }
 
     const auto collideBox =
@@ -612,6 +667,36 @@ std::optional<double> Renderer::buildingRaycastDistance(
     return closest;
 }
 
+std::optional<double> Renderer::resourceRaycastDistance(
+    ResourceType type, Vector3 position,
+    Ray ray, double maxDistance,
+    std::size_t visualVariant,
+    float visualScale, float yawRadians) {
+    ModelResource& resource = type == ResourceType::Wood
+                                  ? resources_.treeModel(visualVariant)
+                                  : resources_.rockModel();
+    if (!resource.valid() || maxDistance <= 0.0) {
+        return std::nullopt;
+    }
+    const float modelScale = type == ResourceType::Wood
+                                 ? TreeModelScale * visualScale
+                                 : RockModelScale;
+    position.y += type == ResourceType::Wood
+                      ? static_cast<float>(TreeVisualGroundOffsets[
+                            visualVariant % TreeVisualVariantCount] *
+                            visualScale)
+                      : RockGroundOffset;
+    const Matrix transform = MatrixMultiply(
+        resource.get().transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(position.x, position.y, position.z)));
+    return modelColliderRaycastDistance(
+        resource, transform, ray, maxDistance);
+}
+
 std::optional<double>
 Renderer::platformFrameRaycastDistance(
     Vector3 topCenter, float scale,
@@ -646,14 +731,7 @@ Renderer::platformFrameRaycastDistance(
                 maxDistance) {
             continue;
         }
-        const RayCollision meshHit = GetRayCollisionMesh(
-            ray, model.meshes[meshIndex], transform);
-        if (!meshHit.hit || meshHit.distance < 0.0F ||
-            static_cast<double>(meshHit.distance) >
-                maxDistance) {
-            continue;
-        }
-        const double distance = meshHit.distance;
+        const double distance = boundsHit.distance;
         if (!closest || distance < *closest) {
             closest = distance;
         }
@@ -1049,19 +1127,352 @@ bool Renderer::drawRock(Vector3 position, Color tint,
             model.materials[index].shader = *shader;
         }
     }
-    constexpr float ModelScale = 2.0F;
-    constexpr float GroundOffset = 0.204F;
-    position.y += GroundOffset;
+    position.y += RockGroundOffset;
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {ModelScale * scale, ModelScale * scale,
-                 ModelScale * scale},
+                {RockModelScale * scale, RockModelScale * scale,
+                 RockModelScale * scale},
                 tint);
     return true;
 }
 
+void Renderer::drawDecorativeRocks(
+    Vector3 cameraPosition, float worldLimit,
+    std::span<const GrassClearArea> clearAreas) {
+    constexpr std::size_t VariantCount = 4U;
+    constexpr float Spacing = 5.0F;
+    constexpr float DrawRadius = 34.0F;
+    constexpr float CoreClearRadius = 10.5F;
+    const int minimumX = static_cast<int>(
+        std::floor((cameraPosition.x - DrawRadius) / Spacing));
+    const int maximumX = static_cast<int>(
+        std::ceil((cameraPosition.x + DrawRadius) / Spacing));
+    const int minimumZ = static_cast<int>(
+        std::floor((cameraPosition.z - DrawRadius) / Spacing));
+    const int maximumZ = static_cast<int>(
+        std::ceil((cameraPosition.z + DrawRadius) / Spacing));
+    const auto hashCell = [](int x, int z) {
+        std::uint32_t value =
+            static_cast<std::uint32_t>(x) * 0x8da6b343U ^
+            static_cast<std::uint32_t>(z) * 0xd8163841U ^
+            0x6c8e9cf5U;
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        return value ^ (value >> 16U);
+    };
+    const auto unitFloat = [](std::uint32_t value) {
+        return static_cast<float>(value & 0xffffU) / 65535.0F;
+    };
+
+    for (std::size_t variant = 0; variant < VariantCount; ++variant) {
+        ModelResource& resource =
+            resources_.decorativeRockModel(variant);
+        if (!resource.valid()) {
+            continue;
+        }
+        Shader* shader = nullptr;
+        if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+            shader = &resources_.shadowShader().get();
+        } else if (worldShaderActive_ &&
+                   resources_.worldShader().valid()) {
+            shader = &resources_.worldShader().get();
+        }
+        if (shader != nullptr) {
+            Model& model = resource.get();
+            for (int material = 0; material < model.materialCount;
+                 ++material) {
+                model.materials[material].shader = *shader;
+            }
+        }
+    }
+
+    for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+        for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+            const std::uint32_t hash = hashCell(cellX, cellZ);
+            if (unitFloat(hash) > 0.48F) {
+                continue;
+            }
+            const float jitterX =
+                (unitFloat(hash >> 7U) - 0.5F) * Spacing * 0.78F;
+            const float jitterZ =
+                (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.78F;
+            const float x =
+                (static_cast<float>(cellX) + 0.5F) * Spacing +
+                jitterX;
+            const float z =
+                (static_cast<float>(cellZ) + 0.5F) * Spacing +
+                jitterZ;
+            if (std::abs(x) > worldLimit - 0.7F ||
+                std::abs(z) > worldLimit - 0.7F ||
+                x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            const float cameraX = x - cameraPosition.x;
+            const float cameraZ = z - cameraPosition.z;
+            if (cameraX * cameraX + cameraZ * cameraZ >
+                DrawRadius * DrawRadius) {
+                continue;
+            }
+            const float visibility = clearAreaVisibility(
+                {x, z}, clearAreas, 1.0F, 0.65F);
+            if (visibility <= 0.01F) {
+                continue;
+            }
+            const std::size_t variant =
+                static_cast<std::size_t>((hash >> 4U) % VariantCount);
+            ModelResource& resource =
+                resources_.decorativeRockModel(variant);
+            if (!resource.valid()) {
+                continue;
+            }
+            const float baseScale =
+                0.55F + unitFloat(hash ^ 0xa511e9b3U) * 0.45F;
+            const float scale = baseScale * visibility;
+            const float terrainHeight =
+                terrainHeightfield_ != nullptr
+                    ? static_cast<float>(
+                          terrainHeightfield_->getHeight(x, z))
+                    : 0.0F;
+            const float rotation =
+                unitFloat(hash ^ 0x63d83595U) * PI * 2.0F;
+            DrawModelEx(
+                resource.get(),
+                {x,
+                 terrainHeight -
+                     (1.0F - visibility) * 0.08F,
+                 z},
+                {0.0F, 1.0F, 0.0F}, rotation * RAD2DEG,
+                {scale, scale, scale}, WHITE);
+        }
+    }
+}
+
+void Renderer::drawDecorativeRockAo(
+    Vector3 cameraPosition, float worldLimit,
+    std::span<const GrassClearArea> clearAreas) {
+    if (!blobShadowBatchOpen_ ||
+        terrainHeightfield_ == nullptr) {
+        return;
+    }
+    constexpr float Spacing = 5.0F;
+    constexpr float DrawRadius = 34.0F;
+    constexpr float CoreClearRadius = 10.5F;
+    const int minimumX = static_cast<int>(
+        std::floor((cameraPosition.x - DrawRadius) / Spacing));
+    const int maximumX = static_cast<int>(
+        std::ceil((cameraPosition.x + DrawRadius) / Spacing));
+    const int minimumZ = static_cast<int>(
+        std::floor((cameraPosition.z - DrawRadius) / Spacing));
+    const int maximumZ = static_cast<int>(
+        std::ceil((cameraPosition.z + DrawRadius) / Spacing));
+    const auto hashCell = [](int x, int z) {
+        std::uint32_t value =
+            static_cast<std::uint32_t>(x) * 0x8da6b343U ^
+            static_cast<std::uint32_t>(z) * 0xd8163841U ^
+            0x6c8e9cf5U;
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        return value ^ (value >> 16U);
+    };
+    const auto unitFloat = [](std::uint32_t value) {
+        return static_cast<float>(value & 0xffffU) /
+               65535.0F;
+    };
+
+    for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+        for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+            const std::uint32_t hash = hashCell(cellX, cellZ);
+            if (unitFloat(hash) > 0.48F) {
+                continue;
+            }
+            const float x =
+                (static_cast<float>(cellX) + 0.5F) * Spacing +
+                (unitFloat(hash >> 7U) - 0.5F) * Spacing * 0.78F;
+            const float z =
+                (static_cast<float>(cellZ) + 0.5F) * Spacing +
+                (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.78F;
+            if (std::abs(x) > worldLimit - 0.7F ||
+                std::abs(z) > worldLimit - 0.7F ||
+                x * x + z * z <
+                    CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            const float cameraX = x - cameraPosition.x;
+            const float cameraZ = z - cameraPosition.z;
+            if (cameraX * cameraX + cameraZ * cameraZ >
+                DrawRadius * DrawRadius) {
+                continue;
+            }
+            const float visibility = clearAreaVisibility(
+                {x, z}, clearAreas, 1.0F, 0.65F);
+            if (visibility <= 0.01F) {
+                continue;
+            }
+            const float scale =
+                (0.55F +
+                 unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
+                visibility;
+            const float groundY = static_cast<float>(
+                terrainHeightfield_->getHeight(x, z));
+            drawBlobShadow(
+                {x, groundY + 0.018F, z},
+                scale * 0.62F, scale * 0.52F, 0.16F);
+            drawBlobShadow(
+                {x, groundY + 0.02F, z},
+                scale * 0.34F, scale * 0.28F, 0.27F);
+        }
+    }
+}
+
+void Renderer::drawBoundaryForest() {
+    if (!worldShaderActive_ ||
+        terrainHeightfield_ == nullptr ||
+        !resources_.worldShader().valid()) {
+        return;
+    }
+    constexpr std::size_t VariantCount = 2U;
+    constexpr float Spacing = 4.0F;
+    constexpr std::size_t MaximumInstancesPerVariant = 8192U;
+    const auto& terrain = *terrainHeightfield_;
+    const auto& config = terrain.config();
+    if (config.terrainBoundaryRiseWidth <= 0.0F ||
+        config.terrainBoundaryRiseHeight <= 0.0F) {
+        return;
+    }
+    const float terrainLimit = static_cast<float>(
+        config.terrainWorldSize * 0.5);
+    const float forestInnerLimit = static_cast<float>(
+        config.terrainWorldSize * 0.5 -
+        config.terrainBoundaryRiseWidth + 0.5);
+    const float forestOuterLimit = terrainLimit - 0.5F;
+    const int minimumX = static_cast<int>(std::floor(
+        -terrainLimit / Spacing));
+    const int maximumX = static_cast<int>(std::ceil(
+        terrainLimit / Spacing));
+    const int minimumZ = static_cast<int>(std::floor(
+        -terrainLimit / Spacing));
+    const int maximumZ = static_cast<int>(std::ceil(
+        terrainLimit / Spacing));
+    const auto hashCell = [](int x, int z) {
+        std::uint32_t value =
+            static_cast<std::uint32_t>(x) * 0x8da6b343U ^
+            static_cast<std::uint32_t>(z) * 0xd8163841U ^
+            0xa511e9b3U;
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        return value ^ (value >> 16U);
+    };
+    const auto unitFloat = [](std::uint32_t value) {
+        return static_cast<float>(value & 0xffffU) /
+               65535.0F;
+    };
+
+    if (!boundaryForestCached_) {
+        for (auto& variant : boundaryForestTransforms_) {
+            variant.clear();
+            variant.reserve(3072U);
+        }
+        for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+            for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+                const std::uint32_t hash = hashCell(cellX, cellZ);
+                const float x =
+                    (static_cast<float>(cellX) + 0.5F) * Spacing +
+                    (unitFloat(hash >> 7U) - 0.5F) * Spacing * 0.34F;
+                const float z =
+                    (static_cast<float>(cellZ) + 0.5F) * Spacing +
+                    (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.34F;
+                const float edgeDistance =
+                    std::max(std::abs(x), std::abs(z));
+                if (edgeDistance < forestInnerLimit ||
+                    edgeDistance > forestOuterLimit) {
+                    continue;
+                }
+                const std::size_t variant =
+                    static_cast<std::size_t>(
+                        (hash >> 4U) % VariantCount);
+                if (boundaryForestTransforms_[variant].size() >=
+                    MaximumInstancesPerVariant) {
+                    continue;
+                }
+                ModelResource& resource =
+                    resources_.boundaryTreeModel(variant);
+                if (!resource.valid()) {
+                    continue;
+                }
+                const float slopeProgress = std::clamp(
+                    (edgeDistance - forestInnerLimit) /
+                        std::max(
+                            forestOuterLimit - forestInnerLimit,
+                            0.001F),
+                    0.0F, 1.0F);
+                const float sizeRoll =
+                    unitFloat(hash ^ 0x63d83595U);
+                const float scale =
+                    3.15F + sizeRoll * sizeRoll * 5.85F +
+                    slopeProgress * 0.75F;
+                const float yaw =
+                    unitFloat(hash ^ 0x9e3779b9U) * PI * 2.0F;
+                const float height = static_cast<float>(
+                    terrain.getHeight(x, z));
+                boundaryForestTransforms_[variant].push_back(
+                    MatrixMultiply(
+                        resource.get().transform,
+                        MatrixMultiply(
+                            MatrixMultiply(
+                                MatrixScale(scale, scale, scale),
+                                MatrixRotateY(yaw)),
+                            MatrixTranslate(x, height, z))));
+            }
+        }
+        boundaryForestCached_ = true;
+    }
+
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &enabled,
+        SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    for (std::size_t variant = 0; variant < VariantCount;
+         ++variant) {
+        ModelResource& resource =
+            resources_.boundaryTreeModel(variant);
+        if (!resource.valid() ||
+            boundaryForestTransforms_[variant].empty()) {
+            continue;
+        }
+        Model& model = resource.get();
+        for (int meshIndex = 0; meshIndex < model.meshCount;
+             ++meshIndex) {
+            const int materialIndex =
+                model.meshMaterial[meshIndex];
+            Material material = model.materials[materialIndex];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                boundaryForestTransforms_[variant].data(),
+                static_cast<int>(
+                    boundaryForestTransforms_[variant].size()));
+        }
+    }
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &disabled,
+        SHADER_UNIFORM_INT);
+}
+
 bool Renderer::drawTree(Vector3 position, Color tint,
-                        float scale) {
-    auto& resource = resources_.treeModel();
+                        float scale, std::size_t visualVariant,
+                        float yawRadians) {
+    auto& resource = resources_.treeModel(visualVariant);
     if (!resource.valid()) {
         return false;
     }
@@ -1080,12 +1491,14 @@ bool Renderer::drawTree(Vector3 position, Color tint,
             model.materials[index].shader = *shader;
         }
     }
-    constexpr float ModelScale = 2.7F;
-    constexpr float GroundOffset = 0.144F;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {ModelScale * scale, ModelScale * scale,
-                 ModelScale * scale},
+    position.y += static_cast<float>(
+        TreeVisualGroundOffsets[
+            visualVariant % TreeVisualVariantCount] *
+        scale);
+    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
+                yawRadians * RAD2DEG,
+                {TreeModelScale * scale, TreeModelScale * scale,
+                 TreeModelScale * scale},
                 tint);
     return true;
 }

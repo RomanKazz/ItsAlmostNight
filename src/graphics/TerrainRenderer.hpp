@@ -4,6 +4,8 @@
 
 #include <raylib.h>
 
+#include <vector>
+
 namespace ian {
 
 class TerrainRenderer {
@@ -17,14 +19,27 @@ class TerrainRenderer {
     TerrainRenderer& operator=(TerrainRenderer&&) = delete;
 
     void rebuild(const TerrainHeightfield& terrain);
-    void draw(Shader shader, Color tint);
+    void draw(
+        Shader shader, Color tint,
+        Vector3 focusPosition);
     void drawWireframe(Color tint) const;
     void shutdown();
 
     [[nodiscard]] bool ready() const;
 
   private:
-    Model model_{};
+    struct TerrainChunk {
+        int x{};
+        int z{};
+        Model model{};
+    };
+
+    [[nodiscard]] Model buildChunk(
+        int chunkX, int chunkZ) const;
+    void updateVisibleChunks(Vector3 focusPosition);
+
+    const TerrainHeightfield* terrain_{};
+    std::vector<TerrainChunk> chunks_;
     bool ready_{};
 };
 

@@ -96,6 +96,24 @@ World-space health bar и подписи рисуются после пиксе�
 terrain и строительной сетки — в `assets/data/world.json`. Файлы загружаются и
 валидируются до создания симуляции.
 
+Terrain хранит детерминированный heightfield целого мира. Крупный low-frequency
+слой создаёт холмы и долины, smooth quantization — широкие террасы, отдельный
+слабый слой добавляет только визуальную неровность поверхности. Генератор
+встраивает центральную и четыре дополнительные строительные площадки с
+плавными связями между ними.
+
+Renderer разбивает terrain на 64 GPU-чанка и держит finite terrain загруженным
+целиком: около 270k вершин без видимого streaming/pop-in.
+`terrainBoundaryRiseWidth` и `terrainBoundaryRiseHeight` формируют сплошной
+внешний горный хребет. Четыре spawn anchor находятся близко к базе на
+кардинальных направлениях; flow field покрывает ближнюю боевую область.
+
+Основные настройки генерации: `terrainAmplitude`, `terrainFeatureSize`,
+`terrainTerraceHeight`, `terrainSlopeWidth`,
+`terrainSurfaceNoiseAmplitude`, `terrainBuildPlateauRadius`,
+`terrainSeed`. Допустимый перепад terrain под фундаментом задаёт
+`maximumFoundationHeightDifference`.
+
 Поведение остаётся в C++. Новая внешняя зависимость требует отдельного ADR.
 
 ## CMake-цели

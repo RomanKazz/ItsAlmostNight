@@ -30,23 +30,51 @@ void App::drawWorldEntities(
         DrawCube(center, width, static_cast<float>(obstacle.height), depth,
                  {99, 111, 122, 255});
     }
+    WorldMaterialState boundaryForestMaterial{};
+    boundaryForestMaterial.baseColor = {
+        0.56F, 0.62F, 0.48F, 1.0F};
+    boundaryForestMaterial.bakedAo = 0.66F;
+    boundaryForestMaterial.windAmount = 0.28F;
+    renderer_->setWorldMaterial(boundaryForestMaterial);
+    renderer_->drawBoundaryForest();
+    WorldMaterialState decorativeRockMaterial{};
+    decorativeRockMaterial.bakedAo = 0.82F;
+    renderer_->setWorldMaterial(decorativeRockMaterial);
+    renderer_->drawDecorativeRocks(
+        camera.position,
+        static_cast<float>(snapshot.worldLimit),
+        grassClearAreas_);
+    const float resourceDrawDistance = static_cast<float>(
+        simulation_.terrain().config().terrainRenderDistance +
+        12.0);
+    const float resourceDrawDistanceSquared =
+        resourceDrawDistance * resourceDrawDistance;
     for (const auto& node : snapshot.resourceNodes) {
         if (!node.active) {
             continue;
         }
+        const float cameraOffsetX =
+            static_cast<float>(node.position.x) - camera.position.x;
+        const float cameraOffsetZ =
+            static_cast<float>(node.position.z) - camera.position.z;
+        if (cameraOffsetX * cameraOffsetX +
+                cameraOffsetZ * cameraOffsetZ >
+            resourceDrawDistanceSquared) {
+            continue;
+        }
 
-            const Vec3 hitOffset =
-                presentation::resourceHitOffset(
-                    effects_, node.id, node.position);
-            const Vector3 nodePosition = {
-                static_cast<float>(
-                    node.position.x + hitOffset.x),
-                static_cast<float>(
-                    simulation_.terrain().getHeight(
-                        node.position.x,
-                        node.position.z)),
-                static_cast<float>(
-                    node.position.z + hitOffset.z),
+        const Vec3 hitOffset =
+            presentation::resourceHitOffset(
+                effects_, node.id, node.position);
+        const Vector3 nodePosition = {
+            static_cast<float>(
+                node.position.x + hitOffset.x),
+            static_cast<float>(
+                simulation_.terrain().getHeight(
+                    node.position.x,
+                    node.position.z)),
+            static_cast<float>(
+                node.position.z + hitOffset.z),
         };
         WorldMaterialState material{};
         material.bakedAo = 0.78F;
@@ -62,7 +90,11 @@ void App::drawWorldEntities(
         if (node.type == ResourceType::Wood) {
             if (!renderer_->drawTree(
                     nodePosition,
-                    WHITE, hitScale)) {
+                    WHITE,
+                    hitScale * static_cast<float>(node.visualScale),
+                    static_cast<std::size_t>(
+                        node.id.index % TreeVisualVariantCount),
+                    static_cast<float>(node.visualYaw))) {
                 DrawCylinder(
                     {nodePosition.x,
                      nodePosition.y + 0.9F,
@@ -111,7 +143,11 @@ void App::drawWorldEntities(
         };
         if (visual.type == ResourceType::Wood) {
             static_cast<void>(
-                renderer_->drawTree(position, WHITE, scale));
+                renderer_->drawTree(
+                    position, WHITE,
+                    scale * visual.visualScale,
+                    visual.visualVariant,
+                    visual.visualYaw));
         } else {
             static_cast<void>(
                 renderer_->drawRock(position, WHITE, scale));

@@ -388,7 +388,8 @@ void App::render() {
         terrainMaterial.bakedAo = 0.9F;
         renderer_->setWorldMaterial(terrainMaterial);
         renderer_->drawTerrain(
-            ground, showTerrainWireframe_);
+            ground, camera.position,
+            showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
         drawBlobShadows(snapshot, camera);

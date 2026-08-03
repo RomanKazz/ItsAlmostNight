@@ -16,6 +16,12 @@ void runFlowFieldTests() {
     require(openDirection.has_value() && openDirection->x < 0.0,
             "open field points toward core");
     requireNear(openField.distanceAt({0, 0}), 0.0, 1e-12, "core distance is zero");
+    const auto distantDirection =
+        openField.directionAt({24.0, 0.0, 0.0});
+    require(
+        distantDirection.has_value() &&
+            distantDirection->x < 0.0,
+        "flow field covers nearby attack spawn routes");
     require(
         !openField.directionAt({
             std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0}) &&

@@ -4,7 +4,6 @@
 #include "core/Types.hpp"
 #include "world/CollisionWorld.hpp"
 
-#include <array>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -52,7 +51,7 @@ class FlowField {
     [[nodiscard]] static std::size_t indexOf(GridPosition position);
     void markStaticObstacles();
 
-    std::array<NavCell, CellCount> cells_{};
+    std::vector<NavCell> cells_{CellCount};
     std::vector<CollisionBox> staticObstacles_;
     GridPosition target_{};
     bool ready_{};

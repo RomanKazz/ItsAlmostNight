@@ -130,7 +130,7 @@ float sampleShadow(vec3 normal)
             float weight = kernel[offsetX + 2]*kernel[offsetY + 2];
             vec2 offset =
                 vec2(float(offsetX), float(offsetY))*
-                shadowMapTexelSize*1.35;
+                shadowMapTexelSize*2.25;
             float closestDepth = texture(shadowMap, projected.xy + offset).r;
             occlusion +=
                 (projected.z - bias > closestDepth ? 1.0 : 0.0)*weight;
@@ -148,15 +148,30 @@ void main()
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     float lightFacing = dot(normal, lightDirection);
     float lambert = max(lightFacing, 0.0);
-    float diffuseRamp = smoothstep(-0.08, 0.82, lightFacing);
-    float stylizedDiffuse = mix(lambert, diffuseRamp, 0.3);
+    float diffuseRamp = smoothstep(-0.12, 0.78, lightFacing);
+    float stylizedDiffuse = mix(lambert, diffuseRamp, 0.42);
 
     float hemisphere = normal.y*0.5 + 0.5;
     vec3 ambientColor = mix(groundAmbientColor, skyAmbientColor, hemisphere);
-    float ambientShape = mix(0.78, 1.05, hemisphere);
+    float ambientShape = mix(0.86, 1.10, hemisphere);
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
+    ambient += skyAmbientColor*ambientIntensity*0.16;
     float shadow = sampleShadow(normal);
-    vec3 direct = sunColor*sunIntensity*stylizedDiffuse*shadow;
+    float sunHighlight = pow(max(lightFacing, 0.0), 2.0)*0.06;
+    float silhouetteRim =
+        pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.15);
+    float lightSideRim =
+        smoothstep(-0.24, 0.38, lightFacing);
+    float coolLightAmount =
+        smoothstep(0.04, 0.22, sunColor.b - sunColor.r);
+    float timeOfDayRimStrength =
+        mix(0.62, 1.0, coolLightAmount);
+    float directionalRim =
+        silhouetteRim*lightSideRim*
+        mix(0.58, 0.075, clamp(terrainAmount, 0.0, 1.0))*
+        timeOfDayRimStrength;
+    vec3 direct = sunColor*sunIntensity*
+        (stylizedDiffuse + sunHighlight)*shadow;
     float rim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
         smoothstep(-0.2, 0.75, normal.y);
@@ -174,6 +189,10 @@ void main()
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
     vec3 litColor = albedo.rgb*(ambient + direct + skyRim)*ao;
+    vec3 directionalRimColor =
+        mix(sunColor, vec3(1.0), 0.24)*sunIntensity;
+    litColor += directionalRimColor*directionalRim*
+        mix(albedo.rgb, vec3(1.0), 0.42);
     litColor *= dayNightTint;
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
     litColor = mix(litColor, vec3(1.0, 0.28, 0.12), clamp(hitFlashAmount, 0.0, 1.0));

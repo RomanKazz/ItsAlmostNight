@@ -336,6 +336,59 @@ std::optional<EntityId> preciseBuildingAim(
     return result;
 }
 
+std::optional<EntityId> preciseResourceAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot) {
+    if (snapshot.selectedWeapon != PlayerWeapon::Pickaxe) {
+        return std::nullopt;
+    }
+    constexpr double MaximumDistance = 2.6;
+    const double horizontal = std::cos(snapshot.playerPitch);
+    const Ray ray{
+        {static_cast<float>(snapshot.playerPosition.x),
+         static_cast<float>(snapshot.playerPosition.y),
+         static_cast<float>(snapshot.playerPosition.z)},
+        {static_cast<float>(
+             std::sin(snapshot.playerYaw) * horizontal),
+         static_cast<float>(std::sin(snapshot.playerPitch)),
+         static_cast<float>(
+             -std::cos(snapshot.playerYaw) * horizontal)},
+    };
+    std::optional<EntityId> result;
+    double closestDistance = MaximumDistance;
+    for (const ResourceNode& node : snapshot.resourceNodes) {
+        if (!node.active) {
+            continue;
+        }
+        const double offsetX =
+            node.position.x - snapshot.playerPosition.x;
+        const double offsetZ =
+            node.position.z - snapshot.playerPosition.z;
+        constexpr double BroadPhaseRadius = MaximumDistance + 3.0;
+        if (offsetX * offsetX + offsetZ * offsetZ >
+            BroadPhaseRadius * BroadPhaseRadius) {
+            continue;
+        }
+        const Vector3 position{
+            static_cast<float>(node.position.x),
+            static_cast<float>(
+                node.position.y - node.groundOffset),
+            static_cast<float>(node.position.z),
+        };
+        const auto distance = renderer.resourceRaycastDistance(
+            node.type, position, ray, MaximumDistance,
+            static_cast<std::size_t>(
+                node.id.index % TreeVisualVariantCount),
+            static_cast<float>(node.visualScale),
+            static_cast<float>(node.visualYaw));
+        if (distance && *distance < closestDistance) {
+            closestDistance = *distance;
+            result = node.id;
+        }
+    }
+    return result;
+}
+
 std::optional<EntityId> preciseModularBuildingAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot) {
@@ -412,10 +465,12 @@ float smoothstep(float edge0, float edge1, float value) {
     return normalized * normalized * (3.0F - 2.0F * normalized);
 }
 
-void drawBuildGrid(Vector3 playerPosition, double worldLimit) {
+void drawBuildGrid(
+    Vector3 playerPosition, double worldLimit,
+    const TerrainHeightfield& terrain) {
     constexpr float FadeStart = 15.0F;
     constexpr float FadeEnd = 25.0F;
-    constexpr float GridHeight = 0.025F;
+    constexpr float GridTerrainOffset = 0.025F;
     constexpr float MinorOpacity = 0.15F;
     constexpr float MajorOpacity = 0.28F;
     constexpr int MajorInterval = 5;
@@ -456,6 +511,16 @@ void drawBuildGrid(Vector3 playerPosition, double worldLimit) {
                             255.0F)),
         };
     };
+    const auto gridPoint =
+        [&terrain](float x, float z) {
+            return Vector3{
+                x,
+                static_cast<float>(
+                    terrain.getHeight(x, z)) +
+                    GridTerrainOffset,
+                z,
+            };
+        };
 
     for (int x = minimumX; x <= maximumX; ++x) {
         const bool major = x % MajorInterval == 0;
@@ -466,11 +531,16 @@ void drawBuildGrid(Vector3 playerPosition, double worldLimit) {
             if (color.a == 0U) {
                 continue;
             }
-            DrawLine3D({static_cast<float>(x), GridHeight,
-                        static_cast<float>(z)},
-                       {static_cast<float>(x), GridHeight,
-                        static_cast<float>(z + 1)},
-                       color);
+            const float lineX = static_cast<float>(x);
+            const float startZ = static_cast<float>(z);
+            const float middleZ = startZ + 0.5F;
+            const float endZ = startZ + 1.0F;
+            DrawLine3D(
+                gridPoint(lineX, startZ),
+                gridPoint(lineX, middleZ), color);
+            DrawLine3D(
+                gridPoint(lineX, middleZ),
+                gridPoint(lineX, endZ), color);
         }
     }
     for (int z = minimumZ; z <= maximumZ; ++z) {
@@ -482,11 +552,16 @@ void drawBuildGrid(Vector3 playerPosition, double worldLimit) {
             if (color.a == 0U) {
                 continue;
             }
-            DrawLine3D({static_cast<float>(x), GridHeight,
-                        static_cast<float>(z)},
-                       {static_cast<float>(x + 1), GridHeight,
-                        static_cast<float>(z)},
-                       color);
+            const float lineZ = static_cast<float>(z);
+            const float startX = static_cast<float>(x);
+            const float middleX = startX + 0.5F;
+            const float endX = startX + 1.0F;
+            DrawLine3D(
+                gridPoint(startX, lineZ),
+                gridPoint(middleX, lineZ), color);
+            DrawLine3D(
+                gridPoint(middleX, lineZ),
+                gridPoint(endX, lineZ), color);
         }
     }
 }

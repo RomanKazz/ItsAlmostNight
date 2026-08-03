@@ -6,7 +6,6 @@
 #include <raymath.h>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -14,7 +13,8 @@
 namespace ian {
 namespace {
 
-constexpr float NodeRadius = 38.0F;
+constexpr float NodeHalfSize = 38.0F;
+constexpr float RootNodeHalfSize = 48.0F;
 
 float easeOutBack(float value) {
     value = std::clamp(value, 0.0F, 1.0F);
@@ -52,66 +52,13 @@ Color branchColor(SkillBranch branch) {
     return WHITE;
 }
 
-Vector2 cubicPoint(Vector2 start, Vector2 controlA,
-                   Vector2 controlB, Vector2 end, float time) {
-    const float inverse = 1.0F - time;
-    return {
-        inverse * inverse * inverse * start.x +
-            3.0F * inverse * inverse * time * controlA.x +
-            3.0F * inverse * time * time * controlB.x +
-            time * time * time * end.x,
-        inverse * inverse * inverse * start.y +
-            3.0F * inverse * inverse * time * controlA.y +
-            3.0F * inverse * time * time * controlB.y +
-            time * time * time * end.y,
-    };
-}
-
 void drawGrowingCurve(Vector2 start, Vector2 end, float progress,
                       float thickness, Color color) {
     progress = std::clamp(progress, 0.0F, 1.0F);
     if (progress <= 0.0F) {
         return;
     }
-    const float bend = (end.y - start.y) * 0.46F;
-    const Vector2 controlA{start.x, start.y + bend};
-    const Vector2 controlB{end.x, end.y - bend};
-    constexpr int Segments = 32;
-    Vector2 previous = start;
-    const int visibleSegments = std::max(
-        1, static_cast<int>(
-               std::ceil(progress * static_cast<float>(Segments))));
-    for (int segment = 1; segment <= visibleSegments; ++segment) {
-        const float time = std::min(
-            progress,
-            static_cast<float>(segment) /
-                static_cast<float>(Segments));
-        const Vector2 current = cubicPoint(
-            start, controlA, controlB, end, time);
-        DrawLineEx(previous, current, thickness, color);
-        previous = current;
-    }
-}
-
-void drawLeaf(Vector2 position, float angle, float scale,
-              Color color) {
-    if (scale <= 0.0F) {
-        return;
-    }
-    const Vector2 direction{std::cos(angle), std::sin(angle)};
-    const Vector2 side{-direction.y, direction.x};
-    const Vector2 tip = Vector2Add(
-        position, Vector2Scale(direction, 13.0F * scale));
-    const Vector2 base = Vector2Subtract(
-        position, Vector2Scale(direction, 4.0F * scale));
-    const Vector2 left = Vector2Add(
-        position, Vector2Scale(side, 6.0F * scale));
-    const Vector2 right = Vector2Subtract(
-        position, Vector2Scale(side, 6.0F * scale));
-    DrawTriangle(tip, left, base, color);
-    DrawTriangle(tip, base, right, color);
-    DrawLineEx(base, tip, std::max(1.0F, scale),
-               withAlpha(RAYWHITE, 0.2F));
+    DrawLineEx(start, Vector2Lerp(start, end, progress), thickness, color);
 }
 
 void drawWrappedText(std::string_view text, Vector2 position,
@@ -262,25 +209,8 @@ void SkillTreeScreen::draw(const GameUi& ui) const {
     const float alpha = smoothStep(opening_);
     const int width = GetScreenWidth();
     const int height = GetScreenHeight();
-    DrawRectangleGradientV(
-        0, 0, width, height,
-        withAlpha({7, 17, 18, 255}, alpha),
-        withAlpha({19, 12, 25, 255}, alpha));
-
-    const double time = GetTime();
-    for (int mote = 0; mote < 48; ++mote) {
-        const float seed = static_cast<float>(mote);
-        const float x = std::fmod(
-            seed * 173.3F + static_cast<float>(time) *
-                (4.0F + std::fmod(seed, 5.0F)),
-            static_cast<float>(std::max(width, 1)));
-        const float y = std::fmod(
-            seed * 91.7F + std::sin(
-                static_cast<float>(time) * 0.4F + seed) * 24.0F,
-            static_cast<float>(std::max(height, 1)));
-        DrawCircleV({x, y}, 1.0F + std::fmod(seed, 3.0F) * 0.45F,
-                    withAlpha({166, 222, 166, 255}, 0.12F * alpha));
-    }
+    DrawRectangle(0, 0, width, height,
+                  withAlpha({24, 11, 5, 255}, 0.66F * alpha));
 
     DrawRectangleGradientV(
         0, 0, width, 112,
@@ -317,7 +247,7 @@ const SkillTree& SkillTreeScreen::tree() const {
 Vector2 SkillTreeScreen::worldToScreen(SkillTreePoint point) const {
     const Vector2 center{
         static_cast<float>(GetScreenWidth()) * 0.5F,
-        static_cast<float>(GetScreenHeight()) * 0.55F,
+        static_cast<float>(GetScreenHeight()) * 0.5F,
     };
     return {
         center.x + (point.x + camera_.x) * zoom_,
@@ -333,14 +263,16 @@ std::optional<std::size_t> SkillTreeScreen::nodeAt(
             tree_.state(index) == SkillNodeState::Hidden) {
             continue;
         }
-        const float radius =
+        const float halfSize =
             (tree_.nodes()[index].branch == SkillBranch::Root
-                 ? 51.0F
-                 : NodeRadius) *
+                 ? RootNodeHalfSize
+                 : NodeHalfSize) *
             zoom_;
-        if (Vector2Distance(
-                worldToScreen(tree_.nodes()[index].position),
-                screenPosition) <= radius) {
+        const Vector2 center = worldToScreen(tree_.nodes()[index].position);
+        if (CheckCollisionPointRec(
+                screenPosition,
+                {center.x - halfSize, center.y - halfSize,
+                 halfSize * 2.0F, halfSize * 2.0F})) {
             return index;
         }
     }
@@ -353,7 +285,6 @@ void SkillTreeScreen::drawConnections() const {
             continue;
         }
         const auto& node = tree_.nodes()[child];
-        const Color color = branchColor(node.branch);
         for (const std::string& prerequisite : node.prerequisites) {
             const auto parent = tree_.indexOf(prerequisite);
             if (!parent) {
@@ -367,29 +298,14 @@ void SkillTreeScreen::drawConnections() const {
                 tree_.state(child) == SkillNodeState::Unlocked ||
                 tree_.state(child) == SkillNodeState::Available;
             drawGrowingCurve(
-                start, end, progress, 8.0F * zoom_,
-                withAlpha({17, 32, 25, 255}, 0.9F));
+                start, end, progress, 7.0F * zoom_,
+                withAlpha({13, 10, 11, 255}, 0.92F));
             drawGrowingCurve(
                 start, end, progress, 2.5F * zoom_,
-                withAlpha(color, active ? 0.82F : 0.22F));
+                active
+                    ? withAlpha({246, 184, 58, 255}, 0.92F)
+                    : withAlpha({115, 112, 109, 255}, 0.36F));
 
-            constexpr std::array<float, 4> LeafTimes{
-                0.25F, 0.44F, 0.64F, 0.82F};
-            const float bend = (end.y - start.y) * 0.46F;
-            const Vector2 controlA{start.x, start.y + bend};
-            const Vector2 controlB{end.x, end.y - bend};
-            for (std::size_t leaf = 0; leaf < LeafTimes.size(); ++leaf) {
-                const float leafTime = LeafTimes[leaf];
-                const float leafReveal = smoothStep(
-                    (progress - leafTime) * 8.0F);
-                const Vector2 position = cubicPoint(
-                    start, controlA, controlB, end, leafTime);
-                drawLeaf(
-                    position,
-                    leaf % 2U == 0U ? -0.55F : 3.7F,
-                    leafReveal * zoom_ * 0.72F,
-                    withAlpha(color, active ? 0.72F : 0.16F));
-            }
         }
     }
 }
@@ -404,14 +320,18 @@ void SkillTreeScreen::drawNodes() const {
         const auto& node = tree_.nodes()[index];
         const SkillNodeState state = tree_.state(index);
         const Vector2 center = worldToScreen(node.position);
-        const float baseRadius =
-            node.branch == SkillBranch::Root ? 51.0F : NodeRadius;
+        const float baseHalfSize = node.branch == SkillBranch::Root
+                                       ? RootNodeHalfSize
+                                       : NodeHalfSize;
         const float revealScale = easeOutBack(reveal_[index]);
         const float hoverScale = hovered_ == index ? 1.08F : 1.0F;
         const float pulseScale =
             1.0F + std::sin(pulse_[index] * PI) * 0.34F;
-        const float radius = baseRadius * zoom_ * revealScale *
-                             hoverScale * pulseScale;
+        const float halfSize = baseHalfSize * zoom_ * revealScale *
+                               hoverScale * pulseScale;
+        const Rectangle nodeBounds{
+            center.x - halfSize, center.y - halfSize,
+            halfSize * 2.0F, halfSize * 2.0F};
         const Color color = branchColor(node.branch);
         const bool active = state == SkillNodeState::Unlocked ||
                             state == SkillNodeState::Available;
@@ -419,43 +339,41 @@ void SkillTreeScreen::drawNodes() const {
             const float breath = 0.5F + 0.5F * std::sin(
                 static_cast<float>(time) * 2.2F +
                 static_cast<float>(index));
-            DrawCircleV(center, radius + (8.0F + breath * 6.0F) * zoom_,
-                        withAlpha(color, 0.06F + breath * 0.05F));
+            const float glow = (8.0F + breath * 6.0F) * zoom_;
+            DrawRectangleRounded(
+                {nodeBounds.x - glow, nodeBounds.y - glow,
+                 nodeBounds.width + glow * 2.0F,
+                 nodeBounds.height + glow * 2.0F},
+                0.18F, 6, withAlpha(color, 0.06F + breath * 0.05F));
         }
-        if (state == SkillNodeState::Unlocked) {
-            constexpr int Petals = 7;
-            for (int petal = 0; petal < Petals; ++petal) {
-                const float angle =
-                    static_cast<float>(petal) * 2.0F * PI /
-                    static_cast<float>(Petals) - 1.57F;
-                const Vector2 leafPosition = Vector2Add(
-                    center,
-                    {std::cos(angle) * radius * 0.96F,
-                     std::sin(angle) * radius * 0.96F});
-                drawLeaf(leafPosition, angle, zoom_ * 0.75F,
-                         withAlpha(color, 0.86F));
-            }
-        }
-        DrawCircleV(center, radius + 4.0F * zoom_,
-                    withAlpha({9, 19, 17, 255}, 0.96F));
-        DrawCircleV(
-            center, radius,
+        DrawRectangleRounded(
+            {nodeBounds.x - 4.0F * zoom_, nodeBounds.y - 4.0F * zoom_,
+             nodeBounds.width + 8.0F * zoom_,
+             nodeBounds.height + 8.0F * zoom_},
+            0.18F, 6, withAlpha({18, 14, 17, 255}, 0.98F));
+        DrawRectangleRounded(
+            nodeBounds,
+            0.18F, 6,
             state == SkillNodeState::Unlocked
-                ? withAlpha(color, 0.92F)
+                ? withAlpha(color, 0.68F)
                 : state == SkillNodeState::Available
-                      ? withAlpha({40, 58, 44, 255}, 0.98F)
-                      : withAlpha({28, 30, 31, 255}, 0.94F));
-        DrawRing(
-            center, radius - 3.0F * zoom_, radius,
-            0.0F, 360.0F, 48,
-            withAlpha(color,
-                      state == SkillNodeState::Locked ? 0.22F : 0.95F));
+                      ? withAlpha({72, 54, 47, 255}, 0.98F)
+                      : withAlpha({24, 24, 29, 255}, 0.96F));
+        DrawRectangleRoundedLinesEx(
+            nodeBounds, 0.18F, 6, 2.5F * zoom_,
+            state == SkillNodeState::Locked
+                ? withAlpha({91, 88, 91, 255}, 0.35F)
+                : withAlpha({231, 188, 111, 255}, 0.9F));
         if (state == SkillNodeState::Available) {
-            const float arc = std::fmod(
-                static_cast<float>(time) * 55.0F, 360.0F);
-            DrawRing(center, radius + 4.0F * zoom_,
-                     radius + 7.0F * zoom_, arc, arc + 88.0F,
-                     24, withAlpha(color, 0.92F));
+            const float pulse = 0.55F + 0.45F * std::sin(
+                static_cast<float>(time) * 3.2F);
+            DrawRectangleRoundedLinesEx(
+                {nodeBounds.x - 7.0F * zoom_,
+                 nodeBounds.y - 7.0F * zoom_,
+                 nodeBounds.width + 14.0F * zoom_,
+                 nodeBounds.height + 14.0F * zoom_},
+                0.18F, 6, 2.0F * zoom_,
+                withAlpha({246, 184, 58, 255}, pulse));
         }
 
         const char* glyph = state == SkillNodeState::Unlocked
@@ -478,7 +396,7 @@ void SkillTreeScreen::drawNodes() const {
         drawUiText(
             node.title,
             {center.x - labelMeasure.x * 0.5F,
-             center.y + radius + 11.0F * zoom_},
+             center.y + halfSize + 11.0F * zoom_},
             labelSize,
             withAlpha(state == SkillNodeState::Locked
                           ? Color{130, 135, 132, 255}

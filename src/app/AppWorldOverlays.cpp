@@ -245,25 +245,32 @@ void App::drawBlobShadows(
             if (!node.active) {
                 continue;
             }
-            const float radius =
+            float radius =
                 std::max(static_cast<float>(node.radius), 0.45F);
+            radius *= node.type == ResourceType::Wood
+                ? 1.28F * static_cast<float>(node.visualScale)
+                : 1.05F;
             const float groundY = static_cast<float>(
                 simulation_.terrain().getHeight(
                     node.position.x,
                     node.position.z));
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
-                 groundY + 0.018F,
+                groundY + 0.018F,
                  static_cast<float>(node.position.z)},
                 radius, radius * 0.82F,
-                node.type == ResourceType::Wood ? 0.17F : 0.14F);
+                node.type == ResourceType::Wood ? 0.22F : 0.18F);
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
-                 groundY + 0.02F,
+                groundY + 0.02F,
                  static_cast<float>(node.position.z)},
                 radius * 0.52F, radius * 0.42F,
-                node.type == ResourceType::Wood ? 0.25F : 0.22F);
+                node.type == ResourceType::Wood ? 0.34F : 0.28F);
         }
+        renderer_->drawDecorativeRockAo(
+            camera.position,
+            static_cast<float>(snapshot.worldLimit),
+            grassClearAreas_);
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05) {
                 continue;
@@ -783,7 +790,8 @@ void App::drawWorldOverlays(
         drawBuildGrid(
             {static_cast<float>(snapshot.playerPosition.x), 0.0F,
              static_cast<float>(snapshot.playerPosition.z)},
-            snapshot.worldLimit);
+            snapshot.worldLimit,
+            simulation_.terrain());
         if (wallDragStart_ && wallDragEnd_ &&
             placementDragType_ &&
             snapshot.buildingPreview->type ==

@@ -40,8 +40,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                      AnchorHeight,
                  static_cast<float>(resource->position.z)},
                 resource->health, resource->maxHealth,
-                {235, 186, 55, 255}, camera, 0,
-                0.0);
+                {235, 186, 55, 255}, camera);
             return;
         }
     } else if (snapshot.aimedBuilding) {
@@ -180,8 +179,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                      anchorOffset,
                  static_cast<float>(enemy->position.z)},
                 enemy->health, enemy->maxHealth,
-                {224, 66, 58, 255}, camera, 0,
-                snapshot.selectedWeaponDamage);
+                {224, 66, 58, 255}, camera);
             return;
         }
     }
@@ -200,7 +198,7 @@ void TargetHealthBar::notifyRepair(EntityId id) {
 void TargetHealthBar::drawBillboard(
     Target target, Vector3 anchorPosition, double health,
     double maxHealth, Color fillColor, const Camera3D& camera,
-    int buildingLevel, double predictedDamage) {
+    int buildingLevel) {
     if (maxHealth <= 0.0) {
         return;
     }
@@ -251,11 +249,6 @@ void TargetHealthBar::drawBillboard(
         std::clamp(displayedHealth_ / maxHealth, 0.0, 1.0));
     const float actualFraction = static_cast<float>(
         std::clamp(health / maxHealth, 0.0, 1.0));
-    const float predictedFraction = static_cast<float>(
-        std::clamp(
-            (health - std::max(0.0, predictedDamage)) /
-                maxHealth,
-            0.0, 1.0));
 
     rlDrawRenderBatchActive();
     rlDisableDepthTest();
@@ -295,23 +288,6 @@ void TargetHealthBar::drawBillboard(
         {255, 137, 62, 150}, 1.0F);
     drawSegment(
         0.0F, actualFraction, fillColor, 2.0F);
-    drawSegment(
-        predictedFraction, actualFraction,
-        {91, 35, 30, 255}, 3.0F);
-    if (predictedFraction > 0.0F &&
-        actualFraction > predictedFraction) {
-        constexpr float MarkerWidth = 0.018F;
-        const float markerFraction =
-            MarkerWidth / InnerWidth;
-        drawSegment(
-            std::max(
-                0.0F,
-                predictedFraction - markerFraction * 0.5F),
-            std::min(
-                actualFraction,
-                predictedFraction + markerFraction * 0.5F),
-            {255, 232, 174, 255}, 4.0F);
-    }
 
     const Vector3 borderCenter = Vector3Add(
         innerCenter, Vector3Scale(towardCamera, LayerOffset));

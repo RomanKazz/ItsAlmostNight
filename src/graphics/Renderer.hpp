@@ -4,6 +4,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "graphics/TerrainRenderer.hpp"
+#include "resources/ResourceSystem.hpp"
 
 #include <raylib.h>
 
@@ -150,6 +151,7 @@ class Renderer {
     void setShadowMapVisible(bool visible);
     void cycleAoStrength();
     void cycleQuality();
+    void cycleShadowQuality();
     void adjustPixelSize(int direction);
 
     void beginWorldPass(Color clearColor);
@@ -181,7 +183,8 @@ class Renderer {
     void rebuildTerrain(
         const TerrainHeightfield& terrain);
     void drawTerrain(
-        Color tint, bool wireframe = false);
+        Color tint, Vector3 focusPosition,
+        bool wireframe = false);
     [[nodiscard]] std::optional<double>
     buildingRaycastDistance(
         const BuildingInstance& building,
@@ -189,6 +192,13 @@ class Renderer {
         Ray ray, double maxDistance,
         float defensiveYaw = 0.0F,
         float cannonPitch = 0.0F);
+    [[nodiscard]] std::optional<double>
+    resourceRaycastDistance(
+        ResourceType type, Vector3 position,
+        Ray ray, double maxDistance,
+        std::size_t visualVariant = 0U,
+        float visualScale = 1.0F,
+        float yawRadians = 0.0F);
     [[nodiscard]] std::optional<double>
     platformFrameRaycastDistance(
         Vector3 topCenter, float scale,
@@ -232,7 +242,9 @@ class Renderer {
                                 float scale = 1.0F);
     [[nodiscard]] bool drawTree(Vector3 position,
                                 Color tint = WHITE,
-                                float scale = 1.0F);
+                                float scale = 1.0F,
+                                std::size_t visualVariant = 0U,
+                                float yawRadians = 0.0F);
     [[nodiscard]] bool drawWall(Vector3 position,
                                 std::uint8_t connectionMask,
                                 float yawRadians = 0.0F,
@@ -251,6 +263,13 @@ class Renderer {
                             const WorldLighting& lighting,
                             std::span<const GrassClearArea>
                                 clearAreas = {});
+    void drawDecorativeRocks(
+        Vector3 cameraPosition, float worldLimit,
+        std::span<const GrassClearArea> clearAreas = {});
+    void drawDecorativeRockAo(
+        Vector3 cameraPosition, float worldLimit,
+        std::span<const GrassClearArea> clearAreas = {});
+    void drawBoundaryForest();
     void drawUpgradeEffect(Vector3 position, float progress,
                            float scale = 1.0F);
     [[nodiscard]] bool beginBlobShadowBatch(Vector3 cameraPosition);
@@ -262,6 +281,11 @@ class Renderer {
     [[nodiscard]] const GraphicsSettings& settings() const;
 
   private:
+    [[nodiscard]] static float clearAreaVisibility(
+        Vector2 position,
+        std::span<const GrassClearArea> clearAreas,
+        float feather, float innerPadding = 0.0F);
+
     struct WorldShaderLocations {
         int baseColor{-1};
         int cameraPosition{-1};
@@ -416,6 +440,9 @@ class Renderer {
     bool selectionMaskPassOpen_{};
     bool selectionMaskReady_{};
     bool blobShadowBatchOpen_{};
+    std::array<std::vector<Matrix>, 2>
+        boundaryForestTransforms_;
+    bool boundaryForestCached_{};
     std::vector<Transform> enemyAnimationPose_;
     std::vector<Transform*> enemyAnimationFrames_;
     std::array<std::array<std::vector<int>, 2>, 7>

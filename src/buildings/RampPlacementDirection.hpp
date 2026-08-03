@@ -3,6 +3,7 @@
 #include "buildings/BuildGrid.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -62,6 +63,71 @@ struct RampEdgeSocket {
     GridCoord neighborAnchor;
     Vec3 position;
 };
+
+struct PlatformEdgeSnap {
+    GridCoord extensionAnchor;
+    Vec3 marker;
+};
+
+[[nodiscard]] inline std::optional<PlatformEdgeSnap>
+platformEdgeSnapAtAim(
+    GridCoord frameAnchor, double floorHeight,
+    Vec3 viewer, Vec3 lookDirection,
+    double cellSize) {
+    if (std::abs(lookDirection.y) <= 1e-5) {
+        return std::nullopt;
+    }
+    const double distance =
+        (floorHeight - viewer.y) / lookDirection.y;
+    if (distance <= 0.0) {
+        return std::nullopt;
+    }
+    const double hitX =
+        viewer.x + lookDirection.x * distance;
+    const double hitZ =
+        viewer.z + lookDirection.z * distance;
+    const double centerX =
+        (frameAnchor.x +
+         PlatformFrameWidthCells * 0.5) *
+        cellSize;
+    const double centerZ =
+        (frameAnchor.z +
+         PlatformFrameWidthCells * 0.5) *
+        cellSize;
+    const double localX = hitX - centerX;
+    const double localZ = hitZ - centerZ;
+    constexpr double EdgeThresholdCells = 0.42;
+    if (std::max(std::abs(localX), std::abs(localZ)) <
+        cellSize * EdgeThresholdCells) {
+        return std::nullopt;
+    }
+
+    GridCoord extension = frameAnchor;
+    Vec3 marker{centerX, floorHeight, centerZ};
+    const double halfWidth =
+        PlatformFrameWidthCells * cellSize * 0.5;
+    if (std::abs(localX) >= std::abs(localZ)) {
+        const bool positive = localX >= 0.0;
+        extension.x += positive
+            ? PlatformFrameWidthCells
+            : -PlatformFrameWidthCells;
+        marker.x += positive ? halfWidth : -halfWidth;
+        marker.z += std::clamp(
+            localZ, -halfWidth, halfWidth);
+    } else {
+        const bool positive = localZ >= 0.0;
+        extension.z += positive
+            ? PlatformFrameWidthCells
+            : -PlatformFrameWidthCells;
+        marker.z += positive ? halfWidth : -halfWidth;
+        marker.x += std::clamp(
+            localX, -halfWidth, halfWidth);
+    }
+    return PlatformEdgeSnap{
+        .extensionAnchor = extension,
+        .marker = marker,
+    };
+}
 
 [[nodiscard]] inline Vec3 rampSocketOutwardDirection(
     Rotation rotation) {

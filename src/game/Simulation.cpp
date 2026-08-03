@@ -16,6 +16,26 @@ namespace {
 constexpr double PitchLimit = 1.5533430342749532;
 constexpr double ResourcePlacementClearance = 0.08;
 
+MapDefinition constrainMapToPlayableTerrain(
+    MapDefinition map,
+    const WorldConfig& worldConfig) {
+    const double terrainLimit =
+        worldConfig.terrainWorldSize * 0.5;
+    const bool raisedBoundaryEnabled =
+        worldConfig.terrainBoundaryRiseWidth > 0.0 &&
+        worldConfig.terrainBoundaryRiseHeight > 0.0 &&
+        worldConfig.terrainWorldSize >=
+            worldConfig.terrainBoundaryRiseWidth * 4.0;
+    const double mountainBase = raisedBoundaryEnabled
+        ? terrainLimit -
+              worldConfig.terrainBoundaryRiseWidth
+        : terrainLimit;
+    map.worldLimit = std::min(
+        map.worldLimit,
+        std::max(5.0, mountainBase));
+    return map;
+}
+
 double clampAxis(double value) {
     return std::clamp(value, -1.0, 1.0);
 }
@@ -112,7 +132,8 @@ Vec3 Simulation::lookDirection(double yaw, double pitch) {
 Simulation::Simulation(
     GameBalance balance, MapDefinition map,
     WorldConfig worldConfig)
-    : map_(std::move(map)),
+    : map_(constrainMapToPlayableTerrain(
+          std::move(map), worldConfig)),
       worldConfig_(worldConfig),
       terrain_(worldConfig_),
       foundations_(terrain_, worldConfig_),
@@ -120,6 +141,11 @@ Simulation::Simulation(
           "assets/models/platform.glb")),
       rampCollisionAsset_(loadGlbCollisionAsset(
           "assets/models/ramp.glb")),
+      treeCollisionAssets_{{
+          loadGlbCollisionAsset("assets/models/tree.glb"),
+          loadGlbCollisionAsset("assets/models/tree_b.glb"),
+          loadGlbCollisionAsset("assets/models/tree_c.glb"),
+      }},
       modularBuildingCosts_{{
           {
               balance.modularBuildings[0].wood,
@@ -448,11 +474,15 @@ void Simulation::updatePlayer(double deltaSeconds,
         MaximumGroundSnapDown);
     const double currentFeetHeight =
         playerPosition_.y - gameplay_.eyeHeight;
+    const double maximumWalkableSurfaceHeight =
+        playerGrounded_
+            ? currentFeetHeight + MaximumStepUp
+            : currentFeetHeight;
     const Vec3 movementOrigin = playerPosition_;
     playerPosition_ = collisionWorld_.moveCircle(
         playerPosition_, movement,
         CollisionWorld::PlayerRadius,
-        currentFeetHeight + MaximumStepUp);
+        maximumWalkableSurfaceHeight);
     if (deltaSeconds > 1e-9) {
         const double actualX =
             playerPosition_.x - movementOrigin.x;
@@ -604,6 +634,8 @@ void Simulation::updatePlayer(double deltaSeconds,
     resources_.tick(
         deltaSeconds, buildings_.buildings(),
         map_.worldLimit, playerPosition_);
+    collisionWorld_.syncResourceCylinders(
+        resources_.nodes(), treeCollisionAssets_);
     pickaxeCooldownRemaining_ = std::max(0.0, pickaxeCooldownRemaining_ - deltaSeconds);
     playerWeapons_.tick(deltaSeconds);
 }
@@ -622,6 +654,8 @@ void Simulation::regenerateTerrain(
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         });
+    collisionWorld_.syncResourceCylinders(
+        resources_.nodes(), treeCollisionAssets_);
     foundations_.reset();
     syncModularStructures();
     playerHorizontalVelocity_ = {};
@@ -682,6 +716,47 @@ Simulation::previewFoundation(
     return placement;
 }
 
+PlatformFramePlacement
+Simulation::previewFoundationAtHeight(
+    Vec3 terrainHit, double floorHeight) const {
+    PlatformFramePlacement placement =
+        foundations_.previewFoundationAtHeight(
+            terrainHit, floorHeight,
+            playerPosition_);
+    const double cellSize = worldConfig_.cellSize;
+    if (placement.valid() &&
+        collisionWorld_.overlapsRampBox(
+            platformFloorCollisionBox(
+                placement, cellSize))) {
+        placement.error =
+            ModularPlacementError::Occupied;
+    }
+    if (placement.valid() &&
+        resourceOverlapsRectangle(
+            resources_.nodes(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x +
+             PlatformFrameWidthCells) *
+                cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z +
+             PlatformFrameWidthCells) *
+                cellSize)) {
+        placement.error =
+            ModularPlacementError::ResourceBlocked;
+    }
+    if (placement.valid() && !unlimitedResources_ &&
+        !canAfford(
+            modularBuildingCosts_[
+                static_cast<std::size_t>(
+                    ModularBuildPiece::Foundation)],
+            wood_, stone_, gold_)) {
+        placement.error =
+            ModularPlacementError::InsufficientResources;
+    }
+    return placement;
+}
+
 std::optional<PlatformFrameInstance>
 Simulation::placeFoundation(Vec3 terrainHit) {
     const PlatformFramePlacement preview =
@@ -695,6 +770,30 @@ Simulation::placeFoundation(Vec3 terrainHit) {
                     static_cast<std::size_t>(
                         ModularBuildPiece::
                             Foundation)];
+            wood_ -= cost.wood;
+            stone_ -= cost.stone;
+            gold_ -= cost.gold;
+        }
+        syncModularStructures();
+        raisePlayerOntoGroundFrame(*placed);
+    }
+    return placed;
+}
+
+std::optional<PlatformFrameInstance>
+Simulation::placeFoundationAtHeight(
+    Vec3 terrainHit, double floorHeight) {
+    const PlatformFramePlacement preview =
+        previewFoundationAtHeight(
+            terrainHit, floorHeight);
+    auto placed =
+        foundations_.placePlatformFrame(preview);
+    if (placed) {
+        if (!unlimitedResources_) {
+            const ResourceCost cost =
+                modularBuildingCosts_[
+                    static_cast<std::size_t>(
+                        ModularBuildPiece::Foundation)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
             gold_ -= cost.gold;
@@ -1034,6 +1133,10 @@ void Simulation::updatePlayerActions(
                                playerPosition_, direction,
                                gameplay_.resourceGatherRange)
                          : std::nullopt;
+    if (command.overrideAimedResource &&
+        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe) {
+        aimedResource_ = command.aimedResourceOverride;
+    }
     const double enemyAimRange = playerWeapons_.selectedWeapon() == PlayerWeapon::Rifle
                                      ? playerWeapons_.rifleRange()
                                      : gameplay_.pickaxeRange;
@@ -1615,6 +1718,8 @@ void Simulation::syncWorldStructures() {
     resources_.tick(
         0.0, buildings_.buildings(),
         map_.worldLimit, playerPosition_);
+    collisionWorld_.syncResourceCylinders(
+        resources_.nodes(), treeCollisionAssets_);
     collisionWorld_.syncBuildings(buildings_.buildings());
     syncBuildingRuntimeSystems();
     const auto core = buildings_.core();

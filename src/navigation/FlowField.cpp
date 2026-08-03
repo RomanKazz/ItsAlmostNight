@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <functional>
-#include <queue>
+#include <deque>
 #include <utility>
 
 namespace ian {
@@ -95,15 +94,28 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
         return;
     }
 
-    using QueueEntry = std::pair<double, std::size_t>;
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, std::greater<>> frontier;
+    constexpr int MaximumTraversalCost = 25;
+    constexpr std::size_t BucketCount =
+        static_cast<std::size_t>(MaximumTraversalCost + 1);
+    std::array<std::deque<std::size_t>, BucketCount> frontier;
     cells_[indexOf(target_)].distanceToCore = 0.0;
-    frontier.emplace(0.0, indexOf(target_));
+    frontier[0].push_back(indexOf(target_));
+    std::size_t queuedCells = 1U;
+    int currentDistance = 0;
 
-    while (!frontier.empty()) {
-        const auto [distance, index] = frontier.top();
-        frontier.pop();
-        if (distance != cells_[index].distanceToCore) {
+    while (queuedCells > 0U) {
+        auto& bucket = frontier[
+            static_cast<std::size_t>(currentDistance) %
+            BucketCount];
+        if (bucket.empty()) {
+            ++currentDistance;
+            continue;
+        }
+        const std::size_t index = bucket.front();
+        bucket.pop_front();
+        --queuedCells;
+        if (cells_[index].distanceToCore !=
+            static_cast<double>(currentDistance)) {
             continue;
         }
 
@@ -121,10 +133,21 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
                 continue;
             }
 
-            const double candidate = distance + cells_[index].terrainCost;
-            if (candidate < neighborCell.distanceToCore) {
-                neighborCell.distanceToCore = candidate;
-                frontier.emplace(candidate, indexOf(neighbor));
+            const int traversalCost = std::clamp(
+                static_cast<int>(std::lround(
+                    cells_[index].terrainCost)),
+                1, MaximumTraversalCost);
+            const int candidate =
+                currentDistance + traversalCost;
+            if (static_cast<double>(candidate) <
+                neighborCell.distanceToCore) {
+                neighborCell.distanceToCore =
+                    static_cast<double>(candidate);
+                frontier[
+                    static_cast<std::size_t>(candidate) %
+                    BucketCount]
+                    .push_back(indexOf(neighbor));
+                ++queuedCells;
             }
         }
     }

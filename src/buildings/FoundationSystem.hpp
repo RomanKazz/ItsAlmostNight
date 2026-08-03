@@ -119,6 +119,10 @@ class FoundationSystem {
     previewFoundation(
         Vec3 terrainHit, Vec3 playerPosition) const;
     [[nodiscard]] PlatformFramePlacement
+    previewFoundationAtHeight(
+        Vec3 terrainHit, double floorHeight,
+        Vec3 playerPosition) const;
+    [[nodiscard]] PlatformFramePlacement
     previewFloorPlatform(
         GridCoord anchor, int storey,
         double floorHeight,

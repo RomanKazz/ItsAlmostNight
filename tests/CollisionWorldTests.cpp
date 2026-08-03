@@ -45,6 +45,64 @@ void runCollisionWorldTests() {
     require(!collision.overlapsBox({20.0, 21.0, 20.0, 21.0}),
             "box overlap accepts free world area");
 
+    ian::CollisionWorld resourceCollision{48.0, {}};
+    std::array<ian::ResourceNode, 1> treeNodes{{
+        {
+            .id = {0U, 1U},
+            .type = ian::ResourceType::Wood,
+            .position = {0.0, 1.0, 0.0},
+            .radius = 1.0,
+            .groundOffset = 1.0,
+            .health = 3.0,
+            .maxHealth = 3.0,
+            .yield = 15,
+            .yieldRemaining = 15,
+            .respawnSeconds = 12.0,
+            .respawnRemaining = 0.0,
+            .respawnGeneration = 0U,
+            .visualYaw = 0.0,
+            .visualScale = 1.0,
+            .active = true,
+        },
+    }};
+    std::array<ian::GlbCollisionAsset, 1> treeAssets{};
+    treeAssets[0].colliders = {
+        {
+            .name = "COL_BOX_CROWN",
+            .type = ian::ModelColliderType::Box,
+            .minimum = {-2.0, 1.5, -2.0},
+            .maximum = {2.0, 4.0, 2.0},
+        },
+        {
+            .name = "COL_CYL_TRUNK",
+            .type = ian::ModelColliderType::Cylinder,
+            .minimum = {-0.4, 0.0, -0.4},
+            .maximum = {0.4, 2.0, 0.4},
+        },
+    };
+    resourceCollision.syncResourceCylinders(
+        treeNodes, treeAssets);
+    const auto stoppedByTree = resourceCollision.moveCircle(
+        {0.0, 1.7, 3.0}, {0.0, 0.0, -6.0},
+        ian::CollisionWorld::PlayerRadius);
+    require(stoppedByTree.z > 0.6,
+            "tree cylinder physically blocks player movement");
+    const auto passedThroughCrownBounds =
+        resourceCollision.moveCircle(
+            {1.5, 1.7, 3.0}, {0.0, 0.0, -6.0},
+            ian::CollisionWorld::PlayerRadius);
+    require(passedThroughCrownBounds.z < -2.5,
+            "tree crown boxes remain selection-only");
+    treeNodes[0].active = false;
+    resourceCollision.syncResourceCylinders(
+        treeNodes, treeAssets);
+    const auto passedDestroyedTree =
+        resourceCollision.moveCircle(
+            {0.0, 1.7, 3.0}, {0.0, 0.0, -6.0},
+            ian::CollisionWorld::PlayerRadius);
+    require(passedDestroyedTree.z < -2.5,
+            "destroyed tree removes physical cylinder");
+
     const auto wall =
         buildings.place(ian::BuildingType::Wall, {3, 0}, 0, 30, 30);
     require(wall.has_value(), "collision fixture creates wall");

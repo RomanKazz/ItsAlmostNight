@@ -26,7 +26,7 @@ struct GraphicsSettings {
     bool fogBands{false};
     bool paperGrain{false};
 
-    int shadowMapSize{2048};
+    int shadowMapSize{4096};
 
     int pixelSize{3};
     float shadowDistance{80.0F};

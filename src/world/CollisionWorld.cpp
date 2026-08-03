@@ -210,9 +210,61 @@ void CollisionWorld::reset() {
     buildingColliders_.clear();
     modularColliders_.clear();
     rampPlacementColliders_.clear();
+    resourceCylinders_.clear();
     buildingSurfaces_.clear();
     modularSurfaces_.clear();
     rebuildColliders();
+}
+
+void CollisionWorld::syncResourceCylinders(
+    std::span<const ResourceNode> resources,
+    std::span<const GlbCollisionAsset> treeAssets) {
+    resourceCylinders_.clear();
+    resourceCylinders_.reserve(resources.size());
+    if (treeAssets.empty()) {
+        return;
+    }
+    for (const ResourceNode& resource : resources) {
+        if (!resource.active || resource.type != ResourceType::Wood) {
+            continue;
+        }
+        const std::size_t variant =
+            static_cast<std::size_t>(resource.id.index) %
+            treeAssets.size();
+        const double scale = resource.visualScale;
+        const double cosine = std::cos(resource.visualYaw);
+        const double sine = std::sin(resource.visualYaw);
+        const double terrainHeight =
+            resource.position.y - resource.groundOffset;
+        const double modelOriginY = terrainHeight +
+            TreeVisualGroundOffsets[
+                variant % TreeVisualVariantCount] *
+                scale;
+        for (const ModelCollider& collider :
+             treeAssets[variant].colliders) {
+            if (collider.type != ModelColliderType::Cylinder) {
+                continue;
+            }
+            const double localX =
+                (collider.minimum.x + collider.maximum.x) * 0.5;
+            const double localZ =
+                (collider.minimum.z + collider.maximum.z) * 0.5;
+            resourceCylinders_.push_back({
+                .centerX = resource.position.x +
+                    (localX * cosine + localZ * sine) * scale,
+                .centerZ = resource.position.z +
+                    (-localX * sine + localZ * cosine) * scale,
+                .radius = std::max(
+                    collider.maximum.x - collider.minimum.x,
+                    collider.maximum.z - collider.minimum.z) *
+                    0.5 * scale,
+                .minimumBlockingEyeY = modelOriginY +
+                    collider.minimum.y * scale,
+                .maximumBlockingEyeY = modelOriginY +
+                    collider.maximum.y * scale,
+            });
+        }
+    }
 }
 
 void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -583,9 +635,9 @@ Vec3 CollisionWorld::moveCircle(
             });
         };
     const auto colliderBlocksMovement =
-        [this, &colliderPenetration](
+        [this, &colliderPenetration, radius](
             Vec3 from, Vec3 candidate) {
-            return std::any_of(
+            const bool boxBlocks = std::any_of(
                 colliders_.begin(), colliders_.end(),
                 [&colliderPenetration,
                  from, candidate](const CollisionBox& box) {
@@ -602,6 +654,43 @@ Vec3 CollisionWorld::moveCircle(
                            candidateDepth >
                                currentDepth +
                                    CollisionEpsilon;
+                });
+            if (boxBlocks) {
+                return true;
+            }
+            const auto cylinderPenetration =
+                [radius](Vec3 point,
+                         const PhysicalCylinder& cylinder) {
+                    if (point.y <= cylinder.minimumBlockingEyeY ||
+                        point.y >= cylinder.maximumBlockingEyeY) {
+                        return 0.0;
+                    }
+                    const double deltaX =
+                        point.x - cylinder.centerX;
+                    const double deltaZ =
+                        point.z - cylinder.centerZ;
+                    const double combinedRadius =
+                        radius + cylinder.radius;
+                    return std::max(
+                        0.0,
+                        combinedRadius -
+                            std::hypot(deltaX, deltaZ));
+                };
+            return std::any_of(
+                resourceCylinders_.begin(),
+                resourceCylinders_.end(),
+                [&cylinderPenetration, from, candidate](
+                    const PhysicalCylinder& cylinder) {
+                    const double candidateDepth =
+                        cylinderPenetration(candidate, cylinder);
+                    if (candidateDepth <= CollisionEpsilon) {
+                        return false;
+                    }
+                    const double currentDepth =
+                        cylinderPenetration(from, cylinder);
+                    return currentDepth <= CollisionEpsilon ||
+                           candidateDepth >
+                               currentDepth + CollisionEpsilon;
                 });
         };
 
@@ -1062,13 +1151,15 @@ bool CollisionWorld::overlapsBox(const CollisionBox& candidate) const {
             return collisionBoxesOverlap(
                 candidate, collider);
         };
-    return std::any_of(
-               colliders_.begin(), colliders_.end(),
-               overlapsCandidate) ||
-           std::any_of(
-               rampPlacementColliders_.begin(),
-               rampPlacementColliders_.end(),
-               overlapsCandidate);
+    const bool boxOverlap =
+        std::any_of(
+            colliders_.begin(), colliders_.end(),
+            overlapsCandidate) ||
+        std::any_of(
+            rampPlacementColliders_.begin(),
+            rampPlacementColliders_.end(),
+            overlapsCandidate);
+    return boxOverlap;
 }
 
 bool CollisionWorld::overlapsRampBox(

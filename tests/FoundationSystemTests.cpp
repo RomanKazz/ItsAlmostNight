@@ -135,6 +135,135 @@ void runFoundationSystemTests() {
     ian::TerrainHeightfield terrain{config};
     const ian::Vec3 player{-5.0, 1.7, 0.0};
 
+    {
+        ian::WorldConfig unevenConfig = config;
+        unevenConfig.coreFlatRadius = 0.0;
+        unevenConfig.terrainBuildPlateauRadius = 2.0;
+        unevenConfig.terrainFeatureSize = 20.0;
+        unevenConfig.terrainSlopeWidth = 8.0;
+        unevenConfig.terrainAmplitude = 6.0;
+        unevenConfig.buildPreviewDistance = 200.0;
+        unevenConfig.maxWoodSupportLength = 8.0;
+        unevenConfig.maximumFoundationHeightDifference = 2.0;
+        ian::TerrainHeightfield unevenTerrain{
+            unevenConfig};
+        ian::BuildGrid emptyGrid{unevenConfig};
+        ian::PlacementValidator isolatedValidator{
+            unevenTerrain, emptyGrid};
+        bool verifiedInheritedLevel = false;
+        for (int z = -16;
+             z <= 14 && !verifiedInheritedLevel;
+             z += ian::PlatformFrameWidthCells) {
+            for (int x = -16; x <= 14;
+                 x += ian::PlatformFrameWidthCells) {
+                const auto hitAt =
+                    [&unevenTerrain](int anchorX,
+                                     int anchorZ) {
+                        const double x = anchorX + 1.0;
+                        const double z = anchorZ + 1.0;
+                        return ian::Vec3{
+                            x,
+                            unevenTerrain.getHeight(x, z),
+                            z,
+                        };
+                    };
+                const ian::Vec3 firstHit = hitAt(x, z);
+                const ian::Vec3 secondHit =
+                    hitAt(
+                        x +
+                            ian::PlatformFrameWidthCells,
+                        z);
+                const auto isolatedFirst =
+                    isolatedValidator
+                        .validateGroundPlatformFrame(
+                            firstHit, firstHit);
+                const auto isolatedSecond =
+                    isolatedValidator
+                        .validateGroundPlatformFrame(
+                            secondHit, secondHit);
+                if (!isolatedFirst.valid() ||
+                    !isolatedSecond.valid() ||
+                    std::abs(
+                        isolatedFirst.floorHeight -
+                        isolatedSecond.floorHeight) <
+                        1e-6) {
+                    continue;
+                }
+                const bool firstIsHigher =
+                    isolatedFirst.floorHeight >
+                    isolatedSecond.floorHeight;
+                const ian::Vec3 sourceHit =
+                    firstIsHigher ? firstHit : secondHit;
+                const ian::Vec3 targetHit =
+                    firstIsHigher ? secondHit : firstHit;
+                const auto& sourcePlacement =
+                    firstIsHigher
+                        ? isolatedFirst
+                        : isolatedSecond;
+                const auto& targetPlacement =
+                    firstIsHigher
+                        ? isolatedSecond
+                        : isolatedFirst;
+                if (
+                    !isolatedValidator
+                         .validateGroundPlatformFrameAt(
+                             targetPlacement.anchor,
+                             sourcePlacement.floorHeight,
+                             targetHit)
+                         .valid()) {
+                    continue;
+                }
+                ian::FoundationSystem unevenFrames{
+                    unevenTerrain, unevenConfig};
+                const auto placedLeft =
+                    unevenFrames.placePlatformFrame(
+                        unevenFrames.previewFoundation(
+                            sourceHit, sourceHit));
+                const auto inheritedPreview =
+                    unevenFrames.previewFoundation(
+                        targetHit, targetHit);
+                require(
+                    placedLeft && inheritedPreview.valid() &&
+                        std::abs(
+                            inheritedPreview.floorHeight -
+                            placedLeft->floorHeight) < 1e-9,
+                    "adjacent ground frame inherits the existing base elevation");
+                verifiedInheritedLevel = true;
+                break;
+            }
+        }
+        require(
+            verifiedInheritedLevel,
+            "uneven terrain fixture finds a compatible inherited level");
+    }
+    {
+        ian::FoundationSystem mixedNeighbours{
+            terrain, config};
+        const auto lowNeighbour =
+            mixedNeighbours.placePlatformFrame({
+                .anchor = {-2, 1, 0},
+                .floorHeight = 1.0,
+                .storey = 0,
+            });
+        const auto highNeighbour =
+            mixedNeighbours.placePlatformFrame({
+                .anchor = {2, 5, 0},
+                .floorHeight = 5.0,
+                .storey = 0,
+            });
+        const auto betweenLevels =
+            mixedNeighbours.previewFoundation(
+                {0.2, 0.0, 0.2},
+                {0.2, 1.7, 0.2});
+        require(
+            lowNeighbour && highNeighbour &&
+                betweenLevels.valid() &&
+                std::abs(
+                    betweenLevels.floorHeight - 1.0) <
+                    1e-9,
+            "different neighbouring levels snap only to a terrain-compatible level");
+    }
+
     ian::FoundationSystem frames{terrain, config};
     {
         ian::FoundationSystem resetIds{terrain, config};
@@ -272,6 +401,17 @@ void runFoundationSystemTests() {
                 upper->floorHeight +
                     ian::modularStoreyHeight(config),
                 player));
+    require(
+        tower
+                .previewFloorPlatform(
+                    upper->anchor, 2,
+                    upper->floorHeight +
+                        ian::modularStoreyHeight(config) +
+                        config.verticalGridStep,
+                    player)
+                .error ==
+            ian::ModularPlacementError::NoSupport,
+        "floor platform cannot create an implicit off-grid level");
     const double storeyHeight =
         ian::modularStoreyHeight(config);
     require(
@@ -530,6 +670,33 @@ void runFoundationSystemTests() {
     const auto rampSockets =
         ian::platformRampEdgeSockets(
             {0, 0, 0}, 2.0, 1.0);
+    const auto northEdgeSnap =
+        ian::platformEdgeSnapAtAim(
+            {0, 0, 0}, 2.0,
+            {1.0, 5.0, -5.0},
+            {0.0, -3.0, 7.0}, 1.0);
+    const auto eastEdgeSnap =
+        ian::platformEdgeSnapAtAim(
+            {0, 0, 0}, 2.0,
+            {-5.0, 5.0, 1.0},
+            {7.0, -3.0, 0.0}, 1.0);
+    require(
+        northEdgeSnap && eastEdgeSnap &&
+            northEdgeSnap->extensionAnchor ==
+                ian::GridCoord{0, 0, 2} &&
+            eastEdgeSnap->extensionAnchor ==
+                ian::GridCoord{2, 0, 0} &&
+            std::abs(northEdgeSnap->marker.z - 2.0) <
+                1e-9 &&
+            std::abs(eastEdgeSnap->marker.x - 2.0) <
+                1e-9,
+        "platform edge aim snaps to the adjacent frame and keeps marker on the edge");
+    require(
+        !ian::platformEdgeSnapAtAim(
+             {0, 0, 0}, 2.0,
+             {1.0, 5.0, -5.0},
+             {0.0, -3.0, 6.0}, 1.0),
+        "platform center aim does not trigger edge snapping");
     bool everySocketWinsAtCrosshair = true;
     const ian::Vec3 socketViewer{1.0, 5.0, -5.0};
     for (const ian::RampEdgeSocket& socket :

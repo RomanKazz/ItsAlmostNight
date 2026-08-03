@@ -4,6 +4,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/FoundationSystem.hpp"
 #include "core/Types.hpp"
+#include "resources/ResourceSystem.hpp"
 
 #include <array>
 #include <limits>
@@ -49,6 +50,9 @@ class CollisionWorld {
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     void syncModularBuildings(
         const ModularCollisionView& buildings);
+    void syncResourceCylinders(
+        std::span<const ResourceNode> resources,
+        std::span<const GlbCollisionAsset> treeAssets);
 
     [[nodiscard]] Vec3 moveCircle(
         Vec3 position, Vec3 delta, double radius,
@@ -97,6 +101,14 @@ class CollisionWorld {
         SurfaceKind kind{SurfaceKind::Flat};
     };
 
+    struct PhysicalCylinder {
+        double centerX{};
+        double centerZ{};
+        double radius{};
+        double minimumBlockingEyeY{};
+        double maximumBlockingEyeY{};
+    };
+
     void rebuildColliders();
 
     double worldLimit_{48.0};
@@ -104,6 +116,7 @@ class CollisionWorld {
     std::vector<CollisionBox> buildingColliders_;
     std::vector<CollisionBox> modularColliders_;
     std::vector<CollisionBox> rampPlacementColliders_;
+    std::vector<PhysicalCylinder> resourceCylinders_;
     std::vector<CollisionBox> colliders_;
     std::vector<WalkableSurface> buildingSurfaces_;
     std::vector<WalkableSurface> modularSurfaces_;

@@ -816,6 +816,78 @@ void runSimulationTests() {
         ian::WorldConfig world =
             ian::WorldConfig::defaults();
         world.terrainAmplitude = 0.0;
+        world.verticalGridStep = 1.5;
+        ian::Simulation shortJumpSimulation{
+            ian::GameBalance::defaults(), map, world};
+        shortJumpSimulation.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        shortJumpSimulation.tick(
+            1.0 / 60.0, unlimited);
+        const auto highFrame =
+            shortJumpSimulation.placeFoundation(
+                {0.2, 0.0, 2.2});
+        require(
+            highFrame &&
+                std::abs(highFrame->floorHeight - 1.5) <
+                    1e-9,
+            "failed-jump fixture creates an unreachable platform");
+
+        ian::PlayerCommand forward;
+        forward.moveForward = 1.0;
+        for (int tick = 0; tick < 120; ++tick) {
+            shortJumpSimulation.tick(
+                1.0 / 60.0, forward);
+        }
+        ian::PlayerCommand jumpForward = forward;
+        jumpForward.jump = true;
+        shortJumpSimulation.tick(
+            1.0 / 60.0, jumpForward);
+        double closestZ =
+            shortJumpSimulation.snapshot()
+                .playerPosition.z;
+        for (int tick = 0; tick < 120; ++tick) {
+            shortJumpSimulation.tick(
+                1.0 / 60.0, forward);
+            closestZ = std::min(
+                closestZ,
+                shortJumpSimulation.snapshot()
+                    .playerPosition.z);
+        }
+        const double contactZ =
+            (highFrame->anchor.z +
+             ian::PlatformFrameWidthCells) *
+                world.cellSize +
+            ian::CollisionWorld::PlayerRadius;
+        require(
+            closestZ >= contactZ - 1e-4,
+            "failed jump cannot enter the side of a platform");
+
+        const double beforeRetreat =
+            shortJumpSimulation.snapshot()
+                .playerPosition.z;
+        ian::PlayerCommand retreat;
+        retreat.moveForward = -1.0;
+        for (int tick = 0; tick < 30; ++tick) {
+            shortJumpSimulation.tick(
+                1.0 / 60.0, retreat);
+        }
+        require(
+            shortJumpSimulation.snapshot()
+                    .playerPosition.z >
+                beforeRetreat + 0.2,
+            "player can immediately retreat after a failed platform jump");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
         ian::Simulation bufferedJumpSimulation{
             ian::GameBalance::defaults(), map, world};
         bufferedJumpSimulation.startRun();
@@ -1225,7 +1297,7 @@ void runSimulationTests() {
     require(simulation.snapshot().state == ian::RunState::Wave,
             "early-wave command immediately starts wave");
     require(simulation.snapshot().upcomingAttackDirection ==
-                ian::AttackDirection::East,
+                ian::AttackDirection::South,
             "early wave uses least-visible attack direction");
     require(simulation.snapshot().activeEnemyCount == 5 &&
                 simulation.snapshot().pendingEnemyCount == 10,
@@ -1251,7 +1323,7 @@ void runSimulationTests() {
                 simulation.snapshot().activeEnemyCount == 5 &&
                 simulation.snapshot().pendingEnemyCount == 10,
             "first wave starts with configured enemy group");
-    require(simulation.snapshot().enemies.front().position.x > 15.0,
+    require(simulation.snapshot().enemies.front().position.z > 20.0,
             "first group enters from outside initial player view");
     require(simulation.snapshot().tutorialObjective ==
                 ian::TutorialObjective::SurviveFirstWave,

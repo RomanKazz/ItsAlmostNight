@@ -356,11 +356,15 @@ GridPosition aimedBuildingGridPosition(
     double minimumDistance, double maximumDistance,
     BuildingType type, double placementPlaneHeight) {
     double distance = maximumDistance;
-    if (pitch < -1e-3) {
-        distance =
-            (playerPosition.y -
-             placementPlaneHeight) /
-            std::tan(-pitch);
+    const double verticalDirection = std::sin(pitch);
+    const double horizontalDirection = std::cos(pitch);
+    if (std::abs(verticalDirection) > 1e-3) {
+        const double rayDistance =
+            (placementPlaneHeight - playerPosition.y) /
+            verticalDirection;
+        if (rayDistance > 0.0) {
+            distance = rayDistance * horizontalDirection;
+        }
     }
     distance = std::clamp(distance, minimumDistance, maximumDistance);
 

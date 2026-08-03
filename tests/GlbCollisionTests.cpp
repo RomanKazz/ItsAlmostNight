@@ -101,4 +101,26 @@ void runGlbCollisionTests() {
                 "ramp collider underside must match model");
     requireNear(rampSlope.maximum.y, 3.999996, 1e-4,
                 "ramp collider high edge must match model");
+
+    const GlbCollisionAsset tree =
+        loadGlbCollisionAsset(
+            IAN_SOURCE_DIR "/assets/models/tree.glb");
+    require(tree.valid() && tree.colliders.size() == 4,
+            "tree GLB must expose three boxes and one cylinder");
+    require(tree.renderMeshIndices.size() == 4,
+            "all tree collision meshes must be hidden");
+    require(tree.colliders.back().type ==
+                ModelColliderType::Cylinder,
+            "COL_CYL alias must create cylinder collider");
+
+    const GlbCollisionAsset treeB =
+        loadGlbCollisionAsset(
+            IAN_SOURCE_DIR "/assets/models/tree_b.glb");
+    require(treeB.valid() && treeB.colliders.size() == 4,
+            "tree B GLB must expose three boxes and one cylinder");
+    const GlbCollisionAsset treeC =
+        loadGlbCollisionAsset(
+            IAN_SOURCE_DIR "/assets/models/tree_c.glb");
+    require(treeC.valid() && treeC.colliders.size() == 5,
+            "tree C GLB must expose four boxes and one cylinder");
 }

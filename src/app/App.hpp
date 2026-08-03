@@ -29,6 +29,9 @@ struct ResourceGainVisual {
 
 struct DestroyedResourceVisual {
     ResourceType type;
+    std::size_t visualVariant{};
+    float visualYaw{};
+    float visualScale{1.0F};
     Vec3 position;
     double remaining;
     double duration;

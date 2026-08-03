@@ -51,6 +51,15 @@ PlacementResult Simulation::validatePlacement(
             buildingValidation.cost,
         };
     }
+    if (surface.storey < 0 &&
+        surface.height - surface.foundationBottomHeight >
+            worldConfig_.maximumFoundationHeightDifference +
+                1e-6) {
+        return {
+            PlacementError::WorldCollision,
+            buildingValidation.cost,
+        };
+    }
 
     const double cellSize = worldConfig_.cellSize;
     if (resourceOverlapsRectangle(
@@ -157,8 +166,7 @@ Simulation::placementSurfaceWithPreferredHeight(
 
 std::optional<PlatformFramePlacement>
 Simulation::automaticFoundationPlacement(
-    BuildingType type, GridPosition position,
-    double floorHeight) const {
+    BuildingType type, GridPosition position) const {
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     GridCoord anchor{
@@ -185,19 +193,6 @@ Simulation::automaticFoundationPlacement(
     if (!placement.valid() || placement.storey != 0) {
         return placement;
     }
-    placement.floorHeight =
-        std::max(placement.floorHeight, floorHeight);
-    placement.anchor.yLevel = static_cast<int>(std::lround(
-        placement.floorHeight / worldConfig_.verticalGridStep));
-    for (FoundationSupport& support : placement.supports) {
-        support.top.y = placement.floorHeight;
-        support.length =
-            placement.floorHeight - support.bottom.y;
-        if (support.length > worldConfig_.maxWoodSupportLength) {
-            placement.error =
-                ModularPlacementError::SupportTooLong;
-        }
-    }
     return placement;
 }
 
@@ -211,20 +206,19 @@ PlacementResult Simulation::previewPlacement(
 PlacementResult Simulation::previewPlacement(
     BuildingType type, GridPosition position,
     double preferredHeight) const {
-    const BuildingPlatformSurface surface =
+    BuildingPlatformSurface surface =
         placementSurfaceWithPreferredHeight(
             type, position, preferredHeight);
-    PlacementResult placement =
-        validatePlacement(type, position, surface);
     const bool needsAutomaticFoundation =
         surface.storey < 0 &&
         surface.height - surface.foundationBottomHeight > 0.025;
     if (!needsAutomaticFoundation) {
-        return placement;
+        return validatePlacement(type, position, surface);
     }
     const auto automaticFoundation =
-        automaticFoundationPlacement(
-            type, position, surface.height);
+        automaticFoundationPlacement(type, position);
+    PlacementResult placement =
+        validatePlacement(type, position, surface);
     if (!automaticFoundation || !automaticFoundation->valid()) {
         if (placement.valid() && automaticFoundation) {
             placement.error =
@@ -235,6 +229,17 @@ PlacementResult Simulation::previewPlacement(
         }
         return placement;
     }
+    surface.height = automaticFoundation->floorHeight;
+    surface.foundationBottomHeight =
+        std::min_element(
+            automaticFoundation->supports.begin(),
+            automaticFoundation->supports.end(),
+            [](const FoundationSupport& left,
+               const FoundationSupport& right) {
+                return left.bottom.y < right.bottom.y;
+            })
+            ->bottom.y;
+    placement = validatePlacement(type, position, surface);
     const ResourceCost foundationCost =
         modularBuildingCosts_[static_cast<std::size_t>(
             ModularBuildPiece::Foundation)];

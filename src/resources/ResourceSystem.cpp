@@ -33,6 +33,23 @@ struct ResourceCapacity {
     int yield;
 };
 
+std::pair<double, double> resourceVisualTransform(
+    EntityId id, ResourceType type,
+    std::uint32_t respawnGeneration) {
+    const std::uint64_t seed =
+        (static_cast<std::uint64_t>(id.index) << 32U) ^
+        (static_cast<std::uint64_t>(id.generation) << 8U) ^
+        respawnGeneration;
+    constexpr double TwoPi = 6.28318530717958647692;
+    const double yaw = unitRandom(seed ^ 0x9e3779b97f4a7c15ULL) * TwoPi;
+    const double scaleRoll =
+        unitRandom(seed ^ 0xd1b54a32d192ed03ULL);
+    const double scale = type == ResourceType::Wood
+        ? 0.80 + scaleRoll * 0.45
+        : 0.90 + scaleRoll * 0.20;
+    return {yaw, scale};
+}
+
 ResourceCapacity variedCapacity(
     double baseHealth, int baseYield, EntityId id,
     std::uint32_t respawnGeneration) {
@@ -106,6 +123,9 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             variedCapacity(
                 definition.health, definition.yield,
                 id, 0);
+        const auto [visualYaw, visualScale] =
+            resourceVisualTransform(
+                id, definition.type, 0U);
         const double groundOffset =
             groundHeight_
                 ? definition.position.y -
@@ -126,6 +146,8 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             .respawnSeconds = definition.respawnSeconds,
             .respawnRemaining = 0.0,
             .respawnGeneration = 0,
+            .visualYaw = visualYaw,
+            .visualScale = visualScale,
             .active = true,
         });
     }
@@ -167,6 +189,12 @@ void ResourceSystem::tick(
                 continue;
             }
             node.position = *position;
+            const auto [visualYaw, visualScale] =
+                resourceVisualTransform(
+                    node.id, node.type,
+                    node.respawnGeneration);
+            node.visualYaw = visualYaw;
+            node.visualScale = visualScale;
             const auto definitionIndex =
                 static_cast<std::size_t>(node.id.index);
             if (definitionIndex < definitions_.size()) {

@@ -131,9 +131,9 @@ void runWaveDirectorTests() {
         "unbounded wave numbers keep a bounded spawn queue");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
-    requireNear(groupedWave.spawns[0].position.z, -20.0, 1e-12,
+    requireNear(groupedWave.spawns[0].position.z, -24.0, 1e-12,
                 "first group uses first attack direction");
-    requireNear(groupedWave.spawns[5].position.x, 20.0, 1e-12,
+    requireNear(groupedWave.spawns[5].position.x, 24.0, 1e-12,
                 "second group rotates attack direction");
 
     constexpr std::array<ian::Vec3, 3> Anchors{{
@@ -145,6 +145,6 @@ void runWaveDirectorTests() {
         Anchors, {0.0, 1.7, 6.0}, {0.0, 0.0, -1.0});
     require(hiddenAnchor == 1, "director avoids attack zone directly in view");
     const auto hiddenBuild = director.buildWave(1, {0, 0}, hiddenAnchor);
-    requireNear(hiddenBuild.spawns.front().position.x, 20.0, 1e-12,
+    requireNear(hiddenBuild.spawns.front().position.x, 24.0, 1e-12,
                 "configured first attack direction rotates spawn groups");
 }

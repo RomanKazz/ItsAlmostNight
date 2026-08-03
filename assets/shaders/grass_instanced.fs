@@ -46,9 +46,30 @@ void main()
     float hemisphere = normal.y*0.5 + 0.5;
     vec3 ambient =
         mix(groundAmbientColor, skyAmbientColor, hemisphere)*
-        ambientIntensity*mix(0.9, 1.08, hemisphere);
-    vec3 direct = sunColor*sunIntensity*diffuse;
+        ambientIntensity*mix(1.08, 1.24, hemisphere);
+    ambient += skyAmbientColor*ambientIntensity*0.24;
+    float leafTransmission =
+        max(-lightFacing, 0.0)*0.16;
+    vec3 viewDirection =
+        normalize(cameraPosition - fragWorldPosition);
+    float silhouetteRim =
+        pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.25);
+    float lightSideRim =
+        smoothstep(-0.24, 0.38, lightFacing);
+    float coolLightAmount =
+        smoothstep(0.04, 0.22, sunColor.b - sunColor.r);
+    float timeOfDayRimStrength =
+        mix(0.62, 1.0, coolLightAmount);
+    float directionalRim =
+        silhouetteRim*lightSideRim*0.34*timeOfDayRimStrength;
+    vec3 direct =
+        sunColor*sunIntensity*
+        (diffuse + leafTransmission + directionalRim);
     vec3 litColor = albedo.rgb*(ambient + direct)*dayNightTint;
+    vec3 directionalRimColor =
+        mix(sunColor, vec3(1.0), 0.20)*sunIntensity;
+    litColor += directionalRimColor*directionalRim*
+        mix(albedo.rgb, vec3(1.0), 0.34)*dayNightTint;
 
     float horizontalDistance =
         length(cameraPosition.xz - fragWorldPosition.xz);

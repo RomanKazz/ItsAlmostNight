@@ -1,5 +1,7 @@
 #include "game/ResourceWorld.hpp"
 
+#include "core/DeterministicRandom.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -70,34 +72,119 @@ std::vector<ResourceNodeDefinition> scatterResources(
                              type, {}, 0.9, 4.0, 12, 15.0};
         };
 
-    constexpr std::size_t AdditionalCount = 48;
+    constexpr std::size_t TreesPerCluster = 5;
     constexpr double GoldenAngle = 2.39996322972865332;
     const double innerRadius =
         std::min(10.0, worldLimit * 0.3);
     const double outerRadius =
-        std::max(innerRadius + 1.0, worldLimit - 3.0);
-    result.reserve(result.size() + AdditionalCount);
+        std::max(
+            innerRadius + 1.0,
+            worldLimit - 3.0);
+    const double densityScale = std::clamp(
+        (outerRadius * outerRadius) / (45.0 * 45.0),
+        1.0, 16.0);
+    const std::size_t additionalTreeCount =
+        static_cast<std::size_t>(
+            std::lround(30.0 * densityScale));
+    const std::size_t additionalStoneCount =
+        static_cast<std::size_t>(
+            std::lround(18.0 * densityScale));
+    const std::size_t treeClusterCount =
+        std::max<std::size_t>(
+            1U, additionalTreeCount / 6U);
+    const std::size_t clusteredTreeCount = std::min(
+        additionalTreeCount,
+        treeClusterCount * TreesPerCluster);
+    result.reserve(
+        result.size() + additionalTreeCount +
+        additionalStoneCount);
+
+    const double clusterOuterRadius =
+        std::max(innerRadius + 1.0, outerRadius - 5.0);
     for (std::size_t index = 0;
-         index < AdditionalCount; ++index) {
-        const ResourceType type =
-            index % 5U < 3U
-                ? ResourceType::Wood
-                : ResourceType::Stone;
-        ResourceNodeDefinition definition = templateFor(type);
+         index < additionalTreeCount; ++index) {
+        ResourceNodeDefinition definition =
+            templateFor(ResourceType::Wood);
+        if (index >= clusteredTreeCount) {
+            const std::size_t singleIndex =
+                index - clusteredTreeCount;
+            const double progress =
+                (static_cast<double>(singleIndex) + 0.5) /
+                static_cast<double>(
+                    additionalTreeCount - clusteredTreeCount);
+            const double radius = std::sqrt(
+                innerRadius * innerRadius +
+                progress *
+                    (outerRadius * outerRadius -
+                     innerRadius * innerRadius));
+            const double angle =
+                static_cast<double>(singleIndex) * GoldenAngle +
+                1.73;
+            definition.position = {
+                std::cos(angle) * radius,
+                1.0,
+                std::sin(angle) * radius,
+            };
+            result.push_back(definition);
+            continue;
+        }
+        const std::size_t cluster = index % treeClusterCount;
+        const std::size_t member = index / treeClusterCount;
+        const double clusterProgress =
+            (static_cast<double>(cluster) + 0.65) /
+            static_cast<double>(treeClusterCount);
+        const double clusterRadius = std::sqrt(
+            innerRadius * innerRadius +
+            clusterProgress *
+                (clusterOuterRadius * clusterOuterRadius -
+                 innerRadius * innerRadius));
+        const double clusterAngle =
+            static_cast<double>(cluster) * GoldenAngle + 0.31;
+        const std::uint64_t seed =
+            0x51f15e5dULL +
+            static_cast<std::uint64_t>(cluster) * 131U +
+            static_cast<std::uint64_t>(member) * 977U;
+        const double localRadius = member == 0U
+                                       ? unitRandom(seed) * 0.55
+                                       : 1.55 +
+                                             static_cast<double>(member) *
+                                                 0.62 +
+                                             unitRandom(seed) * 0.38;
+        const double localAngle =
+            static_cast<double>(member) * GoldenAngle +
+            unitRandom(seed ^ 0x9e3779b97f4a7c15ULL) * 0.7;
+        definition.position = {
+            std::cos(clusterAngle) * clusterRadius +
+                std::cos(localAngle) * localRadius,
+            1.0,
+            std::sin(clusterAngle) * clusterRadius +
+                std::sin(localAngle) * localRadius,
+        };
+        result.push_back(definition);
+    }
+
+    for (std::size_t index = 0;
+         index < additionalStoneCount; ++index) {
+        ResourceNodeDefinition definition =
+            templateFor(ResourceType::Stone);
         const double radialProgress =
             (static_cast<double>(index) + 0.5) /
-            static_cast<double>(AdditionalCount);
+            static_cast<double>(additionalStoneCount);
         const double radius = std::sqrt(
             innerRadius * innerRadius +
             radialProgress *
                 (outerRadius * outerRadius -
                  innerRadius * innerRadius));
         const double angle =
-            static_cast<double>(index) * GoldenAngle +
-            (type == ResourceType::Wood ? 0.31 : 0.87);
+            static_cast<double>(index) * GoldenAngle + 0.87 +
+            (unitRandom(
+                 0x8f3f73b5ULL +
+                 static_cast<std::uint64_t>(index)) -
+             0.5) *
+                0.42;
         definition.position = {
             std::cos(angle) * radius,
-            type == ResourceType::Wood ? 1.0 : 0.8,
+            0.8,
             std::sin(angle) * radius,
         };
         result.push_back(definition);

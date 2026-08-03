@@ -16,9 +16,10 @@ constexpr int MaximumQuantityGrowthSteps = 90;
 
 std::vector<Vec3> defaultSpawnAnchors() {
     return {
-        {0.0, 0.0, -20.0},
-        {20.0, 0.0, 0.0},
-        {-20.0, 0.0, 0.0},
+        {0.0, 0.0, -24.0},
+        {24.0, 0.0, 0.0},
+        {0.0, 0.0, 24.0},
+        {-24.0, 0.0, 0.0},
     };
 }
 

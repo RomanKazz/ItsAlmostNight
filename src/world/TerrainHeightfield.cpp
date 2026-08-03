@@ -1,8 +1,10 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace ian {
 namespace {
@@ -64,12 +66,13 @@ namespace {
     return interpolate(north, south, localZ);
 }
 
-[[nodiscard]] double fractalNoise(
+[[nodiscard]] double largeTerrainHeight(
     double worldX, double worldZ,
     const WorldConfig& config,
     std::uint32_t seed) {
-    constexpr int Octaves = 4;
-    double frequency = config.terrainFrequency * 0.55;
+    constexpr int Octaves = 3;
+    double frequency =
+        1.0 / std::max(config.terrainFeatureSize, 1.0);
     double amplitude = 1.0;
     double sum = 0.0;
     double weight = 0.0;
@@ -83,31 +86,250 @@ namespace {
                            0x9e3779b9U) *
                amplitude;
         weight += amplitude;
-        frequency *= 2.05;
-        amplitude *= 0.48;
+        frequency *= 2.0;
+        amplitude *= 0.38;
     }
-    return weight > 0.0 ? sum / weight : 0.0;
+    const double broad =
+        weight > 0.0 ? sum / weight : 0.0;
+    const double valley = valueNoise(
+        worldX * frequency * 0.19 + 37.2,
+        worldZ * frequency * 0.19 - 18.7,
+        seed ^ 0x27d4eb2fU);
+    return std::clamp(
+        (broad * 0.86 + valley * 0.14) *
+            config.terrainAmplitude,
+        -config.terrainAmplitude,
+        config.terrainAmplitude);
 }
 
-[[nodiscard]] double coreBlend(
-    double worldX, double worldZ,
+[[nodiscard]] double terracedHeight(
+    double height,
     const WorldConfig& config) {
-    const double distance =
-        std::hypot(worldX, worldZ);
-    const double inner = config.coreFlatRadius;
-    const double outer =
-        std::min(
-            config.terrainWorldSize * 0.46,
-            inner * 1.7 + 2.0);
-    if (distance <= inner) {
+    const double step =
+        std::max(config.terrainTerraceHeight, 0.01);
+    const double scaled = height / step;
+    const double lower = std::floor(scaled);
+    const double fraction = scaled - lower;
+    const double transition = std::clamp(
+        config.terrainSlopeWidth /
+            std::max(config.terrainFeatureSize, 1.0),
+        0.10, 0.46);
+    const double start = 0.5 - transition * 0.5;
+    const double end = 0.5 + transition * 0.5;
+    return (lower + smoother(
+               (fraction - start) /
+               std::max(end - start, 1e-6))) *
+           step;
+}
+
+struct TerrainPlateau {
+    double x{};
+    double z{};
+    double radius{};
+    double height{};
+};
+
+struct TerrainShape {
+    double height{};
+    double protectedAmount{};
+};
+
+[[nodiscard]] double distanceToSegment(
+    double x, double z,
+    const TerrainPlateau& from,
+    const TerrainPlateau& to,
+    double& progress) {
+    const double deltaX = to.x - from.x;
+    const double deltaZ = to.z - from.z;
+    const double lengthSquared =
+        deltaX * deltaX + deltaZ * deltaZ;
+    if (lengthSquared <= 1e-9) {
+        progress = 0.0;
+        return std::hypot(x - from.x, z - from.z);
+    }
+    progress = std::clamp(
+        ((x - from.x) * deltaX +
+         (z - from.z) * deltaZ) /
+            lengthSquared,
+        0.0, 1.0);
+    return std::hypot(
+        x - (from.x + deltaX * progress),
+        z - (from.z + deltaZ * progress));
+}
+
+[[nodiscard]] std::vector<TerrainPlateau>
+makeBuildPlateaus(
+    const WorldConfig& config,
+    std::uint32_t seed) {
+    const double halfSize = config.terrainWorldSize * 0.5;
+    const bool raisedBoundary =
+        config.terrainBoundaryRiseWidth > 0.0 &&
+        config.terrainBoundaryRiseHeight > 0.0 &&
+        config.terrainWorldSize >=
+            config.terrainBoundaryRiseWidth * 4.0;
+    const double playableLimit = raisedBoundary
+        ? halfSize - config.terrainBoundaryRiseWidth
+        : halfSize;
+    const double radius = std::min(
+        config.terrainBuildPlateauRadius,
+        std::max(2.0, playableLimit * 0.22));
+    std::vector<TerrainPlateau> plateaus;
+    plateaus.reserve(5U);
+    plateaus.push_back({
+        0.0, 0.0,
+        std::max(config.coreFlatRadius, radius), 0.0});
+    if (playableLimit < config.terrainFeatureSize * 0.75) {
+        return plateaus;
+    }
+    constexpr std::array<std::array<double, 2>, 4>
+        Locations{{
+            {{-0.34, -0.21}},
+            {{0.35, -0.28}},
+            {{0.26, 0.34}},
+            {{-0.36, 0.29}},
+        }};
+    for (const auto& location : Locations) {
+        const double x = location[0] * playableLimit;
+        const double z = location[1] * playableLimit;
+        plateaus.push_back({
+            x, z, radius,
+            terracedHeight(
+                largeTerrainHeight(
+                    x, z, config, seed),
+                config),
+        });
+    }
+    return plateaus;
+}
+
+[[nodiscard]] TerrainShape shapeInteriorTerrain(
+    double worldX, double worldZ,
+    const WorldConfig& config,
+    std::uint32_t seed,
+    const std::vector<TerrainPlateau>& plateaus) {
+    TerrainShape result{
+        .height = terracedHeight(
+            largeTerrainHeight(
+                worldX, worldZ, config, seed),
+            config),
+    };
+    const double feather =
+        std::max(config.terrainSlopeWidth, 0.01);
+    for (const TerrainPlateau& plateau : plateaus) {
+        const double distance = std::hypot(
+            worldX - plateau.x,
+            worldZ - plateau.z);
+        const double mask = 1.0 - smoother(
+            (distance - plateau.radius) / feather);
+        result.height = interpolate(
+            result.height, plateau.height, mask);
+        result.protectedAmount =
+            std::max(result.protectedAmount, mask);
+    }
+    if (!plateaus.empty()) {
+        const TerrainPlateau& center = plateaus.front();
+        const double corridorHalfWidth =
+            std::max(3.5,
+                     config.terrainBuildPlateauRadius * 0.34);
+        for (std::size_t index = 1U;
+             index < plateaus.size(); ++index) {
+            double progress = 0.0;
+            const double distance = distanceToSegment(
+                worldX, worldZ, center,
+                plateaus[index], progress);
+            const double mask = 1.0 - smoother(
+                (distance - corridorHalfWidth) /
+                (feather * 0.72));
+            const double routeHeight = interpolate(
+                center.height,
+                plateaus[index].height,
+                smoother(progress));
+            result.height = interpolate(
+                result.height, routeHeight, mask);
+            result.protectedAmount =
+                std::max(result.protectedAmount, mask);
+        }
+    }
+    // Connections must never tilt their destination build plateaus.
+    for (const TerrainPlateau& plateau : plateaus) {
+        const double distance = std::hypot(
+            worldX - plateau.x,
+            worldZ - plateau.z);
+        const double mask = 1.0 - smoother(
+            (distance - plateau.radius) / feather);
+        result.height = interpolate(
+            result.height, plateau.height, mask);
+        result.protectedAmount =
+            std::max(result.protectedAmount, mask);
+    }
+    const double detailScale = std::max(
+        0.30 / std::max(config.terrainFrequency, 1e-4),
+        4.0);
+    const double surfaceNoise = valueNoise(
+        worldX / detailScale,
+        worldZ / detailScale,
+        seed ^ 0x165667b1U) *
+        config.terrainSurfaceNoiseAmplitude;
+    result.height += surfaceNoise *
+        (1.0 - result.protectedAmount);
+    return result;
+}
+
+[[nodiscard]] double boundaryRise(
+    double worldX, double worldZ,
+    const WorldConfig& config,
+    std::uint32_t seed) {
+    if (config.terrainBoundaryRiseWidth <= 0.0 ||
+        config.terrainBoundaryRiseHeight <= 0.0 ||
+        config.terrainWorldSize <
+            config.terrainBoundaryRiseWidth * 4.0) {
         return 0.0;
     }
-    if (distance >= outer) {
-        return 1.0;
+    const double halfSize =
+        config.terrainWorldSize * 0.5;
+    const double riseWidth = std::min(
+        config.terrainBoundaryRiseWidth,
+        std::max(
+            0.0,
+            halfSize - config.coreFlatRadius - 1.0));
+    if (riseWidth <= 0.0) {
+        return 0.0;
     }
-    return smoother(
-        (distance - inner) /
-        std::max(outer - inner, 1e-6));
+    const double distanceToBoundary =
+        halfSize - std::max(
+            std::abs(worldX), std::abs(worldZ));
+    const double amount = smoother(
+        1.0 - distanceToBoundary /
+                  riseWidth);
+    // Broad peaks break the boundary silhouette while ridged noise gives
+    // steeper mountain faces.  Keeping the multiplier above zero preserves
+    // an unbroken raised rim behind the boundary forest.
+    const double broad =
+        valueNoise(
+            worldX * 0.0125,
+            worldZ * 0.0125,
+            seed ^ 0xa511e9b3U) *
+            0.5 +
+        0.5;
+    const double ridgeNoise = valueNoise(
+        worldX * 0.031,
+        worldZ * 0.031,
+        seed ^ 0x63d83595U);
+    const double ridge =
+        1.0 - std::abs(ridgeNoise);
+    const double detail = valueNoise(
+        worldX * 0.068,
+        worldZ * 0.068,
+        seed ^ 0xc2b2ae35U);
+    const double peak = smoother(
+        std::clamp(
+            broad * 0.72 + ridge * 0.28,
+            0.0, 1.0));
+    const double mountainShape = std::clamp(
+        0.58 + peak * 1.08 + detail * 0.12,
+        0.52, 1.78);
+    return config.terrainBoundaryRiseHeight *
+           amount * amount * mountainShape;
 }
 
 } // namespace
@@ -135,6 +357,8 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
         -std::numeric_limits<double>::infinity();
     const double halfSize =
         config_.terrainWorldSize * 0.5;
+    const std::vector<TerrainPlateau> plateaus =
+        makeBuildPlateaus(config_, seed_);
     for (int z = 0; z < size; ++z) {
         const double worldZ =
             -halfSize +
@@ -143,11 +367,13 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
             const double worldX =
                 -halfSize +
                 static_cast<double>(x) * spacing_;
-            const double height =
-                fractalNoise(
-                    worldX, worldZ, config_, seed_) *
-                config_.terrainAmplitude *
-                coreBlend(worldX, worldZ, config_);
+            const TerrainShape interior =
+                shapeInteriorTerrain(
+                    worldX, worldZ, config_, seed_,
+                    plateaus);
+            const double height = interior.height +
+                boundaryRise(
+                    worldX, worldZ, config_, seed_);
             heights_[sampleIndex(x, z)] =
                 static_cast<float>(height);
             minimumHeight_ =

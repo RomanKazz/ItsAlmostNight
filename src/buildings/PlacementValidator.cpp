@@ -5,6 +5,40 @@
 #include <limits>
 
 namespace ian {
+namespace {
+
+struct TerrainRange {
+    double lowest{std::numeric_limits<double>::infinity()};
+    double highest{-std::numeric_limits<double>::infinity()};
+};
+
+TerrainRange sampleTerrainFootprint(
+    const TerrainHeightfield& terrain,
+    double minimumX, double maximumX,
+    double minimumZ, double maximumZ) {
+    constexpr int SamplesPerAxis = 5;
+    TerrainRange range;
+    for (int zIndex = 0; zIndex < SamplesPerAxis; ++zIndex) {
+        const double zAmount =
+            static_cast<double>(zIndex) /
+            static_cast<double>(SamplesPerAxis - 1);
+        const double z = minimumZ +
+            (maximumZ - minimumZ) * zAmount;
+        for (int xIndex = 0; xIndex < SamplesPerAxis; ++xIndex) {
+            const double xAmount =
+                static_cast<double>(xIndex) /
+                static_cast<double>(SamplesPerAxis - 1);
+            const double x = minimumX +
+                (maximumX - minimumX) * xAmount;
+            const double height = terrain.getHeight(x, z);
+            range.lowest = std::min(range.lowest, height);
+            range.highest = std::max(range.highest, height);
+        }
+    }
+    return range;
+}
+
+} // namespace
 
 PlacementValidator::PlacementValidator(
     const TerrainHeightfield& terrain,
@@ -49,18 +83,20 @@ PlacementValidator::validateGroundPlatformFrame(
         };
     }
 
-    double highestGround =
-        -std::numeric_limits<double>::infinity();
-    for (const Vec3 corner : corners) {
-        highestGround =
-            std::max(
-                highestGround,
-                terrain_.getHeight(
-                    corner.x, corner.z));
+    const TerrainRange terrainRange =
+        sampleTerrainFootprint(
+            terrain_, minimumX, maximumX,
+            minimumZ, maximumZ);
+    if (terrainRange.highest - terrainRange.lowest >
+        config.maximumFoundationHeightDifference) {
+        return PlatformFramePlacement{
+            .error = ModularPlacementError::TerrainIntersection,
+            .anchor = anchor,
+        };
     }
     const double floorHeight =
         std::ceil(
-            (highestGround +
+            (terrainRange.highest +
              config.minimumGroundClearance) /
             config.verticalGridStep) *
         config.verticalGridStep;
@@ -126,8 +162,20 @@ PlacementValidator::validateGroundPlatformFrameAt(
         placement.anchor, Footprint::TwoByTwo, 1,
         OccupancyLayer::Floor);
 
+    const TerrainRange terrainRange =
+        sampleTerrainFootprint(
+            terrain_, minimumX, maximumX,
+            minimumZ, maximumZ);
+    const bool terrainTooSteep =
+        terrainRange.highest - terrainRange.lowest >
+        config.maximumFoundationHeightDifference;
+
     bool supportTooLong = false;
-    bool terrainIntersection = false;
+    bool terrainIntersection =
+        terrainRange.highest >
+        placement.floorHeight -
+                config.minimumGroundClearance +
+            1e-6;
     for (std::size_t index = 0;
          index < corners.size(); ++index) {
         const double groundHeight =
@@ -165,6 +213,9 @@ PlacementValidator::validateGroundPlatformFrameAt(
     } else if (occupied) {
         placement.error =
             ModularPlacementError::Occupied;
+    } else if (terrainTooSteep) {
+        placement.error =
+            ModularPlacementError::TerrainIntersection;
     } else if (supportTooLong) {
         placement.error =
             ModularPlacementError::SupportTooLong;

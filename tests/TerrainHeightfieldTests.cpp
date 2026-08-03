@@ -131,15 +131,97 @@ void runTerrainHeightfieldTests() {
         "terrainAmplitude": 2.5,
         "terrainFrequency": 0.03,
         "terrainSeed": 99,
+        "terrainFeatureSize": 64.0,
+        "terrainTerraceHeight": 2.0,
+        "terrainSlopeWidth": 12.0,
+        "terrainSurfaceNoiseAmplitude": 0.06,
+        "terrainBuildPlateauRadius": 11.0,
         "coreFlatRadius": 8.0,
         "buildPreviewDistance": 9.0,
-        "minimumGroundClearance": 0.12
+        "minimumGroundClearance": 0.12,
+        "maximumFoundationHeightDifference": 1.1
     })json");
     require(
         parsed.valid() &&
             parsed.config.terrainSeed == 99U &&
+            parsed.config.terrainFeatureSize == 64.0 &&
+            parsed.config.terrainTerraceHeight == 2.0 &&
+            parsed.config.terrainSlopeWidth == 12.0 &&
+            parsed.config.maximumFoundationHeightDifference == 1.1 &&
             parsed.config.maxStoreys == 3,
         "world configuration parses");
+
+    ian::WorldConfig boundaryConfig =
+        ian::WorldConfig::defaults();
+    boundaryConfig.terrainResolution = 129;
+    boundaryConfig.terrainWorldSize = 128.0;
+    boundaryConfig.coreFlatRadius = 8.0;
+    boundaryConfig.terrainBoundaryRiseWidth = 24.0;
+    boundaryConfig.terrainBoundaryRiseHeight = 20.0;
+    ian::TerrainHeightfield boundaryTerrain{boundaryConfig};
+    require(
+        boundaryTerrain.getHeight(63.5, 0.0) >
+            boundaryTerrain.getHeight(35.0, 0.0) + 12.0,
+        "terrain rises strongly near world boundary");
+    double lowestBoundaryPeak =
+        std::numeric_limits<double>::infinity();
+    double highestBoundaryPeak =
+        -std::numeric_limits<double>::infinity();
+    for (double z = -52.0; z <= 52.0; z += 8.0) {
+        const double height =
+            boundaryTerrain.getHeight(63.5, z);
+        lowestBoundaryPeak =
+            std::min(lowestBoundaryPeak, height);
+        highestBoundaryPeak =
+            std::max(highestBoundaryPeak, height);
+    }
+    require(
+        highestBoundaryPeak - lowestBoundaryPeak > 5.0,
+        "boundary terrain forms varied mountain peaks");
+    require(
+        ian::WorldConfig::defaults().terrainWorldSize >= 384.0 &&
+            ian::WorldConfig::defaults().terrainResolution >= 513,
+        "default world uses large chunk-ready terrain");
+
+    ian::TerrainHeightfield defaultTerrain{
+        ian::WorldConfig::defaults()};
+    double plateauMinimum =
+        std::numeric_limits<double>::infinity();
+    double plateauMaximum =
+        -std::numeric_limits<double>::infinity();
+    constexpr double EastPlateauX = 50.4;
+    constexpr double EastPlateauZ = -40.32;
+    for (double z = -7.0; z <= 7.0; z += 2.0) {
+        for (double x = -7.0; x <= 7.0; x += 2.0) {
+            const double height = defaultTerrain.getHeight(
+                EastPlateauX + x,
+                EastPlateauZ + z);
+            plateauMinimum = std::min(plateauMinimum, height);
+            plateauMaximum = std::max(plateauMaximum, height);
+        }
+    }
+    require(
+        plateauMaximum - plateauMinimum < 0.02,
+        "terrain provides wide deterministic build plateaus");
+    double maximumConnectionStep = 0.0;
+    double previousConnectionHeight =
+        defaultTerrain.getHeight(0.0, 0.0);
+    constexpr int ConnectionSamples = 80;
+    for (int index = 1; index <= ConnectionSamples; ++index) {
+        const double progress =
+            static_cast<double>(index) /
+            static_cast<double>(ConnectionSamples);
+        const double height = defaultTerrain.getHeight(
+            EastPlateauX * progress,
+            EastPlateauZ * progress);
+        maximumConnectionStep = std::max(
+            maximumConnectionStep,
+            std::abs(height - previousConnectionHeight));
+        previousConnectionHeight = height;
+    }
+    require(
+        maximumConnectionStep < 0.35,
+        "build plateaus remain connected by walkable slopes");
 
     ian::WorldConfig movementConfig = config;
     movementConfig.coreFlatRadius = 0.0;

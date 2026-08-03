@@ -28,7 +28,11 @@ void App::drawShadowPass(
                    maximumDistance * maximumDistance;
         };
     if (renderer_->beginShadowPass(lighting, shadowFocus)) {
-        renderer_->drawTerrain(WHITE);
+        renderer_->drawTerrain(WHITE, shadowFocus);
+        renderer_->drawDecorativeRocks(
+            shadowFocus,
+            static_cast<float>(snapshot.worldLimit),
+            grassClearAreas_);
         for (const auto& obstacle : snapshot.mapObstacles) {
             const float width = static_cast<float>(
                 obstacle.collision.maxX - obstacle.collision.minX);
@@ -86,7 +90,13 @@ void App::drawShadowPass(
                         effects_, node.id);
                 if (!renderer_->drawTree(
                         nodePosition,
-                        WHITE, hitScale)) {
+                        WHITE,
+                        hitScale *
+                            static_cast<float>(node.visualScale),
+                        static_cast<std::size_t>(
+                            node.id.index %
+                            TreeVisualVariantCount),
+                        static_cast<float>(node.visualYaw))) {
                     DrawCylinder(
                         {nodePosition.x,
                          nodePosition.y + 0.9F,
@@ -366,7 +376,14 @@ void App::drawSelectionPass(
                             resource->id);
                     if (!renderer_->drawTree(
                             resourcePosition,
-                            WHITE, hitScale)) {
+                            WHITE,
+                            hitScale * static_cast<float>(
+                                resource->visualScale),
+                            static_cast<std::size_t>(
+                                resource->id.index %
+                                TreeVisualVariantCount),
+                            static_cast<float>(
+                                resource->visualYaw))) {
                         DrawCylinder(
                             {resourcePosition.x,
                              resourcePosition.y + 0.9F,

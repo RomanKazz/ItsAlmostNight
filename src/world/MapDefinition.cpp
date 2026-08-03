@@ -68,12 +68,13 @@ MapObstacle parseObstacle(const Json& value) {
 MapDefinition MapDefinition::defaults() {
     return {
         .playerSpawn = {0.0, 0.0, 6.0},
-        .worldLimit = 48.0,
+        .worldLimit = 192.0,
         .coreBuildRadius = 12,
         .enemySpawnAnchors = {
-            {0.0, 0.0, -20.0},
-            {20.0, 0.0, 0.0},
-            {-20.0, 0.0, 0.0},
+            {0.0, 0.0, -24.0},
+            {24.0, 0.0, 0.0},
+            {0.0, 0.0, 24.0},
+            {-24.0, 0.0, 0.0},
         },
         .resources = {
             {ResourceType::Wood, {0.0, 1.0, 2.5}, 1.0, 3.0, 15, 12.0},
@@ -109,7 +110,7 @@ MapLoadResult parseMapDefinition(std::string_view json) {
         for (const auto& obstacle : document.at("obstacles")) {
             parsed.obstacles.push_back(parseObstacle(obstacle));
         }
-        if (parsed.worldLimit <= 5.0 || parsed.worldLimit > 48.0 ||
+        if (parsed.worldLimit <= 5.0 || parsed.worldLimit > 2048.0 ||
             parsed.coreBuildRadius <= 0 ||
             parsed.enemySpawnAnchors.empty() || parsed.resources.empty()) {
             throw std::runtime_error("invalid map definition");

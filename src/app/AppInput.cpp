@@ -326,12 +326,18 @@ void App::processInput() {
         currentSnapshot.aimedBuilding =
             preciseBuildingAim(
                 *renderer_, currentSnapshot);
+        currentSnapshot.aimedResource =
+            preciseResourceAim(
+                *renderer_, currentSnapshot);
         currentSnapshot.aimedModularBuilding =
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
         input_.overrideAimedBuilding = true;
         input_.aimedBuildingOverride =
             currentSnapshot.aimedBuilding;
+        input_.overrideAimedResource = true;
+        input_.aimedResourceOverride =
+            currentSnapshot.aimedResource;
         input_.overrideAimedModularBuilding = true;
         input_.aimedModularBuildingOverride =
             currentSnapshot.aimedModularBuilding;
@@ -832,11 +838,27 @@ void App::processInput() {
             pendingWallPlacements_.clear();
         }
         if (wallDragStart_ &&
-            currentSnapshot.buildingPreview &&
-            placementDragType_ ==
-                currentSnapshot.buildingPreview->type) {
-            wallDragEnd_ =
-                currentSnapshot.buildingPreview->gridPosition;
+            placementDragType_ &&
+            currentSnapshot.selectedBuilding ==
+                placementDragType_) {
+            if (placementDragSurface_) {
+                wallDragEnd_ =
+                    aimedBuildingGridPosition(
+                        currentSnapshot.playerPosition,
+                        currentSnapshot.playerYaw,
+                        currentSnapshot.playerPitch,
+                        MinimumPlacementDistance,
+                        MaximumPlacementDistance,
+                        *placementDragType_,
+                        placementDragSurface_->height);
+            } else if (
+                currentSnapshot.buildingPreview &&
+                currentSnapshot.buildingPreview->type ==
+                    *placementDragType_) {
+                wallDragEnd_ =
+                    currentSnapshot.buildingPreview
+                        ->gridPosition;
+            }
             constexpr double AxisSwitchMarginCells = 1.0;
             placementDragAxis_ =
                 stabilizePlacementLineAxis(

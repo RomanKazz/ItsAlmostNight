@@ -6,11 +6,31 @@
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 void runMapDefinitionTests() {
     const auto asset = ian::loadMapDefinition("assets/maps/graybox.json");
-    require(asset.valid() && asset.map.resources.size() == 7 &&
-                asset.map.enemySpawnAnchors.size() == 3,
-            "copied graybox map loads");
+    require(asset.valid() && asset.map.worldLimit == 192.0 &&
+                asset.map.resources.size() == 7 &&
+                asset.map.enemySpawnAnchors.size() == 4,
+            "large graybox map loads");
+    ian::Simulation expandedWorld{
+        ian::GameBalance::defaults(), asset.map,
+        ian::WorldConfig::defaults()};
+    const auto expandedSnapshot = expandedWorld.snapshot();
+    requireNear(
+        expandedSnapshot.worldLimit, 144.0, 1e-12,
+        "playable boundary starts where mountain rise begins");
+    require(
+        std::all_of(
+            expandedSnapshot.resourceNodes.begin(),
+            expandedSnapshot.resourceNodes.end(),
+            [](const ian::ResourceNode& resource) {
+                return std::abs(resource.position.x) <= 141.0 &&
+                       std::abs(resource.position.z) <= 141.0;
+            }),
+        "resources spawn inside flat playable terrain");
 
     constexpr std::string_view CustomMap = R"json({
         "playerSpawn": {"x": 2, "y": 0, "z": 3},

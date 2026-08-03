@@ -807,10 +807,9 @@ void App::updateModularPlacementPreview(
     // may briefly return no hit while crossing a mesh or grid edge.
     // Keep exact picking for outline/actions; use the broad-phase
     // platform proxy for placement only.
-    std::optional<EntityId> floorPlacementTarget =
+    std::optional<EntityId> platformPlacementTarget =
         snapshot.aimedModularBuilding;
-    if (modularBuildPiece_ ==
-            ModularBuildPiece::FloorPlatform &&
+    if (isPlatformBuildPiece(modularBuildPiece_) &&
         snapshot.aimedModularBuildingCandidate) {
         const EntityId candidate =
             *snapshot.aimedModularBuildingCandidate;
@@ -822,13 +821,65 @@ void App::updateModularPlacementPreview(
                 return frame.id == candidate;
             });
         if (candidateIsFrame) {
-            floorPlacementTarget = candidate;
+            platformPlacementTarget = candidate;
+        }
+    }
+    if (modularBuildPiece_ ==
+            ModularBuildPiece::Foundation &&
+        !modularDragPiece_ &&
+        platformPlacementTarget) {
+        const EntityId aimed = *platformPlacementTarget;
+        const auto frame = std::find_if(
+            snapshot.platformFrames.begin(),
+            snapshot.platformFrames.end(),
+            [aimed](const PlatformFrameInstance& candidate) {
+                return candidate.id == aimed &&
+                       candidate.storey == 0;
+            });
+        if (frame != snapshot.platformFrames.end()) {
+            const auto edge = platformEdgeSnapAtAim(
+                frame->anchor, frame->floorHeight,
+                snapshot.playerPosition,
+                lookDirection, cellSize);
+            if (edge) {
+                const Vec3 targetHit{
+                    (edge->extensionAnchor.x + 1.0) *
+                        cellSize,
+                    terrain.getHeight(
+                        (edge->extensionAnchor.x + 1.0) *
+                            cellSize,
+                        (edge->extensionAnchor.z + 1.0) *
+                            cellSize),
+                    (edge->extensionAnchor.z + 1.0) *
+                        cellSize,
+                };
+                modularEdgeHoverFrame_ = frame->id;
+                modularEdgeExtensionAnchor_ =
+                    edge->extensionAnchor;
+                platformFramePreview_ =
+                    simulation_.previewFoundation(
+                        targetHit);
+                foundationTerrainHit_ = targetHit;
+                modularSnapHit_ = targetHit;
+                modularSnapMarker_ = edge->marker;
+                if (!modularPreviewAnchor_ ||
+                    *modularPreviewAnchor_ !=
+                        edge->extensionAnchor) {
+                    placementSnapPulseRemaining_ = 0.18;
+                }
+                modularPreviewAnchor_ =
+                    edge->extensionAnchor;
+                wallPreview_.reset();
+                rampPreview_.reset();
+                return;
+            }
         }
     }
     if (modularBuildPiece_ ==
             ModularBuildPiece::FloorPlatform &&
-        floorPlacementTarget) {
-        const EntityId aimed = *floorPlacementTarget;
+        !modularDragPiece_ &&
+        platformPlacementTarget) {
+        const EntityId aimed = *platformPlacementTarget;
         const auto frame = std::find_if(
             snapshot.platformFrames.begin(),
             snapshot.platformFrames.end(),
@@ -847,57 +898,19 @@ void App::updateModularPlacementPreview(
             double targetFloorHeight =
                 frame->floorHeight +
                 modularStoreyHeight(terrain.config());
-            if (usePlatformEdges &&
-                std::abs(lookDirection.y) > 1e-5) {
-                const double distance =
-                    (frame->floorHeight -
-                     snapshot.playerPosition.y) /
-                    lookDirection.y;
-                if (distance > 0.0) {
-                    const double hitX =
-                        snapshot.playerPosition.x +
-                        lookDirection.x * distance;
-                    const double hitZ =
-                        snapshot.playerPosition.z +
-                        lookDirection.z * distance;
-                    const double centerX =
-                        (frame->anchor.x + 1.0) *
-                        cellSize;
-                    const double centerZ =
-                        (frame->anchor.z + 1.0) *
-                        cellSize;
-                    const double localX =
-                        hitX - centerX;
-                    const double localZ =
-                        hitZ - centerZ;
-                    constexpr double EdgeThreshold =
-                        0.42;
-                    if (std::max(
-                            std::abs(localX),
-                            std::abs(localZ)) >=
-                        cellSize * EdgeThreshold) {
-                        GridCoord extension =
-                            frame->anchor;
-                        if (std::abs(localX) >=
-                            std::abs(localZ)) {
-                            extension.x +=
-                                localX >= 0.0
-                                    ? PlatformFrameWidthCells
-                                    : -PlatformFrameWidthCells;
-                        } else {
-                            extension.z +=
-                                localZ >= 0.0
-                                    ? PlatformFrameWidthCells
-                                    : -PlatformFrameWidthCells;
-                        }
-                        modularEdgeExtensionAnchor_ =
-                            extension;
-                        targetAnchor = extension;
-                        targetStorey = frame->storey;
-                        targetFloorHeight =
-                            frame->floorHeight;
-                    }
-                }
+            std::optional<PlatformEdgeSnap> edge;
+            if (usePlatformEdges) {
+                edge = platformEdgeSnapAtAim(
+                    frame->anchor, frame->floorHeight,
+                    snapshot.playerPosition,
+                    lookDirection, cellSize);
+            }
+            if (edge) {
+                modularEdgeExtensionAnchor_ =
+                    edge->extensionAnchor;
+                targetAnchor = edge->extensionAnchor;
+                targetStorey = frame->storey;
+                targetFloorHeight = frame->floorHeight;
             }
             if (!targetAnchor) {
                 targetAnchor = frame->anchor;
@@ -913,7 +926,9 @@ void App::updateModularPlacementPreview(
             };
             foundationTerrainHit_ = targetHit;
             modularSnapHit_ = targetHit;
-            modularSnapMarker_ = targetHit;
+            modularSnapMarker_ = edge
+                ? std::optional<Vec3>{edge->marker}
+                : std::optional<Vec3>{targetHit};
             if (!modularPreviewAnchor_ ||
                 *modularPreviewAnchor_ != *targetAnchor) {
                 placementSnapPulseRemaining_ = 0.18;
@@ -1170,11 +1185,8 @@ void App::beginModularPlacementDrag() {
             platformFramePreview_->storey;
         modularDragPlaneHeight_ =
             platformFramePreview_->floorHeight;
-        if (modularBuildPiece_ ==
-            ModularBuildPiece::FloorPlatform) {
-            modularDragTargetFloorHeight_ =
-                platformFramePreview_->floorHeight;
-        }
+        modularDragTargetFloorHeight_ =
+            platformFramePreview_->floorHeight;
     } else if (
         modularBuildPiece_ == ModularBuildPiece::Wall &&
         wallPreview_ && wallPreview_->valid()) {
@@ -1302,7 +1314,9 @@ void App::rebuildModularPlacementLine() {
         if (*modularDragPiece_ ==
             ModularBuildPiece::Foundation) {
             PlatformFramePlacement preview =
-                simulation_.previewFoundation(hit);
+                simulation_.previewFoundationAtHeight(
+                    hit,
+                    *modularDragTargetFloorHeight_);
             if (preview.storey !=
                 *modularDragStorey_) {
                 continue;
@@ -1406,8 +1420,9 @@ bool App::finishModularPlacementDrag() {
             const PlatformFramePlacement current =
                 *modularDragPiece_ ==
                         ModularBuildPiece::Foundation
-                    ? simulation_.previewFoundation(
-                          modularDragHits_[index])
+                    ? simulation_.previewFoundationAtHeight(
+                          modularDragHits_[index],
+                          *modularDragTargetFloorHeight_)
                     : simulation_.previewFloorPlatform(
                           modularPlatformDragPreviews_
                               [index]
@@ -1423,8 +1438,9 @@ bool App::finishModularPlacementDrag() {
             const auto frame =
                 *modularDragPiece_ ==
                         ModularBuildPiece::Foundation
-                    ? simulation_.placeFoundation(
-                          modularDragHits_[index])
+                    ? simulation_.placeFoundationAtHeight(
+                          modularDragHits_[index],
+                          *modularDragTargetFloorHeight_)
                     : simulation_.placeFloorPlatform(
                           current.anchor,
                           current.storey,

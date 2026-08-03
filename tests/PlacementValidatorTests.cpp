@@ -1,6 +1,8 @@
 #include "TestHarness.hpp"
 #include "buildings/PlacementValidator.hpp"
 
+#include <algorithm>
+
 void runPlacementValidatorTests() {
     ian::WorldConfig config =
         ian::WorldConfig::defaults();
@@ -45,7 +47,88 @@ void runPlacementValidatorTests() {
                 support.length <=
                     config.maxWoodSupportLength,
             "all four integrated supports reach terrain");
+        requireNear(
+            support.bottom.y,
+            terrain.getHeight(
+                support.bottom.x,
+                support.bottom.z),
+            1e-9,
+            "foundation support stretches exactly to terrain");
     }
+
+    double highestTerrain = -1e9;
+    for (int zIndex = 0; zIndex < 5; ++zIndex) {
+        for (int xIndex = 0; xIndex < 5; ++xIndex) {
+            const double x =
+                frame.anchor.x * config.cellSize +
+                xIndex *
+                    (ian::PlatformFrameWidthCells *
+                     config.cellSize / 4.0);
+            const double z =
+                frame.anchor.z * config.cellSize +
+                zIndex *
+                    (ian::PlatformFrameWidthCells *
+                     config.cellSize / 4.0);
+            highestTerrain = std::max(
+                highestTerrain,
+                terrain.getHeight(x, z));
+        }
+    }
+    const double clearanceBoundary =
+        highestTerrain + config.minimumGroundClearance;
+    require(
+        validator
+            .validateGroundPlatformFrameAt(
+                frame.anchor, clearanceBoundary,
+                player)
+            .valid(),
+        "terrain may touch the exact minimum floor clearance boundary");
+    require(
+        validator
+                .validateGroundPlatformFrameAt(
+                    frame.anchor,
+                    clearanceBoundary - 2e-6,
+                    player)
+                .error ==
+            ian::ModularPlacementError::TerrainIntersection,
+        "terrain just above floor clearance rejects placement");
+
+    double lowestCorner = 1e9;
+    for (const auto& support : frame.supports) {
+        lowestCorner = std::min(
+            lowestCorner, support.bottom.y);
+    }
+    ian::WorldConfig exactSupportConfig = config;
+    exactSupportConfig.maxWoodSupportLength =
+        clearanceBoundary - lowestCorner;
+    ian::TerrainHeightfield exactSupportTerrain{
+        exactSupportConfig};
+    ian::BuildGrid exactSupportGrid{
+        exactSupportConfig};
+    ian::PlacementValidator exactSupportValidator{
+        exactSupportTerrain, exactSupportGrid};
+    require(
+        exactSupportValidator
+            .validateGroundPlatformFrameAt(
+                frame.anchor, clearanceBoundary,
+                player)
+            .valid(),
+        "support at the exact maximum length is allowed");
+    ian::WorldConfig overSupportConfig = exactSupportConfig;
+    overSupportConfig.maxWoodSupportLength -= 2e-6;
+    ian::TerrainHeightfield overSupportTerrain{
+        overSupportConfig};
+    ian::BuildGrid overSupportGrid{overSupportConfig};
+    ian::PlacementValidator overSupportValidator{
+        overSupportTerrain, overSupportGrid};
+    require(
+        overSupportValidator
+                .validateGroundPlatformFrameAt(
+                    frame.anchor, clearanceBoundary,
+                    player)
+                .error ==
+            ian::ModularPlacementError::SupportTooLong,
+        "support just beyond maximum length rejects placement");
 
     require(
         grid.occupy(
@@ -112,4 +195,31 @@ void runPlacementValidatorTests() {
                 .error ==
             ian::ModularPlacementError::SupportTooLong,
         "validator reports excessive ground support length");
+
+    ian::WorldConfig steepConfig = config;
+    steepConfig.maximumFoundationHeightDifference = 0.01;
+    ian::TerrainHeightfield steepTerrain{steepConfig};
+    ian::BuildGrid steepGrid{steepConfig};
+    ian::PlacementValidator steepValidator{
+        steepTerrain, steepGrid};
+    bool rejectedSlope = false;
+    for (int z = -18; z <= 18 && !rejectedSlope; z += 2) {
+        for (int x = -18; x <= 18; x += 2) {
+            const ian::Vec3 sample{
+                static_cast<double>(x),
+                steepTerrain.getHeight(x, z),
+                static_cast<double>(z),
+            };
+            if (steepValidator
+                    .validateGroundPlatformFrame(sample, sample)
+                    .error ==
+                ian::ModularPlacementError::TerrainIntersection) {
+                rejectedSlope = true;
+                break;
+            }
+        }
+    }
+    require(
+        rejectedSlope,
+        "foundation height tolerance rejects excessive slope");
 }

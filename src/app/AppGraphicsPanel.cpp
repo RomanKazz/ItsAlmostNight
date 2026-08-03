@@ -154,11 +154,17 @@ void App::drawGraphicsPanel() {
     }
     y += ButtonHeight + Gap;
 
-    if (ui_.drawToggleButton(
+    if (ui_.drawButton(
             {contentX, y, columnWidth, ButtonHeight},
-            "SHADOW MAP PREVIEW", renderer_->shadowMapVisible())) {
-        renderer_->setShadowMapVisible(
-            !renderer_->shadowMapVisible());
+            std::string("SHADOW QUALITY: ") +
+                (settings.shadowMapSize <= 512
+                     ? "LOW"
+                     : settings.shadowMapSize <= 1024
+                           ? "MEDIUM"
+                           : settings.shadowMapSize <= 2048
+                                 ? "HIGH"
+                                 : "ULTRA"))) {
+        renderer_->cycleShadowQuality();
     }
     if (ui_.drawButton(
             {contentX + columnWidth + Gap, y, columnWidth,

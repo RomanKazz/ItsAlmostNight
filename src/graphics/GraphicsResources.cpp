@@ -389,7 +389,21 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/lumber_mill.glb");
     quarryModel_.load("assets/models/quarry.glb");
     rockModel_.load("assets/models/rock.glb");
-    treeModel_.load("assets/models/tree.glb");
+    treeModels_[0].load("assets/models/tree.glb");
+    treeModels_[1].load("assets/models/tree_b.glb");
+    treeModels_[2].load("assets/models/tree_c.glb");
+    boundaryTreeModels_[0].load(
+        "assets/models/boundary_forest/tree.glb");
+    boundaryTreeModels_[1].load(
+        "assets/models/boundary_forest/tree_high.glb");
+    decorativeRockModels_[0].load(
+        "assets/models/decor/rock_small_a.glb");
+    decorativeRockModels_[1].load(
+        "assets/models/decor/rock_small_b.glb");
+    decorativeRockModels_[2].load(
+        "assets/models/decor/rock_small_c.glb");
+    decorativeRockModels_[3].load(
+        "assets/models/decor/rock_small_d.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");
     wallEndModel_.load("assets/models/walls/end.glb");
     wallCornerModel_.load("assets/models/walls/corner.glb");
@@ -540,7 +554,15 @@ void GraphicsResources::shutdown() {
     wallCornerModel_.unload();
     wallEndModel_.unload();
     wallIsolatedModel_.unload();
-    treeModel_.unload();
+    for (auto& treeModel : treeModels_) {
+        treeModel.unload();
+    }
+    for (auto& treeModel : boundaryTreeModels_) {
+        treeModel.unload();
+    }
+    for (auto& rockModel : decorativeRockModels_) {
+        rockModel.unload();
+    }
     rockModel_.unload();
     quarryModel_.unload();
     lumberMillModel_.unload();
@@ -767,8 +789,20 @@ ModelResource& GraphicsResources::rockModel() {
     return rockModel_;
 }
 
-ModelResource& GraphicsResources::treeModel() {
-    return treeModel_;
+ModelResource& GraphicsResources::treeModel(std::size_t variant) {
+    return treeModels_[variant % treeModels_.size()];
+}
+
+ModelResource& GraphicsResources::boundaryTreeModel(
+    std::size_t variant) {
+    return boundaryTreeModels_[
+        variant % boundaryTreeModels_.size()];
+}
+
+ModelResource& GraphicsResources::decorativeRockModel(
+    std::size_t variant) {
+    return decorativeRockModels_[
+        variant % decorativeRockModels_.size()];
 }
 
 ModelResource& GraphicsResources::wallIsolatedModel() {

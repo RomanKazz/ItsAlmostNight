@@ -255,7 +255,17 @@ void runBuildingSystemTests() {
         ian::MaximumPlacementDistance,
         ian::BuildingType::Wall);
     require(wallAim == ian::GridPosition{1, 6},
-            "one-cell building uses containing grid cell");
+        "one-cell building uses containing grid cell");
+
+    const auto elevatedPlaneAim =
+        ian::aimedBuildingGridPosition(
+            {0.0, 1.7, 0.0}, 0.0,
+            std::atan2(2.3, 6.0),
+            1.0, 10.0,
+            ian::BuildingType::Wall, 4.0);
+    require(
+        elevatedPlaneAim == ian::GridPosition{0, -6},
+        "building drag ray intersects an elevated plane while aiming upward");
     const ian::Vec3 wallCenter = ian::buildingWorldPosition(
         ian::BuildingType::Wall, wallAim);
     require(

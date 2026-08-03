@@ -35,8 +35,7 @@ class TargetHealthBar {
     void drawBillboard(Target target, Vector3 anchorPosition,
                        double health, double maxHealth,
                        Color fillColor, const Camera3D& camera,
-                       int buildingLevel = 0,
-                       double predictedDamage = 0.0);
+                       int buildingLevel = 0);
 
     std::optional<Target> target_;
     double displayedHealth_{};

@@ -42,10 +42,92 @@ FoundationSystem::frameAt(
 PlatformFramePlacement
 FoundationSystem::previewFoundation(
     Vec3 terrainHit, Vec3 playerPosition) const {
-    return PlacementValidator{
-        terrain_, grid_}
-        .validateGroundPlatformFrame(
+    GridCoord anchor = grid_.worldToGrid(terrainHit);
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+
+    constexpr std::array<GridCoord, 4> NeighbourOffsets{{
+        {-PlatformFrameWidthCells, 0, 0},
+        {PlatformFrameWidthCells, 0, 0},
+        {0, 0, -PlatformFrameWidthCells},
+        {0, 0, PlatformFrameWidthCells},
+    }};
+    std::vector<double> neighbourLevels;
+    for (const GridCoord offset : NeighbourOffsets) {
+        const PlatformFrameInstance* neighbour = frameAt(
+            {anchor.x + offset.x, 0,
+             anchor.z + offset.z},
+            0);
+        if (!neighbour ||
+            neighbour->supportState !=
+                StructuralSupportState::Supported) {
+            continue;
+        }
+        if (std::none_of(
+                neighbourLevels.begin(),
+                neighbourLevels.end(),
+                [height = neighbour->floorHeight](
+                    double candidate) {
+                    return std::abs(candidate - height) <=
+                           1e-6;
+                })) {
+            neighbourLevels.push_back(
+                neighbour->floorHeight);
+        }
+    }
+
+    const PlacementValidator validator{terrain_, grid_};
+    if (neighbourLevels.empty()) {
+        return validator.validateGroundPlatformFrame(
             terrainHit, playerPosition);
+    }
+
+    std::sort(neighbourLevels.begin(),
+              neighbourLevels.end());
+    std::optional<PlatformFramePlacement> bestValid;
+    std::optional<PlatformFramePlacement> bestInvalid;
+    const double desiredHeight =
+        terrainHit.y +
+        grid_.config().minimumGroundClearance;
+    const auto distanceToTerrain =
+        [desiredHeight](
+            const PlatformFramePlacement& placement) {
+            return std::abs(
+                placement.floorHeight - desiredHeight);
+        };
+    for (const double neighbourLevel : neighbourLevels) {
+        PlatformFramePlacement candidate =
+            validator.validateGroundPlatformFrameAt(
+                anchor, neighbourLevel,
+                playerPosition);
+        if (candidate.valid()) {
+            if (!bestValid ||
+                distanceToTerrain(candidate) <
+                    distanceToTerrain(*bestValid)) {
+                bestValid = candidate;
+            }
+        } else if (!bestInvalid ||
+                   distanceToTerrain(candidate) <
+                       distanceToTerrain(*bestInvalid)) {
+            bestInvalid = candidate;
+        }
+    }
+    if (bestValid) {
+        return *bestValid;
+    }
+    return *bestInvalid;
+}
+
+PlatformFramePlacement
+FoundationSystem::previewFoundationAtHeight(
+    Vec3 terrainHit, double floorHeight,
+    Vec3 playerPosition) const {
+    GridCoord anchor = grid_.worldToGrid(terrainHit);
+    anchor.x = snapPlatformFrameAxis(anchor.x);
+    anchor.z = snapPlatformFrameAxis(anchor.z);
+    return PlacementValidator{terrain_, grid_}
+        .validateGroundPlatformFrameAt(
+            anchor, floorHeight, playerPosition);
 }
 
 PlatformFramePlacement
@@ -111,10 +193,16 @@ FoundationSystem::previewFloorPlatform(
             ModularPlacementError::NoSupport;
         return placement;
     }
-    if (std::abs(
-            previous->floorHeight +
-                modularStoreyHeight(config) -
-            floorHeight) > 1e-6) {
+    const double baseElevation =
+        previous->floorHeight -
+        static_cast<double>(storey - 1) *
+            modularStoreyHeight(config);
+    const double expectedFloorHeight =
+        baseElevation +
+        static_cast<double>(storey) *
+            modularStoreyHeight(config);
+    if (std::abs(expectedFloorHeight - floorHeight) >
+        1e-6) {
         placement.error =
             ModularPlacementError::NoSupport;
         return placement;

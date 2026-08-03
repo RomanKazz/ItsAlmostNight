@@ -52,6 +52,9 @@ void drawCentered(
 [[nodiscard]] std::optional<EntityId> preciseBuildingAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot);
+[[nodiscard]] std::optional<EntityId> preciseResourceAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot);
 [[nodiscard]] std::optional<EntityId>
 preciseModularBuildingAim(
     Renderer& renderer,
@@ -61,7 +64,8 @@ preciseModularBuildingAim(
 [[nodiscard]] float smoothstep(
     float edge0, float edge1, float value);
 void drawBuildGrid(
-    Vector3 playerPosition, double worldLimit);
+    Vector3 playerPosition, double worldLimit,
+    const TerrainHeightfield& terrain);
 [[nodiscard]] Color placementColor(
     PlacementError error, bool fill);
 [[nodiscard]] bool placementPreviewObstructed(

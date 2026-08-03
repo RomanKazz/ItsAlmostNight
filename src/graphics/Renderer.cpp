@@ -683,11 +683,16 @@ void Renderer::endWorldShader() {
 void Renderer::rebuildTerrain(
     const TerrainHeightfield& terrain) {
     terrainHeightfield_ = &terrain;
+    boundaryForestCached_ = false;
+    for (auto& transforms : boundaryForestTransforms_) {
+        transforms.clear();
+    }
     terrainRenderer_.rebuild(terrain);
 }
 
 void Renderer::drawTerrain(
-    Color tint, bool wireframe) {
+    Color tint, Vector3 focusPosition,
+    bool wireframe) {
     Shader shader{};
     if (shadowPassOpen_ &&
         resources_.shadowShader().valid()) {
@@ -697,7 +702,8 @@ void Renderer::drawTerrain(
         resources_.worldShader().valid()) {
         shader = resources_.worldShader().get();
     }
-    terrainRenderer_.draw(shader, tint);
+    terrainRenderer_.draw(
+        shader, tint, focusPosition);
     if (wireframe) {
         terrainRenderer_.drawWireframe(
             {245, 224, 154, 150});
@@ -715,9 +721,9 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
     }
 
     constexpr std::size_t VariantCount = 3;
-    constexpr std::size_t MaximumInstancesPerVariant = 512;
+    constexpr std::size_t MaximumInstancesPerVariant = 1408;
     constexpr float Spacing = 1.8F;
-    constexpr float DrawRadius = 27.0F;
+    constexpr float DrawRadius = 60.0F;
     std::array<std::array<Matrix, MaximumInstancesPerVariant>,
                VariantCount>
         transforms{};
@@ -778,33 +784,22 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             if (counts[variant] >= MaximumInstancesPerVariant) {
                 continue;
             }
-            const float baseScale =
-                0.58F + unitFloat(hash >> 16U) * 0.34F;
-            float visibility = 1.0F;
-            for (const GrassClearArea& area : clearAreas) {
-                const float deltaX = x - area.center.x;
-                const float deltaZ = z - area.center.y;
-                const float distance =
-                    std::sqrt(
-                        deltaX * deltaX + deltaZ * deltaZ);
-                constexpr float Feather = 0.85F;
-                const float proximity =
-                    1.0F -
-                    std::clamp(
-                        (distance - area.innerRadius) /
-                            Feather,
-                        0.0F, 1.0F);
-                const float clearing =
-                    std::clamp(area.amount, 0.0F, 1.0F) *
-                    proximity * proximity *
-                    (3.0F - 2.0F * proximity);
-                visibility *= 1.0F - clearing;
-            }
+            const float widthScale =
+                0.55F +
+                unitFloat(hash ^ 0x63d83595U) * 0.65F;
+            const float heightScale =
+                0.45F +
+                unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
+            const float visibility = clearAreaVisibility(
+                {x, z}, clearAreas, 0.85F);
             const float clearing = 1.0F - visibility;
             if (clearing >= 0.68F) {
                 continue;
             }
-            const float scale = baseScale * visibility;
+            const float horizontalScale =
+                widthScale * visibility;
+            const float verticalScale =
+                heightScale * visibility;
             const float sink = clearing * 0.4F;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
@@ -816,7 +811,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 unitFloat(hash ^ 0xa511e9b3U) * PI * 2.0F;
             transforms[variant][counts[variant]++] =
                 MatrixMultiply(
-                    MatrixScale(scale, scale, scale),
+                    MatrixScale(
+                        horizontalScale,
+                        verticalScale,
+                        horizontalScale),
                     MatrixMultiply(
                         MatrixRotateY(rotation),
                         MatrixTranslate(
@@ -911,6 +909,32 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 static_cast<int>(counts[variant]));
         }
     }
+}
+
+float Renderer::clearAreaVisibility(
+    Vector2 position,
+    std::span<const GrassClearArea> clearAreas,
+    float feather, float innerPadding) {
+    float visibility = 1.0F;
+    feather = std::max(feather, 0.001F);
+    for (const GrassClearArea& area : clearAreas) {
+        const float deltaX = position.x - area.center.x;
+        const float deltaZ = position.y - area.center.y;
+        const float distance =
+            std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        const float proximity =
+            1.0F - std::clamp(
+                       (distance - area.innerRadius -
+                        std::max(innerPadding, 0.0F)) /
+                           feather,
+                       0.0F, 1.0F);
+        const float clearing =
+            std::clamp(area.amount, 0.0F, 1.0F) *
+            proximity * proximity *
+            (3.0F - 2.0F * proximity);
+        visibility *= 1.0F - clearing;
+    }
+    return visibility;
 }
 
 void Renderer::drawUpgradeEffect(Vector3 position, float progress,
@@ -1550,7 +1574,7 @@ void Renderer::cycleQuality() {
         break;
     case GraphicsQuality::Medium:
         settings_.quality = GraphicsQuality::High;
-        settings_.shadowMapSize = 2048;
+        settings_.shadowMapSize = 4096;
         settings_.shadowDistance = 80.0F;
         break;
     case GraphicsQuality::High:
@@ -1558,6 +1582,18 @@ void Renderer::cycleQuality() {
         settings_.shadowMapSize = 512;
         settings_.shadowDistance = 40.0F;
         break;
+    }
+}
+
+void Renderer::cycleShadowQuality() {
+    if (settings_.shadowMapSize < 1024) {
+        settings_.shadowMapSize = 1024;
+    } else if (settings_.shadowMapSize < 2048) {
+        settings_.shadowMapSize = 2048;
+    } else if (settings_.shadowMapSize < 4096) {
+        settings_.shadowMapSize = 4096;
+    } else {
+        settings_.shadowMapSize = 512;
     }
 }
 
