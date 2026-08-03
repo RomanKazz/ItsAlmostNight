@@ -934,44 +934,54 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<float>(-std::cos(snapshot.playerYaw)),
     };
     const Vector2 side{-direction.y, direction.x};
-    const Vector2 tip{
-        player.x + direction.x * 7.5F * symbolScale,
-        player.y + direction.y * 7.5F * symbolScale,
+    const Color playerColor = snapshot.playerRespawning
+        ? Color{143, 160, 160, 235}
+        : Color{107, 231, 223, 255};
+    const Vector2 outerTip{
+        player.x + direction.x * 12.0F * symbolScale,
+        player.y + direction.y * 12.0F * symbolScale,
     };
-    const Vector2 left{
-        player.x - direction.x * 4.2F * symbolScale +
-            side.x * 4.2F * symbolScale,
-        player.y - direction.y * 4.2F * symbolScale +
-            side.y * 4.2F * symbolScale,
+    const Vector2 outerBase{
+        player.x + direction.x * 3.2F * symbolScale,
+        player.y + direction.y * 3.2F * symbolScale,
     };
-    const Vector2 right{
-        player.x - direction.x * 4.2F * symbolScale -
-            side.x * 4.2F * symbolScale,
-        player.y - direction.y * 4.2F * symbolScale -
-            side.y * 4.2F * symbolScale,
+    const Vector2 outerLeft{
+        outerBase.x - side.x * 4.0F * symbolScale,
+        outerBase.y - side.y * 4.0F * symbolScale,
     };
-    DrawTriangle(tip, left, right, {53, 66, 70, 255});
-    const Vector2 insetTip{
-        player.x + direction.x * 5.8F * symbolScale,
-        player.y + direction.y * 5.8F * symbolScale,
-    };
-    const Vector2 insetLeft{
-        player.x - direction.x * 2.7F * symbolScale +
-            side.x * 2.9F * symbolScale,
-        player.y - direction.y * 2.7F * symbolScale +
-            side.y * 2.9F * symbolScale,
-    };
-    const Vector2 insetRight{
-        player.x - direction.x * 2.7F * symbolScale -
-            side.x * 2.9F * symbolScale,
-        player.y - direction.y * 2.7F * symbolScale -
-            side.y * 2.9F * symbolScale,
+    const Vector2 outerRight{
+        outerBase.x + side.x * 4.0F * symbolScale,
+        outerBase.y + side.y * 4.0F * symbolScale,
     };
     DrawTriangle(
-        insetTip, insetLeft, insetRight,
-        snapshot.playerRespawning
-            ? Color{143, 160, 160, 220}
-            : Color{107, 231, 223, 255});
+        outerTip, outerLeft, outerRight,
+        {37, 48, 52, 255});
+    DrawCircleV(
+        player, 5.4F * symbolScale,
+        {37, 48, 52, 255});
+
+    const Vector2 innerTip{
+        player.x + direction.x * 9.6F * symbolScale,
+        player.y + direction.y * 9.6F * symbolScale,
+    };
+    const Vector2 innerBase{
+        player.x + direction.x * 3.5F * symbolScale,
+        player.y + direction.y * 3.5F * symbolScale,
+    };
+    const Vector2 innerLeft{
+        innerBase.x - side.x * 2.5F * symbolScale,
+        innerBase.y - side.y * 2.5F * symbolScale,
+    };
+    const Vector2 innerRight{
+        innerBase.x + side.x * 2.5F * symbolScale,
+        innerBase.y + side.y * 2.5F * symbolScale,
+    };
+    DrawTriangle(
+        innerTip, innerLeft, innerRight,
+        playerColor);
+    DrawCircleV(
+        player, 3.7F * symbolScale,
+        playerColor);
 
     if (snapshot.upcomingAttackDirection) {
         Vector2 marker{
