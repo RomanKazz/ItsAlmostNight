@@ -8,12 +8,169 @@
 #include <rlgl.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <string>
 
 namespace ian {
 
 using namespace app_detail;
+
+namespace {
+
+float atmosphereUnit(std::uint32_t value) {
+    value ^= value >> 16U;
+    value *= 0x7feb352dU;
+    value ^= value >> 15U;
+    value *= 0x846ca68bU;
+    value ^= value >> 16U;
+    return static_cast<float>(value & 0xffffU) / 65535.0F;
+}
+
+float wrapAtmosphere(float value, float center, float halfExtent) {
+    const float extent = halfExtent * 2.0F;
+    float relative = std::fmod(
+        value - center + halfExtent, extent);
+    if (relative < 0.0F) {
+        relative += extent;
+    }
+    return center + relative - halfExtent;
+}
+
+unsigned char atmosphereAlpha(float amount) {
+    return static_cast<unsigned char>(std::lround(
+        std::clamp(amount, 0.0F, 1.0F) * 255.0F));
+}
+
+} // namespace
+
+void App::drawAtmosphereParticles(
+    const Camera3D& camera, float nightAmount) {
+    if (!renderer_->settings().particles) {
+        return;
+    }
+
+    const float time = static_cast<float>(GetTime());
+    const float daylight =
+        1.0F - std::clamp(nightAmount, 0.0F, 1.0F) * 0.72F;
+
+    // Rare low-poly leaves. Positions loop around the camera, so the effect
+    // has fixed cost and never allocates or fills the world with entities.
+    constexpr int LeafCount = 11;
+    constexpr float LeafHalfExtent = 25.0F;
+    for (int index = 0; index < LeafCount; ++index) {
+        const std::uint32_t seed =
+            0x6d2b79f5U + static_cast<std::uint32_t>(index) *
+                0x9e3779b9U;
+        const float speed = 2.1F + atmosphereUnit(seed + 1U) * 1.4F;
+        float x = wrapAtmosphere(
+            (atmosphereUnit(seed + 2U) * 2.0F - 1.0F) *
+                    LeafHalfExtent +
+                time * speed,
+            camera.position.x, LeafHalfExtent);
+        float z = wrapAtmosphere(
+            (atmosphereUnit(seed + 3U) * 2.0F - 1.0F) *
+                    LeafHalfExtent +
+                time * speed * 0.24F,
+            camera.position.z, LeafHalfExtent);
+        x += std::sin(time * 1.35F + atmosphereUnit(seed + 4U) * 17.0F) *
+            0.55F;
+        z += std::cos(time * 1.08F + atmosphereUnit(seed + 5U) * 19.0F) *
+            0.35F;
+
+        const float cycle = std::fmod(
+            atmosphereUnit(seed + 6U) +
+                time * (0.035F + atmosphereUnit(seed + 7U) * 0.022F),
+            1.0F);
+        const float ground = static_cast<float>(
+            simulation_.terrain().getHeight(x, z));
+        const float y = ground + 0.65F + (1.0F - cycle) * 5.2F +
+            std::sin(time * 2.0F + atmosphereUnit(seed + 8U) * 13.0F) *
+                0.22F;
+        const float distance = Vector2Distance(
+            {x, z}, {camera.position.x, camera.position.z});
+        const float edgeFade = 1.0F -
+            smoothstep(18.0F, LeafHalfExtent, distance);
+        const float cycleFade =
+            smoothstep(0.0F, 0.08F, cycle) *
+            (1.0F - smoothstep(0.88F, 1.0F, cycle));
+        const float alpha = edgeFade * cycleFade * daylight * 0.88F;
+        if (alpha <= 0.01F) {
+            continue;
+        }
+
+        const Color palette[4] = {
+            {210, 143, 47, atmosphereAlpha(alpha)},
+            {229, 184, 67, atmosphereAlpha(alpha)},
+            {159, 174, 55, atmosphereAlpha(alpha)},
+            {191, 104, 39, atmosphereAlpha(alpha)},
+        };
+        const float size = 0.72F + atmosphereUnit(seed + 9U) * 0.55F;
+        const Vector3 axis = Vector3Normalize({
+            0.35F + atmosphereUnit(seed + 10U),
+            0.55F + atmosphereUnit(seed + 11U),
+            0.25F + atmosphereUnit(seed + 12U),
+        });
+        const float rotation =
+            time * (95.0F + atmosphereUnit(seed + 13U) * 120.0F) +
+            atmosphereUnit(seed + 14U) * 360.0F;
+        rlPushMatrix();
+        rlTranslatef(x, y, z);
+        rlRotatef(rotation, axis.x, axis.y, axis.z);
+        rlScalef(0.18F * size, 0.025F * size, 0.10F * size);
+        DrawCube(
+            {}, 1.0F, 1.0F, 1.0F,
+            palette[static_cast<std::size_t>(index) % 4U]);
+        rlPopMatrix();
+    }
+
+    // Small pollen motes are additive and deliberately sparse. Low-segment
+    // spheres keep them readable after pixelization without expensive meshes.
+    constexpr int PollenCount = 24;
+    constexpr float PollenHalfExtent = 19.0F;
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int index = 0; index < PollenCount; ++index) {
+        const std::uint32_t seed =
+            0xa511e9b3U + static_cast<std::uint32_t>(index) *
+                0x85ebca6bU;
+        const float x = wrapAtmosphere(
+            (atmosphereUnit(seed + 1U) * 2.0F - 1.0F) *
+                    PollenHalfExtent +
+                time * (0.28F + atmosphereUnit(seed + 2U) * 0.22F),
+            camera.position.x, PollenHalfExtent);
+        const float z = wrapAtmosphere(
+            (atmosphereUnit(seed + 3U) * 2.0F - 1.0F) *
+                    PollenHalfExtent +
+                time * 0.12F,
+            camera.position.z, PollenHalfExtent);
+        const float rise = std::fmod(
+            atmosphereUnit(seed + 4U) +
+                time * (0.022F + atmosphereUnit(seed + 5U) * 0.018F),
+            1.0F);
+        const float ground = static_cast<float>(
+            simulation_.terrain().getHeight(x, z));
+        const float y = ground + 0.35F + rise * 4.2F +
+            std::sin(time * 0.8F + atmosphereUnit(seed + 6U) * 21.0F) *
+                0.18F;
+        const float distance = Vector2Distance(
+            {x, z}, {camera.position.x, camera.position.z});
+        const float fade =
+            (1.0F - smoothstep(13.0F, PollenHalfExtent, distance)) *
+            smoothstep(0.0F, 0.12F, rise) *
+            (1.0F - smoothstep(0.82F, 1.0F, rise));
+        const float alpha = fade * daylight *
+            (0.32F + atmosphereUnit(seed + 7U) * 0.28F);
+        if (alpha <= 0.01F) {
+            continue;
+        }
+        const float radius =
+            0.025F + atmosphereUnit(seed + 8U) * 0.025F;
+        DrawSphereEx(
+            {x, y, z}, radius, 4, 4,
+            {255, 239, 170, atmosphereAlpha(alpha)});
+    }
+    EndBlendMode();
+}
 
 void App::drawPresentationEffects() {
     for (const auto& effect : effects_) {

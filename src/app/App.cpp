@@ -433,6 +433,7 @@ void App::render() {
                           lighting);
         renderer_->drawClouds(
             camera.position, nightAmount, lighting);
+        drawAtmosphereParticles(camera, nightAmount);
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects();
