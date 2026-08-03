@@ -37,9 +37,9 @@ struct WorldMaterialState {
     float bakedAo{1.0F};
     float vertexAoAmount{};
     float terrainAmount{};
-    Vector3 terrainPrimaryTint{0.78F, 1.08F, 0.72F};
-    Vector3 terrainSecondaryTint{1.10F, 0.98F, 0.62F};
-    Vector3 terrainPatchTint{0.78F, 0.70F, 0.50F};
+    Vector3 terrainGrassTint{0.38F, 0.60F, 0.28F};
+    Vector3 terrainDirtTint{0.48F, 0.34F, 0.22F};
+    Vector3 terrainRockTint{0.46F, 0.48F, 0.45F};
     float windAmount{};
     float hitFlashAmount{};
     float selectionAmount{};
@@ -284,9 +284,9 @@ class Renderer {
         int vertexAoAmount{-1};
         int aoStrength{-1};
         int terrainAmount{-1};
-        int terrainPrimaryTint{-1};
-        int terrainSecondaryTint{-1};
-        int terrainPatchTint{-1};
+        int terrainGrassTint{-1};
+        int terrainDirtTint{-1};
+        int terrainRockTint{-1};
         int terrainTexture{-1};
         int terrainTextureEnabled{-1};
         int timeSeconds{-1};

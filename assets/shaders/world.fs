@@ -28,9 +28,9 @@ uniform float bakedAo;
 uniform float vertexAoAmount;
 uniform float aoStrength;
 uniform float terrainAmount;
-uniform vec3 terrainPrimaryTint;
-uniform vec3 terrainSecondaryTint;
-uniform vec3 terrainPatchTint;
+uniform vec3 terrainGrassTint;
+uniform vec3 terrainDirtTint;
+uniform vec3 terrainRockTint;
 uniform sampler2D terrainTexture;
 uniform float terrainTextureEnabled;
 uniform float hitFlashAmount;
@@ -64,25 +64,53 @@ float valueNoise(vec2 position)
                mix(topLeft, topRight, blend.x), blend.y);
 }
 
-vec3 terrainTint(vec3 worldPosition, vec3 normal)
+vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
 {
     vec2 worldXZ = worldPosition.xz;
-    float broadNoise = valueNoise(worldXZ*0.055);
-    float mediumNoise = valueNoise(worldXZ*0.14 + vec2(19.3, -7.1));
-    float colorBlend = clamp(broadNoise*0.72 + mediumNoise*0.18, 0.0, 1.0);
-
-    float heightBlend = smoothstep(-0.5, 5.0, worldPosition.y);
-    colorBlend = clamp(colorBlend + heightBlend*0.14, 0.0, 1.0);
-    vec3 tint = mix(terrainPrimaryTint, terrainSecondaryTint, colorBlend);
-
+    float broadNoise = valueNoise(worldXZ*0.045);
+    float patchNoise = valueNoise(worldXZ*0.095 + vec2(19.3, -7.1));
+    float detailNoise = valueNoise(worldXZ*0.42 + vec2(-31.7, 42.9));
     float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
-    float rarePatchNoise =
-        valueNoise(worldXZ*0.038 + vec2(-31.7, 42.9));
-    float rarePatch = smoothstep(0.76, 0.91, rarePatchNoise);
-    float exposedSlope = smoothstep(0.22, 0.72, slope);
-    float patchAmount = clamp(max(rarePatch*0.72, exposedSlope*0.88),
-                              0.0, 0.88);
-    return mix(tint, terrainPatchTint, patchAmount);
+    float mountain = smoothstep(9.0, 28.0, worldPosition.y);
+
+    float rockFromSlope = smoothstep(0.16, 0.48, slope);
+    float rockFromHeight = mountain*
+        smoothstep(0.18, 0.72, broadNoise + slope*1.35);
+    float rockWeight = clamp(
+        max(rockFromSlope, rockFromHeight*0.88), 0.0, 1.0);
+
+    float dirtSlopeBand =
+        smoothstep(0.045, 0.18, slope)*
+        (1.0 - smoothstep(0.24, 0.46, slope));
+    float dirtPatch =
+        smoothstep(0.68, 0.86, broadNoise*0.72 + patchNoise*0.28)*
+        (1.0 - smoothstep(0.10, 0.30, slope));
+    float dirtWeight = clamp(
+        max(dirtSlopeBand*0.72, dirtPatch*0.66)*
+        (1.0 - rockWeight), 0.0, 1.0);
+
+    vec3 textureSample =
+        texture(terrainTexture, worldXZ*0.08).rgb;
+    float textureLuminance = dot(
+        textureSample, vec3(0.2126, 0.7152, 0.0722));
+    float grassDetail = mix(
+        0.82 + detailNoise*0.24,
+        0.72 + textureLuminance*0.48,
+        terrainTextureEnabled);
+    vec3 grass = terrainGrassTint*grassDetail;
+
+    float dirtGrain =
+        0.82 + patchNoise*0.22 + detailNoise*0.10;
+    vec3 dirt = terrainDirtTint*dirtGrain;
+
+    float rockNoise = valueNoise(
+        worldXZ*0.21 + vec2(8.7, -16.4));
+    float rockGrain =
+        0.78 + rockNoise*0.30 + detailNoise*0.08;
+    vec3 rock = terrainRockTint*rockGrain;
+
+    vec3 grassAndDirt = mix(grass, dirt, dirtWeight);
+    return mix(grassAndDirt, rock, rockWeight);
 }
 
 float sampleShadow(vec3 normal)
@@ -148,14 +176,9 @@ void main()
     vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
     albedo.a = baseColor.a*colDiffuse.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
-    vec3 terrainSample =
-        texture(terrainTexture, fragWorldPosition.xz*0.08).rgb;
-    vec3 terrainBase =
-        mix(albedo.rgb, terrainSample, terrainTextureEnabled);
-    vec3 terrainVariation =
-        mix(vec3(1.0), terrainTint(fragWorldPosition, normal), 0.3);
-    vec3 variedTerrain = terrainBase*terrainVariation;
-    albedo.rgb = mix(albedo.rgb, variedTerrain,
+    vec3 terrainAlbedo =
+        terrainMaterial(fragWorldPosition, normal);
+    albedo.rgb = mix(albedo.rgb, terrainAlbedo,
                      clamp(terrainAmount, 0.0, 1.0));
     float vertexAo =
         mix(1.0, fragVertexColor.a, clamp(vertexAoAmount, 0.0, 1.0));

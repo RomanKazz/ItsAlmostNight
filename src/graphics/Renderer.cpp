@@ -621,18 +621,15 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.bakedAo == worldMaterial_.bakedAo &&
         material.vertexAoAmount == worldMaterial_.vertexAoAmount &&
         material.terrainAmount == worldMaterial_.terrainAmount &&
-        material.terrainPrimaryTint.x == worldMaterial_.terrainPrimaryTint.x &&
-        material.terrainPrimaryTint.y == worldMaterial_.terrainPrimaryTint.y &&
-        material.terrainPrimaryTint.z == worldMaterial_.terrainPrimaryTint.z &&
-        material.terrainSecondaryTint.x ==
-            worldMaterial_.terrainSecondaryTint.x &&
-        material.terrainSecondaryTint.y ==
-            worldMaterial_.terrainSecondaryTint.y &&
-        material.terrainSecondaryTint.z ==
-            worldMaterial_.terrainSecondaryTint.z &&
-        material.terrainPatchTint.x == worldMaterial_.terrainPatchTint.x &&
-        material.terrainPatchTint.y == worldMaterial_.terrainPatchTint.y &&
-        material.terrainPatchTint.z == worldMaterial_.terrainPatchTint.z &&
+        material.terrainGrassTint.x == worldMaterial_.terrainGrassTint.x &&
+        material.terrainGrassTint.y == worldMaterial_.terrainGrassTint.y &&
+        material.terrainGrassTint.z == worldMaterial_.terrainGrassTint.z &&
+        material.terrainDirtTint.x == worldMaterial_.terrainDirtTint.x &&
+        material.terrainDirtTint.y == worldMaterial_.terrainDirtTint.y &&
+        material.terrainDirtTint.z == worldMaterial_.terrainDirtTint.z &&
+        material.terrainRockTint.x == worldMaterial_.terrainRockTint.x &&
+        material.terrainRockTint.y == worldMaterial_.terrainRockTint.y &&
+        material.terrainRockTint.z == worldMaterial_.terrainRockTint.z &&
         material.windAmount == worldMaterial_.windAmount &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
@@ -1180,12 +1177,12 @@ void Renderer::resolveWorldShaderLocations() {
         .vertexAoAmount = GetShaderLocation(shader, "vertexAoAmount"),
         .aoStrength = GetShaderLocation(shader, "aoStrength"),
         .terrainAmount = GetShaderLocation(shader, "terrainAmount"),
-        .terrainPrimaryTint =
-            GetShaderLocation(shader, "terrainPrimaryTint"),
-        .terrainSecondaryTint =
-            GetShaderLocation(shader, "terrainSecondaryTint"),
-        .terrainPatchTint =
-            GetShaderLocation(shader, "terrainPatchTint"),
+        .terrainGrassTint =
+            GetShaderLocation(shader, "terrainGrassTint"),
+        .terrainDirtTint =
+            GetShaderLocation(shader, "terrainDirtTint"),
+        .terrainRockTint =
+            GetShaderLocation(shader, "terrainRockTint"),
         .terrainTexture =
             GetShaderLocation(shader, "terrainTexture"),
         .terrainTextureEnabled =
@@ -1460,12 +1457,12 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.vertexAoAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.terrainAmount,
                    &material.terrainAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(shader, worldShaderLocations_.terrainPrimaryTint,
-                   &material.terrainPrimaryTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.terrainSecondaryTint,
-                   &material.terrainSecondaryTint, SHADER_UNIFORM_VEC3);
-    SetShaderValue(shader, worldShaderLocations_.terrainPatchTint,
-                   &material.terrainPatchTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.terrainGrassTint,
+                   &material.terrainGrassTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.terrainDirtTint,
+                   &material.terrainDirtTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.terrainRockTint,
+                   &material.terrainRockTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.windAmount,
                    &material.windAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
