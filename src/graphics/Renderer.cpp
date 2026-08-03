@@ -721,9 +721,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
     }
 
     constexpr std::size_t VariantCount = 3;
-    constexpr std::size_t MaximumInstancesPerVariant = 1408;
+    constexpr std::size_t MaximumInstancesPerVariant = 1024;
     constexpr float Spacing = 1.8F;
     constexpr float DrawRadius = 60.0F;
+    constexpr float ClusterSize = 11.0F;
     std::array<std::array<Matrix, MaximumInstancesPerVariant>,
                VariantCount>
         transforms{};
@@ -752,6 +753,26 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         return static_cast<float>(value & 0xffffU) /
                65535.0F;
     };
+    const auto clusterNoise = [&](float x, float z) {
+        const float sampleX = x / ClusterSize;
+        const float sampleZ = z / ClusterSize;
+        const int cellX = static_cast<int>(std::floor(sampleX));
+        const int cellZ = static_cast<int>(std::floor(sampleZ));
+        float blendX = sampleX - static_cast<float>(cellX);
+        float blendZ = sampleZ - static_cast<float>(cellZ);
+        blendX = blendX * blendX * (3.0F - 2.0F * blendX);
+        blendZ = blendZ * blendZ * (3.0F - 2.0F * blendZ);
+        const auto sample = [&](int offsetX, int offsetZ) {
+            return unitFloat(
+                hashCell(cellX + offsetX, cellZ + offsetZ) ^
+                0x27d4eb2fU);
+        };
+        const float lower = sample(0, 0) +
+            (sample(1, 0) - sample(0, 0)) * blendX;
+        const float upper = sample(0, 1) +
+            (sample(1, 1) - sample(0, 1)) * blendX;
+        return lower + (upper - lower) * blendZ;
+    };
 
     for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
         for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
@@ -779,6 +800,15 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 continue;
             }
 
+            const float cluster = clusterNoise(x, z);
+            const float clusterDensity = std::clamp(
+                0.04F + (cluster - 0.42F) * 2.15F,
+                0.04F, 0.86F);
+            if (unitFloat(hash ^ 0xb5297a4dU) >
+                clusterDensity) {
+                continue;
+            }
+
             const std::size_t variant =
                 static_cast<std::size_t>(hash % VariantCount);
             if (counts[variant] >= MaximumInstancesPerVariant) {
@@ -791,16 +821,16 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 0.45F +
                 unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 0.85F);
+                {x, z}, clearAreas, 2.2F, 0.25F);
             const float clearing = 1.0F - visibility;
-            if (clearing >= 0.68F) {
+            if (visibility <= 0.08F) {
                 continue;
             }
             const float horizontalScale =
-                widthScale * visibility;
+                widthScale * (0.62F + visibility * 0.38F);
             const float verticalScale =
-                heightScale * visibility;
-            const float sink = clearing * 0.4F;
+                heightScale * (0.22F + visibility * 0.78F);
+            const float sink = clearing * 0.34F;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
                     ? static_cast<float>(
