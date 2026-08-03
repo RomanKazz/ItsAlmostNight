@@ -225,6 +225,16 @@ bool groundBushOverlapsRock(
     return false;
 }
 
+std::optional<GroundDecorPlacement> groundBushPlacement(
+    int cellX, int cellZ, float worldLimit) {
+    const auto bush = groundBushPlacementRaw(
+        cellX, cellZ, worldLimit);
+    if (!bush || groundBushOverlapsRock(*bush, worldLimit)) {
+        return std::nullopt;
+    }
+    return bush;
+}
+
 float groundDecorClearance(
     Vector2 position, Vector2 propPosition,
     float radius, float feather) {
@@ -578,10 +588,7 @@ float Renderer::decorativePropVisibility(
         std::floor(position.y / GroundBushSpacing));
     for (int offsetZ = -1; offsetZ <= 1; ++offsetZ) {
         for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-            // Raw placement is enough here: a rejected bush overlaps a rock,
-            // and that rock already clears the grass beneath both props. This
-            // avoids a nested 9x9 neighborhood scan for every grass blade.
-            const auto bush = groundBushPlacementRaw(
+            const auto bush = groundBushPlacement(
                 bushCellX + offsetX,
                 bushCellZ + offsetZ,
                 worldLimit);
@@ -1513,14 +1520,6 @@ void Renderer::drawDecorativeRocks(
         }
     }
 
-    // Small rocks keep their inexpensive silhouettes in the shadow map.
-    // Bush foliage instead uses contact AO below; drawing every bush into the
-    // 4K shadow map is costly and makes large terrain regions unnecessarily
-    // dark.
-    if (shadowPassOpen_) {
-        return;
-    }
-
     constexpr float BushSpacing = 5.8F;
     constexpr float BushDrawRadius = 36.0F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
@@ -1754,10 +1753,10 @@ void Renderer::drawDecorativeRockAo(
                 GroundBushSourceRadii[variant] * scale;
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
-                radius, radius * 0.82F, 0.075F);
+                radius, radius * 0.82F, 0.14F);
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
-                radius * 0.52F, radius * 0.42F, 0.13F);
+                radius * 0.52F, radius * 0.42F, 0.22F);
         }
     }
 }

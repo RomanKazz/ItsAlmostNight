@@ -144,23 +144,10 @@ void App::render() {
     propClearAreas_ = grassClearAreas_;
     propClearAreas_.reserve(
         grassClearAreas_.size() +
-        128U +
+        snapshot.resourceNodes.size() +
         snapshot.mapObstacles.size());
-    constexpr float PropClearRadius = 72.0F;
-    const float propClearCenterX =
-        static_cast<float>(snapshot.playerPosition.x);
-    const float propClearCenterZ =
-        static_cast<float>(snapshot.playerPosition.z);
     for (const ResourceNode& node : snapshot.resourceNodes) {
         if (!node.active) {
-            continue;
-        }
-        const float nodeX = static_cast<float>(node.position.x);
-        const float nodeZ = static_cast<float>(node.position.z);
-        const float offsetX = nodeX - propClearCenterX;
-        const float offsetZ = nodeZ - propClearCenterZ;
-        if (offsetX * offsetX + offsetZ * offsetZ >
-            PropClearRadius * PropClearRadius) {
             continue;
         }
         float radius =
@@ -170,8 +157,8 @@ void App::render() {
             : 1.05F;
         propClearAreas_.push_back({
             .center = {
-                nodeX,
-                nodeZ,
+                static_cast<float>(node.position.x),
+                static_cast<float>(node.position.z),
             },
             .innerRadius = radius + 0.16F,
             .amount = 1.0F,
@@ -182,22 +169,15 @@ void App::render() {
             (obstacle.collision.maxX - obstacle.collision.minX) * 0.5);
         const float halfDepth = static_cast<float>(
             (obstacle.collision.maxZ - obstacle.collision.minZ) * 0.5);
-        const Vector2 obstacleCenter{
-            static_cast<float>(
-                (obstacle.collision.minX + obstacle.collision.maxX) *
-                0.5),
-            static_cast<float>(
-                (obstacle.collision.minZ + obstacle.collision.maxZ) *
-                0.5),
-        };
-        const float offsetX = obstacleCenter.x - propClearCenterX;
-        const float offsetZ = obstacleCenter.y - propClearCenterZ;
-        if (offsetX * offsetX + offsetZ * offsetZ >
-            PropClearRadius * PropClearRadius) {
-            continue;
-        }
         propClearAreas_.push_back({
-            .center = obstacleCenter,
+            .center = {
+                static_cast<float>(
+                    (obstacle.collision.minX + obstacle.collision.maxX) *
+                    0.5),
+                static_cast<float>(
+                    (obstacle.collision.minZ + obstacle.collision.maxZ) *
+                    0.5),
+            },
             .innerRadius =
                 std::sqrt(halfWidth * halfWidth +
                           halfDepth * halfDepth) +
