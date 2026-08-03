@@ -1218,12 +1218,13 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
         rlColor4ub(ShadowRed, ShadowGreen, ShadowBlue, centerAlpha);
         rlVertex3f(groundPosition.x, groundPosition.y, groundPosition.z);
         rlColor4ub(ShadowRed, ShadowGreen, ShadowBlue, 0);
-        rlVertex3f(groundPosition.x + std::cos(angle0) * radiusX,
-                   groundPosition.y,
-                   groundPosition.z + std::sin(angle0) * radiusZ);
+        // Counter-clockwise from above: keep contact AO front-facing.
         rlVertex3f(groundPosition.x + std::cos(angle1) * radiusX,
                    groundPosition.y,
                    groundPosition.z + std::sin(angle1) * radiusZ);
+        rlVertex3f(groundPosition.x + std::cos(angle0) * radiusX,
+                   groundPosition.y,
+                   groundPosition.z + std::sin(angle0) * radiusZ);
     }
 }
 
