@@ -82,13 +82,12 @@ App::App()
 }
 
 int App::run() {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT |
-                   FLAG_MSAA_4X_HINT);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "It's Almost Night");
     SetExitKey(KEY_NULL);
     ToggleBorderlessWindowed();
-    SetTargetFPS(144);
+    SetTargetFPS(0);
     renderer_.emplace();
     renderer_->settings() = userSettings_.graphics;
     renderer_->initialize();
@@ -1050,6 +1049,24 @@ void App::render() {
         }
         drawEnemySpawnMenu();
     }
+    const std::string fpsText =
+        "FPS " + std::to_string(GetFPS());
+    constexpr float FpsFontSize = 16.0F;
+    const Vector2 fpsSize =
+        measureUiText(fpsText, FpsFontSize);
+    const Rectangle fpsPanel{
+        static_cast<float>(GetScreenWidth()) - fpsSize.x - 22.0F,
+        10.0F,
+        fpsSize.x + 12.0F,
+        25.0F,
+    };
+    DrawRectangleRounded(
+        fpsPanel, 0.28F, 4,
+        {16, 22, 26, 176});
+    drawUiText(
+        fpsText,
+        {fpsPanel.x + 6.0F, fpsPanel.y + 3.0F},
+        FpsFontSize, {235, 247, 238, 255});
     renderer_->endFrame();
 }
 
