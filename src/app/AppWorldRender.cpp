@@ -43,7 +43,7 @@ void App::drawWorldEntities(
     renderer_->drawDecorativeRocks(
         camera.position,
         static_cast<float>(snapshot.worldLimit),
-        grassClearAreas_);
+        propClearAreas_);
     const float resourceDrawDistance = static_cast<float>(
         simulation_.terrain().config().terrainRenderDistance +
         12.0);
@@ -681,7 +681,7 @@ void App::drawWorldEntities(
     renderer_->endWorldShader();
     renderer_->drawGrassInstances(
         camera.position, static_cast<float>(snapshot.worldLimit),
-        nightAmount, lighting, grassClearAreas_);
+        nightAmount, lighting, propClearAreas_);
 }
 
 } // namespace ian

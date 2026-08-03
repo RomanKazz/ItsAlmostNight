@@ -279,7 +279,7 @@ void App::drawBlobShadows(
         renderer_->drawDecorativeRockAo(
             camera.position,
             static_cast<float>(snapshot.worldLimit),
-            grassClearAreas_);
+            propClearAreas_);
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05) {
                 continue;

@@ -292,6 +292,8 @@ class Renderer {
         Vector2 position,
         std::span<const GrassClearArea> clearAreas,
         float feather, float innerPadding = 0.0F);
+    [[nodiscard]] static float decorativePropVisibility(
+        Vector2 position, float worldLimit);
 
     struct WorldShaderLocations {
         int baseColor{-1};

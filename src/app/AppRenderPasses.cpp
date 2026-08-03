@@ -32,7 +32,7 @@ void App::drawShadowPass(
         renderer_->drawDecorativeRocks(
             shadowFocus,
             static_cast<float>(snapshot.worldLimit),
-            grassClearAreas_);
+            propClearAreas_);
         for (const auto& obstacle : snapshot.mapObstacles) {
             const float width = static_cast<float>(
                 obstacle.collision.maxX - obstacle.collision.minX);
