@@ -42,6 +42,32 @@ float luminanceOf(vec3 color)
     return dot(color, LuminanceWeights);
 }
 
+vec3 sourcePixel(ivec2 coordinate)
+{
+    ivec2 size = textureSize(texture0, 0);
+    return texelFetch(
+        texture0,
+        clamp(coordinate, ivec2(0), size - ivec2(1)),
+        0).rgb;
+}
+
+float inkDifference(
+    vec3 centerColor, float centerLuminance,
+    ivec2 coordinate, float directionWeight)
+{
+    vec3 neighborColor = sourcePixel(coordinate);
+    float neighborLuminance = luminanceOf(neighborColor);
+    float luminanceContrast =
+        abs(centerLuminance - neighborLuminance);
+    float colorContrast =
+        length(centerColor - neighborColor)*0.16;
+    float darkerSide = smoothstep(
+        -0.025, 0.065,
+        neighborLuminance - centerLuminance);
+    return (luminanceContrast + colorContrast)*
+        mix(0.04, 1.0, darkerSide)*directionWeight;
+}
+
 float bayer4(vec2 pixel)
 {
     ivec2 position = ivec2(mod(floor(pixel), 4.0));
@@ -103,21 +129,27 @@ vec3 rotateHue(vec3 color, float angle)
 
 void main()
 {
-    vec4 source = texture(texture0, fragTexCoord)*fragColor;
-    vec2 texel = 1.0/vec2(textureSize(texture0, 0));
-    vec2 stylePixel = floor(
-        fragTexCoord*vec2(textureSize(texture0, 0)));
+    ivec2 sourceSize = textureSize(texture0, 0);
+    ivec2 sourceCoordinate = clamp(
+        ivec2(floor(fragTexCoord*vec2(sourceSize))),
+        ivec2(0), sourceSize - ivec2(1));
+    vec2 pixelUv =
+        (vec2(sourceCoordinate) + 0.5)/vec2(sourceSize);
+    vec4 source =
+        texelFetch(texture0, sourceCoordinate, 0)*fragColor;
+    vec2 texel = 1.0/vec2(sourceSize);
+    vec2 stylePixel = vec2(sourceCoordinate);
     vec3 neighborhood =
-        (texture(texture0, fragTexCoord + vec2(texel.x, 0.0)).rgb +
-         texture(texture0, fragTexCoord - vec2(texel.x, 0.0)).rgb +
-         texture(texture0, fragTexCoord + vec2(0.0, texel.y)).rgb +
-         texture(texture0, fragTexCoord - vec2(0.0, texel.y)).rgb)*0.25;
+        (texture(texture0, pixelUv + vec2(texel.x, 0.0)).rgb +
+         texture(texture0, pixelUv - vec2(texel.x, 0.0)).rgb +
+         texture(texture0, pixelUv + vec2(0.0, texel.y)).rgb +
+         texture(texture0, pixelUv - vec2(0.0, texel.y)).rgb)*0.25;
 
     vec3 color =
         source.rgb + (source.rgb - neighborhood)*sharpness*0.72;
     if (bloomEnabled > 0.5)
     {
-        color += bloomSample(fragTexCoord, texel)*bloomStrength;
+        color += bloomSample(pixelUv, texel)*bloomStrength;
     }
     color *= exp2(postExposure);
     color += brightness;
@@ -171,31 +203,49 @@ void main()
         color += dither/255.0*6.0;
     }
 
-    if (inkOutlinesEnabled > 0.5)
+    if (inkOutlinesEnabled > 0.5 && source.a > 0.25)
     {
         float centerLuminance = luminanceOf(source.rgb);
         float edge = 0.0;
+        int pixelWidth = int(round(clamp(
+            outlineWidth, 1.0, 4.0)));
         for (int ring = 1; ring <= 4; ++ring)
         {
-            float ringWeight = clamp(
-                outlineWidth - float(ring - 1), 0.0, 1.0);
-            vec2 ringTexel = texel*float(ring);
+            if (ring > pixelWidth)
+            {
+                continue;
+            }
+            ivec2 horizontal = ivec2(ring, 0);
+            ivec2 vertical = ivec2(0, ring);
+            ivec2 diagonal = ivec2(ring, ring);
             float ringEdge = 0.0;
-            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
-                texture(texture0, fragTexCoord +
-                    vec2(ringTexel.x, 0.0)).rgb)));
-            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
-                texture(texture0, fragTexCoord -
-                    vec2(ringTexel.x, 0.0)).rgb)));
-            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
-                texture(texture0, fragTexCoord +
-                    vec2(0.0, ringTexel.y)).rgb)));
-            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
-                texture(texture0, fragTexCoord -
-                    vec2(0.0, ringTexel.y)).rgb)));
-            edge = max(edge, ringEdge*ringWeight);
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate + horizontal, 1.0));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate - horizontal, 1.0));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate + vertical, 1.0));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate - vertical, 1.0));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate + diagonal, 0.72));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate - diagonal, 0.72));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate + ivec2(ring, -ring), 0.72));
+            ringEdge = max(ringEdge, inkDifference(
+                source.rgb, centerLuminance,
+                sourceCoordinate + ivec2(-ring, ring), 0.72));
+            edge = max(edge, ringEdge);
         }
-        float ink = smoothstep(0.035, 0.22, edge)*outlineStrength;
+        float ink = smoothstep(0.060, 0.26, edge)*outlineStrength;
         color *= 1.0 - clamp(ink, 0.0, 0.92);
     }
 
@@ -210,5 +260,5 @@ void main()
         smoothstep(0.28, 1.25, dot(centered, centered));
     color *= 1.0 - vignetteMask*vignette;
 
-    finalColor = vec4(clamp(color, vec3(0.0), vec3(1.0)), source.a);
+    finalColor = vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0);
 }

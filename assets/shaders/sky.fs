@@ -240,5 +240,7 @@ void main()
     float luminance = dot(sky, vec3(0.2126, 0.7152, 0.0722));
     sky = mix(vec3(luminance), sky, saturation);
 
-    finalColor = vec4(sky, 1.0);
+    // Alpha is an internal material mask for post-processing.
+    // The final composite restores opaque output.
+    finalColor = vec4(sky, 0.0);
 }

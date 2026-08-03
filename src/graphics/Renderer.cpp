@@ -261,7 +261,11 @@ void Renderer::drawSky(const SkyState& sky) {
                    &sky.saturation, SHADER_UNIFORM_FLOAT);
 
     BeginShaderMode(shader);
+    rlDrawRenderBatchActive();
+    rlDisableColorBlend();
     DrawRectangle(0, 0, std::max(width, 1), std::max(height, 1), WHITE);
+    rlDrawRenderBatchActive();
+    rlEnableColorBlend();
     EndShaderMode();
 }
 
