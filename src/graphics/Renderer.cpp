@@ -961,11 +961,11 @@ void Renderer::setWorldReveal(
 float Renderer::worldRevealScaleAt(
     Vector2 position) const {
     constexpr float InitialRadius = 9.0F;
-    constexpr float WaveSpeed = 330.0F;
-    constexpr float AnimationDuration = 0.08F;
+    constexpr float WaveSpeed = 150.0F;
+    constexpr float AnimationDuration = 0.14F;
     constexpr float BackStrength = 1.15F;
     constexpr float BackCurve = BackStrength + 1.0F;
-    if (worldRevealElapsed_ >= 0.9F) {
+    if (worldRevealElapsed_ >= 1.7F) {
         return 1.0F;
     }
     const float offsetX =
@@ -977,7 +977,7 @@ float Renderer::worldRevealScaleAt(
     const float jitter =
         std::sin(position.x * 12.9898F +
                  position.y * 78.233F) *
-        0.005F;
+        0.008F;
     const float arrivalTime = std::max(
         0.0F,
         (distance - InitialRadius) / WaveSpeed + jitter);
@@ -1412,6 +1412,8 @@ void Renderer::resolvePostProcessLocations() {
             shader, "inkOutlinesEnabled"),
         .outlineStrength =
             GetShaderLocation(shader, "outlineStrength"),
+        .outlineWidth =
+            GetShaderLocation(shader, "outlineWidth"),
         .paperGrainEnabled =
             GetShaderLocation(shader, "paperGrainEnabled"),
         .paperGrainStrength = GetShaderLocation(
@@ -1476,6 +1478,8 @@ void Renderer::uploadPostProcessSettings() {
            settings_.inkOutlines ? 1.0F : 0.0F);
     upload(postProcessLocations_.outlineStrength,
            settings_.outlineStrength);
+    upload(postProcessLocations_.outlineWidth,
+           settings_.outlineWidth);
     upload(postProcessLocations_.paperGrainEnabled,
            settings_.paperGrain ? 1.0F : 0.0F);
     upload(postProcessLocations_.paperGrainStrength,

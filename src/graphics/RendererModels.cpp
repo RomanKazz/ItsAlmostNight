@@ -1511,7 +1511,7 @@ void Renderer::drawBoundaryForest() {
             boundaryForestTransforms_[variant].data();
         int transformCount = static_cast<int>(
             boundaryForestTransforms_[variant].size());
-        if (worldRevealElapsed_ < 0.9F) {
+        if (worldRevealElapsed_ < 1.7F) {
             auto& revealTransforms =
                 boundaryForestRevealTransforms_[variant];
             revealTransforms.clear();

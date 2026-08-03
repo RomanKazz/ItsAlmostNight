@@ -54,6 +54,7 @@ struct GraphicsSettings {
     float lightingSteps{5.0F};
     float bloomStrength{0.28F};
     float outlineStrength{0.35F};
+    float outlineWidth{1.0F};
     float fogBandCount{5.0F};
     float paperGrainStrength{0.035F};
 

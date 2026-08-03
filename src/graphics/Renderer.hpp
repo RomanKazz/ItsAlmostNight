@@ -374,6 +374,7 @@ class Renderer {
         int bloomStrength{-1};
         int inkOutlinesEnabled{-1};
         int outlineStrength{-1};
+        int outlineWidth{-1};
         int paperGrainEnabled{-1};
         int paperGrainStrength{-1};
     };

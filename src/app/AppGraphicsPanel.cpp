@@ -325,17 +325,20 @@ void App::drawGraphicsPanel() {
         styleSlider(4, "OUTLINE STRENGTH",
                     settings.outlineStrength, 0.0F, 1.0F);
         y += RowHeight;
+        styleSlider(5, "OUTLINE WIDTH",
+                    settings.outlineWidth, 1.0F, 4.0F);
+        y += RowHeight;
         toggleButton(0, y, "FOG BANDS", settings.fogBands);
-        styleSlider(5, "FOG LEVELS", settings.fogBandCount,
+        styleSlider(6, "FOG LEVELS", settings.fogBandCount,
                     2.0F, 12.0F);
         y += RowHeight;
         toggleButton(0, y, "PAPER GRAIN",
                      settings.paperGrain);
-        styleSlider(6, "GRAIN STRENGTH",
+        styleSlider(7, "GRAIN STRENGTH",
                     settings.paperGrainStrength, 0.0F, 0.15F);
 
         const float ActionY =
-            ControlStartY + RowHeight * 7.0F +
+            ControlStartY + RowHeight * 8.0F +
             (compact ? 4.0F : 12.0F);
         if (ui_.drawButton(
                 {contentX, panelY + ActionY,
@@ -353,6 +356,7 @@ void App::drawGraphicsPanel() {
             settings.lightingSteps = 6.0F;
             settings.bloomStrength = 0.24F;
             settings.outlineStrength = 0.3F;
+            settings.outlineWidth = 1.25F;
             settings.fogBandCount = 6.0F;
             settings.paperGrainStrength = 0.025F;
         }
@@ -373,6 +377,7 @@ void App::drawGraphicsPanel() {
             settings.lightingSteps = 5.0F;
             settings.bloomStrength = 0.28F;
             settings.outlineStrength = 0.35F;
+            settings.outlineWidth = 1.0F;
             settings.fogBandCount = 5.0F;
             settings.paperGrainStrength = 0.035F;
         }

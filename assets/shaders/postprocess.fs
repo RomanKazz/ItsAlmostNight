@@ -28,6 +28,7 @@ uniform float bloomEnabled;
 uniform float bloomStrength;
 uniform float inkOutlinesEnabled;
 uniform float outlineStrength;
+uniform float outlineWidth;
 uniform float paperGrainEnabled;
 uniform float paperGrainStrength;
 
@@ -174,14 +175,26 @@ void main()
     {
         float centerLuminance = luminanceOf(source.rgb);
         float edge = 0.0;
-        edge = max(edge, abs(centerLuminance - luminanceOf(
-            texture(texture0, fragTexCoord + vec2(texel.x, 0.0)).rgb)));
-        edge = max(edge, abs(centerLuminance - luminanceOf(
-            texture(texture0, fragTexCoord - vec2(texel.x, 0.0)).rgb)));
-        edge = max(edge, abs(centerLuminance - luminanceOf(
-            texture(texture0, fragTexCoord + vec2(0.0, texel.y)).rgb)));
-        edge = max(edge, abs(centerLuminance - luminanceOf(
-            texture(texture0, fragTexCoord - vec2(0.0, texel.y)).rgb)));
+        for (int ring = 1; ring <= 4; ++ring)
+        {
+            float ringWeight = clamp(
+                outlineWidth - float(ring - 1), 0.0, 1.0);
+            vec2 ringTexel = texel*float(ring);
+            float ringEdge = 0.0;
+            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
+                texture(texture0, fragTexCoord +
+                    vec2(ringTexel.x, 0.0)).rgb)));
+            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
+                texture(texture0, fragTexCoord -
+                    vec2(ringTexel.x, 0.0)).rgb)));
+            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
+                texture(texture0, fragTexCoord +
+                    vec2(0.0, ringTexel.y)).rgb)));
+            ringEdge = max(ringEdge, abs(centerLuminance - luminanceOf(
+                texture(texture0, fragTexCoord -
+                    vec2(0.0, ringTexel.y)).rgb)));
+            edge = max(edge, ringEdge*ringWeight);
+        }
         float ink = smoothstep(0.035, 0.22, edge)*outlineStrength;
         color *= 1.0 - clamp(ink, 0.0, 0.92);
     }
