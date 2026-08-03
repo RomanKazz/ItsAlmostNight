@@ -68,13 +68,6 @@ float cloudFbm(vec2 position)
     return result/1.011;
 }
 
-float cloudField(vec2 position)
-{
-    float body = cloudFbm(position);
-    float erosion = valueNoise(position*5.3 + vec2(4.7, 12.9));
-    return body*0.88 + erosion*0.12;
-}
-
 void main()
 {
     vec2 uv = gl_FragCoord.xy/max(viewportSize, vec2(1.0));
@@ -177,64 +170,6 @@ void main()
         smoothstep(0.46, 0.70, viewDirection.y)*
         (0.35 + auroraWarp*0.35));
     sky += auroraColor*aurora*0.62;
-
-    // Project onto a rounded dome instead of a flat plane. The positive
-    // denominator keeps clouds puffy near the horizon and avoids a visible
-    // transition seam there. Fade finishes below the useful sky area.
-    float cloudAltitude = smoothstep(-0.16, 0.035, viewDirection.y);
-    vec2 cloudPosition =
-        viewDirection.xz/max(viewDirection.y + 0.34, 0.12)*0.78;
-    vec2 wind = vec2(timeSeconds*0.010, timeSeconds*0.0035);
-    cloudPosition += wind;
-
-    // Two nearby cloud layers provide slow parallax and a thicker silhouette.
-    float lowerField = cloudField(cloudPosition);
-    float upperField = cloudField(
-        cloudPosition*1.08 + vec2(6.2, -3.7) - wind*0.16);
-    float volumeField = lowerField*0.70 + upperField*0.30;
-    float cloudBody = smoothstep(0.50, 0.63, volumeField);
-    float cloudCore = smoothstep(0.62, 0.78, volumeField);
-    float cloudEdge =
-        smoothstep(0.47, 0.53, volumeField) -
-        smoothstep(0.57, 0.66, volumeField);
-    float cloudWisps =
-        smoothstep(0.43, 0.58, upperField)*
-        (1.0 - cloudBody)*0.24;
-    float cloudNightFade =
-        1.0 - smoothstep(0.44, 0.94, nightAmount);
-    float clouds =
-        clamp(cloudBody + cloudWisps, 0.0, 1.0)*
-        cloudAltitude*cloudNightFade;
-
-    vec2 lightDirection = normalize(
-        celestialDirection.xz + vec2(0.0001));
-    float lightProbe = cloudField(
-        cloudPosition + lightDirection*0.16);
-    float sunFacing = clamp(
-        (volumeField - lightProbe)*5.5 +
-        dot(normalize(celestialDirection), viewDirection)*0.16,
-        0.0, 1.0);
-    float silverLining =
-        cloudEdge*(0.32 + sunFacing*0.68);
-
-    vec3 dayCloudShadow =
-        mix(horizonColor, vec3(0.78, 0.82, 0.83), 0.78);
-    vec3 dayCloudLight =
-        mix(vec3(1.00, 1.00, 0.98), celestialColor, 0.12);
-    vec3 nightCloudShadow =
-        mix(lowerSkyColor, vec3(0.43, 0.49, 0.60), 0.72);
-    vec3 nightCloudLight =
-        mix(vec3(0.66, 0.72, 0.84), celestialColor, 0.24);
-    vec3 cloudShadow =
-        mix(dayCloudShadow, nightCloudShadow, nightAmount);
-    vec3 cloudLight =
-        mix(dayCloudLight, nightCloudLight, nightAmount);
-    float cloudLighting =
-        clamp(0.58 + sunFacing*0.30 + (1.0 - cloudCore)*0.12,
-              0.0, 1.0);
-    vec3 cloudColor = mix(cloudShadow, cloudLight, cloudLighting);
-    cloudColor += cloudLight*silverLining*0.78;
-    sky = mix(sky, cloudColor, clouds*0.76);
 
     sky *= exposure;
     float luminance = dot(sky, vec3(0.2126, 0.7152, 0.0722));

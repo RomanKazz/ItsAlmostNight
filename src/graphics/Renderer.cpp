@@ -37,6 +37,27 @@ void Renderer::initialize() {
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
     resolvePostProcessLocations();
+    if (resources_.cloudShader().valid()) {
+        Shader& shader = resources_.cloudShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        cloudCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        cloudSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        cloudSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        cloudSunIntensityLocation_ =
+            GetShaderLocation(shader, "sunIntensity");
+        cloudAmbientColorLocation_ =
+            GetShaderLocation(shader, "ambientColor");
+        cloudVisibilityLocation_ =
+            GetShaderLocation(shader, "visibility");
+    }
     if (resources_.selectionOutlineShader().valid()) {
         selectionOutlineTexelSizeLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(), "texelSize");
@@ -267,6 +288,168 @@ void Renderer::drawSky(const SkyState& sky) {
     rlDrawRenderBatchActive();
     rlEnableColorBlend();
     EndShaderMode();
+}
+
+void Renderer::drawClouds(
+    Vector3 cameraPosition, float nightAmount,
+    const WorldLighting& lighting) {
+    if (!settings_.sky || !resources_.cloudShader().valid()) {
+        return;
+    }
+
+    const float night = std::clamp(nightAmount, 0.0F, 1.0F);
+    const float nightFadeProgress = std::clamp(
+        (night - 0.30F) / 0.48F, 0.0F, 1.0F);
+    const float smoothNightFade =
+        nightFadeProgress * nightFadeProgress *
+        (3.0F - 2.0F * nightFadeProgress);
+    const float dayVisibility = 1.0F - smoothNightFade;
+    if (dayVisibility <= 0.002F) {
+        return;
+    }
+
+    Shader& shader = resources_.cloudShader().get();
+    SetShaderValue(
+        shader, cloudCameraPositionLocation_, &cameraPosition,
+        SHADER_UNIFORM_VEC3);
+    SetShaderValue(
+        shader, cloudSunDirectionLocation_, &lighting.sunDirection,
+        SHADER_UNIFORM_VEC3);
+    SetShaderValue(
+        shader, cloudSunColorLocation_, &lighting.sunColor,
+        SHADER_UNIFORM_VEC3);
+    SetShaderValue(
+        shader, cloudSunIntensityLocation_, &lighting.sunIntensity,
+        SHADER_UNIFORM_FLOAT);
+    SetShaderValue(
+        shader, cloudAmbientColorLocation_, &lighting.skyAmbientColor,
+        SHADER_UNIFORM_VEC3);
+
+    struct CloudInstance {
+        Vector3 position;
+        Vector3 scale;
+        float rotationDegrees{};
+        float visibility{};
+        float distanceSquared{};
+        std::size_t variant{};
+    };
+    constexpr std::size_t CloudCount = 26U;
+    constexpr float WrapHalfExtent = 220.0F;
+    constexpr float WrapExtent = WrapHalfExtent * 2.0F;
+    constexpr float FadeStart = 168.0F;
+    constexpr float FadeEnd = 218.0F;
+    std::array<CloudInstance, CloudCount> clouds{};
+    std::size_t visibleCount = 0U;
+    const float timeSeconds = static_cast<float>(GetTime());
+    const auto hash = [](std::uint32_t value) {
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        return value ^ (value >> 16U);
+    };
+    const auto unitFloat = [&hash](std::uint32_t value) {
+        return static_cast<float>(hash(value) & 0xffffU) /
+            65535.0F;
+    };
+    const auto wrapAround = [](float value, float center) {
+        float relative = std::fmod(
+            value - center + WrapHalfExtent, WrapExtent);
+        if (relative < 0.0F) {
+            relative += WrapExtent;
+        }
+        return center + relative - WrapHalfExtent;
+    };
+    const auto smoothstep = [](float edge0, float edge1, float value) {
+        const float amount = std::clamp(
+            (value - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+        return amount * amount * (3.0F - 2.0F * amount);
+    };
+
+    for (std::size_t index = 0; index < CloudCount; ++index) {
+        const std::uint32_t seed =
+            static_cast<std::uint32_t>(index) * 0x9e3779b9U +
+            0x51f15e1dU;
+        const float speed = 0.72F + unitFloat(seed + 1U) * 0.66F;
+        const float baseX =
+            (unitFloat(seed + 2U) * 2.0F - 1.0F) * WrapHalfExtent;
+        const float baseZ =
+            (unitFloat(seed + 3U) * 2.0F - 1.0F) * WrapHalfExtent;
+        const float x = wrapAround(
+            baseX + timeSeconds * speed, cameraPosition.x);
+        const float z = wrapAround(
+            baseZ + timeSeconds * speed * 0.24F,
+            cameraPosition.z);
+        const float offsetX = x - cameraPosition.x;
+        const float offsetZ = z - cameraPosition.z;
+        const float distanceSquared =
+            offsetX * offsetX + offsetZ * offsetZ;
+        const float distance = std::sqrt(distanceSquared);
+        const float distanceFade = 1.0F -
+            smoothstep(FadeStart, FadeEnd, distance);
+        const float visibility =
+            dayVisibility * distanceFade * 0.96F;
+        if (visibility <= 0.002F) {
+            continue;
+        }
+
+        const std::size_t variant =
+            unitFloat(seed + 4U) < 0.46F ? 0U : 1U;
+        const float baseScale =
+            (variant == 0U ? 8.0F : 8.8F) +
+            unitFloat(seed + 5U) * 4.8F;
+        clouds[visibleCount++] = {
+            .position = {
+                x,
+                54.0F + unitFloat(seed + 6U) * 34.0F,
+                z,
+            },
+            .scale = {
+                baseScale *
+                    (0.92F + unitFloat(seed + 7U) * 0.48F),
+                baseScale *
+                    (0.90F + unitFloat(seed + 8U) * 0.20F),
+                baseScale *
+                    (0.82F + unitFloat(seed + 9U) * 0.38F),
+            },
+            .rotationDegrees = unitFloat(seed + 10U) * 360.0F,
+            .visibility = visibility,
+            .distanceSquared = distanceSquared,
+            .variant = variant,
+        };
+    }
+
+    std::sort(
+        clouds.begin(), clouds.begin() +
+            static_cast<std::ptrdiff_t>(visibleCount),
+        [](const CloudInstance& left, const CloudInstance& right) {
+            return left.distanceSquared > right.distanceSquared;
+        });
+
+    BeginBlendMode(BLEND_ALPHA);
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
+    for (std::size_t index = 0; index < visibleCount; ++index) {
+        const CloudInstance& cloud = clouds[index];
+        ModelResource& resource = resources_.cloudModel(cloud.variant);
+        if (!resource.valid()) {
+            continue;
+        }
+        Model& model = resource.get();
+        for (int materialIndex = 0;
+             materialIndex < model.materialCount; ++materialIndex) {
+            model.materials[materialIndex].shader = shader;
+        }
+        SetShaderValue(
+            shader, cloudVisibilityLocation_, &cloud.visibility,
+            SHADER_UNIFORM_FLOAT);
+        DrawModelEx(
+            model, cloud.position, {0.0F, 1.0F, 0.0F},
+            cloud.rotationDegrees, cloud.scale, WHITE);
+    }
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
+    EndBlendMode();
 }
 
 void Renderer::endWorldPass() {

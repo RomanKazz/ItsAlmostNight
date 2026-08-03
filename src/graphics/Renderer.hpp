@@ -156,6 +156,8 @@ class Renderer {
 
     void beginWorldPass(Color clearColor);
     void drawSky(const SkyState& sky);
+    void drawClouds(Vector3 cameraPosition, float nightAmount,
+                    const WorldLighting& lighting);
     void endWorldPass();
     void beginUiOnlyFrame(Color clearColor);
     void endFrame();
@@ -427,6 +429,12 @@ class Renderer {
     int grassDayNightTintLocation_{-1};
     int grassExposureLocation_{-1};
     int grassSaturationLocation_{-1};
+    int cloudCameraPositionLocation_{-1};
+    int cloudSunDirectionLocation_{-1};
+    int cloudSunColorLocation_{-1};
+    int cloudSunIntensityLocation_{-1};
+    int cloudAmbientColorLocation_{-1};
+    int cloudVisibilityLocation_{-1};
     int upgradeEffectOriginLocation_{-1};
     int upgradeEffectHeightLocation_{-1};
     int upgradeEffectProgressLocation_{-1};

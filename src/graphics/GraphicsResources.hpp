@@ -5,6 +5,7 @@
 
 #include <raylib.h>
 
+#include <array>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -187,6 +188,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& shadowDebugShader() const;
     [[nodiscard]] ShaderResource& skyShader();
     [[nodiscard]] const ShaderResource& skyShader() const;
+    [[nodiscard]] ShaderResource& cloudShader();
+    [[nodiscard]] const ShaderResource& cloudShader() const;
     [[nodiscard]] ShaderResource& selectionMaskShader();
     [[nodiscard]] const ShaderResource& selectionMaskShader() const;
     [[nodiscard]] ShaderResource& selectionOutlineShader();
@@ -221,6 +224,7 @@ class GraphicsResources {
         std::size_t variant = 0U);
     [[nodiscard]] ModelResource& decorativeRockModel(
         std::size_t variant);
+    [[nodiscard]] ModelResource& cloudModel(std::size_t variant);
     [[nodiscard]] ModelResource& wallIsolatedModel();
     [[nodiscard]] ModelResource& wallEndModel();
     [[nodiscard]] ModelResource& wallCornerModel();
@@ -254,6 +258,7 @@ class GraphicsResources {
     ShaderResource shadowShader_;
     ShaderResource shadowDebugShader_;
     ShaderResource skyShader_;
+    ShaderResource cloudShader_;
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
     ShaderResource postProcessShader_;
@@ -279,6 +284,7 @@ class GraphicsResources {
     std::array<ModelResource, 3> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;
+    std::array<ModelResource, 2> cloudModels_;
     ModelResource wallIsolatedModel_;
     ModelResource wallEndModel_;
     ModelResource wallCornerModel_;

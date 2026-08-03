@@ -356,6 +356,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     shadowShader_.load("assets/shaders/shadow.vs", "assets/shaders/shadow.fs");
     shadowDebugShader_.load(nullptr, "assets/shaders/shadow_debug.fs");
     skyShader_.load(nullptr, "assets/shaders/sky.fs");
+    cloudShader_.load(
+        "assets/shaders/cloud.vs", "assets/shaders/cloud.fs");
     selectionMaskShader_.load("assets/shaders/selection_mask.vs",
                               "assets/shaders/selection_mask.fs");
     selectionOutlineShader_.load(nullptr,
@@ -404,6 +406,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/decor/rock_small_c.glb");
     decorativeRockModels_[3].load(
         "assets/models/decor/rock_small_d.glb");
+    cloudModels_[0].load("assets/models/clouds/small.glb");
+    cloudModels_[1].load("assets/models/clouds/big.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");
     wallEndModel_.load("assets/models/walls/end.glb");
     wallCornerModel_.load("assets/models/walls/corner.glb");
@@ -563,6 +567,9 @@ void GraphicsResources::shutdown() {
     for (auto& rockModel : decorativeRockModels_) {
         rockModel.unload();
     }
+    for (auto& cloudModel : cloudModels_) {
+        cloudModel.unload();
+    }
     rockModel_.unload();
     quarryModel_.unload();
     lumberMillModel_.unload();
@@ -586,6 +593,7 @@ void GraphicsResources::shutdown() {
     selectionOutlineShader_.unload();
     selectionMaskShader_.unload();
     skyShader_.unload();
+    cloudShader_.unload();
     shadowDebugShader_.unload();
     shadowShader_.unload();
     worldShader_.unload();
@@ -671,6 +679,14 @@ ShaderResource& GraphicsResources::skyShader() {
 
 const ShaderResource& GraphicsResources::skyShader() const {
     return skyShader_;
+}
+
+ShaderResource& GraphicsResources::cloudShader() {
+    return cloudShader_;
+}
+
+const ShaderResource& GraphicsResources::cloudShader() const {
+    return cloudShader_;
 }
 
 ShaderResource& GraphicsResources::selectionMaskShader() {
@@ -803,6 +819,10 @@ ModelResource& GraphicsResources::decorativeRockModel(
     std::size_t variant) {
     return decorativeRockModels_[
         variant % decorativeRockModels_.size()];
+}
+
+ModelResource& GraphicsResources::cloudModel(std::size_t variant) {
+    return cloudModels_[variant % cloudModels_.size()];
 }
 
 ModelResource& GraphicsResources::wallIsolatedModel() {

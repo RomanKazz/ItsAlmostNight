@@ -430,6 +430,8 @@ void App::render() {
             showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
+        renderer_->drawClouds(
+            camera.position, nightAmount, lighting);
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects();
