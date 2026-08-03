@@ -241,8 +241,20 @@ void App::drawSoldBuildingVisuals() {
 void App::drawBlobShadows(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
     if (renderer_->beginBlobShadowBatch(camera.position)) {
+        const float maximumAoDistance =
+            renderer_->settings().shadowDistance + 24.0F;
+        const float maximumAoDistanceSquared =
+            maximumAoDistance * maximumAoDistance;
         for (const auto& node : snapshot.resourceNodes) {
             if (!node.active) {
+                continue;
+            }
+            const float offsetX =
+                static_cast<float>(node.position.x) - camera.position.x;
+            const float offsetZ =
+                static_cast<float>(node.position.z) - camera.position.z;
+            if (offsetX * offsetX + offsetZ * offsetZ >
+                maximumAoDistanceSquared) {
                 continue;
             }
             float radius =

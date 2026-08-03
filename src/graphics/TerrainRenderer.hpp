@@ -36,6 +36,9 @@ class TerrainRenderer {
 
     [[nodiscard]] Model buildChunk(
         int chunkX, int chunkZ) const;
+    [[nodiscard]] bool chunkVisible(
+        int chunkX, int chunkZ,
+        Vector3 focusPosition) const;
     void updateVisibleChunks(Vector3 focusPosition);
 
     const TerrainHeightfield* terrain_{};

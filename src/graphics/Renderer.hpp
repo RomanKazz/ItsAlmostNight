@@ -133,6 +133,18 @@ struct EnemyDrawInstance {
     bool loop{true};
 };
 
+struct TreeDrawInstance {
+    Vector3 position{};
+    float yawRadians{};
+    float scale{1.0F};
+    std::size_t visualVariant{};
+};
+
+struct RockDrawInstance {
+    Vector3 position{};
+    float scale{1.0F};
+};
+
 class Renderer {
   public:
     Renderer() = default;
@@ -243,11 +255,15 @@ class Renderer {
     [[nodiscard]] bool drawRock(Vector3 position,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
+    [[nodiscard]] bool drawRocksInstanced(
+        std::span<const RockDrawInstance> instances);
     [[nodiscard]] bool drawTree(Vector3 position,
                                 Color tint = WHITE,
                                 float scale = 1.0F,
                                 std::size_t visualVariant = 0U,
                                 float yawRadians = 0.0F);
+    [[nodiscard]] bool drawTreesInstanced(
+        std::span<const TreeDrawInstance> instances);
     [[nodiscard]] bool drawWall(Vector3 position,
                                 std::uint8_t connectionMask,
                                 float yawRadians = 0.0F,
@@ -459,6 +475,9 @@ class Renderer {
         boundaryForestTransforms_;
     std::array<std::vector<Matrix>, 2>
         boundaryForestRevealTransforms_;
+    std::array<std::vector<Matrix>, TreeVisualVariantCount>
+        resourceTreeTransforms_;
+    std::vector<Matrix> resourceRockTransforms_;
     bool boundaryForestCached_{};
     Vector2 worldRevealOrigin_{};
     float worldRevealElapsed_{1000.0F};

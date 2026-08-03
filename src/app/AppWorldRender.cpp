@@ -49,6 +49,10 @@ void App::drawWorldEntities(
         12.0);
     const float resourceDrawDistanceSquared =
         resourceDrawDistance * resourceDrawDistance;
+    resourceTreeDrawInstances_.clear();
+    resourceTreeDrawInstances_.reserve(snapshot.resourceNodes.size());
+    resourceRockDrawInstances_.clear();
+    resourceRockDrawInstances_.reserve(snapshot.resourceNodes.size());
     for (const auto& node : snapshot.resourceNodes) {
         if (!node.active) {
             continue;
@@ -83,11 +87,23 @@ void App::drawWorldEntities(
         material.hitFlashAmount =
             presentation::resourceHitFlash(
                 effects_, node.id);
-        renderer_->setWorldMaterial(material);
         const float hitScale =
             presentation::resourceHitScale(
                 effects_, node.id);
         if (node.type == ResourceType::Wood) {
+            if (material.hitFlashAmount <= 0.001F) {
+                resourceTreeDrawInstances_.push_back({
+                    .position = nodePosition,
+                    .yawRadians =
+                        static_cast<float>(node.visualYaw),
+                    .scale = hitScale *
+                        static_cast<float>(node.visualScale),
+                    .visualVariant = static_cast<std::size_t>(
+                        node.id.index % TreeVisualVariantCount),
+                });
+                continue;
+            }
+            renderer_->setWorldMaterial(material);
             if (!renderer_->drawTree(
                     nodePosition,
                     WHITE,
@@ -107,11 +123,47 @@ void App::drawWorldEntities(
                     {58, 124, 67, 255});
             }
         } else {
+            if (material.hitFlashAmount <= 0.001F) {
+                resourceRockDrawInstances_.push_back({
+                    .position = nodePosition,
+                    .scale = hitScale,
+                });
+                continue;
+            }
+            renderer_->setWorldMaterial(material);
             if (!renderer_->drawRock(
                     nodePosition,
                     WHITE, hitScale)) {
                 DrawSphere(
                     nodePosition, 0.9F, {104, 116, 128, 255});
+            }
+        }
+    }
+    if (!resourceRockDrawInstances_.empty()) {
+        WorldMaterialState rockMaterial{};
+        rockMaterial.bakedAo = 0.78F;
+        renderer_->setWorldMaterial(rockMaterial);
+        if (!renderer_->drawRocksInstanced(
+                resourceRockDrawInstances_)) {
+            for (const RockDrawInstance& rock :
+                 resourceRockDrawInstances_) {
+                static_cast<void>(renderer_->drawRock(
+                    rock.position, WHITE, rock.scale));
+            }
+        }
+    }
+    if (!resourceTreeDrawInstances_.empty()) {
+        WorldMaterialState treeMaterial{};
+        treeMaterial.bakedAo = 0.78F;
+        treeMaterial.windAmount = 1.0F;
+        renderer_->setWorldMaterial(treeMaterial);
+        if (!renderer_->drawTreesInstanced(
+                resourceTreeDrawInstances_)) {
+            for (const TreeDrawInstance& tree :
+                 resourceTreeDrawInstances_) {
+                static_cast<void>(renderer_->drawTree(
+                    tree.position, WHITE, tree.scale,
+                    tree.visualVariant, tree.yawRadians));
             }
         }
     }

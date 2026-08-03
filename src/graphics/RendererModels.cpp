@@ -1182,6 +1182,65 @@ bool Renderer::drawRock(Vector3 position, Color tint,
     return true;
 }
 
+bool Renderer::drawRocksInstanced(
+    std::span<const RockDrawInstance> instances) {
+    if (instances.empty() || shadowPassOpen_ ||
+        selectionMaskPassOpen_ || !worldShaderActive_ ||
+        !resources_.worldShader().valid() ||
+        !resources_.rockModel().valid()) {
+        return false;
+    }
+
+    Model& model = resources_.rockModel().get();
+    resourceRockTransforms_.clear();
+    resourceRockTransforms_.reserve(instances.size());
+    for (const RockDrawInstance& instance : instances) {
+        const float scale = instance.scale * worldRevealScaleAt(
+            {instance.position.x, instance.position.z});
+        if (scale <= 0.001F) {
+            continue;
+        }
+        const float modelScale = RockModelScale * scale;
+        resourceRockTransforms_.push_back(MatrixMultiply(
+            model.transform,
+            MatrixMultiply(
+                MatrixScale(
+                    modelScale, modelScale, modelScale),
+                MatrixTranslate(
+                    instance.position.x,
+                    instance.position.y + RockGroundOffset,
+                    instance.position.z))));
+    }
+    if (resourceRockTransforms_.empty()) {
+        return true;
+    }
+
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &enabled,
+        SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    for (int meshIndex = 0; meshIndex < model.meshCount;
+         ++meshIndex) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material material = model.materials[materialIndex];
+        material.shader = shader;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+        DrawMeshInstanced(
+            model.meshes[meshIndex], material,
+            resourceRockTransforms_.data(),
+            static_cast<int>(resourceRockTransforms_.size()));
+    }
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &disabled,
+        SHADER_UNIFORM_INT);
+    return true;
+}
+
 void Renderer::drawDecorativeRocks(
     Vector3 cameraPosition, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
@@ -1759,6 +1818,81 @@ bool Renderer::drawTree(Vector3 position, Color tint,
                 {TreeModelScale * scale, TreeModelScale * scale,
                  TreeModelScale * scale},
                 tint);
+    return true;
+}
+
+bool Renderer::drawTreesInstanced(
+    std::span<const TreeDrawInstance> instances) {
+    if (instances.empty() || shadowPassOpen_ ||
+        selectionMaskPassOpen_ || !worldShaderActive_ ||
+        !resources_.worldShader().valid()) {
+        return false;
+    }
+
+    for (auto& variantTransforms : resourceTreeTransforms_) {
+        variantTransforms.clear();
+        variantTransforms.reserve(
+            instances.size() / TreeVisualVariantCount + 1U);
+    }
+    for (const TreeDrawInstance& instance : instances) {
+        const std::size_t variant =
+            instance.visualVariant % TreeVisualVariantCount;
+        ModelResource& resource = resources_.treeModel(variant);
+        if (!resource.valid()) {
+            return false;
+        }
+        const float revealScale = worldRevealScaleAt(
+            {instance.position.x, instance.position.z});
+        const float scale = instance.scale * revealScale;
+        if (scale <= 0.001F) {
+            continue;
+        }
+        Vector3 position = instance.position;
+        position.y += static_cast<float>(
+            TreeVisualGroundOffsets[variant] * scale);
+        const float modelScale = TreeModelScale * scale;
+        resourceTreeTransforms_[variant].push_back(MatrixMultiply(
+            resource.get().transform,
+            MatrixMultiply(
+                MatrixMultiply(
+                    MatrixScale(
+                        modelScale, modelScale, modelScale),
+                    MatrixRotateY(instance.yawRadians)),
+                MatrixTranslate(
+                    position.x, position.y, position.z))));
+    }
+
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &enabled,
+        SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    for (std::size_t variant = 0;
+         variant < TreeVisualVariantCount; ++variant) {
+        if (resourceTreeTransforms_[variant].empty()) {
+            continue;
+        }
+        Model& model = resources_.treeModel(variant).get();
+        for (int meshIndex = 0; meshIndex < model.meshCount;
+             ++meshIndex) {
+            const int materialIndex = model.meshMaterial[meshIndex];
+            Material material = model.materials[materialIndex];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                resourceTreeTransforms_[variant].data(),
+                static_cast<int>(
+                    resourceTreeTransforms_[variant].size()));
+        }
+    }
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &disabled,
+        SHADER_UNIFORM_INT);
     return true;
 }
 

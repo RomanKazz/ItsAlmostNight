@@ -793,10 +793,12 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
         }
         const Vector2 point = mapPoint(
             resource.position.x, resource.position.z);
-        DrawCircleV(
-            point,
+        const float radius =
             (resource.type == ResourceType::Wood ? 1.35F : 1.2F) *
-                symbolScale,
+            symbolScale;
+        DrawRectangleRec(
+            {point.x - radius, point.y - radius,
+             radius * 2.0F, radius * 2.0F},
             resource.type == ResourceType::Wood
                 ? Color{91, 143, 75, 125}
                 : Color{143, 149, 145, 135});
