@@ -16,6 +16,8 @@ uniform float sunIntensity;
 uniform vec3 skyAmbientColor;
 uniform vec3 groundAmbientColor;
 uniform float ambientIntensity;
+uniform float cloudShadowStrength;
+uniform float timeSeconds;
 uniform vec3 fogColor;
 uniform float fogStart;
 uniform float fogEnd;
@@ -61,6 +63,18 @@ float valueNoise(vec2 position)
     float topRight = hash21(cell + vec2(1.0, 1.0));
     return mix(mix(bottomLeft, bottomRight, blend.x),
                mix(topLeft, topRight, blend.x), blend.y);
+}
+
+float cloudShadowPattern(vec2 worldPosition)
+{
+    // Large, coherent shapes moving in the same direction as the model
+    // clouds. Two broad octaves keep the terrain alive without noisy speckle.
+    vec2 wind = vec2(1.04, 0.22)*timeSeconds;
+    vec2 position = (worldPosition - wind)*0.015;
+    float broad = valueNoise(position);
+    float shape = valueNoise(position*1.92 + vec2(17.4, -8.7));
+    float field = broad*0.72 + shape*0.28;
+    return smoothstep(0.44, 0.67, field);
 }
 
 vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
@@ -157,6 +171,13 @@ void main()
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
     ambient += skyAmbientColor*ambientIntensity*0.16;
     float shadow = sampleShadow(normal);
+    float cloudLight = 1.0;
+    if (terrainAmount > 0.5 && cloudShadowStrength > 0.001)
+    {
+        float cloudShadow = cloudShadowPattern(fragWorldPosition.xz);
+        cloudLight -= cloudShadow*
+            clamp(cloudShadowStrength, 0.0, 0.35);
+    }
     float sunHighlight = pow(max(lightFacing, 0.0), 2.0)*0.06;
     float silhouetteRim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.15);
@@ -171,7 +192,7 @@ void main()
         mix(0.58, 0.075, clamp(terrainAmount, 0.0, 1.0))*
         timeOfDayRimStrength;
     vec3 direct = sunColor*sunIntensity*
-        (stylizedDiffuse + sunHighlight)*shadow;
+        (stylizedDiffuse + sunHighlight)*shadow*cloudLight;
     float rim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
         smoothstep(-0.2, 0.75, normal.y);

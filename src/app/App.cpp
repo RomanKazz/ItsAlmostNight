@@ -384,6 +384,7 @@ void App::render() {
             .skyAmbientColor = environment.skyAmbientColor,
             .groundAmbientColor = environment.groundAmbientColor,
             .ambientIntensity = environment.ambientIntensity,
+            .cloudShadowStrength = 0.20F * (1.0F - nightAmount),
             .fogColor = colorToVector(environment.fogColor),
             .fogStart = environment.fogStart,
             .fogEnd = environment.fogEnd,

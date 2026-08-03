@@ -78,17 +78,35 @@ void main()
         cameraUp*screen.y*tanHalfFov);
 
     float upperElevation = clamp(viewDirection.y, 0.0, 1.0);
-    float zenithBlend = pow(smoothstep(0.0, 0.82, upperElevation), 0.72);
-    vec3 sky = mix(horizonColor, zenithColor, zenithBlend);
+    float zenithBlend = pow(
+        smoothstep(0.0, 0.88, upperElevation), 0.58);
+    vec3 turquoiseHorizon = mix(
+        horizonColor, vec3(0.72, 0.91, 0.92),
+        (1.0 - nightAmount)*0.34);
+    vec3 sky = mix(turquoiseHorizon, zenithColor, zenithBlend);
+
+    float horizonHaze =
+        exp(-abs(viewDirection.y)*15.0)*(1.0 - nightAmount);
+    sky = mix(sky, turquoiseHorizon*1.045, horizonHaze*0.34);
 
     float lowerBlend = smoothstep(0.0, 0.42, -viewDirection.y);
     sky = mix(sky, lowerSkyColor, lowerBlend);
 
     float celestialAlignment =
         dot(viewDirection, normalize(celestialDirection));
-    float halo = smoothstep(0.985, 0.9992, celestialAlignment);
-    float disc = smoothstep(0.99945, 0.99982, celestialAlignment);
-    sky += celestialColor*(halo*0.18 + disc*0.82)*celestialIntensity;
+    float dayCelestial = 1.0 - smoothstep(0.48, 0.92, nightAmount);
+    float broadHalo = smoothstep(0.925, 0.9990, celestialAlignment);
+    float innerHalo = smoothstep(0.982, 0.99945, celestialAlignment);
+    float disc = smoothstep(0.99928, 0.99972, celestialAlignment);
+    vec3 warmDiscColor = mix(
+        celestialColor, vec3(1.0, 0.88, 0.62),
+        dayCelestial*0.38);
+    sky += warmDiscColor*
+        (broadHalo*0.055 + innerHalo*0.17)*
+        celestialIntensity;
+    sky = mix(
+        sky, warmDiscColor*(1.05 + celestialIntensity*0.12),
+        disc*mix(0.72, 0.94, dayCelestial));
 
     vec3 starCoordinates = cubeStarCoordinates(viewDirection);
     vec2 starGrid = starCoordinates.xy*68.0;

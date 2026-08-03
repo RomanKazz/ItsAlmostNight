@@ -1475,6 +1475,8 @@ void Renderer::resolveWorldShaderLocations() {
         .skyAmbientColor = GetShaderLocation(shader, "skyAmbientColor"),
         .groundAmbientColor = GetShaderLocation(shader, "groundAmbientColor"),
         .ambientIntensity = GetShaderLocation(shader, "ambientIntensity"),
+        .cloudShadowStrength =
+            GetShaderLocation(shader, "cloudShadowStrength"),
         .fogColor = GetShaderLocation(shader, "fogColor"),
         .fogStart = GetShaderLocation(shader, "fogStart"),
         .fogEnd = GetShaderLocation(shader, "fogEnd"),
@@ -1723,6 +1725,8 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &lighting.groundAmbientColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.ambientIntensity,
                    &lighting.ambientIntensity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.cloudShadowStrength,
+                   &lighting.cloudShadowStrength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.fogColor,
                    &lighting.fogColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.fogStart,

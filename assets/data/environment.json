@@ -20,13 +20,13 @@
       "nightFactor": 0.35
     },
     "day": {
-      "skyTop": [72, 159, 224],
-      "skyHorizon": [158, 207, 228],
-      "lowerSky": [113, 183, 211],
+      "skyTop": [38, 145, 224],
+      "skyHorizon": [178, 226, 228],
+      "lowerSky": [112, 193, 210],
       "fogColor": [174, 211, 218],
       "celestialDirection": [0.42, 0.86, 0.28],
-      "celestialColor": [1.0, 0.83, 0.52],
-      "sunColor": [1.0, 0.91, 0.78],
+      "celestialColor": [1.0, 0.86, 0.56],
+      "sunColor": [1.0, 0.88, 0.72],
       "skyAmbientColor": [0.82, 0.90, 1.0],
       "groundAmbientColor": [0.30, 0.40, 0.28],
       "dayNightTint": [1.0, 0.98, 0.94],

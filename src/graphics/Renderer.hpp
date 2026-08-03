@@ -25,6 +25,7 @@ struct WorldLighting {
     Vector3 skyAmbientColor{0.42F, 0.52F, 0.68F};
     Vector3 groundAmbientColor{0.16F, 0.21F, 0.17F};
     float ambientIntensity{0.65F};
+    float cloudShadowStrength{0.18F};
     Vector3 fogColor{0.25F, 0.33F, 0.44F};
     float fogStart{30.0F};
     float fogEnd{75.0F};
@@ -301,6 +302,7 @@ class Renderer {
         int skyAmbientColor{-1};
         int groundAmbientColor{-1};
         int ambientIntensity{-1};
+        int cloudShadowStrength{-1};
         int fogColor{-1};
         int fogStart{-1};
         int fogEnd{-1};
