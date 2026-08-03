@@ -181,11 +181,9 @@ void TerrainRenderer::updateVisibleChunks(
     const int chunkCount = std::max(
         1, static_cast<int>(
                std::ceil(config.terrainWorldSize / chunkSize)));
+    (void)focusPosition;
     for (int z = 0; z < chunkCount; ++z) {
         for (int x = 0; x < chunkCount; ++x) {
-            if (!chunkVisible(x, z, focusPosition)) {
-                continue;
-            }
             const auto existing = std::find_if(
                 chunks_.begin(), chunks_.end(),
                 [x, z](const TerrainChunk& chunk) {
@@ -203,36 +201,6 @@ void TerrainRenderer::updateVisibleChunks(
 
 }
 
-bool TerrainRenderer::chunkVisible(
-    int chunkX, int chunkZ,
-    Vector3 focusPosition) const {
-    if (terrain_ == nullptr) {
-        return false;
-    }
-    const auto& config = terrain_->config();
-    const double halfSize = config.terrainWorldSize * 0.5;
-    const double minimumX =
-        -halfSize + static_cast<double>(chunkX) *
-                        config.terrainChunkWorldSize;
-    const double minimumZ =
-        -halfSize + static_cast<double>(chunkZ) *
-                        config.terrainChunkWorldSize;
-    const double maximumX = std::min(
-        minimumX + config.terrainChunkWorldSize, halfSize);
-    const double maximumZ = std::min(
-        minimumZ + config.terrainChunkWorldSize, halfSize);
-    const double nearestX = std::clamp(
-        static_cast<double>(focusPosition.x), minimumX, maximumX);
-    const double nearestZ = std::clamp(
-        static_cast<double>(focusPosition.z), minimumZ, maximumZ);
-    const double offsetX =
-        nearestX - static_cast<double>(focusPosition.x);
-    const double offsetZ =
-        nearestZ - static_cast<double>(focusPosition.z);
-    const double radius = config.terrainRenderDistance;
-    return offsetX * offsetX + offsetZ * offsetZ <= radius * radius;
-}
-
 void TerrainRenderer::draw(
     Shader shader, Color tint,
     Vector3 focusPosition) {
@@ -241,9 +209,6 @@ void TerrainRenderer::draw(
     }
     updateVisibleChunks(focusPosition);
     for (auto& chunk : chunks_) {
-        if (!chunkVisible(chunk.x, chunk.z, focusPosition)) {
-            continue;
-        }
         if (shader.id != 0U) {
             for (int index = 0;
                  index < chunk.model.materialCount; ++index) {

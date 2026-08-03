@@ -1616,8 +1616,8 @@ void Renderer::drawBoundaryForest() {
         return;
     }
     constexpr std::size_t VariantCount = 2U;
-    constexpr float Spacing = 4.0F;
-    constexpr std::size_t MaximumInstancesPerVariant = 8192U;
+    constexpr float Spacing = 8.0F;
+    constexpr std::size_t MaximumInstancesPerVariant = 4096U;
     const auto& terrain = *terrainHeightfield_;
     const auto& config = terrain.config();
     if (config.terrainBoundaryRiseWidth <= 0.0F ||
@@ -1657,7 +1657,7 @@ void Renderer::drawBoundaryForest() {
     if (!boundaryForestCached_) {
         for (auto& variant : boundaryForestTransforms_) {
             variant.clear();
-            variant.reserve(3072U);
+            variant.reserve(1024U);
         }
         for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
             for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
@@ -1695,8 +1695,8 @@ void Renderer::drawBoundaryForest() {
                 const float sizeRoll =
                     unitFloat(hash ^ 0x63d83595U);
                 const float scale =
-                    3.15F + sizeRoll * sizeRoll * 5.85F +
-                    slopeProgress * 0.75F;
+                    6.0F + sizeRoll * sizeRoll * 9.0F +
+                    slopeProgress * 1.5F;
                 const float yaw =
                     unitFloat(hash ^ 0x9e3779b9U) * PI * 2.0F;
                 const float height = static_cast<float>(
