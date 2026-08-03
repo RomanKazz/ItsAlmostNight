@@ -74,7 +74,7 @@ float cloudShadowPattern(vec2 worldPosition)
     float broad = valueNoise(position);
     float shape = valueNoise(position*1.92 + vec2(17.4, -8.7));
     float field = broad*0.72 + shape*0.28;
-    return smoothstep(0.44, 0.67, field);
+    return smoothstep(0.40, 0.64, field);
 }
 
 vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
@@ -176,7 +176,7 @@ void main()
     {
         float cloudShadow = cloudShadowPattern(fragWorldPosition.xz);
         cloudLight -= cloudShadow*
-            clamp(cloudShadowStrength, 0.0, 0.35);
+            clamp(cloudShadowStrength, 0.0, 0.50);
     }
     float sunHighlight = pow(max(lightFacing, 0.0), 2.0)*0.06;
     float silhouetteRim =
@@ -192,7 +192,7 @@ void main()
         mix(0.58, 0.075, clamp(terrainAmount, 0.0, 1.0))*
         timeOfDayRimStrength;
     vec3 direct = sunColor*sunIntensity*
-        (stylizedDiffuse + sunHighlight)*shadow*cloudLight;
+        (stylizedDiffuse + sunHighlight)*shadow;
     float rim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
         smoothstep(-0.2, 0.75, normal.y);
@@ -210,6 +210,14 @@ void main()
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
     vec3 litColor = albedo.rgb*(ambient + direct + skyRim)*ao;
+    float cloudOcclusion = 1.0 - cloudLight;
+    vec3 cloudShadowTint = vec3(
+        1.0 - cloudOcclusion*1.06,
+        1.0 - cloudOcclusion*1.03,
+        1.0 - cloudOcclusion*0.98);
+    litColor *= mix(
+        vec3(1.0), cloudShadowTint,
+        clamp(terrainAmount, 0.0, 1.0));
     vec3 directionalRimColor =
         mix(sunColor, vec3(1.0), 0.24)*sunIntensity;
     litColor += directionalRimColor*directionalRim*
