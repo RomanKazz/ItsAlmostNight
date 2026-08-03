@@ -961,11 +961,11 @@ void Renderer::setWorldReveal(
 float Renderer::worldRevealScaleAt(
     Vector2 position) const {
     constexpr float InitialRadius = 9.0F;
-    constexpr float WaveSpeed = 110.0F;
-    constexpr float AnimationDuration = 0.24F;
+    constexpr float WaveSpeed = 330.0F;
+    constexpr float AnimationDuration = 0.08F;
     constexpr float BackStrength = 1.15F;
     constexpr float BackCurve = BackStrength + 1.0F;
-    if (worldRevealElapsed_ >= 2.5F) {
+    if (worldRevealElapsed_ >= 0.9F) {
         return 1.0F;
     }
     const float offsetX =
@@ -977,7 +977,7 @@ float Renderer::worldRevealScaleAt(
     const float jitter =
         std::sin(position.x * 12.9898F +
                  position.y * 78.233F) *
-        0.015F;
+        0.005F;
     const float arrivalTime = std::max(
         0.0F,
         (distance - InitialRadius) / WaveSpeed + jitter);
