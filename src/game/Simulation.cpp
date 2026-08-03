@@ -466,6 +466,7 @@ void Simulation::updatePlayer(double deltaSeconds,
         shouldAutoJumpGroundFrame(movement);
 
     constexpr double MaximumStepUp = 0.65;
+    constexpr double AirbornePlatformEdgeBias = 0.22;
     constexpr double MinimumGroundSnapDown = 0.35;
     constexpr double MaximumGroundSnapDown = 0.85;
     const double groundSnapDown = std::clamp(
@@ -477,12 +478,42 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double maximumWalkableSurfaceHeight =
         playerGrounded_
             ? currentFeetHeight + MaximumStepUp
-            : currentFeetHeight;
+            : currentFeetHeight +
+                  AirbornePlatformEdgeBias;
     const Vec3 movementOrigin = playerPosition_;
     playerPosition_ = collisionWorld_.moveCircle(
         playerPosition_, movement,
         CollisionWorld::PlayerRadius,
         maximumWalkableSurfaceHeight);
+    if (!playerGrounded_) {
+        const auto edgeCatchSurface =
+            collisionWorld_.playerSupportHeight(
+                playerPosition_.x,
+                playerPosition_.z,
+                CollisionWorld::PlayerRadius,
+                currentFeetHeight +
+                    AirbornePlatformEdgeBias);
+        if (edgeCatchSurface &&
+            *edgeCatchSurface >
+                currentFeetHeight + 1e-6) {
+            playerPosition_.y =
+                *edgeCatchSurface + gameplay_.eyeHeight;
+            verticalVelocity_ = 0.0;
+            playerGrounded_ = true;
+            edgeSupportGraceRemaining_ = 0.085;
+            lastGroundSurfaceHeight_ =
+                *edgeCatchSurface;
+        } else {
+            // The forgiving sweep may only cross a raised side
+            // when it can immediately place the feet on top.
+            // Retry strictly so a failed jump never embeds the
+            // player in the platform wall.
+            playerPosition_ = collisionWorld_.moveCircle(
+                movementOrigin, movement,
+                CollisionWorld::PlayerRadius,
+                currentFeetHeight);
+        }
+    }
     if (deltaSeconds > 1e-9) {
         const double actualX =
             playerPosition_.x - movementOrigin.x;

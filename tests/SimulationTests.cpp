@@ -748,6 +748,42 @@ void runSimulationTests() {
             becameAirborne && landedOnFrame,
             "walking into first-level platform automatically jumps onto it");
 
+        ian::WorldConfig edgeBiasWorld = world;
+        edgeBiasWorld.verticalGridStep = 1.25;
+        ian::Simulation edgeBiasSimulation{
+            ian::GameBalance::defaults(), map,
+            edgeBiasWorld};
+        edgeBiasSimulation.startRun();
+        edgeBiasSimulation.tick(
+            1.0 / 60.0, unlimited);
+        const auto edgeBiasFrame =
+            edgeBiasSimulation.placeFoundation(
+                {0.2, 0.0, 2.2});
+        require(
+            edgeBiasFrame &&
+                std::abs(
+                    edgeBiasFrame->floorHeight - 1.25) <
+                    1e-9,
+            "edge-bias fixture creates a barely reachable platform");
+        bool edgeBiasLanded = false;
+        for (int tick = 0; tick < 150; ++tick) {
+            edgeBiasSimulation.tick(
+                1.0 / 60.0, walkForward);
+            const auto edgeBiasSnapshot =
+                edgeBiasSimulation.snapshot();
+            if (edgeBiasSnapshot.playerGrounded &&
+                std::abs(
+                    edgeBiasSnapshot.playerPosition.y -
+                    edgeBiasFrame->floorHeight - 1.7) <
+                    1e-6) {
+                edgeBiasLanded = true;
+                break;
+            }
+        }
+        require(
+            edgeBiasLanded,
+            "platform edge bias catches a jump that reaches just below the top");
+
         bool steppedOffFrame = false;
         for (int tick = 0; tick < 90; ++tick) {
             autoJumpSimulation.tick(
