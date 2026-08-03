@@ -69,15 +69,15 @@ float cloudShadowPattern(vec2 worldPosition)
 {
     // Large, coherent shapes moving in the same direction as the model
     // clouds. Two broad octaves keep the terrain alive without noisy speckle.
-    vec2 wind = vec2(1.04, 0.22)*timeSeconds;
+    vec2 wind = vec2(2.20, 0.46)*timeSeconds;
     // Phase chosen so the initial playable area starts across a broad
     // light/shadow boundary instead of inside a large clear patch.
     vec2 position =
-        (worldPosition - wind)*0.015 + vec2(6.7, 7.0);
+        (worldPosition - wind)*0.025 + vec2(6.7, 7.0);
     float broad = valueNoise(position);
     float shape = valueNoise(position*1.92 + vec2(17.4, -8.7));
     float field = broad*0.72 + shape*0.28;
-    return smoothstep(0.38, 0.62, field);
+    return smoothstep(0.48, 0.72, field);
 }
 
 vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
