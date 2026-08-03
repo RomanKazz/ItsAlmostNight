@@ -59,6 +59,8 @@ struct GraphicsSettings {
     float paperGrainStrength{0.035F};
 
     GraphicsQuality quality{GraphicsQuality::High};
+
+    bool operator==(const GraphicsSettings&) const = default;
 };
 
 } // namespace ian

@@ -36,6 +36,7 @@ void runPlacementLineTests();
 void runGlbCollisionTests();
 void runSkillTreeTests();
 void runSaturatingArithmeticTests();
+void runUserSettingsTests();
 
 namespace {
 
@@ -83,6 +84,7 @@ int main() {
     fixedStepClampsLongFrames();
     fixedStepIgnoresNonFiniteFrames();
     runSaturatingArithmeticTests();
+    runUserSettingsTests();
     runGameBalanceTests();
     runMapDefinitionTests();
     runTerrainHeightfieldTests();

@@ -109,7 +109,7 @@ void App::drawGraphicsPanel() {
     toggleButton(1, y, "SSAO (RESERVED)", settings.ssao);
     y += ButtonHeight + Gap;
     if (ui_.drawButton(
-            {contentX, y, contentWidth,
+            {contentX, y, columnWidth,
              ButtonHeight},
             std::string("QUALITY: ") +
                 (settings.quality == GraphicsQuality::Low
@@ -118,6 +118,19 @@ void App::drawGraphicsPanel() {
                            ? "MEDIUM"
                            : "HIGH"))) {
         renderer_->cycleQuality();
+    }
+    if (ui_.drawButton(
+            {contentX + columnWidth + Gap, y,
+             columnWidth, ButtonHeight},
+            std::string("SHADOW QUALITY: ") +
+                (settings.shadowMapSize <= 512
+                     ? "LOW"
+                     : settings.shadowMapSize <= 1024
+                           ? "MEDIUM"
+                           : settings.shadowMapSize <= 2048
+                                 ? "HIGH"
+                                 : "ULTRA"))) {
+        renderer_->cycleShadowQuality();
     }
     y += ButtonHeight + Gap;
 
@@ -156,15 +169,8 @@ void App::drawGraphicsPanel() {
 
     if (ui_.drawButton(
             {contentX, y, columnWidth, ButtonHeight},
-            std::string("SHADOW QUALITY: ") +
-                (settings.shadowMapSize <= 512
-                     ? "LOW"
-                     : settings.shadowMapSize <= 1024
-                           ? "MEDIUM"
-                           : settings.shadowMapSize <= 2048
-                                 ? "HIGH"
-                                 : "ULTRA"))) {
-        renderer_->cycleShadowQuality();
+            "RESET DISPLAY")) {
+        resetDisplaySettings(settings);
     }
     if (ui_.drawButton(
             {contentX + columnWidth + Gap, y, columnWidth,
@@ -251,20 +257,7 @@ void App::drawGraphicsPanel() {
                 {contentX, panelY + ActionY,
                  columnWidth, ButtonHeight},
                 "RESET COLOR")) {
-            settings.postExposure = 0.0F;
-            settings.brightness = 0.0F;
-            settings.contrast = 1.0F;
-            settings.colorSaturation = 1.0F;
-            settings.hueDegrees = 0.0F;
-            settings.temperature = 0.0F;
-            settings.tint = 0.0F;
-            settings.gamma = 1.0F;
-            settings.blackPoint = 0.0F;
-            settings.curveShadows = 0.0F;
-            settings.curveMidtones = 0.0F;
-            settings.curveHighlights = 0.0F;
-            settings.sharpness = 0.0F;
-            settings.vignette = 0.0F;
+            resetColorSettings(settings);
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap,
@@ -365,21 +358,7 @@ void App::drawGraphicsPanel() {
                  panelY + ActionY,
                  columnWidth, ButtonHeight},
                 "RESET STYLE")) {
-            settings.paletteQuantization = false;
-            settings.dithering = false;
-            settings.posterizedLighting = false;
-            settings.bloom = false;
-            settings.inkOutlines = false;
-            settings.fogBands = false;
-            settings.paperGrain = false;
-            settings.paletteLevels = 8.0F;
-            settings.ditherStrength = 0.35F;
-            settings.lightingSteps = 5.0F;
-            settings.bloomStrength = 0.28F;
-            settings.outlineStrength = 0.35F;
-            settings.outlineWidth = 1.0F;
-            settings.fogBandCount = 5.0F;
-            settings.paperGrainStrength = 0.035F;
+            resetStyleSettings(settings);
         }
         settings.postProcessing = true;
     } else if (graphicsPanelTab_ == 3) {
@@ -424,10 +403,11 @@ void App::drawGraphicsPanel() {
         if (ui_.drawButton(
                 {contentX, actionY, columnWidth, ButtonHeight},
                 "RESET MOTION")) {
-            motionBobIntensity_ = 1.0F;
-            motionShakeIntensity_ = 1.0F;
-            motionLandingIntensity_ = 1.0F;
-            motionSwayIntensity_ = 1.0F;
+            const MotionSettings defaults;
+            motionBobIntensity_ = defaults.bobIntensity;
+            motionShakeIntensity_ = defaults.shakeIntensity;
+            motionLandingIntensity_ = defaults.landingIntensity;
+            motionSwayIntensity_ = defaults.swayIntensity;
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, actionY,

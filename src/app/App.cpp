@@ -18,6 +18,8 @@ namespace {
 constexpr int InitialWindowWidth = 1280;
 constexpr int InitialWindowHeight = 720;
 constexpr double BuildingHealthBarDwellSeconds = 0.15;
+constexpr std::string_view UserSettingsPath =
+    "user_settings/game_settings.json";
 
 const char* modularPlacementMessage(
     std::optional<ModularPlacementError> error) {
@@ -60,6 +62,13 @@ App::App()
           loadAppBalance(), loadAppMap(),
           loadAppWorldConfig()),
       environment_(loadAppEnvironment()) {
+    static_cast<void>(loadUserSettings(
+        UserSettingsPath, userSettings_));
+    audio_.settings() = userSettings_.audio;
+    motionBobIntensity_ = userSettings_.motion.bobIntensity;
+    motionShakeIntensity_ = userSettings_.motion.shakeIntensity;
+    motionLandingIntensity_ = userSettings_.motion.landingIntensity;
+    motionSwayIntensity_ = userSettings_.motion.swayIntensity;
     static_cast<void>(loadFirstPersonToolTuning(
         "user_settings/first_person_tool.json", toolTuning_));
     effects_.reserve(128);
@@ -81,6 +90,7 @@ int App::run() {
     ToggleBorderlessWindowed();
     SetTargetFPS(144);
     renderer_.emplace();
+    renderer_->settings() = userSettings_.graphics;
     renderer_->initialize();
     modularBuildingRenderer_.setRenderer(&*renderer_);
     renderer_->rebuildTerrain(simulation_.terrain());
@@ -91,8 +101,10 @@ int App::run() {
         processInput();
         update();
         render();
+        persistUserSettings();
     }
 
+    persistUserSettings(true);
     static_cast<void>(saveFirstPersonToolTuning(
         "user_settings/first_person_tool.json", toolTuning_));
 
@@ -103,6 +115,29 @@ int App::run() {
     renderer_.reset();
     CloseWindow();
     return 0;
+}
+
+void App::persistUserSettings(bool force) {
+    if (!renderer_) {
+        return;
+    }
+    UserSettings current{
+        .graphics = renderer_->settings(),
+        .audio = audio_.settings(),
+        .motion = {
+            .bobIntensity = motionBobIntensity_,
+            .shakeIntensity = motionShakeIntensity_,
+            .landingIntensity = motionLandingIntensity_,
+            .swayIntensity = motionSwayIntensity_,
+        },
+    };
+    if (current == userSettings_ ||
+        (!force && IsMouseButtonDown(MOUSE_BUTTON_LEFT))) {
+        return;
+    }
+    if (saveUserSettings(UserSettingsPath, current)) {
+        userSettings_ = current;
+    }
 }
 
 void App::render() {

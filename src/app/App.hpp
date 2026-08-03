@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/UserSettings.hpp"
 #include "audio/AudioSystem.hpp"
 #include "buildings/PlacementLine.hpp"
 #include "core/FixedStep.hpp"
@@ -107,6 +108,7 @@ class App {
     void drawCancelledPlacementPreview(
         const WorldLighting& lighting);
     void drawGraphicsPanel();
+    void persistUserSettings(bool force = false);
     void drawEnemySpawnMenu();
     void setSkillTreeVisible(bool visible);
     void drawBuildModePie() const;
@@ -128,6 +130,7 @@ class App {
     Simulation simulation_;
     EnvironmentSystem environment_;
     AudioSystem audio_;
+    UserSettings userSettings_;
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
     GameUi ui_;

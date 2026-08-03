@@ -16,6 +16,8 @@ struct AudioSettings {
     float musicVolume{0.65F};
     float sfxVolume{1.0F};
     bool muted{};
+
+    bool operator==(const AudioSettings&) const = default;
 };
 
 class AudioSystem {

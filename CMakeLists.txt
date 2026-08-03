@@ -112,6 +112,16 @@ target_include_directories(ian_audio PUBLIC src)
 target_include_directories(ian_audio SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
 target_link_libraries(ian_audio PUBLIC raylib)
 
+add_library(ian_settings
+    src/app/UserSettings.cpp
+)
+target_include_directories(ian_settings PUBLIC src)
+target_include_directories(ian_settings SYSTEM PRIVATE
+    "${raylib_SOURCE_DIR}/src")
+target_link_libraries(ian_settings
+    PUBLIC raylib
+    PRIVATE nlohmann_json::nlohmann_json)
+
 add_library(ian_presentation
     src/presentation/PresentationEffectQueries.cpp
 )
@@ -166,7 +176,7 @@ add_executable(its_almost_night
 )
 target_link_libraries(its_almost_night PRIVATE
     ian_simulation ian_graphics ian_ui ian_audio
-    ian_presentation
+    ian_presentation ian_settings
 )
 target_include_directories(its_almost_night SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src")
@@ -196,6 +206,7 @@ ian_set_warnings(ian_simulation)
 ian_set_warnings(ian_assets)
 ian_set_warnings(ian_text)
 ian_set_warnings(ian_audio)
+ian_set_warnings(ian_settings)
 ian_set_warnings(ian_presentation)
 ian_set_warnings(ian_progression)
 ian_set_warnings(ian_graphics)
@@ -203,7 +214,7 @@ ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
 
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-    foreach(target ian_assets ian_simulation ian_text ian_audio ian_presentation ian_progression ian_graphics ian_ui its_almost_night)
+    foreach(target ian_assets ian_simulation ian_text ian_audio ian_settings ian_presentation ian_progression ian_graphics ian_ui its_almost_night)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=address,undefined)
     endforeach()
@@ -241,13 +252,14 @@ if(BUILD_TESTING)
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
         tests/SkillTreeTests.cpp
+        tests/UserSettingsTests.cpp
         tests/TowerSystemTests.cpp
         tests/TrapSystemTests.cpp
         tests/WaveDirectorTests.cpp
     )
     target_link_libraries(ian_tests PRIVATE
         ian_simulation ian_graphics ian_presentation
-        ian_progression)
+        ian_progression ian_settings)
     target_compile_definitions(ian_tests PRIVATE
         IAN_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     target_include_directories(ian_tests SYSTEM PRIVATE
