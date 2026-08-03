@@ -4,6 +4,7 @@
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
+#include "world/TerrainHeightfield.hpp"
 
 #include <raymath.h>
 #include <rlgl.h>
@@ -15,7 +16,8 @@
 
 namespace ian {
 void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
-                           const Camera3D& camera) {
+                           const Camera3D& camera,
+                           const TerrainHeightfield& terrain) {
     repairPulseRemaining_ = std::max(
         0.0,
         repairPulseRemaining_ -
@@ -175,7 +177,11 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             drawBillboard(
                 {TargetKind::Enemy, enemy->id},
                 {static_cast<float>(enemy->position.x),
-                 static_cast<float>(enemy->position.y) +
+                 static_cast<float>(
+                     terrain.getHeight(
+                         enemy->position.x,
+                         enemy->position.z) +
+                     enemy->position.y) +
                      anchorOffset,
                  static_cast<float>(enemy->position.z)},
                 enemy->health, enemy->maxHealth,

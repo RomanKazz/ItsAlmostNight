@@ -28,7 +28,7 @@ void App::update() {
     if (hotbarSnapshot.state != RunState::MainMenu &&
         hotbarSnapshot.state != RunState::Paused) {
         worldRevealElapsed_ = std::min(
-            6.0,
+            2.5,
             worldRevealElapsed_ + frameSeconds);
     }
     const float hotbarBlend =

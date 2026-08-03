@@ -521,7 +521,9 @@ void App::render() {
         // prevents the viewmodel's independent camera depth from affecting
         // their visibility.
         rlDisableDepthTest();
-        targetHealthBar_.draw(healthBarSnapshot, camera);
+        targetHealthBar_.draw(
+            healthBarSnapshot, camera,
+            simulation_.terrain());
         drawProductionVisuals(camera);
         rlEnableDepthTest();
         EndMode3D();

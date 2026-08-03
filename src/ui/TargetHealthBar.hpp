@@ -9,11 +9,13 @@
 namespace ian {
 
 struct SimulationSnapshot;
+class TerrainHeightfield;
 
 class TargetHealthBar {
   public:
     void draw(const SimulationSnapshot& snapshot,
-              const Camera3D& camera);
+              const Camera3D& camera,
+              const TerrainHeightfield& terrain);
     void notifyRepair(EntityId id);
     void reset();
 
