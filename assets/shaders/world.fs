@@ -30,7 +30,6 @@ uniform float aoStrength;
 uniform float terrainAmount;
 uniform vec3 terrainGrassTint;
 uniform vec3 terrainDirtTint;
-uniform vec3 terrainRockTint;
 uniform sampler2D terrainTexture;
 uniform float terrainTextureEnabled;
 uniform float hitFlashAmount;
@@ -71,23 +70,15 @@ vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
     float patchNoise = valueNoise(worldXZ*0.095 + vec2(19.3, -7.1));
     float detailNoise = valueNoise(worldXZ*0.42 + vec2(-31.7, 42.9));
     float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
-    float mountain = smoothstep(9.0, 28.0, worldPosition.y);
-
-    float rockFromSlope = smoothstep(0.16, 0.48, slope);
-    float rockFromHeight = mountain*
-        smoothstep(0.18, 0.72, broadNoise + slope*1.35);
-    float rockWeight = clamp(
-        max(rockFromSlope, rockFromHeight*0.88), 0.0, 1.0);
 
     float dirtSlopeBand =
         smoothstep(0.045, 0.18, slope)*
-        (1.0 - smoothstep(0.24, 0.46, slope));
+        (1.0 - smoothstep(0.32, 0.58, slope));
     float dirtPatch =
         smoothstep(0.68, 0.86, broadNoise*0.72 + patchNoise*0.28)*
         (1.0 - smoothstep(0.10, 0.30, slope));
     float dirtWeight = clamp(
-        max(dirtSlopeBand*0.72, dirtPatch*0.66)*
-        (1.0 - rockWeight), 0.0, 1.0);
+        max(dirtSlopeBand*0.72, dirtPatch*0.66), 0.0, 1.0);
 
     vec3 textureSample =
         texture(terrainTexture, worldXZ*0.08).rgb;
@@ -95,22 +86,20 @@ vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
         textureSample, vec3(0.2126, 0.7152, 0.0722));
     float grassDetail = mix(
         0.82 + detailNoise*0.24,
-        0.72 + textureLuminance*0.48,
+        1.0,
         terrainTextureEnabled);
-    vec3 grass = terrainGrassTint*grassDetail;
+    vec3 grass = mix(
+        terrainGrassTint*grassDetail,
+        textureSample,
+        terrainTextureEnabled);
 
-    float dirtGrain =
-        0.82 + patchNoise*0.22 + detailNoise*0.10;
-    vec3 dirt = terrainDirtTint*dirtGrain;
+    float dirtDetail = mix(
+        0.82 + patchNoise*0.22 + detailNoise*0.10,
+        0.68 + textureLuminance*0.52,
+        terrainTextureEnabled);
+    vec3 dirt = terrainDirtTint*dirtDetail;
 
-    float rockNoise = valueNoise(
-        worldXZ*0.21 + vec2(8.7, -16.4));
-    float rockGrain =
-        0.78 + rockNoise*0.30 + detailNoise*0.08;
-    vec3 rock = terrainRockTint*rockGrain;
-
-    vec3 grassAndDirt = mix(grass, dirt, dirtWeight);
-    return mix(grassAndDirt, rock, rockWeight);
+    return mix(grass, dirt, dirtWeight);
 }
 
 float sampleShadow(vec3 normal)

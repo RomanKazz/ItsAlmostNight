@@ -39,7 +39,6 @@ struct WorldMaterialState {
     float terrainAmount{};
     Vector3 terrainGrassTint{0.38F, 0.60F, 0.28F};
     Vector3 terrainDirtTint{0.48F, 0.34F, 0.22F};
-    Vector3 terrainRockTint{0.46F, 0.48F, 0.45F};
     float windAmount{};
     float hitFlashAmount{};
     float selectionAmount{};
@@ -286,7 +285,6 @@ class Renderer {
         int terrainAmount{-1};
         int terrainGrassTint{-1};
         int terrainDirtTint{-1};
-        int terrainRockTint{-1};
         int terrainTexture{-1};
         int terrainTextureEnabled{-1};
         int timeSeconds{-1};
