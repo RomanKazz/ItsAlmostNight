@@ -935,52 +935,52 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
     };
     const Vector2 side{-direction.y, direction.x};
     const Color playerColor = snapshot.playerRespawning
-        ? Color{143, 160, 160, 235}
-        : Color{107, 231, 223, 255};
+        ? Color{174, 181, 181, 240}
+        : Color{250, 250, 244, 255};
     const Vector2 outerTip{
-        player.x + direction.x * 12.0F * symbolScale,
-        player.y + direction.y * 12.0F * symbolScale,
+        player.x + direction.x * 12.5F * symbolScale,
+        player.y + direction.y * 12.5F * symbolScale,
     };
     const Vector2 outerBase{
-        player.x + direction.x * 3.2F * symbolScale,
-        player.y + direction.y * 3.2F * symbolScale,
+        player.x + direction.x * 5.8F * symbolScale,
+        player.y + direction.y * 5.8F * symbolScale,
     };
     const Vector2 outerLeft{
-        outerBase.x - side.x * 4.0F * symbolScale,
-        outerBase.y - side.y * 4.0F * symbolScale,
+        outerBase.x - side.x * 5.2F * symbolScale,
+        outerBase.y - side.y * 5.2F * symbolScale,
     };
     const Vector2 outerRight{
-        outerBase.x + side.x * 4.0F * symbolScale,
-        outerBase.y + side.y * 4.0F * symbolScale,
+        outerBase.x + side.x * 5.2F * symbolScale,
+        outerBase.y + side.y * 5.2F * symbolScale,
     };
     DrawTriangle(
         outerTip, outerLeft, outerRight,
-        {37, 48, 52, 255});
+        {30, 35, 38, 255});
     DrawCircleV(
-        player, 5.4F * symbolScale,
-        {37, 48, 52, 255});
+        player, 7.2F * symbolScale,
+        {30, 35, 38, 255});
 
     const Vector2 innerTip{
-        player.x + direction.x * 9.6F * symbolScale,
-        player.y + direction.y * 9.6F * symbolScale,
+        player.x + direction.x * 10.5F * symbolScale,
+        player.y + direction.y * 10.5F * symbolScale,
     };
     const Vector2 innerBase{
-        player.x + direction.x * 3.5F * symbolScale,
-        player.y + direction.y * 3.5F * symbolScale,
+        player.x + direction.x * 5.8F * symbolScale,
+        player.y + direction.y * 5.8F * symbolScale,
     };
     const Vector2 innerLeft{
-        innerBase.x - side.x * 2.5F * symbolScale,
-        innerBase.y - side.y * 2.5F * symbolScale,
+        innerBase.x - side.x * 3.5F * symbolScale,
+        innerBase.y - side.y * 3.5F * symbolScale,
     };
     const Vector2 innerRight{
-        innerBase.x + side.x * 2.5F * symbolScale,
-        innerBase.y + side.y * 2.5F * symbolScale,
+        innerBase.x + side.x * 3.5F * symbolScale,
+        innerBase.y + side.y * 3.5F * symbolScale,
     };
     DrawTriangle(
         innerTip, innerLeft, innerRight,
         playerColor);
     DrawCircleV(
-        player, 3.7F * symbolScale,
+        player, 5.2F * symbolScale,
         playerColor);
 
     if (snapshot.upcomingAttackDirection) {
@@ -1020,11 +1020,35 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
 
     EndScissorMode();
     DrawRectangleLinesEx(mapBounds, 2.0F, {196, 172, 126, 230});
-    drawUiText(
-        "N",
-        {mapBounds.x + mapBounds.width * 0.5F - 5.0F,
-         mapBounds.y + 4.0F},
-        11.0F, {236, 217, 177, 220});
+    const float compassFontSize =
+        std::lerp(15.0F, 24.0F, expanded);
+    const float compassInset = compassFontSize * 0.72F;
+    const auto drawCompassLabel =
+        [compassFontSize](std::string_view label, Vector2 center) {
+            const Vector2 size = measureUiText(label, compassFontSize);
+            const Vector2 position{
+                center.x - size.x * 0.5F,
+                center.y - size.y * 0.5F,
+            };
+            drawUiText(
+                label, {position.x + 1.5F, position.y + 1.5F},
+                compassFontSize, {18, 22, 20, 235});
+            drawUiText(
+                label, position, compassFontSize,
+                {248, 235, 201, 255});
+        };
+    drawCompassLabel(
+        "N", {mapBounds.x + mapBounds.width * 0.5F,
+              mapBounds.y + compassInset});
+    drawCompassLabel(
+        "E", {mapBounds.x + mapBounds.width - compassInset,
+              mapBounds.y + mapBounds.height * 0.5F});
+    drawCompassLabel(
+        "S", {mapBounds.x + mapBounds.width * 0.5F,
+              mapBounds.y + mapBounds.height - compassInset});
+    drawCompassLabel(
+        "W", {mapBounds.x + compassInset,
+              mapBounds.y + mapBounds.height * 0.5F});
 }
 
 } // namespace
