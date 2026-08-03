@@ -802,8 +802,8 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
 
             const float cluster = clusterNoise(x, z);
             const float clusterDensity = std::clamp(
-                0.04F + (cluster - 0.42F) * 2.15F,
-                0.04F, 0.86F);
+                0.10F + (cluster - 0.38F) * 2.15F,
+                0.10F, 0.94F);
             if (unitFloat(hash ^ 0xb5297a4dU) >
                 clusterDensity) {
                 continue;
