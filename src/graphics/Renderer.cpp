@@ -333,9 +333,12 @@ void Renderer::drawClouds(
         float distanceSquared{};
         std::size_t variant{};
     };
-    constexpr std::size_t CloudCount = 26U;
+    constexpr std::size_t CloudGridSize = 5U;
+    constexpr std::size_t CloudCount = CloudGridSize * CloudGridSize;
     constexpr float WrapHalfExtent = 220.0F;
     constexpr float WrapExtent = WrapHalfExtent * 2.0F;
+    constexpr float CloudCellSize =
+        WrapExtent / static_cast<float>(CloudGridSize);
     constexpr float FadeStart = 168.0F;
     constexpr float FadeEnd = 218.0F;
     std::array<CloudInstance, CloudCount> clouds{};
@@ -370,15 +373,24 @@ void Renderer::drawClouds(
         const std::uint32_t seed =
             static_cast<std::uint32_t>(index) * 0x9e3779b9U +
             0x51f15e1dU;
-        const float speed = 0.72F + unitFloat(seed + 1U) * 0.66F;
-        const float baseX =
-            (unitFloat(seed + 2U) * 2.0F - 1.0F) * WrapHalfExtent;
-        const float baseZ =
-            (unitFloat(seed + 3U) * 2.0F - 1.0F) * WrapHalfExtent;
+        const std::size_t column = index % CloudGridSize;
+        const std::size_t row = index / CloudGridSize;
+        const float jitterX =
+            (unitFloat(seed + 2U) * 2.0F - 1.0F) *
+            CloudCellSize * 0.27F;
+        const float jitterZ =
+            (unitFloat(seed + 3U) * 2.0F - 1.0F) *
+            CloudCellSize * 0.27F;
+        const float baseX = -WrapHalfExtent +
+            (static_cast<float>(column) + 0.5F) * CloudCellSize +
+            jitterX;
+        const float baseZ = -WrapHalfExtent +
+            (static_cast<float>(row) + 0.5F) * CloudCellSize +
+            jitterZ;
         const float x = wrapAround(
-            baseX + timeSeconds * speed, cameraPosition.x);
+            baseX + timeSeconds * 1.04F, cameraPosition.x);
         const float z = wrapAround(
-            baseZ + timeSeconds * speed * 0.24F,
+            baseZ + timeSeconds * 0.22F,
             cameraPosition.z);
         const float offsetX = x - cameraPosition.x;
         const float offsetZ = z - cameraPosition.z;
@@ -396,8 +408,9 @@ void Renderer::drawClouds(
         const std::size_t variant =
             unitFloat(seed + 4U) < 0.46F ? 0U : 1U;
         const float baseScale =
-            (variant == 0U ? 8.0F : 8.8F) +
-            unitFloat(seed + 5U) * 4.8F;
+            (variant == 0U ? 6.6F : 7.2F) +
+            unitFloat(seed + 5U) *
+                (variant == 0U ? 8.8F : 9.2F);
         clouds[visibleCount++] = {
             .position = {
                 x,
@@ -406,13 +419,14 @@ void Renderer::drawClouds(
             },
             .scale = {
                 baseScale *
-                    (0.92F + unitFloat(seed + 7U) * 0.48F),
+                    (0.85F + unitFloat(seed + 7U) * 0.50F),
                 baseScale *
-                    (0.90F + unitFloat(seed + 8U) * 0.20F),
+                    (0.84F + unitFloat(seed + 8U) * 0.30F),
                 baseScale *
-                    (0.82F + unitFloat(seed + 9U) * 0.38F),
+                    (0.78F + unitFloat(seed + 9U) * 0.44F),
             },
-            .rotationDegrees = unitFloat(seed + 10U) * 360.0F,
+            .rotationDegrees =
+                (unitFloat(seed + 10U) * 2.0F - 1.0F) * 8.0F,
             .visibility = visibility,
             .distanceSquared = distanceSquared,
             .variant = variant,

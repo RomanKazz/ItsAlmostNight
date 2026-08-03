@@ -9,6 +9,7 @@ uniform mat4 matNormal;
 
 out vec3 fragWorldPosition;
 out vec3 fragWorldNormal;
+out float fragLocalHeight;
 
 void main()
 {
@@ -16,5 +17,6 @@ void main()
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = normalize(
         (matNormal*vec4(vertexNormal, 0.0)).xyz);
+    fragLocalHeight = vertexPosition.y;
     gl_Position = mvp*vec4(vertexPosition, 1.0);
 }

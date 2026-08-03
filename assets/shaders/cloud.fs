@@ -2,6 +2,7 @@
 
 in vec3 fragWorldPosition;
 in vec3 fragWorldNormal;
+in float fragLocalHeight;
 
 uniform vec3 cameraPosition;
 uniform vec3 sunDirection;
@@ -32,6 +33,11 @@ void main()
     vec3 color = mix(
         shadowColor, lightColor,
         clamp(0.30 + diffuse*0.58 + upward*0.12, 0.0, 1.0));
+    float lowerBody = 1.0 - smoothstep(-0.72, 0.58, fragLocalHeight);
+    vec3 lowerBodyColor = vec3(0.62, 0.70, 0.77);
+    color = mix(
+        color, lowerBodyColor,
+        lowerBody*(0.18 + (1.0 - diffuse)*0.24));
     color += lightColor*silverLining*
         (0.12 + sunIntensity*0.10);
 
