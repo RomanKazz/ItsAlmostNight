@@ -1033,8 +1033,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 0.45F +
                 unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 2.2F, 0.25F) *
-                decorativePropVisibility({x, z}, worldLimit);
+                {x, z}, clearAreas, 2.2F, 0.25F);
             const float clearing = 1.0F - visibility;
             const float revealScale =
                 worldRevealScaleAt({x, z});

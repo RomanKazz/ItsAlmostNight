@@ -269,7 +269,6 @@ class App {
     std::optional<SoldBuildingVisual>
         pendingSoldModularVisual_;
     std::vector<GrassClearArea> grassClearAreas_;
-    std::vector<GrassClearArea> propClearAreas_;
     Vector2 worldRevealOrigin_{};
     double worldRevealElapsed_{1000.0};
     struct BuildingImpactVisual {

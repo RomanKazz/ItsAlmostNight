@@ -96,158 +96,6 @@ float decorativeRockClusterDensity(float x, float z) {
         0.04F, 0.78F);
 }
 
-constexpr float GroundRockSpacing = 5.0F;
-constexpr float GroundBushSpacing = 5.8F;
-constexpr float GroundDecorCoreClearRadius = 10.5F;
-constexpr std::size_t GroundBushVariantCount = 6U;
-constexpr std::array<float, GroundBushVariantCount>
-    GroundBushVariantScales{
-        1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
-    };
-// Unscaled horizontal radii from the source GLBs. These are used for both
-// overlap rejection and grass clearance, so visual variants stay consistent.
-constexpr std::array<float, GroundBushVariantCount>
-    GroundBushSourceRadii{
-        0.36F, 1.55F, 0.79F, 1.14F, 0.78F, 0.60F,
-    };
-
-struct GroundDecorPlacement {
-    Vector2 position{};
-    std::size_t variant{};
-    float scale{1.0F};
-};
-
-std::uint32_t groundDecorCellHash(int x, int z) {
-    std::uint32_t value =
-        static_cast<std::uint32_t>(x) * 0x8da6b343U ^
-        static_cast<std::uint32_t>(z) * 0xd8163841U ^
-        0x6c8e9cf5U;
-    value ^= value >> 16U;
-    value *= 0x7feb352dU;
-    value ^= value >> 15U;
-    value *= 0x846ca68bU;
-    return value ^ (value >> 16U);
-}
-
-float groundDecorUnit(std::uint32_t value) {
-    return static_cast<float>(value & 0xffffU) / 65535.0F;
-}
-
-std::optional<GroundDecorPlacement> groundRockPlacement(
-    int cellX, int cellZ, float worldLimit) {
-    const std::uint32_t hash = groundDecorCellHash(cellX, cellZ);
-    const float x =
-        (static_cast<float>(cellX) + 0.5F) * GroundRockSpacing +
-        (groundDecorUnit(hash >> 7U) - 0.5F) *
-            GroundRockSpacing * 0.78F;
-    const float z =
-        (static_cast<float>(cellZ) + 0.5F) * GroundRockSpacing +
-        (groundDecorUnit(hash >> 15U) - 0.5F) *
-            GroundRockSpacing * 0.78F;
-    if (groundDecorUnit(hash) >
-            decorativeRockClusterDensity(x, z) ||
-        std::abs(x) > worldLimit - 0.7F ||
-        std::abs(z) > worldLimit - 0.7F ||
-        x * x + z * z <
-            GroundDecorCoreClearRadius * GroundDecorCoreClearRadius) {
-        return std::nullopt;
-    }
-    return GroundDecorPlacement{
-        .position = {x, z},
-        .variant = static_cast<std::size_t>((hash >> 4U) % 4U),
-        .scale =
-            0.55F + groundDecorUnit(hash ^ 0xa511e9b3U) * 0.45F,
-    };
-}
-
-std::optional<GroundDecorPlacement> groundBushPlacementRaw(
-    int cellX, int cellZ, float worldLimit) {
-    const std::uint32_t hash =
-        std::rotl(groundDecorCellHash(cellX, cellZ), 13) ^
-        0xb5297a4dU;
-    const float x =
-        (static_cast<float>(cellX) + 0.5F) * GroundBushSpacing +
-        (groundDecorUnit(hash >> 6U) - 0.5F) *
-            GroundBushSpacing * 0.76F;
-    const float z =
-        (static_cast<float>(cellZ) + 0.5F) * GroundBushSpacing +
-        (groundDecorUnit(hash >> 14U) - 0.5F) *
-            GroundBushSpacing * 0.76F;
-    const float clusterDensity =
-        decorativeRockClusterDensity(x + 31.0F, z - 23.0F) * 0.72F;
-    if (groundDecorUnit(hash) > clusterDensity ||
-        std::abs(x) > worldLimit - 0.9F ||
-        std::abs(z) > worldLimit - 0.9F ||
-        x * x + z * z <
-            GroundDecorCoreClearRadius * GroundDecorCoreClearRadius) {
-        return std::nullopt;
-    }
-    const std::size_t variant = static_cast<std::size_t>(
-        (hash >> 4U) % GroundBushVariantCount);
-    return GroundDecorPlacement{
-        .position = {x, z},
-        .variant = variant,
-        .scale = GroundBushVariantScales[variant] *
-            (0.82F +
-             groundDecorUnit(hash ^ 0x68e31da4U) * 0.43F),
-    };
-}
-
-bool groundBushOverlapsRock(
-    const GroundDecorPlacement& bush, float worldLimit) {
-    const float bushRadius =
-        GroundBushSourceRadii[bush.variant] * bush.scale;
-    const int centerCellX = static_cast<int>(
-        std::floor(bush.position.x / GroundRockSpacing));
-    const int centerCellZ = static_cast<int>(
-        std::floor(bush.position.y / GroundRockSpacing));
-    for (int offsetZ = -1; offsetZ <= 1; ++offsetZ) {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-            const auto rock = groundRockPlacement(
-                centerCellX + offsetX,
-                centerCellZ + offsetZ,
-                worldLimit);
-            if (!rock) {
-                continue;
-            }
-            const float rockRadius = 0.58F * rock->scale;
-            const float deltaX =
-                bush.position.x - rock->position.x;
-            const float deltaZ =
-                bush.position.y - rock->position.y;
-            const float clearance = bushRadius + rockRadius + 0.18F;
-            if (deltaX * deltaX + deltaZ * deltaZ <
-                clearance * clearance) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-std::optional<GroundDecorPlacement> groundBushPlacement(
-    int cellX, int cellZ, float worldLimit) {
-    const auto bush = groundBushPlacementRaw(
-        cellX, cellZ, worldLimit);
-    if (!bush || groundBushOverlapsRock(*bush, worldLimit)) {
-        return std::nullopt;
-    }
-    return bush;
-}
-
-float groundDecorClearance(
-    Vector2 position, Vector2 propPosition,
-    float radius, float feather) {
-    const float deltaX = position.x - propPosition.x;
-    const float deltaZ = position.y - propPosition.y;
-    const float distance = std::sqrt(
-        deltaX * deltaX + deltaZ * deltaZ);
-    const float amount = std::clamp(
-        (distance - radius) / std::max(feather, 0.001F),
-        0.0F, 1.0F);
-    return amount * amount * (3.0F - 2.0F * amount);
-}
-
 BoundingBox transformedBoundingBox(
     const BoundingBox& bounds, Matrix transform) {
     BoundingBox result{};
@@ -556,57 +404,6 @@ EnemyAnimationSource enemyAnimationFor(
 }
 
 } // namespace
-
-float Renderer::decorativePropVisibility(
-    Vector2 position, float worldLimit) {
-    float visibility = 1.0F;
-    const int rockCellX = static_cast<int>(
-        std::floor(position.x / GroundRockSpacing));
-    const int rockCellZ = static_cast<int>(
-        std::floor(position.y / GroundRockSpacing));
-    for (int offsetZ = -1; offsetZ <= 1; ++offsetZ) {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-            const auto rock = groundRockPlacement(
-                rockCellX + offsetX,
-                rockCellZ + offsetZ,
-                worldLimit);
-            if (!rock) {
-                continue;
-            }
-            visibility = std::min(
-                visibility,
-                groundDecorClearance(
-                    position, rock->position,
-                    0.58F * rock->scale + 0.08F,
-                    0.32F));
-        }
-    }
-
-    const int bushCellX = static_cast<int>(
-        std::floor(position.x / GroundBushSpacing));
-    const int bushCellZ = static_cast<int>(
-        std::floor(position.y / GroundBushSpacing));
-    for (int offsetZ = -1; offsetZ <= 1; ++offsetZ) {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX) {
-            const auto bush = groundBushPlacement(
-                bushCellX + offsetX,
-                bushCellZ + offsetZ,
-                worldLimit);
-            if (!bush) {
-                continue;
-            }
-            visibility = std::min(
-                visibility,
-                groundDecorClearance(
-                    position, bush->position,
-                    GroundBushSourceRadii[bush->variant] *
-                            bush->scale +
-                        0.10F,
-                    0.38F));
-        }
-    }
-    return visibility;
-}
 
 bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
@@ -1572,16 +1369,11 @@ void Renderer::drawDecorativeRocks(
             if (!resource.valid()) {
                 continue;
             }
-            const float baseScale =
-                BushVariantScales[variant] *
-                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F);
-            if (groundBushOverlapsRock(
-                    {{x, z}, variant, baseScale}, worldLimit)) {
-                continue;
-            }
             const float revealScale = worldRevealScaleAt({x, z});
             const float scale =
-                baseScale * visibility * revealScale;
+                BushVariantScales[variant] *
+                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                visibility * revealScale;
             if (scale <= 0.001F) {
                 continue;
             }
@@ -1693,6 +1485,9 @@ void Renderer::drawDecorativeRockAo(
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
     };
+    constexpr std::array<float, BushVariantCount> BushAoRadii{
+        0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
+    };
     const int minimumBushX = static_cast<int>(std::floor(
         (cameraPosition.x - BushDrawRadius) / BushSpacing));
     const int maximumBushX = static_cast<int>(std::ceil(
@@ -1735,22 +1530,16 @@ void Renderer::drawDecorativeRockAo(
             }
             const std::size_t variant = static_cast<std::size_t>(
                 (hash >> 4U) % BushVariantCount);
-            const float baseScale =
-                BushVariantScales[variant] *
-                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F);
-            if (groundBushOverlapsRock(
-                    {{x, z}, variant, baseScale}, worldLimit)) {
-                continue;
-            }
             const float scale =
-                baseScale * visibility * worldRevealScaleAt({x, z});
+                BushVariantScales[variant] *
+                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                visibility * worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
                 continue;
             }
             const float groundY = static_cast<float>(
                 terrainHeightfield_->getHeight(x, z));
-            const float radius =
-                GroundBushSourceRadii[variant] * scale;
+            const float radius = BushAoRadii[variant] * scale;
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
                 radius, radius * 0.82F, 0.14F);

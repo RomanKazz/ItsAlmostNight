@@ -141,50 +141,6 @@ void App::persistUserSettings(bool force) {
 
 void App::render() {
     const auto snapshot = simulation_.snapshot();
-    propClearAreas_ = grassClearAreas_;
-    propClearAreas_.reserve(
-        grassClearAreas_.size() +
-        snapshot.resourceNodes.size() +
-        snapshot.mapObstacles.size());
-    for (const ResourceNode& node : snapshot.resourceNodes) {
-        if (!node.active) {
-            continue;
-        }
-        float radius =
-            std::max(static_cast<float>(node.radius), 0.45F);
-        radius *= node.type == ResourceType::Wood
-            ? 1.28F * static_cast<float>(node.visualScale)
-            : 1.05F;
-        propClearAreas_.push_back({
-            .center = {
-                static_cast<float>(node.position.x),
-                static_cast<float>(node.position.z),
-            },
-            .innerRadius = radius + 0.16F,
-            .amount = 1.0F,
-        });
-    }
-    for (const MapObstacle& obstacle : snapshot.mapObstacles) {
-        const float halfWidth = static_cast<float>(
-            (obstacle.collision.maxX - obstacle.collision.minX) * 0.5);
-        const float halfDepth = static_cast<float>(
-            (obstacle.collision.maxZ - obstacle.collision.minZ) * 0.5);
-        propClearAreas_.push_back({
-            .center = {
-                static_cast<float>(
-                    (obstacle.collision.minX + obstacle.collision.maxX) *
-                    0.5),
-                static_cast<float>(
-                    (obstacle.collision.minZ + obstacle.collision.maxZ) *
-                    0.5),
-            },
-            .innerRadius =
-                std::sqrt(halfWidth * halfWidth +
-                          halfDepth * halfDepth) +
-                0.12F,
-            .amount = 1.0F,
-        });
-    }
     structuralRiskIds_.clear();
     std::vector<EntityId> structuralRiskRoots;
     const auto addStructuralRiskRoot =
