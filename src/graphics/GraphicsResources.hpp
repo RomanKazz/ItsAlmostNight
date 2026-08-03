@@ -224,6 +224,8 @@ class GraphicsResources {
         std::size_t variant = 0U);
     [[nodiscard]] ModelResource& decorativeRockModel(
         std::size_t variant);
+    [[nodiscard]] ModelResource& decorativeBushModel(
+        std::size_t variant);
     [[nodiscard]] ModelResource& cloudModel(std::size_t variant);
     [[nodiscard]] ModelResource& wallIsolatedModel();
     [[nodiscard]] ModelResource& wallEndModel();
@@ -284,6 +286,7 @@ class GraphicsResources {
     std::array<ModelResource, 3> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;
+    std::array<ModelResource, 6> decorativeBushModels_;
     std::array<ModelResource, 2> cloudModels_;
     ModelResource wallIsolatedModel_;
     ModelResource wallEndModel_;

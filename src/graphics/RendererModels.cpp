@@ -1212,24 +1212,40 @@ void Renderer::drawDecorativeRocks(
         return static_cast<float>(value & 0xffffU) / 65535.0F;
     };
 
+    Shader* decorativeShader = nullptr;
+    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        decorativeShader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ &&
+               resources_.worldShader().valid()) {
+        decorativeShader = &resources_.worldShader().get();
+    }
     for (std::size_t variant = 0; variant < VariantCount; ++variant) {
         ModelResource& resource =
             resources_.decorativeRockModel(variant);
         if (!resource.valid()) {
             continue;
         }
-        Shader* shader = nullptr;
-        if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-            shader = &resources_.shadowShader().get();
-        } else if (worldShaderActive_ &&
-                   resources_.worldShader().valid()) {
-            shader = &resources_.worldShader().get();
-        }
-        if (shader != nullptr) {
+        if (decorativeShader != nullptr) {
             Model& model = resource.get();
             for (int material = 0; material < model.materialCount;
                  ++material) {
-                model.materials[material].shader = *shader;
+                model.materials[material].shader = *decorativeShader;
+            }
+        }
+    }
+    constexpr std::size_t BushVariantCount = 6U;
+    for (std::size_t variant = 0;
+         variant < BushVariantCount; ++variant) {
+        ModelResource& resource =
+            resources_.decorativeBushModel(variant);
+        if (!resource.valid()) {
+            continue;
+        }
+        if (decorativeShader != nullptr) {
+            Model& model = resource.get();
+            for (int material = 0; material < model.materialCount;
+                 ++material) {
+                model.materials[material].shader = *decorativeShader;
             }
         }
     }
@@ -1297,6 +1313,84 @@ void Renderer::drawDecorativeRocks(
                      (1.0F - visibility) * 0.08F,
                  z},
                 {0.0F, 1.0F, 0.0F}, rotation * RAD2DEG,
+                {scale, scale, scale}, WHITE);
+        }
+    }
+
+    constexpr float BushSpacing = 5.8F;
+    constexpr float BushDrawRadius = 36.0F;
+    constexpr std::array<float, BushVariantCount> BushVariantScales{
+        1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
+    };
+    const int minimumBushX = static_cast<int>(std::floor(
+        (cameraPosition.x - BushDrawRadius) / BushSpacing));
+    const int maximumBushX = static_cast<int>(std::ceil(
+        (cameraPosition.x + BushDrawRadius) / BushSpacing));
+    const int minimumBushZ = static_cast<int>(std::floor(
+        (cameraPosition.z - BushDrawRadius) / BushSpacing));
+    const int maximumBushZ = static_cast<int>(std::ceil(
+        (cameraPosition.z + BushDrawRadius) / BushSpacing));
+    for (int cellZ = minimumBushZ;
+         cellZ <= maximumBushZ; ++cellZ) {
+        for (int cellX = minimumBushX;
+             cellX <= maximumBushX; ++cellX) {
+            const std::uint32_t hash =
+                std::rotl(hashCell(cellX, cellZ), 13) ^ 0xb5297a4dU;
+            const float x =
+                (static_cast<float>(cellX) + 0.5F) * BushSpacing +
+                (unitFloat(hash >> 6U) - 0.5F) * BushSpacing * 0.76F;
+            const float z =
+                (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
+                (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
+            const float clusterDensity =
+                decorativeRockClusterDensity(x + 31.0F, z - 23.0F) *
+                0.72F;
+            if (unitFloat(hash) > clusterDensity ||
+                std::abs(x) > worldLimit - 0.9F ||
+                std::abs(z) > worldLimit - 0.9F ||
+                x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            const float cameraX = x - cameraPosition.x;
+            const float cameraZ = z - cameraPosition.z;
+            if (cameraX * cameraX + cameraZ * cameraZ >
+                BushDrawRadius * BushDrawRadius) {
+                continue;
+            }
+            const float visibility = clearAreaVisibility(
+                {x, z}, clearAreas, 2.0F, 0.72F);
+            if (visibility <= 0.01F) {
+                continue;
+            }
+            const std::size_t variant = static_cast<std::size_t>(
+                (hash >> 4U) % BushVariantCount);
+            ModelResource& resource =
+                resources_.decorativeBushModel(variant);
+            if (!resource.valid()) {
+                continue;
+            }
+            const float revealScale = worldRevealScaleAt({x, z});
+            const float scale =
+                BushVariantScales[variant] *
+                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                visibility * revealScale;
+            if (scale <= 0.001F) {
+                continue;
+            }
+            const float terrainHeight =
+                terrainHeightfield_ != nullptr
+                    ? static_cast<float>(
+                          terrainHeightfield_->getHeight(x, z))
+                    : 0.0F;
+            const float rotation =
+                unitFloat(hash ^ 0x1b56c4e9U) * 360.0F;
+            DrawModelEx(
+                resource.get(),
+                {x,
+                 terrainHeight -
+                     (1.0F - visibility) * 0.10F,
+                 z},
+                {0.0F, 1.0F, 0.0F}, rotation,
                 {scale, scale, scale}, WHITE);
         }
     }
@@ -1382,6 +1476,76 @@ void Renderer::drawDecorativeRockAo(
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
                 scale * 0.34F, scale * 0.28F, 0.27F);
+        }
+    }
+
+    constexpr std::size_t BushVariantCount = 6U;
+    constexpr float BushSpacing = 5.8F;
+    constexpr float BushDrawRadius = 36.0F;
+    constexpr std::array<float, BushVariantCount> BushVariantScales{
+        1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
+    };
+    constexpr std::array<float, BushVariantCount> BushAoRadii{
+        0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
+    };
+    const int minimumBushX = static_cast<int>(std::floor(
+        (cameraPosition.x - BushDrawRadius) / BushSpacing));
+    const int maximumBushX = static_cast<int>(std::ceil(
+        (cameraPosition.x + BushDrawRadius) / BushSpacing));
+    const int minimumBushZ = static_cast<int>(std::floor(
+        (cameraPosition.z - BushDrawRadius) / BushSpacing));
+    const int maximumBushZ = static_cast<int>(std::ceil(
+        (cameraPosition.z + BushDrawRadius) / BushSpacing));
+    for (int cellZ = minimumBushZ;
+         cellZ <= maximumBushZ; ++cellZ) {
+        for (int cellX = minimumBushX;
+             cellX <= maximumBushX; ++cellX) {
+            const std::uint32_t hash =
+                std::rotl(hashCell(cellX, cellZ), 13) ^ 0xb5297a4dU;
+            const float x =
+                (static_cast<float>(cellX) + 0.5F) * BushSpacing +
+                (unitFloat(hash >> 6U) - 0.5F) * BushSpacing * 0.76F;
+            const float z =
+                (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
+                (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
+            const float clusterDensity =
+                decorativeRockClusterDensity(x + 31.0F, z - 23.0F) *
+                0.72F;
+            if (unitFloat(hash) > clusterDensity ||
+                std::abs(x) > worldLimit - 0.9F ||
+                std::abs(z) > worldLimit - 0.9F ||
+                x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            const float cameraX = x - cameraPosition.x;
+            const float cameraZ = z - cameraPosition.z;
+            if (cameraX * cameraX + cameraZ * cameraZ >
+                BushDrawRadius * BushDrawRadius) {
+                continue;
+            }
+            const float visibility = clearAreaVisibility(
+                {x, z}, clearAreas, 2.0F, 0.72F);
+            if (visibility <= 0.01F) {
+                continue;
+            }
+            const std::size_t variant = static_cast<std::size_t>(
+                (hash >> 4U) % BushVariantCount);
+            const float scale =
+                BushVariantScales[variant] *
+                (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                visibility * worldRevealScaleAt({x, z});
+            if (scale <= 0.001F) {
+                continue;
+            }
+            const float groundY = static_cast<float>(
+                terrainHeightfield_->getHeight(x, z));
+            const float radius = BushAoRadii[variant] * scale;
+            drawBlobShadow(
+                {x, groundY + 0.018F, z},
+                radius, radius * 0.82F, 0.14F);
+            drawBlobShadow(
+                {x, groundY + 0.02F, z},
+                radius * 0.52F, radius * 0.42F, 0.22F);
         }
     }
 }

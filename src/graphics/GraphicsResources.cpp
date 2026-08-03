@@ -406,6 +406,18 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/decor/rock_small_c.glb");
     decorativeRockModels_[3].load(
         "assets/models/decor/rock_small_d.glb");
+    decorativeBushModels_[0].load(
+        "assets/models/decor/bushes/a.glb");
+    decorativeBushModels_[1].load(
+        "assets/models/decor/bushes/b.glb");
+    decorativeBushModels_[2].load(
+        "assets/models/decor/bushes/c.glb");
+    decorativeBushModels_[3].load(
+        "assets/models/decor/bushes/d.glb");
+    decorativeBushModels_[4].load(
+        "assets/models/decor/bushes/e.glb");
+    decorativeBushModels_[5].load(
+        "assets/models/decor/bushes/f.glb");
     cloudModels_[0].load("assets/models/clouds/small.glb");
     cloudModels_[1].load("assets/models/clouds/big.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");
@@ -566,6 +578,9 @@ void GraphicsResources::shutdown() {
     }
     for (auto& rockModel : decorativeRockModels_) {
         rockModel.unload();
+    }
+    for (auto& bushModel : decorativeBushModels_) {
+        bushModel.unload();
     }
     for (auto& cloudModel : cloudModels_) {
         cloudModel.unload();
@@ -819,6 +834,12 @@ ModelResource& GraphicsResources::decorativeRockModel(
     std::size_t variant) {
     return decorativeRockModels_[
         variant % decorativeRockModels_.size()];
+}
+
+ModelResource& GraphicsResources::decorativeBushModel(
+    std::size_t variant) {
+    return decorativeBushModels_[
+        variant % decorativeBushModels_.size()];
 }
 
 ModelResource& GraphicsResources::cloudModel(std::size_t variant) {
