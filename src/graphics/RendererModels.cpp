@@ -1169,6 +1169,11 @@ bool Renderer::drawRock(Vector3 position, Color tint,
             model.materials[index].shader = *shader;
         }
     }
+    scale *= worldRevealScaleAt(
+        {position.x, position.z});
+    if (scale <= 0.001F) {
+        return true;
+    }
     position.y += RockGroundOffset;
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
                 {RockModelScale * scale, RockModelScale * scale,
@@ -1271,7 +1276,13 @@ void Renderer::drawDecorativeRocks(
             }
             const float baseScale =
                 0.55F + unitFloat(hash ^ 0xa511e9b3U) * 0.45F;
-            const float scale = baseScale * visibility;
+            const float revealScale =
+                worldRevealScaleAt({x, z});
+            if (revealScale <= 0.001F) {
+                continue;
+            }
+            const float scale =
+                baseScale * visibility * revealScale;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
                     ? static_cast<float>(
@@ -1358,7 +1369,11 @@ void Renderer::drawDecorativeRockAo(
             const float scale =
                 (0.55F +
                  unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
-                visibility;
+                visibility *
+                worldRevealScaleAt({x, z});
+            if (scale <= 0.001F) {
+                continue;
+            }
             const float groundY = static_cast<float>(
                 terrainHeightfield_->getHeight(x, z));
             drawBlobShadow(
@@ -1492,6 +1507,39 @@ void Renderer::drawBoundaryForest() {
             continue;
         }
         Model& model = resource.get();
+        const Matrix* transforms =
+            boundaryForestTransforms_[variant].data();
+        int transformCount = static_cast<int>(
+            boundaryForestTransforms_[variant].size());
+        if (worldRevealElapsed_ < 6.0F) {
+            auto& revealTransforms =
+                boundaryForestRevealTransforms_[variant];
+            revealTransforms.clear();
+            revealTransforms.reserve(
+                boundaryForestTransforms_[variant].size());
+            for (const Matrix transform :
+                 boundaryForestTransforms_[variant]) {
+                const float revealScale =
+                    worldRevealScaleAt(
+                        {transform.m12, transform.m14});
+                if (revealScale <= 0.001F) {
+                    continue;
+                }
+                revealTransforms.push_back(
+                    MatrixMultiply(
+                        MatrixScale(
+                            revealScale,
+                            revealScale,
+                            revealScale),
+                        transform));
+            }
+            transforms = revealTransforms.data();
+            transformCount = static_cast<int>(
+                revealTransforms.size());
+            if (transformCount == 0) {
+                continue;
+            }
+        }
         for (int meshIndex = 0; meshIndex < model.meshCount;
              ++meshIndex) {
             const int materialIndex =
@@ -1501,9 +1549,7 @@ void Renderer::drawBoundaryForest() {
             material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
             DrawMeshInstanced(
                 model.meshes[meshIndex], material,
-                boundaryForestTransforms_[variant].data(),
-                static_cast<int>(
-                    boundaryForestTransforms_[variant].size()));
+                transforms, transformCount);
         }
     }
     const int disabled = 0;
@@ -1534,6 +1580,11 @@ bool Renderer::drawTree(Vector3 position, Color tint,
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = *shader;
         }
+    }
+    scale *= worldRevealScaleAt(
+        {position.x, position.z});
+    if (scale <= 0.001F) {
+        return true;
     }
     position.y += static_cast<float>(
         TreeVisualGroundOffsets[

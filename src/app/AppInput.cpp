@@ -107,6 +107,14 @@ void App::processInput() {
         (IsKeyPressed(KEY_ENTER) || pendingStartFromUi_)) {
         pendingStartFromUi_ = false;
         simulation_.startRun();
+        const auto startedSnapshot = simulation_.snapshot();
+        worldRevealOrigin_ = {
+            static_cast<float>(
+                startedSnapshot.playerPosition.x),
+            static_cast<float>(
+                startedSnapshot.playerPosition.z),
+        };
+        worldRevealElapsed_ = 0.0;
         audio_.playUiConfirm();
         fixedStep_.reset();
         statusMessage_.clear();
@@ -193,6 +201,14 @@ void App::processInput() {
     }
     if (snapshot.state != RunState::MainMenu && IsKeyPressed(KEY_R)) {
         simulation_.restartRun();
+        const auto restartedSnapshot = simulation_.snapshot();
+        worldRevealOrigin_ = {
+            static_cast<float>(
+                restartedSnapshot.playerPosition.x),
+            static_cast<float>(
+                restartedSnapshot.playerPosition.z),
+        };
+        worldRevealElapsed_ = 0.0;
         fixedStep_.reset();
         statusMessage_.clear();
         statusMessageRemaining_ = 0.0;

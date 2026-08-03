@@ -25,6 +25,12 @@ void App::update() {
         audio_.playUiConfirm();
     }
     const auto hotbarSnapshot = simulation_.snapshot();
+    if (hotbarSnapshot.state != RunState::MainMenu &&
+        hotbarSnapshot.state != RunState::Paused) {
+        worldRevealElapsed_ = std::min(
+            6.0,
+            worldRevealElapsed_ + frameSeconds);
+    }
     const float hotbarBlend =
         1.0F - std::exp(
                    -14.0F *

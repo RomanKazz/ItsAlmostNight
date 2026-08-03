@@ -270,6 +270,10 @@ class Renderer {
         Vector3 cameraPosition, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
     void drawBoundaryForest();
+    void setWorldReveal(Vector2 origin,
+                        float elapsedSeconds);
+    [[nodiscard]] float worldRevealScaleAt(
+        Vector2 position) const;
     void drawUpgradeEffect(Vector3 position, float progress,
                            float scale = 1.0F);
     [[nodiscard]] bool beginBlobShadowBatch(Vector3 cameraPosition);
@@ -442,7 +446,11 @@ class Renderer {
     bool blobShadowBatchOpen_{};
     std::array<std::vector<Matrix>, 2>
         boundaryForestTransforms_;
+    std::array<std::vector<Matrix>, 2>
+        boundaryForestRevealTransforms_;
     bool boundaryForestCached_{};
+    Vector2 worldRevealOrigin_{};
+    float worldRevealElapsed_{1000.0F};
     std::vector<Transform> enemyAnimationPose_;
     std::vector<Transform*> enemyAnimationFrames_;
     std::array<std::array<std::vector<int>, 2>, 7>

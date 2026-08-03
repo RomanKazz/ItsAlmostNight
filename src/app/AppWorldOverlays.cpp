@@ -250,6 +250,15 @@ void App::drawBlobShadows(
             radius *= node.type == ResourceType::Wood
                 ? 1.28F * static_cast<float>(node.visualScale)
                 : 1.05F;
+            const float revealScale =
+                renderer_->worldRevealScaleAt({
+                    static_cast<float>(node.position.x),
+                    static_cast<float>(node.position.z),
+                });
+            radius *= revealScale;
+            if (radius <= 0.001F) {
+                continue;
+            }
             const float groundY = static_cast<float>(
                 simulation_.terrain().getHeight(
                     node.position.x,

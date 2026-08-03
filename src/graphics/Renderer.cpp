@@ -687,6 +687,10 @@ void Renderer::rebuildTerrain(
     for (auto& transforms : boundaryForestTransforms_) {
         transforms.clear();
     }
+    for (auto& transforms :
+         boundaryForestRevealTransforms_) {
+        transforms.clear();
+    }
     terrainRenderer_.rebuild(terrain);
 }
 
@@ -823,13 +827,20 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             const float visibility = clearAreaVisibility(
                 {x, z}, clearAreas, 2.2F, 0.25F);
             const float clearing = 1.0F - visibility;
-            if (visibility <= 0.08F) {
+            const float revealScale =
+                worldRevealScaleAt({x, z});
+            if (visibility <= 0.08F ||
+                revealScale <= 0.001F) {
                 continue;
             }
             const float horizontalScale =
-                widthScale * (0.62F + visibility * 0.38F);
+                widthScale *
+                (0.62F + visibility * 0.38F) *
+                revealScale;
             const float verticalScale =
-                heightScale * (0.22F + visibility * 0.78F);
+                heightScale *
+                (0.22F + visibility * 0.78F) *
+                revealScale;
             const float sink = clearing * 0.34F;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
@@ -939,6 +950,47 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 static_cast<int>(counts[variant]));
         }
     }
+}
+
+void Renderer::setWorldReveal(
+    Vector2 origin, float elapsedSeconds) {
+    worldRevealOrigin_ = origin;
+    worldRevealElapsed_ = std::max(elapsedSeconds, 0.0F);
+}
+
+float Renderer::worldRevealScaleAt(
+    Vector2 position) const {
+    constexpr float InitialRadius = 6.0F;
+    constexpr float WaveSpeed = 42.0F;
+    constexpr float AnimationDuration = 0.48F;
+    constexpr float BackStrength = 1.15F;
+    constexpr float BackCurve = BackStrength + 1.0F;
+    if (worldRevealElapsed_ >= 6.0F) {
+        return 1.0F;
+    }
+    const float offsetX =
+        position.x - worldRevealOrigin_.x;
+    const float offsetZ =
+        position.y - worldRevealOrigin_.y;
+    const float distance =
+        std::hypot(offsetX, offsetZ);
+    const float jitter =
+        std::sin(position.x * 12.9898F +
+                 position.y * 78.233F) *
+        0.04F;
+    const float arrivalTime = std::max(
+        0.0F,
+        (distance - InitialRadius) / WaveSpeed + jitter);
+    const float progress = std::clamp(
+        (worldRevealElapsed_ - arrivalTime) /
+            AnimationDuration,
+        0.0F, 1.0F);
+    const float shifted = progress - 1.0F;
+    const float scale =
+        1.0F +
+        BackCurve * shifted * shifted * shifted +
+        BackStrength * shifted * shifted;
+    return std::clamp(scale, 0.0F, 1.06F);
 }
 
 float Renderer::clearAreaVisibility(

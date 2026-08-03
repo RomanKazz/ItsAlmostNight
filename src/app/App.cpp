@@ -377,6 +377,9 @@ void App::render() {
             .saturation = environment.saturation,
         };
 
+        renderer_->setWorldReveal(
+            worldRevealOrigin_,
+            static_cast<float>(worldRevealElapsed_));
         drawShadowPass(snapshot, lighting);
         drawSelectionPass(presentationSnapshot, camera);
         renderer_->beginWorldPass(environment.skyHorizon);
