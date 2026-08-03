@@ -682,6 +682,285 @@ void drawBuildHotbar(
         view.buildHotbarSelectionAlpha);
 }
 
+void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot) {
+    const float screenMinimum = static_cast<float>(
+        std::min(GetScreenWidth(), GetScreenHeight()));
+    const float mapSize = std::clamp(
+        screenMinimum * 0.28F, 164.0F, 228.0F);
+    constexpr float PanelPadding = 13.0F;
+    constexpr float HeaderHeight = 30.0F;
+    const float panelWidth = mapSize + PanelPadding * 2.0F;
+    const float panelHeight =
+        mapSize + HeaderHeight + PanelPadding * 2.0F;
+    const float panelX =
+        static_cast<float>(GetScreenWidth()) - panelWidth - 12.0F;
+    constexpr float PanelY = 12.0F;
+    const Rectangle mapBounds{
+        panelX + PanelPadding,
+        PanelY + PanelPadding + HeaderHeight,
+        mapSize, mapSize,
+    };
+    const float worldLimit = std::max(
+        static_cast<float>(snapshot.worldLimit), 1.0F);
+    const float mapScale = mapSize * 0.5F / worldLimit;
+
+    ui.drawPanel(
+        {panelX, PanelY, panelWidth, panelHeight}, 218);
+    drawUiText(
+        snapshot.activeEnemyCount > 0U
+            ? "MAP  •  " +
+                  std::to_string(snapshot.activeEnemyCount) +
+                  " HOSTILES"
+            : "MAP",
+        {panelX + PanelPadding, PanelY + 11.0F},
+        13.0F,
+        snapshot.activeEnemyCount > 0U
+            ? Color{246, 131, 95, 255}
+            : Color{224, 205, 171, 255});
+
+    DrawRectangleRec(mapBounds, {29, 43, 35, 238});
+    DrawRectangleLinesEx(
+        mapBounds, std::max(5.0F, mapSize * 0.045F),
+        {61, 76, 58, 245});
+    const Rectangle playableBounds{
+        mapBounds.x + mapSize * 0.075F,
+        mapBounds.y + mapSize * 0.075F,
+        mapSize * 0.85F,
+        mapSize * 0.85F,
+    };
+    DrawRectangleLinesEx(
+        playableBounds, 1.0F, {116, 135, 91, 95});
+    DrawLineEx(
+        {mapBounds.x + mapSize * 0.5F, mapBounds.y},
+        {mapBounds.x + mapSize * 0.5F,
+         mapBounds.y + mapSize},
+        1.0F, {214, 205, 169, 24});
+    DrawLineEx(
+        {mapBounds.x, mapBounds.y + mapSize * 0.5F},
+        {mapBounds.x + mapSize,
+         mapBounds.y + mapSize * 0.5F},
+        1.0F, {214, 205, 169, 24});
+
+    const auto mapPoint =
+        [mapBounds, mapScale](double worldX, double worldZ) {
+            return Vector2{
+                mapBounds.x + mapBounds.width * 0.5F +
+                    static_cast<float>(worldX) * mapScale,
+                mapBounds.y + mapBounds.height * 0.5F +
+                    static_cast<float>(worldZ) * mapScale,
+            };
+        };
+
+    BeginScissorMode(
+        static_cast<int>(mapBounds.x),
+        static_cast<int>(mapBounds.y),
+        static_cast<int>(mapBounds.width),
+        static_cast<int>(mapBounds.height));
+
+    for (const ResourceNode& resource : snapshot.resourceNodes) {
+        if (!resource.active) {
+            continue;
+        }
+        const Vector2 point = mapPoint(
+            resource.position.x, resource.position.z);
+        DrawCircleV(
+            point, resource.type == ResourceType::Wood ? 1.35F : 1.2F,
+            resource.type == ResourceType::Wood
+                ? Color{91, 143, 75, 125}
+                : Color{143, 149, 145, 135});
+    }
+
+    const double cellSize = std::max(snapshot.worldCellSize, 0.01);
+    const auto modularPoint =
+        [&mapPoint, cellSize](GridCoord anchor,
+                              double widthCells,
+                              double depthCells) {
+            return mapPoint(
+                (static_cast<double>(anchor.x) + widthCells * 0.5) *
+                    cellSize,
+                (static_cast<double>(anchor.z) + depthCells * 0.5) *
+                    cellSize);
+        };
+    for (const PlatformFrameInstance& frame : snapshot.platformFrames) {
+        const Vector2 point = modularPoint(
+            frame.anchor, PlatformFrameWidthCells,
+            PlatformFrameWidthCells);
+        DrawRectangleRec(
+            {point.x - 1.7F, point.y - 1.7F, 3.4F, 3.4F},
+            {164, 144, 111, 185});
+    }
+    for (const WallInstance& wall : snapshot.modularWalls) {
+        const Vector2 point = modularPoint(wall.anchor, 1.0, 1.0);
+        const bool alongX =
+            wall.rotation == Rotation::Deg0 ||
+            wall.rotation == Rotation::Deg180;
+        DrawRectangleRec(
+            {point.x - (alongX ? 2.5F : 0.8F),
+             point.y - (alongX ? 0.8F : 2.5F),
+             alongX ? 5.0F : 1.6F,
+             alongX ? 1.6F : 5.0F},
+            {194, 160, 108, 210});
+    }
+    for (const RampInstance& ramp : snapshot.ramps) {
+        const bool alongZ =
+            ramp.rotation == Rotation::Deg0 ||
+            ramp.rotation == Rotation::Deg180;
+        const Vector2 point = modularPoint(
+            ramp.anchor,
+            alongZ ? ModularRampWidthCells : ModularRampRunCells,
+            alongZ ? ModularRampRunCells : ModularRampWidthCells);
+        DrawCircleV(point, 2.0F, {205, 174, 119, 190});
+    }
+
+    for (const BuildingInstance& building : snapshot.buildings) {
+        const Vec3 position = buildingWorldPosition(building);
+        const Vector2 point = mapPoint(position.x, position.z);
+        switch (building.type) {
+        case BuildingType::Core:
+            DrawPoly(point, 4, 5.5F, 45.0F,
+                     {255, 210, 83, 255});
+            DrawCircleV(point, 1.7F, {255, 245, 188, 255});
+            break;
+        case BuildingType::Turret:
+        case BuildingType::Cannon:
+            DrawCircleV(
+                point,
+                building.type == BuildingType::Cannon ? 3.5F : 3.0F,
+                {238, 182, 89, 245});
+            DrawCircleV(point, 1.1F, {73, 54, 38, 255});
+            break;
+        case BuildingType::Wall:
+        case BuildingType::Gate:
+            DrawRectangleRec(
+                {point.x - 2.5F, point.y - 1.4F, 5.0F, 2.8F},
+                building.type == BuildingType::Gate
+                    ? Color{231, 203, 131, 240}
+                    : Color{188, 142, 86, 230});
+            break;
+        case BuildingType::SlowTrap:
+            DrawRing(point, 2.1F, 3.0F, 0.0F, 360.0F, 12,
+                     {102, 190, 220, 235});
+            break;
+        case BuildingType::GoldMine:
+        case BuildingType::LumberMill:
+        case BuildingType::Quarry: {
+            Color color{120, 209, 218, 240};
+            if (building.type == BuildingType::LumberMill) {
+                color = {112, 184, 91, 240};
+            } else if (building.type == BuildingType::Quarry) {
+                color = {167, 174, 171, 240};
+            }
+            DrawRectangleRec(
+                {point.x - 3.0F, point.y - 3.0F, 6.0F, 6.0F},
+                color);
+            break;
+        }
+        }
+    }
+
+    for (const EnemyInstance& enemy : snapshot.enemies) {
+        if (!enemy.active || enemy.state == EnemyState::Dead) {
+            continue;
+        }
+        const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
+        float radius = 2.25F;
+        Color color{239, 75, 66, 245};
+        if (enemy.type == EnemyType::Fast) {
+            radius = 1.8F;
+        } else if (enemy.type == EnemyType::Heavy) {
+            radius = 2.8F;
+        } else if (enemy.type == EnemyType::Boss) {
+            radius = 4.6F;
+            color = {255, 123, 55, 255};
+        } else if (enemy.type == EnemyType::Flying) {
+            color = {220, 105, 232, 250};
+        }
+        DrawCircleV(point, radius + 1.0F, {51, 16, 17, 210});
+        DrawCircleV(point, radius, color);
+    }
+
+    const Vector2 player = mapPoint(
+        snapshot.playerPosition.x, snapshot.playerPosition.z);
+    const Vector2 direction{
+        static_cast<float>(std::sin(snapshot.playerYaw)),
+        static_cast<float>(-std::cos(snapshot.playerYaw)),
+    };
+    const Vector2 side{-direction.y, direction.x};
+    const Vector2 tip{
+        player.x + direction.x * 7.5F,
+        player.y + direction.y * 7.5F,
+    };
+    const Vector2 left{
+        player.x - direction.x * 4.2F + side.x * 4.2F,
+        player.y - direction.y * 4.2F + side.y * 4.2F,
+    };
+    const Vector2 right{
+        player.x - direction.x * 4.2F - side.x * 4.2F,
+        player.y - direction.y * 4.2F - side.y * 4.2F,
+    };
+    DrawTriangle(tip, left, right, {53, 66, 70, 255});
+    const Vector2 insetTip{
+        player.x + direction.x * 5.8F,
+        player.y + direction.y * 5.8F,
+    };
+    const Vector2 insetLeft{
+        player.x - direction.x * 2.7F + side.x * 2.9F,
+        player.y - direction.y * 2.7F + side.y * 2.9F,
+    };
+    const Vector2 insetRight{
+        player.x - direction.x * 2.7F - side.x * 2.9F,
+        player.y - direction.y * 2.7F - side.y * 2.9F,
+    };
+    DrawTriangle(
+        insetTip, insetLeft, insetRight,
+        snapshot.playerRespawning
+            ? Color{143, 160, 160, 220}
+            : Color{107, 231, 223, 255});
+
+    if (snapshot.upcomingAttackDirection) {
+        Vector2 marker{
+            mapBounds.x + mapBounds.width * 0.5F,
+            mapBounds.y + mapBounds.height * 0.5F,
+        };
+        Vector2 inward{};
+        switch (*snapshot.upcomingAttackDirection) {
+        case AttackDirection::North:
+            marker.y = mapBounds.y + 5.0F;
+            inward.y = 1.0F;
+            break;
+        case AttackDirection::East:
+            marker.x = mapBounds.x + mapBounds.width - 5.0F;
+            inward.x = -1.0F;
+            break;
+        case AttackDirection::South:
+            marker.y = mapBounds.y + mapBounds.height - 5.0F;
+            inward.y = -1.0F;
+            break;
+        case AttackDirection::West:
+            marker.x = mapBounds.x + 5.0F;
+            inward.x = 1.0F;
+            break;
+        }
+        const Vector2 perpendicular{-inward.y, inward.x};
+        DrawTriangle(
+            {marker.x + inward.x * 7.0F,
+             marker.y + inward.y * 7.0F},
+            {marker.x - inward.x * 3.0F + perpendicular.x * 4.5F,
+             marker.y - inward.y * 3.0F + perpendicular.y * 4.5F},
+            {marker.x - inward.x * 3.0F - perpendicular.x * 4.5F,
+             marker.y - inward.y * 3.0F - perpendicular.y * 4.5F},
+            {255, 103, 64, 245});
+    }
+
+    EndScissorMode();
+    DrawRectangleLinesEx(mapBounds, 2.0F, {196, 172, 126, 230});
+    drawUiText(
+        "N",
+        {mapBounds.x + mapBounds.width * 0.5F - 5.0F,
+         mapBounds.y + 4.0F},
+        11.0F, {236, 217, 177, 220});
+}
+
 } // namespace
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
@@ -729,6 +1008,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     drawResourcePulse(
         {271.0F, 17.0F, 134.0F, 58.0F},
         view.goldResourcePulse);
+
+    drawMinimap(ui, snapshot);
 
     ui.drawPanel({12.0F, 90.0F, 314.0F, 158.0F}, 216);
     const double healthFraction =
