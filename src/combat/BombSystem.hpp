@@ -14,6 +14,7 @@ struct BombProjectile {
     Vec3 position;
     Vec3 velocity;
     double fuseRemaining{};
+    double fuseDuration{};
     bool active{};
 };
 

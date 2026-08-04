@@ -50,6 +50,7 @@ bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
         direction.z * definition_.throwSpeed,
     };
     projectile->fuseRemaining = definition_.fuseDuration;
+    projectile->fuseDuration = definition_.fuseDuration;
     projectile->active = true;
     --remainingBombs_;
     return true;
@@ -71,6 +72,8 @@ std::span<const BombExplosion> BombSystem::tick(double deltaSeconds, EnemySystem
             projectile.position.y = definition_.groundHeight;
             if (projectile.velocity.y < 0.0) {
                 projectile.velocity.y = -projectile.velocity.y * 0.35;
+                projectile.velocity.x *= 0.28;
+                projectile.velocity.z *= 0.28;
             }
         }
         if (projectile.fuseRemaining <= 0.0) {

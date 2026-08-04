@@ -16,8 +16,8 @@
     "throwSpeed": 6.0,
     "upwardSpeed": 4.0,
     "gravity": 9.8,
-    "fuseDuration": 1.2,
-    "groundHeight": 0.2,
+    "fuseDuration": 2.2,
+    "groundHeight": 0.28,
     "explosionRadius": 4.0,
     "explosionDamage": 6.0,
     "knockbackStrength": 8.0

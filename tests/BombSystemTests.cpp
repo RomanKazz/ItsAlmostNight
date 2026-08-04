@@ -27,7 +27,7 @@ void runBombSystemTests() {
         "bomb reset never aliases a previous run projectile ID");
 
     bool exploded = false;
-    for (int tick = 0; tick < 120 && !exploded; ++tick) {
+    for (int tick = 0; tick < 180 && !exploded; ++tick) {
         const auto explosions = bombs.tick(1.0 / 60.0, enemies);
         if (!explosions.empty()) {
             exploded = true;

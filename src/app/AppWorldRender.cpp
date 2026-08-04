@@ -483,16 +483,17 @@ void App::drawWorldEntities(
                 static_cast<float>(projectile.position.y),
                 static_cast<float>(projectile.position.z),
             };
-            DrawSphereEx(position, 0.17F, 7, 7, {43, 47, 52, 255});
-            DrawSphereWires(position, 0.174F, 7, 7, {112, 103, 88, 255});
+            DrawSphereEx(position, 0.255F, 8, 8, {43, 47, 52, 255});
             if (renderer_->settings().particles) {
                 const float time = static_cast<float>(GetTime());
                 const float urgency = 1.0F - std::clamp(
-                    static_cast<float>(projectile.fuseRemaining / 1.2), 0.0F, 1.0F);
+                    static_cast<float>(projectile.fuseRemaining /
+                                       std::max(projectile.fuseDuration, 0.01)),
+                    0.0F, 1.0F);
                 const float blink = 0.55F + 0.45F * std::sin(
                     time * (10.0F + urgency * 28.0F) +
                     static_cast<float>(projectile.id.index));
-                const Vector3 fuse{position.x, position.y + 0.19F, position.z};
+                const Vector3 fuse{position.x, position.y + 0.285F, position.z};
                 BeginBlendMode(BLEND_ADDITIVE);
                 DrawSphereEx(fuse, 0.045F + urgency * 0.025F, 5, 5,
                              {255, 238, 164,
