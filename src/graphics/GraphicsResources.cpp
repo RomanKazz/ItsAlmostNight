@@ -420,6 +420,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/decor/bushes/e.glb");
     decorativeBushModels_[5].load(
         "assets/models/decor/bushes/f.glb");
+    testWaterPlantModel_.load(
+        "assets/models/debug/waterplant_c/waterplant_C.gltf");
     cloudModels_[0].load("assets/models/clouds/small.glb");
     cloudModels_[1].load("assets/models/clouds/big.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");
@@ -584,6 +586,7 @@ void GraphicsResources::shutdown() {
     for (auto& bushModel : decorativeBushModels_) {
         bushModel.unload();
     }
+    testWaterPlantModel_.unload();
     for (auto& cloudModel : cloudModels_) {
         cloudModel.unload();
     }
@@ -851,6 +854,10 @@ ModelResource& GraphicsResources::decorativeBushModel(
     std::size_t variant) {
     return decorativeBushModels_[
         variant % decorativeBushModels_.size()];
+}
+
+ModelResource& GraphicsResources::testWaterPlantModel() {
+    return testWaterPlantModel_;
 }
 
 ModelResource& GraphicsResources::cloudModel(std::size_t variant) {

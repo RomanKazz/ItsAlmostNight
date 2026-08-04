@@ -432,6 +432,16 @@ void App::render() {
             showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
+        WorldMaterialState testWaterPlantMaterial{};
+        testWaterPlantMaterial.bakedAo = 0.82F;
+        testWaterPlantMaterial.windAmount = 0.18F;
+        renderer_->setWorldMaterial(testWaterPlantMaterial);
+        static_cast<void>(renderer_->drawTestWaterPlant({
+            0.0F,
+            static_cast<float>(
+                simulation_.terrain().getHeight(0.0, 9.0)),
+            9.0F,
+        }));
         WorldMaterialState pondDecorMaterial{};
         pondDecorMaterial.bakedAo = 0.82F;
         pondDecorMaterial.windAmount = 0.18F;

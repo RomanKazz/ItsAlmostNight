@@ -202,6 +202,7 @@ class Renderer {
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
     void drawPondDecor();
+    [[nodiscard]] bool drawTestWaterPlant(Vector3 position);
     void drawWater(Vector3 cameraPosition,
                    const WorldLighting& lighting);
     [[nodiscard]] std::optional<double>

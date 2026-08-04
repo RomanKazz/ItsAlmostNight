@@ -1035,6 +1035,25 @@ void Renderer::drawPondDecor() {
     terrainRenderer_.drawPondDecor(shader);
 }
 
+bool Renderer::drawTestWaterPlant(Vector3 position) {
+    ModelResource& resource = resources_.testWaterPlantModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    if (worldShaderActive_ && resources_.worldShader().valid()) {
+        Shader& shader = resources_.worldShader().get();
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = shader;
+        }
+    }
+    constexpr float Scale = 7.0F;
+    position.y += 0.0195855F * Scale;
+    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
+                0.0F, {Scale, Scale, Scale}, WHITE);
+    return true;
+}
+
 void Renderer::drawWater(
     Vector3 cameraPosition, const WorldLighting& lighting) {
     if (terrainHeightfield_ == nullptr ||
