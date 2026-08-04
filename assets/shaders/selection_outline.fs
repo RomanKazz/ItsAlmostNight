@@ -17,30 +17,26 @@ void main()
         discard;
     }
 
+    const vec2 directions[8] = vec2[](
+        vec2( 1.0,  0.0), vec2(-1.0,  0.0),
+        vec2( 0.0,  1.0), vec2( 0.0, -1.0),
+        vec2( 0.7071,  0.7071), vec2(-0.7071,  0.7071),
+        vec2( 0.7071, -0.7071), vec2(-0.7071, -0.7071)
+    );
     float outsideMask = 0.0;
-    const int maximumRadius = 6;
-    for (int offsetY = -maximumRadius;
-         offsetY <= maximumRadius; ++offsetY)
+    float outerRadius = float(outlineRadius);
+    float innerRadius = max(1.0, outerRadius*0.5);
+    for (int index = 0; index < 8; ++index)
     {
-        for (int offsetX = -maximumRadius;
-             offsetX <= maximumRadius; ++offsetX)
-        {
-            if (offsetX*offsetX + offsetY*offsetY >
-                outlineRadius*outlineRadius)
-            {
-                continue;
-            }
-            vec2 offset = vec2(float(offsetX), float(offsetY))*texelSize;
-            vec2 sampleUv = fragTexCoord + offset;
-            if (any(lessThan(sampleUv, vec2(0.0))) ||
-                any(greaterThan(sampleUv, vec2(1.0))))
-            {
-                continue;
-            }
-            outsideMask = max(
-                outsideMask,
-                texture(texture0, sampleUv).r);
-        }
+        vec2 direction = directions[index]*texelSize;
+        outsideMask = max(
+            outsideMask,
+            texture(texture0,
+                    fragTexCoord + direction*outerRadius).r);
+        outsideMask = max(
+            outsideMask,
+            texture(texture0,
+                    fragTexCoord + direction*innerRadius).r);
     }
 
     float alpha = smoothstep(0.02, 0.22, outsideMask);

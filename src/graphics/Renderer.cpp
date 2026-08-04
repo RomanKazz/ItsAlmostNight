@@ -695,6 +695,7 @@ bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
     BeginTextureMode(resources_.selectionMask());
     ClearBackground(BLANK);
     BeginMode3D(camera);
+    selectionMaskCamera_ = camera;
     BeginShaderMode(resources_.selectionMaskShader().get());
     const float timeSeconds = static_cast<float>(GetTime());
     constexpr float NoWind = 0.0F;
@@ -706,6 +707,67 @@ bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
                    SHADER_UNIFORM_FLOAT);
     selectionMaskPassOpen_ = true;
     return true;
+}
+
+void Renderer::setSelectionOutlineBounds(
+    BoundingBox worldBounds) {
+    if (!selectionMaskPassOpen_ ||
+        !resources_.selectionMaskValid()) {
+        return;
+    }
+    const auto& target = resources_.selectionMask();
+    const int width = std::max(target.texture.width, 1);
+    const int height = std::max(target.texture.height, 1);
+    const std::array<Vector3, 8> corners{{
+        {worldBounds.min.x, worldBounds.min.y, worldBounds.min.z},
+        {worldBounds.max.x, worldBounds.min.y, worldBounds.min.z},
+        {worldBounds.min.x, worldBounds.max.y, worldBounds.min.z},
+        {worldBounds.max.x, worldBounds.max.y, worldBounds.min.z},
+        {worldBounds.min.x, worldBounds.min.y, worldBounds.max.z},
+        {worldBounds.max.x, worldBounds.min.y, worldBounds.max.z},
+        {worldBounds.min.x, worldBounds.max.y, worldBounds.max.z},
+        {worldBounds.max.x, worldBounds.max.y, worldBounds.max.z},
+    }};
+    const Vector3 cameraForward = Vector3Normalize(Vector3Subtract(
+        selectionMaskCamera_.target,
+        selectionMaskCamera_.position));
+    for (const Vector3 corner : corners) {
+        if (Vector3DotProduct(
+                Vector3Subtract(
+                    corner, selectionMaskCamera_.position),
+                cameraForward) <= 0.01F) {
+            selectionOutlineBounds_.reset();
+            return;
+        }
+    }
+    float minimumX = static_cast<float>(width);
+    float minimumY = static_cast<float>(height);
+    float maximumX = 0.0F;
+    float maximumY = 0.0F;
+    for (const Vector3 corner : corners) {
+        const Vector2 screen = GetWorldToScreenEx(
+            corner, selectionMaskCamera_, width, height);
+        minimumX = std::min(minimumX, screen.x);
+        minimumY = std::min(minimumY, screen.y);
+        maximumX = std::max(maximumX, screen.x);
+        maximumY = std::max(maximumY, screen.y);
+    }
+    constexpr float Padding = 10.0F;
+    minimumX = std::clamp(minimumX - Padding, 0.0F,
+                          static_cast<float>(width));
+    minimumY = std::clamp(minimumY - Padding, 0.0F,
+                          static_cast<float>(height));
+    maximumX = std::clamp(maximumX + Padding, 0.0F,
+                          static_cast<float>(width));
+    maximumY = std::clamp(maximumY + Padding, 0.0F,
+                          static_cast<float>(height));
+    if (maximumX > minimumX && maximumY > minimumY) {
+        selectionOutlineBounds_ = {
+            minimumX, minimumY,
+            maximumX - minimumX,
+            maximumY - minimumY,
+        };
+    }
 }
 
 void Renderer::setSelectionMaskWind(float amount) {
@@ -732,6 +794,7 @@ void Renderer::endSelectionMaskPass() {
 
 void Renderer::clearSelectionOutline() {
     selectionMaskReady_ = false;
+    selectionOutlineBounds_.reset();
 }
 
 void Renderer::drawSelectionOutline() {
@@ -781,6 +844,14 @@ void Renderer::drawSelectionOutline() {
             : static_cast<float>(GetScreenHeight()),
     };
     BeginBlendMode(BLEND_ALPHA);
+    if (selectionOutlineBounds_) {
+        const Rectangle bounds = *selectionOutlineBounds_;
+        BeginScissorMode(
+            static_cast<int>(std::floor(bounds.x)),
+            static_cast<int>(std::floor(bounds.y)),
+            std::max(1, static_cast<int>(std::ceil(bounds.width))),
+            std::max(1, static_cast<int>(std::ceil(bounds.height))));
+    }
     BeginShaderMode(shader);
     const auto brightness =
         static_cast<unsigned char>(
@@ -792,6 +863,9 @@ void Renderer::drawSelectionOutline() {
                    {0.0F, 0.0F}, 0.0F,
                    {brightness, brightness, brightness, alpha});
     EndShaderMode();
+    if (selectionOutlineBounds_) {
+        EndScissorMode();
+    }
     EndBlendMode();
 }
 

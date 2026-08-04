@@ -184,6 +184,7 @@ class Renderer {
     void endShadowPass();
     [[nodiscard]] bool beginSelectionMaskPass(const Camera3D& camera);
     void setSelectionMaskWind(float amount);
+    void setSelectionOutlineBounds(BoundingBox worldBounds);
     void endSelectionMaskPass();
     void clearSelectionOutline();
     void drawSelectionOutline();
@@ -460,6 +461,8 @@ class Renderer {
     Matrix lightViewProjection_{};
     Vector3 shadowFocus_{};
     Vector3 blobShadowCamera_{};
+    Camera3D selectionMaskCamera_{};
+    std::optional<Rectangle> selectionOutlineBounds_;
     bool showDebugPanel_{};
     bool showShadowMap_{};
     bool frameOpen_{};

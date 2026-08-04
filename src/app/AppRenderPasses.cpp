@@ -368,12 +368,35 @@ void App::drawSelectionPass(
                         resource->position.z +
                         hitOffset.z),
                 };
+                const float hitScale =
+                    presentation::resourceHitScale(
+                        effects_, resource->id);
+                const float visualScale =
+                    hitScale * static_cast<float>(
+                        resource->visualScale);
+                if (resource->type == ResourceType::Wood) {
+                    const float radius = 2.8F * visualScale;
+                    renderer_->setSelectionOutlineBounds({
+                        {resourcePosition.x - radius,
+                         resourcePosition.y - 0.25F,
+                         resourcePosition.z - radius},
+                        {resourcePosition.x + radius,
+                         resourcePosition.y + 6.0F * visualScale,
+                         resourcePosition.z + radius},
+                    });
+                } else {
+                    const float radius = 1.8F * hitScale;
+                    renderer_->setSelectionOutlineBounds({
+                        {resourcePosition.x - radius,
+                         resourcePosition.y - 0.25F,
+                         resourcePosition.z - radius},
+                        {resourcePosition.x + radius,
+                         resourcePosition.y + 2.5F * hitScale,
+                         resourcePosition.z + radius},
+                    });
+                }
                 if (resource->type == ResourceType::Wood) {
                     renderer_->setSelectionMaskWind(1.0F);
-                    const float hitScale =
-                        presentation::resourceHitScale(
-                            effects_,
-                            resource->id);
                     if (!renderer_->drawTree(
                             resourcePosition,
                             WHITE,
@@ -398,9 +421,7 @@ void App::drawSelectionPass(
                 } else if (!renderer_->drawRock(
                                resourcePosition,
                                WHITE,
-                               presentation::resourceHitScale(
-                                   effects_,
-                                   resource->id))) {
+                               hitScale)) {
                     DrawSphere(resourcePosition, 0.9F, WHITE);
                 }
             }
@@ -438,6 +459,16 @@ void App::drawSelectionPass(
                     static_cast<float>(center.y);
                 const float spawnScale =
                     buildingAnimationScaleAt(center);
+                const float boundsRadius =
+                    3.2F * std::max(spawnScale, 0.25F);
+                renderer_->setSelectionOutlineBounds({
+                    {x - boundsRadius, groundY - 0.25F,
+                     z - boundsRadius},
+                    {x + boundsRadius,
+                     groundY + 4.5F *
+                         std::max(spawnScale, 0.25F),
+                     z + boundsRadius},
+                });
                 if (building->type == BuildingType::Core) {
                     constexpr float QuarterTurn = PI * 0.5F;
                     if (!renderer_->drawCore(
@@ -572,6 +603,17 @@ void App::drawSelectionPass(
                     simulation_.terrain().getHeight(
                         enemy->position.x,
                         enemy->position.z));
+                const float scale =
+                    enemyVisualScale(enemy->type);
+                const float boundsRadius = 2.4F * scale;
+                renderer_->setSelectionOutlineBounds({
+                    {enemyPosition.x - boundsRadius,
+                     enemyPosition.y - 0.35F,
+                     enemyPosition.z - boundsRadius},
+                    {enemyPosition.x + boundsRadius,
+                     enemyPosition.y + 4.8F * scale,
+                     enemyPosition.z + boundsRadius},
+                });
                 static_cast<void>(renderer_->drawEnemy(
                     enemyModelVisual(enemy->type),
                     enemyAnimationVisual(*enemy),
@@ -579,7 +621,7 @@ void App::drawSelectionPass(
                         *enemy, snapshot.elapsedSeconds),
                     enemyPosition,
                     static_cast<float>(enemy->yaw), WHITE,
-                    enemyVisualScale(enemy->type)));
+                    scale));
             }
         } else if (
             !foundationBuildMode_ &&
