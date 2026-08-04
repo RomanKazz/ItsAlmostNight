@@ -40,12 +40,10 @@ Color branchColor(SkillBranch branch) {
     switch (branch) {
     case SkillBranch::Construction:
         return {235, 173, 83, 255};
-    case SkillBranch::Defenses:
+    case SkillBranch::Gathering:
         return {102, 198, 142, 255};
     case SkillBranch::Weapons:
         return {224, 104, 92, 255};
-    case SkillBranch::Survival:
-        return {116, 177, 225, 255};
     case SkillBranch::Root:
         return {199, 145, 240, 255};
     }
@@ -95,21 +93,21 @@ void drawWrappedText(std::string_view text, Vector2 position,
 
 } // namespace
 
-SkillTreeScreen::SkillTreeScreen()
-    : reveal_(tree_.nodes().size(), 0.0F),
-      revealDelay_(tree_.nodes().size(), 0.0F),
-      pulse_(tree_.nodes().size(), 0.0F) {}
+SkillTreeScreen::SkillTreeScreen(const SkillTree& tree)
+    : tree_(&tree), reveal_(tree.nodes().size(), 0.0F),
+      revealDelay_(tree.nodes().size(), 0.0F),
+      pulse_(tree.nodes().size(), 0.0F) {}
 
 void SkillTreeScreen::open() {
     open_ = true;
     opening_ = 0.0F;
-    for (std::size_t index = 0; index < tree_.nodes().size(); ++index) {
-        if (tree_.state(index) != SkillNodeState::Hidden) {
+    for (std::size_t index = 0; index < tree_->nodes().size(); ++index) {
+        if (tree_->state(index) != SkillNodeState::Hidden) {
             reveal_[index] = 1.0F;
         }
     }
     if (!selected_) {
-        selected_ = tree_.indexOf("core");
+        selected_ = tree_->indexOf("bare_hands");
     }
 }
 
@@ -117,15 +115,16 @@ void SkillTreeScreen::close() {
     open_ = false;
     dragging_ = false;
     hovered_.reset();
+    confirmation_.reset();
 }
 
 bool SkillTreeScreen::isOpen() const {
     return open_;
 }
 
-bool SkillTreeScreen::update(float deltaSeconds) {
+std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
     if (!open_) {
-        return false;
+        return std::nullopt;
     }
     deltaSeconds = std::clamp(deltaSeconds, 0.0F, 0.1F);
     opening_ += (1.0F - opening_) *
@@ -167,27 +166,21 @@ bool SkillTreeScreen::update(float deltaSeconds) {
         }
     }
 
-    bool unlocked = false;
+    std::optional<std::size_t> purchase;
     if (!dragging_ && hovered_ &&
         IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         selected_ = hovered_;
-        if (tree_.unlock(*hovered_)) {
-            unlocked = true;
-            pulse_[*hovered_] = 1.0F;
-            const auto children = tree_.childrenOf(
-                tree_.nodes()[*hovered_].id);
-            float delay = 0.04F;
-            for (const std::size_t child : children) {
-                reveal_[child] = 0.0F;
-                revealDelay_[child] = delay;
-                delay += 0.1F;
-            }
+        if (tree_->state(*hovered_) == SkillNodeState::Available) {
+            if (confirmation_ == hovered_) purchase = hovered_;
+            else confirmation_ = hovered_;
+        } else {
+            confirmation_.reset();
         }
     }
 
     for (std::size_t index = 0; index < reveal_.size(); ++index) {
         const bool visible =
-            tree_.state(index) != SkillNodeState::Hidden;
+            tree_->state(index) != SkillNodeState::Hidden;
         if (revealDelay_[index] > 0.0F) {
             revealDelay_[index] = std::max(
                 0.0F, revealDelay_[index] - deltaSeconds);
@@ -199,7 +192,7 @@ bool SkillTreeScreen::update(float deltaSeconds) {
         pulse_[index] = std::max(
             0.0F, pulse_[index] - deltaSeconds * 1.25F);
     }
-    return unlocked;
+    return purchase;
 }
 
 void SkillTreeScreen::draw(const GameUi& ui) const {
@@ -220,7 +213,7 @@ void SkillTreeScreen::draw(const GameUi& ui) const {
         "TREE OF KNOWLEDGE", 25.0F, 34.0F,
         withAlpha({238, 225, 190, 255}, alpha));
     drawCenteredUiText(
-        "PROGRESSION FRAMEWORK  •  NO GAMEPLAY EFFECTS YET",
+        ("SKILL POINTS  " + std::to_string(tree_->points())).c_str(),
         68.0F, 14.0F,
         withAlpha({151, 181, 157, 255}, 0.9F * alpha));
 
@@ -241,7 +234,7 @@ void SkillTreeScreen::draw(const GameUi& ui) const {
 }
 
 const SkillTree& SkillTreeScreen::tree() const {
-    return tree_;
+    return *tree_;
 }
 
 Vector2 SkillTreeScreen::worldToScreen(SkillTreePoint point) const {
@@ -257,18 +250,18 @@ Vector2 SkillTreeScreen::worldToScreen(SkillTreePoint point) const {
 
 std::optional<std::size_t> SkillTreeScreen::nodeAt(
     Vector2 screenPosition) const {
-    for (std::size_t reverse = tree_.nodes().size(); reverse > 0; --reverse) {
+    for (std::size_t reverse = tree_->nodes().size(); reverse > 0; --reverse) {
         const std::size_t index = reverse - 1;
         if (reveal_[index] < 0.25F ||
-            tree_.state(index) == SkillNodeState::Hidden) {
+            tree_->state(index) == SkillNodeState::Hidden) {
             continue;
         }
         const float halfSize =
-            (tree_.nodes()[index].branch == SkillBranch::Root
+            (tree_->nodes()[index].branch == SkillBranch::Root
                  ? RootNodeHalfSize
                  : NodeHalfSize) *
             zoom_;
-        const Vector2 center = worldToScreen(tree_.nodes()[index].position);
+        const Vector2 center = worldToScreen(tree_->nodes()[index].position);
         if (CheckCollisionPointRec(
                 screenPosition,
                 {center.x - halfSize, center.y - halfSize,
@@ -280,23 +273,23 @@ std::optional<std::size_t> SkillTreeScreen::nodeAt(
 }
 
 void SkillTreeScreen::drawConnections() const {
-    for (std::size_t child = 0; child < tree_.nodes().size(); ++child) {
+    for (std::size_t child = 0; child < tree_->nodes().size(); ++child) {
         if (reveal_[child] <= 0.01F) {
             continue;
         }
-        const auto& node = tree_.nodes()[child];
+        const auto& node = tree_->nodes()[child];
         for (const std::string& prerequisite : node.prerequisites) {
-            const auto parent = tree_.indexOf(prerequisite);
+            const auto parent = tree_->indexOf(prerequisite);
             if (!parent) {
                 continue;
             }
             const Vector2 start = worldToScreen(
-                tree_.nodes()[*parent].position);
+                tree_->nodes()[*parent].position);
             const Vector2 end = worldToScreen(node.position);
             const float progress = smoothStep(reveal_[child]);
             const bool active =
-                tree_.state(child) == SkillNodeState::Unlocked ||
-                tree_.state(child) == SkillNodeState::Available;
+                tree_->state(child) == SkillNodeState::Unlocked ||
+                tree_->state(child) == SkillNodeState::Available;
             drawGrowingCurve(
                 start, end, progress, 7.0F * zoom_,
                 withAlpha({13, 10, 11, 255}, 0.92F));
@@ -312,13 +305,13 @@ void SkillTreeScreen::drawConnections() const {
 
 void SkillTreeScreen::drawNodes() const {
     const double time = GetTime();
-    for (std::size_t index = 0; index < tree_.nodes().size(); ++index) {
+    for (std::size_t index = 0; index < tree_->nodes().size(); ++index) {
         if (reveal_[index] <= 0.01F ||
-            tree_.state(index) == SkillNodeState::Hidden) {
+            tree_->state(index) == SkillNodeState::Hidden) {
             continue;
         }
-        const auto& node = tree_.nodes()[index];
-        const SkillNodeState state = tree_.state(index);
+        const auto& node = tree_->nodes()[index];
+        const SkillNodeState state = tree_->state(index);
         const Vector2 center = worldToScreen(node.position);
         const float baseHalfSize = node.branch == SkillBranch::Root
                                        ? RootNodeHalfSize
@@ -406,11 +399,12 @@ void SkillTreeScreen::drawNodes() const {
 }
 
 void SkillTreeScreen::drawDetails(const GameUi& ui) const {
-    if (!selected_ || *selected_ >= tree_.nodes().size()) {
+    const std::optional<std::size_t> details = hovered_ ? hovered_ : selected_;
+    if (!details || *details >= tree_->nodes().size()) {
         return;
     }
-    const auto& node = tree_.nodes()[*selected_];
-    const SkillNodeState state = tree_.state(*selected_);
+    const auto& node = tree_->nodes()[*details];
+    const SkillNodeState state = tree_->state(*details);
     constexpr float Width = 332.0F;
     constexpr float Height = 198.0F;
     const Rectangle bounds{
@@ -436,11 +430,13 @@ void SkillTreeScreen::drawDetails(const GameUi& ui) const {
     std::string status;
     Color statusColor{145, 151, 148, 255};
     if (state == SkillNodeState::Unlocked) {
-        status = "UNLOCKED  •  PLACEHOLDER";
+        status = "UNLOCKED  •  " + node.icon;
         statusColor = branchColor(node.branch);
     } else if (state == SkillNodeState::Available) {
-        status = "CLICK TO DISCOVER  •  COST " +
-                 std::to_string(node.cost);
+        status = confirmation_ == details
+            ? "CLICK AGAIN TO CONFIRM  •  COST " + std::to_string(node.cost)
+            : "CLICK TO BUY  •  COST " + std::to_string(node.cost);
+        if (tree_->points() < node.cost) status += "  •  NOT ENOUGH POINTS";
         statusColor = {236, 205, 120, 255};
     } else {
         status = "LOCKED  •  DISCOVER PREVIOUS LEAVES";

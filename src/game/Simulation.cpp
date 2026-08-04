@@ -131,7 +131,8 @@ Vec3 Simulation::lookDirection(double yaw, double pitch) {
 
 Simulation::Simulation(
     GameBalance balance, MapDefinition map,
-    WorldConfig worldConfig)
+    WorldConfig worldConfig,
+    std::vector<SkillNodeDefinition> skills)
     : map_(constrainMapToPlayableTerrain(
           std::move(map), worldConfig)),
       worldConfig_(worldConfig),
@@ -182,7 +183,8 @@ Simulation::Simulation(
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
       flowField_(mapCollisionBoxes(map_), &terrain_),
       enemies_(balance.enemies),
-      playerWeapons_(balance.weapons.rifle), bombs_(balance.weapons.bomb),
+      playerWeapons_(balance.weapons.rifle), skillTree_(std::move(skills)),
+      bombs_(balance.weapons.bomb),
       goldMines_(balance.economy),
       waveDirector_(balance.waves, map_.enemySpawnAnchors),
       economy_(balance.economy), gameplay_(balance.gameplay) {
@@ -270,6 +272,11 @@ void Simulation::resetRun(GameEventType eventType) {
     cannons_.reset();
     traps_.reset();
     playerWeapons_.reset();
+    skillTree_.reset();
+    bareHandsWoodGathered_ = 0;
+    bareHandsStoneGathered_ = 0;
+    introSkillObjectiveCompleted_ = false;
+    activeFortifications_.clear();
     bombs_.reset();
     goldMines_.reset();
     phaseTimeRemaining_ = 0.0;
@@ -281,6 +288,7 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
     upcomingAttackDirection_.reset();
+    currentWaveHasBoss_ = false;
     modularTargetBuffer_.clear();
     events_.clear();
     events_.push_back({.type = eventType});
@@ -308,6 +316,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     }
 
     updatePlayerRespawn(deltaSeconds);
+    updateFortifications(deltaSeconds);
     updatePlayer(
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
@@ -1193,14 +1202,22 @@ void Simulation::updatePlayerActions(
         aimedModularBuilding_ =
             command.aimedModularBuildingOverride;
     }
-    aimedResource_ = playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe
-                         ? resources_.raycast(
-                               playerPosition_, direction,
-                               gameplay_.resourceGatherRange)
-                         : std::nullopt;
-    if (command.overrideAimedResource &&
-        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe) {
+    const PlayerWeapon heldTool = playerWeapons_.selectedWeapon();
+    const bool canGather = heldTool == PlayerWeapon::BareHands ||
+                           heldTool == PlayerWeapon::Axe ||
+                           heldTool == PlayerWeapon::Pickaxe;
+    aimedResource_ = canGather
+        ? resources_.raycast(playerPosition_, direction, gameplay_.resourceGatherRange)
+        : std::nullopt;
+    if (command.overrideAimedResource && canGather) {
         aimedResource_ = command.aimedResourceOverride;
+    }
+    if (aimedResource_ && heldTool != PlayerWeapon::BareHands) {
+        const auto node = std::ranges::find(resources_.nodes(), *aimedResource_, &ResourceNode::id);
+        const bool matching = node != resources_.nodes().end() &&
+            ((heldTool == PlayerWeapon::Axe && node->type == ResourceType::Wood) ||
+             (heldTool == PlayerWeapon::Pickaxe && node->type == ResourceType::Stone));
+        if (!matching) aimedResource_.reset();
     }
     const double enemyAimRange = playerWeapons_.selectedWeapon() == PlayerWeapon::Rifle
                                      ? playerWeapons_.rifleRange()
@@ -1237,9 +1254,8 @@ void Simulation::updatePlayerActions(
         }
     }
     constexpr double PickaxeInputBufferSeconds = 0.14;
-    if (command.usePickaxe &&
-        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
-        !selectedBuilding_) {
+    const bool meleeTool = heldTool != PlayerWeapon::Rifle;
+    if (command.usePickaxe && meleeTool && !selectedBuilding_) {
         pickaxeInputBufferRemaining_ = PickaxeInputBufferSeconds;
     } else {
         pickaxeInputBufferRemaining_ = std::max(
@@ -1247,7 +1263,7 @@ void Simulation::updatePlayerActions(
             pickaxeInputBufferRemaining_ - deltaSeconds);
     }
     if (pickaxeInputBufferRemaining_ > 0.0 &&
-        playerWeapons_.selectedWeapon() == PlayerWeapon::Pickaxe &&
+        meleeTool &&
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
         pickaxeInputBufferRemaining_ = 0.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown;
@@ -1261,7 +1277,11 @@ void Simulation::updatePlayerActions(
             unitRandom(
                 attackSeed ^ 0xd1b54a32d192ed03ULL) <
             gameplay_.pickaxeCriticalChance;
-        const double damage =
+        double toolMultiplier = 1.0;
+        if (heldTool == PlayerWeapon::BareHands) toolMultiplier = 0.25;
+        else if (heldTool == PlayerWeapon::Club) toolMultiplier = 1.35;
+        else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
+        const double damage = toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
         if (aimedEnemy_) {
@@ -1308,6 +1328,18 @@ void Simulation::updatePlayerActions(
                         .remaining =
                             ResourcePickupFlightSeconds,
                     });
+                    if (heldTool == PlayerWeapon::BareHands &&
+                        !introSkillObjectiveCompleted_) {
+                        if (hit->type == ResourceType::Wood)
+                            bareHandsWoodGathered_ += hit->amount;
+                        else
+                            bareHandsStoneGathered_ += hit->amount;
+                        if (bareHandsWoodGathered_ >= 15 && bareHandsStoneGathered_ >= 10) {
+                            introSkillObjectiveCompleted_ = true;
+                            grantSkillPoints(1, SkillPointSource::IntroObjective);
+                            events_.push_back({.type = GameEventType::IntroSkillObjectiveCompleted});
+                        }
+                    }
                 }
                 if (hit->collected) {
                     aimedResource_.reset();
@@ -1459,9 +1491,11 @@ void Simulation::updateCombat(double deltaSeconds) {
                     continue;
                 }
             }
+            const double fortifiedDamage = isFortified(attack.targetId)
+                ? attack.damage * 0.65 : attack.damage;
             const auto damage =
                 buildings_.damage(
-                    attack.targetId, attack.damage);
+                    attack.targetId, fortifiedDamage);
             if (!damage) {
                 if (unlimitedResources_) {
                     continue;
@@ -1901,6 +1935,15 @@ SimulationSnapshot Simulation::snapshot() const {
     }
     const WaveDefinition upcomingComposition =
         waveDirector_.composition(saturatingAdd(wave_, 1));
+    double heldDamage = gameplay_.pickaxeDamage;
+    switch (playerWeapons_.selectedWeapon()) {
+    case PlayerWeapon::BareHands: heldDamage *= 0.25; break;
+    case PlayerWeapon::Club: heldDamage *= 1.35; break;
+    case PlayerWeapon::Hammer: heldDamage *= 0.75; break;
+    case PlayerWeapon::Rifle: heldDamage = playerWeapons_.rifleDamage(); break;
+    case PlayerWeapon::Axe:
+    case PlayerWeapon::Pickaxe: break;
+    }
     return {
         .state = state_,
         .tick = tick_,
@@ -2003,11 +2046,7 @@ SimulationSnapshot Simulation::snapshot() const {
         .unlimitedResources = unlimitedResources_,
         .playerInvulnerable = playerInvulnerable_,
         .selectedWeapon = playerWeapons_.selectedWeapon(),
-        .selectedWeaponDamage =
-            playerWeapons_.selectedWeapon() ==
-                    PlayerWeapon::Pickaxe
-                ? gameplay_.pickaxeDamage
-                : playerWeapons_.rifleDamage(),
+        .selectedWeaponDamage = heldDamage,
         .rifleLevel = playerWeapons_.rifleLevel(),
         .rifleAmmunition = playerWeapons_.ammunition(),
         .rifleMagazineSize = playerWeapons_.magazineSize(),
@@ -2021,7 +2060,76 @@ SimulationSnapshot Simulation::snapshot() const {
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
         .tutorialStoneTarget = buildings_.configuredCost(BuildingType::GoldMine).stone,
         .tutorialObjective = tutorialObjective(),
+        .skillPoints = skillTree_.points(),
+        .bareHandsWoodGathered = std::min(bareHandsWoodGathered_, 15),
+        .bareHandsStoneGathered = std::min(bareHandsStoneGathered_, 10),
+        .introSkillObjectiveCompleted = introSkillObjectiveCompleted_,
     };
+}
+
+const SkillTree& Simulation::skillTree() const { return skillTree_; }
+
+SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
+    const SkillPurchaseError result = skillTree_.purchase(index);
+    if (result != SkillPurchaseError::None) return result;
+    const SkillEffect effect = skillTree_.nodes()[index].effect;
+    switch (effect) {
+    case SkillEffect::UnlockAxe: playerWeapons_.selectWeapon(PlayerWeapon::Axe); break;
+    case SkillEffect::UnlockPickaxe: playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe); break;
+    case SkillEffect::UnlockClub: playerWeapons_.selectWeapon(PlayerWeapon::Club); break;
+    case SkillEffect::UnlockHammer: playerWeapons_.selectWeapon(PlayerWeapon::Hammer); break;
+    case SkillEffect::BareHands: break;
+    }
+    selectedBuilding_.reset();
+    buildingPreview_.reset();
+    events_.push_back({.type = GameEventType::SkillUnlocked,
+                       .amount = static_cast<int>(index)});
+    return result;
+}
+
+void Simulation::grantSkillPoints(int amount, SkillPointSource source) {
+    if (amount <= 0) return;
+    skillTree_.grantPoints(amount);
+    events_.push_back({.type = GameEventType::SkillPointsGranted,
+                       .amount = amount,
+                       .intensity = static_cast<double>(source)});
+}
+
+SkillTreeRunState Simulation::saveSkillTreeState() const { return skillTree_.saveState(); }
+
+bool Simulation::loadSkillTreeState(const SkillTreeRunState& state) {
+    if (!skillTree_.loadState(state)) return false;
+    playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+    return true;
+}
+
+void Simulation::cycleUnlockedTool() {
+    std::vector<PlayerWeapon> tools{PlayerWeapon::BareHands};
+    if (skillTree_.hasEffect(SkillEffect::UnlockAxe)) tools.push_back(PlayerWeapon::Axe);
+    if (skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) tools.push_back(PlayerWeapon::Pickaxe);
+    if (skillTree_.hasEffect(SkillEffect::UnlockClub)) tools.push_back(PlayerWeapon::Club);
+    if (skillTree_.hasEffect(SkillEffect::UnlockHammer)) tools.push_back(PlayerWeapon::Hammer);
+    tools.push_back(PlayerWeapon::Rifle);
+    const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
+    const std::size_t next = current == tools.end()
+        ? 0 : (static_cast<std::size_t>(std::distance(tools.begin(), current)) + 1) % tools.size();
+    playerWeapons_.selectWeapon(tools[next]);
+    selectedBuilding_.reset();
+    buildingPreview_.reset();
+}
+
+void Simulation::updateFortifications(double deltaSeconds) {
+    for (auto& fortification : activeFortifications_)
+        fortification.remaining -= deltaSeconds;
+    std::erase_if(activeFortifications_, [](const ActiveFortification& value) {
+        return value.remaining <= 0.0;
+    });
+}
+
+bool Simulation::isFortified(EntityId id) const {
+    return std::ranges::any_of(activeFortifications_, [id](const ActiveFortification& value) {
+        return value.id == id;
+    });
 }
 
 std::vector<GameEvent> Simulation::takeEvents() {

@@ -30,6 +30,8 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     waveSpawnTimeRemaining_ = waveSpawnInterval_;
     upcomingAttackDirection_ =
         attackDirection(map_.enemySpawnAnchors[firstAnchorIndex], corePosition);
+    currentWaveHasBoss_ = std::ranges::any_of(
+        plan.spawns, [](const EnemySpawn& spawn) { return spawn.type == EnemyType::Boss; });
 }
 
 void Simulation::beginPreparedWave() {
@@ -81,6 +83,9 @@ void Simulation::completeWave() {
         .type = GameEventType::WaveCompleted,
         .amount = wave_,
     });
+    grantSkillPoints(currentWaveHasBoss_ ? 2 : 1,
+                     currentWaveHasBoss_ ? SkillPointSource::Boss : SkillPointSource::Wave);
+    currentWaveHasBoss_ = false;
     const int reward = saturatingMultiplyNonNegative(
         economy_.waveRewardPerWave, wave_);
     gold_ = saturatingAdd(gold_, reward);

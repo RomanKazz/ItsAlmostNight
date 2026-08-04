@@ -5,6 +5,21 @@
 #include <cmath>
 #include <limits>
 
+namespace {
+void unlockAxe(ian::Simulation& simulation) {
+    simulation.grantSkillPoints(1, ian::SkillPointSource::Event);
+    const auto axe = simulation.skillTree().indexOf("axe");
+    require(axe && simulation.purchaseSkill(*axe) == ian::SkillPurchaseError::None,
+            "test fixture unlocks axe");
+}
+void unlockHammer(ian::Simulation& simulation) {
+    simulation.grantSkillPoints(1, ian::SkillPointSource::Event);
+    const auto hammer = simulation.skillTree().indexOf("hammer");
+    require(hammer && simulation.purchaseSkill(*hammer) == ian::SkillPurchaseError::None,
+            "test fixture unlocks hammer");
+}
+}
+
 void runSimulationTests() {
     {
         auto transactionBalance =
@@ -34,6 +49,7 @@ void runSimulationTests() {
         ian::Simulation transactions{transactionBalance};
         transactions.startRun();
         static_cast<void>(transactions.takeEvents());
+        unlockAxe(transactions);
         const auto coreSurface =
             transactions.previewPlacementSurface(
                 ian::BuildingType::Core, {0, 0});
@@ -1040,8 +1056,8 @@ void runSimulationTests() {
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "run starts with full player health");
     require(simulation.snapshot().tutorialObjective ==
-                ian::TutorialObjective::MineWood,
-            "tutorial starts with wood objective");
+                ian::TutorialObjective::BareHandsTraining,
+            "tutorial starts with bare-hands objective");
 
     const auto startPosition = simulation.snapshot().playerPosition;
     ian::PlayerCommand movement;
@@ -1087,6 +1103,7 @@ void runSimulationTests() {
             restartEvents.front().type ==
                 ian::GameEventType::RunRestarted,
         "restart discards stale events from previous run");
+    unlockAxe(simulation);
 
     ian::PlayerCommand attack;
     attack.usePickaxe = true;
@@ -1174,6 +1191,7 @@ void runSimulationTests() {
     criticalBalance.gameplay.pickaxeCriticalChance = 1.0;
     ian::Simulation criticalSimulation{criticalBalance};
     criticalSimulation.startRun();
+    unlockAxe(criticalSimulation);
     criticalSimulation.tick(1.0 / 60.0, attack);
     const auto criticalEvents = criticalSimulation.takeEvents();
     const auto criticalHit = std::find_if(
@@ -1300,18 +1318,16 @@ void runSimulationTests() {
     requireNear(upgradedWall.maxHealth, 115.0, 1e-9,
                 "simulation uses gradual building health growth");
 
+    unlockHammer(simulation);
     ian::PlayerCommand repairFullWall;
     repairFullWall.repairBuilding = ian::RepairBuildingCommand{*wall};
     simulation.tick(1.0 / 60.0, repairFullWall);
     auto buildingEvents = simulation.takeEvents();
-    bool fullRepairRejected = false;
+    bool fortified = false;
     for (const auto& event : buildingEvents) {
-        if (event.type == ian::GameEventType::BuildingRepairRejected &&
-            event.buildingActionError == ian::BuildingActionError::FullHealth) {
-            fullRepairRejected = true;
-        }
+        if (event.type == ian::GameEventType::BuildingFortified) fortified = true;
     }
-    require(fullRepairRejected, "repair command rejects full-health building");
+    require(fortified, "hammer fortifies full-health building");
 
     ian::PlayerCommand sellWall;
     sellWall.sellBuilding = ian::SellBuildingCommand{*wall};
@@ -1375,6 +1391,7 @@ void runSimulationTests() {
             "debug command spawns selected enemy during wave");
     phaseEvents = simulation.takeEvents();
 
+    const int pointsBeforeWaveReward = simulation.snapshot().skillPoints;
     ian::PlayerCommand defeatWave;
     defeatWave.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
     simulation.tick(1.0 / 60.0, defeatWave);
@@ -1385,6 +1402,8 @@ void runSimulationTests() {
                 "dawn starts with configured duration");
     require(simulation.snapshot().gold == simulation.snapshot().waveCompletionReward,
             "wave completion grants gold reward");
+    require(simulation.snapshot().skillPoints == pointsBeforeWaveReward + 1,
+            "normal wave completion grants one skill point");
     require(!simulation.snapshot().tutorialObjective,
             "tutorial disappears after first night");
     phaseEvents = simulation.takeEvents();

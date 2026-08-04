@@ -14,6 +14,7 @@
 #include "game/GameEvent.hpp"
 #include "game/GameBalance.hpp"
 #include "resources/ResourceSystem.hpp"
+#include "progression/SkillTree.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -102,6 +103,7 @@ enum class RunState {
 };
 
 enum class TutorialObjective {
+    BareHandsTraining,
     MineWood,
     PlaceCore,
     MineStone,
@@ -109,6 +111,8 @@ enum class TutorialObjective {
     PrepareForNight,
     SurviveFirstWave,
 };
+
+enum class SkillPointSource { IntroObjective, Wave, Boss, Event, Elite };
 
 enum class AttackDirection {
     North,
@@ -203,6 +207,10 @@ struct SimulationSnapshot {
     int tutorialWoodTarget;
     int tutorialStoneTarget;
     std::optional<TutorialObjective> tutorialObjective;
+    int skillPoints;
+    int bareHandsWoodGathered;
+    int bareHandsStoneGathered;
+    bool introSkillObjectiveCompleted;
 };
 
 class Simulation {
@@ -213,7 +221,9 @@ class Simulation {
     explicit Simulation(GameBalance balance = GameBalance::defaults(),
                         MapDefinition map = MapDefinition::defaults(),
                         WorldConfig worldConfig =
-                            WorldConfig::defaults());
+                            WorldConfig::defaults(),
+                        std::vector<SkillNodeDefinition> skills =
+                            SkillTree::defaultDefinitions());
 
     void startRun();
     void restartRun();
@@ -269,6 +279,11 @@ class Simulation {
         std::span<const EntityId> supports) const;
     [[nodiscard]] std::size_t clearModularBuildings();
     std::vector<GameEvent> takeEvents();
+    [[nodiscard]] const SkillTree& skillTree() const;
+    [[nodiscard]] SkillPurchaseError purchaseSkill(std::size_t index);
+    void grantSkillPoints(int amount, SkillPointSource source);
+    [[nodiscard]] SkillTreeRunState saveSkillTreeState() const;
+    [[nodiscard]] bool loadSkillTreeState(const SkillTreeRunState& state);
 
   private:
     [[nodiscard]] static Vec3 lookDirection(double yaw,
@@ -330,6 +345,9 @@ class Simulation {
     void beginPreparedWave();
     void tickWaveSpawning(double deltaSeconds);
     void completeWave();
+    void cycleUnlockedTool();
+    void updateFortifications(double deltaSeconds);
+    [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
 
     RunState state_{RunState::MainMenu};
@@ -399,6 +417,7 @@ class Simulation {
     CannonSystem cannons_;
     TrapSystem traps_;
     PlayerWeaponSystem playerWeapons_;
+    SkillTree skillTree_;
     BombSystem bombs_;
     GoldMineSystem goldMines_;
     WaveDirector waveDirector_;
@@ -414,6 +433,12 @@ class Simulation {
     double waveSpawnInterval_{1.0};
     double waveSpawnTimeRemaining_{};
     std::optional<AttackDirection> upcomingAttackDirection_;
+    bool currentWaveHasBoss_{};
+    int bareHandsWoodGathered_{};
+    int bareHandsStoneGathered_{};
+    bool introSkillObjectiveCompleted_{};
+    struct ActiveFortification { EntityId id; double remaining; };
+    std::vector<ActiveFortification> activeFortifications_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;
     std::vector<GameEvent> events_;
 };

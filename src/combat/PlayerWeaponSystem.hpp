@@ -9,7 +9,11 @@
 namespace ian {
 
 enum class PlayerWeapon {
+    BareHands,
+    Axe,
     Pickaxe,
+    Club,
+    Hammer,
     Rifle,
 };
 
@@ -41,6 +45,7 @@ class PlayerWeaponSystem {
 
     void reset();
     void toggleWeapon();
+    void selectWeapon(PlayerWeapon weapon);
     void tick(double deltaSeconds);
     std::optional<WeaponFireResult> fireRifle(Vec3 origin, Vec3 direction, EnemySystem& enemies);
     [[nodiscard]] WeaponUpgradeResult validateUpgrade(int coreLevel, int gold) const;
@@ -61,7 +66,7 @@ class PlayerWeaponSystem {
   private:
     void beginReload();
 
-    PlayerWeapon selectedWeapon_{PlayerWeapon::Pickaxe};
+    PlayerWeapon selectedWeapon_{PlayerWeapon::BareHands};
     RifleBalanceDefinition definition_;
     int rifleLevel_{1};
     int ammunition_{};

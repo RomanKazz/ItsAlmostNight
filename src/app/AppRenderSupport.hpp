@@ -83,6 +83,7 @@ void drawBuildingTacticalOverlay(
 [[nodiscard]] GameBalance loadAppBalance();
 [[nodiscard]] MapDefinition loadAppMap();
 [[nodiscard]] WorldConfig loadAppWorldConfig();
+[[nodiscard]] std::vector<SkillNodeDefinition> loadAppSkills();
 [[nodiscard]] std::array<EnvironmentProfile, 4>
 loadAppEnvironment();
 

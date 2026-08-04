@@ -108,6 +108,10 @@ std::string tutorialText(const SimulationSnapshot& snapshot) {
         return {};
     }
     switch (*snapshot.tutorialObjective) {
+    case TutorialObjective::BareHandsTraining:
+        return "OBJECTIVE: Gather by hand - Wood " +
+               std::to_string(snapshot.bareHandsWoodGathered) + "/15  Stone " +
+               std::to_string(snapshot.bareHandsStoneGathered) + "/10";
     case TutorialObjective::MineWood:
         return "OBJECTIVE: Mine trees - Wood " +
                std::to_string(snapshot.wood) + "/" +

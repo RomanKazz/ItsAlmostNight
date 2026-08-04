@@ -54,6 +54,12 @@ target_include_directories(ian_assets PUBLIC src)
 target_link_libraries(ian_assets PRIVATE
     nlohmann_json::nlohmann_json)
 
+add_library(ian_progression
+    src/progression/SkillTree.cpp
+)
+target_include_directories(ian_progression PUBLIC src)
+target_link_libraries(ian_progression PRIVATE nlohmann_json::nlohmann_json)
+
 add_library(ian_simulation
     src/buildings/BuildGrid.cpp
     src/buildings/FoundationSystem.cpp
@@ -95,7 +101,7 @@ add_library(ian_simulation
 )
 target_include_directories(ian_simulation PUBLIC src)
 target_link_libraries(ian_simulation PRIVATE
-    nlohmann_json::nlohmann_json ian_assets)
+    nlohmann_json::nlohmann_json ian_assets ian_progression)
 
 add_library(ian_text
     src/ui/UiLabels.cpp
@@ -126,11 +132,6 @@ add_library(ian_presentation
     src/presentation/PresentationEffectQueries.cpp
 )
 target_include_directories(ian_presentation PUBLIC src)
-
-add_library(ian_progression
-    src/progression/SkillTree.cpp
-)
-target_include_directories(ian_progression PUBLIC src)
 
 add_library(ian_graphics
     src/graphics/EnvironmentSystem.cpp

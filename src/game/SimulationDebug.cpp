@@ -157,7 +157,7 @@ void Simulation::processDebugCommands(
         }
     }
     if (command.toggleWeapon) {
-        playerWeapons_.toggleWeapon();
+        cycleUnlockedTool();
         selectedBuilding_.reset();
         buildingPreview_.reset();
     }

@@ -152,6 +152,8 @@ Simulation::tutorialObjective() const {
         effectiveState == RunState::WaveComplete || wave_ > 1) {
         return std::nullopt;
     }
+    if (!introSkillObjectiveCompleted_ && !unlimitedResources_)
+        return TutorialObjective::BareHandsTraining;
     if (wave_ == 1) {
         return effectiveState == RunState::Wave
             ? std::optional<TutorialObjective>{

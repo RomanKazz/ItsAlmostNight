@@ -59,9 +59,10 @@ using namespace app_detail;
 
 App::App()
     : simulation_(
-          loadAppBalance(), loadAppMap(),
-          loadAppWorldConfig()),
-      environment_(loadAppEnvironment()) {
+      loadAppBalance(), loadAppMap(),
+          loadAppWorldConfig(), loadAppSkills()),
+      environment_(loadAppEnvironment()),
+      skillTree_(simulation_.skillTree()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
     audio_.settings() = userSettings_.audio;
@@ -515,12 +516,14 @@ void App::render() {
             graphicsPanelTab_ == 4;
         const bool showFirstPersonTool =
             tuningPreview ||
-            (snapshot.selectedWeapon == PlayerWeapon::Pickaxe &&
+            (snapshot.selectedWeapon != PlayerWeapon::BareHands &&
+             snapshot.selectedWeapon != PlayerWeapon::Rifle &&
              !snapshot.selectedBuilding &&
              !foundationBuildMode_ &&
              !snapshot.playerRespawning);
         if (showFirstPersonTool) {
-            const bool useAxe = displayedToolUsesAxe_;
+            const bool useAxe = snapshot.selectedWeapon == PlayerWeapon::Axe ||
+                                snapshot.selectedWeapon == PlayerWeapon::Club;
             const float swingProgress =
                 toolSwingRemaining_ > 0.0 &&
                         toolSwingDuration_ > 0.0

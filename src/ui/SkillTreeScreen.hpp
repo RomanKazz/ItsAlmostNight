@@ -13,14 +13,13 @@ class GameUi;
 
 class SkillTreeScreen {
   public:
-    SkillTreeScreen();
+    explicit SkillTreeScreen(const SkillTree& tree);
 
     void open();
     void close();
     [[nodiscard]] bool isOpen() const;
 
-    // Returns true once when a node is unlocked.
-    [[nodiscard]] bool update(float deltaSeconds);
+    [[nodiscard]] std::optional<std::size_t> update(float deltaSeconds);
     void draw(const GameUi& ui) const;
 
     [[nodiscard]] const SkillTree& tree() const;
@@ -34,7 +33,7 @@ class SkillTreeScreen {
     void drawNodes() const;
     void drawDetails(const GameUi& ui) const;
 
-    SkillTree tree_;
+    const SkillTree* tree_{};
     std::vector<float> reveal_;
     std::vector<float> revealDelay_;
     std::vector<float> pulse_;
@@ -48,6 +47,7 @@ class SkillTreeScreen {
     Vector2 previousMouse_{};
     std::optional<std::size_t> hovered_;
     std::optional<std::size_t> selected_;
+    std::optional<std::size_t> confirmation_;
 };
 
 } // namespace ian

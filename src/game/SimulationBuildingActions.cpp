@@ -44,6 +44,33 @@ void Simulation::processBuildingActions(
     }
 
     if (!selectedBuilding_ && command.repairBuilding) {
+        if (!skillTree_.hasEffect(SkillEffect::UnlockHammer)) {
+            events_.push_back({
+                .type = GameEventType::BuildingRepairRejected,
+                .entityId = command.repairBuilding->buildingId,
+                .buildingActionError = BuildingActionError::Unsupported,
+            });
+            return;
+        }
+        const auto fortifyTarget = std::ranges::find(
+            buildings_.buildings(), command.repairBuilding->buildingId,
+            &BuildingInstance::id);
+        if (fortifyTarget != buildings_.buildings().end() &&
+            fortifyTarget->health >= fortifyTarget->maxHealth) {
+            auto active = std::ranges::find(
+                activeFortifications_, command.repairBuilding->buildingId,
+                &ActiveFortification::id);
+            if (active == activeFortifications_.end())
+                activeFortifications_.push_back({command.repairBuilding->buildingId, 10.0});
+            else
+                active->remaining = 10.0;
+            events_.push_back({.type = GameEventType::BuildingFortified,
+                               .entityId = fortifyTarget->id,
+                               .buildingType = fortifyTarget->type,
+                               .position = buildingWorldPosition(*fortifyTarget),
+                               .amount = 10});
+            return;
+        }
         const int availableWood =
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =

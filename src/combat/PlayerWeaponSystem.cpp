@@ -8,7 +8,7 @@ PlayerWeaponSystem::PlayerWeaponSystem(RifleBalanceDefinition definition)
     : definition_(definition), ammunition_(definition.magazineSize) {}
 
 void PlayerWeaponSystem::reset() {
-    selectedWeapon_ = PlayerWeapon::Pickaxe;
+    selectedWeapon_ = PlayerWeapon::BareHands;
     rifleLevel_ = 1;
     ammunition_ = definition_.magazineSize;
     fireCooldownRemaining_ = 0.0;
@@ -17,8 +17,10 @@ void PlayerWeaponSystem::reset() {
 
 void PlayerWeaponSystem::toggleWeapon() {
     selectedWeapon_ =
-        selectedWeapon_ == PlayerWeapon::Pickaxe ? PlayerWeapon::Rifle : PlayerWeapon::Pickaxe;
+        selectedWeapon_ == PlayerWeapon::Rifle ? PlayerWeapon::BareHands : PlayerWeapon::Rifle;
 }
+
+void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) { selectedWeapon_ = weapon; }
 
 void PlayerWeaponSystem::tick(double deltaSeconds) {
     fireCooldownRemaining_ = std::max(0.0, fireCooldownRemaining_ - deltaSeconds);

@@ -21,8 +21,9 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
-    if (skillTree_.update(static_cast<float>(frameSeconds))) {
-        audio_.playUiConfirm();
+    if (const auto purchase = skillTree_.update(static_cast<float>(frameSeconds))) {
+        if (simulation_.purchaseSkill(*purchase) == SkillPurchaseError::None)
+            audio_.playUiConfirm();
     }
     const auto hotbarSnapshot = simulation_.snapshot();
     if (hotbarSnapshot.state != RunState::MainMenu &&
@@ -130,6 +131,12 @@ void App::update() {
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == 4) {
         desiredToolUsesAxe = toolPanelPreviewUsesAxe_;
+    } else if (hotbarSnapshot.selectedWeapon == PlayerWeapon::Axe ||
+               hotbarSnapshot.selectedWeapon == PlayerWeapon::Club) {
+        desiredToolUsesAxe = true;
+    } else if (hotbarSnapshot.selectedWeapon == PlayerWeapon::Pickaxe ||
+               hotbarSnapshot.selectedWeapon == PlayerWeapon::Hammer) {
+        desiredToolUsesAxe = false;
     } else if (hotbarSnapshot.aimedResource) {
         const auto resource = std::find_if(
             hotbarSnapshot.resourceNodes.begin(),
@@ -1334,6 +1341,12 @@ void App::update() {
                 "Night cleared: +" +
                 std::to_string(event.amount) +
                 " Crystals";
+        } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
+            message = "Skill point earned - press K to open skill tree";
+        } else if (event.type == GameEventType::SkillUnlocked) {
+            message = "Skill unlocked";
+        } else if (event.type == GameEventType::BuildingFortified) {
+            message = "Building fortified for 10 seconds";
         }
         if (!message.empty()) {
             statusMessage_ = std::move(message);

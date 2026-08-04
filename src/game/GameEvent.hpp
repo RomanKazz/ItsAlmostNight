@@ -54,6 +54,10 @@ enum class GameEventType {
     GateToggled,
     GateToggleRejected,
     PlayerLanded,
+    SkillPointsGranted,
+    SkillUnlocked,
+    IntroSkillObjectiveCompleted,
+    BuildingFortified,
 };
 
 struct GameEvent {

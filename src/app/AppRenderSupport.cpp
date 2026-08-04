@@ -339,7 +339,9 @@ std::optional<EntityId> preciseBuildingAim(
 std::optional<EntityId> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot) {
-    if (snapshot.selectedWeapon != PlayerWeapon::Pickaxe) {
+    if (snapshot.selectedWeapon != PlayerWeapon::BareHands &&
+        snapshot.selectedWeapon != PlayerWeapon::Axe &&
+        snapshot.selectedWeapon != PlayerWeapon::Pickaxe) {
         return std::nullopt;
     }
     constexpr double MaximumDistance = 2.6;
@@ -919,6 +921,10 @@ WorldConfig loadAppWorldConfig() {
     return loadWorldConfig(
                "assets/data/world.json")
         .config;
+}
+
+std::vector<SkillNodeDefinition> loadAppSkills() {
+    return loadSkillTreeDefinitions("assets/data/skills.json");
 }
 
 std::array<EnvironmentProfile, 4> loadAppEnvironment() {
