@@ -1058,20 +1058,25 @@ void Renderer::rebuildPondDecorInstances() {
                 return;
             }
             const float scale = variant == 0U
-                ? 5.2F + pondDecorUnit(hash ^ 0x63d83595U) * 2.4F
-                : 7.0F + pondDecorUnit(hash ^ 0xa511e9b3U) * 3.0F;
+                ? 7.4F + pondDecorUnit(hash ^ 0x63d83595U) * 3.0F
+                : 10.0F + pondDecorUnit(hash ^ 0xa511e9b3U) * 4.0F;
             pondDecorInstances_[variant].push_back({
                 {x, static_cast<float>(*surface) + 0.075F, z},
                 pondDecorUnit(hash ^ 0x9e3779b9U) * PI * 2.0F,
                 scale});
             return;
         }
-        if (depth < 0.015 || depth > 0.58) {
+        const double shoreDistance =
+            terrainHeightfield_->waterSignedDistance(x, z);
+        if (shoreDistance < -1.4 || shoreDistance > 0.9 ||
+            depth > 0.65) {
             return;
         }
         const float scale = variant == 2U
-            ? 4.8F + pondDecorUnit(hash ^ 0x85ebca6bU) * 2.6F
-            : 3.5F + pondDecorUnit(hash ^ 0xc2b2ae35U) * 2.0F;
+            ? 7.0F + pondDecorUnit(hash ^ 0x85ebca6bU) * 3.0F
+            : variant == 3U
+                ? 5.0F + pondDecorUnit(hash ^ 0xc2b2ae35U) * 2.2F
+                : 4.8F + pondDecorUnit(hash ^ 0x27d4eb2fU) * 2.4F;
         const float terrainY = static_cast<float>(
             terrainHeightfield_->getHeight(x, z));
         pondDecorInstances_[variant].push_back({
@@ -1127,13 +1132,13 @@ void Renderer::rebuildPondDecorInstances() {
                         0x165667b1U);
                 const float itemAngle = angle +
                     (pondDecorUnit(hash ^ 0x9e3779b9U) - 0.5F) * 0.10F;
-                const float radial = 0.72F +
-                    pondDecorUnit(hash ^ 0x7f4a7c15U) * 0.30F;
+                const float radial = 0.90F +
+                    pondDecorUnit(hash ^ 0x7f4a7c15U) * 0.18F;
                 const float spread =
                     (static_cast<float>(item) -
                      static_cast<float>(count - 1) * 0.5F) * 0.34F;
                 addAtPondPosition(
-                    2U + static_cast<std::size_t>(hash & 1U), pond,
+                    2U + static_cast<std::size_t>(hash % 3U), pond,
                     itemAngle, radial, spread, hash, false);
             }
         }
@@ -1167,6 +1172,15 @@ void Renderer::drawPondDecor() {
         shader = resources_.worldShader().get();
     }
     terrainRenderer_.drawPondDecor(shader);
+    drawPondDecorInstances(2U, pondDecorInstances_.size());
+}
+
+void Renderer::drawPondSurfaceDecor() {
+    drawPondDecorInstances(0U, 2U);
+}
+
+void Renderer::drawPondDecorInstances(
+    std::size_t beginVariant, std::size_t endVariant) {
     if (!worldShaderActive_ || !resources_.worldShader().valid()) {
         return;
     }
@@ -1177,7 +1191,8 @@ void Renderer::drawPondDecor() {
     SetShaderValue(worldShader, worldInstancingEnabledLocation_,
                    &enabled, SHADER_UNIFORM_INT);
     setSkinningEnabled(worldShader, false);
-    for (std::size_t variant = 0; variant < pondDecorInstances_.size();
+    endVariant = std::min(endVariant, pondDecorInstances_.size());
+    for (std::size_t variant = beginVariant; variant < endVariant;
          ++variant) {
         ModelResource& resource = resources_.pondDecorModel(variant);
         if (!resource.valid()) {
