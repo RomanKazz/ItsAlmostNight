@@ -6,6 +6,7 @@
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
+#include <rlgl.h>
 
 #include <algorithm>
 #include <array>
@@ -720,38 +721,79 @@ double minimapTerrainHeight(
 }
 
 Color minimapHeightColor(double height) {
-    if (height < -4.0) return {35, 67, 48, 255};
-    if (height < -1.5) return {44, 82, 50, 255};
-    if (height < 1.0) return {55, 95, 53, 255};
-    if (height < 3.5) return {68, 105, 57, 255};
-    if (height < 6.5) return {84, 111, 63, 255};
-    if (height < 10.0) return {102, 111, 72, 255};
-    return {119, 117, 91, 255};
+    constexpr std::array<double, 7> Levels{
+        -7.0, -4.0, -1.0, 2.0, 5.0, 9.0, 15.0};
+    constexpr std::array<Color, 7> Colors{{
+        {31, 61, 47, 255},
+        {38, 73, 49, 255},
+        {49, 88, 51, 255},
+        {65, 103, 56, 255},
+        {83, 111, 63, 255},
+        {103, 112, 74, 255},
+        {121, 118, 92, 255},
+    }};
+    if (height <= Levels.front()) return Colors.front();
+    for (std::size_t index = 1U; index < Levels.size(); ++index) {
+        if (height > Levels[index]) continue;
+        const float amount = static_cast<float>(std::clamp(
+            (height - Levels[index - 1U]) /
+                (Levels[index] - Levels[index - 1U]),
+            0.0, 1.0));
+        return ColorLerp(
+            Colors[index - 1U], Colors[index], amount);
+    }
+    return Colors.back();
 }
 
 void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float expanded) {
-    const int cells = expanded > 0.55F ? 48 : 32;
+    const int cells = expanded > 0.55F ? 64 : 40;
     const float cellPixels =
         mapBounds.width / static_cast<float>(cells);
     const double worldLimit = std::max(snapshot.worldLimit, 1.0);
     const double cellWorld = worldLimit * 2.0 /
         static_cast<double>(cells);
-    for (int z = 0; z < cells; ++z) {
-        for (int x = 0; x < cells; ++x) {
+    const int verticesPerAxis = cells + 1;
+    std::vector<Color> colors(
+        static_cast<std::size_t>(verticesPerAxis) *
+        static_cast<std::size_t>(verticesPerAxis));
+    for (int z = 0; z <= cells; ++z) {
+        for (int x = 0; x <= cells; ++x) {
             const double worldX = -worldLimit +
-                (static_cast<double>(x) + 0.5) * cellWorld;
+                static_cast<double>(x) * cellWorld;
             const double worldZ = -worldLimit +
-                (static_cast<double>(z) + 0.5) * cellWorld;
-            DrawRectangleRec(
-                {mapBounds.x + static_cast<float>(x) * cellPixels,
-                 mapBounds.y + static_cast<float>(z) * cellPixels,
-                 cellPixels + 0.35F, cellPixels + 0.35F},
+                static_cast<double>(z) * cellWorld;
+            colors[static_cast<std::size_t>(z) *
+                       static_cast<std::size_t>(verticesPerAxis) +
+                   static_cast<std::size_t>(x)] =
                 minimapHeightColor(
-                    minimapTerrainHeight(snapshot, worldX, worldZ)));
+                    minimapTerrainHeight(snapshot, worldX, worldZ));
         }
     }
+    const auto emit = [&](int x, int z) {
+        const Color color = colors[
+            static_cast<std::size_t>(z) *
+                static_cast<std::size_t>(verticesPerAxis) +
+            static_cast<std::size_t>(x)];
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex2f(
+            mapBounds.x + static_cast<float>(x) * cellPixels,
+            mapBounds.y + static_cast<float>(z) * cellPixels);
+    };
+    rlBegin(RL_TRIANGLES);
+    for (int z = 0; z < cells; ++z) {
+        for (int x = 0; x < cells; ++x) {
+            emit(x, z);
+            emit(x, z + 1);
+            emit(x + 1, z);
+            emit(x + 1, z);
+            emit(x, z + 1);
+            emit(x + 1, z + 1);
+        }
+    }
+    rlEnd();
+    rlColor4ub(255, 255, 255, 255);
 }
 
 void drawMinimapPonds(
