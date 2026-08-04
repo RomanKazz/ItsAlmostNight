@@ -85,6 +85,23 @@ void runResourceSystemTests() {
         1e-9,
         "respawned resource collider follows terrain height");
 
+    const auto dryGround = [](double x, double, double radius) {
+        return x >= radius + 0.8;
+    };
+    ian::ResourceSystem waterAwareResources(
+        {{ian::ResourceType::Stone,
+          {0.0, 0.8, 0.0}, 0.9, 4.0, 12, 1.0}},
+        {}, dryGround);
+    waterAwareResources.tick(0.0, {}, 48.0);
+    const auto& dryResource = waterAwareResources.nodes().front();
+    require(
+        dryResource.active &&
+            dryGround(
+                dryResource.position.x,
+                dryResource.position.z,
+                dryResource.radius),
+        "resource relocation rejects unsafe terrain");
+
     std::vector<ian::ResourceNodeDefinition>
         variedDefinitions;
     for (int index = 0; index < 32; ++index) {

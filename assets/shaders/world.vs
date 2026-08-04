@@ -14,6 +14,7 @@ uniform mat4 matNormal;
 uniform mat4 lightViewProjection;
 uniform float timeSeconds;
 uniform float windAmount;
+uniform float localWindHeight;
 uniform mat4 boneMatrices[32];
 uniform int skinningEnabled;
 uniform int instancingEnabled;
@@ -39,10 +40,14 @@ void main()
     mat4 modelMatrix =
         instancingEnabled != 0 ? instanceTransform : matModel;
     vec4 worldPosition = modelMatrix*localPosition;
-    float windHeight =
-        smoothstep(0.25, 3.4, worldPosition.y)*windAmount;
+    float windHeight = mix(
+        smoothstep(0.25, 3.4, worldPosition.y),
+        smoothstep(-0.015, 0.20, localPosition.y),
+        clamp(localWindHeight, 0.0, 1.0))*windAmount;
+    float windSpeed = mix(1.35, 2.1,
+        clamp(localWindHeight, 0.0, 1.0));
     float windPhase =
-        timeSeconds*1.35 +
+        timeSeconds*windSpeed +
         worldPosition.x*0.31 +
         worldPosition.z*0.23;
     float primaryWave = sin(windPhase);

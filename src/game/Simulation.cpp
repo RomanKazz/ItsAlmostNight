@@ -173,6 +173,10 @@ Simulation::Simulation(
           terrain_),
           [this](double x, double z) {
               return terrain_.getHeight(x, z);
+          },
+          [this](double x, double z, double radius) {
+              return terrain_.waterSignedDistance(x, z) >=
+                  radius + 0.8;
           }),
       buildings_(balance.buildings, balance.economy, map_.coreBuildRadius),
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
@@ -687,6 +691,10 @@ void Simulation::regenerateTerrain(
             terrain_),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
+        },
+        [this](double x, double z, double radius) {
+            return terrain_.waterSignedDistance(x, z) >=
+                radius + 0.8;
         });
     collisionWorld_.syncResourceCylinders(
         resources_.nodes(), treeCollisionAssets_);

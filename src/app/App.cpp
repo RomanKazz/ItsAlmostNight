@@ -432,14 +432,21 @@ void App::render() {
             showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
-        WorldMaterialState pondDecorMaterial{};
-        pondDecorMaterial.bakedAo = 0.82F;
-        pondDecorMaterial.windAmount = 0.18F;
-        renderer_->setWorldMaterial(pondDecorMaterial);
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState pondPlantMaterial{};
+        pondPlantMaterial.bakedAo = 0.82F;
+        pondPlantMaterial.windAmount = 0.32F;
+        pondPlantMaterial.localWindHeight = 1.0F;
+        renderer_->setWorldMaterial(pondPlantMaterial);
         renderer_->drawPondDecor();
+        renderer_->endWorldShader();
         renderer_->drawWater(camera.position, lighting);
-        renderer_->setWorldMaterial(pondDecorMaterial);
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState pondSurfaceMaterial{};
+        pondSurfaceMaterial.bakedAo = 0.82F;
+        renderer_->setWorldMaterial(pondSurfaceMaterial);
         renderer_->drawPondSurfaceDecor();
+        renderer_->endWorldShader();
         renderer_->drawClouds(
             camera.position, nightAmount, lighting);
         drawAtmosphereParticles(camera, nightAmount);

@@ -59,11 +59,14 @@ class ResourceSystem {
   public:
     using GroundHeightProvider =
         std::function<double(double, double)>;
+    using GroundSafetyProvider =
+        std::function<bool(double, double, double)>;
 
     ResourceSystem();
     explicit ResourceSystem(
         std::vector<ResourceNodeDefinition> definitions,
-        GroundHeightProvider groundHeight = {});
+        GroundHeightProvider groundHeight = {},
+        GroundSafetyProvider groundSafety = {});
 
     void reset();
     void tick(
@@ -94,6 +97,7 @@ class ResourceSystem {
 
     std::vector<ResourceNodeDefinition> definitions_;
     GroundHeightProvider groundHeight_;
+    GroundSafetyProvider groundSafety_;
     std::uint32_t runGeneration_{1U};
     std::vector<ResourceNode> nodes_;
 };

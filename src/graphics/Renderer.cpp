@@ -955,6 +955,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.terrainDirtTint.y == worldMaterial_.terrainDirtTint.y &&
         material.terrainDirtTint.z == worldMaterial_.terrainDirtTint.z &&
         material.windAmount == worldMaterial_.windAmount &&
+        material.localWindHeight == worldMaterial_.localWindHeight &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
@@ -1058,45 +1059,53 @@ void Renderer::rebuildPondDecorInstances() {
         const std::uint32_t pondHash = pondDecorHash(
             terrainHeightfield_->seed() ^
             static_cast<std::uint32_t>(pondIndex + 1U) * 0x9e3779b9U);
+        std::vector<Vector2> lilyPoints;
+        std::vector<Vector2> plantPoints;
 
-        constexpr int LilyClusters = 6;
-        for (int cluster = 0; cluster < LilyClusters; ++cluster) {
-            const std::uint32_t clusterHash = pondDecorHash(
-                pondHash + static_cast<std::uint32_t>(cluster + 1) *
-                    0x85ebca6bU);
-            const float baseAngle =
-                pondDecorUnit(clusterHash) * PI * 2.0F;
-            const float baseRadial = 0.24F +
-                pondDecorUnit(clusterHash ^ 0xa511e9b3U) * 0.48F;
-            const int count = 2 +
-                static_cast<int>((clusterHash >> 6U) % 3U);
-            for (int item = 0; item < count; ++item) {
-                const std::uint32_t hash = pondDecorHash(
-                    clusterHash + static_cast<std::uint32_t>(item + 5) *
-                        0x27d4eb2fU);
-                const float angle = baseAngle +
-                    (pondDecorUnit(hash ^ 0x165667b1U) - 0.5F) * 0.16F;
-                const float radial = baseRadial +
-                    (pondDecorUnit(hash ^ 0xd3a2646cU) - 0.5F) * 0.07F;
-                const float tangent =
-                    (static_cast<float>(item) -
-                     static_cast<float>(count - 1) * 0.5F) * 0.72F;
-                const Vector2 point =
-                    pondPoint(pond, angle, radial, tangent);
-                const auto surface = terrainHeightfield_->waterSurfaceHeight(
-                    point.x, point.y);
-                if (!surface ||
-                    terrainHeightfield_->waterDepth(point.x, point.y) < 0.08) {
-                    continue;
-                }
-                const std::size_t variant =
-                    static_cast<std::size_t>(hash & 1U);
-                const float scale = variant == 0U
-                    ? 9.2F + pondDecorUnit(hash ^ 0x63d83595U) * 2.8F
-                    : 6.4F + pondDecorUnit(hash ^ 0xb5297a4dU) * 2.4F;
-                const float yaw =
-                    pondDecorUnit(hash ^ 0x7f4a7c15U) * PI * 2.0F;
-                pondDecorTransforms_[variant].push_back(
+        constexpr int LilyCandidates = 24;
+        constexpr float GoldenAngle = 2.39996323F;
+        constexpr float LilySpacing = 1.75F;
+        for (int item = 0; item < LilyCandidates; ++item) {
+            const std::uint32_t hash = pondDecorHash(
+                pondHash + static_cast<std::uint32_t>(item + 1) *
+                    0x27d4eb2fU);
+            const float angle = static_cast<float>(item) * GoldenAngle +
+                (pondDecorUnit(hash ^ 0x165667b1U) - 0.5F) * 0.34F;
+            const float radial = 0.20F +
+                pondDecorUnit(hash ^ 0xd3a2646cU) * 0.56F;
+            const Vector2 point = pondPoint(pond, angle, radial, 0.0F);
+            const bool overlaps = std::any_of(
+                lilyPoints.begin(), lilyPoints.end(),
+                [point](Vector2 other) {
+                    const float x = point.x - other.x;
+                    const float z = point.y - other.y;
+                    return x * x + z * z < LilySpacing * LilySpacing;
+                });
+            if (overlaps) {
+                continue;
+            }
+            const auto surface = terrainHeightfield_->waterSurfaceHeight(
+                point.x, point.y);
+            if (!surface ||
+                terrainHeightfield_->waterDepth(point.x, point.y) < 0.08) {
+                continue;
+            }
+            lilyPoints.push_back(point);
+            const std::size_t variant =
+                static_cast<std::size_t>(hash & 1U);
+            const float scale = variant == 0U
+                ? 9.2F + pondDecorUnit(hash ^ 0x63d83595U) * 2.8F
+                : 6.4F + pondDecorUnit(hash ^ 0xb5297a4dU) * 2.4F;
+            const float yaw =
+                pondDecorUnit(hash ^ 0x7f4a7c15U) * PI * 2.0F;
+            ModelResource& resource =
+                resources_.pondDecorModel(variant);
+            const Matrix modelTransform = resource.valid()
+                ? resource.get().transform
+                : MatrixIdentity();
+            pondDecorTransforms_[variant].push_back(
+                MatrixMultiply(
+                    modelTransform,
                     MatrixMultiply(
                         MatrixScale(scale, scale, scale),
                         MatrixMultiply(
@@ -1104,8 +1113,7 @@ void Renderer::rebuildPondDecorInstances() {
                             MatrixTranslate(
                                 point.x,
                                 static_cast<float>(*surface) + 0.075F,
-                                point.y))));
-            }
+                                point.y)))));
         }
 
         constexpr int PlantClusters = 10;
@@ -1138,15 +1146,15 @@ void Renderer::rebuildPondDecorInstances() {
                 previousDistance = distance;
             }
 
-            const int count = 3 +
-                static_cast<int>((clusterHash >> 5U) % 3U);
+            const int count = 2 +
+                static_cast<int>((clusterHash >> 5U) % 2U);
             for (int item = 0; item < count; ++item) {
                 const std::uint32_t hash = pondDecorHash(
                     clusterHash + static_cast<std::uint32_t>(item + 1) *
                         0x165667b1U);
                 const float tangent =
                     (static_cast<float>(item) -
-                     static_cast<float>(count - 1) * 0.5F) * 0.38F;
+                     static_cast<float>(count - 1) * 0.5F) * 1.5F;
                 const float radial = shoreRadial - 0.012F +
                     (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 0.025F;
                 const Vector2 point =
@@ -1157,6 +1165,19 @@ void Renderer::rebuildPondDecorInstances() {
                 if (shoreDistance < -1.4 || shoreDistance > 1.0) {
                     continue;
                 }
+                constexpr float PlantSpacing = 1.35F;
+                const bool overlaps = std::any_of(
+                    plantPoints.begin(), plantPoints.end(),
+                    [point](Vector2 other) {
+                        const float x = point.x - other.x;
+                        const float z = point.y - other.y;
+                        return x * x + z * z <
+                            PlantSpacing * PlantSpacing;
+                    });
+                if (overlaps) {
+                    continue;
+                }
+                plantPoints.push_back(point);
                 const std::size_t variant =
                     2U + static_cast<std::size_t>(hash % 3U);
                 const float randomScale =
@@ -1172,16 +1193,24 @@ void Renderer::rebuildPondDecorInstances() {
                     terrainHeightfield_->getHeight(point.x, point.y));
                 const float yaw =
                     pondDecorUnit(hash ^ 0x9e3779b9U) * PI * 2.0F;
+                ModelResource& resource =
+                    resources_.pondDecorModel(variant);
+                const Matrix modelTransform = resource.valid()
+                    ? resource.get().transform
+                    : MatrixIdentity();
                 pondDecorTransforms_[variant].push_back(
                     MatrixMultiply(
-                        MatrixScale(scale, scale, scale),
+                        modelTransform,
                         MatrixMultiply(
-                            MatrixRotateY(yaw),
-                            MatrixTranslate(
-                                point.x,
-                                terrainY - MinimumY[variant - 2U] * scale +
-                                    0.01F,
-                                point.y))));
+                            MatrixScale(scale, scale, scale),
+                            MatrixMultiply(
+                                MatrixRotateY(yaw),
+                                MatrixTranslate(
+                                    point.x,
+                                    terrainY -
+                                        MinimumY[variant - 2U] * scale +
+                                        0.01F,
+                                    point.y)))));
             }
         }
         ++pondIndex;
@@ -1895,6 +1924,7 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "terrainTextureEnabled"),
         .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
         .windAmount = GetShaderLocation(shader, "windAmount"),
+        .localWindHeight = GetShaderLocation(shader, "localWindHeight"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
@@ -2175,6 +2205,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.terrainDirtTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.windAmount,
                    &material.windAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.localWindHeight,
+                   &material.localWindHeight, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,

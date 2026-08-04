@@ -106,9 +106,11 @@ ResourceSystem::ResourceSystem() : ResourceSystem(defaultDefinitions()) {}
 
 ResourceSystem::ResourceSystem(
     std::vector<ResourceNodeDefinition> definitions,
-    GroundHeightProvider groundHeight)
+    GroundHeightProvider groundHeight,
+    GroundSafetyProvider groundSafety)
     : definitions_(std::move(definitions)),
       groundHeight_(std::move(groundHeight)),
+      groundSafety_(std::move(groundSafety)),
       nodes_(makeNodes()) {}
 
 std::vector<ResourceNode> ResourceSystem::makeNodes() const {
@@ -264,6 +266,10 @@ bool ResourceSystem::positionIsSafe(
         worldLimit - node.radius - 1.0;
     if (std::abs(position.x) > boundary ||
         std::abs(position.z) > boundary) {
+        return false;
+    }
+    if (groundSafety_ &&
+        !groundSafety_(position.x, position.z, node.radius)) {
         return false;
     }
 
