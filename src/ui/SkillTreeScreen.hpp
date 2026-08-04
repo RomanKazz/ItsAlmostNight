@@ -42,8 +42,8 @@ class SkillTreeScreen {
     float opening_{};
     Vector2 camera_{};
     Vector2 targetCamera_{};
-    float zoom_{0.68F};
-    float targetZoom_{0.68F};
+    float zoom_{1.15F};
+    float targetZoom_{1.15F};
     bool dragging_{};
     Vector2 previousMouse_{};
     std::optional<std::size_t> hovered_;
