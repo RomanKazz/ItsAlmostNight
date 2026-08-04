@@ -1242,7 +1242,6 @@ void Renderer::drawPondDecor() {
     if (worldShaderActive_ && resources_.worldShader().valid()) {
         shader = resources_.worldShader().get();
     }
-    terrainRenderer_.drawPondDecor(shader);
     drawPondDecorInstances(2U, pondDecorTransforms_.size());
 }
 

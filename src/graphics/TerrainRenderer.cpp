@@ -15,19 +15,6 @@
 namespace ian {
 namespace {
 
-[[nodiscard]] std::uint32_t decorHash(std::uint32_t value) {
-    value ^= value >> 16U;
-    value *= 0x7feb352dU;
-    value ^= value >> 15U;
-    value *= 0x846ca68bU;
-    return value ^ (value >> 16U);
-}
-
-[[nodiscard]] float decorUnit(std::uint32_t value) {
-    return static_cast<float>(decorHash(value) & 0xffffU) /
-        65535.0F;
-}
-
 [[nodiscard]] Model buildTriangleModel(
     const std::vector<float>& vertices,
     const std::vector<float>& normals,
@@ -87,7 +74,6 @@ void TerrainRenderer::rebuild(
     shutdown();
     terrain_ = &terrain;
     waterModel_ = buildWaterModel();
-    pondDecorModel_ = buildPondDecorModel();
     ready_ = true;
 }
 
@@ -334,98 +320,6 @@ Model TerrainRenderer::buildWaterModel() const {
     return buildTriangleModel(vertices, normals, texcoords);
 }
 
-Model TerrainRenderer::buildPondDecorModel() const {
-    if (terrain_ == nullptr || terrain_->ponds().empty()) {
-        return {};
-    }
-    std::vector<float> vertices;
-    std::vector<float> normals;
-    std::vector<float> texcoords;
-    std::vector<unsigned char> colors;
-    const auto appendVertex = [&](Vector3 position, Vector3 normal,
-                                  Color color) {
-        vertices.insert(vertices.end(), {
-            position.x, position.y, position.z});
-        normals.insert(normals.end(), {
-            normal.x, normal.y, normal.z});
-        texcoords.insert(texcoords.end(), {0.0F, 0.0F});
-        colors.insert(colors.end(), {
-            color.r, color.g, color.b, color.a});
-    };
-    const auto appendTriangle = [&](Vector3 a, Vector3 b, Vector3 c,
-                                    Vector3 normal, Color color) {
-        appendVertex(a, normal, color);
-        appendVertex(b, normal, color);
-        appendVertex(c, normal, color);
-    };
-    std::size_t pondIndex = 0U;
-    for (const PondDefinition& pond : terrain_->ponds()) {
-        const std::uint32_t baseHash = decorHash(
-            terrain_->seed() ^ static_cast<std::uint32_t>(pondIndex) *
-                                   0x9e3779b9U);
-        const int clusterCount = 4 + static_cast<int>(baseHash % 3U);
-        for (int cluster = 0; cluster < clusterCount; ++cluster) {
-            const std::uint32_t hash = decorHash(
-                baseHash + static_cast<std::uint32_t>(cluster) *
-                               0x85ebca6bU);
-            const float angle = decorUnit(hash) * 2.0F * PI;
-            const float directionX = std::cos(angle);
-            const float directionZ = std::sin(angle);
-
-            double previousRadius =
-                std::min(pond.radiusX, pond.radiusZ) * 0.45;
-            double previousDistance = terrain_->waterSignedDistance(
-                pond.x + directionX * previousRadius,
-                pond.z + directionZ * previousRadius);
-            double shoreRadius = previousRadius;
-            const double maximumRadius =
-                std::max(pond.radiusX, pond.radiusZ) * 1.45;
-            for (int sample = 1; sample <= 28; ++sample) {
-                const double radius = previousRadius +
-                    (maximumRadius - previousRadius) *
-                        static_cast<double>(sample) / 28.0;
-                const double distance = terrain_->waterSignedDistance(
-                    pond.x + directionX * radius,
-                    pond.z + directionZ * radius);
-                if (previousDistance <= 0.0 && distance > 0.0) {
-                    shoreRadius = radius;
-                    break;
-                }
-                previousDistance = distance;
-                shoreRadius = radius;
-            }
-            if ((hash % 3U) == 0U) {
-                const float x = static_cast<float>(pond.x) +
-                    directionX * static_cast<float>(shoreRadius + 0.9);
-                const float z = static_cast<float>(pond.z) +
-                    directionZ * static_cast<float>(shoreRadius + 0.9);
-                const float y = static_cast<float>(terrain_->getHeight(x, z));
-                const float radius = 0.28F + decorUnit(
-                    hash ^ 0xb5297a4dU) * 0.34F;
-                const Vector3 top{x, y + radius * 0.9F, z};
-                const Vector3 bottom{x, y, z};
-                const std::array<Vector3, 4> ring{{
-                    {x + radius, y + radius * 0.35F, z},
-                    {x, y + radius * 0.35F, z + radius * 0.8F},
-                    {x - radius, y + radius * 0.35F, z},
-                    {x, y + radius * 0.35F, z - radius * 0.8F},
-                }};
-                for (std::size_t side = 0; side < ring.size(); ++side) {
-                    const Vector3 next = ring[(side + 1U) % ring.size()];
-                    appendTriangle(top, ring[side], next,
-                                   {0.0F, 1.0F, 0.0F},
-                                   {112, 119, 112, 255});
-                    appendTriangle(bottom, next, ring[side],
-                                   {0.0F, 1.0F, 0.0F},
-                                   {83, 91, 88, 255});
-                }
-            }
-        }
-        ++pondIndex;
-    }
-    return buildTriangleModel(vertices, normals, texcoords, colors);
-}
-
 void TerrainRenderer::updateVisibleChunks(
     Vector3 focusPosition) {
     if (terrain_ == nullptr) {
@@ -494,18 +388,6 @@ void TerrainRenderer::drawWater(Shader shader) const {
     EndBlendMode();
 }
 
-void TerrainRenderer::drawPondDecor(Shader shader) const {
-    if (!ready_ || !IsModelValid(pondDecorModel_)) {
-        return;
-    }
-    Model& model = const_cast<Model&>(pondDecorModel_);
-    for (int index = 0; index < model.materialCount; ++index) {
-        model.materials[index].shader = shader;
-        model.materials[index].maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-    }
-    DrawModel(model, {0.0F, 0.0F, 0.0F}, 1.0F, WHITE);
-}
-
 void TerrainRenderer::drawWireframe(Color tint) const {
     if (!ready_) {
         return;
@@ -527,11 +409,7 @@ void TerrainRenderer::shutdown() {
     if (IsModelValid(waterModel_)) {
         UnloadModel(waterModel_);
     }
-    if (IsModelValid(pondDecorModel_)) {
-        UnloadModel(pondDecorModel_);
-    }
     waterModel_ = {};
-    pondDecorModel_ = {};
     terrain_ = nullptr;
     ready_ = false;
 }
