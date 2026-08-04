@@ -1348,7 +1348,7 @@ void Simulation::updatePlayerActions(
         }
     }
 
-    const auto bombExplosions = bombs_.tick(deltaSeconds, enemies_);
+    const auto bombExplosions = bombs_.tick(deltaSeconds, enemies_, &terrain_);
     for (const auto& explosion : bombExplosions) {
         events_.push_back({
             .type = GameEventType::Explosion,

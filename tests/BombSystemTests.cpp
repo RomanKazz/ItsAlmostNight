@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "combat/BombSystem.hpp"
 #include "enemies/EnemySystem.hpp"
+#include "world/TerrainHeightfield.hpp"
 
 #include <array>
 #include <cmath>
@@ -40,4 +41,35 @@ void runBombSystemTests() {
     const auto knockback = enemies.enemies()[1].knockbackVelocity;
     require(std::abs(knockback.x) + std::abs(knockback.z) > 0.0,
             "surviving enemy receives outward knockback");
+
+    ian::TerrainHeightfield terrain;
+    ian::Vec3 steepPoint{};
+    double steepestSlope = 0.0;
+    for (double z = -120.0; z <= 120.0; z += 6.0) {
+        for (double x = -120.0; x <= 120.0; x += 6.0) {
+            const ian::Vec3 normal = terrain.getNormal(x, z);
+            const double slope = std::hypot(normal.x, normal.z);
+            if (slope > steepestSlope && !terrain.isDeepWater(x, z)) {
+                steepestSlope = slope;
+                steepPoint = {x, terrain.getHeight(x, z) + 0.28, z};
+            }
+        }
+    }
+    ian::EnemySystem emptyEnemies;
+    ian::BombSystem slopeBomb;
+    require(slopeBomb.throwBomb(
+                {steepPoint.x, steepPoint.y + 0.05, steepPoint.z}, {}),
+            "slope physics fixture throws bomb");
+    for (int tick = 0; tick < 120; ++tick) {
+        static_cast<void>(slopeBomb.tick(1.0 / 60.0, emptyEnemies, &terrain));
+        const auto& projectile = slopeBomb.projectiles().front();
+        if (!projectile.active) break;
+        require(projectile.position.y + 1e-8 >=
+                    terrain.getHeight(projectile.position.x, projectile.position.z) + 0.28,
+                "bomb remains above procedural terrain surface");
+    }
+    const auto& rolled = slopeBomb.projectiles().front();
+    require(std::hypot(rolled.position.x - steepPoint.x,
+                       rolled.position.z - steepPoint.z) > 0.08,
+            "resting bomb rolls down terrain slope");
 }

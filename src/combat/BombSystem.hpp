@@ -9,12 +9,15 @@
 
 namespace ian {
 
+class TerrainHeightfield;
+
 struct BombProjectile {
     EntityId id;
     Vec3 position;
     Vec3 velocity;
     double fuseRemaining{};
     double fuseDuration{};
+    bool grounded{};
     bool active{};
 };
 
@@ -32,7 +35,9 @@ class BombSystem {
 
     void reset();
     bool throwBomb(Vec3 origin, Vec3 direction);
-    std::span<const BombExplosion> tick(double deltaSeconds, EnemySystem& enemies);
+    std::span<const BombExplosion> tick(
+        double deltaSeconds, EnemySystem& enemies,
+        const TerrainHeightfield* terrain = nullptr);
     void clearProjectiles();
 
     [[nodiscard]] int remainingBombs() const;
