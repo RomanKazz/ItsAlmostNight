@@ -96,15 +96,34 @@ void drawWrappedText(std::string_view text, Vector2 position,
 SkillTreeScreen::SkillTreeScreen(const SkillTree& tree)
     : tree_(&tree), reveal_(tree.nodes().size(), 0.0F),
       revealDelay_(tree.nodes().size(), 0.0F),
-      pulse_(tree.nodes().size(), 0.0F) {}
+      connectionReveal_(tree.nodes().size(), 0.0F),
+      connectionDelay_(tree.nodes().size(), 0.0F),
+      hoverAmount_(tree.nodes().size(), 0.0F),
+      pulse_(tree.nodes().size(), 0.0F),
+      confirmationPulse_(tree.nodes().size(), 0.0F),
+      rejectShake_(tree.nodes().size(), 0.0F) {}
 
 void SkillTreeScreen::open() {
     open_ = true;
     opening_ = 0.0F;
     for (std::size_t index = 0; index < tree_->nodes().size(); ++index) {
-        if (tree_->state(index) != SkillNodeState::Hidden) {
-            reveal_[index] = 1.0F;
+        reveal_[index] = 0.0F;
+        connectionReveal_[index] = 0.0F;
+        hoverAmount_[index] = 0.0F;
+        pulse_[index] = 0.0F;
+        confirmationPulse_[index] = 0.0F;
+        rejectShake_[index] = 0.0F;
+
+        int depth = 0;
+        const SkillNodeDefinition* node = &tree_->nodes()[index];
+        while (!node->prerequisites.empty() && depth < 12) {
+            const auto parent = tree_->indexOf(node->prerequisites.front());
+            if (!parent) break;
+            node = &tree_->nodes()[*parent];
+            ++depth;
         }
+        revealDelay_[index] = static_cast<float>(depth) * 0.24F;
+        connectionDelay_[index] = std::max(0.0F, revealDelay_[index] - 0.16F);
     }
     if (!selected_) {
         selected_ = tree_->indexOf("bare_hands");
@@ -171,8 +190,18 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
         IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         selected_ = hovered_;
         if (tree_->state(*hovered_) == SkillNodeState::Available) {
-            if (confirmation_ == hovered_) purchase = hovered_;
-            else confirmation_ = hovered_;
+            const int cost = tree_->nodes()[*hovered_].cost;
+            if (tree_->points() < cost) {
+                confirmation_.reset();
+                rejectShake_[*hovered_] = 1.0F;
+            } else if (confirmation_ == hovered_) {
+                purchase = hovered_;
+                confirmation_.reset();
+                pulse_[*hovered_] = 1.0F;
+            } else {
+                confirmation_ = hovered_;
+                confirmationPulse_[*hovered_] = 1.0F;
+            }
         } else {
             confirmation_.reset();
         }
@@ -187,10 +216,26 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
         } else {
             const float target = visible ? 1.0F : 0.0F;
             reveal_[index] += (target - reveal_[index]) *
-                (1.0F - std::exp(-8.5F * deltaSeconds));
+                (1.0F - std::exp(-11.0F * deltaSeconds));
         }
+        if (connectionDelay_[index] > 0.0F) {
+            connectionDelay_[index] = std::max(
+                0.0F, connectionDelay_[index] - deltaSeconds);
+        } else {
+            const float target = visible ? 1.0F : 0.0F;
+            connectionReveal_[index] +=
+                (target - connectionReveal_[index]) *
+                (1.0F - std::exp(-8.0F * deltaSeconds));
+        }
+        const float hoverTarget = hovered_ == index ? 1.0F : 0.0F;
+        hoverAmount_[index] += (hoverTarget - hoverAmount_[index]) *
+            (1.0F - std::exp(-15.0F * deltaSeconds));
         pulse_[index] = std::max(
             0.0F, pulse_[index] - deltaSeconds * 1.25F);
+        confirmationPulse_[index] = std::max(
+            0.0F, confirmationPulse_[index] - deltaSeconds * 1.6F);
+        rejectShake_[index] = std::max(
+            0.0F, rejectShake_[index] - deltaSeconds * 3.5F);
     }
     return purchase;
 }
@@ -273,8 +318,9 @@ std::optional<std::size_t> SkillTreeScreen::nodeAt(
 }
 
 void SkillTreeScreen::drawConnections() const {
+    const float time = static_cast<float>(GetTime());
     for (std::size_t child = 0; child < tree_->nodes().size(); ++child) {
-        if (reveal_[child] <= 0.01F) {
+        if (connectionReveal_[child] <= 0.01F) {
             continue;
         }
         const auto& node = tree_->nodes()[child];
@@ -286,7 +332,7 @@ void SkillTreeScreen::drawConnections() const {
             const Vector2 start = worldToScreen(
                 tree_->nodes()[*parent].position);
             const Vector2 end = worldToScreen(node.position);
-            const float progress = smoothStep(reveal_[child]);
+            const float progress = smoothStep(connectionReveal_[child]);
             const bool active =
                 tree_->state(child) == SkillNodeState::Unlocked ||
                 tree_->state(child) == SkillNodeState::Available;
@@ -298,6 +344,17 @@ void SkillTreeScreen::drawConnections() const {
                 active
                     ? withAlpha({246, 184, 58, 255}, 0.92F)
                     : withAlpha({115, 112, 109, 255}, 0.36F));
+
+            if (active && progress > 0.12F) {
+                const float travel = std::fmod(
+                    time * 0.38F + static_cast<float>(child) * 0.23F,
+                    std::max(progress, 0.001F));
+                const Vector2 spark = Vector2Lerp(start, end, travel);
+                DrawCircleV(spark, 5.0F * zoom_,
+                            withAlpha({246, 184, 58, 255}, 0.12F));
+                DrawCircleV(spark, 2.0F * zoom_,
+                            withAlpha({255, 231, 155, 255}, 0.9F));
+            }
 
         }
     }
@@ -312,12 +369,16 @@ void SkillTreeScreen::drawNodes() const {
         }
         const auto& node = tree_->nodes()[index];
         const SkillNodeState state = tree_->state(index);
-        const Vector2 center = worldToScreen(node.position);
+        Vector2 center = worldToScreen(node.position);
+        if (rejectShake_[index] > 0.0F) {
+            center.x += std::sin(rejectShake_[index] * 31.0F) *
+                        rejectShake_[index] * 8.0F;
+        }
         const float baseHalfSize = node.branch == SkillBranch::Root
                                        ? RootNodeHalfSize
                                        : NodeHalfSize;
         const float revealScale = easeOutBack(reveal_[index]);
-        const float hoverScale = hovered_ == index ? 1.08F : 1.0F;
+        const float hoverScale = 1.0F + smoothStep(hoverAmount_[index]) * 0.14F;
         const float pulseScale =
             1.0F + std::sin(pulse_[index] * PI) * 0.34F;
         const float halfSize = baseHalfSize * zoom_ * revealScale *
@@ -328,6 +389,15 @@ void SkillTreeScreen::drawNodes() const {
         const Color color = branchColor(node.branch);
         const bool active = state == SkillNodeState::Unlocked ||
                             state == SkillNodeState::Available;
+        if (node.branch == SkillBranch::Root) {
+            const float wave = std::fmod(
+                static_cast<float>(time) * 0.34F, 1.0F);
+            DrawRing(center,
+                     (baseHalfSize + 7.0F + wave * 24.0F) * zoom_,
+                     (baseHalfSize + 9.0F + wave * 24.0F) * zoom_,
+                     0.0F, 360.0F, 32,
+                     withAlpha(color, (1.0F - wave) * 0.2F * reveal_[index]));
+        }
         if (active) {
             const float breath = 0.5F + 0.5F * std::sin(
                 static_cast<float>(time) * 2.2F +
@@ -367,6 +437,28 @@ void SkillTreeScreen::drawNodes() const {
                  nodeBounds.height + 14.0F * zoom_},
                 0.18F, 6, 2.0F * zoom_,
                 withAlpha({246, 184, 58, 255}, pulse));
+        }
+
+        if (hoverAmount_[index] > 0.02F) {
+            const float orbitRadius = (baseHalfSize + 14.0F) * zoom_ * hoverScale;
+            const float orbitAlpha = smoothStep(hoverAmount_[index]);
+            for (int marker = 0; marker < 4; ++marker) {
+                const float angle = static_cast<float>(time) * 0.9F +
+                    static_cast<float>(marker) * PI * 0.5F;
+                const Vector2 markerPosition{
+                    center.x + std::cos(angle) * orbitRadius,
+                    center.y + std::sin(angle) * orbitRadius,
+                };
+                DrawCircleV(markerPosition, 2.5F * zoom_,
+                            withAlpha(color, orbitAlpha * 0.82F));
+            }
+        }
+        if (confirmationPulse_[index] > 0.0F) {
+            const float progress = 1.0F - confirmationPulse_[index];
+            const float radius = (baseHalfSize + 8.0F + progress * 34.0F) * zoom_;
+            DrawRing(center, radius, radius + 2.5F * zoom_,
+                     0.0F, 360.0F, 32,
+                     withAlpha({255, 214, 91, 255}, confirmationPulse_[index] * 0.9F));
         }
 
         const char* glyph = state == SkillNodeState::Unlocked

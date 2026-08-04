@@ -36,7 +36,12 @@ class SkillTreeScreen {
     const SkillTree* tree_{};
     std::vector<float> reveal_;
     std::vector<float> revealDelay_;
+    std::vector<float> connectionReveal_;
+    std::vector<float> connectionDelay_;
+    std::vector<float> hoverAmount_;
     std::vector<float> pulse_;
+    std::vector<float> confirmationPulse_;
+    std::vector<float> rejectShake_;
     bool open_{};
     float opening_{};
     Vector2 camera_{0.0F, 42.0F};
