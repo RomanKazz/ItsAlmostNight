@@ -752,7 +752,7 @@ void Renderer::setSelectionOutlineBounds(
         maximumX = std::max(maximumX, screen.x);
         maximumY = std::max(maximumY, screen.y);
     }
-    constexpr float Padding = 10.0F;
+    constexpr float Padding = 16.0F;
     minimumX = std::clamp(minimumX - Padding, 0.0F,
                           static_cast<float>(width));
     minimumY = std::clamp(minimumY - Padding, 0.0F,
@@ -826,7 +826,7 @@ void Renderer::drawSelectionOutline() {
             std::sin(
                 static_cast<float>(GetTime()) * 3.2F);
     const int outlineRadius = std::clamp(
-        static_cast<int>(std::ceil(6.0F / outputScale)), 1, 6);
+        static_cast<int>(std::ceil(12.0F / outputScale)), 1, 12);
     SetShaderValue(shader, selectionOutlineRadiusLocation_,
                    &outlineRadius, SHADER_UNIFORM_INT);
     const Rectangle source{
