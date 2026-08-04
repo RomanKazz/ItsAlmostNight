@@ -202,7 +202,7 @@ class Renderer {
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
     void drawPondDecor();
-    [[nodiscard]] bool drawTestWaterPlant(Vector3 position);
+    void drawPondSurfaceDecor();
     void drawWater(Vector3 cameraPosition,
                    const WorldLighting& lighting);
     [[nodiscard]] std::optional<double>
@@ -412,6 +412,9 @@ class Renderer {
     void uploadWorldMaterial(const WorldMaterialState& material);
     void bindTerrainTexture();
     void bindShadowMap();
+    void rebuildPondDecorInstances();
+    void drawPondDecorInstances(std::size_t beginVariant,
+                                std::size_t endVariant);
     void setSkinningEnabled(Shader& shader, bool enabled);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
@@ -498,6 +501,8 @@ class Renderer {
     std::array<std::vector<Matrix>, TreeVisualVariantCount>
         resourceTreeTransforms_;
     std::vector<Matrix> resourceRockTransforms_;
+    std::array<std::vector<Matrix>, 5>
+        pondDecorTransforms_;
     bool boundaryForestCached_{};
     Vector2 worldRevealOrigin_{};
     float worldRevealElapsed_{1000.0F};

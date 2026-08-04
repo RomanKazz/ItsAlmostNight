@@ -25,6 +25,20 @@ void configureSkinningLocations(Shader& shader) {
         GetShaderLocation(shader, "boneMatrices");
 }
 
+std::uint32_t pondDecorHash(std::uint32_t value) {
+    value ^= value >> 16U;
+    value *= 0x7feb352dU;
+    value ^= value >> 15U;
+    value *= 0x846ca68bU;
+    value ^= value >> 16U;
+    return value;
+}
+
+float pondDecorUnit(std::uint32_t value) {
+    return static_cast<float>(pondDecorHash(value) & 0x00ffffffU) /
+        static_cast<float>(0x01000000U);
+}
+
 } // namespace
 
 void Renderer::initialize() {
@@ -1005,6 +1019,173 @@ void Renderer::rebuildTerrain(
         transforms.clear();
     }
     terrainRenderer_.rebuild(terrain);
+    rebuildPondDecorInstances();
+}
+
+void Renderer::rebuildPondDecorInstances() {
+    for (auto& transforms : pondDecorTransforms_) {
+        transforms.clear();
+    }
+    if (terrainHeightfield_ == nullptr) {
+        return;
+    }
+
+    const auto pondPoint = [](const PondDefinition& pond,
+                              float angle, float radial,
+                              float tangentOffset) {
+        const float directionX = std::cos(angle);
+        const float directionZ = std::sin(angle);
+        const float localX =
+            directionX * static_cast<float>(pond.radiusX) * radial -
+            directionZ * tangentOffset;
+        const float localZ =
+            directionZ * static_cast<float>(pond.radiusZ) * radial +
+            directionX * tangentOffset;
+        const float cosine =
+            std::cos(static_cast<float>(pond.rotation));
+        const float sine =
+            std::sin(static_cast<float>(pond.rotation));
+        return Vector2{
+            static_cast<float>(pond.x) +
+                localX * cosine - localZ * sine,
+            static_cast<float>(pond.z) +
+                localX * sine + localZ * cosine,
+        };
+    };
+
+    std::size_t pondIndex = 0U;
+    for (const PondDefinition& pond : terrainHeightfield_->ponds()) {
+        const std::uint32_t pondHash = pondDecorHash(
+            terrainHeightfield_->seed() ^
+            static_cast<std::uint32_t>(pondIndex + 1U) * 0x9e3779b9U);
+
+        constexpr int LilyClusters = 6;
+        for (int cluster = 0; cluster < LilyClusters; ++cluster) {
+            const std::uint32_t clusterHash = pondDecorHash(
+                pondHash + static_cast<std::uint32_t>(cluster + 1) *
+                    0x85ebca6bU);
+            const float baseAngle =
+                pondDecorUnit(clusterHash) * PI * 2.0F;
+            const float baseRadial = 0.24F +
+                pondDecorUnit(clusterHash ^ 0xa511e9b3U) * 0.48F;
+            const int count = 2 +
+                static_cast<int>((clusterHash >> 6U) % 3U);
+            for (int item = 0; item < count; ++item) {
+                const std::uint32_t hash = pondDecorHash(
+                    clusterHash + static_cast<std::uint32_t>(item + 5) *
+                        0x27d4eb2fU);
+                const float angle = baseAngle +
+                    (pondDecorUnit(hash ^ 0x165667b1U) - 0.5F) * 0.16F;
+                const float radial = baseRadial +
+                    (pondDecorUnit(hash ^ 0xd3a2646cU) - 0.5F) * 0.07F;
+                const float tangent =
+                    (static_cast<float>(item) -
+                     static_cast<float>(count - 1) * 0.5F) * 0.72F;
+                const Vector2 point =
+                    pondPoint(pond, angle, radial, tangent);
+                const auto surface = terrainHeightfield_->waterSurfaceHeight(
+                    point.x, point.y);
+                if (!surface ||
+                    terrainHeightfield_->waterDepth(point.x, point.y) < 0.08) {
+                    continue;
+                }
+                const std::size_t variant =
+                    static_cast<std::size_t>(hash & 1U);
+                const float scale = variant == 0U
+                    ? 9.2F + pondDecorUnit(hash ^ 0x63d83595U) * 2.8F
+                    : 6.4F + pondDecorUnit(hash ^ 0xb5297a4dU) * 2.4F;
+                const float yaw =
+                    pondDecorUnit(hash ^ 0x7f4a7c15U) * PI * 2.0F;
+                pondDecorTransforms_[variant].push_back(
+                    MatrixMultiply(
+                        MatrixScale(scale, scale, scale),
+                        MatrixMultiply(
+                            MatrixRotateY(yaw),
+                            MatrixTranslate(
+                                point.x,
+                                static_cast<float>(*surface) + 0.075F,
+                                point.y))));
+            }
+        }
+
+        constexpr int PlantClusters = 10;
+        for (int cluster = 0; cluster < PlantClusters; ++cluster) {
+            const std::uint32_t clusterHash = pondDecorHash(
+                pondHash ^ (static_cast<std::uint32_t>(cluster + 13) *
+                            0xc2b2ae35U));
+            const float angle =
+                static_cast<float>(cluster) * PI * 2.0F /
+                    static_cast<float>(PlantClusters) +
+                (pondDecorUnit(clusterHash) - 0.5F) * 0.26F;
+            Vector2 previousPoint =
+                pondPoint(pond, angle, 0.55F, 0.0F);
+            double previousDistance =
+                terrainHeightfield_->waterSignedDistance(
+                    previousPoint.x, previousPoint.y);
+            float shoreRadial = 1.0F;
+            for (int sample = 1; sample <= 32; ++sample) {
+                const float radial = 0.55F +
+                    static_cast<float>(sample) / 32.0F * 0.80F;
+                const Vector2 point =
+                    pondPoint(pond, angle, radial, 0.0F);
+                const double distance =
+                    terrainHeightfield_->waterSignedDistance(
+                        point.x, point.y);
+                shoreRadial = radial;
+                if (previousDistance <= 0.0 && distance > 0.0) {
+                    break;
+                }
+                previousDistance = distance;
+            }
+
+            const int count = 3 +
+                static_cast<int>((clusterHash >> 5U) % 3U);
+            for (int item = 0; item < count; ++item) {
+                const std::uint32_t hash = pondDecorHash(
+                    clusterHash + static_cast<std::uint32_t>(item + 1) *
+                        0x165667b1U);
+                const float tangent =
+                    (static_cast<float>(item) -
+                     static_cast<float>(count - 1) * 0.5F) * 0.38F;
+                const float radial = shoreRadial - 0.012F +
+                    (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 0.025F;
+                const Vector2 point =
+                    pondPoint(pond, angle, radial, tangent);
+                const double shoreDistance =
+                    terrainHeightfield_->waterSignedDistance(
+                        point.x, point.y);
+                if (shoreDistance < -1.4 || shoreDistance > 1.0) {
+                    continue;
+                }
+                const std::size_t variant =
+                    2U + static_cast<std::size_t>(hash % 3U);
+                const float randomScale =
+                    pondDecorUnit(hash ^ 0x68e31da4U);
+                const float scale = variant == 2U
+                    ? 7.2F + randomScale * 2.4F
+                    : variant == 3U
+                        ? 4.7F + randomScale * 1.8F
+                        : 4.8F + randomScale * 1.9F;
+                constexpr std::array<float, 3> MinimumY{
+                    -0.0195855F, -0.0190402F, -0.0195855F};
+                const float terrainY = static_cast<float>(
+                    terrainHeightfield_->getHeight(point.x, point.y));
+                const float yaw =
+                    pondDecorUnit(hash ^ 0x9e3779b9U) * PI * 2.0F;
+                pondDecorTransforms_[variant].push_back(
+                    MatrixMultiply(
+                        MatrixScale(scale, scale, scale),
+                        MatrixMultiply(
+                            MatrixRotateY(yaw),
+                            MatrixTranslate(
+                                point.x,
+                                terrainY - MinimumY[variant - 2U] * scale +
+                                    0.01F,
+                                point.y))));
+            }
+        }
+        ++pondIndex;
+    }
 }
 
 void Renderer::drawTerrain(
@@ -1033,25 +1214,48 @@ void Renderer::drawPondDecor() {
         shader = resources_.worldShader().get();
     }
     terrainRenderer_.drawPondDecor(shader);
+    drawPondDecorInstances(2U, pondDecorTransforms_.size());
 }
 
-bool Renderer::drawTestWaterPlant(Vector3 position) {
-    ModelResource& resource = resources_.testWaterPlantModel();
-    if (!resource.valid()) {
-        return false;
+void Renderer::drawPondSurfaceDecor() {
+    drawPondDecorInstances(0U, 2U);
+}
+
+void Renderer::drawPondDecorInstances(
+    std::size_t beginVariant, std::size_t endVariant) {
+    if (!worldShaderActive_ || !resources_.worldShader().valid()) {
+        return;
     }
-    Model& model = resource.get();
-    if (worldShaderActive_ && resources_.worldShader().valid()) {
-        Shader& shader = resources_.worldShader().get();
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = shader;
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader, worldInstancingEnabledLocation_,
+                   &enabled, SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    endVariant = std::min(endVariant, pondDecorTransforms_.size());
+    for (std::size_t variant = beginVariant;
+         variant < endVariant; ++variant) {
+        const auto& transforms = pondDecorTransforms_[variant];
+        ModelResource& resource = resources_.pondDecorModel(variant);
+        if (transforms.empty() || !resource.valid()) {
+            continue;
+        }
+        Model& model = resource.get();
+        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+            Material material =
+                model.materials[model.meshMaterial[meshIndex]];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                transforms.data(),
+                static_cast<int>(transforms.size()));
         }
     }
-    constexpr float Scale = 7.0F;
-    position.y += 0.0195855F * Scale;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                0.0F, {Scale, Scale, Scale}, WHITE);
-    return true;
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader, worldInstancingEnabledLocation_,
+                   &disabled, SHADER_UNIFORM_INT);
 }
 
 void Renderer::drawWater(
