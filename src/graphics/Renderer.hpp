@@ -201,6 +201,9 @@ class Renderer {
     void drawTerrain(
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
+    void drawPondDecor();
+    void drawWater(Vector3 cameraPosition,
+                   const WorldLighting& lighting);
     [[nodiscard]] std::optional<double>
     buildingRaycastDistance(
         const BuildingInstance& building,
@@ -454,6 +457,19 @@ class Renderer {
     int cloudSunIntensityLocation_{-1};
     int cloudAmbientColorLocation_{-1};
     int cloudVisibilityLocation_{-1};
+    int waterCameraPositionLocation_{-1};
+    int waterShallowColorLocation_{-1};
+    int waterDeepColorLocation_{-1};
+    int waterSkyColorLocation_{-1};
+    int waterSunDirectionLocation_{-1};
+    int waterSunColorLocation_{-1};
+    int waterFogColorLocation_{-1};
+    int waterDayNightTintLocation_{-1};
+    int waterFogStartLocation_{-1};
+    int waterFogEndLocation_{-1};
+    int waterExposureLocation_{-1};
+    int waterTimeLocation_{-1};
+    int waterWaveSpeedLocation_{-1};
     int upgradeEffectOriginLocation_{-1};
     int upgradeEffectHeightLocation_{-1};
     int upgradeEffectProgressLocation_{-1};

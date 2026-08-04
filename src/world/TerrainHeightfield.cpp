@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 namespace ian {
@@ -332,6 +333,52 @@ makeBuildPlateaus(
            amount * amount * mountainShape;
 }
 
+[[nodiscard]] double unitHash(std::uint32_t value) {
+    return static_cast<double>(mixBits(value)) /
+        static_cast<double>(
+            std::numeric_limits<std::uint32_t>::max());
+}
+
+[[nodiscard]] double pondSignedDistance(
+    const PondDefinition& pond,
+    double worldX, double worldZ) {
+    const double sine = std::sin(pond.rotation);
+    const double cosine = std::cos(pond.rotation);
+    const double offsetX = worldX - pond.x;
+    const double offsetZ = worldZ - pond.z;
+    const double localX = offsetX * cosine + offsetZ * sine;
+    const double localZ = -offsetX * sine + offsetZ * cosine;
+    const double angle = std::atan2(
+        localZ / std::max(pond.radiusZ, 0.01),
+        localX / std::max(pond.radiusX, 0.01));
+    const double organicRadius =
+        1.0 +
+        std::sin(angle * 3.0 + pond.phase) * 0.095 +
+        std::sin(angle * 5.0 - pond.phase * 1.37) * 0.052 +
+        std::sin(angle * 7.0 + pond.phase * 0.61) * 0.026;
+    const double normalized = std::hypot(
+        localX / std::max(pond.radiusX, 0.01),
+        localZ / std::max(pond.radiusZ, 0.01));
+    double distance =
+        (normalized - organicRadius) *
+        std::min(pond.radiusX, pond.radiusZ);
+
+    const double bayDistance = std::hypot(
+        worldX - (pond.x + std::cos(pond.bayAngle) *
+                             pond.radiusX * 0.72),
+        worldZ - (pond.z + std::sin(pond.bayAngle) *
+                             pond.radiusZ * 0.72)) -
+        pond.bayRadius;
+    distance = std::min(distance, bayDistance);
+    if (pond.islandRadius > 0.0) {
+        const double islandDistance = std::hypot(
+            worldX - pond.islandX,
+            worldZ - pond.islandZ) - pond.islandRadius;
+        distance = std::max(distance, -islandDistance);
+    }
+    return distance;
+}
+
 } // namespace
 
 TerrainHeightfield::TerrainHeightfield(
@@ -359,6 +406,7 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
         config_.terrainWorldSize * 0.5;
     const std::vector<TerrainPlateau> plateaus =
         makeBuildPlateaus(config_, seed_);
+    ponds_.clear();
     for (int z = 0; z < size; ++z) {
         const double worldZ =
             -halfSize +
@@ -380,6 +428,201 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
                 std::min(minimumHeight_, height);
             maximumHeight_ =
                 std::max(maximumHeight_, height);
+        }
+    }
+
+    if (config_.pondMaximumCount <= 0 ||
+        config_.pondMaximumAreaFraction <= 0.0) {
+        return;
+    }
+    const std::uint32_t waterSeed =
+        mixBits(seed_ ^ config_.pondSeed);
+    const int countRange =
+        config_.pondMaximumCount - config_.pondMinimumCount + 1;
+    const int requestedCount = config_.pondMinimumCount +
+        static_cast<int>(waterSeed %
+            static_cast<std::uint32_t>(std::max(countRange, 1)));
+    const double playableLimit = std::max(
+        config_.coreFlatRadius + 12.0,
+        halfSize - config_.terrainBoundaryRiseWidth - 3.0);
+    const double playableArea =
+        playableLimit * playableLimit * 4.0;
+    const double targetArea = playableArea *
+        config_.pondMaximumAreaFraction *
+        (0.68 + unitHash(waterSeed ^ 0x68e31da4U) * 0.27);
+    ponds_.reserve(static_cast<std::size_t>(requestedCount));
+    for (int pondIndex = 0; pondIndex < requestedCount; ++pondIndex) {
+        const std::uint32_t pondHash = mixBits(
+            waterSeed + static_cast<std::uint32_t>(pondIndex) *
+                            0x9e3779b9U);
+        const double areaVariation =
+            0.72 + unitHash(pondHash ^ 0xa511e9b3U) * 0.56;
+        const double nominalArea =
+            targetArea / static_cast<double>(requestedCount) *
+            areaVariation;
+        const double aspect =
+            0.68 + unitHash(pondHash ^ 0x63d83595U) * 0.64;
+        double radiusX = std::sqrt(
+            nominalArea /
+            (3.14159265358979323846 * aspect));
+        double radiusZ = radiusX * aspect;
+        radiusX = std::clamp(
+            radiusX, config_.pondMinimumRadius,
+            config_.pondMaximumRadius);
+        radiusZ = std::clamp(
+            radiusZ, config_.pondMinimumRadius * 0.72,
+            config_.pondMaximumRadius);
+        const double maximumRadius = std::max(radiusX, radiusZ);
+        const double candidateLimit =
+            playableLimit - maximumRadius -
+            config_.pondShorelineWidth * 2.0;
+        if (candidateLimit <= maximumRadius) {
+            continue;
+        }
+
+        double bestX = 0.0;
+        double bestZ = 0.0;
+        double bestScore =
+            std::numeric_limits<double>::infinity();
+        bool found = false;
+        for (int attempt = 0; attempt < 240; ++attempt) {
+            const std::uint32_t attemptHash = mixBits(
+                pondHash + static_cast<std::uint32_t>(attempt) *
+                               0x85ebca6bU);
+            const double x =
+                (unitHash(attemptHash) * 2.0 - 1.0) *
+                candidateLimit;
+            const double z =
+                (unitHash(attemptHash ^ 0xc2b2ae35U) * 2.0 - 1.0) *
+                candidateLimit;
+            constexpr double RouteHalfWidth = 7.0;
+            if (std::abs(x) <= radiusX + RouteHalfWidth ||
+                std::abs(z) <= radiusZ + RouteHalfWidth ||
+                std::hypot(x, z) <=
+                    maximumRadius + config_.coreFlatRadius + 10.0) {
+                continue;
+            }
+            bool overlapsProtected = false;
+            for (const TerrainPlateau& plateau : plateaus) {
+                if (std::hypot(x - plateau.x, z - plateau.z) <
+                    maximumRadius + plateau.radius + 5.0) {
+                    overlapsProtected = true;
+                    break;
+                }
+            }
+            if (overlapsProtected) {
+                continue;
+            }
+            const bool overlapsPond = std::any_of(
+                ponds_.begin(), ponds_.end(),
+                [x, z, maximumRadius](const PondDefinition& pond) {
+                    return std::hypot(x - pond.x, z - pond.z) <
+                        maximumRadius +
+                            std::max(pond.radiusX, pond.radiusZ) + 7.0;
+                });
+            if (overlapsPond) {
+                continue;
+            }
+            const std::array<double, 5> samples{{
+                getHeight(x, z),
+                getHeight(x + radiusX * 0.42, z),
+                getHeight(x - radiusX * 0.42, z),
+                getHeight(x, z + radiusZ * 0.42),
+                getHeight(x, z - radiusZ * 0.42),
+            }};
+            const auto [lowest, highest] =
+                std::minmax_element(samples.begin(), samples.end());
+            const double average =
+                std::accumulate(samples.begin(), samples.end(), 0.0) /
+                static_cast<double>(samples.size());
+            const double score = average +
+                (*highest - *lowest) * 1.8 +
+                unitHash(attemptHash ^ 0x27d4eb2fU) * 0.35;
+            if (score < bestScore) {
+                bestScore = score;
+                bestX = x;
+                bestZ = z;
+                found = true;
+            }
+        }
+        if (!found) {
+            continue;
+        }
+        const double centerHeight = getHeight(bestX, bestZ);
+        const double depth = interpolate(
+            config_.pondMinimumDepth,
+            config_.pondMaximumDepth,
+            unitHash(pondHash ^ 0x165667b1U));
+        PondDefinition pond{
+            .x = bestX,
+            .z = bestZ,
+            .radiusX = radiusX,
+            .radiusZ = radiusZ,
+            .rotation = unitHash(pondHash ^ 0xb5297a4dU) *
+                3.14159265358979323846,
+            .waterLevel = centerHeight + 0.18,
+            .depth = depth,
+            .phase = unitHash(pondHash ^ 0x1b56c4e9U) *
+                6.28318530717958647692,
+            .bayAngle = unitHash(pondHash ^ 0x94d049bbU) *
+                6.28318530717958647692,
+            .bayRadius = std::min(radiusX, radiusZ) *
+                (0.22 + unitHash(pondHash ^ 0x7f4a7c15U) * 0.12),
+        };
+        if (unitHash(pondHash ^ 0xd8163841U) > 0.52) {
+            const double islandAngle = pond.phase + 1.3;
+            pond.islandX = bestX + std::cos(islandAngle) * radiusX * 0.24;
+            pond.islandZ = bestZ + std::sin(islandAngle) * radiusZ * 0.24;
+            pond.islandRadius = std::min(radiusX, radiusZ) *
+                (0.10 + unitHash(pondHash ^ 0xca01f9ddU) * 0.08);
+        }
+        ponds_.push_back(pond);
+    }
+
+    const double bankWidth = std::max(
+        config_.pondShorelineWidth * 2.2, spacing_ * 3.0);
+    minimumHeight_ =
+        std::numeric_limits<double>::infinity();
+    maximumHeight_ =
+        -std::numeric_limits<double>::infinity();
+    for (int z = 0; z < size; ++z) {
+        const double worldZ =
+            -halfSize + static_cast<double>(z) * spacing_;
+        for (int x = 0; x < size; ++x) {
+            const double worldX =
+                -halfSize + static_cast<double>(x) * spacing_;
+            double height = heights_[sampleIndex(x, z)];
+            for (const PondDefinition& pond : ponds_) {
+                const double distance = pondSignedDistance(
+                    pond, worldX, worldZ);
+                if (distance >= bankWidth) {
+                    continue;
+                }
+                if (distance <= 0.0) {
+                    const double centerAmount = smoother(
+                        std::clamp(
+                            -distance /
+                                (std::min(
+                                    pond.radiusX, pond.radiusZ) * 0.70),
+                            0.0, 1.0));
+                    const double desired = pond.waterLevel - 0.06 -
+                        std::max(pond.depth - 0.06, 0.0) *
+                            centerAmount;
+                    height = interpolate(height, desired, 0.98);
+                } else {
+                    const double bankAmount = std::clamp(
+                        distance / bankWidth, 0.0, 1.0);
+                    const double desired = pond.waterLevel - 0.06 +
+                        bankAmount * 0.30;
+                    height = interpolate(
+                        height, desired,
+                        1.0 - smoother(bankAmount));
+                }
+            }
+            heights_[sampleIndex(x, z)] =
+                static_cast<float>(height);
+            minimumHeight_ = std::min(minimumHeight_, height);
+            maximumHeight_ = std::max(maximumHeight_, height);
         }
     }
 }
@@ -560,6 +803,68 @@ double TerrainHeightfield::spacing() const {
 std::span<const float>
 TerrainHeightfield::samples() const {
     return heights_;
+}
+
+std::span<const PondDefinition>
+TerrainHeightfield::ponds() const {
+    return ponds_;
+}
+
+double TerrainHeightfield::waterSignedDistance(
+    double worldX, double worldZ) const {
+    double distance = std::numeric_limits<double>::infinity();
+    for (const PondDefinition& pond : ponds_) {
+        distance = std::min(
+            distance,
+            pondSignedDistance(pond, worldX, worldZ));
+    }
+    return distance;
+}
+
+std::optional<double> TerrainHeightfield::waterSurfaceHeight(
+    double worldX, double worldZ) const {
+    const PondDefinition* closest = nullptr;
+    double closestDistance =
+        std::numeric_limits<double>::infinity();
+    for (const PondDefinition& pond : ponds_) {
+        const double distance = pondSignedDistance(
+            pond, worldX, worldZ);
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closest = &pond;
+        }
+    }
+    if (closest == nullptr || closestDistance > 0.0) {
+        return std::nullopt;
+    }
+    return closest->waterLevel;
+}
+
+double TerrainHeightfield::waterDepth(
+    double worldX, double worldZ) const {
+    const auto surface = waterSurfaceHeight(worldX, worldZ);
+    return surface
+        ? std::max(0.0, *surface - getHeight(worldX, worldZ))
+        : 0.0;
+}
+
+bool TerrainHeightfield::isDeepWater(
+    double worldX, double worldZ) const {
+    return waterDepth(worldX, worldZ) >=
+        config_.pondDeepWaterDepth;
+}
+
+double TerrainHeightfield::waterMovementMultiplier(
+    double worldX, double worldZ) const {
+    const double depth = waterDepth(worldX, worldZ);
+    if (depth <= 0.02) {
+        return 1.0;
+    }
+    const double amount = smoother(std::clamp(
+        depth / std::max(config_.pondDeepWaterDepth, 0.01),
+        0.0, 1.0));
+    return interpolate(
+        1.0, config_.pondShallowMovementMultiplier, amount);
 }
 
 std::size_t TerrainHeightfield::sampleIndex(

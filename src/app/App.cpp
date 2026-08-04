@@ -432,6 +432,12 @@ void App::render() {
             showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
+        WorldMaterialState pondDecorMaterial{};
+        pondDecorMaterial.bakedAo = 0.82F;
+        pondDecorMaterial.windAmount = 0.18F;
+        renderer_->setWorldMaterial(pondDecorMaterial);
+        renderer_->drawPondDecor();
+        renderer_->drawWater(camera.position, lighting);
         renderer_->drawClouds(
             camera.position, nightAmount, lighting);
         drawAtmosphereParticles(camera, nightAmount);

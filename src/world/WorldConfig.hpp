@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,6 +31,21 @@ struct WorldConfig {
     double buildPreviewDistance{10.0};
     double minimumGroundClearance{0.12};
     double maximumFoundationHeightDifference{1.35};
+    int pondMinimumCount{3};
+    int pondMaximumCount{7};
+    double pondMaximumAreaFraction{0.12};
+    double pondMinimumDepth{0.65};
+    double pondMaximumDepth{1.55};
+    double pondMinimumRadius{14.0};
+    double pondMaximumRadius{30.0};
+    double pondShorelineWidth{2.4};
+    double pondWaveSpeed{0.22};
+    double pondBuildDepthLimit{0.35};
+    double pondShallowMovementMultiplier{0.62};
+    double pondDeepWaterDepth{0.78};
+    std::uint32_t pondSeed{92821U};
+    std::array<double, 3> pondShallowColor{{0.27, 0.84, 0.82}};
+    std::array<double, 3> pondDeepColor{{0.075, 0.35, 0.65}};
 
     [[nodiscard]] static WorldConfig defaults();
 };

@@ -58,6 +58,37 @@ void Renderer::initialize() {
         cloudVisibilityLocation_ =
             GetShaderLocation(shader, "visibility");
     }
+    if (resources_.waterShader().valid()) {
+        Shader& shader = resources_.waterShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        waterCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        waterShallowColorLocation_ =
+            GetShaderLocation(shader, "shallowColor");
+        waterDeepColorLocation_ =
+            GetShaderLocation(shader, "deepColor");
+        waterSkyColorLocation_ =
+            GetShaderLocation(shader, "skyColor");
+        waterSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        waterSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        waterFogColorLocation_ =
+            GetShaderLocation(shader, "fogColor");
+        waterDayNightTintLocation_ =
+            GetShaderLocation(shader, "dayNightTint");
+        waterFogStartLocation_ =
+            GetShaderLocation(shader, "fogStart");
+        waterFogEndLocation_ =
+            GetShaderLocation(shader, "fogEnd");
+        waterExposureLocation_ =
+            GetShaderLocation(shader, "exposure");
+        waterTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        waterWaveSpeedLocation_ =
+            GetShaderLocation(shader, "waveSpeed");
+    }
     if (resources_.selectionOutlineShader().valid()) {
         selectionOutlineTexelSizeLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(), "texelSize");
@@ -996,6 +1027,68 @@ void Renderer::drawTerrain(
     }
 }
 
+void Renderer::drawPondDecor() {
+    Shader shader{};
+    if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = resources_.worldShader().get();
+    }
+    terrainRenderer_.drawPondDecor(shader);
+}
+
+void Renderer::drawWater(
+    Vector3 cameraPosition, const WorldLighting& lighting) {
+    if (terrainHeightfield_ == nullptr ||
+        !resources_.waterShader().valid()) {
+        return;
+    }
+    Shader& shader = resources_.waterShader().get();
+    const auto& config = terrainHeightfield_->config();
+    const Vector3 shallowColor{
+        static_cast<float>(config.pondShallowColor[0]),
+        static_cast<float>(config.pondShallowColor[1]),
+        static_cast<float>(config.pondShallowColor[2]),
+    };
+    const Vector3 deepColor{
+        static_cast<float>(config.pondDeepColor[0]),
+        static_cast<float>(config.pondDeepColor[1]),
+        static_cast<float>(config.pondDeepColor[2]),
+    };
+    const float timeSeconds = static_cast<float>(GetTime());
+    const float waveSpeed =
+        static_cast<float>(config.pondWaveSpeed);
+    const float fogStart =
+        settings_.fog ? lighting.fogStart : 1000000.0F;
+    const float fogEnd =
+        settings_.fog ? lighting.fogEnd : 1000001.0F;
+    SetShaderValue(shader, waterCameraPositionLocation_,
+                   &cameraPosition, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterShallowColorLocation_,
+                   &shallowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterDeepColorLocation_,
+                   &deepColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterSkyColorLocation_,
+                   &lighting.skyAmbientColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterSunDirectionLocation_,
+                   &lighting.sunDirection, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterSunColorLocation_,
+                   &lighting.sunColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterFogColorLocation_,
+                   &lighting.fogColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterDayNightTintLocation_,
+                   &lighting.dayNightTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterFogStartLocation_,
+                   &fogStart, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterFogEndLocation_,
+                   &fogEnd, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterExposureLocation_,
+                   &lighting.exposure, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterTimeLocation_,
+                   &timeSeconds, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterWaveSpeedLocation_,
+                   &waveSpeed, SHADER_UNIFORM_FLOAT);
+    terrainRenderer_.drawWater(shader);
+}
+
 void Renderer::drawGrassInstances(Vector3 cameraPosition,
                                   float worldLimit,
                                   float nightAmount,
@@ -1083,6 +1176,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             const float distanceSquared =
                 offsetX * offsetX + offsetZ * offsetZ;
             if (distanceSquared > DrawRadius * DrawRadius) {
+                continue;
+            }
+            if (terrainHeightfield_ != nullptr &&
+                terrainHeightfield_->waterSignedDistance(x, z) < 0.15) {
                 continue;
             }
 

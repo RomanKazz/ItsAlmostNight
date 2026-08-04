@@ -139,7 +139,16 @@ void runTerrainHeightfieldTests() {
         "coreFlatRadius": 8.0,
         "buildPreviewDistance": 9.0,
         "minimumGroundClearance": 0.12,
-        "maximumFoundationHeightDifference": 1.1
+        "maximumFoundationHeightDifference": 1.1,
+        "pondMinimumCount": 4,
+        "pondMaximumCount": 6,
+        "pondMaximumAreaFraction": 0.13,
+        "pondMaximumDepth": 1.8,
+        "pondWaveSpeed": 0.3,
+        "pondShorelineWidth": 2.8,
+        "pondSeed": 12345,
+        "pondShallowColor": [0.1, 0.7, 0.8],
+        "pondDeepColor": [0.02, 0.2, 0.5]
     })json");
     require(
         parsed.valid() &&
@@ -148,7 +157,16 @@ void runTerrainHeightfieldTests() {
             parsed.config.terrainTerraceHeight == 2.0 &&
             parsed.config.terrainSlopeWidth == 12.0 &&
             parsed.config.maximumFoundationHeightDifference == 1.1 &&
-            parsed.config.maxStoreys == 3,
+            parsed.config.maxStoreys == 3 &&
+            parsed.config.pondMinimumCount == 4 &&
+            parsed.config.pondMaximumCount == 6 &&
+            parsed.config.pondMaximumAreaFraction == 0.13 &&
+            parsed.config.pondMaximumDepth == 1.8 &&
+            parsed.config.pondWaveSpeed == 0.3 &&
+            parsed.config.pondShorelineWidth == 2.8 &&
+            parsed.config.pondSeed == 12345U &&
+            parsed.config.pondShallowColor[1] == 0.7 &&
+            parsed.config.pondDeepColor[2] == 0.5,
         "world configuration parses");
 
     ian::WorldConfig boundaryConfig =
@@ -185,6 +203,100 @@ void runTerrainHeightfieldTests() {
 
     ian::TerrainHeightfield defaultTerrain{
         ian::WorldConfig::defaults()};
+    require(
+        defaultTerrain.ponds().size() >= 3U &&
+            defaultTerrain.ponds().size() <= 7U,
+        "default terrain generates three to seven ponds");
+    ian::TerrainHeightfield deterministicPonds{
+        ian::WorldConfig::defaults()};
+    require(
+        deterministicPonds.ponds().size() ==
+            defaultTerrain.ponds().size() &&
+            std::equal(
+                defaultTerrain.ponds().begin(),
+                defaultTerrain.ponds().end(),
+                deterministicPonds.ponds().begin(),
+                [](const ian::PondDefinition& left,
+                   const ian::PondDefinition& right) {
+                    return left.x == right.x &&
+                           left.z == right.z &&
+                           left.radiusX == right.radiusX &&
+                           left.radiusZ == right.radiusZ;
+                }),
+        "pond layout is deterministic for same seed");
+    deterministicPonds.generate(deterministicPonds.seed() + 1U);
+    require(
+        deterministicPonds.ponds().size() !=
+                defaultTerrain.ponds().size() ||
+            !std::equal(
+                defaultTerrain.ponds().begin(),
+                defaultTerrain.ponds().end(),
+                deterministicPonds.ponds().begin(),
+                [](const ian::PondDefinition& left,
+                   const ian::PondDefinition& right) {
+                    return left.x == right.x && left.z == right.z;
+                }),
+        "terrain seed changes pond layout");
+    const auto& defaultConfig = defaultTerrain.config();
+    constexpr double PondSampleStep = 2.0;
+    const double terrainHalfSize =
+        defaultConfig.terrainWorldSize * 0.5;
+    std::size_t waterSamples = 0U;
+    std::size_t totalSamples = 0U;
+    for (double z = -terrainHalfSize;
+         z <= terrainHalfSize; z += PondSampleStep) {
+        for (double x = -terrainHalfSize;
+             x <= terrainHalfSize; x += PondSampleStep) {
+            ++totalSamples;
+            if (defaultTerrain.waterDepth(x, z) > 0.02) {
+                ++waterSamples;
+            }
+        }
+    }
+    const double pondAreaFraction =
+        static_cast<double>(waterSamples) /
+        static_cast<double>(totalSamples);
+    require(
+        pondAreaFraction > 0.01 && pondAreaFraction <= 0.15,
+        "ponds occupy bounded map area");
+    for (double coordinate = -32.0;
+         coordinate <= 32.0; coordinate += 1.0) {
+        require(
+            !defaultTerrain.isDeepWater(coordinate, 0.0) &&
+                !defaultTerrain.isDeepWater(0.0, coordinate),
+            "ponds preserve cardinal attack routes");
+    }
+    require(
+        defaultTerrain.waterDepth(0.0, 0.0) <= 0.02,
+        "ponds avoid core start zone");
+    bool foundDeepWater = false;
+    for (const ian::PondDefinition& pond : defaultTerrain.ponds()) {
+        for (int z = -4; z <= 4 && !foundDeepWater; ++z) {
+            for (int x = -4; x <= 4; ++x) {
+                if (defaultTerrain.isDeepWater(
+                        pond.x + x * pond.radiusX / 10.0,
+                        pond.z + z * pond.radiusZ / 10.0)) {
+                    foundDeepWater = true;
+                    break;
+                }
+            }
+        }
+    }
+    require(foundDeepWater, "pond basins contain deep water");
+    ian::WorldConfig pondSeedConfig = defaultConfig;
+    pondSeedConfig.terrainResolution = 129;
+    for (std::uint32_t seed = 1U; seed <= 12U; ++seed) {
+        pondSeedConfig.terrainSeed = seed;
+        ian::TerrainHeightfield seededPonds{pondSeedConfig};
+        require(
+            seededPonds.ponds().size() >=
+                    static_cast<std::size_t>(
+                        pondSeedConfig.pondMinimumCount) &&
+                seededPonds.ponds().size() <=
+                    static_cast<std::size_t>(
+                        pondSeedConfig.pondMaximumCount),
+            "every terrain seed keeps configured pond count range");
+    }
     double plateauMinimum =
         std::numeric_limits<double>::infinity();
     double plateauMaximum =

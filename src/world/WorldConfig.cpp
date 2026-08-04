@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -46,7 +47,34 @@ void validate(const WorldConfig& config) {
             config.terrainChunkWorldSize ||
         config.buildPreviewDistance <= 0.0 ||
         config.minimumGroundClearance < 0.0 ||
-        config.maximumFoundationHeightDifference <= 0.0) {
+        config.maximumFoundationHeightDifference <= 0.0 ||
+        config.pondMinimumCount < 0 ||
+        config.pondMaximumCount < config.pondMinimumCount ||
+        config.pondMaximumCount > 16 ||
+        config.pondMaximumAreaFraction < 0.0 ||
+        config.pondMaximumAreaFraction > 0.15 ||
+        config.pondMinimumDepth <= 0.0 ||
+        config.pondMaximumDepth < config.pondMinimumDepth ||
+        config.pondMinimumRadius < config.cellSize * 4.0 ||
+        config.pondMaximumRadius < config.pondMinimumRadius ||
+        config.pondShorelineWidth <= 0.0 ||
+        config.pondWaveSpeed < 0.0 ||
+        config.pondBuildDepthLimit < 0.0 ||
+        config.pondShallowMovementMultiplier <= 0.0 ||
+        config.pondShallowMovementMultiplier > 1.0 ||
+        config.pondDeepWaterDepth <= config.pondBuildDepthLimit ||
+        std::any_of(
+            config.pondShallowColor.begin(),
+            config.pondShallowColor.end(),
+            [](double channel) {
+                return channel < 0.0 || channel > 1.0;
+            }) ||
+        std::any_of(
+            config.pondDeepColor.begin(),
+            config.pondDeepColor.end(),
+            [](double channel) {
+                return channel < 0.0 || channel > 1.0;
+            })) {
         throw std::runtime_error(
             "invalid world configuration");
     }
@@ -138,6 +166,38 @@ parseWorldConfig(std::string_view json) {
                 document.value(
                     "maximumFoundationHeightDifference",
                     defaults.maximumFoundationHeightDifference),
+            .pondMinimumCount = document.value(
+                "pondMinimumCount", defaults.pondMinimumCount),
+            .pondMaximumCount = document.value(
+                "pondMaximumCount", defaults.pondMaximumCount),
+            .pondMaximumAreaFraction = document.value(
+                "pondMaximumAreaFraction",
+                defaults.pondMaximumAreaFraction),
+            .pondMinimumDepth = document.value(
+                "pondMinimumDepth", defaults.pondMinimumDepth),
+            .pondMaximumDepth = document.value(
+                "pondMaximumDepth", defaults.pondMaximumDepth),
+            .pondMinimumRadius = document.value(
+                "pondMinimumRadius", defaults.pondMinimumRadius),
+            .pondMaximumRadius = document.value(
+                "pondMaximumRadius", defaults.pondMaximumRadius),
+            .pondShorelineWidth = document.value(
+                "pondShorelineWidth", defaults.pondShorelineWidth),
+            .pondWaveSpeed = document.value(
+                "pondWaveSpeed", defaults.pondWaveSpeed),
+            .pondBuildDepthLimit = document.value(
+                "pondBuildDepthLimit", defaults.pondBuildDepthLimit),
+            .pondShallowMovementMultiplier = document.value(
+                "pondShallowMovementMultiplier",
+                defaults.pondShallowMovementMultiplier),
+            .pondDeepWaterDepth = document.value(
+                "pondDeepWaterDepth", defaults.pondDeepWaterDepth),
+            .pondSeed = document.value(
+                "pondSeed", defaults.pondSeed),
+            .pondShallowColor = document.value(
+                "pondShallowColor", defaults.pondShallowColor),
+            .pondDeepColor = document.value(
+                "pondDeepColor", defaults.pondDeepColor),
         };
         validate(config);
         result.config = config;

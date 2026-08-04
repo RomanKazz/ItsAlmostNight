@@ -45,12 +45,24 @@ std::vector<ResourceNodeDefinition> scatterResources(
     double worldLimit,
     const TerrainHeightfield& terrain) {
     std::vector<ResourceNodeDefinition> result = configured;
-    if (configured.size() < 7U || worldLimit < 16.0) {
-        for (auto& definition : result) {
+    const auto placeOnDryTerrain = [&terrain](
+        std::vector<ResourceNodeDefinition>& definitions) {
+        for (auto& definition : definitions) {
             definition.position.y += terrain.getHeight(
                 definition.position.x,
                 definition.position.z);
         }
+        std::erase_if(
+            definitions,
+            [&terrain](const ResourceNodeDefinition& definition) {
+                return terrain.waterSignedDistance(
+                           definition.position.x,
+                           definition.position.z) <
+                    definition.radius + 0.8;
+            });
+    };
+    if (configured.size() < 7U || worldLimit < 16.0) {
+        placeOnDryTerrain(result);
         return result;
     }
 
@@ -189,11 +201,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
         };
         result.push_back(definition);
     }
-    for (auto& definition : result) {
-        definition.position.y += terrain.getHeight(
-            definition.position.x,
-            definition.position.z);
-    }
+    placeOnDryTerrain(result);
     return result;
 }
 

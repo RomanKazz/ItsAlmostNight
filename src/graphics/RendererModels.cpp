@@ -1331,6 +1331,10 @@ void Renderer::drawDecorativeRocks(
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
                 continue;
             }
+            if (terrainHeightfield_ != nullptr &&
+                terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
+                continue;
+            }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
@@ -1408,6 +1412,10 @@ void Renderer::drawDecorativeRocks(
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            if (terrainHeightfield_ != nullptr &&
+                terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -1508,6 +1516,9 @@ void Renderer::drawDecorativeRockAo(
                     CoreClearRadius * CoreClearRadius) {
                 continue;
             }
+            if (terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
+                continue;
+            }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
@@ -1574,6 +1585,9 @@ void Renderer::drawDecorativeRockAo(
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            if (terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;

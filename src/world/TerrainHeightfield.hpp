@@ -11,6 +11,22 @@
 
 namespace ian {
 
+struct PondDefinition {
+    double x{};
+    double z{};
+    double radiusX{};
+    double radiusZ{};
+    double rotation{};
+    double waterLevel{};
+    double depth{};
+    double phase{};
+    double bayAngle{};
+    double bayRadius{};
+    double islandX{};
+    double islandZ{};
+    double islandRadius{};
+};
+
 class TerrainHeightfield {
   public:
     explicit TerrainHeightfield(
@@ -35,6 +51,17 @@ class TerrainHeightfield {
     [[nodiscard]] int resolution() const;
     [[nodiscard]] double spacing() const;
     [[nodiscard]] std::span<const float> samples() const;
+    [[nodiscard]] std::span<const PondDefinition> ponds() const;
+    [[nodiscard]] double waterSignedDistance(
+        double worldX, double worldZ) const;
+    [[nodiscard]] double waterDepth(
+        double worldX, double worldZ) const;
+    [[nodiscard]] std::optional<double> waterSurfaceHeight(
+        double worldX, double worldZ) const;
+    [[nodiscard]] bool isDeepWater(
+        double worldX, double worldZ) const;
+    [[nodiscard]] double waterMovementMultiplier(
+        double worldX, double worldZ) const;
 
   private:
     [[nodiscard]] std::size_t sampleIndex(
@@ -44,6 +71,7 @@ class TerrainHeightfield {
     std::uint32_t seed_{};
     double spacing_{};
     std::vector<float> heights_;
+    std::vector<PondDefinition> ponds_;
     double minimumHeight_{};
     double maximumHeight_{};
 };

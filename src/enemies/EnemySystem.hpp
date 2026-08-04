@@ -14,6 +14,8 @@
 
 namespace ian {
 
+class TerrainHeightfield;
+
 enum class EnemyType {
     Basic,
     Fast,
@@ -118,7 +120,8 @@ class EnemySystem {
                                       const FlowField& flowField,
                                       std::optional<Vec3> playerPosition = std::nullopt,
                                       std::span<const EnemyStructureTarget>
-                                          additionalStructures = {});
+                                          additionalStructures = {},
+                                      const TerrainHeightfield* terrain = nullptr);
 
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;

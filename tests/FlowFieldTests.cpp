@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "navigation/FlowField.hpp"
+#include "world/TerrainHeightfield.hpp"
 
 #include <cmath>
 #include <limits>
@@ -92,4 +93,15 @@ void runFlowFieldTests() {
             "flow field consumes configured map obstacle");
     require(!customObstacles.debugVectors().empty(),
             "ready flow field exposes compact debug vectors");
+
+    ian::TerrainHeightfield pondTerrain;
+    ian::FlowField pondField{{}, &pondTerrain};
+    pondField.rebuild({0, 0}, buildings.buildings());
+    for (const ian::GridPosition spawn :
+         {ian::GridPosition{-24, 0}, {24, 0},
+          {0, -24}, {0, 24}}) {
+        require(
+            std::isfinite(pondField.distanceAt(spawn)),
+            "pond-aware flow field preserves every attack route");
+    }
 }

@@ -300,6 +300,9 @@ class Simulation {
         PlatformFramePlacement>
     automaticFoundationPlacement(
         BuildingType type, GridPosition position) const;
+    [[nodiscard]] bool rectangleHasDeepWater(
+        double minimumX, double maximumX,
+        double minimumZ, double maximumZ) const;
     void raisePlayerOntoGroundFrame(
         const PlatformFrameInstance& frame);
     [[nodiscard]] bool shouldAutoJumpGroundFrame(

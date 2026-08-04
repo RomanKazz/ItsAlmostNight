@@ -1,4 +1,6 @@
 #include "enemies/EnemySystem.hpp"
+
+#include "world/TerrainHeightfield.hpp"
 #include "enemies/EnemyCollision.hpp"
 
 #include <algorithm>
@@ -422,7 +424,8 @@ void EnemySystem::spawnGroup(std::span<const EnemySpawn> spawns) {
 std::span<const EnemyAttack> EnemySystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings,
     const FlowField& flowField, std::optional<Vec3> playerPosition,
-    std::span<const EnemyStructureTarget> additionalStructures) {
+    std::span<const EnemyStructureTarget> additionalStructures,
+    const TerrainHeightfield* terrain) {
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     const auto core =
@@ -482,8 +485,13 @@ std::span<const EnemyAttack> EnemySystem::tick(
             enemy.movementMultiplier = 1.0;
         }
         enemy.steeringTime += deltaSeconds;
+        const double waterMultiplier =
+            terrain != nullptr && enemy.type != EnemyType::Flying
+                ? terrain->waterMovementMultiplier(
+                      enemy.position.x, enemy.position.z)
+                : 1.0;
         const double movementSpeed =
-            enemy.speed * enemy.movementMultiplier;
+            enemy.speed * enemy.movementMultiplier * waterMultiplier;
         enemy.position.x += enemy.knockbackVelocity.x * deltaSeconds;
         enemy.position.z += enemy.knockbackVelocity.z * deltaSeconds;
         const double knockbackDecay = std::max(0.0, 1.0 - 5.0 * deltaSeconds);

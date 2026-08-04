@@ -1,5 +1,7 @@
 #include "navigation/FlowField.hpp"
 
+#include "world/TerrainHeightfield.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -36,8 +38,10 @@ bool cellIntersects(GridPosition position, const CollisionBox& obstacle) {
 
 FlowField::FlowField() : FlowField(defaultStaticObstacles()) {}
 
-FlowField::FlowField(std::vector<CollisionBox> staticObstacles)
-    : staticObstacles_(std::move(staticObstacles)) {}
+FlowField::FlowField(
+    std::vector<CollisionBox> staticObstacles,
+    const TerrainHeightfield* terrain)
+    : staticObstacles_(std::move(staticObstacles)), terrain_(terrain) {}
 
 void FlowField::reset() {
     for (auto& cell : cells_) {
@@ -263,6 +267,19 @@ void FlowField::markStaticObstacles() {
                 [position](const CollisionBox& obstacle) {
                     return cellIntersects(position, obstacle);
                 });
+            if (terrain_ != nullptr && !cell.blocked) {
+                const double depth = terrain_->waterDepth(
+                    static_cast<double>(x), static_cast<double>(z));
+                if (depth >= terrain_->config().pondDeepWaterDepth) {
+                    cell.blocked = true;
+                } else if (depth > 0.02) {
+                    const double multiplier =
+                        terrain_->waterMovementMultiplier(x, z);
+                    cell.terrainCost = std::max(
+                        cell.terrainCost,
+                        std::min(8.0, 1.0 / std::max(multiplier, 0.01)));
+                }
+            }
         }
     }
 }

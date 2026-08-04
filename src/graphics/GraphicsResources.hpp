@@ -190,6 +190,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& skyShader() const;
     [[nodiscard]] ShaderResource& cloudShader();
     [[nodiscard]] const ShaderResource& cloudShader() const;
+    [[nodiscard]] ShaderResource& waterShader();
+    [[nodiscard]] const ShaderResource& waterShader() const;
     [[nodiscard]] ShaderResource& selectionMaskShader();
     [[nodiscard]] const ShaderResource& selectionMaskShader() const;
     [[nodiscard]] ShaderResource& selectionOutlineShader();
@@ -261,6 +263,7 @@ class GraphicsResources {
     ShaderResource shadowDebugShader_;
     ShaderResource skyShader_;
     ShaderResource cloudShader_;
+    ShaderResource waterShader_;
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
     ShaderResource postProcessShader_;

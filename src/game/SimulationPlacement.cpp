@@ -62,6 +62,16 @@ PlacementResult Simulation::validatePlacement(
     }
 
     const double cellSize = worldConfig_.cellSize;
+    if (rectangleHasDeepWater(
+            footprintMinimumX * cellSize,
+            (footprintMinimumX + footprintWidth) * cellSize,
+            footprintMinimumZ * cellSize,
+            (footprintMinimumZ + footprintWidth) * cellSize)) {
+        return {
+            PlacementError::WorldCollision,
+            buildingValidation.cost,
+        };
+    }
     if (resourceOverlapsRectangle(
             resources_.nodes(),
             footprintMinimumX * cellSize,
@@ -89,6 +99,31 @@ PlacementResult Simulation::validatePlacement(
         return {PlacementError::WorldCollision, buildingValidation.cost};
     }
     return buildingValidation;
+}
+
+bool Simulation::rectangleHasDeepWater(
+    double minimumX, double maximumX,
+    double minimumZ, double maximumZ) const {
+    constexpr int SamplesPerAxis = 5;
+    for (int z = 0; z < SamplesPerAxis; ++z) {
+        for (int x = 0; x < SamplesPerAxis; ++x) {
+            const double amountX =
+                static_cast<double>(x) /
+                static_cast<double>(SamplesPerAxis - 1);
+            const double amountZ =
+                static_cast<double>(z) /
+                static_cast<double>(SamplesPerAxis - 1);
+            const double sampleX =
+                minimumX + (maximumX - minimumX) * amountX;
+            const double sampleZ =
+                minimumZ + (maximumZ - minimumZ) * amountZ;
+            if (terrain_.waterDepth(sampleX, sampleZ) >
+                worldConfig_.pondBuildDepthLimit) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 BuildingPlatformSurface Simulation::placementSurface(

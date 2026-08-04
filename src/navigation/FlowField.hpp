@@ -11,6 +11,8 @@
 
 namespace ian {
 
+class TerrainHeightfield;
+
 struct NavCell {
     double terrainCost{1.0};
     double distanceToCore{std::numeric_limits<double>::infinity()};
@@ -32,7 +34,9 @@ class FlowField {
     static constexpr double WallTraversalCost = 25.0;
 
     FlowField();
-    explicit FlowField(std::vector<CollisionBox> staticObstacles);
+    explicit FlowField(
+        std::vector<CollisionBox> staticObstacles,
+        const TerrainHeightfield* terrain = nullptr);
 
     void reset();
     void rebuild(GridPosition target, const std::vector<BuildingInstance>& buildings);
@@ -53,6 +57,7 @@ class FlowField {
 
     std::vector<NavCell> cells_{CellCount};
     std::vector<CollisionBox> staticObstacles_;
+    const TerrainHeightfield* terrain_{};
     GridPosition target_{};
     bool ready_{};
 };

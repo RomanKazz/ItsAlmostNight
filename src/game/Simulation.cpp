@@ -176,7 +176,7 @@ Simulation::Simulation(
           }),
       buildings_(balance.buildings, balance.economy, map_.coreBuildRadius),
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
-      flowField_(mapCollisionBoxes(map_)),
+      flowField_(mapCollisionBoxes(map_), &terrain_),
       enemies_(balance.enemies),
       playerWeapons_(balance.weapons.rifle), bombs_(balance.weapons.bomb),
       goldMines_(balance.economy),
@@ -401,7 +401,10 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double cosYaw = std::cos(playerYaw_);
     const double directionX = (sinYaw * forward) + (cosYaw * right);
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
-    const double speed = command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed;
+    const double speed =
+        (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
+        terrain_.waterMovementMultiplier(
+            playerPosition_.x, playerPosition_.z);
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
     const Vec3 targetVelocity{
@@ -689,6 +692,7 @@ void Simulation::regenerateTerrain(
         resources_.nodes(), treeCollisionAssets_);
     foundations_.reset();
     syncModularStructures();
+    syncWorldStructures();
     playerHorizontalVelocity_ = {};
     playerPosition_.y =
         terrain_.getHeight(
@@ -714,6 +718,14 @@ Simulation::previewFoundation(
         terrainHit, playerPosition_);
     const double cellSize =
         worldConfig_.cellSize;
+    if (placement.valid() &&
+        rectangleHasDeepWater(
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + PlatformFrameWidthCells) * cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + PlatformFrameWidthCells) * cellSize)) {
+        placement.error = ModularPlacementError::Occupied;
+    }
     if (placement.valid() &&
         collisionWorld_.overlapsRampBox(
             platformFloorCollisionBox(
@@ -755,6 +767,14 @@ Simulation::previewFoundationAtHeight(
             terrainHit, floorHeight,
             playerPosition_);
     const double cellSize = worldConfig_.cellSize;
+    if (placement.valid() &&
+        rectangleHasDeepWater(
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + PlatformFrameWidthCells) * cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + PlatformFrameWidthCells) * cellSize)) {
+        placement.error = ModularPlacementError::Occupied;
+    }
     if (placement.valid() &&
         collisionWorld_.overlapsRampBox(
             platformFloorCollisionBox(
@@ -997,7 +1017,13 @@ RampPlacement Simulation::previewRamp(
                     return resourceOverlapsBox(
                         resources_.nodes(), box);
                 });
-        if (blockedByWorld ||
+        const bool blockedByWater = std::any_of(
+            rampBoxes.begin(), rampBoxes.end(),
+            [this](const CollisionBox& box) {
+                return rectangleHasDeepWater(
+                    box.minX, box.maxX, box.minZ, box.maxZ);
+            });
+        if (blockedByWorld || blockedByWater ||
             blockedByBuilding) {
             placement.error =
                 ModularPlacementError::Occupied;
@@ -1401,7 +1427,7 @@ void Simulation::updateCombat(double deltaSeconds) {
             deltaSeconds, buildings_.buildings(), flowField_,
             playerRespawning_ ? std::nullopt
                               : std::optional<Vec3>{playerPosition_},
-            modularTargets);
+            modularTargets, &terrain_);
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             const Vec3 attackPosition =

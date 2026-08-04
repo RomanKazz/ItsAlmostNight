@@ -142,4 +142,15 @@ void runResourceWorldTests() {
                            resource.position.z) <= 142.0;
             }),
         "generated resources stay below raised boundary terrain");
+    require(
+        std::all_of(
+            expanded.begin(), expanded.end(),
+            [&expandedTerrain](
+                const ian::ResourceNodeDefinition& resource) {
+                return expandedTerrain.waterSignedDistance(
+                           resource.position.x,
+                           resource.position.z) >=
+                    resource.radius + 0.8;
+            }),
+        "resource bounds stay clear of pond shorelines");
 }

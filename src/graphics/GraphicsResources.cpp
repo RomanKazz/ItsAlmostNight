@@ -358,6 +358,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     skyShader_.load(nullptr, "assets/shaders/sky.fs");
     cloudShader_.load(
         "assets/shaders/cloud.vs", "assets/shaders/cloud.fs");
+    waterShader_.load(
+        "assets/shaders/water.vs", "assets/shaders/water.fs");
     selectionMaskShader_.load("assets/shaders/selection_mask.vs",
                               "assets/shaders/selection_mask.fs");
     selectionOutlineShader_.load(nullptr,
@@ -609,6 +611,7 @@ void GraphicsResources::shutdown() {
     selectionMaskShader_.unload();
     skyShader_.unload();
     cloudShader_.unload();
+    waterShader_.unload();
     shadowDebugShader_.unload();
     shadowShader_.unload();
     worldShader_.unload();
@@ -702,6 +705,14 @@ ShaderResource& GraphicsResources::cloudShader() {
 
 const ShaderResource& GraphicsResources::cloudShader() const {
     return cloudShader_;
+}
+
+ShaderResource& GraphicsResources::waterShader() {
+    return waterShader_;
+}
+
+const ShaderResource& GraphicsResources::waterShader() const {
+    return waterShader_;
 }
 
 ShaderResource& GraphicsResources::selectionMaskShader() {
