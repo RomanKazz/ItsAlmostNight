@@ -25,20 +25,6 @@ void configureSkinningLocations(Shader& shader) {
         GetShaderLocation(shader, "boneMatrices");
 }
 
-std::uint32_t pondDecorHash(std::uint32_t value) {
-    value ^= value >> 16U;
-    value *= 0x7feb352dU;
-    value ^= value >> 15U;
-    value *= 0x846ca68bU;
-    value ^= value >> 16U;
-    return value;
-}
-
-float pondDecorUnit(std::uint32_t value) {
-    return static_cast<float>(pondDecorHash(value) & 0x00ffffffU) /
-        static_cast<float>(0x01000000U);
-}
-
 } // namespace
 
 void Renderer::initialize() {
@@ -1019,126 +1005,6 @@ void Renderer::rebuildTerrain(
         transforms.clear();
     }
     terrainRenderer_.rebuild(terrain);
-    rebuildPondDecorInstances();
-}
-
-void Renderer::rebuildPondDecorInstances() {
-    for (auto& instances : pondDecorInstances_) {
-        instances.clear();
-    }
-    if (terrainHeightfield_ == nullptr) {
-        return;
-    }
-
-    const auto addAtPondPosition = [this](
-        std::size_t variant, const PondDefinition& pond,
-        float angle, float radial, float tangentOffset,
-        std::uint32_t hash, bool lily) {
-        const float cosAngle = std::cos(angle);
-        const float sinAngle = std::sin(angle);
-        const float localX =
-            cosAngle * static_cast<float>(pond.radiusX) * radial -
-            sinAngle * tangentOffset;
-        const float localZ =
-            sinAngle * static_cast<float>(pond.radiusZ) * radial +
-            cosAngle * tangentOffset;
-        const float cosRotation =
-            std::cos(static_cast<float>(pond.rotation));
-        const float sinRotation =
-            std::sin(static_cast<float>(pond.rotation));
-        const float x = static_cast<float>(pond.x) +
-            localX * cosRotation - localZ * sinRotation;
-        const float z = static_cast<float>(pond.z) +
-            localX * sinRotation + localZ * cosRotation;
-        const double depth = terrainHeightfield_->waterDepth(x, z);
-        if (lily) {
-            const auto surface =
-                terrainHeightfield_->waterSurfaceHeight(x, z);
-            if (!surface || depth < 0.10 || depth > 1.6) {
-                return;
-            }
-            const float scale = variant == 0U
-                ? 5.2F + pondDecorUnit(hash ^ 0x63d83595U) * 2.4F
-                : 7.0F + pondDecorUnit(hash ^ 0xa511e9b3U) * 3.0F;
-            pondDecorInstances_[variant].push_back({
-                {x, static_cast<float>(*surface) + 0.075F, z},
-                pondDecorUnit(hash ^ 0x9e3779b9U) * PI * 2.0F,
-                scale});
-            return;
-        }
-        if (depth < 0.015 || depth > 0.58) {
-            return;
-        }
-        const float scale = variant == 2U
-            ? 4.8F + pondDecorUnit(hash ^ 0x85ebca6bU) * 2.6F
-            : 3.5F + pondDecorUnit(hash ^ 0xc2b2ae35U) * 2.0F;
-        const float terrainY = static_cast<float>(
-            terrainHeightfield_->getHeight(x, z));
-        pondDecorInstances_[variant].push_back({
-            {x, terrainY + scale * 0.0196F + 0.01F, z},
-            pondDecorUnit(hash ^ 0x27d4eb2fU) * PI * 2.0F,
-            scale});
-    };
-
-    std::size_t pondIndex = 0U;
-    for (const PondDefinition& pond : terrainHeightfield_->ponds()) {
-        const std::uint32_t pondHash = pondDecorHash(
-            terrainHeightfield_->seed() ^
-            static_cast<std::uint32_t>(pondIndex + 1U) * 0x9e3779b9U);
-
-        const int lilyClusters = 4 + static_cast<int>(pondHash % 4U);
-        for (int cluster = 0; cluster < lilyClusters; ++cluster) {
-            const std::uint32_t clusterHash = pondDecorHash(
-                pondHash + static_cast<std::uint32_t>(cluster) *
-                    0x85ebca6bU);
-            const float angle = pondDecorUnit(clusterHash) * PI * 2.0F;
-            const float radial = 0.20F +
-                pondDecorUnit(clusterHash ^ 0xb5297a4dU) * 0.58F;
-            const int count = 2 +
-                static_cast<int>((clusterHash >> 5U) % 3U);
-            for (int item = 0; item < count; ++item) {
-                const std::uint32_t hash = pondDecorHash(
-                    clusterHash + static_cast<std::uint32_t>(item + 1) *
-                        0x27d4eb2fU);
-                const float itemAngle = angle +
-                    (pondDecorUnit(hash ^ 0x165667b1U) - 0.5F) * 0.12F;
-                const float itemRadial = radial +
-                    (pondDecorUnit(hash ^ 0xd3a2646cU) - 0.5F) * 0.055F;
-                const float spread =
-                    (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 2.2F;
-                addAtPondPosition(
-                    static_cast<std::size_t>(hash & 1U), pond,
-                    itemAngle, itemRadial, spread, hash, true);
-            }
-        }
-
-        const int plantClusters = 7 +
-            static_cast<int>((pondHash >> 8U) % 4U);
-        for (int cluster = 0; cluster < plantClusters; ++cluster) {
-            const std::uint32_t clusterHash = pondDecorHash(
-                pondHash ^ (static_cast<std::uint32_t>(cluster + 11) *
-                            0xc2b2ae35U));
-            const float angle = pondDecorUnit(clusterHash) * PI * 2.0F;
-            const int count = 3 +
-                static_cast<int>((clusterHash >> 4U) % 4U);
-            for (int item = 0; item < count; ++item) {
-                const std::uint32_t hash = pondDecorHash(
-                    clusterHash + static_cast<std::uint32_t>(item + 3) *
-                        0x165667b1U);
-                const float itemAngle = angle +
-                    (pondDecorUnit(hash ^ 0x9e3779b9U) - 0.5F) * 0.10F;
-                const float radial = 0.72F +
-                    pondDecorUnit(hash ^ 0x7f4a7c15U) * 0.30F;
-                const float spread =
-                    (static_cast<float>(item) -
-                     static_cast<float>(count - 1) * 0.5F) * 0.34F;
-                addAtPondPosition(
-                    2U + static_cast<std::size_t>(hash & 1U), pond,
-                    itemAngle, radial, spread, hash, false);
-            }
-        }
-        ++pondIndex;
-    }
 }
 
 void Renderer::drawTerrain(
@@ -1167,60 +1033,6 @@ void Renderer::drawPondDecor() {
         shader = resources_.worldShader().get();
     }
     terrainRenderer_.drawPondDecor(shader);
-    if (!worldShaderActive_ || !resources_.worldShader().valid()) {
-        return;
-    }
-
-    Shader& worldShader = resources_.worldShader().get();
-    const int enabled = 1;
-    rlDrawRenderBatchActive();
-    SetShaderValue(worldShader, worldInstancingEnabledLocation_,
-                   &enabled, SHADER_UNIFORM_INT);
-    setSkinningEnabled(worldShader, false);
-    for (std::size_t variant = 0; variant < pondDecorInstances_.size();
-         ++variant) {
-        ModelResource& resource = resources_.pondDecorModel(variant);
-        if (!resource.valid()) {
-            continue;
-        }
-        auto& transforms = pondDecorTransforms_[variant];
-        transforms.clear();
-        transforms.reserve(pondDecorInstances_[variant].size());
-        for (const PondDecorInstance& instance :
-             pondDecorInstances_[variant]) {
-            const float revealScale = worldRevealScaleAt(
-                {instance.position.x, instance.position.z});
-            if (revealScale <= 0.001F) {
-                continue;
-            }
-            const float scale = instance.scale * revealScale;
-            transforms.push_back(MatrixMultiply(
-                resource.get().transform,
-                MatrixMultiply(
-                    MatrixMultiply(MatrixScale(scale, scale, scale),
-                                   MatrixRotateY(instance.yawRadians)),
-                    MatrixTranslate(instance.position.x,
-                                    instance.position.y,
-                                    instance.position.z))));
-        }
-        if (transforms.empty()) {
-            continue;
-        }
-        Model& model = resource.get();
-        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-            Material material =
-                model.materials[model.meshMaterial[meshIndex]];
-            material.shader = worldShader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(model.meshes[meshIndex], material,
-                              transforms.data(),
-                              static_cast<int>(transforms.size()));
-        }
-    }
-    const int disabled = 0;
-    rlDrawRenderBatchActive();
-    SetShaderValue(worldShader, worldInstancingEnabledLocation_,
-                   &disabled, SHADER_UNIFORM_INT);
 }
 
 void Renderer::drawWater(

@@ -420,14 +420,6 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/decor/bushes/e.glb");
     decorativeBushModels_[5].load(
         "assets/models/decor/bushes/f.glb");
-    pondDecorModels_[0].load(
-        "assets/models/decor/water/waterlily_a.glb");
-    pondDecorModels_[1].load(
-        "assets/models/decor/water/waterlily_b.glb");
-    pondDecorModels_[2].load(
-        "assets/models/decor/water/waterplant_a.glb");
-    pondDecorModels_[3].load(
-        "assets/models/decor/water/waterplant_b.glb");
     cloudModels_[0].load("assets/models/clouds/small.glb");
     cloudModels_[1].load("assets/models/clouds/big.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");
@@ -591,9 +583,6 @@ void GraphicsResources::shutdown() {
     }
     for (auto& bushModel : decorativeBushModels_) {
         bushModel.unload();
-    }
-    for (auto& pondDecorModel : pondDecorModels_) {
-        pondDecorModel.unload();
     }
     for (auto& cloudModel : cloudModels_) {
         cloudModel.unload();
@@ -862,11 +851,6 @@ ModelResource& GraphicsResources::decorativeBushModel(
     std::size_t variant) {
     return decorativeBushModels_[
         variant % decorativeBushModels_.size()];
-}
-
-ModelResource& GraphicsResources::pondDecorModel(
-    std::size_t variant) {
-    return pondDecorModels_[variant % pondDecorModels_.size()];
 }
 
 ModelResource& GraphicsResources::cloudModel(std::size_t variant) {

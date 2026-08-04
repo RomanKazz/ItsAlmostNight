@@ -411,7 +411,6 @@ class Renderer {
     void uploadWorldMaterial(const WorldMaterialState& material);
     void bindTerrainTexture();
     void bindShadowMap();
-    void rebuildPondDecorInstances();
     void setSkinningEnabled(Shader& shader, bool enabled);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
@@ -498,15 +497,6 @@ class Renderer {
     std::array<std::vector<Matrix>, TreeVisualVariantCount>
         resourceTreeTransforms_;
     std::vector<Matrix> resourceRockTransforms_;
-    struct PondDecorInstance {
-        Vector3 position{};
-        float yawRadians{};
-        float scale{1.0F};
-    };
-    std::array<std::vector<PondDecorInstance>, 4>
-        pondDecorInstances_;
-    std::array<std::vector<Matrix>, 4>
-        pondDecorTransforms_;
     bool boundaryForestCached_{};
     Vector2 worldRevealOrigin_{};
     float worldRevealElapsed_{1000.0F};
