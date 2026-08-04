@@ -144,6 +144,10 @@ struct SimulationSnapshot {
     double worldLimit;
     double worldCellSize;
     std::uint32_t terrainSeed;
+    int terrainResolution;
+    double terrainWorldSize;
+    std::span<const float> terrainSamples;
+    std::span<const PondDefinition> ponds;
     std::span<const MapObstacle> mapObstacles;
     std::span<const CollisionBox> collisionBoxes;
     std::span<const FlowDebugVector> flowDebugVectors;

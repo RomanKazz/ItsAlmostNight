@@ -1923,6 +1923,11 @@ SimulationSnapshot Simulation::snapshot() const {
         .worldLimit = map_.worldLimit,
         .worldCellSize = worldConfig_.cellSize,
         .terrainSeed = terrain_.seed(),
+        .terrainResolution = terrain_.resolution(),
+        .terrainWorldSize =
+            terrain_.config().terrainWorldSize,
+        .terrainSamples = terrain_.samples(),
+        .ponds = terrain_.ponds(),
         .mapObstacles = std::span<const MapObstacle>{map_.obstacles},
         .collisionBoxes =
             std::span<const CollisionBox>{collisionWorld_.colliders()},

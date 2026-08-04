@@ -682,6 +682,147 @@ void drawBuildHotbar(
         view.buildHotbarSelectionAlpha);
 }
 
+double minimapTerrainHeight(
+    const SimulationSnapshot& snapshot,
+    double worldX, double worldZ) {
+    if (snapshot.terrainResolution < 2 ||
+        snapshot.terrainSamples.empty() ||
+        snapshot.terrainWorldSize <= 0.0) {
+        return 0.0;
+    }
+    const int resolution = snapshot.terrainResolution;
+    const double halfSize = snapshot.terrainWorldSize * 0.5;
+    const double sampleX = std::clamp(
+        (worldX + halfSize) / snapshot.terrainWorldSize *
+            static_cast<double>(resolution - 1),
+        0.0, static_cast<double>(resolution - 1));
+    const double sampleZ = std::clamp(
+        (worldZ + halfSize) / snapshot.terrainWorldSize *
+            static_cast<double>(resolution - 1),
+        0.0, static_cast<double>(resolution - 1));
+    const int x0 = static_cast<int>(std::floor(sampleX));
+    const int z0 = static_cast<int>(std::floor(sampleZ));
+    const int x1 = std::min(x0 + 1, resolution - 1);
+    const int z1 = std::min(z0 + 1, resolution - 1);
+    const auto sample = [&](int x, int z) {
+        return static_cast<double>(snapshot.terrainSamples[
+            static_cast<std::size_t>(z) *
+                static_cast<std::size_t>(resolution) +
+            static_cast<std::size_t>(x)]);
+    };
+    const double amountX = sampleX - static_cast<double>(x0);
+    const double amountZ = sampleZ - static_cast<double>(z0);
+    const double north = std::lerp(
+        sample(x0, z0), sample(x1, z0), amountX);
+    const double south = std::lerp(
+        sample(x0, z1), sample(x1, z1), amountX);
+    return std::lerp(north, south, amountZ);
+}
+
+Color minimapHeightColor(double height) {
+    if (height < -4.0) return {35, 67, 48, 255};
+    if (height < -1.5) return {44, 82, 50, 255};
+    if (height < 1.0) return {55, 95, 53, 255};
+    if (height < 3.5) return {68, 105, 57, 255};
+    if (height < 6.5) return {84, 111, 63, 255};
+    if (height < 10.0) return {102, 111, 72, 255};
+    return {119, 117, 91, 255};
+}
+
+void drawMinimapTerrain(
+    const SimulationSnapshot& snapshot,
+    Rectangle mapBounds, float expanded) {
+    const int cells = expanded > 0.55F ? 48 : 32;
+    const float cellPixels =
+        mapBounds.width / static_cast<float>(cells);
+    const double worldLimit = std::max(snapshot.worldLimit, 1.0);
+    const double cellWorld = worldLimit * 2.0 /
+        static_cast<double>(cells);
+    for (int z = 0; z < cells; ++z) {
+        for (int x = 0; x < cells; ++x) {
+            const double worldX = -worldLimit +
+                (static_cast<double>(x) + 0.5) * cellWorld;
+            const double worldZ = -worldLimit +
+                (static_cast<double>(z) + 0.5) * cellWorld;
+            DrawRectangleRec(
+                {mapBounds.x + static_cast<float>(x) * cellPixels,
+                 mapBounds.y + static_cast<float>(z) * cellPixels,
+                 cellPixels + 0.35F, cellPixels + 0.35F},
+                minimapHeightColor(
+                    minimapTerrainHeight(snapshot, worldX, worldZ)));
+        }
+    }
+}
+
+void drawMinimapPonds(
+    const SimulationSnapshot& snapshot,
+    Rectangle mapBounds, float mapScale, float expanded) {
+    const auto mapPoint = [mapBounds, mapScale](double x, double z) {
+        return Vector2{
+            mapBounds.x + mapBounds.width * 0.5F +
+                static_cast<float>(x) * mapScale,
+            mapBounds.y + mapBounds.height * 0.5F +
+                static_cast<float>(z) * mapScale,
+        };
+    };
+    constexpr int Segments = 40;
+    const Color water{53, 158, 181, 225};
+    const Color shore{127, 215, 207, 205};
+    for (const PondDefinition& pond : snapshot.ponds) {
+        const Vector2 center = mapPoint(pond.x, pond.z);
+        std::array<Vector2, Segments> points{};
+        const double sine = std::sin(pond.rotation);
+        const double cosine = std::cos(pond.rotation);
+        for (int segment = 0; segment < Segments; ++segment) {
+            const double angle =
+                static_cast<double>(segment) * 2.0 * PI /
+                static_cast<double>(Segments);
+            const double organicRadius =
+                1.0 + std::sin(angle * 3.0 + pond.phase) * 0.095 +
+                std::sin(angle * 5.0 - pond.phase * 1.37) * 0.052 +
+                std::sin(angle * 7.0 + pond.phase * 0.61) * 0.026;
+            const double localX =
+                std::cos(angle) * pond.radiusX * organicRadius;
+            const double localZ =
+                std::sin(angle) * pond.radiusZ * organicRadius;
+            points[static_cast<std::size_t>(segment)] = mapPoint(
+                pond.x + localX * cosine - localZ * sine,
+                pond.z + localX * sine + localZ * cosine);
+        }
+        for (int segment = 0; segment < Segments; ++segment) {
+            const int next = (segment + 1) % Segments;
+            DrawTriangle(
+                center,
+                points[static_cast<std::size_t>(segment)],
+                points[static_cast<std::size_t>(next)], water);
+            DrawLineEx(
+                points[static_cast<std::size_t>(segment)],
+                points[static_cast<std::size_t>(next)],
+                std::lerp(0.7F, 1.4F, expanded), shore);
+        }
+        const Vector2 bayCenter = mapPoint(
+            pond.x + std::cos(pond.bayAngle) * pond.radiusX * 0.72,
+            pond.z + std::sin(pond.bayAngle) * pond.radiusZ * 0.72);
+        DrawCircleV(
+            bayCenter,
+            static_cast<float>(pond.bayRadius) * mapScale,
+            water);
+        if (pond.islandRadius > 0.0) {
+            const Vector2 island = mapPoint(
+                pond.islandX, pond.islandZ);
+            DrawCircleV(
+                island,
+                static_cast<float>(pond.islandRadius) * mapScale,
+                minimapHeightColor(minimapTerrainHeight(
+                    snapshot, pond.islandX, pond.islandZ)));
+            DrawCircleLinesV(
+                island,
+                static_cast<float>(pond.islandRadius) * mapScale,
+                {112, 139, 88, 220});
+        }
+    }
+}
+
 void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
                  float expansion) {
     const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
@@ -748,6 +889,8 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
             : Color{224, 205, 171, 255});
 
     DrawRectangleRec(mapBounds, {29, 43, 35, 238});
+    drawMinimapTerrain(snapshot, mapBounds, expanded);
+    drawMinimapPonds(snapshot, mapBounds, mapScale, expanded);
     DrawRectangleLinesEx(
         mapBounds, std::max(5.0F, mapSize * 0.045F),
         {61, 76, 58, 245});

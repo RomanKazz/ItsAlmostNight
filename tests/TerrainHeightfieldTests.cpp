@@ -344,6 +344,12 @@ void runTerrainHeightfieldTests() {
         movementMap, movementConfig};
     simulation.startRun();
     const auto initial = simulation.snapshot();
+    require(
+        initial.terrainResolution == simulation.terrain().resolution() &&
+            initial.terrainSamples.size() ==
+                simulation.terrain().samples().size() &&
+            initial.ponds.size() == simulation.terrain().ponds().size(),
+        "simulation snapshot exposes minimap terrain and ponds");
     requireNear(
         initial.playerPosition.y,
         simulation.terrain().getHeight(
