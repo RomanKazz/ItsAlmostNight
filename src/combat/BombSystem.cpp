@@ -12,6 +12,7 @@ constexpr double MaximumPhysicsStep = 1.0 / 120.0;
 constexpr double Restitution = 0.28;
 constexpr double BounceTangentRetention = 0.62;
 constexpr double RollingFriction = 1.8;
+constexpr double Pi = 3.14159265358979323846;
 
 double dot(Vec3 a, Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -27,6 +28,23 @@ Vec3 subtract(Vec3 value, Vec3 direction, double amount) {
 
 Vec3 scale(Vec3 value, double amount) {
     return {value.x * amount, value.y * amount, value.z * amount};
+}
+
+Vec3 cross(Vec3 a, Vec3 b) {
+    return {
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x,
+    };
+}
+
+Vec3 moveToward(Vec3 value, Vec3 target, double amount) {
+    const double blend = std::clamp(amount, 0.0, 1.0);
+    return {
+        value.x + (target.x - value.x) * blend,
+        value.y + (target.y - value.y) * blend,
+        value.z + (target.z - value.z) * blend,
+    };
 }
 
 } // namespace
@@ -70,6 +88,12 @@ bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
         direction.x * definition_.throwSpeed,
         direction.y * definition_.throwSpeed + definition_.upwardSpeed,
         direction.z * definition_.throwSpeed,
+    };
+    projectile->rotation = {};
+    projectile->angularVelocity = {
+        direction.z * 8.0,
+        2.2,
+        -direction.x * 8.0,
     };
     projectile->fuseRemaining = definition_.fuseDuration;
     projectile->fuseDuration = definition_.fuseDuration;
@@ -153,7 +177,28 @@ std::span<const BombExplosion> BombSystem::tick(
                 if (tangentSpeed < 0.06 && slope < 0.035) {
                     projectile.velocity = {};
                 }
+
+                const Vec3 rollingAngularVelocity = scale(
+                    cross(normal, projectile.velocity),
+                    1.0 / std::max(definition_.groundHeight, 0.01));
+                projectile.angularVelocity = moveToward(
+                    projectile.angularVelocity, rollingAngularVelocity,
+                    1.0 - std::exp(-12.0 * step));
+            } else {
+                projectile.angularVelocity = scale(
+                    projectile.angularVelocity,
+                    std::exp(-0.08 * step));
             }
+
+            projectile.rotation.x = std::fmod(
+                projectile.rotation.x + projectile.angularVelocity.x * step,
+                2.0 * Pi);
+            projectile.rotation.y = std::fmod(
+                projectile.rotation.y + projectile.angularVelocity.y * step,
+                2.0 * Pi);
+            projectile.rotation.z = std::fmod(
+                projectile.rotation.z + projectile.angularVelocity.z * step,
+                2.0 * Pi);
         }
         if (projectile.fuseRemaining <= 0.0) {
             explode(projectile, enemies);

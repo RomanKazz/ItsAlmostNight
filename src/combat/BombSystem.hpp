@@ -15,6 +15,8 @@ struct BombProjectile {
     EntityId id;
     Vec3 position;
     Vec3 velocity;
+    Vec3 rotation;
+    Vec3 angularVelocity;
     double fuseRemaining{};
     double fuseDuration{};
     bool grounded{};

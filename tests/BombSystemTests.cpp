@@ -72,4 +72,7 @@ void runBombSystemTests() {
     require(std::hypot(rolled.position.x - steepPoint.x,
                        rolled.position.z - steepPoint.z) > 0.08,
             "resting bomb rolls down terrain slope");
+    require(std::abs(rolled.rotation.x) + std::abs(rolled.rotation.y) +
+                std::abs(rolled.rotation.z) > 0.1,
+            "rolling bomb updates visible angular orientation");
 }

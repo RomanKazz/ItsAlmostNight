@@ -4,6 +4,7 @@
 
 #include <raylib.h>
 #include <raymath.h>
+#include <array>
 #include <algorithm>
 #include <cmath>
 
@@ -484,6 +485,29 @@ void App::drawWorldEntities(
                 static_cast<float>(projectile.position.z),
             };
             DrawSphereEx(position, 0.255F, 8, 8, {43, 47, 52, 255});
+            const Matrix bombRotation = MatrixRotateXYZ({
+                static_cast<float>(projectile.rotation.x),
+                static_cast<float>(projectile.rotation.y),
+                static_cast<float>(projectile.rotation.z),
+            });
+            constexpr std::array<Vector3, 5> DetailOffsets{{
+                {0.0F, 0.255F, 0.0F},
+                {0.255F, 0.0F, 0.0F},
+                {-0.255F, 0.0F, 0.0F},
+                {0.0F, 0.0F, 0.255F},
+                {0.0F, 0.0F, -0.255F},
+            }};
+            std::array<Vector3, DetailOffsets.size()> detailPositions{};
+            for (std::size_t detail = 0; detail < DetailOffsets.size(); ++detail) {
+                const Vector3 offset = Vector3Transform(
+                    DetailOffsets[detail], bombRotation);
+                detailPositions[detail] = Vector3Add(position, offset);
+                DrawSphereEx(
+                    detailPositions[detail], detail == 0 ? 0.052F : 0.032F,
+                    5, 5,
+                    detail == 0 ? Color{117, 91, 55, 255}
+                                : Color{91, 97, 99, 255});
+            }
             if (renderer_->settings().particles) {
                 const float time = static_cast<float>(GetTime());
                 const float urgency = 1.0F - std::clamp(
@@ -493,7 +517,7 @@ void App::drawWorldEntities(
                 const float blink = 0.55F + 0.45F * std::sin(
                     time * (10.0F + urgency * 28.0F) +
                     static_cast<float>(projectile.id.index));
-                const Vector3 fuse{position.x, position.y + 0.285F, position.z};
+                const Vector3 fuse = detailPositions[0];
                 BeginBlendMode(BLEND_ADDITIVE);
                 DrawSphereEx(fuse, 0.045F + urgency * 0.025F, 5, 5,
                              {255, 238, 164,
