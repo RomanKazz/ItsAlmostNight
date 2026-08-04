@@ -270,6 +270,16 @@ Model TerrainRenderer::buildWaterModel() const {
         texcoords.push_back(static_cast<float>(
             signedDistance / std::max(shorelineWidth, 0.01)));
     };
+    const auto appendCell = [&](const PondDefinition& pond,
+                                double x0, double z0,
+                                double x1, double z1) {
+        appendVertex(pond, x0, z0);
+        appendVertex(pond, x0, z1);
+        appendVertex(pond, x1, z0);
+        appendVertex(pond, x1, z0);
+        appendVertex(pond, x0, z1);
+        appendVertex(pond, x1, z1);
+    };
     for (const PondDefinition& pond : terrain_->ponds()) {
         const double extent =
             std::max(pond.radiusX, pond.radiusZ) +
@@ -294,12 +304,30 @@ Model TerrainRenderer::buildWaterModel() const {
                         distances.begin(), distances.end()) > step * 1.5) {
                     continue;
                 }
-                appendVertex(pond, x0, z0);
-                appendVertex(pond, x0, z1);
-                appendVertex(pond, x1, z0);
-                appendVertex(pond, x1, z0);
-                appendVertex(pond, x0, z1);
-                appendVertex(pond, x1, z1);
+                const auto [minimumDistance, maximumDistance] =
+                    std::minmax_element(
+                        distances.begin(), distances.end());
+                constexpr int ShoreSubdivisions = 4;
+                const bool nearShore =
+                    *minimumDistance < shorelineWidth * 0.35 &&
+                    *maximumDistance > -shorelineWidth * 1.15;
+                if (!nearShore) {
+                    appendCell(pond, x0, z0, x1, z1);
+                    continue;
+                }
+                const double fineStep = step /
+                    static_cast<double>(ShoreSubdivisions);
+                for (int fineZ = 0; fineZ < ShoreSubdivisions; ++fineZ) {
+                    const double fineZ0 = z0 + fineZ * fineStep;
+                    const double fineZ1 = fineZ0 + fineStep;
+                    for (int fineX = 0;
+                         fineX < ShoreSubdivisions; ++fineX) {
+                        const double fineX0 = x0 + fineX * fineStep;
+                        const double fineX1 = fineX0 + fineStep;
+                        appendCell(
+                            pond, fineX0, fineZ0, fineX1, fineZ1);
+                    }
+                }
             }
         }
     }
