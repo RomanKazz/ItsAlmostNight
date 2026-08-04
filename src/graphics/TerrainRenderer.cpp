@@ -330,27 +330,6 @@ Model TerrainRenderer::buildPondDecorModel() const {
         appendVertex(b, normal, color);
         appendVertex(c, normal, color);
     };
-    const auto appendReed = [&](float x, float y, float z,
-                                float height, float width, Color color) {
-        appendTriangle(
-            {x - width, y, z}, {x + width, y, z},
-            {x + width * 0.35F, y + height, z},
-            {0.0F, 0.0F, 1.0F}, color);
-        appendTriangle(
-            {x - width, y, z},
-            {x + width * 0.35F, y + height, z},
-            {x - width * 0.35F, y + height, z},
-            {0.0F, 0.0F, 1.0F}, color);
-        appendTriangle(
-            {x, y, z - width}, {x, y, z + width},
-            {x, y + height, z + width * 0.35F},
-            {1.0F, 0.0F, 0.0F}, color);
-        appendTriangle(
-            {x, y, z - width},
-            {x, y + height, z + width * 0.35F},
-            {x, y + height, z - width * 0.35F},
-            {1.0F, 0.0F, 0.0F}, color);
-    };
     std::size_t pondIndex = 0U;
     for (const PondDefinition& pond : terrain_->ponds()) {
         const std::uint32_t baseHash = decorHash(
@@ -364,39 +343,6 @@ Model TerrainRenderer::buildPondDecorModel() const {
             const float angle = decorUnit(hash) * 2.0F * PI;
             const float directionX = std::cos(angle);
             const float directionZ = std::sin(angle);
-
-            if ((hash & 1U) == 0U) {
-                const float radial = 0.38F + decorUnit(
-                    hash ^ 0xa511e9b3U) * 0.34F;
-                const float x = static_cast<float>(pond.x) +
-                    directionX * static_cast<float>(pond.radiusX) * radial;
-                const float z = static_cast<float>(pond.z) +
-                    directionZ * static_cast<float>(pond.radiusZ) * radial;
-                if (terrain_->waterDepth(x, z) > 0.10) {
-                    const float radius =
-                        0.34F + decorUnit(hash ^ 0x63d83595U) * 0.28F;
-                    const float y = static_cast<float>(pond.waterLevel + 0.065);
-                    constexpr int Segments = 7;
-                    for (int segment = 1; segment < Segments; ++segment) {
-                        const float a0 = angle +
-                            static_cast<float>(segment) * 2.0F * PI /
-                                static_cast<float>(Segments);
-                        const float a1 = angle +
-                            static_cast<float>(segment + 1) * 2.0F * PI /
-                                static_cast<float>(Segments);
-                        appendTriangle(
-                            {x, y, z},
-                            {x + std::cos(a0) * radius, y,
-                             z + std::sin(a0) * radius},
-                            {x + std::cos(a1) * radius, y,
-                             z + std::sin(a1) * radius},
-                            {0.0F, 1.0F, 0.0F},
-                            {61, static_cast<unsigned char>(
-                                     132 + (hash & 31U)),
-                             79, 255});
-                    }
-                }
-            }
 
             double previousRadius =
                 std::min(pond.radiusX, pond.radiusZ) * 0.45;
@@ -419,28 +365,6 @@ Model TerrainRenderer::buildPondDecorModel() const {
                 }
                 previousDistance = distance;
                 shoreRadius = radius;
-            }
-            const float tangentX = -directionZ;
-            const float tangentZ = directionX;
-            const int reedCount = 3 + static_cast<int>((hash >> 3U) % 4U);
-            for (int reed = 0; reed < reedCount; ++reed) {
-                const float spread =
-                    (static_cast<float>(reed) -
-                     static_cast<float>(reedCount - 1) * 0.5F) * 0.28F;
-                const float x = static_cast<float>(pond.x) +
-                    directionX * static_cast<float>(shoreRadius + 0.35) +
-                    tangentX * spread;
-                const float z = static_cast<float>(pond.z) +
-                    directionZ * static_cast<float>(shoreRadius + 0.35) +
-                    tangentZ * spread;
-                const float y = static_cast<float>(terrain_->getHeight(x, z));
-                appendReed(
-                    x, y + 0.02F, z,
-                    0.75F + decorUnit(
-                        hash + static_cast<std::uint32_t>(reed) * 17U) *
-                        0.85F,
-                    0.045F,
-                    {91, 126, 52, 255});
             }
             if ((hash % 3U) == 0U) {
                 const float x = static_cast<float>(pond.x) +
