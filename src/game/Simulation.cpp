@@ -2078,6 +2078,7 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     case SkillEffect::UnlockPickaxe: playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe); break;
     case SkillEffect::UnlockClub: playerWeapons_.selectWeapon(PlayerWeapon::Club); break;
     case SkillEffect::UnlockHammer: playerWeapons_.selectWeapon(PlayerWeapon::Hammer); break;
+    case SkillEffect::UnlockRifle: playerWeapons_.selectWeapon(PlayerWeapon::Rifle); break;
     case SkillEffect::BareHands: break;
     }
     selectedBuilding_.reset();
@@ -2109,7 +2110,8 @@ void Simulation::cycleUnlockedTool() {
     if (skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) tools.push_back(PlayerWeapon::Pickaxe);
     if (skillTree_.hasEffect(SkillEffect::UnlockClub)) tools.push_back(PlayerWeapon::Club);
     if (skillTree_.hasEffect(SkillEffect::UnlockHammer)) tools.push_back(PlayerWeapon::Hammer);
-    tools.push_back(PlayerWeapon::Rifle);
+    if (skillTree_.hasEffect(SkillEffect::UnlockRifle))
+        tools.push_back(PlayerWeapon::Rifle);
     const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
     const std::size_t next = current == tools.end()
         ? 0 : (static_cast<std::size_t>(std::distance(tools.begin(), current)) + 1) % tools.size();

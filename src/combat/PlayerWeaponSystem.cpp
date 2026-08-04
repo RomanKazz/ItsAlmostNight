@@ -15,11 +15,6 @@ void PlayerWeaponSystem::reset() {
     reloadRemaining_ = 0.0;
 }
 
-void PlayerWeaponSystem::toggleWeapon() {
-    selectedWeapon_ =
-        selectedWeapon_ == PlayerWeapon::Rifle ? PlayerWeapon::BareHands : PlayerWeapon::Rifle;
-}
-
 void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) { selectedWeapon_ = weapon; }
 
 void PlayerWeaponSystem::tick(double deltaSeconds) {

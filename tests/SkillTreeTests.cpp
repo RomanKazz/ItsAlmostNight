@@ -22,6 +22,8 @@ void runSkillTreeTests() {
             "purchase applies effect and cost");
     require(tree.state("pickaxe") == ian::SkillNodeState::Available,
             "siblings remain independently available");
+    require(tree.state("rifle") == ian::SkillNodeState::Locked,
+            "rifle stays locked behind club");
 
     ian::SkillTree dependent({
         {"root", "ROOT", "", "root", ian::SkillBranch::Root, {0, 0}, 0, {}, ian::SkillEffect::BareHands},
@@ -43,7 +45,7 @@ void runSkillTreeTests() {
 #ifdef IAN_SOURCE_DIR
     const auto definitions = ian::loadSkillTreeDefinitions(
         std::string(IAN_SOURCE_DIR) + "/assets/data/skills.json");
-    require(definitions.size() == 5 && definitions.front().icon == "placeholder_hands",
+    require(definitions.size() == 6 && definitions.front().icon == "placeholder_hands",
             "data-driven skill definitions load from JSON");
 #endif
 

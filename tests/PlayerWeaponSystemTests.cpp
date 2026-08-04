@@ -13,7 +13,7 @@ void runPlayerWeaponSystemTests() {
     const double baseFireInterval = weapon.fireInterval();
     const double baseReloadDuration = weapon.reloadDuration();
     const int baseMagazineSize = weapon.magazineSize();
-    weapon.toggleWeapon();
+    weapon.selectWeapon(ian::PlayerWeapon::Rifle);
     const ian::Vec3 origin{0.0, 0.8, 0.0};
     const ian::Vec3 direction{0.0, 0.0, -1.0};
 
@@ -66,7 +66,7 @@ void runPlayerWeaponSystemTests() {
 
     ian::EnemySystem upgradedTargets;
     upgradedTargets.spawnWave(Spawn);
-    upgradedWeapon.toggleWeapon();
+    upgradedWeapon.selectWeapon(ian::PlayerWeapon::Rifle);
     const auto upgradedShot = upgradedWeapon.fireRifle(origin, direction, upgradedTargets);
     require(upgradedShot.has_value() && !upgradedShot->killed,
             "stronger enemy survives one upgraded rifle shot");

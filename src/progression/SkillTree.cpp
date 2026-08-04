@@ -22,6 +22,7 @@ SkillEffect parseEffect(std::string_view value) {
     if (value == "unlock_pickaxe") return SkillEffect::UnlockPickaxe;
     if (value == "unlock_club") return SkillEffect::UnlockClub;
     if (value == "unlock_hammer") return SkillEffect::UnlockHammer;
+    if (value == "unlock_rifle") return SkillEffect::UnlockRifle;
     return SkillEffect::BareHands;
 }
 
@@ -36,7 +37,9 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         {"pickaxe", "PICKAXE", "Unlocks stone and crystal mining.",
          "placeholder_pickaxe", SkillBranch::Gathering, {190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockPickaxe},
         {"club", "CLUB", "Unlocks a stronger melee weapon.",
-         "placeholder_club", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, SkillEffect::UnlockClub},
+         "placeholder_club", SkillBranch::Weapons, {0, -150}, 1, {"bare_hands"}, SkillEffect::UnlockClub},
+        {"rifle", "RIFLE", "Unlocks the rifle and ranged combat.",
+         "placeholder_rifle", SkillBranch::Weapons, {0, -300}, 1, {"club"}, SkillEffect::UnlockRifle},
         {"hammer", "HAMMER", "Unlocks repair and active fortification.",
          "placeholder_hammer", SkillBranch::Construction, {0, 190}, 1, {"bare_hands"}, SkillEffect::UnlockHammer},
     };
@@ -203,6 +206,7 @@ std::string_view skillEffectName(SkillEffect effect) {
     case SkillEffect::UnlockPickaxe: return "unlock_pickaxe";
     case SkillEffect::UnlockClub: return "unlock_club";
     case SkillEffect::UnlockHammer: return "unlock_hammer";
+    case SkillEffect::UnlockRifle: return "unlock_rifle";
     }
     return "bare_hands";
 }

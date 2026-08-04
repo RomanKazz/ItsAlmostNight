@@ -3,7 +3,8 @@
     {"id":"bare_hands","title":"BARE HANDS","description":"Gather wood and stone at 25% tool speed.","icon":"placeholder_hands","cost":0,"dependencies":[],"position":{"x":0,"y":0},"branch":"root","effect":"bare_hands"},
     {"id":"axe","title":"AXE","description":"Unlocks the axe and fast wood gathering.","icon":"placeholder_axe","cost":1,"dependencies":["bare_hands"],"position":{"x":-190,"y":0},"branch":"gathering","effect":"unlock_axe"},
     {"id":"pickaxe","title":"PICKAXE","description":"Unlocks stone and crystal mining.","icon":"placeholder_pickaxe","cost":1,"dependencies":["bare_hands"],"position":{"x":190,"y":0},"branch":"gathering","effect":"unlock_pickaxe"},
-    {"id":"club","title":"CLUB","description":"Unlocks a stronger melee weapon.","icon":"placeholder_club","cost":1,"dependencies":["bare_hands"],"position":{"x":0,"y":-190},"branch":"weapons","effect":"unlock_club"},
+    {"id":"club","title":"CLUB","description":"Unlocks a stronger melee weapon.","icon":"placeholder_club","cost":1,"dependencies":["bare_hands"],"position":{"x":0,"y":-150},"branch":"weapons","effect":"unlock_club"},
+    {"id":"rifle","title":"RIFLE","description":"Unlocks the rifle and ranged combat.","icon":"placeholder_rifle","cost":1,"dependencies":["club"],"position":{"x":0,"y":-300},"branch":"weapons","effect":"unlock_rifle"},
     {"id":"hammer","title":"HAMMER","description":"Unlocks repair and active fortification.","icon":"placeholder_hammer","cost":1,"dependencies":["bare_hands"],"position":{"x":0,"y":190},"branch":"construction","effect":"unlock_hammer"}
   ]
 }

@@ -22,6 +22,38 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::Simulation weaponProgression;
+        weaponProgression.startRun();
+        ian::PlayerCommand cycle;
+        cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        weaponProgression.tick(1.0 / 60.0, cycle);
+        require(weaponProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "weapon cycle skips locked rifle and keeps bare hands selectable");
+
+        weaponProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
+        const auto club = weaponProgression.skillTree().indexOf("club");
+        require(club && weaponProgression.purchaseSkill(*club) ==
+                            ian::SkillPurchaseError::None,
+                "club can be unlocked before rifle");
+        weaponProgression.tick(1.0 / 60.0, cycle);
+        require(weaponProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "weapon cycle includes fists after unlocked club");
+
+        weaponProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
+        const auto rifle = weaponProgression.skillTree().indexOf("rifle");
+        require(rifle && weaponProgression.purchaseSkill(*rifle) ==
+                             ian::SkillPurchaseError::None &&
+                    weaponProgression.snapshot().selectedWeapon ==
+                        ian::PlayerWeapon::Rifle,
+                "rifle unlock applies only after club dependency");
+        weaponProgression.tick(1.0 / 60.0, cycle);
+        require(weaponProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "weapon cycle wraps from rifle to fists");
+    }
+    {
         auto transactionBalance =
             ian::GameBalance::defaults();
         transactionBalance.gameplay.pickaxeDamageVariation = 0.0;

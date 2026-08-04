@@ -10,7 +10,14 @@
 namespace ian {
 
 enum class SkillBranch { Root, Gathering, Weapons, Construction };
-enum class SkillEffect { BareHands, UnlockAxe, UnlockPickaxe, UnlockClub, UnlockHammer };
+enum class SkillEffect {
+    BareHands,
+    UnlockAxe,
+    UnlockPickaxe,
+    UnlockClub,
+    UnlockHammer,
+    UnlockRifle,
+};
 enum class SkillNodeState { Hidden, Locked, Available, Unlocked };
 enum class SkillPurchaseError {
     None,

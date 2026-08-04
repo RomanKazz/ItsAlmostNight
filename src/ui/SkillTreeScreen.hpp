@@ -39,8 +39,8 @@ class SkillTreeScreen {
     std::vector<float> pulse_;
     bool open_{};
     float opening_{};
-    Vector2 camera_{};
-    Vector2 targetCamera_{};
+    Vector2 camera_{0.0F, 42.0F};
+    Vector2 targetCamera_{0.0F, 42.0F};
     float zoom_{1.15F};
     float targetZoom_{1.15F};
     bool dragging_{};

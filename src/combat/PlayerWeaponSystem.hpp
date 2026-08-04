@@ -44,7 +44,6 @@ class PlayerWeaponSystem {
         RifleBalanceDefinition definition = GameBalance::defaults().weapons.rifle);
 
     void reset();
-    void toggleWeapon();
     void selectWeapon(PlayerWeapon weapon);
     void tick(double deltaSeconds);
     std::optional<WeaponFireResult> fireRifle(Vec3 origin, Vec3 direction, EnemySystem& enemies);
