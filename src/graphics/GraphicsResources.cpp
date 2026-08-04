@@ -428,8 +428,6 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/decor/water/waterplant_a.glb");
     pondDecorModels_[3].load(
         "assets/models/decor/water/waterplant_b.glb");
-    pondDecorModels_[4].load(
-        "assets/models/decor/water/waterplant_c.glb");
     cloudModels_[0].load("assets/models/clouds/small.glb");
     cloudModels_[1].load("assets/models/clouds/big.glb");
     wallIsolatedModel_.load("assets/models/walls/isolated.glb");

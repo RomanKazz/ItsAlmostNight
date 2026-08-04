@@ -438,8 +438,6 @@ void App::render() {
         renderer_->setWorldMaterial(pondDecorMaterial);
         renderer_->drawPondDecor();
         renderer_->drawWater(camera.position, lighting);
-        renderer_->setWorldMaterial(pondDecorMaterial);
-        renderer_->drawPondSurfaceDecor();
         renderer_->drawClouds(
             camera.position, nightAmount, lighting);
         drawAtmosphereParticles(camera, nightAmount);
