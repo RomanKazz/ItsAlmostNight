@@ -478,10 +478,65 @@ void App::drawWorldEntities(
     }
     for (const auto& projectile : snapshot.bombProjectiles) {
         if (projectile.active) {
-            DrawSphere({static_cast<float>(projectile.position.x),
-                        static_cast<float>(projectile.position.y),
-                        static_cast<float>(projectile.position.z)},
-                       0.16F, {52, 57, 62, 255});
+            const Vector3 position{
+                static_cast<float>(projectile.position.x),
+                static_cast<float>(projectile.position.y),
+                static_cast<float>(projectile.position.z),
+            };
+            DrawSphereEx(position, 0.17F, 7, 7, {43, 47, 52, 255});
+            DrawSphereWires(position, 0.174F, 7, 7, {112, 103, 88, 255});
+            if (renderer_->settings().particles) {
+                const float time = static_cast<float>(GetTime());
+                const float urgency = 1.0F - std::clamp(
+                    static_cast<float>(projectile.fuseRemaining / 1.2), 0.0F, 1.0F);
+                const float blink = 0.55F + 0.45F * std::sin(
+                    time * (10.0F + urgency * 28.0F) +
+                    static_cast<float>(projectile.id.index));
+                const Vector3 fuse{position.x, position.y + 0.19F, position.z};
+                BeginBlendMode(BLEND_ADDITIVE);
+                DrawSphereEx(fuse, 0.045F + urgency * 0.025F, 5, 5,
+                             {255, 238, 164,
+                              static_cast<unsigned char>(190.0F + blink * 65.0F)});
+                DrawSphereEx(fuse, 0.11F + blink * 0.04F, 5, 5,
+                             {255, 72, 12,
+                              static_cast<unsigned char>(45.0F + blink * 55.0F)});
+                for (int spark = 0; spark < 5; ++spark) {
+                    const float phase = time * (4.0F + urgency * 5.0F) +
+                        static_cast<float>(spark) * 1.256637F;
+                    const float travel = std::fmod(
+                        time * 2.1F + static_cast<float>(spark) * 0.23F, 1.0F);
+                    const Vector3 tip{
+                        fuse.x + std::cos(phase) * travel * 0.18F,
+                        fuse.y + travel * 0.22F - travel * travel * 0.18F,
+                        fuse.z + std::sin(phase) * travel * 0.18F,
+                    };
+                    DrawLine3D(fuse, tip, {255, 174, 46,
+                                          static_cast<unsigned char>((1.0F - travel) * 220.0F)});
+                }
+                EndBlendMode();
+
+                const Vector3 velocity{
+                    static_cast<float>(projectile.velocity.x),
+                    static_cast<float>(projectile.velocity.y),
+                    static_cast<float>(projectile.velocity.z),
+                };
+                const float speed = Vector3Length(velocity);
+                const Vector3 backward = speed > 0.01F
+                    ? Vector3Scale(velocity, -1.0F / speed)
+                    : Vector3{0.0F, 0.0F, 0.0F};
+                for (int mote = 0; mote < 6; ++mote) {
+                    const float age = static_cast<float>(mote + 1) / 6.0F;
+                    const float wobble = std::sin(
+                        time * 5.0F + static_cast<float>(mote) * 2.17F) * 0.035F;
+                    DrawSphereEx(
+                        {position.x + backward.x * age * 0.58F + wobble,
+                         position.y + backward.y * age * 0.58F + age * 0.08F,
+                         position.z + backward.z * age * 0.58F - wobble},
+                        0.035F + age * 0.035F, 4, 4,
+                        {65, 61, 58,
+                         static_cast<unsigned char>((1.0F - age) * 125.0F)});
+                }
+            }
         }
     }
     enemyDrawInstances_.clear();

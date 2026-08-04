@@ -993,13 +993,13 @@ void App::update() {
                 });
             }
         } else if (event.type == GameEventType::Explosion) {
-            addEffect(PresentationEffectType::Explosion, event.position, 0.8);
-            addCameraShake(0.25, 0.12);
             const double distance = std::hypot(
                 event.position.x - eventSnapshot.playerPosition.x,
                 event.position.z - eventSnapshot.playerPosition.z);
             const double proximity = std::clamp(
                 1.0 - distance / 30.0, 0.0, 1.0);
+            addEffect(PresentationEffectType::Explosion, event.position, 1.25);
+            addCameraShake(0.34, 0.055 + 0.17 * proximity);
             addCameraImpulse({0.0, 0.035 * proximity,
                               -0.025 * proximity});
         } else if (

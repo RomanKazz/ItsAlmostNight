@@ -42,6 +42,12 @@ unsigned char atmosphereAlpha(float amount) {
         std::clamp(amount, 0.0F, 1.0F) * 255.0F));
 }
 
+float effectUnit(int index, int channel) {
+    return atmosphereUnit(
+        0x9e3779b9U * static_cast<std::uint32_t>(index + 1) +
+        0x85ebca6bU * static_cast<std::uint32_t>(channel + 3));
+}
+
 } // namespace
 
 void App::drawAtmosphereParticles(
@@ -404,8 +410,142 @@ void App::drawPresentationEffects() {
             DrawSphere(origin, 0.18F * (1.0F - progress),
                        {255, 220, 120, 255});
         } else if (effect.type == PresentationEffectType::Explosion) {
-            DrawSphereWires(origin, 0.3F + progress * 4.5F, 10, 10,
-                            {255, 132, 48, 255});
+            const float scale = effect.scale;
+            const float flash = 1.0F - smoothstep(0.02F, 0.2F, progress);
+            const float flame = 1.0F - smoothstep(0.12F, 0.58F, progress);
+            const float smoke = smoothstep(0.14F, 0.34F, progress) *
+                (1.0F - smoothstep(0.72F, 1.0F, progress));
+            const float shock = 1.0F - smoothstep(0.16F, 0.62F, progress);
+
+            // Ground-hugging pressure wave and dust front.
+            const float shockRadius = scale * (0.35F + progress * 5.4F);
+            for (int ring = 0; ring < 3; ++ring) {
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.025F + static_cast<float>(ring) * 0.012F,
+                     origin.z},
+                    shockRadius - static_cast<float>(ring) * 0.09F * scale,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {255, static_cast<unsigned char>(172 - ring * 24), 72,
+                     atmosphereAlpha(shock * (0.78F - static_cast<float>(ring) * 0.17F))});
+            }
+
+            constexpr int DustCount = 22;
+            for (int index = 0; index < DustCount; ++index) {
+                const float angle = effectUnit(index, 0) * 2.0F * PI;
+                const float speed = scale * (2.2F + effectUnit(index, 1) * 3.0F);
+                const float distance = progress * speed;
+                const float lift = std::sin(progress * PI) *
+                    (0.12F + effectUnit(index, 2) * 0.58F);
+                const float size = scale *
+                    (0.07F + effectUnit(index, 3) * 0.16F + progress * 0.13F);
+                DrawSphereEx(
+                    {origin.x + std::cos(angle) * distance,
+                     origin.y + 0.04F + lift,
+                     origin.z + std::sin(angle) * distance},
+                    size, 4, 4,
+                    {111, 83, 58, atmosphereAlpha(shock * 0.72F)});
+            }
+
+            // Dense dark smoke survives after the fireball disappears.
+            constexpr int SmokeCount = 15;
+            for (int index = 0; index < SmokeCount; ++index) {
+                const float delay = effectUnit(index, 4) * 0.22F;
+                const float local = std::clamp(
+                    (progress - delay) / std::max(1.0F - delay, 0.01F), 0.0F, 1.0F);
+                const float angle = effectUnit(index, 5) * 2.0F * PI;
+                const float spread = scale * local *
+                    (0.35F + effectUnit(index, 6) * 1.15F);
+                const float size = scale *
+                    (0.12F + effectUnit(index, 7) * 0.18F + local * 0.58F);
+                const unsigned char shade = static_cast<unsigned char>(
+                    43 + effectUnit(index, 8) * 32.0F);
+                DrawSphereEx(
+                    {origin.x + std::cos(angle) * spread,
+                     origin.y + 0.2F + local *
+                         (1.0F + effectUnit(index, 9) * 2.0F),
+                     origin.z + std::sin(angle) * spread},
+                    size, 5, 5,
+                    {shade, static_cast<unsigned char>(shade - 4),
+                     static_cast<unsigned char>(shade - 7),
+                     atmosphereAlpha(smoke * (0.42F + effectUnit(index, 10) * 0.28F))});
+            }
+
+            // Chunks retain weight: quick launch, gravity, rotation.
+            constexpr int DebrisCount = 13;
+            for (int index = 0; index < DebrisCount; ++index) {
+                const float angle = effectUnit(index, 11) * 2.0F * PI;
+                const float speed = scale * (1.7F + effectUnit(index, 12) * 3.3F);
+                const float lift = scale * (2.2F + effectUnit(index, 13) * 3.2F);
+                const Vector3 position{
+                    origin.x + std::cos(angle) * speed * progress,
+                    origin.y + 0.14F + lift * progress -
+                        4.6F * scale * progress * progress,
+                    origin.z + std::sin(angle) * speed * progress,
+                };
+                const float size = scale * (0.06F + effectUnit(index, 14) * 0.12F);
+                rlPushMatrix();
+                rlTranslatef(position.x, position.y, position.z);
+                rlRotatef(progress * (260.0F + effectUnit(index, 15) * 480.0F),
+                          0.4F, 0.8F, 0.25F);
+                DrawCube({}, size, size * 0.7F, size * 1.25F,
+                         {72, 58, 46, atmosphereAlpha(shock)});
+                rlPopMatrix();
+            }
+
+            BeginBlendMode(BLEND_ADDITIVE);
+            // White-hot core followed by layered orange fire blobs.
+            DrawSphereEx(
+                {origin.x, origin.y + 0.24F, origin.z},
+                scale * (0.22F + progress * 1.55F), 8, 8,
+                {255, 246, 202, atmosphereAlpha(flash * 0.95F)});
+            DrawSphereEx(
+                {origin.x, origin.y + 0.28F, origin.z},
+                scale * (0.38F + progress * 1.9F), 8, 8,
+                {255, 91, 18, atmosphereAlpha(flame * 0.52F)});
+            constexpr int FlameCount = 16;
+            for (int index = 0; index < FlameCount; ++index) {
+                const float angle = effectUnit(index, 16) * 2.0F * PI;
+                const float radial = progress * scale *
+                    (0.4F + effectUnit(index, 17) * 2.5F);
+                const float rise = progress * scale *
+                    (0.45F + effectUnit(index, 18) * 2.2F);
+                const float size = scale *
+                    (0.11F + effectUnit(index, 19) * 0.3F) *
+                    std::sqrt(std::max(0.0F, flame));
+                const Color color = index % 3 == 0
+                    ? Color{255, 238, 142, atmosphereAlpha(flame * 0.9F)}
+                    : Color{255, 78, 12, atmosphereAlpha(flame * 0.72F)};
+                DrawSphereEx(
+                    {origin.x + std::cos(angle) * radial,
+                     origin.y + 0.2F + rise,
+                     origin.z + std::sin(angle) * radial},
+                    size, 5, 5, color);
+            }
+
+            // Long, bright fragments make the blast readable at distance.
+            constexpr int SparkCount = 28;
+            for (int index = 0; index < SparkCount; ++index) {
+                const float angle = effectUnit(index, 20) * 2.0F * PI;
+                const float speed = scale * (3.0F + effectUnit(index, 21) * 5.5F);
+                const float height = scale * (1.2F + effectUnit(index, 22) * 4.0F);
+                const Vector3 tip{
+                    origin.x + std::cos(angle) * speed * progress,
+                    origin.y + 0.2F + height * progress -
+                        3.2F * scale * progress * progress,
+                    origin.z + std::sin(angle) * speed * progress,
+                };
+                const float tailLength = scale * (0.12F + effectUnit(index, 23) * 0.35F);
+                const Vector3 tail{
+                    tip.x - std::cos(angle) * tailLength,
+                    tip.y - tailLength * 0.35F,
+                    tip.z - std::sin(angle) * tailLength,
+                };
+                DrawLine3D(tail, tip,
+                           {255, 202, 65, atmosphereAlpha(shock * 0.94F)});
+                DrawSphereEx(tip, 0.025F * scale, 4, 4,
+                             {255, 244, 183, atmosphereAlpha(shock)});
+            }
+            EndBlendMode();
         } else if (effect.type == PresentationEffectType::RamImpact) {
             DrawSphereWires(origin, 0.4F + progress * 2.8F, 8, 8,
                             {255, 72, 45, 255});
