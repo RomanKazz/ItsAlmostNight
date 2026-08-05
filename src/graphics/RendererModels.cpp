@@ -522,13 +522,25 @@ bool Renderer::drawLootChest(
 
     if (type == LootChestType::Wooden && model.meshCount >= 2) {
         drawMesh(1, baseTransform);
+        // raylib bakes glTF node transforms into every mesh on load.  The lid
+        // vertices therefore already include the Blender node translation;
+        // adding it again made the closed lid slide away from the chest.
+        // Rotate the baked vertices around the original lid-node origin,
+        // which is the authored hinge position.
+        constexpr Vector3 WoodenLidPivot{
+            0.0F, 0.22719747F, -0.21279876F};
         const Matrix lidRotation = MatrixRotateX(lidAngle);
-        const Matrix lidTranslation =
-            MatrixTranslate(0.0F, 0.22719747F, -0.21279876F);
+        const Matrix toLidOrigin = MatrixTranslate(
+            -WoodenLidPivot.x, -WoodenLidPivot.y, -WoodenLidPivot.z);
+        const Matrix fromLidOrigin = MatrixTranslate(
+            WoodenLidPivot.x, WoodenLidPivot.y, WoodenLidPivot.z);
         const Matrix lidTransform = MatrixMultiply(
             MatrixMultiply(
-                MatrixMultiply(MatrixMultiply(scale, lidRotation),
-                               lidTranslation),
+                MatrixMultiply(
+                    MatrixMultiply(
+                        MatrixMultiply(toLidOrigin, lidRotation),
+                        fromLidOrigin),
+                    scale),
                 yaw),
             translation);
         drawMesh(0, lidTransform);
@@ -547,10 +559,14 @@ bool Renderer::drawLootChest(
         rlPushMatrix();
         rlTranslatef(position.x, position.y, position.z);
         rlRotatef(yawRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-        rlTranslatef(0.0F, 0.52F, 0.50F);
+        constexpr float StoneLidDepth = 1.18F;
+        constexpr float StoneLidHalfDepth = StoneLidDepth * 0.5F;
+        // Keep the procedural cap centred when closed and rotate it around
+        // its actual back edge instead of an approximate point inside it.
+        rlTranslatef(0.0F, 0.52F, -StoneLidHalfDepth);
         rlRotatef(lidAngle * RAD2DEG, 1.0F, 0.0F, 0.0F);
-        rlTranslatef(0.0F, 0.0F, -0.50F);
-        DrawCube({0.0F, 0.0F, 0.0F}, 1.18F, 0.16F, 1.18F,
+        rlTranslatef(0.0F, 0.0F, StoneLidHalfDepth);
+        DrawCube({0.0F, 0.0F, 0.0F}, 1.18F, 0.16F, StoneLidDepth,
                  ColorTint({118, 125, 132, 255}, tint));
         rlPopMatrix();
     }
