@@ -1238,7 +1238,8 @@ void Simulation::updatePlayerActions(
                                      ? playerWeapons_.rifleRange()
                                      : gameplay_.pickaxeRange;
     aimedEnemy_ = enemies_.raycast(playerPosition_, direction, enemyAimRange);
-    if (command.useConsumable && bombs_.throwBomb(playerPosition_, direction)) {
+    if (command.useConsumable && bombs_.throwBomb(
+            playerPosition_, direction, !unlimitedResources_)) {
         events_.push_back({
             .type = GameEventType::ConsumableUsed,
             .position = playerPosition_,
@@ -1385,8 +1386,14 @@ void Simulation::updatePlayerActions(
             if (const auto pickup = lootChests_.collect(*aimedLoot_))
                 applyLootPickup(*pickup);
         } else if (aimedChest_) {
+            int availableGold = unlimitedResources_
+                ? std::numeric_limits<int>::max()
+                : gold_;
             const ChestOpenResult result =
-                lootChests_.open(*aimedChest_, gold_);
+                lootChests_.open(*aimedChest_, availableGold);
+            if (!unlimitedResources_) {
+                gold_ = availableGold;
+            }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened
                     ? GameEventType::ChestOpened
@@ -2139,7 +2146,9 @@ SimulationSnapshot Simulation::snapshot() const {
         .rifleReloading = playerWeapons_.reloading(),
         .rifleReloadRemaining = playerWeapons_.reloadRemaining(),
         .rifleReloadDuration = playerWeapons_.reloadDuration(),
-        .bombsRemaining = bombs_.remainingBombs(),
+        .bombsRemaining = unlimitedResources_
+            ? std::numeric_limits<int>::max()
+            : bombs_.remainingBombs(),
         .waveCompletionReward = saturatingMultiplyNonNegative(
             economy_.waveRewardPerWave, wave_),
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
@@ -2191,11 +2200,15 @@ bool Simulation::loadSkillTreeState(const SkillTreeRunState& state) {
 
 void Simulation::cycleUnlockedTool() {
     std::vector<PlayerWeapon> tools{PlayerWeapon::BareHands};
-    if (skillTree_.hasEffect(SkillEffect::UnlockAxe)) tools.push_back(PlayerWeapon::Axe);
-    if (skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) tools.push_back(PlayerWeapon::Pickaxe);
-    if (skillTree_.hasEffect(SkillEffect::UnlockClub)) tools.push_back(PlayerWeapon::Club);
-    if (skillTree_.hasEffect(SkillEffect::UnlockHammer)) tools.push_back(PlayerWeapon::Hammer);
-    if (skillTree_.hasEffect(SkillEffect::UnlockRifle))
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockAxe))
+        tools.push_back(PlayerWeapon::Axe);
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockPickaxe))
+        tools.push_back(PlayerWeapon::Pickaxe);
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockClub))
+        tools.push_back(PlayerWeapon::Club);
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockHammer))
+        tools.push_back(PlayerWeapon::Hammer);
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockRifle))
         tools.push_back(PlayerWeapon::Rifle);
     const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
     const std::size_t next = current == tools.end()

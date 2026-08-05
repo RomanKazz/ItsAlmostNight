@@ -73,8 +73,9 @@ void BombSystem::reset() {
     remainingBombs_ = definition_.startingBombs;
 }
 
-bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
-    if (remainingBombs_ <= 0) {
+bool BombSystem::throwBomb(
+    Vec3 origin, Vec3 direction, bool consumeBomb) {
+    if (consumeBomb && remainingBombs_ <= 0) {
         return false;
     }
 
@@ -111,7 +112,9 @@ bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
     projectile->fuseDuration = definition_.fuseDuration;
     projectile->grounded = false;
     projectile->active = true;
-    --remainingBombs_;
+    if (consumeBomb) {
+        --remainingBombs_;
+    }
     return true;
 }
 

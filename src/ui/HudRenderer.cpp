@@ -993,6 +993,37 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
                 : Color{143, 149, 145, 135});
     }
 
+    if (snapshot.unlimitedResources) {
+        for (const LootChestInstance& chest : snapshot.lootChests) {
+            const Vector2 point = mapPoint(
+                chest.position.x, chest.position.z);
+            const float size = 3.2F * symbolScale;
+            const Color color = chest.type == LootChestType::Stone
+                ? Color{170, 183, 195, 255}
+                : Color{225, 161, 72, 255};
+            DrawRectangleRec(
+                {point.x - size - 1.0F, point.y - size - 1.0F,
+                 size * 2.0F + 2.0F, size * 2.0F + 2.0F},
+                {31, 24, 19, 230});
+            DrawRectangleRec(
+                {point.x - size, point.y - size,
+                 size * 2.0F, size * 2.0F}, color);
+            DrawLineEx(
+                {point.x - size, point.y - size * 0.35F},
+                {point.x + size, point.y - size * 0.35F},
+                std::max(1.0F, symbolScale), {59, 43, 29, 255});
+            if (chest.loot.available && !chest.loot.collected) {
+                const Color lootColor =
+                    chest.loot.rarity == LootRarity::Rare
+                        ? Color{255, 210, 58, 255}
+                        : chest.loot.rarity == LootRarity::Uncommon
+                            ? Color{75, 238, 119, 255}
+                            : Color{108, 192, 255, 255};
+                DrawCircleV(point, 1.5F * symbolScale, lootColor);
+            }
+        }
+    }
+
     const double cellSize = std::max(snapshot.worldCellSize, 0.01);
     const auto modularPoint =
         [&mapPoint, cellSize](GridCoord anchor,
@@ -1257,17 +1288,23 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     ui.drawPanel({12.0F, 12.0F, 398.0F, 68.0F}, 218);
     ui.drawResourceIcon({22.0F, 20.0F + woodY, 48.0F, 48.0F},
                         UiResourceIcon::Wood);
-    drawUiText(compactAmount(snapshot.wood),
+    drawUiText(snapshot.unlimitedResources
+                   ? "∞"
+                   : compactAmount(snapshot.wood),
                {76.0F, 28.0F + woodY},
                20.0F, RAYWHITE);
     ui.drawResourceIcon({144.0F, 20.0F + stoneY, 48.0F, 48.0F},
                         UiResourceIcon::Stone);
-    drawUiText(compactAmount(snapshot.stone),
+    drawUiText(snapshot.unlimitedResources
+                   ? "∞"
+                   : compactAmount(snapshot.stone),
                {198.0F, 28.0F + stoneY},
                20.0F, RAYWHITE);
     ui.drawResourceIcon({276.0F, 20.0F + goldY, 48.0F, 48.0F},
                         UiResourceIcon::Crystal);
-    drawUiText(compactAmount(snapshot.gold),
+    drawUiText(snapshot.unlimitedResources
+                   ? "∞"
+                   : compactAmount(snapshot.gold),
                {330.0F, 28.0F + goldY},
                20.0F, RAYWHITE);
     const auto drawResourcePulse =

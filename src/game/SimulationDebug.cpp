@@ -44,6 +44,24 @@ void Simulation::processDebugCommands(
             playerHealth_ =
                 gameplay_.playerMaxHealth *
                 playerMaxHealthMultiplier_;
+        } else {
+            const PlayerWeapon selected =
+                playerWeapons_.selectedWeapon();
+            const bool stillUnlocked =
+                selected == PlayerWeapon::BareHands ||
+                (selected == PlayerWeapon::Axe &&
+                 skillTree_.hasEffect(SkillEffect::UnlockAxe)) ||
+                (selected == PlayerWeapon::Pickaxe &&
+                 skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) ||
+                (selected == PlayerWeapon::Club &&
+                 skillTree_.hasEffect(SkillEffect::UnlockClub)) ||
+                (selected == PlayerWeapon::Hammer &&
+                 skillTree_.hasEffect(SkillEffect::UnlockHammer)) ||
+                (selected == PlayerWeapon::Rifle &&
+                 skillTree_.hasEffect(SkillEffect::UnlockRifle));
+            if (!stillUnlocked) {
+                playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+            }
         }
     }
     if (command.toggleInvulnerability &&

@@ -18,6 +18,11 @@ void runBombSystemTests() {
     require(bombs.throwBomb({0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}),
             "bomb throw consumes available bomb");
     require(bombs.remainingBombs() == 2, "bomb stock decreases after throw");
+    const int stockBeforeFreeThrow = bombs.remainingBombs();
+    require(bombs.throwBomb(
+                {0.0, 1.7, 0.0}, {1.0, 0.0, 0.0}, false) &&
+                bombs.remainingBombs() == stockBeforeFreeThrow,
+            "god-mode bomb throw never consumes stock");
     const ian::EntityId firstRunProjectile =
         bombs.projectiles().front().id;
     bombs.reset();

@@ -36,7 +36,8 @@ class BombSystem {
         BombBalanceDefinition definition = GameBalance::defaults().weapons.bomb);
 
     void reset();
-    bool throwBomb(Vec3 origin, Vec3 direction);
+    bool throwBomb(Vec3 origin, Vec3 direction,
+                   bool consumeBomb = true);
     std::span<const BombExplosion> tick(
         double deltaSeconds, EnemySystem& enemies,
         const TerrainHeightfield* terrain = nullptr);

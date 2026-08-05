@@ -2,6 +2,7 @@
 #include "game/Simulation.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -1247,6 +1248,31 @@ void runSimulationTests() {
     require(simulation.snapshot().tutorialObjective ==
                 ian::TutorialObjective::PlaceCore,
             "unlimited resources skip gathering objective");
+    require(simulation.snapshot().bombsRemaining ==
+                std::numeric_limits<int>::max(),
+            "god mode exposes infinite bomb inventory");
+    constexpr std::array<ian::PlayerWeapon, 6> GodModeTools{{
+        ian::PlayerWeapon::Axe,
+        ian::PlayerWeapon::Pickaxe,
+        ian::PlayerWeapon::Club,
+        ian::PlayerWeapon::Hammer,
+        ian::PlayerWeapon::Rifle,
+        ian::PlayerWeapon::BareHands,
+    }};
+    for (const ian::PlayerWeapon expected : GodModeTools) {
+        ian::PlayerCommand cycle;
+        cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        simulation.tick(1.0 / 60.0, cycle);
+        require(simulation.snapshot().selectedWeapon == expected,
+                "god mode weapon cycle includes every tool and weapon");
+    }
+    ian::PlayerCommand freeBomb;
+    freeBomb.useConsumable = ian::UseConsumableCommand{};
+    simulation.tick(1.0 / 60.0, freeBomb);
+    require(simulation.snapshot().bombsRemaining ==
+                std::numeric_limits<int>::max() &&
+                !simulation.snapshot().bombProjectiles.empty(),
+            "god mode throws bombs without reducing infinite inventory");
 
     ian::PlayerCommand placeCore;
     placeCore.placeBuilding =
