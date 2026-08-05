@@ -41,7 +41,9 @@ void Simulation::processDebugCommands(
         unlimitedResources_ = !unlimitedResources_;
         playerInvulnerable_ = unlimitedResources_;
         if (unlimitedResources_) {
-            playerHealth_ = gameplay_.playerMaxHealth;
+            playerHealth_ =
+                gameplay_.playerMaxHealth *
+                playerMaxHealthMultiplier_;
         }
     }
     if (command.toggleInvulnerability &&

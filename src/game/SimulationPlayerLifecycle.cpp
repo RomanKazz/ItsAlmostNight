@@ -60,7 +60,8 @@ void Simulation::respawnPlayer() {
     lastGroundSurfaceHeight_ =
         playerPosition_.y - gameplay_.eyeHeight;
     playerGrounded_ = true;
-    playerHealth_ = gameplay_.playerMaxHealth;
+    playerHealth_ =
+        gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
 }
 
 void Simulation::damagePlayer(

@@ -2,6 +2,7 @@
 
 #include "buildings/BuildingSystem.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "game/LootChestSystem.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "graphics/TerrainRenderer.hpp"
 #include "resources/ResourceSystem.hpp"
@@ -187,6 +188,7 @@ class Renderer {
     void endShadowPass();
     [[nodiscard]] bool beginSelectionMaskPass(const Camera3D& camera);
     void setSelectionMaskWind(float amount);
+    void setSelectionOutlineTint(Color tint);
     void setSelectionOutlineBounds(BoundingBox worldBounds);
     void endSelectionMaskPass();
     void clearSelectionOutline();
@@ -245,6 +247,13 @@ class Renderer {
         FirstPersonToolVisual visual, float swingProgress,
         float movementPhase, float movementAmount,
         const FirstPersonToolTuning& tuning);
+    [[nodiscard]] bool drawLootChest(
+        LootChestType type, Vector3 position, float yawRadians,
+        float openingProgress, Color tint = WHITE);
+    void drawLootItem(
+        Vector3 position, LootUpgradeEffect effect,
+        LootRarity rarity, float rotationRadians,
+        Color tint = WHITE);
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,
@@ -487,6 +496,7 @@ class Renderer {
     Vector3 blobShadowCamera_{};
     Camera3D selectionMaskCamera_{};
     std::optional<Rectangle> selectionOutlineBounds_;
+    Color selectionOutlineTint_{WHITE};
     bool showDebugPanel_{};
     bool showShadowMap_{};
     bool frameOpen_{};

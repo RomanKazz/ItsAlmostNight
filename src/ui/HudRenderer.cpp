@@ -1609,7 +1609,49 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             20.0F, {255, 194, 92, 255});
     }
 
-    if (snapshot.buildingPreview) {
+    if (!snapshot.buildingPreview && snapshot.aimedLoot) {
+        const auto chest = std::find_if(
+            snapshot.lootChests.begin(), snapshot.lootChests.end(),
+            [&snapshot](const LootChestInstance& value) {
+                return value.loot.id == *snapshot.aimedLoot;
+            });
+        if (chest != snapshot.lootChests.end()) {
+            const Color rarityColor =
+                chest->loot.rarity == LootRarity::Rare
+                    ? Color{255, 190, 52, 255}
+                    : chest->loot.rarity == LootRarity::Uncommon
+                        ? Color{74, 226, 112, 255}
+                        : Color{112, 184, 255, 255};
+            drawCenteredUiText(
+                std::string(lootRarityName(chest->loot.rarity)) +
+                    "  " + lootUpgradeName(chest->loot.effect),
+                static_cast<float>(GetScreenHeight() / 2 + 24),
+                19.0F, rarityColor);
+            drawCenteredUiText(
+                "[E] COLLECT",
+                static_cast<float>(GetScreenHeight() / 2 + 54),
+                15.0F, RAYWHITE);
+        }
+    } else if (!snapshot.buildingPreview && snapshot.aimedChest) {
+        const auto chest = std::find_if(
+            snapshot.lootChests.begin(), snapshot.lootChests.end(),
+            [&snapshot](const LootChestInstance& value) {
+                return value.id == *snapshot.aimedChest;
+            });
+        if (chest != snapshot.lootChests.end()) {
+            const bool affordable = snapshot.gold >= chest->goldCost;
+            drawCenteredUiText(
+                std::string("[E] OPEN ") +
+                    (chest->type == LootChestType::Wooden
+                         ? "WOODEN CHEST"
+                         : "STONE CHEST") +
+                    "  " + std::to_string(chest->goldCost) + " GOLD",
+                static_cast<float>(GetScreenHeight() / 2 + 28),
+                18.0F,
+                affordable ? Color{255, 210, 82, 255}
+                           : Color{238, 88, 68, 255});
+        }
+    } else if (snapshot.buildingPreview) {
         const BuildingPreview& preview = *snapshot.buildingPreview;
         const ResourceCost cost = preview.placement.cost;
         const std::string buildText =

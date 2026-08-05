@@ -443,6 +443,9 @@ void App::update() {
             if (pendingBombThrow_) {
                 tickInput.useConsumable = UseConsumableCommand{};
             }
+            if (pendingInteract_) {
+                tickInput.interact = InteractCommand{};
+            }
             if (pendingDefeatAllEnemies_) {
                 tickInput.defeatAllEnemies = DefeatAllEnemiesCommand{};
             }
@@ -483,6 +486,7 @@ void App::update() {
         pendingWeaponToggle_ = false;
         pendingWeaponUpgrade_ = false;
         pendingBombThrow_ = false;
+        pendingInteract_ = false;
         pendingDefeatAllEnemies_ = false;
         pendingToggleInvulnerability_ = false;
         pendingDamageCore_ = false;
@@ -1326,6 +1330,10 @@ void App::update() {
             addDamageIndicator(event.position, eventSnapshot, false);
         } else if (event.type == GameEventType::BossRamImpact) {
             addDamageIndicator(event.position, eventSnapshot, true);
+        } else if (event.type == GameEventType::LootCollected) {
+            addEffect(PresentationEffectType::BuildingUpgrade,
+                      event.position, 0.82, 0.65F);
+            addCameraImpulse({0.0, 0.012, -0.008});
         }
 
         std::string message;
@@ -1381,6 +1389,15 @@ void App::update() {
             message = "Skill unlocked";
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";
+        } else if (event.type == GameEventType::ChestOpened) {
+            message = "Chest opening...";
+        } else if (event.type == GameEventType::ChestOpenRejected) {
+            message = "Not enough Gold";
+        } else if (event.type == GameEventType::LootCollected &&
+                   event.lootRarity && event.lootUpgradeEffect) {
+            message = std::string(lootRarityName(*event.lootRarity)) +
+                " " + lootUpgradeName(*event.lootUpgradeEffect) +
+                " acquired";
         }
         if (!message.empty()) {
             statusMessage_ = std::move(message);

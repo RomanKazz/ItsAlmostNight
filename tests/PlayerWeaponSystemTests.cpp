@@ -73,4 +73,13 @@ void runPlayerWeaponSystemTests() {
     require(upgradedWeapon.upgrade(3, 80).valid(), "rifle reaches level three");
     require(upgradedWeapon.validateUpgrade(3, 0).error == ian::WeaponUpgradeError::MaxLevel,
             "rifle cannot exceed level three");
+
+    ian::EnemySystem boostedTargets;
+    boostedTargets.spawnWave(Spawn);
+    ian::PlayerWeaponSystem boostedWeapon;
+    boostedWeapon.selectWeapon(ian::PlayerWeapon::Rifle);
+    const auto boostedShot = boostedWeapon.fireRifle(
+        origin, direction, boostedTargets, 5.0);
+    require(boostedShot && boostedShot->killed,
+            "loot damage multiplier applies to rifle hits");
 }

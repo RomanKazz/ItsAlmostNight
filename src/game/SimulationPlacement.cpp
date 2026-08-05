@@ -83,6 +83,28 @@ PlacementResult Simulation::validatePlacement(
             buildingValidation.cost,
         };
     }
+    const double minimumX = footprintMinimumX * cellSize;
+    const double maximumX =
+        (footprintMinimumX + footprintWidth) * cellSize;
+    const double minimumZ = footprintMinimumZ * cellSize;
+    const double maximumZ =
+        (footprintMinimumZ + footprintWidth) * cellSize;
+    const bool chestBlocked = std::any_of(
+        lootChests_.chests().begin(), lootChests_.chests().end(),
+        [minimumX, maximumX, minimumZ, maximumZ](
+            const LootChestInstance& chest) {
+            constexpr double Radius = 0.72;
+            return chest.position.x + Radius >= minimumX &&
+                chest.position.x - Radius <= maximumX &&
+                chest.position.z + Radius >= minimumZ &&
+                chest.position.z - Radius <= maximumZ;
+        });
+    if (chestBlocked) {
+        return {
+            PlacementError::WorldCollision,
+            buildingValidation.cost,
+        };
+    }
 
     const Vec3 center = buildingWorldPosition(type, position);
     const double deltaX = center.x - playerPosition_.x;

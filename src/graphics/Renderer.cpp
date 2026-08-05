@@ -826,6 +826,10 @@ void Renderer::setSelectionMaskWind(float amount) {
                    SHADER_UNIFORM_FLOAT);
 }
 
+void Renderer::setSelectionOutlineTint(Color tint) {
+    selectionOutlineTint_ = tint;
+}
+
 void Renderer::endSelectionMaskPass() {
     if (!selectionMaskPassOpen_) {
         return;
@@ -840,6 +844,7 @@ void Renderer::endSelectionMaskPass() {
 void Renderer::clearSelectionOutline() {
     selectionMaskReady_ = false;
     selectionOutlineBounds_.reset();
+    selectionOutlineTint_ = WHITE;
 }
 
 void Renderer::drawSelectionOutline() {
@@ -904,9 +909,21 @@ void Renderer::drawSelectionOutline() {
     const auto alpha =
         static_cast<unsigned char>(
             std::lround(238.0F + pulse * 17.0F));
-    DrawTexturePro(target.texture, source, destination,
-                   {0.0F, 0.0F}, 0.0F,
-                   {brightness, brightness, brightness, alpha});
+    DrawTexturePro(
+        target.texture, source, destination,
+        {0.0F, 0.0F}, 0.0F,
+        {static_cast<unsigned char>(
+             static_cast<unsigned int>(selectionOutlineTint_.r) *
+             brightness / 255U),
+         static_cast<unsigned char>(
+             static_cast<unsigned int>(selectionOutlineTint_.g) *
+             brightness / 255U),
+         static_cast<unsigned char>(
+             static_cast<unsigned int>(selectionOutlineTint_.b) *
+             brightness / 255U),
+         static_cast<unsigned char>(
+             static_cast<unsigned int>(selectionOutlineTint_.a) *
+             alpha / 255U)});
     EndShaderMode();
     if (selectionOutlineBounds_) {
         EndScissorMode();

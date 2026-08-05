@@ -324,12 +324,19 @@ void AudioSystem::playEvent(
     case GameEventType::WaveCompleted:
         play(uiConfirm_, 0.52F, 0.94F);
         break;
+    case GameEventType::ChestOpened:
+        play(gate_, 0.62F, 0.78F);
+        break;
+    case GameEventType::LootCollected:
+        play(upgrade_, 0.78F, 1.08F);
+        break;
     case GameEventType::BuildingRejected:
     case GameEventType::BuildingUpgradeRejected:
     case GameEventType::BuildingRepairRejected:
     case GameEventType::BuildingSellRejected:
     case GameEventType::WeaponUpgradeRejected:
     case GameEventType::GateToggleRejected:
+    case GameEventType::ChestOpenRejected:
         play(uiError_, 0.55F, 1.0F);
         break;
     default:

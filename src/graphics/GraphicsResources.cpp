@@ -388,6 +388,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
     clubModel_.load("assets/models/tools/club.glb");
     hammerModel_.load("assets/models/tools/hammer.glb");
+    woodenChestModel_.load("assets/models/wooden_chest.glb");
+    stoneChestModel_.load("assets/models/stone_chest.glb");
     platformModel_.load("assets/models/platform.glb");
     rampModel_.load("assets/models/ramp.glb");
     mineModel_.load("assets/models/mine.glb");
@@ -610,6 +612,8 @@ void GraphicsResources::shutdown() {
     platformModel_.unload();
     hammerModel_.unload();
     clubModel_.unload();
+    stoneChestModel_.unload();
+    woodenChestModel_.unload();
     pickaxeModel_.unload();
     axeModel_.unload();
     coreModel_.unload();
@@ -830,6 +834,14 @@ ModelResource& GraphicsResources::clubModel() {
 
 ModelResource& GraphicsResources::hammerModel() {
     return hammerModel_;
+}
+
+ModelResource& GraphicsResources::woodenChestModel() {
+    return woodenChestModel_;
+}
+
+ModelResource& GraphicsResources::stoneChestModel() {
+    return stoneChestModel_;
 }
 
 ModelResource& GraphicsResources::platformModel() {

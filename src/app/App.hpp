@@ -201,6 +201,7 @@ class App {
     bool pendingWeaponToggle_{};
     bool pendingWeaponUpgrade_{};
     bool pendingBombThrow_{};
+    bool pendingInteract_{};
     bool pendingDefeatAllEnemies_{};
     bool pendingToggleInvulnerability_{};
     bool pendingDamageCore_{};

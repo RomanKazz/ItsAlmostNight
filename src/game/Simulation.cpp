@@ -197,6 +197,9 @@ Simulation::Simulation(
             gameplay_.eyeHeight,
         map_.playerSpawn.z};
     playerHealth_ = gameplay_.playerMaxHealth;
+    lootChests_.reset(
+        terrain_.seed(), map_.worldLimit, terrain_,
+        resources_.nodes(), playerPosition_);
     waveSpawnQueue_.reserve(200);
 }
 
@@ -254,6 +257,14 @@ void Simulation::resetRun(GameEventType eventType) {
     pickaxeInputBufferRemaining_ = 0.0;
     aimedResource_.reset();
     resources_.reset();
+    lootChests_.reset(
+        terrain_.seed(), map_.worldLimit, terrain_,
+        resources_.nodes(), playerPosition_);
+    aimedChest_.reset();
+    aimedLoot_.reset();
+    playerDamageMultiplier_ = 1.0;
+    playerMoveSpeedMultiplier_ = 1.0;
+    playerMaxHealthMultiplier_ = 1.0;
     selectedBuilding_.reset();
     buildingRotation_ = 0;
     buildingPreview_.reset();
@@ -416,6 +427,7 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
         (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
+        playerMoveSpeedMultiplier_ *
         terrain_.waterMovementMultiplier(
             playerPosition_.x, playerPosition_.z);
     const bool hasMovementInput =
@@ -707,6 +719,9 @@ void Simulation::regenerateTerrain(
         });
     collisionWorld_.syncResourceCylinders(
         resources_.nodes(), treeCollisionAssets_);
+    lootChests_.reset(
+        terrain_.seed(), map_.worldLimit, terrain_,
+        resources_.nodes(), playerPosition_);
     foundations_.reset();
     syncModularStructures();
     syncWorldStructures();
@@ -1230,7 +1245,9 @@ void Simulation::updatePlayerActions(
         });
     }
     if (command.fireRifle && !selectedBuilding_) {
-        const auto fire = playerWeapons_.fireRifle(playerPosition_, direction, enemies_);
+        const auto fire = playerWeapons_.fireRifle(
+            playerPosition_, direction, enemies_,
+            playerDamageMultiplier_);
         if (fire) {
             events_.push_back({
                 .type = GameEventType::WeaponFired,
@@ -1281,7 +1298,7 @@ void Simulation::updatePlayerActions(
         if (heldTool == PlayerWeapon::BareHands) toolMultiplier = 0.25;
         else if (heldTool == PlayerWeapon::Club) toolMultiplier = 1.35;
         else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
-        const double damage = toolMultiplier *
+        const double damage = playerDamageMultiplier_ * toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
         if (aimedEnemy_) {
@@ -1357,6 +1374,66 @@ void Simulation::updatePlayerActions(
             .amount = explosion.killedCount,
         });
     }
+
+    lootChests_.tick(deltaSeconds);
+    aimedChest_ = lootChests_.raycastChest(
+        playerPosition_, direction, 4.5);
+    aimedLoot_ = lootChests_.raycastLoot(
+        playerPosition_, direction, 5.0);
+    if (command.interact) {
+        if (aimedLoot_) {
+            if (const auto pickup = lootChests_.collect(*aimedLoot_))
+                applyLootPickup(*pickup);
+        } else if (aimedChest_) {
+            const ChestOpenResult result =
+                lootChests_.open(*aimedChest_, gold_);
+            events_.push_back({
+                .type = result == ChestOpenResult::Opened
+                    ? GameEventType::ChestOpened
+                    : GameEventType::ChestOpenRejected,
+                .entityId = aimedChest_,
+            });
+            if (result == ChestOpenResult::Opened)
+                aimedChest_.reset();
+        }
+    }
+    if (!playerRespawning_) {
+        if (const auto pickup =
+                lootChests_.collectNearby(playerPosition_, 1.1))
+            applyLootPickup(*pickup);
+    }
+}
+
+void Simulation::applyLootPickup(const LootPickup& pickup) {
+    const double rarityStrength =
+        pickup.rarity == LootRarity::Rare
+            ? 2.5
+            : pickup.rarity == LootRarity::Uncommon ? 1.6 : 1.0;
+    switch (pickup.effect) {
+    case LootUpgradeEffect::Damage:
+        playerDamageMultiplier_ += 0.12 * rarityStrength;
+        break;
+    case LootUpgradeEffect::MoveSpeed:
+        playerMoveSpeedMultiplier_ += 0.07 * rarityStrength;
+        break;
+    case LootUpgradeEffect::MaximumHealth: {
+        const double previousMaximum =
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
+        playerMaxHealthMultiplier_ += 0.15 * rarityStrength;
+        const double newMaximum =
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
+        playerHealth_ += newMaximum - previousMaximum;
+        break;
+    }
+    }
+    events_.push_back({
+        .type = GameEventType::LootCollected,
+        .entityId = pickup.lootId,
+        .position = pickup.position,
+        .lootRarity = pickup.rarity,
+        .lootUpgradeEffect = pickup.effect,
+    });
+    aimedLoot_.reset();
 }
 
 void Simulation::updatePendingResourceGrants(
@@ -1944,6 +2021,7 @@ SimulationSnapshot Simulation::snapshot() const {
     case PlayerWeapon::Axe:
     case PlayerWeapon::Pickaxe: break;
     }
+    heldDamage *= playerDamageMultiplier_;
     return {
         .state = state_,
         .tick = tick_,
@@ -1956,7 +2034,8 @@ SimulationSnapshot Simulation::snapshot() const {
             playerHorizontalVelocity_,
         .playerVerticalVelocity = verticalVelocity_,
         .playerHealth = playerHealth_,
-        .playerMaxHealth = gameplay_.playerMaxHealth,
+        .playerMaxHealth =
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_,
         .playerRespawning = playerRespawning_,
         .playerRespawnTimeRemaining =
             playerRespawnTimeRemaining_,
@@ -1968,6 +2047,12 @@ SimulationSnapshot Simulation::snapshot() const {
         .wood = wood_,
         .stone = stone_,
         .gold = gold_,
+        .aimedChest = aimedChest_,
+        .aimedLoot = aimedLoot_,
+        .lootChests =
+            std::span<const LootChestInstance>{lootChests_.chests()},
+        .playerDamageMultiplier = playerDamageMultiplier_,
+        .playerMoveSpeedMultiplier = playerMoveSpeedMultiplier_,
         .pickaxeCooldownRemaining = pickaxeCooldownRemaining_,
         .aimedResource = aimedResource_,
         .resourceNodes = std::span<const ResourceNode>{resources_.nodes()},

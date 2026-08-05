@@ -46,7 +46,9 @@ class PlayerWeaponSystem {
     void reset();
     void selectWeapon(PlayerWeapon weapon);
     void tick(double deltaSeconds);
-    std::optional<WeaponFireResult> fireRifle(Vec3 origin, Vec3 direction, EnemySystem& enemies);
+    std::optional<WeaponFireResult> fireRifle(
+        Vec3 origin, Vec3 direction, EnemySystem& enemies,
+        double damageMultiplier = 1.0);
     [[nodiscard]] WeaponUpgradeResult validateUpgrade(int coreLevel, int gold) const;
     WeaponUpgradeResult upgrade(int coreLevel, int gold);
 

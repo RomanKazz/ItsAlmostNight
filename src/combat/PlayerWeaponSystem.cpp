@@ -30,7 +30,8 @@ void PlayerWeaponSystem::tick(double deltaSeconds) {
 }
 
 std::optional<WeaponFireResult> PlayerWeaponSystem::fireRifle(Vec3 origin, Vec3 direction,
-                                                              EnemySystem& enemies) {
+                                                              EnemySystem& enemies,
+                                                              double damageMultiplier) {
     if (selectedWeapon_ != PlayerWeapon::Rifle || fireCooldownRemaining_ > 0.0 ||
         reloadRemaining_ > 0.0 || ammunition_ <= 0) {
         return std::nullopt;
@@ -42,7 +43,8 @@ std::optional<WeaponFireResult> PlayerWeaponSystem::fireRifle(Vec3 origin, Vec3 
     const auto targetId = enemies.raycast(origin, direction, rifleRange());
     if (targetId) {
         const auto target = enemies.enemy(*targetId);
-        const auto damage = enemies.damage(*targetId, rifleDamage());
+        const auto damage = enemies.damage(
+            *targetId, rifleDamage() * std::max(damageMultiplier, 0.0));
         if (target && damage) {
             result.targetId = *targetId;
             result.hitPosition = target->position;

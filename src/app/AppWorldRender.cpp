@@ -167,6 +167,37 @@ void App::drawWorldEntities(
             }
         }
     }
+    WorldMaterialState chestMaterial{};
+    chestMaterial.bakedAo = 0.78F;
+    renderer_->setWorldMaterial(chestMaterial);
+    for (const LootChestInstance& chest : snapshot.lootChests) {
+        const Vector3 position{
+            static_cast<float>(chest.position.x),
+            static_cast<float>(chest.position.y),
+            static_cast<float>(chest.position.z),
+        };
+        static_cast<void>(renderer_->drawLootChest(
+            chest.type, position, static_cast<float>(chest.yaw),
+            static_cast<float>(chest.openingProgress)));
+        if (chest.loot.revealProgress <= 0.0 ||
+            chest.loot.collected) {
+            continue;
+        }
+        const float reveal = static_cast<float>(
+            chest.loot.revealProgress);
+        const float eased = 1.0F -
+            std::pow(1.0F - reveal, 3.0F);
+        const Vector3 itemPosition{
+            position.x,
+            position.y + 0.48F + eased * 1.08F +
+                std::sin(static_cast<float>(chest.loot.hoverTime) * 2.4F) *
+                    0.08F,
+            position.z,
+        };
+        renderer_->drawLootItem(
+            itemPosition, chest.loot.effect, chest.loot.rarity,
+            static_cast<float>(chest.loot.hoverTime) * 1.2F);
+    }
     for (const DestroyedResourceVisual& visual :
          destroyedResourceVisuals_) {
         const float progress = std::clamp(

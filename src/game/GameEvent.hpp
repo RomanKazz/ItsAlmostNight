@@ -4,6 +4,7 @@
 #include "buildings/FoundationSystem.hpp"
 #include "core/Types.hpp"
 #include "resources/ResourceSystem.hpp"
+#include "game/LootChestSystem.hpp"
 
 #include <optional>
 
@@ -58,6 +59,9 @@ enum class GameEventType {
     SkillUnlocked,
     IntroSkillObjectiveCompleted,
     BuildingFortified,
+    ChestOpened,
+    ChestOpenRejected,
+    LootCollected,
 };
 
 struct GameEvent {
@@ -79,6 +83,8 @@ struct GameEvent {
     double damage{};
     double intensity{};
     bool critical{};
+    std::optional<LootRarity> lootRarity;
+    std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };
 
 } // namespace ian

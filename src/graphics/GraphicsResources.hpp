@@ -217,6 +217,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& pickaxeModel();
     [[nodiscard]] ModelResource& clubModel();
     [[nodiscard]] ModelResource& hammerModel();
+    [[nodiscard]] ModelResource& woodenChestModel();
+    [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
@@ -286,6 +288,8 @@ class GraphicsResources {
     ModelResource pickaxeModel_;
     ModelResource clubModel_;
     ModelResource hammerModel_;
+    ModelResource woodenChestModel_;
+    ModelResource stoneChestModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;

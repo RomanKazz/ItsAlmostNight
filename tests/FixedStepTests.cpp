@@ -37,6 +37,7 @@ void runGlbCollisionTests();
 void runSkillTreeTests();
 void runSaturatingArithmeticTests();
 void runUserSettingsTests();
+void runLootChestSystemTests();
 
 namespace {
 
@@ -114,6 +115,7 @@ int main() {
     runTrapSystemTests();
     runPlayerWeaponSystemTests();
     runBombSystemTests();
+    runLootChestSystemTests();
     runResourceSystemTests();
     runSimulationTests();
     return 0;

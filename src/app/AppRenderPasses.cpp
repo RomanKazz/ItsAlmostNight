@@ -119,6 +119,20 @@ void App::drawShadowPass(
                 }
             }
         }
+        for (const LootChestInstance& chest : snapshot.lootChests) {
+            const Vector3 position{
+                static_cast<float>(chest.position.x),
+                static_cast<float>(chest.position.y),
+                static_cast<float>(chest.position.z),
+            };
+            if (renderer_->shadowCasterVisible(position, 1.0F) &&
+                withinLocalShadowDistance(position, 48.0F)) {
+                static_cast<void>(renderer_->drawLootChest(
+                    chest.type, position,
+                    static_cast<float>(chest.yaw),
+                    static_cast<float>(chest.openingProgress), WHITE));
+            }
+        }
         for (const auto& building : snapshot.buildings) {
             const Vec3 center =
                 buildingWorldPosition(building);
@@ -337,12 +351,70 @@ void App::drawSelectionPass(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
     renderer_->clearSelectionOutline();
     if (!removalDragActive_ &&
-        (snapshot.aimedResource || snapshot.aimedBuilding ||
+        (snapshot.aimedLoot || snapshot.aimedChest ||
+         snapshot.aimedResource || snapshot.aimedBuilding ||
          snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
-        if (snapshot.aimedResource) {
+        if (snapshot.aimedLoot) {
+            const auto chest = std::find_if(
+                snapshot.lootChests.begin(), snapshot.lootChests.end(),
+                [&snapshot](const LootChestInstance& value) {
+                    return value.loot.id == *snapshot.aimedLoot &&
+                        value.loot.available && !value.loot.collected;
+                });
+            if (chest != snapshot.lootChests.end()) {
+                const float y = static_cast<float>(chest->position.y) +
+                    1.56F +
+                    std::sin(static_cast<float>(chest->loot.hoverTime) *
+                             2.4F) * 0.08F;
+                const Vector3 position{
+                    static_cast<float>(chest->position.x), y,
+                    static_cast<float>(chest->position.z),
+                };
+                constexpr float Radius = 0.55F;
+                renderer_->setSelectionOutlineBounds({
+                    {position.x - Radius, position.y - Radius,
+                     position.z - Radius},
+                    {position.x + Radius, position.y + Radius,
+                     position.z + Radius},
+                });
+                renderer_->setSelectionOutlineTint(
+                    chest->loot.rarity == LootRarity::Rare
+                        ? Color{255, 190, 52, 255}
+                        : chest->loot.rarity == LootRarity::Uncommon
+                            ? Color{74, 226, 112, 255}
+                            : Color{112, 184, 255, 255});
+                renderer_->drawLootItem(
+                    position, chest->loot.effect, chest->loot.rarity,
+                    static_cast<float>(chest->loot.hoverTime) * 1.2F,
+                    WHITE);
+            }
+        } else if (snapshot.aimedChest) {
+            const auto chest = std::find_if(
+                snapshot.lootChests.begin(), snapshot.lootChests.end(),
+                [&snapshot](const LootChestInstance& value) {
+                    return value.id == *snapshot.aimedChest;
+                });
+            if (chest != snapshot.lootChests.end()) {
+                const Vector3 position{
+                    static_cast<float>(chest->position.x),
+                    static_cast<float>(chest->position.y),
+                    static_cast<float>(chest->position.z),
+                };
+                renderer_->setSelectionOutlineBounds({
+                    {position.x - 0.8F, position.y - 0.1F,
+                     position.z - 0.8F},
+                    {position.x + 0.8F, position.y + 1.3F,
+                     position.z + 0.8F},
+                });
+                static_cast<void>(renderer_->drawLootChest(
+                    chest->type, position,
+                    static_cast<float>(chest->yaw),
+                    static_cast<float>(chest->openingProgress), WHITE));
+            }
+        } else if (snapshot.aimedResource) {
             const auto resource = std::find_if(
                 snapshot.resourceNodes.begin(),
                 snapshot.resourceNodes.end(),

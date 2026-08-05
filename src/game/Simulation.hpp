@@ -13,6 +13,7 @@
 #include "enemies/EnemySystem.hpp"
 #include "game/GameEvent.hpp"
 #include "game/GameBalance.hpp"
+#include "game/LootChestSystem.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "progression/SkillTree.hpp"
 #include "world/CollisionWorld.hpp"
@@ -35,6 +36,7 @@ struct EnableUnlimitedResourcesCommand {};
 struct ToggleWeaponCommand {};
 struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
+struct InteractCommand {};
 struct DefeatAllEnemiesCommand {};
 struct ToggleInvulnerabilityCommand {};
 struct DamageCoreCommand {
@@ -81,6 +83,7 @@ struct PlayerCommand {
     std::optional<ToggleWeaponCommand> toggleWeapon;
     std::optional<UpgradeWeaponCommand> upgradeWeapon;
     std::optional<UseConsumableCommand> useConsumable;
+    std::optional<InteractCommand> interact;
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
     std::optional<ToggleInvulnerabilityCommand> toggleInvulnerability;
     std::optional<DamageCoreCommand> damageCore;
@@ -142,6 +145,11 @@ struct SimulationSnapshot {
     int wood;
     int stone;
     int gold;
+    std::optional<EntityId> aimedChest;
+    std::optional<EntityId> aimedLoot;
+    std::span<const LootChestInstance> lootChests;
+    double playerDamageMultiplier;
+    double playerMoveSpeedMultiplier;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
     std::span<const ResourceNode> resourceNodes;
@@ -347,6 +355,7 @@ class Simulation {
     void completeWave();
     void cycleUnlockedTool();
     void updateFortifications(double deltaSeconds);
+    void applyLootPickup(const LootPickup& pickup);
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
 
@@ -402,6 +411,9 @@ class Simulation {
     double pickaxeInputBufferRemaining_{};
     std::optional<EntityId> aimedResource_;
     ResourceSystem resources_;
+    std::optional<EntityId> aimedChest_;
+    std::optional<EntityId> aimedLoot_;
+    LootChestSystem lootChests_;
     std::optional<BuildingType> selectedBuilding_;
     std::uint8_t buildingRotation_{};
     std::optional<BuildingPreview> buildingPreview_;
@@ -434,6 +446,9 @@ class Simulation {
     double waveSpawnTimeRemaining_{};
     std::optional<AttackDirection> upcomingAttackDirection_;
     bool currentWaveHasBoss_{};
+    double playerDamageMultiplier_{1.0};
+    double playerMoveSpeedMultiplier_{1.0};
+    double playerMaxHealthMultiplier_{1.0};
     int bareHandsWoodGathered_{};
     int bareHandsStoneGathered_{};
     bool introSkillObjectiveCompleted_{};

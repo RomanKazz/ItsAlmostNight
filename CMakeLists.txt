@@ -80,6 +80,7 @@ add_library(ian_simulation
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
+    src/game/LootChestSystem.cpp
     src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDebug.cpp
@@ -238,6 +239,7 @@ if(BUILD_TESTING)
         tests/PlacementValidatorTests.cpp
         tests/PlacementLineTests.cpp
         tests/BombSystemTests.cpp
+        tests/LootChestSystemTests.cpp
         tests/CannonSystemTests.cpp
         tests/CollisionWorldTests.cpp
         tests/EnemySystemTests.cpp
@@ -276,7 +278,7 @@ if(BUILD_TESTING)
         tests/GraphicsResourceSmokeTests.cpp
     )
     target_link_libraries(ian_graphics_smoke PRIVATE
-        ian_graphics)
+        ian_graphics ian_simulation)
     target_include_directories(ian_graphics_smoke SYSTEM PRIVATE
         "${raylib_SOURCE_DIR}/src")
     ian_set_warnings(ian_graphics_smoke)

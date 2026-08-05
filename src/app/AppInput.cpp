@@ -793,9 +793,14 @@ void App::processInput() {
             buildingContextCardStats_.reset();
         }
         if (!currentSnapshot.selectedBuilding &&
-            IsKeyPressed(KEY_E) && actionBuilding) {
-            pendingGateToggle_ =
-                ToggleGateCommand{*actionBuilding};
+            IsKeyPressed(KEY_E)) {
+            if (currentSnapshot.aimedChest ||
+                currentSnapshot.aimedLoot) {
+                pendingInteract_ = true;
+            } else if (actionBuilding) {
+                pendingGateToggle_ =
+                    ToggleGateCommand{*actionBuilding};
+            }
         }
         const float wheel = GetMouseWheelMove();
         if (foundationBuildMode_ ||

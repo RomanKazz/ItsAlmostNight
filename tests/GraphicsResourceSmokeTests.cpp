@@ -1,4 +1,5 @@
 #include "graphics/GraphicsResources.hpp"
+#include "graphics/Renderer.hpp"
 
 #include <raylib.h>
 
@@ -62,7 +63,9 @@ int main() {
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
             !resources.clubModel().valid() ||
-            !resources.hammerModel().valid()) {
+            !resources.hammerModel().valid() ||
+            !resources.woodenChestModel().valid() ||
+            !resources.stoneChestModel().valid()) {
             std::cerr << "required graphics resource failed to load\n";
             result = 1;
         }
@@ -71,6 +74,36 @@ int main() {
         std::cerr << "graphics smoke: initialize 2\n";
         resources.initialize(settings);
         resources.shutdown();
+
+        ian::Renderer renderer;
+        renderer.initialize();
+        BeginDrawing();
+        ClearBackground(BLACK);
+        const Camera3D camera{
+            .position = {0.0F, 2.0F, 4.0F},
+            .target = {0.0F, 0.5F, 0.0F},
+            .up = {0.0F, 1.0F, 0.0F},
+            .fovy = 60.0F,
+            .projection = CAMERA_PERSPECTIVE,
+        };
+        BeginMode3D(camera);
+        const bool woodenDrawn = renderer.drawLootChest(
+            ian::LootChestType::Wooden, {-1.0F, 0.0F, 0.0F},
+            0.0F, 0.72F);
+        const bool stoneDrawn = renderer.drawLootChest(
+            ian::LootChestType::Stone, {1.0F, 0.0F, 0.0F},
+            0.0F, 0.72F);
+        renderer.drawLootItem(
+            {0.0F, 1.2F, 0.0F},
+            ian::LootUpgradeEffect::Damage,
+            ian::LootRarity::Rare, 0.5F);
+        EndMode3D();
+        EndDrawing();
+        renderer.shutdown();
+        if (!woodenDrawn || !stoneDrawn) {
+            std::cerr << "chest renderer failed\n";
+            result = 1;
+        }
     }
     std::cerr << "graphics smoke: close context\n";
     CloseWindow();

@@ -472,6 +472,118 @@ bool Renderer::drawFirstPersonTool(
     return true;
 }
 
+bool Renderer::drawLootChest(
+    LootChestType type, Vector3 position, float yawRadians,
+    float openingProgress, Color tint) {
+    ModelResource& resource = type == LootChestType::Wooden
+        ? resources_.woodenChestModel()
+        : resources_.stoneChestModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index)
+            model.materials[index].shader = *shader;
+    }
+
+    constexpr float ModelScale = 2.45F;
+    const float progress = std::clamp(openingProgress, 0.0F, 1.0F);
+    const float delayed = std::clamp((progress - 0.08F) / 0.76F, 0.0F, 1.0F);
+    constexpr float Back = 1.70158F;
+    constexpr float BackPlusOne = Back + 1.0F;
+    const float shifted = delayed - 1.0F;
+    const float eased = 1.0F + BackPlusOne * shifted * shifted * shifted +
+        Back * shifted * shifted;
+    const float lidAngle = std::clamp(eased, 0.0F, 1.08F) * -108.0F * DEG2RAD;
+    const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
+    const Matrix yaw = MatrixRotateY(yawRadians);
+    const Matrix translation =
+        MatrixTranslate(position.x, position.y, position.z);
+    const Matrix baseTransform =
+        MatrixMultiply(MatrixMultiply(scale, yaw), translation);
+
+    const auto drawMesh = [&model, tint](int meshIndex, Matrix transform) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        DrawMesh(model.meshes[meshIndex], material,
+                 MatrixMultiply(model.transform, transform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+
+    if (type == LootChestType::Wooden && model.meshCount >= 2) {
+        drawMesh(1, baseTransform);
+        const Matrix lidRotation = MatrixRotateX(lidAngle);
+        const Matrix lidTranslation =
+            MatrixTranslate(0.0F, 0.22719747F, -0.21279876F);
+        const Matrix lidTransform = MatrixMultiply(
+            MatrixMultiply(
+                MatrixMultiply(MatrixMultiply(scale, lidRotation),
+                               lidTranslation),
+                yaw),
+            translation);
+        drawMesh(0, lidTransform);
+        for (int index = 2; index < model.meshCount; ++index)
+            drawMesh(index, baseTransform);
+    } else {
+        const float bounce =
+            std::sin(progress * PI) * (1.0F - progress) * 0.07F;
+        const Matrix stoneTransform = MatrixMultiply(
+            MatrixMultiply(scale, yaw),
+            MatrixTranslate(position.x, position.y + bounce, position.z));
+        for (int index = 0; index < model.meshCount; ++index)
+            drawMesh(index, stoneTransform);
+        // Stone asset is exported as one mesh. A fitted stone cap supplies a
+        // readable lid and rotates around its back edge like the wooden lid.
+        rlPushMatrix();
+        rlTranslatef(position.x, position.y, position.z);
+        rlRotatef(yawRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+        rlTranslatef(0.0F, 0.52F, 0.50F);
+        rlRotatef(lidAngle * RAD2DEG, 1.0F, 0.0F, 0.0F);
+        rlTranslatef(0.0F, 0.0F, -0.50F);
+        DrawCube({0.0F, 0.0F, 0.0F}, 1.18F, 0.16F, 1.18F,
+                 ColorTint({118, 125, 132, 255}, tint));
+        rlPopMatrix();
+    }
+    return true;
+}
+
+void Renderer::drawLootItem(
+    Vector3 position, LootUpgradeEffect effect,
+    LootRarity rarity, float rotationRadians, Color tint) {
+    const Color rarityColor = rarity == LootRarity::Rare
+        ? Color{255, 190, 52, 255}
+        : rarity == LootRarity::Uncommon
+            ? Color{74, 226, 112, 255}
+            : Color{112, 184, 255, 255};
+    const Color color = ColorTint(rarityColor, tint);
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    if (effect == LootUpgradeEffect::Damage) {
+        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
+        DrawCube({}, 0.32F, 0.32F, 0.32F, color);
+    } else if (effect == LootUpgradeEffect::MoveSpeed) {
+        DrawCube({-0.10F, 0.0F, 0.0F}, 0.12F, 0.48F, 0.18F, color);
+        DrawCube({0.10F, 0.08F, 0.0F}, 0.12F, 0.38F, 0.18F, color);
+    } else {
+        DrawSphereEx({-0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
+        DrawSphereEx({0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
+        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
+        DrawCube({0.0F, -0.10F, 0.0F}, 0.25F, 0.25F, 0.25F, color);
+    }
+    rlPopMatrix();
+}
+
 std::optional<double> Renderer::buildingRaycastDistance(
     const BuildingInstance& building,
     std::span<const BuildingInstance> buildings, Ray ray,
