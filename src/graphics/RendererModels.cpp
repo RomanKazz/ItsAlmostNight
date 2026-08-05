@@ -520,20 +520,21 @@ bool Renderer::drawLootChest(
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
 
-    if (type == LootChestType::Wooden && model.meshCount >= 2) {
+    if (model.meshCount >= 2) {
         drawMesh(1, baseTransform);
         // raylib bakes glTF node transforms into every mesh on load.  The lid
         // vertices therefore already include the Blender node translation;
         // adding it again made the closed lid slide away from the chest.
         // Rotate the baked vertices around the original lid-node origin,
         // which is the authored hinge position.
-        constexpr Vector3 WoodenLidPivot{
-            0.0F, 0.22719747F, -0.21279876F};
+        const Vector3 lidPivot = type == LootChestType::Wooden
+            ? Vector3{0.0F, 0.22719747F, -0.21279876F}
+            : Vector3{0.0F, 0.2F, -0.2F};
         const Matrix lidRotation = MatrixRotateX(lidAngle);
         const Matrix toLidOrigin = MatrixTranslate(
-            -WoodenLidPivot.x, -WoodenLidPivot.y, -WoodenLidPivot.z);
+            -lidPivot.x, -lidPivot.y, -lidPivot.z);
         const Matrix fromLidOrigin = MatrixTranslate(
-            WoodenLidPivot.x, WoodenLidPivot.y, WoodenLidPivot.z);
+            lidPivot.x, lidPivot.y, lidPivot.z);
         const Matrix lidTransform = MatrixMultiply(
             MatrixMultiply(
                 MatrixMultiply(
@@ -547,28 +548,8 @@ bool Renderer::drawLootChest(
         for (int index = 2; index < model.meshCount; ++index)
             drawMesh(index, baseTransform);
     } else {
-        const float bounce =
-            std::sin(progress * PI) * (1.0F - progress) * 0.07F;
-        const Matrix stoneTransform = MatrixMultiply(
-            MatrixMultiply(scale, yaw),
-            MatrixTranslate(position.x, position.y + bounce, position.z));
         for (int index = 0; index < model.meshCount; ++index)
-            drawMesh(index, stoneTransform);
-        // Stone asset is exported as one mesh. A fitted stone cap supplies a
-        // readable lid and rotates around its back edge like the wooden lid.
-        rlPushMatrix();
-        rlTranslatef(position.x, position.y, position.z);
-        rlRotatef(yawRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-        constexpr float StoneLidDepth = 1.18F;
-        constexpr float StoneLidHalfDepth = StoneLidDepth * 0.5F;
-        // Keep the procedural cap centred when closed and rotate it around
-        // its actual back edge instead of an approximate point inside it.
-        rlTranslatef(0.0F, 0.52F, -StoneLidHalfDepth);
-        rlRotatef(lidAngle * RAD2DEG, 1.0F, 0.0F, 0.0F);
-        rlTranslatef(0.0F, 0.0F, StoneLidHalfDepth);
-        DrawCube({0.0F, 0.0F, 0.0F}, 1.18F, 0.16F, StoneLidDepth,
-                 ColorTint({118, 125, 132, 255}, tint));
-        rlPopMatrix();
+            drawMesh(index, baseTransform);
     }
     return true;
 }
