@@ -232,6 +232,9 @@ class App {
     double landingResponseRemaining_{};
     double landingResponseDuration_{0.24};
     double landingResponseStrength_{};
+    bool playerSpawnDropActive_{};
+    double playerSpawnDropHeight_{};
+    double playerSpawnDropVelocity_{};
     float motionBobIntensity_{1.0F};
     float motionShakeIntensity_{1.0F};
     float motionLandingIntensity_{1.0F};

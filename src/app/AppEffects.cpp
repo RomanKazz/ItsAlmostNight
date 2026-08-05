@@ -409,6 +409,38 @@ void App::drawPresentationEffects() {
         if (effect.type == PresentationEffectType::Hit) {
             DrawSphere(origin, 0.18F * (1.0F - progress),
                        {255, 220, 120, 255});
+        } else if (effect.type == PresentationEffectType::LandingDust) {
+            const float fade =
+                1.0F - smoothstep(0.38F, 1.0F, progress);
+            const float ringRadius =
+                effect.scale * (0.18F + progress * 1.65F);
+            DrawCircle3D(
+                {origin.x, origin.y + 0.018F, origin.z},
+                ringRadius, {1.0F, 0.0F, 0.0F}, 90.0F,
+                {174, 147, 101,
+                 atmosphereAlpha(fade * 0.48F)});
+            constexpr int ParticleCount = 14;
+            for (int index = 0; index < ParticleCount; ++index) {
+                const float angle =
+                    effectUnit(index, 31) * 2.0F * PI;
+                const float speed = effect.scale *
+                    (0.65F + effectUnit(index, 32) * 1.25F);
+                const float distance =
+                    0.12F + progress * speed;
+                const float lift =
+                    std::sin(progress * PI) *
+                    (0.06F + effectUnit(index, 33) * 0.28F);
+                const float size = effect.scale *
+                    (0.035F + effectUnit(index, 34) * 0.075F +
+                     progress * 0.055F);
+                DrawSphereEx(
+                    {origin.x + std::cos(angle) * distance,
+                     origin.y + lift,
+                     origin.z + std::sin(angle) * distance},
+                    size, 4, 4,
+                    {151, 125, 84,
+                     atmosphereAlpha(fade * 0.72F)});
+            }
         } else if (effect.type == PresentationEffectType::Explosion) {
             const float scale = effect.scale;
             const float flash = 1.0F - smoothstep(0.02F, 0.2F, progress);

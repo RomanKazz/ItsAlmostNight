@@ -226,6 +226,7 @@ void App::render() {
                     : snapshot.playerPosition.y),
             static_cast<float>(snapshot.playerPosition.z),
         };
+        position.y += static_cast<float>(playerSpawnDropHeight_);
         Vector3 forward = {
             static_cast<float>(std::sin(visualYaw) * cosPitch),
             static_cast<float>(std::sin(visualPitch)),

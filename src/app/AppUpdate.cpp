@@ -26,6 +26,30 @@ void App::update() {
             audio_.playUiConfirm();
     }
     const auto hotbarSnapshot = simulation_.snapshot();
+    if (playerSpawnDropActive_ &&
+        hotbarSnapshot.state != RunState::Paused) {
+        constexpr double SpawnGravity = 14.0;
+        playerSpawnDropVelocity_ -= SpawnGravity * frameSeconds;
+        playerSpawnDropHeight_ +=
+            playerSpawnDropVelocity_ * frameSeconds;
+        if (playerSpawnDropHeight_ <= 0.0) {
+            playerSpawnDropHeight_ = 0.0;
+            playerSpawnDropVelocity_ = 0.0;
+            playerSpawnDropActive_ = false;
+            Vec3 landingPosition = hotbarSnapshot.playerPosition;
+            landingPosition.y = simulation_.terrain().getHeight(
+                                    landingPosition.x,
+                                    landingPosition.z) +
+                0.04;
+            addEffect(PresentationEffectType::LandingDust,
+                      landingPosition, 0.62, 1.0F);
+            landingResponseDuration_ = 0.26;
+            landingResponseRemaining_ = landingResponseDuration_;
+            landingResponseStrength_ = 0.72;
+            addCameraShake(0.16, 0.045);
+            addCameraImpulse({0.0, -0.018, 0.0});
+        }
+    }
     if (hotbarSnapshot.state != RunState::MainMenu &&
         hotbarSnapshot.state != RunState::Paused) {
         worldRevealElapsed_ = std::min(
@@ -435,6 +459,9 @@ void App::update() {
             tickInput.toggleGate = pendingGateToggle_;
             consumedTransientInput = true;
         }
+        if (playerSpawnDropActive_) {
+            tickInput = {};
+        }
         simulation_.tick(deltaSeconds, tickInput);
         });
     if (consumedTransientInput) {
@@ -839,6 +866,13 @@ void App::update() {
             });
         };
     for (const auto& event : events) {
+        if (event.type == GameEventType::RunStarted ||
+            event.type == GameEventType::RunRestarted) {
+            constexpr double SpawnDropHeight = 3.2;
+            playerSpawnDropActive_ = true;
+            playerSpawnDropHeight_ = SpawnDropHeight;
+            playerSpawnDropVelocity_ = -0.35;
+        }
         audio_.playEvent(event, eventSnapshot);
         if (event.type == GameEventType::CannonFired &&
             event.sourceId) {

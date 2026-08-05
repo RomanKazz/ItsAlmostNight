@@ -15,6 +15,7 @@ enum class PresentationEffectType {
     ResourceDestroyedStone,
     Explosion,
     Debris,
+    LandingDust,
     RamImpact,
     BuildingPlaced,
     BuildingUpgrade,
