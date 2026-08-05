@@ -18,6 +18,8 @@
 
 namespace ian {
 
+[[nodiscard]] Color lootRarityColor(LootRarity rarity);
+
 struct WorldLighting {
     Vector3 cameraPosition{};
     Vector3 sunDirection{-0.45F, -1.0F, -0.25F};
@@ -253,7 +255,11 @@ class Renderer {
     void drawLootItem(
         Vector3 position, LootUpgradeEffect effect,
         LootRarity rarity, float rotationRadians,
-        Color tint = WHITE);
+        Color tint = WHITE, float scale = 1.0F);
+    void drawLootItemOutline(
+        Vector3 position, LootUpgradeEffect effect,
+        LootRarity rarity, float rotationRadians,
+        float scale = 1.0F);
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,

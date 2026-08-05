@@ -403,7 +403,31 @@ EnemyAnimationSource enemyAnimationFor(
     return {animations, bones, clip, native};
 }
 
+void drawLootItemGeometry(
+    LootUpgradeEffect effect, Color color) {
+    if (effect == LootUpgradeEffect::Damage) {
+        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
+        DrawCube({}, 0.32F, 0.32F, 0.32F, color);
+    } else if (effect == LootUpgradeEffect::MoveSpeed) {
+        DrawCube({-0.10F, 0.0F, 0.0F}, 0.12F, 0.48F, 0.18F, color);
+        DrawCube({0.10F, 0.08F, 0.0F}, 0.12F, 0.38F, 0.18F, color);
+    } else {
+        DrawSphereEx({-0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
+        DrawSphereEx({0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
+        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
+        DrawCube({0.0F, -0.10F, 0.0F}, 0.25F, 0.25F, 0.25F, color);
+    }
+}
+
 } // namespace
+
+Color lootRarityColor(LootRarity rarity) {
+    if (rarity == LootRarity::Rare)
+        return {255, 193, 48, 255};
+    if (rarity == LootRarity::Uncommon)
+        return {82, 255, 167, 255};
+    return {55, 204, 255, 255};
+}
 
 bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
@@ -556,28 +580,31 @@ bool Renderer::drawLootChest(
 
 void Renderer::drawLootItem(
     Vector3 position, LootUpgradeEffect effect,
-    LootRarity rarity, float rotationRadians, Color tint) {
-    const Color rarityColor = rarity == LootRarity::Rare
-        ? Color{255, 190, 52, 255}
-        : rarity == LootRarity::Uncommon
-            ? Color{74, 226, 112, 255}
-            : Color{112, 184, 255, 255};
-    const Color color = ColorTint(rarityColor, tint);
+    LootRarity rarity, float rotationRadians, Color tint,
+    float scale) {
+    const Color color = ColorTint(
+        ColorBrightness(lootRarityColor(rarity), 0.22F), tint);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-    if (effect == LootUpgradeEffect::Damage) {
-        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
-        DrawCube({}, 0.32F, 0.32F, 0.32F, color);
-    } else if (effect == LootUpgradeEffect::MoveSpeed) {
-        DrawCube({-0.10F, 0.0F, 0.0F}, 0.12F, 0.48F, 0.18F, color);
-        DrawCube({0.10F, 0.08F, 0.0F}, 0.12F, 0.38F, 0.18F, color);
-    } else {
-        DrawSphereEx({-0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
-        DrawSphereEx({0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
-        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
-        DrawCube({0.0F, -0.10F, 0.0F}, 0.25F, 0.25F, 0.25F, color);
-    }
+    rlScalef(scale, scale, scale);
+    drawLootItemGeometry(effect, color);
+    rlPopMatrix();
+}
+
+void Renderer::drawLootItemOutline(
+    Vector3 position, LootUpgradeEffect effect,
+    LootRarity rarity, float rotationRadians, float scale) {
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    const float outlineScale = scale * 1.13F;
+    rlScalef(outlineScale, outlineScale, outlineScale);
+    rlDrawRenderBatchActive();
+    rlSetCullFace(RL_CULL_FACE_FRONT);
+    drawLootItemGeometry(effect, lootRarityColor(rarity));
+    rlDrawRenderBatchActive();
+    rlSetCullFace(RL_CULL_FACE_BACK);
     rlPopMatrix();
 }
 

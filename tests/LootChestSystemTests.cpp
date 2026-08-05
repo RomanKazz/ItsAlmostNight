@@ -49,9 +49,16 @@ void runLootChestSystemTests() {
             "opened chest cannot charge player twice");
     chests.tick(0.25);
     require(chests.chests().front().openingProgress > 0.0 &&
-                chests.chests().front().openingProgress < 1.0,
-            "chest opening progresses over time instead of snapping");
-    chests.tick(1.0);
+                chests.chests().front().openingProgress < 1.0 &&
+                chests.chests().front().loot.revealProgress > 0.0,
+            "loot starts rising during the early chest opening");
+    chests.tick(0.45);
+    require(chests.chests().front().state ==
+                ian::LootChestState::Opening &&
+                chests.chests().front().loot.available &&
+                chests.chests().front().loot.revealProgress == 1.0,
+            "loot finishes rising before the lid finishes opening");
+    chests.tick(0.55);
     const auto& opened = chests.chests().front();
     require(opened.state == ian::LootChestState::Open &&
                 opened.loot.available &&

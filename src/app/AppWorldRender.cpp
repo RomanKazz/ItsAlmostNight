@@ -179,25 +179,124 @@ void App::drawWorldEntities(
         static_cast<void>(renderer_->drawLootChest(
             chest.type, position, static_cast<float>(chest.yaw),
             static_cast<float>(chest.openingProgress)));
+    }
+    // Loot is deliberately rendered without the lit world shader so its
+    // rarity color, glow and permanent silhouette stay vivid at night.
+    renderer_->endWorldShader();
+    for (const LootChestInstance& chest : snapshot.lootChests) {
         if (chest.loot.revealProgress <= 0.0 ||
             chest.loot.collected) {
             continue;
         }
+        const Vector3 position{
+            static_cast<float>(chest.position.x),
+            static_cast<float>(chest.position.y),
+            static_cast<float>(chest.position.z),
+        };
         const float reveal = static_cast<float>(
             chest.loot.revealProgress);
         const float eased = 1.0F -
             std::pow(1.0F - reveal, 3.0F);
+        const float time = static_cast<float>(snapshot.elapsedSeconds);
+        const float opening = static_cast<float>(chest.openingProgress);
+        const float rotation = time * 1.65F +
+            static_cast<float>(chest.id.index) * 0.73F;
+        const float itemScale = 1.50F * (0.35F + eased * 0.65F) +
+            std::sin(reveal * PI) * 0.24F;
         const Vector3 itemPosition{
             position.x,
-            position.y + 0.48F + eased * 1.08F +
+            position.y + 0.48F + eased * 1.18F +
                 std::sin(static_cast<float>(chest.loot.hoverTime) * 2.4F) *
                     0.08F,
             position.z,
         };
+
+        if (renderer_->settings().particles) {
+            const Color rarityColor = lootRarityColor(chest.loot.rarity);
+            const float effectAmount = std::clamp(
+                (opening - 0.06F) / 0.24F, 0.0F, 1.0F);
+            BeginBlendMode(BLEND_ADDITIVE);
+            const float glowPulse = 0.88F +
+                std::sin(time * 5.2F +
+                         static_cast<float>(chest.id.index)) * 0.12F;
+            DrawSphereEx(
+                {position.x, position.y + 0.52F, position.z},
+                0.20F + effectAmount * 0.18F, 8, 8,
+                Fade(rarityColor,
+                     effectAmount * glowPulse * 0.42F));
+
+            constexpr int RayCount = 7;
+            for (int index = 0; index < RayCount; ++index) {
+                const float unit = static_cast<float>(index) /
+                    static_cast<float>(RayCount);
+                const float angle = unit * 2.0F * PI +
+                    time * (index % 2 == 0 ? 0.24F : -0.18F);
+                const float wave = 0.5F + 0.5F *
+                    std::sin(time * 3.4F +
+                             static_cast<float>(index) * 1.71F);
+                const float radius = 0.11F + unit * 0.18F;
+                const Vector3 start{
+                    position.x + std::cos(angle) * radius,
+                    position.y + 0.46F,
+                    position.z + std::sin(angle) * radius,
+                };
+                const float length = 0.72F + wave * 0.72F;
+                const Vector3 end{
+                    start.x + std::cos(angle) * 0.20F,
+                    start.y + length,
+                    start.z + std::sin(angle) * 0.20F,
+                };
+                const float resting = opening >= 1.0F ? 0.30F : 0.72F;
+                DrawCylinderEx(
+                    start, end, 0.025F + wave * 0.016F, 0.004F, 5,
+                    Fade(rarityColor,
+                         effectAmount * resting *
+                             (0.45F + wave * 0.35F)));
+            }
+
+            const float burst = std::clamp(
+                (opening - 0.08F) / 0.54F, 0.0F, 1.0F);
+            const float burstFade = 1.0F - std::clamp(
+                (opening - 0.58F) / 0.30F, 0.0F, 1.0F);
+            constexpr int SparkCount = 18;
+            for (int index = 0; index < SparkCount; ++index) {
+                const float seed = std::fmod(
+                    std::sin(static_cast<float>(index + 1) * 78.233F) *
+                        43758.5453F,
+                    1.0F);
+                const float unit = seed < 0.0F ? seed + 1.0F : seed;
+                const float angle = unit * 2.0F * PI +
+                    static_cast<float>(index) * 0.91F;
+                const float distance = burst * (0.16F + unit * 0.78F);
+                const float lift = burst * (0.55F + unit * 1.28F) -
+                    burst * burst * (0.12F + unit * 0.28F);
+                DrawSphereEx(
+                    {position.x + std::cos(angle) * distance,
+                     position.y + 0.48F + lift,
+                     position.z + std::sin(angle) * distance},
+                    0.025F + unit * 0.055F, 4, 4,
+                    Fade(rarityColor,
+                         burstFade * (0.52F + unit * 0.38F)));
+            }
+            if (burstFade > 0.0F) {
+                DrawCircle3D(
+                    {position.x, position.y + 0.50F + burst * 0.48F,
+                     position.z},
+                    0.18F + burst * 0.92F,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    Fade(rarityColor, burstFade * 0.72F));
+            }
+            EndBlendMode();
+        }
+
+        renderer_->drawLootItemOutline(
+            itemPosition, chest.loot.effect, chest.loot.rarity,
+            rotation, itemScale);
         renderer_->drawLootItem(
             itemPosition, chest.loot.effect, chest.loot.rarity,
-            static_cast<float>(chest.loot.hoverTime) * 1.2F);
+            rotation, WHITE, itemScale);
     }
+    renderer_->beginWorldShader(lighting);
     for (const DestroyedResourceVisual& visual :
          destroyedResourceVisuals_) {
         const float progress = std::clamp(

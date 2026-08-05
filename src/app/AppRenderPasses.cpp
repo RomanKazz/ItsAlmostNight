@@ -366,14 +366,14 @@ void App::drawSelectionPass(
                 });
             if (chest != snapshot.lootChests.end()) {
                 const float y = static_cast<float>(chest->position.y) +
-                    1.56F +
+                    1.66F +
                     std::sin(static_cast<float>(chest->loot.hoverTime) *
                              2.4F) * 0.08F;
                 const Vector3 position{
                     static_cast<float>(chest->position.x), y,
                     static_cast<float>(chest->position.z),
                 };
-                constexpr float Radius = 0.55F;
+                constexpr float Radius = 0.72F;
                 renderer_->setSelectionOutlineBounds({
                     {position.x - Radius, position.y - Radius,
                      position.z - Radius},
@@ -381,15 +381,13 @@ void App::drawSelectionPass(
                      position.z + Radius},
                 });
                 renderer_->setSelectionOutlineTint(
-                    chest->loot.rarity == LootRarity::Rare
-                        ? Color{255, 190, 52, 255}
-                        : chest->loot.rarity == LootRarity::Uncommon
-                            ? Color{74, 226, 112, 255}
-                            : Color{112, 184, 255, 255});
+                    lootRarityColor(chest->loot.rarity));
+                const float rotation =
+                    static_cast<float>(snapshot.elapsedSeconds) * 1.65F +
+                    static_cast<float>(chest->id.index) * 0.73F;
                 renderer_->drawLootItem(
                     position, chest->loot.effect, chest->loot.rarity,
-                    static_cast<float>(chest->loot.hoverTime) * 1.2F,
-                    WHITE);
+                    rotation, WHITE, 1.50F);
             }
         } else if (snapshot.aimedChest) {
             const auto chest = std::find_if(

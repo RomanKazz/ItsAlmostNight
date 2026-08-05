@@ -13,6 +13,7 @@ namespace {
 
 constexpr std::size_t ChestCount = 10;
 constexpr double OpeningDuration = 1.05;
+constexpr double LootHoverHeight = 1.66;
 
 double distanceSquared(Vec3 left, Vec3 right) {
     const double x = left.x - right.x;
@@ -128,8 +129,8 @@ void LootChestSystem::tick(double deltaSeconds) {
             chest.openingProgress = std::min(
                 1.0, chest.openingProgress + deltaSeconds / OpeningDuration);
             chest.loot.revealProgress = std::clamp(
-                (chest.openingProgress - 0.36) / 0.50, 0.0, 1.0);
-            chest.loot.available = chest.openingProgress >= 0.78;
+                (chest.openingProgress - 0.14) / 0.44, 0.0, 1.0);
+            chest.loot.available = chest.openingProgress >= 0.58;
             if (chest.openingProgress >= 1.0)
                 chest.state = LootChestState::Open;
         }
@@ -163,9 +164,10 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
     for (const LootChestInstance& chest : chests_) {
         if (!chest.loot.available || chest.loot.collected) continue;
         Vec3 center = chest.loot.position;
-        center.y += 1.55 + std::sin(chest.loot.hoverTime * 2.4) * 0.08;
+        center.y += LootHoverHeight +
+            std::sin(chest.loot.hoverTime * 2.4) * 0.08;
         const auto distance = raySphereDistance(
-            origin, direction, center, 0.38);
+            origin, direction, center, 0.52);
         if (distance && *distance <= closestDistance) {
             closestDistance = *distance;
             closest = chest.loot.id;
@@ -206,7 +208,7 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
     Vec3 playerPosition, double radius) {
     for (LootChestInstance& chest : chests_) {
         Vec3 itemPosition = chest.loot.position;
-        itemPosition.y += 1.55;
+        itemPosition.y += LootHoverHeight;
         if (chest.loot.available && !chest.loot.collected &&
             distanceSquared(playerPosition, itemPosition) <= radius * radius)
             return collect(chest.loot.id);
