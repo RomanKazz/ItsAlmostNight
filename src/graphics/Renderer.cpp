@@ -485,15 +485,8 @@ void Renderer::drawClouds(
             return left.distanceSquared > right.distanceSquared;
         });
 
+    BeginBlendMode(BLEND_ALPHA);
     rlDrawRenderBatchActive();
-    // Blend cloud color normally, but clear the scene material-mask alpha.
-    // The ink post-process uses that alpha to decide which pixels may receive
-    // outlines, so clouds remain soft while retaining their distance fade.
-    rlSetBlendFactorsSeparate(
-        RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
-        RL_ZERO, RL_ZERO,
-        RL_FUNC_ADD, RL_FUNC_ADD);
-    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
     rlDisableDepthMask();
     for (std::size_t index = 0; index < visibleCount; ++index) {
         const CloudInstance& cloud = clouds[index];
