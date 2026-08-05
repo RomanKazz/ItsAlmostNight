@@ -409,11 +409,22 @@ bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
     float movementPhase, float movementAmount,
     const FirstPersonToolTuning& tuning) {
-    ModelResource& resource =
-        visual == FirstPersonToolVisual::Axe
-            ? resources_.axeModel()
-            : resources_.pickaxeModel();
-    if (!resource.valid()) {
+    ModelResource* resource = nullptr;
+    switch (visual) {
+    case FirstPersonToolVisual::Axe:
+        resource = &resources_.axeModel();
+        break;
+    case FirstPersonToolVisual::Pickaxe:
+        resource = &resources_.pickaxeModel();
+        break;
+    case FirstPersonToolVisual::Club:
+        resource = &resources_.clubModel();
+        break;
+    case FirstPersonToolVisual::Hammer:
+        resource = &resources_.hammerModel();
+        break;
+    }
+    if (resource == nullptr || !resource->valid()) {
         return false;
     }
 
@@ -442,7 +453,7 @@ bool Renderer::drawFirstPersonTool(
     const float bobX = std::sin(movementPhase) * 0.012F * bob;
     const float bobY =
         std::abs(std::cos(movementPhase)) * 0.014F * bob;
-    Model& model = resource.get();
+    Model& model = resource->get();
     rlPushMatrix();
     rlTranslatef(tuning.position.x + bobX,
                  tuning.position.y - bobY,

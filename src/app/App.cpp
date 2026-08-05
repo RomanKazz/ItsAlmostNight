@@ -523,8 +523,23 @@ void App::render() {
              !foundationBuildMode_ &&
              !snapshot.playerRespawning);
         if (showFirstPersonTool) {
-            const bool useAxe = snapshot.selectedWeapon == PlayerWeapon::Axe ||
-                                snapshot.selectedWeapon == PlayerWeapon::Club;
+            FirstPersonToolVisual toolVisual =
+                FirstPersonToolVisual::Pickaxe;
+            switch (snapshot.selectedWeapon) {
+            case PlayerWeapon::Axe:
+                toolVisual = FirstPersonToolVisual::Axe;
+                break;
+            case PlayerWeapon::Club:
+                toolVisual = FirstPersonToolVisual::Club;
+                break;
+            case PlayerWeapon::Hammer:
+                toolVisual = FirstPersonToolVisual::Hammer;
+                break;
+            case PlayerWeapon::Pickaxe:
+            case PlayerWeapon::BareHands:
+            case PlayerWeapon::Rifle:
+                break;
+            }
             const float swingProgress =
                 toolSwingRemaining_ > 0.0 &&
                         toolSwingDuration_ > 0.0
@@ -562,8 +577,7 @@ void App::render() {
             if (renderer_->beginFirstPersonToolPass()) {
                 BeginMode3D(viewModelCamera);
                 static_cast<void>(renderer_->drawFirstPersonTool(
-                    useAxe ? FirstPersonToolVisual::Axe
-                           : FirstPersonToolVisual::Pickaxe,
+                    toolVisual,
                     swingProgress,
                     static_cast<float>(cameraBobPhase_),
                     static_cast<float>(cameraBobAmount_),

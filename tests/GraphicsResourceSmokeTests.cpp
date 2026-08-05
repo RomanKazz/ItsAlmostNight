@@ -60,8 +60,10 @@ int main() {
         resources.initialize(settings);
         if (!resources.sceneTargetValid() ||
             !resources.selectionMaskValid() ||
-            !resources.viewModelTargetValid()) {
-            std::cerr << "required render target failed to load\n";
+            !resources.viewModelTargetValid() ||
+            !resources.clubModel().valid() ||
+            !resources.hammerModel().valid()) {
+            std::cerr << "required graphics resource failed to load\n";
             result = 1;
         }
         resources.shutdown();

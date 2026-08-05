@@ -386,6 +386,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coreModel_.load("assets/models/core.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
+    clubModel_.load("assets/models/tools/club.glb");
+    hammerModel_.load("assets/models/tools/hammer.glb");
     platformModel_.load("assets/models/platform.glb");
     rampModel_.load("assets/models/ramp.glb");
     mineModel_.load("assets/models/mine.glb");
@@ -606,6 +608,8 @@ void GraphicsResources::shutdown() {
     mineModel_.unload();
     rampModel_.unload();
     platformModel_.unload();
+    hammerModel_.unload();
+    clubModel_.unload();
     pickaxeModel_.unload();
     axeModel_.unload();
     coreModel_.unload();
@@ -818,6 +822,14 @@ ModelResource& GraphicsResources::axeModel() {
 
 ModelResource& GraphicsResources::pickaxeModel() {
     return pickaxeModel_;
+}
+
+ModelResource& GraphicsResources::clubModel() {
+    return clubModel_;
+}
+
+ModelResource& GraphicsResources::hammerModel() {
+    return hammerModel_;
 }
 
 ModelResource& GraphicsResources::platformModel() {

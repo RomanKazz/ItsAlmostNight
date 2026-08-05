@@ -96,6 +96,8 @@ enum class EnemyAnimationVisual {
 enum class FirstPersonToolVisual {
     Axe,
     Pickaxe,
+    Club,
+    Hammer,
 };
 
 struct FirstPersonToolTuning {
