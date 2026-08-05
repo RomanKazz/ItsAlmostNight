@@ -26,6 +26,13 @@ void runBombSystemTests() {
             {0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}) &&
             bombs.projectiles().front().id != firstRunProjectile,
         "bomb reset never aliases a previous run projectile ID");
+    const ian::Vec3 initialRotation = bombs.projectiles().front().rotation;
+    static_cast<void>(bombs.tick(1.0 / 60.0, enemies));
+    const ian::Vec3 airborneRotation = bombs.projectiles().front().rotation;
+    require(std::abs(airborneRotation.x - initialRotation.x) +
+                std::abs(airborneRotation.y - initialRotation.y) +
+                std::abs(airborneRotation.z - initialRotation.z) > 0.01,
+            "bomb spin visibly starts during first airborne frame");
 
     bool exploded = false;
     for (int tick = 0; tick < 180 && !exploded; ++tick) {

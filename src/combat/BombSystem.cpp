@@ -47,6 +47,18 @@ Vec3 moveToward(Vec3 value, Vec3 target, double amount) {
     };
 }
 
+void advanceRotation(BombProjectile& projectile, double step) {
+    projectile.rotation.x = std::fmod(
+        projectile.rotation.x + projectile.angularVelocity.x * step,
+        2.0 * Pi);
+    projectile.rotation.y = std::fmod(
+        projectile.rotation.y + projectile.angularVelocity.y * step,
+        2.0 * Pi);
+    projectile.rotation.z = std::fmod(
+        projectile.rotation.z + projectile.angularVelocity.z * step,
+        2.0 * Pi);
+}
+
 } // namespace
 
 BombSystem::BombSystem(BombBalanceDefinition definition)
@@ -91,9 +103,9 @@ bool BombSystem::throwBomb(Vec3 origin, Vec3 direction) {
     };
     projectile->rotation = {};
     projectile->angularVelocity = {
-        direction.z * 8.0,
-        2.2,
-        -direction.x * 8.0,
+        direction.z * 12.0,
+        3.5,
+        -direction.x * 12.0,
     };
     projectile->fuseRemaining = definition_.fuseDuration;
     projectile->fuseDuration = definition_.fuseDuration;
@@ -131,6 +143,10 @@ std::span<const BombExplosion> BombSystem::tick(
             const double contactHeight = surfaceHeight + definition_.groundHeight;
             if (projectile.position.y > contactHeight) {
                 projectile.grounded = false;
+                projectile.angularVelocity = scale(
+                    projectile.angularVelocity,
+                    std::exp(-0.08 * step));
+                advanceRotation(projectile, step);
                 continue;
             }
 
@@ -190,15 +206,7 @@ std::span<const BombExplosion> BombSystem::tick(
                     std::exp(-0.08 * step));
             }
 
-            projectile.rotation.x = std::fmod(
-                projectile.rotation.x + projectile.angularVelocity.x * step,
-                2.0 * Pi);
-            projectile.rotation.y = std::fmod(
-                projectile.rotation.y + projectile.angularVelocity.y * step,
-                2.0 * Pi);
-            projectile.rotation.z = std::fmod(
-                projectile.rotation.z + projectile.angularVelocity.z * step,
-                2.0 * Pi);
+            advanceRotation(projectile, step);
         }
         if (projectile.fuseRemaining <= 0.0) {
             explode(projectile, enemies);
