@@ -351,45 +351,12 @@ void App::drawSelectionPass(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
     renderer_->clearSelectionOutline();
     if (!removalDragActive_ &&
-        (snapshot.aimedLoot || snapshot.aimedChest ||
-         snapshot.aimedResource || snapshot.aimedBuilding ||
-         snapshot.aimedEnemy ||
+        (snapshot.aimedChest || snapshot.aimedResource ||
+         snapshot.aimedBuilding || snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
-        if (snapshot.aimedLoot) {
-            const auto chest = std::find_if(
-                snapshot.lootChests.begin(), snapshot.lootChests.end(),
-                [&snapshot](const LootChestInstance& value) {
-                    return value.loot.id == *snapshot.aimedLoot &&
-                        value.loot.available && !value.loot.collected;
-                });
-            if (chest != snapshot.lootChests.end()) {
-                const float y = static_cast<float>(chest->position.y) +
-                    1.66F +
-                    std::sin(static_cast<float>(chest->loot.hoverTime) *
-                             2.4F) * 0.08F;
-                const Vector3 position{
-                    static_cast<float>(chest->position.x), y,
-                    static_cast<float>(chest->position.z),
-                };
-                constexpr float Radius = 0.72F;
-                renderer_->setSelectionOutlineBounds({
-                    {position.x - Radius, position.y - Radius,
-                     position.z - Radius},
-                    {position.x + Radius, position.y + Radius,
-                     position.z + Radius},
-                });
-                renderer_->setSelectionOutlineTint(
-                    lootRarityColor(chest->loot.rarity));
-                const float rotation =
-                    static_cast<float>(snapshot.elapsedSeconds) * 1.65F +
-                    static_cast<float>(chest->id.index) * 0.73F;
-                renderer_->drawLootItem(
-                    position, chest->loot.effect, chest->loot.rarity,
-                    rotation, WHITE, 1.50F);
-            }
-        } else if (snapshot.aimedChest) {
+        if (snapshot.aimedChest) {
             const auto chest = std::find_if(
                 snapshot.lootChests.begin(), snapshot.lootChests.end(),
                 [&snapshot](const LootChestInstance& value) {

@@ -451,7 +451,7 @@ LootModelFit lootModelFit(const Model& model) {
         bounds.max.z - bounds.min.z,
     };
     const float maximumExtent = std::max({extent.x, extent.y, extent.z});
-    constexpr float TargetMaximumExtent = 0.92F;
+    constexpr float TargetMaximumExtent = 0.46F;
     return {
         .center = {
             (bounds.min.x + bounds.max.x) * 0.5F,
@@ -473,6 +473,34 @@ void drawFittedLootModel(Model& model, Color tint) {
     rlPopMatrix();
 }
 
+void drawFittedLootOutlineModel(Model& model, Color color) {
+    const LootModelFit fit = lootModelFit(model);
+    const Texture2D whiteTexture{
+        .id = rlGetTextureIdDefault(),
+        .width = 1,
+        .height = 1,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+    };
+    rlPushMatrix();
+    rlScalef(fit.scale, fit.scale, fit.scale);
+    rlTranslatef(-fit.center.x, -fit.center.y, -fit.center.z);
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        Material material =
+            model.materials[model.meshMaterial[meshIndex]];
+        material.maps[MATERIAL_MAP_DIFFUSE].texture = whiteTexture;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = color;
+        DrawMesh(model.meshes[meshIndex], material, model.transform);
+    }
+    rlPopMatrix();
+}
+
+void applyLootItemLocalRotation(LootUpgradeEffect effect) {
+    if (effect == LootUpgradeEffect::Bread) {
+        rlRotatef(90.0F, 1.0F, 0.0F, 0.0F);
+    }
+}
+
 } // namespace
 
 Color lootRarityColor(LootRarity rarity) {
@@ -480,7 +508,7 @@ Color lootRarityColor(LootRarity rarity) {
         return {255, 193, 48, 255};
     if (rarity == LootRarity::Uncommon)
         return {82, 255, 167, 255};
-    return {55, 204, 255, 255};
+    return {158, 232, 255, 255};
 }
 
 bool Renderer::drawFirstPersonTool(
@@ -641,6 +669,7 @@ void Renderer::drawLootItem(
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    applyLootItemLocalRotation(effect);
     rlScalef(scale, scale, scale);
     ModelResource* resource = lootItemModelFor(resources_, effect);
     if (resource != nullptr && resource->valid()) {
@@ -675,6 +704,7 @@ void Renderer::drawLootItemOutline(
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    applyLootItemLocalRotation(effect);
     const float outlineScale = scale * 1.065F;
     rlScalef(outlineScale, outlineScale, outlineScale);
     rlDrawRenderBatchActive();
@@ -690,7 +720,7 @@ void Renderer::drawLootItemOutline(
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = shader;
         }
-        drawFittedLootModel(model, lootRarityColor(rarity));
+        drawFittedLootOutlineModel(model, lootRarityColor(rarity));
     } else {
         drawLootItemGeometry(effect, lootRarityColor(rarity));
     }
