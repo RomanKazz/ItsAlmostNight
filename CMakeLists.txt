@@ -43,7 +43,6 @@ FetchContent_Declare(
     raygui
     GIT_REPOSITORY https://github.com/raysan5/raygui.git
     GIT_TAG 4f917532aacdb5518569b1c00265c3dea502c452
-    GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(raygui)
 
