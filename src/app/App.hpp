@@ -54,6 +54,8 @@ class App {
     int run();
 
   private:
+    static constexpr int ToolSettingsTab = 8;
+
     void processInput();
     void rebuildTerrainGraphics();
     void refreshDecorationExclusions(
@@ -148,6 +150,9 @@ class App {
     SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
     bool pendingOpenSkillTreeFromUi_{};
+    bool pendingResumeFromUi_{};
+    bool pendingReturnToMenuFromUi_{};
+    bool exitRequested_{};
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     int graphicsPanelTab_{};

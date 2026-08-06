@@ -3,6 +3,7 @@
 #include "audio/AudioSystem.hpp"
 #include "graphics/GraphicsSettings.hpp"
 
+#include <optional>
 #include <string_view>
 
 namespace ian {
@@ -16,10 +17,26 @@ struct MotionSettings {
     bool operator==(const MotionSettings&) const = default;
 };
 
+struct ControlSettings {
+    float mouseSensitivity{1.0F};
+    bool invertMouseY{};
+
+    bool operator==(const ControlSettings&) const = default;
+};
+
+struct AccessibilitySettings {
+    bool showFps{true};
+    bool reduceFlashes{};
+
+    bool operator==(const AccessibilitySettings&) const = default;
+};
+
 struct UserSettings {
     GraphicsSettings graphics;
     AudioSettings audio;
     MotionSettings motion;
+    ControlSettings controls;
+    AccessibilitySettings accessibility;
 
     bool operator==(const UserSettings&) const = default;
 };
@@ -32,5 +49,9 @@ struct UserSettings {
 void resetDisplaySettings(GraphicsSettings& settings);
 void resetColorSettings(GraphicsSettings& settings);
 void resetStyleSettings(GraphicsSettings& settings);
+void applyGraphicsPreset(
+    GraphicsSettings& settings, GraphicsQuality preset);
+[[nodiscard]] std::optional<GraphicsQuality>
+detectGraphicsPreset(const GraphicsSettings& settings);
 
 } // namespace ian

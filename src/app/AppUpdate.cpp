@@ -153,7 +153,7 @@ void App::update() {
         ? toolSwapDestinationUsesAxe_
         : displayedToolUsesAxe_;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
-        graphicsPanelTab_ == 4) {
+        graphicsPanelTab_ == ToolSettingsTab) {
         desiredToolUsesAxe = toolPanelPreviewUsesAxe_;
     } else if (hotbarSnapshot.selectedWeapon == PlayerWeapon::Axe ||
                hotbarSnapshot.selectedWeapon == PlayerWeapon::Club) {

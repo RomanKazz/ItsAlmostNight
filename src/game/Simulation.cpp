@@ -214,6 +214,14 @@ void Simulation::restartRun() {
     resetRun(GameEventType::RunRestarted);
 }
 
+void Simulation::returnToMainMenu() {
+    state_ = RunState::MainMenu;
+    stateBeforePause_ = RunState::Gathering;
+    selectedBuilding_.reset();
+    buildingPreview_.reset();
+    events_.push_back({.type = GameEventType::PauseChanged});
+}
+
 void Simulation::resetRun(GameEventType eventType) {
     state_ = RunState::Gathering;
     stateBeforePause_ = RunState::Gathering;

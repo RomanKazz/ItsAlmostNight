@@ -236,6 +236,7 @@ class Simulation {
 
     void startRun();
     void restartRun();
+    void returnToMainMenu();
     void togglePause();
     void tick(double deltaSeconds, const PlayerCommand& command = {});
 

@@ -64,11 +64,32 @@ void App::processInput() {
         return;
     }
     if (graphicsPanelVisible) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            renderer_->setGraphicsPanelVisible(false);
+            audio_.playUiConfirm();
+        }
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;
         input_.sprint = false;
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
+        return;
+    }
+    if (pendingResumeFromUi_) {
+        pendingResumeFromUi_ = false;
+        if (snapshot.state == RunState::Paused) {
+            simulation_.togglePause();
+            fixedStep_.reset();
+            DisableCursor();
+            audio_.playUiConfirm();
+        }
+    }
+    if (pendingReturnToMenuFromUi_) {
+        pendingReturnToMenuFromUi_ = false;
+        simulation_.returnToMainMenu();
+        fixedStep_.reset();
+        EnableCursor();
+        audio_.playUiConfirm();
         return;
     }
     if (snapshot.state != RunState::MainMenu &&
@@ -190,7 +211,7 @@ void App::processInput() {
         buildModePieChoice_.reset();
         DisableCursor();
     }
-    if (IsKeyPressed(KEY_P)) {
+    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
         simulation_.togglePause();
         fixedStep_.reset();
         if (simulation_.snapshot().state == RunState::Paused) {
@@ -443,8 +464,14 @@ void App::processInput() {
             }
             return;
         }
-        pendingYaw_ += static_cast<double>(mouseDelta.x) * MouseSensitivity;
-        pendingPitch_ -= static_cast<double>(mouseDelta.y) * MouseSensitivity;
+        const double sensitivity =
+            MouseSensitivity * static_cast<double>(
+                                   userSettings_.controls.mouseSensitivity);
+        pendingYaw_ += static_cast<double>(mouseDelta.x) * sensitivity;
+        const double pitchDirection =
+            userSettings_.controls.invertMouseY ? 1.0 : -1.0;
+        pendingPitch_ += static_cast<double>(mouseDelta.y) *
+                         sensitivity * pitchDirection;
         pendingJump_ = pendingJump_ || IsKeyPressed(KEY_SPACE);
         if (foundationBuildMode_) {
             if (IsKeyPressed(KEY_ONE)) {

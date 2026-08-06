@@ -25,6 +25,10 @@ void settingsRoundTrip() {
     written.audio.masterVolume = 0.31F;
     written.audio.muted = true;
     written.motion.bobIntensity = 0.42F;
+    written.controls.mouseSensitivity = 1.65F;
+    written.controls.invertMouseY = true;
+    written.accessibility.showFps = false;
+    written.accessibility.reduceFlashes = true;
 
     require(ian::saveUserSettings(path.string(), written),
             "user settings save succeeds");
@@ -47,6 +51,13 @@ void settingsRoundTrip() {
             "audio mute survives settings round trip");
     requireNear(loaded.motion.bobIntensity, 0.42, 1e-6,
                 "motion setting survives settings round trip");
+    requireNear(loaded.controls.mouseSensitivity, 1.65, 1e-6,
+                "mouse sensitivity survives settings round trip");
+    require(loaded.controls.invertMouseY,
+            "mouse inversion survives settings round trip");
+    require(!loaded.accessibility.showFps &&
+                loaded.accessibility.reduceFlashes,
+            "accessibility settings survive round trip");
     std::filesystem::remove(path, error);
 }
 
@@ -62,7 +73,8 @@ void loadedValuesAreValidated() {
                 "contrast": -10.0
             },
             "audio": {"masterVolume": 4.0},
-            "motion": {"shakeIntensity": -2.0}
+            "motion": {"shakeIntensity": -2.0},
+            "controls": {"mouseSensitivity": 99.0}
         })";
     }
     ian::UserSettings loaded;
@@ -80,8 +92,33 @@ void loadedValuesAreValidated() {
                 "audio volume is clamped");
     requireNear(loaded.motion.shakeIntensity, 0.0, 1e-6,
                 "motion intensity is clamped");
+    requireNear(loaded.controls.mouseSensitivity, 3.0, 1e-6,
+                "mouse sensitivity is clamped");
     std::error_code error;
     std::filesystem::remove(path, error);
+}
+
+void graphicsPresetsAreCompleteAndDetectable() {
+    ian::GraphicsSettings settings;
+    settings.brightness = 0.31F;
+    settings.inkOutlines = true;
+    settings.frameRateLimit = 144;
+
+    ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Low);
+    require(ian::detectGraphicsPreset(settings) ==
+                ian::GraphicsQuality::Low,
+            "low graphics preset is detectable");
+    require(!settings.shadows && !settings.grass &&
+                settings.pixelSize == 6,
+            "low preset applies performance settings together");
+    requireNear(settings.brightness, 0.31, 1e-6,
+                "graphics preset preserves color calibration");
+    require(settings.inkOutlines && settings.frameRateLimit == 144,
+            "graphics preset preserves style and FPS choices");
+
+    settings.shadows = true;
+    require(!ian::detectGraphicsPreset(settings),
+            "manual tuning is reported as custom");
 }
 
 void tabResetsPreserveOtherTabs() {
@@ -118,4 +155,5 @@ void runUserSettingsTests() {
     settingsRoundTrip();
     loadedValuesAreValidated();
     tabResetsPreserveOtherTabs();
+    graphicsPresetsAreCompleteAndDetectable();
 }

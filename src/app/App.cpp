@@ -165,7 +165,7 @@ int App::run() {
     ui_.initialize();
     audio_.initialize();
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose() && !exitRequested_) {
         processInput();
         update();
         render();
@@ -223,6 +223,8 @@ void App::persistUserSettings(bool force) {
             .landingIntensity = motionLandingIntensity_,
             .swayIntensity = motionSwayIntensity_,
         },
+        .controls = userSettings_.controls,
+        .accessibility = userSettings_.accessibility,
     };
     if (current == userSettings_ ||
         (!force && IsMouseButtonDown(MOUSE_BUTTON_LEFT))) {
@@ -284,27 +286,41 @@ void App::render() {
             static_cast<float>(GetScreenWidth()) * 0.5F;
         const float centerY =
             static_cast<float>(GetScreenHeight()) * 0.5F;
-        ui_.drawPanel({centerX - 420.0F, centerY - 250.0F,
-                       840.0F, 500.0F});
-        ui_.drawInsetPanel({centerX - 380.0F, centerY - 164.0F,
+        ui_.drawPanel({centerX - 420.0F, centerY - 330.0F,
+                       840.0F, 660.0F});
+        ui_.drawInsetPanel({centerX - 380.0F, centerY - 254.0F,
                             760.0F, 128.0F});
         drawCentered("IT'S ALMOST NIGHT",
-                     static_cast<int>(centerY) - 140, 42,
+                     static_cast<int>(centerY) - 230, 42,
                      {245, 220, 174, 255});
+        if (!renderer_->graphicsPanelVisible()) {
         pendingStartFromUi_ =
-            ui_.drawButton({centerX - 200.0F, centerY + 4.0F,
-                            400.0F, 72.0F},
+            ui_.drawButton({centerX - 210.0F, centerY - 84.0F,
+                            420.0F, 64.0F},
                            "START RUN") ||
             pendingStartFromUi_;
+        if (ui_.drawButton(
+                {centerX - 210.0F, centerY - 6.0F,
+                 420.0F, 64.0F},
+                "SETTINGS")) {
+            renderer_->setGraphicsPanelVisible(true);
+        }
         pendingOpenSkillTreeFromUi_ =
             ui_.drawButton(
-                {centerX - 200.0F, centerY + 90.0F,
-                 400.0F, 72.0F},
+                {centerX - 210.0F, centerY + 72.0F,
+                 420.0F, 64.0F},
                 "TREE OF KNOWLEDGE") ||
             pendingOpenSkillTreeFromUi_;
-        drawCentered("ENTER  •  K: TREE",
-                     static_cast<int>(centerY) + 196, 16,
+        if (ui_.drawButton(
+                {centerX - 210.0F, centerY + 150.0F,
+                 420.0F, 64.0F},
+                "EXIT GAME")) {
+            exitRequested_ = true;
+        }
+        drawCentered("ENTER: PLAY  •  F2: SETTINGS  •  K: TREE",
+                     static_cast<int>(centerY) + 250, 16,
                      {199, 174, 142, 255});
+        }
     } else {
         const double visualYaw = snapshot.playerYaw;
         const double visualPitch = snapshot.playerPitch;
@@ -610,7 +626,7 @@ void App::render() {
 
         const bool tuningPreview =
             renderer_->graphicsPanelVisible() &&
-            graphicsPanelTab_ == 4;
+            graphicsPanelTab_ == ToolSettingsTab;
         const bool showFirstPersonTool =
             tuningPreview ||
             (snapshot.selectedWeapon != PlayerWeapon::BareHands &&
@@ -697,7 +713,8 @@ void App::render() {
         rlEnableDepthTest();
         EndMode3D();
 
-        if (playerDamageFlashRemaining_ > 0.0) {
+        if (playerDamageFlashRemaining_ > 0.0 &&
+            !userSettings_.accessibility.reduceFlashes) {
             const auto alpha = static_cast<unsigned char>(
                 90.0 * playerDamageFlashRemaining_ / 0.18);
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
@@ -1105,6 +1122,45 @@ void App::render() {
             minimapExpansion_);
 
         drawRunStateOverlay(snapshot);
+        if (snapshot.state == RunState::Paused &&
+            !renderer_->graphicsPanelVisible() &&
+            !skillTree_.isOpen()) {
+            const float centerX =
+                static_cast<float>(GetScreenWidth()) * 0.5F;
+            const float centerY =
+                static_cast<float>(GetScreenHeight()) * 0.5F;
+            ui_.drawPanel(
+                {centerX - 260.0F, centerY - 252.0F,
+                 520.0F, 504.0F}, 250);
+            float menuY = centerY - 144.0F;
+            pendingResumeFromUi_ =
+                ui_.drawButton(
+                    {centerX - 190.0F, menuY,
+                     380.0F, 58.0F},
+                    "RESUME") ||
+                pendingResumeFromUi_;
+            menuY += 70.0F;
+            if (ui_.drawButton(
+                    {centerX - 190.0F, menuY,
+                     380.0F, 58.0F},
+                    "SETTINGS")) {
+                renderer_->setGraphicsPanelVisible(true);
+            }
+            menuY += 70.0F;
+            pendingReturnToMenuFromUi_ =
+                ui_.drawButton(
+                    {centerX - 190.0F, menuY,
+                     380.0F, 58.0F},
+                    "RETURN TO MAIN MENU") ||
+                pendingReturnToMenuFromUi_;
+            menuY += 70.0F;
+            if (ui_.drawButton(
+                    {centerX - 190.0F, menuY,
+                     380.0F, 58.0F},
+                    "EXIT GAME")) {
+                exitRequested_ = true;
+            }
+        }
     }
 
     if (skillTree_.isOpen()) {
@@ -1116,6 +1172,7 @@ void App::render() {
         }
         drawEnemySpawnMenu();
     }
+    if (userSettings_.accessibility.showFps) {
     const std::string fpsText =
         "FPS " + std::to_string(GetFPS());
     constexpr float FpsFontSize = 16.0F;
@@ -1134,6 +1191,7 @@ void App::render() {
         fpsText,
         {fpsPanel.x + 6.0F, fpsPanel.y + 3.0F},
         FpsFontSize, {235, 247, 238, 255});
+    }
     renderer_->endFrame();
 }
 

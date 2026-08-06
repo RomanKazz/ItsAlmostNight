@@ -276,6 +276,21 @@ void readMotion(const Json& value, MotionSettings& settings) {
         settings.swayIntensity, defaults.swayIntensity, 0.0F, 1.5F);
 }
 
+void readControls(const Json& value, ControlSettings& settings) {
+    readValue(value, "mouseSensitivity", settings.mouseSensitivity);
+    readValue(value, "invertMouseY", settings.invertMouseY);
+    const ControlSettings defaults;
+    settings.mouseSensitivity = finiteClamped(
+        settings.mouseSensitivity, defaults.mouseSensitivity,
+        0.1F, 3.0F);
+}
+
+void readAccessibility(
+    const Json& value, AccessibilitySettings& settings) {
+    readValue(value, "showFps", settings.showFps);
+    readValue(value, "reduceFlashes", settings.reduceFlashes);
+}
+
 } // namespace
 
 bool loadUserSettings(
@@ -302,6 +317,14 @@ bool loadUserSettings(
             value != document.end() && value->is_object()) {
             readMotion(*value, loaded.motion);
         }
+        if (const auto value = document.find("controls");
+            value != document.end() && value->is_object()) {
+            readControls(*value, loaded.controls);
+        }
+        if (const auto value = document.find("accessibility");
+            value != document.end() && value->is_object()) {
+            readAccessibility(*value, loaded.accessibility);
+        }
         settings = loaded;
         return true;
     } catch (...) {
@@ -317,7 +340,7 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 1},
+            {"version", 2},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",
              {{"masterVolume", settings.audio.masterVolume},
@@ -329,6 +352,12 @@ bool saveUserSettings(
               {"shakeIntensity", settings.motion.shakeIntensity},
               {"landingIntensity", settings.motion.landingIntensity},
               {"swayIntensity", settings.motion.swayIntensity}}},
+            {"controls",
+             {{"mouseSensitivity", settings.controls.mouseSensitivity},
+              {"invertMouseY", settings.controls.invertMouseY}}},
+            {"accessibility",
+             {{"showFps", settings.accessibility.showFps},
+              {"reduceFlashes", settings.accessibility.reduceFlashes}}},
         };
         std::ofstream stream(filePath);
         if (!stream) {
@@ -399,6 +428,73 @@ void resetStyleSettings(GraphicsSettings& settings) {
     settings.outlineWidth = defaults.outlineWidth;
     settings.fogBandCount = defaults.fogBandCount;
     settings.paperGrainStrength = defaults.paperGrainStrength;
+}
+
+void applyGraphicsPreset(
+    GraphicsSettings& settings, GraphicsQuality preset) {
+    settings.quality = preset;
+    settings.sky = true;
+    settings.worldShader = true;
+    settings.fog = true;
+    settings.postProcessing = true;
+    settings.particles = true;
+    settings.blobShadows = true;
+    settings.ssao = false;
+
+    if (preset == GraphicsQuality::Low) {
+        settings.shadows = false;
+        settings.grass = false;
+        settings.bloom = false;
+        settings.shadowMapSize = 512;
+        settings.shadowDistance = 32.0F;
+        settings.pixelSize = 6;
+        settings.aoStrength = 0.2F;
+    } else if (preset == GraphicsQuality::Medium) {
+        settings.shadows = true;
+        settings.grass = true;
+        settings.bloom = false;
+        settings.shadowMapSize = 1024;
+        settings.shadowDistance = 44.0F;
+        settings.pixelSize = 4;
+        settings.aoStrength = 0.3F;
+    } else {
+        settings.shadows = true;
+        settings.grass = true;
+        settings.bloom = true;
+        settings.shadowMapSize = 2048;
+        settings.shadowDistance = 55.0F;
+        settings.pixelSize = 3;
+        settings.aoStrength = 0.35F;
+    }
+}
+
+std::optional<GraphicsQuality>
+detectGraphicsPreset(const GraphicsSettings& settings) {
+    for (const GraphicsQuality preset : {
+             GraphicsQuality::Low,
+             GraphicsQuality::Medium,
+             GraphicsQuality::High}) {
+        GraphicsSettings expected = settings;
+        applyGraphicsPreset(expected, preset);
+        if (settings.quality == expected.quality &&
+            settings.sky == expected.sky &&
+            settings.worldShader == expected.worldShader &&
+            settings.shadows == expected.shadows &&
+            settings.fog == expected.fog &&
+            settings.postProcessing == expected.postProcessing &&
+            settings.particles == expected.particles &&
+            settings.grass == expected.grass &&
+            settings.blobShadows == expected.blobShadows &&
+            settings.bloom == expected.bloom &&
+            settings.ssao == expected.ssao &&
+            settings.shadowMapSize == expected.shadowMapSize &&
+            settings.pixelSize == expected.pixelSize &&
+            settings.shadowDistance == expected.shadowDistance &&
+            settings.aoStrength == expected.aoStrength) {
+            return preset;
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace ian
