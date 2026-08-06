@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "graphics/DecorationExclusionMap.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "game/LootChestSystem.hpp"
 #include "graphics/GraphicsSettings.hpp"
@@ -204,7 +205,10 @@ class Renderer {
     void endGhostPreviewMaterial();
     void endWorldShader();
     void rebuildTerrain(
-        const TerrainHeightfield& terrain);
+        const TerrainHeightfield& terrain,
+        std::span<const DecorationExclusion> exclusions = {});
+    void rebuildDecorationExclusions(
+        std::span<const DecorationExclusion> exclusions);
     void drawTerrain(
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
@@ -444,6 +448,7 @@ class Renderer {
     GraphicsSettings settings_;
     GraphicsResources resources_;
     TerrainRenderer terrainRenderer_;
+    DecorationExclusionMap decorationExclusionMap_;
     const TerrainHeightfield* terrainHeightfield_{};
     WorldShaderLocations worldShaderLocations_;
     SkyShaderLocations skyShaderLocations_;

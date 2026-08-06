@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <string>
 #include <utility>
@@ -20,6 +21,73 @@ constexpr int InitialWindowHeight = 720;
 constexpr double BuildingHealthBarDwellSeconds = 0.15;
 constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
+
+std::uint64_t mixDecorationFingerprint(
+    std::uint64_t hash, std::uint64_t value) {
+    value += 0x9e3779b97f4a7c15ULL;
+    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+    value ^= value >> 31U;
+    return hash ^ (value + (hash << 6U) + (hash >> 2U));
+}
+
+std::uint64_t decorationFingerprint(
+    const SimulationSnapshot& snapshot) {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    for (const ResourceNode& resource : snapshot.resourceNodes) {
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(resource.position.x));
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(resource.position.z));
+    }
+    for (const LootChestInstance& chest : snapshot.lootChests) {
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(chest.position.x));
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(chest.position.z));
+    }
+    return hash;
+}
+
+std::vector<DecorationExclusion> makeDecorationExclusions(
+    const SimulationSnapshot& snapshot) {
+    std::vector<DecorationExclusion> exclusions;
+    exclusions.reserve(
+        snapshot.resourceNodes.size() + snapshot.lootChests.size() +
+        snapshot.mapObstacles.size());
+    for (const ResourceNode& resource : snapshot.resourceNodes) {
+        // Include inactive nodes: their current position remains reserved
+        // until the resource actually relocates on respawn.
+        exclusions.push_back({
+            .shape = DecorationExclusionShape::Circle,
+            .centerX = resource.position.x,
+            .centerZ = resource.position.z,
+            .radius = std::max(resource.radius, 0.0),
+        });
+    }
+    for (const LootChestInstance& chest : snapshot.lootChests) {
+        exclusions.push_back({
+            .shape = DecorationExclusionShape::Circle,
+            .centerX = chest.position.x,
+            .centerZ = chest.position.z,
+            .radius = 0.82,
+        });
+    }
+    for (const MapObstacle& obstacle : snapshot.mapObstacles) {
+        exclusions.push_back({
+            .shape = DecorationExclusionShape::Rectangle,
+            .centerX =
+                (obstacle.collision.minX + obstacle.collision.maxX) * 0.5,
+            .centerZ =
+                (obstacle.collision.minZ + obstacle.collision.maxZ) * 0.5,
+            .halfWidth =
+                (obstacle.collision.maxX - obstacle.collision.minX) * 0.5,
+            .halfDepth =
+                (obstacle.collision.maxZ - obstacle.collision.minZ) * 0.5,
+        });
+    }
+    return exclusions;
+}
 
 const char* modularPlacementMessage(
     std::optional<ModularPlacementError> error) {
@@ -95,7 +163,7 @@ int App::run() {
     renderer_->settings() = userSettings_.graphics;
     renderer_->initialize();
     modularBuildingRenderer_.setRenderer(&*renderer_);
-    renderer_->rebuildTerrain(simulation_.terrain());
+    rebuildTerrainGraphics();
     ui_.initialize();
     audio_.initialize();
 
@@ -117,6 +185,31 @@ int App::run() {
     renderer_.reset();
     CloseWindow();
     return 0;
+}
+
+void App::rebuildTerrainGraphics() {
+    if (!renderer_) {
+        return;
+    }
+    const SimulationSnapshot snapshot = simulation_.snapshot();
+    const auto exclusions = makeDecorationExclusions(snapshot);
+    decorationExclusionFingerprint_ = decorationFingerprint(snapshot);
+    renderer_->rebuildTerrain(simulation_.terrain(), exclusions);
+}
+
+void App::refreshDecorationExclusions(
+    const SimulationSnapshot& snapshot) {
+    if (!renderer_) {
+        return;
+    }
+    const std::uint64_t fingerprint =
+        decorationFingerprint(snapshot);
+    if (fingerprint == decorationExclusionFingerprint_) {
+        return;
+    }
+    decorationExclusionFingerprint_ = fingerprint;
+    const auto exclusions = makeDecorationExclusions(snapshot);
+    renderer_->rebuildDecorationExclusions(exclusions);
 }
 
 void App::persistUserSettings(bool force) {

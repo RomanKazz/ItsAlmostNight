@@ -15,6 +15,7 @@
 #include "ui/TargetHealthBar.hpp"
 
 #include <optional>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,9 @@ class App {
 
   private:
     void processInput();
+    void rebuildTerrainGraphics();
+    void refreshDecorationExclusions(
+        const SimulationSnapshot& snapshot);
     void updateModularPlacementPreview(
         const SimulationSnapshot& snapshot);
     void beginModularPlacementDrag();
@@ -277,6 +281,7 @@ class App {
     std::optional<SoldBuildingVisual>
         pendingSoldModularVisual_;
     std::vector<GrassClearArea> grassClearAreas_;
+    std::uint64_t decorationExclusionFingerprint_{};
     Vector2 worldRevealOrigin_{};
     double worldRevealElapsed_{1000.0};
     struct BuildingImpactVisual {

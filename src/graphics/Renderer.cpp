@@ -1026,7 +1026,8 @@ void Renderer::endWorldShader() {
 }
 
 void Renderer::rebuildTerrain(
-    const TerrainHeightfield& terrain) {
+    const TerrainHeightfield& terrain,
+    std::span<const DecorationExclusion> exclusions) {
     terrainHeightfield_ = &terrain;
     boundaryForestCached_ = false;
     for (auto& transforms : boundaryForestTransforms_) {
@@ -1036,7 +1037,23 @@ void Renderer::rebuildTerrain(
          boundaryForestRevealTransforms_) {
         transforms.clear();
     }
+    decorationExclusionMap_.rebuild(
+        terrain.config().terrainWorldSize * 0.5,
+        exclusions);
     terrainRenderer_.rebuild(terrain);
+    rebuildPondDecorInstances();
+}
+
+void Renderer::rebuildDecorationExclusions(
+    std::span<const DecorationExclusion> exclusions) {
+    if (terrainHeightfield_ == nullptr) {
+        return;
+    }
+    decorationExclusionMap_.rebuild(
+        terrainHeightfield_->config().terrainWorldSize * 0.5,
+        exclusions);
+    // Shore decoration is cached, so refresh only those transforms. Terrain
+    // meshes and textures remain untouched during a resource relocation.
     rebuildPondDecorInstances();
 }
 
@@ -1183,6 +1200,10 @@ void Renderer::rebuildPondDecorInstances() {
                     (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 0.038F;
                 const Vector2 point =
                     pondPoint(pond, angle, radial, tangent);
+                if (decorationExclusionMap_.blocked(
+                        point.x, point.y)) {
+                    continue;
+                }
                 const double shoreDistance =
                     terrainHeightfield_->waterSignedDistance(
                         point.x, point.y);
@@ -1285,6 +1306,10 @@ void Renderer::rebuildPondDecorInstances() {
                     pondDecorUnit(hash ^ 0x68e31da4U) * 0.035F;
                 const Vector2 point =
                     pondPoint(pond, angle, radial, tangent);
+                if (decorationExclusionMap_.blocked(
+                        point.x, point.y)) {
+                    continue;
+                }
                 const double shoreDistance =
                     terrainHeightfield_->waterSignedDistance(
                         point.x, point.y);
@@ -1560,6 +1585,9 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 jitterZ;
             if (std::abs(x) > worldLimit - 0.5F ||
                 std::abs(z) > worldLimit - 0.5F) {
+                continue;
+            }
+            if (decorationExclusionMap_.blocked(x, z)) {
                 continue;
             }
             const float offsetX = x - cameraPosition.x;

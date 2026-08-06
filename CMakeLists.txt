@@ -135,6 +135,7 @@ add_library(ian_presentation
 target_include_directories(ian_presentation PUBLIC src)
 
 add_library(ian_graphics
+    src/graphics/DecorationExclusionMap.cpp
     src/graphics/EnvironmentSystem.cpp
     src/graphics/GraphicsResources.cpp
     src/graphics/ModularBuildingRenderer.cpp
@@ -227,6 +228,7 @@ if(BUILD_TESTING)
         tests/FixedStepTests.cpp
         tests/SaturatingArithmeticTests.cpp
         tests/DeterministicRandomTests.cpp
+        tests/DecorationExclusionMapTests.cpp
         tests/BuildingSystemTests.cpp
         tests/BuildingStatsTests.cpp
         tests/BuildGridTests.cpp

@@ -32,6 +32,7 @@ void runBuildingStatsTests();
 void runPresentationTimelineTests();
 void runUiLabelsTests();
 void runDeterministicRandomTests();
+void runDecorationExclusionMapTests();
 void runPlacementLineTests();
 void runGlbCollisionTests();
 void runSkillTreeTests();
@@ -99,6 +100,7 @@ int main() {
     runPresentationTimelineTests();
     runUiLabelsTests();
     runDeterministicRandomTests();
+    runDecorationExclusionMapTests();
     runPlacementLineTests();
     runGlbCollisionTests();
     runSkillTreeTests();

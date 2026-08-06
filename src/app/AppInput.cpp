@@ -292,16 +292,14 @@ void App::processInput() {
             IsKeyPressed(KEY_F7)) {
             simulation_.regenerateTerrain(
                 simulation_.terrain().seed());
-            renderer_->rebuildTerrain(
-                simulation_.terrain());
+            rebuildTerrainGraphics();
         }
         if (controlDown &&
             IsKeyPressed(KEY_F9)) {
             simulation_.regenerateTerrain(
                 simulation_.terrain().seed() +
                 0x9e3779b9U);
-            renderer_->rebuildTerrain(
-                simulation_.terrain());
+            rebuildTerrainGraphics();
         }
         if (IsKeyPressed(KEY_T)) {
             slowMotion_ = !slowMotion_;

@@ -1482,6 +1482,9 @@ void Renderer::drawDecorativeRocks(
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
                 continue;
             }
+            if (decorationExclusionMap_.blocked(x, z)) {
+                continue;
+            }
             if (terrainHeightfield_ != nullptr &&
                 terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
@@ -1570,6 +1573,9 @@ void Renderer::drawDecorativeRocks(
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            if (decorationExclusionMap_.blocked(x, z)) {
                 continue;
             }
             if (terrainHeightfield_ != nullptr &&
@@ -1675,6 +1681,9 @@ void Renderer::drawDecorativeRockAo(
                     CoreClearRadius * CoreClearRadius) {
                 continue;
             }
+            if (decorationExclusionMap_.blocked(x, z)) {
+                continue;
+            }
             if (terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
             }
@@ -1749,6 +1758,9 @@ void Renderer::drawDecorativeRockAo(
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
+                continue;
+            }
+            if (decorationExclusionMap_.blocked(x, z)) {
                 continue;
             }
             if (terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {

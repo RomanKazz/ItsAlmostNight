@@ -495,6 +495,7 @@ void App::update() {
     }
     const auto events = simulation_.takeEvents();
     const auto eventSnapshot = simulation_.snapshot();
+    refreshDecorationExclusions(eventSnapshot);
     if (!groundCameraSmoothingInitialized_ ||
         !eventSnapshot.playerGrounded ||
         !groundCameraWasGrounded_) {
