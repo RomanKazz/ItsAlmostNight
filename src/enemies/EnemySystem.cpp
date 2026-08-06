@@ -383,6 +383,7 @@ EnemySystem::EnemySystem(
     structureNextBuffer_.reserve(256);
     collisionEnemyLinks_.reserve(MaxEnemies);
     collisionBuildingLinks_.reserve(256);
+    areaTargetBuffer_.resize(SpatialHash::MaxEntries);
 }
 
 void EnemySystem::reset() {

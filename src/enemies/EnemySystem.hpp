@@ -157,7 +157,7 @@ class EnemySystem {
     std::vector<int> structureNextBuffer_;
     std::vector<int> collisionEnemyLinks_;
     std::vector<int> collisionBuildingLinks_;
-    std::array<EntityId, SpatialHash::MaxEntries> areaTargetBuffer_{};
+    std::vector<EntityId> areaTargetBuffer_;
     std::size_t activeCount_{};
     std::uint32_t nextIndex_{FirstEnemyIndex};
     SpatialHash spatialHash_;

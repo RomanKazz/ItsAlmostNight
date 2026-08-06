@@ -2,9 +2,9 @@
 
 #include "core/Types.hpp"
 
-#include <array>
 #include <cmath>
 #include <cstddef>
+#include <vector>
 
 namespace ian {
 
@@ -68,8 +68,8 @@ class SpatialHash {
     [[nodiscard]] static bool contains(int x, int z);
     [[nodiscard]] static std::size_t indexOf(int x, int z);
 
-    std::array<int, BucketCount> bucketHeads_{};
-    std::array<StoredEntry, MaxEntries> entries_{};
+    std::vector<int> bucketHeads_;
+    std::vector<StoredEntry> entries_;
     std::size_t entryCount_{};
 };
 

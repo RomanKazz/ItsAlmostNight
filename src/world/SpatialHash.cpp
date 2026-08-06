@@ -1,15 +1,17 @@
 #include "world/SpatialHash.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace ian {
 
-SpatialHash::SpatialHash() {
+SpatialHash::SpatialHash()
+    : bucketHeads_(BucketCount, -1), entries_(MaxEntries) {
     clear();
 }
 
 void SpatialHash::clear() {
-    bucketHeads_.fill(-1);
+    std::fill(bucketHeads_.begin(), bucketHeads_.end(), -1);
     entryCount_ = 0;
 }
 
