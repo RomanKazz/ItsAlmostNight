@@ -80,7 +80,8 @@ float cloudShadowPattern(vec2 worldPosition)
     return smoothstep(0.48, 0.72, field);
 }
 
-vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
+vec3 terrainMaterial(
+    vec3 worldPosition, vec3 normal, vec4 vertexColor)
 {
     vec2 worldXZ = worldPosition.xz;
     float broadNoise = valueNoise(worldXZ*0.045);
@@ -116,7 +117,18 @@ vec3 terrainMaterial(vec3 worldPosition, vec3 normal)
         terrainTextureEnabled);
     vec3 dirt = terrainDirtTint*dirtDetail;
 
-    return mix(grass, dirt, dirtWeight);
+    vec3 terrain = mix(grass, dirt, dirtWeight);
+    // Terrain chunks encode proximity to water as subtle greyscale vertex
+    // darkening. Expand it into a cool damp shoreline material.
+    float shoreWeight = clamp(
+        (1.0 - vertexColor.r)/(36.0/255.0), 0.0, 1.0);
+    float shoreVariation = valueNoise(worldXZ*0.24 + vec2(8.2, -15.7));
+    vec3 wetEarth = mix(
+        terrainDirtTint*0.54,
+        vec3(0.18, 0.27, 0.13),
+        shoreVariation*0.34);
+    return mix(terrain, wetEarth,
+               shoreWeight*(0.62 + shoreVariation*0.16));
 }
 
 float sampleShadow(vec3 normal)
@@ -205,7 +217,7 @@ void main()
     albedo.a = baseColor.a*colDiffuse.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
     vec3 terrainAlbedo =
-        terrainMaterial(fragWorldPosition, normal);
+        terrainMaterial(fragWorldPosition, normal, fragVertexColor);
     albedo.rgb = mix(albedo.rgb, terrainAlbedo,
                      clamp(terrainAmount, 0.0, 1.0));
     float vertexAo =

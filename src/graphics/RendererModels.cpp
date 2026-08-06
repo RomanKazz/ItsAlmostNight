@@ -91,9 +91,13 @@ float decorativeRockClusterDensity(float x, float z) {
          sample(cellX, cellZ + 1)) *
             blendX;
     const float cluster = lower + (upper - lower) * blendZ;
+    float shaped = std::clamp(
+        (cluster - 0.34F) / 0.46F, 0.0F, 1.0F);
+    shaped = shaped * shaped * (3.0F - 2.0F * shaped);
+    // Large quiet gaps, soft outskirts, then a genuinely dense core.
     return std::clamp(
-        0.04F + (cluster - 0.40F) * 1.9F,
-        0.04F, 0.78F);
+        0.012F + shaped * 0.10F + shaped * shaped * 0.78F,
+        0.012F, 0.89F);
 }
 
 BoundingBox transformedBoundingBox(
@@ -1392,7 +1396,7 @@ void Renderer::drawDecorativeRocks(
     Vector3 cameraPosition, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
     constexpr std::size_t VariantCount = 4U;
-    constexpr float Spacing = 5.0F;
+    constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
     constexpr float CoreClearRadius = 10.5F;
     const int minimumX = static_cast<int>(
@@ -1502,13 +1506,16 @@ void Renderer::drawDecorativeRocks(
             }
             const float baseScale =
                 0.55F + unitFloat(hash ^ 0xa511e9b3U) * 0.45F;
+            const float clusterStrength =
+                decorativeRockClusterDensity(x, z);
             const float revealScale =
                 worldRevealScaleAt({x, z});
             if (revealScale <= 0.001F) {
                 continue;
             }
             const float scale =
-                baseScale * visibility * revealScale;
+                baseScale * (0.88F + clusterStrength * 0.28F) *
+                visibility * revealScale;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
                     ? static_cast<float>(
@@ -1527,7 +1534,7 @@ void Renderer::drawDecorativeRocks(
         }
     }
 
-    constexpr float BushSpacing = 5.8F;
+    constexpr float BushSpacing = 4.9F;
     constexpr float BushDrawRadius = 36.0F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
@@ -1552,9 +1559,13 @@ void Renderer::drawDecorativeRocks(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
                 (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
-            const float clusterDensity =
-                decorativeRockClusterDensity(x + 31.0F, z - 23.0F) *
-                0.72F;
+            const float sharedCluster =
+                decorativeRockClusterDensity(x, z);
+            const float secondaryCluster =
+                decorativeRockClusterDensity(x + 31.0F, z - 23.0F);
+            const float clusterDensity = std::clamp(
+                sharedCluster * 0.74F + secondaryCluster * 0.34F,
+                0.0F, 0.88F);
             if (unitFloat(hash) > clusterDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
@@ -1587,6 +1598,7 @@ void Renderer::drawDecorativeRocks(
             const float scale =
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                (0.90F + sharedCluster * 0.22F) *
                 visibility * revealScale;
             if (scale <= 0.001F) {
                 continue;
@@ -1617,7 +1629,7 @@ void Renderer::drawDecorativeRockAo(
         terrainHeightfield_ == nullptr) {
         return;
     }
-    constexpr float Spacing = 5.0F;
+    constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
     constexpr float CoreClearRadius = 10.5F;
     const int minimumX = static_cast<int>(
@@ -1680,6 +1692,7 @@ void Renderer::drawDecorativeRockAo(
             const float scale =
                 (0.55F +
                  unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
+                (0.88F + decorativeRockClusterDensity(x, z) * 0.28F) *
                 visibility *
                 worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
@@ -1697,7 +1710,7 @@ void Renderer::drawDecorativeRockAo(
     }
 
     constexpr std::size_t BushVariantCount = 6U;
-    constexpr float BushSpacing = 5.8F;
+    constexpr float BushSpacing = 4.9F;
     constexpr float BushDrawRadius = 36.0F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
@@ -1725,9 +1738,13 @@ void Renderer::drawDecorativeRockAo(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
                 (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
-            const float clusterDensity =
-                decorativeRockClusterDensity(x + 31.0F, z - 23.0F) *
-                0.72F;
+            const float sharedCluster =
+                decorativeRockClusterDensity(x, z);
+            const float secondaryCluster =
+                decorativeRockClusterDensity(x + 31.0F, z - 23.0F);
+            const float clusterDensity = std::clamp(
+                sharedCluster * 0.74F + secondaryCluster * 0.34F,
+                0.0F, 0.88F);
             if (unitFloat(hash) > clusterDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
@@ -1753,6 +1770,7 @@ void Renderer::drawDecorativeRockAo(
             const float scale =
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
+                (0.90F + sharedCluster * 0.22F) *
                 visibility * worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
                 continue;

@@ -133,6 +133,11 @@ Model TerrainRenderer::buildChunk(
             static_cast<unsigned int>(
                 vertexCount * 2 *
                 static_cast<int>(sizeof(float)))));
+    mesh.colors = static_cast<unsigned char*>(
+        MemAlloc(
+            static_cast<unsigned int>(
+                vertexCount * 4 *
+                static_cast<int>(sizeof(unsigned char)))));
     mesh.indices = static_cast<unsigned short*>(
         MemAlloc(
             static_cast<unsigned int>(
@@ -142,6 +147,7 @@ Model TerrainRenderer::buildChunk(
     if (mesh.vertices == nullptr ||
         mesh.normals == nullptr ||
         mesh.texcoords == nullptr ||
+        mesh.colors == nullptr ||
         mesh.indices == nullptr) {
         if (mesh.vertices != nullptr) {
             MemFree(mesh.vertices);
@@ -151,6 +157,9 @@ Model TerrainRenderer::buildChunk(
         }
         if (mesh.texcoords != nullptr) {
             MemFree(mesh.texcoords);
+        }
+        if (mesh.colors != nullptr) {
+            MemFree(mesh.colors);
         }
         if (mesh.indices != nullptr) {
             MemFree(mesh.indices);
@@ -192,6 +201,17 @@ Model TerrainRenderer::buildChunk(
                 static_cast<float>(
                     (worldZ + halfSize) /
                     config.terrainWorldSize);
+            const double shoreDistance =
+                terrain_->waterSignedDistance(worldX, worldZ);
+            const double wetShore = std::clamp(
+                1.0 - std::max(shoreDistance, 0.0) / 3.6,
+                0.0, 1.0);
+            const auto shade = static_cast<unsigned char>(
+                std::lround(255.0 - wetShore * 36.0));
+            mesh.colors[index * 4] = shade;
+            mesh.colors[index * 4 + 1] = shade;
+            mesh.colors[index * 4 + 2] = shade;
+            mesh.colors[index * 4 + 3] = 255U;
         }
     }
 

@@ -176,6 +176,107 @@ void App::drawAtmosphereParticles(
             {255, 239, 170, atmosphereAlpha(alpha)});
     }
     EndBlendMode();
+
+    // Fireflies live in small world-anchored colonies around planted pond
+    // shores. They fade in during dusk instead of following the player as a
+    // uniform particle field.
+    const float fireflyVisibility = smoothstep(
+        0.28F, 0.70F, std::clamp(nightAmount, 0.0F, 1.0F));
+    if (fireflyVisibility <= 0.01F) {
+        return;
+    }
+    BeginBlendMode(BLEND_ADDITIVE);
+    std::size_t pondIndex = 0U;
+    for (const PondDefinition& pond : simulation_.terrain().ponds()) {
+        constexpr int ColoniesPerPond = 3;
+        constexpr int FliesPerColony = 7;
+        for (int colony = 0; colony < ColoniesPerPond; ++colony) {
+            const std::uint32_t colonySeed =
+                0x7f4a7c15U ^
+                static_cast<std::uint32_t>(pondIndex + 1U) * 0x9e3779b9U ^
+                static_cast<std::uint32_t>(colony + 5) * 0x85ebca6bU;
+            const float angle =
+                static_cast<float>(colony) * 2.0F * PI /
+                    static_cast<float>(ColoniesPerPond) +
+                (atmosphereUnit(colonySeed) - 0.5F) * 0.82F;
+            float radial = 1.03F;
+            Vector2 center{};
+            double shoreDistance = -1.0;
+            for (int attempt = 0; attempt < 8; ++attempt) {
+                const float directionX = std::cos(angle);
+                const float directionZ = std::sin(angle);
+                const float localX = directionX *
+                    static_cast<float>(pond.radiusX) * radial;
+                const float localZ = directionZ *
+                    static_cast<float>(pond.radiusZ) * radial;
+                const float cosine =
+                    std::cos(static_cast<float>(pond.rotation));
+                const float sine =
+                    std::sin(static_cast<float>(pond.rotation));
+                center = {
+                    static_cast<float>(pond.x) +
+                        localX * cosine - localZ * sine,
+                    static_cast<float>(pond.z) +
+                        localX * sine + localZ * cosine,
+                };
+                shoreDistance = simulation_.terrain().waterSignedDistance(
+                    center.x, center.y);
+                if (shoreDistance >= 0.45) {
+                    break;
+                }
+                radial += 0.035F;
+            }
+            if (shoreDistance < 0.10 || shoreDistance > 5.0) {
+                continue;
+            }
+            const float colonyDistance = Vector2Distance(
+                center, {camera.position.x, camera.position.z});
+            const float distanceFade = 1.0F -
+                smoothstep(24.0F, 38.0F, colonyDistance);
+            if (distanceFade <= 0.01F) {
+                continue;
+            }
+            for (int fly = 0; fly < FliesPerColony; ++fly) {
+                const std::uint32_t seed = colonySeed +
+                    static_cast<std::uint32_t>(fly + 1) * 0xc2b2ae35U;
+                const float phase = atmosphereUnit(seed + 1U) * 2.0F * PI;
+                const float orbit = atmosphereUnit(seed + 2U) * 2.0F * PI;
+                const float radius = 0.28F +
+                    atmosphereUnit(seed + 3U) * 1.05F;
+                const float speed = 0.42F +
+                    atmosphereUnit(seed + 4U) * 0.58F;
+                const float x = center.x + std::cos(orbit) * radius +
+                    std::sin(time * speed + phase) * 0.38F +
+                    std::sin(time * 0.31F + phase * 1.7F) * 0.16F;
+                const float z = center.y + std::sin(orbit) * radius +
+                    std::cos(time * speed * 0.83F + phase) * 0.34F;
+                const float ground = static_cast<float>(
+                    simulation_.terrain().getHeight(x, z));
+                const float y = ground + 0.48F +
+                    atmosphereUnit(seed + 5U) * 1.48F +
+                    std::sin(time * (0.72F + speed * 0.35F) + phase) *
+                        0.22F;
+                const float flickerWave = 0.5F + 0.5F *
+                    std::sin(time *
+                                 (2.2F + atmosphereUnit(seed + 6U) * 2.8F) +
+                             phase);
+                const float flicker = 0.22F +
+                    flickerWave * flickerWave * 0.78F;
+                const float alpha = fireflyVisibility * distanceFade *
+                    flicker;
+                const Color glow = fly % 4 == 0
+                    ? Color{255, 226, 92, atmosphereAlpha(alpha * 0.22F)}
+                    : Color{166, 255, 96, atmosphereAlpha(alpha * 0.20F)};
+                const Color core = fly % 4 == 0
+                    ? Color{255, 248, 177, atmosphereAlpha(alpha * 0.95F)}
+                    : Color{225, 255, 157, atmosphereAlpha(alpha * 0.92F)};
+                DrawSphereEx({x, y, z}, 0.11F, 5, 5, glow);
+                DrawSphereEx({x, y, z}, 0.025F, 4, 4, core);
+            }
+        }
+        ++pondIndex;
+    }
+    EndBlendMode();
 }
 
 void App::drawPresentationEffects() {

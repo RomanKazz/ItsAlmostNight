@@ -209,6 +209,7 @@ class Renderer {
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
     void drawPondDecor();
+    void drawPondShoreRocks();
     void drawPondSurfaceDecor();
     void drawWater(Vector3 cameraPosition,
                    const WorldLighting& lighting);
@@ -434,6 +435,7 @@ class Renderer {
     void rebuildPondDecorInstances();
     void drawPondDecorInstances(std::size_t beginVariant,
                                 std::size_t endVariant);
+    void drawPondShoreRockInstances();
     void setSkinningEnabled(Shader& shader, bool enabled);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
@@ -523,6 +525,8 @@ class Renderer {
     std::vector<Matrix> resourceRockTransforms_;
     std::array<std::vector<Matrix>, 5>
         pondDecorTransforms_;
+    std::array<std::vector<Matrix>, 4>
+        pondShoreRockTransforms_;
     bool boundaryForestCached_{};
     Vector2 worldRevealOrigin_{};
     float worldRevealElapsed_{1000.0F};

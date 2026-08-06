@@ -435,6 +435,10 @@ void App::render() {
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting);
         renderer_->beginWorldShader(lighting);
+        WorldMaterialState pondRockMaterial{};
+        pondRockMaterial.bakedAo = 0.76F;
+        renderer_->setWorldMaterial(pondRockMaterial);
+        renderer_->drawPondShoreRocks();
         WorldMaterialState pondPlantMaterial{};
         pondPlantMaterial.bakedAo = 0.82F;
         pondPlantMaterial.windAmount = 0.32F;

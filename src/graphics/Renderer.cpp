@@ -1044,6 +1044,9 @@ void Renderer::rebuildPondDecorInstances() {
     for (auto& transforms : pondDecorTransforms_) {
         transforms.clear();
     }
+    for (auto& transforms : pondShoreRockTransforms_) {
+        transforms.clear();
+    }
     if (terrainHeightfield_ == nullptr) {
         return;
     }
@@ -1133,15 +1136,19 @@ void Renderer::rebuildPondDecorInstances() {
                                 point.y)))));
         }
 
-        constexpr int PlantClusters = 10;
-        for (int cluster = 0; cluster < PlantClusters; ++cluster) {
+        constexpr int PlantClusterCandidates = 14;
+        for (int cluster = 0; cluster < PlantClusterCandidates; ++cluster) {
             const std::uint32_t clusterHash = pondDecorHash(
                 pondHash ^ (static_cast<std::uint32_t>(cluster + 13) *
                             0xc2b2ae35U));
+            // Leave broad quiet arcs between a few dense plant groups.
+            if (pondDecorUnit(clusterHash ^ 0x94d049bbU) < 0.38F) {
+                continue;
+            }
             const float angle =
                 static_cast<float>(cluster) * PI * 2.0F /
-                    static_cast<float>(PlantClusters) +
-                (pondDecorUnit(clusterHash) - 0.5F) * 0.26F;
+                    static_cast<float>(PlantClusterCandidates) +
+                (pondDecorUnit(clusterHash) - 0.5F) * 0.48F;
             Vector2 previousPoint =
                 pondPoint(pond, angle, 0.55F, 0.0F);
             double previousDistance =
@@ -1163,17 +1170,17 @@ void Renderer::rebuildPondDecorInstances() {
                 previousDistance = distance;
             }
 
-            const int count = 2 +
-                static_cast<int>((clusterHash >> 5U) % 2U);
+            const int count = 3 +
+                static_cast<int>((clusterHash >> 5U) % 3U);
             for (int item = 0; item < count; ++item) {
                 const std::uint32_t hash = pondDecorHash(
                     clusterHash + static_cast<std::uint32_t>(item + 1) *
                         0x165667b1U);
                 const float tangent =
                     (static_cast<float>(item) -
-                     static_cast<float>(count - 1) * 0.5F) * 1.5F;
-                const float radial = shoreRadial - 0.012F +
-                    (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 0.025F;
+                     static_cast<float>(count - 1) * 0.5F) * 1.16F;
+                const float radial = shoreRadial - 0.010F +
+                    (pondDecorUnit(hash ^ 0xfd7046c5U) - 0.5F) * 0.038F;
                 const Vector2 point =
                     pondPoint(pond, angle, radial, tangent);
                 const double shoreDistance =
@@ -1182,7 +1189,7 @@ void Renderer::rebuildPondDecorInstances() {
                 if (shoreDistance < -1.4 || shoreDistance > 1.0) {
                     continue;
                 }
-                constexpr float PlantSpacing = 1.35F;
+                constexpr float PlantSpacing = 1.02F;
                 const bool overlaps = std::any_of(
                     plantPoints.begin(), plantPoints.end(),
                     [point](Vector2 other) {
@@ -1195,8 +1202,10 @@ void Renderer::rebuildPondDecorInstances() {
                     continue;
                 }
                 plantPoints.push_back(point);
-                const std::size_t variant =
-                    2U + static_cast<std::size_t>(hash % 3U);
+                const std::uint32_t variantRoll = hash % 5U;
+                const std::size_t variant = variantRoll < 2U
+                    ? 2U
+                    : variantRoll == 2U ? 3U : 4U;
                 const float randomScale =
                     pondDecorUnit(hash ^ 0x68e31da4U);
                 const float scale = variant == 2U
@@ -1230,6 +1239,84 @@ void Renderer::rebuildPondDecorInstances() {
                                     point.y)))));
             }
         }
+
+        constexpr int ShoreRockClusters = 7;
+        for (int cluster = 0; cluster < ShoreRockClusters; ++cluster) {
+            const std::uint32_t clusterHash = pondDecorHash(
+                pondHash ^ (static_cast<std::uint32_t>(cluster + 41) *
+                            0x85ebca6bU));
+            if (pondDecorUnit(clusterHash ^ 0x27d4eb2fU) < 0.30F) {
+                continue;
+            }
+            const float angle =
+                static_cast<float>(cluster) * PI * 2.0F /
+                    static_cast<float>(ShoreRockClusters) +
+                (pondDecorUnit(clusterHash) - 0.5F) * 0.62F;
+            float shoreRadial = 1.0F;
+            const Vector2 innerPoint =
+                pondPoint(pond, angle, 0.55F, 0.0F);
+            double previousDistance =
+                terrainHeightfield_->waterSignedDistance(
+                    innerPoint.x, innerPoint.y);
+            for (int sample = 1; sample <= 32; ++sample) {
+                const float radial = 0.55F +
+                    static_cast<float>(sample) / 32.0F * 0.80F;
+                const Vector2 point =
+                    pondPoint(pond, angle, radial, 0.0F);
+                const double distance =
+                    terrainHeightfield_->waterSignedDistance(
+                        point.x, point.y);
+                shoreRadial = radial;
+                if (previousDistance <= 0.0 && distance > 0.0) {
+                    break;
+                }
+                previousDistance = distance;
+            }
+            const int count = 2 +
+                static_cast<int>((clusterHash >> 9U) % 3U);
+            for (int item = 0; item < count; ++item) {
+                const std::uint32_t hash = pondDecorHash(
+                    clusterHash + static_cast<std::uint32_t>(item + 1) *
+                        0x9e3779b9U);
+                const float tangent =
+                    (static_cast<float>(item) -
+                     static_cast<float>(count - 1) * 0.5F) * 0.78F;
+                const float radial = shoreRadial + 0.018F +
+                    pondDecorUnit(hash ^ 0x68e31da4U) * 0.035F;
+                const Vector2 point =
+                    pondPoint(pond, angle, radial, tangent);
+                const double shoreDistance =
+                    terrainHeightfield_->waterSignedDistance(
+                        point.x, point.y);
+                if (shoreDistance < 0.12 || shoreDistance > 2.5) {
+                    continue;
+                }
+                const std::size_t variant =
+                    static_cast<std::size_t>(hash % 4U);
+                const float scale =
+                    (item == 0 ? 0.72F : 0.48F) +
+                    pondDecorUnit(hash ^ 0xb5297a4dU) * 0.28F;
+                const float terrainY = static_cast<float>(
+                    terrainHeightfield_->getHeight(point.x, point.y));
+                const float yaw =
+                    pondDecorUnit(hash ^ 0x7f4a7c15U) * PI * 2.0F;
+                ModelResource& resource =
+                    resources_.decorativeRockModel(variant);
+                const Matrix modelTransform = resource.valid()
+                    ? resource.get().transform
+                    : MatrixIdentity();
+                pondShoreRockTransforms_[variant].push_back(
+                    MatrixMultiply(
+                        modelTransform,
+                        MatrixMultiply(
+                            MatrixScale(scale, scale, scale),
+                            MatrixMultiply(
+                                MatrixRotateY(yaw),
+                                MatrixTranslate(
+                                    point.x, terrainY + 0.01F,
+                                    point.y)))));
+            }
+        }
         ++pondIndex;
     }
 }
@@ -1255,11 +1342,11 @@ void Renderer::drawTerrain(
 }
 
 void Renderer::drawPondDecor() {
-    Shader shader{};
-    if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = resources_.worldShader().get();
-    }
     drawPondDecorInstances(2U, pondDecorTransforms_.size());
+}
+
+void Renderer::drawPondShoreRocks() {
+    drawPondShoreRockInstances();
 }
 
 void Renderer::drawPondSurfaceDecor() {
@@ -1282,6 +1369,42 @@ void Renderer::drawPondDecorInstances(
          variant < endVariant; ++variant) {
         const auto& transforms = pondDecorTransforms_[variant];
         ModelResource& resource = resources_.pondDecorModel(variant);
+        if (transforms.empty() || !resource.valid()) {
+            continue;
+        }
+        Model& model = resource.get();
+        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+            Material material =
+                model.materials[model.meshMaterial[meshIndex]];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                transforms.data(),
+                static_cast<int>(transforms.size()));
+        }
+    }
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader, worldInstancingEnabledLocation_,
+                   &disabled, SHADER_UNIFORM_INT);
+}
+
+void Renderer::drawPondShoreRockInstances() {
+    if (!worldShaderActive_ || !resources_.worldShader().valid()) {
+        return;
+    }
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(shader, worldInstancingEnabledLocation_,
+                   &enabled, SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    for (std::size_t variant = 0;
+         variant < pondShoreRockTransforms_.size(); ++variant) {
+        const auto& transforms = pondShoreRockTransforms_[variant];
+        ModelResource& resource =
+            resources_.decorativeRockModel(variant);
         if (transforms.empty() || !resource.valid()) {
             continue;
         }
@@ -1446,15 +1569,28 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             if (distanceSquared > DrawRadius * DrawRadius) {
                 continue;
             }
-            if (terrainHeightfield_ != nullptr &&
-                terrainHeightfield_->waterSignedDistance(x, z) < 0.15) {
+            const float shoreDistance = terrainHeightfield_ != nullptr
+                ? static_cast<float>(
+                      terrainHeightfield_->waterSignedDistance(x, z))
+                : 100.0F;
+            if (shoreDistance < 0.15F) {
                 continue;
             }
 
             const float cluster = clusterNoise(x, z);
+            float shapedCluster = std::clamp(
+                (cluster - 0.32F) / 0.52F, 0.0F, 1.0F);
+            shapedCluster = shapedCluster * shapedCluster *
+                (3.0F - 2.0F * shapedCluster);
+            float shoreRecovery = std::clamp(
+                (shoreDistance - 0.22F) / 2.45F, 0.0F, 1.0F);
+            shoreRecovery = shoreRecovery * shoreRecovery *
+                (3.0F - 2.0F * shoreRecovery);
             const float clusterDensity = std::clamp(
-                0.10F + (cluster - 0.38F) * 2.15F,
-                0.10F, 0.94F);
+                (0.025F + shapedCluster * 0.10F +
+                 shapedCluster * shapedCluster * 0.84F) *
+                    (0.18F + shoreRecovery * 0.82F),
+                0.008F, 0.96F);
             if (unitFloat(hash ^ 0xb5297a4dU) >
                 clusterDensity) {
                 continue;
