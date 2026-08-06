@@ -23,6 +23,54 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::Simulation lootEffects;
+        lootEffects.startRun();
+        const double baseMaximum =
+            lootEffects.snapshot().playerMaxHealth;
+        lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Apple);
+        requireNear(
+            lootEffects.snapshot().playerMaxHealth,
+            baseMaximum + 12.0, 1e-9,
+            "apple adds exactly twelve maximum health per stack");
+        requireNear(
+            lootEffects.snapshot().playerHealth,
+            baseMaximum + 12.0, 1e-9,
+            "apple also fills the newly added maximum health");
+        require(
+            lootEffects.snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 1,
+            "snapshot exposes collected apple stack");
+
+        ian::PlayerCommand damage;
+        damage.damagePlayer = ian::DamagePlayerCommand{20.0};
+        lootEffects.tick(0.0, damage);
+        const double damagedHealth = lootEffects.snapshot().playerHealth;
+        lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Bread);
+        lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Bread);
+        lootEffects.tick(5.9);
+        requireNear(
+            lootEffects.snapshot().playerHealth,
+            damagedHealth, 1e-9,
+            "bread does not regenerate before six damage-free seconds");
+        lootEffects.tick(0.2);
+        requireNear(
+            lootEffects.snapshot().playerHealth,
+            damagedHealth + 0.08, 1e-9,
+            "bread regeneration starts after delay and stacks linearly");
+        require(
+            lootEffects.snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 2,
+            "snapshot exposes stacked bread count");
+
+        lootEffects.restartRun();
+        require(
+            lootEffects.snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 0 &&
+            lootEffects.snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 0,
+            "run restart clears collected item stacks");
+    }
+    {
         ian::Simulation weaponProgression;
         weaponProgression.startRun();
         ian::PlayerCommand cycle;

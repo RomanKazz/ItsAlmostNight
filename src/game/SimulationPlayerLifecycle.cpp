@@ -61,7 +61,8 @@ void Simulation::respawnPlayer() {
         playerPosition_.y - gameplay_.eyeHeight;
     playerGrounded_ = true;
     playerHealth_ =
-        gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
+        gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+        playerBonusMaxHealth_;
 }
 
 void Simulation::damagePlayer(
@@ -72,6 +73,7 @@ void Simulation::damagePlayer(
         return;
     }
     playerHealth_ = std::max(0.0, playerHealth_ - damage);
+    secondsSincePlayerDamage_ = 0.0;
     events_.push_back({
         .type = GameEventType::PlayerDamaged,
         .sourceId = attackerId,

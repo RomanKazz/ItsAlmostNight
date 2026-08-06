@@ -219,6 +219,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& hammerModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
+    [[nodiscard]] ModelResource& appleLootModel();
+    [[nodiscard]] ModelResource& breadLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
@@ -290,6 +292,8 @@ class GraphicsResources {
     ModelResource hammerModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
+    ModelResource appleLootModel_;
+    ModelResource breadLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;

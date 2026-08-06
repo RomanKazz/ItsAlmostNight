@@ -28,6 +28,10 @@ void runLootChestSystemTests() {
         require(terrain.getNormal(
                     chest.position.x, chest.position.z).y >= 0.82,
                 "loot chest avoids steep terrain");
+        require(chest.loot.rarity == ian::LootRarity::Common &&
+                    (chest.loot.effect == ian::LootUpgradeEffect::Apple ||
+                     chest.loot.effect == ian::LootUpgradeEffect::Bread),
+                "prototype chests contain only common apple or bread items");
     }
     require(hasWooden && hasStone,
             "terrain population uses both supplied chest models");

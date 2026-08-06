@@ -46,16 +46,12 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position) {
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(chestId.generation) << 32U) |
         chestId.index;
-    const double rarityRoll = unitRandom(seed ^ 0xa0761d6478bd642fULL);
-    const LootRarity rarity = rarityRoll < 0.06
-        ? LootRarity::Rare
-        : rarityRoll < 0.30 ? LootRarity::Uncommon
-                            : LootRarity::Common;
-    const auto effect = static_cast<LootUpgradeEffect>(
-        mixBits64(seed ^ 0xe7037ed1a0b428dbULL) % 3ULL);
+    const auto effect = mixBits64(seed ^ 0xe7037ed1a0b428dbULL) % 2ULL == 0ULL
+        ? LootUpgradeEffect::Apple
+        : LootUpgradeEffect::Bread;
     return {
         .id = {chestId.index, chestId.generation},
-        .rarity = rarity,
+        .rarity = LootRarity::Common,
         .effect = effect,
         .position = position,
     };
@@ -234,8 +230,22 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Damage: return "Razor Charm";
     case LootUpgradeEffect::MoveSpeed: return "Wind Feather";
     case LootUpgradeEffect::MaximumHealth: return "Heartwood Seed";
+    case LootUpgradeEffect::Apple: return "Apple";
+    case LootUpgradeEffect::Bread: return "Bread";
     }
     return "Unknown Item";
+}
+
+const char* lootUpgradeDescription(LootUpgradeEffect effect) {
+    switch (effect) {
+    case LootUpgradeEffect::Damage: return "+12% damage";
+    case LootUpgradeEffect::MoveSpeed: return "+7% movement speed";
+    case LootUpgradeEffect::MaximumHealth: return "+15% maximum health";
+    case LootUpgradeEffect::Apple: return "+12 maximum health per stack";
+    case LootUpgradeEffect::Bread:
+        return "After 6s without damage: +0.4 HP/s per stack";
+    }
+    return "";
 }
 
 } // namespace ian

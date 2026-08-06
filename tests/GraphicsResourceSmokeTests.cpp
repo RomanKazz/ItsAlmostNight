@@ -93,10 +93,22 @@ int main() {
         const bool stoneDrawn = renderer.drawLootChest(
             ian::LootChestType::Stone, {1.0F, 0.0F, 0.0F},
             0.0F, 0.72F);
+        renderer.drawLootItemOutline(
+            {-0.45F, 1.2F, 0.0F},
+            ian::LootUpgradeEffect::Apple,
+            ian::LootRarity::Common, 0.5F);
         renderer.drawLootItem(
-            {0.0F, 1.2F, 0.0F},
-            ian::LootUpgradeEffect::Damage,
-            ian::LootRarity::Rare, 0.5F);
+            {-0.45F, 1.2F, 0.0F},
+            ian::LootUpgradeEffect::Apple,
+            ian::LootRarity::Common, 0.5F);
+        renderer.drawLootItemOutline(
+            {0.45F, 1.2F, 0.0F},
+            ian::LootUpgradeEffect::Bread,
+            ian::LootRarity::Common, -0.5F);
+        renderer.drawLootItem(
+            {0.45F, 1.2F, 0.0F},
+            ian::LootUpgradeEffect::Bread,
+            ian::LootRarity::Common, -0.5F);
         EndMode3D();
         EndDrawing();
         renderer.shutdown();

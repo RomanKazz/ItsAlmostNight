@@ -148,6 +148,7 @@ struct SimulationSnapshot {
     std::optional<EntityId> aimedChest;
     std::optional<EntityId> aimedLoot;
     std::span<const LootChestInstance> lootChests;
+    std::array<int, LootUpgradeEffectCount> lootStacks;
     double playerDamageMultiplier;
     double playerMoveSpeedMultiplier;
     double pickaxeCooldownRemaining;
@@ -290,6 +291,9 @@ class Simulation {
     [[nodiscard]] const SkillTree& skillTree() const;
     [[nodiscard]] SkillPurchaseError purchaseSkill(std::size_t index);
     void grantSkillPoints(int amount, SkillPointSource source);
+    void grantLootUpgrade(
+        LootUpgradeEffect effect,
+        LootRarity rarity = LootRarity::Common);
     [[nodiscard]] SkillTreeRunState saveSkillTreeState() const;
     [[nodiscard]] bool loadSkillTreeState(const SkillTreeRunState& state);
 
@@ -356,6 +360,7 @@ class Simulation {
     void cycleUnlockedTool();
     void updateFortifications(double deltaSeconds);
     void applyLootPickup(const LootPickup& pickup);
+    void updateLootEffects(double deltaSeconds);
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
 
@@ -449,6 +454,9 @@ class Simulation {
     double playerDamageMultiplier_{1.0};
     double playerMoveSpeedMultiplier_{1.0};
     double playerMaxHealthMultiplier_{1.0};
+    double playerBonusMaxHealth_{};
+    double secondsSincePlayerDamage_{};
+    std::array<int, LootUpgradeEffectCount> lootStacks_{};
     int bareHandsWoodGathered_{};
     int bareHandsStoneGathered_{};
     bool introSkillObjectiveCompleted_{};

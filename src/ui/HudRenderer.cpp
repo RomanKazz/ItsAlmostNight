@@ -1273,6 +1273,107 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
               mapBounds.y + mapBounds.height * 0.5F});
 }
 
+void drawLootInventory(
+    GameUi& ui, const SimulationSnapshot& snapshot) {
+    constexpr std::array<LootUpgradeEffect, LootUpgradeEffectCount> Effects{
+        LootUpgradeEffect::Damage,
+        LootUpgradeEffect::MoveSpeed,
+        LootUpgradeEffect::MaximumHealth,
+        LootUpgradeEffect::Apple,
+        LootUpgradeEffect::Bread,
+    };
+    int activeCount = 0;
+    for (const LootUpgradeEffect effect : Effects) {
+        if (snapshot.lootStacks[lootUpgradeIndex(effect)] > 0) {
+            ++activeCount;
+        }
+    }
+    if (activeCount == 0) return;
+
+    constexpr float PanelX = 12.0F;
+    constexpr float PanelY = 260.0F;
+    constexpr float SlotSize = 46.0F;
+    constexpr float Gap = 6.0F;
+    const float panelWidth = 20.0F +
+        static_cast<float>(activeCount) * (SlotSize + Gap);
+    ui.drawPanel({PanelX, PanelY, panelWidth, 82.0F}, 210);
+    drawUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
+               10.0F, {218, 203, 173, 235});
+
+    const Vector2 mouse = GetMousePosition();
+    std::optional<LootUpgradeEffect> hovered;
+    int hoveredStacks = 0;
+    float slotX = PanelX + 10.0F;
+    for (const LootUpgradeEffect effect : Effects) {
+        const int stacks = snapshot.lootStacks[lootUpgradeIndex(effect)];
+        if (stacks <= 0) continue;
+        const Rectangle slot{slotX, PanelY + 27.0F, SlotSize, SlotSize};
+        DrawRectangleRounded(slot, 0.22F, 5, {24, 32, 35, 235});
+        DrawRectangleLinesEx(slot, 2.0F, {75, 184, 225, 245});
+        const Vector2 center{slot.x + slot.width * 0.5F,
+                             slot.y + slot.height * 0.5F};
+        if (effect == LootUpgradeEffect::Apple) {
+            DrawCircleV({center.x, center.y + 3.0F}, 12.0F,
+                        {219, 65, 58, 255});
+            DrawRectangleRec({center.x - 1.5F, center.y - 14.0F,
+                              3.0F, 7.0F}, {85, 58, 35, 255});
+            DrawEllipse(static_cast<int>(center.x + 5.0F),
+                        static_cast<int>(center.y - 11.0F),
+                        6.0F, 3.5F, {91, 188, 82, 255});
+        } else if (effect == LootUpgradeEffect::Bread) {
+            const Rectangle loaf{center.x - 15.0F, center.y - 9.0F,
+                                 30.0F, 21.0F};
+            DrawRectangleRounded(loaf, 0.42F, 6,
+                                 {226, 165, 73, 255});
+            for (int cut = 0; cut < 3; ++cut) {
+                const float x = loaf.x + 8.0F +
+                    static_cast<float>(cut) * 7.0F;
+                DrawLineEx({x, loaf.y + 3.0F},
+                           {x - 3.0F, loaf.y + 9.0F},
+                           2.0F, {151, 94, 44, 220});
+            }
+        } else {
+            const std::string initial(1, lootUpgradeName(effect)[0]);
+            const Vector2 size = measureUiText(initial, 20.0F);
+            drawUiText(initial,
+                       {center.x - size.x * 0.5F,
+                        center.y - size.y * 0.5F},
+                       20.0F, {236, 226, 196, 255});
+        }
+        const std::string badge = "x" + std::to_string(stacks);
+        const Vector2 badgeSize = measureUiText(badge, 9.0F);
+        const Rectangle badgeBounds{
+            slot.x + slot.width - badgeSize.x - 8.0F,
+            slot.y + slot.height - 17.0F,
+            badgeSize.x + 7.0F, 15.0F};
+        DrawRectangleRounded(badgeBounds, 0.45F, 5,
+                             {13, 18, 20, 245});
+        drawUiText(badge, {badgeBounds.x + 3.0F, badgeBounds.y - 1.0F},
+                   9.0F, RAYWHITE);
+        if (CheckCollisionPointRec(mouse, slot)) {
+            hovered = effect;
+            hoveredStacks = stacks;
+            DrawRectangleLinesEx(slot, 3.0F, {213, 246, 255, 255});
+        }
+        slotX += SlotSize + Gap;
+    }
+
+    if (hovered) {
+        const Rectangle tooltip{
+            PanelX + panelWidth + 8.0F, PanelY,
+            330.0F, 66.0F};
+        ui.drawPanel(tooltip, 238);
+        drawUiText(lootUpgradeName(*hovered) +
+                       std::string("  x") +
+                       std::to_string(hoveredStacks),
+                   {tooltip.x + 12.0F, tooltip.y + 9.0F},
+                   13.0F, {122, 218, 255, 255});
+        drawUiText(lootUpgradeDescription(*hovered),
+                   {tooltip.x + 12.0F, tooltip.y + 36.0F},
+                   10.0F, {230, 224, 207, 245});
+    }
+}
+
 } // namespace
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
@@ -1374,6 +1475,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             "   •   BEST " + std::to_string(snapshot.bestWave),
         {26.0F, 219.0F}, 12.0F,
         {190, 184, 169, 235});
+
+    drawLootInventory(ui, snapshot);
 
     if (snapshot.state == RunState::BuildPhase ||
         snapshot.state == RunState::Sunset ||

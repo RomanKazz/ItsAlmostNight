@@ -15,7 +15,19 @@ struct ResourceNode;
 enum class LootChestType { Wooden, Stone };
 enum class LootChestState { Closed, Opening, Open };
 enum class LootRarity { Common, Uncommon, Rare };
-enum class LootUpgradeEffect { Damage, MoveSpeed, MaximumHealth };
+enum class LootUpgradeEffect {
+    Damage,
+    MoveSpeed,
+    MaximumHealth,
+    Apple,
+    Bread,
+};
+constexpr std::size_t LootUpgradeEffectCount = 5U;
+
+[[nodiscard]] constexpr std::size_t lootUpgradeIndex(
+    LootUpgradeEffect effect) {
+    return static_cast<std::size_t>(effect);
+}
 
 struct ChestLoot {
     EntityId id;
@@ -74,5 +86,6 @@ class LootChestSystem {
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);
 [[nodiscard]] const char* lootUpgradeName(LootUpgradeEffect effect);
+[[nodiscard]] const char* lootUpgradeDescription(LootUpgradeEffect effect);
 
 } // namespace ian

@@ -265,6 +265,9 @@ void Simulation::resetRun(GameEventType eventType) {
     playerDamageMultiplier_ = 1.0;
     playerMoveSpeedMultiplier_ = 1.0;
     playerMaxHealthMultiplier_ = 1.0;
+    playerBonusMaxHealth_ = 0.0;
+    secondsSincePlayerDamage_ = 0.0;
+    lootStacks_.fill(0);
     selectedBuilding_.reset();
     buildingRotation_ = 0;
     buildingPreview_.reset();
@@ -382,6 +385,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
+    updateLootEffects(deltaSeconds);
 
     ++tick_;
     elapsedSeconds_ += deltaSeconds;
@@ -1425,14 +1429,23 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     case LootUpgradeEffect::MaximumHealth: {
         const double previousMaximum =
-            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+            playerBonusMaxHealth_;
         playerMaxHealthMultiplier_ += 0.15 * rarityStrength;
         const double newMaximum =
-            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_;
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+            playerBonusMaxHealth_;
         playerHealth_ += newMaximum - previousMaximum;
         break;
     }
+    case LootUpgradeEffect::Apple:
+        playerBonusMaxHealth_ += 12.0;
+        playerHealth_ += 12.0;
+        break;
+    case LootUpgradeEffect::Bread:
+        break;
     }
+    ++lootStacks_[lootUpgradeIndex(pickup.effect)];
     events_.push_back({
         .type = GameEventType::LootCollected,
         .entityId = pickup.lootId,
@@ -1441,6 +1454,40 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         .lootUpgradeEffect = pickup.effect,
     });
     aimedLoot_.reset();
+}
+
+void Simulation::grantLootUpgrade(
+    LootUpgradeEffect effect, LootRarity rarity) {
+    applyLootPickup({
+        .lootId = {std::numeric_limits<std::uint32_t>::max(), 0U},
+        .rarity = rarity,
+        .effect = effect,
+        .position = playerPosition_,
+    });
+}
+
+void Simulation::updateLootEffects(double deltaSeconds) {
+    if (playerRespawning_) {
+        secondsSincePlayerDamage_ = 0.0;
+        return;
+    }
+    const double previousSeconds = secondsSincePlayerDamage_;
+    secondsSincePlayerDamage_ += deltaSeconds;
+    const int breadStacks =
+        lootStacks_[lootUpgradeIndex(LootUpgradeEffect::Bread)];
+    if (breadStacks <= 0 || secondsSincePlayerDamage_ < 6.0) {
+        return;
+    }
+    const double maximumHealth =
+        gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+        playerBonusMaxHealth_;
+    const double regeneratingSeconds = std::max(
+        0.0, secondsSincePlayerDamage_ -
+            std::max(previousSeconds, 6.0));
+    playerHealth_ = std::min(
+        maximumHealth,
+        playerHealth_ + regeneratingSeconds * 0.4 *
+            static_cast<double>(breadStacks));
 }
 
 void Simulation::updatePendingResourceGrants(
@@ -2042,7 +2089,8 @@ SimulationSnapshot Simulation::snapshot() const {
         .playerVerticalVelocity = verticalVelocity_,
         .playerHealth = playerHealth_,
         .playerMaxHealth =
-            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_,
+            gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
+            playerBonusMaxHealth_,
         .playerRespawning = playerRespawning_,
         .playerRespawnTimeRemaining =
             playerRespawnTimeRemaining_,
@@ -2058,6 +2106,7 @@ SimulationSnapshot Simulation::snapshot() const {
         .aimedLoot = aimedLoot_,
         .lootChests =
             std::span<const LootChestInstance>{lootChests_.chests()},
+        .lootStacks = lootStacks_,
         .playerDamageMultiplier = playerDamageMultiplier_,
         .playerMoveSpeedMultiplier = playerMoveSpeedMultiplier_,
         .pickaxeCooldownRemaining = pickaxeCooldownRemaining_,

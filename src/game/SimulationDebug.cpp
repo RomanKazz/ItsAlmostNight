@@ -43,7 +43,8 @@ void Simulation::processDebugCommands(
         if (unlimitedResources_) {
             playerHealth_ =
                 gameplay_.playerMaxHealth *
-                playerMaxHealthMultiplier_;
+                    playerMaxHealthMultiplier_ +
+                playerBonusMaxHealth_;
         } else {
             const PlayerWeapon selected =
                 playerWeapons_.selectedWeapon();

@@ -423,6 +423,25 @@ void drawLootItemGeometry(
     }
 }
 
+ModelResource* lootItemModelFor(
+    GraphicsResources& resources, LootUpgradeEffect effect) {
+    switch (effect) {
+    case LootUpgradeEffect::Apple:
+        return &resources.appleLootModel();
+    case LootUpgradeEffect::Bread:
+        return &resources.breadLootModel();
+    case LootUpgradeEffect::Damage:
+    case LootUpgradeEffect::MoveSpeed:
+    case LootUpgradeEffect::MaximumHealth:
+        return nullptr;
+    }
+    return nullptr;
+}
+
+float lootItemModelScale(LootUpgradeEffect effect) {
+    return effect == LootUpgradeEffect::Apple ? 0.72F : 0.68F;
+}
+
 } // namespace
 
 Color lootRarityColor(LootRarity rarity) {
@@ -592,7 +611,32 @@ void Renderer::drawLootItem(
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
     rlScalef(scale, scale, scale);
-    drawLootItemGeometry(effect, color);
+    ModelResource* resource = lootItemModelFor(resources_, effect);
+    if (resource != nullptr && resource->valid()) {
+        Model& model = resource->get();
+        Shader shader{
+            .id = rlGetShaderIdDefault(),
+            .locs = rlGetShaderLocsDefault(),
+        };
+        if (selectionMaskPassOpen_ &&
+            resources_.selectionMaskShader().valid()) {
+            shader = resources_.selectionMaskShader().get();
+        } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+            shader = resources_.shadowShader().get();
+        } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+            shader = resources_.worldShader().get();
+        }
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = shader;
+        }
+        // Keep the authored food colors; rarity belongs to the silhouette,
+        // not to a cyan tint over the item itself.
+        DrawModel(
+            model, {}, lootItemModelScale(effect),
+            ColorTint(WHITE, tint));
+    } else {
+        drawLootItemGeometry(effect, color);
+    }
     rlPopMatrix();
 }
 
@@ -606,7 +650,22 @@ void Renderer::drawLootItemOutline(
     rlScalef(outlineScale, outlineScale, outlineScale);
     rlDrawRenderBatchActive();
     rlSetCullFace(RL_CULL_FACE_FRONT);
-    drawLootItemGeometry(effect, lootRarityColor(rarity));
+    ModelResource* resource = lootItemModelFor(resources_, effect);
+    if (resource != nullptr && resource->valid()) {
+        Model& model = resource->get();
+        const Shader shader{
+            .id = rlGetShaderIdDefault(),
+            .locs = rlGetShaderLocsDefault(),
+        };
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = shader;
+        }
+        DrawModel(
+            model, {}, lootItemModelScale(effect),
+            lootRarityColor(rarity));
+    } else {
+        drawLootItemGeometry(effect, lootRarityColor(rarity));
+    }
     rlDrawRenderBatchActive();
     rlSetCullFace(RL_CULL_FACE_BACK);
     rlPopMatrix();
