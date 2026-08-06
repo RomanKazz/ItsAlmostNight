@@ -12,8 +12,8 @@ constexpr double ContactPadding = 0.025;
 constexpr int DetailedSolverIterations = 6;
 constexpr double MinimumDistance = 1e-9;
 constexpr double CollisionCellSize = 2.0;
-constexpr double CollisionGridMinimum = -48.0;
-constexpr int CollisionGridSize = 48;
+constexpr double CollisionGridMinimum = -192.0;
+constexpr int CollisionGridSize = 192;
 constexpr int CollisionCellCount =
     CollisionGridSize * CollisionGridSize;
 
@@ -243,11 +243,17 @@ void resolveEnemyCapsuleCollisions(
             static_cast<std::size_t>(bucket)] =
             static_cast<int>(index);
     }
+    const std::size_t activeEnemyCount =
+        static_cast<std::size_t>(std::count_if(
+            enemies.begin(), enemies.end(),
+            [](const EnemyInstance& enemy) {
+                return enemy.active;
+            }));
     const int solverIterations =
-        enemies.size() > 1024U
-            ? 2
-            : (enemies.size() > 512U
-                   ? 3
+        activeEnemyCount > 384U
+            ? 3
+            : (activeEnemyCount > 192U
+                   ? 4
                    : DetailedSolverIterations);
     for (int iteration = 0; iteration < solverIterations;
          ++iteration) {

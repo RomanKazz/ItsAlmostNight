@@ -26,10 +26,11 @@ struct GraphicsSettings {
     bool fogBands{false};
     bool paperGrain{false};
 
-    int shadowMapSize{4096};
+    int shadowMapSize{2048};
+    int frameRateLimit{60};
 
     int pixelSize{3};
-    float shadowDistance{80.0F};
+    float shadowDistance{55.0F};
     float constantBias{0.00003F};
     float slopeBias{0.0002F};
     float shadowStrength{0.58F};

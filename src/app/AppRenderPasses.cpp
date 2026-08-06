@@ -20,19 +20,10 @@ void App::drawShadowPass(
         0.0F,
         static_cast<float>(snapshot.playerPosition.z),
     };
-    const auto withinLocalShadowDistance =
-        [shadowFocus](Vector3 position, float maximumDistance) {
-            const float offsetX = position.x - shadowFocus.x;
-            const float offsetZ = position.z - shadowFocus.z;
-            return offsetX * offsetX + offsetZ * offsetZ <=
-                   maximumDistance * maximumDistance;
-        };
     if (renderer_->beginShadowPass(lighting, shadowFocus)) {
-        renderer_->drawTerrain(WHITE, shadowFocus);
-        renderer_->drawDecorativeRocks(
-            shadowFocus,
-            static_cast<float>(snapshot.worldLimit),
-            grassClearAreas_);
+        // Terrain remains a shadow receiver, but rendering it into its own
+        // shadow map causes long self-shadowing bands on shallow slopes.
+        // Skipping it also makes the shadow pass substantially cheaper.
         for (const auto& obstacle : snapshot.mapObstacles) {
             const float width = static_cast<float>(
                 obstacle.collision.maxX - obstacle.collision.minX);
@@ -67,72 +58,6 @@ void App::drawShadowPass(
             animationScales,
             1.0F,
         });
-        for (const auto& node : snapshot.resourceNodes) {
-            if (!node.active) {
-                continue;
-            }
-            const Vector3 nodePosition{
-                static_cast<float>(node.position.x),
-                static_cast<float>(
-                    simulation_.terrain().getHeight(
-                        node.position.x,
-                        node.position.z)),
-                static_cast<float>(node.position.z),
-            };
-            if (!renderer_->shadowCasterVisible(
-                    nodePosition, static_cast<float>(node.radius)) ||
-                !withinLocalShadowDistance(nodePosition, 45.0F)) {
-                continue;
-            }
-            if (node.type == ResourceType::Wood) {
-                const float hitScale =
-                    presentation::resourceHitScale(
-                        effects_, node.id);
-                if (!renderer_->drawTree(
-                        nodePosition,
-                        WHITE,
-                        hitScale *
-                            static_cast<float>(node.visualScale),
-                        static_cast<std::size_t>(
-                            node.id.index %
-                            TreeVisualVariantCount),
-                        static_cast<float>(node.visualYaw))) {
-                    DrawCylinder(
-                        {nodePosition.x,
-                         nodePosition.y + 0.9F,
-                         nodePosition.z},
-                        0.32F, 0.42F, 1.8F, 8, WHITE);
-                    DrawSphere(
-                        {nodePosition.x,
-                         nodePosition.y + 2.2F,
-                         nodePosition.z},
-                        1.15F, WHITE);
-                }
-            } else {
-                const float hitScale =
-                    presentation::resourceHitScale(
-                        effects_, node.id);
-                if (!renderer_->drawRock(
-                        nodePosition,
-                        WHITE, hitScale)) {
-                    DrawSphere(nodePosition, 0.9F, WHITE);
-                }
-            }
-        }
-        for (const LootChestInstance& chest : snapshot.lootChests) {
-            const Vector3 position{
-                static_cast<float>(chest.position.x),
-                static_cast<float>(chest.position.y),
-                static_cast<float>(chest.position.z),
-            };
-            if (renderer_->shadowCasterVisible(position, 1.0F) &&
-                withinLocalShadowDistance(position, 48.0F)) {
-                static_cast<void>(renderer_->drawLootChest(
-                    chest.type, position,
-                    static_cast<float>(chest.yaw),
-                    static_cast<float>(chest.openingProgress), WHITE));
-            }
-        }
         for (const auto& building : snapshot.buildings) {
             const Vec3 center =
                 buildingWorldPosition(building);
@@ -144,6 +69,11 @@ void App::drawShadowPass(
                 buildingAnimationScaleAt(center);
             if (!renderer_->shadowCasterVisible(
                     {x, groundY + 1.0F, z}, 2.2F)) {
+                continue;
+            }
+            if (building.type == BuildingType::Wall ||
+                building.type == BuildingType::Gate ||
+                building.type == BuildingType::SlowTrap) {
                 continue;
             }
             if (const auto foundation =
@@ -268,80 +198,6 @@ void App::drawShadowPass(
                              WHITE);
                 }
             }
-        }
-        const std::size_t activeEnemyCount =
-            static_cast<std::size_t>(std::count_if(
-                snapshot.enemies.begin(),
-                snapshot.enemies.end(),
-                [](const EnemyInstance& enemy) {
-                    return enemy.active;
-                }));
-        const std::size_t enemyShadowBudget =
-            activeEnemyCount > 768U
-                ? 12U
-                : (activeEnemyCount > 256U
-                       ? 24U
-                       : std::min(
-                             activeEnemyCount,
-                             std::size_t{64U}));
-        std::size_t renderedEnemyShadows = 0U;
-        for (const auto& enemy : snapshot.enemies) {
-            if (!enemy.active) {
-                continue;
-            }
-            if (renderedEnemyShadows >= enemyShadowBudget) {
-                break;
-            }
-            Vector3 enemyPosition =
-                enemyRenderPosition(enemy);
-            enemyPosition.y += static_cast<float>(
-                simulation_.terrain().getHeight(
-                    enemy.position.x,
-                    enemy.position.z));
-            float width = 0.8F;
-            float height = 1.6F;
-            if (enemy.type == EnemyType::Fast) {
-                width = 0.65F;
-                height = 1.35F;
-            } else if (enemy.type == EnemyType::Heavy) {
-                width = 1.15F;
-                height = 2.0F;
-            } else if (enemy.type == EnemyType::Boss) {
-                width = 2.0F;
-                height = 3.2F;
-            } else if (enemy.type == EnemyType::Ranged) {
-                width = 0.75F;
-                height = 1.55F;
-            } else if (enemy.type == EnemyType::Sapper) {
-                width = 0.86F;
-                height = 1.5F;
-            } else if (enemy.type == EnemyType::Flying) {
-                width = 0.72F;
-                height = 1.0F;
-            }
-            float casterDistance = 36.0F;
-            if (enemy.type == EnemyType::Heavy) {
-                casterDistance = 45.0F;
-            } else if (enemy.type == EnemyType::Boss) {
-                casterDistance = 60.0F;
-            }
-            if (!renderer_->shadowCasterVisible(enemyPosition, width) ||
-                !withinLocalShadowDistance(enemyPosition,
-                                           casterDistance)) {
-                continue;
-            }
-            if (!renderer_->drawEnemy(
-                    enemyModelVisual(enemy.type),
-                    enemyAnimationVisual(enemy),
-                    enemyAnimationSeconds(
-                        enemy, snapshot.elapsedSeconds),
-                    enemyPosition,
-                    static_cast<float>(enemy.yaw), WHITE,
-                    enemyVisualScale(enemy.type))) {
-                DrawCube(enemyPosition, width, height,
-                         width, WHITE);
-            }
-            ++renderedEnemyShadows;
         }
         renderer_->endShadowPass();
     }

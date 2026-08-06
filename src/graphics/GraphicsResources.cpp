@@ -557,7 +557,7 @@ void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
         return;
     }
 
-    const int desiredSize = std::clamp(settings.shadowMapSize, 512, 4096);
+    const int desiredSize = std::clamp(settings.shadowMapSize, 512, 2048);
     if (desiredSize == requestedShadowMapSize_) {
         return;
     }

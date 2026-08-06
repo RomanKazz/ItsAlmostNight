@@ -190,6 +190,11 @@ void Renderer::shutdown() {
             mapping.clear();
         }
     }
+    enemyBatches_.clear();
+    grassClearAreaCells_.clear();
+    indexedGrassClearAreaData_ = nullptr;
+    indexedGrassClearAreaCount_ = 0U;
+    grassClearAreaDimension_ = 0;
     terrainRenderer_.shutdown();
     resources_.shutdown();
 }
@@ -1029,6 +1034,10 @@ void Renderer::rebuildTerrain(
     const TerrainHeightfield& terrain,
     std::span<const DecorationExclusion> exclusions) {
     terrainHeightfield_ = &terrain;
+    grassClearAreaCells_.clear();
+    indexedGrassClearAreaData_ = nullptr;
+    indexedGrassClearAreaCount_ = 0U;
+    grassClearAreaDimension_ = 0;
     boundaryForestCached_ = false;
     for (auto& transforms : boundaryForestTransforms_) {
         transforms.clear();
@@ -1358,8 +1367,7 @@ void Renderer::drawTerrain(
         resources_.worldShader().valid()) {
         shader = resources_.worldShader().get();
     }
-    terrainRenderer_.draw(
-        shader, tint, focusPosition);
+    terrainRenderer_.draw(shader, tint, focusPosition);
     if (wireframe) {
         terrainRenderer_.drawWireframe(
             {245, 224, 154, 150});
@@ -1514,6 +1522,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
     if (!settings_.grass) {
         return;
     }
+    ensureGrassClearAreaIndex(clearAreas);
 
     constexpr std::size_t VariantCount = 3;
     constexpr std::size_t MaximumInstancesPerVariant = 1024;
@@ -1804,17 +1813,81 @@ float Renderer::worldRevealScaleAt(
     return std::clamp(scale, 0.0F, 1.06F);
 }
 
+void Renderer::ensureGrassClearAreaIndex(
+    std::span<const GrassClearArea> clearAreas) {
+    if (indexedGrassClearAreaData_ == clearAreas.data() &&
+        indexedGrassClearAreaCount_ == clearAreas.size()) {
+        return;
+    }
+    indexedGrassClearAreaData_ = clearAreas.data();
+    indexedGrassClearAreaCount_ = clearAreas.size();
+    grassClearAreaCells_.clear();
+    grassClearAreaDimension_ = 0;
+    if (clearAreas.empty() || terrainHeightfield_ == nullptr) {
+        return;
+    }
+
+    const float halfExtent = static_cast<float>(
+        terrainHeightfield_->config().terrainWorldSize * 0.5);
+    grassClearAreaMinimum_ = -halfExtent;
+    grassClearAreaDimension_ = std::max(
+        1, static_cast<int>(std::ceil(
+               halfExtent * 2.0F / grassClearAreaCellSize_)));
+    grassClearAreaCells_.resize(
+        static_cast<std::size_t>(grassClearAreaDimension_) *
+        static_cast<std::size_t>(grassClearAreaDimension_));
+
+    const auto coordinate = [this](float value) {
+        return std::clamp(
+            static_cast<int>(std::floor(
+                (value - grassClearAreaMinimum_) /
+                grassClearAreaCellSize_)),
+            0, grassClearAreaDimension_ - 1);
+    };
+    constexpr float MaximumFeatherAndPadding = 3.0F;
+    for (std::size_t index = 0; index < clearAreas.size(); ++index) {
+        const GrassClearArea& area = clearAreas[index];
+        const float extent =
+            std::max(area.innerRadius, 0.0F) +
+            MaximumFeatherAndPadding;
+        const int minimumX = coordinate(area.center.x - extent);
+        const int maximumX = coordinate(area.center.x + extent);
+        const int minimumZ = coordinate(area.center.y - extent);
+        const int maximumZ = coordinate(area.center.y + extent);
+        for (int z = minimumZ; z <= maximumZ; ++z) {
+            for (int x = minimumX; x <= maximumX; ++x) {
+                grassClearAreaCells_[
+                    static_cast<std::size_t>(z) *
+                        static_cast<std::size_t>(grassClearAreaDimension_) +
+                    static_cast<std::size_t>(x)]
+                    .push_back(static_cast<std::uint32_t>(index));
+            }
+        }
+    }
+}
+
 float Renderer::clearAreaVisibility(
     Vector2 position,
     std::span<const GrassClearArea> clearAreas,
-    float feather, float innerPadding) {
+    float feather, float innerPadding) const {
     float visibility = 1.0F;
     feather = std::max(feather, 0.001F);
-    for (const GrassClearArea& area : clearAreas) {
+    const auto applyArea = [&](const GrassClearArea& area) {
         const float deltaX = position.x - area.center.x;
         const float deltaZ = position.y - area.center.y;
-        const float distance =
-            std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        const float maximumDistance =
+            area.innerRadius + std::max(innerPadding, 0.0F) +
+            feather;
+        if (std::abs(deltaX) > maximumDistance ||
+            std::abs(deltaZ) > maximumDistance) {
+            return;
+        }
+        const float distanceSquared =
+            deltaX * deltaX + deltaZ * deltaZ;
+        if (distanceSquared >= maximumDistance * maximumDistance) {
+            return;
+        }
+        const float distance = std::sqrt(distanceSquared);
         const float proximity =
             1.0F - std::clamp(
                        (distance - area.innerRadius -
@@ -1826,6 +1899,32 @@ float Renderer::clearAreaVisibility(
             proximity * proximity *
             (3.0F - 2.0F * proximity);
         visibility *= 1.0F - clearing;
+    };
+
+    if (!grassClearAreaCells_.empty() &&
+        clearAreas.data() == indexedGrassClearAreaData_ &&
+        clearAreas.size() == indexedGrassClearAreaCount_) {
+        const int x = static_cast<int>(std::floor(
+            (position.x - grassClearAreaMinimum_) /
+            grassClearAreaCellSize_));
+        const int z = static_cast<int>(std::floor(
+            (position.y - grassClearAreaMinimum_) /
+            grassClearAreaCellSize_));
+        if (x < 0 || z < 0 || x >= grassClearAreaDimension_ ||
+            z >= grassClearAreaDimension_) {
+            return visibility;
+        }
+        const auto& candidates = grassClearAreaCells_[
+            static_cast<std::size_t>(z) *
+                static_cast<std::size_t>(grassClearAreaDimension_) +
+            static_cast<std::size_t>(x)];
+        for (const std::uint32_t index : candidates) {
+            applyArea(clearAreas[index]);
+        }
+        return visibility;
+    }
+    for (const GrassClearArea& area : clearAreas) {
+        applyArea(area);
     }
     return visibility;
 }
@@ -2475,17 +2574,17 @@ void Renderer::cycleQuality() {
     case GraphicsQuality::Low:
         settings_.quality = GraphicsQuality::Medium;
         settings_.shadowMapSize = 1024;
-        settings_.shadowDistance = 60.0F;
+        settings_.shadowDistance = 44.0F;
         break;
     case GraphicsQuality::Medium:
         settings_.quality = GraphicsQuality::High;
-        settings_.shadowMapSize = 4096;
-        settings_.shadowDistance = 80.0F;
+        settings_.shadowMapSize = 2048;
+        settings_.shadowDistance = 55.0F;
         break;
     case GraphicsQuality::High:
         settings_.quality = GraphicsQuality::Low;
         settings_.shadowMapSize = 512;
-        settings_.shadowDistance = 40.0F;
+        settings_.shadowDistance = 32.0F;
         break;
     }
 }
@@ -2495,11 +2594,31 @@ void Renderer::cycleShadowQuality() {
         settings_.shadowMapSize = 1024;
     } else if (settings_.shadowMapSize < 2048) {
         settings_.shadowMapSize = 2048;
-    } else if (settings_.shadowMapSize < 4096) {
-        settings_.shadowMapSize = 4096;
     } else {
         settings_.shadowMapSize = 512;
     }
+}
+
+void Renderer::cycleFrameRateLimit() {
+    switch (settings_.frameRateLimit) {
+    case 60:
+        settings_.frameRateLimit = 120;
+        break;
+    case 120:
+        settings_.frameRateLimit = 144;
+        break;
+    case 144:
+        settings_.frameRateLimit = 0;
+        break;
+    default:
+        settings_.frameRateLimit = 60;
+        break;
+    }
+    applyFrameRateLimit();
+}
+
+void Renderer::applyFrameRateLimit() const {
+    SetTargetFPS(settings_.frameRateLimit);
 }
 
 void Renderer::cycleAoStrength() {

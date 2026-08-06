@@ -16,8 +16,8 @@ struct SpatialEntry {
 class SpatialHash {
   public:
     static constexpr double CellSize = 2.0;
-    static constexpr double MinimumCoordinate = -48.0;
-    static constexpr int GridSize = 48;
+    static constexpr double MinimumCoordinate = -192.0;
+    static constexpr int GridSize = 192;
     static constexpr std::size_t MaxEntries = 4096;
 
     SpatialHash();

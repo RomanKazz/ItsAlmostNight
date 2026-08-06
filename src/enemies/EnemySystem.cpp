@@ -21,8 +21,8 @@ constexpr double SeparationRadius = 1.1;
 constexpr double SeparationWeight = 0.65;
 constexpr double Pi = 3.14159265358979323846;
 constexpr double BuildingGridCellSize = 2.0;
-constexpr double BuildingGridMinimum = -64.0;
-constexpr int BuildingGridSize = 64;
+constexpr double BuildingGridMinimum = -192.0;
+constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
 
@@ -386,7 +386,11 @@ EnemySystem::EnemySystem(
 }
 
 void EnemySystem::reset() {
-    enemies_.clear();
+    for (EnemyInstance& enemy : enemies_) {
+        enemy.active = false;
+        enemy.state = EnemyState::Dead;
+        enemy.target.reset();
+    }
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     areaDamageBuffer_.clear();
@@ -400,7 +404,9 @@ void EnemySystem::reset() {
 }
 
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
-    enemies_.clear();
+    for (EnemyInstance& enemy : enemies_) {
+        enemy.active = false;
+    }
     activeCount_ = 0;
     for (const Vec3 position : positions) {
         appendEnemy({EnemyType::Basic, position});
@@ -409,7 +415,9 @@ void EnemySystem::spawnWave(std::span<const Vec3> positions) {
 }
 
 void EnemySystem::spawnWave(std::span<const EnemySpawn> spawns) {
-    enemies_.clear();
+    for (EnemyInstance& enemy : enemies_) {
+        enemy.active = false;
+    }
     activeCount_ = 0;
     spawnGroup(spawns);
 }
@@ -875,28 +883,24 @@ std::optional<EntityId> EnemySystem::raycast(Vec3 origin, Vec3 direction,
 }
 
 std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount) {
-    const auto iterator = std::find_if(enemies_.begin(), enemies_.end(),
-                                       [id](const EnemyInstance& enemy) {
-                                           return enemy.id == id;
-                                       });
-    if (iterator == enemies_.end() || !iterator->active || amount <= 0.0) {
+    EnemyInstance* enemy = findEnemy(id);
+    if (enemy == nullptr || !enemy->active || amount <= 0.0) {
         return std::nullopt;
     }
 
-    iterator->health = std::max(0.0, iterator->health - amount);
-    iterator->hitAnimationRemaining = 0.22;
-    const bool killed = iterator->health <= 0.0;
+    enemy->health = std::max(0.0, enemy->health - amount);
+    enemy->hitAnimationRemaining = 0.22;
+    const bool killed = enemy->health <= 0.0;
     if (killed) {
-        iterator->active = false;
+        enemy->active = false;
         --activeCount_;
-        iterator->state = EnemyState::Dead;
-        iterator->target.reset();
-        rebuildSpatialIndex();
+        enemy->state = EnemyState::Dead;
+        enemy->target.reset();
     }
     return EnemyDamageResult{
-        .id = iterator->id,
-        .position = iterator->position,
-        .remainingHealth = iterator->health,
+        .id = enemy->id,
+        .position = enemy->position,
+        .remainingHealth = enemy->health,
         .killed = killed,
     };
 }
@@ -905,6 +909,10 @@ std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) 
     std::optional<EntityId> nearest;
     double nearestDistanceSquared = radius * radius;
     spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
+        const EnemyInstance* enemy = findEnemy(entry.id);
+        if (enemy == nullptr || !enemy->active) {
+            return;
+        }
         const double deltaX = entry.position.x - position.x;
         const double deltaZ = entry.position.z - position.z;
         const double distanceSquared = (deltaX * deltaX) + (deltaZ * deltaZ);
@@ -924,9 +932,18 @@ std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
     std::size_t bestCount = 0;
     double bestDistanceSquared = radius * radius;
     spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& candidate) {
+        const EnemyInstance* candidateEnemy = findEnemy(candidate.id);
+        if (candidateEnemy == nullptr || !candidateEnemy->active) {
+            return;
+        }
         std::size_t count = 0;
         spatialHash_.forEachNearby(candidate.position, clusterRadius,
-                                   [&count](const SpatialEntry&) { ++count; });
+                                   [this, &count](const SpatialEntry& entry) {
+            const EnemyInstance* enemy = findEnemy(entry.id);
+            if (enemy != nullptr && enemy->active) {
+                ++count;
+            }
+        });
         const double deltaX = candidate.position.x - position.x;
         const double deltaZ = candidate.position.z - position.z;
         const double distanceSquared = (deltaX * deltaX) + (deltaZ * deltaZ);
@@ -944,13 +961,11 @@ std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
 }
 
 std::optional<EnemyInstance> EnemySystem::enemy(EntityId id) const {
-    const auto iterator =
-        std::find_if(enemies_.begin(), enemies_.end(),
-                     [id](const EnemyInstance& instance) { return instance.id == id; });
-    if (iterator == enemies_.end() || !iterator->active) {
+    const EnemyInstance* instance = findEnemy(id);
+    if (instance == nullptr || !instance->active) {
         return std::nullopt;
     }
-    return *iterator;
+    return *instance;
 }
 
 std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, double radius,
@@ -963,51 +978,42 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             areaTargetBuffer_[targetCount++] = entry.id;
         }
     });
-    bool spatialIndexDirty = false;
     for (std::size_t index = 0; index < targetCount; ++index) {
-        const auto iterator = std::find_if(
-            enemies_.begin(), enemies_.end(),
-            [id = areaTargetBuffer_[index]](const EnemyInstance& enemy) {
-                return enemy.id == id;
-            });
-        if (iterator == enemies_.end() || !iterator->active || amount <= 0.0) {
+        EnemyInstance* enemy = findEnemy(areaTargetBuffer_[index]);
+        if (enemy == nullptr || !enemy->active || amount <= 0.0) {
             continue;
         }
-        iterator->health = std::max(0.0, iterator->health - amount);
-        iterator->hitAnimationRemaining = 0.22;
-        const bool killed = iterator->health <= 0.0;
+        enemy->health = std::max(0.0, enemy->health - amount);
+        enemy->hitAnimationRemaining = 0.22;
+        const bool killed = enemy->health <= 0.0;
         if (killed) {
-            iterator->active = false;
+            enemy->active = false;
             --activeCount_;
-            iterator->state = EnemyState::Dead;
-            iterator->target.reset();
-            spatialIndexDirty = true;
+            enemy->state = EnemyState::Dead;
+            enemy->target.reset();
         }
         areaDamageBuffer_.push_back({
-            .id = iterator->id,
-            .position = iterator->position,
-            .remainingHealth = iterator->health,
+            .id = enemy->id,
+            .position = enemy->position,
+            .remainingHealth = enemy->health,
             .killed = killed,
         });
         if (killed || knockbackStrength <= 0.0) {
             continue;
         }
-        double offsetX = iterator->position.x - position.x;
-        double offsetZ = iterator->position.z - position.z;
+        double offsetX = enemy->position.x - position.x;
+        double offsetZ = enemy->position.z - position.z;
         double distance = std::sqrt((offsetX * offsetX) + (offsetZ * offsetZ));
         if (distance <= 1e-9) {
-            offsetX = (iterator->id.index % 2U) == 0U ? -1.0 : 1.0;
+            offsetX = (enemy->id.index % 2U) == 0U ? -1.0 : 1.0;
             offsetZ = 0.0;
             distance = 1.0;
         }
         const double falloff = std::max(0.0, 1.0 - distance / radius);
         const double impulse =
-            knockbackStrength * falloff * knockbackMultiplier(iterator->type);
-        iterator->knockbackVelocity.x += (offsetX / distance) * impulse;
-        iterator->knockbackVelocity.z += (offsetZ / distance) * impulse;
-    }
-    if (spatialIndexDirty) {
-        rebuildSpatialIndex();
+            knockbackStrength * falloff * knockbackMultiplier(enemy->type);
+        enemy->knockbackVelocity.x += (offsetX / distance) * impulse;
+        enemy->knockbackVelocity.z += (offsetZ / distance) * impulse;
     }
     return areaDamageBuffer_;
 }
@@ -1016,16 +1022,14 @@ std::span<const EntityId> EnemySystem::applySlowInRadius(Vec3 position, double r
                                                         double multiplier, double duration) {
     statusTargetBuffer_.clear();
     spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
-        const auto iterator =
-            std::find_if(enemies_.begin(), enemies_.end(),
-                         [&entry](const EnemyInstance& enemy) { return enemy.id == entry.id; });
-        if (iterator == enemies_.end() || !iterator->active) {
+        EnemyInstance* enemy = findEnemy(entry.id);
+        if (enemy == nullptr || !enemy->active) {
             return;
         }
-        iterator->movementMultiplier =
-            std::min(iterator->movementMultiplier, std::clamp(multiplier, 0.1, 1.0));
-        iterator->slowRemaining = std::max(iterator->slowRemaining, duration);
-        statusTargetBuffer_.push_back(iterator->id);
+        enemy->movementMultiplier =
+            std::min(enemy->movementMultiplier, std::clamp(multiplier, 0.1, 1.0));
+        enemy->slowRemaining = std::max(enemy->slowRemaining, duration);
+        statusTargetBuffer_.push_back(enemy->id);
     });
     return statusTargetBuffer_;
 }
@@ -1138,6 +1142,30 @@ void EnemySystem::rebuildSpatialIndex() {
             spatialHash_.insert(enemy.id, enemy.position);
         }
     }
+}
+
+EnemyInstance* EnemySystem::findEnemy(EntityId id) {
+    if (id.index < FirstEnemyIndex) {
+        return nullptr;
+    }
+    const std::size_t slot =
+        static_cast<std::size_t>(id.index - FirstEnemyIndex);
+    if (slot >= enemies_.size() || enemies_[slot].id != id) {
+        return nullptr;
+    }
+    return &enemies_[slot];
+}
+
+const EnemyInstance* EnemySystem::findEnemy(EntityId id) const {
+    if (id.index < FirstEnemyIndex) {
+        return nullptr;
+    }
+    const std::size_t slot =
+        static_cast<std::size_t>(id.index - FirstEnemyIndex);
+    if (slot >= enemies_.size() || enemies_[slot].id != id) {
+        return nullptr;
+    }
+    return &enemies_[slot];
 }
 
 } // namespace ian

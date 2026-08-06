@@ -1,0 +1,56 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Build Windows x64 package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Enable MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Configure release
+        run: cmake --preset release -DBUILD_TESTING=OFF
+
+      - name: Build release
+        run: cmake --build --preset release
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $packageName = "ItsAlmostNight-Windows-x64"
+          $packageDir = Join-Path "dist" $packageName
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item "build/release/its_almost_night.exe" (Join-Path $packageDir "ItsAlmostNight.exe")
+          Copy-Item "build/release/assets" (Join-Path $packageDir "assets") -Recurse
+          Copy-Item "README.md" (Join-Path $packageDir "README.txt")
+          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip" -Force
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ItsAlmostNight-Windows-x64
+          path: dist/ItsAlmostNight-Windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ItsAlmostNight-Windows-x64.zip
+          generate_release_notes: true

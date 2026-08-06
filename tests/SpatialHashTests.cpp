@@ -9,7 +9,15 @@ void runSpatialHashTests() {
     hash.insert({1, 1}, {0.0, 0.0, 0.0});
     hash.insert({2, 1}, {1.9, 0.0, 0.0});
     hash.insert({3, 1}, {8.0, 0.0, 8.0});
-    require(hash.entryCount() == 3, "spatial hash tracks inserted entries");
+    hash.insert({6, 1}, {150.0, 0.0, -150.0});
+    require(hash.entryCount() == 4, "spatial hash tracks inserted entries");
+
+    std::size_t farMapCount = 0;
+    hash.forEachNearby(
+        {150.0, 0.0, -150.0}, 1.0,
+        [&farMapCount](const ian::SpatialEntry&) { ++farMapCount; });
+    require(farMapCount == 1,
+            "spatial hash covers the full terrain extent");
 
     std::size_t nearbyCount = 0;
     hash.forEachNearby({0.0, 0.0, 0.0}, 2.0,
@@ -27,7 +35,7 @@ void runSpatialHashTests() {
     hash.insert(
         {5, 1},
         {std::numeric_limits<double>::infinity(), 0.0, 0.0});
-    require(hash.entryCount() == 3,
+    require(hash.entryCount() == 4,
             "spatial hash rejects non-finite positions");
 
     std::size_t unboundedCount = 0;
@@ -37,7 +45,7 @@ void runSpatialHashTests() {
         [&unboundedCount](const ian::SpatialEntry&) {
             ++unboundedCount;
         });
-    require(unboundedCount == 3,
+    require(unboundedCount == 4,
             "unbounded spatial query remains defined");
 
     hash.clear();

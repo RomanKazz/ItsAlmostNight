@@ -127,9 +127,7 @@ void App::drawGraphicsPanel() {
                      ? "LOW"
                      : settings.shadowMapSize <= 1024
                            ? "MEDIUM"
-                           : settings.shadowMapSize <= 2048
-                                 ? "HIGH"
-                                 : "ULTRA"))) {
+                           : "HIGH"))) {
         renderer_->cycleShadowQuality();
     }
     y += ButtonHeight + Gap;
@@ -167,10 +165,23 @@ void App::drawGraphicsPanel() {
     }
     y += ButtonHeight + Gap;
 
+    const std::string frameRateLabel =
+        settings.frameRateLimit == 0
+            ? "FPS LIMIT: UNLIMITED"
+            : std::string("FPS LIMIT: ") +
+                  std::to_string(settings.frameRateLimit);
+    if (ui_.drawButton(
+            {contentX, y, contentWidth, ButtonHeight},
+            frameRateLabel)) {
+        renderer_->cycleFrameRateLimit();
+    }
+    y += ButtonHeight + Gap;
+
     if (ui_.drawButton(
             {contentX, y, columnWidth, ButtonHeight},
             "RESET DISPLAY")) {
         resetDisplaySettings(settings);
+        renderer_->applyFrameRateLimit();
     }
     if (ui_.drawButton(
             {contentX + columnWidth + Gap, y, columnWidth,

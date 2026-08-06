@@ -80,7 +80,7 @@ WaveDirector::WaveDirector(
     : spawnAnchors_(spawnAnchors.empty() ? defaultSpawnAnchors()
                                         : std::move(spawnAnchors)),
       definitions_(definitions) {
-    spawnBuffer_.reserve(128);
+    spawnBuffer_.reserve(MaximumWaveEnemies);
 }
 
 WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,

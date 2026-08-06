@@ -200,7 +200,7 @@ Simulation::Simulation(
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
-    waveSpawnQueue_.reserve(200);
+    waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
 }
 
 void Simulation::startRun() {
@@ -1614,6 +1614,8 @@ void Simulation::updateCombat(double deltaSeconds) {
                 break;
             }
         }
+        bool producerRuntimeDirty = false;
+        bool worldStructuresDirty = false;
         for (const auto& attack : attacks) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             if (unlimitedResources_) {
@@ -1727,8 +1729,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 }
                 continue;
             }
-            goldMines_.syncBuildings(
-                buildings_.buildings());
+            producerRuntimeDirty = true;
             const Vec3 attackPosition =
                 attacker ? attacker->position
                          : buildingWorldPosition(*damage);
@@ -1769,7 +1770,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     .position =
                         buildingWorldPosition(*damage),
                 });
-                syncWorldStructures();
+                worldStructuresDirty = true;
                 if (damage->type == BuildingType::Core) {
                     cannons_.clearProjectiles();
                     bombs_.clearProjectiles();
@@ -1778,6 +1779,11 @@ void Simulation::updateCombat(double deltaSeconds) {
                     break;
                 }
             }
+        }
+        if (worldStructuresDirty) {
+            syncWorldStructures();
+        } else if (producerRuntimeDirty) {
+            goldMines_.syncBuildings(buildings_.buildings());
         }
 
         updateTowerCombat(deltaSeconds);

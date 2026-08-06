@@ -44,9 +44,19 @@ int nearestPixelSize(int value) {
 }
 
 int nearestShadowMapSize(int value) {
-    constexpr std::array ShadowMapSizes{512, 1024, 2048, 4096};
+    constexpr std::array ShadowMapSizes{512, 1024, 2048};
     return *std::min_element(
         ShadowMapSizes.begin(), ShadowMapSizes.end(),
+        [value](int left, int right) {
+            return std::abs(left - value) <
+                   std::abs(right - value);
+        });
+}
+
+int nearestFrameRateLimit(int value) {
+    constexpr std::array FrameRateLimits{0, 60, 120, 144};
+    return *std::min_element(
+        FrameRateLimits.begin(), FrameRateLimits.end(),
         [value](int left, int right) {
             return std::abs(left - value) <
                    std::abs(right - value);
@@ -83,6 +93,7 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "fogBands", settings.fogBands);
     readValue(value, "paperGrain", settings.paperGrain);
     readValue(value, "shadowMapSize", settings.shadowMapSize);
+    readValue(value, "frameRateLimit", settings.frameRateLimit);
     readValue(value, "pixelSize", settings.pixelSize);
     readValue(value, "shadowDistance", settings.shadowDistance);
     readValue(value, "constantBias", settings.constantBias);
@@ -124,6 +135,7 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
 
     const GraphicsSettings defaults;
     settings.shadowMapSize = nearestShadowMapSize(settings.shadowMapSize);
+    settings.frameRateLimit = nearestFrameRateLimit(settings.frameRateLimit);
     settings.pixelSize = nearestPixelSize(settings.pixelSize);
     settings.shadowDistance = finiteClamped(
         settings.shadowDistance, defaults.shadowDistance, 10.0F, 180.0F);
@@ -201,6 +213,7 @@ Json graphicsJson(const GraphicsSettings& settings) {
         {"fogBands", settings.fogBands},
         {"paperGrain", settings.paperGrain},
         {"shadowMapSize", settings.shadowMapSize},
+        {"frameRateLimit", settings.frameRateLimit},
         {"pixelSize", settings.pixelSize},
         {"shadowDistance", settings.shadowDistance},
         {"constantBias", settings.constantBias},
@@ -341,6 +354,7 @@ void resetDisplaySettings(GraphicsSettings& settings) {
     settings.bloom = defaults.bloom;
     settings.ssao = defaults.ssao;
     settings.shadowMapSize = defaults.shadowMapSize;
+    settings.frameRateLimit = defaults.frameRateLimit;
     settings.pixelSize = defaults.pixelSize;
     settings.shadowDistance = defaults.shadowDistance;
     settings.constantBias = defaults.constantBias;

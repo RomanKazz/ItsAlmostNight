@@ -1531,6 +1531,7 @@ bool Renderer::drawRocksInstanced(
 void Renderer::drawDecorativeRocks(
     Vector3 cameraPosition, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
+    ensureGrassClearAreaIndex(clearAreas);
     constexpr std::size_t VariantCount = 4U;
     constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
@@ -1767,6 +1768,7 @@ void Renderer::drawDecorativeRocks(
 void Renderer::drawDecorativeRockAo(
     Vector3 cameraPosition, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
+    ensureGrassClearAreaIndex(clearAreas);
     if (!blobShadowBatchOpen_ ||
         terrainHeightfield_ == nullptr) {
         return;
@@ -2447,26 +2449,6 @@ bool Renderer::drawEnemiesInstanced(
         return false;
     }
 
-    struct BatchKey {
-        EnemyModelVisual model{};
-        EnemyAnimationVisual animation{};
-        int frame{};
-        std::uint32_t tint{};
-        int scale{};
-        bool loop{};
-
-        [[nodiscard]] auto values() const {
-            return std::tie(model, animation, frame, tint, scale, loop);
-        }
-        [[nodiscard]] bool operator<(const BatchKey& other) const {
-            return values() < other.values();
-        }
-    };
-    struct Batch {
-        EnemyDrawInstance representative{};
-        std::vector<Matrix> transforms{};
-    };
-
     const auto modelFor = [this](EnemyModelVisual visual)
         -> ModelResource* {
         return enemyModelFor(resources_, visual);
@@ -2479,7 +2461,10 @@ bool Renderer::drawEnemiesInstanced(
 
     constexpr int CrowdPoseCount = 6;
     constexpr float SourceAnimationFps = 30.0F;
-    std::map<BatchKey, Batch> batches;
+    for (auto& [key, batch] : enemyBatches_) {
+        (void)key;
+        batch.transforms.clear();
+    }
     constexpr float ModelScale = 0.82F;
     for (const EnemyDrawInstance& instance : instances) {
         ModelResource* resource = modelFor(instance.modelVisual);
@@ -2516,11 +2501,11 @@ bool Renderer::drawEnemiesInstanced(
             (static_cast<std::uint32_t>(instance.tint.g) << 8U) |
             (static_cast<std::uint32_t>(instance.tint.b) << 16U) |
             (static_cast<std::uint32_t>(instance.tint.a) << 24U);
-        const BatchKey key{
+        const EnemyBatchKey key{
             instance.modelVisual, instance.animationVisual, frame,
             tint, static_cast<int>(std::lround(instance.scale * 1000.0F)),
             instance.loop};
-        Batch& batch = batches[key];
+        EnemyBatch& batch = enemyBatches_[key];
         if (batch.transforms.empty()) {
             batch.representative = instance;
             batch.representative.animationSeconds =
@@ -2549,8 +2534,11 @@ bool Renderer::drawEnemiesInstanced(
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, true);
 
-    for (auto& [key, batch] : batches) {
+    for (auto& [key, batch] : enemyBatches_) {
         (void)key;
+        if (batch.transforms.empty()) {
+            continue;
+        }
         const EnemyDrawInstance& representative =
             batch.representative;
         ModelResource* resource =

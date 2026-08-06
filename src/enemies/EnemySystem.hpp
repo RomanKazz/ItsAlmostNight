@@ -104,7 +104,7 @@ struct EnemyPlayerAttack {
 class EnemySystem {
   public:
     static constexpr std::size_t MaxEnemies = 2048;
-    static constexpr std::size_t MaxActiveEnemies = 160;
+    static constexpr std::size_t MaxActiveEnemies = 512;
 
     explicit EnemySystem(
         std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions =
@@ -141,8 +141,12 @@ class EnemySystem {
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
 
   private:
+    static constexpr std::uint32_t FirstEnemyIndex = 2000;
+
     void appendEnemy(const EnemySpawn& spawn);
     void rebuildSpatialIndex();
+    [[nodiscard]] EnemyInstance* findEnemy(EntityId id);
+    [[nodiscard]] const EnemyInstance* findEnemy(EntityId id) const;
 
     std::vector<EnemyInstance> enemies_;
     std::vector<EnemyAttack> attackBuffer_;
@@ -155,7 +159,7 @@ class EnemySystem {
     std::vector<int> collisionBuildingLinks_;
     std::array<EntityId, SpatialHash::MaxEntries> areaTargetBuffer_{};
     std::size_t activeCount_{};
-    std::uint32_t nextIndex_{2000};
+    std::uint32_t nextIndex_{FirstEnemyIndex};
     SpatialHash spatialHash_;
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions_;
 };

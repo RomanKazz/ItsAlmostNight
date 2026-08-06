@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -172,6 +173,8 @@ class Renderer {
     void cycleAoStrength();
     void cycleQuality();
     void cycleShadowQuality();
+    void cycleFrameRateLimit();
+    void applyFrameRateLimit() const;
     void adjustPixelSize(int direction);
 
     void beginWorldPass(Color clearColor);
@@ -332,10 +335,28 @@ class Renderer {
     [[nodiscard]] const GraphicsSettings& settings() const;
 
   private:
-    [[nodiscard]] static float clearAreaVisibility(
+    struct EnemyBatchKey {
+        EnemyModelVisual model{};
+        EnemyAnimationVisual animation{};
+        int frame{};
+        std::uint32_t tint{};
+        int scale{};
+        bool loop{};
+
+        auto operator<=>(const EnemyBatchKey&) const = default;
+    };
+
+    struct EnemyBatch {
+        EnemyDrawInstance representative{};
+        std::vector<Matrix> transforms{};
+    };
+
+    void ensureGrassClearAreaIndex(
+        std::span<const GrassClearArea> clearAreas);
+    [[nodiscard]] float clearAreaVisibility(
         Vector2 position,
         std::span<const GrassClearArea> clearAreas,
-        float feather, float innerPadding = 0.0F);
+        float feather, float innerPadding = 0.0F) const;
 
     struct WorldShaderLocations {
         int baseColor{-1};
@@ -539,6 +560,14 @@ class Renderer {
     std::vector<Transform*> enemyAnimationFrames_;
     std::array<std::array<std::vector<int>, 2>, 7>
         enemyBoneMappings_;
+    std::map<EnemyBatchKey, EnemyBatch> enemyBatches_;
+    std::vector<std::vector<std::uint32_t>>
+        grassClearAreaCells_;
+    const GrassClearArea* indexedGrassClearAreaData_{};
+    std::size_t indexedGrassClearAreaCount_{};
+    float grassClearAreaMinimum_{};
+    float grassClearAreaCellSize_{8.0F};
+    int grassClearAreaDimension_{};
 };
 
 } // namespace ian

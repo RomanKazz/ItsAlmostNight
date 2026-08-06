@@ -394,14 +394,21 @@ void runEnemySystemTests() {
 
     std::vector<ian::EnemySpawn> blastSpawns;
     blastSpawns.reserve(ian::EnemySystem::MaxActiveEnemies);
+    const std::size_t blastColumns = static_cast<std::size_t>(
+        std::ceil(std::sqrt(static_cast<double>(
+            ian::EnemySystem::MaxActiveEnemies))));
+    const double blastCenter =
+        static_cast<double>(blastColumns - 1U) * 0.1;
     for (std::size_t index = 0;
          index < ian::EnemySystem::MaxActiveEnemies; ++index) {
         blastSpawns.push_back({
             .type = ian::EnemyType::Basic,
             .position = {
-                (static_cast<double>(index % 16U) - 7.5) * 0.25,
+                static_cast<double>(index % blastColumns) * 0.2 -
+                    blastCenter,
                 0.8,
-                (static_cast<double>(index / 16U) - 4.5) * 0.25,
+                static_cast<double>(index / blastColumns) * 0.2 -
+                    blastCenter,
             },
         });
     }

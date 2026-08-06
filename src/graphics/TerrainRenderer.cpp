@@ -75,6 +75,9 @@ void TerrainRenderer::rebuild(
     terrain_ = &terrain;
     waterModel_ = buildWaterModel();
     ready_ = true;
+    // Build and upload the finite terrain during loading. Doing this lazily
+    // from the first shadow/world pass creates a large single-frame stall.
+    updateVisibleChunks({0.0F, 0.0F, 0.0F});
 }
 
 Model TerrainRenderer::buildChunk(
