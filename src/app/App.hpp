@@ -89,6 +89,8 @@ class App {
     void drawChestLootGlow(
         const SimulationSnapshot& snapshot,
         const Camera3D& camera);
+    void drawLootItemOutlines(
+        const SimulationSnapshot& snapshot);
     void drawFloatingDamageNumbers(const Camera3D& camera) const;
     void drawResourceGainVisuals(const Camera3D& camera) const;
     void drawProductionVisuals(

@@ -552,6 +552,7 @@ void App::render() {
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects();
+        drawLootItemOutlines(presentationSnapshot);
         EndMode3D();
         renderer_->drawSelectionOutline();
 

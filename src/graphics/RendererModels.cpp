@@ -515,7 +515,7 @@ Color lootRarityColor(LootRarity rarity) {
         return {255, 193, 48, 255};
     if (rarity == LootRarity::Uncommon)
         return {82, 255, 167, 255};
-    return {158, 232, 255, 255};
+    return {185, 240, 255, 255};
 }
 
 bool Renderer::drawFirstPersonTool(
@@ -708,13 +708,8 @@ void Renderer::drawLootItem(
 void Renderer::drawLootItemOutline(
     Vector3 position, LootUpgradeEffect effect,
     LootRarity rarity, float rotationRadians, float scale) {
-    rlPushMatrix();
-    rlTranslatef(position.x, position.y, position.z);
-    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-    applyLootItemLocalRotation(effect);
-    const float outlineScale = scale * 1.065F;
-    rlScalef(outlineScale, outlineScale, outlineScale);
     rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ALPHA);
     rlDisableDepthMask();
     rlSetCullFace(RL_CULL_FACE_FRONT);
     ModelResource* resource = lootItemModelFor(resources_, effect);
@@ -727,14 +722,30 @@ void Renderer::drawLootItemOutline(
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = shader;
         }
-        drawFittedLootOutlineModel(model, lootRarityColor(rarity));
-    } else {
-        drawLootItemGeometry(effect, lootRarityColor(rarity));
     }
+
+    const Color coreColor = lootRarityColor(rarity);
+    const auto drawShell = [&](float expansion, Color color) {
+        rlPushMatrix();
+        rlTranslatef(position.x, position.y, position.z);
+        rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+        applyLootItemLocalRotation(effect);
+        const float shellScale = scale * expansion;
+        rlScalef(shellScale, shellScale, shellScale);
+        if (resource != nullptr && resource->valid()) {
+            drawFittedLootOutlineModel(resource->get(), color);
+        } else {
+            drawLootItemGeometry(effect, color);
+        }
+        rlPopMatrix();
+    };
+    drawShell(1.13F, Fade(coreColor, 0.42F));
+    drawShell(1.075F, coreColor);
+
     rlDrawRenderBatchActive();
     rlSetCullFace(RL_CULL_FACE_BACK);
     rlEnableDepthMask();
-    rlPopMatrix();
+    EndBlendMode();
 }
 
 std::optional<double> Renderer::buildingRaycastDistance(
