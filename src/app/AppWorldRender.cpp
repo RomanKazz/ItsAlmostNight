@@ -204,8 +204,12 @@ void App::drawWorldEntities(
         const float eased = 1.0F -
             std::pow(1.0F - reveal, 3.0F);
         const float time = static_cast<float>(snapshot.elapsedSeconds);
+        // One extra eased revolution while the item rises. Ending at exactly
+        // 2*PI makes the transition back to the normal idle spin seamless.
+        const float riseSpin = reveal * reveal * (3.0F - 2.0F * reveal);
         const float rotation = time * 1.65F +
-            static_cast<float>(chest.id.index) * 0.73F;
+            static_cast<float>(chest.id.index) * 0.73F +
+            riseSpin * 2.0F * PI;
         const float itemScale = 1.50F * (0.35F + eased * 0.65F) +
             std::sin(reveal * PI) * 0.24F;
         const Vector3 itemPosition{
