@@ -279,7 +279,7 @@ void App::drawAtmosphereParticles(
     EndBlendMode();
 }
 
-void App::drawChestOpeningGlow(
+void App::drawChestLootGlow(
     const SimulationSnapshot& snapshot,
     const Camera3D& camera) {
     if (!renderer_->settings().particles) {
@@ -292,16 +292,20 @@ void App::drawChestOpeningGlow(
     const float time = static_cast<float>(snapshot.elapsedSeconds);
     BeginBlendMode(BLEND_ADDITIVE);
     for (const LootChestInstance& chest : snapshot.lootChests) {
-        const float progress =
-            static_cast<float>(chest.openingProgress);
-        if (chest.state != LootChestState::Opening ||
-            progress <= 0.0F || progress >= 1.0F) {
+        const float progress = std::clamp(
+            static_cast<float>(chest.openingProgress), 0.0F, 1.0F);
+        if (chest.state == LootChestState::Closed ||
+            chest.loot.collected || progress <= 0.0F) {
             continue;
         }
         const float appear = smoothstep(0.015F, 0.08F, progress);
-        const float dissolve = 1.0F -
-            smoothstep(0.12F, 0.90F, progress);
-        const float intensity = appear * dissolve;
+        const float openingEnergy = 1.0F -
+            smoothstep(0.18F, 0.92F, progress);
+        const float pulse = 1.0F +
+            std::sin(time * 2.15F +
+                     static_cast<float>(chest.id.index) * 0.83F) * 0.08F;
+        const float intensity =
+            appear * (0.66F + openingEnergy * 0.50F) * pulse;
         if (intensity <= 0.005F) {
             continue;
         }
@@ -323,12 +327,12 @@ void App::drawChestOpeningGlow(
             continue;
         }
         const Vector3 radiusPoint = Vector3Add(
-            origin, Vector3Scale(cameraRight, 0.46F));
+            origin, Vector3Scale(cameraRight, 0.56F));
         const float baseRadius = std::clamp(
             Vector2Distance(baseScreen,
                             GetWorldToScreen(radiusPoint, camera)),
-            15.0F, 135.0F);
-        const float columnHeight = 0.58F + progress * 1.18F;
+            18.0F, 165.0F);
+        const float columnHeight = 0.72F + progress * 1.38F;
         constexpr int GlowSamples = 13;
         for (int sample = GlowSamples - 1; sample >= 0; --sample) {
             const float amount = static_cast<float>(sample) /
@@ -346,11 +350,11 @@ void App::drawChestOpeningGlow(
             const float breathing = 0.94F +
                 std::sin(time * 3.1F + amount * 2.7F) * 0.06F;
             const float radius = baseRadius *
-                (0.72F + amount * 0.58F) * breathing;
+                (0.78F + amount * 0.68F) * breathing;
             const auto outerAlpha = atmosphereAlpha(
-                intensity * verticalFade * 0.105F);
+                intensity * verticalFade * 0.135F);
             const auto innerAlpha = atmosphereAlpha(
-                intensity * verticalFade * 0.082F);
+                intensity * verticalFade * 0.105F);
             DrawCircleGradient(
                 screen,
                 radius,
@@ -362,9 +366,9 @@ void App::drawChestOpeningGlow(
         }
         DrawCircleGradient(
             baseScreen,
-            baseRadius * 1.15F,
-            {255, 224, 132,
-             atmosphereAlpha(intensity * 0.24F)},
+            baseRadius * 1.32F,
+            {255, 226, 122,
+             atmosphereAlpha(intensity * 0.32F)},
             BLANK);
     }
     EndBlendMode();
