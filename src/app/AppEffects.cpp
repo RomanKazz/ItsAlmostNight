@@ -279,6 +279,97 @@ void App::drawAtmosphereParticles(
     EndBlendMode();
 }
 
+void App::drawChestOpeningGlow(
+    const SimulationSnapshot& snapshot,
+    const Camera3D& camera) {
+    if (!renderer_->settings().particles) {
+        return;
+    }
+    const Vector3 cameraForward = Vector3Normalize(
+        Vector3Subtract(camera.target, camera.position));
+    const Vector3 cameraRight = Vector3Normalize(
+        Vector3CrossProduct(cameraForward, camera.up));
+    const float time = static_cast<float>(snapshot.elapsedSeconds);
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const LootChestInstance& chest : snapshot.lootChests) {
+        const float progress =
+            static_cast<float>(chest.openingProgress);
+        if (chest.state != LootChestState::Opening ||
+            progress <= 0.0F || progress >= 1.0F) {
+            continue;
+        }
+        const float appear = smoothstep(0.015F, 0.08F, progress);
+        const float dissolve = 1.0F -
+            smoothstep(0.12F, 0.90F, progress);
+        const float intensity = appear * dissolve;
+        if (intensity <= 0.005F) {
+            continue;
+        }
+        const Vector3 origin{
+            static_cast<float>(chest.position.x),
+            static_cast<float>(chest.position.y) + 0.48F,
+            static_cast<float>(chest.position.z),
+        };
+        if (Vector3DotProduct(
+                Vector3Subtract(origin, camera.position),
+                cameraForward) <= 0.05F) {
+            continue;
+        }
+        const Vector2 baseScreen = GetWorldToScreen(origin, camera);
+        if (baseScreen.x < -180.0F ||
+            baseScreen.y < -180.0F ||
+            baseScreen.x > static_cast<float>(GetScreenWidth()) + 180.0F ||
+            baseScreen.y > static_cast<float>(GetScreenHeight()) + 180.0F) {
+            continue;
+        }
+        const Vector3 radiusPoint = Vector3Add(
+            origin, Vector3Scale(cameraRight, 0.46F));
+        const float baseRadius = std::clamp(
+            Vector2Distance(baseScreen,
+                            GetWorldToScreen(radiusPoint, camera)),
+            15.0F, 135.0F);
+        const float columnHeight = 0.58F + progress * 1.18F;
+        constexpr int GlowSamples = 13;
+        for (int sample = GlowSamples - 1; sample >= 0; --sample) {
+            const float amount = static_cast<float>(sample) /
+                static_cast<float>(GlowSamples - 1);
+            const float sideways =
+                std::sin(time * 1.8F + amount * 4.2F +
+                         static_cast<float>(chest.id.index)) *
+                0.055F * amount;
+            Vector3 worldPoint = Vector3Add(
+                origin, Vector3Scale(cameraRight, sideways));
+            worldPoint.y += amount * columnHeight;
+            const Vector2 screen = GetWorldToScreen(worldPoint, camera);
+            const float verticalFade =
+                std::pow(1.0F - amount * 0.82F, 1.35F);
+            const float breathing = 0.94F +
+                std::sin(time * 3.1F + amount * 2.7F) * 0.06F;
+            const float radius = baseRadius *
+                (0.72F + amount * 0.58F) * breathing;
+            const auto outerAlpha = atmosphereAlpha(
+                intensity * verticalFade * 0.105F);
+            const auto innerAlpha = atmosphereAlpha(
+                intensity * verticalFade * 0.082F);
+            DrawCircleGradient(
+                screen,
+                radius,
+                {255, 184, 74, outerAlpha}, BLANK);
+            DrawCircleGradient(
+                screen,
+                radius * 0.48F,
+                {255, 240, 174, innerAlpha}, BLANK);
+        }
+        DrawCircleGradient(
+            baseScreen,
+            baseRadius * 1.15F,
+            {255, 224, 132,
+             atmosphereAlpha(intensity * 0.24F)},
+            BLANK);
+    }
+    EndBlendMode();
+}
+
 void App::drawPresentationEffects() {
     for (const auto& effect : effects_) {
         if (effect.startDelayRemaining > 0.0) {

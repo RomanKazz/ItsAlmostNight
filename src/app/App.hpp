@@ -86,6 +86,9 @@ class App {
     void drawPresentationEffects();
     void drawAtmosphereParticles(
         const Camera3D& camera, float nightAmount);
+    void drawChestOpeningGlow(
+        const SimulationSnapshot& snapshot,
+        const Camera3D& camera);
     void drawFloatingDamageNumbers(const Camera3D& camera) const;
     void drawResourceGainVisuals(const Camera3D& camera) const;
     void drawProductionVisuals(

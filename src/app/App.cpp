@@ -608,6 +608,7 @@ void App::render() {
             }
         }
         renderer_->endWorldPass();
+        drawChestOpeningGlow(presentationSnapshot, camera);
 
         const bool tuningPreview =
             renderer_->graphicsPanelVisible() &&
