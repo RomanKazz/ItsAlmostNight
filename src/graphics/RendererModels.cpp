@@ -504,6 +504,7 @@ void drawFittedLootOutlineModel(Model& model, Color color) {
 void applyLootItemLocalRotation(LootUpgradeEffect effect) {
     if (effect == LootUpgradeEffect::Bread) {
         rlRotatef(90.0F, 1.0F, 0.0F, 0.0F);
+        rlRotatef(90.0F, 0.0F, 0.0F, 1.0F);
     }
 }
 
