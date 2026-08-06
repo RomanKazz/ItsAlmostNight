@@ -486,11 +486,17 @@ void drawFittedLootOutlineModel(Model& model, Color color) {
     rlScalef(fit.scale, fit.scale, fit.scale);
     rlTranslatef(-fit.center.x, -fit.center.y, -fit.center.z);
     for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-        Material material =
+        Material& material =
             model.materials[model.meshMaterial[meshIndex]];
+        const Texture2D originalTexture =
+            material.maps[MATERIAL_MAP_DIFFUSE].texture;
+        const Color originalColor =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
         material.maps[MATERIAL_MAP_DIFFUSE].texture = whiteTexture;
         material.maps[MATERIAL_MAP_DIFFUSE].color = color;
         DrawMesh(model.meshes[meshIndex], material, model.transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].texture = originalTexture;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = originalColor;
     }
     rlPopMatrix();
 }
