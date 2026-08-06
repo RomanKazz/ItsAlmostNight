@@ -438,8 +438,39 @@ ModelResource* lootItemModelFor(
     return nullptr;
 }
 
-float lootItemModelScale(LootUpgradeEffect effect) {
-    return effect == LootUpgradeEffect::Apple ? 0.72F : 0.68F;
+struct LootModelFit {
+    Vector3 center{};
+    float scale{1.0F};
+};
+
+LootModelFit lootModelFit(const Model& model) {
+    const BoundingBox bounds = GetModelBoundingBox(model);
+    const Vector3 extent{
+        bounds.max.x - bounds.min.x,
+        bounds.max.y - bounds.min.y,
+        bounds.max.z - bounds.min.z,
+    };
+    const float maximumExtent = std::max({extent.x, extent.y, extent.z});
+    constexpr float TargetMaximumExtent = 0.92F;
+    return {
+        .center = {
+            (bounds.min.x + bounds.max.x) * 0.5F,
+            (bounds.min.y + bounds.max.y) * 0.5F,
+            (bounds.min.z + bounds.max.z) * 0.5F,
+        },
+        .scale = maximumExtent > 0.0001F
+            ? TargetMaximumExtent / maximumExtent
+            : 1.0F,
+    };
+}
+
+void drawFittedLootModel(Model& model, Color tint) {
+    const LootModelFit fit = lootModelFit(model);
+    rlPushMatrix();
+    rlScalef(fit.scale, fit.scale, fit.scale);
+    rlTranslatef(-fit.center.x, -fit.center.y, -fit.center.z);
+    DrawModel(model, {}, 1.0F, tint);
+    rlPopMatrix();
 }
 
 } // namespace
@@ -631,9 +662,7 @@ void Renderer::drawLootItem(
         }
         // Keep the authored food colors; rarity belongs to the silhouette,
         // not to a cyan tint over the item itself.
-        DrawModel(
-            model, {}, lootItemModelScale(effect),
-            ColorTint(WHITE, tint));
+        drawFittedLootModel(model, ColorTint(WHITE, tint));
     } else {
         drawLootItemGeometry(effect, color);
     }
@@ -646,9 +675,10 @@ void Renderer::drawLootItemOutline(
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-    const float outlineScale = scale * 1.13F;
+    const float outlineScale = scale * 1.065F;
     rlScalef(outlineScale, outlineScale, outlineScale);
     rlDrawRenderBatchActive();
+    rlDisableDepthMask();
     rlSetCullFace(RL_CULL_FACE_FRONT);
     ModelResource* resource = lootItemModelFor(resources_, effect);
     if (resource != nullptr && resource->valid()) {
@@ -660,14 +690,13 @@ void Renderer::drawLootItemOutline(
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = shader;
         }
-        DrawModel(
-            model, {}, lootItemModelScale(effect),
-            lootRarityColor(rarity));
+        drawFittedLootModel(model, lootRarityColor(rarity));
     } else {
         drawLootItemGeometry(effect, lootRarityColor(rarity));
     }
     rlDrawRenderBatchActive();
     rlSetCullFace(RL_CULL_FACE_BACK);
+    rlEnableDepthMask();
     rlPopMatrix();
 }
 
