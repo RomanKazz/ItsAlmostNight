@@ -167,6 +167,12 @@ void App::drawWorldEntities(
             }
         }
     }
+    // Draw the additive loot light in world space before the opaque chest.
+    // It keeps terrain depth occlusion and the chest naturally covers the
+    // part of the glow that is physically behind its body and lid.
+    renderer_->endWorldShader();
+    drawChestLootGlow(snapshot, camera);
+    renderer_->beginWorldShader(lighting);
     WorldMaterialState chestMaterial{};
     chestMaterial.bakedAo = 0.78F;
     renderer_->setWorldMaterial(chestMaterial);

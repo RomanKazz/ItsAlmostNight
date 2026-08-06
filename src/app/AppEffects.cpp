@@ -285,12 +285,20 @@ void App::drawChestLootGlow(
     if (!renderer_->settings().particles) {
         return;
     }
-    const Vector3 cameraForward = Vector3Normalize(
-        Vector3Subtract(camera.target, camera.position));
     const Vector3 cameraRight = Vector3Normalize(
-        Vector3CrossProduct(cameraForward, camera.up));
+        Vector3CrossProduct(
+            Vector3Normalize(Vector3Subtract(camera.target, camera.position)),
+            camera.up));
+    const Vector3 cameraUp = Vector3Normalize(camera.up);
     const float time = static_cast<float>(snapshot.elapsedSeconds);
-    BeginBlendMode(BLEND_ADDITIVE);
+
+    rlDrawRenderBatchActive();
+    rlSetBlendFactorsSeparate(
+        RL_SRC_ALPHA, RL_ONE, RL_ZERO, RL_ZERO,
+        RL_FUNC_ADD, RL_FUNC_ADD);
+    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+    rlDisableDepthMask();
+    rlBegin(RL_TRIANGLES);
     for (const LootChestInstance& chest : snapshot.lootChests) {
         const float progress = std::clamp(
             static_cast<float>(chest.openingProgress), 0.0F, 1.0F);
@@ -306,71 +314,65 @@ void App::drawChestLootGlow(
                      static_cast<float>(chest.id.index) * 0.83F) * 0.08F;
         const float intensity =
             appear * (0.66F + openingEnergy * 0.50F) * pulse;
-        if (intensity <= 0.005F) {
-            continue;
-        }
+        if (intensity <= 0.005F) continue;
+
         const Vector3 origin{
             static_cast<float>(chest.position.x),
-            static_cast<float>(chest.position.y) + 0.48F,
+            static_cast<float>(chest.position.y) + 0.58F,
             static_cast<float>(chest.position.z),
         };
-        if (Vector3DotProduct(
-                Vector3Subtract(origin, camera.position),
-                cameraForward) <= 0.05F) {
-            continue;
-        }
-        const Vector2 baseScreen = GetWorldToScreen(origin, camera);
-        if (baseScreen.x < -180.0F ||
-            baseScreen.y < -180.0F ||
-            baseScreen.x > static_cast<float>(GetScreenWidth()) + 180.0F ||
-            baseScreen.y > static_cast<float>(GetScreenHeight()) + 180.0F) {
-            continue;
-        }
-        const Vector3 radiusPoint = Vector3Add(
-            origin, Vector3Scale(cameraRight, 0.56F));
-        const float baseRadius = std::clamp(
-            Vector2Distance(baseScreen,
-                            GetWorldToScreen(radiusPoint, camera)),
-            18.0F, 165.0F);
-        const float columnHeight = 0.72F + progress * 1.38F;
-        constexpr int GlowSamples = 13;
-        for (int sample = GlowSamples - 1; sample >= 0; --sample) {
-            const float amount = static_cast<float>(sample) /
-                static_cast<float>(GlowSamples - 1);
-            const float sideways =
-                std::sin(time * 1.8F + amount * 4.2F +
+
+        constexpr int GlowLayers = 9;
+        constexpr int GlowSegments = 18;
+        for (int layer = 0; layer < GlowLayers; ++layer) {
+            const float amount = static_cast<float>(layer) /
+                static_cast<float>(GlowLayers - 1);
+            const float drift =
+                std::sin(time * 1.55F + amount * 4.1F +
                          static_cast<float>(chest.id.index)) *
-                0.055F * amount;
-            Vector3 worldPoint = Vector3Add(
-                origin, Vector3Scale(cameraRight, sideways));
-            worldPoint.y += amount * columnHeight;
-            const Vector2 screen = GetWorldToScreen(worldPoint, camera);
+                0.045F * amount;
+            Vector3 center = Vector3Add(
+                origin, Vector3Scale(cameraRight, drift));
+            center.y += amount * (0.76F + progress * 1.40F);
+            const float breathing = 1.0F +
+                std::sin(time * 2.65F + amount * 2.9F) * 0.055F;
+            const float width =
+                (0.62F + amount * 0.48F) * breathing;
+            const float height = width * (0.72F + amount * 0.22F);
             const float verticalFade =
-                std::pow(1.0F - amount * 0.82F, 1.35F);
-            const float breathing = 0.94F +
-                std::sin(time * 3.1F + amount * 2.7F) * 0.06F;
-            const float radius = baseRadius *
-                (0.78F + amount * 0.68F) * breathing;
-            const auto outerAlpha = atmosphereAlpha(
-                intensity * verticalFade * 0.135F);
-            const auto innerAlpha = atmosphereAlpha(
-                intensity * verticalFade * 0.105F);
-            DrawCircleGradient(
-                screen,
-                radius,
-                {255, 184, 74, outerAlpha}, BLANK);
-            DrawCircleGradient(
-                screen,
-                radius * 0.48F,
-                {255, 240, 174, innerAlpha}, BLANK);
+                std::pow(1.0F - amount * 0.80F, 1.22F);
+            const unsigned char alpha = atmosphereAlpha(
+                intensity * verticalFade * 0.30F);
+
+            for (int segment = 0; segment < GlowSegments; ++segment) {
+                const float angleA = 2.0F * PI *
+                    static_cast<float>(segment) /
+                    static_cast<float>(GlowSegments);
+                const float angleB = 2.0F * PI *
+                    static_cast<float>(segment + 1) /
+                    static_cast<float>(GlowSegments);
+                const auto edgePoint = [&](float angle) {
+                    Vector3 point = Vector3Add(
+                        center,
+                        Vector3Scale(cameraRight, std::cos(angle) * width));
+                    return Vector3Add(
+                        point,
+                        Vector3Scale(cameraUp, std::sin(angle) * height));
+                };
+                const Vector3 edgeA = edgePoint(angleA);
+                const Vector3 edgeB = edgePoint(angleB);
+                rlColor4ub(255, 226, 122, alpha);
+                rlVertex3f(center.x, center.y, center.z);
+                rlColor4ub(255, 190, 76, 0);
+                rlVertex3f(edgeA.x, edgeA.y, edgeA.z);
+                rlVertex3f(edgeB.x, edgeB.y, edgeB.z);
+            }
         }
-        DrawCircleGradient(
-            baseScreen,
-            baseRadius * 1.32F,
-            {255, 226, 122,
-             atmosphereAlpha(intensity * 0.32F)},
-            BLANK);
     }
+
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
     EndBlendMode();
 }
 
