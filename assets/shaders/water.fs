@@ -28,6 +28,22 @@ float hash21(vec2 value)
     return fract(value.x*value.y);
 }
 
+float valueNoise(vec2 position)
+{
+    vec2 cell = floor(position);
+    vec2 blend = fract(position);
+    blend = blend*blend*(3.0 - 2.0*blend);
+
+    float northWest = hash21(cell);
+    float northEast = hash21(cell + vec2(1.0, 0.0));
+    float southWest = hash21(cell + vec2(0.0, 1.0));
+    float southEast = hash21(cell + vec2(1.0, 1.0));
+    return mix(
+        mix(northWest, northEast, blend.x),
+        mix(southWest, southEast, blend.x),
+        blend.y);
+}
+
 void main()
 {
     if (fragShoreDistance > 0.16)
@@ -62,7 +78,9 @@ void main()
 
     float inward = clamp(-fragShoreDistance, 0.0, 2.0);
     float shoreFade = 1.0 - smoothstep(0.0, 1.65, inward);
-    float pattern = hash21(floor(fragWorldPosition.xz*0.18))*0.22;
+    // Keep neighbouring foam phases continuous. A raw per-cell hash creates
+    // visible rectangular seams where shoreline wave bands cross cell edges.
+    float pattern = valueNoise(fragWorldPosition.xz*0.18)*0.22;
     float travel = fract(inward*0.58 + time*0.32 + pattern);
     float bandA = 1.0 - smoothstep(0.035, 0.115, abs(travel - 0.18));
     float bandB = 1.0 - smoothstep(

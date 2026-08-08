@@ -21,8 +21,10 @@ SkillEffect parseEffect(std::string_view value) {
     if (value == "unlock_axe") return SkillEffect::UnlockAxe;
     if (value == "unlock_pickaxe") return SkillEffect::UnlockPickaxe;
     if (value == "unlock_club") return SkillEffect::UnlockClub;
+    if (value == "unlock_ice_wand") return SkillEffect::UnlockIceWand;
     if (value == "unlock_hammer") return SkillEffect::UnlockHammer;
     if (value == "unlock_rifle") return SkillEffect::UnlockRifle;
+    if (value == "auto_switch_tools") return SkillEffect::AutoSwitchTools;
     return SkillEffect::BareHands;
 }
 
@@ -33,15 +35,23 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         {"bare_hands", "BARE HANDS", "Gather wood and stone at 25% tool speed.",
          "placeholder_hands", SkillBranch::Root, {0, 0}, 0, {}, SkillEffect::BareHands},
         {"axe", "AXE", "Unlocks the axe and fast wood gathering.",
-         "placeholder_axe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockAxe},
+         "placeholder_axe", SkillBranch::Gathering, {0, 190}, 1, {"bare_hands"}, SkillEffect::UnlockAxe},
         {"pickaxe", "PICKAXE", "Unlocks stone and crystal mining.",
-         "placeholder_pickaxe", SkillBranch::Gathering, {190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockPickaxe},
+         "placeholder_pickaxe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockPickaxe},
+        {"auto_switch_tools", "SMART TOOLS",
+         "Automatically switches between the axe and pickaxe for the aimed resource.",
+         "placeholder_tools", SkillBranch::Gathering, {-190, 190}, 1,
+         {"axe", "pickaxe"}, SkillEffect::AutoSwitchTools},
         {"club", "CLUB", "Unlocks a stronger melee weapon.",
          "placeholder_club", SkillBranch::Weapons, {0, -150}, 1, {"bare_hands"}, SkillEffect::UnlockClub},
+        {"ice_wand", "ICE WAND",
+         "Launch a freezing orb that freezes enemies near the impact.",
+         "ice_wand", SkillBranch::Weapons, {190, -150}, 2,
+         {"bare_hands"}, SkillEffect::UnlockIceWand},
         {"rifle", "RIFLE", "Unlocks the rifle and ranged combat.",
          "placeholder_rifle", SkillBranch::Weapons, {0, -300}, 1, {"club"}, SkillEffect::UnlockRifle},
         {"hammer", "HAMMER", "Unlocks repair and active fortification.",
-         "placeholder_hammer", SkillBranch::Construction, {0, 190}, 1, {"bare_hands"}, SkillEffect::UnlockHammer},
+         "placeholder_hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockHammer},
     };
 }
 
@@ -67,12 +77,14 @@ SkillNodeState SkillTree::state(std::string_view id) const {
     return index ? state(*index) : SkillNodeState::Hidden;
 }
 
-SkillPurchaseError SkillTree::purchase(std::size_t index) {
+SkillPurchaseError SkillTree::purchase(
+    std::size_t index, bool spendPoints) {
     if (index >= nodes_.size()) return SkillPurchaseError::InvalidNode;
     if (unlocked_[index]) return SkillPurchaseError::AlreadyUnlocked;
     if (!prerequisitesUnlocked(nodes_[index])) return SkillPurchaseError::DependenciesLocked;
-    if (points_ < nodes_[index].cost) return SkillPurchaseError::InsufficientPoints;
-    points_ -= nodes_[index].cost;
+    if (spendPoints && points_ < nodes_[index].cost)
+        return SkillPurchaseError::InsufficientPoints;
+    if (spendPoints) points_ -= nodes_[index].cost;
     unlocked_[index] = true;
     return SkillPurchaseError::None;
 }
@@ -205,8 +217,10 @@ std::string_view skillEffectName(SkillEffect effect) {
     case SkillEffect::UnlockAxe: return "unlock_axe";
     case SkillEffect::UnlockPickaxe: return "unlock_pickaxe";
     case SkillEffect::UnlockClub: return "unlock_club";
+    case SkillEffect::UnlockIceWand: return "unlock_ice_wand";
     case SkillEffect::UnlockHammer: return "unlock_hammer";
     case SkillEffect::UnlockRifle: return "unlock_rifle";
+    case SkillEffect::AutoSwitchTools: return "auto_switch_tools";
     }
     return "bare_hands";
 }

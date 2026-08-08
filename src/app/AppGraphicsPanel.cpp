@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
@@ -579,22 +580,91 @@ void App::drawGraphicsPanel() {
             controls.invertMouseY = !controls.invertMouseY;
         }
         y += ButtonHeight + Gap;
+        drawUiText(
+            "CLICK A KEY TO REBIND  •  ESC CANCELS  •  LMB REMAINS PRIMARY",
+            {contentX, y}, compact ? 11.0F : 14.0F,
+            {199, 174, 142, 255});
+        y += compact ? 22.0F : 30.0F;
+
+        constexpr std::array<ControlAction, ControlActionCount>
+            Actions{
+                ControlAction::MoveForward,
+                ControlAction::MoveLeft,
+                ControlAction::MoveBackward,
+                ControlAction::MoveRight,
+                ControlAction::Jump,
+                ControlAction::Sprint,
+                ControlAction::Attack,
+                ControlAction::ToggleTool,
+                ControlAction::Interact,
+                ControlAction::Bomb,
+                ControlAction::Repair,
+                ControlAction::Copy,
+                ControlAction::Upgrade,
+                ControlAction::Sell,
+                ControlAction::UpgradeWeapon,
+                ControlAction::BuildMode,
+                ControlAction::Pause,
+                ControlAction::Skills,
+                ControlAction::Map,
+                ControlAction::StartWave,
+                ControlAction::Restart,
+            };
+        const std::size_t rowsPerColumn =
+            (Actions.size() + 2U) / 3U;
+        const float controlColumnWidth =
+            (contentWidth - Gap * 2.0F) / 3.0F;
+        const float rowHeight = compact ? 34.0F : 48.0F;
+        const float keyHeight = compact ? 32.0F : 48.0F;
         ui_.drawInsetPanel(
             {contentX, y, contentWidth,
-             compact ? 166.0F : 220.0F}, 235);
-        drawUiText(
-            "MOVEMENT    WASD       JUMP    SPACE       SPRINT    SHIFT\n"
-            "PAUSE      P / ESC    SETTINGS F2          SKILLS    K\n"
-            "BUILD       TAB        INTERACT E           MAP       HOLD M\n"
-            "ATTACK      LMB        CANCEL   RMB         BOMB      G",
-            {contentX + 20.0F, y + 18.0F},
-            compact ? 14.0F : 17.0F,
-            {245, 220, 174, 255});
-        y += compact ? 178.0F : 234.0F;
+             rowHeight * static_cast<float>(rowsPerColumn) +
+                 (compact ? 8.0F : 12.0F)}, 235);
+        // Keep square-ish keycaps for single keys, but give named keys
+        // enough width for readable labels (SPACE, L-SHIFT, BACKSPACE).
+        const float keyWidth = compact ? 52.0F : 72.0F;
+        for (std::size_t index = 0; index < Actions.size(); ++index) {
+            const int column = static_cast<int>(index / rowsPerColumn);
+            const std::size_t row = index % rowsPerColumn;
+            const float x = contentX +
+                static_cast<float>(column) *
+                    (controlColumnWidth + Gap);
+            const float rowY = y + 4.0F +
+                static_cast<float>(row) * rowHeight;
+            drawUiText(
+                controlActionName(Actions[index]),
+                {x + 12.0F, rowY + (compact ? 5.0F : 10.0F)},
+                compact ? 10.0F : 14.0F,
+                {245, 220, 174, 255});
+            const Rectangle keyBounds{
+                x + controlColumnWidth - keyWidth, rowY,
+                keyWidth, keyHeight};
+            const bool waiting = pendingControlRebind_ &&
+                *pendingControlRebind_ == Actions[index];
+            std::string keyLabel;
+            if (waiting) {
+                keyLabel = "?";
+            } else {
+                keyLabel = keyboardKeyName(
+                    controlKey(controls, Actions[index]));
+                if (Actions[index] == ControlAction::Attack &&
+                    controlKey(controls, Actions[index]) == KEY_NULL) {
+                    keyLabel = "LMB";
+                }
+            }
+            if (!waiting && ui_.drawKeyCap(keyBounds, keyLabel)) {
+                pendingControlRebind_ = Actions[index];
+            } else if (waiting) {
+                ui_.drawKeyCap(keyBounds, keyLabel, true);
+            }
+        }
+        y += rowHeight * static_cast<float>(rowsPerColumn) +
+             (compact ? 14.0F : 20.0F);
         if (ui_.drawButton(
                 {contentX, y, contentWidth, ButtonHeight},
                 "RESET CONTROLS")) {
             controls = {};
+            pendingControlRebind_.reset();
         }
     } else if (graphicsPanelTab_ == AccessibilityPage) {
         auto& accessibility = userSettings_.accessibility;
@@ -616,6 +686,19 @@ void App::drawGraphicsPanel() {
                 accessibility.reduceFlashes)) {
             accessibility.reduceFlashes =
                 !accessibility.reduceFlashes;
+        }
+        y += ButtonHeight + Gap;
+        const std::string languageLabel =
+            std::string("LANGUAGE: ") +
+            std::string(languageName(userSettings_.language));
+        if (ui_.drawButton(
+                {contentX, y, contentWidth, ButtonHeight},
+                languageLabel)) {
+            userSettings_.language =
+                userSettings_.language == Language::English
+                    ? Language::Russian
+                    : Language::English;
+            setLanguage(userSettings_.language);
         }
         y += ButtonHeight + Gap;
         if (ui_.drawToggleButton(

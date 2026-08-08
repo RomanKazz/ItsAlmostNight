@@ -1,8 +1,10 @@
 #include "TestHarness.hpp"
 #include "app/UserSettings.hpp"
+#include "localization/Localization.hpp"
 
 #include <filesystem>
 #include <fstream>
+#include <string>
 
 namespace {
 
@@ -27,8 +29,13 @@ void settingsRoundTrip() {
     written.motion.bobIntensity = 0.42F;
     written.controls.mouseSensitivity = 1.65F;
     written.controls.invertMouseY = true;
+    ian::setControlKey(
+        written.controls, ian::ControlAction::Interact, KEY_F);
+    ian::setControlKey(
+        written.controls, ian::ControlAction::Attack, KEY_T);
     written.accessibility.showFps = false;
     written.accessibility.reduceFlashes = true;
+    written.language = ian::Language::Russian;
 
     require(ian::saveUserSettings(path.string(), written),
             "user settings save succeeds");
@@ -55,9 +62,16 @@ void settingsRoundTrip() {
                 "mouse sensitivity survives settings round trip");
     require(loaded.controls.invertMouseY,
             "mouse inversion survives settings round trip");
+    require(ian::controlKey(
+                loaded.controls, ian::ControlAction::Interact) == KEY_F &&
+                ian::controlKey(
+                    loaded.controls, ian::ControlAction::Attack) == KEY_T,
+            "key bindings survive settings round trip");
     require(!loaded.accessibility.showFps &&
                 loaded.accessibility.reduceFlashes,
             "accessibility settings survive round trip");
+    require(loaded.language == ian::Language::Russian,
+            "language survives settings round trip");
     std::filesystem::remove(path, error);
 }
 
@@ -94,6 +108,9 @@ void loadedValuesAreValidated() {
                 "motion intensity is clamped");
     requireNear(loaded.controls.mouseSensitivity, 3.0, 1e-6,
                 "mouse sensitivity is clamped");
+    require(ian::controlKey(
+                loaded.controls, ian::ControlAction::MoveForward) == KEY_W,
+            "missing key bindings keep defaults");
     std::error_code error;
     std::filesystem::remove(path, error);
 }
@@ -149,6 +166,23 @@ void tabResetsPreserveOtherTabs() {
             "style reset restores style defaults");
 }
 
+void localizationCatalogTranslatesFixedAndDynamicText() {
+    ian::initializeLocalization(
+        std::string(IAN_SOURCE_DIR) +
+        "/assets/data/localization.json");
+    ian::setLanguage(ian::Language::Russian);
+    require(ian::localizeText("SETTINGS") == "НАСТРОЙКИ",
+            "localization translates fixed labels");
+    require(ian::localizeText("WAVE 3   •   BEST 2") ==
+                "ВОЛНА 3   •   ЛУЧШИЙ 2",
+            "localization translates dynamic HUD labels");
+    require(ian::localizeText("Core upgraded") == "Ядро улучшено",
+            "localization translates event messages");
+    ian::setLanguage(ian::Language::English);
+    require(ian::localizeText("SETTINGS") == "SETTINGS",
+            "english localization keeps source text");
+}
+
 } // namespace
 
 void runUserSettingsTests() {
@@ -156,4 +190,5 @@ void runUserSettingsTests() {
     loadedValuesAreValidated();
     tabResetsPreserveOtherTabs();
     graphicsPresetsAreCompleteAndDetectable();
+    localizationCatalogTranslatesFixedAndDynamicText();
 }

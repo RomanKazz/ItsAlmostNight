@@ -86,6 +86,7 @@ class AudioSystem {
     Clip waveWarning_;
     std::optional<Vec3> previousPlayerPosition_;
     double footstepDistance_{};
+    double iceHitSoundCooldown_{};
 };
 
 } // namespace ian

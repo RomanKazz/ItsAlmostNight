@@ -29,6 +29,8 @@ class GoldMineSystem {
         EconomyBalanceDefinition definition = GameBalance::defaults().economy);
 
     void reset();
+    void setProductionSpeedMultiplier(double multiplier);
+    void setWoodYieldMultiplier(double multiplier);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const GoldProduced> tick(double deltaSeconds);
 
@@ -43,6 +45,8 @@ class GoldMineSystem {
     std::vector<GoldMineRuntime> mines_;
     std::vector<GoldProduced> productionBuffer_;
     EconomyBalanceDefinition definition_;
+    double productionSpeedMultiplier_{1.0};
+    double woodYieldMultiplier_{1.0};
 };
 
 } // namespace ian

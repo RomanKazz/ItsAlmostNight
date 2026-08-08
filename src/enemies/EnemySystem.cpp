@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <chrono>
 #include <limits>
 
 namespace ian {
@@ -25,6 +26,10 @@ constexpr double BuildingGridMinimum = -192.0;
 constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
+
+std::size_t statusEffectIndex(StatusEffectType type) {
+    return type == StatusEffectType::Freeze ? 0U : 1U;
+}
 
 class BuildingQueryGrid {
   public:
@@ -402,6 +407,11 @@ void EnemySystem::reset() {
     collisionBuildingLinks_.clear();
     activeCount_ = 0;
     spatialHash_.clear();
+    performanceStats_ = {};
+    profilingTick_ = false;
+    spatialHashDirty_ = false;
+    spatialRebuildsThisTick_ = 0U;
+    spatialRebuildMillisecondsThisTick_ = 0.0;
 }
 
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
@@ -435,6 +445,20 @@ std::span<const EnemyAttack> EnemySystem::tick(
     const FlowField& flowField, std::optional<Vec3> playerPosition,
     std::span<const EnemyStructureTarget> additionalStructures,
     const TerrainHeightfield* terrain) {
+    const auto tickStart = PerformanceClock::now();
+    spatialRebuildsThisTick_ = 0U;
+    spatialRebuildMillisecondsThisTick_ = 0.0;
+    profilingTick_ = true;
+    const auto finishTelemetry = [this, tickStart]() {
+        profilingTick_ = false;
+        performanceStats_.tick.sample(
+            performanceMilliseconds(tickStart));
+        performanceStats_.spatialRebuild.sample(
+            spatialRebuildMillisecondsThisTick_);
+        performanceStats_.activeEnemies = activeCount_;
+        performanceStats_.spatialRebuilds =
+            spatialRebuildsThisTick_;
+    };
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     const auto core =
@@ -442,6 +466,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             return building.type == BuildingType::Core;
         });
     if (core == buildings.end()) {
+        finishTelemetry();
         return attackBuffer_;
     }
 
@@ -472,7 +497,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
         structureBuffer_.end(), additionalStructures.begin(),
         additionalStructures.end());
 
-    rebuildSpatialIndex();
+    if (spatialHashDirty_) {
+        rebuildSpatialIndex();
+    }
     const BuildingQueryGrid buildingGrid(
         structureBuffer_, structureNextBuffer_);
 
@@ -493,6 +520,25 @@ std::span<const EnemyAttack> EnemySystem::tick(
         if (enemy.slowRemaining <= 0.0) {
             enemy.movementMultiplier = 1.0;
         }
+        for (EnemyStatusEffect& status : enemy.statusEffects) {
+            status.immunityRemaining = std::max(
+                0.0, status.immunityRemaining - deltaSeconds);
+            if (status.remaining > 0.0) {
+                status.remaining = std::max(
+                    0.0, status.remaining - deltaSeconds);
+                status.visualParameter = 1.0;
+                if (status.remaining <= 0.0) {
+                    status.visualParameter = 0.92;
+                }
+            } else {
+                status.visualParameter = std::max(
+                    0.0, status.visualParameter - deltaSeconds * 4.5);
+            }
+        }
+        if (enemyHasStatus(enemy, StatusEffectType::Freeze)) {
+            enemy.knockbackVelocity = {};
+            continue;
+        }
         enemy.steeringTime += deltaSeconds;
         const double waterMultiplier =
             terrain != nullptr && enemy.type != EnemyType::Flying
@@ -501,11 +547,21 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 : 1.0;
         const double movementSpeed =
             enemy.speed * enemy.movementMultiplier * waterMultiplier;
+        const double knockbackSpeed = std::hypot(
+            enemy.knockbackVelocity.x,
+            enemy.knockbackVelocity.z);
         enemy.position.x += enemy.knockbackVelocity.x * deltaSeconds;
         enemy.position.z += enemy.knockbackVelocity.z * deltaSeconds;
         const double knockbackDecay = std::max(0.0, 1.0 - 5.0 * deltaSeconds);
         enemy.knockbackVelocity.x *= knockbackDecay;
         enemy.knockbackVelocity.z *= knockbackDecay;
+
+        // Knockback owns movement briefly. Otherwise chase movement in this
+        // same tick can immediately cancel a melee impulse toward the player.
+        constexpr double MinimumKnockbackSpeed = 0.05;
+        if (knockbackSpeed > MinimumKnockbackSpeed) {
+            continue;
+        }
 
         if (enemy.state == EnemyState::BossRamWindup) {
             const auto target =
@@ -854,10 +910,14 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
     }
 
+    const auto collisionStart = PerformanceClock::now();
     resolveEnemyCapsuleCollisions(
         enemies_, buildings, collisionEnemyLinks_,
         collisionBuildingLinks_);
+    performanceStats_.collision.sample(
+        performanceMilliseconds(collisionStart));
     rebuildSpatialIndex();
+    finishTelemetry();
     return attackBuffer_;
 }
 
@@ -889,6 +949,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
         return std::nullopt;
     }
 
+    const double previousHealth = enemy->health;
     enemy->health = std::max(0.0, enemy->health - amount);
     enemy->hitAnimationRemaining = 0.22;
     const bool killed = enemy->health <= 0.0;
@@ -897,10 +958,12 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
         --activeCount_;
         enemy->state = EnemyState::Dead;
         enemy->target.reset();
+        spatialHashDirty_ = true;
     }
     return EnemyDamageResult{
         .id = enemy->id,
         .position = enemy->position,
+        .damage = previousHealth - enemy->health,
         .remainingHealth = enemy->health,
         .killed = killed,
     };
@@ -971,20 +1034,56 @@ std::optional<EnemyInstance> EnemySystem::enemy(EntityId id) const {
 
 std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, double radius,
                                                                double amount,
-                                                               double knockbackStrength) {
+                                                               double knockbackStrength,
+                                                               std::optional<Vec3> knockbackOrigin,
+                                                               double maxTotalDamage,
+                                                               std::optional<EntityId> excludedId) {
     areaDamageBuffer_.clear();
+    if (radius <= 0.0 || amount <= 0.0) {
+        return areaDamageBuffer_;
+    }
+
+    // Player attacks can land between enemy ticks. Refresh positions before
+    // querying, then include capsule radius so enemies touching the impact
+    // area are not missed just because their centers are outside it.
+    rebuildSpatialIndex();
+    const double queryRadius =
+        radius + enemyCapsule(EnemyType::Boss).radius;
     std::size_t targetCount = 0;
-    spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
-        if (targetCount < areaTargetBuffer_.size()) {
+    spatialHash_.forEachNearby(position, queryRadius,
+                               [&](const SpatialEntry& entry) {
+        const EnemyInstance* candidate = findEnemy(entry.id);
+        if (candidate == nullptr || !candidate->active ||
+            (excludedId && candidate->id == *excludedId)) {
+            return;
+        }
+        const double hitRadius =
+            radius + enemyCapsule(candidate->type).radius;
+        const double deltaX = entry.position.x - position.x;
+        const double deltaZ = entry.position.z - position.z;
+        if (deltaX * deltaX + deltaZ * deltaZ <=
+                hitRadius * hitRadius &&
+            targetCount < areaTargetBuffer_.size()) {
             areaTargetBuffer_[targetCount++] = entry.id;
         }
     });
+    const double damagePerTarget =
+        maxTotalDamage > 0.0 && targetCount > 0U
+            ? std::min(
+                  amount,
+                  maxTotalDamage /
+                      static_cast<double>(targetCount))
+            : amount;
+    const Vec3 impulseOrigin =
+        knockbackOrigin.value_or(position);
     for (std::size_t index = 0; index < targetCount; ++index) {
         EnemyInstance* enemy = findEnemy(areaTargetBuffer_[index]);
         if (enemy == nullptr || !enemy->active || amount <= 0.0) {
             continue;
         }
-        enemy->health = std::max(0.0, enemy->health - amount);
+        const double previousHealth = enemy->health;
+        enemy->health = std::max(
+            0.0, enemy->health - damagePerTarget);
         enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
         if (killed) {
@@ -992,29 +1091,48 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             --activeCount_;
             enemy->state = EnemyState::Dead;
             enemy->target.reset();
+            spatialHashDirty_ = true;
         }
         areaDamageBuffer_.push_back({
             .id = enemy->id,
             .position = enemy->position,
+            .damage = previousHealth - enemy->health,
             .remainingHealth = enemy->health,
             .killed = killed,
         });
         if (killed || knockbackStrength <= 0.0) {
             continue;
         }
-        double offsetX = enemy->position.x - position.x;
-        double offsetZ = enemy->position.z - position.z;
-        double distance = std::sqrt((offsetX * offsetX) + (offsetZ * offsetZ));
-        if (distance <= 1e-9) {
+        const double areaOffsetX =
+            enemy->position.x - position.x;
+        const double areaOffsetZ =
+            enemy->position.z - position.z;
+        const double radialDistance =
+            std::sqrt(
+                (areaOffsetX * areaOffsetX) +
+                (areaOffsetZ * areaOffsetZ));
+        double offsetX =
+            enemy->position.x - impulseOrigin.x;
+        double offsetZ =
+            enemy->position.z - impulseOrigin.z;
+        double directionDistance =
+            std::sqrt((offsetX * offsetX) + (offsetZ * offsetZ));
+        if (directionDistance <= 1e-9) {
             offsetX = (enemy->id.index % 2U) == 0U ? -1.0 : 1.0;
             offsetZ = 0.0;
-            distance = 1.0;
+            directionDistance = 1.0;
         }
-        const double falloff = std::max(0.0, 1.0 - distance / radius);
+        const double surfaceDistance = std::max(
+            0.0,
+            radialDistance - enemyCapsule(enemy->type).radius);
+        const double falloff =
+            std::max(0.0, 1.0 - surfaceDistance / radius);
         const double impulse =
             knockbackStrength * falloff * knockbackMultiplier(enemy->type);
-        enemy->knockbackVelocity.x += (offsetX / distance) * impulse;
-        enemy->knockbackVelocity.z += (offsetZ / distance) * impulse;
+        enemy->knockbackVelocity.x +=
+            (offsetX / directionDistance) * impulse;
+        enemy->knockbackVelocity.z +=
+            (offsetZ / directionDistance) * impulse;
     }
     return areaDamageBuffer_;
 }
@@ -1031,6 +1149,86 @@ std::span<const EntityId> EnemySystem::applySlowInRadius(Vec3 position, double r
             std::min(enemy->movementMultiplier, std::clamp(multiplier, 0.1, 1.0));
         enemy->slowRemaining = std::max(enemy->slowRemaining, duration);
         statusTargetBuffer_.push_back(enemy->id);
+    });
+    return statusTargetBuffer_;
+}
+
+bool EnemySystem::applyStatus(
+    EntityId id, StatusEffectType requestedType,
+    std::optional<EntityId> source, double duration,
+    double intensity, StatusEffectRules rules) {
+    EnemyInstance* enemy = findEnemy(id);
+    if (enemy == nullptr || !enemy->active || duration <= 0.0) {
+        return false;
+    }
+
+    const bool elite = enemy->type == EnemyType::Heavy;
+    const bool boss = enemy->type == EnemyType::Boss;
+    const StatusEffectType appliedType =
+        requestedType == StatusEffectType::Freeze && boss
+            ? StatusEffectType::Slow
+            : requestedType;
+    EnemyStatusEffect& status =
+        enemy->statusEffects[statusEffectIndex(appliedType)];
+    if (status.remaining > 0.0 || status.immunityRemaining > 0.0) {
+        // A hit still refreshes the crack cue, but cannot extend an active
+        // control effect. This is the immunity/diminishing-return window.
+        status.visualParameter = std::max(status.visualParameter, 0.7);
+        return false;
+    }
+
+    double effectiveDuration = duration;
+    if (elite && appliedType == StatusEffectType::Freeze) {
+        effectiveDuration *= std::clamp(
+            rules.eliteDurationMultiplier, 0.0, 1.0);
+    }
+    double effectiveIntensity = std::clamp(intensity, 0.0, 1.0);
+    if (boss && requestedType == StatusEffectType::Freeze) {
+        effectiveIntensity = std::clamp(rules.bossSlowAmount, 0.0, 1.0);
+    }
+    status.type = appliedType;
+    status.source = source;
+    status.remaining = effectiveDuration;
+    status.intensity = effectiveIntensity;
+    status.immunityRemaining = effectiveDuration * std::clamp(
+        rules.immunityWindowFraction, 0.0, 1.0);
+    status.visualParameter = 1.0;
+
+    if (appliedType == StatusEffectType::Freeze) {
+        enemy->knockbackVelocity = {};
+        enemy->state = EnemyState::ChasePlayer;
+        enemy->target.reset();
+    } else {
+        const double movementMultiplier = std::clamp(
+            1.0 - effectiveIntensity, 0.1, 1.0);
+        enemy->movementMultiplier = std::min(
+            enemy->movementMultiplier, movementMultiplier);
+        enemy->slowRemaining = std::max(
+            enemy->slowRemaining, effectiveDuration);
+    }
+    return true;
+}
+
+std::span<const EntityId> EnemySystem::applyStatusInRadius(
+    Vec3 position, double radius, StatusEffectType type,
+    std::optional<EntityId> source, double duration,
+    double intensity, StatusEffectRules rules) {
+    statusTargetBuffer_.clear();
+    rebuildSpatialIndex();
+    spatialHash_.forEachNearby(position, radius, [&](const SpatialEntry& entry) {
+        EnemyInstance* enemy = findEnemy(entry.id);
+        if (enemy == nullptr || !enemy->active) {
+            return;
+        }
+        const double hitRadius = radius + enemyCapsule(enemy->type).radius;
+        const double offsetX = enemy->position.x - position.x;
+        const double offsetZ = enemy->position.z - position.z;
+        if (offsetX * offsetX + offsetZ * offsetZ > hitRadius * hitRadius) {
+            return;
+        }
+        if (applyStatus(enemy->id, type, source, duration, intensity, rules)) {
+            statusTargetBuffer_.push_back(enemy->id);
+        }
     });
     return statusTargetBuffer_;
 }
@@ -1062,6 +1260,19 @@ const std::vector<EnemyInstance>& EnemySystem::enemies() const {
 
 std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {
     return playerAttackBuffer_;
+}
+
+const EnemyPerformanceStats& EnemySystem::performanceStats() const {
+    return performanceStats_;
+}
+
+const EnemyStatusEffect& enemyStatusEffect(
+    const EnemyInstance& enemy, StatusEffectType type) {
+    return enemy.statusEffects[statusEffectIndex(type)];
+}
+
+bool enemyHasStatus(const EnemyInstance& enemy, StatusEffectType type) {
+    return enemyStatusEffect(enemy, type).remaining > 0.0;
 }
 
 void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
@@ -1137,11 +1348,18 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
 }
 
 void EnemySystem::rebuildSpatialIndex() {
+    const auto rebuildStart = PerformanceClock::now();
     spatialHash_.clear();
     for (const auto& enemy : enemies_) {
         if (enemy.active) {
             spatialHash_.insert(enemy.id, enemy.position);
         }
+    }
+    spatialHashDirty_ = false;
+    if (profilingTick_) {
+        ++spatialRebuildsThisTick_;
+        spatialRebuildMillisecondsThisTick_ +=
+            performanceMilliseconds(rebuildStart);
     }
 }
 

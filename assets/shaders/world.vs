@@ -41,7 +41,9 @@ void main()
         instancingEnabled != 0 ? instanceTransform : matModel;
     vec4 worldPosition = modelMatrix*localPosition;
     float windHeight = mix(
-        smoothstep(0.25, 3.4, worldPosition.y),
+        // Wind bending must start at the model's own base. Using world Y
+        // makes an object placed uphill sway at full strength at its roots.
+        smoothstep(0.25, 3.4, localPosition.y),
         smoothstep(-0.015, 0.20, localPosition.y),
         clamp(localWindHeight, 0.0, 1.0))*windAmount;
     float windSpeed = mix(1.35, 2.1,

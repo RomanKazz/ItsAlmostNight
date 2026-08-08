@@ -81,9 +81,23 @@ float enemyVisualScale(EnemyType type) {
     case EnemyType::Sapper:
         return 0.52F;
     case EnemyType::Basic:
-        return 1.0F;
+        // PinkBlob is a little shorter than the old minion mesh. Keep the
+        // apparent enemy height unchanged after the model swap.
+        return 1.08F;
     }
     return 1.0F;
+}
+
+float enemyHitScale(const EnemyInstance& enemy) {
+    constexpr float HitDuration = 0.22F;
+    constexpr float Pi = 3.14159265358979323846F;
+    constexpr float BounceAmplitude = 0.10F;
+    const float progress = std::clamp(
+        static_cast<float>(
+            1.0 - enemy.hitAnimationRemaining / HitDuration),
+        0.0F, 1.0F);
+    const float pulse = std::sin(progress * Pi);
+    return 1.0F - BounceAmplitude * pulse;
 }
 
 Vector3 enemyRenderPosition(const EnemyInstance& enemy) {
@@ -339,9 +353,8 @@ std::optional<EntityId> preciseBuildingAim(
 std::optional<EntityId> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot) {
-    if (snapshot.selectedWeapon != PlayerWeapon::BareHands &&
-        snapshot.selectedWeapon != PlayerWeapon::Axe &&
-        snapshot.selectedWeapon != PlayerWeapon::Pickaxe) {
+    if (snapshot.selectedWeapon == PlayerWeapon::Rifle ||
+        snapshot.selectedWeapon == PlayerWeapon::IceWand) {
         return std::nullopt;
     }
     constexpr double MaximumDistance = 2.6;

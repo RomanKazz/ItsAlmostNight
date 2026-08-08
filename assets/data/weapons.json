@@ -21,5 +21,24 @@
     "explosionRadius": 4.0,
     "explosionDamage": 6.0,
     "knockbackStrength": 8.0
+  },
+  "club": {
+    "damageMultiplier": 1.35,
+    "areaRadius": 1.25,
+    "knockbackStrength": 3.0,
+    "maxDamagePerAttack": 4.0
+  },
+  "iceWand": {
+    "cooldown": 0.85,
+    "directDamage": 16.0,
+    "projectileSpeed": 18.0,
+    "projectileRadius": 0.22,
+    "maxLifetime": 2.5,
+    "explosionRadius": 3.5,
+    "freezeDuration": 1.4,
+    "eliteFreezeMultiplier": 0.65,
+    "bossSlowAmount": 0.35,
+    "chargeUpDuration": 0.12,
+    "areaDamageMultiplier": 0.55
   }
 }

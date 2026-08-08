@@ -60,9 +60,8 @@ void Simulation::respawnPlayer() {
     lastGroundSurfaceHeight_ =
         playerPosition_.y - gameplay_.eyeHeight;
     playerGrounded_ = true;
-    playerHealth_ =
-        gameplay_.playerMaxHealth * playerMaxHealthMultiplier_ +
-        playerBonusMaxHealth_;
+    playerTemporaryHealth_ = 0.0;
+    playerHealth_ = playerPermanentMaxHealth();
 }
 
 void Simulation::damagePlayer(
@@ -72,7 +71,14 @@ void Simulation::damagePlayer(
         unlimitedResources_ || playerInvulnerable_) {
         return;
     }
-    playerHealth_ = std::max(0.0, playerHealth_ - damage);
+    const double mitigatedDamage =
+        damage / std::max(playerArmorMultiplier_, 1.0);
+    const double temporaryDamage = std::min(
+        playerTemporaryHealth_, mitigatedDamage);
+    playerTemporaryHealth_ = std::max(
+        0.0, playerTemporaryHealth_ - temporaryDamage);
+    playerHealth_ = std::max(
+        0.0, playerHealth_ - mitigatedDamage);
     secondsSincePlayerDamage_ = 0.0;
     events_.push_back({
         .type = GameEventType::PlayerDamaged,
@@ -115,6 +121,7 @@ void Simulation::beginPlayerRespawn(
     autoJumpAssistDirection_ = {};
     edgeSupportGraceRemaining_ = 0.0;
     playerGrounded_ = true;
+    playerTemporaryHealth_ = 0.0;
     buildingPreview_.reset();
     aimedResource_.reset();
     aimedEnemy_.reset();

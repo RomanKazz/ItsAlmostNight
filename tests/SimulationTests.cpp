@@ -103,6 +103,255 @@ void runSimulationTests() {
                 "weapon cycle wraps from rifle to fists");
     }
     {
+        ian::Simulation iceProgression;
+        iceProgression.startRun();
+        iceProgression.grantSkillPoints(2, ian::SkillPointSource::Event);
+        const auto iceWand = iceProgression.skillTree().indexOf("ice_wand");
+        require(iceWand && iceProgression.purchaseSkill(*iceWand) ==
+                    ian::SkillPurchaseError::None &&
+                    iceProgression.snapshot().selectedWeapon ==
+                        ian::PlayerWeapon::IceWand,
+                "ice wand purchase spends two points and equips immediately");
+        iceProgression.restartRun();
+        iceProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
+        ian::PlayerCommand cycle;
+        cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        iceProgression.tick(1.0 / 60.0, cycle);
+        require(iceProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "locked ice wand is absent from the weapon cycle");
+    }
+    {
+        auto clubBalance = ian::GameBalance::defaults();
+        clubBalance.gameplay.pickaxeDamageVariation = 0.0;
+        clubBalance.gameplay.pickaxeCriticalChance = 0.0;
+        clubBalance.enemies[0].speed = 10.0;
+        clubBalance.weapons.club.maxDamagePerAttack = 2.0;
+        clubBalance.waves[0] = {
+            2, 2, 0, 0, 0, 0, 0, false, 2, 10.0};
+
+        ian::MapDefinition clubMap =
+            ian::MapDefinition::defaults();
+        clubMap.playerSpawn = {0.0, 0.0, -5.0};
+        clubMap.enemySpawnAnchors = {{0.0, 0.0, -20.0}};
+        clubMap.resources.clear();
+        clubMap.obstacles.clear();
+        ian::WorldConfig clubWorld =
+            ian::WorldConfig::defaults();
+        clubWorld.terrainAmplitude = 0.0;
+
+        ian::Simulation clubCombat{
+            clubBalance, clubMap, clubWorld};
+        clubCombat.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        clubCombat.tick(1.0 / 60.0, unlimited);
+        const auto clubSkill =
+            clubCombat.skillTree().indexOf("club");
+        require(
+            clubSkill &&
+                clubCombat.purchaseSkill(*clubSkill) ==
+                    ian::SkillPurchaseError::None &&
+                clubCombat.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::Club,
+            "club combat fixture selects club");
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        clubCombat.tick(1.0 / 60.0, placeCore);
+        require(
+            clubCombat.snapshot().coreId.has_value(),
+            "club combat fixture places core");
+        ian::PlayerCommand startWave;
+        startWave.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        clubCombat.tick(1.0 / 60.0, startWave);
+        std::optional<ian::EnemyInstance> clubAimTarget;
+        for (int tick = 0; tick < 180 && !clubAimTarget;
+             ++tick) {
+            const auto approachSnapshot = clubCombat.snapshot();
+            for (const ian::EnemyInstance& enemy :
+                 approachSnapshot.enemies) {
+                if (enemy.active &&
+                    std::hypot(
+                        enemy.position.x -
+                            approachSnapshot.playerPosition.x,
+                        enemy.position.z -
+                            approachSnapshot.playerPosition.z) < 3.5) {
+                    clubAimTarget = enemy;
+                    break;
+                }
+            }
+            if (clubAimTarget) {
+                break;
+            }
+            clubCombat.tick(1.0 / 60.0);
+        }
+        require(
+            clubCombat.snapshot().activeEnemyCount == 2U,
+            "club combat fixture spawns two enemies");
+        require(
+            clubAimTarget.has_value(),
+            "club combat fixture brings enemies into melee range");
+        const auto clubAimSnapshot = clubCombat.snapshot();
+        const double aimDeltaX =
+            clubAimTarget->position.x -
+            clubAimSnapshot.playerPosition.x;
+        const double aimDeltaY =
+            clubAimTarget->position.y -
+            clubAimSnapshot.playerPosition.y;
+        const double aimDeltaZ =
+            clubAimTarget->position.z -
+            clubAimSnapshot.playerPosition.z;
+        const double aimHorizontal =
+            std::hypot(aimDeltaX, aimDeltaZ);
+        ian::PlayerCommand aimClub;
+        aimClub.lookYaw =
+            std::atan2(aimDeltaX, -aimDeltaZ) -
+            clubAimSnapshot.playerYaw;
+        aimClub.lookPitch =
+            std::atan2(aimDeltaY, aimHorizontal) -
+            clubAimSnapshot.playerPitch;
+        clubCombat.tick(0.0, aimClub);
+        require(
+            clubCombat.snapshot().aimedEnemy.has_value(),
+            "club combat fixture places enemies in melee range");
+
+        const auto enemiesBeforeClubHit =
+            clubCombat.snapshot().enemies;
+        const double firstHealthBefore =
+            enemiesBeforeClubHit[0].health;
+        const double secondHealthBefore =
+            enemiesBeforeClubHit[1].health;
+        std::array<double, 2> distancesBeforeClubHit{};
+        for (std::size_t index = 0;
+             index < distancesBeforeClubHit.size(); ++index) {
+            distancesBeforeClubHit[index] = std::hypot(
+                enemiesBeforeClubHit[index].position.x -
+                    clubAimSnapshot.playerPosition.x,
+                enemiesBeforeClubHit[index].position.z -
+                    clubAimSnapshot.playerPosition.z);
+        }
+        ian::PlayerCommand clubAttack;
+        clubAttack.usePickaxe = true;
+        clubCombat.tick(1.0 / 60.0, clubAttack);
+        const auto enemiesAfterClubHit =
+            clubCombat.snapshot().enemies;
+        require(
+            enemiesAfterClubHit[0].health < firstHealthBefore &&
+                enemiesAfterClubHit[1].health < secondHealthBefore,
+            "club damages aimed and adjacent enemies through simulation tick");
+        require(
+            firstHealthBefore - enemiesAfterClubHit[0].health +
+                    secondHealthBefore - enemiesAfterClubHit[1].health <=
+                clubBalance.weapons.club.maxDamagePerAttack + 1e-9,
+            "club damage cap applies across all enemies in one swing");
+        require(
+            std::hypot(
+                enemiesAfterClubHit[0].knockbackVelocity.x,
+                enemiesAfterClubHit[0].knockbackVelocity.z) > 0.0 &&
+                std::hypot(
+                    enemiesAfterClubHit[1].knockbackVelocity.x,
+                enemiesAfterClubHit[1].knockbackVelocity.z) > 0.0,
+            "club gives aimed and adjacent enemies knockback through simulation tick");
+        for (std::size_t index = 0;
+             index < enemiesAfterClubHit.size(); ++index) {
+            const ian::EnemyInstance& enemy =
+                enemiesAfterClubHit[index];
+            const double awayX =
+                enemy.position.x - clubAimSnapshot.playerPosition.x;
+            const double awayZ =
+                enemy.position.z - clubAimSnapshot.playerPosition.z;
+            const double impulseDot =
+                enemy.knockbackVelocity.x * awayX +
+                enemy.knockbackVelocity.z * awayZ;
+            require(
+                impulseDot > 0.0,
+                "club knockback points away from player");
+        }
+        for (int tick = 0; tick < 12; ++tick) {
+            clubCombat.tick(1.0 / 60.0);
+        }
+        const auto enemiesAfterKnockbackTravel =
+            clubCombat.snapshot().enemies;
+        bool allClubTargetsMovedAway = true;
+        for (std::size_t index = 0;
+             index < enemiesAfterKnockbackTravel.size(); ++index) {
+            const double awayX =
+                enemiesAfterKnockbackTravel[index].position.x -
+                clubAimSnapshot.playerPosition.x;
+            const double awayZ =
+                enemiesAfterKnockbackTravel[index].position.z -
+                clubAimSnapshot.playerPosition.z;
+            allClubTargetsMovedAway =
+                allClubTargetsMovedAway &&
+                std::hypot(awayX, awayZ) >
+                    distancesBeforeClubHit[index] + 0.05;
+        }
+        require(
+            allClubTargetsMovedAway,
+            "club knockback visibly moves enemies away from player");
+    }
+    {
+        ian::Simulation automaticTools;
+        automaticTools.startRun();
+        automaticTools.grantSkillPoints(
+            3, ian::SkillPointSource::Event);
+        const auto axe =
+            automaticTools.skillTree().indexOf("axe");
+        const auto pickaxe =
+            automaticTools.skillTree().indexOf("pickaxe");
+        const auto autoSwitch =
+            automaticTools.skillTree().indexOf(
+                "auto_switch_tools");
+        require(
+            axe && pickaxe && autoSwitch &&
+                automaticTools.purchaseSkill(*axe) ==
+                    ian::SkillPurchaseError::None &&
+                automaticTools.purchaseSkill(*pickaxe) ==
+                    ian::SkillPurchaseError::None &&
+                automaticTools.purchaseSkill(*autoSwitch) ==
+                    ian::SkillPurchaseError::None,
+            "automatic tool switch fixture unlocks converged skill");
+        const auto snapshot = automaticTools.snapshot();
+        const auto wood = std::find_if(
+            snapshot.resourceNodes.begin(),
+            snapshot.resourceNodes.end(),
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Wood;
+            });
+        const auto stone = std::find_if(
+            snapshot.resourceNodes.begin(),
+            snapshot.resourceNodes.end(),
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Stone;
+            });
+        require(
+            wood != snapshot.resourceNodes.end() &&
+                stone != snapshot.resourceNodes.end(),
+            "automatic tool switch fixture has both resource types");
+        ian::PlayerCommand aimWood;
+        aimWood.overrideAimedResource = true;
+        aimWood.aimedResourceOverride = wood->id;
+        automaticTools.tick(1.0 / 60.0, aimWood);
+        require(
+            automaticTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Axe,
+            "automatic switch selects axe for wood");
+        ian::PlayerCommand aimStone;
+        aimStone.overrideAimedResource = true;
+        aimStone.aimedResourceOverride = stone->id;
+        automaticTools.tick(1.0 / 60.0, aimStone);
+        require(
+            automaticTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Pickaxe,
+            "automatic switch selects pickaxe for stone");
+    }
+    {
         auto transactionBalance =
             ian::GameBalance::defaults();
         transactionBalance.gameplay.pickaxeDamageVariation = 0.0;
@@ -1299,10 +1548,14 @@ void runSimulationTests() {
     require(simulation.snapshot().bombsRemaining ==
                 std::numeric_limits<int>::max(),
             "god mode exposes infinite bomb inventory");
-    constexpr std::array<ian::PlayerWeapon, 6> GodModeTools{{
+    require(simulation.snapshot().skillPoints ==
+                std::numeric_limits<int>::max(),
+            "god mode exposes infinite skill points");
+    constexpr std::array<ian::PlayerWeapon, 7> GodModeTools{{
         ian::PlayerWeapon::Axe,
         ian::PlayerWeapon::Pickaxe,
         ian::PlayerWeapon::Club,
+        ian::PlayerWeapon::IceWand,
         ian::PlayerWeapon::Hammer,
         ian::PlayerWeapon::Rifle,
         ian::PlayerWeapon::BareHands,
@@ -1314,6 +1567,41 @@ void runSimulationTests() {
         require(simulation.snapshot().selectedWeapon == expected,
                 "god mode weapon cycle includes every tool and weapon");
     }
+    ian::PlayerCommand selectGodModeAxe;
+    selectGodModeAxe.toggleWeapon =
+        ian::ToggleWeaponCommand{};
+    simulation.tick(1.0 / 60.0, selectGodModeAxe);
+    const auto godModeSnapshot = simulation.snapshot();
+    const auto godModeStone = std::find_if(
+        godModeSnapshot.resourceNodes.begin(),
+        godModeSnapshot.resourceNodes.end(),
+        [](const ian::ResourceNode& node) {
+            return node.active &&
+                node.type == ian::ResourceType::Stone;
+        });
+    require(
+        godModeStone != godModeSnapshot.resourceNodes.end() &&
+            godModeSnapshot.selectedWeapon ==
+                ian::PlayerWeapon::Axe,
+        "god mode tool animation fixture selects axe manually");
+    ian::PlayerCommand godModeAimStone;
+    godModeAimStone.overrideAimedResource = true;
+    godModeAimStone.aimedResourceOverride = godModeStone->id;
+    simulation.tick(1.0 / 60.0, godModeAimStone);
+    require(
+        simulation.snapshot().selectedWeapon ==
+            ian::PlayerWeapon::Axe,
+        "god mode resource aim does not override the manually selected tool");
+    const auto godModeAxeSkill =
+        simulation.skillTree().indexOf("axe");
+    require(
+        godModeAxeSkill &&
+            simulation.purchaseSkill(*godModeAxeSkill) ==
+                ian::SkillPurchaseError::None &&
+            simulation.snapshot().skillPoints ==
+                std::numeric_limits<int>::max() &&
+            simulation.skillTree().points() == 0,
+        "god mode purchases skills without consuming stored points");
     ian::PlayerCommand freeBomb;
     freeBomb.useConsumable = ian::UseConsumableCommand{};
     simulation.tick(1.0 / 60.0, freeBomb);
@@ -1497,7 +1785,8 @@ void runSimulationTests() {
             "debug command spawns selected enemy during wave");
     phaseEvents = simulation.takeEvents();
 
-    const int pointsBeforeWaveReward = simulation.snapshot().skillPoints;
+    const int storedPointsBeforeWaveReward =
+        simulation.skillTree().points();
     ian::PlayerCommand defeatWave;
     defeatWave.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
     simulation.tick(1.0 / 60.0, defeatWave);
@@ -1508,8 +1797,12 @@ void runSimulationTests() {
                 "dawn starts with configured duration");
     require(simulation.snapshot().gold == simulation.snapshot().waveCompletionReward,
             "wave completion grants gold reward");
-    require(simulation.snapshot().skillPoints == pointsBeforeWaveReward + 1,
-            "normal wave completion grants one skill point");
+    require(
+        simulation.snapshot().skillPoints ==
+                std::numeric_limits<int>::max() &&
+            simulation.skillTree().points() ==
+                storedPointsBeforeWaveReward + 1,
+        "wave completion grants one stored point while god mode stays infinite");
     require(!simulation.snapshot().tutorialObjective,
             "tutorial disappears after first night");
     phaseEvents = simulation.takeEvents();

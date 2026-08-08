@@ -240,11 +240,21 @@ void App::drawSoldBuildingVisuals() {
 
 void App::drawBlobShadows(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
+    const auto blobShadowStart = PerformanceClock::now();
+    performanceStats_.enemyShadowDraws = 0U;
     if (renderer_->beginBlobShadowBatch(camera.position)) {
         const float maximumAoDistance =
             renderer_->settings().shadowDistance + 24.0F;
         const float maximumAoDistanceSquared =
             maximumAoDistance * maximumAoDistance;
+        const float enemyShadowDistance =
+            renderer_->settings().quality == GraphicsQuality::Low
+                ? 18.0F
+                : renderer_->settings().quality == GraphicsQuality::Medium
+                    ? 30.0F
+                    : 42.0F;
+        const float enemyShadowDistanceSquared =
+            enemyShadowDistance * enemyShadowDistance;
         for (const auto& node : snapshot.resourceNodes) {
             if (!node.active) {
                 continue;
@@ -272,9 +282,7 @@ void App::drawBlobShadows(
                 continue;
             }
             const float groundY = static_cast<float>(
-                simulation_.terrain().getHeight(
-                    node.position.x,
-                    node.position.z));
+                node.position.y - node.groundOffset);
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
                 groundY + 0.018F,
@@ -288,10 +296,15 @@ void App::drawBlobShadows(
                 radius * 0.52F, radius * 0.42F,
                 node.type == ResourceType::Wood ? 0.34F : 0.28F);
         }
-        renderer_->drawDecorativeRockAo(
-            camera.position,
-            static_cast<float>(snapshot.worldLimit),
-            grassClearAreas_);
+        // Decorative rock/bush AO repeats the full decoration grid traversal.
+        // Keep it for High quality; gameplay-critical objects retain their
+        // contact shadows on every preset.
+        if (renderer_->settings().quality == GraphicsQuality::High) {
+            renderer_->drawDecorativeRockAo(
+                camera.position,
+                static_cast<float>(snapshot.worldLimit),
+                grassClearAreas_);
+        }
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05) {
                 continue;
@@ -351,25 +364,42 @@ void App::drawBlobShadows(
             } else if (enemy.type == EnemyType::Flying) {
                 width = 0.72F;
             }
+            const float enemyOffsetX =
+                static_cast<float>(enemy.position.x) - camera.position.x;
+            const float enemyOffsetZ =
+                static_cast<float>(enemy.position.z) - camera.position.z;
+            if (enemyOffsetX * enemyOffsetX +
+                    enemyOffsetZ * enemyOffsetZ >
+                enemyShadowDistanceSquared) {
+                continue;
+            }
             const float groundY = static_cast<float>(
                 simulation_.terrain().getHeight(
                     enemy.position.x,
                     enemy.position.z));
+            ++performanceStats_.enemyShadowDraws;
             renderer_->drawBlobShadow(
                 {static_cast<float>(enemy.position.x),
                  groundY + 0.02F,
                  static_cast<float>(enemy.position.z)},
                 width * 0.72F, width * 0.6F,
-                enemy.type == EnemyType::Boss ? 0.2F : 0.16F);
-            renderer_->drawBlobShadow(
-                {static_cast<float>(enemy.position.x),
-                 groundY + 0.022F,
-                 static_cast<float>(enemy.position.z)},
-                width * 0.36F, width * 0.3F,
-                enemy.type == EnemyType::Boss ? 0.28F : 0.23F);
+                enemy.type == EnemyType::Boss ? 0.2F : 0.16F,
+                12);
+            if (renderer_->settings().quality != GraphicsQuality::Low) {
+                ++performanceStats_.enemyShadowDraws;
+                renderer_->drawBlobShadow(
+                    {static_cast<float>(enemy.position.x),
+                     groundY + 0.022F,
+                     static_cast<float>(enemy.position.z)},
+                    width * 0.36F, width * 0.3F,
+                    enemy.type == EnemyType::Boss ? 0.28F : 0.23F,
+                    12);
+            }
         }
         renderer_->endBlobShadowBatch();
     }
+    performanceStats_.blobShadows.sample(
+        performanceMilliseconds(blobShadowStart));
 }
 
 void App::drawCancelledPlacementPreview(

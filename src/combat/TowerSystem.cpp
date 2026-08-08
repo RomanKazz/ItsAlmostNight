@@ -109,7 +109,11 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
         const Vec3 origin = towerPosition(*building);
         const double range = attackRange(building->level);
-        const double damage = attackDamage(building->level);
+        const double towerBonus = building->anvilStacks > 0
+            ? 1.0 + 0.10 * building->anvilStacks
+            : building->anvilEnhanced ? 1.10 : 1.0;
+        const double damage = attackDamage(building->level) *
+            towerBonus;
         const double shotInterval = fireInterval(building->level);
 
         if (tower.targetId) {

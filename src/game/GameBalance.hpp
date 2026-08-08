@@ -70,9 +70,32 @@ struct BombBalanceDefinition {
     double knockbackStrength;
 };
 
+struct ClubBalanceDefinition {
+    double damageMultiplier;
+    double areaRadius;
+    double knockbackStrength;
+    double maxDamagePerAttack;
+};
+
+struct IceWandBalanceDefinition {
+    double cooldown;
+    double directDamage;
+    double projectileSpeed;
+    double projectileRadius;
+    double maxLifetime;
+    double explosionRadius;
+    double freezeDuration;
+    double eliteFreezeMultiplier;
+    double bossSlowAmount;
+    double chargeUpDuration;
+    double areaDamageMultiplier;
+};
+
 struct WeaponBalanceDefinition {
     RifleBalanceDefinition rifle;
     BombBalanceDefinition bomb;
+    ClubBalanceDefinition club;
+    IceWandBalanceDefinition iceWand;
 };
 
 struct EconomyBalanceDefinition {

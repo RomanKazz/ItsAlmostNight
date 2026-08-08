@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "core/PerformanceStats.hpp"
 #include "core/Types.hpp"
 #include "game/GameBalance.hpp"
 #include "navigation/FlowField.hpp"
@@ -37,6 +38,27 @@ enum class EnemyState {
     Dead,
 };
 
+enum class StatusEffectType {
+    Freeze,
+    Slow,
+};
+
+struct EnemyStatusEffect {
+    StatusEffectType type{StatusEffectType::Freeze};
+    std::optional<EntityId> source;
+    double remaining{};
+    double intensity{};
+    double immunityRemaining{};
+    double visualParameter{};
+};
+
+struct StatusEffectRules {
+    double eliteDurationMultiplier{0.65};
+    double bossSlowAmount{0.35};
+    double repeatedApplicationMultiplier{0.55};
+    double immunityWindowFraction{0.35};
+};
+
 struct EnemyInstance {
     EntityId id;
     EnemyType type;
@@ -64,6 +86,10 @@ struct EnemyInstance {
     EnemyState state;
     std::optional<EntityId> target;
     bool active;
+    std::array<EnemyStatusEffect, 2> statusEffects{{
+        EnemyStatusEffect{.type = StatusEffectType::Freeze},
+        EnemyStatusEffect{.type = StatusEffectType::Slow},
+    }};
 };
 
 struct EnemySpawn {
@@ -92,6 +118,7 @@ struct EnemyStructureTarget {
 struct EnemyDamageResult {
     EntityId id;
     Vec3 position;
+    double damage;
     double remainingHealth;
     bool killed;
 };
@@ -99,6 +126,14 @@ struct EnemyDamageResult {
 struct EnemyPlayerAttack {
     EntityId enemyId;
     double damage;
+};
+
+struct EnemyPerformanceStats {
+    PerformanceMetric tick;
+    PerformanceMetric collision;
+    PerformanceMetric spatialRebuild;
+    std::size_t activeEnemies{};
+    std::size_t spatialRebuilds{};
 };
 
 class EnemySystem {
@@ -130,8 +165,22 @@ class EnemySystem {
     [[nodiscard]] std::optional<EntityId> densestEnemy(Vec3 position, double radius,
                                                        double clusterRadius) const;
     [[nodiscard]] std::optional<EnemyInstance> enemy(EntityId id) const;
-    std::span<const EnemyDamageResult> damageInRadius(Vec3 position, double radius, double amount,
-                                                      double knockbackStrength = 0.0);
+    std::span<const EnemyDamageResult> damageInRadius(
+        Vec3 position, double radius, double amount,
+        double knockbackStrength = 0.0,
+        std::optional<Vec3> knockbackOrigin = std::nullopt,
+        double maxTotalDamage = 0.0,
+        std::optional<EntityId> excludedId = std::nullopt);
+    [[nodiscard]] bool applyStatus(
+        EntityId id, StatusEffectType type,
+        std::optional<EntityId> source, double duration,
+        double intensity = 1.0,
+        StatusEffectRules rules = {});
+    std::span<const EntityId> applyStatusInRadius(
+        Vec3 position, double radius, StatusEffectType type,
+        std::optional<EntityId> source, double duration,
+        double intensity = 1.0,
+        StatusEffectRules rules = {});
     std::span<const EntityId> applySlowInRadius(Vec3 position, double radius, double multiplier,
                                                double duration);
     std::size_t defeatAll();
@@ -139,6 +188,7 @@ class EnemySystem {
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
+    [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 
   private:
     static constexpr std::uint32_t FirstEnemyIndex = 2000;
@@ -162,6 +212,16 @@ class EnemySystem {
     std::uint32_t nextIndex_{FirstEnemyIndex};
     SpatialHash spatialHash_;
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions_;
+    EnemyPerformanceStats performanceStats_{};
+    bool profilingTick_{};
+    bool spatialHashDirty_{};
+    std::size_t spatialRebuildsThisTick_{};
+    double spatialRebuildMillisecondsThisTick_{};
 };
+
+[[nodiscard]] const EnemyStatusEffect& enemyStatusEffect(
+    const EnemyInstance& enemy, StatusEffectType type);
+[[nodiscard]] bool enemyHasStatus(
+    const EnemyInstance& enemy, StatusEffectType type);
 
 } // namespace ian

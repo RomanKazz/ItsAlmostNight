@@ -20,12 +20,20 @@ BuildingStats buildingStatsAtLevel(
             (1.0 + 0.15 * static_cast<double>(level - 1)),
     };
     if (building.type == BuildingType::Turret) {
-        stats.attackDamage = TowerSystem::attackDamage(level);
+        const double towerBonus = building.anvilStacks > 0
+            ? 1.0 + 0.10 * building.anvilStacks
+            : building.anvilEnhanced ? 1.10 : 1.0;
+        stats.attackDamage = TowerSystem::attackDamage(level) *
+            towerBonus;
         stats.attackRange = TowerSystem::attackRange(level);
         stats.attacksPerSecond =
             1.0 / TowerSystem::fireInterval(level);
     } else if (building.type == BuildingType::Cannon) {
-        stats.attackDamage = CannonSystem::explosionDamage(level);
+        const double towerBonus = building.anvilStacks > 0
+            ? 1.0 + 0.10 * building.anvilStacks
+            : building.anvilEnhanced ? 1.10 : 1.0;
+        stats.attackDamage = CannonSystem::explosionDamage(level) *
+            towerBonus;
         stats.attackRange = CannonSystem::attackRange(level);
         stats.attacksPerSecond =
             1.0 / CannonSystem::fireInterval(level);

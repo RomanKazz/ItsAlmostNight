@@ -41,10 +41,8 @@ void Simulation::processDebugCommands(
         unlimitedResources_ = !unlimitedResources_;
         playerInvulnerable_ = unlimitedResources_;
         if (unlimitedResources_) {
-            playerHealth_ =
-                gameplay_.playerMaxHealth *
-                    playerMaxHealthMultiplier_ +
-                playerBonusMaxHealth_;
+            playerHealth_ = playerPermanentMaxHealth() +
+                playerTemporaryHealth_;
         } else {
             const PlayerWeapon selected =
                 playerWeapons_.selectedWeapon();
@@ -56,6 +54,8 @@ void Simulation::processDebugCommands(
                  skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) ||
                 (selected == PlayerWeapon::Club &&
                  skillTree_.hasEffect(SkillEffect::UnlockClub)) ||
+                (selected == PlayerWeapon::IceWand &&
+                 skillTree_.hasEffect(SkillEffect::UnlockIceWand)) ||
                 (selected == PlayerWeapon::Hammer &&
                  skillTree_.hasEffect(SkillEffect::UnlockHammer)) ||
                 (selected == PlayerWeapon::Rifle &&

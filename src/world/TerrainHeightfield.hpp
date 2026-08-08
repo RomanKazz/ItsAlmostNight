@@ -36,6 +36,10 @@ class TerrainHeightfield {
 
     [[nodiscard]] double getHeight(
         double worldX, double worldZ) const;
+    // Height used by the visual mountain backdrop outside the playable
+    // terrain. It is intentionally not part of collision or raycast space.
+    [[nodiscard]] double getBackdropHeight(
+        double worldX, double worldZ) const;
     [[nodiscard]] Vec3 getNormal(
         double worldX, double worldZ) const;
     [[nodiscard]] bool isInside(

@@ -63,6 +63,22 @@ int nearestFrameRateLimit(int value) {
         });
 }
 
+constexpr std::array<const char*, ControlActionCount>
+    ControlActionJsonNames{
+        "moveForward", "moveLeft",       "moveBackward",
+        "moveRight",   "jump",           "sprint",
+        "attack",      "toggleTool",    "interact",
+        "bomb",        "repair",         "copy",
+        "upgrade",     "sell",           "upgradeWeapon",
+        "buildMode",   "pause",          "skills",
+        "map",         "startWave",      "restart",
+    };
+
+bool validControlKey(int key) {
+    return key == KEY_NULL ||
+           (key >= KEY_SPACE && key <= KEY_KB_MENU);
+}
+
 const char* qualityName(GraphicsQuality quality) {
     switch (quality) {
     case GraphicsQuality::Low:
@@ -279,10 +295,25 @@ void readMotion(const Json& value, MotionSettings& settings) {
 void readControls(const Json& value, ControlSettings& settings) {
     readValue(value, "mouseSensitivity", settings.mouseSensitivity);
     readValue(value, "invertMouseY", settings.invertMouseY);
+    if (const auto keys = value.find("keys");
+        keys != value.end() && keys->is_object()) {
+        for (std::size_t index = 0; index < ControlActionCount;
+             ++index) {
+            readValue(
+                *keys, ControlActionJsonNames[index],
+                settings.keys[index]);
+        }
+    }
     const ControlSettings defaults;
     settings.mouseSensitivity = finiteClamped(
         settings.mouseSensitivity, defaults.mouseSensitivity,
         0.1F, 3.0F);
+    for (std::size_t index = 0; index < ControlActionCount;
+         ++index) {
+        if (!validControlKey(settings.keys[index])) {
+            settings.keys[index] = defaults.keys[index];
+        }
+    }
 }
 
 void readAccessibility(
@@ -325,6 +356,12 @@ bool loadUserSettings(
             value != document.end() && value->is_object()) {
             readAccessibility(*value, loaded.accessibility);
         }
+        if (const auto value = document.find("language");
+            value != document.end() && value->is_string()) {
+            const std::string code = value->get<std::string>();
+            loaded.language = code == "ru"
+                ? Language::Russian : Language::English;
+        }
         settings = loaded;
         return true;
     } catch (...) {
@@ -340,7 +377,8 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 2},
+            {"version", 4},
+            {"language", std::string(languageCode(settings.language))},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",
              {{"masterVolume", settings.audio.masterVolume},
@@ -354,7 +392,17 @@ bool saveUserSettings(
               {"swayIntensity", settings.motion.swayIntensity}}},
             {"controls",
              {{"mouseSensitivity", settings.controls.mouseSensitivity},
-              {"invertMouseY", settings.controls.invertMouseY}}},
+              {"invertMouseY", settings.controls.invertMouseY},
+              {"keys",
+               [&settings]() {
+                   Json keys = Json::object();
+                   for (std::size_t index = 0;
+                        index < ControlActionCount; ++index) {
+                       keys[ControlActionJsonNames[index]] =
+                           settings.controls.keys[index];
+                   }
+                   return keys;
+               }()}}},
             {"accessibility",
              {{"showFps", settings.accessibility.showFps},
               {"reduceFlashes", settings.accessibility.reduceFlashes}}},
@@ -495,6 +543,104 @@ detectGraphicsPreset(const GraphicsSettings& settings) {
         }
     }
     return std::nullopt;
+}
+
+int controlKey(
+    const ControlSettings& settings, ControlAction action) {
+    const std::size_t index = static_cast<std::size_t>(action);
+    return index < ControlActionCount
+               ? settings.keys[index]
+               : KEY_NULL;
+}
+
+void setControlKey(
+    ControlSettings& settings, ControlAction action, int key) {
+    const std::size_t index = static_cast<std::size_t>(action);
+    if (index < ControlActionCount && validControlKey(key)) {
+        settings.keys[index] = key;
+    }
+}
+
+int defaultControlKey(ControlAction action) {
+    const std::size_t index = static_cast<std::size_t>(action);
+    return index < ControlActionCount
+               ? DefaultControlKeys[index]
+               : KEY_NULL;
+}
+
+const char* controlActionName(ControlAction action) {
+    switch (action) {
+    case ControlAction::MoveForward: return "MOVE FORWARD";
+    case ControlAction::MoveLeft: return "MOVE LEFT";
+    case ControlAction::MoveBackward: return "MOVE BACKWARD";
+    case ControlAction::MoveRight: return "MOVE RIGHT";
+    case ControlAction::Jump: return "JUMP";
+    case ControlAction::Sprint: return "SPRINT";
+    case ControlAction::Attack: return "ATTACK";
+    case ControlAction::ToggleTool: return "NEXT TOOL";
+    case ControlAction::Interact: return "INTERACT";
+    case ControlAction::Bomb: return "BOMB";
+    case ControlAction::Repair: return "REPAIR";
+    case ControlAction::Copy: return "COPY";
+    case ControlAction::Upgrade: return "UPGRADE BUILDING";
+    case ControlAction::Sell: return "SELL / REMOVE";
+    case ControlAction::UpgradeWeapon: return "UPGRADE WEAPON";
+    case ControlAction::BuildMode: return "BUILD MODE";
+    case ControlAction::Pause: return "PAUSE";
+    case ControlAction::Skills: return "SKILL TREE";
+    case ControlAction::Map: return "MAP";
+    case ControlAction::StartWave: return "START WAVE";
+    case ControlAction::Restart: return "RESTART RUN";
+    case ControlAction::Count: break;
+    }
+    return "UNKNOWN";
+}
+
+std::string keyboardKeyName(int key) {
+    if (key == KEY_NULL) {
+        return "UNBOUND";
+    }
+    if (key >= KEY_A && key <= KEY_Z) {
+        return std::string(1, static_cast<char>(key));
+    }
+    if (key >= KEY_ZERO && key <= KEY_NINE) {
+        return std::string(1, static_cast<char>(key));
+    }
+    switch (key) {
+    case KEY_SPACE: return "SPACE";
+    case KEY_ESCAPE: return "ESC";
+    case KEY_ENTER: return "ENTER";
+    case KEY_TAB: return "TAB";
+    case KEY_BACKSPACE: return "BACKSPACE";
+    case KEY_LEFT: return "LEFT";
+    case KEY_RIGHT: return "RIGHT";
+    case KEY_UP: return "UP";
+    case KEY_DOWN: return "DOWN";
+    case KEY_LEFT_SHIFT: return "L-SHIFT";
+    case KEY_RIGHT_SHIFT: return "R-SHIFT";
+    case KEY_LEFT_CONTROL: return "L-CTRL";
+    case KEY_RIGHT_CONTROL: return "R-CTRL";
+    case KEY_LEFT_ALT: return "L-ALT";
+    case KEY_RIGHT_ALT: return "R-ALT";
+    case KEY_LEFT_BRACKET: return "[";
+    case KEY_RIGHT_BRACKET: return "]";
+    case KEY_BACKSLASH: return "\\";
+    case KEY_GRAVE: return "`";
+    case KEY_F1: return "F1";
+    case KEY_F2: return "F2";
+    case KEY_F3: return "F3";
+    case KEY_F4: return "F4";
+    case KEY_F5: return "F5";
+    case KEY_F6: return "F6";
+    case KEY_F7: return "F7";
+    case KEY_F8: return "F8";
+    case KEY_F9: return "F9";
+    case KEY_F10: return "F10";
+    case KEY_F11: return "F11";
+    case KEY_F12: return "F12";
+    default:
+        return "KEY " + std::to_string(key);
+    }
 }
 
 } // namespace ian

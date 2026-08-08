@@ -115,6 +115,7 @@ class FoundationSystem {
         WorldConfig config = WorldConfig::defaults());
 
     void reset();
+    void setMaxHealthMultiplier(double multiplier);
     [[nodiscard]] PlatformFramePlacement
     previewFoundation(
         Vec3 terrainHit, Vec3 playerPosition) const;
@@ -206,6 +207,7 @@ class FoundationSystem {
     std::uint32_t nextIndex_{12000U};
     bool structuralCollapseEnabled_{true};
     double structuralCollapseDelay_{1.5};
+    double maxHealthMultiplier_{1.0};
 };
 
 } // namespace ian

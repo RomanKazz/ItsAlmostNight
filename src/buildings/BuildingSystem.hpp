@@ -59,6 +59,8 @@ struct BuildingInstance {
     double baseHeight{};
     int platformStorey{-1};
     double foundationBottomHeight{};
+    bool anvilEnhanced{};
+    std::uint8_t anvilStacks{};
 };
 
 enum class PlacementError {
@@ -179,6 +181,9 @@ class BuildingSystem {
         int coreBuildRadius = 12);
 
     void reset();
+    void setMaxHealthMultiplier(double multiplier);
+    void setNewTowerBonusEnabled(bool enabled);
+    void setNewTowerBonusStacks(int stacks);
 
     [[nodiscard]] PlacementResult validate(BuildingType type, GridPosition position, int wood,
                                            int stone, int gold = 0,
@@ -218,6 +223,9 @@ class BuildingSystem {
     std::array<BuildingBalanceDefinition, GameBalance::BuildingTypeCount> definitions_;
     EconomyBalanceDefinition economy_;
     int coreBuildRadius_;
+    double maxHealthMultiplier_{1.0};
+    bool newTowerBonusEnabled_{};
+    std::uint8_t newTowerBonusStacks_{};
 };
 
 [[nodiscard]] ResourceCost buildingCost(BuildingType type);

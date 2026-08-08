@@ -5,6 +5,7 @@
 #include "buildings/FoundationSystem.hpp"
 #include "combat/CannonSystem.hpp"
 #include "combat/BombSystem.hpp"
+#include "combat/IceWandSystem.hpp"
 #include "combat/PlayerWeaponSystem.hpp"
 #include "combat/TowerSystem.hpp"
 #include "combat/TrapSystem.hpp"
@@ -71,6 +72,7 @@ struct PlayerCommand {
     bool sprint{};
     bool usePickaxe{};
     bool fireRifle{};
+    bool fireIceWand{};
     std::optional<BuildingType> selectBuilding;
     bool cancelBuilding{};
     std::optional<PlaceBuildingCommand> placeBuilding;
@@ -148,9 +150,14 @@ struct SimulationSnapshot {
     std::optional<EntityId> aimedChest;
     std::optional<EntityId> aimedLoot;
     std::span<const LootChestInstance> lootChests;
+    std::optional<Vec3> nearestChestPosition;
+    double nearestChestDistance{};
     std::array<int, LootUpgradeEffectCount> lootStacks;
     double playerDamageMultiplier;
     double playerMoveSpeedMultiplier;
+    double playerArmorMultiplier;
+    double playerTemporaryHealth;
+    double chestOpeningCostMultiplier;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
     std::span<const ResourceNode> resourceNodes;
@@ -186,6 +193,10 @@ struct SimulationSnapshot {
     std::span<const CannonRuntime> cannons;
     std::span<const CannonProjectile> cannonProjectiles;
     std::span<const BombProjectile> bombProjectiles;
+    std::span<const IceWandProjectile> iceWandProjectiles;
+    double iceWandChargeRemaining{};
+    double iceWandChargeDuration{};
+    double iceWandCooldownRemaining{};
     std::size_t activeEnemyCount;
     std::size_t pendingEnemyCount;
     std::array<int, GameBalance::EnemyTypeCount>
@@ -202,6 +213,7 @@ struct SimulationSnapshot {
     std::uint8_t coreLevel;
     bool unlimitedResources;
     bool playerInvulnerable;
+    bool automaticToolSwitch;
     PlayerWeapon selectedWeapon;
     double selectedWeaponDamage;
     int rifleLevel;
@@ -241,6 +253,8 @@ class Simulation {
     void tick(double deltaSeconds, const PlayerCommand& command = {});
 
     [[nodiscard]] SimulationSnapshot snapshot() const;
+    [[nodiscard]] const EnemyPerformanceStats&
+    enemyPerformanceStats() const;
     [[nodiscard]] PlacementResult previewPlacement(
         BuildingType type, GridPosition position) const;
     [[nodiscard]] PlacementResult previewPlacement(
@@ -287,6 +301,7 @@ class Simulation {
     [[nodiscard]] bool structuralCollapseEnabled() const;
     [[nodiscard]] std::vector<EntityId> structuralCollapseRisk(
         std::span<const EntityId> supports) const;
+    [[nodiscard]] std::uint64_t structuralRevision() const;
     [[nodiscard]] std::size_t clearModularBuildings();
     std::vector<GameEvent> takeEvents();
     [[nodiscard]] const SkillTree& skillTree() const;
@@ -361,9 +376,12 @@ class Simulation {
     void cycleUnlockedTool();
     void updateFortifications(double deltaSeconds);
     void applyLootPickup(const LootPickup& pickup);
+    void applyPotionWaveStart();
     void updateLootEffects(double deltaSeconds);
+    [[nodiscard]] double playerPermanentMaxHealth() const;
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
+    void invalidateSnapshotCache();
 
     RunState state_{RunState::MainMenu};
     RunState stateBeforePause_{RunState::Gathering};
@@ -437,10 +455,12 @@ class Simulation {
     PlayerWeaponSystem playerWeapons_;
     SkillTree skillTree_;
     BombSystem bombs_;
+    IceWandSystem iceWand_;
     GoldMineSystem goldMines_;
     WaveDirector waveDirector_;
     EconomyBalanceDefinition economy_;
     GameplayBalanceDefinition gameplay_;
+    ClubBalanceDefinition club_;
     double phaseTimeRemaining_{};
     double phaseDuration_{};
     int wave_{};
@@ -454,8 +474,14 @@ class Simulation {
     bool currentWaveHasBoss_{};
     double playerDamageMultiplier_{1.0};
     double playerMoveSpeedMultiplier_{1.0};
+    double playerArmorMultiplier_{1.0};
     double playerMaxHealthMultiplier_{1.0};
+    double buildingMaxHealthMultiplier_{1.0};
+    double productionSpeedMultiplier_{1.0};
+    double woodYieldMultiplier_{1.0};
+    double chestOpeningCostMultiplier_{1.0};
     double playerBonusMaxHealth_{};
+    double playerTemporaryHealth_{};
     double secondsSincePlayerDamage_{};
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     int bareHandsWoodGathered_{};
@@ -465,6 +491,8 @@ class Simulation {
     std::vector<ActiveFortification> activeFortifications_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;
     std::vector<GameEvent> events_;
+    mutable std::optional<SimulationSnapshot> snapshotCache_;
+    std::uint64_t structuralRevision_{};
 };
 
 } // namespace ian

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/IceWandSystem.hpp"
+#include "core/PerformanceStats.hpp"
 #include "graphics/DecorationExclusionMap.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "game/LootChestSystem.hpp"
@@ -53,6 +55,15 @@ struct WorldMaterialState {
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
 };
 
+struct RendererPerformanceStats {
+    PerformanceMetric instancedEnemyDraw;
+    std::size_t instancedEnemyCount{};
+    std::size_t enemyBatchCount{};
+    std::size_t lowDetailEnemyCount{};
+    std::size_t blobShadowCount{};
+    std::size_t blobShadowTriangles{};
+};
+
 struct GrassClearArea {
     Vector2 center{};
     float innerRadius{};
@@ -99,9 +110,11 @@ enum class EnemyAnimationVisual {
 };
 
 enum class FirstPersonToolVisual {
+    None,
     Axe,
     Pickaxe,
     Club,
+    IceWand,
     Hammer,
 };
 
@@ -139,6 +152,7 @@ struct EnemyDrawInstance {
     Color tint{WHITE};
     float scale{1.0F};
     bool loop{true};
+    bool lowDetail{};
 };
 
 struct TreeDrawInstance {
@@ -256,7 +270,13 @@ class Renderer {
     [[nodiscard]] bool drawFirstPersonTool(
         FirstPersonToolVisual visual, float swingProgress,
         float movementPhase, float movementAmount,
-        const FirstPersonToolTuning& tuning);
+        const FirstPersonToolTuning& tuning,
+        float iceChargeProgress = 0.0F,
+        float iceRecoilProgress = 0.0F);
+    void drawIceWandProjectile(
+        const IceWandProjectile& projectile,
+        Vector3 cameraPosition, float timeSeconds,
+        float interpolationAlpha = 1.0F);
     [[nodiscard]] bool drawLootChest(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress, Color tint = WHITE);
@@ -328,11 +348,12 @@ class Renderer {
                            float scale = 1.0F);
     [[nodiscard]] bool beginBlobShadowBatch(Vector3 cameraPosition);
     void drawBlobShadow(Vector3 groundPosition, float radiusX, float radiusZ,
-                        float opacity);
+                        float opacity, int segmentCountOverride = 0);
     void endBlobShadowBatch();
 
     [[nodiscard]] GraphicsSettings& settings();
     [[nodiscard]] const GraphicsSettings& settings() const;
+    [[nodiscard]] const RendererPerformanceStats& performanceStats() const;
 
   private:
     struct EnemyBatchKey {
@@ -342,8 +363,17 @@ class Renderer {
         std::uint32_t tint{};
         int scale{};
         bool loop{};
+        bool lowDetail{};
 
         auto operator<=>(const EnemyBatchKey&) const = default;
+    };
+
+    struct EnemyPoseKey {
+        EnemyModelVisual model{};
+        EnemyAnimationVisual animation{};
+        int frame{};
+
+        auto operator<=>(const EnemyPoseKey&) const = default;
     };
 
     struct EnemyBatch {
@@ -351,8 +381,22 @@ class Renderer {
         std::vector<Matrix> transforms{};
     };
 
+    struct CachedInstance {
+        Matrix transform{};
+        Vector2 position{};
+        float scale{};
+        float groundHeight{};
+    };
+
     void ensureGrassClearAreaIndex(
         std::span<const GrassClearArea> clearAreas);
+    [[nodiscard]] Vector3 terrainSurfaceNormal(
+        float worldX, float worldZ) const;
+    [[nodiscard]] Matrix terrainAlignedRotation(
+        float worldX, float worldZ, float yawRadians) const;
+    void drawTerrainAlignedModel(
+        Model& model, Vector3 position, float yawRadians,
+        Vector3 scale, Color tint) const;
     [[nodiscard]] float clearAreaVisibility(
         Vector2 position,
         std::span<const GrassClearArea> clearAreas,
@@ -466,6 +510,9 @@ class Renderer {
         EnemyModelVisual visual, const Model& model,
         const std::array<const char*, 23>& sourceBones);
     void drawShadowMapDebug() const;
+    void drawIceMagicSphere(Vector3 position, float radius,
+                            float timeSeconds, float intensity,
+                            Color tint);
     GraphicsSettings settings_;
     GraphicsResources resources_;
     TerrainRenderer terrainRenderer_;
@@ -485,6 +532,13 @@ class Renderer {
     int worldInstancingEnabledLocation_{-1};
     int shadowSkinningEnabledLocation_{-1};
     int selectionMaskSkinningEnabledLocation_{-1};
+    int viewModelTexelSizeLocation_{-1};
+    int viewModelOutlineEnabledLocation_{-1};
+    int viewModelOutlineWidthLocation_{-1};
+    int viewModelOutlineStrengthLocation_{-1};
+    int viewModelRimStrengthLocation_{-1};
+    int viewModelBrightnessLocation_{-1};
+    int viewModelSaturationLocation_{-1};
     int grassTintLocation_{-1};
     int grassTimeLocation_{-1};
     int grassCameraPositionLocation_{-1};
@@ -525,6 +579,9 @@ class Renderer {
     int upgradeEffectHeightLocation_{-1};
     int upgradeEffectProgressLocation_{-1};
     int upgradeEffectTimeLocation_{-1};
+    int iceMagicTimeLocation_{-1};
+    int iceMagicTintLocation_{-1};
+    int iceMagicIntensityLocation_{-1};
     Matrix lightViewProjection_{};
     Vector3 shadowFocus_{};
     Vector3 blobShadowCamera_{};
@@ -539,6 +596,16 @@ class Renderer {
     bool worldShaderActive_{};
     bool shadowPassOpen_{};
     bool shadowFrameValid_{};
+    // The shadow map is intentionally refreshed at a small fixed cadence.
+    // Re-rendering the complete caster set every frame is one of the most
+    // expensive passes on large maps, while a 30 Hz cache is visually
+    // indistinguishable during normal camera movement.
+    bool shadowCacheInitialized_{};
+    double shadowLastUpdateTime_{-1.0};
+    Vector3 shadowLastFocus_{};
+    Vector3 shadowLastSunDirection_{};
+    float shadowLastDistance_{-1.0F};
+    int shadowLastMapSize_{-1};
     bool selectionMaskPassOpen_{};
     bool selectionMaskReady_{};
     bool blobShadowBatchOpen_{};
@@ -549,6 +616,37 @@ class Renderer {
     std::array<std::vector<Matrix>, TreeVisualVariantCount>
         resourceTreeTransforms_;
     std::vector<Matrix> resourceRockTransforms_;
+    std::array<std::vector<Matrix>, 4>
+        decorativeRockTransforms_;
+    std::array<std::vector<Matrix>, 6>
+        decorativeBushTransforms_;
+    // Procedural decoration is rebuilt only when the camera crosses a cache
+    // cell or when terrain/clear-area/reveal inputs change. Per-frame work is
+    // limited to distance filtering and GPU submission.
+    std::array<std::vector<CachedInstance>, 3>
+        grassInstanceCandidates_;
+    std::array<std::vector<Matrix>, 3>
+        grassInstanceTransforms_;
+    std::array<std::vector<CachedInstance>, 4>
+        decorativeRockCandidates_;
+    std::array<std::vector<CachedInstance>, 6>
+        decorativeBushCandidates_;
+    bool grassInstanceCacheValid_{};
+    bool decorativeInstanceCacheValid_{};
+    int grassCacheCameraCellX_{};
+    int grassCacheCameraCellZ_{};
+    int decorativeCacheCameraCellX_{};
+    int decorativeCacheCameraCellZ_{};
+    GraphicsQuality grassCacheQuality_{GraphicsQuality::High};
+    GraphicsQuality decorativeCacheQuality_{GraphicsQuality::High};
+    float grassCacheWorldLimit_{-1.0F};
+    float decorativeCacheWorldLimit_{-1.0F};
+    std::size_t grassCacheClearAreaHash_{};
+    std::size_t decorativeCacheClearAreaHash_{};
+    const TerrainHeightfield* grassCacheTerrain_{};
+    const TerrainHeightfield* decorativeCacheTerrain_{};
+    Vector2 grassCacheRevealOrigin_{};
+    Vector2 decorativeCacheRevealOrigin_{};
     std::array<std::vector<Matrix>, 5>
         pondDecorTransforms_;
     std::array<std::vector<Matrix>, 4>
@@ -561,10 +659,16 @@ class Renderer {
     std::array<std::array<std::vector<int>, 2>, 7>
         enemyBoneMappings_;
     std::map<EnemyBatchKey, EnemyBatch> enemyBatches_;
+    std::vector<EnemyBatch*> activeEnemyBatches_;
+    std::map<EnemyPoseKey, std::vector<Matrix>> enemyBonePoseCache_;
+    Model enemyCrowdLodModel_{};
+    RendererPerformanceStats performanceStats_{};
+    double instancedEnemyMillisecondsThisFrame_{};
     std::vector<std::vector<std::uint32_t>>
         grassClearAreaCells_;
     const GrassClearArea* indexedGrassClearAreaData_{};
     std::size_t indexedGrassClearAreaCount_{};
+    std::size_t grassClearAreaContentHash_{};
     float grassClearAreaMinimum_{};
     float grassClearAreaCellSize_{8.0F};
     int grassClearAreaDimension_{};

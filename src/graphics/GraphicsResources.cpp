@@ -372,6 +372,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                       "assets/shaders/grass_instanced.fs");
     upgradeEffectShader_.load("assets/shaders/upgrade_effect.vs",
                               "assets/shaders/upgrade_effect.fs");
+    iceMagicShader_.load(nullptr, "assets/shaders/ice_magic.fs");
     terrainTexture_.load("assets/textures/grass_watercolor.png");
     if (terrainTexture_.valid()) {
         Texture2D& texture = terrainTexture_.get();
@@ -388,10 +389,29 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
     clubModel_.load("assets/models/tools/club.glb");
     hammerModel_.load("assets/models/tools/hammer.glb");
+    iceWandModel_.load("assets/models/weapons/ice_wand/wand.glb");
     woodenChestModel_.load("assets/models/wooden_chest.glb");
     stoneChestModel_.load("assets/models/stone_chest.glb");
     appleLootModel_.load("assets/models/items/apple.glb");
     breadLootModel_.load("assets/models/items/bread.glb");
+    ironBarLootModel_.load(
+        "assets/models/items/iron_bar/Iron_Bar.gltf");
+    fuelJerrycanLootModel_.load(
+        "assets/models/items/fuel_jerrycan/Fuel_A_Jerrycan.gltf");
+    compassLootModel_.load(
+        "assets/models/items/compass/compass_base.gltf");
+    nailLootModel_.load(
+        "assets/models/items/nail/nail.gltf");
+    keyLootModel_.load(
+        "assets/models/items/key/key.glb");
+    mapLootModel_.load(
+        "assets/models/items/map/map.gltf");
+    anvilLootModel_.load(
+        "assets/models/items/anvil/anvil.gltf");
+    sawLootModel_.load(
+        "assets/models/items/saw/saw.gltf");
+    potionLootModel_.load(
+        "assets/models/items/potion/potion.glb");
     platformModel_.load("assets/models/platform.glb");
     rampModel_.load("assets/models/ramp.glb");
     mineModel_.load("assets/models/mine.glb");
@@ -450,7 +470,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     grassModelD_.load(
         "assets/models/grass/Grass_2_D_Singlesided_Color1.gltf");
     enemyMinionModel_.load(
-        "assets/models/enemies/minion.glb");
+        "assets/models/enemies/pink_blob.gltf");
     enemyRogueModel_.load(
         "assets/models/enemies/rogue.glb");
     enemyWarriorModel_.load(
@@ -465,6 +485,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/enemies/ultimate/boss.gltf");
     enemyGeneralAnimations_.load(
         "assets/models/enemies/animations/general.glb");
+    enemyPinkBlobAnimations_.load(
+        "assets/models/enemies/pink_blob.gltf");
     enemyMovementAnimations_.load(
         "assets/models/enemies/animations/movement.glb");
     enemySapperAnimations_.load(
@@ -572,6 +594,7 @@ void GraphicsResources::shutdown() {
     enemyFlyingAnimations_.unload();
     enemySapperAnimations_.unload();
     enemyMovementAnimations_.unload();
+    enemyPinkBlobAnimations_.unload();
     enemyGeneralAnimations_.unload();
     enemyBossModel_.unload();
     enemyFlyingModel_.unload();
@@ -613,9 +636,19 @@ void GraphicsResources::shutdown() {
     rampModel_.unload();
     platformModel_.unload();
     hammerModel_.unload();
+    iceWandModel_.unload();
     clubModel_.unload();
     stoneChestModel_.unload();
     woodenChestModel_.unload();
+    potionLootModel_.unload();
+    sawLootModel_.unload();
+    anvilLootModel_.unload();
+    mapLootModel_.unload();
+    keyLootModel_.unload();
+    nailLootModel_.unload();
+    compassLootModel_.unload();
+    fuelJerrycanLootModel_.unload();
+    ironBarLootModel_.unload();
     breadLootModel_.unload();
     appleLootModel_.unload();
     pickaxeModel_.unload();
@@ -629,6 +662,7 @@ void GraphicsResources::shutdown() {
     terrainTexture_.unload();
     fallbackTexture_.unload();
     upgradeEffectShader_.unload();
+    iceMagicShader_.unload();
     grassShader_.unload();
     postProcessShader_.unload();
     viewModelCompositeShader_.unload();
@@ -788,6 +822,14 @@ const ShaderResource& GraphicsResources::upgradeEffectShader() const {
     return upgradeEffectShader_;
 }
 
+ShaderResource& GraphicsResources::iceMagicShader() {
+    return iceMagicShader_;
+}
+
+const ShaderResource& GraphicsResources::iceMagicShader() const {
+    return iceMagicShader_;
+}
+
 TextureResource& GraphicsResources::fallbackTexture() {
     return fallbackTexture_;
 }
@@ -840,6 +882,10 @@ ModelResource& GraphicsResources::hammerModel() {
     return hammerModel_;
 }
 
+ModelResource& GraphicsResources::iceWandModel() {
+    return iceWandModel_;
+}
+
 ModelResource& GraphicsResources::woodenChestModel() {
     return woodenChestModel_;
 }
@@ -854,6 +900,42 @@ ModelResource& GraphicsResources::appleLootModel() {
 
 ModelResource& GraphicsResources::breadLootModel() {
     return breadLootModel_;
+}
+
+ModelResource& GraphicsResources::ironBarLootModel() {
+    return ironBarLootModel_;
+}
+
+ModelResource& GraphicsResources::fuelJerrycanLootModel() {
+    return fuelJerrycanLootModel_;
+}
+
+ModelResource& GraphicsResources::compassLootModel() {
+    return compassLootModel_;
+}
+
+ModelResource& GraphicsResources::nailLootModel() {
+    return nailLootModel_;
+}
+
+ModelResource& GraphicsResources::keyLootModel() {
+    return keyLootModel_;
+}
+
+ModelResource& GraphicsResources::mapLootModel() {
+    return mapLootModel_;
+}
+
+ModelResource& GraphicsResources::anvilLootModel() {
+    return anvilLootModel_;
+}
+
+ModelResource& GraphicsResources::sawLootModel() {
+    return sawLootModel_;
+}
+
+ModelResource& GraphicsResources::potionLootModel() {
+    return potionLootModel_;
 }
 
 ModelResource& GraphicsResources::platformModel() {
@@ -974,6 +1056,11 @@ ModelResource& GraphicsResources::enemyBossModel() {
 const ModelAnimationsResource&
 GraphicsResources::enemyGeneralAnimations() const {
     return enemyGeneralAnimations_;
+}
+
+const ModelAnimationsResource&
+GraphicsResources::enemyPinkBlobAnimations() const {
+    return enemyPinkBlobAnimations_;
 }
 
 const ModelAnimationsResource&

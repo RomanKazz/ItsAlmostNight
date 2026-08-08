@@ -19,6 +19,7 @@ void runCannonSystemTests();
 void runTrapSystemTests();
 void runPlayerWeaponSystemTests();
 void runBombSystemTests();
+void runIceWandSystemTests();
 void runGameBalanceTests();
 void runMapDefinitionTests();
 void runTerrainHeightfieldTests();
@@ -117,6 +118,7 @@ int main() {
     runTrapSystemTests();
     runPlayerWeaponSystemTests();
     runBombSystemTests();
+    runIceWandSystemTests();
     runLootChestSystemTests();
     runResourceSystemTests();
     runSimulationTests();

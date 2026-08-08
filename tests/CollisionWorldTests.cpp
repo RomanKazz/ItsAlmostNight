@@ -493,4 +493,35 @@ void runCollisionWorldTests() {
                         ian::CollisionWorld::PlayerRadius)
                     .z < 0.0,
         "modular resync removes stale modular data without erasing building foundations");
+
+    ian::CollisionWorld lilyCollision{48.0, {}};
+    const std::array<ian::PondLilyPlacement, 1> lilies{{
+        {
+            .position = {5.0, 1.0, 5.0},
+            .variant = 0U,
+            .scale = 10.0,
+            .yaw = 0.0,
+            .collisionRadius = 0.7,
+            .surfaceHeight = 1.2,
+        },
+    }};
+    lilyCollision.syncPondLilySurfaces(lilies);
+    require(
+        lilyCollision.playerSupportHeight(
+            5.0, 5.0,
+            ian::CollisionWorld::PlayerRadius, 1.3) ==
+            std::optional<double>{1.2},
+        "water lily collider supports the player at its visible top");
+    require(
+        !lilyCollision.playerSupportHeight(
+            6.2, 5.0,
+            ian::CollisionWorld::PlayerRadius, 1.3),
+        "water lily collider keeps a circular footprint");
+    lilyCollision.reset();
+    require(
+        lilyCollision.playerSupportHeight(
+            5.0, 5.0,
+            ian::CollisionWorld::PlayerRadius, 1.3) ==
+            std::optional<double>{1.2},
+        "run reset preserves terrain-static water lily colliders");
 }

@@ -204,6 +204,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& grassShader() const;
     [[nodiscard]] ShaderResource& upgradeEffectShader();
     [[nodiscard]] const ShaderResource& upgradeEffectShader() const;
+    [[nodiscard]] ShaderResource& iceMagicShader();
+    [[nodiscard]] const ShaderResource& iceMagicShader() const;
     [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
@@ -217,10 +219,20 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& pickaxeModel();
     [[nodiscard]] ModelResource& clubModel();
     [[nodiscard]] ModelResource& hammerModel();
+    [[nodiscard]] ModelResource& iceWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& appleLootModel();
     [[nodiscard]] ModelResource& breadLootModel();
+    [[nodiscard]] ModelResource& ironBarLootModel();
+    [[nodiscard]] ModelResource& fuelJerrycanLootModel();
+    [[nodiscard]] ModelResource& compassLootModel();
+    [[nodiscard]] ModelResource& nailLootModel();
+    [[nodiscard]] ModelResource& keyLootModel();
+    [[nodiscard]] ModelResource& mapLootModel();
+    [[nodiscard]] ModelResource& anvilLootModel();
+    [[nodiscard]] ModelResource& sawLootModel();
+    [[nodiscard]] ModelResource& potionLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
@@ -255,6 +267,8 @@ class GraphicsResources {
     [[nodiscard]] const ModelAnimationsResource&
         enemyGeneralAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
+        enemyPinkBlobAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
         enemyMovementAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemySapperAnimations() const;
@@ -278,6 +292,7 @@ class GraphicsResources {
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
+    ShaderResource iceMagicShader_;
     TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
     ModelResource placeholderModel_;
@@ -290,10 +305,20 @@ class GraphicsResources {
     ModelResource pickaxeModel_;
     ModelResource clubModel_;
     ModelResource hammerModel_;
+    ModelResource iceWandModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
     ModelResource appleLootModel_;
     ModelResource breadLootModel_;
+    ModelResource ironBarLootModel_;
+    ModelResource fuelJerrycanLootModel_;
+    ModelResource compassLootModel_;
+    ModelResource nailLootModel_;
+    ModelResource keyLootModel_;
+    ModelResource mapLootModel_;
+    ModelResource anvilLootModel_;
+    ModelResource sawLootModel_;
+    ModelResource potionLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;
@@ -322,6 +347,7 @@ class GraphicsResources {
     ModelResource enemyFlyingModel_;
     ModelResource enemyBossModel_;
     ModelAnimationsResource enemyGeneralAnimations_;
+    ModelAnimationsResource enemyPinkBlobAnimations_;
     ModelAnimationsResource enemyMovementAnimations_;
     ModelAnimationsResource enemySapperAnimations_;
     ModelAnimationsResource enemyFlyingAnimations_;

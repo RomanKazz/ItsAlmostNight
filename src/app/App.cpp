@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
@@ -18,7 +19,6 @@ namespace {
 
 constexpr int InitialWindowWidth = 1280;
 constexpr int InitialWindowHeight = 720;
-constexpr double BuildingHealthBarDwellSeconds = 0.15;
 constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
 
@@ -133,6 +133,8 @@ App::App()
       skillTree_(simulation_.skillTree()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
+    initializeLocalization();
+    setLanguage(userSettings_.language);
     audio_.settings() = userSettings_.audio;
     motionBobIntensity_ = userSettings_.motion.bobIntensity;
     motionShakeIntensity_ = userSettings_.motion.shakeIntensity;
@@ -166,9 +168,15 @@ int App::run() {
     audio_.initialize();
 
     while (!WindowShouldClose() && !exitRequested_) {
+        const auto frameStart = PerformanceClock::now();
         processInput();
         update();
+        const auto renderStart = PerformanceClock::now();
         render();
+        performanceStats_.render.sample(
+            performanceMilliseconds(renderStart));
+        performanceStats_.frame.sample(
+            performanceMilliseconds(frameStart));
         persistUserSettings();
     }
 
@@ -225,6 +233,7 @@ void App::persistUserSettings(bool force) {
         },
         .controls = userSettings_.controls,
         .accessibility = userSettings_.accessibility,
+        .language = userSettings_.language,
     };
     if (current == userSettings_ ||
         (!force && IsMouseButtonDown(MOUSE_BUTTON_LEFT))) {
@@ -268,19 +277,42 @@ void App::render() {
             addStructuralRiskRoot(target);
         }
     }
-    structuralRiskIds_ =
-        simulation_.structuralCollapseRisk(
-            structuralRiskRoots);
+    const std::uint64_t structuralRevision =
+        simulation_.structuralRevision();
+    if (!structuralRiskCacheValid_ ||
+        structuralRevision != structuralRiskCacheRevision_ ||
+        structuralRiskRoots != structuralRiskCacheRoots_) {
+        structuralRiskIds_ =
+            simulation_.structuralCollapseRisk(
+                structuralRiskRoots);
+        structuralRiskCacheRoots_ = structuralRiskRoots;
+        structuralRiskCacheRevision_ = structuralRevision;
+        structuralRiskCacheValid_ = true;
+    }
     auto presentationSnapshot = snapshot;
-    presentationSnapshot.aimedResource = hoveredResource_;
-    presentationSnapshot.aimedBuilding = hoveredBuilding_;
-    presentationSnapshot.aimedEnemy = hoveredEnemy_;
+    // Keep the presentation target sticky for world/HUD context while the
+    // interaction feedback below follows the exact current aim.
+    presentationSnapshot.aimedResource = hoveredResource_
+        ? hoveredResource_ : snapshot.aimedResource;
+    presentationSnapshot.aimedBuilding = hoveredBuilding_
+        ? hoveredBuilding_ : snapshot.aimedBuilding;
+    presentationSnapshot.aimedEnemy = hoveredEnemy_
+        ? hoveredEnemy_ : snapshot.aimedEnemy;
     presentationSnapshot.aimedBuildingUpgradeCost =
         hoveredBuildingUpgradeCost_;
     presentationSnapshot.aimedBuildingStats =
         hoveredBuildingStats_;
+    // Interaction feedback follows the exact aim, like chest selection.
+    // The separate presentation snapshot may keep HUD context stable, but
+    // outlines, prompts and healthbars must enter/leave together.
+    auto feedbackSnapshot = snapshot;
+    feedbackSnapshot.aimedBuildingUpgradeCost =
+        snapshot.aimedBuildingUpgradeCost;
+    feedbackSnapshot.aimedBuildingStats =
+        snapshot.aimedBuildingStats;
 
     if (snapshot.state == RunState::MainMenu) {
+        interactionPromptRenderer_.reset();
         renderer_->beginUiOnlyFrame({18, 22, 31, 255});
         const float centerX =
             static_cast<float>(GetScreenWidth()) * 0.5F;
@@ -527,7 +559,7 @@ void App::render() {
             worldRevealOrigin_,
             static_cast<float>(worldRevealElapsed_));
         drawShadowPass(snapshot, lighting);
-        drawSelectionPass(presentationSnapshot, camera);
+        drawSelectionPass(feedbackSnapshot, camera);
         renderer_->beginWorldPass(environment.skyHorizon);
         renderer_->drawSky(skyState);
         BeginMode3D(camera);
@@ -540,7 +572,8 @@ void App::render() {
             ground, camera.position,
             showTerrainWireframe_);
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
-                          lighting);
+                          lighting,
+                          static_cast<float>(fixedStep_.interpolationAlpha()));
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondRockMaterial{};
         pondRockMaterial.bakedAo = 0.76F;
@@ -570,12 +603,7 @@ void App::render() {
         EndMode3D();
         renderer_->drawSelectionOutline();
 
-        auto healthBarSnapshot = presentationSnapshot;
-        if (healthBarSnapshot.aimedBuilding &&
-            buildingHoverSeconds_ <
-                BuildingHealthBarDwellSeconds) {
-            healthBarSnapshot.aimedBuilding.reset();
-        }
+        auto healthBarSnapshot = feedbackSnapshot;
         if (!healthBarSnapshot.aimedBuilding &&
             recentlyDamagedBuilding_ &&
             damagedBuildingHealthBarRemaining_ > 0.0) {
@@ -628,30 +656,14 @@ void App::render() {
             renderer_->graphicsPanelVisible() &&
             graphicsPanelTab_ == ToolSettingsTab;
         const bool showFirstPersonTool =
-            tuningPreview ||
-            (snapshot.selectedWeapon != PlayerWeapon::BareHands &&
-             snapshot.selectedWeapon != PlayerWeapon::Rifle &&
-             !snapshot.selectedBuilding &&
-             !foundationBuildMode_ &&
-             !snapshot.playerRespawning);
+            (tuningPreview ||
+             displayedToolVisual_ != FirstPersonToolVisual::None) &&
+            !snapshot.selectedBuilding &&
+            !foundationBuildMode_ &&
+            !snapshot.playerRespawning;
         if (showFirstPersonTool) {
             FirstPersonToolVisual toolVisual =
-                FirstPersonToolVisual::Pickaxe;
-            switch (snapshot.selectedWeapon) {
-            case PlayerWeapon::Axe:
-                toolVisual = FirstPersonToolVisual::Axe;
-                break;
-            case PlayerWeapon::Club:
-                toolVisual = FirstPersonToolVisual::Club;
-                break;
-            case PlayerWeapon::Hammer:
-                toolVisual = FirstPersonToolVisual::Hammer;
-                break;
-            case PlayerWeapon::Pickaxe:
-            case PlayerWeapon::BareHands:
-            case PlayerWeapon::Rifle:
-                break;
-            }
+                displayedToolVisual_;
             const float swingProgress =
                 toolSwingRemaining_ > 0.0 &&
                         toolSwingDuration_ > 0.0
@@ -660,6 +672,20 @@ void App::render() {
                               1.0 - toolSwingRemaining_ /
                                         toolSwingDuration_),
                           0.0F, 1.0F)
+                    : 0.0F;
+            const float iceChargeProgress =
+                toolVisual == FirstPersonToolVisual::IceWand &&
+                        snapshot.iceWandChargeDuration > 0.0
+                    ? std::clamp(static_cast<float>(
+                          1.0 - snapshot.iceWandChargeRemaining /
+                              snapshot.iceWandChargeDuration), 0.0F, 1.0F)
+                    : 0.0F;
+            const float iceRecoilProgress =
+                toolVisual == FirstPersonToolVisual::IceWand &&
+                        iceWandRecoilDuration_ > 0.0
+                    ? std::clamp(static_cast<float>(
+                          iceWandRecoilRemaining_ /
+                              iceWandRecoilDuration_), 0.0F, 1.0F)
                     : 0.0F;
             const Camera3D viewModelCamera{
                 .position = {},
@@ -676,13 +702,20 @@ void App::render() {
                         1.0 - toolSwapRemaining_ /
                                   toolSwapDuration_),
                     0.0F, 1.0F);
-                const float halfProgress =
-                    progress < 0.5F
-                        ? progress * 2.0F
-                        : (1.0F - progress) * 2.0F;
+                const float hideFraction =
+                    static_cast<float>(ToolSwapHideFraction);
+                const float phase = progress < hideFraction
+                    ? progress / hideFraction
+                    : (1.0F - progress) /
+                          (1.0F - hideFraction);
+                const float clampedPhase =
+                    std::clamp(phase, 0.0F, 1.0F);
                 const float smooth =
-                    halfProgress * halfProgress *
-                    (3.0F - 2.0F * halfProgress);
+                    clampedPhase * clampedPhase *
+                    clampedPhase *
+                    (clampedPhase *
+                         (clampedPhase * 6.0F - 15.0F) +
+                     10.0F);
                 renderTuning.position.y -=
                     toolTuning_.swapDrop * smooth;
             }
@@ -693,7 +726,9 @@ void App::render() {
                     swingProgress,
                     static_cast<float>(cameraBobPhase_),
                     static_cast<float>(cameraBobAmount_),
-                    renderTuning));
+                    renderTuning,
+                    iceChargeProgress,
+                    iceRecoilProgress));
                 EndMode3D();
                 renderer_->endFirstPersonToolPass(toolTuning_);
             }
@@ -719,6 +754,14 @@ void App::render() {
                 90.0 * playerDamageFlashRemaining_ / 0.18);
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                           {190, 24, 24, alpha});
+        }
+        if (iceImpactFlashRemaining_ > 0.0 &&
+            !userSettings_.accessibility.reduceFlashes) {
+            const auto alpha = static_cast<unsigned char>(
+                std::clamp(95.0 * iceImpactFlashRemaining_ / 0.10,
+                           0.0, 95.0));
+            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+                          {142, 229, 255, alpha});
         }
         drawFloatingDamageNumbers(camera);
         if (showTerrainWireframe_) {
@@ -767,6 +810,12 @@ void App::render() {
                     {255, 213, 91, 235});
             }
         }
+
+        // Interaction prompts use a world anchor but are composited in
+        // screen space after the 3D/post-process passes.
+        interactionPromptRenderer_.draw(
+            buildInteractionPrompt(feedbackSnapshot, camera), camera,
+            ui_, userSettings_.controls);
 
         auto hudSnapshot = presentationSnapshot;
         bool showBuildingContextCard =
@@ -872,7 +921,7 @@ void App::render() {
                     .buildingStatsUpgradeDuration =
                         buildingStatsUpgradeDuration_,
             },
-            camera);
+            camera, userSettings_.controls);
         if (foundationBuildMode_) {
             const char* pieceName = "FOUNDATION 2x2";
             int previewStorey = 0;
@@ -1192,7 +1241,106 @@ void App::render() {
         {fpsPanel.x + 6.0F, fpsPanel.y + 3.0F},
         FpsFontSize, {235, 247, 238, 255});
     }
+    if (performanceOverlayVisible_) {
+        drawPerformanceOverlay(snapshot);
+    }
+    const bool uiCursorVisible =
+        snapshot.state == RunState::MainMenu ||
+        snapshot.state == RunState::Paused ||
+        renderer_->graphicsPanelVisible() ||
+        skillTree_.isOpen() || enemySpawnMenuVisible_;
+    if (uiCursorVisible) {
+        HideCursor();
+        ui_.drawCursor();
+    }
     renderer_->endFrame();
+}
+
+void App::drawPerformanceOverlay(
+    const SimulationSnapshot& snapshot) const {
+    if (!renderer_) {
+        return;
+    }
+
+    const EnemyPerformanceStats& enemyStats =
+        simulation_.enemyPerformanceStats();
+    const RendererPerformanceStats& rendererStats =
+        renderer_->performanceStats();
+    constexpr float PanelX = 18.0F;
+    constexpr float PanelY = 48.0F;
+    constexpr float PanelWidth = 390.0F;
+    constexpr float PanelHeight = 232.0F;
+    constexpr float FontSize = 15.0F;
+    constexpr float LineHeight = 18.0F;
+    DrawRectangleRounded(
+        {PanelX, PanelY, PanelWidth, PanelHeight},
+        0.08F, 8, {10, 15, 19, 232});
+    DrawRectangleLinesEx(
+        {PanelX, PanelY, PanelWidth, PanelHeight},
+        1.0F, {103, 139, 130, 220});
+    drawUiText(
+        "PERFORMANCE [SHIFT+F10]",
+        {PanelX + 10.0F, PanelY + 8.0F},
+        FontSize, {255, 218, 139, 255});
+    const auto drawLine = [](int index, const char* text) {
+        drawUiText(
+            text,
+            {PanelX + 10.0F,
+             78.0F + static_cast<float>(index) * LineHeight},
+            FontSize, {220, 235, 226, 255});
+    };
+    drawLine(
+        0, TextFormat(
+               "FPS %d  FRAME %.2f ms",
+               GetFPS(), performanceStats_.frame.averageMilliseconds));
+    drawLine(
+        1, TextFormat(
+               "UPDATE %.2f ms  FIXED %d",
+               performanceStats_.simulation.averageMilliseconds,
+               static_cast<int>(performanceStats_.fixedTicks)));
+    drawLine(
+        2, TextFormat(
+               "SIM TICK %.2f ms",
+               performanceStats_.simulationTick.averageMilliseconds));
+    drawLine(
+        3, TextFormat(
+               "ENEMY %.2f ms  COLL %.2f ms",
+               enemyStats.tick.averageMilliseconds,
+               enemyStats.collision.averageMilliseconds));
+    drawLine(
+        4, TextFormat(
+               "HASH %.2f ms  REBUILDS %d",
+               enemyStats.spatialRebuild.averageMilliseconds,
+               static_cast<int>(enemyStats.spatialRebuilds)));
+    drawLine(
+        5, TextFormat(
+               "ACTIVE %d  VISIBLE %d",
+               static_cast<int>(snapshot.activeEnemyCount),
+               static_cast<int>(performanceStats_.visibleEnemies)));
+    drawLine(
+        6, TextFormat(
+               "RENDER %.2f ms",
+               performanceStats_.render.averageMilliseconds));
+    drawLine(
+        7, TextFormat(
+               "ENEMY DRAW %.2f  INST %.2f ms",
+               performanceStats_.enemyRender.averageMilliseconds,
+               rendererStats.instancedEnemyDraw.averageMilliseconds));
+    drawLine(
+        8, TextFormat(
+               "INSTANCES %d  BATCHES %d  LOD %d",
+               static_cast<int>(rendererStats.instancedEnemyCount),
+               static_cast<int>(rendererStats.enemyBatchCount),
+               static_cast<int>(rendererStats.lowDetailEnemyCount)));
+    drawLine(
+        9, TextFormat(
+               "BLOB %.2f ms  SHADOWS %d",
+               performanceStats_.blobShadows.averageMilliseconds,
+               static_cast<int>(performanceStats_.enemyShadowDraws)));
+    drawLine(
+        10, TextFormat(
+                "BLOB TRIANGLES %d",
+                static_cast<int>(rendererStats.blobShadowTriangles)));
 }
 
 void App::drawBuildModePie() const {

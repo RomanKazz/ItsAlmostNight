@@ -110,6 +110,11 @@ std::size_t buildingTypeIndex(BuildingType type) {
     return static_cast<std::size_t>(type);
 }
 
+bool isTowerType(BuildingType type) {
+    return type == BuildingType::Turret ||
+           type == BuildingType::Cannon;
+}
+
 const auto& defaultBuildingDefinitions() {
     static const auto Definitions = GameBalance::defaults().buildings;
     return Definitions;
@@ -428,6 +433,37 @@ void BuildingSystem::reset() {
     buildings_.clear();
 }
 
+void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
+    const double next = std::max(1.0, multiplier);
+    if (std::abs(next - maxHealthMultiplier_) <= 1e-9) {
+        return;
+    }
+    for (BuildingInstance& building : buildings_) {
+        const double previous = building.maxHealth;
+        const double levelMultiplier =
+            1.0 + 0.15 * static_cast<double>(building.level - 1);
+        const double towerMultiplier =
+            building.anvilStacks > 0
+                ? 1.0 + 0.10 * building.anvilStacks
+                : building.anvilEnhanced ? 1.10 : 1.0;
+        building.maxHealth = definition(building.type).maxHealth *
+            levelMultiplier * next * towerMultiplier;
+        building.health += building.maxHealth - previous;
+    }
+    maxHealthMultiplier_ = next;
+}
+
+void BuildingSystem::setNewTowerBonusEnabled(bool enabled) {
+    newTowerBonusEnabled_ = enabled;
+    newTowerBonusStacks_ = enabled ? 1U : 0U;
+}
+
+void BuildingSystem::setNewTowerBonusStacks(int stacks) {
+    newTowerBonusStacks_ = static_cast<std::uint8_t>(std::clamp(
+        stacks, 0, 255));
+    newTowerBonusEnabled_ = newTowerBonusStacks_ > 0U;
+}
+
 PlacementResult BuildingSystem::validate(BuildingType type, GridPosition position, int wood,
                                          int stone, int gold,
                                          double baseHeight) const {
@@ -490,7 +526,15 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         return std::nullopt;
     }
 
-    const double health = definition(type).maxHealth;
+    const bool anvilEnhanced =
+        newTowerBonusEnabled_ && isTowerType(type);
+    const std::uint8_t anvilStacks = anvilEnhanced
+        ? newTowerBonusStacks_ : 0U;
+    const double health = definition(type).maxHealth *
+        maxHealthMultiplier_ *
+        (anvilStacks > 0
+             ? 1.0 + 0.10 * anvilStacks
+             : 1.0);
     BuildingInstance building{
         .id = {nextIndex_++, 1},
         .type = type,
@@ -502,8 +546,10 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         .open = false,
         .baseHeight = baseHeight,
         .platformStorey = platformStorey,
-        .foundationBottomHeight =
+            .foundationBottomHeight =
             foundationBottomHeight,
+        .anvilEnhanced = anvilEnhanced,
+        .anvilStacks = anvilStacks,
     };
     buildings_.push_back(building);
     return PlacedBuilding{building, validation.cost};
@@ -695,7 +741,11 @@ UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int gold
     ++iterator->level;
     iterator->maxHealth =
         definition(iterator->type).maxHealth *
-        (1.0 + 0.15 * static_cast<double>(iterator->level - 1));
+        (1.0 + 0.15 * static_cast<double>(iterator->level - 1)) *
+        maxHealthMultiplier_ *
+        (iterator->anvilStacks > 0
+             ? 1.0 + 0.10 * iterator->anvilStacks
+             : iterator->anvilEnhanced ? 1.10 : 1.0);
     iterator->health += iterator->maxHealth - previousMaxHealth;
     return {
         .error = UpgradeError::None,

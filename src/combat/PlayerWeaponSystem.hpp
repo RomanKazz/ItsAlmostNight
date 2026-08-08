@@ -13,6 +13,7 @@ enum class PlayerWeapon {
     Axe,
     Pickaxe,
     Club,
+    IceWand,
     Hammer,
     Rifle,
 };

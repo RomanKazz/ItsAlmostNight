@@ -24,6 +24,11 @@ void runGameBalanceTests() {
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
             assetBalance.balance.gameplay.pickaxeRange == 4.0,
         "resource gathering range is tuned separately from melee range");
+    require(
+        assetBalance.balance.weapons.club.areaRadius == 1.25 &&
+            assetBalance.balance.weapons.club.knockbackStrength == 3.0 &&
+            assetBalance.balance.weapons.club.maxDamagePerAttack == 4.0,
+        "club balance exposes area, knockback, and total damage cap");
 
     constexpr std::string_view Enemies = R"json({
         "basic": {"health": 9, "speed": 2, "damage": 4},

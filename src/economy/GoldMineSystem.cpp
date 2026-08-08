@@ -17,6 +17,15 @@ void GoldMineSystem::reset() {
     productionBuffer_.clear();
 }
 
+void GoldMineSystem::setProductionSpeedMultiplier(
+    double multiplier) {
+    productionSpeedMultiplier_ = std::max(0.01, multiplier);
+}
+
+void GoldMineSystem::setWoodYieldMultiplier(double multiplier) {
+    woodYieldMultiplier_ = std::max(0.0, multiplier);
+}
+
 void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
     std::erase_if(mines_, [&buildings](const GoldMineRuntime& mine) {
         return std::none_of(buildings.begin(), buildings.end(),
@@ -108,20 +117,24 @@ int GoldMineSystem::productionAmount(
     } else if (type == BuildingType::Quarry) {
         baseAmount = 2;
     }
-    return static_cast<int>(std::lround(
-        static_cast<double>(baseAmount) *
-        (1.0 + 0.15 * static_cast<double>(level - 1))));
+    double amount = static_cast<double>(baseAmount) *
+        (1.0 + 0.15 * static_cast<double>(level - 1));
+    if (type == BuildingType::LumberMill) {
+        amount *= woodYieldMultiplier_;
+    }
+    return static_cast<int>(std::lround(amount));
 }
 
 double GoldMineSystem::productionInterval(
     BuildingType type) const {
     if (type == BuildingType::LumberMill) {
-        return 8.0;
+        return 8.0 / productionSpeedMultiplier_;
     }
     if (type == BuildingType::Quarry) {
-        return 10.0;
+        return 10.0 / productionSpeedMultiplier_;
     }
-    return definition_.goldMineInterval;
+    return definition_.goldMineInterval /
+        productionSpeedMultiplier_;
 }
 
 const std::vector<GoldMineRuntime>& GoldMineSystem::mines() const {

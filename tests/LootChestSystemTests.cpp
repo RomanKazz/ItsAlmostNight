@@ -28,10 +28,23 @@ void runLootChestSystemTests() {
         require(terrain.getNormal(
                     chest.position.x, chest.position.z).y >= 0.82,
                 "loot chest avoids steep terrain");
-        require(chest.loot.rarity == ian::LootRarity::Common &&
-                    (chest.loot.effect == ian::LootUpgradeEffect::Apple ||
-                     chest.loot.effect == ian::LootUpgradeEffect::Bread),
-                "prototype chests contain only common apple or bread items");
+        const bool common =
+            chest.loot.rarity == ian::LootRarity::Common &&
+            (chest.loot.effect == ian::LootUpgradeEffect::Apple ||
+             chest.loot.effect == ian::LootUpgradeEffect::Bread ||
+             chest.loot.effect == ian::LootUpgradeEffect::IronBar ||
+             chest.loot.effect == ian::LootUpgradeEffect::FuelJerrycan ||
+             chest.loot.effect == ian::LootUpgradeEffect::Compass ||
+             chest.loot.effect == ian::LootUpgradeEffect::Nail ||
+             chest.loot.effect == ian::LootUpgradeEffect::Key);
+        const bool rare =
+            chest.loot.rarity == ian::LootRarity::Rare &&
+            (chest.loot.effect == ian::LootUpgradeEffect::Map ||
+             chest.loot.effect == ian::LootUpgradeEffect::Anvil ||
+             chest.loot.effect == ian::LootUpgradeEffect::Saw ||
+             chest.loot.effect == ian::LootUpgradeEffect::Potion);
+        require(common || rare,
+                "loot rarity matches the configured common or rare pool");
     }
     require(hasWooden && hasStone,
             "terrain population uses both supplied chest models");

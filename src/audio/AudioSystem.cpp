@@ -113,6 +113,7 @@ void AudioSystem::shutdown() {
     initialized_ = false;
     previousPlayerPosition_.reset();
     footstepDistance_ = 0.0;
+    iceHitSoundCooldown_ = 0.0;
     if (ownsAudioDevice_ && IsAudioDeviceReady()) {
         CloseAudioDevice();
     }
@@ -120,6 +121,8 @@ void AudioSystem::shutdown() {
 }
 
 void AudioSystem::update(const SimulationSnapshot& snapshot) {
+    iceHitSoundCooldown_ = std::max(
+        0.0, iceHitSoundCooldown_ - GetFrameTime());
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
@@ -209,6 +212,28 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::WeaponFired:
         play(rifleShot_, 0.72F, variedPitch(0.025F));
+        break;
+    case GameEventType::IceWandChargeStarted:
+        // Reuse the short enemy-hit texture as a quiet crystalline charge
+        // cue until a dedicated wand sample is added to the audio pack.
+        play(enemyHit_, 0.18F, 1.62F);
+        break;
+    case GameEventType::IceWandFired:
+        play(rifleShot_, 0.34F, 0.66F);
+        break;
+    case GameEventType::IceWandImpact:
+        playAt(explosion_, event.position, snapshot, 0.42F, 1.38F, 42.0F);
+        break;
+    case GameEventType::IceWandHit:
+        // One short cue per burst is enough; the impact event already owns
+        // the group hit sound, so a cluster cannot flood the audio mixer.
+        if (iceHitSoundCooldown_ <= 0.0) {
+            playAt(
+                event.critical ? critical_ : enemyHit_, event.position,
+                snapshot, event.critical ? 0.28F : 0.20F,
+                event.critical ? 1.42F : 1.58F, 30.0F);
+            iceHitSoundCooldown_ = 0.045;
+        }
         break;
     case GameEventType::CannonFired:
         playAt(

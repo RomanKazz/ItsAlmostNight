@@ -21,6 +21,8 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
+    skillTree_.setUnlimitedPoints(
+        simulation_.snapshot().unlimitedResources);
     if (const auto purchase = skillTree_.update(static_cast<float>(frameSeconds))) {
         if (simulation_.purchaseSkill(*purchase) == SkillPurchaseError::None)
             audio_.playUiConfirm();
@@ -94,7 +96,9 @@ void App::update() {
         !renderer_->graphicsPanelVisible() &&
         !IsKeyDown(KEY_LEFT_CONTROL) &&
         !IsKeyDown(KEY_RIGHT_CONTROL) &&
-        IsKeyDown(KEY_M);
+        controlKey(userSettings_.controls, ControlAction::Map) != KEY_NULL &&
+        IsKeyDown(static_cast<KeyboardKey>(controlKey(
+            userSettings_.controls, ControlAction::Map)));
     const float minimapTarget = minimapHeld ? 1.0F : 0.0F;
     const float minimapBlend =
         1.0F - std::exp(
@@ -120,6 +124,10 @@ void App::update() {
         0.0, placementSnapPulseRemaining_ - frameSeconds);
     weaponRecoilRemaining_ = std::max(
         0.0, weaponRecoilRemaining_ - frameSeconds);
+    iceWandRecoilRemaining_ = std::max(
+        0.0, iceWandRecoilRemaining_ - frameSeconds);
+    iceImpactFlashRemaining_ = std::max(
+        0.0, iceImpactFlashRemaining_ - frameSeconds);
     const double previousToolSwingRemaining =
         toolSwingRemaining_;
     toolSwingRemaining_ = std::max(
@@ -149,51 +157,79 @@ void App::update() {
     const bool toolSwapWasActive = toolSwapRemaining_ > 0.0;
     toolSwapRemaining_ = std::max(
         0.0, toolSwapRemaining_ - frameSeconds);
-    bool desiredToolUsesAxe = toolSwapWasActive
-        ? toolSwapDestinationUsesAxe_
-        : displayedToolUsesAxe_;
+    FirstPersonToolVisual desiredToolVisual =
+        FirstPersonToolVisual::None;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == ToolSettingsTab) {
-        desiredToolUsesAxe = toolPanelPreviewUsesAxe_;
-    } else if (hotbarSnapshot.selectedWeapon == PlayerWeapon::Axe ||
-               hotbarSnapshot.selectedWeapon == PlayerWeapon::Club) {
-        desiredToolUsesAxe = true;
-    } else if (hotbarSnapshot.selectedWeapon == PlayerWeapon::Pickaxe ||
-               hotbarSnapshot.selectedWeapon == PlayerWeapon::Hammer) {
-        desiredToolUsesAxe = false;
-    } else if (hotbarSnapshot.aimedResource) {
-        const auto resource = std::find_if(
-            hotbarSnapshot.resourceNodes.begin(),
-            hotbarSnapshot.resourceNodes.end(),
-            [&hotbarSnapshot](const ResourceNode& node) {
-                return node.id == *hotbarSnapshot.aimedResource;
-            });
-        if (resource != hotbarSnapshot.resourceNodes.end()) {
-            desiredToolUsesAxe =
-                resource->type == ResourceType::Wood;
+        desiredToolVisual = toolPanelPreviewUsesAxe_
+            ? FirstPersonToolVisual::Axe
+            : FirstPersonToolVisual::Pickaxe;
+    } else {
+        switch (hotbarSnapshot.selectedWeapon) {
+        case PlayerWeapon::BareHands:
+        case PlayerWeapon::Rifle:
+            desiredToolVisual = FirstPersonToolVisual::None;
+            break;
+        case PlayerWeapon::Axe:
+            desiredToolVisual = FirstPersonToolVisual::Axe;
+            break;
+        case PlayerWeapon::Pickaxe:
+            desiredToolVisual = FirstPersonToolVisual::Pickaxe;
+            break;
+        case PlayerWeapon::Club:
+            desiredToolVisual = FirstPersonToolVisual::Club;
+            break;
+        case PlayerWeapon::IceWand:
+            desiredToolVisual = FirstPersonToolVisual::IceWand;
+            break;
+        case PlayerWeapon::Hammer:
+            desiredToolVisual = FirstPersonToolVisual::Hammer;
+            break;
         }
     }
-    if (desiredToolUsesAxe != toolSwapCandidateUsesAxe_) {
-        toolSwapCandidateUsesAxe_ = desiredToolUsesAxe;
+    if (!toolViewModelInitialized_) {
+        // Establish the initial state without playing an equip animation as
+        // the run or settings preview is first created.
+        displayedToolVisual_ = desiredToolVisual;
+        toolSwapCandidateVisual_ = desiredToolVisual;
+        toolSwapDestinationVisual_ = desiredToolVisual;
         toolSwapCandidateSeconds_ = 0.0;
+        toolSwapRemaining_ = 0.0;
+        toolViewModelInitialized_ = true;
     } else {
-        toolSwapCandidateSeconds_ += frameSeconds;
-    }
-    if (toolSwapWasActive &&
-        toolSwapRemaining_ <= toolSwapDuration_ * 0.5) {
-        displayedToolUsesAxe_ =
-            toolSwapDestinationUsesAxe_;
-    }
-    if (toolSwapRemaining_ <= 0.0 &&
-        toolSwapCandidateSeconds_ >= 0.07 &&
-        toolSwapCandidateUsesAxe_ !=
-            displayedToolUsesAxe_) {
-        toolSwapDestinationUsesAxe_ =
-            toolSwapCandidateUsesAxe_;
-        toolSwapDuration_ = std::max(
-            static_cast<double>(toolTuning_.swapDuration),
-            0.05);
-        toolSwapRemaining_ = toolSwapDuration_;
+        if (desiredToolVisual != toolSwapCandidateVisual_) {
+            toolSwapCandidateVisual_ = desiredToolVisual;
+            toolSwapCandidateSeconds_ = 0.0;
+        } else {
+            toolSwapCandidateSeconds_ += frameSeconds;
+        }
+        const double hideEndRemaining =
+            toolSwapDuration_ * (1.0 - ToolSwapHideFraction);
+        if (toolSwapWasActive &&
+            toolSwapRemaining_ > hideEndRemaining &&
+            toolSwapCandidateSeconds_ >= 0.07) {
+            // The old model is still descending. Retarget this same swap
+            // instead of completing it and starting a second animation.
+            toolSwapDestinationVisual_ =
+                toolSwapCandidateVisual_;
+        }
+        if (toolSwapWasActive &&
+            toolSwapRemaining_ <= hideEndRemaining) {
+            displayedToolVisual_ =
+                toolSwapDestinationVisual_;
+        }
+        if (toolSwapRemaining_ <= 0.0 &&
+            toolSwapCandidateSeconds_ >= 0.07 &&
+            toolSwapCandidateVisual_ !=
+                displayedToolVisual_) {
+            toolSwapDestinationVisual_ =
+                toolSwapCandidateVisual_;
+            toolSwapDuration_ = std::clamp(
+                static_cast<double>(toolTuning_.swapDuration) *
+                    ToolSwapDurationScale,
+                0.40, 1.20);
+            toolSwapRemaining_ = toolSwapDuration_;
+        }
     }
     const bool queuedResourceStillTargeted =
         !toolQueuedResourceTarget_ ||
@@ -214,7 +250,9 @@ void App::update() {
     }
     if (toolSwingQueued_ && toolSwapRemaining_ <= 0.0 &&
         toolSwingRemaining_ <= 0.0 &&
-        displayedToolUsesAxe_ == toolSwingUsesAxe_) {
+        (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
+         displayedToolVisual_ == FirstPersonToolVisual::Club) ==
+            toolSwingUsesAxe_) {
         toolSwingDuration_ = toolTuning_.swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;
         toolSwingAttackPending_ =
@@ -409,7 +447,8 @@ void App::update() {
             ? 0.0
             : slowMotion_ ? frameSeconds * 0.2
                           : frameSeconds;
-    fixedStep_.advance(
+    const auto simulationStart = PerformanceClock::now();
+    performanceStats_.fixedTicks = fixedStep_.advance(
         simulationFrameSeconds,
         [this, &consumedTransientInput](double deltaSeconds) {
         PlayerCommand tickInput = input_;
@@ -419,6 +458,7 @@ void App::update() {
             tickInput.jump = pendingJump_;
             tickInput.usePickaxe = pendingPickaxe_;
             tickInput.fireRifle = pendingRifleShot_;
+            tickInput.fireIceWand = pendingIceWandShot_;
             tickInput.selectBuilding = pendingBuildingSelection_;
             tickInput.cancelBuilding = pendingBuildingCancel_;
             tickInput.placeBuilding = pendingBuildingPlacement_;
@@ -465,14 +505,20 @@ void App::update() {
         if (playerSpawnDropActive_) {
             tickInput = {};
         }
+        const auto tickStart = PerformanceClock::now();
         simulation_.tick(deltaSeconds, tickInput);
+        performanceStats_.simulationTick.sample(
+            performanceMilliseconds(tickStart));
         });
+    performanceStats_.simulation.sample(
+        performanceMilliseconds(simulationStart));
     if (consumedTransientInput) {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
         pendingJump_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
         pendingBuildingSelection_.reset();
         pendingBuildingCancel_ = false;
         pendingBuildingPlacement_.reset();
@@ -899,11 +945,52 @@ void App::update() {
             crosshairHitRemaining_ = crosshairHitDuration_;
             crosshairHitCritical_ = event.critical;
         }
-        if (event.type == GameEventType::WeaponFired) {
+        if (event.type == GameEventType::IceWandChargeStarted) {
+            // Use the same authored tool-swing timeline as the other
+            // first-person tools; the wand's charge glow runs in parallel.
+            toolSwingUsesAxe_ = false;
+            toolSwingDuration_ = toolTuning_.swingDuration;
+            toolSwingRemaining_ = toolSwingDuration_;
+            toolSwingAttackPending_ = false;
+            toolSwingQueued_ = false;
+            toolQueuedSwingHasAttack_ = false;
+            toolQueuedResourceTarget_.reset();
+            toolSwingQueueRemaining_ = 0.0;
+        } else if (event.type == GameEventType::WeaponFired) {
             weaponRecoilDuration_ = 0.16;
             weaponRecoilRemaining_ = weaponRecoilDuration_;
             weaponRecoilStrength_ = 0.045F;
             addCameraImpulse({0.0, 0.008, -0.012});
+        } else if (event.type == GameEventType::IceWandFired) {
+            iceWandRecoilDuration_ = 0.20;
+            iceWandRecoilRemaining_ = iceWandRecoilDuration_;
+            addCameraImpulse({0.0, 0.006, -0.018});
+        } else if (event.type == GameEventType::IceWandImpact) {
+            addEffect(PresentationEffectType::IceImpact,
+                      event.position, 0.72, 1.0F,
+                      event.entityId);
+            const SimulationSnapshot& playerSnapshot = eventSnapshot;
+            const double distance = std::hypot(
+                event.position.x - playerSnapshot.playerPosition.x,
+                event.position.z - playerSnapshot.playerPosition.z);
+            if (distance < 9.0) {
+                iceImpactFlashRemaining_ = std::max(
+                    iceImpactFlashRemaining_,
+                    0.10 * (1.0 - distance / 9.0));
+                addCameraImpulse({0.0, 0.003, -0.006});
+                addCameraShake(0.10, 0.018 *
+                    (1.0 - std::min(distance / 9.0, 1.0)));
+            }
+            if (event.amount > 0) {
+                hitStopRemaining_ = std::max(hitStopRemaining_, 0.025);
+            }
+        } else if (event.type == GameEventType::IceWandHit) {
+            addFloatingDamageNumber(event.position, event.damage, false);
+            if (event.critical) {
+                addEffect(PresentationEffectType::IceCrack,
+                          event.position, 0.38, 0.55F,
+                          event.entityId);
+            }
         } else if (
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::ResourceHit ||
@@ -945,7 +1032,9 @@ void App::update() {
             event.type ==
                 GameEventType::WeaponUpgradeRejected ||
             event.type ==
-                GameEventType::GateToggleRejected) {
+                GameEventType::GateToggleRejected ||
+            event.type ==
+                GameEventType::ChestOpenRejected) {
             invalidActionRemaining_ = 0.22;
         }
         if (event.type == GameEventType::ProjectileHit &&
@@ -990,7 +1079,8 @@ void App::update() {
             }
         } else if (
             event.type == GameEventType::ProjectileHit ||
-            event.type == GameEventType::PickaxeHit) {
+            event.type == GameEventType::PickaxeHit ||
+            event.type == GameEventType::IceWandHit) {
             addEffect(PresentationEffectType::Hit, event.position, 0.22);
         } else if (event.type == GameEventType::ResourceCollected) {
             if (event.resourceType) {
@@ -1332,8 +1422,15 @@ void App::update() {
         } else if (event.type == GameEventType::BossRamImpact) {
             addDamageIndicator(event.position, eventSnapshot, true);
         } else if (event.type == GameEventType::LootCollected) {
-            addEffect(PresentationEffectType::BuildingUpgrade,
-                      event.position, 0.82, 0.65F);
+            if (event.lootRarity && event.lootUpgradeEffect) {
+                addLootPickupEffect(
+                    event.position, *event.lootRarity,
+                    *event.lootUpgradeEffect, event.entityId);
+            } else {
+                addEffect(PresentationEffectType::LootCollected,
+                          event.position, 0.96, 0.88F,
+                          event.entityId);
+            }
             addCameraImpulse({0.0, 0.012, -0.008});
         }
 
@@ -1390,8 +1487,6 @@ void App::update() {
             message = "Skill unlocked";
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";
-        } else if (event.type == GameEventType::ChestOpened) {
-            message = "Chest opening...";
         } else if (event.type == GameEventType::ChestOpenRejected) {
             message = "Not enough Gold";
         } else if (event.type == GameEventType::LootCollected &&
@@ -1412,6 +1507,7 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
     constexpr double HoverGraceSeconds = 0.2;
     const auto clearHover = [this]() {
         hoveredResource_.reset();
+        interactionResourceAim_.reset();
         hoveredBuilding_.reset();
         hoveredEnemy_.reset();
         hoveredBuildingUpgradeCost_.reset();
@@ -1424,8 +1520,21 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
         return;
     }
 
-    if (snapshot.aimedResource) {
-        hoveredResource_ = snapshot.aimedResource;
+    std::optional<EntityId> visualResource =
+        snapshot.aimedResource;
+    if (interactionResourceAim_) {
+        const bool stillActive = std::any_of(
+            snapshot.resourceNodes.begin(), snapshot.resourceNodes.end(),
+            [this](const ResourceNode& resource) {
+                return resource.active &&
+                       resource.id == *interactionResourceAim_;
+            });
+        if (stillActive) {
+            visualResource = interactionResourceAim_;
+        }
+    }
+    if (visualResource) {
+        hoveredResource_ = visualResource;
         hoveredBuilding_.reset();
         hoveredEnemy_.reset();
         hoveredBuildingUpgradeCost_.reset();
@@ -1515,6 +1624,29 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
         .startDelayRemaining =
             std::max(0.0, startDelay),
         .scale = scale,
+    });
+}
+
+void App::addLootPickupEffect(
+    Vec3 position, LootRarity rarity,
+    LootUpgradeEffect effect,
+    std::optional<EntityId> lootId) {
+    constexpr std::size_t MaxEffects = 128;
+    if (effects_.size() >= MaxEffects) {
+        effects_.erase(effects_.begin());
+    }
+    constexpr double Duration = 0.96;
+    effects_.push_back({
+        .type = PresentationEffectType::LootCollected,
+        .entityId = lootId,
+        .position = position,
+        .remaining = Duration,
+        .duration = Duration,
+        .scale = rarity == LootRarity::Rare
+            ? 1.18F
+            : rarity == LootRarity::Uncommon ? 1.02F : 0.88F,
+        .lootRarity = rarity,
+        .lootUpgradeEffect = effect,
     });
 }
 

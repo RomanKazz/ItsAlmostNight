@@ -69,11 +69,17 @@ class ResourceSystem {
         GroundSafetyProvider groundSafety = {});
 
     void reset();
+    void setWoodYieldMultiplier(double multiplier);
     void tick(
         double deltaSeconds,
         std::span<const BuildingInstance> buildings = {},
         double worldLimit = 48.0,
         std::optional<Vec3> playerPosition = std::nullopt);
+
+    // Resource collision geometry only changes when a node is relocated,
+    // respawned, depleted, or the resource set is reset. Consumers can use
+    // this flag to avoid rebuilding all tree colliders every simulation tick.
+    [[nodiscard]] bool consumeCollisionGeometryDirty();
 
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
@@ -100,6 +106,8 @@ class ResourceSystem {
     GroundSafetyProvider groundSafety_;
     std::uint32_t runGeneration_{1U};
     std::vector<ResourceNode> nodes_;
+    bool collisionGeometryDirty_{true};
+    double woodYieldMultiplier_{1.0};
 };
 
 } // namespace ian

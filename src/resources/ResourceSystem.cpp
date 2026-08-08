@@ -161,7 +161,33 @@ void ResourceSystem::reset() {
     if (runGeneration_ == 0U) {
         ++runGeneration_;
     }
+    woodYieldMultiplier_ = 1.0;
     nodes_ = makeNodes();
+    collisionGeometryDirty_ = true;
+}
+
+void ResourceSystem::setWoodYieldMultiplier(double multiplier) {
+    const double next = std::max(0.0, multiplier);
+    if (std::abs(next - woodYieldMultiplier_) <= 1e-9) {
+        return;
+    }
+    const double ratio = woodYieldMultiplier_ > 0.0
+        ? next / woodYieldMultiplier_ : next;
+    for (ResourceNode& node : nodes_) {
+        if (node.type != ResourceType::Wood) {
+            continue;
+        }
+        const int previousYield = node.yield;
+        const int nextYield = std::max(
+            1,
+            static_cast<int>(std::lround(
+                static_cast<double>(previousYield) * ratio)));
+        node.yield = nextYield;
+        node.yieldRemaining = std::clamp(
+            node.yieldRemaining + nextYield - previousYield,
+            0, nextYield);
+    }
+    woodYieldMultiplier_ = next;
 }
 
 void ResourceSystem::tick(
@@ -169,8 +195,9 @@ void ResourceSystem::tick(
     std::span<const BuildingInstance> buildings,
     double worldLimit,
     std::optional<Vec3> playerPosition) {
+    const bool validateActivePositions = deltaSeconds <= 0.0;
     for (auto& node : nodes_) {
-        if (node.active &&
+        if (validateActivePositions && node.active &&
             !positionIsSafe(
                 node, node.position, buildings, worldLimit,
                 std::nullopt,
@@ -178,6 +205,7 @@ void ResourceSystem::tick(
             node.active = false;
             node.respawnRemaining = 0.0;
             ++node.respawnGeneration;
+            collisionGeometryDirty_ = true;
         }
         if (node.active) {
             continue;
@@ -209,12 +237,26 @@ void ResourceSystem::tick(
                         node.respawnGeneration);
                 node.maxHealth = capacity.health;
                 node.yield = capacity.yield;
+                if (node.type == ResourceType::Wood) {
+                    node.yield = std::max(
+                        1,
+                        static_cast<int>(std::lround(
+                            static_cast<double>(node.yield) *
+                            woodYieldMultiplier_)));
+                }
             }
             node.health = node.maxHealth;
             node.yieldRemaining = node.yield;
             node.active = true;
+            collisionGeometryDirty_ = true;
         }
     }
+}
+
+bool ResourceSystem::consumeCollisionGeometryDirty() {
+    const bool dirty = collisionGeometryDirty_;
+    collisionGeometryDirty_ = false;
+    return dirty;
 }
 
 std::optional<Vec3> ResourceSystem::findSafePosition(
@@ -375,6 +417,7 @@ std::optional<ResourceHit> ResourceSystem::damage(EntityId id, double amount) {
         iterator->active = false;
         iterator->respawnRemaining = iterator->respawnSeconds;
         ++iterator->respawnGeneration;
+        collisionGeometryDirty_ = true;
     }
 
     return ResourceHit{

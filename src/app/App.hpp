@@ -11,11 +11,13 @@
 #include "presentation/PresentationTypes.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudRenderer.hpp"
+#include "ui/InteractionPrompt.hpp"
 #include "ui/SkillTreeScreen.hpp"
 #include "ui/TargetHealthBar.hpp"
 
 #include <optional>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -48,6 +50,18 @@ struct ProductionVisual {
     double duration;
 };
 
+struct AppPerformanceStats {
+    PerformanceMetric frame;
+    PerformanceMetric simulation;
+    PerformanceMetric simulationTick;
+    PerformanceMetric render;
+    PerformanceMetric enemyRender;
+    PerformanceMetric blobShadows;
+    std::size_t fixedTicks{};
+    std::size_t visibleEnemies{};
+    std::size_t enemyShadowDraws{};
+};
+
 class App {
   public:
     App();
@@ -55,6 +69,8 @@ class App {
 
   private:
     static constexpr int ToolSettingsTab = 8;
+    static constexpr double ToolSwapHideFraction = 0.42;
+    static constexpr double ToolSwapDurationScale = 1.35;
 
     void processInput();
     void rebuildTerrainGraphics();
@@ -79,12 +95,15 @@ class App {
     void drawWorldEntities(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            float nightAmount,
-                           const WorldLighting& lighting);
+                           const WorldLighting& lighting,
+                           float interpolationAlpha);
     void drawSoldBuildingVisuals();
     void drawBlobShadows(const SimulationSnapshot& snapshot,
                          const Camera3D& camera);
     void drawWorldOverlays(const SimulationSnapshot& snapshot,
                            const WorldLighting& lighting);
+    void drawPerformanceOverlay(
+        const SimulationSnapshot& snapshot) const;
     void drawPresentationEffects();
     void drawAtmosphereParticles(
         const Camera3D& camera, float nightAmount);
@@ -99,6 +118,9 @@ class App {
         const Camera3D& camera) const;
     void updateHoverTarget(const SimulationSnapshot& snapshot,
                            double frameSeconds);
+    [[nodiscard]] std::optional<InteractionPrompt>
+    buildInteractionPrompt(const SimulationSnapshot& snapshot,
+                           const Camera3D& camera) const;
     [[nodiscard]] float hitFlashAt(Vec3 position,
                                    double radius) const;
     [[nodiscard]] float buildingAnimationScaleAt(
@@ -130,6 +152,11 @@ class App {
                    std::optional<EntityId> entityId =
                        std::nullopt,
                    double startDelay = 0.0);
+    void addLootPickupEffect(Vec3 position,
+                             LootRarity rarity,
+                             LootUpgradeEffect effect,
+                             std::optional<EntityId> lootId =
+                                 std::nullopt);
     void addCameraShake(double duration, double strength);
     void addCameraImpulse(Vec3 localOffset);
     void addDamageIndicator(Vec3 sourcePosition,
@@ -156,10 +183,12 @@ class App {
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     int graphicsPanelTab_{};
+    std::optional<ControlAction> pendingControlRebind_;
     FirstPersonToolTuning toolTuning_{};
     bool toolPanelPreviewUsesAxe_{};
     int toolPanelPage_{};
     TargetHealthBar targetHealthBar_;
+    InteractionPromptRenderer interactionPromptRenderer_;
     PlayerCommand input_;
     double pendingYaw_{};
     double pendingPitch_{};
@@ -174,13 +203,18 @@ class App {
     double toolSwingRemaining_{};
     double toolSwingDuration_{0.48};
     double toolContactHoldRemaining_{};
-    bool displayedToolUsesAxe_{};
-    bool toolSwapCandidateUsesAxe_{};
-    bool toolSwapDestinationUsesAxe_{};
+    FirstPersonToolVisual displayedToolVisual_{
+        FirstPersonToolVisual::None};
+    FirstPersonToolVisual toolSwapCandidateVisual_{
+        FirstPersonToolVisual::None};
+    FirstPersonToolVisual toolSwapDestinationVisual_{
+        FirstPersonToolVisual::None};
+    bool toolViewModelInitialized_{};
     double toolSwapCandidateSeconds_{};
     double toolSwapRemaining_{};
     double toolSwapDuration_{0.32};
     bool pendingRifleShot_{};
+    bool pendingIceWandShot_{};
     std::optional<BuildingType> pendingBuildingSelection_;
     bool pendingBuildingCancel_{};
     std::optional<PlaceBuildingCommand> pendingBuildingPlacement_;
@@ -210,6 +244,10 @@ class App {
     bool removalDragActive_{};
     std::vector<EntityId> removalDragTargets_;
     std::vector<EntityId> structuralRiskIds_;
+    std::vector<EntityId> structuralRiskCacheRoots_;
+    std::uint64_t structuralRiskCacheRevision_{
+        std::numeric_limits<std::uint64_t>::max()};
+    bool structuralRiskCacheValid_{};
     std::optional<BuildingInstance> pendingSoldBuildingVisual_;
     std::uint8_t pendingSoldWallConnections_{};
     bool pendingWeaponToggle_{};
@@ -312,6 +350,7 @@ class App {
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
     std::optional<EntityId> hoveredResource_;
+    std::optional<EntityId> interactionResourceAim_;
     std::optional<EntityId> hoveredBuilding_;
     std::optional<EntityId> hoveredEnemy_;
     std::optional<ResourceCost> hoveredBuildingUpgradeCost_;
@@ -326,6 +365,9 @@ class App {
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
+    double iceImpactFlashRemaining_{};
+    double iceWandRecoilRemaining_{};
+    double iceWandRecoilDuration_{0.20};
     double hitStopRemaining_{};
     double crosshairHitRemaining_{};
     double crosshairHitDuration_{0.18};
@@ -358,6 +400,8 @@ class App {
     bool showFlowField_{};
     bool showSpatialHash_{};
     bool showTerrainWireframe_{};
+    bool performanceOverlayVisible_{};
+    AppPerformanceStats performanceStats_{};
     enum class BuildModePieChoice {
         Buildings,
         Foundations,

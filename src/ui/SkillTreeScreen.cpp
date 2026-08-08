@@ -141,6 +141,10 @@ bool SkillTreeScreen::isOpen() const {
     return open_;
 }
 
+void SkillTreeScreen::setUnlimitedPoints(bool unlimited) {
+    unlimitedPoints_ = unlimited;
+}
+
 std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
     if (!open_) {
         return std::nullopt;
@@ -191,7 +195,7 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
         selected_ = hovered_;
         if (tree_->state(*hovered_) == SkillNodeState::Available) {
             const int cost = tree_->nodes()[*hovered_].cost;
-            if (tree_->points() < cost) {
+            if (!unlimitedPoints_ && tree_->points() < cost) {
                 confirmation_.reset();
                 rejectShake_[*hovered_] = 1.0F;
             } else if (confirmation_ == hovered_) {
@@ -257,8 +261,11 @@ void SkillTreeScreen::draw(const GameUi& ui) const {
     drawCenteredUiText(
         "TREE OF KNOWLEDGE", 25.0F, 34.0F,
         withAlpha({238, 225, 190, 255}, alpha));
+    const std::string pointsLabel = unlimitedPoints_
+        ? "SKILL POINTS  INFINITE"
+        : "SKILL POINTS  " + std::to_string(tree_->points());
     drawCenteredUiText(
-        ("SKILL POINTS  " + std::to_string(tree_->points())).c_str(),
+        pointsLabel,
         68.0F, 14.0F,
         withAlpha({151, 181, 157, 255}, 0.9F * alpha));
 
@@ -461,20 +468,41 @@ void SkillTreeScreen::drawNodes() const {
                      withAlpha({255, 214, 91, 255}, confirmationPulse_[index] * 0.9F));
         }
 
-        const char* glyph = state == SkillNodeState::Unlocked
-                                ? "✓"
-                                : state == SkillNodeState::Available
-                                      ? "+"
-                                      : "·";
-        const float glyphSize = 27.0F * zoom_;
-        const Vector2 glyphMeasure = measureUiText(glyph, glyphSize);
-        drawUiText(
-            glyph,
-            {center.x - glyphMeasure.x * 0.5F,
-             center.y - glyphMeasure.y * 0.5F - 1.0F},
-            glyphSize,
-            withAlpha(RAYWHITE,
-                      state == SkillNodeState::Locked ? 0.32F : 0.98F));
+        if (node.icon == "ice_wand") {
+            const Color iconColor = withAlpha(
+                {142, 229, 255, 255},
+                state == SkillNodeState::Locked ? 0.32F : 0.98F);
+            const float orbRadius = 9.0F * zoom_;
+            DrawCircleV(center, orbRadius,
+                        withAlpha({33, 140, 218, 255},
+                                  state == SkillNodeState::Locked ? 0.25F : 0.66F));
+            DrawCircleLines(static_cast<int>(center.x),
+                            static_cast<int>(center.y),
+                            orbRadius + 2.0F * zoom_, iconColor);
+            DrawLineEx(
+                {center.x - 16.0F * zoom_, center.y + 13.0F * zoom_},
+                {center.x + 7.0F * zoom_, center.y - 9.0F * zoom_},
+                4.0F * zoom_, iconColor);
+            DrawLineEx(
+                {center.x + 4.0F * zoom_, center.y - 12.0F * zoom_},
+                {center.x + 11.0F * zoom_, center.y - 4.0F * zoom_},
+                3.0F * zoom_, iconColor);
+        } else {
+            const char* glyph = state == SkillNodeState::Unlocked
+                                    ? "✓"
+                                    : state == SkillNodeState::Available
+                                          ? "+"
+                                          : "·";
+            const float glyphSize = 27.0F * zoom_;
+            const Vector2 glyphMeasure = measureUiText(glyph, glyphSize);
+            drawUiText(
+                glyph,
+                {center.x - glyphMeasure.x * 0.5F,
+                 center.y - glyphMeasure.y * 0.5F - 1.0F},
+                glyphSize,
+                withAlpha(RAYWHITE,
+                          state == SkillNodeState::Locked ? 0.32F : 0.98F));
+        }
 
         const float labelSize = std::clamp(13.0F * zoom_, 10.0F, 17.0F);
         const Vector2 labelMeasure = measureUiText(node.title, labelSize);
@@ -528,7 +556,8 @@ void SkillTreeScreen::drawDetails(const GameUi& ui) const {
         status = confirmation_ == details
             ? "CLICK AGAIN TO CONFIRM  •  COST " + std::to_string(node.cost)
             : "CLICK TO BUY  •  COST " + std::to_string(node.cost);
-        if (tree_->points() < node.cost) status += "  •  NOT ENOUGH POINTS";
+        if (!unlimitedPoints_ && tree_->points() < node.cost)
+            status += "  •  NOT ENOUGH POINTS";
         statusColor = {236, 205, 120, 255};
     } else {
         status = "LOCKED  •  DISCOVER PREVIOUS LEAVES";

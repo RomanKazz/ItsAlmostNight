@@ -23,6 +23,33 @@ void FoundationSystem::reset() {
     structuralGraph_.reset();
 }
 
+void FoundationSystem::setMaxHealthMultiplier(double multiplier) {
+    const double next = std::max(1.0, multiplier);
+    if (std::abs(next - maxHealthMultiplier_) <= 1e-9) {
+        return;
+    }
+    const auto update = [next](double baseMaxHealth,
+                                     double& health,
+                                     double& maxHealth) {
+        const double previous = maxHealth;
+        maxHealth = baseMaxHealth * next;
+        health += maxHealth - previous;
+    };
+    for (auto& frame : platformFrames_) {
+        update(PlatformFrameMaxHealth, frame.health,
+               frame.maxHealth);
+    }
+    for (auto& wall : walls_) {
+        update(ModularWallMaxHealth, wall.health,
+               wall.maxHealth);
+    }
+    for (auto& ramp : ramps_) {
+        update(ModularRampMaxHealth, ramp.health,
+               ramp.maxHealth);
+    }
+    maxHealthMultiplier_ = next;
+}
+
 const PlatformFrameInstance*
 FoundationSystem::frameAt(
     GridCoord anchor, int storey) const {
@@ -239,8 +266,8 @@ FoundationSystem::placePlatformFrame(
         .anchor = placement.anchor,
         .floorHeight = placement.floorHeight,
         .storey = placement.storey,
-        .health = PlatformFrameMaxHealth,
-        .maxHealth = PlatformFrameMaxHealth,
+        .health = PlatformFrameMaxHealth * maxHealthMultiplier_,
+        .maxHealth = PlatformFrameMaxHealth * maxHealthMultiplier_,
         .supports = placement.supports,
     };
     if (!grid_.occupy(

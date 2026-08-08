@@ -98,6 +98,65 @@ void appendWallColliders(
 
 } // namespace
 
+void CollisionWorld::BroadphaseGrid::reset(double worldLimit) {
+    const double extent = std::max(
+        worldLimit * 2.0 + CellSize * 2.0,
+        CellSize);
+    minimum_ = -std::max(worldLimit, CellSize) - CellSize;
+    dimension_ = std::max(
+        1, static_cast<int>(std::ceil(extent / CellSize)));
+    buckets_.clear();
+    buckets_.resize(
+        static_cast<std::size_t>(dimension_) *
+        static_cast<std::size_t>(dimension_));
+}
+
+int CollisionWorld::BroadphaseGrid::cellCoordinate(
+    double value) const {
+    if (dimension_ <= 0 || !std::isfinite(value)) {
+        return value < 0.0 ? 0 : std::max(0, dimension_ - 1);
+    }
+    const int coordinate = static_cast<int>(std::floor(
+        (value - minimum_) / CellSize));
+    return std::clamp(coordinate, 0, dimension_ - 1);
+}
+
+const std::vector<std::size_t>&
+CollisionWorld::BroadphaseGrid::bucket(int x, int z) const {
+    static const std::vector<std::size_t> Empty;
+    if (dimension_ <= 0 || x < 0 || z < 0 ||
+        x >= dimension_ || z >= dimension_) {
+        return Empty;
+    }
+    return buckets_[static_cast<std::size_t>(z) *
+                        static_cast<std::size_t>(dimension_) +
+                    static_cast<std::size_t>(x)];
+}
+
+bool CollisionWorld::BroadphaseGrid::empty() const {
+    return dimension_ <= 0 || buckets_.empty();
+}
+
+void CollisionWorld::BroadphaseGrid::insert(
+    double minX, double maxX, double minZ, double maxZ,
+    std::size_t objectIndex) {
+    if (empty()) {
+        return;
+    }
+    const int minimumX = cellCoordinate(std::min(minX, maxX));
+    const int maximumX = cellCoordinate(std::max(minX, maxX));
+    const int minimumZ = cellCoordinate(std::min(minZ, maxZ));
+    const int maximumZ = cellCoordinate(std::max(minZ, maxZ));
+    for (int z = minimumZ; z <= maximumZ; ++z) {
+        for (int x = minimumX; x <= maximumX; ++x) {
+            buckets_[static_cast<std::size_t>(z) *
+                         static_cast<std::size_t>(dimension_) +
+                     static_cast<std::size_t>(x)]
+                .push_back(objectIndex);
+        }
+    }
+}
+
 CollisionBox buildingCollisionBox(
     BuildingType type, GridPosition position,
     double baseHeight) {
@@ -204,6 +263,7 @@ CollisionWorld::CollisionWorld(double worldLimit, std::vector<CollisionBox> stat
     : worldLimit_(worldLimit), staticColliders_(std::move(staticColliders)),
       colliders_(staticColliders_) {
     colliders_.reserve(128);
+    rebuildColliders();
 }
 
 void CollisionWorld::reset() {
@@ -222,6 +282,7 @@ void CollisionWorld::syncResourceCylinders(
     resourceCylinders_.clear();
     resourceCylinders_.reserve(resources.size());
     if (treeAssets.empty()) {
+        rebuildResourceBroadphase();
         return;
     }
     for (const ResourceNode& resource : resources) {
@@ -265,6 +326,29 @@ void CollisionWorld::syncResourceCylinders(
             });
         }
     }
+    rebuildResourceBroadphase();
+}
+
+void CollisionWorld::syncPondLilySurfaces(
+    std::span<const PondLilyPlacement> lilies) {
+    pondLilySurfaces_.clear();
+    pondLilySurfaces_.reserve(lilies.size());
+    for (const PondLilyPlacement& lily : lilies) {
+        if (lily.collisionRadius <= 0.0 ||
+            lily.surfaceHeight <= lily.position.y) {
+            continue;
+        }
+        pondLilySurfaces_.push_back({
+            .minX = lily.position.x - lily.collisionRadius,
+            .maxX = lily.position.x + lily.collisionRadius,
+            .minZ = lily.position.z - lily.collisionRadius,
+            .maxZ = lily.position.z + lily.collisionRadius,
+            .bottomHeight = lily.position.y,
+            .topHeight = lily.surfaceHeight,
+            .kind = SurfaceKind::Disc,
+        });
+    }
+    rebuildSurfaceBroadphases();
 }
 
 void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -484,6 +568,52 @@ void CollisionWorld::rebuildColliders() {
         colliders_.end(),
         modularColliders_.begin(),
         modularColliders_.end());
+    colliderBroadphase_.reset(worldLimit_);
+    for (std::size_t index = 0; index < colliders_.size(); ++index) {
+        const CollisionBox& box = colliders_[index];
+        colliderBroadphase_.insert(
+            box.minX, box.maxX, box.minZ, box.maxZ, index);
+    }
+    rampPlacementBroadphase_.reset(worldLimit_);
+    for (std::size_t index = 0;
+         index < rampPlacementColliders_.size(); ++index) {
+        const CollisionBox& box = rampPlacementColliders_[index];
+        rampPlacementBroadphase_.insert(
+            box.minX, box.maxX, box.minZ, box.maxZ, index);
+    }
+    rebuildSurfaceBroadphases();
+}
+
+void CollisionWorld::rebuildResourceBroadphase() {
+    resourceBroadphase_.reset(worldLimit_);
+    for (std::size_t index = 0;
+         index < resourceCylinders_.size(); ++index) {
+        const PhysicalCylinder& cylinder =
+            resourceCylinders_[index];
+        resourceBroadphase_.insert(
+            cylinder.centerX - cylinder.radius,
+            cylinder.centerX + cylinder.radius,
+            cylinder.centerZ - cylinder.radius,
+            cylinder.centerZ + cylinder.radius,
+            index);
+    }
+}
+
+void CollisionWorld::rebuildSurfaceBroadphases() {
+    const auto rebuild = [this](
+                             BroadphaseGrid& grid,
+                             const std::vector<WalkableSurface>& surfaces) {
+        grid.reset(worldLimit_);
+        for (std::size_t index = 0; index < surfaces.size(); ++index) {
+            const WalkableSurface& surface = surfaces[index];
+            grid.insert(
+                surface.minX, surface.maxX,
+                surface.minZ, surface.maxZ, index);
+        }
+    };
+    rebuild(buildingSurfaceBroadphase_, buildingSurfaces_);
+    rebuild(modularSurfaceBroadphase_, modularSurfaces_);
+    rebuild(pondLilySurfaceBroadphase_, pondLilySurfaces_);
 }
 
 Vec3 CollisionWorld::moveCircle(
@@ -495,6 +625,26 @@ Vec3 CollisionWorld::moveCircle(
     const double stepX = delta.x / static_cast<double>(stepCount);
     const double stepZ = delta.z / static_cast<double>(stepCount);
     constexpr double CollisionEpsilon = 1e-6;
+    const auto forEachNearby = [](
+                                const BroadphaseGrid& grid,
+                                double x, double z, double queryRadius,
+                                auto&& visitor) {
+        if (grid.empty()) {
+            return;
+        }
+        const int minimumX = grid.cellCoordinate(x - queryRadius);
+        const int maximumX = grid.cellCoordinate(x + queryRadius);
+        const int minimumZ = grid.cellCoordinate(z - queryRadius);
+        const int maximumZ = grid.cellCoordinate(z + queryRadius);
+        for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+            for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+                for (const std::size_t index :
+                     grid.bucket(cellX, cellZ)) {
+                    visitor(index);
+                }
+            }
+        }
+    };
     const auto circleRectanglePenetration =
         [radius](Vec3 point, double minimumX,
                  double maximumX, double minimumZ,
@@ -526,7 +676,7 @@ Vec3 CollisionWorld::moveCircle(
             });
         };
     const auto raisedSurfacePenetration =
-        [maximumWalkableSurfaceHeight,
+        [maximumWalkableSurfaceHeight, radius,
          &circleRectanglePenetration](
             const WalkableSurface& surface,
             Vec3 point) {
@@ -577,13 +727,26 @@ Vec3 CollisionWorld::moveCircle(
                         CollisionEpsilon) {
                 return 0.0;
             }
+            if (surface.kind == SurfaceKind::Disc) {
+                const double centerX =
+                    (surface.minX + surface.maxX) * 0.5;
+                const double centerZ =
+                    (surface.minZ + surface.maxZ) * 0.5;
+                const double surfaceRadius =
+                    (surface.maxX - surface.minX) * 0.5;
+                return std::max(
+                    0.0, radius + surfaceRadius -
+                        std::hypot(
+                            point.x - centerX,
+                            point.z - centerZ));
+            }
             return circleRectanglePenetration(
                 point, surface.minX, surface.maxX,
                 surface.minZ, surface.maxZ);
         };
     const auto raisedSurfaceBlocksMovement =
-        [this, &raisedSurfacePenetration](
-            Vec3 from, Vec3 candidate) {
+        [this, &raisedSurfacePenetration,
+         &forEachNearby, radius](Vec3 from, Vec3 candidate) {
             const auto blocks =
                 [&raisedSurfacePenetration,
                  from, candidate](
@@ -604,12 +767,29 @@ Vec3 CollisionWorld::moveCircle(
                                currentDepth +
                                    CollisionEpsilon;
                 };
-            return std::any_of(
-                       buildingSurfaces_.begin(),
-                       buildingSurfaces_.end(), blocks) ||
-                   std::any_of(
-                       modularSurfaces_.begin(),
-                       modularSurfaces_.end(), blocks);
+            const auto anyNearby =
+                [&forEachNearby, &blocks, candidate,
+                 radius](const BroadphaseGrid& grid,
+                       const std::vector<WalkableSurface>& surfaces) {
+                    bool found = false;
+                    forEachNearby(
+                        grid, candidate.x, candidate.z, radius,
+                        [&found, &blocks, &surfaces](std::size_t index) {
+                            if (!found) {
+                                found = blocks(surfaces[index]);
+                            }
+                        });
+                    return found;
+                };
+            return anyNearby(
+                       buildingSurfaceBroadphase_,
+                       buildingSurfaces_) ||
+                   anyNearby(
+                       modularSurfaceBroadphase_,
+                       modularSurfaces_) ||
+                   anyNearby(
+                       pondLilySurfaceBroadphase_,
+                       pondLilySurfaces_);
         };
     const auto colliderPenetration =
         [radius](Vec3 point, const CollisionBox& box) {
@@ -635,25 +815,28 @@ Vec3 CollisionWorld::moveCircle(
             });
         };
     const auto colliderBlocksMovement =
-        [this, &colliderPenetration, radius](
+        [this, &colliderPenetration,
+         &forEachNearby, radius](
             Vec3 from, Vec3 candidate) {
-            const bool boxBlocks = std::any_of(
-                colliders_.begin(), colliders_.end(),
-                [&colliderPenetration,
-                 from, candidate](const CollisionBox& box) {
+            bool boxBlocks = false;
+            forEachNearby(
+                colliderBroadphase_, candidate.x, candidate.z, radius,
+                [&boxBlocks, &colliderPenetration,
+                 from, candidate, this](std::size_t index) {
+                    if (boxBlocks) {
+                        return;
+                    }
+                    const CollisionBox& box = colliders_[index];
                     const double candidateDepth =
                         colliderPenetration(candidate, box);
-                    if (candidateDepth <=
-                        CollisionEpsilon) {
-                        return false;
+                    if (candidateDepth <= CollisionEpsilon) {
+                        return;
                     }
                     const double currentDepth =
                         colliderPenetration(from, box);
-                    return currentDepth <=
-                               CollisionEpsilon ||
-                           candidateDepth >
-                               currentDepth +
-                                   CollisionEpsilon;
+                    boxBlocks = currentDepth <= CollisionEpsilon ||
+                        candidateDepth >
+                            currentDepth + CollisionEpsilon;
                 });
             if (boxBlocks) {
                 return true;
@@ -676,22 +859,29 @@ Vec3 CollisionWorld::moveCircle(
                         combinedRadius -
                             std::hypot(deltaX, deltaZ));
                 };
-            return std::any_of(
-                resourceCylinders_.begin(),
-                resourceCylinders_.end(),
-                [&cylinderPenetration, from, candidate](
-                    const PhysicalCylinder& cylinder) {
+            bool cylinderBlocks = false;
+            forEachNearby(
+                resourceBroadphase_, candidate.x, candidate.z, radius,
+                [&cylinderBlocks, &cylinderPenetration,
+                 from, candidate, this](std::size_t index) {
+                    if (cylinderBlocks) {
+                        return;
+                    }
+                    const PhysicalCylinder& cylinder =
+                        resourceCylinders_[index];
                     const double candidateDepth =
                         cylinderPenetration(candidate, cylinder);
                     if (candidateDepth <= CollisionEpsilon) {
-                        return false;
+                        return;
                     }
                     const double currentDepth =
                         cylinderPenetration(from, cylinder);
-                    return currentDepth <= CollisionEpsilon ||
-                           candidateDepth >
-                               currentDepth + CollisionEpsilon;
+                    cylinderBlocks =
+                        currentDepth <= CollisionEpsilon ||
+                        candidateDepth >
+                            currentDepth + CollisionEpsilon;
                 });
+            return cylinderBlocks;
         };
 
     for (int step = 0; step < stepCount; ++step) {
@@ -773,13 +963,17 @@ CollisionWorld::modularSurfaceHeight(
         }
         result = height;
     };
-    for (const WalkableSurface& surface :
-         buildingSurfaces_) {
-        sampleSurface(surface);
+    const int cellX = buildingSurfaceBroadphase_.cellCoordinate(worldX);
+    const int cellZ = buildingSurfaceBroadphase_.cellCoordinate(worldZ);
+    for (const std::size_t index :
+         buildingSurfaceBroadphase_.bucket(cellX, cellZ)) {
+        sampleSurface(buildingSurfaces_[index]);
     }
-    for (const WalkableSurface& surface :
-         modularSurfaces_) {
-        sampleSurface(surface);
+    const int modularCellX = modularSurfaceBroadphase_.cellCoordinate(worldX);
+    const int modularCellZ = modularSurfaceBroadphase_.cellCoordinate(worldZ);
+    for (const std::size_t index :
+         modularSurfaceBroadphase_.bucket(modularCellX, modularCellZ)) {
+        sampleSurface(modularSurfaces_[index]);
     }
     return result;
 }
@@ -796,15 +990,34 @@ CollisionWorld::playerSupportHeight(
         [worldX, worldZ, radius,
          maximumSurfaceHeight, &result](
             const WalkableSurface& surface) {
-            const double closestX = std::clamp(
-                worldX, surface.minX, surface.maxX);
-            const double closestZ = std::clamp(
-                worldZ, surface.minZ, surface.maxZ);
-            const double deltaX = worldX - closestX;
-            const double deltaZ = worldZ - closestZ;
-            if (deltaX * deltaX + deltaZ * deltaZ >
-                radius * radius + EdgeEpsilon) {
-                return;
+            double closestX = worldX;
+            double closestZ = worldZ;
+            if (surface.kind == SurfaceKind::Disc) {
+                const double centerX =
+                    (surface.minX + surface.maxX) * 0.5;
+                const double centerZ =
+                    (surface.minZ + surface.maxZ) * 0.5;
+                const double surfaceRadius =
+                    (surface.maxX - surface.minX) * 0.5;
+                const double combinedRadius =
+                    surfaceRadius + radius;
+                const double deltaX = worldX - centerX;
+                const double deltaZ = worldZ - centerZ;
+                if (deltaX * deltaX + deltaZ * deltaZ >
+                    combinedRadius * combinedRadius + EdgeEpsilon) {
+                    return;
+                }
+            } else {
+                closestX = std::clamp(
+                    worldX, surface.minX, surface.maxX);
+                closestZ = std::clamp(
+                    worldZ, surface.minZ, surface.maxZ);
+                const double deltaX = worldX - closestX;
+                const double deltaZ = worldZ - closestZ;
+                if (deltaX * deltaX + deltaZ * deltaZ >
+                    radius * radius + EdgeEpsilon) {
+                    return;
+                }
             }
             double height = surface.topHeight;
             if (surface.kind == SurfaceKind::Ramp) {
@@ -843,14 +1056,31 @@ CollisionWorld::playerSupportHeight(
             }
             result = height;
         };
-    for (const WalkableSurface& surface :
-         buildingSurfaces_) {
-        sampleSupport(surface);
-    }
-    for (const WalkableSurface& surface :
-         modularSurfaces_) {
-        sampleSupport(surface);
-    }
+    const auto sampleNearby =
+        [worldX, worldZ, radius, &sampleSupport](
+            const BroadphaseGrid& grid,
+            const std::vector<WalkableSurface>& surfaces) {
+            const double queryRadius = std::max(radius, 0.0);
+            const int minimumX = grid.cellCoordinate(
+                worldX - queryRadius);
+            const int maximumX = grid.cellCoordinate(
+                worldX + queryRadius);
+            const int minimumZ = grid.cellCoordinate(
+                worldZ - queryRadius);
+            const int maximumZ = grid.cellCoordinate(
+                worldZ + queryRadius);
+            for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+                for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+                    for (const std::size_t index :
+                         grid.bucket(cellX, cellZ)) {
+                        sampleSupport(surfaces[index]);
+                    }
+                }
+            }
+        };
+    sampleNearby(buildingSurfaceBroadphase_, buildingSurfaces_);
+    sampleNearby(modularSurfaceBroadphase_, modularSurfaces_);
+    sampleNearby(pondLilySurfaceBroadphase_, pondLilySurfaces_);
     return result;
 }
 
@@ -888,15 +1118,34 @@ CollisionWorld::sweptPlayerLanding(
         [radius](const WalkableSurface& surface,
                  double worldX, double worldZ)
             -> std::optional<double> {
-            const double closestX = std::clamp(
-                worldX, surface.minX, surface.maxX);
-            const double closestZ = std::clamp(
-                worldZ, surface.minZ, surface.maxZ);
-            const double offsetX = worldX - closestX;
-            const double offsetZ = worldZ - closestZ;
-            if (offsetX * offsetX + offsetZ * offsetZ >
-                radius * radius + SurfaceEpsilon) {
-                return std::nullopt;
+            double closestX = worldX;
+            double closestZ = worldZ;
+            if (surface.kind == SurfaceKind::Disc) {
+                const double centerX =
+                    (surface.minX + surface.maxX) * 0.5;
+                const double centerZ =
+                    (surface.minZ + surface.maxZ) * 0.5;
+                const double surfaceRadius =
+                    (surface.maxX - surface.minX) * 0.5;
+                const double combinedRadius =
+                    surfaceRadius + radius;
+                const double offsetX = worldX - centerX;
+                const double offsetZ = worldZ - centerZ;
+                if (offsetX * offsetX + offsetZ * offsetZ >
+                    combinedRadius * combinedRadius + SurfaceEpsilon) {
+                    return std::nullopt;
+                }
+            } else {
+                closestX = std::clamp(
+                    worldX, surface.minX, surface.maxX);
+                closestZ = std::clamp(
+                    worldZ, surface.minZ, surface.maxZ);
+                const double offsetX = worldX - closestX;
+                const double offsetZ = worldZ - closestZ;
+                if (offsetX * offsetX + offsetZ * offsetZ >
+                    radius * radius + SurfaceEpsilon) {
+                    return std::nullopt;
+                }
             }
             if (surface.kind != SurfaceKind::Ramp) {
                 return surface.topHeight;
@@ -1046,14 +1295,37 @@ CollisionWorld::sweptPlayerLanding(
                 previousSurface = currentSurface;
             }
         };
-    for (const WalkableSurface& surface :
-         buildingSurfaces_) {
-        sampleSurface(surface);
-    }
-    for (const WalkableSurface& surface :
-         modularSurfaces_) {
-        sampleSurface(surface);
-    }
+    const double queryCenterX =
+        (startPosition.x + endPosition.x) * 0.5;
+    const double queryCenterZ =
+        (startPosition.z + endPosition.z) * 0.5;
+    const double queryRadius =
+        std::hypot(deltaX, deltaZ) * 0.5 +
+        std::max(radius, 0.0);
+    const auto sampleNearby =
+        [queryCenterX, queryCenterZ, queryRadius, &sampleSurface](
+            const BroadphaseGrid& grid,
+            const std::vector<WalkableSurface>& surfaces) {
+            const int minimumX = grid.cellCoordinate(
+                queryCenterX - queryRadius);
+            const int maximumX = grid.cellCoordinate(
+                queryCenterX + queryRadius);
+            const int minimumZ = grid.cellCoordinate(
+                queryCenterZ - queryRadius);
+            const int maximumZ = grid.cellCoordinate(
+                queryCenterZ + queryRadius);
+            for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+                for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+                    for (const std::size_t index :
+                         grid.bucket(cellX, cellZ)) {
+                        sampleSurface(surfaces[index]);
+                    }
+                }
+            }
+        };
+    sampleNearby(buildingSurfaceBroadphase_, buildingSurfaces_);
+    sampleNearby(modularSurfaceBroadphase_, modularSurfaces_);
+    sampleNearby(pondLilySurfaceBroadphase_, pondLilySurfaces_);
     return result;
 }
 
@@ -1122,13 +1394,23 @@ CollisionWorld::modularCeilingHeight(
             }
             result = underside;
         };
-    for (const WalkableSurface& surface :
-         buildingSurfaces_) {
-        sampleCeiling(surface);
+    const int buildingCellX =
+        buildingSurfaceBroadphase_.cellCoordinate(worldX);
+    const int buildingCellZ =
+        buildingSurfaceBroadphase_.cellCoordinate(worldZ);
+    for (const std::size_t index :
+         buildingSurfaceBroadphase_.bucket(
+             buildingCellX, buildingCellZ)) {
+        sampleCeiling(buildingSurfaces_[index]);
     }
-    for (const WalkableSurface& surface :
-         modularSurfaces_) {
-        sampleCeiling(surface);
+    const int modularCellX =
+        modularSurfaceBroadphase_.cellCoordinate(worldX);
+    const int modularCellZ =
+        modularSurfaceBroadphase_.cellCoordinate(worldZ);
+    for (const std::size_t index :
+         modularSurfaceBroadphase_.bucket(
+             modularCellX, modularCellZ)) {
+        sampleCeiling(modularSurfaces_[index]);
     }
     return result;
 }
@@ -1151,26 +1433,61 @@ bool CollisionWorld::overlapsBox(const CollisionBox& candidate) const {
             return collisionBoxesOverlap(
                 candidate, collider);
         };
-    const bool boxOverlap =
-        std::any_of(
-            colliders_.begin(), colliders_.end(),
-            overlapsCandidate) ||
-        std::any_of(
-            rampPlacementColliders_.begin(),
-            rampPlacementColliders_.end(),
-            overlapsCandidate);
-    return boxOverlap;
+    const auto anyNearby =
+        [&overlapsCandidate, candidate](
+            const BroadphaseGrid& grid,
+            const std::vector<CollisionBox>& colliders) {
+            if (grid.empty()) {
+                return false;
+            }
+            const int minimumX = grid.cellCoordinate(candidate.minX);
+            const int maximumX = grid.cellCoordinate(candidate.maxX);
+            const int minimumZ = grid.cellCoordinate(candidate.minZ);
+            const int maximumZ = grid.cellCoordinate(candidate.maxZ);
+            for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+                for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+                    for (const std::size_t index :
+                         grid.bucket(cellX, cellZ)) {
+                        if (overlapsCandidate(colliders[index])) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        };
+    return anyNearby(colliderBroadphase_, colliders_) ||
+           anyNearby(
+               rampPlacementBroadphase_,
+               rampPlacementColliders_);
 }
 
 bool CollisionWorld::overlapsRampBox(
     const CollisionBox& candidate) const {
-    return std::any_of(
-        rampPlacementColliders_.begin(),
-        rampPlacementColliders_.end(),
-        [candidate](const CollisionBox& collider) {
-            return collisionBoxesOverlap(
-                candidate, collider);
-        });
+    if (rampPlacementBroadphase_.empty()) {
+        return false;
+    }
+    const int minimumX =
+        rampPlacementBroadphase_.cellCoordinate(candidate.minX);
+    const int maximumX =
+        rampPlacementBroadphase_.cellCoordinate(candidate.maxX);
+    const int minimumZ =
+        rampPlacementBroadphase_.cellCoordinate(candidate.minZ);
+    const int maximumZ =
+        rampPlacementBroadphase_.cellCoordinate(candidate.maxZ);
+    for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
+        for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
+            for (const std::size_t index :
+                 rampPlacementBroadphase_.bucket(cellX, cellZ)) {
+                if (collisionBoxesOverlap(
+                        candidate,
+                        rampPlacementColliders_[index])) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 const std::vector<CollisionBox>& CollisionWorld::colliders() const {

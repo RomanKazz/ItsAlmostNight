@@ -62,10 +62,25 @@ int main() {
         if (!resources.sceneTargetValid() ||
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
+            !resources.enemyMinionModel().valid() ||
+            resources.enemyPinkBlobAnimations().find("Idle") == nullptr ||
+            resources.enemyPinkBlobAnimations().find("Walk") == nullptr ||
+            resources.enemyPinkBlobAnimations().find("Death") == nullptr ||
             !resources.clubModel().valid() ||
             !resources.hammerModel().valid() ||
+            !resources.iceWandModel().valid() ||
+            !resources.iceMagicShader().valid() ||
             !resources.woodenChestModel().valid() ||
-            !resources.stoneChestModel().valid()) {
+            !resources.stoneChestModel().valid() ||
+            !resources.ironBarLootModel().valid() ||
+            !resources.fuelJerrycanLootModel().valid() ||
+            !resources.compassLootModel().valid() ||
+            !resources.nailLootModel().valid() ||
+            !resources.keyLootModel().valid() ||
+            !resources.mapLootModel().valid() ||
+            !resources.anvilLootModel().valid() ||
+            !resources.sawLootModel().valid() ||
+            !resources.potionLootModel().valid()) {
             std::cerr << "required graphics resource failed to load\n";
             result = 1;
         }
@@ -97,15 +112,7 @@ int main() {
             {-0.45F, 1.2F, 0.0F},
             ian::LootUpgradeEffect::Apple,
             ian::LootRarity::Common, 0.5F);
-        renderer.drawLootItemOutline(
-            {-0.45F, 1.2F, 0.0F},
-            ian::LootUpgradeEffect::Apple,
-            ian::LootRarity::Common, 0.5F);
         renderer.drawLootItem(
-            {0.45F, 1.2F, 0.0F},
-            ian::LootUpgradeEffect::Bread,
-            ian::LootRarity::Common, -0.5F);
-        renderer.drawLootItemOutline(
             {0.45F, 1.2F, 0.0F},
             ian::LootUpgradeEffect::Bread,
             ian::LootRarity::Common, -0.5F);

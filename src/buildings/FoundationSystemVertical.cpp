@@ -149,6 +149,8 @@ FoundationSystem::placeWall(
         .bottomHeight = placement.bottomHeight,
         .topHeight = placement.topHeight,
         .storey = placement.storey,
+        .health = ModularWallMaxHealth * maxHealthMultiplier_,
+        .maxHealth = ModularWallMaxHealth * maxHealthMultiplier_,
     };
     const int heightLevels =
         modularStoreyHeightLevels(grid_.config());
@@ -289,6 +291,8 @@ FoundationSystem::placeRamp(
         .topHeight = placement.topHeight,
         .targetStorey =
             placement.targetStorey,
+        .health = ModularRampMaxHealth * maxHealthMultiplier_,
+        .maxHealth = ModularRampMaxHealth * maxHealthMultiplier_,
     };
     const int heightLevels = std::max(
         1,

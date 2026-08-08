@@ -15,6 +15,8 @@ namespace ian::app_detail {
 [[nodiscard]] EnemyAnimationVisual enemyAnimationVisual(
     const EnemyInstance& enemy);
 [[nodiscard]] float enemyVisualScale(EnemyType type);
+[[nodiscard]] float enemyHitScale(
+    const EnemyInstance& enemy);
 [[nodiscard]] Vector3 enemyRenderPosition(
     const EnemyInstance& enemy);
 [[nodiscard]] float enemyAnimationSeconds(

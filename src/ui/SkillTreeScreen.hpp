@@ -17,6 +17,7 @@ class SkillTreeScreen {
 
     void open();
     void close();
+    void setUnlimitedPoints(bool unlimited);
     [[nodiscard]] bool isOpen() const;
 
     [[nodiscard]] std::optional<std::size_t> update(float deltaSeconds);
@@ -43,6 +44,7 @@ class SkillTreeScreen {
     std::vector<float> confirmationPulse_;
     std::vector<float> rejectShake_;
     bool open_{};
+    bool unlimitedPoints_{};
     float opening_{};
     Vector2 camera_{0.0F, 42.0F};
     Vector2 targetCamera_{0.0F, 42.0F};

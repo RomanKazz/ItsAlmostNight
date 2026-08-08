@@ -5,6 +5,7 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -13,7 +14,9 @@ namespace {
 
 constexpr std::size_t ChestCount = 10;
 constexpr double OpeningDuration = 1.05;
-constexpr double LootHoverHeight = 1.66;
+// A slightly generous silhouette makes a hovering reward easy to target
+// without making nearby chest interactions ambiguous.
+constexpr double LootRaycastRadius = 0.72;
 
 double distanceSquared(Vec3 left, Vec3 right) {
     const double x = left.x - right.x;
@@ -46,14 +49,46 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position) {
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(chestId.generation) << 32U) |
         chestId.index;
-    const auto effect = mixBits64(seed ^ 0xe7037ed1a0b428dbULL) % 2ULL == 0ULL
-        ? LootUpgradeEffect::Apple
-        : LootUpgradeEffect::Bread;
+    const std::uint64_t roll =
+        mixBits64(seed ^ 0xe7037ed1a0b428dbULL);
+    constexpr std::array<LootUpgradeEffect, 7> CommonLoot{{
+        LootUpgradeEffect::Apple,
+        LootUpgradeEffect::Bread,
+        LootUpgradeEffect::IronBar,
+        LootUpgradeEffect::FuelJerrycan,
+        LootUpgradeEffect::Compass,
+        LootUpgradeEffect::Nail,
+        LootUpgradeEffect::Key,
+    }};
+    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+        LootUpgradeEffect::Map,
+        LootUpgradeEffect::Anvil,
+        LootUpgradeEffect::Saw,
+        LootUpgradeEffect::Potion,
+    }};
+    const bool rare = roll % 100ULL >= 72ULL;
+    const std::span<const LootUpgradeEffect> pool = rare
+        ? std::span<const LootUpgradeEffect>{RareLoot}
+        : std::span<const LootUpgradeEffect>{CommonLoot};
+    const LootUpgradeEffect effect = pool[
+        (roll / 100ULL) % pool.size()];
     return {
         .id = {chestId.index, chestId.generation},
-        .rarity = LootRarity::Common,
+        .rarity = rare ? LootRarity::Rare : LootRarity::Common,
         .effect = effect,
         .position = position,
+    };
+}
+
+Vec3 lootVisualPosition(const ChestLoot& loot) {
+    const double reveal = std::clamp(loot.revealProgress, 0.0, 1.0);
+    const double eased = 1.0 -
+        std::pow(1.0 - reveal, 3.0);
+    return {
+        loot.position.x,
+        loot.position.y + 0.48 + eased * 1.18 +
+            std::sin(loot.hoverTime * 2.4) * 0.08,
+        loot.position.z,
     };
 }
 
@@ -67,14 +102,29 @@ void LootChestSystem::reset(
     if (runGeneration_ == 0U) ++runGeneration_;
     chests_.clear();
     chests_.reserve(ChestCount);
+    spawnAdditionalChests(
+        static_cast<int>(ChestCount), terrainSeed, worldLimit,
+        terrain, resources, playerSpawn);
+}
+
+void LootChestSystem::spawnAdditionalChests(
+    int count, std::uint32_t terrainSeed, double worldLimit,
+    const TerrainHeightfield& terrain,
+    std::span<const ResourceNode> resources, Vec3 playerSpawn) {
+    if (count <= 0) return;
     constexpr std::size_t MaximumAttempts = 4096;
+    const std::size_t targetCount = chests_.size() +
+        static_cast<std::size_t>(count);
     for (std::size_t attempt = 0;
-         attempt < MaximumAttempts && chests_.size() < ChestCount;
+         attempt < MaximumAttempts && chests_.size() < targetCount;
          ++attempt) {
+        const std::size_t chestIndex = chests_.size();
         const std::uint64_t seed =
             static_cast<std::uint64_t>(terrainSeed) ^
             (static_cast<std::uint64_t>(attempt + 1U) *
-             0x9e3779b97f4a7c15ULL);
+             0x9e3779b97f4a7c15ULL) ^
+            (static_cast<std::uint64_t>(chestIndex + 1U) *
+             0xd1b54a32d192ed03ULL);
         const double limit = std::max(1.0, worldLimit - 3.0);
         Vec3 position{
             (unitRandom(seed ^ 0x243f6a8885a308d3ULL) * 2.0 - 1.0) * limit,
@@ -159,11 +209,9 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
     double closestDistance = maximumDistance;
     for (const LootChestInstance& chest : chests_) {
         if (!chest.loot.available || chest.loot.collected) continue;
-        Vec3 center = chest.loot.position;
-        center.y += LootHoverHeight +
-            std::sin(chest.loot.hoverTime * 2.4) * 0.08;
+        const Vec3 center = lootVisualPosition(chest.loot);
         const auto distance = raySphereDistance(
-            origin, direction, center, 0.52);
+            origin, direction, center, LootRaycastRadius);
         if (distance && *distance <= closestDistance) {
             closestDistance = *distance;
             closest = chest.loot.id;
@@ -179,12 +227,26 @@ ChestOpenResult LootChestSystem::open(EntityId id, int& gold) {
     if (chest == chests_.end()) return ChestOpenResult::None;
     if (chest->state != LootChestState::Closed)
         return ChestOpenResult::AlreadyOpen;
-    if (gold < chest->goldCost)
+    const int cost = openingCost(*chest);
+    if (gold < cost)
         return ChestOpenResult::InsufficientGold;
-    gold -= chest->goldCost;
+    gold -= cost;
     chest->state = LootChestState::Opening;
     chest->openingProgress = 0.0;
     return ChestOpenResult::Opened;
+}
+
+void LootChestSystem::setGoldCostMultiplier(double multiplier) {
+    goldCostMultiplier_ = std::clamp(multiplier, 0.01, 1.0);
+}
+
+int LootChestSystem::openingCost(
+    const LootChestInstance& chest) const {
+    return std::max(
+        1,
+        static_cast<int>(std::lround(
+            static_cast<double>(chest.goldCost) *
+            goldCostMultiplier_)));
 }
 
 std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
@@ -194,7 +256,7 @@ std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
         chest.loot.collected = true;
         return LootPickup{
             chest.loot.id, chest.loot.rarity,
-            chest.loot.effect, chest.loot.position,
+            chest.loot.effect, lootVisualPosition(chest.loot),
         };
     }
     return std::nullopt;
@@ -203,8 +265,7 @@ std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
 std::optional<LootPickup> LootChestSystem::collectNearby(
     Vec3 playerPosition, double radius) {
     for (LootChestInstance& chest : chests_) {
-        Vec3 itemPosition = chest.loot.position;
-        itemPosition.y += LootHoverHeight;
+        const Vec3 itemPosition = lootVisualPosition(chest.loot);
         if (chest.loot.available && !chest.loot.collected &&
             distanceSquared(playerPosition, itemPosition) <= radius * radius)
             return collect(chest.loot.id);
@@ -232,6 +293,15 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
     case LootUpgradeEffect::MaximumHealth: return "Heartwood Seed";
     case LootUpgradeEffect::Apple: return "Apple";
     case LootUpgradeEffect::Bread: return "Bread";
+    case LootUpgradeEffect::IronBar: return "Iron Bar";
+    case LootUpgradeEffect::FuelJerrycan: return "Fuel Jerrycan";
+    case LootUpgradeEffect::Compass: return "Compass";
+    case LootUpgradeEffect::Nail: return "Nail";
+    case LootUpgradeEffect::Key: return "Chest Key";
+    case LootUpgradeEffect::Map: return "Treasure Map";
+    case LootUpgradeEffect::Anvil: return "Anvil";
+    case LootUpgradeEffect::Saw: return "Saw";
+    case LootUpgradeEffect::Potion: return "Battle Potion";
     }
     return "Unknown Item";
 }
@@ -244,6 +314,23 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Apple: return "+12 maximum health per stack";
     case LootUpgradeEffect::Bread:
         return "After 6s without damage: +0.4 HP/s per stack";
+    case LootUpgradeEffect::IronBar: return "+3% armor";
+    case LootUpgradeEffect::FuelJerrycan:
+        return "+8% producer speed per stack";
+    case LootUpgradeEffect::Compass:
+        return "Points to nearby chests; range grows per stack";
+    case LootUpgradeEffect::Nail:
+        return "+8% maximum health for buildings";
+    case LootUpgradeEffect::Key:
+        return "-5% chest cost per stack (max -25%)";
+    case LootUpgradeEffect::Map:
+        return "Reveals chests; boss waves add one per stack";
+    case LootUpgradeEffect::Anvil:
+        return "New towers: +10% damage and health";
+    case LootUpgradeEffect::Saw:
+        return "+25% wood gathering and lumber production";
+    case LootUpgradeEffect::Potion:
+        return "Wave start: +20 HP and +10 temporary health";
     }
     return "";
 }

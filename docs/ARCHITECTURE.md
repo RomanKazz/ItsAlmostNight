@@ -116,6 +116,18 @@ Renderer разбивает terrain на 64 GPU-чанка и держит finit
 
 Поведение остаётся в C++. Новая внешняя зависимость требует отдельного ADR.
 
+Внутренняя декомпозиция фасадов:
+
+- `Simulation.cpp` содержит lifecycle и fixed-step orchestration;
+  `Simulation*` translation units содержат движение, действия игрока, loot,
+  combat, placement, world sync, snapshot и progression;
+- `Renderer.cpp` содержит lifetime и frame-local effects;
+  `RendererFramePasses.cpp`, `RendererTerrain.cpp`, `RendererShaders.cpp` и
+  `RendererSettings.cpp` разделяют render passes, terrain/decor, shader
+  uniforms и настройки;
+- публичные классы `Simulation` и `Renderer` сохранены, поэтому orchestration
+  слоям не нужен переходный adapter.
+
 ## CMake-цели
 
 - `ian_simulation` — игровая логика без raylib;

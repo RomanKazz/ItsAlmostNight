@@ -139,14 +139,16 @@ void main()
         texelFetch(texture0, sourceCoordinate, 0)*fragColor;
     vec2 texel = 1.0/vec2(sourceSize);
     vec2 stylePixel = vec2(sourceCoordinate);
-    vec3 neighborhood =
-        (texture(texture0, pixelUv + vec2(texel.x, 0.0)).rgb +
-         texture(texture0, pixelUv - vec2(texel.x, 0.0)).rgb +
-         texture(texture0, pixelUv + vec2(0.0, texel.y)).rgb +
-         texture(texture0, pixelUv - vec2(0.0, texel.y)).rgb)*0.25;
-
-    vec3 color =
-        source.rgb + (source.rgb - neighborhood)*sharpness*0.72;
+    vec3 color = source.rgb;
+    if (abs(sharpness) > 0.001)
+    {
+        vec3 neighborhood =
+            (texture(texture0, pixelUv + vec2(texel.x, 0.0)).rgb +
+             texture(texture0, pixelUv - vec2(texel.x, 0.0)).rgb +
+             texture(texture0, pixelUv + vec2(0.0, texel.y)).rgb +
+             texture(texture0, pixelUv - vec2(0.0, texel.y)).rgb)*0.25;
+        color += (source.rgb - neighborhood)*sharpness*0.72;
+    }
     if (bloomEnabled > 0.5)
     {
         color += bloomSample(pixelUv, texel)*bloomStrength;

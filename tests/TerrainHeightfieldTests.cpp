@@ -196,6 +196,14 @@ void runTerrainHeightfieldTests() {
     require(
         highestBoundaryPeak - lowestBoundaryPeak > 5.0,
         "boundary terrain forms varied mountain peaks");
+    requireNear(
+        boundaryTerrain.getBackdropHeight(64.0, 0.0),
+        boundaryTerrain.getHeight(64.0, 0.0), 1e-9,
+        "mountain backdrop joins the terrain edge without a step");
+    require(
+        boundaryTerrain.getBackdropHeight(120.0, 0.0) >
+            boundaryTerrain.getHeight(64.0, 0.0) + 5.0,
+        "mountain backdrop rises beyond the map boundary");
     require(
         ian::WorldConfig::defaults().terrainWorldSize >= 384.0 &&
             ian::WorldConfig::defaults().terrainResolution >= 513,

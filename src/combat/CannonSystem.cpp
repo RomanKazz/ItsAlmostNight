@@ -253,7 +253,11 @@ void CannonSystem::launch(const BuildingInstance& cannon, Vec3 targetPosition) {
     projectile->fuseRemaining = flightTime;
     const double levelBonus = static_cast<double>(cannon.level - 1);
     projectile->explosionRadius = explosionRadius(cannon.level);
-    projectile->explosionDamage = explosionDamage(cannon.level);
+    const double towerBonus = cannon.anvilStacks > 0
+        ? 1.0 + 0.10 * cannon.anvilStacks
+        : cannon.anvilEnhanced ? 1.10 : 1.0;
+    projectile->explosionDamage = explosionDamage(cannon.level) *
+        towerBonus;
     projectile->explosionImpulse =
         BaseExplosionImpulse + 0.35 * levelBonus;
     projectile->active = true;

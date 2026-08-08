@@ -21,8 +21,17 @@ enum class LootUpgradeEffect {
     MaximumHealth,
     Apple,
     Bread,
+    IronBar,
+    FuelJerrycan,
+    Compass,
+    Nail,
+    Key,
+    Map,
+    Anvil,
+    Saw,
+    Potion,
 };
-constexpr std::size_t LootUpgradeEffectCount = 5U;
+constexpr std::size_t LootUpgradeEffectCount = 14U;
 
 [[nodiscard]] constexpr std::size_t lootUpgradeIndex(
     LootUpgradeEffect effect) {
@@ -73,15 +82,25 @@ class LootChestSystem {
     [[nodiscard]] std::optional<EntityId> raycastLoot(
         Vec3 origin, Vec3 direction, double maximumDistance) const;
     [[nodiscard]] ChestOpenResult open(EntityId id, int& gold);
+    void setGoldCostMultiplier(double multiplier);
+    [[nodiscard]] int openingCost(
+        const LootChestInstance& chest) const;
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
     [[nodiscard]] std::optional<LootPickup> collectNearby(
         Vec3 playerPosition, double radius);
+
+    void spawnAdditionalChests(
+        int count, std::uint32_t terrainSeed,
+        double worldLimit, const TerrainHeightfield& terrain,
+        std::span<const ResourceNode> resources,
+        Vec3 playerSpawn);
 
     [[nodiscard]] const std::vector<LootChestInstance>& chests() const;
 
   private:
     std::vector<LootChestInstance> chests_;
     std::uint32_t runGeneration_{};
+    double goldCostMultiplier_{1.0};
 };
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);

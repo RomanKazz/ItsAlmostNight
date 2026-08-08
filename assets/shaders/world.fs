@@ -127,8 +127,42 @@ vec3 terrainMaterial(
         terrainDirtTint*0.54,
         vec3(0.18, 0.27, 0.13),
         shoreVariation*0.34);
-    return mix(terrain, wetEarth,
-               shoreWeight*(0.62 + shoreVariation*0.16));
+    terrain = mix(terrain, wetEarth,
+                  shoreWeight*(0.62 + shoreVariation*0.16));
+
+    // Backdrop vertices encode a mountain amount as R-B. In-map terrain
+    // keeps all three channels equal, so this mask cannot turn shoreline
+    // pixels into rock. The transition is green at the map edge, then
+    // becomes exposed grey stone on increasingly steep mountain faces.
+    float mountainAmount = clamp(
+        vertexColor.r - vertexColor.b, 0.0, 1.0);
+    float rockSlope = smoothstep(0.12, 0.42, slope);
+    float rockWeight = clamp(
+        mountainAmount*(0.60 + rockSlope*0.40), 0.0, 1.0);
+    float rockNoise = valueNoise(
+        worldXZ*0.115 + vec2(11.7, -24.6));
+    vec3 rock = mix(
+        vec3(0.24, 0.27, 0.28),
+        vec3(0.56, 0.59, 0.59),
+        rockNoise*0.72 + 0.14);
+    terrain = mix(terrain, rock, rockWeight);
+
+    // The green channel carries a second, height-and-normal-aware mask for
+    // the mountain cap. It is zero on ordinary terrain because mountain
+    // amount is zero there, even around wet shore vertices.
+    float snowAmount = mountainAmount*clamp(
+        1.0 - vertexColor.g, 0.0, 1.0);
+    float snowNoise = valueNoise(
+        worldXZ*0.072 + vec2(-4.2, 18.1));
+    // A narrow threshold makes the snowline visibly crisp while preserving
+    // small procedural breaks along the ridge.
+    float snowEdge = smoothstep(0.30, 0.50, snowAmount);
+    float snowWeight = snowEdge*(0.84 + snowNoise*0.16);
+    vec3 snow = mix(
+        vec3(0.72, 0.80, 0.86),
+        vec3(0.98, 0.995, 1.0),
+        snowNoise*0.72 + 0.18);
+    return mix(terrain, snow, clamp(snowWeight, 0.0, 1.0));
 }
 
 float sampleShadow(vec3 normal)
@@ -149,17 +183,19 @@ float sampleShadow(vec3 normal)
 
     float lightFacing = max(dot(normal, normalize(-sunDirection)), 0.0);
     float bias = constantBias + slopeBias*(1.0 - lightFacing);
-    const float kernel[5] = float[5](1.0, 2.0, 3.0, 2.0, 1.0);
+    // A compact 3x3 PCF kernel keeps the shadow edge soft enough while
+    // avoiding 16 redundant texture reads per world fragment.
+    const float kernel[3] = float[3](1.0, 2.0, 1.0);
     float occlusion = 0.0;
     float totalWeight = 0.0;
-    for (int offsetY = -2; offsetY <= 2; ++offsetY)
+    for (int offsetY = -1; offsetY <= 1; ++offsetY)
     {
-        for (int offsetX = -2; offsetX <= 2; ++offsetX)
+        for (int offsetX = -1; offsetX <= 1; ++offsetX)
         {
-            float weight = kernel[offsetX + 2]*kernel[offsetY + 2];
+            float weight = kernel[offsetX + 1]*kernel[offsetY + 1];
             vec2 offset =
                 vec2(float(offsetX), float(offsetY))*
-                shadowMapTexelSize*2.25;
+                shadowMapTexelSize*2.0;
             float closestDepth = texture(shadowMap, projected.xy + offset).r;
             occlusion +=
                 (projected.z - bias > closestDepth ? 1.0 : 0.0)*weight;
@@ -216,8 +252,12 @@ void main()
     vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
     albedo.a = baseColor.a*colDiffuse.a*
         mix(fragVertexColor.a, 1.0, clamp(vertexAoAmount, 0.0, 1.0));
-    vec3 terrainAlbedo =
-        terrainMaterial(fragWorldPosition, normal, fragVertexColor);
+    vec3 terrainAlbedo = albedo.rgb;
+    if (terrainAmount > 0.001)
+    {
+        terrainAlbedo = terrainMaterial(
+            fragWorldPosition, normal, fragVertexColor);
+    }
     albedo.rgb = mix(albedo.rgb, terrainAlbedo,
                      clamp(terrainAmount, 0.0, 1.0));
     float vertexAo =

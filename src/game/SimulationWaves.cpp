@@ -76,9 +76,17 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
 void Simulation::completeWave() {
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
+    iceWand_.clearProjectiles();
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
     upcomingAttackDirection_.reset();
+    if (currentWaveHasBoss_) {
+        const int mapStacks = lootStacks_[
+            lootUpgradeIndex(LootUpgradeEffect::Map)];
+        lootChests_.spawnAdditionalChests(
+            mapStacks, terrain_.seed(), map_.worldLimit,
+            terrain_, resources_.nodes(), playerPosition_);
+    }
     events_.push_back({
         .type = GameEventType::WaveCompleted,
         .amount = wave_,

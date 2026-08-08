@@ -14,6 +14,7 @@
 #include <cstring>
 #include <map>
 #include <tuple>
+#include <utility>
 
 namespace ian {
 namespace {
@@ -296,7 +297,31 @@ EnemyAnimationSource enemyAnimationFor(
     const char* clip = "Idle_A";
     bool native = false;
 
-    if (modelVisual == EnemyModelVisual::Sapper) {
+    if (modelVisual == EnemyModelVisual::Minion) {
+        animations = &resources.enemyPinkBlobAnimations();
+        native = true;
+        switch (animationVisual) {
+        case EnemyAnimationVisual::Walk:
+        case EnemyAnimationVisual::Run:
+            clip = "Walk";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
+        case EnemyAnimationVisual::RangedAttack:
+        case EnemyAnimationVisual::SapperAttack:
+            clip = "Bite_Front";
+            break;
+        case EnemyAnimationVisual::Hit:
+            clip = "HitRecieve";
+            break;
+        case EnemyAnimationVisual::Death:
+            clip = "Death";
+            break;
+        case EnemyAnimationVisual::Idle:
+        case EnemyAnimationVisual::Spawn:
+            clip = "Idle";
+            break;
+        }
+    } else if (modelVisual == EnemyModelVisual::Sapper) {
         animations = &resources.enemySapperAnimations();
         native = true;
         switch (animationVisual) {
@@ -415,6 +440,43 @@ void drawLootItemGeometry(
     } else if (effect == LootUpgradeEffect::MoveSpeed) {
         DrawCube({-0.10F, 0.0F, 0.0F}, 0.12F, 0.48F, 0.18F, color);
         DrawCube({0.10F, 0.08F, 0.0F}, 0.12F, 0.38F, 0.18F, color);
+    } else if (effect == LootUpgradeEffect::IronBar) {
+        DrawCube({}, 0.48F, 0.18F, 0.20F, color);
+    } else if (effect == LootUpgradeEffect::FuelJerrycan) {
+        DrawCube({}, 0.30F, 0.46F, 0.18F, color);
+        DrawCube({0.0F, 0.28F, 0.0F}, 0.14F, 0.10F, 0.14F, color);
+    } else if (effect == LootUpgradeEffect::Compass) {
+        DrawCylinder({}, 0.22F, 0.22F, 0.10F, 12, color);
+        DrawCylinder({0.0F, 0.08F, 0.0F}, 0.04F, 0.04F, 0.22F, 6,
+                     WHITE);
+    } else if (effect == LootUpgradeEffect::Nail) {
+        rlRotatef(45.0F, 0.0F, 0.0F, 1.0F);
+        DrawCylinder({}, 0.045F, 0.045F, 0.40F, 8, color);
+        DrawCylinder({0.0F, 0.22F, 0.0F}, 0.10F, 0.10F, 0.06F, 8,
+                     color);
+    } else if (effect == LootUpgradeEffect::Key) {
+        DrawCylinder({}, 0.14F, 0.14F, 0.06F, 12, color);
+        DrawCylinder({0.0F, 0.0F, 0.0F}, 0.08F, 0.08F, 0.08F, 12,
+                     {24, 28, 31, 255});
+        DrawCube({0.18F, 0.0F, 0.0F}, 0.28F, 0.06F, 0.06F, color);
+    } else if (effect == LootUpgradeEffect::Map) {
+        DrawCube({}, 0.46F, 0.28F, 0.08F, color);
+        DrawLine3D({-0.08F, -0.14F, -0.05F},
+                   {-0.08F, 0.14F, -0.05F}, WHITE);
+    } else if (effect == LootUpgradeEffect::Anvil) {
+        DrawCube({0.0F, 0.08F, 0.0F}, 0.48F, 0.16F, 0.20F, color);
+        DrawCube({0.0F, -0.12F, 0.0F}, 0.20F, 0.28F, 0.16F, color);
+    } else if (effect == LootUpgradeEffect::Saw) {
+        DrawCube({}, 0.50F, 0.08F, 0.10F, color);
+        for (int tooth = 0; tooth < 4; ++tooth) {
+            DrawCube({-0.15F + tooth * 0.10F, -0.08F, 0.0F},
+                     0.06F, 0.10F, 0.10F, color);
+        }
+    } else if (effect == LootUpgradeEffect::Potion) {
+        DrawCylinder({0.0F, -0.08F, 0.0F}, 0.14F, 0.18F, 0.30F, 10,
+                     color);
+        DrawCylinder({0.0F, 0.14F, 0.0F}, 0.08F, 0.08F, 0.10F, 8,
+                     color);
     } else {
         DrawSphereEx({-0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
         DrawSphereEx({0.11F, 0.08F, 0.0F}, 0.18F, 6, 6, color);
@@ -430,6 +492,24 @@ ModelResource* lootItemModelFor(
         return &resources.appleLootModel();
     case LootUpgradeEffect::Bread:
         return &resources.breadLootModel();
+    case LootUpgradeEffect::IronBar:
+        return &resources.ironBarLootModel();
+    case LootUpgradeEffect::FuelJerrycan:
+        return &resources.fuelJerrycanLootModel();
+    case LootUpgradeEffect::Compass:
+        return &resources.compassLootModel();
+    case LootUpgradeEffect::Nail:
+        return &resources.nailLootModel();
+    case LootUpgradeEffect::Key:
+        return &resources.keyLootModel();
+    case LootUpgradeEffect::Map:
+        return &resources.mapLootModel();
+    case LootUpgradeEffect::Anvil:
+        return &resources.anvilLootModel();
+    case LootUpgradeEffect::Saw:
+        return &resources.sawLootModel();
+    case LootUpgradeEffect::Potion:
+        return &resources.potionLootModel();
     case LootUpgradeEffect::Damage:
     case LootUpgradeEffect::MoveSpeed:
     case LootUpgradeEffect::MaximumHealth:
@@ -508,22 +588,69 @@ void applyLootItemLocalRotation(LootUpgradeEffect effect) {
     }
 }
 
+Color crowdLodTint(EnemyModelVisual visual, Color tint) {
+    if (tint.r != 255 || tint.g != 255 || tint.b != 255) {
+        return tint;
+    }
+    switch (visual) {
+    case EnemyModelVisual::Minion:
+        return {235, 112, 185, tint.a};
+    case EnemyModelVisual::Rogue:
+        return {191, 104, 52, tint.a};
+    case EnemyModelVisual::Warrior:
+        return {93, 60, 105, tint.a};
+    case EnemyModelVisual::Mage:
+        return {55, 118, 154, tint.a};
+    case EnemyModelVisual::Sapper:
+        return {170, 118, 43, tint.a};
+    case EnemyModelVisual::Flying:
+        return {102, 71, 167, tint.a};
+    case EnemyModelVisual::Boss:
+        return {74, 35, 45, tint.a};
+    }
+    return tint;
+}
+
 } // namespace
 
+void Renderer::drawTerrainAlignedModel(
+    Model& model, Vector3 position, float yawRadians,
+    Vector3 scale, Color tint) const {
+    const Matrix rotation = terrainAlignedRotation(
+        position.x, position.z, yawRadians);
+    Vector3 axis{0.0F, 1.0F, 0.0F};
+    float angle = 0.0F;
+    QuaternionToAxisAngle(
+        QuaternionFromMatrix(rotation), &axis, &angle);
+    if (Vector3LengthSqr(axis) <= 0.0001F) {
+        axis = {0.0F, 1.0F, 0.0F};
+        angle = 0.0F;
+    }
+    DrawModelEx(
+        model, position, axis, angle * RAD2DEG,
+        scale, tint);
+}
+
 Color lootRarityColor(LootRarity rarity) {
+    // The three tiers intentionally read as blue -> gold -> red in-world:
+    // common, rare (Uncommon in the data model), legendary (Rare).
     if (rarity == LootRarity::Rare)
-        return {255, 193, 48, 255};
+        return {255, 170, 170, 255};
     if (rarity == LootRarity::Uncommon)
-        return {82, 255, 167, 255};
-    return {185, 240, 255, 255};
+        return {255, 228, 148, 255};
+    return {185, 225, 255, 255};
 }
 
 bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
     float movementPhase, float movementAmount,
-    const FirstPersonToolTuning& tuning) {
+    const FirstPersonToolTuning& tuning,
+    float iceChargeProgress, float iceRecoilProgress) {
     ModelResource* resource = nullptr;
+    const bool iceWand = visual == FirstPersonToolVisual::IceWand;
     switch (visual) {
+    case FirstPersonToolVisual::None:
+        break;
     case FirstPersonToolVisual::Axe:
         resource = &resources_.axeModel();
         break;
@@ -532,6 +659,9 @@ bool Renderer::drawFirstPersonTool(
         break;
     case FirstPersonToolVisual::Club:
         resource = &resources_.clubModel();
+        break;
+    case FirstPersonToolVisual::IceWand:
+        resource = &resources_.iceWandModel();
         break;
     case FirstPersonToolVisual::Hammer:
         resource = &resources_.hammerModel();
@@ -566,11 +696,21 @@ bool Renderer::drawFirstPersonTool(
     const float bobX = std::sin(movementPhase) * 0.012F * bob;
     const float bobY =
         std::abs(std::cos(movementPhase)) * 0.014F * bob;
+    const float charge = smoothStep(std::clamp(iceChargeProgress, 0.0F, 1.0F));
+    const float recoil = std::sin(
+        std::clamp(iceRecoilProgress, 0.0F, 1.0F) * PI);
     Model& model = resource->get();
     rlPushMatrix();
-    rlTranslatef(tuning.position.x + bobX,
-                 tuning.position.y - bobY,
-                 tuning.position.z + swingPush);
+    const float wandX = iceWand
+        ? tuning.position.x + 0.035F + bobX
+        : tuning.position.x + bobX;
+    const float wandY = iceWand
+        ? tuning.position.y - bobY + charge * 0.045F
+        : tuning.position.y - bobY;
+    const float wandZ = iceWand
+        ? tuning.position.z + recoil * 0.075F
+        : tuning.position.z + swingPush;
+    rlTranslatef(wandX, wandY, wandZ);
     // Swing in camera space. Applying this before the model's local pose
     // keeps the strike aimed forward even when the tool is yawed in-hand.
     rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
@@ -579,10 +719,219 @@ bool Renderer::drawFirstPersonTool(
     rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
     rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
     rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
-    rlScalef(tuning.scale, tuning.scale, tuning.scale);
+    const float modelScale = iceWand
+        ? tuning.scale * 1.0F
+        : tuning.scale;
+    rlScalef(modelScale, modelScale, modelScale);
     DrawModel(model, {}, 1.0F, WHITE);
+    if (iceWand) {
+        constexpr float CrystalHeight = 0.365F;
+        const float crystalPulse = 0.42F + charge * 0.28F +
+            0.035F * std::sin(static_cast<float>(GetTime()) * 5.0F);
+        drawIceMagicSphere(
+            {0.0F, CrystalHeight, 0.0F},
+            0.052F + charge * 0.012F,
+            static_cast<float>(GetTime()), crystalPulse,
+            {142, 229, 255, 145});
+        if (charge > 0.01F && settings_.particles) {
+            BeginBlendMode(BLEND_ADDITIVE);
+            for (int particle = 0; particle < 5; ++particle) {
+                const float phase = static_cast<float>(GetTime()) *
+                    (2.6F + static_cast<float>(particle) * 0.37F) +
+                    static_cast<float>(particle) * 1.2566F;
+                const float orbit = 0.18F * charge;
+                DrawSphereEx(
+                    {std::cos(phase) * orbit,
+                     CrystalHeight + std::sin(phase * 1.3F) * orbit,
+                     std::sin(phase) * orbit},
+                    0.008F + charge * 0.005F, 4, 4,
+                    {142, 229, 255, 135});
+            }
+            EndBlendMode();
+        }
+    }
     rlPopMatrix();
     return true;
+}
+
+void Renderer::drawIceMagicSphere(
+    Vector3 position, float radius, float timeSeconds,
+    float intensity, Color tint) {
+    if (!resources_.iceMagicShader().valid()) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawSphereEx(position, radius, 10, 10, tint);
+        EndBlendMode();
+        return;
+    }
+    rlDrawRenderBatchActive();
+    Shader& shader = resources_.iceMagicShader().get();
+    const Vector4 shaderTint{
+        tint.r / 255.0F, tint.g / 255.0F,
+        tint.b / 255.0F, tint.a / 255.0F};
+    SetShaderValue(shader, iceMagicTimeLocation_, &timeSeconds,
+                   SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, iceMagicTintLocation_, &shaderTint,
+                   SHADER_UNIFORM_VEC4);
+    SetShaderValue(shader, iceMagicIntensityLocation_, &intensity,
+                   SHADER_UNIFORM_FLOAT);
+    BeginBlendMode(BLEND_ADDITIVE);
+    BeginShaderMode(shader);
+    DrawSphereEx(position, radius, 10, 10, WHITE);
+    EndShaderMode();
+    EndBlendMode();
+}
+
+void Renderer::drawIceWandProjectile(
+    const IceWandProjectile& projectile, Vector3 cameraPosition,
+    float timeSeconds, float interpolationAlpha) {
+    if (!projectile.active) {
+        return;
+    }
+    const float alpha = std::clamp(interpolationAlpha, 0.0F, 1.0F);
+    const Vector3 previous{
+        static_cast<float>(projectile.previousPosition.x),
+        static_cast<float>(projectile.previousPosition.y),
+        static_cast<float>(projectile.previousPosition.z)};
+    const Vector3 current{
+        static_cast<float>(projectile.position.x),
+        static_cast<float>(projectile.position.y),
+        static_cast<float>(projectile.position.z)};
+    const Vector3 position = Vector3Lerp(previous, current, alpha);
+    const float radius = static_cast<float>(projectile.radius);
+
+    if (projectile.trailCount > 1U) {
+        rlDrawRenderBatchActive();
+        BeginBlendMode(BLEND_ADDITIVE);
+        rlBegin(RL_TRIANGLES);
+        const std::size_t count = std::min(
+            std::min(projectile.trailCount, IceWandTrailPointCount),
+            std::size_t{12});
+        const auto trailPoint = [&projectile, position](std::size_t index) {
+            if (index == 0U) {
+                return position;
+            }
+            const Vec3& value = projectile.trail[index];
+            return Vector3{
+                static_cast<float>(value.x),
+                static_cast<float>(value.y),
+                static_cast<float>(value.z)};
+        };
+        const auto emitVertex = [](Vector3 vertex, Color color) {
+            rlColor4ub(color.r, color.g, color.b, color.a);
+            rlVertex3f(vertex.x, vertex.y, vertex.z);
+        };
+        for (std::size_t index = 0; index + 1 < count; ++index) {
+            const Vector3 point = trailPoint(index);
+            const Vector3 next = trailPoint(index + 1U);
+            Vector3 tangent = Vector3Normalize(Vector3Subtract(point, next));
+            Vector3 toCamera = Vector3Normalize(Vector3Subtract(cameraPosition, point));
+            Vector3 side = Vector3Normalize(Vector3CrossProduct(tangent, toCamera));
+            if (Vector3LengthSqr(side) < 0.0001F) {
+                side = {1.0F, 0.0F, 0.0F};
+            }
+            const float fade = std::pow(
+                1.0F - static_cast<float>(index) /
+                    static_cast<float>(std::max<std::size_t>(count - 1, 1U)),
+                1.15F);
+            const float nextFade = std::pow(
+                1.0F - static_cast<float>(index + 1U) /
+                    static_cast<float>(std::max<std::size_t>(count - 1, 1U)),
+                1.15F);
+            const auto emitRibbon = [&](float width, float nextWidth,
+                                        Color headColor, Color tailColor) {
+                const Vector3 left = Vector3Subtract(
+                    point, Vector3Scale(side, width));
+                const Vector3 right = Vector3Add(
+                    point, Vector3Scale(side, width));
+                const Vector3 nextLeft = Vector3Subtract(
+                    next, Vector3Scale(side, nextWidth));
+                const Vector3 nextRight = Vector3Add(
+                    next, Vector3Scale(side, nextWidth));
+                emitVertex(left, headColor);
+                emitVertex(right, headColor);
+                emitVertex(nextRight, tailColor);
+                emitVertex(left, headColor);
+                emitVertex(nextRight, tailColor);
+                emitVertex(nextLeft, tailColor);
+            };
+            emitRibbon(
+                radius * (0.92F * fade + 0.05F),
+                radius * (0.92F * nextFade + 0.025F),
+                {52, 175, 255, static_cast<unsigned char>(145.0F * fade)},
+                {24, 105, 235, static_cast<unsigned char>(120.0F * nextFade)});
+            emitRibbon(
+                radius * (0.28F * fade + 0.018F),
+                radius * (0.28F * nextFade + 0.008F),
+                {223, 248, 255, static_cast<unsigned char>(235.0F * fade)},
+                {142, 229, 255, static_cast<unsigned char>(205.0F * nextFade)});
+        }
+        rlEnd();
+        EndBlendMode();
+    }
+
+    const float pulse = 0.94F + 0.12F * std::sin(
+        timeSeconds * 4.6F + static_cast<float>(projectile.id.index) * 0.41F);
+    BeginBlendMode(BLEND_ALPHA);
+    DrawSphereEx(position, radius * (0.94F + pulse * 0.025F), 12, 12,
+                 {48, 145, 232, 255});
+    EndBlendMode();
+    drawIceMagicSphere(position, radius * (1.48F + pulse * 0.04F),
+                       timeSeconds, 0.96F,
+                       {142, 229, 255, 225});
+    BeginBlendMode(BLEND_ADDITIVE);
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(timeSeconds * 72.0F, 0.0F, 1.0F, 0.0F);
+    DrawCircle3D({}, radius * 1.42F,
+                 {1.0F, 0.0F, 0.0F}, 63.0F,
+                 {191, 246, 255, 145});
+    rlRotatef(117.0F, 0.45F, 0.72F, 0.53F);
+    DrawCircle3D({}, radius * 1.27F,
+                 {0.0F, 0.0F, 1.0F}, 47.0F,
+                 {85, 207, 255, 112});
+    rlPopMatrix();
+    EndBlendMode();
+    if (settings_.particles) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        for (int spark = 0; spark < 4; ++spark) {
+            const float phase = timeSeconds *
+                (2.1F + static_cast<float>(spark) * 0.31F) +
+                static_cast<float>(projectile.id.index % 17U) * 0.13F +
+                static_cast<float>(spark) * 0.897F;
+            const float distance = radius * (1.30F + 0.38F *
+                std::sin(timeSeconds * 3.0F + static_cast<float>(spark) * 1.4F));
+            const float sparkSize = radius *
+                (0.075F + 0.035F * (0.5F + 0.5F * std::sin(
+                    timeSeconds * 7.0F + static_cast<float>(spark))));
+            DrawSphereEx(
+                {position.x + std::cos(phase) * distance,
+                 position.y + std::sin(phase * 1.7F) * distance,
+                 position.z + std::sin(phase) * distance},
+                sparkSize, 4, 4,
+                spark % 3 == 0
+                    ? Color{223, 248, 255, 215}
+                    : Color{142, 229, 255, 172});
+            if (projectile.trailCount > 2U) {
+                const std::size_t trailIndex = std::min<std::size_t>(
+                    projectile.trailCount - 1U,
+                    1U + static_cast<std::size_t>(spark) * 2U);
+                const Vec3& trailPoint = projectile.trail[trailIndex];
+                const Vector3 trailPosition{
+                    static_cast<float>(trailPoint.x),
+                    static_cast<float>(trailPoint.y),
+                    static_cast<float>(trailPoint.z)};
+                const Vector3 streakEnd{
+                    trailPosition.x + std::cos(phase) * radius * 0.28F,
+                    trailPosition.y + std::sin(phase * 1.3F) * radius * 0.18F,
+                    trailPosition.z + std::sin(phase) * radius * 0.28F};
+                DrawLine3D(
+                    trailPosition, streakEnd,
+                    {142, 229, 255,
+                     static_cast<unsigned char>(95.0F * pulse)});
+            }
+        }
+        EndBlendMode();
+    }
 }
 
 bool Renderer::drawLootChest(
@@ -617,11 +966,12 @@ bool Renderer::drawLootChest(
         Back * shifted * shifted;
     const float lidAngle = std::clamp(eased, 0.0F, 1.08F) * -108.0F * DEG2RAD;
     const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
-    const Matrix yaw = MatrixRotateY(yawRadians);
+    const Matrix terrainRotation = terrainAlignedRotation(
+        position.x, position.z, yawRadians);
     const Matrix translation =
         MatrixTranslate(position.x, position.y, position.z);
-    const Matrix baseTransform =
-        MatrixMultiply(MatrixMultiply(scale, yaw), translation);
+    const Matrix baseTransform = MatrixMultiply(
+        MatrixMultiply(scale, terrainRotation), translation);
 
     const auto drawMesh = [&model, tint](int meshIndex, Matrix transform) {
         const int materialIndex = model.meshMaterial[meshIndex];
@@ -655,7 +1005,7 @@ bool Renderer::drawLootChest(
                         MatrixMultiply(toLidOrigin, lidRotation),
                         fromLidOrigin),
                     scale),
-                yaw),
+                    terrainRotation),
             translation);
         drawMesh(0, lidTransform);
         for (int index = 2; index < model.meshCount; ++index)
@@ -675,7 +1025,8 @@ void Renderer::drawLootItem(
         ColorBrightness(lootRarityColor(rarity), 0.22F), tint);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
-    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    rlMultMatrixf(MatrixToFloat(terrainAlignedRotation(
+        position.x, position.z, rotationRadians)));
     applyLootItemLocalRotation(effect);
     rlScalef(scale, scale, scale);
     ModelResource* resource = lootItemModelFor(resources_, effect);
@@ -1015,12 +1366,13 @@ std::optional<double> Renderer::resourceRaycastDistance(
                             visualVariant % TreeVisualVariantCount] *
                             visualScale)
                       : RockGroundOffset;
+    const Matrix rotation = MatrixRotateY(yawRadians);
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
             MatrixMultiply(
                 MatrixScale(modelScale, modelScale, modelScale),
-                MatrixRotateY(yawRadians)),
+                rotation),
             MatrixTranslate(position.x, position.y, position.z)));
     return modelColliderRaycastDistance(
         resource, transform, ray, maxDistance);
@@ -1462,10 +1814,11 @@ bool Renderer::drawRock(Vector3 position, Color tint,
         return true;
     }
     position.y += RockGroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {RockModelScale * scale, RockModelScale * scale,
-                 RockModelScale * scale},
-                tint);
+    DrawModelEx(
+        model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
+        {RockModelScale * scale, RockModelScale * scale,
+         RockModelScale * scale},
+        tint);
     return true;
 }
 
@@ -1488,15 +1841,18 @@ bool Renderer::drawRocksInstanced(
             continue;
         }
         const float modelScale = RockModelScale * scale;
+        Vector3 position = instance.position;
+        position.y += RockGroundOffset;
+        const Matrix rotation = MatrixIdentity();
         resourceRockTransforms_.push_back(MatrixMultiply(
             model.transform,
             MatrixMultiply(
                 MatrixScale(
                     modelScale, modelScale, modelScale),
-                MatrixTranslate(
-                    instance.position.x,
-                    instance.position.y + RockGroundOffset,
-                    instance.position.z))));
+                MatrixMultiply(
+                    rotation,
+                    MatrixTranslate(
+                        position.x, position.y, position.z)))));
     }
     if (resourceRockTransforms_.empty()) {
         return true;
@@ -1534,16 +1890,20 @@ void Renderer::drawDecorativeRocks(
     ensureGrassClearAreaIndex(clearAreas);
     constexpr std::size_t VariantCount = 4U;
     constexpr float Spacing = 4.45F;
-    constexpr float DrawRadius = 34.0F;
+    const float DrawRadius =
+        settings_.quality == GraphicsQuality::Low
+            ? 25.0F
+            : settings_.quality == GraphicsQuality::Medium
+                ? 30.0F
+                : 34.0F;
     constexpr float CoreClearRadius = 10.5F;
-    const int minimumX = static_cast<int>(
-        std::floor((cameraPosition.x - DrawRadius) / Spacing));
-    const int maximumX = static_cast<int>(
-        std::ceil((cameraPosition.x + DrawRadius) / Spacing));
-    const int minimumZ = static_cast<int>(
-        std::floor((cameraPosition.z - DrawRadius) / Spacing));
-    const int maximumZ = static_cast<int>(
-        std::ceil((cameraPosition.z + DrawRadius) / Spacing));
+    constexpr float CacheCellSize = 8.0F;
+    constexpr float CachePadding = 10.0F;
+    const int cameraCellX = static_cast<int>(std::floor(
+        cameraPosition.x / CacheCellSize));
+    const int cameraCellZ = static_cast<int>(std::floor(
+        cameraPosition.z / CacheCellSize));
+    const bool revealAnimating = worldRevealElapsed_ < 1.7F;
     const auto hashCell = [](int x, int z) {
         std::uint32_t value =
             static_cast<std::uint32_t>(x) * 0x8da6b343U ^
@@ -1565,6 +1925,38 @@ void Renderer::drawDecorativeRocks(
     } else if (worldShaderActive_ &&
                resources_.worldShader().valid()) {
         decorativeShader = &resources_.worldShader().get();
+    }
+    const bool useInstancing =
+        worldShaderActive_ && !shadowPassOpen_ &&
+        !selectionMaskPassOpen_ && resources_.worldShader().valid();
+    const bool cacheMatches =
+        useInstancing && !revealAnimating &&
+        decorativeInstanceCacheValid_ &&
+        decorativeCacheCameraCellX_ == cameraCellX &&
+        decorativeCacheCameraCellZ_ == cameraCellZ &&
+        decorativeCacheQuality_ == settings_.quality &&
+        decorativeCacheWorldLimit_ == worldLimit &&
+        decorativeCacheClearAreaHash_ == grassClearAreaContentHash_ &&
+        decorativeCacheTerrain_ == terrainHeightfield_ &&
+        decorativeCacheRevealOrigin_.x == worldRevealOrigin_.x &&
+        decorativeCacheRevealOrigin_.y == worldRevealOrigin_.y;
+    if (useInstancing) {
+        for (auto& transforms : decorativeRockTransforms_) {
+            transforms.clear();
+            transforms.reserve(96U);
+        }
+        for (auto& transforms : decorativeBushTransforms_) {
+            transforms.clear();
+            transforms.reserve(96U);
+        }
+        if (!cacheMatches) {
+            for (auto& candidates : decorativeRockCandidates_) {
+                candidates.clear();
+            }
+            for (auto& candidates : decorativeBushCandidates_) {
+                candidates.clear();
+            }
+        }
     }
     for (std::size_t variant = 0; variant < VariantCount; ++variant) {
         ModelResource& resource =
@@ -1597,6 +1989,25 @@ void Renderer::drawDecorativeRocks(
         }
     }
 
+    const float traversalRadius =
+        useInstancing && !revealAnimating
+            ? DrawRadius + CachePadding
+            : DrawRadius;
+    const int minimumX = static_cast<int>(std::floor(
+        (cameraPosition.x - traversalRadius) / Spacing));
+    const int maximumX = static_cast<int>(std::ceil(
+        (cameraPosition.x + traversalRadius) / Spacing));
+    const int minimumZ = static_cast<int>(std::floor(
+        (cameraPosition.z - traversalRadius) / Spacing));
+    const int maximumZ = static_cast<int>(std::ceil(
+        (cameraPosition.z + traversalRadius) / Spacing));
+    const float BushDrawRadius =
+        settings_.quality == GraphicsQuality::Low
+            ? 27.0F
+            : settings_.quality == GraphicsQuality::Medium
+                ? 32.0F
+                : 36.0F;
+    if (!cacheMatches) {
     for (int cellZ = minimumZ; cellZ <= maximumZ; ++cellZ) {
         for (int cellX = minimumX; cellX <= maximumX; ++cellX) {
             const std::uint32_t hash = hashCell(cellX, cellZ);
@@ -1629,7 +2040,7 @@ void Renderer::drawDecorativeRocks(
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
-                DrawRadius * DrawRadius) {
+                traversalRadius * traversalRadius) {
                 continue;
             }
             const float visibility = clearAreaVisibility(
@@ -1663,30 +2074,53 @@ void Renderer::drawDecorativeRocks(
                     : 0.0F;
             const float rotation =
                 unitFloat(hash ^ 0x63d83595U) * PI * 2.0F;
-            DrawModelEx(
-                resource.get(),
-                {x,
-                 terrainHeight -
-                     (1.0F - visibility) * 0.08F,
-                 z},
-                {0.0F, 1.0F, 0.0F}, rotation * RAD2DEG,
-                {scale, scale, scale}, WHITE);
+            const Vector3 position{
+                x,
+                terrainHeight - (1.0F - visibility) * 0.08F,
+                z,
+            };
+            if (useInstancing) {
+                Model& model = resource.get();
+                const Matrix transform = MatrixMultiply(
+                    model.transform,
+                    MatrixMultiply(
+                        MatrixScale(scale, scale, scale),
+                        MatrixMultiply(
+                            terrainAlignedRotation(
+                                position.x, position.z, rotation),
+                            MatrixTranslate(
+                                position.x, position.y,
+                                position.z))));
+                decorativeRockCandidates_[variant].push_back({
+                    .transform = transform,
+                    .position = {position.x, position.z},
+                    .scale = scale,
+                    .groundHeight = terrainHeight,
+                });
+            } else {
+                drawTerrainAlignedModel(
+                    resource.get(), position, rotation,
+                    {scale, scale, scale}, WHITE);
+            }
         }
     }
 
     constexpr float BushSpacing = 4.9F;
-    constexpr float BushDrawRadius = 36.0F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
     };
+    const float bushTraversalRadius =
+        useInstancing && !revealAnimating
+            ? BushDrawRadius + CachePadding
+            : BushDrawRadius;
     const int minimumBushX = static_cast<int>(std::floor(
-        (cameraPosition.x - BushDrawRadius) / BushSpacing));
+        (cameraPosition.x - bushTraversalRadius) / BushSpacing));
     const int maximumBushX = static_cast<int>(std::ceil(
-        (cameraPosition.x + BushDrawRadius) / BushSpacing));
+        (cameraPosition.x + bushTraversalRadius) / BushSpacing));
     const int minimumBushZ = static_cast<int>(std::floor(
-        (cameraPosition.z - BushDrawRadius) / BushSpacing));
+        (cameraPosition.z - bushTraversalRadius) / BushSpacing));
     const int maximumBushZ = static_cast<int>(std::ceil(
-        (cameraPosition.z + BushDrawRadius) / BushSpacing));
+        (cameraPosition.z + bushTraversalRadius) / BushSpacing));
     for (int cellZ = minimumBushZ;
          cellZ <= maximumBushZ; ++cellZ) {
         for (int cellX = minimumBushX;
@@ -1722,7 +2156,7 @@ void Renderer::drawDecorativeRocks(
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
-                BushDrawRadius * BushDrawRadius) {
+                bushTraversalRadius * bushTraversalRadius) {
                 continue;
             }
             const float visibility = clearAreaVisibility(
@@ -1752,17 +2186,129 @@ void Renderer::drawDecorativeRocks(
                           terrainHeightfield_->getHeight(x, z))
                     : 0.0F;
             const float rotation =
-                unitFloat(hash ^ 0x1b56c4e9U) * 360.0F;
-            DrawModelEx(
-                resource.get(),
-                {x,
-                 terrainHeight -
-                     (1.0F - visibility) * 0.10F,
-                 z},
-                {0.0F, 1.0F, 0.0F}, rotation,
-                {scale, scale, scale}, WHITE);
+                unitFloat(hash ^ 0x1b56c4e9U) * PI * 2.0F;
+            const Vector3 position{
+                x,
+                terrainHeight - (1.0F - visibility) * 0.10F,
+                z,
+            };
+            if (useInstancing) {
+                Model& model = resource.get();
+                const Matrix transform = MatrixMultiply(
+                    model.transform,
+                    MatrixMultiply(
+                        MatrixScale(scale, scale, scale),
+                        MatrixMultiply(
+                            terrainAlignedRotation(
+                                position.x, position.z, rotation),
+                            MatrixTranslate(
+                                position.x, position.y,
+                                position.z))));
+                decorativeBushCandidates_[variant].push_back({
+                    .transform = transform,
+                    .position = {position.x, position.z},
+                    .scale = scale,
+                    .groundHeight = terrainHeight,
+                });
+            } else {
+                drawTerrainAlignedModel(
+                    resource.get(), position, rotation,
+                    {scale, scale, scale}, WHITE);
+            }
         }
     }
+    }
+
+    if (!useInstancing) {
+        return;
+    }
+    for (std::size_t variant = 0; variant < VariantCount;
+         ++variant) {
+        for (const CachedInstance& instance :
+             decorativeRockCandidates_[variant]) {
+            const float offsetX =
+                instance.position.x - cameraPosition.x;
+            const float offsetZ =
+                instance.position.y - cameraPosition.z;
+            if (offsetX * offsetX + offsetZ * offsetZ <=
+                DrawRadius * DrawRadius) {
+                decorativeRockTransforms_[variant].push_back(
+                    instance.transform);
+            }
+        }
+    }
+    for (std::size_t variant = 0; variant < BushVariantCount;
+         ++variant) {
+        for (const CachedInstance& instance :
+             decorativeBushCandidates_[variant]) {
+            const float offsetX =
+                instance.position.x - cameraPosition.x;
+            const float offsetZ =
+                instance.position.y - cameraPosition.z;
+            if (offsetX * offsetX + offsetZ * offsetZ <=
+                BushDrawRadius * BushDrawRadius) {
+                decorativeBushTransforms_[variant].push_back(
+                    instance.transform);
+            }
+        }
+    }
+    if (!revealAnimating) {
+        decorativeInstanceCacheValid_ = true;
+        decorativeCacheCameraCellX_ = cameraCellX;
+        decorativeCacheCameraCellZ_ = cameraCellZ;
+        decorativeCacheQuality_ = settings_.quality;
+        decorativeCacheWorldLimit_ = worldLimit;
+        decorativeCacheClearAreaHash_ = grassClearAreaContentHash_;
+        decorativeCacheTerrain_ = terrainHeightfield_;
+        decorativeCacheRevealOrigin_ = worldRevealOrigin_;
+    } else {
+        decorativeInstanceCacheValid_ = false;
+    }
+    Shader& shader = resources_.worldShader().get();
+    const int enabled = 1;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &enabled,
+        SHADER_UNIFORM_INT);
+    setSkinningEnabled(shader, false);
+    const auto drawInstanced = [&shader](
+                                   Model& model,
+                                   const std::vector<Matrix>& transforms) {
+        for (int meshIndex = 0; meshIndex < model.meshCount;
+             ++meshIndex) {
+            const int materialIndex = model.meshMaterial[meshIndex];
+            Material material = model.materials[materialIndex];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                transforms.data(),
+                static_cast<int>(transforms.size()));
+        }
+    };
+    for (std::size_t variant = 0; variant < VariantCount; ++variant) {
+        if (decorativeRockTransforms_[variant].empty() ||
+            !resources_.decorativeRockModel(variant).valid()) {
+            continue;
+        }
+        drawInstanced(
+            resources_.decorativeRockModel(variant).get(),
+            decorativeRockTransforms_[variant]);
+    }
+    for (std::size_t variant = 0; variant < BushVariantCount; ++variant) {
+        if (decorativeBushTransforms_[variant].empty() ||
+            !resources_.decorativeBushModel(variant).valid()) {
+            continue;
+        }
+        drawInstanced(
+            resources_.decorativeBushModel(variant).get(),
+            decorativeBushTransforms_[variant]);
+    }
+    const int disabled = 0;
+    rlDrawRenderBatchActive();
+    SetShaderValue(
+        shader, worldInstancingEnabledLocation_, &disabled,
+        SHADER_UNIFORM_INT);
 }
 
 void Renderer::drawDecorativeRockAo(
@@ -1776,6 +2322,79 @@ void Renderer::drawDecorativeRockAo(
     constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
     constexpr float CoreClearRadius = 10.5F;
+    constexpr std::size_t BushVariantCount = 6U;
+    constexpr std::array<float, BushVariantCount> BushAoRadii{
+        0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
+    };
+    constexpr float BushDrawRadius = 36.0F;
+    const int cameraCellX = static_cast<int>(std::floor(
+        cameraPosition.x / 8.0F));
+    const int cameraCellZ = static_cast<int>(std::floor(
+        cameraPosition.z / 8.0F));
+    const bool cachedCandidates =
+        decorativeInstanceCacheValid_ &&
+        decorativeCacheCameraCellX_ == cameraCellX &&
+        decorativeCacheCameraCellZ_ == cameraCellZ &&
+        decorativeCacheQuality_ == settings_.quality &&
+        decorativeCacheWorldLimit_ == worldLimit &&
+        decorativeCacheClearAreaHash_ == grassClearAreaContentHash_ &&
+        decorativeCacheTerrain_ == terrainHeightfield_ &&
+        decorativeCacheRevealOrigin_.x == worldRevealOrigin_.x &&
+        decorativeCacheRevealOrigin_.y == worldRevealOrigin_.y &&
+        worldRevealElapsed_ >= 1.7F;
+    if (cachedCandidates) {
+        for (const auto& candidates : decorativeRockCandidates_) {
+            for (const CachedInstance& instance : candidates) {
+                const float offsetX =
+                    instance.position.x - cameraPosition.x;
+                const float offsetZ =
+                    instance.position.y - cameraPosition.z;
+                if (offsetX * offsetX + offsetZ * offsetZ >
+                    DrawRadius * DrawRadius) {
+                    continue;
+                }
+                drawBlobShadow(
+                    {instance.position.x,
+                     instance.groundHeight + 0.018F,
+                     instance.position.y},
+                    instance.scale * 0.62F,
+                    instance.scale * 0.52F, 0.16F);
+                drawBlobShadow(
+                    {instance.position.x,
+                     instance.groundHeight + 0.02F,
+                     instance.position.y},
+                    instance.scale * 0.34F,
+                    instance.scale * 0.28F, 0.27F);
+            }
+        }
+        for (std::size_t variant = 0;
+             variant < BushVariantCount; ++variant) {
+            for (const CachedInstance& instance :
+                 decorativeBushCandidates_[variant]) {
+                const float offsetX =
+                    instance.position.x - cameraPosition.x;
+                const float offsetZ =
+                    instance.position.y - cameraPosition.z;
+                if (offsetX * offsetX + offsetZ * offsetZ >
+                    BushDrawRadius * BushDrawRadius) {
+                    continue;
+                }
+                const float radius =
+                    BushAoRadii[variant] * instance.scale;
+                drawBlobShadow(
+                    {instance.position.x,
+                     instance.groundHeight + 0.018F,
+                     instance.position.y},
+                    radius, radius * 0.82F, 0.14F);
+                drawBlobShadow(
+                    {instance.position.x,
+                     instance.groundHeight + 0.02F,
+                     instance.position.y},
+                    radius * 0.52F, radius * 0.42F, 0.22F);
+            }
+        }
+        return;
+    }
     const int minimumX = static_cast<int>(
         std::floor((cameraPosition.x - DrawRadius) / Spacing));
     const int maximumX = static_cast<int>(
@@ -1856,14 +2475,9 @@ void Renderer::drawDecorativeRockAo(
         }
     }
 
-    constexpr std::size_t BushVariantCount = 6U;
     constexpr float BushSpacing = 4.9F;
-    constexpr float BushDrawRadius = 36.0F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
-    };
-    constexpr std::array<float, BushVariantCount> BushAoRadii{
-        0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
     };
     const int minimumBushX = static_cast<int>(std::floor(
         (cameraPosition.x - BushDrawRadius) / BushSpacing));
@@ -2138,15 +2752,17 @@ bool Renderer::drawTree(Vector3 position, Color tint,
     if (scale <= 0.001F) {
         return true;
     }
+    // Resource trees remain upright. Their ground offset is vertical only;
+    // terrain normals are intentionally not used for resource spawning.
     position.y += static_cast<float>(
         TreeVisualGroundOffsets[
-            visualVariant % TreeVisualVariantCount] *
-        scale);
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                yawRadians * RAD2DEG,
-                {TreeModelScale * scale, TreeModelScale * scale,
-                 TreeModelScale * scale},
-                tint);
+            visualVariant % TreeVisualVariantCount] * scale);
+    DrawModelEx(
+        model, position, {0.0F, 1.0F, 0.0F},
+        yawRadians * RAD2DEG,
+        {TreeModelScale * scale, TreeModelScale * scale,
+         TreeModelScale * scale},
+        tint);
     return true;
 }
 
@@ -2180,13 +2796,15 @@ bool Renderer::drawTreesInstanced(
         position.y += static_cast<float>(
             TreeVisualGroundOffsets[variant] * scale);
         const float modelScale = TreeModelScale * scale;
+        const Matrix rotation = MatrixRotateY(
+            instance.yawRadians);
         resourceTreeTransforms_[variant].push_back(MatrixMultiply(
             resource.get().transform,
             MatrixMultiply(
                 MatrixMultiply(
                     MatrixScale(
                         modelScale, modelScale, modelScale),
-                    MatrixRotateY(instance.yawRadians)),
+                    rotation),
                 MatrixTranslate(
                     position.x, position.y, position.z))));
     }
@@ -2448,6 +3066,7 @@ bool Renderer::drawEnemiesInstanced(
         !resources_.worldShader().valid()) {
         return false;
     }
+    const auto drawStart = PerformanceClock::now();
 
     const auto modelFor = [this](EnemyModelVisual visual)
         -> ModelResource* {
@@ -2461,23 +3080,33 @@ bool Renderer::drawEnemiesInstanced(
 
     constexpr int CrowdPoseCount = 6;
     constexpr float SourceAnimationFps = 30.0F;
-    for (auto& [key, batch] : enemyBatches_) {
-        (void)key;
-        batch.transforms.clear();
+    const bool lodAvailable = IsModelValid(enemyCrowdLodModel_);
+    for (EnemyBatch* batch : activeEnemyBatches_) {
+        batch->transforms.clear();
     }
+    activeEnemyBatches_.clear();
     constexpr float ModelScale = 0.82F;
     for (const EnemyDrawInstance& instance : instances) {
-        ModelResource* resource = modelFor(instance.modelVisual);
-        if (resource == nullptr || !resource->valid()) {
+        const bool lowDetail = instance.lowDetail && lodAvailable;
+        ModelResource* resource = lowDetail
+            ? nullptr
+            : modelFor(instance.modelVisual);
+        if (!lowDetail &&
+            (resource == nullptr || !resource->valid())) {
             return false;
         }
-        const EnemyAnimationSource animation =
-            animationFor(instance.modelVisual,
-                         instance.animationVisual);
-        const ModelAnimation* clip =
-            animation.animations->find(animation.clipName);
+        EnemyAnimationSource animation{};
+        const ModelAnimation* clip = nullptr;
+        if (!lowDetail) {
+            animation = animationFor(
+                instance.modelVisual,
+                instance.animationVisual);
+            clip = animation.animations->find(
+                animation.clipName);
+        }
         int frame = 0;
-        if (clip != nullptr && clip->keyframeCount > 0) {
+        if (!lowDetail && clip != nullptr &&
+            clip->keyframeCount > 0) {
             const int sourceFrame = static_cast<int>(
                 std::max(0.0F, instance.animationSeconds) *
                 SourceAnimationFps);
@@ -2501,28 +3130,51 @@ bool Renderer::drawEnemiesInstanced(
             (static_cast<std::uint32_t>(instance.tint.g) << 8U) |
             (static_cast<std::uint32_t>(instance.tint.b) << 16U) |
             (static_cast<std::uint32_t>(instance.tint.a) << 24U);
+        const EnemyAnimationVisual batchAnimation = lowDetail
+            ? EnemyAnimationVisual::Idle
+            : instance.animationVisual;
+        const int batchFrame = lowDetail ? 0 : frame;
+        const bool batchLoop = lowDetail ? true : instance.loop;
         const EnemyBatchKey key{
-            instance.modelVisual, instance.animationVisual, frame,
+            instance.modelVisual, batchAnimation, batchFrame,
             tint, static_cast<int>(std::lround(instance.scale * 1000.0F)),
-            instance.loop};
+            batchLoop, lowDetail};
         EnemyBatch& batch = enemyBatches_[key];
         if (batch.transforms.empty()) {
             batch.representative = instance;
             batch.representative.animationSeconds =
                 static_cast<float>(frame) /
                 SourceAnimationFps;
+            activeEnemyBatches_.push_back(&batch);
         }
         const float uniformScale = ModelScale * instance.scale;
-        const Matrix transform = MatrixMultiply(
-            resource->get().transform,
-            MatrixMultiply(
+        Matrix transform{};
+        if (lowDetail) {
+            Vector3 proxyPosition = instance.position;
+            proxyPosition.y += uniformScale;
+            transform = MatrixMultiply(
+                MatrixScale(
+                    uniformScale * 0.9F,
+                    uniformScale * 2.0F,
+                    uniformScale * 0.9F),
                 MatrixMultiply(
-                    MatrixScale(
-                        uniformScale, uniformScale, uniformScale),
-                    MatrixRotateY(instance.yawRadians)),
-                MatrixTranslate(
-                    instance.position.x, instance.position.y,
-                    instance.position.z)));
+                    MatrixRotateY(instance.yawRadians),
+                    MatrixTranslate(
+                        proxyPosition.x, proxyPosition.y,
+                        proxyPosition.z)));
+        } else {
+            transform = MatrixMultiply(
+                resource->get().transform,
+                MatrixMultiply(
+                    MatrixMultiply(
+                        MatrixScale(
+                            uniformScale, uniformScale,
+                            uniformScale),
+                        MatrixRotateY(instance.yawRadians)),
+                    MatrixTranslate(
+                        instance.position.x, instance.position.y,
+                        instance.position.z)));
+        }
         batch.transforms.push_back(transform);
     }
 
@@ -2532,15 +3184,32 @@ bool Renderer::drawEnemiesInstanced(
     SetShaderValue(
         shader, worldInstancingEnabledLocation_, &enabled,
         SHADER_UNIFORM_INT);
-    setSkinningEnabled(shader, true);
 
-    for (auto& [key, batch] : enemyBatches_) {
-        (void)key;
-        if (batch.transforms.empty()) {
-            continue;
-        }
-        const EnemyDrawInstance& representative =
-            batch.representative;
+    std::size_t nonEmptyBatchCount = 0U;
+    for (int detailPass = 0; detailPass < 2; ++detailPass) {
+        const bool lowDetailPass = detailPass == 0;
+        setSkinningEnabled(shader, !lowDetailPass);
+        for (EnemyBatch* batchPointer : activeEnemyBatches_) {
+            EnemyBatch& batch = *batchPointer;
+            if (batch.representative.lowDetail != lowDetailPass) {
+                continue;
+            }
+            ++nonEmptyBatchCount;
+            const EnemyDrawInstance& representative =
+                batch.representative;
+            if (lowDetailPass) {
+                Material material = enemyCrowdLodModel_.materials[0];
+                material.shader = shader;
+                material.maps[MATERIAL_MAP_DIFFUSE].color =
+                    crowdLodTint(
+                        representative.modelVisual,
+                        representative.tint);
+                DrawMeshInstanced(
+                    enemyCrowdLodModel_.meshes[0], material,
+                    batch.transforms.data(),
+                    static_cast<int>(batch.transforms.size()));
+                continue;
+            }
         ModelResource* resource =
             modelFor(representative.modelVisual);
         Model& model = resource->get();
@@ -2549,45 +3218,78 @@ bool Renderer::drawEnemiesInstanced(
                          representative.animationVisual);
         const ModelAnimation* clip =
             animation.animations->find(animation.clipName);
+        auto poseIt = enemyBonePoseCache_.end();
         if (clip != nullptr && clip->keyframeCount > 0 &&
             model.skeleton.boneCount > 0) {
             const int frame = std::min(
                 static_cast<int>(
                     representative.animationSeconds * 30.0F),
                 clip->keyframeCount - 1);
-            if (animation.nativeSkeleton) {
-                UpdateModelAnimation(
-                    model, *clip,
-                    static_cast<float>(frame));
-            } else {
-                const std::vector<int>& boneMapping =
-                    enemyBoneMapping(
-                        representative.modelVisual, model,
-                        *animation.sourceBones);
-                enemyAnimationPose_.resize(
-                    static_cast<std::size_t>(
-                        model.skeleton.boneCount));
-                for (int modelBone = 0;
-                     modelBone < model.skeleton.boneCount;
-                     ++modelBone) {
-                    const int sourceBone = boneMapping[
-                        static_cast<std::size_t>(modelBone)];
-                    enemyAnimationPose_[
-                        static_cast<std::size_t>(modelBone)] =
-                        sourceBone >= 0 &&
-                                sourceBone < clip->boneCount
-                            ? clip->keyframePoses[frame][sourceBone]
-                            : model.skeleton.bindPose[modelBone];
+            const EnemyPoseKey poseKey{
+                representative.modelVisual,
+                representative.animationVisual,
+                frame};
+            poseIt = enemyBonePoseCache_.find(poseKey);
+            if (poseIt == enemyBonePoseCache_.end()) {
+                if (animation.nativeSkeleton) {
+                    UpdateModelAnimation(
+                        model, *clip,
+                        static_cast<float>(frame));
+                } else {
+                    const std::vector<int>& boneMapping =
+                        enemyBoneMapping(
+                            representative.modelVisual, model,
+                            *animation.sourceBones);
+                    enemyAnimationPose_.resize(
+                        static_cast<std::size_t>(
+                            model.skeleton.boneCount));
+                    for (int modelBone = 0;
+                         modelBone < model.skeleton.boneCount;
+                         ++modelBone) {
+                        const int sourceBone = boneMapping[
+                            static_cast<std::size_t>(modelBone)];
+                        enemyAnimationPose_[
+                            static_cast<std::size_t>(modelBone)] =
+                            sourceBone >= 0 &&
+                                    sourceBone < clip->boneCount
+                                ? clip->keyframePoses[frame][sourceBone]
+                                : model.skeleton.bindPose[modelBone];
+                    }
+                    enemyAnimationFrames_.assign(
+                        1U, enemyAnimationPose_.data());
+                    ModelAnimation remapped{};
+                    remapped.boneCount = model.skeleton.boneCount;
+                    remapped.keyframeCount = 1;
+                    remapped.keyframePoses =
+                        enemyAnimationFrames_.data();
+                    UpdateModelAnimation(model, remapped, 0);
                 }
-                enemyAnimationFrames_.assign(
-                    1U, enemyAnimationPose_.data());
-                ModelAnimation remapped{};
-                remapped.boneCount = model.skeleton.boneCount;
-                remapped.keyframeCount = 1;
-                remapped.keyframePoses =
-                    enemyAnimationFrames_.data();
-                UpdateModelAnimation(model, remapped, 0);
+                if (model.boneMatrices != nullptr) {
+                    std::vector<Matrix> cachedPose(
+                        static_cast<std::size_t>(
+                            model.skeleton.boneCount));
+                    std::copy_n(
+                        model.boneMatrices,
+                        model.skeleton.boneCount,
+                        cachedPose.begin());
+                    poseIt = enemyBonePoseCache_.emplace(
+                        poseKey, std::move(cachedPose)).first;
+                }
             }
+        }
+
+        const Matrix* boneMatrices = model.boneMatrices;
+        if (poseIt != enemyBonePoseCache_.end()) {
+            boneMatrices = poseIt->second.data();
+        }
+        if (boneMatrices != nullptr &&
+            model.skeleton.boneCount > 0 &&
+            shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS] >= 0) {
+            rlEnableShader(shader.id);
+            rlSetUniformMatrices(
+                shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS],
+                boneMatrices, model.skeleton.boneCount);
+            rlDisableShader();
         }
 
         for (int meshIndex = 0; meshIndex < model.meshCount;
@@ -2598,22 +3300,11 @@ bool Renderer::drawEnemiesInstanced(
             material.shader = shader;
             material.maps[MATERIAL_MAP_DIFFUSE].color =
                 representative.tint;
-            if (model.boneMatrices != nullptr &&
-                model.skeleton.boneCount > 0 &&
-                shader.locs[
-                    SHADER_LOC_MATRIX_BONETRANSFORMS] >= 0) {
-                rlEnableShader(shader.id);
-                rlSetUniformMatrices(
-                    shader.locs[
-                        SHADER_LOC_MATRIX_BONETRANSFORMS],
-                    model.boneMatrices,
-                    model.skeleton.boneCount);
-                rlDisableShader();
-            }
             DrawMeshInstanced(
                 model.meshes[meshIndex], material,
                 batch.transforms.data(),
                 static_cast<int>(batch.transforms.size()));
+        }
         }
     }
 
@@ -2623,6 +3314,20 @@ bool Renderer::drawEnemiesInstanced(
         shader, worldInstancingEnabledLocation_, &disabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
+    instancedEnemyMillisecondsThisFrame_ +=
+        performanceMilliseconds(drawStart);
+    const std::size_t lowDetailCount = static_cast<std::size_t>(
+        std::count_if(
+            instances.begin(), instances.end(),
+            [](const EnemyDrawInstance& instance) {
+                return instance.lowDetail;
+            }));
+    performanceStats_.instancedEnemyCount = std::max(
+        performanceStats_.instancedEnemyCount, instances.size());
+    performanceStats_.enemyBatchCount = std::max(
+        performanceStats_.enemyBatchCount, nonEmptyBatchCount);
+    performanceStats_.lowDetailEnemyCount = std::max(
+        performanceStats_.lowDetailEnemyCount, lowDetailCount);
     return true;
 }
 

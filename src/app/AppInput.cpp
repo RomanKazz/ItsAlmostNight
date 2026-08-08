@@ -20,6 +20,27 @@ using namespace app_detail;
 
 namespace {
 constexpr double MouseSensitivity = 0.002;
+
+bool keyPressed(const ControlSettings& settings,
+                ControlAction action) {
+    const int key = controlKey(settings, action);
+    return key != KEY_NULL &&
+           IsKeyPressed(static_cast<KeyboardKey>(key));
+}
+
+bool keyDown(const ControlSettings& settings,
+             ControlAction action) {
+    const int key = controlKey(settings, action);
+    return key != KEY_NULL &&
+           IsKeyDown(static_cast<KeyboardKey>(key));
+}
+
+bool keyReleased(const ControlSettings& settings,
+                 ControlAction action) {
+    const int key = controlKey(settings, action);
+    return key != KEY_NULL &&
+           IsKeyReleased(static_cast<KeyboardKey>(key));
+}
 }
 
 void App::processInput() {
@@ -27,6 +48,27 @@ void App::processInput() {
     const auto snapshot = simulation_.snapshot();
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
+    if (pendingControlRebind_) {
+        const int pressedKey = GetKeyPressed();
+        if (pressedKey == KEY_ESCAPE) {
+            pendingControlRebind_.reset();
+        } else if (pressedKey != KEY_NULL) {
+            setControlKey(
+                userSettings_.controls, *pendingControlRebind_,
+                pressedKey);
+            pendingControlRebind_.reset();
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
+        return;
+    }
     if (graphicsPanelVisible != graphicsPanelWasVisible_) {
         if (graphicsPanelVisible) {
             EnableCursor();
@@ -37,7 +79,8 @@ void App::processInput() {
         graphicsPanelWasVisible_ = graphicsPanelVisible;
     }
     if (skillTree_.isOpen()) {
-        if (IsKeyPressed(KEY_K) || IsKeyPressed(KEY_ESCAPE)) {
+        if (keyPressed(userSettings_.controls, ControlAction::Skills) ||
+            IsKeyPressed(KEY_ESCAPE)) {
             setSkillTreeVisible(false);
             audio_.playUiConfirm();
         }
@@ -49,10 +92,12 @@ void App::processInput() {
         pendingJump_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
         return;
     }
     if (!graphicsPanelVisible &&
-        (IsKeyPressed(KEY_K) || pendingOpenSkillTreeFromUi_)) {
+        (keyPressed(userSettings_.controls, ControlAction::Skills) ||
+         pendingOpenSkillTreeFromUi_)) {
         pendingOpenSkillTreeFromUi_ = false;
         setSkillTreeVisible(true);
         audio_.playUiConfirm();
@@ -104,6 +149,9 @@ void App::processInput() {
     const bool controlDown =
         IsKeyDown(KEY_LEFT_CONTROL) ||
         IsKeyDown(KEY_RIGHT_CONTROL);
+    const bool shiftDown =
+        IsKeyDown(KEY_LEFT_SHIFT) ||
+        IsKeyDown(KEY_RIGHT_SHIFT);
     if (snapshot.state != RunState::MainMenu &&
         controlDown &&
         IsKeyPressed(KEY_F10)) {
@@ -211,7 +259,8 @@ void App::processInput() {
         buildModePieChoice_.reset();
         DisableCursor();
     }
-    if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
+    if (keyPressed(userSettings_.controls, ControlAction::Pause) ||
+        IsKeyPressed(KEY_ESCAPE)) {
         simulation_.togglePause();
         fixedStep_.reset();
         if (simulation_.snapshot().state == RunState::Paused) {
@@ -220,7 +269,8 @@ void App::processInput() {
             DisableCursor();
         }
     }
-    if (snapshot.state != RunState::MainMenu && IsKeyPressed(KEY_R)) {
+    if (snapshot.state != RunState::MainMenu &&
+        keyPressed(userSettings_.controls, ControlAction::Restart)) {
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
         worldRevealOrigin_ = {
@@ -304,6 +354,11 @@ void App::processInput() {
         buildModePieChoice_.reset();
     }
     if (snapshot.state != RunState::MainMenu) {
+        if (shiftDown &&
+            IsKeyPressed(KEY_F10)) {
+            performanceOverlayVisible_ =
+                !performanceOverlayVisible_;
+        }
         if (controlDown &&
             IsKeyPressed(KEY_F6)) {
             showTerrainWireframe_ =
@@ -367,6 +422,7 @@ void App::processInput() {
         currentSnapshot.aimedModularBuilding =
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
+        interactionResourceAim_ = currentSnapshot.aimedResource;
         input_.overrideAimedBuilding = true;
         input_.aimedBuildingOverride =
             currentSnapshot.aimedBuilding;
@@ -391,10 +447,21 @@ void App::processInput() {
             placementDragAxis_.reset();
         }
         input_.moveForward =
-            static_cast<double>(IsKeyDown(KEY_W)) - static_cast<double>(IsKeyDown(KEY_S));
+            static_cast<double>(
+                keyDown(userSettings_.controls,
+                        ControlAction::MoveForward)) -
+            static_cast<double>(
+                keyDown(userSettings_.controls,
+                        ControlAction::MoveBackward));
         input_.moveRight =
-            static_cast<double>(IsKeyDown(KEY_D)) - static_cast<double>(IsKeyDown(KEY_A));
-        input_.sprint = IsKeyDown(KEY_LEFT_SHIFT);
+            static_cast<double>(
+                keyDown(userSettings_.controls,
+                        ControlAction::MoveRight)) -
+            static_cast<double>(
+                keyDown(userSettings_.controls,
+                        ControlAction::MoveLeft));
+        input_.sprint = keyDown(
+            userSettings_.controls, ControlAction::Sprint);
 
         const auto selectBuildingMode =
             [this](BuildingType type) {
@@ -409,7 +476,8 @@ void App::processInput() {
                 static_cast<double>(
                     Vector2Length(mouseDelta));
         }
-        if (IsKeyPressed(KEY_TAB)) {
+        if (keyPressed(userSettings_.controls,
+                       ControlAction::BuildMode)) {
             buildModePieVisible_ = true;
             buildModePieDirection_ = {};
             buildModePieChoice_.reset();
@@ -447,8 +515,10 @@ void App::processInput() {
             pendingJump_ = false;
             pendingPickaxe_ = false;
             pendingRifleShot_ = false;
+            pendingIceWandShot_ = false;
 
-            if (IsKeyReleased(KEY_TAB)) {
+            if (keyReleased(userSettings_.controls,
+                            ControlAction::BuildMode)) {
                 if (buildModePieChoice_ ==
                     BuildModePieChoice::Buildings) {
                     selectBuildingMode(
@@ -472,7 +542,8 @@ void App::processInput() {
             userSettings_.controls.invertMouseY ? 1.0 : -1.0;
         pendingPitch_ += static_cast<double>(mouseDelta.y) *
                          sensitivity * pitchDirection;
-        pendingJump_ = pendingJump_ || IsKeyPressed(KEY_SPACE);
+        pendingJump_ = pendingJump_ || keyPressed(
+            userSettings_.controls, ControlAction::Jump);
         if (foundationBuildMode_) {
             if (IsKeyPressed(KEY_ONE)) {
                 selectModularBuildPiece(
@@ -525,7 +596,8 @@ void App::processInput() {
                 !foundationBuildMode_);
         }
         if (foundationBuildMode_ &&
-            IsKeyPressed(KEY_V)) {
+            keyPressed(userSettings_.controls,
+                       ControlAction::UpgradeWeapon)) {
             switch (modularBuildPiece_) {
             case ModularBuildPiece::Foundation:
                 selectModularBuildPiece(
@@ -579,12 +651,14 @@ void App::processInput() {
                 .duration = Duration,
             };
         }
-        pendingStartWave_ = pendingStartWave_ || IsKeyPressed(KEY_N);
+        pendingStartWave_ = pendingStartWave_ || keyPressed(
+            userSettings_.controls, ControlAction::StartWave);
         pendingUnlimitedResources_ =
             pendingUnlimitedResources_ || IsKeyPressed(KEY_O);
         pendingWeaponToggle_ =
-            pendingWeaponToggle_ || IsKeyPressed(KEY_C);
-        if (IsKeyPressed(KEY_Q)) {
+            pendingWeaponToggle_ || keyPressed(
+                userSettings_.controls, ControlAction::ToggleTool);
+        if (keyPressed(userSettings_.controls, ControlAction::Copy)) {
             bool copiedPlacement = false;
             if (actionBuilding) {
                 const auto copied = std::find_if(
@@ -655,8 +729,10 @@ void App::processInput() {
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
             (!foundationBuildMode_ &&
-             IsKeyPressed(KEY_V));
-        pendingBombThrow_ = pendingBombThrow_ || IsKeyPressed(KEY_G);
+             keyPressed(userSettings_.controls,
+                        ControlAction::UpgradeWeapon));
+        pendingBombThrow_ = pendingBombThrow_ || keyPressed(
+            userSettings_.controls, ControlAction::Bomb);
         pendingDefeatAllEnemies_ =
             pendingDefeatAllEnemies_ || IsKeyPressed(KEY_K);
         pendingToggleInvulnerability_ =
@@ -688,7 +764,8 @@ void App::processInput() {
                 break;
             }
         }
-        if (IsKeyPressed(KEY_U) &&
+        if (keyPressed(userSettings_.controls,
+                      ControlAction::Upgrade) &&
             !currentSnapshot.selectedBuilding) {
             if (actionBuilding) {
                 pendingBuildingUpgrade_ =
@@ -699,7 +776,7 @@ void App::processInput() {
         }
         repairSweepActive_ =
             !currentSnapshot.selectedBuilding &&
-            IsKeyDown(KEY_F);
+            keyDown(userSettings_.controls, ControlAction::Repair);
         if (repairSweepActive_) {
             if (currentSnapshot.aimedBuilding) {
                 const auto target = std::find_if(
@@ -769,13 +846,13 @@ void App::processInput() {
                     .aimedModularBuilding;
             };
         if (canSweepRemove &&
-            IsKeyPressed(KEY_X) &&
+            keyPressed(userSettings_.controls, ControlAction::Sell) &&
             aimedRemovalTarget()) {
             removalDragActive_ = true;
             removalDragTargets_.clear();
         }
         if (removalDragActive_ &&
-            IsKeyDown(KEY_X)) {
+            keyDown(userSettings_.controls, ControlAction::Sell)) {
             if (const auto target =
                     aimedRemovalTarget();
                 target &&
@@ -789,7 +866,8 @@ void App::processInput() {
             }
         }
         if (removalDragActive_ &&
-            IsKeyReleased(KEY_X)) {
+            keyReleased(userSettings_.controls,
+                        ControlAction::Sell)) {
             for (const EntityId target :
                  removalDragTargets_) {
                 const bool ordinary =
@@ -818,7 +896,8 @@ void App::processInput() {
             buildingContextCardStats_.reset();
         }
         if (!currentSnapshot.selectedBuilding &&
-            IsKeyPressed(KEY_E)) {
+            keyPressed(userSettings_.controls,
+                       ControlAction::Interact)) {
             if (currentSnapshot.aimedChest ||
                 currentSnapshot.aimedLoot) {
                 pendingInteract_ = true;
@@ -1013,8 +1092,14 @@ void App::processInput() {
             static_cast<void>(
                 finishModularPlacementDrag());
         }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            if (foundationBuildMode_) {
+        const bool mousePrimaryPressed =
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        const bool attackPressed =
+            mousePrimaryPressed ||
+            keyPressed(userSettings_.controls,
+                       ControlAction::Attack);
+        if (attackPressed) {
+            if (mousePrimaryPressed && foundationBuildMode_) {
                 if (foundationTerrainHit_) {
                     switch (modularBuildPiece_) {
                     case ModularBuildPiece::Foundation:
@@ -1038,7 +1123,8 @@ void App::processInput() {
                         break;
                     }
                 }
-            } else if (currentSnapshot.buildingPreview &&
+            } else if (mousePrimaryPressed &&
+                       currentSnapshot.buildingPreview &&
                 currentSnapshot.buildingPreview->type !=
                     BuildingType::Core) {
                 wallDragStart_ =
@@ -1063,7 +1149,8 @@ void App::processInput() {
                                 .buildingPreview
                                 ->platformStorey,
                     };
-            } else if (currentSnapshot.buildingPreview) {
+            } else if (mousePrimaryPressed &&
+                       currentSnapshot.buildingPreview) {
                 pendingBuildingPlacement_ = PlaceBuildingCommand{
                     .type = currentSnapshot.buildingPreview->type,
                     .gridPosition = currentSnapshot.buildingPreview->gridPosition,
@@ -1077,7 +1164,7 @@ void App::processInput() {
                             ->platformStorey,
                     .lockHeight = true,
                 };
-            } else if (
+            } else if (mousePrimaryPressed &&
                 !pendingBuildingSelection_ &&
                 currentSnapshot.aimedBuilding) {
                 if (buildingContextCardTarget_ ==
@@ -1100,6 +1187,12 @@ void App::processInput() {
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingRifleShot_ = true;
+            } else if (!pendingBuildingSelection_ &&
+                       currentSnapshot.selectedWeapon == PlayerWeapon::IceWand) {
+                buildingContextCardTarget_.reset();
+                buildingContextCardUpgradeCost_.reset();
+                buildingContextCardStats_.reset();
+                pendingIceWandShot_ = true;
             } else if (!pendingBuildingSelection_) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
@@ -1107,8 +1200,13 @@ void App::processInput() {
                 constexpr double ToolInputBufferSeconds = 0.14;
                 if (currentSnapshot.pickaxeCooldownRemaining <=
                     ToolInputBufferSeconds) {
-                    toolSwingUsesAxe_ = displayedToolUsesAxe_;
-                    if (currentSnapshot.aimedResource) {
+                    toolSwingUsesAxe_ =
+                        displayedToolVisual_ ==
+                            FirstPersonToolVisual::Axe ||
+                        displayedToolVisual_ ==
+                            FirstPersonToolVisual::Club;
+                    if (currentSnapshot.automaticToolSwitch &&
+                        currentSnapshot.aimedResource) {
                         const auto resource = std::find_if(
                             currentSnapshot.resourceNodes.begin(),
                             currentSnapshot.resourceNodes.end(),
@@ -1121,7 +1219,10 @@ void App::processInput() {
                             resource->type == ResourceType::Wood;
                     }
                     if (toolSwingUsesAxe_ ==
-                            displayedToolUsesAxe_ &&
+                            (displayedToolVisual_ ==
+                                 FirstPersonToolVisual::Axe ||
+                             displayedToolVisual_ ==
+                                 FirstPersonToolVisual::Club) &&
                         toolSwapRemaining_ <= 0.0 &&
                         toolSwingRemaining_ <= 0.0) {
                         toolSwingDuration_ =
@@ -1144,6 +1245,7 @@ void App::processInput() {
             }
         }
     } else {
+        interactionResourceAim_.reset();
         buildModePieVisible_ = false;
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();

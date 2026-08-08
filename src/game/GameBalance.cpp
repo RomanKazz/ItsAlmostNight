@@ -114,6 +114,8 @@ parseModularBuilding(const Json& value) {
 WeaponBalanceDefinition parseWeapons(const Json& document) {
     const Json& rifle = document.at("rifle");
     const Json& bomb = document.at("bomb");
+    const Json club = document.value("club", Json::object());
+    const Json iceWand = document.value("iceWand", Json::object());
     const WeaponBalanceDefinition definition{
         .rifle = {
             .range = rifle.at("range").get<double>(),
@@ -138,9 +140,30 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
             .explosionDamage = bomb.at("explosionDamage").get<double>(),
             .knockbackStrength = bomb.at("knockbackStrength").get<double>(),
         },
+        .club = {
+            .damageMultiplier = club.value("damageMultiplier", 1.35),
+            .areaRadius = club.value("areaRadius", 1.25),
+            .knockbackStrength = club.value("knockbackStrength", 3.0),
+            .maxDamagePerAttack = club.value("maxDamagePerAttack", 4.0),
+        },
+        .iceWand = {
+            .cooldown = iceWand.value("cooldown", 0.85),
+            .directDamage = iceWand.value("directDamage", 16.0),
+            .projectileSpeed = iceWand.value("projectileSpeed", 18.0),
+            .projectileRadius = iceWand.value("projectileRadius", 0.22),
+            .maxLifetime = iceWand.value("maxLifetime", 2.5),
+            .explosionRadius = iceWand.value("explosionRadius", 3.5),
+            .freezeDuration = iceWand.value("freezeDuration", 1.4),
+            .eliteFreezeMultiplier = iceWand.value("eliteFreezeMultiplier", 0.65),
+            .bossSlowAmount = iceWand.value("bossSlowAmount", 0.35),
+            .chargeUpDuration = iceWand.value("chargeUpDuration", 0.12),
+            .areaDamageMultiplier = iceWand.value("areaDamageMultiplier", 0.55),
+        },
     };
     const auto& configuredRifle = definition.rifle;
     const auto& configuredBomb = definition.bomb;
+    const auto& configuredClub = definition.club;
+    const auto& configuredIceWand = definition.iceWand;
     if (configuredRifle.range <= 0.0 || configuredRifle.damage <= 0.0 ||
         configuredRifle.damagePerLevel < 0.0 || configuredRifle.fireInterval <= 0.0 ||
         configuredRifle.fireRateBonusPerLevel < 0.0 || configuredRifle.reloadDuration <= 0.0 ||
@@ -152,7 +175,25 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
         configuredBomb.upwardSpeed < 0.0 || configuredBomb.gravity <= 0.0 ||
         configuredBomb.fuseDuration <= 0.0 || configuredBomb.groundHeight < 0.0 ||
         configuredBomb.explosionRadius <= 0.0 || configuredBomb.explosionDamage <= 0.0 ||
-        configuredBomb.knockbackStrength < 0.0) {
+        configuredBomb.knockbackStrength < 0.0 ||
+        configuredClub.damageMultiplier <= 0.0 ||
+        configuredClub.areaRadius <= 0.0 ||
+        configuredClub.knockbackStrength < 0.0 ||
+        configuredClub.maxDamagePerAttack <= 0.0 ||
+        configuredIceWand.cooldown <= 0.0 ||
+        configuredIceWand.directDamage <= 0.0 ||
+        configuredIceWand.projectileSpeed <= 0.0 ||
+        configuredIceWand.projectileRadius <= 0.0 ||
+        configuredIceWand.maxLifetime <= 0.0 ||
+        configuredIceWand.explosionRadius <= 0.0 ||
+        configuredIceWand.freezeDuration <= 0.0 ||
+        configuredIceWand.eliteFreezeMultiplier <= 0.0 ||
+        configuredIceWand.eliteFreezeMultiplier > 1.0 ||
+        configuredIceWand.bossSlowAmount < 0.0 ||
+        configuredIceWand.bossSlowAmount > 1.0 ||
+        configuredIceWand.chargeUpDuration < 0.0 ||
+        configuredIceWand.areaDamageMultiplier <= 0.0 ||
+        configuredIceWand.areaDamageMultiplier > 1.0) {
         throw std::runtime_error("invalid weapon definition");
     }
     return definition;
@@ -283,6 +324,9 @@ GameBalance GameBalance::defaults() {
         .weapons = {
             .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {40, 80}},
             .bomb = {3, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
+            .club = {1.35, 1.25, 3.0, 4.0},
+            .iceWand = {0.85, 16.0, 18.0, 0.22, 2.5, 3.5, 1.4, 0.65,
+                        0.35, 0.12, 0.55},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,

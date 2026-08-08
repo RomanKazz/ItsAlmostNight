@@ -425,6 +425,51 @@ void runEnemySystemTests() {
             !blastEnemies.nearestEnemy(
                 {0.0, 0.8, 0.0}, 4.0),
         "area damage atomically removes a full active wave from the spatial index");
+
+    constexpr std::array<ian::EnemySpawn, 2> CloseBlastSpawns{{
+        {ian::EnemyType::Basic, {0.0, 0.8, 0.0}},
+        {ian::EnemyType::Heavy, {1.35, 1.0, 0.0}},
+    }};
+    ian::EnemySystem closeBlastEnemies;
+    closeBlastEnemies.spawnWave(CloseBlastSpawns);
+    const auto closeBlastDamage = closeBlastEnemies.damageInRadius(
+        {0.0, 0.8, 0.0}, 1.25, 1.0, 3.0);
+    require(
+        closeBlastDamage.size() == 2U &&
+            closeBlastEnemies.enemies()[0].health <
+                closeBlastEnemies.enemies()[0].maxHealth &&
+            closeBlastEnemies.enemies()[1].health <
+                closeBlastEnemies.enemies()[1].maxHealth,
+        "area damage reaches touching enemy capsules");
+    require(
+        std::abs(closeBlastEnemies.enemies()[0].knockbackVelocity.x) +
+                std::abs(closeBlastEnemies.enemies()[0].knockbackVelocity.z) >
+            2.9,
+        "area damage keeps full impulse at impact center");
+    require(
+        std::abs(closeBlastEnemies.enemies()[1].knockbackVelocity.x) +
+                std::abs(closeBlastEnemies.enemies()[1].knockbackVelocity.z) >
+            0.1,
+        "area damage pushes a capsule touching the radius edge");
+
+    constexpr std::array<ian::EnemySpawn, 3> CappedBlastSpawns{{
+        {ian::EnemyType::Basic, {-0.8, 0.8, 0.0}},
+        {ian::EnemyType::Basic, {0.0, 0.8, 0.0}},
+        {ian::EnemyType::Basic, {0.8, 0.8, 0.0}},
+    }};
+    ian::EnemySystem cappedBlastEnemies;
+    cappedBlastEnemies.spawnWave(CappedBlastSpawns);
+    const auto cappedBlastDamage = cappedBlastEnemies.damageInRadius(
+        {0.0, 0.8, 0.0}, 1.25, 4.0, 0.0, std::nullopt, 5.0);
+    double totalCappedDamage = 0.0;
+    for (const auto& result : cappedBlastDamage) {
+        totalCappedDamage += result.damage;
+    }
+    require(
+        cappedBlastDamage.size() == 3U &&
+            totalCappedDamage <= 5.0 + 1e-9,
+        "area damage respects a total damage cap");
+
     blastEnemies.spawnGroup(Replacement);
     require(
         blastEnemies.enemies().front().active &&

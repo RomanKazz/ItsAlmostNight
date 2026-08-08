@@ -74,19 +74,28 @@ add_library(ian_simulation
     src/combat/TrapSystem.cpp
     src/combat/CannonSystem.cpp
     src/combat/BombSystem.cpp
+    src/combat/IceWandSystem.cpp
     src/combat/PlayerWeaponSystem.cpp
     src/economy/GoldMineSystem.cpp
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
+    src/game/SimulationCombat.cpp
     src/game/LootChestSystem.cpp
     src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDebug.cpp
     src/game/SimulationDefenses.cpp
+    src/game/SimulationLoot.cpp
+    src/game/SimulationModularPlacement.cpp
+    src/game/SimulationPlayerActions.cpp
     src/game/SimulationPlayerLifecycle.cpp
+    src/game/SimulationPlayerMovement.cpp
     src/game/SimulationPlacement.cpp
+    src/game/SimulationProgression.cpp
+    src/game/SimulationSnapshot.cpp
     src/game/SimulationWaves.cpp
+    src/game/SimulationWorldSync.cpp
     src/game/ModularCombat.cpp
     src/game/ResourceWorld.cpp
     src/game/GameBalance.cpp
@@ -94,6 +103,7 @@ add_library(ian_simulation
     src/resources/ResourceSystem.cpp
     src/world/CollisionWorld.cpp
     src/world/MapDefinition.cpp
+    src/world/PondDecorationLayout.cpp
     src/world/SpatialHash.cpp
     src/world/TerrainHeightfield.cpp
     src/world/WorldConfig.cpp
@@ -104,12 +114,14 @@ target_link_libraries(ian_simulation PRIVATE
     nlohmann_json::nlohmann_json ian_assets ian_progression)
 
 add_library(ian_text
+    src/localization/Localization.cpp
     src/ui/UiLabels.cpp
     src/ui/UiText.cpp
 )
 target_include_directories(ian_text PUBLIC src)
 target_include_directories(ian_text SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
-target_link_libraries(ian_text PUBLIC raylib)
+target_link_libraries(ian_text PUBLIC raylib
+    PRIVATE nlohmann_json::nlohmann_json)
 
 add_library(ian_audio
     src/audio/AudioSystem.cpp
@@ -139,7 +151,11 @@ add_library(ian_graphics
     src/graphics/GraphicsResources.cpp
     src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
+    src/graphics/RendererFramePasses.cpp
     src/graphics/RendererModels.cpp
+    src/graphics/RendererSettings.cpp
+    src/graphics/RendererShaders.cpp
+    src/graphics/RendererTerrain.cpp
     src/graphics/FirstPersonToolTuning.cpp
     src/graphics/TerrainRenderer.cpp
 )
@@ -151,6 +167,8 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 add_library(ian_ui
     src/ui/GameUi.cpp
     src/ui/HudRenderer.cpp
+    src/ui/InputKeycap.cpp
+    src/ui/InteractionPrompt.cpp
     src/ui/SkillTreeScreen.cpp
     src/ui/TargetHealthBar.cpp
     src/ui/WorldBillboard.cpp
@@ -166,6 +184,7 @@ add_executable(its_almost_night
     src/app/AppEffects.cpp
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppGraphicsPanel.cpp
+    src/app/AppInteractionPrompt.cpp
     src/app/AppInput.cpp
     src/app/AppModularPlacement.cpp
     src/app/AppRenderPasses.cpp
@@ -240,6 +259,7 @@ if(BUILD_TESTING)
         tests/PlacementValidatorTests.cpp
         tests/PlacementLineTests.cpp
         tests/BombSystemTests.cpp
+        tests/IceWandSystemTests.cpp
         tests/LootChestSystemTests.cpp
         tests/CannonSystemTests.cpp
         tests/CollisionWorldTests.cpp

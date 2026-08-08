@@ -13,6 +13,7 @@
 namespace ian {
 
 class GameUi;
+struct ControlSettings;
 struct SimulationSnapshot;
 
 struct HudViewState {
@@ -45,7 +46,8 @@ struct HudViewState {
 };
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
-             const HudViewState& view, const Camera3D& camera);
+             const HudViewState& view, const Camera3D& camera,
+             const ControlSettings& controls);
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                     float expansion);
 void drawRunStateOverlay(const SimulationSnapshot& snapshot);

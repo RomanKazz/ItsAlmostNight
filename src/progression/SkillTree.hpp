@@ -15,8 +15,10 @@ enum class SkillEffect {
     UnlockAxe,
     UnlockPickaxe,
     UnlockClub,
+    UnlockIceWand,
     UnlockHammer,
     UnlockRifle,
+    AutoSwitchTools,
 };
 enum class SkillNodeState { Hidden, Locked, Available, Unlocked };
 enum class SkillPurchaseError {
@@ -55,7 +57,8 @@ class SkillTree {
     [[nodiscard]] const std::vector<SkillNodeDefinition>& nodes() const;
     [[nodiscard]] SkillNodeState state(std::size_t index) const;
     [[nodiscard]] SkillNodeState state(std::string_view id) const;
-    [[nodiscard]] SkillPurchaseError purchase(std::size_t index);
+    [[nodiscard]] SkillPurchaseError purchase(
+        std::size_t index, bool spendPoints = true);
     [[nodiscard]] bool unlock(std::size_t index);
     void grantPoints(int amount);
     [[nodiscard]] int points() const;

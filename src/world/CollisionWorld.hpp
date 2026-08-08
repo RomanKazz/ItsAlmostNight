@@ -5,8 +5,10 @@
 #include "buildings/FoundationSystem.hpp"
 #include "core/Types.hpp"
 #include "resources/ResourceSystem.hpp"
+#include "world/PondDecorationLayout.hpp"
 
 #include <array>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <span>
@@ -53,6 +55,8 @@ class CollisionWorld {
     void syncResourceCylinders(
         std::span<const ResourceNode> resources,
         std::span<const GlbCollisionAsset> treeAssets);
+    void syncPondLilySurfaces(
+        std::span<const PondLilyPlacement> lilies);
 
     [[nodiscard]] Vec3 moveCircle(
         Vec3 position, Vec3 delta, double radius,
@@ -87,6 +91,7 @@ class CollisionWorld {
     enum class SurfaceKind {
         Flat,
         Ramp,
+        Disc,
     };
 
     struct WalkableSurface {
@@ -109,7 +114,30 @@ class CollisionWorld {
         double maximumBlockingEyeY{};
     };
 
+    // Broadphase buckets keep movement, support, and placement queries
+    // proportional to the nearby collider count instead of scanning the
+    // complete world on every sub-step. Exact geometry tests still run after
+    // the bucket lookup, so this does not change collision behaviour.
+    struct BroadphaseGrid {
+        static constexpr double CellSize = 4.0;
+
+        void reset(double worldLimit);
+        void insert(double minX, double maxX,
+                    double minZ, double maxZ,
+                    std::size_t objectIndex);
+        [[nodiscard]] int cellCoordinate(double value) const;
+        [[nodiscard]] const std::vector<std::size_t>&
+        bucket(int x, int z) const;
+        [[nodiscard]] bool empty() const;
+
+        double minimum_{-52.0};
+        int dimension_{};
+        std::vector<std::vector<std::size_t>> buckets_;
+    };
+
     void rebuildColliders();
+    void rebuildResourceBroadphase();
+    void rebuildSurfaceBroadphases();
 
     double worldLimit_{48.0};
     std::vector<CollisionBox> staticColliders_;
@@ -120,6 +148,13 @@ class CollisionWorld {
     std::vector<CollisionBox> colliders_;
     std::vector<WalkableSurface> buildingSurfaces_;
     std::vector<WalkableSurface> modularSurfaces_;
+    std::vector<WalkableSurface> pondLilySurfaces_;
+    BroadphaseGrid colliderBroadphase_;
+    BroadphaseGrid rampPlacementBroadphase_;
+    BroadphaseGrid resourceBroadphase_;
+    BroadphaseGrid buildingSurfaceBroadphase_;
+    BroadphaseGrid modularSurfaceBroadphase_;
+    BroadphaseGrid pondLilySurfaceBroadphase_;
 };
 
 [[nodiscard]] CollisionBox buildingCollisionBox(

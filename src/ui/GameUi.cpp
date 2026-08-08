@@ -1,6 +1,7 @@
 #include "ui/GameUi.hpp"
 #include "ui/UiCString.hpp"
 #include "ui/UiText.hpp"
+#include "localization/Localization.hpp"
 
 #define RAYGUI_IMPLEMENTATION
 #include <raygui.h>
@@ -32,6 +33,55 @@ Color alphaTint(unsigned char alpha) {
     return {255, 255, 255, alpha};
 }
 
+void drawHorizontalBar(Texture2D left, Texture2D middle,
+                       Texture2D right, Rectangle bounds,
+                       float width, Color tint = WHITE) {
+    width = std::clamp(width, 0.0F, bounds.width);
+    if (width <= 0.0F || bounds.height <= 0.0F ||
+        !IsTextureValid(middle)) {
+        return;
+    }
+
+    const Rectangle destination{
+        bounds.x, bounds.y, width, bounds.height};
+    const Rectangle middleSource{
+        0.0F, 0.0F, static_cast<float>(middle.width),
+        static_cast<float>(middle.height)};
+    if (!IsTextureValid(left) || !IsTextureValid(right)) {
+        DrawTexturePro(middle, middleSource, destination,
+                       {0.0F, 0.0F}, 0.0F, tint);
+        return;
+    }
+
+    const float scale = bounds.height /
+        std::max(static_cast<float>(middle.height), 1.0F);
+    const float capWidth = std::min(
+        static_cast<float>(left.width) * scale, width * 0.5F);
+    if (capWidth <= 0.0F || width <= capWidth * 2.0F) {
+        DrawTexturePro(middle, middleSource, destination,
+                       {0.0F, 0.0F}, 0.0F, tint);
+        return;
+    }
+
+    const Rectangle leftSource{
+        0.0F, 0.0F, static_cast<float>(left.width),
+        static_cast<float>(left.height)};
+    const Rectangle rightSource{
+        0.0F, 0.0F, static_cast<float>(right.width),
+        static_cast<float>(right.height)};
+    DrawTexturePro(left, leftSource,
+                   {bounds.x, bounds.y, capWidth, bounds.height},
+                   {0.0F, 0.0F}, 0.0F, tint);
+    DrawTexturePro(middle, middleSource,
+                   {bounds.x + capWidth, bounds.y,
+                    width - capWidth * 2.0F, bounds.height},
+                   {0.0F, 0.0F}, 0.0F, tint);
+    DrawTexturePro(right, rightSource,
+                   {bounds.x + width - capWidth, bounds.y,
+                    capWidth, bounds.height},
+                   {0.0F, 0.0F}, 0.0F, tint);
+}
+
 } // namespace
 
 GameUi::~GameUi() {
@@ -45,14 +95,46 @@ void GameUi::initialize() {
     button_ = loadTexture("assets/ui/buttonLong_brown.png");
     buttonPressed_ =
         loadTexture("assets/ui/buttonLong_brown_pressed.png");
+    keyCap_ = loadTexture("assets/ui/buttonSquare_beige.png");
+    keyCapPressed_ =
+        loadTexture("assets/ui/buttonSquare_beige_pressed.png");
+    barBackLeft_ =
+        loadTexture("assets/ui/barBack_horizontalLeft.png");
     barBack_ = loadTexture("assets/ui/barBack_horizontalMid.png");
+    barBackRight_ =
+        loadTexture("assets/ui/barBack_horizontalRight.png");
+    barBlueLeft_ =
+        loadTexture("assets/ui/barBlue_horizontalLeft.png");
+    barBlue_ = loadTexture("assets/ui/barBlue_horizontalBlue.png");
+    barBlueRight_ =
+        loadTexture("assets/ui/barBlue_horizontalRight.png");
+    barRedLeft_ =
+        loadTexture("assets/ui/barRed_horizontalLeft.png");
     barRed_ = loadTexture("assets/ui/barRed_horizontalMid.png");
+    barRedRight_ =
+        loadTexture("assets/ui/barRed_horizontalRight.png");
+    barGreenLeft_ =
+        loadTexture("assets/ui/barGreen_horizontalLeft.png");
     barGreen_ = loadTexture("assets/ui/barGreen_horizontalMid.png");
+    barGreenRight_ =
+        loadTexture("assets/ui/barGreen_horizontalRight.png");
+    barYellowLeft_ =
+        loadTexture("assets/ui/barYellow_horizontalLeft.png");
     barYellow_ = loadTexture("assets/ui/barYellow_horizontalMid.png");
+    barYellowRight_ =
+        loadTexture("assets/ui/barYellow_horizontalRight.png");
+    sliderKnob_ = loadTexture("assets/ui/buttonRound_beige.png");
+    sliderKnobHover_ =
+        loadTexture("assets/ui/buttonRound_blue.png");
+    cursorHand_ = loadTexture("assets/ui/cursorHand_beige.png");
+    checkIcon_ = loadTexture("assets/ui/iconCheck_beige.png");
+    arrowLeft_ = loadTexture("assets/ui/arrowBrown_left.png");
+    arrowRight_ = loadTexture("assets/ui/arrowBrown_right.png");
     resourceWood_ = loadTexture("assets/ui/resource_wood.png");
     resourceStone_ = loadTexture("assets/ui/resource_stone.png");
     resourceCrystal_ =
         loadTexture("assets/ui/resource_crystal.png");
+    resourceGold_ = loadTexture("assets/ui/resource_gold.png");
     initializeUiText();
     initialized_ = true;
 
@@ -79,14 +161,34 @@ void GameUi::initialize() {
 
 void GameUi::shutdown() {
     unloadTexture(resourceCrystal_);
+    unloadTexture(resourceGold_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
+    unloadTexture(arrowRight_);
+    unloadTexture(arrowLeft_);
+    unloadTexture(checkIcon_);
+    unloadTexture(cursorHand_);
+    unloadTexture(sliderKnobHover_);
+    unloadTexture(sliderKnob_);
+    unloadTexture(barYellowRight_);
     unloadTexture(barYellow_);
+    unloadTexture(barYellowLeft_);
+    unloadTexture(barGreenRight_);
     unloadTexture(barGreen_);
+    unloadTexture(barGreenLeft_);
+    unloadTexture(barRedRight_);
     unloadTexture(barRed_);
+    unloadTexture(barRedLeft_);
+    unloadTexture(barBlueRight_);
+    unloadTexture(barBlue_);
+    unloadTexture(barBlueLeft_);
+    unloadTexture(barBackRight_);
     unloadTexture(barBack_);
+    unloadTexture(barBackLeft_);
     unloadTexture(buttonPressed_);
     unloadTexture(button_);
+    unloadTexture(keyCapPressed_);
+    unloadTexture(keyCap_);
     unloadTexture(insetPanel_);
     unloadTexture(panel_);
     shutdownUiText();
@@ -117,20 +219,25 @@ void GameUi::drawInsetPanel(Rectangle bounds,
 void GameUi::drawLabel(Rectangle bounds, std::string_view text,
                        int alignment) const {
     GuiSetStyle(LABEL, TEXT_ALIGNMENT, alignment);
-    withNullTerminatedUiText(text, [bounds](const char* value) {
-        (void)GuiLabel(bounds, value);
-    });
+    if (currentLanguage() == Language::English) {
+        withNullTerminatedUiText(text, [bounds](const char* value) {
+            (void)GuiLabel(bounds, value);
+        });
+    } else {
+        const std::string localized = localizeText(text);
+        withNullTerminatedUiText(localized,
+                                 [bounds](const char* value) {
+                                     (void)GuiLabel(bounds, value);
+                                 });
+    }
 }
 
 void GameUi::drawProgressBar(Rectangle bounds, float fraction,
                              UiBarColor color) const {
     fraction = std::clamp(fraction, 0.0F, 1.0F);
     if (IsTextureValid(barBack_)) {
-        DrawTexturePro(
-            barBack_,
-            {0.0F, 0.0F, static_cast<float>(barBack_.width),
-             static_cast<float>(barBack_.height)},
-            bounds, {0.0F, 0.0F}, 0.0F, WHITE);
+        drawHorizontalBar(barBackLeft_, barBack_, barBackRight_,
+                          bounds, bounds.width);
     } else {
         DrawRectangleRec(bounds, {31, 24, 22, 235});
     }
@@ -147,10 +254,17 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
         return;
     }
     if (IsTextureValid(fill)) {
-        DrawTexturePro(fill,
-                       {0.0F, 0.0F, static_cast<float>(fill.width),
-                        static_cast<float>(fill.height)},
-                       filled, {0.0F, 0.0F}, 0.0F, WHITE);
+        Texture2D fillLeft = barGreenLeft_;
+        Texture2D fillRight = barGreenRight_;
+        if (color == UiBarColor::Red) {
+            fillLeft = barRedLeft_;
+            fillRight = barRedRight_;
+        } else if (color == UiBarColor::Yellow) {
+            fillLeft = barYellowLeft_;
+            fillRight = barYellowRight_;
+        }
+        drawHorizontalBar(fillLeft, fill, fillRight,
+                          bounds, filled.width);
     } else {
         const Color fallback =
             color == UiBarColor::Red
@@ -184,11 +298,47 @@ Texture2D GameUi::resourceTexture(
     if (icon == UiResourceIcon::Crystal) {
         return resourceCrystal_;
     }
+    if (icon == UiResourceIcon::Gold) {
+        return resourceGold_;
+    }
     return resourceWood_;
 }
 
 bool GameUi::drawButton(Rectangle bounds,
                         std::string_view text) const {
+    const bool arrowLeft = text == "<" || text == "-";
+    const bool arrowRight = text == ">" || text == "+";
+    if (arrowLeft || arrowRight) {
+        const bool pressed =
+            CheckCollisionPointRec(GetMousePosition(), bounds) &&
+            IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        const Texture2D buttonTexture =
+            pressed && IsTextureValid(buttonPressed_)
+                ? buttonPressed_ : button_;
+        if (IsTextureValid(buttonTexture)) {
+            DrawTexturePro(
+                buttonTexture,
+                {0.0F, 0.0F,
+                 static_cast<float>(buttonTexture.width),
+                 static_cast<float>(buttonTexture.height)},
+                bounds, {0.0F, 0.0F}, 0.0F, WHITE);
+        }
+        const Texture2D arrow =
+            arrowLeft ? arrowLeft_ : arrowRight_;
+        if (IsTextureValid(arrow)) {
+            const float size = std::min(
+                bounds.height * 0.42F, 28.0F);
+            DrawTexturePro(
+                arrow,
+                {0.0F, 0.0F, static_cast<float>(arrow.width),
+                 static_cast<float>(arrow.height)},
+                {bounds.x + (bounds.width - size) * 0.5F,
+                 bounds.y + (bounds.height - size) * 0.5F,
+                 size, size},
+                {0.0F, 0.0F}, 0.0F, WHITE);
+        }
+        return GuiButton(bounds, "") != 0;
+    }
     return drawToggleButton(bounds, text, false);
 }
 
@@ -210,18 +360,153 @@ bool GameUi::drawToggleButton(Rectangle bounds,
              static_cast<float>(texture.height)},
             bounds, {0.0F, 0.0F}, 0.0F, tint);
     }
-    return withNullTerminatedUiText(
-        text, [bounds](const char* value) {
-            return GuiButton(bounds, value) != 0;
-        });
+    const bool clicked = currentLanguage() == Language::English
+        ? withNullTerminatedUiText(
+              text, [bounds](const char* value) {
+                  return GuiButton(bounds, value) != 0;
+              })
+        : [&]() {
+              const std::string localized = localizeText(text);
+              return withNullTerminatedUiText(
+                  localized, [bounds](const char* value) {
+                      return GuiButton(bounds, value) != 0;
+                  });
+          }();
+    if (active && IsTextureValid(checkIcon_)) {
+        const float size = std::clamp(
+            bounds.height * 0.32F, 14.0F, 22.0F);
+        DrawTexturePro(
+            checkIcon_,
+            {0.0F, 0.0F, static_cast<float>(checkIcon_.width),
+             static_cast<float>(checkIcon_.height)},
+            {bounds.x + bounds.width - size - 12.0F,
+             bounds.y + (bounds.height - size) * 0.5F,
+             size, size},
+            {0.0F, 0.0F}, 0.0F, WHITE);
+    }
+    return clicked;
+}
+
+bool GameUi::drawKeyCap(Rectangle bounds, std::string_view text,
+                        bool pressed, unsigned char alpha) const {
+    const bool hovered = CheckCollisionPointRec(
+        GetMousePosition(), bounds);
+    const bool held = pressed ||
+        (hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT));
+    const Texture2D texture =
+        held && IsTextureValid(keyCapPressed_)
+            ? keyCapPressed_
+            : keyCap_;
+    const float offset = held ? 2.0F : 0.0F;
+    if (IsTextureValid(texture)) {
+        DrawTexturePro(
+            texture,
+            {0.0F, 0.0F, static_cast<float>(texture.width),
+             static_cast<float>(texture.height)},
+            {bounds.x, bounds.y + offset,
+             bounds.width, bounds.height},
+            {0.0F, 0.0F}, 0.0F,
+            hovered ? Color{255, 255, 245, alpha}
+                    : Color{255, 255, 255, alpha});
+    } else {
+        DrawRectangleRounded(
+            {bounds.x, bounds.y + offset,
+             bounds.width, bounds.height},
+            0.16F, 4,
+            held ? Color{193, 164, 113, alpha}
+                 : Color{220, 195, 145, alpha});
+    }
+    float fontSize = std::clamp(
+        bounds.height * 0.46F, 10.0F, 22.0F);
+    Vector2 textSize = measureUiText(text, fontSize);
+    while (textSize.x > bounds.width * 0.82F && fontSize > 7.0F) {
+        fontSize -= 1.0F;
+        textSize = measureUiText(text, fontSize);
+    }
+    drawUiText(
+        text,
+        {bounds.x + (bounds.width - textSize.x) * 0.5F,
+         bounds.y + offset +
+             (bounds.height - textSize.y) * 0.5F - 1.0F},
+        fontSize,
+        {70, 52, 34, alpha});
+    return hovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+}
+
+Texture2D GameUi::keyCapTexture(bool pressed) const {
+    if (pressed && IsTextureValid(keyCapPressed_)) {
+        return keyCapPressed_;
+    }
+    return keyCap_;
 }
 
 float GameUi::drawSliderBar(
     Rectangle bounds, float value,
     float minimum, float maximum) const {
-    (void)GuiSliderBar(
-        bounds, nullptr, nullptr, &value, minimum, maximum);
+    if (maximum < minimum) {
+        std::swap(minimum, maximum);
+    }
+    value = std::clamp(value, minimum, maximum);
+    const float range = maximum - minimum;
+    const Rectangle hitBounds{
+        bounds.x, bounds.y - 8.0F,
+        bounds.width, bounds.height + 16.0F};
+    const Vector2 mouse = GetMousePosition();
+    const bool hovered =
+        CheckCollisionPointRec(mouse, hitBounds);
+    if (hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+        bounds.width > 0.0F && range > 0.0F) {
+        const float position = std::clamp(
+            (mouse.x - bounds.x) / bounds.width, 0.0F, 1.0F);
+        value = minimum + range * position;
+    }
+    const float displayed = range > 0.0F
+        ? std::clamp((value - minimum) / range, 0.0F, 1.0F)
+        : 0.0F;
+    drawHorizontalBar(barBackLeft_, barBack_, barBackRight_,
+                      bounds, bounds.width);
+    drawHorizontalBar(barBlueLeft_, barBlue_, barBlueRight_,
+                      bounds, bounds.width * displayed);
+
+    const Texture2D knob = hovered &&
+        IsTextureValid(sliderKnobHover_)
+        ? sliderKnobHover_ : sliderKnob_;
+    if (IsTextureValid(knob)) {
+        const float knobHeight = std::max(
+            bounds.height * 1.45F, 26.0F);
+        const float knobWidth = knobHeight *
+            static_cast<float>(knob.width) /
+            std::max(static_cast<float>(knob.height), 1.0F);
+        const float centerX =
+            bounds.x + bounds.width * displayed;
+        DrawTexturePro(
+            knob,
+            {0.0F, 0.0F, static_cast<float>(knob.width),
+             static_cast<float>(knob.height)},
+            {centerX - knobWidth * 0.5F,
+             bounds.y + (bounds.height - knobHeight) * 0.5F,
+             knobWidth, knobHeight},
+            {0.0F, 0.0F}, 0.0F, WHITE);
+    }
     return value;
+}
+
+void GameUi::drawCursor() const {
+    if (!IsTextureValid(cursorHand_)) {
+        return;
+    }
+    const Vector2 mouse = GetMousePosition();
+    constexpr float Scale = 1.12F;
+    const float width =
+        static_cast<float>(cursorHand_.width) * Scale;
+    const float height =
+        static_cast<float>(cursorHand_.height) * Scale;
+    DrawTexturePro(
+        cursorHand_,
+        {0.0F, 0.0F, static_cast<float>(cursorHand_.width),
+         static_cast<float>(cursorHand_.height)},
+        {mouse.x - 2.0F, mouse.y - 1.0F, width, height},
+        {0.0F, 0.0F}, 0.0F, WHITE);
 }
 
 Texture2D GameUi::loadTexture(const char* path) {

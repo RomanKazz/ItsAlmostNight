@@ -58,7 +58,8 @@ void App::drawLootItemOutlines(
 
 void App::drawWorldEntities(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
-    float nightAmount, const WorldLighting& lighting) {
+    float nightAmount, const WorldLighting& lighting,
+    float interpolationAlpha) {
     WorldMaterialState obstacleMaterial{};
     obstacleMaterial.bakedAo = 0.74F;
     renderer_->setWorldMaterial(obstacleMaterial);
@@ -119,9 +120,7 @@ void App::drawWorldEntities(
             static_cast<float>(
                 node.position.x + hitOffset.x),
             static_cast<float>(
-                simulation_.terrain().getHeight(
-                    node.position.x,
-                    node.position.z)),
+                node.position.y - node.groundOffset),
             static_cast<float>(
                 node.position.z + hitOffset.z),
         };
@@ -522,6 +521,12 @@ void App::drawWorldEntities(
     }
     drawSoldBuildingVisuals();
     renderer_->setWorldMaterial({});
+    const float projectileTime = static_cast<float>(GetTime());
+    for (const auto& projectile : snapshot.iceWandProjectiles) {
+        renderer_->drawIceWandProjectile(
+            projectile, camera.position, projectileTime,
+            interpolationAlpha);
+    }
     for (const auto& projectile : snapshot.cannonProjectiles) {
         if (projectile.active) {
             const Vector3 projectilePosition{
@@ -630,16 +635,35 @@ void App::drawWorldEntities(
             }
         }
     }
+    const auto enemyRenderStart = PerformanceClock::now();
+    performanceStats_.visibleEnemies = 0U;
     enemyDrawInstances_.clear();
     enemyDrawInstances_.reserve(snapshot.enemies.size());
     const Vector3 cameraForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
+    constexpr float EnemyFullDetailDistance = 30.0F;
+    constexpr float EnemyFullDetailDistanceSquared =
+        EnemyFullDetailDistance * EnemyFullDetailDistance;
     for (const auto& enemy : snapshot.enemies) {
         if (!enemy.active) {
             continue;
         }
-        Vector3 enemyPosition =
-            enemyRenderPosition(enemy);
+        const Vector3 cullPosition = enemyRenderPosition(enemy);
+        const Vector3 cullToEnemy =
+            Vector3Subtract(cullPosition, camera.position);
+        const float cullDistanceSquared =
+            Vector3LengthSqr(cullToEnemy);
+        if (cullDistanceSquared > 9.0F) {
+            const float inverseDistance =
+                1.0F / std::sqrt(cullDistanceSquared);
+            const float viewDot = Vector3DotProduct(
+                cameraForward,
+                Vector3Scale(cullToEnemy, inverseDistance));
+            if (viewDot < -0.12F) {
+                continue;
+            }
+        }
+        Vector3 enemyPosition = cullPosition;
         enemyPosition.y += static_cast<float>(
             simulation_.terrain().getHeight(
                 enemy.position.x,
@@ -648,23 +672,24 @@ void App::drawWorldEntities(
             Vector3Subtract(enemyPosition, camera.position);
         const float enemyDistanceSquared =
             Vector3LengthSqr(toEnemy);
-        if (enemyDistanceSquared > 9.0F) {
-            const float inverseDistance =
-                1.0F / std::sqrt(enemyDistanceSquared);
-            const float viewDot = Vector3DotProduct(
-                cameraForward,
-                Vector3Scale(toEnemy, inverseDistance));
-            if (viewDot < -0.12F) {
-                continue;
-            }
-        }
+        ++performanceStats_.visibleEnemies;
         const bool aimed =
             snapshot.aimedEnemy &&
             *snapshot.aimedEnemy == enemy.id;
+        const bool lowDetail =
+            !aimed && enemy.type != EnemyType::Boss &&
+            enemyDistanceSquared > EnemyFullDetailDistanceSquared;
         const float hitFlash =
             hitFlashAt(enemy.position, 1.6);
+        const float enemyScale =
+            enemyVisualScale(enemy.type) * enemyHitScale(enemy);
+        const EnemyStatusEffect& freezeStatus =
+            enemyStatusEffect(enemy, StatusEffectType::Freeze);
+        const bool frozen = freezeStatus.remaining > 0.0;
         Color modelTint = WHITE;
-        if (enemy.slowRemaining > 0.0) {
+        if (frozen) {
+            modelTint = {151, 224, 255, 255};
+        } else if (enemy.slowRemaining > 0.0) {
             modelTint = {184, 222, 255, 255};
         } else if (
             enemy.state == EnemyState::BossRamWindup) {
@@ -702,8 +727,9 @@ void App::drawWorldEntities(
                     255,
                 };
             }
-            float animationTime = enemyAnimationSeconds(
-                enemy, snapshot.elapsedSeconds);
+            float animationTime = frozen
+                ? 0.0F
+                : enemyAnimationSeconds(enemy, snapshot.elapsedSeconds);
             if (enemyDistanceSquared > 625.0F &&
                 enemy.hitAnimationRemaining <= 0.0 &&
                 enemy.state !=
@@ -714,13 +740,15 @@ void App::drawWorldEntities(
             enemyDrawInstances_.push_back({
                 .modelVisual = enemyModelVisual(enemy.type),
                 .animationVisual =
-                    enemyAnimationVisual(enemy),
+                    frozen ? EnemyAnimationVisual::Idle
+                           : enemyAnimationVisual(enemy),
                 .animationSeconds = animationTime,
                 .position = enemyPosition,
                 .yawRadians =
                     static_cast<float>(enemy.yaw),
                 .tint = modelTint,
-                .scale = enemyVisualScale(enemy.type),
+                .scale = enemyScale,
+                .lowDetail = lowDetail,
             });
             continue;
         }
@@ -760,6 +788,8 @@ void App::drawWorldEntities(
         }
         if (aimed) {
             body = {242, 118, 76, 255};
+        } else if (frozen) {
+            body = {91, 183, 225, 255};
         } else if (enemy.slowRemaining > 0.0) {
             body = {70, 128, 170, 255};
         } else if (enemy.state == EnemyState::BossRamWindup) {
@@ -767,18 +797,21 @@ void App::drawWorldEntities(
         }
         if (!renderer_->drawEnemy(
                 enemyModelVisual(enemy.type),
-                enemyAnimationVisual(enemy),
-                enemyAnimationSeconds(
+                frozen ? EnemyAnimationVisual::Idle
+                       : enemyAnimationVisual(enemy),
+                frozen ? 0.0F : enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                modelTint, enemyVisualScale(enemy.type))) {
-            DrawCube(enemyPosition, width, height, width,
+                modelTint, enemyScale)) {
+            const float hitScale = enemyHitScale(enemy);
+            DrawCube(enemyPosition, width * hitScale,
+                     height * hitScale, width * hitScale,
                      body);
             DrawSphere(
                 {enemyPosition.x,
-                 enemyPosition.y + height * 0.62F,
+                 enemyPosition.y + height * hitScale * 0.62F,
                  enemyPosition.z},
-                width * 0.52F,
+                width * hitScale * 0.52F,
                 aimed ? ORANGE : MAROON);
         }
     }
@@ -801,6 +834,101 @@ void App::drawWorldEntities(
             }
         }
     }
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const auto& enemy : snapshot.enemies) {
+        if (!enemy.active) {
+            continue;
+        }
+        const EnemyStatusEffect& freezeStatus =
+            enemyStatusEffect(enemy, StatusEffectType::Freeze);
+        if (freezeStatus.visualParameter <= 0.01) {
+            continue;
+        }
+        Vector3 position = enemyRenderPosition(enemy);
+        position.y += static_cast<float>(simulation_.terrain().getHeight(
+            enemy.position.x, enemy.position.z));
+        const float pulse = 0.5F + 0.5F * std::sin(
+            static_cast<float>(snapshot.elapsedSeconds) * 6.0F +
+            static_cast<float>(enemy.id.index) * 0.07F);
+        const bool thawing = freezeStatus.remaining > 0.0 &&
+            freezeStatus.remaining < 0.28;
+        const float thawPulse = thawing
+            ? 0.58F + 0.42F * (0.5F + 0.5F * std::sin(
+                static_cast<float>(snapshot.elapsedSeconds) * 24.0F +
+                static_cast<float>(enemy.id.index) * 0.31F))
+            : 1.0F;
+        const float effectAmount = static_cast<float>(
+            std::clamp(freezeStatus.visualParameter, 0.0, 1.0)) *
+            thawPulse;
+        DrawCircle3D(
+            {position.x, position.y + 0.035F, position.z},
+            0.48F + pulse * 0.09F,
+            {1.0F, 0.0F, 0.0F}, 90.0F,
+            {142, 229, 255, static_cast<unsigned char>(
+                150.0F * effectAmount)});
+        if (freezeStatus.remaining > 0.0 && renderer_->settings().particles) {
+            for (int mistIndex = 0; mistIndex < 1; ++mistIndex) {
+                const float mistPhase =
+                    static_cast<float>(snapshot.elapsedSeconds) *
+                        (1.4F + static_cast<float>(mistIndex) * 0.35F) +
+                    static_cast<float>(enemy.id.index) * 0.23F +
+                    static_cast<float>(mistIndex) * 3.1F;
+                DrawSphereEx(
+                    {position.x + std::cos(mistPhase) * 0.24F,
+                     position.y + 0.28F +
+                         std::sin(mistPhase * 1.17F) * 0.11F,
+                     position.z + std::sin(mistPhase) * 0.24F},
+                    0.075F + 0.018F *
+                        (0.5F + 0.5F * std::sin(mistPhase * 1.6F)),
+                    5, 5,
+                    {142, 229, 255,
+                     static_cast<unsigned char>(42.0F * effectAmount)});
+            }
+            for (int crystal = 0; crystal < 4; ++crystal) {
+                const float crystalIndex = static_cast<float>(crystal);
+                const float angle = crystalIndex * 1.5708F +
+                    static_cast<float>(enemy.id.index % 11U) * 0.19F;
+                const float height = 0.22F +
+                    (0.13F + crystalIndex * 0.025F) * effectAmount;
+                const Vector3 base{
+                    position.x + std::cos(angle) * 0.34F,
+                    position.y + 0.04F,
+                    position.z + std::sin(angle) * 0.34F};
+                const Vector3 tip{
+                    base.x + std::cos(angle) * 0.06F,
+                    base.y + height,
+                    base.z + std::sin(angle) * 0.06F};
+                DrawLine3D(base, tip, {191, 246, 255,
+                                       static_cast<unsigned char>(
+                                           185.0F * effectAmount)});
+                if (crystal % 2 == 0) {
+                    DrawSphereEx(tip, 0.045F, 5, 5,
+                                 {191, 246, 255,
+                                  static_cast<unsigned char>(
+                                      150.0F * effectAmount)});
+                }
+            }
+        }
+        if ((freezeStatus.remaining <= 0.0 || thawing) &&
+            effectAmount > 0.05F) {
+            const float crack = effectAmount * (0.5F + 0.5F * pulse);
+            for (int branch = 0; branch < 3; ++branch) {
+                const float branchIndex = static_cast<float>(branch);
+                const float angle = branchIndex * 2.0944F +
+                    static_cast<float>(enemy.id.index % 5U) * 0.21F;
+                DrawLine3D(
+                    {position.x, position.y + 0.55F, position.z},
+                    {position.x + std::cos(angle) * 0.42F * crack,
+                     position.y + 0.72F + branchIndex * 0.09F * crack,
+                     position.z + std::sin(angle) * 0.42F * crack},
+                    {223, 248, 255,
+                     static_cast<unsigned char>(190.0F * crack)});
+            }
+        }
+    }
+    EndBlendMode();
+    performanceStats_.enemyRender.sample(
+        performanceMilliseconds(enemyRenderStart));
     destroyedEnemyDrawInstances_.clear();
     destroyedEnemyDrawInstances_.reserve(
         destroyedEnemyVisuals_.size());
@@ -855,6 +983,9 @@ void App::drawWorldEntities(
             .tint = {255, 255, 255, alpha},
             .scale = enemyVisualScale(visual.type),
             .loop = false,
+            .lowDetail = distanceSquared >
+                EnemyFullDetailDistanceSquared &&
+                visual.type != EnemyType::Boss,
         });
     }
     if (!destroyedEnemyDrawInstances_.empty()) {

@@ -390,6 +390,73 @@ void App::drawPresentationEffects() {
             static_cast<float>(effect.position.z),
         };
         if (effect.type ==
+            PresentationEffectType::LootCollected) {
+            const LootRarity rarity = effect.lootRarity.value_or(
+                LootRarity::Common);
+            const Color rarityColor = lootRarityColor(rarity);
+            if (!renderer_->settings().particles) {
+                continue;
+            }
+
+            const float burstFade = 1.0F -
+                smoothstep(0.42F, 1.0F, progress);
+            BeginBlendMode(BLEND_ADDITIVE);
+
+            constexpr int ParticleCount = 24;
+            const int seedOffset = effect.entityId
+                ? static_cast<int>(effect.entityId->index % 97U)
+                : 0;
+            for (int index = 0; index < ParticleCount; ++index) {
+                const int seed = index + seedOffset * 19;
+                const float phase = effectUnit(seed, 41) * 2.0F * PI;
+                const float angle = phase +
+                    progress * (1.7F + effectUnit(seed, 42) * 1.8F);
+                // Start every shard at the item center and send it through a
+                // spherical burst. Elevation is signed, so particles spread
+                // sideways, upward and downward instead of forming a rising
+                // column above the chest.
+                const float elevation =
+                    (effectUnit(seed, 44) * 2.0F - 1.0F) * 0.85F;
+                const float travel = effect.scale * progress *
+                    (0.72F + effectUnit(seed, 43) * 1.05F);
+                const float horizontal =
+                    travel * std::cos(elevation);
+                const Vector3 direction{
+                    std::cos(angle) * std::cos(elevation),
+                    std::sin(elevation),
+                    std::sin(angle) * std::cos(elevation),
+                };
+                const Vector3 particle{
+                    origin.x + std::cos(angle) * horizontal,
+                    origin.y + travel * std::sin(elevation),
+                    origin.z + std::sin(angle) * horizontal,
+                };
+                const float size = effect.scale * (
+                    0.025F + effectUnit(seed, 45) * 0.045F) *
+                    (0.68F + burstFade * 0.72F);
+                const float alpha = burstFade *
+                    (0.58F + effectUnit(seed, 46) * 0.42F);
+                const Color particleColor = index % 5 == 0
+                    ? Fade(WHITE, alpha)
+                    : Fade(rarityColor, alpha);
+                DrawSphereEx(particle, size, 4, 4, particleColor);
+                const Vector3 tail{
+                    particle.x - direction.x * size * 3.8F,
+                    particle.y - direction.y * size * 3.8F,
+                    particle.z - direction.z * size * 3.8F,
+                };
+                DrawLine3D(tail, particle,
+                           Fade(particleColor, alpha * 0.72F));
+            }
+            DrawSphereEx(
+                origin,
+                effect.scale * (0.10F +
+                    (1.0F - smoothstep(0.05F, 0.38F, progress)) * 0.16F),
+                6, 6, Fade(WHITE, burstFade * 0.78F));
+            EndBlendMode();
+            continue;
+        }
+        if (effect.type ==
             PresentationEffectType::BuildingUpgrade) {
             renderer_->drawUpgradeEffect(
                 origin, progress, effect.scale);
@@ -597,6 +664,155 @@ void App::drawPresentationEffects() {
                     wood
                         ? Color{255, 158, 42, ringAlpha}
                         : Color{145, 196, 240, ringAlpha});
+            }
+            EndBlendMode();
+            continue;
+        }
+        if (effect.type == PresentationEffectType::IceImpact ||
+            effect.type == PresentationEffectType::IceCrack) {
+            const bool crack = effect.type == PresentationEffectType::IceCrack;
+            const float fade = 1.0F - smoothstep(0.36F, 1.0F, progress);
+            const float flash = 1.0F - smoothstep(0.02F, 0.20F, progress);
+            const float ring = smoothstep(0.02F, 0.70F, progress) * fade;
+            const float shock = 1.0F - smoothstep(
+                crack ? 0.06F : 0.04F,
+                crack ? 0.42F : 0.62F, progress);
+            BeginBlendMode(BLEND_ADDITIVE);
+            const float burstTravel = smoothstep(
+                0.0F, crack ? 0.32F : 0.24F, progress);
+            const int rayCount = crack ? 5 : 9;
+            for (int index = 0; index < rayCount; ++index) {
+                const float angle = effectUnit(index, 120) * 2.0F * PI;
+                const float vertical = crack
+                    ? 0.08F + effectUnit(index, 121) * 0.32F
+                    : -0.18F + effectUnit(index, 121) * 1.02F;
+                Vector3 direction{
+                    std::cos(angle), vertical, std::sin(angle)};
+                direction = Vector3Normalize(direction);
+                const float length = effect.scale *
+                    (0.22F + burstTravel *
+                        (0.72F + effectUnit(index, 122) * 1.18F));
+                const Vector3 start = Vector3Add(
+                    origin, Vector3Scale(direction, effect.scale * 0.05F));
+                const Vector3 end = Vector3Add(
+                    origin, Vector3Scale(direction, length));
+                DrawCylinderEx(
+                    start, end,
+                    effect.scale * (crack ? 0.018F : 0.028F) * shock,
+                    0.0F, 4,
+                    index % 3 == 0
+                        ? Color{223, 248, 255,
+                                atmosphereAlpha(shock * flash)}
+                        : Color{85, 207, 255,
+                                atmosphereAlpha(shock * 0.82F)});
+            }
+            for (int layer = 0; layer < 3; ++layer) {
+                const float layerProgress = std::clamp(
+                    progress - static_cast<float>(layer) * 0.035F,
+                    0.0F, 1.0F);
+                const float radius = effect.scale *
+                    (crack ? 0.10F + layerProgress * 0.72F
+                           : 0.20F + layerProgress * 2.65F) -
+                    static_cast<float>(layer) * (crack ? 0.025F : 0.07F);
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.025F + static_cast<float>(layer) * 0.012F, origin.z},
+                    radius, {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {142, 229, 255,
+                     atmosphereAlpha(ring * (0.86F - static_cast<float>(layer) * 0.18F))});
+            }
+            const int shardCount = crack ? 5 : 10;
+            for (int index = 0; index < shardCount; ++index) {
+                const float angle = effectUnit(index, 70) * 2.0F * PI;
+                const float speed = effect.scale *
+                    (crack ? 0.28F + effectUnit(index, 71) * 0.72F
+                           : 0.55F + effectUnit(index, 71) * 1.8F);
+                const float distance = speed * smoothstep(0.05F, 0.58F, progress);
+                const float height = effect.scale *
+                    (0.12F + effectUnit(index, 72) * 0.55F) *
+                    std::sin(progress * PI);
+                const Vector3 shard{
+                    origin.x + std::cos(angle) * distance,
+                    origin.y + height + progress *
+                        (0.22F + effectUnit(index, 73) * 0.42F),
+                    origin.z + std::sin(angle) * distance};
+                const float size = effect.scale *
+                    (0.025F + effectUnit(index, 74) * 0.055F) *
+                    (1.0F - smoothstep(0.62F, 1.0F, progress));
+                DrawLine3D(
+                    {shard.x - std::cos(angle) * size * 2.2F,
+                     shard.y - size,
+                     shard.z - std::sin(angle) * size * 2.2F},
+                    {shard.x + std::cos(angle) * size * 1.2F,
+                     shard.y + size * 2.5F,
+                     shard.z + std::sin(angle) * size * 1.2F},
+                    {191, 246, 255, atmosphereAlpha(fade * 0.78F)});
+            }
+            if (!crack) {
+                constexpr int IceChunkCount = 8;
+                for (int index = 0; index < IceChunkCount; ++index) {
+                    const float angle = effectUnit(index, 100) * 2.0F * PI;
+                    const float distance = effect.scale * progress *
+                        (0.65F + effectUnit(index, 101) * 2.25F);
+                    const float height = effect.scale *
+                        (0.72F + effectUnit(index, 102) * 2.1F) * progress -
+                        effect.scale * 2.8F * progress * progress;
+                    const Vector3 chunk{
+                        origin.x + std::cos(angle) * distance,
+                        origin.y + 0.12F + height,
+                        origin.z + std::sin(angle) * distance};
+                    const float size = effect.scale *
+                        (0.045F + effectUnit(index, 103) * 0.11F) *
+                        (1.0F - smoothstep(0.72F, 1.0F, progress));
+                    rlPushMatrix();
+                    rlTranslatef(chunk.x, chunk.y, chunk.z);
+                    rlRotatef(
+                        progress * (210.0F + effectUnit(index, 104) * 420.0F),
+                        0.35F, 0.82F, 0.24F);
+                    DrawCube(
+                        {}, size, size * 0.62F, size * 1.45F,
+                        {191, 246, 255, atmosphereAlpha(shock * 0.84F)});
+                    rlPopMatrix();
+                }
+                constexpr int IceSparkCount = 12;
+                for (int index = 0; index < IceSparkCount; ++index) {
+                    const float angle = effectUnit(index, 110) * 2.0F * PI;
+                    const float speed = effect.scale *
+                        (1.8F + effectUnit(index, 111) * 4.0F);
+                    const float distance = speed * progress;
+                    const float rise = effect.scale *
+                        (0.3F + effectUnit(index, 112) * 1.4F) * progress;
+                    const Vector3 tip{
+                        origin.x + std::cos(angle) * distance,
+                        origin.y + 0.2F + rise -
+                            effect.scale * 1.4F * progress * progress,
+                        origin.z + std::sin(angle) * distance};
+                    const float tailLength = effect.scale *
+                        (0.08F + effectUnit(index, 113) * 0.24F);
+                    const Vector3 tail{
+                        tip.x - std::cos(angle) * tailLength,
+                        tip.y - tailLength * 0.28F,
+                        tip.z - std::sin(angle) * tailLength};
+                    DrawLine3D(
+                        tail, tip,
+                        {223, 248, 255,
+                         atmosphereAlpha(shock * 0.92F)});
+                }
+            }
+            if (renderer_->settings().particles) {
+                constexpr int SnowCount = 12;
+                for (int index = 0; index < SnowCount; ++index) {
+                    const float angle = effectUnit(index, 80) * 2.0F * PI;
+                    const float distance = effect.scale *
+                        (0.2F + progress * (0.8F + effectUnit(index, 81) * 1.4F));
+                    DrawSphereEx(
+                        {origin.x + std::cos(angle) * distance,
+                         origin.y + 0.16F + progress *
+                             (0.35F + effectUnit(index, 82) * 0.8F),
+                         origin.z + std::sin(angle) * distance},
+                        effect.scale * 0.018F,
+                        4, 4,
+                        {191, 246, 255, atmosphereAlpha(fade * 0.75F)});
+                }
             }
             EndBlendMode();
             continue;

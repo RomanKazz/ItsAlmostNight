@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.hpp"
+#include "game/LootChestSystem.hpp"
 
 #include <optional>
 
@@ -14,9 +15,12 @@ enum class PresentationEffectType {
     ResourceDestroyedWood,
     ResourceDestroyedStone,
     Explosion,
+    IceImpact,
+    IceCrack,
     Debris,
     LandingDust,
     RamImpact,
+    LootCollected,
     BuildingPlaced,
     BuildingUpgrade,
     BuildingDamaged,
@@ -31,6 +35,8 @@ struct PresentationEffect {
     double duration;
     double startDelayRemaining{};
     float scale{1.0F};
+    std::optional<LootRarity> lootRarity;
+    std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };
 
 struct DamageIndicator {

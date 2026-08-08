@@ -1,5 +1,6 @@
 #include "ui/HudRenderer.hpp"
 
+#include "app/UserSettings.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiLabels.hpp"
@@ -103,6 +104,36 @@ std::string compactAmount(int amount) {
     return text;
 }
 
+std::string costText(const ResourceCost& cost) {
+    std::string result;
+    const auto append = [&result](const char* prefix, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        if (!result.empty()) {
+            result += "  ";
+        }
+        result += prefix;
+        result += std::to_string(amount);
+    };
+    append("W:", cost.wood);
+    append("S:", cost.stone);
+    append("C:", cost.gold);
+    return result.empty() ? "FREE" : result;
+}
+
+std::string actionKeyLabel(
+    const ControlSettings& controls, ControlAction action) {
+    const int key = controlKey(controls, action);
+    if (action == ControlAction::Attack) {
+        if (key == KEY_NULL) {
+            return "LMB";
+        }
+        return "LMB / " + keyboardKeyName(key);
+    }
+    return keyboardKeyName(key);
+}
+
 std::string tutorialText(const SimulationSnapshot& snapshot) {
     if (!snapshot.tutorialObjective) {
         return {};
@@ -135,7 +166,7 @@ std::string tutorialText(const SimulationSnapshot& snapshot) {
 void drawBuildingContextCard(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const BuildingInstance& building, const HudViewState& view,
-    const Camera3D& camera) {
+    const Camera3D& camera, const ControlSettings& controls) {
     constexpr float CardWidth = 760.0F;
     constexpr float CardHeight = 480.0F;
     const Vec3 buildingCenter =
@@ -384,7 +415,13 @@ void drawBuildingContextCard(
                         115.0F + glowPulse * 110.0F)),
             });
     }
-    drawUiText("Q  COPY    F  REPAIR    U  UPGRADE",
+    drawUiText(
+               actionKeyLabel(controls, ControlAction::Copy) +
+                   "  COPY    " +
+                   actionKeyLabel(controls, ControlAction::Repair) +
+                   "  REPAIR    " +
+                   actionKeyLabel(controls, ControlAction::Upgrade) +
+                   "  UPGRADE",
                {x + 24.0F, y + 340.0F}, 14.0F,
                {222, 210, 194, 255});
     std::string actions;
@@ -397,6 +434,23 @@ void drawBuildingContextCard(
     if (!actions.empty()) {
         drawUiText(actions, {x + 24.0F, y + 371.0F},
                    14.0F, {222, 210, 194, 255});
+    }
+
+    const ResourceCost repairCost = buildingRepairCost(building);
+    if (repairCost.wood > 0 || repairCost.stone > 0 ||
+        repairCost.gold > 0) {
+        drawUiText(
+            "REPAIR  " + costText(repairCost) + "  +" +
+                std::to_string(static_cast<int>(std::ceil(
+                    std::max(0.0, building.maxHealth - building.health)))) +
+                " HP",
+            {x + 24.0F, y + 399.0F}, 13.0F,
+            {255, 210, 126, 235});
+    } else if (building.health >= building.maxHealth) {
+        drawUiText(
+            "REPAIR  FULL HEALTH",
+            {x + 24.0F, y + 399.0F}, 13.0F,
+            {145, 218, 159, 225});
     }
 
     if (!snapshot.aimedBuildingUpgradeCost) {
@@ -993,7 +1047,10 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
                 : Color{143, 149, 145, 135});
     }
 
-    if (snapshot.unlimitedResources) {
+    const bool mapRevealsChests =
+        snapshot.unlimitedResources ||
+        snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
+    if (mapRevealsChests) {
         for (const LootChestInstance& chest : snapshot.lootChests) {
             const Vector2 point = mapPoint(
                 chest.position.x, chest.position.z);
@@ -1015,10 +1072,10 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
             if (chest.loot.available && !chest.loot.collected) {
                 const Color lootColor =
                     chest.loot.rarity == LootRarity::Rare
-                        ? Color{255, 210, 58, 255}
+                        ? Color{255, 170, 170, 255}
                         : chest.loot.rarity == LootRarity::Uncommon
-                            ? Color{75, 238, 119, 255}
-                            : Color{108, 192, 255, 255};
+                            ? Color{255, 228, 148, 255}
+                            : Color{185, 225, 255, 255};
                 DrawCircleV(point, 1.5F * symbolScale, lootColor);
             }
         }
@@ -1205,6 +1262,53 @@ void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
         player, 5.2F * symbolScale,
         playerColor);
 
+    if (snapshot.nearestChestPosition) {
+        const Vector2 chestPoint = mapPoint(
+            snapshot.nearestChestPosition->x,
+            snapshot.nearestChestPosition->z);
+        const Vector2 delta{
+            chestPoint.x - player.x,
+            chestPoint.y - player.y,
+        };
+        const float distance = std::sqrt(
+            delta.x * delta.x + delta.y * delta.y);
+        if (distance > 0.001F) {
+            const Vector2 directionToChest{
+                delta.x / distance, delta.y / distance};
+            const float edgeMargin = 8.0F * symbolScale;
+            const Rectangle targetBounds{
+                mapBounds.x + edgeMargin,
+                mapBounds.y + edgeMargin,
+                mapBounds.width - edgeMargin * 2.0F,
+                mapBounds.height - edgeMargin * 2.0F};
+            const Vector2 marker{
+                std::clamp(chestPoint.x,
+                           targetBounds.x,
+                           targetBounds.x + targetBounds.width),
+                std::clamp(chestPoint.y,
+                           targetBounds.y,
+                           targetBounds.y + targetBounds.height)};
+            DrawLineEx(
+                player, marker,
+                std::max(1.4F, symbolScale * 1.6F),
+                {255, 212, 91, 180});
+            const Vector2 perpendicular{
+                -directionToChest.y, directionToChest.x};
+            DrawTriangle(
+                {marker.x + directionToChest.x * 7.0F,
+                 marker.y + directionToChest.y * 7.0F},
+                {marker.x - directionToChest.x * 3.0F +
+                     perpendicular.x * 4.0F,
+                 marker.y - directionToChest.y * 3.0F +
+                     perpendicular.y * 4.0F},
+                {marker.x - directionToChest.x * 3.0F -
+                     perpendicular.x * 4.0F,
+                 marker.y - directionToChest.y * 3.0F -
+                     perpendicular.y * 4.0F},
+                {255, 220, 105, 255});
+        }
+    }
+
     if (snapshot.upcomingAttackDirection) {
         Vector2 marker{
             mapBounds.x + mapBounds.width * 0.5F,
@@ -1281,6 +1385,15 @@ void drawLootInventory(
         LootUpgradeEffect::MaximumHealth,
         LootUpgradeEffect::Apple,
         LootUpgradeEffect::Bread,
+        LootUpgradeEffect::IronBar,
+        LootUpgradeEffect::FuelJerrycan,
+        LootUpgradeEffect::Compass,
+        LootUpgradeEffect::Nail,
+        LootUpgradeEffect::Key,
+        LootUpgradeEffect::Map,
+        LootUpgradeEffect::Anvil,
+        LootUpgradeEffect::Saw,
+        LootUpgradeEffect::Potion,
     };
     int activeCount = 0;
     for (const LootUpgradeEffect effect : Effects) {
@@ -1294,20 +1407,33 @@ void drawLootInventory(
     constexpr float PanelY = 260.0F;
     constexpr float SlotSize = 46.0F;
     constexpr float Gap = 6.0F;
+    constexpr int Columns = 7;
+    const int visibleColumns = std::min(activeCount, Columns);
+    const int rows = (activeCount + Columns - 1) / Columns;
     const float panelWidth = 20.0F +
-        static_cast<float>(activeCount) * (SlotSize + Gap);
-    ui.drawPanel({PanelX, PanelY, panelWidth, 82.0F}, 210);
+        static_cast<float>(visibleColumns) * (SlotSize + Gap);
+    const float panelHeight = 36.0F +
+        static_cast<float>(rows) * (SlotSize + Gap);
+    ui.drawPanel({PanelX, PanelY, panelWidth, panelHeight}, 210);
     drawUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
                10.0F, {218, 203, 173, 235});
 
     const Vector2 mouse = GetMousePosition();
     std::optional<LootUpgradeEffect> hovered;
     int hoveredStacks = 0;
-    float slotX = PanelX + 10.0F;
+    int slotIndex = 0;
     for (const LootUpgradeEffect effect : Effects) {
         const int stacks = snapshot.lootStacks[lootUpgradeIndex(effect)];
         if (stacks <= 0) continue;
-        const Rectangle slot{slotX, PanelY + 27.0F, SlotSize, SlotSize};
+        const int column = slotIndex % Columns;
+        const int row = slotIndex / Columns;
+        const Rectangle slot{
+            PanelX + 10.0F +
+                static_cast<float>(column) * (SlotSize + Gap),
+            PanelY + 27.0F +
+                static_cast<float>(row) * (SlotSize + Gap),
+            SlotSize, SlotSize};
+        ++slotIndex;
         DrawRectangleRounded(slot, 0.22F, 5, {24, 32, 35, 235});
         DrawRectangleLinesEx(slot, 2.0F, {75, 184, 225, 245});
         const Vector2 center{slot.x + slot.width * 0.5F,
@@ -1332,6 +1458,87 @@ void drawLootInventory(
                            {x - 3.0F, loaf.y + 9.0F},
                            2.0F, {151, 94, 44, 220});
             }
+        } else if (effect == LootUpgradeEffect::IronBar) {
+            DrawRectangleRounded(
+                {center.x - 14.0F, center.y - 7.0F,
+                 28.0F, 14.0F}, 0.2F, 5,
+                {172, 187, 196, 255});
+            DrawLineEx(
+                {center.x - 8.0F, center.y - 2.0F},
+                {center.x + 8.0F, center.y + 2.0F},
+                2.0F, {93, 108, 117, 255});
+        } else if (effect == LootUpgradeEffect::FuelJerrycan) {
+            DrawRectangleRounded(
+                {center.x - 10.0F, center.y - 13.0F,
+                 20.0F, 25.0F}, 0.2F, 5,
+                {209, 151, 66, 255});
+            DrawRectangleLinesEx(
+                {center.x - 5.0F, center.y - 16.0F,
+                 10.0F, 6.0F}, 2.0F, {104, 75, 40, 255});
+        } else if (effect == LootUpgradeEffect::Compass) {
+            DrawCircleV(center, 13.0F, {171, 129, 75, 255});
+            DrawCircleLinesV(center, 13.0F, {240, 218, 155, 255});
+            DrawTriangle(
+                {center.x, center.y - 10.0F},
+                {center.x - 4.0F, center.y + 7.0F},
+                {center.x + 4.0F, center.y + 7.0F},
+                {219, 80, 62, 255});
+        } else if (effect == LootUpgradeEffect::Nail) {
+            DrawLineEx(
+                {center.x - 10.0F, center.y + 9.0F},
+                {center.x + 8.0F, center.y - 9.0F},
+                4.0F, {205, 211, 212, 255});
+            DrawCircleV(
+                {center.x - 10.0F, center.y + 9.0F},
+                4.0F, {117, 127, 132, 255});
+        } else if (effect == LootUpgradeEffect::Key) {
+            DrawCircleLinesV(
+                {center.x - 7.0F, center.y - 4.0F},
+                6.0F, {235, 198, 83, 255});
+            DrawLineEx(
+                {center.x - 1.0F, center.y + 1.0F},
+                {center.x + 12.0F, center.y + 12.0F},
+                4.0F, {235, 198, 83, 255});
+        } else if (effect == LootUpgradeEffect::Map) {
+            DrawRectangleRec(
+                {center.x - 14.0F, center.y - 10.0F,
+                 28.0F, 20.0F}, {190, 157, 101, 255});
+            DrawLineEx(
+                {center.x - 3.0F, center.y - 10.0F},
+                {center.x - 3.0F, center.y + 10.0F},
+                2.0F, {111, 83, 54, 255});
+            DrawLineEx(
+                {center.x + 5.0F, center.y - 10.0F},
+                {center.x + 5.0F, center.y + 10.0F},
+                2.0F, {111, 83, 54, 255});
+        } else if (effect == LootUpgradeEffect::Anvil) {
+            DrawRectangleRec(
+                {center.x - 14.0F, center.y - 8.0F,
+                 28.0F, 10.0F}, {159, 169, 177, 255});
+            DrawRectangleRec(
+                {center.x - 6.0F, center.y + 2.0F,
+                 12.0F, 10.0F}, {116, 126, 134, 255});
+        } else if (effect == LootUpgradeEffect::Saw) {
+            DrawLineEx(
+                {center.x - 14.0F, center.y + 7.0F},
+                {center.x + 12.0F, center.y - 7.0F},
+                4.0F, {209, 214, 215, 255});
+            for (int tooth = 0; tooth < 4; ++tooth) {
+                const float x = center.x - 8.0F +
+                    static_cast<float>(tooth) * 6.0F;
+                DrawLineEx(
+                    {x, center.y + 4.0F},
+                    {x + 3.0F, center.y + 9.0F},
+                    1.5F, {122, 130, 133, 255});
+            }
+        } else if (effect == LootUpgradeEffect::Potion) {
+            DrawRectangleRounded(
+                {center.x - 9.0F, center.y - 8.0F,
+                 18.0F, 19.0F}, 0.3F, 5,
+                {190, 70, 102, 255});
+            DrawRectangleRec(
+                {center.x - 5.0F, center.y - 14.0F,
+                 10.0F, 7.0F}, {207, 202, 185, 255});
         } else {
             const std::string initial(1, lootUpgradeName(effect)[0]);
             const Vector2 size = measureUiText(initial, 20.0F);
@@ -1355,7 +1562,6 @@ void drawLootInventory(
             hoveredStacks = stacks;
             DrawRectangleLinesEx(slot, 3.0F, {213, 246, 255, 255});
         }
-        slotX += SlotSize + Gap;
     }
 
     if (hovered) {
@@ -1382,7 +1588,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 }
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
-             const HudViewState& view, const Camera3D& camera) {
+             const HudViewState& view, const Camera3D& camera,
+             const ControlSettings& controls) {
     const float woodY = -view.woodResourceBounce;
     const float stoneY = -view.stoneResourceBounce;
     const float goldY = -view.goldResourceBounce;
@@ -1478,6 +1685,42 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     drawLootInventory(ui, snapshot);
 
+    bool chestCompassVisible = false;
+    if (snapshot.nearestChestPosition &&
+        snapshot.nearestChestDistance > 0.0) {
+        constexpr std::array<std::string_view, 8> Directions{
+            "N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        constexpr double Octant = PI * 0.25;
+        const double deltaX =
+            snapshot.nearestChestPosition->x -
+            snapshot.playerPosition.x;
+        const double deltaZ =
+            snapshot.nearestChestPosition->z -
+            snapshot.playerPosition.z;
+        double relative = std::atan2(deltaX, -deltaZ) -
+            snapshot.playerYaw;
+        while (relative <= -PI) relative += 2.0 * PI;
+        while (relative > PI) relative -= 2.0 * PI;
+        int directionIndex = static_cast<int>(std::lround(
+            relative / Octant));
+        directionIndex = (directionIndex % 8 + 8) % 8;
+        const std::string compassText =
+            "CHEST " + std::string(Directions[
+                static_cast<std::size_t>(directionIndex)]) +
+            "  " + std::to_string(static_cast<int>(
+                std::lround(snapshot.nearestChestDistance))) + "m";
+        const float compassWidth =
+            std::max(188.0F,
+                     measureUiText(compassText, 13.0F).x + 30.0F);
+        ui.drawPanel({static_cast<float>(GetScreenWidth()) * 0.5F -
+                          compassWidth * 0.5F,
+                      82.0F, compassWidth, 31.0F}, 188);
+        drawCenteredUiText(
+            compassText, 89.0F, 13.0F,
+            {255, 215, 116, 255});
+        chestCompassVisible = true;
+    }
+
     if (snapshot.state == RunState::BuildPhase ||
         snapshot.state == RunState::Sunset ||
         snapshot.state == RunState::Wave ||
@@ -1569,7 +1812,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             snapshot.phaseDuration > 0.0 &&
             snapshot.phaseDuration - snapshot.phaseTimeRemaining < 3.2;
         drawCenteredUiText(
-            objective, attackWarningVisible ? 184.0F : 91.0F,
+            objective,
+            attackWarningVisible
+                ? 184.0F
+                : chestCompassVisible ? 125.0F : 91.0F,
             16.0F,
                            {255, 224, 146, 255});
     }
@@ -1749,49 +1995,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             20.0F, {255, 194, 92, 255});
     }
 
-    if (!snapshot.buildingPreview && snapshot.aimedLoot) {
-        const auto chest = std::find_if(
-            snapshot.lootChests.begin(), snapshot.lootChests.end(),
-            [&snapshot](const LootChestInstance& value) {
-                return value.loot.id == *snapshot.aimedLoot;
-            });
-        if (chest != snapshot.lootChests.end()) {
-            const Color rarityColor =
-                chest->loot.rarity == LootRarity::Rare
-                    ? Color{255, 190, 52, 255}
-                    : chest->loot.rarity == LootRarity::Uncommon
-                        ? Color{74, 226, 112, 255}
-                        : Color{112, 184, 255, 255};
-            drawCenteredUiText(
-                std::string(lootRarityName(chest->loot.rarity)) +
-                    "  " + lootUpgradeName(chest->loot.effect),
-                static_cast<float>(GetScreenHeight() / 2 + 24),
-                19.0F, rarityColor);
-            drawCenteredUiText(
-                "[E] COLLECT",
-                static_cast<float>(GetScreenHeight() / 2 + 54),
-                15.0F, RAYWHITE);
-        }
-    } else if (!snapshot.buildingPreview && snapshot.aimedChest) {
-        const auto chest = std::find_if(
-            snapshot.lootChests.begin(), snapshot.lootChests.end(),
-            [&snapshot](const LootChestInstance& value) {
-                return value.id == *snapshot.aimedChest;
-            });
-        if (chest != snapshot.lootChests.end()) {
-            const bool affordable = snapshot.gold >= chest->goldCost;
-            drawCenteredUiText(
-                std::string("[E] OPEN ") +
-                    (chest->type == LootChestType::Wooden
-                         ? "WOODEN CHEST"
-                         : "STONE CHEST") +
-                    "  " + std::to_string(chest->goldCost) + " GOLD",
-                static_cast<float>(GetScreenHeight() / 2 + 28),
-                18.0F,
-                affordable ? Color{255, 210, 82, 255}
-                           : Color{238, 88, 68, 255});
-        }
-    } else if (snapshot.buildingPreview) {
+    if (snapshot.buildingPreview) {
         const BuildingPreview& preview = *snapshot.buildingPreview;
         const ResourceCost cost = preview.placement.cost;
         const std::string buildText =
@@ -1839,16 +2043,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             });
         if (aimed != snapshot.buildings.end()) {
             drawBuildingContextCard(
-                ui, snapshot, *aimed, view, camera);
+                ui, snapshot, *aimed, view, camera, controls);
         }
-    } else if (snapshot.aimedEnemy) {
-        drawCenteredUiText(
-            "Attack", static_cast<float>(GetScreenHeight() / 2 + 24),
-            18.0F, ORANGE);
-    } else if (snapshot.aimedResource) {
-        drawCenteredUiText(
-            "Mine", static_cast<float>(GetScreenHeight() / 2 + 24),
-            18.0F, YELLOW);
     }
 
 }

@@ -663,6 +663,50 @@ double TerrainHeightfield::getHeight(
     return interpolate(north, south, amountZ);
 }
 
+double TerrainHeightfield::getBackdropHeight(
+    double worldX, double worldZ) const {
+    if (!std::isfinite(worldX) || !std::isfinite(worldZ)) {
+        return 0.0;
+    }
+    const double halfSize = config_.terrainWorldSize * 0.5;
+    const double edgeDistance =
+        std::max(std::abs(worldX), std::abs(worldZ)) - halfSize;
+    if (edgeDistance <= 0.0) {
+        return getHeight(worldX, worldZ);
+    }
+
+    // The backdrop is deliberately wider than the in-map boundary rise so
+    // the camera sees several overlapping ridges instead of a single wall.
+    const double backdropWidth = std::max(
+        config_.terrainBoundaryRiseWidth * 2.25, 96.0);
+    const double outsideAmount = smoother(
+        edgeDistance / backdropWidth);
+    const double edgeX = std::clamp(worldX, -halfSize, halfSize);
+    const double edgeZ = std::clamp(worldZ, -halfSize, halfSize);
+    const double edgeHeight = getHeight(edgeX, edgeZ);
+
+    // Broad noise defines the mountain mass, ridged noise creates distinct
+    // crests, and the finer octave breaks up the silhouette. All fields are
+    // seeded from the same world seed, so regenerated maps stay coherent.
+    const double broad = valueNoise(
+        worldX * 0.0105,
+        worldZ * 0.0105,
+        seed_ ^ 0x6d2b79f5U) * 0.5 + 0.5;
+    const double ridgeNoise = valueNoise(
+        worldX * 0.024,
+        worldZ * 0.024,
+        seed_ ^ 0xa511e9b3U);
+    const double ridge = std::pow(
+        1.0 - std::abs(ridgeNoise), 1.55);
+    const double detail = valueNoise(
+        worldX * 0.071,
+        worldZ * 0.071,
+        seed_ ^ 0x63d83595U);
+    const double mountainRise =
+        22.0 + broad * 34.0 + ridge * 27.0 + detail * 6.0;
+    return edgeHeight + outsideAmount * mountainRise;
+}
+
 Vec3 TerrainHeightfield::getNormal(
     double worldX, double worldZ) const {
     const double step = spacing_ * 0.5;
