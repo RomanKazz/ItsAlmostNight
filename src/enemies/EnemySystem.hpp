@@ -25,6 +25,8 @@ enum class EnemyType {
     Ranged,
     Sapper,
     Flying,
+    Splitter,
+    Splitling,
 };
 
 enum class EnemyState {
@@ -69,6 +71,7 @@ struct EnemyInstance {
     double damage;
     double attackCooldownRemaining;
     double hitAnimationRemaining;
+    double spawnAnimationRemaining;
     double ramWindup;
     double ramDamageMultiplier;
     double ramCooldown;
@@ -98,6 +101,13 @@ struct EnemySpawn {
     Vec3 position;
     double healthMultiplier{1.0};
     double damageMultiplier{1.0};
+    Vec3 initialKnockbackVelocity{};
+};
+
+struct EnemySplitResult {
+    EntityId parentId;
+    Vec3 position;
+    int childCount{};
 };
 
 struct EnemyAttack {
@@ -188,6 +198,7 @@ class EnemySystem {
     std::span<const EntityId> applySlowInRadius(Vec3 position, double radius, double multiplier,
                                                double duration);
     std::size_t defeatAll();
+    [[nodiscard]] std::vector<EnemySplitResult> takeSplitEvents();
 
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
@@ -198,6 +209,9 @@ class EnemySystem {
     static constexpr std::uint32_t FirstEnemyIndex = 2000;
 
     void appendEnemy(const EnemySpawn& spawn);
+    void spawnSplitlings(
+        EntityId parentId, Vec3 position,
+        double healthMultiplier, double damageMultiplier);
     void rebuildSpatialIndex();
     [[nodiscard]] EnemyInstance* findEnemy(EntityId id);
     [[nodiscard]] const EnemyInstance* findEnemy(EntityId id) const;
@@ -207,6 +221,7 @@ class EnemySystem {
     std::vector<EnemyPlayerAttack> playerAttackBuffer_;
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
+    std::vector<EnemySplitResult> splitEventBuffer_;
     std::vector<EnemyStructureTarget> structureBuffer_;
     std::vector<EnemyStructureTarget> incomingStructureBuffer_;
     std::vector<int> structureNextBuffer_;

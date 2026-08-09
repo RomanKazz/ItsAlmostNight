@@ -5,8 +5,10 @@
 #include "core/Types.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "game/LootChestSystem.hpp"
+#include "progression/InsightSystem.hpp"
 
 #include <optional>
+#include <string>
 
 namespace ian {
 
@@ -16,6 +18,7 @@ enum class GameEventType {
     PauseChanged,
     ResourceHit,
     ResourceCollected,
+    ResourceGatherMissed,
     ResourceGranted,
     PickaxeHit,
     BuildingPlaced,
@@ -30,6 +33,7 @@ enum class GameEventType {
     PlayerDied,
     PlayerRespawned,
     EnemyKilled,
+    EnemySplit,
     SunsetStarted,
     AttackDirectionWarned,
     WaveStarted,
@@ -38,6 +42,7 @@ enum class GameEventType {
     RunEnded,
     ProjectileHit,
     GoldProduced,
+    CoinCollected,
     BuildingUpgraded,
     BuildingUpgradeRejected,
     BuildingRepaired,
@@ -60,6 +65,9 @@ enum class GameEventType {
     GateToggleRejected,
     PlayerLanded,
     PlayerDashed,
+    ModularBuildingPlaced,
+    InsightGranted,
+    ObjectiveCompleted,
     SkillPointsGranted,
     SkillUnlocked,
     IntroSkillObjectiveCompleted,
@@ -88,6 +96,17 @@ struct GameEvent {
     double damage{};
     double intensity{};
     bool critical{};
+    bool bareHands{};
+    bool largeDeposit{};
+    bool night{};
+    std::optional<std::string> objectiveId;
+    std::optional<InsightSource> insightSource;
+    double insightAmount{};
+    double insightBefore{};
+    double insightAfter{};
+    double insightRequirement{};
+    double insightDiminishingMultiplier{1.0};
+    int treePointsGranted{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };

@@ -256,9 +256,21 @@ void runEnemySystemTests() {
     const ian::EnemyCapsule basicCapsule =
         ian::enemyCapsule(ian::EnemyType::Basic);
     require(
-        std::abs(basicCapsule.radius - 0.75) < 1e-9 &&
-            std::abs(basicCapsule.segmentHalfHeight - 0.44) < 1e-9,
-        "basic Pink Blob uses its enlarged gameplay collider");
+        std::abs(basicCapsule.radius - 0.8625) < 1e-9 &&
+            std::abs(basicCapsule.segmentHalfHeight - 0.506) < 1e-9,
+        "basic Pink Blob uses its fifteen-percent larger gameplay collider");
+    const ian::EnemyCapsule fastCapsule =
+        ian::enemyCapsule(ian::EnemyType::Fast);
+    require(
+        std::abs(fastCapsule.radius - 0.408) < 1e-9 &&
+            std::abs(fastCapsule.segmentHalfHeight - 0.312) < 1e-9,
+        "fast Ninja uses its twenty-percent larger gameplay collider");
+    const ian::EnemyCapsule heavyCapsule =
+        ian::enemyCapsule(ian::EnemyType::Heavy);
+    require(
+        std::abs(heavyCapsule.radius - 0.84) < 1e-9 &&
+            std::abs(heavyCapsule.segmentHalfHeight - 0.63) < 1e-9,
+        "heavy Mushnub uses its fifty-percent larger gameplay collider");
 
     ian::EnemySystem typedEnemies;
     constexpr std::array<ian::EnemySpawn, 3> TypedSpawns{{
@@ -274,6 +286,48 @@ void runEnemySystemTests() {
             "heavy enemy uses slow high-health stats");
     require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 70.0,
             "boss uses final-wave stats");
+
+    ian::EnemySystem splitterEnemies;
+    constexpr std::array<ian::EnemySpawn, 1> SplitterSpawn{{{
+        .type = ian::EnemyType::Splitter,
+        .position = {0.0, 1.05, -5.0},
+        .healthMultiplier = 1.5,
+        .damageMultiplier = 1.25,
+    }}};
+    splitterEnemies.spawnWave(SplitterSpawn);
+    const ian::EntityId splitterId =
+        splitterEnemies.enemies().front().id;
+    const auto splitterDeath =
+        splitterEnemies.damage(splitterId, 1000.0);
+    require(
+        splitterDeath && splitterDeath->killed &&
+            splitterEnemies.activeCount() == 3,
+        "splitter death atomically creates three living children");
+    const auto splitEvents = splitterEnemies.takeSplitEvents();
+    require(
+        splitEvents.size() == 1U &&
+            splitEvents.front().parentId == splitterId &&
+            splitEvents.front().childCount == 3,
+        "splitter emits one confirmed split event");
+    std::optional<ian::EntityId> firstSplitling;
+    for (const ian::EnemyInstance& enemy : splitterEnemies.enemies()) {
+        if (!enemy.active) {
+            continue;
+        }
+        require(
+            enemy.type == ian::EnemyType::Splitling &&
+                std::abs(enemy.maxHealth - 4.5) < 1e-9 &&
+                std::abs(enemy.damage - 8.75) < 1e-9 &&
+                std::hypot(enemy.knockbackVelocity.x,
+                           enemy.knockbackVelocity.z) > 3.7,
+            "split children inherit scaling and launch outwards");
+        firstSplitling = enemy.id;
+    }
+    require(firstSplitling.has_value(), "split creates targetable children");
+    require(
+        splitterEnemies.damage(*firstSplitling, 1000.0)->killed &&
+            splitterEnemies.takeSplitEvents().empty(),
+        "split children cannot recursively split");
 
     ian::EnemySystem scaledEnemy;
     constexpr std::array<ian::EnemySpawn, 1> ScaledSpawn{{

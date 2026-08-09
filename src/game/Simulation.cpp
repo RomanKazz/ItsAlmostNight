@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -33,6 +35,19 @@ MapDefinition constrainMapToPlayableTerrain(
     return map;
 }
 
+std::uint64_t initialRunSeedState(std::uint32_t configuredSeed) {
+    static std::atomic<std::uint64_t> sequence{};
+    const auto now = static_cast<std::uint64_t>(
+        std::chrono::high_resolution_clock::now()
+            .time_since_epoch()
+            .count());
+    return mixBits64(
+        now ^
+        (sequence.fetch_add(1, std::memory_order_relaxed) + 1U) *
+            0x9e3779b97f4a7c15ULL ^
+        static_cast<std::uint64_t>(configuredSeed));
+}
+
 } // namespace
 
 Vec3 Simulation::lookDirection(double yaw, double pitch) {
@@ -47,11 +62,14 @@ Vec3 Simulation::lookDirection(double yaw, double pitch) {
 Simulation::Simulation(
     GameBalance balance, MapDefinition map,
     WorldConfig worldConfig,
-    std::vector<SkillNodeDefinition> skills)
+    std::vector<SkillNodeDefinition> skills,
+    InsightConfig insightConfig,
+    std::vector<ObjectiveDefinition> objectiveDefinitions)
     : map_(constrainMapToPlayableTerrain(
           std::move(map), worldConfig)),
       worldConfig_(worldConfig),
       terrain_(worldConfig_),
+      runSeedState_(initialRunSeedState(worldConfig_.terrainSeed)),
       foundations_(terrain_, worldConfig_),
       platformCollisionAsset_(loadGlbCollisionAsset(
           "assets/models/platform.glb")),
@@ -99,6 +117,8 @@ Simulation::Simulation(
       flowField_(mapCollisionBoxes(map_), &terrain_),
       enemies_(balance.enemies),
       playerWeapons_(balance.weapons.rifle), skillTree_(std::move(skills)),
+      insight_(std::move(insightConfig)),
+      objectives_(std::move(objectiveDefinitions)),
       bombs_(balance.weapons.bomb),
       iceWand_(balance.weapons.iceWand),
       goldMines_(balance.economy),
@@ -136,6 +156,20 @@ void Simulation::restartRun() {
     resetRun(GameEventType::RunRestarted);
 }
 
+std::uint32_t Simulation::nextRunTerrainSeed() {
+    runSeedState_ += 0x9e3779b97f4a7c15ULL;
+    std::uint32_t seed = static_cast<std::uint32_t>(
+        mixBits64(runSeedState_));
+    if (seed == terrain_.seed()) {
+        seed = static_cast<std::uint32_t>(
+            mixBits64(runSeedState_ + 0x9e3779b97f4a7c15ULL));
+        if (seed == terrain_.seed()) {
+            ++seed;
+        }
+    }
+    return seed;
+}
+
 void Simulation::returnToMainMenu() {
     invalidateSnapshotCache();
     state_ = RunState::MainMenu;
@@ -148,6 +182,17 @@ void Simulation::returnToMainMenu() {
 void Simulation::resetRun(GameEventType eventType) {
     invalidateSnapshotCache();
     ++structuralRevision_;
+    terrain_.generate(nextRunTerrainSeed());
+    resources_ = ResourceSystem(
+        scatterResources(
+            map_.resources, map_.worldLimit, terrain_),
+        [this](double x, double z) {
+            return terrain_.getHeight(x, z);
+        },
+        [this](double x, double z, double radius) {
+            return terrain_.waterSignedDistance(x, z) >=
+                radius + 0.8;
+        });
     state_ = RunState::Gathering;
     stateBeforePause_ = RunState::Gathering;
     tick_ = 0;
@@ -184,6 +229,9 @@ void Simulation::resetRun(GameEventType eventType) {
     wood_ = 0;
     stone_ = 0;
     gold_ = 0;
+    coins_ = 0;
+    coinPickups_.reset();
+    rewardedEnemyCoins_.clear();
     pendingResourceGrants_.clear();
     unlimitedResources_ = false;
     playerInvulnerable_ = false;
@@ -234,6 +282,9 @@ void Simulation::resetRun(GameEventType eventType) {
     traps_.reset();
     playerWeapons_.reset();
     skillTree_.reset();
+    insight_.reset();
+    objectives_.reset();
+    insightRewardedEnemyIds_.clear();
     bareHandsWoodGathered_ = 0;
     bareHandsStoneGathered_ = 0;
     introSkillObjectiveCompleted_ = false;
@@ -255,6 +306,8 @@ void Simulation::resetRun(GameEventType eventType) {
     upcomingAttackDirection_.reset();
     currentWaveHasBoss_ = false;
     modularTargetBuffer_.clear();
+    collisionWorld_.syncPondLilySurfaces(
+        generatePondLilyPlacements(terrain_));
     events_.clear();
     events_.push_back({.type = eventType});
 }
@@ -281,6 +334,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         return;
     }
     invalidateSnapshotCache();
+    const std::size_t firstInsightEvent = events_.size();
 
     updatePlayerRespawn(deltaSeconds);
     updateFortifications(deltaSeconds);
@@ -345,7 +399,19 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
+    for (const EnemySplitResult& split : enemies_.takeSplitEvents()) {
+        events_.push_back({
+            .type = GameEventType::EnemySplit,
+            .entityId = split.parentId,
+            .position = split.position,
+            .amount = split.childCount,
+            .intensity = 1.0,
+        });
+    }
     updateLootEffects(deltaSeconds);
+    updateCoinPickups(deltaSeconds);
+    processObjectiveEvents(firstInsightEvent);
+    processInsightEvents(firstInsightEvent, command.defeatAllEnemies.has_value());
 
     ++tick_;
     elapsedSeconds_ += deltaSeconds;

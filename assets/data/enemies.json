@@ -5,6 +5,8 @@
   "ranged": { "health": 7.0, "speed": 1.5, "damage": 12.0 },
   "sapper": { "health": 10.0, "speed": 1.8, "damage": 17.0 },
   "flying": { "health": 5.0, "speed": 2.6, "damage": 12.0 },
+  "splitter": { "health": 12.0, "speed": 1.55, "damage": 18.0 },
+  "splitling": { "health": 3.0, "speed": 2.8, "damage": 7.0 },
   "boss": {
     "health": 70.0,
     "speed": 0.9,

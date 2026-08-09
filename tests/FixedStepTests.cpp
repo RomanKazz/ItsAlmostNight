@@ -14,6 +14,7 @@ void runFlowFieldTests();
 void runSpatialHashTests();
 void runTowerSystemTests();
 void runGoldMineSystemTests();
+void runCoinPickupSystemTests();
 void runWaveDirectorTests();
 void runCannonSystemTests();
 void runTrapSystemTests();
@@ -40,6 +41,8 @@ void runSkillTreeTests();
 void runSaturatingArithmeticTests();
 void runUserSettingsTests();
 void runLootChestSystemTests();
+void runInsightSystemTests();
+void runObjectiveSystemTests();
 
 namespace {
 
@@ -105,6 +108,8 @@ int main() {
     runPlacementLineTests();
     runGlbCollisionTests();
     runSkillTreeTests();
+    runInsightSystemTests();
+    runObjectiveSystemTests();
     runBuildingSystemTests();
     runCollisionWorldTests();
     runEnemySystemTests();
@@ -113,6 +118,7 @@ int main() {
     runSpatialHashTests();
     runTowerSystemTests();
     runGoldMineSystemTests();
+    runCoinPickupSystemTests();
     runWaveDirectorTests();
     runCannonSystemTests();
     runTrapSystemTests();

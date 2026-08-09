@@ -12,9 +12,15 @@
 void runMapDefinitionTests() {
     const auto asset = ian::loadMapDefinition("assets/maps/graybox.json");
     require(asset.valid() && asset.map.worldLimit == 192.0 &&
-                asset.map.resources.size() == 7 &&
+                asset.map.resources.size() == 8 &&
                 asset.map.enemySpawnAnchors.size() == 4,
             "large graybox map loads");
+    require(std::ranges::any_of(
+                asset.map.resources,
+                [](const ian::ResourceNodeDefinition& resource) {
+                    return resource.yield >= 30;
+                }),
+            "graybox contains a completable large deposit objective");
     ian::Simulation expandedWorld{
         ian::GameBalance::defaults(), asset.map,
         ian::WorldConfig::defaults()};

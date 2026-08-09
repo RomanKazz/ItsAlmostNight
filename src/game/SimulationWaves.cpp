@@ -116,9 +116,8 @@ void Simulation::completeWave() {
     events_.push_back({
         .type = GameEventType::WaveCompleted,
         .amount = wave_,
+        .critical = currentWaveHasBoss_,
     });
-    grantSkillPoints(currentWaveHasBoss_ ? 2 : 1,
-                     currentWaveHasBoss_ ? SkillPointSource::Boss : SkillPointSource::Wave);
     currentWaveHasBoss_ = false;
     const int reward = saturatingMultiplyNonNegative(
         economy_.waveRewardPerWave, wave_);

@@ -15,7 +15,8 @@
     {"type": "wood", "position": {"x": -8.0, "y": 1.0, "z": -9.0}, "radius": 1.0, "health": 3.0, "yield": 15, "respawnSeconds": 12.0},
     {"type": "stone", "position": {"x": 3.0, "y": 0.8, "z": 4.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0},
     {"type": "stone", "position": {"x": 8.0, "y": 0.8, "z": -1.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0},
-    {"type": "stone", "position": {"x": -6.0, "y": 0.8, "z": -5.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0}
+    {"type": "stone", "position": {"x": -6.0, "y": 0.8, "z": -5.0}, "radius": 0.9, "health": 4.0, "yield": 12, "respawnSeconds": 15.0},
+    {"type": "stone", "position": {"x": 140.0, "y": 0.8, "z": 140.0}, "radius": 1.6, "health": 25.0, "yield": 80, "respawnSeconds": 180.0}
   ],
   "obstacles": []
 }

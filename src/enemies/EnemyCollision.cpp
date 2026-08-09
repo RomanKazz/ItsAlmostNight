@@ -39,17 +39,8 @@ constexpr int CollisionCellCount =
     return z * CollisionGridSize + x;
 }
 
-[[nodiscard]] EnemyCapsule physicalEnemyCapsule(EnemyType type) {
-    if (type == EnemyType::Basic) {
-        // Keep crowd spacing compact even though the Pink Blob deliberately
-        // has a very forgiving combat hit capsule.
-        return {.radius = 0.60, .segmentHalfHeight = 0.44};
-    }
-    return enemyCapsule(type);
-}
-
 [[nodiscard]] double capsuleMass(EnemyType type) {
-    const double radius = physicalEnemyCapsule(type).radius;
+    const double radius = enemyPhysicalCapsule(type).radius;
     if (type == EnemyType::Boss) {
         return radius * radius * 3.0;
     }
@@ -67,9 +58,9 @@ constexpr int CollisionCellCount =
         return false;
     }
     const EnemyCapsule leftCapsule =
-        physicalEnemyCapsule(left.type);
+        enemyPhysicalCapsule(left.type);
     const EnemyCapsule rightCapsule =
-        physicalEnemyCapsule(right.type);
+        enemyPhysicalCapsule(right.type);
     const double verticalDistance =
         std::abs(left.position.y - right.position.y);
     return verticalDistance <=
@@ -86,8 +77,8 @@ constexpr int CollisionCellCount =
     }
 
     const double minimumDistance =
-        physicalEnemyCapsule(left.type).radius +
-        physicalEnemyCapsule(right.type).radius +
+        enemyPhysicalCapsule(left.type).radius +
+        enemyPhysicalCapsule(right.type).radius +
         ContactPadding;
     double offsetX = right.position.x - left.position.x;
     double offsetZ = right.position.z - left.position.z;
@@ -146,7 +137,7 @@ constexpr int CollisionCellCount =
 
     const Vec3 center = structure.position;
     const double minimumDistance =
-        physicalEnemyCapsule(enemy.type).radius +
+        enemyPhysicalCapsule(enemy.type).radius +
         structure.radius;
     double offsetX = enemy.position.x - center.x;
     double offsetZ = enemy.position.z - center.z;
@@ -174,9 +165,13 @@ constexpr int CollisionCellCount =
 EnemyCapsule enemyCapsule(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
-        return {.radius = 0.34, .segmentHalfHeight = 0.26};
+        // Ninja has a broader animated silhouette than the previous Fast
+        // model. Enlarge both capsule dimensions by exactly 20%.
+        return {.radius = 0.408, .segmentHalfHeight = 0.312};
     case EnemyType::Heavy:
-        return {.radius = 0.56, .segmentHalfHeight = 0.42};
+        // Mushnub Evolved is substantially broader and taller than the old
+        // Heavy model: enlarge both capsule dimensions by exactly 50%.
+        return {.radius = 0.84, .segmentHalfHeight = 0.63};
     case EnemyType::Boss:
         return {.radius = 0.92, .segmentHalfHeight = 0.62};
     case EnemyType::Ranged:
@@ -185,17 +180,29 @@ EnemyCapsule enemyCapsule(EnemyType type) {
         return {.radius = 0.44, .segmentHalfHeight = 0.30};
     case EnemyType::Flying:
         return {.radius = 0.42, .segmentHalfHeight = 0.24};
+    case EnemyType::Splitter:
+        return {.radius = 0.92, .segmentHalfHeight = 0.68};
+    case EnemyType::Splitling:
+        return {.radius = 0.46, .segmentHalfHeight = 0.31};
     case EnemyType::Basic:
         // Pink Blob has a broad, rounded silhouette, so its gameplay capsule
         // needs to cover more of the visible body than the old minion did.
-        return {.radius = 0.75, .segmentHalfHeight = 0.44};
+        // Crowd spacing remains compact in enemyPhysicalCapsule().
+        return {.radius = 0.8625, .segmentHalfHeight = 0.506};
     }
     return {.radius = 0.43, .segmentHalfHeight = 0.32};
 }
 
+EnemyCapsule enemyPhysicalCapsule(EnemyType type) {
+    if (type == EnemyType::Basic) {
+        return {.radius = 0.60, .segmentHalfHeight = 0.44};
+    }
+    return enemyCapsule(type);
+}
+
 double maximumGroundStructureInteractionHeight(
     EnemyType type, double enemyCenterHeight) {
-    const EnemyCapsule capsule = physicalEnemyCapsule(type);
+    const EnemyCapsule capsule = enemyPhysicalCapsule(type);
     constexpr double ReachAboveBody = 0.85;
     return enemyCenterHeight +
            capsule.segmentHalfHeight + capsule.radius +

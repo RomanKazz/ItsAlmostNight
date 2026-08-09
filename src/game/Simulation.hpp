@@ -11,12 +11,15 @@
 #include "combat/TrapSystem.hpp"
 #include "core/Types.hpp"
 #include "economy/GoldMineSystem.hpp"
+#include "economy/CoinPickupSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "game/GameEvent.hpp"
 #include "game/GameBalance.hpp"
 #include "game/LootChestSystem.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "progression/SkillTree.hpp"
+#include "progression/InsightSystem.hpp"
+#include "progression/ObjectiveSystem.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -26,6 +29,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <unordered_set>
 #include <vector>
 
 namespace ian {
@@ -35,6 +39,9 @@ inline constexpr double ResourcePickupFlightSeconds = 0.78;
 struct StartWaveEarlyCommand {};
 struct EnableUnlimitedResourcesCommand {};
 struct ToggleWeaponCommand {};
+struct SelectWeaponCommand {
+    PlayerWeapon weapon{PlayerWeapon::BareHands};
+};
 struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
 struct InteractCommand {};
@@ -84,6 +91,7 @@ struct PlayerCommand {
     std::optional<RepairBuildingCommand> repairBuilding;
     std::optional<SellBuildingCommand> sellBuilding;
     std::optional<ToggleWeaponCommand> toggleWeapon;
+    std::optional<SelectWeaponCommand> selectWeapon;
     std::optional<UpgradeWeaponCommand> upgradeWeapon;
     std::optional<UseConsumableCommand> useConsumable;
     std::optional<InteractCommand> interact;
@@ -152,6 +160,8 @@ struct SimulationSnapshot {
     int wood;
     int stone;
     int gold;
+    int coins;
+    std::span<const CoinPickup> coinPickups;
     std::optional<EntityId> aimedChest;
     std::optional<EntityId> aimedLoot;
     std::span<const LootChestInstance> lootChests;
@@ -165,6 +175,7 @@ struct SimulationSnapshot {
     double chestOpeningCostMultiplier;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
+    double aimedResourceEfficiency{1.0};
     std::span<const ResourceNode> resourceNodes;
     double worldLimit;
     double worldCellSize;
@@ -220,6 +231,7 @@ struct SimulationSnapshot {
     bool playerInvulnerable;
     bool automaticToolSwitch;
     bool holdToGather;
+    std::array<bool, PlayerWeaponCount> unlockedWeapons;
     PlayerWeapon selectedWeapon;
     double selectedWeaponDamage;
     int rifleLevel;
@@ -235,9 +247,21 @@ struct SimulationSnapshot {
     int tutorialStoneTarget;
     std::optional<TutorialObjective> tutorialObjective;
     int skillPoints;
+    double currentInsight;
+    double requiredInsight;
+    double totalInsightEarned;
+    int totalTreePointsEarned;
+    std::span<const ObjectiveStatus> objectives;
+    std::array<int, 3> recommendedObjectives;
     int bareHandsWoodGathered;
     int bareHandsStoneGathered;
     bool introSkillObjectiveCompleted;
+};
+
+struct ProgressionRunState {
+    SkillTreeRunState skillTree;
+    InsightRunState insight;
+    ObjectiveRunState objectives;
 };
 
 class Simulation {
@@ -250,7 +274,11 @@ class Simulation {
                         WorldConfig worldConfig =
                             WorldConfig::defaults(),
                         std::vector<SkillNodeDefinition> skills =
-                            SkillTree::defaultDefinitions());
+                            SkillTree::defaultDefinitions(),
+                        InsightConfig insightConfig =
+                            InsightConfig::defaults(),
+                        std::vector<ObjectiveDefinition> objectives =
+                            ObjectiveSystem::defaultDefinitions());
 
     void startRun();
     void restartRun();
@@ -258,7 +286,8 @@ class Simulation {
     void togglePause();
     void tick(double deltaSeconds, const PlayerCommand& command = {});
 
-    [[nodiscard]] SimulationSnapshot snapshot() const;
+    // Reference remains valid until Simulation is mutated.
+    [[nodiscard]] const SimulationSnapshot& snapshot() const;
     [[nodiscard]] const EnemyPerformanceStats&
     enemyPerformanceStats() const;
     [[nodiscard]] PlacementResult previewPlacement(
@@ -318,6 +347,10 @@ class Simulation {
         LootRarity rarity = LootRarity::Common);
     [[nodiscard]] SkillTreeRunState saveSkillTreeState() const;
     [[nodiscard]] bool loadSkillTreeState(const SkillTreeRunState& state);
+    [[nodiscard]] ProgressionRunState saveProgressionState() const;
+    [[nodiscard]] bool loadProgressionState(const ProgressionRunState& state);
+    [[nodiscard]] const InsightSystem& insightSystem() const;
+    [[nodiscard]] const ObjectiveSystem& objectiveSystem() const;
 
   private:
     [[nodiscard]] static Vec3 lookDirection(double yaw,
@@ -384,10 +417,20 @@ class Simulation {
     void applyLootPickup(const LootPickup& pickup);
     void applyPotionWaveStart();
     void updateLootEffects(double deltaSeconds);
+    void updateCoinPickups(double deltaSeconds);
+    [[nodiscard]] double resourceToolEfficiency(
+        PlayerWeapon tool, ResourceType resource) const;
     [[nodiscard]] double playerPermanentMaxHealth() const;
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
     void invalidateSnapshotCache();
+    void processInsightEvents(std::size_t firstEvent, bool suppressEnemyRewards);
+    void processInsightEvent(const GameEvent& event);
+    void processObjectiveEvents(std::size_t firstEvent);
+    void grantConfiguredInsight(double amount, InsightSource source,
+                                InsightCategory category,
+                                const InsightGrantContext& context);
+    [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};
     RunState stateBeforePause_{RunState::Gathering};
@@ -396,6 +439,7 @@ class Simulation {
     MapDefinition map_;
     WorldConfig worldConfig_;
     TerrainHeightfield terrain_;
+    std::uint64_t runSeedState_{};
     FoundationSystem foundations_;
     int modularPlacementBatchDepth_{};
     bool modularStructuresDirty_{};
@@ -427,6 +471,9 @@ class Simulation {
     int wood_{};
     int stone_{};
     int gold_{};
+    int coins_{};
+    CoinPickupSystem coinPickups_;
+    std::unordered_set<std::uint64_t> rewardedEnemyCoins_;
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts_;
     struct PendingResourceGrant {
@@ -464,6 +511,9 @@ class Simulation {
     TrapSystem traps_;
     PlayerWeaponSystem playerWeapons_;
     SkillTree skillTree_;
+    InsightSystem insight_;
+    ObjectiveSystem objectives_;
+    std::unordered_set<std::uint64_t> insightRewardedEnemyIds_;
     BombSystem bombs_;
     IceWandSystem iceWand_;
     GoldMineSystem goldMines_;

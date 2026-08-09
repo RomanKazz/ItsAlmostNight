@@ -53,8 +53,21 @@ void runWaveDirectorTests() {
         const double distanceFromMovedCore = std::hypot(
             spawn.position.x - 3.0,
             spawn.position.z + 2.0);
-        require(distanceFromMovedCore >= 20.0,
-                "wave spawn remains outside base around moved core");
+        require(
+            distanceFromMovedCore >= 20.0 &&
+                distanceFromMovedCore <= 30.0 + 1e-9,
+            "wave spawn stays inside the safe ring around a moved core");
+    }
+
+    const auto edgeBaseWave = director.buildWave(6, {150, -140});
+    for (const auto& spawn : edgeBaseWave.spawns) {
+        const double distanceFromEdgeBase = std::hypot(
+            spawn.position.x - 150.0,
+            spawn.position.z + 140.0);
+        require(
+            distanceFromEdgeBase >= 20.0 &&
+                distanceFromEdgeBase <= 30.0 + 1e-9,
+            "map anchors cannot place enemies too far from an edge base");
     }
 
     const auto finalWave = director.buildWave(6, {0, 0});

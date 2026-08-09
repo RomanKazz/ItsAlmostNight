@@ -27,6 +27,10 @@ double enemyHeight(EnemyType type) {
         return 0.78;
     case EnemyType::Flying:
         return 2.4;
+    case EnemyType::Splitter:
+        return 1.05;
+    case EnemyType::Splitling:
+        return 0.55;
     case EnemyType::Basic:
         return 0.8;
     }
@@ -181,6 +185,42 @@ void Simulation::processDebugCommands(
         cycleUnlockedTool();
         selectedBuilding_.reset();
         buildingPreview_.reset();
+    }
+    if (command.selectWeapon) {
+        const PlayerWeapon weapon = command.selectWeapon->weapon;
+        bool unlocked = weapon == PlayerWeapon::BareHands;
+        switch (weapon) {
+        case PlayerWeapon::BareHands: break;
+        case PlayerWeapon::Axe:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockAxe);
+            break;
+        case PlayerWeapon::Pickaxe:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockPickaxe);
+            break;
+        case PlayerWeapon::Club:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockClub);
+            break;
+        case PlayerWeapon::IceWand:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockIceWand);
+            break;
+        case PlayerWeapon::Hammer:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockHammer);
+            break;
+        case PlayerWeapon::Rifle:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockRifle);
+            break;
+        }
+        if (unlocked) {
+            playerWeapons_.selectWeapon(weapon);
+            selectedBuilding_.reset();
+            buildingPreview_.reset();
+        }
     }
     if (command.upgradeWeapon) {
         const auto core = buildings_.core();

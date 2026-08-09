@@ -7,7 +7,7 @@
 #include <limits>
 
 namespace ian {
-SimulationSnapshot Simulation::snapshot() const {
+const SimulationSnapshot& Simulation::snapshot() const {
     if (snapshotCache_) {
         return *snapshotCache_;
     }
@@ -65,6 +65,10 @@ SimulationSnapshot Simulation::snapshot() const {
     case PlayerWeapon::Pickaxe: break;
     }
     heldDamage *= playerDamageMultiplier_;
+    std::array<int, 3> recommendedObjectives{-1, -1, -1};
+    const auto recommended = objectives_.recommended(recommendedObjectives.size());
+    for (std::size_t index = 0; index < recommended.size(); ++index)
+        recommendedObjectives[index] = static_cast<int>(recommended[index]);
     snapshotCache_ = SimulationSnapshot{
         .state = state_,
         .tick = tick_,
@@ -94,6 +98,8 @@ SimulationSnapshot Simulation::snapshot() const {
         .wood = wood_,
         .stone = stone_,
         .gold = gold_,
+        .coins = coins_,
+        .coinPickups = coinPickups_.pickups(),
         .aimedChest = aimedChest_,
         .aimedLoot = aimedLoot_,
         .lootChests =
@@ -111,6 +117,21 @@ SimulationSnapshot Simulation::snapshot() const {
             chestOpeningCostMultiplier_,
         .pickaxeCooldownRemaining = pickaxeCooldownRemaining_,
         .aimedResource = aimedResource_,
+        .aimedResourceEfficiency = [this]() {
+            if (!aimedResource_) return 1.0;
+            const auto resource = std::ranges::find(
+                resources_.nodes(), *aimedResource_,
+                &ResourceNode::id);
+            if (playerWeapons_.selectedWeapon() ==
+                PlayerWeapon::BareHands) {
+                return 0.25;
+            }
+            return resource != resources_.nodes().end()
+                ? resourceToolEfficiency(
+                      playerWeapons_.selectedWeapon(),
+                      resource->type)
+                : 1.0;
+        }(),
         .resourceNodes = std::span<const ResourceNode>{resources_.nodes()},
         .worldLimit = map_.worldLimit,
         .worldCellSize = worldConfig_.cellSize,
@@ -194,6 +215,21 @@ SimulationSnapshot Simulation::snapshot() const {
             SkillEffect::AutoSwitchTools),
         .holdToGather = skillTree_.hasEffect(
             SkillEffect::HoldToGather),
+        .unlockedWeapons = {
+            true,
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockAxe),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockPickaxe),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockClub),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockIceWand),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockHammer),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockRifle),
+        },
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = heldDamage,
         .rifleLevel = playerWeapons_.rifleLevel(),
@@ -216,6 +252,12 @@ SimulationSnapshot Simulation::snapshot() const {
         .skillPoints = unlimitedResources_
             ? std::numeric_limits<int>::max()
             : skillTree_.points(),
+        .currentInsight = insight_.progress().currentInsight,
+        .requiredInsight = insight_.progress().requiredInsight,
+        .totalInsightEarned = insight_.progress().totalInsightEarned,
+        .totalTreePointsEarned = insight_.progress().totalTreePointsEarned,
+        .objectives = objectives_.statuses(),
+        .recommendedObjectives = recommendedObjectives,
         .bareHandsWoodGathered = std::min(bareHandsWoodGathered_, 15),
         .bareHandsStoneGathered = std::min(bareHandsStoneGathered_, 10),
         .introSkillObjectiveCompleted = introSkillObjectiveCompleted_,

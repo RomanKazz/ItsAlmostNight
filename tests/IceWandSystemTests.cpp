@@ -53,4 +53,29 @@ void runIceWandSystemTests() {
                 ian::enemyStatusEffect(
                     boss, ian::StatusEffectType::Slow).intensity == 0.35,
             "boss converts freeze into the configured slow status");
+
+    ian::IceWandBalanceDefinition lethalBalance = balance;
+    lethalBalance.directDamage = 20.0;
+    ian::EnemySystem splitterEnemies;
+    splitterEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
+        {ian::EnemyType::Splitter, {0.0, 1.05, -2.0}},
+    }});
+    ian::IceWandSystem splitterWand{lethalBalance};
+    require(
+        splitterWand.requestFire(
+            {0.0, 1.05, 0.0}, {0.0, 0.0, -1.0}),
+        "splitter fixture accepts a lethal wand charge");
+    splitterWand.tick(0.12, splitterEnemies, nullptr, {});
+    require(
+        splitterEnemies.activeCount() == 3,
+        "one ice impact cannot kill a splitter and its newborn children");
+    for (const ian::EnemyInstance& enemy : splitterEnemies.enemies()) {
+        if (!enemy.active) {
+            continue;
+        }
+        require(
+            enemy.type == ian::EnemyType::Splitling &&
+                enemy.health == enemy.maxHealth,
+            "newborn splitlings leave the creating ice impact unharmed");
+    }
 }

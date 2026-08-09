@@ -15,6 +15,28 @@ constexpr double LootProximityPickupRadius = 2.0;
 
 } // namespace
 
+double Simulation::resourceToolEfficiency(
+    PlayerWeapon tool, ResourceType resource) const {
+    if (tool == PlayerWeapon::BareHands) {
+        // Bare Hands already receives its 25% multiplier in the common melee
+        // damage calculation.
+        return 1.0;
+    }
+    if ((tool == PlayerWeapon::Axe &&
+         resource == ResourceType::Wood) ||
+        (tool == PlayerWeapon::Pickaxe &&
+         resource == ResourceType::Stone)) {
+        return 1.0;
+    }
+    if (tool == PlayerWeapon::Axe) {
+        return gameplay_.axeStoneEfficiency;
+    }
+    if (tool == PlayerWeapon::Pickaxe) {
+        return gameplay_.pickaxeWoodEfficiency;
+    }
+    return 0.0;
+}
+
 void Simulation::updatePlayerActions(
     double deltaSeconds, const PlayerCommand& command) {
     const auto production = goldMines_.tick(deltaSeconds);
@@ -37,6 +59,7 @@ void Simulation::updatePlayerActions(
                 .buildingType = produced.buildingType,
                 .position = productionPosition,
                 .amount = produced.amount,
+                .night = state_ == RunState::Sunset || state_ == RunState::Wave,
             });
         } else {
             const ResourceType resourceType =
@@ -104,13 +127,6 @@ void Simulation::updatePlayerActions(
                 buildingPreview_.reset();
             }
         }
-    }
-    if (aimedResource_ && heldTool != PlayerWeapon::BareHands) {
-        const auto node = std::ranges::find(resources_.nodes(), *aimedResource_, &ResourceNode::id);
-        const bool matching = node != resources_.nodes().end() &&
-            ((heldTool == PlayerWeapon::Axe && node->type == ResourceType::Wood) ||
-             (heldTool == PlayerWeapon::Pickaxe && node->type == ResourceType::Stone));
-        if (!matching) aimedResource_.reset();
     }
     const double enemyAimRange =
         playerWeapons_.selectedWeapon() == PlayerWeapon::Rifle
@@ -285,11 +301,21 @@ void Simulation::updatePlayerActions(
                 }
             }
             for (const EntityId targetId : resourceTargets) {
+                const auto targetBeforeHit = std::ranges::find(
+                    resources_.nodes(), targetId, &ResourceNode::id);
+                const bool largeDeposit =
+                    targetBeforeHit != resources_.nodes().end() &&
+                    targetBeforeHit->yield >= 30;
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);
+                const double resourceDamage =
+                    targetBeforeHit != resources_.nodes().end()
+                    ? damage * resourceToolEfficiency(
+                          heldTool, targetBeforeHit->type)
+                    : 0.0;
                 const auto hit =
-                    resources_.damage(targetId, damage);
+                    resources_.damage(targetId, resourceDamage);
                 if (!hit) {
                     continue;
                 }
@@ -300,8 +326,11 @@ void Simulation::updatePlayerActions(
                     .resourceType = hit->type,
                     .position = impactPosition,
                     .amount = hit->amount,
-                    .damage = damage,
+                    .damage = resourceDamage,
                     .critical = critical,
+                    .bareHands = heldTool == PlayerWeapon::BareHands,
+                    .largeDeposit = largeDeposit,
+                    .night = state_ == RunState::Sunset || state_ == RunState::Wave,
                 });
                 if (hit->amount > 0) {
                     pendingResourceGrants_.push_back({
@@ -319,7 +348,6 @@ void Simulation::updatePlayerActions(
                             bareHandsStoneGathered_ += hit->amount;
                         if (bareHandsWoodGathered_ >= 15 && bareHandsStoneGathered_ >= 10) {
                             introSkillObjectiveCompleted_ = true;
-                            grantSkillPoints(1, SkillPointSource::IntroObjective);
                             events_.push_back({.type = GameEventType::IntroSkillObjectiveCompleted});
                         }
                     }
@@ -330,6 +358,13 @@ void Simulation::updatePlayerActions(
                     }
                 }
             }
+        } else if (canGather) {
+            events_.push_back({
+                .type = GameEventType::ResourceGatherMissed,
+                .position = playerPosition_,
+                .bareHands = heldTool == PlayerWeapon::BareHands,
+                .night = state_ == RunState::Sunset || state_ == RunState::Wave,
+            });
         }
     }
 
@@ -397,11 +432,11 @@ void Simulation::updatePlayerActions(
         } else if (aimedChest_) {
             int availableGold = unlimitedResources_
                 ? std::numeric_limits<int>::max()
-                : gold_;
+                : coins_;
             const ChestOpenResult result =
                 lootChests_.open(*aimedChest_, availableGold);
             if (!unlimitedResources_) {
-                gold_ = availableGold;
+                coins_ = availableGold;
             }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened

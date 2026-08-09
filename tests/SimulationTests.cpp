@@ -157,12 +157,36 @@ void runSimulationTests() {
         require(weaponProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
                 "weapon cycle skips locked rifle and keeps bare hands selectable");
+        const auto initialWeapons =
+            weaponProgression.snapshot().unlockedWeapons;
+        require(initialWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::BareHands)] &&
+                    std::count(initialWeapons.begin(), initialWeapons.end(), true) == 1,
+                "weapon hotbar initially exposes only bare hands");
+        ian::PlayerCommand lockedSelection;
+        lockedSelection.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::Club};
+        weaponProgression.tick(1.0 / 60.0, lockedSelection);
+        require(weaponProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "direct hotbar selection cannot equip a locked weapon");
 
         weaponProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
         const auto club = weaponProgression.skillTree().indexOf("club");
         require(club && weaponProgression.purchaseSkill(*club) ==
                             ian::SkillPurchaseError::None,
                 "club can be unlocked before rifle");
+        require(weaponProgression.snapshot().unlockedWeapons[
+                    static_cast<std::size_t>(ian::PlayerWeapon::Club)],
+                "weapon hotbar exposes club immediately after unlock");
+        ian::PlayerCommand selectHands;
+        selectHands.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
+        weaponProgression.tick(1.0 / 60.0, selectHands);
+        weaponProgression.tick(1.0 / 60.0, lockedSelection);
+        require(weaponProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::Club,
+                "direct hotbar selection equips an unlocked weapon");
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
@@ -206,7 +230,7 @@ void runSimulationTests() {
         clubBalance.enemies[0].speed = 10.0;
         clubBalance.weapons.club.maxDamagePerAttack = 2.0;
         clubBalance.waves[0] = {
-            2, 2, 0, 0, 0, 0, 0, false, 2, 10.0};
+            2, 2, 0, 0, 0, 0, 0, 0, false, 2, 10.0};
 
         ian::MapDefinition clubMap =
             ian::MapDefinition::defaults();
@@ -502,6 +526,87 @@ void runSimulationTests() {
             "third Power Swing damages nearby resource once");
     }
     {
+        auto inefficientBalance = ian::GameBalance::defaults();
+        inefficientBalance.gameplay.pickaxeDamageVariation = 0.0;
+        inefficientBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::Simulation inefficientTools{inefficientBalance};
+        inefficientTools.startRun();
+        inefficientTools.grantSkillPoints(
+            2, ian::SkillPointSource::Event);
+        const auto axe =
+            inefficientTools.skillTree().indexOf("axe");
+        const auto pickaxe =
+            inefficientTools.skillTree().indexOf("pickaxe");
+        require(
+            axe && pickaxe &&
+                inefficientTools.purchaseSkill(*axe) ==
+                    ian::SkillPurchaseError::None,
+            "inefficient gathering fixture unlocks the axe");
+        const auto stone = std::ranges::find_if(
+            inefficientTools.snapshot().resourceNodes,
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Stone;
+            });
+        require(
+            stone != inefficientTools.snapshot().resourceNodes.end(),
+            "inefficient gathering fixture has stone");
+        ian::PlayerCommand axeStoneHit;
+        axeStoneHit.overrideAimedResource = true;
+        axeStoneHit.aimedResourceOverride = stone->id;
+        axeStoneHit.usePickaxe = true;
+        inefficientTools.tick(1.0 / 60.0, axeStoneHit);
+        auto hitEvents = inefficientTools.takeEvents();
+        const auto axeHit = std::ranges::find_if(
+            hitEvents, [](const ian::GameEvent& event) {
+                return event.type == ian::GameEventType::ResourceHit &&
+                    event.resourceType == ian::ResourceType::Stone;
+            });
+        require(
+            axeHit != hitEvents.end(),
+            "axe can damage stone instead of rejecting the target");
+        requireNear(
+            axeHit->damage,
+            inefficientBalance.gameplay.pickaxeDamage * 0.25,
+            1e-12,
+            "axe mines stone at twenty-five percent efficiency");
+
+        inefficientTools.tick(
+            inefficientBalance.gameplay.pickaxeCooldown);
+        require(
+            inefficientTools.purchaseSkill(*pickaxe) ==
+                ian::SkillPurchaseError::None,
+            "inefficient gathering fixture unlocks the pickaxe");
+        const auto wood = std::ranges::find_if(
+            inefficientTools.snapshot().resourceNodes,
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Wood;
+            });
+        require(
+            wood != inefficientTools.snapshot().resourceNodes.end(),
+            "inefficient gathering fixture has wood");
+        ian::PlayerCommand pickaxeWoodHit;
+        pickaxeWoodHit.overrideAimedResource = true;
+        pickaxeWoodHit.aimedResourceOverride = wood->id;
+        pickaxeWoodHit.usePickaxe = true;
+        inefficientTools.tick(1.0 / 60.0, pickaxeWoodHit);
+        hitEvents = inefficientTools.takeEvents();
+        const auto pickaxeHit = std::ranges::find_if(
+            hitEvents, [](const ian::GameEvent& event) {
+                return event.type == ian::GameEventType::ResourceHit &&
+                    event.resourceType == ian::ResourceType::Wood;
+            });
+        require(
+            pickaxeHit != hitEvents.end(),
+            "pickaxe can damage wood instead of rejecting the target");
+        requireNear(
+            pickaxeHit->damage,
+            inefficientBalance.gameplay.pickaxeDamage * 0.30,
+            1e-12,
+            "pickaxe chops wood at thirty percent efficiency");
+    }
+    {
         auto bareHandsBalance = ian::GameBalance::defaults();
         bareHandsBalance.gameplay.pickaxeDamageVariation = 0.0;
         bareHandsBalance.gameplay.pickaxeCriticalChance = 0.0;
@@ -717,13 +822,24 @@ void runSimulationTests() {
     }
     {
         ian::Simulation restartStress;
+        std::uint32_t previousTerrainSeed =
+            restartStress.snapshot().terrainSeed;
         restartStress.startRun();
         std::optional<ian::EntityId> previousCoreId;
         std::optional<ian::EntityId> staleCoreId;
-        for (int restart = 0; restart < 128; ++restart) {
+        // A restart now regenerates the complete terrain. Sixteen generations
+        // still exercise stale EntityIds without making this test spend most
+        // of its time rebuilding heightfields.
+        for (int restart = 0; restart < 16; ++restart) {
             if (restart > 0) {
                 restartStress.restartRun();
             }
+            require(
+                restartStress.snapshot().terrainSeed !=
+                    previousTerrainSeed,
+                "every new run receives a different terrain seed");
+            previousTerrainSeed =
+                restartStress.snapshot().terrainSeed;
             const auto resetEvents = restartStress.takeEvents();
             require(
                 resetEvents.size() == 1U &&
@@ -2046,6 +2162,10 @@ void runSimulationTests() {
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "cleared non-final wave enters dawn state");
     require(
+        !simulation.snapshot().coinPickups.empty() &&
+            simulation.snapshot().coins == 0,
+        "defeated enemies drop physical coins before collection");
+    require(
         simulation.snapshot().lootChests.size() ==
             chestsBeforeFirstNight + 1U,
         "survived night spawns one skill-granted chest");
@@ -2055,11 +2175,12 @@ void runSimulationTests() {
     require(simulation.snapshot().gold == simulation.snapshot().waveCompletionReward,
             "wave completion grants gold reward");
     require(
-        simulation.snapshot().skillPoints ==
+            simulation.snapshot().skillPoints ==
                 std::numeric_limits<int>::max() &&
             simulation.skillTree().points() ==
-                storedPointsBeforeWaveReward + 1,
-        "wave completion grants one stored point while god mode stays infinite");
+                storedPointsBeforeWaveReward &&
+            simulation.snapshot().currentInsight > 0.0,
+        "wave completion fills Insight while god mode stays infinite");
     require(!simulation.snapshot().tutorialObjective,
             "tutorial disappears after first night");
     phaseEvents = simulation.takeEvents();
@@ -2120,6 +2241,8 @@ void runSimulationTests() {
         simulation.snapshot().wave == 7 &&
             simulation.snapshot().bestWave == 7,
         "snapshot exposes current wave and best reached record");
+    const std::uint32_t completedRunSeed =
+        simulation.snapshot().terrainSeed;
     simulation.restartRun();
     require(
         simulation.snapshot().wave == 0 &&
@@ -2129,4 +2252,11 @@ void runSimulationTests() {
             "run restart disables unlimited resources");
     require(!simulation.snapshot().playerInvulnerable,
             "run restart disables player invulnerability");
+    require(
+        simulation.snapshot().coins == 0 &&
+            simulation.snapshot().coinPickups.empty(),
+        "run restart removes collected gold and physical coin drops");
+    require(
+        simulation.snapshot().terrainSeed != completedRunSeed,
+        "run restart regenerates the map with a new seed");
 }

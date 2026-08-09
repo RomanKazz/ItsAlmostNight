@@ -8,11 +8,11 @@
 #include <cmath>
 #include <chrono>
 #include <limits>
+#include <utility>
 
 namespace ian {
 namespace {
 
-constexpr double EnemyRadius = 0.4;
 constexpr double AttackRange = 0.55;
 constexpr double PlayerAttackRange = 1.0;
 constexpr double AttackInterval = 1.0;
@@ -210,6 +210,10 @@ double wanderStrength(EnemyType type) {
         return 0.13;
     case EnemyType::Sapper:
         return 0.16;
+    case EnemyType::Splitter:
+        return 0.10;
+    case EnemyType::Splitling:
+        return 0.22;
     case EnemyType::Basic:
         return 0.14;
     }
@@ -217,7 +221,7 @@ double wanderStrength(EnemyType type) {
 }
 
 double enemyRadius(EnemyType type) {
-    return type == EnemyType::Boss ? 1.0 : EnemyRadius;
+    return enemyPhysicalCapsule(type).radius;
 }
 
 double attackRange(EnemyType type) {
@@ -244,6 +248,10 @@ double playerAggroRange(EnemyType type) {
         return 4.0;
     case EnemyType::Sapper:
         return 3.5;
+    case EnemyType::Splitter:
+        return 4.0;
+    case EnemyType::Splitling:
+        return 5.0;
     case EnemyType::Basic:
         return 4.5;
     }
@@ -397,6 +405,10 @@ double knockbackMultiplier(EnemyType type) {
         return 0.55;
     case EnemyType::Flying:
         return 0.7;
+    case EnemyType::Splitter:
+        return 0.45;
+    case EnemyType::Splitling:
+        return 1.2;
     }
     return 1.0;
 }
@@ -466,6 +478,7 @@ void EnemySystem::reset() {
     performanceStats_.throttledAiMoves = 0U;
     areaDamageBuffer_.clear();
     statusTargetBuffer_.clear();
+    splitEventBuffer_.clear();
     structureBuffer_.clear();
     incomingStructureBuffer_.clear();
     structureNextBuffer_.clear();
@@ -593,6 +606,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
             std::max(
                 0.0,
                 enemy.hitAnimationRemaining - deltaSeconds);
+        enemy.spawnAnimationRemaining = std::max(
+            0.0,
+            enemy.spawnAnimationRemaining - deltaSeconds);
         enemy.ramCooldownRemaining =
             std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
         enemy.aiUpdateRemaining = std::max(
@@ -1029,10 +1045,7 @@ std::optional<EntityId> EnemySystem::raycast(Vec3 origin, Vec3 direction,
             continue;
         }
 
-        const double radius =
-            enemy.type == EnemyType::Boss ? 1.25
-            : enemy.type == EnemyType::Flying ? 0.72
-                                              : 0.65;
+        const double radius = enemyCapsule(enemy.type).radius;
         const auto distance = raySphereDistance(origin, direction, enemy.position, radius);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {
             result = enemy.id;
@@ -1052,6 +1065,12 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     enemy->health = std::max(0.0, enemy->health - amount);
     enemy->hitAnimationRemaining = 0.22;
     const bool killed = enemy->health <= 0.0;
+    const EnemyType killedType = enemy->type;
+    const Vec3 killedPosition = enemy->position;
+    const double healthMultiplier = enemy->maxHealth /
+        definitions_[static_cast<std::size_t>(enemy->type)].health;
+    const double damageMultiplier = enemy->damage /
+        definitions_[static_cast<std::size_t>(enemy->type)].damage;
     if (killed) {
         enemy->active = false;
         --activeCount_;
@@ -1059,13 +1078,19 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
         enemy->target.reset();
         spatialHashDirty_ = true;
     }
-    return EnemyDamageResult{
-        .id = enemy->id,
-        .position = enemy->position,
+    const EnemyDamageResult result{
+        .id = id,
+        .position = killedPosition,
         .damage = previousHealth - enemy->health,
         .remainingHealth = enemy->health,
         .killed = killed,
     };
+    if (killed && killedType == EnemyType::Splitter) {
+        spawnSplitlings(
+            id, killedPosition,
+            healthMultiplier, damageMultiplier);
+    }
+    return result;
 }
 
 std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) const {
@@ -1175,6 +1200,13 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             : amount;
     const Vec3 impulseOrigin =
         knockbackOrigin.value_or(position);
+    struct PendingSplit {
+        EntityId id;
+        Vec3 position;
+        double healthMultiplier;
+        double damageMultiplier;
+    };
+    std::vector<PendingSplit> pendingSplits;
     for (std::size_t index = 0; index < targetCount; ++index) {
         EnemyInstance* enemy = findEnemy(areaTargetBuffer_[index]);
         if (enemy == nullptr || !enemy->active || amount <= 0.0) {
@@ -1185,6 +1217,11 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             0.0, enemy->health - damagePerTarget);
         enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
+        const EnemyType killedType = enemy->type;
+        const double childHealthMultiplier = enemy->maxHealth /
+            definitions_[static_cast<std::size_t>(enemy->type)].health;
+        const double childDamageMultiplier = enemy->damage /
+            definitions_[static_cast<std::size_t>(enemy->type)].damage;
         if (killed) {
             enemy->active = false;
             --activeCount_;
@@ -1199,6 +1236,14 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             .remainingHealth = enemy->health,
             .killed = killed,
         });
+        if (killed && killedType == EnemyType::Splitter) {
+            pendingSplits.push_back({
+                .id = enemy->id,
+                .position = enemy->position,
+                .healthMultiplier = childHealthMultiplier,
+                .damageMultiplier = childDamageMultiplier,
+            });
+        }
         if (killed || knockbackStrength <= 0.0) {
             continue;
         }
@@ -1232,6 +1277,21 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             (offsetX / directionDistance) * impulse;
         enemy->knockbackVelocity.z +=
             (offsetZ / directionDistance) * impulse;
+    }
+    // Spawn only after resolving the original area target set. Children are
+    // never damaged by the same explosion that created them.
+    for (const PendingSplit& split : pendingSplits) {
+        splitEventBuffer_.push_back({
+            .parentId = split.id,
+            .position = split.position,
+            .childCount = 0,
+        });
+    }
+    for (const PendingSplit& split : pendingSplits) {
+        spawnSplitlings(
+            split.id, split.position,
+            split.healthMultiplier,
+            split.damageMultiplier);
     }
     return areaDamageBuffer_;
 }
@@ -1365,6 +1425,10 @@ const EnemyPerformanceStats& EnemySystem::performanceStats() const {
     return performanceStats_;
 }
 
+std::vector<EnemySplitResult> EnemySystem::takeSplitEvents() {
+    return std::exchange(splitEventBuffer_, {});
+}
+
 const EnemyStatusEffect& enemyStatusEffect(
     const EnemyInstance& enemy, StatusEffectType type) {
     return enemy.statusEffects[statusEffectIndex(type)];
@@ -1386,9 +1450,16 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
         std::max(0.01, spawn.healthMultiplier);
     const double damageMultiplier =
         std::max(0.01, spawn.damageMultiplier);
-    const auto reusable =
-        std::find_if(enemies_.begin(), enemies_.end(),
-                     [](const EnemyInstance& enemy) { return !enemy.active; });
+    const auto reusable = std::find_if(
+        enemies_.begin(), enemies_.end(),
+        [this](const EnemyInstance& enemy) {
+            return !enemy.active &&
+                std::ranges::none_of(
+                    splitEventBuffer_,
+                    [&enemy](const EnemySplitResult& split) {
+                        return split.parentId == enemy.id;
+                    });
+        });
     if (reusable == enemies_.end() && enemies_.size() >= MaxEnemies) {
         return;
     }
@@ -1419,6 +1490,8 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
         .damage = stats.damage * damageMultiplier,
         .attackCooldownRemaining = 0.0,
         .hitAnimationRemaining = 0.0,
+        .spawnAnimationRemaining =
+            type == EnemyType::Splitling ? 0.38 : 0.0,
         .ramWindup = stats.ramWindup,
         .ramDamageMultiplier = stats.ramDamageMultiplier,
         .ramCooldown = stats.ramCooldown,
@@ -1426,7 +1499,7 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
         .ramCooldownRemaining = 0.0,
         .slowRemaining = 0.0,
         .movementMultiplier = 1.0,
-        .knockbackVelocity = {},
+        .knockbackVelocity = spawn.initialKnockbackVelocity,
         .yaw = 0.0,
         .steeringTime = 0.0,
         .steeringPhase = firstRandom * 2.0 * Pi,
@@ -1444,6 +1517,57 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
         *reusable = instance;
     }
     ++activeCount_;
+}
+
+void EnemySystem::spawnSplitlings(
+    EntityId parentId, Vec3 position,
+    double healthMultiplier, double damageMultiplier) {
+    constexpr int ChildCount = 3;
+    constexpr double SpawnRadius = 0.42;
+    constexpr double LaunchSpeed = 3.8;
+    constexpr double TwoPi = 6.28318530717958647692;
+    auto split = std::ranges::find(
+        splitEventBuffer_, parentId,
+        &EnemySplitResult::parentId);
+    if (split == splitEventBuffer_.end()) {
+        splitEventBuffer_.push_back({
+            .parentId = parentId,
+            .position = position,
+            .childCount = 0,
+        });
+        split = std::prev(splitEventBuffer_.end());
+    }
+    const double phase = hashUnit(
+        parentId.index * 0x9e3779b9U + parentId.generation) * TwoPi;
+    for (int child = 0; child < ChildCount; ++child) {
+        if (activeCount_ >= MaxActiveEnemies) {
+            break;
+        }
+        const double angle = phase + TwoPi *
+            static_cast<double>(child) /
+            static_cast<double>(ChildCount);
+        const Vec3 direction{std::cos(angle), 0.0, std::sin(angle)};
+        const std::size_t before = activeCount_;
+        appendEnemy({
+            .type = EnemyType::Splitling,
+            .position = {
+                position.x + direction.x * SpawnRadius,
+                0.55,
+                position.z + direction.z * SpawnRadius,
+            },
+            .healthMultiplier = healthMultiplier,
+            .damageMultiplier = damageMultiplier,
+            .initialKnockbackVelocity = {
+                direction.x * LaunchSpeed,
+                0.0,
+                direction.z * LaunchSpeed,
+            },
+        });
+        if (activeCount_ > before) {
+            ++split->childCount;
+        }
+    }
+    spatialHashDirty_ = true;
 }
 
 void EnemySystem::rebuildSpatialIndex() {

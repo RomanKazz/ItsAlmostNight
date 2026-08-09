@@ -1,0 +1,33 @@
+{
+  "baseRequirement": 100.0,
+  "requirementGrowth": 0.0,
+  "diminishingReturns": {
+    "fullRateBudget": 20.0,
+    "reducedRateBudget": 20.0,
+    "reducedRateMultiplier": 0.5,
+    "exhaustedMultiplier": 0.2
+  },
+  "rewards": {
+    "introGatherObjective": 60.0,
+    "introCoreObjective": 40.0,
+    "normalWave": 20.0,
+    "milestoneWave": 40.0,
+    "bossWave": 75.0,
+    "milestoneWaveInterval": 5,
+    "enemy": [0.75, 1.0, 3.0, 2.0, 3.0, 2.5, 75.0, 4.0, 0.5],
+    "resourcePerUnit": [0.14, 0.22],
+    "resourceDepleted": [1.5, 2.0],
+    "building": [4.0, 0.75, 1.5, 1.5, 3.0, 1.0, 1.0, 1.5, 1.5],
+    "modularBuilding": [1.0, 1.0, 0.5, 1.0],
+    "firstBuildingTypeBonus": 2.0,
+    "repairPerHealth": 0.015,
+    "chest": [4.0, 8.0]
+  },
+  "hud": {
+    "smallPulseSeconds": 0.25,
+    "largePulseSeconds": 0.55,
+    "largeRewardThreshold": 10.0,
+    "pointSequenceSeconds": 0.48,
+    "aggregationWindowSeconds": 0.8
+  }
+}

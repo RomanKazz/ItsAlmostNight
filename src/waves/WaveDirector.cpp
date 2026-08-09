@@ -11,6 +11,7 @@ namespace ian {
 namespace {
 
 constexpr double MinimumSpawnRadius = 20.0;
+constexpr double MaximumSpawnRadius = 30.0;
 constexpr double Pi = 3.14159265358979323846;
 constexpr int MaximumQuantityGrowthSteps = 90;
 
@@ -41,8 +42,9 @@ Vec3 safeSpawnAnchor(
     }
     outwardX /= distance;
     outwardZ /= distance;
-    const double safeDistance =
-        std::max(distance, MinimumSpawnRadius);
+    const double safeDistance = std::clamp(
+        distance, MinimumSpawnRadius,
+        MaximumSpawnRadius);
     return {
         static_cast<double>(corePosition.x) +
             outwardX * safeDistance,
@@ -70,6 +72,10 @@ int enemyBudgetCost(EnemyType type) {
         return 4;
     case EnemyType::Flying:
         return 3;
+    case EnemyType::Splitter:
+        return 4;
+    case EnemyType::Splitling:
+        return 0;
     }
     return 0;
 }
@@ -109,6 +115,8 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     append(EnemyType::Sapper, composition.sapper, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Flying, composition.flying, corePosition,
+           composition.groupSize, healthMultiplier, damageMultiplier);
+    append(EnemyType::Splitter, composition.splitter, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     if (composition.boss) {
         const int bossCycle = normalizedWave / ConfiguredWaveCount;
@@ -165,6 +173,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.ranged += growth / 2;
     result.sapper += (growth + 2) / 3;
     result.flying += growth / 3;
+    result.splitter += (growth + 3) / 4;
     result.boss = normalizedWave % ConfiguredWaveCount == 0;
     result.groupSize = std::min(24, 10 + extraWaves / 4);
     result.groupInterval = std::max(
@@ -175,7 +184,8 @@ WaveDefinition WaveDirector::composition(int wave) const {
         result.heavy * enemyBudgetCost(EnemyType::Heavy) +
         result.ranged * enemyBudgetCost(EnemyType::Ranged) +
         result.sapper * enemyBudgetCost(EnemyType::Sapper) +
-        result.flying * enemyBudgetCost(EnemyType::Flying);
+        result.flying * enemyBudgetCost(EnemyType::Flying) +
+        result.splitter * enemyBudgetCost(EnemyType::Splitter);
     return result;
 }
 
@@ -207,6 +217,10 @@ void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
             height = 0.78;
         } else if (type == EnemyType::Flying) {
             height = 2.4;
+        } else if (type == EnemyType::Splitter) {
+            height = 1.05;
+        } else if (type == EnemyType::Splitling) {
+            height = 0.55;
         }
 
         const Vec3 anchor = safeSpawnAnchor(
@@ -219,11 +233,25 @@ void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
         const double outwardZ = fromCoreZ / length;
         const double tangentX = -outwardZ;
         const double tangentZ = outwardX;
-        const Vec3 position{
+        Vec3 position{
             anchor.x + tangentX * lane + outwardX * depth,
             height,
             anchor.z + tangentZ * lane + outwardZ * depth,
         };
+        const double positionOffsetX =
+            position.x - static_cast<double>(corePosition.x);
+        const double positionOffsetZ =
+            position.z - static_cast<double>(corePosition.z);
+        const double positionDistance = std::hypot(
+            positionOffsetX, positionOffsetZ);
+        if (positionDistance > MaximumSpawnRadius) {
+            const double scale =
+                MaximumSpawnRadius / positionDistance;
+            position.x = static_cast<double>(corePosition.x) +
+                positionOffsetX * scale;
+            position.z = static_cast<double>(corePosition.z) +
+                positionOffsetZ * scale;
+        }
         spawnBuffer_.push_back({
             .type = type,
             .position = position,

@@ -233,6 +233,11 @@ std::optional<PlatformFrameInstance> Simulation::placeFoundation(
         }
         syncModularStructures();
         raisePlayerOntoGroundFrame(*placed);
+        events_.push_back({.type = GameEventType::ModularBuildingPlaced,
+                           .entityId = placed->id,
+                           .platformFrame = *placed,
+                           .amount = static_cast<int>(ModularBuildPiece::Foundation)});
+        processInsightEvent(events_.back());
     }
     return placed;
 }
@@ -255,6 +260,11 @@ Simulation::placeFoundationAtHeight(
         }
         syncModularStructures();
         raisePlayerOntoGroundFrame(*placed);
+        events_.push_back({.type = GameEventType::ModularBuildingPlaced,
+                           .entityId = placed->id,
+                           .platformFrame = *placed,
+                           .amount = static_cast<int>(ModularBuildPiece::Foundation)});
+        processInsightEvent(events_.back());
     }
     return placed;
 }
@@ -305,6 +315,11 @@ Simulation::placeFloorPlatform(
             gold_ -= cost.gold;
         }
         syncModularStructures();
+        events_.push_back({.type = GameEventType::ModularBuildingPlaced,
+                           .entityId = placed->id,
+                           .platformFrame = *placed,
+                           .amount = static_cast<int>(ModularBuildPiece::FloorPlatform)});
+        processInsightEvent(events_.back());
     }
     return placed;
 }
@@ -350,6 +365,11 @@ std::optional<WallInstance> Simulation::placeWall(
             gold_ -= cost.gold;
         }
         syncModularStructures();
+        events_.push_back({.type = GameEventType::ModularBuildingPlaced,
+                           .entityId = placed->id,
+                           .modularWall = *placed,
+                           .amount = static_cast<int>(ModularBuildPiece::Wall)});
+        processInsightEvent(events_.back());
     }
     return placed;
 }
@@ -434,6 +454,11 @@ std::optional<RampInstance> Simulation::placeRamp(
             gold_ -= cost.gold;
         }
         syncModularStructures();
+        events_.push_back({.type = GameEventType::ModularBuildingPlaced,
+                           .entityId = placed->id,
+                           .ramp = *placed,
+                           .amount = static_cast<int>(ModularBuildPiece::Ramp)});
+        processInsightEvent(events_.back());
     }
     return placed;
 }

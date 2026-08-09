@@ -13,6 +13,7 @@ struct EnemyCapsule {
 };
 
 [[nodiscard]] EnemyCapsule enemyCapsule(EnemyType type);
+[[nodiscard]] EnemyCapsule enemyPhysicalCapsule(EnemyType type);
 [[nodiscard]] double maximumGroundStructureInteractionHeight(
     EnemyType type, double enemyCenterHeight);
 

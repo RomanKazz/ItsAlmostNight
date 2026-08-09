@@ -418,18 +418,21 @@ void IceWandSystem::impactProjectile(
             });
     };
 
-    if (directTarget) {
-        if (const auto direct = enemies.damage(
-                *directTarget, definition_.directDamage)) {
-            recordDamage(*direct);
-        }
-    }
+    // Resolve the splash against the pre-impact population first. A lethal
+    // direct hit may spawn Splitlings; those children belong to the result of
+    // this impact and must not be picked up by its own subsequent AoE query.
     const auto splash = enemies.damageInRadius(
         impactPosition, definition_.explosionRadius,
         definition_.directDamage * definition_.areaDamageMultiplier,
         0.0, std::nullopt, 0.0, directTarget);
     for (const auto& result : splash) {
         recordDamage(result);
+    }
+    if (directTarget) {
+        if (const auto direct = enemies.damage(
+                *directTarget, definition_.directDamage)) {
+            recordDamage(*direct);
+        }
     }
     if (impactCount_ < impactBuffer_.size()) {
         impactBuffer_[impactCount_++] = {

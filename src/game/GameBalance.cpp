@@ -49,6 +49,7 @@ WaveDefinition parseWave(const Json& value) {
         .ranged = value.value("ranged", 0),
         .sapper = value.value("sapper", 0),
         .flying = value.value("flying", 0),
+        .splitter = value.value("splitter", 0),
         .boss = value.value("boss", false),
         .groupSize = value.at("groupSize").get<int>(),
         .groupInterval = value.at("groupInterval").get<double>(),
@@ -56,6 +57,7 @@ WaveDefinition parseWave(const Json& value) {
     if (definition.budget <= 0 || definition.basic < 0 || definition.fast < 0 ||
         definition.heavy < 0 || definition.ranged < 0 ||
         definition.sapper < 0 || definition.flying < 0 ||
+        definition.splitter < 0 ||
         definition.groupSize <= 0 ||
         definition.groupInterval <= 0.0) {
         throw std::runtime_error("wave values must be non-negative");
@@ -63,13 +65,15 @@ WaveDefinition parseWave(const Json& value) {
     const int calculatedBudget =
         definition.basic + definition.fast * 2 +
         definition.heavy * 5 + definition.ranged * 3 +
-        definition.sapper * 4 + definition.flying * 3;
+        definition.sapper * 4 + definition.flying * 3 +
+        definition.splitter * 4;
     if (calculatedBudget != definition.budget) {
         throw std::runtime_error("wave budget does not match composition");
     }
     const int spawnCount =
         definition.basic + definition.fast + definition.heavy +
         definition.ranged + definition.sapper + definition.flying +
+        definition.splitter +
         (definition.boss ? 1 : 0);
     if (spawnCount > 200) {
         throw std::runtime_error("wave exceeds enemy pool");
@@ -252,6 +256,10 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .pickaxeCriticalChance =
             value.value("pickaxeCriticalChance", 0.15),
         .pickaxeCooldown = value.at("pickaxeCooldown").get<double>(),
+        .axeStoneEfficiency =
+            value.value("axeStoneEfficiency", 0.25),
+        .pickaxeWoodEfficiency =
+            value.value("pickaxeWoodEfficiency", 0.30),
         .firstBuildPhaseSeconds = value.at("firstBuildPhaseSeconds").get<double>(),
         .betweenWaveSeconds = value.at("betweenWaveSeconds").get<double>(),
         .sunsetSeconds = value.at("sunsetSeconds").get<double>(),
@@ -275,7 +283,12 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.pickaxeDamageVariation >= 1.0 ||
         definition.pickaxeCriticalChance < 0.0 ||
         definition.pickaxeCriticalChance > 1.0 ||
-        definition.pickaxeCooldown <= 0.0 || definition.firstBuildPhaseSeconds <= 0.0 ||
+        definition.pickaxeCooldown <= 0.0 ||
+        definition.axeStoneEfficiency <= 0.0 ||
+        definition.axeStoneEfficiency > 1.0 ||
+        definition.pickaxeWoodEfficiency <= 0.0 ||
+        definition.pickaxeWoodEfficiency > 1.0 ||
+        definition.firstBuildPhaseSeconds <= 0.0 ||
         definition.betweenWaveSeconds <= 0.0 || definition.sunsetSeconds <= 0.0 ||
         definition.dawnSeconds <= 0.0 || definition.minimumPlacementDistance <= 0.0 ||
         definition.maximumPlacementDistance < definition.minimumPlacementDistance) {
@@ -296,14 +309,16 @@ GameBalance GameBalance::defaults() {
             {7.0, 1.5, 8.0, 0.0, 1.0, 0.0},
             {10.0, 1.8, 12.0, 0.0, 1.0, 0.0},
             {5.0, 2.6, 8.0, 0.0, 1.0, 0.0},
+            {12.0, 1.55, 18.0, 0.0, 1.0, 0.0},
+            {3.0, 2.8, 7.0, 0.0, 1.0, 0.0},
         }},
         .waves = {{
-            {15, 15, 0, 0, 0, 0, 0, false, 5, 2.0},
-            {25, 12, 5, 0, 1, 0, 0, false, 6, 2.0},
-            {40, 14, 5, 2, 2, 0, 0, false, 7, 1.8},
-            {55, 15, 8, 2, 2, 2, 0, false, 8, 1.6},
-            {75, 19, 8, 4, 2, 2, 2, false, 9, 1.4},
-            {100, 20, 10, 6, 4, 3, 2, true, 10, 1.2},
+            {15, 15, 0, 0, 0, 0, 0, 0, false, 5, 2.0},
+            {25, 12, 5, 0, 1, 0, 0, 0, false, 6, 2.0},
+            {40, 10, 5, 2, 2, 0, 0, 1, false, 7, 1.8},
+            {55, 11, 8, 2, 2, 2, 0, 1, false, 8, 1.6},
+            {75, 11, 8, 4, 2, 2, 2, 2, false, 9, 1.4},
+            {100, 12, 10, 6, 4, 3, 2, 2, true, 10, 1.2},
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
@@ -330,7 +345,7 @@ GameBalance GameBalance::defaults() {
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,
-                     1.0, 0.2, 0.15, 0.45,
+                     1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
                      15.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };
 }
@@ -358,6 +373,12 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             enemies.contains("flying")
                 ? parseEnemy(enemies.at("flying"), false)
                 : result.balance.enemies[6],
+            enemies.contains("splitter")
+                ? parseEnemy(enemies.at("splitter"), false)
+                : result.balance.enemies[7],
+            enemies.contains("splitling")
+                ? parseEnemy(enemies.at("splitling"), false)
+                : result.balance.enemies[8],
         }};
         result.balance.enemies = parsed;
     } catch (const std::exception& error) {

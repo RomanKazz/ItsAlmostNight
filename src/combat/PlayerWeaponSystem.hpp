@@ -4,6 +4,8 @@
 #include "enemies/EnemySystem.hpp"
 #include "game/GameBalance.hpp"
 
+#include <array>
+#include <cstddef>
 #include <optional>
 
 namespace ian {
@@ -17,6 +19,36 @@ enum class PlayerWeapon {
     Hammer,
     Rifle,
 };
+
+inline constexpr std::size_t PlayerWeaponCount = 7;
+
+// Canonical order shared by input, HUD layout and selection animation.
+inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
+    PlayerWeaponHotbarOrder{
+        PlayerWeapon::BareHands,
+        PlayerWeapon::Club,
+        PlayerWeapon::Pickaxe,
+        PlayerWeapon::Axe,
+        PlayerWeapon::IceWand,
+        PlayerWeapon::Hammer,
+        PlayerWeapon::Rifle,
+    };
+
+[[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(
+    PlayerWeapon selected,
+    const std::array<bool, PlayerWeaponCount>& unlocked) {
+    std::size_t visibleIndex = 0;
+    for (const PlayerWeapon weapon : PlayerWeaponHotbarOrder) {
+        if (!unlocked[static_cast<std::size_t>(weapon)]) {
+            continue;
+        }
+        if (weapon == selected) {
+            return visibleIndex;
+        }
+        ++visibleIndex;
+    }
+    return 0;
+}
 
 struct WeaponFireResult {
     std::optional<EntityId> targetId;
