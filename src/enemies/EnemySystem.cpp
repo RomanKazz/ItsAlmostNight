@@ -27,6 +27,39 @@ constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
 
+double aiUpdateInterval(
+    const EnemyInstance& enemy,
+    std::optional<Vec3> playerPosition,
+    Vec3 corePosition) {
+    if (enemy.state != EnemyState::MoveToCore &&
+        enemy.state != EnemyState::ChasePlayer) {
+        return 0.0;
+    }
+    double distanceSquared =
+        (enemy.position.x - corePosition.x) *
+            (enemy.position.x - corePosition.x) +
+        (enemy.position.z - corePosition.z) *
+            (enemy.position.z - corePosition.z);
+    if (playerPosition) {
+        const double playerDistanceSquared =
+            (enemy.position.x - playerPosition->x) *
+                (enemy.position.x - playerPosition->x) +
+            (enemy.position.z - playerPosition->z) *
+                (enemy.position.z - playerPosition->z);
+        distanceSquared = std::min(
+            distanceSquared, playerDistanceSquared);
+    }
+    constexpr double MediumDistance = 24.0;
+    constexpr double FarDistance = 48.0;
+    if (distanceSquared > FarDistance * FarDistance) {
+        return 1.0 / 15.0;
+    }
+    if (distanceSquared > MediumDistance * MediumDistance) {
+        return 1.0 / 30.0;
+    }
+    return 0.0;
+}
+
 std::size_t statusEffectIndex(StatusEffectType type) {
     return type == StatusEffectType::Freeze ? 0U : 1U;
 }
@@ -35,11 +68,18 @@ class BuildingQueryGrid {
   public:
     explicit BuildingQueryGrid(
         std::span<const EnemyStructureTarget> structures,
-        std::vector<int>& next)
+        std::vector<int>& next,
+        std::vector<int>& heads,
+        bool rebuild)
         : structures_(structures),
-          next_(next) {
+          next_(next), heads_(heads) {
+        if (!rebuild &&
+            heads_.size() == BuildingGridCellCount &&
+            next_.size() == structures.size()) {
+            return;
+        }
         next_.assign(structures.size(), -1);
-        heads_.fill(-1);
+        heads_.assign(BuildingGridCellCount, -1);
         for (std::size_t index = 0;
              index < structures.size(); ++index) {
             const Vec3 center =
@@ -105,9 +145,31 @@ class BuildingQueryGrid {
     }
 
     std::span<const EnemyStructureTarget> structures_;
-    std::array<int, BuildingGridCellCount> heads_{};
     std::vector<int>& next_;
+    std::vector<int>& heads_;
 };
+
+bool sameStructureLayout(
+    std::span<const EnemyStructureTarget> left,
+    std::span<const EnemyStructureTarget> right) {
+    if (left.size() != right.size()) {
+        return false;
+    }
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        const EnemyStructureTarget& a = left[index];
+        const EnemyStructureTarget& b = right[index];
+        if (a.id != b.id || a.position.x != b.position.x ||
+            a.position.y != b.position.y ||
+            a.position.z != b.position.z ||
+            a.radius != b.radius ||
+            a.buildingType != b.buildingType ||
+            a.modular != b.modular ||
+            a.structuralImpact != b.structuralImpact) {
+            return false;
+        }
+    }
+    return true;
+}
 
 double hashUnit(std::uint32_t value) {
     value ^= value >> 16U;
@@ -385,9 +447,10 @@ EnemySystem::EnemySystem(
     areaDamageBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
     structureBuffer_.reserve(256);
+    incomingStructureBuffer_.reserve(256);
     structureNextBuffer_.reserve(256);
+    structureGridHeads_.reserve(BuildingGridCellCount);
     collisionEnemyLinks_.reserve(MaxEnemies);
-    collisionBuildingLinks_.reserve(256);
     areaTargetBuffer_.resize(SpatialHash::MaxEntries);
 }
 
@@ -399,12 +462,15 @@ void EnemySystem::reset() {
     }
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
+    performanceStats_.fullAiUpdates = 0U;
+    performanceStats_.throttledAiMoves = 0U;
     areaDamageBuffer_.clear();
     statusTargetBuffer_.clear();
     structureBuffer_.clear();
+    incomingStructureBuffer_.clear();
     structureNextBuffer_.clear();
+    structureGridHeads_.clear();
     collisionEnemyLinks_.clear();
-    collisionBuildingLinks_.clear();
     activeCount_ = 0;
     spatialHash_.clear();
     performanceStats_ = {};
@@ -461,6 +527,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
     };
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
+    performanceStats_.fullAiUpdates = 0U;
+    performanceStats_.throttledAiMoves = 0U;
     const auto core =
         std::find_if(buildings.begin(), buildings.end(), [](const BuildingInstance& building) {
             return building.type == BuildingType::Core;
@@ -469,9 +537,11 @@ std::span<const EnemyAttack> EnemySystem::tick(
         finishTelemetry();
         return attackBuffer_;
     }
+    const Vec3 coreWorldPosition =
+        buildingWorldPosition(*core);
 
-    structureBuffer_.clear();
-    structureBuffer_.reserve(
+    incomingStructureBuffer_.clear();
+    incomingStructureBuffer_.reserve(
         buildings.size() + additionalStructures.size());
     for (const BuildingInstance& building : buildings) {
         if (!buildingBlocksMovement(building)) {
@@ -484,7 +554,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 building.baseHeight,
                 building.foundationBottomHeight);
         }
-        structureBuffer_.push_back({
+        incomingStructureBuffer_.push_back({
             .id = building.id,
             .position = attackPosition,
             .radius = buildingRadius(building.type),
@@ -493,15 +563,24 @@ std::span<const EnemyAttack> EnemySystem::tick(
             .structuralImpact = 0U,
         });
     }
-    structureBuffer_.insert(
-        structureBuffer_.end(), additionalStructures.begin(),
+    incomingStructureBuffer_.insert(
+        incomingStructureBuffer_.end(), additionalStructures.begin(),
         additionalStructures.end());
+
+    const bool structureLayoutChanged = !sameStructureLayout(
+        structureBuffer_, incomingStructureBuffer_);
+    performanceStats_.structureGridRebuilds =
+        structureLayoutChanged ? 1U : 0U;
+    if (structureLayoutChanged) {
+        structureBuffer_.swap(incomingStructureBuffer_);
+    }
 
     if (spatialHashDirty_) {
         rebuildSpatialIndex();
     }
     const BuildingQueryGrid buildingGrid(
-        structureBuffer_, structureNextBuffer_);
+        structureBuffer_, structureNextBuffer_,
+        structureGridHeads_, structureLayoutChanged);
 
     for (auto& enemy : enemies_) {
         if (!enemy.active) {
@@ -516,6 +595,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 enemy.hitAnimationRemaining - deltaSeconds);
         enemy.ramCooldownRemaining =
             std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
+        enemy.aiUpdateRemaining = std::max(
+            0.0, enemy.aiUpdateRemaining - deltaSeconds);
         enemy.slowRemaining = std::max(0.0, enemy.slowRemaining - deltaSeconds);
         if (enemy.slowRemaining <= 0.0) {
             enemy.movementMultiplier = 1.0;
@@ -562,6 +643,24 @@ std::span<const EnemyAttack> EnemySystem::tick(
         if (knockbackSpeed > MinimumKnockbackSpeed) {
             continue;
         }
+
+        const double aiInterval = aiUpdateInterval(
+            enemy, playerPosition, coreWorldPosition);
+        if (aiInterval > 0.0 &&
+            enemy.aiUpdateRemaining > 0.0) {
+            enemy.position.x +=
+                std::sin(enemy.yaw) *
+                movementSpeed * deltaSeconds;
+            enemy.position.z +=
+                std::cos(enemy.yaw) *
+                movementSpeed * deltaSeconds;
+            ++performanceStats_.throttledAiMoves;
+            continue;
+        }
+        enemy.aiUpdateRemaining = aiInterval;
+        ++performanceStats_.fullAiUpdates;
+        const double aiTurnDeltaSeconds =
+            std::max(deltaSeconds, aiInterval);
 
         if (enemy.state == EnemyState::BossRamWindup) {
             const auto target =
@@ -624,7 +723,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 turnToward(
                     enemy,
                     std::atan2(directionX, directionZ),
-                    deltaSeconds);
+                    aiTurnDeltaSeconds);
                 enemy.target.reset();
                 const double playerRange =
                     playerAttackRange(enemy.type);
@@ -729,7 +828,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
         turnToward(
             enemy, std::atan2(directionX, directionZ),
-            deltaSeconds);
+            aiTurnDeltaSeconds);
         directionX = std::sin(enemy.yaw);
         directionZ = std::cos(enemy.yaw);
 
@@ -853,7 +952,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 turnToward(
                     enemy,
                     std::atan2(offsetX, offsetZ),
-                    deltaSeconds);
+                    aiTurnDeltaSeconds);
                 directionX = std::sin(enemy.yaw);
                 directionZ = std::cos(enemy.yaw);
                 closestContactDistance = std::max(
@@ -884,7 +983,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             std::atan2(
                 blockerCenter.x - enemy.position.x,
                 blockerCenter.z - enemy.position.z),
-            deltaSeconds);
+            aiTurnDeltaSeconds);
         if (enemy.type == EnemyType::Boss && enemy.ramCooldownRemaining <= 0.0) {
             enemy.state = EnemyState::BossRamWindup;
             enemy.ramWindupRemaining = enemy.ramWindup;
@@ -912,8 +1011,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
 
     const auto collisionStart = PerformanceClock::now();
     resolveEnemyCapsuleCollisions(
-        enemies_, buildings, collisionEnemyLinks_,
-        collisionBuildingLinks_);
+        enemies_, structureBuffer_, collisionEnemyLinks_,
+        structureNextBuffer_, structureGridHeads_);
     performanceStats_.collision.sample(
         performanceMilliseconds(collisionStart));
     rebuildSpatialIndex();

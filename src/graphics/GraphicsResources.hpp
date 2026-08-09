@@ -7,6 +7,7 @@
 
 #include <array>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -77,12 +78,23 @@ class ModelResource {
     [[nodiscard]] const BoundingBox& visualBounds() const;
     [[nodiscard]] std::span<const BoundingBox>
     meshBounds() const;
+    [[nodiscard]] bool meshValid(std::size_t index) const;
+    [[nodiscard]] bool meshHasSkinning(std::size_t index) const;
+    [[nodiscard]] bool meshSkinningValid(std::size_t index) const;
+    [[nodiscard]] bool gpuSkinningCompatible() const;
+    [[nodiscard]] bool runtimeBoneMatricesFinite() const;
 
   private:
     Model model_{};
     GlbCollisionAsset collisionAsset_;
     BoundingBox visualBounds_{};
     std::vector<BoundingBox> meshBounds_;
+    std::vector<bool> meshValid_;
+    std::vector<bool> meshHasSkinning_;
+    std::vector<bool> meshSkinningValid_;
+    std::string path_;
+    bool gpuSkinningCompatible_{};
+    mutable bool runtimeBoneWarningLogged_{};
     bool loaded_{};
 };
 
@@ -258,12 +270,19 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& grassModelC();
     [[nodiscard]] ModelResource& grassModelD();
     [[nodiscard]] ModelResource& enemyMinionModel();
+    [[nodiscard]] const ModelResource& enemyMinionModel() const;
     [[nodiscard]] ModelResource& enemyRogueModel();
+    [[nodiscard]] const ModelResource& enemyRogueModel() const;
     [[nodiscard]] ModelResource& enemyWarriorModel();
+    [[nodiscard]] const ModelResource& enemyWarriorModel() const;
     [[nodiscard]] ModelResource& enemyMageModel();
+    [[nodiscard]] const ModelResource& enemyMageModel() const;
     [[nodiscard]] ModelResource& enemySapperModel();
+    [[nodiscard]] const ModelResource& enemySapperModel() const;
     [[nodiscard]] ModelResource& enemyFlyingModel();
+    [[nodiscard]] const ModelResource& enemyFlyingModel() const;
     [[nodiscard]] ModelResource& enemyBossModel();
+    [[nodiscard]] const ModelResource& enemyBossModel() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyGeneralAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&

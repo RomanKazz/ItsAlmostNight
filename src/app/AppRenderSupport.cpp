@@ -14,6 +14,34 @@
 
 namespace ian::app_detail {
 
+namespace {
+
+constexpr float LootVisualScaleMultiplier = 1.20F;
+
+} // namespace
+
+LootItemVisual lootItemVisual(
+    const SimulationSnapshot& snapshot,
+    const LootChestInstance& chest) {
+    const float reveal = static_cast<float>(
+        std::clamp(chest.loot.revealProgress, 0.0, 1.0));
+    const float eased = 1.0F - std::pow(1.0F - reveal, 3.0F);
+    const float riseSpin = reveal * reveal * (3.0F - 2.0F * reveal);
+    const Vec3 position = lootVisualPosition(chest);
+    return {
+        .position = {
+            static_cast<float>(position.x),
+            static_cast<float>(position.y),
+            static_cast<float>(position.z)},
+        .rotation = static_cast<float>(snapshot.elapsedSeconds) * 1.65F +
+            static_cast<float>(chest.id.index) * 0.73F +
+            riseSpin * PI,
+        .scale = LootVisualScaleMultiplier *
+            (1.50F * (0.35F + eased * 0.65F) +
+             std::sin(reveal * PI) * 0.24F),
+    };
+}
+
 EnemyModelVisual enemyModelVisual(EnemyType type) {
     switch (type) {
     case EnemyType::Basic:
@@ -81,9 +109,7 @@ float enemyVisualScale(EnemyType type) {
     case EnemyType::Sapper:
         return 0.52F;
     case EnemyType::Basic:
-        // PinkBlob is a little shorter than the old minion mesh. Keep the
-        // apparent enemy height unchanged after the model swap.
-        return 1.08F;
+        return 0.94F;
     }
     return 1.0F;
 }

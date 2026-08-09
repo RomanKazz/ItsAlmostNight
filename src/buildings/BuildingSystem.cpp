@@ -453,6 +453,19 @@ void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
     maxHealthMultiplier_ = next;
 }
 
+double BuildingSystem::restoreHealthFraction(double fraction) {
+    const double clamped = std::clamp(fraction, 0.0, 1.0);
+    double restored = 0.0;
+    for (BuildingInstance& building : buildings_) {
+        const double previous = building.health;
+        building.health = std::min(
+            building.maxHealth,
+            building.health + building.maxHealth * clamped);
+        restored += building.health - previous;
+    }
+    return restored;
+}
+
 void BuildingSystem::setNewTowerBonusEnabled(bool enabled) {
     newTowerBonusEnabled_ = enabled;
     newTowerBonusStacks_ = enabled ? 1U : 0U;

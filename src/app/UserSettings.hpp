@@ -31,6 +31,7 @@ enum class ControlAction : std::uint8_t {
     MoveRight,
     Jump,
     Sprint,
+    Dash,
     Attack,
     ToggleTool,
     Interact,
@@ -55,7 +56,7 @@ inline constexpr std::size_t ControlActionCount =
 inline constexpr std::array<int, ControlActionCount>
     DefaultControlKeys{
         KEY_W,          KEY_A,       KEY_S,       KEY_D,
-        KEY_SPACE,      KEY_LEFT_SHIFT,
+        KEY_SPACE,      KEY_LEFT_SHIFT, KEY_NULL,
         KEY_NULL,       KEY_C,       KEY_E,       KEY_G,
         KEY_F,          KEY_Q,       KEY_U,       KEY_X,
         KEY_V,          KEY_TAB,     KEY_P,       KEY_K,

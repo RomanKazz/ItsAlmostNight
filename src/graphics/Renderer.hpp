@@ -53,6 +53,9 @@ struct WorldMaterialState {
     float hitFlashAmount{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
+    // The post-process ink mask is carried by the world pass alpha.  This is
+    // a material/render-type flag, never an instance-name convention.
+    bool inkOutlineEligible{true};
 };
 
 struct RendererPerformanceStats {
@@ -153,6 +156,15 @@ struct EnemyDrawInstance {
     float scale{1.0F};
     bool loop{true};
     bool lowDetail{};
+    bool inkOutlineEligible{true};
+};
+
+struct LootChestWorldTransform {
+    Matrix baseTransform{};
+    Matrix lidTransform{};
+    BoundingBox worldBounds{};
+    bool hasLid{};
+    bool valid{};
 };
 
 struct TreeDrawInstance {
@@ -208,6 +220,7 @@ class Renderer {
     void endShadowPass();
     [[nodiscard]] bool beginSelectionMaskPass(const Camera3D& camera);
     void setSelectionMaskWind(float amount);
+    void setSelectionMaskColor(Color color);
     void setSelectionOutlineTint(Color tint);
     void setSelectionOutlineBounds(BoundingBox worldBounds);
     void endSelectionMaskPass();
@@ -280,14 +293,24 @@ class Renderer {
     [[nodiscard]] bool drawLootChest(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress, Color tint = WHITE);
+    [[nodiscard]] LootChestWorldTransform lootChestWorldTransform(
+        LootChestType type, Vector3 position, float yawRadians,
+        float openingProgress);
     void drawLootItem(
         Vector3 position, LootUpgradeEffect effect,
         LootRarity rarity, float rotationRadians,
-        Color tint = WHITE, float scale = 1.0F);
-    void drawLootItemOutline(
+        Color tint = WHITE, float scale = 1.0F,
+        Vector3 surfaceNormal = {0.0F, 1.0F, 0.0F});
+    [[nodiscard]] BoundingBox lootItemWorldBounds(
         Vector3 position, LootUpgradeEffect effect,
-        LootRarity rarity, float rotationRadians,
-        float scale = 1.0F);
+        float rotationRadians, float scale,
+        Vector3 surfaceNormal = {0.0F, 1.0F, 0.0F});
+    [[nodiscard]] BoundingBox treeWorldBounds(
+        Vector3 position, float scale, std::size_t visualVariant,
+        float yawRadians);
+    [[nodiscard]] BoundingBox enemyWorldBounds(
+        EnemyModelVisual modelVisual, Vector3 position,
+        float yawRadians, float scale) const;
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,
@@ -325,7 +348,8 @@ class Renderer {
         EnemyAnimationVisual animationVisual,
         float animationSeconds, Vector3 position,
         float yawRadians, Color tint = WHITE,
-        float scale = 1.0F, bool loop = true);
+        float scale = 1.0F, bool loop = true,
+        bool inkOutlineEligible = true);
     [[nodiscard]] bool drawEnemiesInstanced(
         std::span<const EnemyDrawInstance> instances);
     void drawGrassInstances(Vector3 cameraPosition,
@@ -364,6 +388,7 @@ class Renderer {
         int scale{};
         bool loop{};
         bool lowDetail{};
+        bool inkOutlineEligible{};
 
         auto operator<=>(const EnemyBatchKey&) const = default;
     };
@@ -420,6 +445,8 @@ class Renderer {
         int dayNightTint{-1};
         int exposure{-1};
         int saturation{-1};
+        int toonShadingEnabled{-1};
+        int toonLightSteps{-1};
         int bakedAo{-1};
         int vertexAoAmount{-1};
         int aoStrength{-1};
@@ -442,6 +469,7 @@ class Renderer {
         int shadowStrength{-1};
         int shadowMapTexelSize{-1};
         int instancingEnabled{-1};
+        int inkOutlineEligible{-1};
     };
 
     struct SkyShaderLocations {
@@ -482,8 +510,6 @@ class Renderer {
         int paletteLevels{-1};
         int ditherEnabled{-1};
         int ditherStrength{-1};
-        int posterizedLightingEnabled{-1};
-        int lightingSteps{-1};
         int bloomEnabled{-1};
         int bloomStrength{-1};
         int inkOutlinesEnabled{-1};
@@ -528,6 +554,7 @@ class Renderer {
     int selectionOutlineRadiusLocation_{-1};
     int selectionMaskTimeLocation_{-1};
     int selectionMaskWindLocation_{-1};
+    int selectionMaskColorLocation_{-1};
     int worldSkinningEnabledLocation_{-1};
     int worldInstancingEnabledLocation_{-1};
     int shadowSkinningEnabledLocation_{-1};

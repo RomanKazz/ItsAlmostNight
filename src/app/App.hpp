@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace ian {
@@ -110,8 +111,6 @@ class App {
     void drawChestLootGlow(
         const SimulationSnapshot& snapshot,
         const Camera3D& camera);
-    void drawLootItemOutlines(
-        const SimulationSnapshot& snapshot);
     void drawFloatingDamageNumbers(const Camera3D& camera) const;
     void drawResourceGainVisuals(const Camera3D& camera) const;
     void drawProductionVisuals(
@@ -121,8 +120,6 @@ class App {
     [[nodiscard]] std::optional<InteractionPrompt>
     buildInteractionPrompt(const SimulationSnapshot& snapshot,
                            const Camera3D& camera) const;
-    [[nodiscard]] float hitFlashAt(Vec3 position,
-                                   double radius) const;
     [[nodiscard]] float buildingAnimationScaleAt(
         BuildingType type, GridPosition position) const;
     [[nodiscard]] float buildingAnimationScaleAt(
@@ -193,6 +190,7 @@ class App {
     double pendingYaw_{};
     double pendingPitch_{};
     bool pendingJump_{};
+    bool pendingDash_{};
     bool pendingPickaxe_{};
     bool toolSwingUsesAxe_{};
     bool toolSwingQueued_{};
@@ -264,6 +262,8 @@ class App {
     std::string statusMessage_;
     double statusMessageRemaining_{};
     std::vector<PresentationEffect> effects_;
+    std::unordered_map<std::uint64_t, float>
+        enemyHitFlashById_;
     std::vector<ArrowVisual> arrowVisuals_;
     double cameraShakeRemaining_{};
     double cameraShakeStrength_{};
@@ -452,6 +452,7 @@ class App {
     int modularDragCandidateFrames_{};
     double modularDragLookMovement_{};
     bool modularDragExtended_{};
+    std::optional<std::uint64_t> modularDragPreviewKey_;
     std::vector<Vec3> modularDragHits_;
     std::vector<PlatformFramePlacement>
         modularPlatformDragPreviews_;

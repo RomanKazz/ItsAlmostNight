@@ -50,6 +50,22 @@ void FoundationSystem::setMaxHealthMultiplier(double multiplier) {
     maxHealthMultiplier_ = next;
 }
 
+double FoundationSystem::restoreHealthFraction(double fraction) {
+    const double clamped = std::clamp(fraction, 0.0, 1.0);
+    double restored = 0.0;
+    const auto restore = [clamped, &restored](auto& structure) {
+        const double previous = structure.health;
+        structure.health = std::min(
+            structure.maxHealth,
+            structure.health + structure.maxHealth * clamped);
+        restored += structure.health - previous;
+    };
+    for (auto& frame : platformFrames_) restore(frame);
+    for (auto& wall : walls_) restore(wall);
+    for (auto& ramp : ramps_) restore(ramp);
+    return restored;
+}
+
 const PlatformFrameInstance*
 FoundationSystem::frameAt(
     GridCoord anchor, int storey) const {

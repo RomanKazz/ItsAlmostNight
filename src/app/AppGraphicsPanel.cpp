@@ -393,9 +393,9 @@ void App::drawGraphicsPanel() {
         styleSlider(1, "DITHER STRENGTH",
                     settings.ditherStrength, 0.0F, 1.0F);
         y += RowHeight;
-        toggleButton(0, y, "LIGHT STEPS",
+        toggleButton(0, y, "TOON SHADING",
                      settings.posterizedLighting);
-        styleSlider(2, "LIGHT LEVELS", settings.lightingSteps,
+        styleSlider(2, "TOON BANDS", settings.lightingSteps,
                     2.0F, 12.0F);
         y += RowHeight;
         toggleButton(0, y, "PIXEL BLOOM", settings.bloom);
@@ -594,6 +594,7 @@ void App::drawGraphicsPanel() {
                 ControlAction::MoveRight,
                 ControlAction::Jump,
                 ControlAction::Sprint,
+                ControlAction::Dash,
                 ControlAction::Attack,
                 ControlAction::ToggleTool,
                 ControlAction::Interact,
@@ -650,6 +651,10 @@ void App::drawGraphicsPanel() {
                 if (Actions[index] == ControlAction::Attack &&
                     controlKey(controls, Actions[index]) == KEY_NULL) {
                     keyLabel = "LMB";
+                } else if (
+                    Actions[index] == ControlAction::Dash &&
+                    controlKey(controls, Actions[index]) == KEY_NULL) {
+                    keyLabel = "RMB";
                 }
             }
             if (!waiting && ui_.drawKeyCap(keyBounds, keyLabel)) {

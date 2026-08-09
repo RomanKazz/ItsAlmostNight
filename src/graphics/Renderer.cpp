@@ -182,6 +182,8 @@ void Renderer::initialize() {
             GetShaderLocation(shader, "timeSeconds");
         selectionMaskWindLocation_ =
             GetShaderLocation(shader, "windAmount");
+        selectionMaskColorLocation_ =
+            GetShaderLocation(shader, "maskColor");
         selectionMaskSkinningEnabledLocation_ =
             GetShaderLocation(shader, "skinningEnabled");
     }

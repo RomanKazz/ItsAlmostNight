@@ -58,22 +58,22 @@
       "nightFactor": 0.55
     },
     "night": {
-      "skyTop": [8, 15, 42],
-      "skyHorizon": [34, 58, 96],
-      "lowerSky": [16, 31, 58],
-      "fogColor": [34, 54, 84],
+      "skyTop": [5, 9, 34],
+      "skyHorizon": [24, 50, 91],
+      "lowerSky": [10, 24, 52],
+      "fogColor": [25, 46, 79],
       "celestialDirection": [-0.38, 0.78, -0.48],
-      "celestialColor": [0.62, 0.74, 1.0],
+      "celestialColor": [0.70, 0.82, 1.0],
       "sunColor": [0.48, 0.62, 0.92],
       "skyAmbientColor": [0.36, 0.48, 0.72],
       "groundAmbientColor": [0.16, 0.24, 0.31],
-      "dayNightTint": [0.76, 0.84, 1.0],
+      "dayNightTint": [0.72, 0.82, 1.0],
       "sunIntensity": 0.68,
       "ambientIntensity": 0.42,
       "fogStart": 30.0,
       "fogEnd": 96.0,
       "exposure": 0.96,
-      "saturation": 0.95,
+      "saturation": 1.08,
       "nightFactor": 1.0
     }
   }

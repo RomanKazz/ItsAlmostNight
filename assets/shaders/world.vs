@@ -4,7 +4,10 @@ in vec3 vertexPosition;
 in vec2 vertexTexCoord;
 in vec3 vertexNormal;
 in vec4 vertexColor;
-in ivec4 vertexBoneIndices;
+// raylib uploads boneIndices with glVertexAttribPointer as unsigned bytes.
+// Keep the input floating-point and convert explicitly; declaring an ivec4
+// here requires glVertexAttribIPointer and is driver-dependent in OpenGL.
+in vec4 vertexBoneIndices;
 in vec4 vertexBoneWeights;
 in mat4 instanceTransform;
 
@@ -28,12 +31,17 @@ out vec4 fragLightSpacePosition;
 void main()
 {
     mat4 skinMatrix = mat4(1.0);
-    if (skinningEnabled != 0) {
+    float skinWeight = dot(vertexBoneWeights, vec4(1.0));
+    if (skinningEnabled != 0 && skinWeight > 0.0001) {
+        ivec4 safeBoneIndices = ivec4(clamp(
+            vertexBoneIndices + vec4(0.5),
+            vec4(0.0), vec4(31.0)));
         skinMatrix =
-            boneMatrices[vertexBoneIndices.x]*vertexBoneWeights.x +
-            boneMatrices[vertexBoneIndices.y]*vertexBoneWeights.y +
-            boneMatrices[vertexBoneIndices.z]*vertexBoneWeights.z +
-            boneMatrices[vertexBoneIndices.w]*vertexBoneWeights.w;
+            (boneMatrices[safeBoneIndices.x]*vertexBoneWeights.x +
+             boneMatrices[safeBoneIndices.y]*vertexBoneWeights.y +
+             boneMatrices[safeBoneIndices.z]*vertexBoneWeights.z +
+             boneMatrices[safeBoneIndices.w]*vertexBoneWeights.w) /
+            skinWeight;
     }
     vec4 localPosition =
         skinMatrix*vec4(vertexPosition, 1.0);
@@ -61,14 +69,21 @@ void main()
     worldPosition = modelMatrix*localPosition;
 
     fragWorldPosition = worldPosition.xyz;
-    vec3 localNormal =
-        skinningEnabled != 0
-            ? mat3(skinMatrix)*vertexNormal
-            : vertexNormal;
-    fragWorldNormal =
-        instancingEnabled != 0
-            ? normalize(mat3(modelMatrix)*localNormal)
-            : normalize((matNormal*vec4(localNormal, 0.0)).xyz);
+    vec3 localNormal = vertexNormal;
+    if (skinningEnabled != 0 && skinWeight > 0.0001) {
+        localNormal = transpose(inverse(mat3(skinMatrix))) * vertexNormal;
+    }
+    if (dot(localNormal, localNormal) < 0.000001) {
+        localNormal = vec3(0.0, 1.0, 0.0);
+    } else {
+        localNormal = normalize(localNormal);
+    }
+    vec3 worldNormal = instancingEnabled != 0
+        ? transpose(inverse(mat3(modelMatrix))) * localNormal
+        : (matNormal*vec4(localNormal, 0.0)).xyz;
+    fragWorldNormal = dot(worldNormal, worldNormal) < 0.000001
+        ? vec3(0.0, 1.0, 0.0)
+        : normalize(worldNormal);
     fragVertexColor = vertexColor;
     fragTexCoord = vertexTexCoord;
     fragLightSpacePosition = lightViewProjection*worldPosition;

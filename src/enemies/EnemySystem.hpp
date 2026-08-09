@@ -86,6 +86,7 @@ struct EnemyInstance {
     EnemyState state;
     std::optional<EntityId> target;
     bool active;
+    double aiUpdateRemaining{};
     std::array<EnemyStatusEffect, 2> statusEffects{{
         EnemyStatusEffect{.type = StatusEffectType::Freeze},
         EnemyStatusEffect{.type = StatusEffectType::Slow},
@@ -134,6 +135,9 @@ struct EnemyPerformanceStats {
     PerformanceMetric spatialRebuild;
     std::size_t activeEnemies{};
     std::size_t spatialRebuilds{};
+    std::size_t structureGridRebuilds{};
+    std::size_t fullAiUpdates{};
+    std::size_t throttledAiMoves{};
 };
 
 class EnemySystem {
@@ -204,9 +208,10 @@ class EnemySystem {
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
     std::vector<EnemyStructureTarget> structureBuffer_;
+    std::vector<EnemyStructureTarget> incomingStructureBuffer_;
     std::vector<int> structureNextBuffer_;
+    std::vector<int> structureGridHeads_;
     std::vector<int> collisionEnemyLinks_;
-    std::vector<int> collisionBuildingLinks_;
     std::vector<EntityId> areaTargetBuffer_;
     std::size_t activeCount_{};
     std::uint32_t nextIndex_{FirstEnemyIndex};

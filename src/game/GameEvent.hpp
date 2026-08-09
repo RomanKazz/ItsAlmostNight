@@ -59,6 +59,7 @@ enum class GameEventType {
     GateToggled,
     GateToggleRejected,
     PlayerLanded,
+    PlayerDashed,
     SkillPointsGranted,
     SkillUnlocked,
     IntroSkillObjectiveCompleted,

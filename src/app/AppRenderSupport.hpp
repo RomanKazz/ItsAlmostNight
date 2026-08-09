@@ -10,6 +10,16 @@
 
 namespace ian::app_detail {
 
+struct LootItemVisual {
+    Vector3 position{};
+    float rotation{};
+    float scale{};
+};
+
+[[nodiscard]] LootItemVisual lootItemVisual(
+    const SimulationSnapshot& snapshot,
+    const LootChestInstance& chest);
+
 [[nodiscard]] EnemyModelVisual enemyModelVisual(
     EnemyType type);
 [[nodiscard]] EnemyAnimationVisual enemyAnimationVisual(

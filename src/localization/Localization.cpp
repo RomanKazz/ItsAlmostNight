@@ -208,7 +208,17 @@ std::string localizeText(std::string_view text) {
         result.find(" sold") != std::string::npos ||
         result.find(" acquired") != std::string::npos;
     if (hasRuntimeValue) {
-        replaceCatalogFragments(result);
+        // Standalone section titles use nominative forms, while counters need
+        // the genitive form before generic catalog fragments are applied.
+        replaceAll(result, " BUILDINGS", " ЗДАНИЙ");
+        replaceAll(result, " PIECES", " ДЕТАЛЕЙ");
+    }
+    // Runtime labels are often composed from independently translated parts
+    // (key binding + action, building name + state, and so on). Apply catalog
+    // fragments for fixed composed strings too; exact translations above
+    // still take priority and preserve natural phrasing.
+    replaceCatalogFragments(result);
+    if (hasRuntimeValue) {
         translateDynamicHudText(result);
     }
     return result;

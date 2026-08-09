@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "graphics/WorldTransforms.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
 
@@ -599,7 +600,6 @@ void App::render() {
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects();
-        drawLootItemOutlines(presentationSnapshot);
         EndMode3D();
         renderer_->drawSelectionOutline();
 
@@ -743,7 +743,21 @@ void App::render() {
         rlDisableDepthTest();
         targetHealthBar_.draw(
             healthBarSnapshot, camera,
-            simulation_.terrain());
+            simulation_.terrain(),
+            [this](const EnemyInstance& enemy)
+                -> std::optional<BoundingBox> {
+                Vector3 position = enemyRenderPosition(enemy);
+                position.y += static_cast<float>(
+                    simulation_.terrain().getHeight(
+                        enemy.position.x, enemy.position.z));
+                const BoundingBox bounds = renderer_->enemyWorldBounds(
+                    enemyModelVisual(enemy.type), position,
+                    static_cast<float>(enemy.yaw),
+                    enemyVisualScale(enemy.type));
+                return world_transforms::finite(bounds)
+                    ? std::optional<BoundingBox>{bounds}
+                    : std::nullopt;
+            });
         drawProductionVisuals(camera);
         rlEnableDepthTest();
         EndMode3D();
@@ -1096,13 +1110,15 @@ void App::render() {
                     130.0F;
                 ui_.drawPanel(
                     {x, y, Width, 54.0F}, 230);
+                const float fontSize = fitUiTextSize(
+                    lineCost, 15.0F, 9.0F, Width - 24.0F);
                 const float textWidth =
-                    measureUiText(lineCost, 15.0F).x;
+                    measureUiText(lineCost, fontSize).x;
                 drawUiText(
                     lineCost,
                     {x + (Width - textWidth) * 0.5F,
                      y + 12.0F},
-                    15.0F, {255, 235, 184, 255});
+                    fontSize, {255, 235, 184, 255});
             }
         }
         if (wallDragStart_ && wallDragEnd_ &&
@@ -1133,13 +1149,15 @@ void App::render() {
                 static_cast<float>(GetScreenHeight()) * 0.5F +
                 104.0F;
             ui_.drawPanel({x, y, Width, 58.0F}, 230);
+            const float fontSize = fitUiTextSize(
+                lineCost, 15.0F, 9.0F, Width - 24.0F);
             const float textWidth =
-                measureUiText(lineCost, 15.0F).x;
+                measureUiText(lineCost, fontSize).x;
             drawUiText(
                 lineCost,
                 {x + (Width - textWidth) * 0.5F,
                  y + 14.0F},
-                15.0F, {255, 235, 184, 255});
+                fontSize, {255, 235, 184, 255});
         }
         if (removalDragActive_) {
             const std::string removalHint =

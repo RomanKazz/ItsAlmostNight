@@ -24,6 +24,9 @@ constexpr double MouseSensitivity = 0.002;
 bool keyPressed(const ControlSettings& settings,
                 ControlAction action) {
     const int key = controlKey(settings, action);
+    if (action == ControlAction::Dash && key == KEY_NULL) {
+        return IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
+    }
     return key != KEY_NULL &&
            IsKeyPressed(static_cast<KeyboardKey>(key));
 }
@@ -64,6 +67,7 @@ void App::processInput() {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
         pendingJump_ = false;
+        pendingDash_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
@@ -90,6 +94,7 @@ void App::processInput() {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
         pendingJump_ = false;
+        pendingDash_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
@@ -513,6 +518,7 @@ void App::processInput() {
             pendingYaw_ = 0.0;
             pendingPitch_ = 0.0;
             pendingJump_ = false;
+            pendingDash_ = false;
             pendingPickaxe_ = false;
             pendingRifleShot_ = false;
             pendingIceWandShot_ = false;
@@ -544,6 +550,14 @@ void App::processInput() {
                          sensitivity * pitchDirection;
         pendingJump_ = pendingJump_ || keyPressed(
             userSettings_.controls, ControlAction::Jump);
+        const bool placementConsumesRightClick =
+            foundationBuildMode_ ||
+            currentSnapshot.buildingPreview.has_value();
+        pendingDash_ = pendingDash_ ||
+            (!placementConsumesRightClick &&
+             keyPressed(
+                 userSettings_.controls,
+                 ControlAction::Dash));
         if (foundationBuildMode_) {
             if (IsKeyPressed(KEY_ONE)) {
                 selectModularBuildPiece(
@@ -1094,8 +1108,15 @@ void App::processInput() {
         }
         const bool mousePrimaryPressed =
             IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        const bool heldResourceGather =
+            currentSnapshot.holdToGather &&
+            currentSnapshot.aimedResource &&
+            !currentSnapshot.buildingPreview &&
+            !foundationBuildMode_ &&
+            IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         const bool attackPressed =
             mousePrimaryPressed ||
+            heldResourceGather ||
             keyPressed(userSettings_.controls,
                        ControlAction::Attack);
         if (attackPressed) {
@@ -1206,6 +1227,8 @@ void App::processInput() {
                         displayedToolVisual_ ==
                             FirstPersonToolVisual::Club;
                     if (currentSnapshot.automaticToolSwitch &&
+                        currentSnapshot.selectedWeapon !=
+                            PlayerWeapon::BareHands &&
                         currentSnapshot.aimedResource) {
                         const auto resource = std::find_if(
                             currentSnapshot.resourceNodes.begin(),
@@ -1252,6 +1275,7 @@ void App::processInput() {
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;
         input_.sprint = false;
+        pendingDash_ = false;
         repairSweepActive_ = false;
         repairSweepTarget_.reset();
     }

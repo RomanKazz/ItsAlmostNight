@@ -116,6 +116,7 @@ class FoundationSystem {
 
     void reset();
     void setMaxHealthMultiplier(double multiplier);
+    double restoreHealthFraction(double fraction);
     [[nodiscard]] PlatformFramePlacement
     previewFoundation(
         Vec3 terrainHit, Vec3 playerPosition) const;

@@ -331,6 +331,18 @@ void AudioSystem::playEvent(
         footstepDistance_ = 0.0;
         break;
     }
+    case GameEventType::PlayerDashed: {
+        sequence_ = sequence_ * 1664525U + 1013904223U;
+        const std::size_t index =
+            static_cast<std::size_t>(sequence_) %
+            grassFootsteps_.size();
+        play(grassFootsteps_[index], 0.32F, variedPitch(0.05F) * 1.28F);
+        // A quiet low transient gives the dash body without introducing a
+        // dedicated asset dependency.
+        play(rifleShot_, 0.09F, 0.52F);
+        footstepDistance_ = 0.0;
+        break;
+    }
     case GameEventType::TrapActivated:
         playAt(
             turretHit_, event.position, snapshot, 0.42F, 0.72F);

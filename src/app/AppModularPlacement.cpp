@@ -5,7 +5,9 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 
 namespace ian {
@@ -151,6 +153,65 @@ bool isPlatformBuildPiece(ModularBuildPiece piece) {
            piece == ModularBuildPiece::FloorPlatform;
 }
 
+Vec3 modularDragReferencePoint(
+    GridCoord start, ModularBuildPiece piece,
+    double height, double cellSize) {
+    const double offset =
+        piece == ModularBuildPiece::Wall ? 0.5 : 1.0;
+    return {
+        (start.x + offset) * cellSize,
+        height,
+        (start.z + offset) * cellSize,
+    };
+}
+
+Vec3 stableElevatedDragAim(
+    Vec3 planeAim, Vec3 viewer, Vec3 lookDirection,
+    Vec3 dragReference, double maximumDistance) {
+    double deltaX = planeAim.x - dragReference.x;
+    double deltaZ = planeAim.z - dragReference.z;
+    const double distance = std::hypot(deltaX, deltaZ);
+    if (maximumDistance <= 0.0 ||
+        distance <= maximumDistance) {
+        return planeAim;
+    }
+
+    // Near-parallel ray/plane intersections explode toward the horizon.
+    // Use the point where the view ray passes closest to the drag anchor;
+    // this preserves "left/right of anchor" instead of converting it into
+    // a long forward line.
+    const Vec3 toReference{
+        dragReference.x - viewer.x,
+        dragReference.y - viewer.y,
+        dragReference.z - viewer.z,
+    };
+    const double rayDistance = std::max(
+        0.0,
+        toReference.x * lookDirection.x +
+            toReference.y * lookDirection.y +
+            toReference.z * lookDirection.z);
+    Vec3 stable{
+        viewer.x + lookDirection.x * rayDistance,
+        planeAim.y,
+        viewer.z + lookDirection.z * rayDistance,
+    };
+    deltaX = stable.x - dragReference.x;
+    deltaZ = stable.z - dragReference.z;
+    const double stableDistance = std::hypot(deltaX, deltaZ);
+    if (stableDistance > maximumDistance) {
+        const double scale = maximumDistance / stableDistance;
+        stable.x = dragReference.x + deltaX * scale;
+        stable.z = dragReference.z + deltaZ * scale;
+    }
+    return stable;
+}
+
+void hashDragPreviewValue(
+    std::uint64_t& hash, std::uint64_t value) {
+    hash ^= value + 0x9e3779b97f4a7c15ULL +
+        (hash << 6U) + (hash >> 2U);
+}
+
 } // namespace
 
 void App::clearModularPlacementDrag() {
@@ -167,6 +228,7 @@ void App::clearModularPlacementDrag() {
     modularDragCandidateFrames_ = 0;
     modularDragLookMovement_ = 0.0;
     modularDragExtended_ = false;
+    modularDragPreviewKey_.reset();
     modularDragHits_.clear();
     modularPlatformDragPreviews_.clear();
     modularWallDragPreviews_.clear();
@@ -268,8 +330,22 @@ void App::updateModularPlacementPreview(
                     lookDirection,
                     *modularDragPlaneHeight_);
             if (floorAim) {
+                const Vec3 dragReference =
+                    modularDragReferencePoint(
+                        *modularDragStart_,
+                        *modularDragPiece_,
+                        *modularDragPlaneHeight_,
+                        cellSize);
+                const Vec3 boundedFloorAim =
+                    stableElevatedDragAim(
+                        *floorAim,
+                        snapshot.playerPosition,
+                        lookDirection,
+                        dragReference,
+                        terrain.config()
+                            .buildPreviewDistance);
                 updateModularDragAxis(
-                    *floorAim, cellSize);
+                    boundedFloorAim, cellSize);
                 const int supportStorey =
                     *modularDragStorey_ - 1;
                 const double supportFloorHeight =
@@ -304,16 +380,17 @@ void App::updateModularPlacementPreview(
                 };
                 targetFrame = frameAtAnchor(
                     rampSupportAnchorAtAim(
-                        *floorAim, lookDirection, cellSize));
+                        boundedFloorAim,
+                        lookDirection, cellSize));
                 if (!targetFrame) {
                     targetFrame = frameAtAnchor(GridCoord{
                         snapPlatformFrameAxis(
                             static_cast<int>(std::floor(
-                                floorAim->x / cellSize))),
+                                boundedFloorAim.x / cellSize))),
                         0,
                         snapPlatformFrameAxis(
                             static_cast<int>(std::floor(
-                                floorAim->z / cellSize))),
+                                boundedFloorAim.z / cellSize))),
                     });
                 }
                 targetIsAimed = targetFrame != nullptr;
@@ -550,11 +627,25 @@ void App::updateModularPlacementPreview(
                     lookDirection,
                     *modularDragPlaneHeight_);
             if (dragPlaneHit) {
+                const Vec3 dragReference =
+                    modularDragReferencePoint(
+                        *modularDragStart_,
+                        *modularDragPiece_,
+                        *modularDragPlaneHeight_,
+                        cellSize);
+                const Vec3 boundedDragPlaneHit =
+                    stableElevatedDragAim(
+                        *dragPlaneHit,
+                        snapshot.playerPosition,
+                        lookDirection,
+                        dragReference,
+                        terrain.config()
+                            .buildPreviewDistance);
                 updateModularDragAxis(
-                    *dragPlaneHit, cellSize);
+                    boundedDragPlaneHit, cellSize);
                 modularDragEnd_ =
                     rampSupportAnchorAtAim(
-                        *dragPlaneHit,
+                        boundedDragPlaneHit,
                         lookDirection, cellSize);
                 if (modularDragAxis_ ==
                     PlacementLineAxis::X) {
@@ -566,10 +657,10 @@ void App::updateModularPlacementPreview(
                         modularDragStart_->x;
                 }
                 foundationTerrainHit_ =
-                    *dragPlaneHit;
-                modularSnapHit_ = *dragPlaneHit;
+                    boundedDragPlaneHit;
+                modularSnapHit_ = boundedDragPlaneHit;
                 modularSnapMarker_ =
-                    *dragPlaneHit;
+                    boundedDragPlaneHit;
                 rampPreview_.reset();
                 platformFramePreview_.reset();
                 wallPreview_.reset();
@@ -671,17 +762,28 @@ void App::updateModularPlacementPreview(
     auto rawHit = simulation_.terrain().raycast(
         snapshot.playerPosition, lookDirection,
         terrainRayDistance);
+    // Ground-floor pieces still follow the terrain hit: that preserves the
+    // existing first-floor placement behaviour on sloped ground. Only an
+    // elevated storey gets its grid coordinates from the fixed horizontal
+    // plane, which removes the world-Y component from multi-build direction.
     if (modularDragPiece_ &&
-        modularDragPlaneHeight_) {
-        // Keep the drag axis on the floor where it began. A
-        // terrain hit below an elevated floor otherwise skews
-        // the X/Z endpoint and can flip the dominant line axis.
+        modularDragPlaneHeight_ && modularDragStorey_ &&
+        *modularDragStorey_ > 0) {
         if (const auto dragPlaneHit =
                 rampSocketAimOnFloor(
                     snapshot.playerPosition,
                     lookDirection,
                     *modularDragPlaneHeight_)) {
-            rawHit = *dragPlaneHit;
+            const Vec3 dragReference =
+                modularDragReferencePoint(
+                    *modularDragStart_,
+                    *modularDragPiece_,
+                    *modularDragPlaneHeight_,
+                    cellSize);
+            rawHit = stableElevatedDragAim(
+                *dragPlaneHit, snapshot.playerPosition,
+                lookDirection, dragReference,
+                terrain.config().buildPreviewDistance);
         }
     }
 
@@ -1224,7 +1326,13 @@ void App::beginModularPlacementDrag() {
     }
     modularDragEnd_ = modularDragStart_;
     modularDragOrigin_ = foundationTerrainHit_;
-    if (modularDragPlaneHeight_) {
+    if (modularDragPlaneHeight_ &&
+        modularDragStorey_ && *modularDragStorey_ > 0) {
+        modularDragOrigin_ = modularDragReferencePoint(
+            *modularDragStart_, modularBuildPiece_,
+            *modularDragPlaneHeight_,
+            simulation_.terrain().config().cellSize);
+    } else if (modularDragPlaneHeight_) {
         const auto snapshot = simulation_.snapshot();
         const double cosPitch =
             std::cos(snapshot.playerPitch);
@@ -1271,12 +1379,13 @@ void App::updateModularDragAxis(
 }
 
 void App::rebuildModularPlacementLine() {
-    modularDragHits_.clear();
-    modularPlatformDragPreviews_.clear();
-    modularWallDragPreviews_.clear();
-    modularRampDragPreviews_.clear();
     if (!modularDragStart_ || !modularDragEnd_ ||
         !modularDragStorey_ || !modularDragPiece_) {
+        modularDragPreviewKey_.reset();
+        modularDragHits_.clear();
+        modularPlatformDragPreviews_.clear();
+        modularWallDragPreviews_.clear();
+        modularRampDragPreviews_.clear();
         return;
     }
 
@@ -1289,12 +1398,58 @@ void App::rebuildModularPlacementLine() {
         modularDragEnd_->x - modularDragStart_->x,
         modularDragEnd_->z - modularDragStart_->z,
         modularDragAxis_, spacing);
+    const auto snapshot = simulation_.snapshot();
+    std::uint64_t previewKey = 0xcbf29ce484222325ULL;
+    const auto addSigned = [&previewKey](int value) {
+        hashDragPreviewValue(
+            previewKey,
+            static_cast<std::uint64_t>(
+                static_cast<std::int64_t>(value)));
+    };
+    addSigned(modularDragStart_->x);
+    addSigned(modularDragStart_->z);
+    addSigned(modularDragEnd_->x);
+    addSigned(modularDragEnd_->z);
+    addSigned(*modularDragStorey_);
+    addSigned(static_cast<int>(*modularDragPiece_));
+    addSigned(modularDragAxis_
+                  ? static_cast<int>(*modularDragAxis_) + 1
+                  : 0);
+    addSigned(static_cast<int>(modularRotation_));
+    addSigned(modularDragRotation_
+                  ? static_cast<int>(*modularDragRotation_) + 1
+                  : 0);
+    addSigned(snapshot.wood);
+    addSigned(snapshot.stone);
+    addSigned(snapshot.gold);
+    hashDragPreviewValue(
+        previewKey, simulation_.structuralRevision());
+    hashDragPreviewValue(
+        previewKey,
+        std::bit_cast<std::uint64_t>(
+            snapshot.playerPosition.x));
+    hashDragPreviewValue(
+        previewKey,
+        std::bit_cast<std::uint64_t>(
+            snapshot.playerPosition.z));
+    hashDragPreviewValue(
+        previewKey,
+        std::bit_cast<std::uint64_t>(
+            modularDragTargetFloorHeight_.value_or(0.0)));
+    if (modularDragPreviewKey_ == previewKey) {
+        return;
+    }
+    modularDragPreviewKey_ = previewKey;
+
+    modularDragHits_.clear();
+    modularPlatformDragPreviews_.clear();
+    modularWallDragPreviews_.clear();
+    modularRampDragPreviews_.clear();
     const auto cells = ian::placementLine(
         *modularDragStart_, *modularDragEnd_,
         spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
-    const auto snapshot = simulation_.snapshot();
     const double cellSize = terrain.config().cellSize;
     modularDragHits_.reserve(cells.size());
 

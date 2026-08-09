@@ -70,6 +70,7 @@ struct PlayerCommand {
     std::optional<EntityId> aimedModularBuildingOverride;
     bool jump{};
     bool sprint{};
+    bool dash{};
     bool usePickaxe{};
     bool fireRifle{};
     bool fireIceWand{};
@@ -135,6 +136,10 @@ struct SimulationSnapshot {
     double playerPitch;
     bool playerGrounded;
     Vec3 playerHorizontalVelocity;
+    bool dashUnlocked{};
+    bool dashing{};
+    double dashCooldownRemaining{};
+    double dashCooldownDuration{};
     double playerVerticalVelocity;
     double playerHealth;
     double playerMaxHealth;
@@ -214,6 +219,7 @@ struct SimulationSnapshot {
     bool unlimitedResources;
     bool playerInvulnerable;
     bool automaticToolSwitch;
+    bool holdToGather;
     PlayerWeapon selectedWeapon;
     double selectedWeaponDamage;
     int rifleLevel;
@@ -402,6 +408,9 @@ class Simulation {
     double verticalVelocity_{};
     double coyoteTimeRemaining_{};
     double jumpBufferRemaining_{};
+    double dashRemaining_{};
+    double dashCooldownRemaining_{};
+    Vec3 dashDirection_{};
     double autoJumpAssistRemaining_{};
     Vec3 autoJumpAssistDirection_{};
     double edgeSupportGraceRemaining_{};
@@ -431,6 +440,7 @@ class Simulation {
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};
     std::uint64_t pickaxeAttackSequence_{};
+    std::uint64_t powerSwingResourceHits_{};
     double pickaxeCooldownRemaining_{};
     double pickaxeInputBufferRemaining_{};
     std::optional<EntityId> aimedResource_;

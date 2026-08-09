@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
 #include "ui/UiText.hpp"
@@ -51,6 +52,10 @@ constexpr float PlatformLegTopY = -0.12480831F;
 constexpr float PlatformLegSpan = 3.87519169F;
 constexpr float TreeModelScale = 1.0F;
 constexpr float RockModelScale = 2.0F;
+// Authoring/import scale is shared by regular enemy rendering, instancing,
+// collision bounds and target UI. Gameplay archetype scale is supplied by
+// AppRenderSupport::enemyVisualScale.
+constexpr float EnemyImportScale = 0.82F;
 constexpr float RockGroundOffset = 0.204F;
 constexpr float DecorativeRockClusterSize = 18.0F;
 constexpr std::array<std::size_t, PlatformLegCount>
@@ -267,6 +272,27 @@ platformMeshTransforms(
 
 ModelResource* enemyModelFor(
     GraphicsResources& resources, EnemyModelVisual visual) {
+    switch (visual) {
+    case EnemyModelVisual::Minion:
+        return &resources.enemyMinionModel();
+    case EnemyModelVisual::Rogue:
+        return &resources.enemyRogueModel();
+    case EnemyModelVisual::Warrior:
+        return &resources.enemyWarriorModel();
+    case EnemyModelVisual::Mage:
+        return &resources.enemyMageModel();
+    case EnemyModelVisual::Sapper:
+        return &resources.enemySapperModel();
+    case EnemyModelVisual::Flying:
+        return &resources.enemyFlyingModel();
+    case EnemyModelVisual::Boss:
+        return &resources.enemyBossModel();
+    }
+    return nullptr;
+}
+
+const ModelResource* enemyModelFor(
+    const GraphicsResources& resources, EnemyModelVisual visual) {
     switch (visual) {
     case EnemyModelVisual::Minion:
         return &resources.enemyMinionModel();
@@ -523,8 +549,8 @@ struct LootModelFit {
     float scale{1.0F};
 };
 
-LootModelFit lootModelFit(const Model& model) {
-    const BoundingBox bounds = GetModelBoundingBox(model);
+LootModelFit lootModelFit(const ModelResource& resource) {
+    const BoundingBox bounds = resource.visualBounds();
     const Vector3 extent{
         bounds.max.x - bounds.min.x,
         bounds.max.y - bounds.min.y,
@@ -544,39 +570,26 @@ LootModelFit lootModelFit(const Model& model) {
     };
 }
 
-void drawFittedLootModel(Model& model, Color tint) {
-    const LootModelFit fit = lootModelFit(model);
-    rlPushMatrix();
-    rlScalef(fit.scale, fit.scale, fit.scale);
-    rlTranslatef(-fit.center.x, -fit.center.y, -fit.center.z);
-    DrawModel(model, {}, 1.0F, tint);
-    rlPopMatrix();
-}
-
-void drawFittedLootOutlineModel(Model& model, Color color) {
-    const LootModelFit fit = lootModelFit(model);
-    const Texture2D whiteTexture{
-        .id = rlGetTextureIdDefault(),
-        .width = 1,
-        .height = 1,
-        .mipmaps = 1,
-        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
-    };
+void drawFittedLootModel(ModelResource& resource, Color tint) {
+    Model& model = resource.get();
+    const LootModelFit fit = lootModelFit(resource);
     rlPushMatrix();
     rlScalef(fit.scale, fit.scale, fit.scale);
     rlTranslatef(-fit.center.x, -fit.center.y, -fit.center.z);
     for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-        Material& material =
-            model.materials[model.meshMaterial[meshIndex]];
-        const Texture2D originalTexture =
-            material.maps[MATERIAL_MAP_DIFFUSE].texture;
-        const Color originalColor =
-            material.maps[MATERIAL_MAP_DIFFUSE].color;
-        material.maps[MATERIAL_MAP_DIFFUSE].texture = whiteTexture;
-        material.maps[MATERIAL_MAP_DIFFUSE].color = color;
+        if (!resource.meshValid(static_cast<std::size_t>(meshIndex))) {
+            continue;
+        }
+        const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 || materialIndex >= model.materialCount) {
+            continue;
+        }
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(
+            original, tint);
         DrawMesh(model.meshes[meshIndex], material, model.transform);
-        material.maps[MATERIAL_MAP_DIFFUSE].texture = originalTexture;
-        material.maps[MATERIAL_MAP_DIFFUSE].color = originalColor;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     }
     rlPopMatrix();
 }
@@ -586,6 +599,60 @@ void applyLootItemLocalRotation(LootUpgradeEffect effect) {
         rlRotatef(90.0F, 1.0F, 0.0F, 0.0F);
         rlRotatef(90.0F, 0.0F, 0.0F, 1.0F);
     }
+}
+
+Matrix lootItemLocalRotationMatrix(LootUpgradeEffect effect) {
+    if (effect != LootUpgradeEffect::Bread) {
+        return MatrixIdentity();
+    }
+    // rlRotatef pre-multiplies the current matrix, so this is the exact
+    // matrix produced by applyLootItemLocalRotation above.
+    return MatrixMultiply(
+        MatrixRotateZ(90.0F * DEG2RAD),
+        MatrixRotateX(90.0F * DEG2RAD));
+}
+
+bool finiteBoneMatrices(const Matrix* matrices, int boneCount) {
+    if (matrices == nullptr || boneCount <= 0 || boneCount > 32) {
+        return false;
+    }
+    for (int bone = 0; bone < boneCount; ++bone) {
+        const float* values = &matrices[bone].m0;
+        for (int value = 0; value < 16; ++value) {
+            if (!std::isfinite(values[value])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool uploadBoneMatrices(
+    Shader& shader, const Matrix* matrices, int boneCount) {
+    if (!finiteBoneMatrices(matrices, boneCount) ||
+        shader.locs == nullptr ||
+        shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS] < 0) {
+        return false;
+    }
+    rlDrawRenderBatchActive();
+    rlEnableShader(shader.id);
+    rlSetUniformMatrices(
+        shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS],
+        matrices, boneCount);
+    rlDisableShader();
+    return true;
+}
+
+bool uploadBoneMatrices(
+    ModelResource& resource, Shader& shader) {
+    if (!resource.gpuSkinningCompatible() ||
+        !resource.runtimeBoneMatricesFinite()) {
+        return false;
+    }
+    const Model& model = resource.get();
+    return uploadBoneMatrices(
+        shader, model.boneMatrices,
+        model.skeleton.boneCount);
 }
 
 Color crowdLodTint(EnemyModelVisual visual, Color tint) {
@@ -951,30 +1018,25 @@ bool Renderer::drawLootChest(
     } else if (worldShaderActive_ && resources_.worldShader().valid()) {
         shader = &resources_.worldShader().get();
     }
-    if (shader != nullptr) {
+    if (shader != nullptr && model.materials != nullptr) {
         for (int index = 0; index < model.materialCount; ++index)
             model.materials[index].shader = *shader;
     }
 
-    constexpr float ModelScale = 2.45F;
-    const float progress = std::clamp(openingProgress, 0.0F, 1.0F);
-    const float delayed = std::clamp((progress - 0.08F) / 0.76F, 0.0F, 1.0F);
-    constexpr float Back = 1.70158F;
-    constexpr float BackPlusOne = Back + 1.0F;
-    const float shifted = delayed - 1.0F;
-    const float eased = 1.0F + BackPlusOne * shifted * shifted * shifted +
-        Back * shifted * shifted;
-    const float lidAngle = std::clamp(eased, 0.0F, 1.08F) * -108.0F * DEG2RAD;
-    const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
-    const Matrix terrainRotation = terrainAlignedRotation(
-        position.x, position.z, yawRadians);
-    const Matrix translation =
-        MatrixTranslate(position.x, position.y, position.z);
-    const Matrix baseTransform = MatrixMultiply(
-        MatrixMultiply(scale, terrainRotation), translation);
-
-    const auto drawMesh = [&model, tint](int meshIndex, Matrix transform) {
+    const LootChestWorldTransform worldTransform =
+        lootChestWorldTransform(
+            type, position, yawRadians, openingProgress);
+    if (!worldTransform.valid) return false;
+    const auto drawMesh = [&resource, &model, tint](
+                              int meshIndex, Matrix transform) {
+        if (meshIndex < 0 || meshIndex >= model.meshCount ||
+            !resource.meshValid(static_cast<std::size_t>(meshIndex))) {
+            return;
+        }
         const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 || materialIndex >= model.materialCount) {
+            return;
+        }
         Material& material = model.materials[materialIndex];
         const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
         material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
@@ -983,50 +1045,113 @@ bool Renderer::drawLootChest(
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
 
-    if (model.meshCount >= 2) {
-        drawMesh(1, baseTransform);
-        // raylib bakes glTF node transforms into every mesh on load.  The lid
-        // vertices therefore already include the Blender node translation;
-        // adding it again made the closed lid slide away from the chest.
-        // Rotate the baked vertices around the original lid-node origin,
-        // which is the authored hinge position.
-        const Vector3 lidPivot = type == LootChestType::Wooden
+    if (worldTransform.hasLid) {
+        drawMesh(1, worldTransform.baseTransform);
+        drawMesh(0, worldTransform.lidTransform);
+        for (int index = 2; index < model.meshCount; ++index) {
+            drawMesh(index, worldTransform.baseTransform);
+        }
+    } else {
+        for (int index = 0; index < model.meshCount; ++index) {
+            drawMesh(index, worldTransform.baseTransform);
+        }
+    }
+    return true;
+}
+
+LootChestWorldTransform Renderer::lootChestWorldTransform(
+    LootChestType type, Vector3 position, float yawRadians,
+    float openingProgress) {
+    LootChestWorldTransform result{};
+    ModelResource& resource = type == LootChestType::Wooden
+        ? resources_.woodenChestModel()
+        : resources_.stoneChestModel();
+    if (!resource.valid()) return result;
+    Model& model = resource.get();
+    if (model.meshCount <= 0 || model.meshes == nullptr ||
+        model.meshMaterial == nullptr || model.materials == nullptr) {
+        return result;
+    }
+
+    constexpr float ModelScale = 2.45F;
+    const float progress = std::clamp(openingProgress, 0.0F, 1.0F);
+    const float delayed = std::clamp(
+        (progress - 0.08F) / 0.76F, 0.0F, 1.0F);
+    constexpr float Back = 1.70158F;
+    const float shifted = delayed - 1.0F;
+    const float eased = 1.0F + (Back + 1.0F) * shifted * shifted * shifted +
+        Back * shifted * shifted;
+    const float lidAngle = std::clamp(eased, 0.0F, 1.08F) *
+        -108.0F * DEG2RAD;
+    const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
+    const Matrix terrainRotation = terrainAlignedRotation(
+        position.x, position.z, yawRadians);
+    const Matrix translation = MatrixTranslate(
+        position.x, position.y, position.z);
+    result.baseTransform = MatrixMultiply(
+        MatrixMultiply(scale, terrainRotation), translation);
+    result.lidTransform = result.baseTransform;
+    result.hasLid = model.meshCount >= 2 &&
+        resource.meshValid(0U) && resource.meshValid(1U);
+    if (result.hasLid) {
+        // raylib bakes glTF node translation into lid vertices. Rotate those
+        // baked vertices around authored lid-node origin. A bounding-box
+        // edge is not the hinge and shifts the lid while it opens.
+        const Vector3 pivot = type == LootChestType::Wooden
             ? Vector3{0.0F, 0.22719747F, -0.21279876F}
             : Vector3{0.0F, 0.2F, -0.2F};
         const Matrix lidRotation = MatrixRotateX(lidAngle);
-        const Matrix toLidOrigin = MatrixTranslate(
-            -lidPivot.x, -lidPivot.y, -lidPivot.z);
-        const Matrix fromLidOrigin = MatrixTranslate(
-            lidPivot.x, lidPivot.y, lidPivot.z);
-        const Matrix lidTransform = MatrixMultiply(
+        const Matrix toPivot = MatrixTranslate(
+            -pivot.x, -pivot.y, -pivot.z);
+        const Matrix fromPivot = MatrixTranslate(
+            pivot.x, pivot.y, pivot.z);
+        result.lidTransform = MatrixMultiply(
             MatrixMultiply(
-                MatrixMultiply(
-                    MatrixMultiply(
-                        MatrixMultiply(toLidOrigin, lidRotation),
-                        fromLidOrigin),
-                    scale),
-                    terrainRotation),
-            translation);
-        drawMesh(0, lidTransform);
-        for (int index = 2; index < model.meshCount; ++index)
-            drawMesh(index, baseTransform);
-    } else {
-        for (int index = 0; index < model.meshCount; ++index)
-            drawMesh(index, baseTransform);
+                MatrixMultiply(toPivot, lidRotation), fromPivot),
+            result.baseTransform);
     }
-    return true;
+
+    bool initialized = false;
+    const auto addMeshBounds = [&](int meshIndex, Matrix transform) {
+        if (meshIndex < 0 || meshIndex >= model.meshCount ||
+            !resource.meshValid(static_cast<std::size_t>(meshIndex))) {
+            return;
+        }
+        const auto bounds = resource.meshBounds();
+        if (static_cast<std::size_t>(meshIndex) >= bounds.size()) return;
+        world_transforms::expandBounds(
+            result.worldBounds,
+            world_transforms::transformBounds(
+                bounds[static_cast<std::size_t>(meshIndex)],
+                MatrixMultiply(model.transform, transform)),
+            initialized);
+    };
+    if (result.hasLid) {
+        addMeshBounds(0, result.lidTransform);
+        addMeshBounds(1, result.baseTransform);
+        for (int index = 2; index < model.meshCount; ++index) {
+            addMeshBounds(index, result.baseTransform);
+        }
+    } else {
+        for (int index = 0; index < model.meshCount; ++index) {
+            addMeshBounds(index, result.baseTransform);
+        }
+    }
+    result.valid = initialized &&
+        world_transforms::finite(result.worldBounds);
+    return result;
 }
 
 void Renderer::drawLootItem(
     Vector3 position, LootUpgradeEffect effect,
     LootRarity rarity, float rotationRadians, Color tint,
-    float scale) {
+    float scale, Vector3 surfaceNormal) {
     const Color color = ColorTint(
         ColorBrightness(lootRarityColor(rarity), 0.22F), tint);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
-    rlMultMatrixf(MatrixToFloat(terrainAlignedRotation(
-        position.x, position.z, rotationRadians)));
+    rlMultMatrixf(MatrixToFloat(world_transforms::surfaceRotation(
+        surfaceNormal, rotationRadians)));
     applyLootItemLocalRotation(effect);
     rlScalef(scale, scale, scale);
     ModelResource* resource = lootItemModelFor(resources_, effect);
@@ -1044,59 +1169,50 @@ void Renderer::drawLootItem(
         } else if (worldShaderActive_ && resources_.worldShader().valid()) {
             shader = resources_.worldShader().get();
         }
+        if (model.materials == nullptr || model.meshMaterial == nullptr) {
+            rlPopMatrix();
+            return;
+        }
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = shader;
         }
         // Keep the authored food colors; rarity belongs to the silhouette,
         // not to a cyan tint over the item itself.
-        drawFittedLootModel(model, ColorTint(WHITE, tint));
+        drawFittedLootModel(*resource, ColorTint(WHITE, tint));
     } else {
         drawLootItemGeometry(effect, color);
     }
     rlPopMatrix();
 }
 
-void Renderer::drawLootItemOutline(
+BoundingBox Renderer::lootItemWorldBounds(
     Vector3 position, LootUpgradeEffect effect,
-    LootRarity rarity, float rotationRadians, float scale) {
-    rlDrawRenderBatchActive();
-    BeginBlendMode(BLEND_ALPHA);
-    rlDisableDepthMask();
-    rlSetCullFace(RL_CULL_FACE_FRONT);
+    float rotationRadians, float scale, Vector3 surfaceNormal) {
     ModelResource* resource = lootItemModelFor(resources_, effect);
-    if (resource != nullptr && resource->valid()) {
-        Model& model = resource->get();
-        const Shader shader{
-            .id = rlGetShaderIdDefault(),
-            .locs = rlGetShaderLocsDefault(),
-        };
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = shader;
-        }
+    if (resource == nullptr || !resource->valid()) {
+        const float radius = std::max(0.05F, scale * 0.32F);
+        return {{position.x - radius, position.y - radius,
+                 position.z - radius},
+                {position.x + radius, position.y + radius,
+                 position.z + radius}};
     }
-
-    const Color coreColor = lootRarityColor(rarity);
-    const auto drawShell = [&](float expansion, Color color) {
-        rlPushMatrix();
-        rlTranslatef(position.x, position.y, position.z);
-        rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-        applyLootItemLocalRotation(effect);
-        const float shellScale = scale * expansion;
-        rlScalef(shellScale, shellScale, shellScale);
-        if (resource != nullptr && resource->valid()) {
-            drawFittedLootOutlineModel(resource->get(), color);
-        } else {
-            drawLootItemGeometry(effect, color);
-        }
-        rlPopMatrix();
-    };
-    drawShell(1.13F, Fade(coreColor, 0.42F));
-    drawShell(1.075F, coreColor);
-
-    rlDrawRenderBatchActive();
-    rlSetCullFace(RL_CULL_FACE_BACK);
-    rlEnableDepthMask();
-    EndBlendMode();
+    const LootModelFit fit = lootModelFit(*resource);
+    const Matrix transform = MatrixMultiply(
+        resource->get().transform,
+        MatrixMultiply(
+            MatrixTranslate(-fit.center.x, -fit.center.y, -fit.center.z),
+            MatrixMultiply(
+                MatrixScale(fit.scale * scale, fit.scale * scale,
+                            fit.scale * scale),
+                MatrixMultiply(
+                    lootItemLocalRotationMatrix(effect),
+                    MatrixMultiply(
+                        world_transforms::surfaceRotation(
+                            surfaceNormal, rotationRadians),
+                        MatrixTranslate(
+                            position.x, position.y, position.z))))));
+    return world_transforms::transformBounds(
+        resource->visualBounds(), transform);
 }
 
 std::optional<double> Renderer::buildingRaycastDistance(
@@ -1500,6 +1616,10 @@ bool Renderer::drawCannonball(Vector3 position, Color tint) {
         return false;
     }
     Model& model = resource.get();
+    if (model.meshCount <= 0 || model.meshes == nullptr ||
+        model.meshMaterial == nullptr || model.materials == nullptr) {
+        return false;
+    }
     Shader* shader = nullptr;
     if (selectionMaskPassOpen_ &&
         resources_.selectionMaskShader().valid()) {
@@ -1509,7 +1629,7 @@ bool Renderer::drawCannonball(Vector3 position, Color tint) {
     } else if (worldShaderActive_ && resources_.worldShader().valid()) {
         shader = &resources_.worldShader().get();
     }
-    if (shader != nullptr) {
+    if (shader != nullptr && model.materials != nullptr) {
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = *shader;
         }
@@ -2733,6 +2853,10 @@ bool Renderer::drawTree(Vector3 position, Color tint,
         return false;
     }
     Model& model = resource.get();
+    if (model.meshCount <= 0 || model.meshes == nullptr ||
+        model.meshMaterial == nullptr || model.materials == nullptr) {
+        return false;
+    }
     Shader* shader = nullptr;
     if (selectionMaskPassOpen_ &&
         resources_.selectionMaskShader().valid()) {
@@ -2742,7 +2866,7 @@ bool Renderer::drawTree(Vector3 position, Color tint,
     } else if (worldShaderActive_ && resources_.worldShader().valid()) {
         shader = &resources_.worldShader().get();
     }
-    if (shader != nullptr) {
+    if (shader != nullptr && model.materials != nullptr) {
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = *shader;
         }
@@ -2764,6 +2888,42 @@ bool Renderer::drawTree(Vector3 position, Color tint,
          TreeModelScale * scale},
         tint);
     return true;
+}
+
+BoundingBox Renderer::treeWorldBounds(
+    Vector3 position, float scale, std::size_t visualVariant,
+    float yawRadians) {
+    const std::size_t variant = visualVariant % TreeVisualVariantCount;
+    ModelResource& resource = resources_.treeModel(variant);
+    if (!resource.valid() || !world_transforms::finite(position) ||
+        !std::isfinite(scale) || !std::isfinite(yawRadians)) {
+        return {};
+    }
+    scale *= worldRevealScaleAt({position.x, position.z});
+    if (!std::isfinite(scale) || scale <= 0.001F) return {};
+    position.y += static_cast<float>(
+        TreeVisualGroundOffsets[variant] * scale);
+    const float modelScale = TreeModelScale * scale;
+    const Matrix transform = MatrixMultiply(
+        resource.get().transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(position.x, position.y, position.z)));
+    BoundingBox bounds = world_transforms::transformBounds(
+        resource.visualBounds(), transform);
+    // Selection mask applies up to 1.35 times the authored wind vector.
+    // Keep scissor bounds around the displaced crown at every wind phase.
+    constexpr float MaximumLocalWindDisplacement =
+        1.35F * 0.10F;
+    const float windPadding =
+        MaximumLocalWindDisplacement * modelScale;
+    bounds.min.x -= windPadding;
+    bounds.max.x += windPadding;
+    bounds.min.z -= windPadding;
+    bounds.max.z += windPadding;
+    return bounds;
 }
 
 bool Renderer::drawTreesInstanced(
@@ -2824,7 +2984,14 @@ bool Renderer::drawTreesInstanced(
         Model& model = resources_.treeModel(variant).get();
         for (int meshIndex = 0; meshIndex < model.meshCount;
              ++meshIndex) {
+            if (!resources_.treeModel(variant).meshValid(
+                    static_cast<std::size_t>(meshIndex))) {
+                continue;
+            }
             const int materialIndex = model.meshMaterial[meshIndex];
+            if (materialIndex < 0 || materialIndex >= model.materialCount) {
+                continue;
+            }
             Material material = model.materials[materialIndex];
             material.shader = shader;
             material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
@@ -2975,7 +3142,8 @@ bool Renderer::drawEnemy(
     EnemyModelVisual modelVisual,
     EnemyAnimationVisual animationVisual,
     float animationSeconds, Vector3 position,
-    float yawRadians, Color tint, float scale, bool loop) {
+    float yawRadians, Color tint, float scale, bool loop,
+    bool inkOutlineEligible) {
     ModelResource* modelResource =
         enemyModelFor(resources_, modelVisual);
     if (modelResource == nullptr || !modelResource->valid()) {
@@ -2986,10 +3154,18 @@ bool Renderer::drawEnemy(
         enemyAnimationFor(resources_, modelVisual, animationVisual);
 
     Model& model = modelResource->get();
+    if (model.meshCount <= 0 || model.meshes == nullptr ||
+        model.meshMaterial == nullptr || model.materials == nullptr) {
+        return false;
+    }
     const ModelAnimation* clip =
         animation.animations->find(animation.clipName);
+    const bool skeletonUsable =
+        model.skeleton.boneCount > 0 &&
+        model.skeleton.bones != nullptr &&
+        model.skeleton.bindPose != nullptr;
     if (clip != nullptr && clip->keyframeCount > 0 &&
-        model.skeleton.boneCount > 0) {
+        skeletonUsable) {
         const float frameValue =
             std::max(0.0F, animationSeconds) * 30.0F;
         int frame = static_cast<int>(frameValue);
@@ -3039,24 +3215,98 @@ bool Renderer::drawEnemy(
         worldShaderActive_ && resources_.worldShader().valid()) {
         shader = &resources_.worldShader().get();
     }
-    if (shader != nullptr) {
+    if (shader != nullptr && model.materials != nullptr) {
         for (int index = 0; index < model.materialCount; ++index) {
             model.materials[index].shader = *shader;
         }
-        setSkinningEnabled(*shader, true);
     }
 
-    constexpr float ModelScale = 0.82F;
-    DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F},
-        yawRadians * RAD2DEG,
-        {ModelScale * scale, ModelScale * scale,
-         ModelScale * scale},
-        tint);
+    const bool originalInkOutlineEligible =
+        worldMaterial_.inkOutlineEligible;
+    const bool worldInkChanged = worldShaderActive_ &&
+        worldMaterial_.inkOutlineEligible != inkOutlineEligible;
+    if (worldInkChanged) {
+        WorldMaterialState material = worldMaterial_;
+        material.inkOutlineEligible = inkOutlineEligible;
+        setWorldMaterial(material);
+    }
+    const bool skinningEnabled =
+        modelResource->gpuSkinningCompatible() &&
+        modelResource->runtimeBoneMatricesFinite();
+    const Matrix transform = MatrixMultiply(
+        model.transform,
+        MatrixMultiply(
+            MatrixScale(
+                EnemyImportScale * scale,
+                EnemyImportScale * scale,
+                EnemyImportScale * scale),
+            MatrixMultiply(
+                MatrixRotateY(yawRadians),
+                MatrixTranslate(
+                    position.x, position.y, position.z))));
+    bool bonesUploaded = false;
+    for (int meshIndex = 0; meshIndex < model.meshCount;
+         ++meshIndex) {
+        if (!modelResource->meshValid(
+                static_cast<std::size_t>(meshIndex))) {
+            continue;
+        }
+        const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 || materialIndex >= model.materialCount) {
+            continue;
+        }
+        const bool meshSkinningEnabled = skinningEnabled &&
+            modelResource->meshHasSkinning(
+                static_cast<std::size_t>(meshIndex));
+        if (shader != nullptr) {
+            setSkinningEnabled(*shader, meshSkinningEnabled);
+            if (meshSkinningEnabled && !bonesUploaded) {
+                bonesUploaded = uploadBoneMatrices(
+                    *modelResource, *shader);
+            }
+        }
+        Material material = model.materials[materialIndex];
+        if (shader != nullptr) {
+            material.shader = *shader;
+        }
+        const Color original =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint(original, tint);
+        DrawMesh(model.meshes[meshIndex], material, transform);
+    }
     if (shader != nullptr) {
         setSkinningEnabled(*shader, false);
     }
+    if (worldInkChanged) {
+        WorldMaterialState material = worldMaterial_;
+        material.inkOutlineEligible = originalInkOutlineEligible;
+        setWorldMaterial(material);
+    }
     return true;
+}
+
+BoundingBox Renderer::enemyWorldBounds(
+    EnemyModelVisual modelVisual, Vector3 position,
+    float yawRadians, float scale) const {
+    const ModelResource* resource =
+        enemyModelFor(resources_, modelVisual);
+    if (resource == nullptr || !resource->valid() ||
+        !world_transforms::finite(position) ||
+        !std::isfinite(yawRadians) || !std::isfinite(scale) ||
+        scale <= 0.0F) {
+        return {};
+    }
+    const float modelScale = EnemyImportScale * scale;
+    const Matrix transform = MatrixMultiply(
+        resource->get().transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(position.x, position.y, position.z)));
+    return world_transforms::transformBounds(
+        resource->visualBounds(), transform);
 }
 
 bool Renderer::drawEnemiesInstanced(
@@ -3085,7 +3335,6 @@ bool Renderer::drawEnemiesInstanced(
         batch->transforms.clear();
     }
     activeEnemyBatches_.clear();
-    constexpr float ModelScale = 0.82F;
     for (const EnemyDrawInstance& instance : instances) {
         const bool lowDetail = instance.lowDetail && lodAvailable;
         ModelResource* resource = lowDetail
@@ -3094,6 +3343,14 @@ bool Renderer::drawEnemiesInstanced(
         if (!lowDetail &&
             (resource == nullptr || !resource->valid())) {
             return false;
+        }
+        if (!lowDetail) {
+            const Model& model = resource->get();
+            if (model.meshCount <= 0 || model.meshes == nullptr ||
+                model.meshMaterial == nullptr ||
+                model.materials == nullptr) {
+                return false;
+            }
         }
         EnemyAnimationSource animation{};
         const ModelAnimation* clip = nullptr;
@@ -3138,7 +3395,7 @@ bool Renderer::drawEnemiesInstanced(
         const EnemyBatchKey key{
             instance.modelVisual, batchAnimation, batchFrame,
             tint, static_cast<int>(std::lround(instance.scale * 1000.0F)),
-            batchLoop, lowDetail};
+            batchLoop, lowDetail, instance.inkOutlineEligible};
         EnemyBatch& batch = enemyBatches_[key];
         if (batch.transforms.empty()) {
             batch.representative = instance;
@@ -3147,7 +3404,7 @@ bool Renderer::drawEnemiesInstanced(
                 SourceAnimationFps;
             activeEnemyBatches_.push_back(&batch);
         }
-        const float uniformScale = ModelScale * instance.scale;
+        const float uniformScale = EnemyImportScale * instance.scale;
         Matrix transform{};
         if (lowDetail) {
             Vector3 proxyPosition = instance.position;
@@ -3186,9 +3443,10 @@ bool Renderer::drawEnemiesInstanced(
         SHADER_UNIFORM_INT);
 
     std::size_t nonEmptyBatchCount = 0U;
+    const bool originalInkOutlineEligible =
+        worldMaterial_.inkOutlineEligible;
     for (int detailPass = 0; detailPass < 2; ++detailPass) {
         const bool lowDetailPass = detailPass == 0;
-        setSkinningEnabled(shader, !lowDetailPass);
         for (EnemyBatch* batchPointer : activeEnemyBatches_) {
             EnemyBatch& batch = *batchPointer;
             if (batch.representative.lowDetail != lowDetailPass) {
@@ -3197,7 +3455,12 @@ bool Renderer::drawEnemiesInstanced(
             ++nonEmptyBatchCount;
             const EnemyDrawInstance& representative =
                 batch.representative;
+            WorldMaterialState batchMaterial = worldMaterial_;
+            batchMaterial.inkOutlineEligible =
+                representative.inkOutlineEligible;
+            setWorldMaterial(batchMaterial);
             if (lowDetailPass) {
+                setSkinningEnabled(shader, false);
                 Material material = enemyCrowdLodModel_.materials[0];
                 material.shader = shader;
                 material.maps[MATERIAL_MAP_DIFFUSE].color =
@@ -3213,6 +3476,9 @@ bool Renderer::drawEnemiesInstanced(
         ModelResource* resource =
             modelFor(representative.modelVisual);
         Model& model = resource->get();
+        const bool modelSkinningEnabled =
+            resource->gpuSkinningCompatible() &&
+            resource->runtimeBoneMatricesFinite();
         const EnemyAnimationSource animation =
             animationFor(representative.modelVisual,
                          representative.animationVisual);
@@ -3220,7 +3486,9 @@ bool Renderer::drawEnemiesInstanced(
             animation.animations->find(animation.clipName);
         auto poseIt = enemyBonePoseCache_.end();
         if (clip != nullptr && clip->keyframeCount > 0 &&
-            model.skeleton.boneCount > 0) {
+            model.skeleton.boneCount > 0 &&
+            model.skeleton.bones != nullptr &&
+            model.skeleton.bindPose != nullptr) {
             const int frame = std::min(
                 static_cast<int>(
                     representative.animationSeconds * 30.0F),
@@ -3278,24 +3546,34 @@ bool Renderer::drawEnemiesInstanced(
             }
         }
 
-        const Matrix* boneMatrices = model.boneMatrices;
+        const Matrix* batchBoneMatrices = model.boneMatrices;
         if (poseIt != enemyBonePoseCache_.end()) {
-            boneMatrices = poseIt->second.data();
+            batchBoneMatrices = poseIt->second.data();
         }
-        if (boneMatrices != nullptr &&
-            model.skeleton.boneCount > 0 &&
-            shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS] >= 0) {
-            rlEnableShader(shader.id);
-            rlSetUniformMatrices(
-                shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS],
-                boneMatrices, model.skeleton.boneCount);
-            rlDisableShader();
-        }
-
+        const bool batchSkinningEnabled = modelSkinningEnabled &&
+            finiteBoneMatrices(
+                batchBoneMatrices, model.skeleton.boneCount);
+        bool bonesUploaded = false;
         for (int meshIndex = 0; meshIndex < model.meshCount;
              ++meshIndex) {
+            if (!resource->meshValid(
+                    static_cast<std::size_t>(meshIndex))) {
+                continue;
+            }
             const int materialIndex =
                 model.meshMaterial[meshIndex];
+            if (materialIndex < 0 || materialIndex >= model.materialCount) {
+                continue;
+            }
+            const bool meshSkinningEnabled = batchSkinningEnabled &&
+                resource->meshHasSkinning(
+                    static_cast<std::size_t>(meshIndex));
+            setSkinningEnabled(shader, meshSkinningEnabled);
+            if (meshSkinningEnabled && !bonesUploaded) {
+                bonesUploaded = uploadBoneMatrices(
+                    shader, batchBoneMatrices,
+                    model.skeleton.boneCount);
+            }
             Material material = model.materials[materialIndex];
             material.shader = shader;
             material.maps[MATERIAL_MAP_DIFFUSE].color =
@@ -3314,6 +3592,9 @@ bool Renderer::drawEnemiesInstanced(
         shader, worldInstancingEnabledLocation_, &disabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
+    WorldMaterialState restoredMaterial = worldMaterial_;
+    restoredMaterial.inkOutlineEligible = originalInkOutlineEligible;
+    setWorldMaterial(restoredMaterial);
     instancedEnemyMillisecondsThisFrame_ +=
         performanceMilliseconds(drawStart);
     const std::size_t lowDetailCount = static_cast<std::size_t>(

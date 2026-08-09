@@ -111,6 +111,10 @@ void loadedValuesAreValidated() {
     require(ian::controlKey(
                 loaded.controls, ian::ControlAction::MoveForward) == KEY_W,
             "missing key bindings keep defaults");
+    require(
+        ian::controlKey(
+            loaded.controls, ian::ControlAction::Dash) == KEY_NULL,
+        "Dash defaults to the right mouse button sentinel");
     std::error_code error;
     std::filesystem::remove(path, error);
 }
@@ -178,6 +182,25 @@ void localizationCatalogTranslatesFixedAndDynamicText() {
             "localization translates dynamic HUD labels");
     require(ian::localizeText("Core upgraded") == "Ядро улучшено",
             "localization translates event messages");
+    require(
+        ian::localizeText("LIGHT FOOTWORK") ==
+            "ЛЁГКАЯ ПОХОДКА" &&
+        ian::localizeText("Select Wall") ==
+            "Выбрать стену" &&
+        ian::localizeText("Attack Flying") ==
+            "Атаковать летающего врага",
+        "localization covers movement skills and interaction prompts");
+    require(
+        ian::localizeText(
+            "Q  COPY    F  REPAIR    U  UPGRADE") ==
+            "Q  КОПИРОВАТЬ    F  РЕМОНТ    U  УЛУЧШИТЬ",
+        "localization translates labels assembled with key bindings");
+    require(
+        ian::localizeText("BUILDINGS") == "ЗДАНИЯ" &&
+        ian::localizeText("3 BUILDINGS") == "3 ЗДАНИЙ" &&
+        ian::localizeText("PIECES") == "ДЕТАЛИ" &&
+        ian::localizeText("12 PIECES") == "12 ДЕТАЛЕЙ",
+        "localization keeps correct forms for titles and counters");
     ian::setLanguage(ian::Language::English);
     require(ian::localizeText("SETTINGS") == "SETTINGS",
             "english localization keeps source text");

@@ -80,12 +80,38 @@ void Simulation::completeWave() {
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
     upcomingAttackDirection_.reset();
+    if (skillTree_.hasEffect(SkillEffect::NightlyChest)) {
+        std::optional<Vec3> preferredCenter;
+        double preferredRadius = 0.0;
+        if (skillTree_.hasEffect(SkillEffect::SafeDelivery)) {
+            if (const auto core = buildings_.core()) {
+                preferredCenter = buildingWorldPosition(*core);
+                preferredRadius = 28.0;
+            }
+        }
+        lootChests_.spawnAdditionalChests(
+            1, terrain_.seed(), map_.worldLimit,
+            terrain_, resources_.nodes(), playerPosition_,
+            preferredCenter, preferredRadius);
+    }
+    int additionalChests = 0;
     if (currentWaveHasBoss_) {
         const int mapStacks = lootStacks_[
             lootUpgradeIndex(LootUpgradeEffect::Map)];
+        additionalChests = saturatingAdd(
+            additionalChests, mapStacks);
+    }
+    if (additionalChests > 0) {
         lootChests_.spawnAdditionalChests(
-            mapStacks, terrain_.seed(), map_.worldLimit,
+            additionalChests, terrain_.seed(), map_.worldLimit,
             terrain_, resources_.nodes(), playerPosition_);
+    }
+    if (skillTree_.hasEffect(SkillEffect::FieldRepairs)) {
+        constexpr double RestoredHealthFraction = 0.15;
+        static_cast<void>(buildings_.restoreHealthFraction(
+            RestoredHealthFraction));
+        static_cast<void>(foundations_.restoreHealthFraction(
+            RestoredHealthFraction));
     }
     events_.push_back({
         .type = GameEventType::WaveCompleted,

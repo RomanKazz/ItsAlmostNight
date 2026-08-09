@@ -67,7 +67,7 @@ constexpr std::array<const char*, ControlActionCount>
     ControlActionJsonNames{
         "moveForward", "moveLeft",       "moveBackward",
         "moveRight",   "jump",           "sprint",
-        "attack",      "toggleTool",    "interact",
+        "dash",        "attack",         "toggleTool",    "interact",
         "bomb",        "repair",         "copy",
         "upgrade",     "sell",           "upgradeWeapon",
         "buildMode",   "pause",          "skills",
@@ -576,6 +576,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::MoveRight: return "MOVE RIGHT";
     case ControlAction::Jump: return "JUMP";
     case ControlAction::Sprint: return "SPRINT";
+    case ControlAction::Dash: return "DASH";
     case ControlAction::Attack: return "ATTACK";
     case ControlAction::ToggleTool: return "NEXT TOOL";
     case ControlAction::Interact: return "INTERACT";

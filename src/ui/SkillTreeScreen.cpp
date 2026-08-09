@@ -14,7 +14,17 @@ namespace ian {
 namespace {
 
 constexpr float NodeHalfSize = 38.0F;
+constexpr float LargeNodeHalfSize = 50.0F;
 constexpr float RootNodeHalfSize = 48.0F;
+
+float nodeHalfSize(const SkillNodeDefinition& node) {
+    if (node.branch == SkillBranch::Root) {
+        return RootNodeHalfSize;
+    }
+    return node.size == SkillNodeSize::Large
+        ? LargeNodeHalfSize
+        : NodeHalfSize;
+}
 
 float easeOutBack(float value) {
     value = std::clamp(value, 0.0F, 1.0F);
@@ -44,6 +54,8 @@ Color branchColor(SkillBranch branch) {
         return {102, 198, 142, 255};
     case SkillBranch::Weapons:
         return {224, 104, 92, 255};
+    case SkillBranch::Movement:
+        return {91, 187, 235, 255};
     case SkillBranch::Root:
         return {199, 145, 240, 255};
     }
@@ -309,10 +321,7 @@ std::optional<std::size_t> SkillTreeScreen::nodeAt(
             continue;
         }
         const float halfSize =
-            (tree_->nodes()[index].branch == SkillBranch::Root
-                 ? RootNodeHalfSize
-                 : NodeHalfSize) *
-            zoom_;
+            nodeHalfSize(tree_->nodes()[index]) * zoom_;
         const Vector2 center = worldToScreen(tree_->nodes()[index].position);
         if (CheckCollisionPointRec(
                 screenPosition,
@@ -381,9 +390,7 @@ void SkillTreeScreen::drawNodes() const {
             center.x += std::sin(rejectShake_[index] * 31.0F) *
                         rejectShake_[index] * 8.0F;
         }
-        const float baseHalfSize = node.branch == SkillBranch::Root
-                                       ? RootNodeHalfSize
-                                       : NodeHalfSize;
+        const float baseHalfSize = nodeHalfSize(node);
         const float revealScale = easeOutBack(reveal_[index]);
         const float hoverScale = 1.0F + smoothStep(hoverAmount_[index]) * 0.14F;
         const float pulseScale =

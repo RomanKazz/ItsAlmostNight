@@ -156,6 +156,23 @@ Vector2 measureUiText(std::string_view text, float fontSize) {
         });
 }
 
+float fitUiTextSize(
+    std::string_view text, float preferredSize,
+    float minimumSize, float maximumWidth,
+    float maximumHeight) {
+    float size = std::max(preferredSize, minimumSize);
+    const float safeWidth = std::max(maximumWidth, 1.0F);
+    const float safeHeight = std::max(maximumHeight, 1.0F);
+    while (size > minimumSize) {
+        const Vector2 measured = measureUiText(text, size);
+        if (measured.x <= safeWidth && measured.y <= safeHeight) {
+            break;
+        }
+        size = std::max(minimumSize, size - 0.5F);
+    }
+    return size;
+}
+
 void drawUiText(std::string_view text, Vector2 position,
                 float fontSize, Color color) {
     const float scaledSize = fontSize * UiTextScale;

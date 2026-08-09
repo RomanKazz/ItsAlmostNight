@@ -33,6 +33,32 @@ bool checkMissingResources() {
     return rejected;
 }
 
+bool hasTexturedRenderableMesh(
+    const ian::ModelResource& resource) {
+    const Model& model = resource.get();
+    if (model.materials == nullptr || model.meshMaterial == nullptr) {
+        return false;
+    }
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        if (!resource.meshValid(
+                static_cast<std::size_t>(meshIndex))) {
+            continue;
+        }
+        const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 ||
+            materialIndex >= model.materialCount ||
+            model.materials[materialIndex].maps == nullptr) {
+            continue;
+        }
+        if (IsTextureValid(model.materials[materialIndex]
+                               .maps[MATERIAL_MAP_DIFFUSE]
+                               .texture)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 int main() {
@@ -82,6 +108,11 @@ int main() {
             !resources.sawLootModel().valid() ||
             !resources.potionLootModel().valid()) {
             std::cerr << "required graphics resource failed to load\n";
+            result = 1;
+        }
+        if (!hasTexturedRenderableMesh(
+                resources.potionLootModel())) {
+            std::cerr << "potion model has no valid albedo texture\n";
             result = 1;
         }
         resources.shutdown();

@@ -21,6 +21,14 @@ void runGameBalanceTests() {
             assetBalance.balance.modularBuildings[2].wood == 16,
         "asset balance exposes modular construction prices");
     require(
+        assetBalance.balance.enemies[static_cast<std::size_t>(
+            ian::EnemyType::Basic)].damage == 15.0 &&
+            assetBalance.balance.enemies[static_cast<std::size_t>(
+                ian::EnemyType::Heavy)].damage == 36.0 &&
+            assetBalance.balance.enemies[static_cast<std::size_t>(
+                ian::EnemyType::Boss)].damage == 65.0,
+        "asset enemy damage keeps increased difficulty tuning");
+    require(
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
             assetBalance.balance.gameplay.pickaxeRange == 4.0,
         "resource gathering range is tuned separately from melee range");

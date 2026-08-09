@@ -1,5 +1,7 @@
 #include "app/App.hpp"
 
+#include "app/AppRenderSupport.hpp"
+#include "graphics/WorldTransforms.hpp"
 #include "ui/InputKeycap.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiLabels.hpp"
@@ -18,7 +20,8 @@ const char* recommendedTool(ResourceType type) {
 }
 
 bool matchingResourceTool(PlayerWeapon weapon, ResourceType type) {
-    return (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
+    return weapon == PlayerWeapon::BareHands ||
+           (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
            (type == ResourceType::Stone && weapon == PlayerWeapon::Pickaxe);
 }
 
@@ -105,17 +108,16 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             [&snapshot](const LootChestInstance& chest) {
                 return chest.loot.id == *snapshot.aimedLoot &&
                        chest.loot.available && !chest.loot.collected;
-            });
+        });
         if (loot != snapshot.lootChests.end()) {
-            const double bob =
-                std::sin(loot->loot.hoverTime * 2.4) * 0.08;
+            const Vec3 visualPosition = lootVisualPosition(*loot);
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Loot,
                 .targetId = loot->loot.id,
                 .worldAnchor = {
-                    static_cast<float>(loot->loot.position.x),
-                    static_cast<float>(loot->loot.position.y + 2.20 + bob),
-                    static_cast<float>(loot->loot.position.z),
+                    static_cast<float>(visualPosition.x),
+                    static_cast<float>(visualPosition.y + 0.52),
+                    static_cast<float>(visualPosition.z),
                 },
                 .objectName = lootUpgradeName(loot->loot.effect),
                 .actionText = "Pick Up",
@@ -217,7 +219,12 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                           std::string("25% efficiency  ·  ") +
                           recommendedTool(resource->type) +
                           " recommended"}
-                    : std::nullopt,
+                    : snapshot.selectedWeapon == PlayerWeapon::BareHands
+                        ? std::optional<std::string>{
+                              std::string("25% efficiency  ·  ") +
+                              recommendedTool(resource->type) +
+                              " recommended"}
+                        : std::nullopt,
                 .progress = progress,
                 .showProgress = progressActive,
                 .recentSuccess = crosshairHitRemaining_ > 0.0,
@@ -346,23 +353,28 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 return value.active && value.id == *snapshot.aimedEnemy;
             });
         if (enemy != snapshot.enemies.end()) {
-            float offset = 1.24F;
-            if (enemy->type == EnemyType::Fast) offset = 1.04F;
-            else if (enemy->type == EnemyType::Heavy) offset = 1.52F;
-            else if (enemy->type == EnemyType::Boss) offset = 2.52F;
-            else if (enemy->type == EnemyType::Ranged) offset = 1.18F;
-            else if (enemy->type == EnemyType::Sapper) offset = 1.14F;
-            else if (enemy->type == EnemyType::Flying) offset = 0.92F;
+            Vector3 position = app_detail::enemyRenderPosition(*enemy);
+            position.y += static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy->position.x, enemy->position.z));
+            const BoundingBox bounds = renderer_->enemyWorldBounds(
+                app_detail::enemyModelVisual(enemy->type), position,
+                static_cast<float>(enemy->yaw),
+                app_detail::enemyVisualScale(enemy->type));
+            const bool hasBounds =
+                world_transforms::finite(bounds);
+            const Vector3 worldAnchor = hasBounds
+                ? Vector3{
+                      (bounds.min.x + bounds.max.x) * 0.5F,
+                      bounds.max.y + 0.42F,
+                      (bounds.min.z + bounds.max.z) * 0.5F}
+                : Vector3{
+                      position.x, position.y + 1.66F,
+                      position.z};
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Enemy,
                 .targetId = enemy->id,
-                .worldAnchor = {
-                    static_cast<float>(enemy->position.x),
-                    static_cast<float>(simulation_.terrain().getHeight(
-                        enemy->position.x, enemy->position.z) +
-                        enemy->position.y) + offset + 0.42F,
-                    static_cast<float>(enemy->position.z),
-                },
+                .worldAnchor = worldAnchor,
                 .actionText = std::string("Attack ") +
                     enemyName(enemy->type),
                 .input = ControlAction::Attack,

@@ -23,6 +23,14 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     case SkillEffect::UnlockHammer: playerWeapons_.selectWeapon(PlayerWeapon::Hammer); break;
     case SkillEffect::UnlockRifle: playerWeapons_.selectWeapon(PlayerWeapon::Rifle); break;
     case SkillEffect::AutoSwitchTools: break;
+    case SkillEffect::HoldToGather: break;
+    case SkillEffect::NightlyChest: break;
+    case SkillEffect::PowerSwing: break;
+    case SkillEffect::SafeDelivery: break;
+    case SkillEffect::FieldRepairs: break;
+    case SkillEffect::UnlockBombs: break;
+    case SkillEffect::LightFootwork: break;
+    case SkillEffect::Dash: break;
     case SkillEffect::BareHands: break;
     }
     selectedBuilding_.reset();

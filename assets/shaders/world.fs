@@ -26,6 +26,8 @@ uniform float fogBandCount;
 uniform vec3 dayNightTint;
 uniform float exposure;
 uniform float saturation;
+uniform float toonShadingEnabled;
+uniform float toonLightSteps;
 uniform float bakedAo;
 uniform float vertexAoAmount;
 uniform float aoStrength;
@@ -37,6 +39,7 @@ uniform float terrainTextureEnabled;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
+uniform float inkOutlineEligible;
 uniform sampler2D shadowMap;
 uniform float shadowsEnabled;
 uniform float constantBias;
@@ -45,6 +48,17 @@ uniform float shadowStrength;
 uniform float shadowMapTexelSize;
 
 out vec4 finalColor;
+
+float toonRamp(float value, float steps)
+{
+    float levelCount = max(round(steps), 2.0);
+    float scaled = clamp(value, 0.0, 1.0)*(levelCount - 1.0);
+    float edgeWidth = max(fwidth(scaled)*0.65, 0.015);
+    float band = floor(scaled);
+    float transition = smoothstep(
+        0.5 - edgeWidth, 0.5 + edgeWidth, fract(scaled));
+    return (band + transition)/(levelCount - 1.0);
+}
 
 float hash21(vec2 position)
 {
@@ -215,8 +229,18 @@ void main()
     float lambert = max(lightFacing, 0.0);
     float diffuseRamp = smoothstep(-0.12, 0.78, lightFacing);
     float stylizedDiffuse = mix(lambert, diffuseRamp, 0.42);
+    if (toonShadingEnabled > 0.5)
+    {
+        stylizedDiffuse = toonRamp(
+            stylizedDiffuse, toonLightSteps);
+    }
 
     float hemisphere = normal.y*0.5 + 0.5;
+    if (toonShadingEnabled > 0.5)
+    {
+        hemisphere = toonRamp(
+            hemisphere, max(toonLightSteps - 1.0, 2.0));
+    }
     vec3 ambientColor = mix(groundAmbientColor, skyAmbientColor, hemisphere);
     float ambientShape = mix(0.86, 1.10, hemisphere);
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
@@ -309,5 +333,6 @@ void main()
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(luminance), litColor, saturation);
 
-    finalColor = vec4(litColor, albedo.a);
+    finalColor = vec4(litColor,
+                      albedo.a*step(0.5, inkOutlineEligible));
 }

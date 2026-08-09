@@ -39,8 +39,17 @@ constexpr int CollisionCellCount =
     return z * CollisionGridSize + x;
 }
 
+[[nodiscard]] EnemyCapsule physicalEnemyCapsule(EnemyType type) {
+    if (type == EnemyType::Basic) {
+        // Keep crowd spacing compact even though the Pink Blob deliberately
+        // has a very forgiving combat hit capsule.
+        return {.radius = 0.60, .segmentHalfHeight = 0.44};
+    }
+    return enemyCapsule(type);
+}
+
 [[nodiscard]] double capsuleMass(EnemyType type) {
-    const double radius = enemyCapsule(type).radius;
+    const double radius = physicalEnemyCapsule(type).radius;
     if (type == EnemyType::Boss) {
         return radius * radius * 3.0;
     }
@@ -57,8 +66,10 @@ constexpr int CollisionCellCount =
     if (leftFlying != rightFlying) {
         return false;
     }
-    const EnemyCapsule leftCapsule = enemyCapsule(left.type);
-    const EnemyCapsule rightCapsule = enemyCapsule(right.type);
+    const EnemyCapsule leftCapsule =
+        physicalEnemyCapsule(left.type);
+    const EnemyCapsule rightCapsule =
+        physicalEnemyCapsule(right.type);
     const double verticalDistance =
         std::abs(left.position.y - right.position.y);
     return verticalDistance <=
@@ -75,8 +86,8 @@ constexpr int CollisionCellCount =
     }
 
     const double minimumDistance =
-        enemyCapsule(left.type).radius +
-        enemyCapsule(right.type).radius +
+        physicalEnemyCapsule(left.type).radius +
+        physicalEnemyCapsule(right.type).radius +
         ContactPadding;
     double offsetX = right.position.x - left.position.x;
     double offsetZ = right.position.z - left.position.z;
@@ -114,44 +125,29 @@ constexpr int CollisionCellCount =
     return true;
 }
 
-[[nodiscard]] double buildingCollisionRadius(
-    BuildingType type) {
-    if (type == BuildingType::Core) {
-        return 1.6;
-    }
-    return buildingFootprintHalfExtent(type) == 1.0
-               ? 1.1
-               : 0.55;
-}
-
-[[nodiscard]] bool resolveBuilding(
-    EnemyInstance& enemy, const BuildingInstance& building) {
-    if (!enemy.active || !buildingBlocksMovement(building) ||
+[[nodiscard]] bool resolveStructure(
+    EnemyInstance& enemy,
+    const EnemyStructureTarget& structure) {
+    if (!enemy.active ||
         (enemy.type == EnemyType::Flying &&
-         building.type != BuildingType::Core)) {
+         structure.buildingType != BuildingType::Core)) {
         return false;
     }
 
     if (enemy.type != EnemyType::Flying) {
-        double collisionBaseHeight = building.baseHeight;
-        if (building.platformStorey < 0) {
-            collisionBaseHeight = std::min(
-                collisionBaseHeight,
-                building.foundationBottomHeight);
-        }
         const double maximumCollisionHeight =
             maximumGroundStructureInteractionHeight(
                 enemy.type, enemy.position.y);
-        if (collisionBaseHeight >
+        if (structure.position.y >
             maximumCollisionHeight) {
             return false;
         }
     }
 
-    const Vec3 center = buildingWorldPosition(building);
+    const Vec3 center = structure.position;
     const double minimumDistance =
-        enemyCapsule(enemy.type).radius +
-        buildingCollisionRadius(building.type);
+        physicalEnemyCapsule(enemy.type).radius +
+        structure.radius;
     double offsetX = enemy.position.x - center.x;
     double offsetZ = enemy.position.z - center.z;
     double distance = std::hypot(offsetX, offsetZ);
@@ -190,14 +186,16 @@ EnemyCapsule enemyCapsule(EnemyType type) {
     case EnemyType::Flying:
         return {.radius = 0.42, .segmentHalfHeight = 0.24};
     case EnemyType::Basic:
-        return {.radius = 0.43, .segmentHalfHeight = 0.32};
+        // Pink Blob has a broad, rounded silhouette, so its gameplay capsule
+        // needs to cover more of the visible body than the old minion did.
+        return {.radius = 0.75, .segmentHalfHeight = 0.44};
     }
     return {.radius = 0.43, .segmentHalfHeight = 0.32};
 }
 
 double maximumGroundStructureInteractionHeight(
     EnemyType type, double enemyCenterHeight) {
-    const EnemyCapsule capsule = enemyCapsule(type);
+    const EnemyCapsule capsule = physicalEnemyCapsule(type);
     constexpr double ReachAboveBody = 0.85;
     return enemyCenterHeight +
            capsule.segmentHalfHeight + capsule.radius +
@@ -206,43 +204,54 @@ double maximumGroundStructureInteractionHeight(
 
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,
-    std::span<const BuildingInstance> buildings) {
+    std::span<const EnemyStructureTarget> structures) {
     std::vector<int> enemyLinks;
-    std::vector<int> buildingLinks;
+    std::vector<int> structureLinks;
     resolveEnemyCapsuleCollisions(
-        enemies, buildings, enemyLinks, buildingLinks);
+        enemies, structures, enemyLinks, structureLinks, {});
 }
 
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,
-    std::span<const BuildingInstance> buildings,
+    std::span<const EnemyStructureTarget> structures,
     std::vector<int>& enemyLinks,
-    std::vector<int>& buildingLinks) {
+    std::vector<int>& structureLinks,
+    std::span<const int> cachedStructureHeads) {
     std::array<int, CollisionCellCount> bucketHeads{};
-    std::array<int, CollisionCellCount> buildingBucketHeads{};
+    std::array<int, CollisionCellCount> localStructureHeads{};
     enemyLinks.assign(enemies.size(), -1);
-    buildingLinks.assign(buildings.size(), -1);
-    buildingBucketHeads.fill(-1);
-    for (std::size_t index = 0;
-         index < buildings.size(); ++index) {
-        if (!buildingBlocksMovement(buildings[index])) {
-            continue;
-        }
-        const Vec3 center =
-            buildingWorldPosition(buildings[index]);
-        const int cellX =
-            collisionCellCoordinate(center.x);
-        const int cellZ =
-            collisionCellCoordinate(center.z);
-        const int bucket =
-            collisionCellIndex(cellX, cellZ);
-        buildingLinks[index] =
-            buildingBucketHeads[
-                static_cast<std::size_t>(bucket)];
-        buildingBucketHeads[
-            static_cast<std::size_t>(bucket)] =
-            static_cast<int>(index);
+    double maximumStructureRadius = 0.0;
+    for (const EnemyStructureTarget& structure : structures) {
+        maximumStructureRadius = std::max(
+            maximumStructureRadius, structure.radius);
     }
+    const bool useCachedStructures =
+        cachedStructureHeads.size() == CollisionCellCount &&
+        structureLinks.size() == structures.size();
+    if (!useCachedStructures) {
+        structureLinks.assign(structures.size(), -1);
+        localStructureHeads.fill(-1);
+        for (std::size_t index = 0;
+             index < structures.size(); ++index) {
+            const Vec3 center = structures[index].position;
+            const int bucket = collisionCellIndex(
+                collisionCellCoordinate(center.x),
+                collisionCellCoordinate(center.z));
+            structureLinks[index] = localStructureHeads[
+                static_cast<std::size_t>(bucket)];
+            localStructureHeads[
+                static_cast<std::size_t>(bucket)] =
+                static_cast<int>(index);
+        }
+    }
+    const std::span<const int> structureHeads =
+        useCachedStructures
+            ? cachedStructureHeads
+            : std::span<const int>{localStructureHeads};
+    const int structureSearchCells = std::max(
+        2, static_cast<int>(std::ceil(
+               (maximumStructureRadius + 1.0) /
+               CollisionCellSize)));
     const std::size_t activeEnemyCount =
         static_cast<std::size_t>(std::count_if(
             enemies.begin(), enemies.end(),
@@ -324,35 +333,34 @@ void resolveEnemyCapsuleCollisions(
                 collisionCellCoordinate(enemy.position.x);
             const int centerZ =
                 collisionCellCoordinate(enemy.position.z);
-            constexpr int BuildingSearchCells = 2;
             for (int z = std::max(
-                     0, centerZ - BuildingSearchCells);
+                     0, centerZ - structureSearchCells);
                  z <= std::min(
                      CollisionGridSize - 1,
-                     centerZ + BuildingSearchCells);
+                     centerZ + structureSearchCells);
                  ++z) {
                 for (int x = std::max(
-                         0, centerX - BuildingSearchCells);
+                         0, centerX - structureSearchCells);
                      x <= std::min(
                          CollisionGridSize - 1,
-                         centerX + BuildingSearchCells);
+                         centerX + structureSearchCells);
                      ++x) {
-                    int buildingIndex =
-                        buildingBucketHeads[
+                    int structureIndex =
+                        structureHeads[
                             static_cast<std::size_t>(
                                 collisionCellIndex(x, z))];
-                    while (buildingIndex >= 0) {
+                    while (structureIndex >= 0) {
                         corrected =
-                            resolveBuilding(
+                            resolveStructure(
                                 enemy,
-                                buildings[
+                                structures[
                                     static_cast<std::size_t>(
-                                        buildingIndex)]) ||
+                                        structureIndex)]) ||
                             corrected;
-                        buildingIndex =
-                            buildingLinks[
+                        structureIndex =
+                            structureLinks[
                                 static_cast<std::size_t>(
-                                    buildingIndex)];
+                                    structureIndex)];
                     }
                 }
             }

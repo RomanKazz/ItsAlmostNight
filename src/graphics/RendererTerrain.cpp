@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
 #include "ui/UiText.hpp"
@@ -108,24 +109,8 @@ Vector3 Renderer::terrainSurfaceNormal(
 
 Matrix Renderer::terrainAlignedRotation(
     float worldX, float worldZ, float yawRadians) const {
-    const Vector3 up{0.0F, 1.0F, 0.0F};
-    const Vector3 normal = terrainSurfaceNormal(worldX, worldZ);
-    const float dot = std::clamp(
-        Vector3DotProduct(up, normal), -1.0F, 1.0F);
-    const Vector3 cross = Vector3CrossProduct(up, normal);
-    const float crossLength = Vector3Length(cross);
-    Matrix align = MatrixIdentity();
-    if (crossLength > 0.0001F) {
-        align = MatrixRotate(
-            Vector3Scale(cross, 1.0F / crossLength),
-            std::acos(dot));
-    } else if (dot < 0.0F) {
-        align = MatrixRotate({1.0F, 0.0F, 0.0F}, PI);
-    }
-    // Apply the authored yaw around the terrain normal after the local
-    // vertical axis has been aligned to that normal.
-    return MatrixMultiply(
-        MatrixRotate(normal, yawRadians), align);
+    return world_transforms::surfaceRotation(
+        terrainSurfaceNormal(worldX, worldZ), yawRadians);
 }
 
 void Renderer::rebuildPondDecorInstances() {
@@ -169,6 +154,15 @@ void Renderer::rebuildPondDecorInstances() {
         const Matrix modelTransform = resource.valid()
             ? resource.get().transform
             : MatrixIdentity();
+        const Matrix rotation = lily.variant < 2U
+            // Water lilies are decals on the water plane.  Aligning them to
+            // terrain normals introduced visible pitch/roll on the shore.
+            ? world_transforms::surfaceRotation(
+                  {0.0F, 1.0F, 0.0F}, static_cast<float>(lily.yaw))
+            : terrainAlignedRotation(
+                  static_cast<float>(lily.position.x),
+                  static_cast<float>(lily.position.z),
+                  static_cast<float>(lily.yaw));
         pondDecorTransforms_[lily.variant].push_back(
             MatrixMultiply(
                 modelTransform,
@@ -178,10 +172,7 @@ void Renderer::rebuildPondDecorInstances() {
                         static_cast<float>(lily.scale),
                         static_cast<float>(lily.scale)),
                     MatrixMultiply(
-                        terrainAlignedRotation(
-                            static_cast<float>(lily.position.x),
-                            static_cast<float>(lily.position.z),
-                            static_cast<float>(lily.yaw)),
+                        rotation,
                         MatrixTranslate(
                             static_cast<float>(lily.position.x),
                             static_cast<float>(lily.position.y),

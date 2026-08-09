@@ -76,6 +76,10 @@ void Renderer::resolveWorldShaderLocations() {
         .dayNightTint = GetShaderLocation(shader, "dayNightTint"),
         .exposure = GetShaderLocation(shader, "exposure"),
         .saturation = GetShaderLocation(shader, "saturation"),
+        .toonShadingEnabled =
+            GetShaderLocation(shader, "toonShadingEnabled"),
+        .toonLightSteps =
+            GetShaderLocation(shader, "toonLightSteps"),
         .bakedAo = GetShaderLocation(shader, "bakedAo"),
         .vertexAoAmount = GetShaderLocation(shader, "vertexAoAmount"),
         .aoStrength = GetShaderLocation(shader, "aoStrength"),
@@ -103,6 +107,8 @@ void Renderer::resolveWorldShaderLocations() {
         .shadowMapTexelSize =
             GetShaderLocation(shader, "shadowMapTexelSize"),
         .instancingEnabled = worldInstancingEnabledLocation_,
+        .inkOutlineEligible = GetShaderLocation(
+            shader, "inkOutlineEligible"),
     };
 }
 
@@ -201,10 +207,6 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "ditherEnabled"),
         .ditherStrength =
             GetShaderLocation(shader, "ditherStrength"),
-        .posterizedLightingEnabled = GetShaderLocation(
-            shader, "posterizedLightingEnabled"),
-        .lightingSteps =
-            GetShaderLocation(shader, "lightingSteps"),
         .bloomEnabled =
             GetShaderLocation(shader, "bloomEnabled"),
         .bloomStrength =
@@ -267,10 +269,6 @@ void Renderer::uploadPostProcessSettings() {
            settings_.dithering ? 1.0F : 0.0F);
     upload(postProcessLocations_.ditherStrength,
            settings_.ditherStrength);
-    upload(postProcessLocations_.posterizedLightingEnabled,
-           settings_.posterizedLighting ? 1.0F : 0.0F);
-    upload(postProcessLocations_.lightingSteps,
-           settings_.lightingSteps);
     upload(postProcessLocations_.bloomEnabled,
            settings_.bloom ? 1.0F : 0.0F);
     upload(postProcessLocations_.bloomStrength,
@@ -338,6 +336,13 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &lighting.exposure, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.saturation,
                    &lighting.saturation, SHADER_UNIFORM_FLOAT);
+    const float toonShadingEnabled =
+        settings_.posterizedLighting ? 1.0F : 0.0F;
+    SetShaderValue(shader,
+                   worldShaderLocations_.toonShadingEnabled,
+                   &toonShadingEnabled, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.toonLightSteps,
+                   &settings_.lightingSteps, SHADER_UNIFORM_FLOAT);
     const float timeSeconds = static_cast<float>(GetTime());
     SetShaderValue(shader, worldShaderLocations_.timeSeconds,
                    &timeSeconds, SHADER_UNIFORM_FLOAT);
@@ -379,6 +384,10 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.selectionAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionTint,
                    &material.selectionTint, SHADER_UNIFORM_VEC3);
+    const float inkOutlineEligible = material.inkOutlineEligible
+        ? 1.0F : 0.0F;
+    SetShaderValue(shader, worldShaderLocations_.inkOutlineEligible,
+                   &inkOutlineEligible, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.aoStrength,
                    &settings_.aoStrength, SHADER_UNIFORM_FLOAT);
 }

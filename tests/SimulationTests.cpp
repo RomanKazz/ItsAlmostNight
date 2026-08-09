@@ -23,6 +23,84 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::MapDefinition movementMap =
+            ian::MapDefinition::defaults();
+        movementMap.resources.clear();
+        movementMap.obstacles.clear();
+        ian::WorldConfig movementWorld =
+            ian::WorldConfig::defaults();
+        movementWorld.terrainAmplitude = 0.0;
+
+        ian::Simulation baseline{
+            ian::GameBalance::defaults(), movementMap,
+            movementWorld};
+        ian::Simulation movementSkills{
+            ian::GameBalance::defaults(), movementMap,
+            movementWorld};
+        baseline.startRun();
+        movementSkills.startRun();
+        movementSkills.grantSkillPoints(
+            3, ian::SkillPointSource::Event);
+        const auto light =
+            movementSkills.skillTree().indexOf(
+                "light_footwork");
+        const auto dash =
+            movementSkills.skillTree().indexOf("dash");
+        require(
+            light && dash &&
+                movementSkills.purchaseSkill(*light) ==
+                    ian::SkillPurchaseError::None &&
+                movementSkills.purchaseSkill(*dash) ==
+                    ian::SkillPurchaseError::None,
+            "movement fixture unlocks Light Footwork and Dash");
+
+        ian::PlayerCommand move;
+        move.moveForward = 1.0;
+        baseline.tick(1.0 / 60.0, move);
+        movementSkills.tick(1.0 / 60.0, move);
+        require(
+            std::hypot(
+                movementSkills.snapshot().playerHorizontalVelocity.x,
+                movementSkills.snapshot().playerHorizontalVelocity.z) >
+                std::hypot(
+                    baseline.snapshot().playerHorizontalVelocity.x,
+                    baseline.snapshot().playerHorizontalVelocity.z),
+            "Light Footwork improves response without changing speed definition");
+
+        static_cast<void>(movementSkills.takeEvents());
+        const auto beforeDash =
+            movementSkills.snapshot().playerPosition;
+        ian::PlayerCommand dashForward;
+        dashForward.moveForward = 1.0;
+        dashForward.dash = true;
+        movementSkills.tick(1.0 / 60.0, dashForward);
+        const auto dashSnapshot = movementSkills.snapshot();
+        const auto dashEvents = movementSkills.takeEvents();
+        require(
+            dashSnapshot.dashing &&
+                dashSnapshot.dashUnlocked &&
+                dashSnapshot.playerPosition.z <
+                    beforeDash.z - 0.2 &&
+                dashSnapshot.dashCooldownRemaining > 0.0 &&
+                std::ranges::any_of(
+                    dashEvents,
+                    [](const ian::GameEvent& event) {
+                        return event.type ==
+                            ian::GameEventType::PlayerDashed;
+                    }),
+            "Dash starts a fast forward burst and exposes cooldown feedback");
+
+        movementSkills.tick(1.0 / 60.0, dashForward);
+        require(
+            std::ranges::none_of(
+                movementSkills.takeEvents(),
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                        ian::GameEventType::PlayerDashed;
+                }),
+            "Dash cannot be retriggered before its charge recovers");
+    }
+    {
         ian::Simulation lootEffects;
         lootEffects.startRun();
         const double baseMaximum =
@@ -350,6 +428,172 @@ void runSimulationTests() {
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
             "automatic switch selects pickaxe for stone");
+        const auto holdToGather =
+            automaticTools.skillTree().indexOf(
+                "hold_to_gather");
+        automaticTools.grantSkillPoints(
+            1, ian::SkillPointSource::Event);
+        require(
+            holdToGather &&
+                automaticTools.purchaseSkill(*holdToGather) ==
+                    ian::SkillPurchaseError::None &&
+                automaticTools.snapshot().holdToGather,
+            "hold gathering skill reaches gameplay snapshot");
+    }
+    {
+        auto powerBalance = ian::GameBalance::defaults();
+        powerBalance.gameplay.pickaxeDamageVariation = 0.0;
+        powerBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::MapDefinition powerMap =
+            ian::MapDefinition::defaults();
+        powerMap.resources = {
+            {ian::ResourceType::Wood, {0.0, 0.0, -2.0},
+             1.0, 10.0, 10, 20.0},
+            {ian::ResourceType::Wood, {1.5, 0.0, -2.0},
+             1.0, 10.0, 10, 20.0},
+        };
+        ian::Simulation powerSwing{
+            powerBalance, powerMap};
+        powerSwing.startRun();
+        powerSwing.grantSkillPoints(
+            5, ian::SkillPointSource::Event);
+        constexpr std::array<const char*, 5> PowerSkills{{
+            "axe", "pickaxe", "auto_switch_tools",
+            "hold_to_gather", "power_swing",
+        }};
+        bool unlockedPowerPath = true;
+        for (const char* id : PowerSkills) {
+            const auto skill =
+                powerSwing.skillTree().indexOf(id);
+            unlockedPowerPath = unlockedPowerPath && skill &&
+                powerSwing.purchaseSkill(*skill) ==
+                    ian::SkillPurchaseError::None;
+        }
+        require(unlockedPowerPath,
+                "Power Swing fixture unlocks gathering path");
+        const auto initialResources =
+            powerSwing.snapshot().resourceNodes;
+        require(initialResources.size() == 2U,
+                "Power Swing fixture has adjacent resources");
+        const ian::EntityId primary =
+            initialResources[0].id;
+        const double primaryHealth =
+            initialResources[0].health;
+        const double nearbyHealth =
+            initialResources[1].health;
+        for (int hit = 0; hit < 3; ++hit) {
+            ian::PlayerCommand gather;
+            gather.overrideAimedResource = true;
+            gather.aimedResourceOverride = primary;
+            gather.usePickaxe = true;
+            powerSwing.tick(1.0 / 60.0, gather);
+            powerSwing.tick(
+                powerBalance.gameplay.pickaxeCooldown);
+        }
+        const auto afterPowerSwing =
+            powerSwing.snapshot().resourceNodes;
+        requireNear(
+            afterPowerSwing[0].health,
+            primaryHealth - 3.0, 1e-12,
+            "three gathering hits damage primary resource three times");
+        requireNear(
+            afterPowerSwing[1].health,
+            nearbyHealth - 1.0, 1e-12,
+            "third Power Swing damages nearby resource once");
+    }
+    {
+        auto bareHandsBalance = ian::GameBalance::defaults();
+        bareHandsBalance.gameplay.pickaxeDamageVariation = 0.0;
+        bareHandsBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::Simulation bareHandsTools{bareHandsBalance};
+        bareHandsTools.startRun();
+        bareHandsTools.grantSkillPoints(
+            3, ian::SkillPointSource::Event);
+        const auto axe = bareHandsTools.skillTree().indexOf("axe");
+        const auto pickaxe = bareHandsTools.skillTree().indexOf("pickaxe");
+        const auto autoSwitch =
+            bareHandsTools.skillTree().indexOf("auto_switch_tools");
+        require(axe && pickaxe && autoSwitch &&
+                    bareHandsTools.purchaseSkill(*axe) ==
+                        ian::SkillPurchaseError::None &&
+                    bareHandsTools.purchaseSkill(*pickaxe) ==
+                        ian::SkillPurchaseError::None &&
+                    bareHandsTools.purchaseSkill(*autoSwitch) ==
+                        ian::SkillPurchaseError::None,
+                "bare-hands Smart Tools fixture unlocks gathering skills");
+        // Unlocking pickaxe leaves it selected; the next weapon-cycle input
+        // returns to the explicit Bare Hands mode without creating a
+        // virtual tool.
+        ian::PlayerCommand selectBareHands;
+        selectBareHands.toggleWeapon = ian::ToggleWeaponCommand{};
+        bareHandsTools.tick(1.0 / 60.0, selectBareHands);
+        require(bareHandsTools.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands,
+                "Smart Tools test enters explicit Bare Hands mode");
+        const auto bareSnapshot = bareHandsTools.snapshot();
+        const auto wood = std::find_if(
+            bareSnapshot.resourceNodes.begin(),
+            bareSnapshot.resourceNodes.end(),
+            [](const ian::ResourceNode& node) {
+                return node.active && node.type == ian::ResourceType::Wood;
+            });
+        require(wood != bareSnapshot.resourceNodes.end(),
+                "bare-hands Smart Tools fixture has a tree");
+        ian::PlayerCommand gatherWithHands;
+        gatherWithHands.overrideAimedResource = true;
+        gatherWithHands.aimedResourceOverride = wood->id;
+        gatherWithHands.usePickaxe = true;
+        bareHandsTools.tick(1.0 / 60.0, gatherWithHands);
+        const auto bareEvents = bareHandsTools.takeEvents();
+        const auto bareHit = std::find_if(
+            bareEvents.begin(), bareEvents.end(),
+            [](const ian::GameEvent& event) {
+                return (event.type == ian::GameEventType::ResourceHit ||
+                        event.type == ian::GameEventType::ResourceCollected) &&
+                       event.resourceType == ian::ResourceType::Wood;
+            });
+        require(bareHandsTools.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::BareHands &&
+                    bareHit != bareEvents.end(),
+                "Smart Tools keeps Bare Hands and gathers the aimed tree");
+        requireNear(
+            bareHit->damage,
+            bareHandsBalance.gameplay.pickaxeDamage * 0.25,
+            1e-12,
+            "Bare Hands gathering keeps its reduced damage coefficient");
+    }
+    {
+        ian::Simulation bombUnlock;
+        bombUnlock.startRun();
+        require(
+            bombUnlock.snapshot().bombsRemaining == 0,
+            "bomb stock stays hidden before skill unlock");
+        ian::PlayerCommand lockedThrow;
+        lockedThrow.useConsumable =
+            ian::UseConsumableCommand{};
+        bombUnlock.tick(1.0 / 60.0, lockedThrow);
+        require(
+            bombUnlock.snapshot().bombProjectiles.empty(),
+            "bomb input is blocked before skill unlock");
+        bombUnlock.grantSkillPoints(
+            2, ian::SkillPointSource::Event);
+        const auto club =
+            bombUnlock.skillTree().indexOf("club");
+        const auto bombs =
+            bombUnlock.skillTree().indexOf("bombs");
+        require(
+            club && bombs &&
+                bombUnlock.purchaseSkill(*club) ==
+                    ian::SkillPurchaseError::None &&
+                bombUnlock.purchaseSkill(*bombs) ==
+                    ian::SkillPurchaseError::None &&
+                bombUnlock.snapshot().bombsRemaining == 3,
+            "Bombs unlock after Club with starting stock");
+        bombUnlock.tick(1.0 / 60.0, lockedThrow);
+        require(
+            bombUnlock.snapshot().bombProjectiles.size() == 1U &&
+                bombUnlock.snapshot().bombsRemaining == 2,
+            "unlocked bomb input throws and consumes bomb");
     }
     {
         auto transactionBalance =
@@ -1551,6 +1795,15 @@ void runSimulationTests() {
     require(simulation.snapshot().skillPoints ==
                 std::numeric_limits<int>::max(),
             "god mode exposes infinite skill points");
+    const auto nightlyChestSkill =
+        simulation.skillTree().indexOf("nightly_chest");
+    require(
+        nightlyChestSkill &&
+            simulation.purchaseSkill(*nightlyChestSkill) ==
+                ian::SkillPurchaseError::None,
+        "nightly chest fixture unlocks survived-night reward");
+    const std::size_t chestsBeforeFirstNight =
+        simulation.snapshot().lootChests.size();
     constexpr std::array<ian::PlayerWeapon, 7> GodModeTools{{
         ian::PlayerWeapon::Axe,
         ian::PlayerWeapon::Pickaxe,
@@ -1792,6 +2045,10 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, defeatWave);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "cleared non-final wave enters dawn state");
+    require(
+        simulation.snapshot().lootChests.size() ==
+            chestsBeforeFirstNight + 1U,
+        "survived night spawns one skill-granted chest");
     const double dawnDuration = simulation.snapshot().phaseDuration;
     requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
                 "dawn starts with configured duration");

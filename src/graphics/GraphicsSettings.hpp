@@ -21,7 +21,7 @@ struct GraphicsSettings {
     bool ssao{false};
     bool paletteQuantization{false};
     bool dithering{false};
-    bool posterizedLighting{false};
+    bool posterizedLighting{true};
     bool inkOutlines{false};
     bool fogBands{false};
     bool paperGrain{false};

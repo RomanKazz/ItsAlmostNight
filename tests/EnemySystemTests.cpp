@@ -66,6 +66,35 @@ void runEnemySystemTests() {
     ian::FlowField flowField;
     flowField.rebuild({0, 0}, buildings.buildings());
 
+    ian::EnemySystem farEnemies;
+    constexpr std::array<ian::EnemySpawn, 1> FarSpawn{{
+        {ian::EnemyType::Basic, {0.0, 0.8, -60.0}},
+    }};
+    farEnemies.spawnWave(FarSpawn);
+    farEnemies.tick(
+        1.0 / 60.0, buildings.buildings(), flowField);
+    const double firstFarPosition =
+        farEnemies.enemies().front().position.z;
+    require(
+        farEnemies.performanceStats().structureGridRebuilds == 1U,
+        "enemy structure grid builds on its first tick");
+    farEnemies.tick(
+        1.0 / 60.0, buildings.buildings(), flowField);
+    require(
+        farEnemies.performanceStats().structureGridRebuilds == 0U,
+        "unchanged structures reuse the cached enemy grid");
+    const double secondFarPosition =
+        farEnemies.enemies().front().position.z;
+    farEnemies.tick(
+        1.0 / 60.0, buildings.buildings(), flowField);
+    require(
+        farEnemies.performanceStats().fullAiUpdates == 0U &&
+            farEnemies.performanceStats().throttledAiMoves == 1U &&
+            farEnemies.enemies().front().position.z >
+                secondFarPosition &&
+            secondFarPosition > firstFarPosition,
+        "far enemy AI is throttled while movement stays continuous");
+
     bool wallAttacked = false;
     for (int tick = 0; tick < 600 && !wallAttacked; ++tick) {
         const auto attacks = enemies.tick(1.0 / 60.0, buildings.buildings(), flowField);
@@ -135,6 +164,31 @@ void runEnemySystemTests() {
                 FoundationId,
         "ground enemy attacks reachable lower support instead of upper floor");
 
+    std::vector<ian::EnemyInstance> modularOverlap{
+        stackedEnemies.enemies().front()};
+    modularOverlap.front().position = {0.0, 0.8, -3.0};
+    const std::array<ian::EnemyStructureTarget, 1>
+        lowerCollisionTarget{{stackedTargets.front()}};
+    ian::resolveEnemyCapsuleCollisions(
+        modularOverlap, lowerCollisionTarget);
+    const double modularSeparation = std::hypot(
+        modularOverlap.front().position.x,
+        modularOverlap.front().position.z + 3.0);
+    require(
+        modularSeparation + 1e-9 >= 1.70,
+        "modular foundations physically repel overlapping enemies");
+
+    modularOverlap.front().position = {0.0, 0.8, -3.0};
+    const std::array<ian::EnemyStructureTarget, 1>
+        upperCollisionTarget{{stackedTargets.back()}};
+    ian::resolveEnemyCapsuleCollisions(
+        modularOverlap, upperCollisionTarget);
+    require(
+        std::hypot(
+            modularOverlap.front().position.x,
+            modularOverlap.front().position.z + 3.0) < 1e-9,
+        "upper-storey structures do not repel ground enemies");
+
     ian::EnemySystem sapperEnemies;
     constexpr std::array<ian::EnemySpawn, 1>
         StructuralSapperSpawn{{
@@ -193,12 +247,18 @@ void runEnemySystemTests() {
     const double separatedDistance = std::hypot(
         separated[1].position.x - separated[0].position.x,
         separated[1].position.z - separated[0].position.z);
-    const double requiredDistance =
-        ian::enemyCapsule(separated[0].type).radius +
-        ian::enemyCapsule(separated[1].type).radius;
+    // Pink Blobs retain compact physical crowd spacing even though their
+    // combat hit capsule is intentionally much more forgiving.
+    constexpr double requiredDistance = 0.60 + 0.60;
     require(
         separatedDistance + 1e-6 >= requiredDistance,
         "enemy capsules cannot overlap after movement");
+    const ian::EnemyCapsule basicCapsule =
+        ian::enemyCapsule(ian::EnemyType::Basic);
+    require(
+        std::abs(basicCapsule.radius - 0.75) < 1e-9 &&
+            std::abs(basicCapsule.segmentHalfHeight - 0.44) < 1e-9,
+        "basic Pink Blob uses its enlarged gameplay collider");
 
     ian::EnemySystem typedEnemies;
     constexpr std::array<ian::EnemySpawn, 3> TypedSpawns{{

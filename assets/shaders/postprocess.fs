@@ -22,8 +22,6 @@ uniform float paletteEnabled;
 uniform float paletteLevels;
 uniform float ditherEnabled;
 uniform float ditherStrength;
-uniform float posterizedLightingEnabled;
-uniform float lightingSteps;
 uniform float bloomEnabled;
 uniform float bloomStrength;
 uniform float inkOutlinesEnabled;
@@ -185,15 +183,6 @@ void main()
 
     float dither = bayer4(stylePixel)*
         ditherStrength*(ditherEnabled > 0.5 ? 1.0 : 0.0);
-    if (posterizedLightingEnabled > 0.5)
-    {
-        float steps = max(round(lightingSteps), 2.0);
-        float currentLuminance = max(luminanceOf(color), 0.0001);
-        float steppedLuminance =
-            floor(clamp(currentLuminance, 0.0, 1.0)*(steps - 1.0) +
-                  0.5 + dither)/(steps - 1.0);
-        color *= steppedLuminance/currentLuminance;
-    }
     if (paletteEnabled > 0.5)
     {
         float levels = max(round(paletteLevels), 2.0);

@@ -1,14 +1,14 @@
 {
-  "basic": { "health": 5.0, "speed": 2.2, "damage": 10.0 },
-  "fast": { "health": 4.0, "speed": 3.4, "damage": 7.0 },
-  "heavy": { "health": 16.0, "speed": 1.2, "damage": 25.0 },
-  "ranged": { "health": 7.0, "speed": 1.5, "damage": 8.0 },
-  "sapper": { "health": 10.0, "speed": 1.8, "damage": 12.0 },
-  "flying": { "health": 5.0, "speed": 2.6, "damage": 8.0 },
+  "basic": { "health": 5.0, "speed": 2.2, "damage": 15.0 },
+  "fast": { "health": 4.0, "speed": 3.4, "damage": 11.0 },
+  "heavy": { "health": 16.0, "speed": 1.2, "damage": 36.0 },
+  "ranged": { "health": 7.0, "speed": 1.5, "damage": 12.0 },
+  "sapper": { "health": 10.0, "speed": 1.8, "damage": 17.0 },
+  "flying": { "health": 5.0, "speed": 2.6, "damage": 12.0 },
   "boss": {
     "health": 70.0,
     "speed": 0.9,
-    "damage": 50.0,
+    "damage": 65.0,
     "ramWindup": 1.5,
     "ramDamageMultiplier": 3.0,
     "ramCooldown": 6.0

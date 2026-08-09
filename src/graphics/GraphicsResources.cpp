@@ -1,11 +1,258 @@
 #include "graphics/GraphicsResources.hpp"
 
+#include <nlohmann/json.hpp>
+#include <raymath.h>
 #include <rlgl.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <optional>
+#include <string_view>
+#include <vector>
 
 namespace ian {
+namespace {
+
+constexpr int MaterialMapCount = 12;
+
+using Json = nlohmann::json;
+
+std::optional<Json> loadGltfDocument(
+    std::string_view modelPath) {
+    if (modelPath.empty()) return std::nullopt;
+    std::ifstream file(
+        std::string(modelPath),
+        std::ios::binary | std::ios::ate);
+    if (!file) return std::nullopt;
+    const std::streampos end = file.tellg();
+    if (end <= 0) return std::nullopt;
+    std::vector<char> bytes(static_cast<std::size_t>(end));
+    file.seekg(0, std::ios::beg);
+    file.read(bytes.data(), static_cast<std::streamsize>(end));
+    if (!file) return std::nullopt;
+
+    try {
+        const std::filesystem::path path{
+            std::string(modelPath)};
+        std::string extension = path.extension().string();
+        std::transform(
+            extension.begin(), extension.end(), extension.begin(),
+            [](unsigned char value) {
+                return static_cast<char>(std::tolower(value));
+            });
+        if (extension != ".glb") {
+            return Json::parse(bytes.begin(), bytes.end());
+        }
+        if (bytes.size() < 20U) return std::nullopt;
+        const auto readU32 = [&bytes](std::size_t offset) {
+            return static_cast<std::uint32_t>(
+                static_cast<unsigned char>(bytes[offset])) |
+                (static_cast<std::uint32_t>(
+                     static_cast<unsigned char>(bytes[offset + 1U]))
+                 << 8U) |
+                (static_cast<std::uint32_t>(
+                     static_cast<unsigned char>(bytes[offset + 2U]))
+                 << 16U) |
+                (static_cast<std::uint32_t>(
+                     static_cast<unsigned char>(bytes[offset + 3U]))
+                 << 24U);
+        };
+        if (readU32(0U) != 0x46546c67U || readU32(4U) != 2U) {
+            return std::nullopt;
+        }
+        const std::size_t declaredLength = readU32(8U);
+        if (declaredLength > bytes.size()) return std::nullopt;
+        constexpr std::uint32_t JsonChunk = 0x4e4f534aU;
+        std::size_t offset = 12U;
+        while (offset + 8U <= bytes.size()) {
+            const std::size_t chunkLength =
+                static_cast<std::size_t>(readU32(offset));
+            const std::uint32_t chunkType = readU32(offset + 4U);
+            offset += 8U;
+            if (chunkLength > bytes.size() - offset) {
+                return std::nullopt;
+            }
+            if (chunkType == JsonChunk) {
+                return Json::parse(
+                    bytes.begin() + static_cast<std::ptrdiff_t>(offset),
+                    bytes.begin() + static_cast<std::ptrdiff_t>(
+                        offset + chunkLength));
+            }
+            offset += chunkLength;
+        }
+    } catch (const std::exception&) {
+        // Model loading itself remains authoritative. This helper only
+        // repairs external texture paths when the asset can be inspected.
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string> gltfDiffuseTextureUris(
+    std::string_view modelPath) {
+    std::vector<std::string> result;
+    const auto document = loadGltfDocument(modelPath);
+    if (!document || !document->contains("materials") ||
+        !(*document)["materials"].is_array()) {
+        return result;
+    }
+    const Json empty{};
+    const Json& textures = document->contains("textures") &&
+            (*document)["textures"].is_array()
+        ? (*document)["textures"]
+        : empty;
+    const Json& images = document->contains("images") &&
+            (*document)["images"].is_array()
+        ? (*document)["images"]
+        : empty;
+    for (const Json& material : (*document)["materials"]) {
+        std::string uri;
+        const auto pbr = material.find("pbrMetallicRoughness");
+        if (pbr != material.end() && pbr->is_object()) {
+            const auto baseColor =
+                pbr->find("baseColorTexture");
+            if (baseColor != pbr->end() && baseColor->is_object()) {
+                const auto textureIndex = baseColor->find("index");
+                if (textureIndex != baseColor->end() &&
+                    textureIndex->is_number_integer()) {
+                    const int texture = textureIndex->get<int>();
+                    if (texture >= 0 &&
+                        static_cast<std::size_t>(texture) <
+                            textures.size() &&
+                        textures[static_cast<std::size_t>(texture)]
+                            .is_object()) {
+                        const auto source = textures[
+                            static_cast<std::size_t>(texture)].find(
+                                "source");
+                        if (source != textures[
+                                static_cast<std::size_t>(texture)].end() &&
+                            source->is_number_integer()) {
+                            const int image = source->get<int>();
+                            if (image >= 0 &&
+                                static_cast<std::size_t>(image) <
+                                    images.size() &&
+                                images[static_cast<std::size_t>(image)]
+                                    .is_object()) {
+                                const auto imageUri = images[
+                                    static_cast<std::size_t>(image)].find(
+                                        "uri");
+                                if (imageUri != images[
+                                        static_cast<std::size_t>(image)]
+                                        .end() &&
+                                    imageUri->is_string()) {
+                                    uri = imageUri->get<std::string>();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        result.push_back(std::move(uri));
+    }
+    return result;
+}
+
+std::vector<std::filesystem::path> textureCandidates(
+    std::string_view modelPath, std::string_view uri) {
+    std::vector<std::filesystem::path> result;
+    if (uri.empty() || uri.starts_with("data:")) return result;
+    std::string normalizedUri(uri);
+    std::replace(normalizedUri.begin(), normalizedUri.end(), '\\', '/');
+    const std::filesystem::path uriPath(normalizedUri);
+    if (uriPath.is_absolute()) {
+        result.push_back(uriPath);
+        return result;
+    }
+    std::filesystem::path directory{
+        std::string(modelPath)};
+    directory = directory.parent_path();
+    for (int level = 0; level < 8; ++level) {
+        result.push_back(directory / uriPath);
+        const std::filesystem::path parent = directory.parent_path();
+        if (parent == directory) break;
+        directory = parent;
+    }
+    return result;
+}
+
+std::optional<std::filesystem::path> existingTexturePath(
+    const std::vector<std::filesystem::path>& candidates) {
+    std::error_code error;
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate, error)) {
+            return candidate;
+        }
+        error.clear();
+    }
+    return std::nullopt;
+}
+
+void repairMissingGltfTextures(
+    Model& model, std::string_view modelPath) {
+    if (model.materials == nullptr || model.materialCount <= 0 ||
+        model.meshMaterial == nullptr) {
+        return;
+    }
+    const std::vector<std::string> uris =
+        gltfDiffuseTextureUris(modelPath);
+    // raylib keeps material slot 0 as a default material and puts glTF
+    // materials at slots 1..N. Keep the offset conditional so this helper
+    // also remains correct for loaders that do not add that default slot.
+    const int materialOffset = model.materialCount ==
+            static_cast<int>(uris.size()) + 1
+        ? 1
+        : 0;
+    for (std::size_t gltfIndex = 0;
+         gltfIndex < uris.size(); ++gltfIndex) {
+        if (uris[gltfIndex].empty()) {
+            continue;
+        }
+        const int materialIndex =
+            static_cast<int>(gltfIndex) + materialOffset;
+        if (materialIndex < 0 ||
+            materialIndex >= model.materialCount) {
+            continue;
+        }
+        Material& material = model.materials[materialIndex];
+        if (material.maps == nullptr) continue;
+        Texture2D& diffuse =
+            material.maps[MATERIAL_MAP_DIFFUSE].texture;
+        if (diffuse.id != 0U && IsTextureValid(diffuse)) {
+            continue;
+        }
+        const auto path = existingTexturePath(textureCandidates(
+            modelPath, uris[gltfIndex]));
+        if (!path) {
+            TraceLog(LOG_WARNING,
+                     "MODEL: external texture '%s' for '%s' was not found",
+                     uris[gltfIndex].c_str(),
+                     std::string(modelPath).c_str());
+            diffuse = {};
+            continue;
+        }
+        const Texture2D repaired = LoadTexture(path->string().c_str());
+        if (IsTextureValid(repaired)) {
+            diffuse = repaired;
+            TraceLog(LOG_INFO,
+                     "MODEL: resolved texture '%s' for '%s'",
+                     path->string().c_str(),
+                     std::string(modelPath).c_str());
+        } else {
+            TraceLog(LOG_WARNING,
+                     "MODEL: failed to load resolved texture '%s' for '%s'",
+                     path->string().c_str(),
+                     std::string(modelPath).c_str());
+            diffuse = {};
+        }
+    }
+}
+
+} // namespace
 
 ShaderResource::~ShaderResource() {
     unload();
@@ -87,6 +334,7 @@ ModelResource::~ModelResource() {
 
 bool ModelResource::load(const char* path) {
     unload();
+    path_ = path != nullptr ? path : "";
     collisionAsset_ = loadGlbCollisionAsset(path);
     model_ = LoadModel(path);
     loaded_ = IsModelValid(model_);
@@ -95,6 +343,8 @@ bool ModelResource::load(const char* path) {
         // loaded, so an invalid model can still own heap allocations.
         UnloadModel(model_);
         model_ = {};
+        TraceLog(LOG_WARNING, "MODEL: failed to load '%s'",
+                 path_.c_str());
     } else {
         for (auto iterator =
                  collisionAsset_.renderMeshIndices.rbegin();
@@ -117,29 +367,271 @@ bool ModelResource::load(const char* path) {
             }
             --model_.meshCount;
         }
-        meshBounds_.reserve(
-            static_cast<std::size_t>(model_.meshCount));
-        for (int index = 0; index < model_.meshCount; ++index) {
-            const BoundingBox bounds =
-                GetMeshBoundingBox(model_.meshes[index]);
-            meshBounds_.push_back(bounds);
-            if (index == 0) {
-                visualBounds_ = bounds;
-            } else {
-                visualBounds_.min.x = std::min(
-                    visualBounds_.min.x, bounds.min.x);
-                visualBounds_.min.y = std::min(
-                    visualBounds_.min.y, bounds.min.y);
-                visualBounds_.min.z = std::min(
-                    visualBounds_.min.z, bounds.min.z);
-                visualBounds_.max.x = std::max(
-                    visualBounds_.max.x, bounds.max.x);
-                visualBounds_.max.y = std::max(
-                    visualBounds_.max.y, bounds.max.y);
-                visualBounds_.max.z = std::max(
-                    visualBounds_.max.z, bounds.max.z);
+        repairMissingGltfTextures(model_, path_);
+        const auto finiteVector = [](Vector3 value) {
+            return std::isfinite(value.x) &&
+                   std::isfinite(value.y) &&
+                   std::isfinite(value.z);
+        };
+        const auto finiteBounds = [&finiteVector](BoundingBox bounds) {
+            return finiteVector(bounds.min) &&
+                   finiteVector(bounds.max) &&
+                   bounds.min.x <= bounds.max.x &&
+                   bounds.min.y <= bounds.max.y &&
+                   bounds.min.z <= bounds.max.z;
+        };
+        const float* modelTransformValues = &model_.transform.m0;
+        for (int value = 0; value < 16; ++value) {
+            if (!std::isfinite(modelTransformValues[value])) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' has a non-finite root transform; "
+                         "using identity",
+                         path_.c_str());
+                model_.transform = MatrixIdentity();
+                break;
             }
         }
+
+        meshBounds_.assign(
+            static_cast<std::size_t>(std::max(model_.meshCount, 0)), {});
+        meshValid_.assign(meshBounds_.size(), false);
+        meshHasSkinning_.assign(meshBounds_.size(), false);
+        meshSkinningValid_.assign(meshBounds_.size(), true);
+        bool boundsInitialized = false;
+        bool hasSkinnedMesh = false;
+        bool allSkinningValid = true;
+        if (model_.skeleton.boneCount > 32) {
+            TraceLog(LOG_WARNING,
+                     "MODEL: '%s' has %d bones; world shader supports "
+                     "32, GPU skinning disabled",
+                     path_.c_str(), model_.skeleton.boneCount);
+            allSkinningValid = false;
+        }
+        const auto finiteTransform =
+            [](const Transform& transform) {
+                const auto finiteVector = [](Vector3 value) {
+                    return std::isfinite(value.x) &&
+                           std::isfinite(value.y) &&
+                           std::isfinite(value.z);
+                };
+                return finiteVector(transform.translation) &&
+                       finiteVector(transform.scale) &&
+                       std::isfinite(transform.rotation.x) &&
+                       std::isfinite(transform.rotation.y) &&
+                       std::isfinite(transform.rotation.z) &&
+                       std::isfinite(transform.rotation.w);
+            };
+        if (model_.skeleton.boneCount > 0) {
+            if (model_.skeleton.bones == nullptr ||
+                model_.skeleton.bindPose == nullptr) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' has an incomplete skeleton; "
+                         "GPU skinning disabled",
+                         path_.c_str());
+                allSkinningValid = false;
+            } else {
+                for (int bone = 0;
+                     bone < model_.skeleton.boneCount; ++bone) {
+                    if (!finiteTransform(
+                            model_.skeleton.bindPose[bone])) {
+                        TraceLog(LOG_WARNING,
+                                 "MODEL: '%s' skeleton bind pose has "
+                                 "non-finite data at bone %d",
+                                 path_.c_str(), bone);
+                        allSkinningValid = false;
+                        break;
+                    }
+                }
+            }
+        }
+        for (int index = 0; index < model_.meshCount; ++index) {
+            Mesh& mesh = model_.meshes[index];
+            bool valid = true;
+            if (mesh.vertexCount <= 0 || mesh.triangleCount <= 0 ||
+                mesh.vertices == nullptr) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' mesh %d has no renderable vertex "
+                         "or triangle data",
+                         path_.c_str(), index);
+                valid = false;
+            }
+            const std::size_t vertexCount = mesh.vertexCount > 0
+                ? static_cast<std::size_t>(mesh.vertexCount) : 0U;
+            const std::size_t triangleCount = mesh.triangleCount > 0
+                ? static_cast<std::size_t>(mesh.triangleCount) : 0U;
+            if (triangleCount > std::numeric_limits<std::size_t>::max() / 3U) {
+                valid = false;
+            }
+            const std::size_t indexCount = triangleCount <=
+                    std::numeric_limits<std::size_t>::max() / 3U
+                ? triangleCount * 3U
+                : 0U;
+            if (mesh.indices != nullptr) {
+                for (std::size_t value = 0; value < indexCount; ++value) {
+                    if (static_cast<std::size_t>(mesh.indices[value]) >=
+                        vertexCount) {
+                        TraceLog(LOG_WARNING,
+                                 "MODEL: '%s' mesh %d has index %zu >= "
+                                 "vertex count %zu",
+                                 path_.c_str(), index, value, vertexCount);
+                        valid = false;
+                        break;
+                    }
+                }
+            } else if (indexCount > vertexCount) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' mesh %d needs %zu non-indexed "
+                         "vertices but has %zu",
+                         path_.c_str(), index, indexCount, vertexCount);
+                valid = false;
+            }
+
+            for (std::size_t vertex = 0; vertex < vertexCount; ++vertex) {
+                const float* position = mesh.vertices + vertex * 3U;
+                if (!std::isfinite(position[0]) ||
+                    !std::isfinite(position[1]) ||
+                    !std::isfinite(position[2])) {
+                    TraceLog(LOG_WARNING,
+                             "MODEL: '%s' mesh %d contains a non-finite "
+                             "position at vertex %zu",
+                             path_.c_str(), index, vertex);
+                    valid = false;
+                    break;
+                }
+            }
+            if (mesh.normals != nullptr) {
+                for (std::size_t vertex = 0; vertex < vertexCount; ++vertex) {
+                    const float* normal = mesh.normals + vertex * 3U;
+                    if (!std::isfinite(normal[0]) ||
+                        !std::isfinite(normal[1]) ||
+                        !std::isfinite(normal[2])) {
+                        TraceLog(LOG_WARNING,
+                                 "MODEL: '%s' mesh %d contains a non-finite "
+                                 "normal at vertex %zu",
+                                 path_.c_str(), index, vertex);
+                        valid = false;
+                        break;
+                    }
+                }
+            }
+
+            const bool hasSkinData =
+                mesh.boneIndices != nullptr || mesh.boneWeights != nullptr ||
+                mesh.boneCount > 0;
+            meshHasSkinning_[static_cast<std::size_t>(index)] = hasSkinData;
+            bool skinningValid = true;
+            if (hasSkinData) {
+                hasSkinnedMesh = true;
+                if (model_.skeleton.boneCount <= 0 ||
+                    model_.skeleton.boneCount > 32 ||
+                    model_.skeleton.bones == nullptr ||
+                    model_.skeleton.bindPose == nullptr ||
+                    mesh.boneIndices == nullptr ||
+                    mesh.boneWeights == nullptr) {
+                    skinningValid = false;
+                } else {
+                    for (std::size_t vertex = 0; vertex < vertexCount &&
+                         skinningValid; ++vertex) {
+                        float weightSum = 0.0F;
+                        for (int influence = 0; influence < 4; ++influence) {
+                            const std::size_t offset = vertex * 4U +
+                                static_cast<std::size_t>(influence);
+                            const unsigned int bone =
+                                mesh.boneIndices[offset];
+                            const float weight = mesh.boneWeights[offset];
+                            if (bone >= static_cast<unsigned int>(
+                                           model_.skeleton.boneCount) ||
+                                !std::isfinite(weight) || weight < 0.0F) {
+                                skinningValid = false;
+                                break;
+                            }
+                            weightSum += weight;
+                        }
+                        if (!std::isfinite(weightSum) ||
+                            weightSum <= 0.00001F) {
+                            skinningValid = false;
+                        }
+                    }
+                }
+                if (!skinningValid) {
+                    TraceLog(LOG_WARNING,
+                             "MODEL: '%s' mesh %d has invalid skinning; "
+                             "GPU skinning disabled for this model",
+                             path_.c_str(), index);
+                    allSkinningValid = false;
+                }
+            }
+            meshSkinningValid_[static_cast<std::size_t>(index)] =
+                skinningValid;
+
+            if (model_.meshMaterial == nullptr ||
+                model_.materials == nullptr ||
+                model_.meshMaterial[index] < 0 ||
+                model_.meshMaterial[index] >= model_.materialCount) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' mesh %d has an invalid material "
+                         "index",
+                         path_.c_str(), index);
+                valid = false;
+            } else {
+                Material& material = model_.materials[
+                    model_.meshMaterial[index]];
+                if (material.maps == nullptr) {
+                    TraceLog(LOG_WARNING,
+                             "MODEL: '%s' material %d has no material maps",
+                             path_.c_str(), model_.meshMaterial[index]);
+                    valid = false;
+                } else {
+                    for (int map = 0; map < MaterialMapCount; ++map) {
+                        Texture2D& texture = material.maps[map].texture;
+                        if (texture.id != 0U && !IsTextureValid(texture)) {
+                            TraceLog(LOG_WARNING,
+                                     "MODEL: '%s' material %d map %d has "
+                                     "an invalid texture handle",
+                                     path_.c_str(),
+                                     model_.meshMaterial[index], map);
+                            texture = {};
+                        }
+                    }
+                }
+            }
+
+            const BoundingBox bounds = mesh.vertices != nullptr &&
+                    mesh.vertexCount > 0
+                ? GetMeshBoundingBox(mesh)
+                : BoundingBox{};
+            if (!finiteBounds(bounds)) {
+                valid = false;
+            }
+            if (!valid) {
+                TraceLog(LOG_WARNING,
+                         "MODEL: '%s' mesh %d is not safe to render",
+                         path_.c_str(), index);
+            } else {
+                meshBounds_[static_cast<std::size_t>(index)] = bounds;
+            }
+            meshValid_[static_cast<std::size_t>(index)] = valid;
+            if (valid) {
+                if (!boundsInitialized) {
+                    visualBounds_ = bounds;
+                    boundsInitialized = true;
+                } else {
+                    visualBounds_.min.x = std::min(
+                        visualBounds_.min.x, bounds.min.x);
+                    visualBounds_.min.y = std::min(
+                        visualBounds_.min.y, bounds.min.y);
+                    visualBounds_.min.z = std::min(
+                        visualBounds_.min.z, bounds.min.z);
+                    visualBounds_.max.x = std::max(
+                        visualBounds_.max.x, bounds.max.x);
+                    visualBounds_.max.y = std::max(
+                        visualBounds_.max.y, bounds.max.y);
+                    visualBounds_.max.z = std::max(
+                        visualBounds_.max.z, bounds.max.z);
+                }
+            }
+        }
+        gpuSkinningCompatible_ = hasSkinnedMesh && allSkinningValid;
     }
     return loaded_;
 }
@@ -153,6 +645,12 @@ void ModelResource::unload() {
     collisionAsset_ = {};
     visualBounds_ = {};
     meshBounds_.clear();
+    meshValid_.clear();
+    meshHasSkinning_.clear();
+    meshSkinningValid_.clear();
+    gpuSkinningCompatible_ = false;
+    runtimeBoneWarningLogged_ = false;
+    path_.clear();
 }
 
 bool ModelResource::valid() const {
@@ -179,6 +677,58 @@ const BoundingBox& ModelResource::visualBounds() const {
 std::span<const BoundingBox>
 ModelResource::meshBounds() const {
     return meshBounds_;
+}
+
+bool ModelResource::meshValid(std::size_t index) const {
+    return index < meshValid_.size() && meshValid_[index];
+}
+
+bool ModelResource::meshHasSkinning(std::size_t index) const {
+    return index < meshHasSkinning_.size() &&
+           meshHasSkinning_[index];
+}
+
+bool ModelResource::meshSkinningValid(std::size_t index) const {
+    return index < meshSkinningValid_.size() &&
+           meshSkinningValid_[index];
+}
+
+bool ModelResource::gpuSkinningCompatible() const {
+    return gpuSkinningCompatible_;
+}
+
+bool ModelResource::runtimeBoneMatricesFinite() const {
+    if (!gpuSkinningCompatible_ || model_.skeleton.boneCount <= 0) {
+        return true;
+    }
+    const int boneCount = model_.skeleton.boneCount;
+    if (model_.boneMatrices == nullptr || boneCount > 32) {
+        if (!runtimeBoneWarningLogged_) {
+            TraceLog(LOG_WARNING,
+                     "MODEL: '%s' has no usable runtime bone matrices; "
+                     "GPU skinning disabled for this draw",
+                     path_.c_str());
+            runtimeBoneWarningLogged_ = true;
+        }
+        return false;
+    }
+    for (int bone = 0; bone < boneCount; ++bone) {
+        const float* values = &model_.boneMatrices[bone].m0;
+        for (int value = 0; value < 16; ++value) {
+            if (!std::isfinite(values[value])) {
+                if (!runtimeBoneWarningLogged_) {
+                    TraceLog(LOG_WARNING,
+                             "MODEL: '%s' runtime bone matrix %d is "
+                             "non-finite; GPU skinning disabled for this "
+                             "draw",
+                             path_.c_str(), bone);
+                    runtimeBoneWarningLogged_ = true;
+                }
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 ModelAnimationsResource::~ModelAnimationsResource() {
@@ -1029,7 +1579,15 @@ ModelResource& GraphicsResources::enemyMinionModel() {
     return enemyMinionModel_;
 }
 
+const ModelResource& GraphicsResources::enemyMinionModel() const {
+    return enemyMinionModel_;
+}
+
 ModelResource& GraphicsResources::enemyRogueModel() {
+    return enemyRogueModel_;
+}
+
+const ModelResource& GraphicsResources::enemyRogueModel() const {
     return enemyRogueModel_;
 }
 
@@ -1037,7 +1595,15 @@ ModelResource& GraphicsResources::enemyWarriorModel() {
     return enemyWarriorModel_;
 }
 
+const ModelResource& GraphicsResources::enemyWarriorModel() const {
+    return enemyWarriorModel_;
+}
+
 ModelResource& GraphicsResources::enemyMageModel() {
+    return enemyMageModel_;
+}
+
+const ModelResource& GraphicsResources::enemyMageModel() const {
     return enemyMageModel_;
 }
 
@@ -1045,11 +1611,23 @@ ModelResource& GraphicsResources::enemySapperModel() {
     return enemySapperModel_;
 }
 
+const ModelResource& GraphicsResources::enemySapperModel() const {
+    return enemySapperModel_;
+}
+
 ModelResource& GraphicsResources::enemyFlyingModel() {
     return enemyFlyingModel_;
 }
 
+const ModelResource& GraphicsResources::enemyFlyingModel() const {
+    return enemyFlyingModel_;
+}
+
 ModelResource& GraphicsResources::enemyBossModel() {
+    return enemyBossModel_;
+}
+
+const ModelResource& GraphicsResources::enemyBossModel() const {
     return enemyBossModel_;
 }
 

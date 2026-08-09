@@ -12,6 +12,9 @@ std::string InputKeycap::label(
     if (action == ControlAction::Attack && key == KEY_NULL) {
         return "LMB";
     }
+    if (action == ControlAction::Dash && key == KEY_NULL) {
+        return "RMB";
+    }
     return keyboardKeyName(key);
 }
 
@@ -21,13 +24,17 @@ bool InputKeycap::held(
         controlKey(controls, action) == KEY_NULL) {
         return IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     }
+    if (action == ControlAction::Dash &&
+        controlKey(controls, action) == KEY_NULL) {
+        return IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+    }
     const int key = controlKey(controls, action);
     return key != KEY_NULL && IsKeyDown(key);
 }
 
 Vector2 InputKeycap::size(std::string_view value, float height) {
     const float safeHeight = std::max(height, 28.0F);
-    return value == "LMB"
+    return value == "LMB" || value == "RMB"
                ? Vector2{std::max(44.0F, safeHeight * 1.25F), safeHeight}
                : Vector2{safeHeight, safeHeight};
 }

@@ -40,7 +40,8 @@ Color withOpacity(Color color, float opacity) {
 
 void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
-                           const TerrainHeightfield& terrain) {
+                           const TerrainHeightfield& terrain,
+                           EnemyBoundsProvider enemyBoundsProvider) {
     repairPulseRemaining_ = std::max(
         0.0,
         repairPulseRemaining_ -
@@ -49,34 +50,88 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         repairTarget_.reset();
     }
 
-    const auto drawEnemyBar = [&](const EnemyInstance& enemy) {
-        float anchorOffset = 1.24F;
-        if (enemy.type == EnemyType::Fast) {
-            anchorOffset = 1.04F;
-        } else if (enemy.type == EnemyType::Heavy) {
-            anchorOffset = 1.52F;
-        } else if (enemy.type == EnemyType::Boss) {
-            anchorOffset = 2.52F;
-        } else if (enemy.type == EnemyType::Ranged) {
-            anchorOffset = 1.18F;
-        } else if (enemy.type == EnemyType::Sapper) {
-            anchorOffset = 1.14F;
-        } else if (enemy.type == EnemyType::Flying) {
-            anchorOffset = 0.92F;
+    const auto enemyAnchor = [&](const EnemyInstance& enemy) {
+        if (enemyBoundsProvider) {
+            const std::optional<BoundingBox> bounds =
+                enemyBoundsProvider(enemy);
+            if (bounds && std::isfinite(bounds->min.x) &&
+                std::isfinite(bounds->min.y) &&
+                std::isfinite(bounds->min.z) &&
+                std::isfinite(bounds->max.x) &&
+                std::isfinite(bounds->max.y) &&
+                std::isfinite(bounds->max.z) &&
+                bounds->min.x <= bounds->max.x &&
+                bounds->min.y <= bounds->max.y &&
+                bounds->min.z <= bounds->max.z) {
+                return Vector3{
+                    (bounds->min.x + bounds->max.x) * 0.5F,
+                    bounds->max.y + 0.12F,
+                    (bounds->min.z + bounds->max.z) * 0.5F};
+            }
         }
+        // Kept only for callers that do not have a renderer provider yet;
+        // App always supplies the geometry-derived path above.
+        return Vector3{
+            static_cast<float>(enemy.position.x),
+            static_cast<float>(terrain.getHeight(
+                enemy.position.x, enemy.position.z) +
+                enemy.position.y + 1.0),
+            static_cast<float>(enemy.position.z)};
+    };
+
+    const auto drawEnemyBar = [&](const EnemyInstance& enemy) {
         drawBillboard(
             {TargetKind::Enemy, enemy.id},
-            {static_cast<float>(enemy.position.x),
-             static_cast<float>(
-                 terrain.getHeight(
-                     enemy.position.x,
-                     enemy.position.z) +
-                 enemy.position.y) +
-                 anchorOffset,
-             static_cast<float>(enemy.position.z)},
+            enemyAnchor(enemy),
             enemy.health, enemy.maxHealth,
             {224, 66, 58, 255}, camera);
     };
+
+    const auto resourceAnchor = [&](const ResourceNode& resource) {
+        constexpr float AnchorHeight = 1.12F;
+        // Resource meshes are placed on the current terrain surface at
+        // render time; simulation Y can contain a stale authored offset.
+        const float ground = static_cast<float>(terrain.getHeight(
+            resource.position.x, resource.position.z));
+        return Vector3{
+            static_cast<float>(resource.position.x),
+            ground + AnchorHeight,
+            static_cast<float>(resource.position.z)};
+    };
+
+    const auto drawResourceBar = [&](const ResourceNode& resource) {
+        drawBillboard(
+            {TargetKind::Resource, resource.id},
+            resourceAnchor(resource),
+            resource.health, resource.maxHealth,
+            {235, 186, 55, 255}, camera);
+    };
+
+    // Power Swing can damage several resources while only one remains under
+    // the crosshair. Keep bars visible for every nearby wounded resource so
+    // secondary hits receive the same health feedback as the primary hit.
+    constexpr double ResourceHealthBarRange = 18.0;
+    constexpr std::size_t MaximumWoundedResourceBars = 32;
+    std::size_t woundedResourceBars = 0;
+    for (const ResourceNode& resource : snapshot.resourceNodes) {
+        if (!resource.active || resource.health >= resource.maxHealth ||
+            (snapshot.aimedResource &&
+             resource.id == *snapshot.aimedResource)) {
+            continue;
+        }
+        const double deltaX =
+            resource.position.x - snapshot.playerPosition.x;
+        const double deltaZ =
+            resource.position.z - snapshot.playerPosition.z;
+        if (deltaX * deltaX + deltaZ * deltaZ >
+            ResourceHealthBarRange * ResourceHealthBarRange) {
+            continue;
+        }
+        drawResourceBar(resource);
+        if (++woundedResourceBars >= MaximumWoundedResourceBars) {
+            break;
+        }
+    }
 
     // Wounded enemies keep their own bars, even when crosshair targets a
     // different enemy, resource, or building.
@@ -109,18 +164,9 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                        candidate.id == *snapshot.aimedResource;
             });
         if (resource != snapshot.resourceNodes.end()) {
-            constexpr float AnchorHeight = 1.12F;
-            // Resource meshes are placed on the current terrain surface at
-            // render time; the simulation Y also contains the authored
-            // ground offset and can be stale on slopes after terrain edits.
-            const float ground = static_cast<float>(terrain.getHeight(
-                resource->position.x, resource->position.z));
             candidate = Visual{
                 .target = {TargetKind::Resource, resource->id},
-                .anchorPosition = {
-                    static_cast<float>(resource->position.x),
-                    ground + AnchorHeight,
-                    static_cast<float>(resource->position.z)},
+                .anchorPosition = resourceAnchor(*resource),
                 .health = resource->health,
                 .maxHealth = resource->maxHealth,
                 .fillColor = {235, 186, 55, 255},
@@ -239,30 +285,11 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             [&snapshot](const EnemyInstance& candidate) {
                 return candidate.active &&
                        candidate.id == *snapshot.aimedEnemy;
-            });
+        });
         if (enemy != snapshot.enemies.end()) {
-            float anchorOffset = 1.24F;
-            if (enemy->type == EnemyType::Fast) {
-                anchorOffset = 1.04F;
-            } else if (enemy->type == EnemyType::Heavy) {
-                anchorOffset = 1.52F;
-            } else if (enemy->type == EnemyType::Boss) {
-                anchorOffset = 2.52F;
-            } else if (enemy->type == EnemyType::Ranged) {
-                anchorOffset = 1.18F;
-            } else if (enemy->type == EnemyType::Sapper) {
-                anchorOffset = 1.14F;
-            } else if (enemy->type == EnemyType::Flying) {
-                anchorOffset = 0.92F;
-            }
             candidate = Visual{
                 .target = {TargetKind::Enemy, enemy->id},
-                .anchorPosition = {
-                    static_cast<float>(enemy->position.x),
-                    static_cast<float>(terrain.getHeight(
-                        enemy->position.x, enemy->position.z) +
-                        enemy->position.y) + anchorOffset,
-                    static_cast<float>(enemy->position.z)},
+                .anchorPosition = enemyAnchor(*enemy),
                 .health = enemy->health,
                 .maxHealth = enemy->maxHealth,
                 .fillColor = {224, 66, 58, 255},

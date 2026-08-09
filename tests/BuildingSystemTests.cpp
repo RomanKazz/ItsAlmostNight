@@ -2,6 +2,7 @@
 #include "buildings/BuildingSystem.hpp"
 
 #include <numbers>
+#include <ranges>
 
 void runBuildingSystemTests() {
     ian::BuildingSystem buildings;
@@ -50,7 +51,17 @@ void runBuildingSystemTests() {
     require(damagedWall.has_value() && damagedWall->remainingHealth == 60.0 &&
                 damagedWall->gridPosition == ian::GridPosition{4, 0},
             "building damage reduces health");
-    const auto destroyedWall = buildings.damage(wall->building.id, 60.0);
+    requireNear(
+        buildings.restoreHealthFraction(0.15), 15.0, 1e-12,
+        "field repair restores fifteen percent of max health");
+    const auto restoredWall = std::ranges::find(
+        buildings.buildings(), wall->building.id,
+        &ian::BuildingInstance::id);
+    require(
+        restoredWall != buildings.buildings().end() &&
+            restoredWall->health == 75.0,
+        "field repair updates damaged building health");
+    const auto destroyedWall = buildings.damage(wall->building.id, 75.0);
     require(destroyedWall.has_value() && destroyedWall->destroyed,
             "lethal building damage destroys instance");
     require(buildings.buildings().size() == 1, "destroyed building leaves active list");

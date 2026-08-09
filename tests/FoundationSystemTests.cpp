@@ -369,11 +369,22 @@ void runFoundationSystemTests() {
         destructibleFrames.placePlatformFrame(
             destructibleFrames.previewFoundation(
                 {0.2, 0.0, 0.2}, player));
+    const auto initiallyDamagedFrame = destructible
+        ? destructibleFrames.damage(
+              destructible->id, 100.0)
+        : std::nullopt;
+    require(
+        initiallyDamagedFrame &&
+            destructibleFrames.restoreHealthFraction(0.15) ==
+                ian::PlatformFrameMaxHealth * 0.15 &&
+            destructibleFrames.platformFrames().front().health ==
+                245.0,
+        "field repair restores modular structure health");
     const auto destroyedFrame =
         destructible
             ? destructibleFrames.damage(
                   destructible->id,
-                  ian::PlatformFrameMaxHealth)
+                  245.0)
             : std::nullopt;
     require(
         destroyedFrame && destroyedFrame->destroyed &&

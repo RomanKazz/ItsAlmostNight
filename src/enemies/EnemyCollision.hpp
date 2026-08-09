@@ -18,11 +18,12 @@ struct EnemyCapsule {
 
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,
-    std::span<const BuildingInstance> buildings);
+    std::span<const EnemyStructureTarget> structures);
 void resolveEnemyCapsuleCollisions(
     std::span<EnemyInstance> enemies,
-    std::span<const BuildingInstance> buildings,
+    std::span<const EnemyStructureTarget> structures,
     std::vector<int>& enemyLinks,
-    std::vector<int>& buildingLinks);
+    std::vector<int>& structureLinks,
+    std::span<const int> cachedStructureHeads = {});
 
 } // namespace ian

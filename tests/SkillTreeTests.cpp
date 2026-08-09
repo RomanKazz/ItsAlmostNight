@@ -1,6 +1,9 @@
 #include "TestHarness.hpp"
 #include "progression/SkillTree.hpp"
 
+#include <cmath>
+#include <ranges>
+
 void runSkillTreeTests() {
     ian::SkillTree tree;
 
@@ -54,6 +57,90 @@ void runSkillTreeTests() {
             tree.hasEffect(
                 ian::SkillEffect::AutoSwitchTools),
         "axe and pickaxe converge into automatic tool switching");
+    require(
+        tree.state("hold_to_gather") ==
+            ian::SkillNodeState::Available,
+        "hold gathering unlocks after Smart Tools");
+    tree.grantPoints(1);
+    const auto holdToGather = tree.indexOf("hold_to_gather");
+    require(
+        holdToGather &&
+            tree.purchase(*holdToGather) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::HoldToGather),
+        "hold gathering node applies continuous gathering effect");
+    require(tree.state("power_swing") ==
+                ian::SkillNodeState::Available,
+            "Power Swing follows hold gathering");
+    tree.grantPoints(1);
+    const auto powerSwing = tree.indexOf("power_swing");
+    require(
+        powerSwing &&
+            tree.purchase(*powerSwing) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::PowerSwing),
+        "Power Swing applies radial gathering effect");
+    require(
+        tree.state("nightly_chest") ==
+            ian::SkillNodeState::Available,
+        "nightly chest branches directly from Bare Hands");
+    tree.grantPoints(1);
+    const auto nightlyChest = tree.indexOf("nightly_chest");
+    require(
+        nightlyChest &&
+            tree.purchase(*nightlyChest) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::NightlyChest),
+        "nightly chest node applies survived-night reward effect");
+    require(tree.state("safe_delivery") ==
+                ian::SkillNodeState::Available,
+            "Safe Delivery follows Night's Bounty");
+    tree.grantPoints(1);
+    const auto safeDelivery = tree.indexOf("safe_delivery");
+    require(
+        safeDelivery &&
+            tree.purchase(*safeDelivery) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::SafeDelivery),
+        "Safe Delivery applies nearby chest effect");
+    tree.grantPoints(4);
+    const auto club = tree.indexOf("club");
+    const auto bombs = tree.indexOf("bombs");
+    const auto hammer = tree.indexOf("hammer");
+    const auto fieldRepairs = tree.indexOf("field_repairs");
+    require(
+        club && bombs && hammer && fieldRepairs &&
+            tree.purchase(*club) ==
+                ian::SkillPurchaseError::None &&
+            tree.purchase(*bombs) ==
+                ian::SkillPurchaseError::None &&
+            tree.purchase(*hammer) ==
+                ian::SkillPurchaseError::None &&
+            tree.purchase(*fieldRepairs) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::UnlockBombs) &&
+            tree.hasEffect(ian::SkillEffect::FieldRepairs),
+        "combat and construction continuations unlock effects");
+    require(
+        tree.state("light_footwork") ==
+            ian::SkillNodeState::Available,
+        "movement branch starts at Bare Hands");
+    tree.grantPoints(3);
+    const auto lightFootwork = tree.indexOf("light_footwork");
+    const auto dash = tree.indexOf("dash");
+    require(
+        lightFootwork && dash &&
+            tree.purchase(*lightFootwork) ==
+                ian::SkillPurchaseError::None &&
+            tree.state(*dash) ==
+                ian::SkillNodeState::Available &&
+            tree.purchase(*dash) ==
+                ian::SkillPurchaseError::None &&
+            tree.hasEffect(ian::SkillEffect::LightFootwork) &&
+            tree.hasEffect(ian::SkillEffect::Dash) &&
+            tree.nodes()[*dash].size ==
+                ian::SkillNodeSize::Large,
+        "movement progression unlocks a large Dash node");
 
     ian::SkillTree dependent({
         {"root", "ROOT", "", "root", ian::SkillBranch::Root, {0, 0}, 0, {}, ian::SkillEffect::BareHands},
@@ -85,12 +172,37 @@ void runSkillTreeTests() {
 #ifdef IAN_SOURCE_DIR
     const auto definitions = ian::loadSkillTreeDefinitions(
         std::string(IAN_SOURCE_DIR) + "/assets/data/skills.json");
-    require(definitions.size() == 8 &&
+    const auto definitionById = [&definitions](std::string_view id) {
+        return std::ranges::find(
+            definitions, id, &ian::SkillNodeDefinition::id);
+    };
+    const auto powerDefinition = definitionById("power_swing");
+    const auto bombDefinition = definitionById("bombs");
+    const auto repairDefinition = definitionById("field_repairs");
+    const auto safeDefinition = definitionById("safe_delivery");
+    const auto dashDefinition = definitionById("dash");
+    require(definitions.size() == 16 &&
                 definitions.front().icon == "placeholder_hands" &&
                 definitions[3].prerequisites ==
                     std::vector<std::string>{"axe", "pickaxe"} &&
-                definitions[5].id == "ice_wand" &&
-                definitions[5].cost == 2,
+                definitions[4].id == "hold_to_gather" &&
+                definitions[4].prerequisites ==
+                    std::vector<std::string>{"auto_switch_tools"} &&
+                powerDefinition != definitions.end() &&
+                bombDefinition != definitions.end() &&
+                repairDefinition != definitions.end() &&
+                safeDefinition != definitions.end() &&
+                dashDefinition != definitions.end() &&
+                dashDefinition->size ==
+                    ian::SkillNodeSize::Large &&
+                safeDefinition->prerequisites ==
+                    std::vector<std::string>{"nightly_chest"} &&
+                std::ranges::all_of(
+                    definitions,
+                    [](const ian::SkillNodeDefinition& node) {
+                        return std::fmod(node.position.x, 190.0F) == 0.0F &&
+                               std::fmod(node.position.y, 190.0F) == 0.0F;
+                    }),
             "data-driven skill definitions load from JSON");
 #endif
 

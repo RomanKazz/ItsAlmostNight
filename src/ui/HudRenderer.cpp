@@ -131,6 +131,9 @@ std::string actionKeyLabel(
         }
         return "LMB / " + keyboardKeyName(key);
     }
+    if (action == ControlAction::Dash && key == KEY_NULL) {
+        return "RMB";
+    }
     return keyboardKeyName(key);
 }
 
@@ -519,12 +522,14 @@ void drawBuildHotbarSlots(
         slotSize - 22.0F;
     const auto centeredText =
         [](std::string_view text, float centerX, float textY,
-           float fontSize, Color color) {
+           float fontSize, float maximumWidth, Color color) {
+            const float fittedSize = fitUiTextSize(
+                text, fontSize, 6.0F, maximumWidth);
             const float width =
-                measureUiText(text, fontSize).x;
+                measureUiText(text, fittedSize).x;
             drawUiText(
                 text, {centerX - width * 0.5F, textY},
-                fontSize, color);
+                fittedSize, color);
         };
     constexpr std::array<UiResourceIcon, 3> CostIcons{
         UiResourceIcon::Wood,
@@ -563,12 +568,14 @@ void drawBuildHotbarSlots(
             slot.key,
             keyBounds.x + keyBounds.width * 0.5F,
             keyBounds.y + 4.0F, 10.0F,
+            keyBounds.width - 5.0F,
             slot.selected
                 ? Color{38, 34, 29, 255}
                 : Color{245, 238, 220, 255});
         centeredText(
             slot.label, x + slotSize * 0.5F,
             slotY + slotSize * 0.56F, 9.0F,
+            slotSize - 10.0F,
             slot.available
                 ? Color{235, 222, 190, 235}
                 : Color{132, 122, 110, 210});
@@ -1565,18 +1572,41 @@ void drawLootInventory(
     }
 
     if (hovered) {
+        const std::string tooltipTitle =
+            lootUpgradeName(*hovered) +
+            std::string("  x") +
+            std::to_string(hoveredStacks);
+        const std::string tooltipDescription =
+            lootUpgradeDescription(*hovered);
+        const float tooltipX = PanelX + panelWidth + 8.0F;
+        const float availableTooltipWidth = std::max(
+            180.0F,
+            static_cast<float>(GetScreenWidth()) -
+                tooltipX - 12.0F);
+        const float maximumTooltipWidth =
+            std::min(520.0F, availableTooltipWidth);
+        const float tooltipWidth = std::clamp(
+            std::max(
+                measureUiText(tooltipTitle, 13.0F).x,
+                measureUiText(tooltipDescription, 10.0F).x) +
+                24.0F,
+            std::min(260.0F, maximumTooltipWidth),
+            maximumTooltipWidth);
         const Rectangle tooltip{
-            PanelX + panelWidth + 8.0F, PanelY,
-            330.0F, 66.0F};
+            tooltipX, PanelY, tooltipWidth, 66.0F};
         ui.drawPanel(tooltip, 238);
-        drawUiText(lootUpgradeName(*hovered) +
-                       std::string("  x") +
-                       std::to_string(hoveredStacks),
+        drawUiText(tooltipTitle,
                    {tooltip.x + 12.0F, tooltip.y + 9.0F},
-                   13.0F, {122, 218, 255, 255});
-        drawUiText(lootUpgradeDescription(*hovered),
+                   fitUiTextSize(
+                       tooltipTitle, 13.0F, 9.0F,
+                       tooltip.width - 24.0F),
+                   {122, 218, 255, 255});
+        drawUiText(tooltipDescription,
                    {tooltip.x + 12.0F, tooltip.y + 36.0F},
-                   10.0F, {230, 224, 207, 245});
+                   fitUiTextSize(
+                       tooltipDescription, 10.0F, 7.0F,
+                       tooltip.width - 24.0F),
+                   {230, 224, 207, 245});
     }
 }
 
@@ -1942,6 +1972,26 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             -90.0F,
             -90.0F + reloadProgress * 360.0F,
             48, {255, 205, 92, 245});
+    }
+    if (snapshot.dashUnlocked && snapshot.dashCooldownDuration > 0.0) {
+        const float ready = std::clamp(
+            static_cast<float>(
+                1.0 - snapshot.dashCooldownRemaining /
+                          snapshot.dashCooldownDuration),
+            0.0F, 1.0F);
+        const Color dashColor = snapshot.dashing
+            ? Color{185, 242, 255, 255}
+            : ready >= 0.999F
+                  ? Color{91, 201, 244, 235}
+                  : Color{77, 126, 151, 190};
+        DrawRing(
+            crosshairCenter, 25.0F, 27.0F,
+            -90.0F, 270.0F, 48,
+            {22, 35, 43, 170});
+        DrawRing(
+            crosshairCenter, 25.0F, 27.0F,
+            -90.0F, -90.0F + ready * 360.0F,
+            48, dashColor);
     }
 
     const float indicatorRadius =

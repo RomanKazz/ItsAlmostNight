@@ -182,6 +182,7 @@ class BuildingSystem {
 
     void reset();
     void setMaxHealthMultiplier(double multiplier);
+    double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
     void setNewTowerBonusStacks(int stacks);
 

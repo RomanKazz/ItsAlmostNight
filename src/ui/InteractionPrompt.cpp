@@ -194,9 +194,9 @@ void InteractionPromptRenderer::drawPrompt(
     const std::string keyLabel = InputKeycap::label(
         controls, prompt.input);
     const Vector2 keySize = InputKeycap::size(keyLabel, 36.0F);
-    constexpr float MainFontSize = 18.0F;
-    constexpr float HintFontSize = 13.0F;
-    constexpr float ObjectFontSize = 12.0F;
+    constexpr float PreferredMainFontSize = 18.0F;
+    constexpr float PreferredHintFontSize = 13.0F;
+    constexpr float PreferredObjectFontSize = 12.0F;
     constexpr float PaddingX = 12.0F;
     constexpr float PaddingY = 10.0F;
     constexpr float KeyGap = 9.0F;
@@ -209,26 +209,58 @@ void InteractionPromptRenderer::drawPrompt(
         !prompt.hint.has_value();
     const bool hasHint = prompt.hint.has_value() || insufficient;
     const bool hasObjectName = !prompt.objectName.empty();
+    const float maximumPanelWidth = std::max(
+        180.0F,
+        static_cast<float>(GetScreenWidth()) - 28.0F);
+    const float maximumContentWidth =
+        maximumPanelWidth - PaddingX * 2.0F;
+    const float preferredCostWidth =
+        prompt.cost && prompt.cost->gold > 0
+            ? 18.0F + 5.0F + measureUiText(
+                  std::to_string(prompt.cost->gold),
+                  PreferredMainFontSize).x
+            : 0.0F;
+    const float actionMaximumWidth = std::max(
+        48.0F,
+        maximumContentWidth - keySize.x - KeyGap -
+            ((preferredCostWidth > 0.0F && !insufficient)
+                 ? CostGap + preferredCostWidth
+                 : 0.0F));
+    const float mainFontSize = fitUiTextSize(
+        prompt.actionText, PreferredMainFontSize, 11.0F,
+        actionMaximumWidth);
+    const float hintFontSize = prompt.hint
+        ? fitUiTextSize(
+              *prompt.hint, PreferredHintFontSize, 9.0F,
+              maximumContentWidth)
+        : PreferredHintFontSize;
+    const float objectFontSize = fitUiTextSize(
+        prompt.objectName, PreferredObjectFontSize, 8.0F,
+        std::max(
+            48.0F,
+            maximumContentWidth - keySize.x - KeyGap));
     const float actionWidth =
-        measureUiText(prompt.actionText, MainFontSize).x;
+        measureUiText(prompt.actionText, mainFontSize).x;
     const float costWidth = prompt.cost && prompt.cost->gold > 0
         ? 18.0F + 5.0F + measureUiText(
-              std::to_string(prompt.cost->gold), MainFontSize).x
+              std::to_string(prompt.cost->gold), mainFontSize).x
         : 0.0F;
     const float lineWidth = keySize.x + KeyGap + actionWidth +
         ((costWidth > 0.0F && !insufficient) ? CostGap + costWidth : 0.0F);
     const float hintWidth = prompt.hint
-        ? measureUiText(*prompt.hint, HintFontSize).x
+        ? measureUiText(*prompt.hint, hintFontSize).x
         : (insufficient
                ? 18.0F + 5.0F +
                      measureUiText(
                          std::to_string(*prompt.availableGold) +
                              " / " +
                              std::to_string(prompt.cost->gold),
-                         HintFontSize).x
+                         hintFontSize).x
                : 0.0F);
     const float contentWidth = std::max(lineWidth, hintWidth);
-    const float panelWidth = contentWidth + PaddingX * 2.0F;
+    const float panelWidth = std::min(
+        maximumPanelWidth,
+        contentWidth + PaddingX * 2.0F);
     const float lineTop = hasObjectName ? 25.0F : PaddingY;
     const float panelHeight = lineTop + keySize.y +
         (hasHint ? 21.0F : 0.0F) + PaddingY;
@@ -312,15 +344,15 @@ void InteractionPromptRenderer::drawPrompt(
     const float textX = keyRight + KeyGap * scale;
     const float textY = y + lineTop * scale +
         (scaledKeyHeight - measureUiText(
-            prompt.actionText, MainFontSize).y) * 0.5F;
+            prompt.actionText, mainFontSize).y) * 0.5F;
     if (hasObjectName) {
         drawText(
             prompt.objectName,
             {textX, y + 8.0F * scale},
-            ObjectFontSize, {177, 169, 153, 235}, opacity);
+            objectFontSize, {177, 169, 153, 235}, opacity);
     }
     drawText(
-        prompt.actionText, {textX, textY}, MainFontSize,
+        prompt.actionText, {textX, textY}, mainFontSize,
         {246, 239, 224, 255}, opacity);
 
     if (costWidth > 0.0F && !insufficient) {
@@ -341,7 +373,7 @@ void InteractionPromptRenderer::drawPrompt(
         drawText(
             std::to_string(prompt.cost->gold),
             {costX + 23.0F * scale, textY},
-            MainFontSize, {244, 233, 205, 255}, opacity);
+            mainFontSize, {244, 233, 205, 255}, opacity);
     }
 
     if (hasHint) {
@@ -354,7 +386,7 @@ void InteractionPromptRenderer::drawPrompt(
                     ? Color{224, 173, 86, 245}
                     : Color{198, 191, 178, 235};
             drawText(*prompt.hint, {hintX, hintY},
-                     HintFontSize, hintColor, opacity);
+                     hintFontSize, hintColor, opacity);
         } else if (insufficient) {
             const Texture2D icon = ui.resourceTexture(
                 UiResourceIcon::Gold);
@@ -371,14 +403,14 @@ void InteractionPromptRenderer::drawPrompt(
             const float currentX = hintX + 21.0F * scale;
             drawText(
                 std::to_string(*prompt.availableGold),
-                {currentX, hintY}, HintFontSize,
+                {currentX, hintY}, hintFontSize,
                 {224, 108, 96, 245}, opacity);
             const float slashX = currentX + measureUiText(
                 std::to_string(*prompt.availableGold),
-                HintFontSize).x;
+                hintFontSize).x;
             drawText(
                 " / " + std::to_string(prompt.cost->gold),
-                {slashX, hintY}, HintFontSize,
+                {slashX, hintY}, hintFontSize,
                 {220, 214, 201, 235}, opacity);
         }
     }

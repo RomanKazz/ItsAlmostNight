@@ -7,6 +7,7 @@
 #include <raygui.h>
 
 #include <algorithm>
+#include <string>
 
 namespace ian {
 namespace {
@@ -28,6 +29,28 @@ constexpr NPatchInfo InsetPatch{
     .bottom = 16,
     .layout = NPATCH_NINE_PATCH,
 };
+
+constexpr float UiTextScale = 1.68F;
+
+std::string localizedCopy(std::string_view text) {
+    return currentLanguage() == Language::English
+        ? std::string{text}
+        : localizeText(text);
+}
+
+int fittedRayguiTextSize(
+    std::string_view text, Rectangle bounds,
+    float horizontalPadding, float verticalPadding) {
+    const int preferred = GuiGetStyle(DEFAULT, TEXT_SIZE);
+    const float fitted = fitUiTextSize(
+        text,
+        static_cast<float>(preferred) / UiTextScale,
+        7.0F,
+        std::max(1.0F, bounds.width - horizontalPadding),
+        std::max(1.0F, bounds.height - verticalPadding));
+    return std::max(
+        10, static_cast<int>(std::floor(fitted * UiTextScale)));
+}
 
 Color alphaTint(unsigned char alpha) {
     return {255, 255, 255, alpha};
@@ -219,17 +242,15 @@ void GameUi::drawInsetPanel(Rectangle bounds,
 void GameUi::drawLabel(Rectangle bounds, std::string_view text,
                        int alignment) const {
     GuiSetStyle(LABEL, TEXT_ALIGNMENT, alignment);
-    if (currentLanguage() == Language::English) {
-        withNullTerminatedUiText(text, [bounds](const char* value) {
-            (void)GuiLabel(bounds, value);
-        });
-    } else {
-        const std::string localized = localizeText(text);
-        withNullTerminatedUiText(localized,
-                                 [bounds](const char* value) {
-                                     (void)GuiLabel(bounds, value);
-                                 });
-    }
+    const std::string localized = localizedCopy(text);
+    const int previousSize = GuiGetStyle(DEFAULT, TEXT_SIZE);
+    GuiSetStyle(
+        DEFAULT, TEXT_SIZE,
+        fittedRayguiTextSize(localized, bounds, 16.0F, 8.0F));
+    withNullTerminatedUiText(localized, [bounds](const char* value) {
+        (void)GuiLabel(bounds, value);
+    });
+    GuiSetStyle(DEFAULT, TEXT_SIZE, previousSize);
 }
 
 void GameUi::drawProgressBar(Rectangle bounds, float fraction,
@@ -360,18 +381,18 @@ bool GameUi::drawToggleButton(Rectangle bounds,
              static_cast<float>(texture.height)},
             bounds, {0.0F, 0.0F}, 0.0F, tint);
     }
-    const bool clicked = currentLanguage() == Language::English
-        ? withNullTerminatedUiText(
-              text, [bounds](const char* value) {
-                  return GuiButton(bounds, value) != 0;
-              })
-        : [&]() {
-              const std::string localized = localizeText(text);
-              return withNullTerminatedUiText(
-                  localized, [bounds](const char* value) {
-                      return GuiButton(bounds, value) != 0;
-                  });
-          }();
+    const std::string localized = localizedCopy(text);
+    const int previousSize = GuiGetStyle(DEFAULT, TEXT_SIZE);
+    const float checkSpace = active ? 34.0F : 0.0F;
+    GuiSetStyle(
+        DEFAULT, TEXT_SIZE,
+        fittedRayguiTextSize(
+            localized, bounds, 24.0F + checkSpace, 10.0F));
+    const bool clicked = withNullTerminatedUiText(
+        localized, [bounds](const char* value) {
+            return GuiButton(bounds, value) != 0;
+        });
+    GuiSetStyle(DEFAULT, TEXT_SIZE, previousSize);
     if (active && IsTextureValid(checkIcon_)) {
         const float size = std::clamp(
             bounds.height * 0.32F, 14.0F, 22.0F);

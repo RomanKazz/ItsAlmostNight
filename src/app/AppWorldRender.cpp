@@ -13,48 +13,7 @@ using namespace app_detail;
 
 namespace {
 
-struct LootItemVisual {
-    Vector3 position{};
-    float rotation{};
-    float scale{};
-};
-
-LootItemVisual lootItemVisual(
-    const SimulationSnapshot& snapshot,
-    const LootChestInstance& chest) {
-    const float reveal = static_cast<float>(chest.loot.revealProgress);
-    const float eased = 1.0F - std::pow(1.0F - reveal, 3.0F);
-    const float riseSpin = reveal * reveal * (3.0F - 2.0F * reveal);
-    return {
-        .position = {
-            static_cast<float>(chest.position.x),
-            static_cast<float>(chest.position.y) + 0.48F +
-                eased * 1.18F +
-                std::sin(static_cast<float>(chest.loot.hoverTime) * 2.4F) *
-                    0.08F,
-            static_cast<float>(chest.position.z),
-        },
-        .rotation = static_cast<float>(snapshot.elapsedSeconds) * 1.65F +
-            static_cast<float>(chest.id.index) * 0.73F + riseSpin * PI,
-        .scale = 1.50F * (0.35F + eased * 0.65F) +
-            std::sin(reveal * PI) * 0.24F,
-    };
-}
-
 } // namespace
-
-void App::drawLootItemOutlines(
-    const SimulationSnapshot& snapshot) {
-    for (const LootChestInstance& chest : snapshot.lootChests) {
-        if (chest.loot.revealProgress <= 0.0 || chest.loot.collected) {
-            continue;
-        }
-        const LootItemVisual visual = lootItemVisual(snapshot, chest);
-        renderer_->drawLootItemOutline(
-            visual.position, chest.loot.effect, chest.loot.rarity,
-            visual.rotation, visual.scale);
-    }
-}
 
 void App::drawWorldEntities(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
@@ -239,9 +198,15 @@ void App::drawWorldEntities(
             continue;
         }
         const LootItemVisual visual = lootItemVisual(snapshot, chest);
+        const Vector3 surfaceNormal{
+            static_cast<float>(chest.surfaceNormal.x),
+            static_cast<float>(chest.surfaceNormal.y),
+            static_cast<float>(chest.surfaceNormal.z),
+        };
         renderer_->drawLootItem(
             visual.position, chest.loot.effect, chest.loot.rarity,
-            visual.rotation, WHITE, visual.scale);
+            visual.rotation, WHITE, visual.scale,
+            surfaceNormal);
     }
     renderer_->beginWorldShader(lighting);
     for (const DestroyedResourceVisual& visual :
@@ -353,7 +318,7 @@ void App::drawWorldEntities(
         const float groundY =
             static_cast<float>(center.y);
         const float spawnScale =
-            buildingAnimationScaleAt(center);
+            buildingAnimationScaleAt(center, building.id);
         const auto scaledPosition =
             [x, groundY, z, spawnScale](
                 float offsetX, float y, float offsetZ) {
@@ -385,6 +350,11 @@ void App::drawWorldEntities(
                     building.id)) {
             renderer_->setWorldMaterial(
                 platformMaterial);
+            const std::array<ModularAnimationScale, 1>
+                foundationAnimation{{{
+                    .id = building.id,
+                    .scale = spawnScale,
+                }}};
             modularBuildingRenderer_.drawWorld(
                 {
                     std::span<
@@ -393,7 +363,8 @@ void App::drawWorldEntities(
                     {}, {}, {},
                     simulation_.terrain()
                         .config().cellSize,
-                    std::nullopt, {}, 1.0F,
+                    std::nullopt,
+                    foundationAnimation, 1.0F,
                 },
                 {});
         }
@@ -641,9 +612,30 @@ void App::drawWorldEntities(
     enemyDrawInstances_.reserve(snapshot.enemies.size());
     const Vector3 cameraForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
-    constexpr float EnemyFullDetailDistance = 30.0F;
+    constexpr float EnemyFullDetailDistance = 20.0F;
     constexpr float EnemyFullDetailDistanceSquared =
         EnemyFullDetailDistance * EnemyFullDetailDistance;
+    enemyHitFlashById_.clear();
+    enemyHitFlashById_.reserve(effects_.size());
+    const auto effectKey = [](EntityId id) {
+        return
+            (static_cast<std::uint64_t>(id.generation) << 32U) |
+            static_cast<std::uint64_t>(id.index);
+    };
+    for (const PresentationEffect& effect : effects_) {
+        if (effect.type != PresentationEffectType::Hit ||
+            !effect.entityId || effect.duration <= 0.0) {
+            continue;
+        }
+        const std::uint64_t key = effectKey(*effect.entityId);
+        const float amount = static_cast<float>(
+            effect.remaining / effect.duration);
+        auto [entry, inserted] =
+            enemyHitFlashById_.try_emplace(key, amount);
+        if (!inserted) {
+            entry->second = std::max(entry->second, amount);
+        }
+    }
     for (const auto& enemy : snapshot.enemies) {
         if (!enemy.active) {
             continue;
@@ -679,8 +671,12 @@ void App::drawWorldEntities(
         const bool lowDetail =
             !aimed && enemy.type != EnemyType::Boss &&
             enemyDistanceSquared > EnemyFullDetailDistanceSquared;
+        const auto flash = enemyHitFlashById_.find(
+            effectKey(enemy.id));
         const float hitFlash =
-            hitFlashAt(enemy.position, 1.6);
+            flash != enemyHitFlashById_.end()
+                ? flash->second
+                : 0.0F;
         const float enemyScale =
             enemyVisualScale(enemy.type) * enemyHitScale(enemy);
         const EnemyStatusEffect& freezeStatus =
@@ -830,7 +826,8 @@ void App::drawWorldEntities(
                     instance.position,
                     instance.yawRadians,
                     instance.tint, instance.scale,
-                    instance.loop));
+                    instance.loop,
+                    instance.inkOutlineEligible));
             }
         }
     }
@@ -1003,7 +1000,8 @@ void App::drawWorldEntities(
                     instance.position,
                     instance.yawRadians,
                     instance.tint, instance.scale,
-                    instance.loop));
+                    instance.loop,
+                    instance.inkOutlineEligible));
             }
         }
     }

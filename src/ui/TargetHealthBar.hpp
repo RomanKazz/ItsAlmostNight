@@ -4,18 +4,24 @@
 
 #include <raylib.h>
 
+#include <functional>
 #include <optional>
 
 namespace ian {
 
 struct SimulationSnapshot;
+struct EnemyInstance;
 class TerrainHeightfield;
+
+using EnemyBoundsProvider =
+    std::function<std::optional<BoundingBox>(const EnemyInstance&)>;
 
 class TargetHealthBar {
   public:
     void draw(const SimulationSnapshot& snapshot,
               const Camera3D& camera,
-              const TerrainHeightfield& terrain);
+              const TerrainHeightfield& terrain,
+              EnemyBoundsProvider enemyBoundsProvider = {});
     void notifyRepair(EntityId id);
     void reset();
 

@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "graphics/WorldTransforms.hpp"
 
 #include "presentation/PresentationTimeline.hpp"
 #include "ui/UiLabels.hpp"
@@ -262,17 +263,22 @@ void App::update() {
         toolQueuedResourceTarget_.reset();
         toolSwingQueueRemaining_ = 0.0;
     }
+    const SimulationSnapshot movementSnapshot =
+        simulation_.snapshot();
     const bool sprinting =
         acceptsGameplayInput(
-            simulation_.snapshot().state) &&
+            movementSnapshot.state) &&
         input_.sprint &&
         (std::abs(input_.moveForward) > 0.01 ||
          std::abs(input_.moveRight) > 0.01);
-    const float targetFov = sprinting ? 79.0F : 75.0F;
+    const float targetFov = movementSnapshot.dashing
+        ? 88.0F
+        : sprinting ? 79.0F : 75.0F;
     const float fovBlend =
         1.0F -
         std::exp(
-            -7.5F * static_cast<float>(frameSeconds));
+            -(movementSnapshot.dashing ? 24.0F : 7.5F) *
+            static_cast<float>(frameSeconds));
     cameraFov_ +=
         (targetFov - cameraFov_) * fovBlend;
     buildingStatsUpgradeRemaining_ = std::max(
@@ -456,6 +462,7 @@ void App::update() {
             tickInput.lookYaw = pendingYaw_;
             tickInput.lookPitch = pendingPitch_;
             tickInput.jump = pendingJump_;
+            tickInput.dash = pendingDash_;
             tickInput.usePickaxe = pendingPickaxe_;
             tickInput.fireRifle = pendingRifleShot_;
             tickInput.fireIceWand = pendingIceWandShot_;
@@ -516,6 +523,7 @@ void App::update() {
         pendingYaw_ = 0.0;
         pendingPitch_ = 0.0;
         pendingJump_ = false;
+        pendingDash_ = false;
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
@@ -916,6 +924,35 @@ void App::update() {
                 .duration = Duration,
             });
         };
+    const auto enemyDamageAnchor =
+        [this, &eventSnapshot](EntityId id, Vec3 fallback) {
+            const auto enemy = std::find_if(
+                eventSnapshot.enemies.begin(), eventSnapshot.enemies.end(),
+                [id](const EnemyInstance& candidate) {
+                    // The combat step can mark an enemy inactive before the
+                    // presentation event is consumed. EntityId is still the
+                    // authoritative match, so use its last snapshot bounds
+                    // for damage numbers even on the death frame.
+                    return candidate.id == id;
+                });
+            if (enemy == eventSnapshot.enemies.end()) {
+                return fallback;
+            }
+            Vector3 position = enemyRenderPosition(*enemy);
+            position.y += static_cast<float>(simulation_.terrain().getHeight(
+                enemy->position.x, enemy->position.z));
+            const BoundingBox bounds = renderer_->enemyWorldBounds(
+                enemyModelVisual(enemy->type), position,
+                static_cast<float>(enemy->yaw),
+                enemyVisualScale(enemy->type));
+            if (!world_transforms::finite(bounds)) {
+                return fallback;
+            }
+            return Vec3{
+                static_cast<double>((bounds.min.x + bounds.max.x) * 0.5F),
+                static_cast<double>(bounds.max.y + 0.12F),
+                static_cast<double>((bounds.min.z + bounds.max.z) * 0.5F)};
+        };
     for (const auto& event : events) {
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
@@ -925,7 +962,16 @@ void App::update() {
             playerSpawnDropVelocity_ = -0.35;
         }
         audio_.playEvent(event, eventSnapshot);
-        if (event.type == GameEventType::CannonFired &&
+        if (event.type == GameEventType::PlayerDashed) {
+            Vec3 dustPosition = event.position;
+            dustPosition.y = simulation_.terrain().getHeight(
+                dustPosition.x, dustPosition.z) + 0.04;
+            addEffect(
+                PresentationEffectType::LandingDust,
+                dustPosition, 0.34, 0.72F);
+            addCameraImpulse({0.0, 0.002, -0.032});
+            addCameraShake(0.08, 0.009);
+        } else if (event.type == GameEventType::CannonFired &&
             event.sourceId) {
             addBuildingShotRecoil(
                 *event.sourceId, 0.18, 0.13F);
@@ -985,7 +1031,10 @@ void App::update() {
                 hitStopRemaining_ = std::max(hitStopRemaining_, 0.025);
             }
         } else if (event.type == GameEventType::IceWandHit) {
-            addFloatingDamageNumber(event.position, event.damage, false);
+            const Vec3 numberPosition = event.entityId
+                ? enemyDamageAnchor(*event.entityId, event.position)
+                : event.position;
+            addFloatingDamageNumber(numberPosition, event.damage, false);
             if (event.critical) {
                 addEffect(PresentationEffectType::IceCrack,
                           event.position, 0.38, 0.55F,
@@ -1015,12 +1064,6 @@ void App::update() {
         } else if (event.type == GameEventType::ResourceCollected) {
             toolContactHoldRemaining_ = std::max(
                 toolContactHoldRemaining_, 0.04);
-        } else if (
-            event.type == GameEventType::BuildingDestroyed ||
-            event.type ==
-                GameEventType::ModularBuildingDestroyed) {
-            hitStopRemaining_ =
-                std::max(hitStopRemaining_, 0.055);
         }
         if (event.type == GameEventType::BuildingRejected ||
             event.type ==
@@ -1067,7 +1110,8 @@ void App::update() {
         }
         if (event.type == GameEventType::ResourceHit) {
             addEffect(PresentationEffectType::Hit,
-                      event.position, 0.34);
+                      event.position, 0.34, 1.0F,
+                      event.entityId);
             if (event.resourceType) {
                 addEffect(
                     *event.resourceType == ResourceType::Wood
@@ -1081,7 +1125,9 @@ void App::update() {
             event.type == GameEventType::ProjectileHit ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit) {
-            addEffect(PresentationEffectType::Hit, event.position, 0.22);
+            addEffect(PresentationEffectType::Hit,
+                      event.position, 0.22, 1.0F,
+                      event.entityId);
         } else if (event.type == GameEventType::ResourceCollected) {
             if (event.resourceType) {
                 const auto node = std::find_if(
@@ -1178,7 +1224,8 @@ void App::update() {
                    event.entityId) {
             addEffect(
                 PresentationEffectType::BuildingDamaged,
-                event.position, 0.3);
+                event.position, 0.3, 1.0F,
+                event.entityId);
             recentlyDamagedBuilding_ = *event.entityId;
             damagedBuildingHealthBarRemaining_ = 1.6;
             const auto building = std::find_if(
@@ -1370,7 +1417,12 @@ void App::update() {
                 event.amount);
         } else if (event.type == GameEventType::PickaxeHit) {
             Vec3 numberPosition = event.position;
-            numberPosition.y += 1.2;
+            if (event.entityId) {
+                numberPosition = enemyDamageAnchor(
+                    *event.entityId, numberPosition);
+            } else {
+                numberPosition.y += 1.2;
+            }
             addFloatingDamageNumber(
                 numberPosition, event.damage, event.critical);
         }

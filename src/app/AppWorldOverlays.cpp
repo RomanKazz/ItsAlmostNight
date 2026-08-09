@@ -247,14 +247,6 @@ void App::drawBlobShadows(
             renderer_->settings().shadowDistance + 24.0F;
         const float maximumAoDistanceSquared =
             maximumAoDistance * maximumAoDistance;
-        const float enemyShadowDistance =
-            renderer_->settings().quality == GraphicsQuality::Low
-                ? 18.0F
-                : renderer_->settings().quality == GraphicsQuality::Medium
-                    ? 30.0F
-                    : 42.0F;
-        const float enemyShadowDistanceSquared =
-            enemyShadowDistance * enemyShadowDistance;
         for (const auto& node : snapshot.resourceNodes) {
             if (!node.active) {
                 continue;
@@ -345,56 +337,6 @@ void App::drawBlobShadows(
                 building.type == BuildingType::SlowTrap
                     ? 0.1F
                     : opacity + 0.04F);
-        }
-        for (const auto& enemy : snapshot.enemies) {
-            if (!enemy.active) {
-                continue;
-            }
-            float width = 0.8F;
-            if (enemy.type == EnemyType::Fast) {
-                width = 0.65F;
-            } else if (enemy.type == EnemyType::Heavy) {
-                width = 1.15F;
-            } else if (enemy.type == EnemyType::Boss) {
-                width = 2.0F;
-            } else if (enemy.type == EnemyType::Ranged) {
-                width = 0.75F;
-            } else if (enemy.type == EnemyType::Sapper) {
-                width = 0.86F;
-            } else if (enemy.type == EnemyType::Flying) {
-                width = 0.72F;
-            }
-            const float enemyOffsetX =
-                static_cast<float>(enemy.position.x) - camera.position.x;
-            const float enemyOffsetZ =
-                static_cast<float>(enemy.position.z) - camera.position.z;
-            if (enemyOffsetX * enemyOffsetX +
-                    enemyOffsetZ * enemyOffsetZ >
-                enemyShadowDistanceSquared) {
-                continue;
-            }
-            const float groundY = static_cast<float>(
-                simulation_.terrain().getHeight(
-                    enemy.position.x,
-                    enemy.position.z));
-            ++performanceStats_.enemyShadowDraws;
-            renderer_->drawBlobShadow(
-                {static_cast<float>(enemy.position.x),
-                 groundY + 0.02F,
-                 static_cast<float>(enemy.position.z)},
-                width * 0.72F, width * 0.6F,
-                enemy.type == EnemyType::Boss ? 0.2F : 0.16F,
-                12);
-            if (renderer_->settings().quality != GraphicsQuality::Low) {
-                ++performanceStats_.enemyShadowDraws;
-                renderer_->drawBlobShadow(
-                    {static_cast<float>(enemy.position.x),
-                     groundY + 0.022F,
-                     static_cast<float>(enemy.position.z)},
-                    width * 0.36F, width * 0.3F,
-                    enemy.type == EnemyType::Boss ? 0.28F : 0.23F,
-                    12);
-            }
         }
         renderer_->endBlobShadowBatch();
     }

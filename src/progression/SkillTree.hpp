@@ -9,7 +9,8 @@
 
 namespace ian {
 
-enum class SkillBranch { Root, Gathering, Weapons, Construction };
+enum class SkillBranch { Root, Gathering, Weapons, Construction, Movement };
+enum class SkillNodeSize { Small, Large };
 enum class SkillEffect {
     BareHands,
     UnlockAxe,
@@ -19,6 +20,14 @@ enum class SkillEffect {
     UnlockHammer,
     UnlockRifle,
     AutoSwitchTools,
+    HoldToGather,
+    NightlyChest,
+    PowerSwing,
+    SafeDelivery,
+    FieldRepairs,
+    UnlockBombs,
+    LightFootwork,
+    Dash,
 };
 enum class SkillNodeState { Hidden, Locked, Available, Unlocked };
 enum class SkillPurchaseError {
@@ -41,6 +50,7 @@ struct SkillNodeDefinition {
     int cost{1};
     std::vector<std::string> prerequisites;
     SkillEffect effect{SkillEffect::BareHands};
+    SkillNodeSize size{SkillNodeSize::Small};
 };
 
 struct SkillTreeRunState {

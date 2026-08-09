@@ -164,6 +164,9 @@ void Simulation::resetRun(GameEventType eventType) {
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    dashRemaining_ = 0.0;
+    dashCooldownRemaining_ = 0.0;
+    dashDirection_ = {};
     autoJumpAssistRemaining_ = 0.0;
     autoJumpAssistDirection_ = {};
     edgeSupportGraceRemaining_ = 0.0;
@@ -186,6 +189,7 @@ void Simulation::resetRun(GameEventType eventType) {
     playerInvulnerable_ = false;
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
+    powerSwingResourceHits_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
     pickaxeInputBufferRemaining_ = 0.0;
     aimedResource_.reset();

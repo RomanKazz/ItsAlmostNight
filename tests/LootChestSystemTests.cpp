@@ -28,6 +28,12 @@ void runLootChestSystemTests() {
         require(terrain.getNormal(
                     chest.position.x, chest.position.z).y >= 0.82,
                 "loot chest avoids steep terrain");
+        const ian::Vec3 sampledNormal = terrain.getNormal(
+            chest.position.x, chest.position.z);
+        requireNear(chest.surfaceNormal.x, sampledNormal.x, 1e-12,
+                    "chest stores the placement surface normal");
+        requireNear(chest.surfaceNormal.y, sampledNormal.y, 1e-12,
+                    "chest normal is deterministic on the same terrain");
         const bool common =
             chest.loot.rarity == ian::LootRarity::Common &&
             (chest.loot.effect == ian::LootUpgradeEffect::Apple ||
@@ -48,6 +54,22 @@ void runLootChestSystemTests() {
     }
     require(hasWooden && hasStone,
             "terrain population uses both supplied chest models");
+
+    const std::size_t chestCountBeforeDelivery =
+        chests.chests().size();
+    constexpr double DeliveryRadius = 28.0;
+    chests.spawnAdditionalChests(
+        1, terrain.seed(), 120.0, terrain, {}, spawn,
+        ian::Vec3{0.0, 0.0, 0.0}, DeliveryRadius);
+    const auto& deliveredChest = chests.chests().back();
+    require(
+        chests.chests().size() ==
+                chestCountBeforeDelivery + 1U &&
+            std::hypot(
+                deliveredChest.position.x,
+                deliveredChest.position.z) <=
+                DeliveryRadius + 1e-9,
+        "preferred delivery spawns additional chest near base");
 
     const ian::EntityId id = chests.chests().front().id;
     const int cost = chests.chests().front().goldCost;
@@ -81,6 +103,33 @@ void runLootChestSystemTests() {
                 opened.loot.available &&
                 opened.loot.revealProgress == 1.0,
             "completed opening reveals one hovering loot item");
+    const ian::Vec3 visualPosition = ian::lootVisualPosition(opened);
+    require(std::isfinite(visualPosition.x) &&
+                std::isfinite(visualPosition.y) &&
+                std::isfinite(visualPosition.z),
+            "loot world position stays finite after local-to-world launch");
+    const ian::Vec3 chestToLoot{
+        visualPosition.x - opened.position.x,
+        visualPosition.y - opened.position.y,
+        visualPosition.z - opened.position.z};
+    const double normalProjection =
+        chestToLoot.x * opened.surfaceNormal.x +
+        chestToLoot.y * opened.surfaceNormal.y +
+        chestToLoot.z * opened.surfaceNormal.z;
+    require(normalProjection > 0.5,
+            "loot exits above the chest along its surface normal");
+
+    ian::LootChestInstance flatChest = opened;
+    flatChest.position = {4.0, 1.5, -3.0};
+    flatChest.surfaceNormal = {0.0, 1.0, 0.0};
+    flatChest.yaw = 1.17;
+    flatChest.loot.hoverTime = 0.0;
+    const ian::Vec3 flatLootPosition =
+        ian::lootVisualPosition(flatChest);
+    requireNear(flatLootPosition.x, flatChest.position.x, 1e-12,
+                "hovering loot has no permanent forward X offset");
+    requireNear(flatLootPosition.z, flatChest.position.z, 1e-12,
+                "hovering loot has no permanent forward Z offset");
     require(chests.collect(opened.loot.id).has_value(),
             "revealed loot can be collected");
     require(!chests.collect(opened.loot.id).has_value(),

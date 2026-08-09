@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
 #include "ui/UiText.hpp"
@@ -535,14 +536,22 @@ bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
     BeginMode3D(camera);
     selectionMaskCamera_ = camera;
     BeginShaderMode(resources_.selectionMaskShader().get());
+    // Depth is encoded in alpha, so source blending would corrupt it when
+    // selected geometry replaces a previously drawn black occluder.
+    rlDrawRenderBatchActive();
+    rlDisableColorBlend();
     const float timeSeconds = static_cast<float>(GetTime());
     constexpr float NoWind = 0.0F;
+    constexpr Vector4 WhiteMask{1.0F, 1.0F, 1.0F, 1.0F};
     SetShaderValue(resources_.selectionMaskShader().get(),
                    selectionMaskTimeLocation_, &timeSeconds,
                    SHADER_UNIFORM_FLOAT);
     SetShaderValue(resources_.selectionMaskShader().get(),
                    selectionMaskWindLocation_, &NoWind,
                    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(resources_.selectionMaskShader().get(),
+                   selectionMaskColorLocation_, &WhiteMask,
+                   SHADER_UNIFORM_VEC4);
     selectionMaskPassOpen_ = true;
     return true;
 }
@@ -550,7 +559,8 @@ bool Renderer::beginSelectionMaskPass(const Camera3D& camera) {
 void Renderer::setSelectionOutlineBounds(
     BoundingBox worldBounds) {
     if (!selectionMaskPassOpen_ ||
-        !resources_.selectionMaskValid()) {
+        !resources_.selectionMaskValid() ||
+        !world_transforms::finite(worldBounds)) {
         return;
     }
     const auto& target = resources_.selectionMask();
@@ -639,6 +649,18 @@ void Renderer::setSelectionMaskWind(float amount) {
                    SHADER_UNIFORM_FLOAT);
 }
 
+void Renderer::setSelectionMaskColor(Color color) {
+    if (!selectionMaskPassOpen_ ||
+        !resources_.selectionMaskShader().valid()) {
+        return;
+    }
+    rlDrawRenderBatchActive();
+    const Vector4 normalized = ColorNormalize(color);
+    SetShaderValue(resources_.selectionMaskShader().get(),
+                   selectionMaskColorLocation_, &normalized,
+                   SHADER_UNIFORM_VEC4);
+}
+
 void Renderer::setSelectionOutlineTint(Color tint) {
     selectionOutlineTint_ = tint;
 }
@@ -647,6 +669,8 @@ void Renderer::endSelectionMaskPass() {
     if (!selectionMaskPassOpen_) {
         return;
     }
+    rlDrawRenderBatchActive();
+    rlEnableColorBlend();
     EndShaderMode();
     EndMode3D();
     EndTextureMode();
@@ -790,7 +814,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
         material.selectionTint.y == worldMaterial_.selectionTint.y &&
-        material.selectionTint.z == worldMaterial_.selectionTint.z) {
+        material.selectionTint.z == worldMaterial_.selectionTint.z &&
+        material.inkOutlineEligible == worldMaterial_.inkOutlineEligible) {
         return;
     }
 

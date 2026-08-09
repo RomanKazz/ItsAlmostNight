@@ -75,6 +75,10 @@ SimulationSnapshot Simulation::snapshot() const {
         .playerGrounded = playerGrounded_,
         .playerHorizontalVelocity =
             playerHorizontalVelocity_,
+        .dashUnlocked = skillTree_.hasEffect(SkillEffect::Dash),
+        .dashing = dashRemaining_ > 0.0,
+        .dashCooldownRemaining = dashCooldownRemaining_,
+        .dashCooldownDuration = 0.90,
         .playerVerticalVelocity = verticalVelocity_,
         .playerHealth = playerHealth_,
         .playerMaxHealth =
@@ -188,6 +192,8 @@ SimulationSnapshot Simulation::snapshot() const {
         .playerInvulnerable = playerInvulnerable_,
         .automaticToolSwitch = skillTree_.hasEffect(
             SkillEffect::AutoSwitchTools),
+        .holdToGather = skillTree_.hasEffect(
+            SkillEffect::HoldToGather),
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = heldDamage,
         .rifleLevel = playerWeapons_.rifleLevel(),
@@ -199,7 +205,9 @@ SimulationSnapshot Simulation::snapshot() const {
         .rifleReloadDuration = playerWeapons_.reloadDuration(),
         .bombsRemaining = unlimitedResources_
             ? std::numeric_limits<int>::max()
-            : bombs_.remainingBombs(),
+            : skillTree_.hasEffect(SkillEffect::UnlockBombs)
+                ? bombs_.remainingBombs()
+                : 0,
         .waveCompletionReward = saturatingMultiplyNonNegative(
             economy_.waveRewardPerWave, wave_),
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,

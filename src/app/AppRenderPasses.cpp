@@ -66,7 +66,7 @@ void App::drawShadowPass(
             const float groundY =
                 static_cast<float>(center.y);
             const float spawnScale =
-                buildingAnimationScaleAt(center);
+                buildingAnimationScaleAt(center, building.id);
             if (!renderer_->shadowCasterVisible(
                     {x, groundY + 1.0F, z}, 2.2F)) {
                 continue;
@@ -85,13 +85,19 @@ void App::drawShadowPass(
                             .foundationBottomHeight,
                         modularCellSize,
                         building.id)) {
+                const std::array<ModularAnimationScale, 1>
+                    foundationAnimation{{{
+                        .id = building.id,
+                        .scale = spawnScale,
+                    }}};
                 modularBuildingRenderer_.drawShadow({
                     std::span<
                         const PlatformFrameInstance>{
                         &*foundation, 1U},
                     {}, {}, {},
                     modularCellSize,
-                    std::nullopt, {}, 1.0F,
+                    std::nullopt,
+                    foundationAnimation, 1.0F,
                 });
             }
             if (building.type == BuildingType::Core) {
@@ -206,13 +212,67 @@ void App::drawShadowPass(
 void App::drawSelectionPass(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
     renderer_->clearSelectionOutline();
+    const bool hasVisibleLoot = std::any_of(
+        snapshot.lootChests.begin(), snapshot.lootChests.end(),
+        [](const LootChestInstance& chest) {
+            return chest.loot.revealProgress > 0.0 &&
+                   !chest.loot.collected;
+        });
     if (!removalDragActive_ &&
-        (snapshot.aimedChest || snapshot.aimedResource ||
+        (hasVisibleLoot || snapshot.aimedChest || snapshot.aimedResource ||
          snapshot.aimedBuilding || snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
-        if (snapshot.aimedChest) {
+        // Seed the mask depth with chest geometry, but keep its RGB black so
+        // it never becomes part of the loot silhouette. The outline shader
+        // uses the encoded depth to distinguish a lid in front of the item
+        // from a lid behind it.
+        renderer_->setSelectionMaskColor(BLACK);
+        for (const LootChestInstance& chest : snapshot.lootChests) {
+            if (chest.loot.revealProgress <= 0.0 ||
+                chest.loot.collected) {
+                continue;
+            }
+            const Vector3 position{
+                static_cast<float>(chest.position.x),
+                static_cast<float>(chest.position.y),
+                static_cast<float>(chest.position.z),
+            };
+            static_cast<void>(renderer_->drawLootChest(
+                chest.type, position,
+                static_cast<float>(chest.yaw),
+                static_cast<float>(chest.openingProgress),
+                WHITE));
+        }
+        for (const LootChestInstance& chest : snapshot.lootChests) {
+            if (chest.loot.revealProgress <= 0.0 ||
+                chest.loot.collected) {
+                continue;
+            }
+            const LootItemVisual visual =
+                lootItemVisual(snapshot, chest);
+            const Vector3 surfaceNormal{
+                static_cast<float>(chest.surfaceNormal.x),
+                static_cast<float>(chest.surfaceNormal.y),
+                static_cast<float>(chest.surfaceNormal.z),
+            };
+            renderer_->setSelectionMaskColor(
+                lootRarityColor(chest.loot.rarity));
+            renderer_->setSelectionOutlineBounds(
+                renderer_->lootItemWorldBounds(
+                    visual.position, chest.loot.effect,
+                    visual.rotation, visual.scale,
+                    surfaceNormal));
+            renderer_->drawLootItem(
+                visual.position, chest.loot.effect,
+                chest.loot.rarity, visual.rotation,
+                WHITE, visual.scale, surfaceNormal);
+        }
+        renderer_->setSelectionMaskColor(WHITE);
+        if (snapshot.aimedLoot) {
+            // Permanent rarity mask already contains aimed loot.
+        } else if (snapshot.aimedChest) {
             const auto chest = std::find_if(
                 snapshot.lootChests.begin(), snapshot.lootChests.end(),
                 [&snapshot](const LootChestInstance& value) {
@@ -224,12 +284,15 @@ void App::drawSelectionPass(
                     static_cast<float>(chest->position.y),
                     static_cast<float>(chest->position.z),
                 };
-                renderer_->setSelectionOutlineBounds({
-                    {position.x - 0.8F, position.y - 0.1F,
-                     position.z - 0.8F},
-                    {position.x + 0.8F, position.y + 1.3F,
-                     position.z + 0.8F},
-                });
+                const LootChestWorldTransform transform =
+                    renderer_->lootChestWorldTransform(
+                        chest->type, position,
+                        static_cast<float>(chest->yaw),
+                        static_cast<float>(chest->openingProgress));
+                if (transform.valid) {
+                    renderer_->setSelectionOutlineBounds(
+                        transform.worldBounds);
+                }
                 static_cast<void>(renderer_->drawLootChest(
                     chest->type, position,
                     static_cast<float>(chest->yaw),
@@ -268,15 +331,12 @@ void App::drawSelectionPass(
                     hitScale * static_cast<float>(
                         resource->visualScale);
                 if (resource->type == ResourceType::Wood) {
-                    const float radius = 2.8F * visualScale;
-                    renderer_->setSelectionOutlineBounds({
-                        {resourcePosition.x - radius,
-                         resourcePosition.y - 0.25F,
-                         resourcePosition.z - radius},
-                        {resourcePosition.x + radius,
-                         resourcePosition.y + 6.0F * visualScale,
-                         resourcePosition.z + radius},
-                    });
+                    const BoundingBox bounds = renderer_->treeWorldBounds(
+                        resourcePosition, visualScale,
+                        static_cast<std::size_t>(
+                            resource->id.index % TreeVisualVariantCount),
+                        static_cast<float>(resource->visualYaw));
+                    renderer_->setSelectionOutlineBounds(bounds);
                 } else {
                     const float radius = 1.8F * hitScale;
                     renderer_->setSelectionOutlineBounds({
@@ -351,7 +411,8 @@ void App::drawSelectionPass(
                 const float groundY =
                     static_cast<float>(center.y);
                 const float spawnScale =
-                    buildingAnimationScaleAt(center);
+                    buildingAnimationScaleAt(
+                        center, building->id);
                 const float boundsRadius =
                     3.2F * std::max(spawnScale, 0.25F);
                 renderer_->setSelectionOutlineBounds({
@@ -496,17 +557,15 @@ void App::drawSelectionPass(
                     simulation_.terrain().getHeight(
                         enemy->position.x,
                         enemy->position.z));
+                // The visible enemy briefly squashes on hit. Keep the mask
+                // on the exact same transform so the outline follows it.
                 const float scale =
-                    enemyVisualScale(enemy->type);
-                const float boundsRadius = 2.4F * scale;
-                renderer_->setSelectionOutlineBounds({
-                    {enemyPosition.x - boundsRadius,
-                     enemyPosition.y - 0.35F,
-                     enemyPosition.z - boundsRadius},
-                    {enemyPosition.x + boundsRadius,
-                     enemyPosition.y + 4.8F * scale,
-                     enemyPosition.z + boundsRadius},
-                });
+                    enemyVisualScale(enemy->type) *
+                    enemyHitScale(*enemy);
+                renderer_->setSelectionOutlineBounds(
+                    renderer_->enemyWorldBounds(
+                        enemyModelVisual(enemy->type), enemyPosition,
+                        static_cast<float>(enemy->yaw), scale));
                 static_cast<void>(renderer_->drawEnemy(
                     enemyModelVisual(enemy->type),
                     enemyAnimationVisual(*enemy),

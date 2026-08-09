@@ -54,6 +54,7 @@ struct LootChestInstance {
     LootChestType type{LootChestType::Wooden};
     LootChestState state{LootChestState::Closed};
     Vec3 position;
+    Vec3 surfaceNormal{0.0, 1.0, 0.0};
     double yaw{};
     int goldCost{};
     double openingProgress{};
@@ -93,7 +94,9 @@ class LootChestSystem {
         int count, std::uint32_t terrainSeed,
         double worldLimit, const TerrainHeightfield& terrain,
         std::span<const ResourceNode> resources,
-        Vec3 playerSpawn);
+        Vec3 playerSpawn,
+        std::optional<Vec3> preferredCenter = std::nullopt,
+        double preferredRadius = 0.0);
 
     [[nodiscard]] const std::vector<LootChestInstance>& chests() const;
 
@@ -106,5 +109,10 @@ class LootChestSystem {
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);
 [[nodiscard]] const char* lootUpgradeName(LootUpgradeEffect effect);
 [[nodiscard]] const char* lootUpgradeDescription(LootUpgradeEffect effect);
+
+// The presentation position is derived from the chest's local exit point.
+// Keeping this in the simulation makes raycasts, pickup results, UI and
+// rendering agree on sloped terrain as well as on flat ground.
+[[nodiscard]] Vec3 lootVisualPosition(const LootChestInstance& chest);
 
 } // namespace ian

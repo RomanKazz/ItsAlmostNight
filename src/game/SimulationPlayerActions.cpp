@@ -84,7 +84,11 @@ void Simulation::updatePlayerActions(
     }
     const bool automaticToolSwitch =
         skillTree_.hasEffect(SkillEffect::AutoSwitchTools);
-    if (automaticToolSwitch && aimedResource_) {
+    // Smart Tools chooses between already-held real tools. Bare Hands is an
+    // intentional gathering mode: keep it selected so its 25% coefficients,
+    // animation and VFX remain the ones used for the hit.
+    if (automaticToolSwitch && aimedResource_ &&
+        heldTool != PlayerWeapon::BareHands) {
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,
             &ResourceNode::id);
@@ -115,7 +119,9 @@ void Simulation::updatePlayerActions(
                 ? iceWand_.maximumRange()
                 : gameplay_.pickaxeRange;
     aimedEnemy_ = enemies_.raycast(playerPosition_, direction, enemyAimRange);
-    if (command.useConsumable && bombs_.throwBomb(
+    const bool bombsUnlocked = unlimitedResources_ ||
+        skillTree_.hasEffect(SkillEffect::UnlockBombs);
+    if (command.useConsumable && bombsUnlocked && bombs_.throwBomb(
             playerPosition_, direction, !unlimitedResources_)) {
         events_.push_back({
             .type = GameEventType::ConsumableUsed,
@@ -243,12 +249,50 @@ void Simulation::updatePlayerActions(
                 aimedEnemy_.reset();
             }
         } else if (aimedResource_) {
-            const Vec3 impactPosition = resourceImpactPosition(
-                resources_.nodes(), *aimedResource_,
-                playerPosition_, direction);
-            const auto hit =
-                resources_.damage(*aimedResource_, damage);
-            if (hit) {
+            const EntityId primaryTarget = *aimedResource_;
+            std::vector<EntityId> resourceTargets{
+                primaryTarget};
+            const bool powerSwingUnlocked =
+                skillTree_.hasEffect(SkillEffect::PowerSwing);
+            const bool powerSwing = powerSwingUnlocked &&
+                (++powerSwingResourceHits_ % 3U == 0U);
+            if (powerSwing) {
+                constexpr double PowerSwingRadius = 3.0;
+                const auto primary = std::ranges::find(
+                    resources_.nodes(), primaryTarget,
+                    &ResourceNode::id);
+                if (primary != resources_.nodes().end()) {
+                    for (const ResourceNode& node :
+                         resources_.nodes()) {
+                        if (!node.active ||
+                            node.id == primaryTarget) {
+                            continue;
+                        }
+                        const double deltaX =
+                            node.position.x -
+                            primary->position.x;
+                        const double deltaZ =
+                            node.position.z -
+                            primary->position.z;
+                        if (deltaX * deltaX +
+                                deltaZ * deltaZ <=
+                            PowerSwingRadius *
+                                PowerSwingRadius) {
+                            resourceTargets.push_back(
+                                node.id);
+                        }
+                    }
+                }
+            }
+            for (const EntityId targetId : resourceTargets) {
+                Vec3 impactPosition = resourceImpactPosition(
+                    resources_.nodes(), targetId,
+                    playerPosition_, direction);
+                const auto hit =
+                    resources_.damage(targetId, damage);
+                if (!hit) {
+                    continue;
+                }
                 events_.push_back({
                     .type =
                         hit->collected ? GameEventType::ResourceCollected : GameEventType::ResourceHit,
@@ -281,7 +325,9 @@ void Simulation::updatePlayerActions(
                     }
                 }
                 if (hit->collected) {
-                    aimedResource_.reset();
+                    if (targetId == primaryTarget) {
+                        aimedResource_.reset();
+                    }
                 }
             }
         }

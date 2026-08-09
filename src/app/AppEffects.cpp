@@ -316,10 +316,17 @@ void App::drawChestLootGlow(
             appear * (0.66F + openingEnergy * 0.50F) * pulse;
         if (intensity <= 0.005F) continue;
 
+        constexpr float ChestGlowHeight = 0.58F;
         const Vector3 origin{
-            static_cast<float>(chest.position.x),
-            static_cast<float>(chest.position.y) + 0.58F,
-            static_cast<float>(chest.position.z),
+            static_cast<float>(
+                chest.position.x +
+                chest.surfaceNormal.x * ChestGlowHeight),
+            static_cast<float>(
+                chest.position.y +
+                chest.surfaceNormal.y * ChestGlowHeight),
+            static_cast<float>(
+                chest.position.z +
+                chest.surfaceNormal.z * ChestGlowHeight),
         };
 
         constexpr int GlowLayers = 9;
@@ -1253,29 +1260,6 @@ void App::drawProductionVisuals(
     rlEnableDepthTest();
 }
 
-float App::hitFlashAt(Vec3 position, double radius) const {
-    float amount = 0.0F;
-    const double radiusSquared = radius * radius;
-    for (const PresentationEffect& effect : effects_) {
-        if (effect.type != PresentationEffectType::Hit) {
-            continue;
-        }
-        const double offsetX = effect.position.x - position.x;
-        const double offsetY = effect.position.y - position.y;
-        const double offsetZ = effect.position.z - position.z;
-        const double distanceSquared =
-            offsetX * offsetX + offsetY * offsetY +
-            offsetZ * offsetZ;
-        if (distanceSquared <= radiusSquared) {
-            amount = std::max(
-                amount,
-                static_cast<float>(
-                    effect.remaining / effect.duration));
-        }
-    }
-    return amount;
-}
-
 Vec3 App::buildingImpactOffsetAt(EntityId id) const {
     Vec3 offset{};
     for (const BuildingImpactVisual& impact :
@@ -1369,16 +1353,20 @@ float App::buildingAnimationScaleAt(
                 PresentationEffectType::BuildingDamaged) {
             continue;
         }
+        const bool matchedEntity =
+            effect.entityId && entityId &&
+            effect.entityId == entityId;
         if (effect.entityId && entityId &&
-            effect.entityId != entityId) {
+            !matchedEntity) {
             continue;
         }
-        if (std::abs(
-                effect.position.x - center.x) > 0.01 ||
-            std::abs(
-                effect.position.y - center.y) > 0.01 ||
-            std::abs(
-                effect.position.z - center.z) > 0.01) {
+        if (!matchedEntity &&
+            (std::abs(
+                 effect.position.x - center.x) > 0.01 ||
+             std::abs(
+                 effect.position.y - center.y) > 0.01 ||
+             std::abs(
+                 effect.position.z - center.z) > 0.01)) {
             continue;
         }
         const float progress = std::clamp(
@@ -1401,11 +1389,11 @@ float App::buildingAnimationScaleAt(
                     std::exp(-4.5F * progress) * 0.09F;
             scale = std::clamp(bounce, 0.94F, 1.09F);
         } else {
-            const float bounce =
-                1.0F +
-                std::sin(progress * PI) *
-                    (1.0F - progress) * 0.1F;
-            scale = std::max(scale, bounce);
+            // A fast, readable squash mirrors enemy hit feedback. It returns
+            // exactly to 1.0, so repeated attacks cannot leave scale drift.
+            const float squash =
+                1.0F - std::sin(progress * PI) * 0.14F;
+            scale = std::min(scale, squash);
         }
     }
     return scale;

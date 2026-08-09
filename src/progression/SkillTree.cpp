@@ -14,6 +14,7 @@ SkillBranch parseBranch(std::string_view value) {
     if (value == "gathering") return SkillBranch::Gathering;
     if (value == "weapons") return SkillBranch::Weapons;
     if (value == "construction") return SkillBranch::Construction;
+    if (value == "movement") return SkillBranch::Movement;
     return SkillBranch::Root;
 }
 
@@ -25,6 +26,14 @@ SkillEffect parseEffect(std::string_view value) {
     if (value == "unlock_hammer") return SkillEffect::UnlockHammer;
     if (value == "unlock_rifle") return SkillEffect::UnlockRifle;
     if (value == "auto_switch_tools") return SkillEffect::AutoSwitchTools;
+    if (value == "hold_to_gather") return SkillEffect::HoldToGather;
+    if (value == "nightly_chest") return SkillEffect::NightlyChest;
+    if (value == "power_swing") return SkillEffect::PowerSwing;
+    if (value == "safe_delivery") return SkillEffect::SafeDelivery;
+    if (value == "field_repairs") return SkillEffect::FieldRepairs;
+    if (value == "unlock_bombs") return SkillEffect::UnlockBombs;
+    if (value == "light_footwork") return SkillEffect::LightFootwork;
+    if (value == "dash") return SkillEffect::Dash;
     return SkillEffect::BareHands;
 }
 
@@ -42,16 +51,48 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
          "Automatically switches between the axe and pickaxe for the aimed resource.",
          "placeholder_tools", SkillBranch::Gathering, {-190, 190}, 1,
          {"axe", "pickaxe"}, SkillEffect::AutoSwitchTools},
+        {"hold_to_gather", "HOLD TO HARVEST",
+         "Hold the attack mouse button to gather resources continuously.",
+         "placeholder_tools", SkillBranch::Gathering, {-380, 190}, 1,
+         {"auto_switch_tools"}, SkillEffect::HoldToGather},
+        {"power_swing", "POWER SWING",
+         "Every third resource hit also strikes nearby resources.",
+         "placeholder_tools", SkillBranch::Gathering, {-570, 190}, 1,
+         {"hold_to_gather"}, SkillEffect::PowerSwing},
         {"club", "CLUB", "Unlocks a stronger melee weapon.",
-         "placeholder_club", SkillBranch::Weapons, {0, -150}, 1, {"bare_hands"}, SkillEffect::UnlockClub},
+         "placeholder_club", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, SkillEffect::UnlockClub},
         {"ice_wand", "ICE WAND",
          "Launch a freezing orb that freezes enemies near the impact.",
-         "ice_wand", SkillBranch::Weapons, {190, -150}, 2,
+         "ice_wand", SkillBranch::Weapons, {190, -190}, 2,
          {"bare_hands"}, SkillEffect::UnlockIceWand},
         {"rifle", "RIFLE", "Unlocks the rifle and ranged combat.",
-         "placeholder_rifle", SkillBranch::Weapons, {0, -300}, 1, {"club"}, SkillEffect::UnlockRifle},
+         "placeholder_rifle", SkillBranch::Weapons, {0, -380}, 1, {"club"}, SkillEffect::UnlockRifle},
+        {"bombs", "BOMBS",
+         "Unlocks throwable bombs for explosive crowd control.",
+         "placeholder_bomb", SkillBranch::Weapons, {-190, -380}, 1,
+         {"club"}, SkillEffect::UnlockBombs},
         {"hammer", "HAMMER", "Unlocks repair and active fortification.",
          "placeholder_hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, SkillEffect::UnlockHammer},
+        {"field_repairs", "FIELD REPAIRS",
+         "Restores 15% health to all surviving structures after each night.",
+         "placeholder_hammer", SkillBranch::Construction, {380, 0}, 1,
+         {"hammer"}, SkillEffect::FieldRepairs},
+        {"nightly_chest", "NIGHT'S BOUNTY",
+         "Spawns one additional chest after every successfully survived night.",
+         "placeholder_chest", SkillBranch::Construction, {190, 190}, 1,
+         {"bare_hands"}, SkillEffect::NightlyChest},
+        {"safe_delivery", "SAFE DELIVERY",
+         "Night's Bounty chests spawn closer to the base.",
+         "placeholder_chest", SkillBranch::Construction, {380, 190}, 1,
+         {"nightly_chest"}, SkillEffect::SafeDelivery},
+        {"light_footwork", "LIGHT FOOTWORK",
+         "Accelerate, stop, and change direction faster without increasing top speed.",
+         "placeholder_boot", SkillBranch::Movement, {380, -190}, 1,
+         {"bare_hands"}, SkillEffect::LightFootwork},
+        {"dash", "DASH",
+         "Press Right Mouse Button to burst in the movement direction. One charge, recovered over time.",
+         "placeholder_dash", SkillBranch::Movement, {570, -190}, 2,
+         {"light_footwork"}, SkillEffect::Dash, SkillNodeSize::Large},
     };
 }
 
@@ -192,6 +233,9 @@ std::vector<SkillNodeDefinition> loadSkillTreeDefinitions(const std::filesystem:
                              value.at("position").at("y").get<float>()};
             node.branch = parseBranch(value.value("branch", "root"));
             node.effect = parseEffect(value.at("effect").get<std::string>());
+            node.size = value.value("size", "small") == "large"
+                ? SkillNodeSize::Large
+                : SkillNodeSize::Small;
             if (node.id.empty() || node.cost < 0 || !ids.insert(node.id).second) return SkillTree::defaultDefinitions();
             nodes.push_back(std::move(node));
         }
@@ -206,6 +250,7 @@ std::string_view skillBranchName(SkillBranch branch) {
     case SkillBranch::Gathering: return "GATHERING";
     case SkillBranch::Weapons: return "WEAPONS";
     case SkillBranch::Construction: return "CONSTRUCTION";
+    case SkillBranch::Movement: return "MOVEMENT";
     case SkillBranch::Root: return "ORIGIN";
     }
     return "ORIGIN";
@@ -221,6 +266,14 @@ std::string_view skillEffectName(SkillEffect effect) {
     case SkillEffect::UnlockHammer: return "unlock_hammer";
     case SkillEffect::UnlockRifle: return "unlock_rifle";
     case SkillEffect::AutoSwitchTools: return "auto_switch_tools";
+    case SkillEffect::HoldToGather: return "hold_to_gather";
+    case SkillEffect::NightlyChest: return "nightly_chest";
+    case SkillEffect::PowerSwing: return "power_swing";
+    case SkillEffect::SafeDelivery: return "safe_delivery";
+    case SkillEffect::FieldRepairs: return "field_repairs";
+    case SkillEffect::UnlockBombs: return "unlock_bombs";
+    case SkillEffect::LightFootwork: return "light_footwork";
+    case SkillEffect::Dash: return "dash";
     }
     return "bare_hands";
 }

@@ -7,6 +7,10 @@ namespace ian {
 namespace {
 
 constexpr double PitchLimit = 1.5533430342749532;
+constexpr double DashDuration = 0.18;
+constexpr double DashCooldown = 0.90;
+constexpr double DashStartSpeed = 19.5;
+constexpr double DashEndSpeed = 10.5;
 
 double clampAxis(double value) {
     return std::clamp(value, -1.0, 1.0);
@@ -40,6 +44,8 @@ void Simulation::updatePlayer(double deltaSeconds,
     edgeSupportGraceRemaining_ = std::max(
         0.0,
         edgeSupportGraceRemaining_ - deltaSeconds);
+    dashCooldownRemaining_ = std::max(
+        0.0, dashCooldownRemaining_ - deltaSeconds);
     if (command.jump) {
         jumpBufferRemaining_ = JumpBufferTime;
     } else {
@@ -75,6 +81,48 @@ void Simulation::updatePlayer(double deltaSeconds,
             playerPosition_.x, playerPosition_.z);
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
+
+    const bool dashUnlocked =
+        skillTree_.hasEffect(SkillEffect::Dash);
+    if (command.dash && dashUnlocked &&
+        dashCooldownRemaining_ <= 0.0 &&
+        dashRemaining_ <= 0.0) {
+        dashDirection_ = hasMovementInput
+            ? Vec3{directionX, 0.0, directionZ}
+            : Vec3{sinYaw, 0.0, -cosYaw};
+        const double length = std::hypot(
+            dashDirection_.x, dashDirection_.z);
+        dashDirection_.x /= length;
+        dashDirection_.z /= length;
+        dashRemaining_ = DashDuration;
+        dashCooldownRemaining_ = DashCooldown;
+        playerHorizontalVelocity_ = {
+            dashDirection_.x * DashStartSpeed,
+            0.0,
+            dashDirection_.z * DashStartSpeed,
+        };
+        events_.push_back({
+            .type = GameEventType::PlayerDashed,
+            .position = playerPosition_,
+            .intensity = 1.0,
+        });
+    }
+
+    const bool dashing = dashRemaining_ > 0.0;
+    if (dashing && hasMovementInput) {
+        // Small amount of steering keeps the burst expressive without
+        // turning it into fully controllable high-speed movement.
+        constexpr double DashSteeringRate = 7.5;
+        dashDirection_ = moveHorizontalToward(
+            dashDirection_, {directionX, 0.0, directionZ},
+            DashSteeringRate * deltaSeconds);
+        const double length = std::hypot(
+            dashDirection_.x, dashDirection_.z);
+        if (length > 1e-9) {
+            dashDirection_.x /= length;
+            dashDirection_.z /= length;
+        }
+    }
     const Vec3 targetVelocity{
         directionX * speed,
         0.0,
@@ -95,13 +143,35 @@ void Simulation::updatePlayer(double deltaSeconds,
         velocityChangeRate *=
             hasMovementInput ? 0.55 : 0.35;
     }
+    if (skillTree_.hasEffect(SkillEffect::LightFootwork)) {
+        constexpr double LightFootworkResponseMultiplier = 1.55;
+        velocityChangeRate *= LightFootworkResponseMultiplier;
+    }
     if (!hasMovementInput &&
         autoJumpAssistRemaining_ > 0.0) {
         velocityChangeRate = 0.0;
     }
-    playerHorizontalVelocity_ = moveHorizontalToward(
-        playerHorizontalVelocity_, targetVelocity,
-        velocityChangeRate * deltaSeconds);
+    if (dashing) {
+        const double progress = std::clamp(
+            1.0 - dashRemaining_ / DashDuration, 0.0, 1.0);
+        const double ease = progress * progress;
+        const double dashSpeed =
+            DashStartSpeed + (DashEndSpeed - DashStartSpeed) * ease;
+        const double waterScale = std::sqrt(
+            terrain_.waterMovementMultiplier(
+                playerPosition_.x, playerPosition_.z));
+        playerHorizontalVelocity_ = {
+            dashDirection_.x * dashSpeed * waterScale,
+            0.0,
+            dashDirection_.z * dashSpeed * waterScale,
+        };
+        dashRemaining_ = std::max(
+            0.0, dashRemaining_ - deltaSeconds);
+    } else {
+        playerHorizontalVelocity_ = moveHorizontalToward(
+            playerHorizontalVelocity_, targetVelocity,
+            velocityChangeRate * deltaSeconds);
+    }
     if (autoJumpAssistRemaining_ > 0.0) {
         const double inputAlongAssist =
             directionX * autoJumpAssistDirection_.x +
