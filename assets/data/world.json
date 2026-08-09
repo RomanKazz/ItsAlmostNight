@@ -34,6 +34,6 @@
   "pondShallowMovementMultiplier": 0.62,
   "pondDeepWaterDepth": 0.78,
   "pondSeed": 92821,
-  "pondShallowColor": [0.27, 0.84, 0.82],
-  "pondDeepColor": [0.075, 0.35, 0.65]
+  "pondShallowColor": [0.16, 0.58, 0.76],
+  "pondDeepColor": [0.025, 0.16, 0.39]
 }

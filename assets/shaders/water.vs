@@ -15,12 +15,12 @@ out float fragWaveHeight;
 void main()
 {
     float time = timeSeconds*waveSpeed;
-    float broad = sin(vertexPosition.x*0.105 + time*1.7) +
-                  sin(vertexPosition.z*0.137 - time*1.25);
+    float broad = sin(vertexPosition.x*0.092 + vertexPosition.z*0.027 + time*1.35) +
+                  sin(vertexPosition.z*0.118 - vertexPosition.x*0.021 - time*1.05);
     float detail = sin(
-        vertexPosition.x*0.061 + vertexPosition.z*0.083 + time*0.82);
+        vertexPosition.x*0.19 + vertexPosition.z*0.14 + time*1.9);
     float depthFade = smoothstep(0.04, 0.42, vertexTexCoord.x);
-    float waveHeight = (broad*0.018 + detail*0.012)*depthFade;
+    float waveHeight = (broad*0.022 + detail*0.006)*depthFade;
     vec3 position = vertexPosition;
     position.y += waveHeight;
 
