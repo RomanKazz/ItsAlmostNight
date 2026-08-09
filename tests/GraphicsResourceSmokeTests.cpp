@@ -3,7 +3,10 @@
 
 #include <raylib.h>
 
+#include <algorithm>
+#include <cmath>
 #include <iostream>
+#include <vector>
 
 namespace {
 
@@ -59,6 +62,41 @@ bool hasTexturedRenderableMesh(
     return false;
 }
 
+bool animationMovesSkeleton(
+    ian::ModelResource& resource,
+    const ian::ModelAnimationsResource& animations,
+    const char* clipName) {
+    Model& model = resource.get();
+    const ModelAnimation* animation = animations.find(clipName);
+    if (animation == nullptr || animation->keyframeCount < 2 ||
+        model.skeleton.boneCount <= 0 ||
+        model.skeleton.boneCount > ian::MaximumGpuSkinningBones ||
+        model.boneMatrices == nullptr ||
+        !resource.gpuSkinningCompatible()) {
+        return false;
+    }
+
+    UpdateModelAnimation(model, *animation, 0);
+    const std::size_t valueCount =
+        static_cast<std::size_t>(model.skeleton.boneCount) * 16U;
+    std::vector<float> initial(valueCount);
+    const float* values = &model.boneMatrices[0].m0;
+    std::copy(values, values + valueCount, initial.begin());
+
+    for (int frame = 1; frame < animation->keyframeCount; ++frame) {
+        UpdateModelAnimation(
+            model, *animation, static_cast<float>(frame));
+        values = &model.boneMatrices[0].m0;
+        for (std::size_t index = 0; index < valueCount; ++index) {
+            if (std::abs(values[index] - initial[index]) > 0.0001F) {
+                UpdateModelAnimation(model, *animation, 0);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 int main() {
@@ -89,15 +127,51 @@ int main() {
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
             !resources.enemyMinionModel().valid() ||
+            !resources.enemyRogueModel().valid() ||
+            !resources.enemyWarriorModel().valid() ||
+            !resources.enemySplitterModel().valid() ||
+            !resources.enemySplitlingModel().valid() ||
             resources.enemyPinkBlobAnimations().find("Idle") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Walk") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Death") == nullptr ||
+            resources.enemyNinjaAnimations().find("Idle") == nullptr ||
+            resources.enemyNinjaAnimations().find("Walk") == nullptr ||
+            resources.enemyNinjaAnimations().find("Bite_Front") == nullptr ||
+            resources.enemyNinjaAnimations().find("HitRecieve") == nullptr ||
+            resources.enemyNinjaAnimations().find("Death") == nullptr ||
+            resources.enemyMushroomKingAnimations().find("Idle") == nullptr ||
+            resources.enemyMushroomKingAnimations().find("Walk") == nullptr ||
+            resources.enemyMushroomKingAnimations().find("Bite_Front") == nullptr ||
+            resources.enemyMushroomKingAnimations().find("HitRecieve") == nullptr ||
+            resources.enemyMushroomKingAnimations().find("Death") == nullptr ||
+            resources.enemySplitterAnimations().find("Idle") == nullptr ||
+            resources.enemySplitterAnimations().find("Walk") == nullptr ||
+            resources.enemySplitterAnimations().find("Bite_Front") == nullptr ||
+            resources.enemySplitterAnimations().find("Death") == nullptr ||
+            resources.enemySplitlingAnimations().find("Idle") == nullptr ||
+            resources.enemySplitlingAnimations().find("Walk") == nullptr ||
+            resources.enemySplitlingAnimations().find("Bite_Front") == nullptr ||
+            resources.enemySplitlingAnimations().find("Death") == nullptr ||
+            !animationMovesSkeleton(
+                resources.enemyRogueModel(),
+                resources.enemyNinjaAnimations(), "Walk") ||
+            !animationMovesSkeleton(
+                resources.enemyWarriorModel(),
+                resources.enemyMushroomKingAnimations(), "Walk") ||
+            !animationMovesSkeleton(
+                resources.enemySplitterModel(),
+                resources.enemySplitterAnimations(), "Walk") ||
+            !animationMovesSkeleton(
+                resources.enemySplitlingModel(),
+                resources.enemySplitlingAnimations(), "Walk") ||
             !resources.clubModel().valid() ||
             !resources.hammerModel().valid() ||
             !resources.iceWandModel().valid() ||
             !resources.iceMagicShader().valid() ||
+            !resources.coinOutlineShader().valid() ||
             !resources.woodenChestModel().valid() ||
             !resources.stoneChestModel().valid() ||
+            !resources.coinModel().valid() ||
             !resources.ironBarLootModel().valid() ||
             !resources.fuelJerrycanLootModel().valid() ||
             !resources.compassLootModel().valid() ||
@@ -111,8 +185,11 @@ int main() {
             result = 1;
         }
         if (!hasTexturedRenderableMesh(
-                resources.potionLootModel())) {
-            std::cerr << "potion model has no valid albedo texture\n";
+                resources.potionLootModel()) ||
+            !hasTexturedRenderableMesh(resources.coinModel()) ||
+            !hasTexturedRenderableMesh(resources.enemyRogueModel()) ||
+            !hasTexturedRenderableMesh(resources.enemyWarriorModel())) {
+            std::cerr << "item model has no valid albedo texture\n";
             result = 1;
         }
         resources.shutdown();
@@ -147,6 +224,7 @@ int main() {
             {0.45F, 1.2F, 0.0F},
             ian::LootUpgradeEffect::Bread,
             ian::LootRarity::Common, -0.5F);
+        renderer.drawCoin({0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
         EndMode3D();
         EndDrawing();
         renderer.shutdown();

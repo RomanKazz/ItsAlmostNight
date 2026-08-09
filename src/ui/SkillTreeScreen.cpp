@@ -157,6 +157,11 @@ void SkillTreeScreen::setUnlimitedPoints(bool unlimited) {
     unlimitedPoints_ = unlimited;
 }
 
+void SkillTreeScreen::setInsightProgress(double current, double required) {
+    currentInsight_ = current;
+    requiredInsight_ = std::max(1.0, required);
+}
+
 std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
     if (!open_) {
         return std::nullopt;
@@ -280,6 +285,11 @@ void SkillTreeScreen::draw(const GameUi& ui) const {
         pointsLabel,
         68.0F, 14.0F,
         withAlpha({151, 181, 157, 255}, 0.9F * alpha));
+    const std::string progressLabel =
+        "NEXT POINT  " + std::to_string(static_cast<int>(std::floor(currentInsight_))) +
+        " / " + std::to_string(static_cast<int>(std::ceil(requiredInsight_)));
+    drawCenteredUiText(progressLabel, 88.0F, 12.0F,
+        withAlpha({177, 164, 226, 255}, 0.82F * alpha));
 
     drawConnections();
     drawNodes();

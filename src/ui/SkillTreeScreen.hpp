@@ -18,6 +18,7 @@ class SkillTreeScreen {
     void open();
     void close();
     void setUnlimitedPoints(bool unlimited);
+    void setInsightProgress(double current, double required);
     [[nodiscard]] bool isOpen() const;
 
     [[nodiscard]] std::optional<std::size_t> update(float deltaSeconds);
@@ -45,6 +46,8 @@ class SkillTreeScreen {
     std::vector<float> rejectShake_;
     bool open_{};
     bool unlimitedPoints_{};
+    double currentInsight_{};
+    double requiredInsight_{100.0};
     float opening_{};
     Vector2 camera_{0.0F, 42.0F};
     Vector2 targetCamera_{0.0F, 42.0F};

@@ -114,6 +114,7 @@ void AudioSystem::shutdown() {
     previousPlayerPosition_.reset();
     footstepDistance_ = 0.0;
     iceHitSoundCooldown_ = 0.0;
+    insightSoundCooldown_ = 0.0;
     if (ownsAudioDevice_ && IsAudioDeviceReady()) {
         CloseAudioDevice();
     }
@@ -123,6 +124,8 @@ void AudioSystem::shutdown() {
 void AudioSystem::update(const SimulationSnapshot& snapshot) {
     iceHitSoundCooldown_ = std::max(
         0.0, iceHitSoundCooldown_ - GetFrameTime());
+    insightSoundCooldown_ = std::max(
+        0.0, insightSoundCooldown_ - GetFrameTime());
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
@@ -252,6 +255,14 @@ void AudioSystem::playEvent(
             explosion_, event.position, snapshot, 0.92F,
             variedPitch(0.035F), 55.0F);
         break;
+    case GameEventType::EnemySplit:
+        // Layer a soft body impact with a bright transient. This reads as a
+        // juicy pop without introducing a new external audio dependency.
+        playAt(enemyHit_, event.position, snapshot, 0.72F,
+               variedPitch(0.04F) * 0.68F, 34.0F);
+        playAt(critical_, event.position, snapshot, 0.22F,
+               variedPitch(0.03F) * 1.28F, 30.0F);
+        break;
     case GameEventType::BuildingPlaced:
         playAt(
             buildPlace_, event.position, snapshot, 0.8F,
@@ -287,6 +298,17 @@ void AudioSystem::playEvent(
         playAt(
             gold_, event.position, snapshot, 0.34F,
             variedPitch(0.04F), 16.0F);
+        break;
+    case GameEventType::CoinCollected:
+        play(
+            gold_,
+            std::min(
+                0.78F,
+                0.42F + static_cast<float>(event.amount) * 0.055F),
+            variedPitch(0.025F) +
+                std::min(
+                    0.22F,
+                    static_cast<float>(event.amount) * 0.018F));
         break;
     case GameEventType::WaveRewardGranted:
         play(gold_, 0.58F, variedPitch(0.04F));
@@ -360,6 +382,16 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::WaveCompleted:
         play(uiConfirm_, 0.52F, 0.94F);
+        break;
+    case GameEventType::InsightGranted:
+        if (event.treePointsGranted > 0) {
+            play(upgrade_, 0.76F, 1.12F);
+            insightSoundCooldown_ = 0.10;
+        } else if (insightSoundCooldown_ <= 0.0) {
+            play(uiConfirm_, event.insightAmount >= 10.0 ? 0.24F : 0.09F,
+                 event.insightAmount >= 10.0 ? 1.18F : 1.34F);
+            insightSoundCooldown_ = 0.08;
+        }
         break;
     case GameEventType::ChestOpened:
         play(gate_, 0.62F, 0.78F);

@@ -675,16 +675,7 @@ void App::drawGraphicsPanel() {
         auto& accessibility = userSettings_.accessibility;
         float y = panelY + ControlStartY;
         if (ui_.drawToggleButton(
-                {contentX, y, columnWidth, ButtonHeight},
-                accessibility.showFps
-                    ? "FPS COUNTER: ON"
-                    : "FPS COUNTER: OFF",
-                accessibility.showFps)) {
-            accessibility.showFps = !accessibility.showFps;
-        }
-        if (ui_.drawToggleButton(
-                {contentX + columnWidth + Gap, y,
-                 columnWidth, ButtonHeight},
+                {contentX, y, contentWidth, ButtonHeight},
                 accessibility.reduceFlashes
                     ? "REDUCE FLASHES: ON"
                     : "REDUCE FLASHES: OFF",

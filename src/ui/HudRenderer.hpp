@@ -27,6 +27,11 @@ struct HudViewState {
     float buildHotbarSelectionAlpha{};
     float foundationHotbarSelectionPosition{};
     float foundationHotbarSelectionAlpha{};
+    float weaponHotbarSelectionPosition{};
+    float weaponHotbarSelectionAlpha{};
+    float informationExpansion{};
+    bool minimapHidden{};
+    bool showCoreHealth{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
     float woodResourceBounce{};
@@ -35,6 +40,16 @@ struct HudViewState {
     float woodResourcePulse{};
     float stoneResourcePulse{};
     float goldResourcePulse{};
+    float coinResourceBounce{};
+    float coinResourcePulse{};
+    double displayedInsight{};
+    double insightPulse{};
+    double insightGainAmount{};
+    double insightGainRemaining{};
+    double insightGainDuration{0.8};
+    double treePointPulse{};
+    std::string_view objectivePulseId;
+    double objectivePulse{};
     double crosshairHitRemaining{};
     double crosshairHitDuration{};
     bool crosshairHitCritical{};

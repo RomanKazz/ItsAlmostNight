@@ -72,7 +72,7 @@ struct ControlSettings {
 };
 
 struct AccessibilitySettings {
-    bool showFps{true};
+    bool showFps{false};
     bool reduceFlashes{};
 
     bool operator==(const AccessibilitySettings&) const = default;

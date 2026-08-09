@@ -27,13 +27,17 @@ namespace {
         return "SAPPER";
     case EnemyType::Flying:
         return "FLYING";
+    case EnemyType::Splitter:
+        return "SPLITTER";
+    case EnemyType::Splitling:
+        return "SPLITLING";
     }
     return "BASIC";
 }
 
 [[nodiscard]] EnemyType adjacentEnemyType(
     EnemyType type, int direction) {
-    constexpr int TypeCount = 7;
+    constexpr int TypeCount = 9;
     int index = static_cast<int>(type);
     index = (index + direction + TypeCount) % TypeCount;
     return static_cast<EnemyType>(index);

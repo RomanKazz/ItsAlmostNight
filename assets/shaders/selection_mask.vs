@@ -10,7 +10,7 @@ uniform mat4 mvp;
 uniform mat4 matModel;
 uniform float timeSeconds;
 uniform float windAmount;
-uniform mat4 boneMatrices[32];
+uniform mat4 boneMatrices[48];
 uniform int skinningEnabled;
 
 void main()
@@ -20,7 +20,7 @@ void main()
     if (skinningEnabled != 0 && skinWeight > 0.0001) {
         ivec4 safeBoneIndices = ivec4(clamp(
             vertexBoneIndices + vec4(0.5),
-            vec4(0.0), vec4(31.0)));
+            vec4(0.0), vec4(47.0)));
         skinMatrix =
             (boneMatrices[safeBoneIndices.x]*vertexBoneWeights.x +
              boneMatrices[safeBoneIndices.y]*vertexBoneWeights.y +

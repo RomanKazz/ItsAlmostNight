@@ -87,6 +87,7 @@ class AudioSystem {
     std::optional<Vec3> previousPlayerPosition_;
     double footstepDistance_{};
     double iceHitSoundCooldown_{};
+    double insightSoundCooldown_{};
 };
 
 } // namespace ian

@@ -17,6 +17,13 @@ namespace {
 
 constexpr float FadeInSeconds = 0.035F;
 constexpr float FadeOutSeconds = 0.045F;
+constexpr double EnemyHealthBarDuration = 2.5;
+constexpr double EnemyHealthBarFadeSeconds = 0.3;
+
+std::uint64_t entityKey(EntityId id) {
+    return (static_cast<std::uint64_t>(id.generation) << 32U) |
+           static_cast<std::uint64_t>(id.index);
+}
 
 float approach(float current, float target, float seconds,
                float deltaSeconds) {
@@ -42,10 +49,11 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            const TerrainHeightfield& terrain,
                            EnemyBoundsProvider enemyBoundsProvider) {
+    const double frameSeconds = static_cast<double>(std::clamp(
+        GetFrameTime(), 0.0F, 0.10F));
     repairPulseRemaining_ = std::max(
         0.0,
-        repairPulseRemaining_ -
-            static_cast<double>(GetFrameTime()));
+        repairPulseRemaining_ - frameSeconds);
     if (repairPulseRemaining_ <= 0.0) {
         repairTarget_.reset();
     }
@@ -79,12 +87,13 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             static_cast<float>(enemy.position.z)};
     };
 
-    const auto drawEnemyBar = [&](const EnemyInstance& enemy) {
+    const auto drawEnemyBar = [&](const EnemyInstance& enemy,
+                                  float opacity = 1.0F) {
         drawBillboard(
             {TargetKind::Enemy, enemy.id},
             enemyAnchor(enemy),
             enemy.health, enemy.maxHealth,
-            {224, 66, 58, 255}, camera);
+            {224, 66, 58, 255}, camera, 0, opacity);
     };
 
     const auto resourceAnchor = [&](const ResourceNode& resource) {
@@ -133,13 +142,48 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         }
     }
 
-    // Wounded enemies keep their own bars, even when crosshair targets a
-    // different enemy, resource, or building.
+    // Remember actual health decreases instead of treating every wounded
+    // enemy as permanently recent. A new hit refreshes the visibility timer.
+    ++enemyHealthFrame_;
+    for (const EnemyInstance& enemy : snapshot.enemies) {
+        if (!enemy.active) {
+            continue;
+        }
+        const std::uint64_t key = entityKey(enemy.id);
+        auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
+            key,
+            EnemyHealthVisibility{
+                .previousHealth = enemy.maxHealth,
+                .remaining = 0.0,
+                .lastSeenFrame = enemyHealthFrame_,
+            });
+        EnemyHealthVisibility& visibility = entry->second;
+        visibility.lastSeenFrame = enemyHealthFrame_;
+        visibility.remaining = std::max(
+            0.0, visibility.remaining - frameSeconds);
+        if (enemy.health + 0.001 < visibility.previousHealth) {
+            visibility.remaining = EnemyHealthBarDuration;
+        }
+        visibility.previousHealth = enemy.health;
+        (void)inserted;
+    }
+    std::erase_if(
+        enemyHealthVisibility_,
+        [this](const auto& entry) {
+            return entry.second.lastSeenFrame != enemyHealthFrame_;
+        });
+
+    // Recently hit enemies keep their own bars, even when the crosshair
+    // targets a different enemy, resource, or building.
     constexpr double EnemyHealthBarRange = 36.0;
     constexpr std::size_t MaximumWoundedEnemyBars = 64;
     std::size_t woundedEnemyBars = 0;
     for (const EnemyInstance& enemy : snapshot.enemies) {
-        if (!enemy.active || enemy.health >= enemy.maxHealth ||
+        const auto visibility = enemyHealthVisibility_.find(
+            entityKey(enemy.id));
+        if (!enemy.active ||
+            visibility == enemyHealthVisibility_.end() ||
+            visibility->second.remaining <= 0.0 ||
             (snapshot.aimedEnemy && enemy.id == *snapshot.aimedEnemy)) {
             continue;
         }
@@ -149,7 +193,10 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             EnemyHealthBarRange * EnemyHealthBarRange) {
             continue;
         }
-        drawEnemyBar(enemy);
+        const float opacity = static_cast<float>(std::clamp(
+            visibility->second.remaining / EnemyHealthBarFadeSeconds,
+            0.0, 1.0));
+        drawEnemyBar(enemy, opacity);
         if (++woundedEnemyBars >= MaximumWoundedEnemyBars) {
             break;
         }
@@ -334,6 +381,8 @@ void TargetHealthBar::reset() {
     target_.reset();
     activeVisual_.reset();
     opacity_ = 0.0F;
+    enemyHealthVisibility_.clear();
+    enemyHealthFrame_ = 0;
 }
 
 void TargetHealthBar::notifyRepair(EntityId id) {

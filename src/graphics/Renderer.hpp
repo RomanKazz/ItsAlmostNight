@@ -98,6 +98,8 @@ enum class EnemyModelVisual {
     Sapper,
     Flying,
     Boss,
+    Splitter,
+    Splitling,
 };
 
 enum class EnemyAnimationVisual {
@@ -293,6 +295,8 @@ class Renderer {
     [[nodiscard]] bool drawLootChest(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress, Color tint = WHITE);
+    void drawCoin(Vector3 position, float rotationRadians,
+                  float scale = 1.0F);
     [[nodiscard]] LootChestWorldTransform lootChestWorldTransform(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress);

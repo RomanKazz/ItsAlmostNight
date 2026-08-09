@@ -34,6 +34,8 @@ const char* enemyName(EnemyType type) {
     case EnemyType::Ranged: return "Ranged";
     case EnemyType::Sapper: return "Sapper";
     case EnemyType::Flying: return "Flying";
+    case EnemyType::Splitter: return "Splitter";
+    case EnemyType::Splitling: return "Splitling";
     }
     return "Enemy";
 }
@@ -148,7 +150,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             ResourceCost cost{};
             cost.gold = openingCost;
             const bool affordable = snapshot.unlimitedResources ||
-                                    snapshot.gold >= openingCost;
+                                    snapshot.coins >= openingCost;
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Chest,
                 .targetId = chest->id,
@@ -167,7 +169,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .cost = cost,
                 .availableGold = snapshot.unlimitedResources
                     ? std::nullopt
-                    : std::optional<int>{snapshot.gold},
+                    : std::optional<int>{snapshot.coins},
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = affordable
                     ? Color{214, 203, 181, 255}
@@ -187,6 +189,9 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             const bool matching = matchingResourceTool(
                 snapshot.selectedWeapon, resource->type);
             const bool warning = !matching;
+            const int efficiencyPercent = static_cast<int>(
+                std::lround(
+                    snapshot.aimedResourceEfficiency * 100.0));
             const bool held = InputKeycap::held(
                 userSettings_.controls, ControlAction::Attack);
             float progress = 0.0F;
@@ -200,9 +205,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 progress = 1.0F;
             }
             const bool progressActive =
-                !warning &&
-                (held || toolSwingRemaining_ > 0.0 ||
-                 toolSwingQueued_ || pendingPickaxe_);
+                held || toolSwingRemaining_ > 0.0 ||
+                toolSwingQueued_ || pendingPickaxe_;
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Resource,
                 .targetId = resource->id,
@@ -216,12 +220,14 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                                  : InteractionState::Available,
                 .hint = warning
                     ? std::optional<std::string>{
-                          std::string("25% efficiency  ·  ") +
+                          std::to_string(efficiencyPercent) +
+                          "% efficiency  ·  " +
                           recommendedTool(resource->type) +
                           " recommended"}
                     : snapshot.selectedWeapon == PlayerWeapon::BareHands
                         ? std::optional<std::string>{
-                              std::string("25% efficiency  ·  ") +
+                              std::to_string(efficiencyPercent) +
+                              "% efficiency  ·  " +
                               recommendedTool(resource->type) +
                               " recommended"}
                         : std::nullopt,

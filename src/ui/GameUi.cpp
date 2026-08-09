@@ -269,13 +269,33 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
         fill = barRed_;
     } else if (color == UiBarColor::Yellow) {
         fill = barYellow_;
+    } else if (color == UiBarColor::Purple) {
+        fill = {};
     }
     Rectangle filled = bounds;
     filled.width *= fraction;
     if (filled.width <= 0.0F) {
         return;
     }
-    if (IsTextureValid(fill)) {
+    if (color == UiBarColor::Purple) {
+        const Rectangle purpleFill{
+            filled.x + 2.0F, filled.y + 2.0F,
+            std::max(0.0F, filled.width - 4.0F),
+            std::max(0.0F, filled.height - 4.0F)};
+        if (purpleFill.width > 0.0F) {
+            DrawRectangleRounded(purpleFill, 0.42F, 8,
+                                 {113, 76, 199, 255});
+            const Rectangle highlight{
+                purpleFill.x + 1.0F, purpleFill.y + 1.0F,
+                std::max(0.0F, purpleFill.width - 2.0F),
+                std::max(1.0F, purpleFill.height * 0.38F)};
+            DrawRectangleRounded(highlight, 0.5F, 8,
+                                 {190, 157, 255, 210});
+            DrawRectangleRoundedLinesEx(
+                purpleFill, 0.42F, 8, 1.0F,
+                {218, 197, 255, 210});
+        }
+    } else if (IsTextureValid(fill)) {
         Texture2D fillLeft = barGreenLeft_;
         Texture2D fillRight = barGreenRight_;
         if (color == UiBarColor::Red) {
@@ -293,7 +313,9 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
                 ? Color{190, 55, 50, 255}
                 : (color == UiBarColor::Yellow
                        ? Color{218, 170, 58, 255}
-                       : Color{72, 164, 82, 255});
+                       : (color == UiBarColor::Purple
+                              ? Color{139, 112, 218, 255}
+                              : Color{72, 164, 82, 255}));
         DrawRectangleRec(filled, fallback);
     }
 }

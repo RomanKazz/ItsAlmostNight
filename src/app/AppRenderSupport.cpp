@@ -58,6 +58,10 @@ EnemyModelVisual enemyModelVisual(EnemyType type) {
         return EnemyModelVisual::Flying;
     case EnemyType::Boss:
         return EnemyModelVisual::Boss;
+    case EnemyType::Splitter:
+        return EnemyModelVisual::Splitter;
+    case EnemyType::Splitling:
+        return EnemyModelVisual::Splitling;
     }
     return EnemyModelVisual::Minion;
 }
@@ -97,11 +101,11 @@ EnemyAnimationVisual enemyAnimationVisual(
 float enemyVisualScale(EnemyType type) {
     switch (type) {
     case EnemyType::Fast:
-        return 0.84F;
+        return 0.55F;
     case EnemyType::Flying:
         return 0.52F;
     case EnemyType::Heavy:
-        return 1.18F;
+        return 0.67F;
     case EnemyType::Boss:
         return 0.85F;
     case EnemyType::Ranged:
@@ -110,6 +114,10 @@ float enemyVisualScale(EnemyType type) {
         return 0.52F;
     case EnemyType::Basic:
         return 0.94F;
+    case EnemyType::Splitter:
+        return 0.58F;
+    case EnemyType::Splitling:
+        return 0.60F;
     }
     return 1.0F;
 }
@@ -123,7 +131,21 @@ float enemyHitScale(const EnemyInstance& enemy) {
             1.0 - enemy.hitAnimationRemaining / HitDuration),
         0.0F, 1.0F);
     const float pulse = std::sin(progress * Pi);
-    return 1.0F - BounceAmplitude * pulse;
+    const float hitScale = 1.0F - BounceAmplitude * pulse;
+    if (enemy.type != EnemyType::Splitling ||
+        enemy.spawnAnimationRemaining <= 0.0) {
+        return hitScale;
+    }
+    constexpr double SpawnDuration = 0.38;
+    const float spawnProgress = std::clamp(
+        static_cast<float>(
+            1.0 - enemy.spawnAnimationRemaining / SpawnDuration),
+        0.0F, 1.0F);
+    const float eased = 1.0F -
+        std::pow(1.0F - spawnProgress, 3.0F);
+    const float overshoot =
+        std::sin(spawnProgress * PI) * 0.18F;
+    return hitScale * (0.28F + eased * 0.72F + overshoot);
 }
 
 Vector3 enemyRenderPosition(const EnemyInstance& enemy) {
@@ -964,6 +986,14 @@ WorldConfig loadAppWorldConfig() {
 
 std::vector<SkillNodeDefinition> loadAppSkills() {
     return loadSkillTreeDefinitions("assets/data/skills.json");
+}
+
+InsightConfig loadAppInsightConfig() {
+    return loadInsightConfig("assets/data/insight.json");
+}
+
+std::vector<ObjectiveDefinition> loadAppObjectives() {
+    return loadObjectiveDefinitions("assets/data/objectives.json");
 }
 
 std::array<EnvironmentProfile, 4> loadAppEnvironment() {

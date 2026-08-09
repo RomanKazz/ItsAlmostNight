@@ -122,6 +122,95 @@ std::string costText(const ResourceCost& cost) {
     return result.empty() ? "FREE" : result;
 }
 
+const char* objectiveKindLabel(ObjectiveKind kind) {
+    switch (kind) {
+    case ObjectiveKind::Milestone:
+        return "MILESTONE";
+    case ObjectiveKind::Challenge:
+        return "CHALLENGE";
+    case ObjectiveKind::WorldEvent:
+        return "WORLD EVENT";
+    }
+    return "OBJECTIVE";
+}
+
+Color objectiveKindColor(ObjectiveKind kind) {
+    switch (kind) {
+    case ObjectiveKind::Milestone:
+        return {184, 151, 255, 255};
+    case ObjectiveKind::Challenge:
+        return {255, 190, 73, 255};
+    case ObjectiveKind::WorldEvent:
+        return {79, 220, 207, 255};
+    }
+    return {235, 214, 170, 255};
+}
+
+UiBarColor objectiveBarColor(ObjectiveKind kind) {
+    switch (kind) {
+    case ObjectiveKind::Milestone:
+        return UiBarColor::Purple;
+    case ObjectiveKind::Challenge:
+        return UiBarColor::Yellow;
+    case ObjectiveKind::WorldEvent:
+        return UiBarColor::Green;
+    }
+    return UiBarColor::Yellow;
+}
+
+std::string objectiveInstruction(
+    const ObjectiveDefinition& objective) {
+    if (!objective.description.empty()) {
+        return objective.description;
+    }
+    switch (objective.metric) {
+    case ObjectiveMetric::TreesDestroyed:
+        return "Fully chop down tree resource objects";
+    case ObjectiveMetric::StonesDestroyed:
+        return "Fully break stone resource objects";
+    case ObjectiveMetric::CrystalsGathered:
+        return "Collect crystal resource units";
+    case ObjectiveMetric::TotalResourcesGathered:
+        return "Collect wood, stone or crystals";
+    case ObjectiveMetric::LargeDepositDepleted:
+        return "Fully deplete a large resource deposit";
+    case ObjectiveMetric::AllResourceTypesInDay:
+        return "Gather wood, stone and crystals in one day";
+    case ObjectiveMetric::BareHandsDepletion:
+        return "Destroy a tree or stone without a tool";
+    case ObjectiveMetric::ResourcesInSixtySeconds:
+        return "Gather 50 resources within 60 seconds";
+    case ObjectiveMetric::ConsecutiveDepletions:
+        return "Destroy 5 resource objects without missing";
+    case ObjectiveMetric::NightResourcesGathered:
+        return "Gather 30 resources during the night";
+    case ObjectiveMetric::FarResourceGathered:
+        return "Gather a resource far away from the Core";
+    }
+    return objective.title;
+}
+
+void drawObjectiveKindIcon(
+    ObjectiveKind kind, Vector2 center, Color color) {
+    if (kind == ObjectiveKind::Milestone) {
+        DrawPoly(center, 4, 9.0F, 45.0F, color);
+        DrawPolyLines(center, 4, 12.0F, 45.0F,
+                      {color.r, color.g, color.b, 110});
+    } else if (kind == ObjectiveKind::Challenge) {
+        DrawPoly(center, 5, 10.0F, -90.0F, color);
+        DrawCircleV(center, 3.2F, {255, 247, 211, 240});
+    } else {
+        DrawCircleLines(
+            static_cast<int>(center.x),
+            static_cast<int>(center.y), 10.0F, color);
+        DrawCircleLines(
+            static_cast<int>(center.x),
+            static_cast<int>(center.y), 5.0F,
+            {color.r, color.g, color.b, 175});
+        DrawCircleV(center, 2.5F, color);
+    }
+}
+
 std::string actionKeyLabel(
     const ControlSettings& controls, ControlAction action) {
     const int key = controlKey(controls, action);
@@ -489,7 +578,7 @@ void drawBuildingContextCard(
         UiResourceIcon::Crystal, cost.gold, snapshot.gold);
 }
 
-struct BuildHotbarSlot {
+struct HotbarSlot {
     std::string_view key;
     std::string_view label;
     ResourceCost cost;
@@ -497,12 +586,13 @@ struct BuildHotbarSlot {
     bool available{};
 };
 
-void drawBuildHotbarSlots(
-    GameUi& ui, const SimulationSnapshot& snapshot,
-    std::span<const BuildHotbarSlot> slots,
-    float selectionPosition, float selectionAlpha) {
-    constexpr float Gap = 10.0F;
-    constexpr float MaximumSize = 112.0F;
+void drawHotbarSlots(
+    GameUi& ui, std::span<const HotbarSlot> slots,
+    float selectionPosition, float selectionAlpha,
+    bool showSlotLabels = false,
+    bool showSelectedInfo = true) {
+    constexpr float Gap = 6.0F;
+    constexpr float MaximumSize = 54.0F;
     const float screenWidth =
         static_cast<float>(GetScreenWidth());
     const float availableWidth = screenWidth - 32.0F;
@@ -517,9 +607,8 @@ void drawBuildHotbarSlots(
         gapWidth;
     const float startX =
         (screenWidth - totalWidth) * 0.5F;
-    const float slotY =
-        static_cast<float>(GetScreenHeight()) -
-        slotSize - 22.0F;
+    const float slotY = static_cast<float>(GetScreenHeight()) -
+        slotSize - 12.0F;
     const auto centeredText =
         [](std::string_view text, float centerX, float textY,
            float fontSize, float maximumWidth, Color color) {
@@ -531,107 +620,67 @@ void drawBuildHotbarSlots(
                 text, {centerX - width * 0.5F, textY},
                 fittedSize, color);
         };
-    constexpr std::array<UiResourceIcon, 3> CostIcons{
-        UiResourceIcon::Wood,
-        UiResourceIcon::Stone,
-        UiResourceIcon::Crystal,
-    };
-    const std::array<int, 3> inventory{
-        snapshot.wood, snapshot.stone, snapshot.gold};
-
     for (std::size_t index = 0; index < slots.size();
          ++index) {
-        const BuildHotbarSlot& slot = slots[index];
+        const HotbarSlot& slot = slots[index];
         const float x =
             startX + static_cast<float>(index) *
                          (slotSize + Gap);
         const Rectangle bounds{x, slotY, slotSize, slotSize};
-        ui.drawInsetPanel(
-            bounds, slot.available ? 238 : 188);
+        ui.drawInsetPanel(bounds, slot.available ? 225 : 145);
         DrawRectangleLinesEx(
-            bounds, 2.0F,
+            bounds, slot.selected ? 2.5F : 1.0F,
             slot.available
-                ? Color{185, 169, 139, 215}
-                : Color{112, 101, 91, 180});
+                ? (slot.selected
+                    ? Color{255, 224, 139, 255}
+                    : Color{156, 143, 119, 190})
+                : Color{83, 76, 69, 165});
 
-        const float keySize = std::clamp(
-            slotSize * 0.27F, 22.0F, 30.0F);
-        const Rectangle keyBounds{
-            x + 7.0F, slotY + 7.0F,
-            keySize, keySize};
-        DrawRectangleRounded(
-            keyBounds, 0.22F, 4,
-            slot.selected
-                ? Color{240, 240, 232, 245}
-                : Color{35, 31, 27, 225});
         centeredText(
-            slot.key,
-            keyBounds.x + keyBounds.width * 0.5F,
-            keyBounds.y + 4.0F, 10.0F,
-            keyBounds.width - 5.0F,
+            slot.key, x + slotSize * 0.5F,
+            slotY + slotSize * (showSlotLabels ? 0.10F : 0.28F),
+            showSlotLabels ? 9.0F : 14.0F,
+            slotSize - 8.0F,
             slot.selected
-                ? Color{38, 34, 29, 255}
+                ? Color{255, 239, 190, 255}
                 : Color{245, 238, 220, 255});
-        centeredText(
-            slot.label, x + slotSize * 0.5F,
-            slotY + slotSize * 0.56F, 9.0F,
-            slotSize - 10.0F,
-            slot.available
-                ? Color{235, 222, 190, 235}
-                : Color{132, 122, 110, 210});
-
-        const std::array<int, 3> amounts{
-            slot.cost.wood,
-            slot.cost.stone,
-            slot.cost.gold};
-        const float iconSize =
-            std::clamp(
-                slotSize * 0.3F, 28.0F, 34.0F);
-        constexpr float IconGap = 2.0F;
-        const float iconRowWidth =
-            iconSize * 3.0F + IconGap * 2.0F;
-        const float iconRowX =
-            x + (slotSize - iconRowWidth) * 0.5F;
-        const float iconY =
-            slotY - iconSize - 13.0F;
-        DrawRectangleRounded(
-            {x - 3.0F, iconY - 4.0F,
-             slotSize + 6.0F, iconSize + 12.0F},
-            0.2F, 5, Color{24, 21, 18, 205});
-        for (std::size_t resource = 0;
-             resource < CostIcons.size(); ++resource) {
-            const float iconX =
-                iconRowX +
-                static_cast<float>(resource) *
-                    (iconSize + IconGap);
-            ui.drawResourceIcon(
-                {iconX, iconY, iconSize, iconSize},
-                CostIcons[resource]);
-            const std::string amount =
-                std::to_string(amounts[resource]);
-            const float amountWidth =
-                measureUiText(amount, 10.0F).x;
-            const float badgeWidth =
-                std::max(25.0F, amountWidth + 9.0F);
-            const Rectangle badge{
-                iconX + iconSize - badgeWidth + 4.0F,
-                iconY + iconSize - 18.0F,
-                badgeWidth, 21.0F};
-            DrawRectangleRounded(
-                badge, 0.45F, 5,
-                Color{20, 18, 16, 245});
-            drawUiText(
-                amount,
-                {badge.x +
-                     (badge.width - amountWidth) * 0.5F,
-                 badge.y - 1.0F},
-                10.0F,
-                snapshot.unlimitedResources ||
-                        inventory[resource] >=
-                            amounts[resource]
-                    ? Color{244, 235, 214, 255}
-                    : Color{242, 103, 83, 255});
+        if (showSlotLabels) {
+            centeredText(
+                slot.label, x + slotSize * 0.5F,
+                slotY + slotSize * 0.52F, 9.5F,
+                slotSize - 8.0F,
+                slot.selected
+                    ? Color{255, 239, 197, 255}
+                    : Color{224, 215, 195, 235});
         }
+    }
+
+    const auto selected = std::ranges::find_if(
+        slots, &HotbarSlot::selected);
+    if (showSelectedInfo && selected != slots.end()) {
+        const std::string title{selected->label};
+        const std::string cost = costText(selected->cost);
+        const float titleWidth = measureUiText(title, 15.0F).x;
+        const float costWidth = measureUiText(cost, 12.0F).x;
+        const float infoWidth = std::max(titleWidth, costWidth) + 32.0F;
+        const float infoX = (screenWidth - infoWidth) * 0.5F;
+        const float infoY = slotY - 59.0F;
+        DrawRectangleRounded(
+            {infoX, infoY, infoWidth, 49.0F},
+            0.22F, 6, {23, 20, 17, 218});
+        drawUiText(
+            title,
+            {infoX + (infoWidth - titleWidth) * 0.5F,
+             infoY + 5.0F},
+            15.0F, {255, 225, 155, 255});
+        drawUiText(
+            cost,
+            {infoX + (infoWidth - costWidth) * 0.5F,
+             infoY + 27.0F},
+            12.0F,
+            selected->available
+                ? Color{226, 218, 197, 245}
+                : Color{242, 103, 83, 255});
     }
 
     if (selectionAlpha > 0.01F && !slots.empty()) {
@@ -649,14 +698,9 @@ void drawBuildHotbarSlots(
                         0.0F, 255.0F));
             };
         DrawRectangleLinesEx(
-            {selectionX - 5.0F, slotY - 5.0F,
-             slotSize + 10.0F, slotSize + 10.0F},
-            8.0F,
-            {255, 218, 132, alpha(42.0F)});
-        DrawRectangleLinesEx(
             {selectionX - 2.0F, slotY - 2.0F,
              slotSize + 4.0F, slotSize + 4.0F},
-            4.0F,
+            2.5F,
             {255, 255, 246, alpha(255.0F)});
     }
 }
@@ -668,7 +712,7 @@ void drawFoundationHotbar(
         "FOUNDATION", "FLOOR", "WALL", "RAMP"};
     constexpr std::array<std::string_view, 4> Keys{
         "1", "2", "3", "4"};
-    std::array<BuildHotbarSlot, 4> slots{};
+    std::array<HotbarSlot, 4> slots{};
     for (std::size_t index = 0;
          index < slots.size(); ++index) {
         const ResourceCost cost =
@@ -686,8 +730,8 @@ void drawFoundationHotbar(
                  snapshot.gold >= cost.gold),
         };
     }
-    drawBuildHotbarSlots(
-        ui, snapshot, slots,
+    drawHotbarSlots(
+        ui, slots,
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha);
 }
@@ -709,7 +753,7 @@ void drawBuildHotbar(
     constexpr std::array<const char*, 9> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9",
     };
-    std::array<BuildHotbarSlot, 9> slots{};
+    std::array<HotbarSlot, 9> slots{};
     for (std::size_t index = 0; index < Types.size();
          ++index) {
         const BuildingType type = Types[index];
@@ -742,650 +786,15 @@ void drawBuildHotbar(
             .available = available,
         };
     }
-    drawBuildHotbarSlots(
-        ui, snapshot, slots,
+    drawHotbarSlots(
+        ui, slots,
         view.buildHotbarSelectionPosition,
         view.buildHotbarSelectionAlpha);
 }
 
-double minimapTerrainHeight(
-    const SimulationSnapshot& snapshot,
-    double worldX, double worldZ) {
-    if (snapshot.terrainResolution < 2 ||
-        snapshot.terrainSamples.empty() ||
-        snapshot.terrainWorldSize <= 0.0) {
-        return 0.0;
-    }
-    const int resolution = snapshot.terrainResolution;
-    const double halfSize = snapshot.terrainWorldSize * 0.5;
-    const double sampleX = std::clamp(
-        (worldX + halfSize) / snapshot.terrainWorldSize *
-            static_cast<double>(resolution - 1),
-        0.0, static_cast<double>(resolution - 1));
-    const double sampleZ = std::clamp(
-        (worldZ + halfSize) / snapshot.terrainWorldSize *
-            static_cast<double>(resolution - 1),
-        0.0, static_cast<double>(resolution - 1));
-    const int x0 = static_cast<int>(std::floor(sampleX));
-    const int z0 = static_cast<int>(std::floor(sampleZ));
-    const int x1 = std::min(x0 + 1, resolution - 1);
-    const int z1 = std::min(z0 + 1, resolution - 1);
-    const auto sample = [&](int x, int z) {
-        return static_cast<double>(snapshot.terrainSamples[
-            static_cast<std::size_t>(z) *
-                static_cast<std::size_t>(resolution) +
-            static_cast<std::size_t>(x)]);
-    };
-    const double amountX = sampleX - static_cast<double>(x0);
-    const double amountZ = sampleZ - static_cast<double>(z0);
-    const double north = std::lerp(
-        sample(x0, z0), sample(x1, z0), amountX);
-    const double south = std::lerp(
-        sample(x0, z1), sample(x1, z1), amountX);
-    return std::lerp(north, south, amountZ);
-}
-
-Color minimapHeightColor(double height) {
-    constexpr std::array<double, 7> Levels{
-        -7.0, -4.0, -1.0, 2.0, 5.0, 9.0, 15.0};
-    constexpr std::array<Color, 7> Colors{{
-        {31, 61, 47, 255},
-        {38, 73, 49, 255},
-        {49, 88, 51, 255},
-        {65, 103, 56, 255},
-        {83, 111, 63, 255},
-        {103, 112, 74, 255},
-        {121, 118, 92, 255},
-    }};
-    if (height <= Levels.front()) return Colors.front();
-    for (std::size_t index = 1U; index < Levels.size(); ++index) {
-        if (height > Levels[index]) continue;
-        const float amount = static_cast<float>(std::clamp(
-            (height - Levels[index - 1U]) /
-                (Levels[index] - Levels[index - 1U]),
-            0.0, 1.0));
-        return ColorLerp(
-            Colors[index - 1U], Colors[index], amount);
-    }
-    return Colors.back();
-}
-
-void drawMinimapTerrain(
-    const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float expanded) {
-    const int cells = expanded > 0.55F ? 64 : 40;
-    const float cellPixels =
-        mapBounds.width / static_cast<float>(cells);
-    const double worldLimit = std::max(snapshot.worldLimit, 1.0);
-    const double cellWorld = worldLimit * 2.0 /
-        static_cast<double>(cells);
-    const int verticesPerAxis = cells + 1;
-    std::vector<Color> colors(
-        static_cast<std::size_t>(verticesPerAxis) *
-        static_cast<std::size_t>(verticesPerAxis));
-    for (int z = 0; z <= cells; ++z) {
-        for (int x = 0; x <= cells; ++x) {
-            const double worldX = -worldLimit +
-                static_cast<double>(x) * cellWorld;
-            const double worldZ = -worldLimit +
-                static_cast<double>(z) * cellWorld;
-            colors[static_cast<std::size_t>(z) *
-                       static_cast<std::size_t>(verticesPerAxis) +
-                   static_cast<std::size_t>(x)] =
-                minimapHeightColor(
-                    minimapTerrainHeight(snapshot, worldX, worldZ));
-        }
-    }
-    const auto emit = [&](int x, int z) {
-        const Color color = colors[
-            static_cast<std::size_t>(z) *
-                static_cast<std::size_t>(verticesPerAxis) +
-            static_cast<std::size_t>(x)];
-        rlColor4ub(color.r, color.g, color.b, color.a);
-        rlVertex2f(
-            mapBounds.x + static_cast<float>(x) * cellPixels,
-            mapBounds.y + static_cast<float>(z) * cellPixels);
-    };
-    rlBegin(RL_TRIANGLES);
-    for (int z = 0; z < cells; ++z) {
-        for (int x = 0; x < cells; ++x) {
-            emit(x, z);
-            emit(x, z + 1);
-            emit(x + 1, z);
-            emit(x + 1, z);
-            emit(x, z + 1);
-            emit(x + 1, z + 1);
-        }
-    }
-    rlEnd();
-    rlColor4ub(255, 255, 255, 255);
-}
-
-void drawMinimapPonds(
-    const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float mapScale, float expanded) {
-    const auto mapPoint = [mapBounds, mapScale](double x, double z) {
-        return Vector2{
-            mapBounds.x + mapBounds.width * 0.5F +
-                static_cast<float>(x) * mapScale,
-            mapBounds.y + mapBounds.height * 0.5F +
-                static_cast<float>(z) * mapScale,
-        };
-    };
-    constexpr int Segments = 40;
-    const Color water{53, 158, 181, 225};
-    const Color shore{127, 215, 207, 205};
-    for (const PondDefinition& pond : snapshot.ponds) {
-        const Vector2 center = mapPoint(pond.x, pond.z);
-        std::array<Vector2, Segments> points{};
-        const double sine = std::sin(pond.rotation);
-        const double cosine = std::cos(pond.rotation);
-        for (int segment = 0; segment < Segments; ++segment) {
-            const double angle =
-                static_cast<double>(segment) * 2.0 * PI /
-                static_cast<double>(Segments);
-            const double organicRadius =
-                1.0 + std::sin(angle * 3.0 + pond.phase) * 0.095 +
-                std::sin(angle * 5.0 - pond.phase * 1.37) * 0.052 +
-                std::sin(angle * 7.0 + pond.phase * 0.61) * 0.026;
-            const double localX =
-                std::cos(angle) * pond.radiusX * organicRadius;
-            const double localZ =
-                std::sin(angle) * pond.radiusZ * organicRadius;
-            points[static_cast<std::size_t>(segment)] = mapPoint(
-                pond.x + localX * cosine - localZ * sine,
-                pond.z + localX * sine + localZ * cosine);
-        }
-        for (int segment = 0; segment < Segments; ++segment) {
-            const int next = (segment + 1) % Segments;
-            DrawTriangle(
-                center,
-                points[static_cast<std::size_t>(segment)],
-                points[static_cast<std::size_t>(next)], water);
-            DrawLineEx(
-                points[static_cast<std::size_t>(segment)],
-                points[static_cast<std::size_t>(next)],
-                std::lerp(0.7F, 1.4F, expanded), shore);
-        }
-        const Vector2 bayCenter = mapPoint(
-            pond.x + std::cos(pond.bayAngle) * pond.radiusX * 0.72,
-            pond.z + std::sin(pond.bayAngle) * pond.radiusZ * 0.72);
-        DrawCircleV(
-            bayCenter,
-            static_cast<float>(pond.bayRadius) * mapScale,
-            water);
-        if (pond.islandRadius > 0.0) {
-            const Vector2 island = mapPoint(
-                pond.islandX, pond.islandZ);
-            DrawCircleV(
-                island,
-                static_cast<float>(pond.islandRadius) * mapScale,
-                minimapHeightColor(minimapTerrainHeight(
-                    snapshot, pond.islandX, pond.islandZ)));
-            DrawCircleLinesV(
-                island,
-                static_cast<float>(pond.islandRadius) * mapScale,
-                {112, 139, 88, 220});
-        }
-    }
-}
-
-void drawMinimap(GameUi& ui, const SimulationSnapshot& snapshot,
-                 float expansion) {
-    const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
-    const float expanded =
-        rawExpansion * rawExpansion * (3.0F - 2.0F * rawExpansion);
-    const float screenMinimum = static_cast<float>(
-        std::min(GetScreenWidth(), GetScreenHeight()));
-    const float collapsedMapSize = std::clamp(
-        screenMinimum * 0.28F, 164.0F, 228.0F);
-    const float expandedMapSize = std::max(
-        collapsedMapSize,
-        std::min(
-            static_cast<float>(GetScreenWidth()) * 0.68F,
-            static_cast<float>(GetScreenHeight()) * 0.70F));
-    const float mapSize = std::lerp(
-        collapsedMapSize, expandedMapSize, expanded);
-    const float panelPadding = std::lerp(13.0F, 20.0F, expanded);
-    const float headerHeight = std::lerp(30.0F, 42.0F, expanded);
-    const float panelWidth = mapSize + panelPadding * 2.0F;
-    const float panelHeight =
-        mapSize + headerHeight + panelPadding * 2.0F;
-    const float collapsedPanelWidth =
-        collapsedMapSize + 13.0F * 2.0F;
-    const float collapsedPanelX =
-        static_cast<float>(GetScreenWidth()) -
-        collapsedPanelWidth - 12.0F;
-    const float expandedPanelX =
-        (static_cast<float>(GetScreenWidth()) - panelWidth) * 0.5F;
-    const float expandedPanelY =
-        static_cast<float>(GetScreenHeight()) * 0.5F -
-        mapSize * 0.5F - panelPadding - headerHeight;
-    const float panelX = std::lerp(
-        collapsedPanelX, expandedPanelX, expanded);
-    const float panelY = std::lerp(12.0F, expandedPanelY, expanded);
-    const Rectangle mapBounds{
-        panelX + panelPadding,
-        panelY + panelPadding + headerHeight,
-        mapSize, mapSize,
-    };
-    const float worldLimit = std::max(
-        static_cast<float>(snapshot.worldLimit), 1.0F);
-    const float mapScale = mapSize * 0.5F / worldLimit;
-
-    if (expanded > 0.001F) {
-        DrawRectangle(
-            0, 0, GetScreenWidth(), GetScreenHeight(),
-            {24, 11, 5,
-             static_cast<unsigned char>(
-                 std::lround(168.0F * expanded))});
-    }
-    ui.drawPanel(
-        {panelX, panelY, panelWidth, panelHeight}, 218);
-    drawUiText(
-        snapshot.activeEnemyCount > 0U
-            ? (expanded > 0.5F ? "TACTICAL MAP  •  " : "MAP  •  ") +
-                  std::to_string(snapshot.activeEnemyCount) +
-                  " HOSTILES"
-            : expanded > 0.5F ? "TACTICAL MAP" : "MAP",
-        {panelX + panelPadding,
-         panelY + std::lerp(11.0F, 15.0F, expanded)},
-        std::lerp(13.0F, 18.0F, expanded),
-        snapshot.activeEnemyCount > 0U
-            ? Color{246, 131, 95, 255}
-            : Color{224, 205, 171, 255});
-
-    DrawRectangleRec(mapBounds, {29, 43, 35, 238});
-    drawMinimapTerrain(snapshot, mapBounds, expanded);
-    drawMinimapPonds(snapshot, mapBounds, mapScale, expanded);
-    DrawRectangleLinesEx(
-        mapBounds, std::max(5.0F, mapSize * 0.045F),
-        {61, 76, 58, 245});
-    const Rectangle playableBounds{
-        mapBounds.x + mapSize * 0.075F,
-        mapBounds.y + mapSize * 0.075F,
-        mapSize * 0.85F,
-        mapSize * 0.85F,
-    };
-    DrawRectangleLinesEx(
-        playableBounds, 1.0F, {116, 135, 91, 95});
-    DrawLineEx(
-        {mapBounds.x + mapSize * 0.5F, mapBounds.y},
-        {mapBounds.x + mapSize * 0.5F,
-         mapBounds.y + mapSize},
-        1.0F, {214, 205, 169, 24});
-    DrawLineEx(
-        {mapBounds.x, mapBounds.y + mapSize * 0.5F},
-        {mapBounds.x + mapSize,
-         mapBounds.y + mapSize * 0.5F},
-        1.0F, {214, 205, 169, 24});
-
-    const float symbolScale = std::lerp(1.0F, 1.55F, expanded);
-    const auto mapPoint =
-        [mapBounds, mapScale](double worldX, double worldZ) {
-            return Vector2{
-                mapBounds.x + mapBounds.width * 0.5F +
-                    static_cast<float>(worldX) * mapScale,
-                mapBounds.y + mapBounds.height * 0.5F +
-                    static_cast<float>(worldZ) * mapScale,
-            };
-        };
-
-    BeginScissorMode(
-        static_cast<int>(mapBounds.x),
-        static_cast<int>(mapBounds.y),
-        static_cast<int>(mapBounds.width),
-        static_cast<int>(mapBounds.height));
-
-    for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active) {
-            continue;
-        }
-        const Vector2 point = mapPoint(
-            resource.position.x, resource.position.z);
-        const float radius =
-            (resource.type == ResourceType::Wood ? 1.35F : 1.2F) *
-            symbolScale;
-        DrawRectangleRec(
-            {point.x - radius, point.y - radius,
-             radius * 2.0F, radius * 2.0F},
-            resource.type == ResourceType::Wood
-                ? Color{91, 143, 75, 125}
-                : Color{143, 149, 145, 135});
-    }
-
-    const bool mapRevealsChests =
-        snapshot.unlimitedResources ||
-        snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
-    if (mapRevealsChests) {
-        for (const LootChestInstance& chest : snapshot.lootChests) {
-            const Vector2 point = mapPoint(
-                chest.position.x, chest.position.z);
-            const float size = 3.2F * symbolScale;
-            const Color color = chest.type == LootChestType::Stone
-                ? Color{170, 183, 195, 255}
-                : Color{225, 161, 72, 255};
-            DrawRectangleRec(
-                {point.x - size - 1.0F, point.y - size - 1.0F,
-                 size * 2.0F + 2.0F, size * 2.0F + 2.0F},
-                {31, 24, 19, 230});
-            DrawRectangleRec(
-                {point.x - size, point.y - size,
-                 size * 2.0F, size * 2.0F}, color);
-            DrawLineEx(
-                {point.x - size, point.y - size * 0.35F},
-                {point.x + size, point.y - size * 0.35F},
-                std::max(1.0F, symbolScale), {59, 43, 29, 255});
-            if (chest.loot.available && !chest.loot.collected) {
-                const Color lootColor =
-                    chest.loot.rarity == LootRarity::Rare
-                        ? Color{255, 170, 170, 255}
-                        : chest.loot.rarity == LootRarity::Uncommon
-                            ? Color{255, 228, 148, 255}
-                            : Color{185, 225, 255, 255};
-                DrawCircleV(point, 1.5F * symbolScale, lootColor);
-            }
-        }
-    }
-
-    const double cellSize = std::max(snapshot.worldCellSize, 0.01);
-    const auto modularPoint =
-        [&mapPoint, cellSize](GridCoord anchor,
-                              double widthCells,
-                              double depthCells) {
-            return mapPoint(
-                (static_cast<double>(anchor.x) + widthCells * 0.5) *
-                    cellSize,
-                (static_cast<double>(anchor.z) + depthCells * 0.5) *
-                    cellSize);
-        };
-    for (const PlatformFrameInstance& frame : snapshot.platformFrames) {
-        const Vector2 point = modularPoint(
-            frame.anchor, PlatformFrameWidthCells,
-            PlatformFrameWidthCells);
-        DrawRectangleRec(
-            {point.x - 1.7F * symbolScale,
-             point.y - 1.7F * symbolScale,
-             3.4F * symbolScale, 3.4F * symbolScale},
-            {164, 144, 111, 185});
-    }
-    for (const WallInstance& wall : snapshot.modularWalls) {
-        const Vector2 point = modularPoint(wall.anchor, 1.0, 1.0);
-        const bool alongX =
-            wall.rotation == Rotation::Deg0 ||
-            wall.rotation == Rotation::Deg180;
-        DrawRectangleRec(
-            {point.x - (alongX ? 2.5F : 0.8F) * symbolScale,
-             point.y - (alongX ? 0.8F : 2.5F) * symbolScale,
-             (alongX ? 5.0F : 1.6F) * symbolScale,
-             (alongX ? 1.6F : 5.0F) * symbolScale},
-            {194, 160, 108, 210});
-    }
-    for (const RampInstance& ramp : snapshot.ramps) {
-        const bool alongZ =
-            ramp.rotation == Rotation::Deg0 ||
-            ramp.rotation == Rotation::Deg180;
-        const Vector2 point = modularPoint(
-            ramp.anchor,
-            alongZ ? ModularRampWidthCells : ModularRampRunCells,
-            alongZ ? ModularRampRunCells : ModularRampWidthCells);
-        DrawCircleV(
-            point, 2.0F * symbolScale,
-            {205, 174, 119, 190});
-    }
-
-    for (const BuildingInstance& building : snapshot.buildings) {
-        const Vec3 position = buildingWorldPosition(building);
-        const Vector2 point = mapPoint(position.x, position.z);
-        switch (building.type) {
-        case BuildingType::Core:
-            DrawPoly(point, 4, 5.5F * symbolScale, 45.0F,
-                     {255, 210, 83, 255});
-            DrawCircleV(
-                point, 1.7F * symbolScale,
-                {255, 245, 188, 255});
-            break;
-        case BuildingType::Turret:
-        case BuildingType::Cannon:
-            DrawCircleV(
-                point,
-                (building.type == BuildingType::Cannon ? 3.5F : 3.0F) *
-                    symbolScale,
-                {238, 182, 89, 245});
-            DrawCircleV(
-                point, 1.1F * symbolScale,
-                {73, 54, 38, 255});
-            break;
-        case BuildingType::Wall:
-        case BuildingType::Gate:
-            DrawRectangleRec(
-                {point.x - 2.5F * symbolScale,
-                 point.y - 1.4F * symbolScale,
-                 5.0F * symbolScale, 2.8F * symbolScale},
-                building.type == BuildingType::Gate
-                    ? Color{231, 203, 131, 240}
-                    : Color{188, 142, 86, 230});
-            break;
-        case BuildingType::SlowTrap:
-            DrawRing(point, 2.1F * symbolScale,
-                     3.0F * symbolScale, 0.0F, 360.0F, 12,
-                     {102, 190, 220, 235});
-            break;
-        case BuildingType::GoldMine:
-        case BuildingType::LumberMill:
-        case BuildingType::Quarry: {
-            Color color{120, 209, 218, 240};
-            if (building.type == BuildingType::LumberMill) {
-                color = {112, 184, 91, 240};
-            } else if (building.type == BuildingType::Quarry) {
-                color = {167, 174, 171, 240};
-            }
-            DrawRectangleRec(
-                {point.x - 3.0F * symbolScale,
-                 point.y - 3.0F * symbolScale,
-                 6.0F * symbolScale, 6.0F * symbolScale},
-                color);
-            break;
-        }
-        }
-    }
-
-    for (const EnemyInstance& enemy : snapshot.enemies) {
-        if (!enemy.active || enemy.state == EnemyState::Dead) {
-            continue;
-        }
-        const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
-        float radius = 2.25F;
-        Color color{239, 75, 66, 245};
-        if (enemy.type == EnemyType::Fast) {
-            radius = 1.8F;
-        } else if (enemy.type == EnemyType::Heavy) {
-            radius = 2.8F;
-        } else if (enemy.type == EnemyType::Boss) {
-            radius = 4.6F;
-            color = {255, 123, 55, 255};
-        } else if (enemy.type == EnemyType::Flying) {
-            color = {220, 105, 232, 250};
-        }
-        DrawCircleV(
-            point, (radius + 1.0F) * symbolScale,
-            {51, 16, 17, 210});
-        DrawCircleV(point, radius * symbolScale, color);
-    }
-
-    const Vector2 player = mapPoint(
-        snapshot.playerPosition.x, snapshot.playerPosition.z);
-    const Vector2 direction{
-        static_cast<float>(std::sin(snapshot.playerYaw)),
-        static_cast<float>(-std::cos(snapshot.playerYaw)),
-    };
-    const Vector2 side{-direction.y, direction.x};
-    const Color playerColor = snapshot.playerRespawning
-        ? Color{174, 181, 181, 240}
-        : Color{250, 250, 244, 255};
-    const Vector2 outerTip{
-        player.x + direction.x * 12.5F * symbolScale,
-        player.y + direction.y * 12.5F * symbolScale,
-    };
-    const Vector2 outerBase{
-        player.x + direction.x * 5.8F * symbolScale,
-        player.y + direction.y * 5.8F * symbolScale,
-    };
-    const Vector2 outerLeft{
-        outerBase.x - side.x * 5.2F * symbolScale,
-        outerBase.y - side.y * 5.2F * symbolScale,
-    };
-    const Vector2 outerRight{
-        outerBase.x + side.x * 5.2F * symbolScale,
-        outerBase.y + side.y * 5.2F * symbolScale,
-    };
-    DrawTriangle(
-        outerTip, outerLeft, outerRight,
-        {30, 35, 38, 255});
-    DrawCircleV(
-        player, 7.2F * symbolScale,
-        {30, 35, 38, 255});
-
-    const Vector2 innerTip{
-        player.x + direction.x * 10.5F * symbolScale,
-        player.y + direction.y * 10.5F * symbolScale,
-    };
-    const Vector2 innerBase{
-        player.x + direction.x * 5.8F * symbolScale,
-        player.y + direction.y * 5.8F * symbolScale,
-    };
-    const Vector2 innerLeft{
-        innerBase.x - side.x * 3.5F * symbolScale,
-        innerBase.y - side.y * 3.5F * symbolScale,
-    };
-    const Vector2 innerRight{
-        innerBase.x + side.x * 3.5F * symbolScale,
-        innerBase.y + side.y * 3.5F * symbolScale,
-    };
-    DrawTriangle(
-        innerTip, innerLeft, innerRight,
-        playerColor);
-    DrawCircleV(
-        player, 5.2F * symbolScale,
-        playerColor);
-
-    if (snapshot.nearestChestPosition) {
-        const Vector2 chestPoint = mapPoint(
-            snapshot.nearestChestPosition->x,
-            snapshot.nearestChestPosition->z);
-        const Vector2 delta{
-            chestPoint.x - player.x,
-            chestPoint.y - player.y,
-        };
-        const float distance = std::sqrt(
-            delta.x * delta.x + delta.y * delta.y);
-        if (distance > 0.001F) {
-            const Vector2 directionToChest{
-                delta.x / distance, delta.y / distance};
-            const float edgeMargin = 8.0F * symbolScale;
-            const Rectangle targetBounds{
-                mapBounds.x + edgeMargin,
-                mapBounds.y + edgeMargin,
-                mapBounds.width - edgeMargin * 2.0F,
-                mapBounds.height - edgeMargin * 2.0F};
-            const Vector2 marker{
-                std::clamp(chestPoint.x,
-                           targetBounds.x,
-                           targetBounds.x + targetBounds.width),
-                std::clamp(chestPoint.y,
-                           targetBounds.y,
-                           targetBounds.y + targetBounds.height)};
-            DrawLineEx(
-                player, marker,
-                std::max(1.4F, symbolScale * 1.6F),
-                {255, 212, 91, 180});
-            const Vector2 perpendicular{
-                -directionToChest.y, directionToChest.x};
-            DrawTriangle(
-                {marker.x + directionToChest.x * 7.0F,
-                 marker.y + directionToChest.y * 7.0F},
-                {marker.x - directionToChest.x * 3.0F +
-                     perpendicular.x * 4.0F,
-                 marker.y - directionToChest.y * 3.0F +
-                     perpendicular.y * 4.0F},
-                {marker.x - directionToChest.x * 3.0F -
-                     perpendicular.x * 4.0F,
-                 marker.y - directionToChest.y * 3.0F -
-                     perpendicular.y * 4.0F},
-                {255, 220, 105, 255});
-        }
-    }
-
-    if (snapshot.upcomingAttackDirection) {
-        Vector2 marker{
-            mapBounds.x + mapBounds.width * 0.5F,
-            mapBounds.y + mapBounds.height * 0.5F,
-        };
-        Vector2 inward{};
-        switch (*snapshot.upcomingAttackDirection) {
-        case AttackDirection::North:
-            marker.y = mapBounds.y + 5.0F;
-            inward.y = 1.0F;
-            break;
-        case AttackDirection::East:
-            marker.x = mapBounds.x + mapBounds.width - 5.0F;
-            inward.x = -1.0F;
-            break;
-        case AttackDirection::South:
-            marker.y = mapBounds.y + mapBounds.height - 5.0F;
-            inward.y = -1.0F;
-            break;
-        case AttackDirection::West:
-            marker.x = mapBounds.x + 5.0F;
-            inward.x = 1.0F;
-            break;
-        }
-        const Vector2 perpendicular{-inward.y, inward.x};
-        DrawTriangle(
-            {marker.x + inward.x * 7.0F,
-             marker.y + inward.y * 7.0F},
-            {marker.x - inward.x * 3.0F + perpendicular.x * 4.5F,
-             marker.y - inward.y * 3.0F + perpendicular.y * 4.5F},
-            {marker.x - inward.x * 3.0F - perpendicular.x * 4.5F,
-             marker.y - inward.y * 3.0F - perpendicular.y * 4.5F},
-            {255, 103, 64, 245});
-    }
-
-    EndScissorMode();
-    DrawRectangleLinesEx(mapBounds, 2.0F, {196, 172, 126, 230});
-    const float compassFontSize =
-        std::lerp(15.0F, 24.0F, expanded);
-    const float compassInset = compassFontSize * 0.72F;
-    const auto drawCompassLabel =
-        [compassFontSize](std::string_view label, Vector2 center) {
-            const Vector2 size = measureUiText(label, compassFontSize);
-            const Vector2 position{
-                center.x - size.x * 0.5F,
-                center.y - size.y * 0.5F,
-            };
-            drawUiText(
-                label, {position.x + 1.5F, position.y + 1.5F},
-                compassFontSize, {18, 22, 20, 235});
-            drawUiText(
-                label, position, compassFontSize,
-                {248, 235, 201, 255});
-        };
-    drawCompassLabel(
-        "N", {mapBounds.x + mapBounds.width * 0.5F,
-              mapBounds.y + compassInset});
-    drawCompassLabel(
-        "E", {mapBounds.x + mapBounds.width - compassInset,
-              mapBounds.y + mapBounds.height * 0.5F});
-    drawCompassLabel(
-        "S", {mapBounds.x + mapBounds.width * 0.5F,
-              mapBounds.y + mapBounds.height - compassInset});
-    drawCompassLabel(
-        "W", {mapBounds.x + compassInset,
-              mapBounds.y + mapBounds.height * 0.5F});
-}
-
 void drawLootInventory(
-    GameUi& ui, const SimulationSnapshot& snapshot) {
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    bool expanded, bool coreVisible) {
     constexpr std::array<LootUpgradeEffect, LootUpgradeEffectCount> Effects{
         LootUpgradeEffect::Damage,
         LootUpgradeEffect::MoveSpeed,
@@ -1411,19 +820,27 @@ void drawLootInventory(
     if (activeCount == 0) return;
 
     constexpr float PanelX = 12.0F;
-    constexpr float PanelY = 260.0F;
     constexpr float SlotSize = 46.0F;
     constexpr float Gap = 6.0F;
     constexpr int Columns = 7;
-    const int visibleColumns = std::min(activeCount, Columns);
-    const int rows = (activeCount + Columns - 1) / Columns;
+    const int shownCount = expanded
+        ? activeCount
+        : std::min(activeCount, 6);
+    const int visibleColumns = std::min(shownCount, Columns);
+    const int rows = (shownCount + Columns - 1) / Columns;
+    const float PanelY = expanded
+        ? 548.0F
+        : static_cast<float>(GetScreenHeight()) -
+              (coreVisible ? 204.0F : 148.0F);
     const float panelWidth = 20.0F +
         static_cast<float>(visibleColumns) * (SlotSize + Gap);
-    const float panelHeight = 36.0F +
+    const float panelHeight = (expanded ? 36.0F : 20.0F) +
         static_cast<float>(rows) * (SlotSize + Gap);
-    ui.drawPanel({PanelX, PanelY, panelWidth, panelHeight}, 210);
-    drawUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
-               10.0F, {218, 203, 173, 235});
+    if (expanded) {
+        ui.drawPanel({PanelX, PanelY, panelWidth, panelHeight}, 210);
+        drawUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
+                   10.0F, {218, 203, 173, 235});
+    }
 
     const Vector2 mouse = GetMousePosition();
     std::optional<LootUpgradeEffect> hovered;
@@ -1432,12 +849,13 @@ void drawLootInventory(
     for (const LootUpgradeEffect effect : Effects) {
         const int stacks = snapshot.lootStacks[lootUpgradeIndex(effect)];
         if (stacks <= 0) continue;
+        if (slotIndex >= shownCount) break;
         const int column = slotIndex % Columns;
         const int row = slotIndex / Columns;
         const Rectangle slot{
             PanelX + 10.0F +
                 static_cast<float>(column) * (SlotSize + Gap),
-            PanelY + 27.0F +
+            PanelY + (expanded ? 27.0F : 5.0F) +
                 static_cast<float>(row) * (SlotSize + Gap),
             SlotSize, SlotSize};
         ++slotIndex;
@@ -1571,6 +989,13 @@ void drawLootInventory(
         }
     }
 
+    if (!expanded && activeCount > shownCount) {
+        drawUiText(
+            "+" + std::to_string(activeCount - shownCount),
+            {PanelX + panelWidth + 2.0F, PanelY + 18.0F},
+            12.0F, {218, 203, 173, 235});
+    }
+
     if (hovered) {
         const std::string tooltipTitle =
             lootUpgradeName(*hovered) +
@@ -1610,12 +1035,127 @@ void drawLootInventory(
     }
 }
 
-} // namespace
-
-void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
-                    float expansion) {
-    drawMinimap(ui, snapshot, expansion);
+const char* weaponLabel(PlayerWeapon weapon) {
+    switch (weapon) {
+    case PlayerWeapon::BareHands: return "BARE HANDS";
+    case PlayerWeapon::Axe: return "AXE";
+    case PlayerWeapon::Pickaxe: return "PICKAXE";
+    case PlayerWeapon::Club: return "CLUB";
+    case PlayerWeapon::IceWand: return "ICE WAND";
+    case PlayerWeapon::Hammer: return "HAMMER";
+    case PlayerWeapon::Rifle: return "RIFLE";
+    }
+    return "WEAPON";
 }
+
+void drawCompactInsight(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    const HudViewState& view, bool buildModeActive) {
+    const float width = std::clamp(
+        static_cast<float>(GetScreenWidth()) * 0.30F,
+        320.0F, 470.0F);
+    const float centerX = static_cast<float>(GetScreenWidth()) * 0.5F;
+    const float y = static_cast<float>(GetScreenHeight()) -
+        (buildModeActive ? 157.0F : 91.0F);
+    const float requirement = std::max(
+        1.0F, static_cast<float>(snapshot.requiredInsight));
+    const float fraction = std::clamp(
+        static_cast<float>(view.displayedInsight) / requirement,
+        0.0F, 1.0F);
+    const float pulse = std::clamp(
+        static_cast<float>(view.insightPulse), 0.0F, 1.0F);
+    const float pointPulse = std::clamp(
+        static_cast<float>(view.treePointPulse), 0.0F, 1.0F);
+    if (pulse > 0.01F || pointPulse > 0.01F) {
+        DrawRectangleRounded(
+            {centerX - width * 0.5F - 5.0F - pointPulse * 4.0F,
+             y - 5.0F - pointPulse * 4.0F,
+             width + 10.0F + pointPulse * 8.0F,
+             22.0F + pointPulse * 8.0F},
+            0.45F, 7,
+            {151, 112, 255,
+             static_cast<unsigned char>(55.0F +
+                 95.0F * std::max(pulse, pointPulse))});
+    }
+    ui.drawProgressBar(
+        {centerX - width * 0.5F, y, width, 12.0F},
+        fraction, UiBarColor::Purple);
+    const std::string value = std::to_string(static_cast<int>(
+        std::floor(std::max(0.0, view.displayedInsight)))) +
+        " / " + std::to_string(static_cast<int>(
+            std::ceil(snapshot.requiredInsight)));
+    const float valueWidth = measureUiText(value, 10.0F).x;
+    drawUiText(
+        value, {centerX + width * 0.5F - valueWidth, y - 18.0F},
+        10.0F, {224, 211, 251, 245});
+    drawUiText("INSIGHT", {centerX - width * 0.5F, y - 20.0F}, 11.0F,
+               {208, 187, 245, 245});
+    const float pointCenterX = centerX - width * 0.5F + 91.0F;
+    DrawPoly({pointCenterX, y - 12.5F - pointPulse * 2.0F}, 4,
+             5.0F + pointPulse * 1.5F, 45.0F,
+             {208, 177, 255, 255});
+    const std::string points = std::to_string(snapshot.skillPoints);
+    drawUiText(
+        points,
+        {pointCenterX + 9.0F, y - 20.0F - pointPulse * 2.0F},
+        13.0F + pointPulse * 2.0F, {208, 177, 255, 255});
+    if (view.insightGainRemaining > 0.0 &&
+        view.insightGainAmount > 0.0) {
+        const float gainProgress = static_cast<float>(std::clamp(
+            1.0 - view.insightGainRemaining /
+                      std::max(0.001, view.insightGainDuration),
+            0.0, 1.0));
+        const std::string gain = "+" + std::to_string(
+            static_cast<int>(std::lround(view.insightGainAmount))) +
+            " INSIGHT";
+        const float gainWidth = measureUiText(gain, 11.0F).x;
+        drawUiText(
+            gain,
+            {centerX - gainWidth * 0.5F,
+             y - 38.0F - gainProgress * 7.0F},
+            11.0F,
+            {218, 193, 255,
+             static_cast<unsigned char>((1.0F - gainProgress) * 255.0F)});
+    }
+}
+
+void drawWeaponHotbar(
+    GameUi& ui, const SimulationSnapshot& snapshot,
+    const HudViewState& view) {
+    std::array<HotbarSlot, PlayerWeaponCount> slots{};
+    std::array<std::string, PlayerWeaponCount> keys{};
+    std::size_t visibleCount = 0;
+    for (const PlayerWeapon weapon : PlayerWeaponHotbarOrder) {
+        if (snapshot.unlockedWeapons[static_cast<std::size_t>(weapon)]) {
+            keys[visibleCount] = std::to_string(visibleCount + 1U);
+            slots[visibleCount] = {
+                .key = keys[visibleCount],
+                .label = weapon == PlayerWeapon::BareHands
+                    ? "HANDS"
+                    : weaponLabel(weapon),
+                .cost = {},
+                .selected = snapshot.selectedWeapon == weapon,
+                .available = true,
+            };
+            ++visibleCount;
+        }
+    }
+    drawHotbarSlots(
+        ui, std::span<const HotbarSlot>{slots.data(), visibleCount},
+        view.weaponHotbarSelectionPosition,
+        view.weaponHotbarSelectionAlpha,
+        true, false);
+}
+
+std::string phaseClock(double seconds) {
+    const int total = std::max(0, static_cast<int>(std::ceil(seconds)));
+    char buffer[16]{};
+    std::snprintf(buffer, sizeof(buffer), "%02d:%02d", total / 60,
+                  total % 60);
+    return buffer;
+}
+
+} // namespace
 
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera,
@@ -1623,28 +1163,38 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float woodY = -view.woodResourceBounce;
     const float stoneY = -view.stoneResourceBounce;
     const float goldY = -view.goldResourceBounce;
-    ui.drawPanel({12.0F, 12.0F, 398.0F, 68.0F}, 218);
-    ui.drawResourceIcon({22.0F, 20.0F + woodY, 48.0F, 48.0F},
+    const float coinY = -view.coinResourceBounce;
+    constexpr float ResourcePanelWidth = 342.0F;
+    ui.drawPanel(
+        {12.0F, 12.0F, ResourcePanelWidth, 46.0F}, 155);
+    ui.drawResourceIcon({19.0F, 18.0F + woodY, 30.0F, 30.0F},
                         UiResourceIcon::Wood);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
                    : compactAmount(snapshot.wood),
-               {76.0F, 28.0F + woodY},
-               20.0F, RAYWHITE);
-    ui.drawResourceIcon({144.0F, 20.0F + stoneY, 48.0F, 48.0F},
+               {51.0F, 22.0F + woodY},
+               15.0F, RAYWHITE);
+    ui.drawResourceIcon({99.0F, 18.0F + stoneY, 30.0F, 30.0F},
                         UiResourceIcon::Stone);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
                    : compactAmount(snapshot.stone),
-               {198.0F, 28.0F + stoneY},
-               20.0F, RAYWHITE);
-    ui.drawResourceIcon({276.0F, 20.0F + goldY, 48.0F, 48.0F},
+               {131.0F, 22.0F + stoneY},
+               15.0F, RAYWHITE);
+    ui.drawResourceIcon({179.0F, 18.0F + goldY, 30.0F, 30.0F},
                         UiResourceIcon::Crystal);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
                    : compactAmount(snapshot.gold),
-               {330.0F, 28.0F + goldY},
-               20.0F, RAYWHITE);
+               {211.0F, 22.0F + goldY},
+               15.0F, RAYWHITE);
+    ui.drawResourceIcon({263.0F, 18.0F + coinY, 30.0F, 30.0F},
+                        UiResourceIcon::Gold);
+    drawUiText(snapshot.unlimitedResources
+                   ? "∞"
+                   : compactAmount(snapshot.coins),
+               {295.0F, 22.0F + coinY},
+               15.0F, {255, 236, 152, 255});
     const auto drawResourcePulse =
         [](Rectangle bounds, float remaining) {
             if (remaining <= 0.0F) {
@@ -1661,16 +1211,20 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 {255, 236, 160, alpha});
         };
     drawResourcePulse(
-        {17.0F, 17.0F, 116.0F, 58.0F},
+        {16.0F, 16.0F, 73.0F, 38.0F},
         view.woodResourcePulse);
     drawResourcePulse(
-        {139.0F, 17.0F, 126.0F, 58.0F},
+        {96.0F, 16.0F, 73.0F, 38.0F},
         view.stoneResourcePulse);
     drawResourcePulse(
-        {271.0F, 17.0F, 134.0F, 58.0F},
+        {176.0F, 16.0F, 77.0F, 38.0F},
         view.goldResourcePulse);
+    drawResourcePulse(
+        {260.0F, 16.0F, 89.0F, 38.0F},
+        view.coinResourcePulse);
 
-    ui.drawPanel({12.0F, 90.0F, 314.0F, 158.0F}, 216);
+    const float healthY = static_cast<float>(GetScreenHeight()) -
+        (view.showCoreHealth ? 132.0F : 76.0F);
     const double healthFraction =
         snapshot.playerHealth / snapshot.playerMaxHealth;
     drawUiText(
@@ -1678,42 +1232,292 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             std::to_string(static_cast<int>(snapshot.playerHealth)) +
             " / " +
             std::to_string(static_cast<int>(snapshot.playerMaxHealth)),
-        {26.0F, 104.0F}, 16.0F,
+        {18.0F, healthY}, 13.0F,
         healthFraction > 0.3 ? Color{176, 225, 179, 255}
                              : Color{240, 116, 98, 255});
     ui.drawProgressBar(
-        {26.0F, 135.0F, 286.0F, 17.0F},
+        {18.0F, healthY + 24.0F, 244.0F, 13.0F},
         static_cast<float>(healthFraction),
         healthFraction > 0.3 ? UiBarColor::Green : UiBarColor::Red);
 
-    if (snapshot.coreMaxHealth > 0.0) {
+    if (view.showCoreHealth && snapshot.coreMaxHealth > 0.0) {
         drawUiText(
             "CORE L" + std::to_string(snapshot.coreLevel) + "  " +
                 std::to_string(static_cast<int>(snapshot.coreHealth)) +
                 " / " +
                 std::to_string(static_cast<int>(snapshot.coreMaxHealth)),
-            {26.0F, 166.0F}, 16.0F,
+            {18.0F, healthY + 52.0F}, 13.0F,
             {232, 196, 123, 255});
         ui.drawProgressBar(
-            {26.0F, 197.0F, 286.0F, 17.0F},
+            {18.0F, healthY + 76.0F, 244.0F, 13.0F},
             static_cast<float>(snapshot.coreHealth /
                                snapshot.coreMaxHealth),
             UiBarColor::Yellow);
-    } else {
-        drawUiText("CORE NOT BUILT", {26.0F, 178.0F}, 16.0F,
-                   {180, 154, 116, 255});
     }
     if (snapshot.unlimitedResources) {
-        drawUiText("∞", {286.0F, 103.0F}, 20.0F,
+        drawUiText("∞", {238.0F, healthY - 2.0F}, 18.0F,
                    {111, 220, 151, 255});
     }
-    drawUiText(
-        "WAVE " + std::to_string(snapshot.wave) +
-            "   •   BEST " + std::to_string(snapshot.bestWave),
-        {26.0F, 219.0F}, 12.0F,
-        {190, 184, 169, 235});
 
-    drawLootInventory(ui, snapshot);
+    int objectiveCount = 0;
+    for (int index : snapshot.recommendedObjectives) {
+        if (index >= 0 &&
+            static_cast<std::size_t>(index) < snapshot.objectives.size())
+            ++objectiveCount;
+    }
+    if (objectiveCount > 0 &&
+        view.informationExpansion > 0.65F) {
+        constexpr float ObjectiveX = 12.0F;
+        constexpr float ObjectiveY = 374.0F;
+        constexpr float ObjectiveWidth = 530.0F;
+        constexpr float HeaderHeight = 48.0F;
+        constexpr float CardHeight = 88.0F;
+        constexpr float CardGap = 7.0F;
+        const float objectiveHeight = HeaderHeight + 9.0F +
+            static_cast<float>(objectiveCount) * CardHeight +
+            static_cast<float>(objectiveCount - 1) * CardGap;
+        ui.drawPanel(
+            {ObjectiveX, ObjectiveY, ObjectiveWidth,
+             objectiveHeight}, 224);
+        DrawCircleV(
+            {ObjectiveX + 24.0F, ObjectiveY + 23.0F},
+            11.0F, {102, 78, 48, 230});
+        DrawPoly(
+            {ObjectiveX + 24.0F, ObjectiveY + 23.0F},
+            4, 6.5F, 45.0F, {255, 215, 105, 255});
+        drawUiText(
+            "OBJECTIVE TRACKER",
+            {ObjectiveX + 43.0F, ObjectiveY + 9.0F},
+            14.0F, {255, 225, 157, 255});
+        drawUiText(
+            "Complete tasks to earn Insight",
+            {ObjectiveX + 43.0F, ObjectiveY + 27.0F},
+            10.5F, {190, 178, 157, 225});
+        const std::string activeCount =
+            "TRACKED  " + std::to_string(objectiveCount);
+        const float activeWidth =
+            measureUiText(activeCount, 10.5F).x;
+        drawUiText(
+            activeCount,
+            {ObjectiveX + ObjectiveWidth - activeWidth - 15.0F,
+             ObjectiveY + 17.0F},
+            10.5F, {232, 205, 139, 230});
+        int row = 0;
+        for (int rawIndex : snapshot.recommendedObjectives) {
+            if (rawIndex < 0 ||
+                static_cast<std::size_t>(rawIndex) >= snapshot.objectives.size())
+                continue;
+            const ObjectiveStatus& objective =
+                snapshot.objectives[static_cast<std::size_t>(rawIndex)];
+            const float rowY = ObjectiveY + HeaderHeight +
+                static_cast<float>(row) * (CardHeight + CardGap);
+            const Rectangle card{
+                ObjectiveX + 9.0F, rowY,
+                ObjectiveWidth - 18.0F, CardHeight};
+            const Color kindColor =
+                objectiveKindColor(objective.definition.kind);
+            const bool pulsing =
+                view.objectivePulse > 0.0 &&
+                view.objectivePulseId == objective.definition.id;
+            if (pulsing) {
+                const float pulse = static_cast<float>(
+                    std::sin(view.objectivePulse * PI));
+                DrawRectangleRounded(
+                    {card.x - 4.0F - pulse * 2.0F,
+                     card.y - 4.0F - pulse * 2.0F,
+                     card.width + 8.0F + pulse * 4.0F,
+                     card.height + 8.0F + pulse * 4.0F},
+                    0.11F, 8,
+                    {kindColor.r, kindColor.g, kindColor.b,
+                     static_cast<unsigned char>(70.0F * pulse)});
+            }
+            ui.drawInsetPanel(card, 238);
+            DrawRectangleRoundedLinesEx(
+                card, 0.09F, 8, pulsing ? 2.2F : 1.2F,
+                {kindColor.r, kindColor.g, kindColor.b,
+                 static_cast<unsigned char>(pulsing ? 235 : 115)});
+            DrawRectangleRounded(
+                {card.x + 3.0F, card.y + 7.0F,
+                 4.0F, card.height - 14.0F},
+                0.8F, 4, kindColor);
+            drawObjectiveKindIcon(
+                objective.definition.kind,
+                {card.x + 25.0F, card.y + 27.0F},
+                kindColor);
+
+            const std::string eyebrow =
+                std::string(objectiveKindLabel(
+                    objective.definition.kind)) +
+                "  •  " + objective.definition.title;
+            const float eyebrowSize = fitUiTextSize(
+                eyebrow, 11.0F, 9.0F,
+                card.width - 165.0F, 17.0F);
+            drawUiText(
+                eyebrow,
+                {card.x + 44.0F, card.y + 8.0F},
+                eyebrowSize, kindColor);
+            const std::string reward = "+" +
+                std::to_string(static_cast<int>(std::lround(
+                    objective.definition.insightReward))) +
+                " INSIGHT";
+            const float rewardWidth =
+                measureUiText(reward, 10.0F).x;
+            drawUiText(
+                reward,
+                {card.x + card.width - rewardWidth - 12.0F,
+                 card.y + 9.0F},
+                10.0F, {226, 207, 255, 245});
+
+            const std::string instruction =
+                objectiveInstruction(objective.definition);
+            const float instructionSize = fitUiTextSize(
+                instruction, 14.0F, 10.5F,
+                card.width - 142.0F, 22.0F);
+            drawUiText(
+                instruction,
+                {card.x + 44.0F, card.y + 31.0F},
+                instructionSize, {247, 238, 215, 255});
+
+            const int current = static_cast<int>(
+                std::floor(std::min(
+                    objective.progress,
+                    objective.definition.target)));
+            const int target = static_cast<int>(
+                std::ceil(objective.definition.target));
+            const std::string progress =
+                std::to_string(current) + " / " +
+                std::to_string(target);
+            const float progressWidth =
+                measureUiText(progress, 13.0F).x;
+            drawUiText(
+                progress,
+                {card.x + card.width - progressWidth - 12.0F,
+                 card.y + 33.0F},
+                13.0F, {255, 239, 189, 255});
+            const float fraction = objective.definition.target > 0.0
+                ? std::clamp(static_cast<float>(
+                      objective.progress /
+                      objective.definition.target), 0.0F, 1.0F)
+                : 0.0F;
+            const Rectangle progressBar{
+                card.x + 44.0F, card.y + 61.0F,
+                card.width - 58.0F, 14.0F};
+            ui.drawProgressBar(
+                progressBar, fraction,
+                objectiveBarColor(objective.definition.kind));
+            if (fraction > 0.01F) {
+                const float tipX = progressBar.x +
+                    progressBar.width * fraction;
+                const float shimmer = 0.55F + 0.45F *
+                    std::sin(static_cast<float>(
+                        snapshot.elapsedSeconds * 7.0) +
+                        static_cast<float>(row));
+                DrawCircleV(
+                    {tipX, progressBar.y + progressBar.height * 0.5F},
+                    pulsing ? 6.0F : 3.2F,
+                    {kindColor.r, kindColor.g, kindColor.b,
+                     static_cast<unsigned char>(150.0F +
+                         shimmer * 95.0F)});
+            }
+            ++row;
+        }
+    } else if (objectiveCount > 0) {
+        const float screenMinimum = static_cast<float>(
+            std::min(GetScreenWidth(), GetScreenHeight()));
+        const float compactMapSize = std::clamp(
+            screenMinimum * 0.18F, 132.0F, 176.0F);
+        constexpr float TrackerWidth = 344.0F;
+        constexpr float RowHeight = 43.0F;
+        const float trackerX = static_cast<float>(GetScreenWidth()) -
+            TrackerWidth - 12.0F;
+        const float trackerY = view.minimapHidden
+            ? 18.0F
+            : 30.0F + compactMapSize;
+        drawUiText(
+            "OBJECTIVES",
+            {trackerX + 7.0F, trackerY},
+            11.0F, {226, 208, 170, 225});
+        int row = 0;
+        for (int rawIndex : snapshot.recommendedObjectives) {
+            if (rawIndex < 0 ||
+                static_cast<std::size_t>(rawIndex) >=
+                    snapshot.objectives.size()) {
+                continue;
+            }
+            const ObjectiveStatus& objective =
+                snapshot.objectives[
+                    static_cast<std::size_t>(rawIndex)];
+            const float rowY = trackerY + 22.0F +
+                static_cast<float>(row) * RowHeight;
+            const Color color = objectiveKindColor(
+                objective.definition.kind);
+            const bool pulsing =
+                view.objectivePulse > 0.0 &&
+                view.objectivePulseId == objective.definition.id;
+            DrawRectangleRounded(
+                {trackerX, rowY, TrackerWidth, RowHeight - 3.0F},
+                0.18F, 5,
+                {20, 18, 16,
+                 static_cast<unsigned char>(pulsing ? 218 : 152)});
+            drawObjectiveKindIcon(
+                objective.definition.kind,
+                {trackerX + 16.0F, rowY + 18.0F}, color);
+            const std::string instruction =
+                objectiveInstruction(objective.definition);
+            const float instructionSize = fitUiTextSize(
+                instruction, 11.5F, 8.5F, 210.0F, 18.0F);
+            drawUiText(
+                instruction,
+                {trackerX + 32.0F, rowY + 6.0F},
+                instructionSize, {242, 234, 214, 250});
+            const int current = static_cast<int>(std::floor(
+                std::min(objective.progress,
+                         objective.definition.target)));
+            const int target = static_cast<int>(std::ceil(
+                objective.definition.target));
+            const std::string progress =
+                std::to_string(current) + "/" +
+                std::to_string(target);
+            const std::string reward = "+" +
+                std::to_string(static_cast<int>(std::lround(
+                    objective.definition.insightReward)));
+            const float progressWidth =
+                measureUiText(progress, 11.0F).x;
+            const float rewardWidth =
+                measureUiText(reward, 9.0F).x;
+            drawUiText(
+                progress,
+                {trackerX + TrackerWidth - progressWidth - 9.0F,
+                 rowY + 4.0F},
+                11.0F, {255, 235, 176, 255});
+            drawUiText(
+                reward,
+                {trackerX + TrackerWidth - rewardWidth - 22.0F,
+                 rowY + 22.0F},
+                9.0F, {195, 174, 245, 235});
+            DrawPoly(
+                {trackerX + TrackerWidth - 10.0F, rowY + 29.0F},
+                4, 4.0F, 45.0F, {195, 174, 245, 235});
+            const float fraction = objective.definition.target > 0.0
+                ? std::clamp(static_cast<float>(
+                      objective.progress /
+                      objective.definition.target), 0.0F, 1.0F)
+                : 0.0F;
+            DrawRectangleRounded(
+                {trackerX + 32.0F, rowY + 29.0F,
+                 210.0F, 5.0F},
+                0.8F, 3, {47, 41, 35, 210});
+            DrawRectangleRounded(
+                {trackerX + 32.0F, rowY + 29.0F,
+                 210.0F * fraction, 5.0F},
+                0.8F, 3, color);
+            ++row;
+        }
+    }
+
+    drawLootInventory(
+        ui, snapshot, view.informationExpansion > 0.65F,
+        view.showCoreHealth);
 
     bool chestCompassVisible = false;
     if (snapshot.nearestChestPosition &&
@@ -1751,39 +1555,26 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         chestCompassVisible = true;
     }
 
-    if (snapshot.state == RunState::BuildPhase ||
-        snapshot.state == RunState::Sunset ||
-        snapshot.state == RunState::Wave ||
-        snapshot.state == RunState::WaveComplete) {
-        ui.drawPanel(
-            {static_cast<float>(GetScreenWidth()) * 0.5F - 235.0F,
-             12.0F, 470.0F, 68.0F},
-            210);
-    }
-
+    std::string phaseText;
+    Color phaseColor{245, 184, 76, 255};
+    bool importantPhase = false;
     if (snapshot.state == RunState::BuildPhase) {
-        const std::string text =
-            "WAVE " + std::to_string(snapshot.wave + 1) + " IN " +
-            std::to_string(
-                static_cast<int>(snapshot.phaseTimeRemaining) + 1) +
-            "   •   N START";
-        drawCenteredUiText(text, 25.0F, 16.0F,
-                           {245, 184, 76, 255});
+        phaseText = "TO SUNSET  " +
+            phaseClock(snapshot.phaseTimeRemaining);
     } else if (snapshot.state == RunState::Sunset) {
-        std::string text =
-            "SUNSET   •   WAVE " +
+        phaseText = "SUNSET  •  WAVE " +
             std::to_string(snapshot.wave + 1) + " IN " +
-            std::to_string(
-                static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-        drawCenteredUiText(text, 25.0F, 16.0F,
-                           {255, 146, 79, 255});
+            phaseClock(snapshot.phaseTimeRemaining);
+        phaseColor = {255, 146, 79, 255};
+        importantPhase = true;
     } else if (snapshot.state == RunState::Wave) {
-        std::string text =
-            "WAVE " + std::to_string(snapshot.wave) +
-            "   •   " +
-            std::to_string(snapshot.activeEnemyCount) +
-            " ACTIVE   •   " +
-            std::to_string(snapshot.pendingEnemyCount);
+        phaseText = "WAVE " + std::to_string(snapshot.wave) +
+            "     " +
+            std::to_string(snapshot.activeEnemyCount +
+                           snapshot.pendingEnemyCount) +
+            " ENEMIES";
+        phaseColor = {242, 108, 82, 255};
+        importantPhase = true;
         const bool bossCharging = std::any_of(
             snapshot.enemies.begin(), snapshot.enemies.end(),
             [](const EnemyInstance& enemy) {
@@ -1791,19 +1582,24 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                        enemy.state == EnemyState::BossRamWindup;
             });
         if (bossCharging) {
-            text += "   BOSS RAM INCOMING";
+            phaseText += "  •  BOSS RAM";
         }
-        drawCenteredUiText(text, 25.0F, 16.0F,
-                           {235, 92, 72, 255});
     } else if (snapshot.state == RunState::WaveComplete) {
-        const std::string text =
-            "DAWN   +" +
-            std::to_string(snapshot.waveCompletionReward) +
-            " CRYSTALS   •   DAY IN " +
-            std::to_string(
-                static_cast<int>(snapshot.phaseTimeRemaining) + 1);
-        drawCenteredUiText(text, 25.0F, 16.0F,
-                           {255, 194, 92, 255});
+        phaseText = "DAWN  •  DAY IN " +
+            phaseClock(snapshot.phaseTimeRemaining);
+        phaseColor = {255, 194, 92, 255};
+        importantPhase = true;
+    }
+    if (!phaseText.empty()) {
+        const float textWidth = measureUiText(phaseText, 16.0F).x;
+        const float centerX = static_cast<float>(GetScreenWidth()) * 0.5F;
+        if (importantPhase) {
+            DrawRectangleRounded(
+                {centerX - textWidth * 0.5F - 18.0F,
+                 12.0F, textWidth + 36.0F, 36.0F},
+                0.34F, 7, {25, 20, 18, 188});
+        }
+        drawCenteredUiText(phaseText, 20.0F, 16.0F, phaseColor);
     }
 
     if (snapshot.state == RunState::Sunset &&
@@ -1850,8 +1646,13 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                            {255, 224, 146, 255});
     }
 
-    if (!view.hideBottomHints) {
+    const bool buildModeActive =
+        view.foundationBuildMode || snapshot.selectedBuilding.has_value();
+    drawCompactInsight(ui, snapshot, view, buildModeActive);
+    if (!view.hideBottomHints && buildModeActive) {
         drawBuildHotbar(ui, snapshot, view);
+    } else if (!view.hideBottomHints) {
+        drawWeaponHotbar(ui, snapshot, view);
     }
 
     const float hitProgress =

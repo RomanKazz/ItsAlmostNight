@@ -54,6 +54,8 @@ target_link_libraries(ian_assets PRIVATE
     nlohmann_json::nlohmann_json)
 
 add_library(ian_progression
+    src/progression/InsightSystem.cpp
+    src/progression/ObjectiveSystem.cpp
     src/progression/SkillTree.cpp
 )
 target_include_directories(ian_progression PUBLIC src)
@@ -77,10 +79,12 @@ add_library(ian_simulation
     src/combat/IceWandSystem.cpp
     src/combat/PlayerWeaponSystem.cpp
     src/economy/GoldMineSystem.cpp
+    src/economy/CoinPickupSystem.cpp
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
     src/game/SimulationCombat.cpp
+    src/game/SimulationCoins.cpp
     src/game/LootChestSystem.cpp
     src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp
@@ -148,9 +152,11 @@ target_include_directories(ian_presentation PUBLIC src)
 add_library(ian_graphics
     src/graphics/DecorationExclusionMap.cpp
     src/graphics/EnvironmentSystem.cpp
+    src/graphics/GraphicsResourceAccessors.cpp
     src/graphics/GraphicsResources.cpp
     src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
+    src/graphics/RendererDecorations.cpp
     src/graphics/RendererFramePasses.cpp
     src/graphics/RendererModels.cpp
     src/graphics/RendererSettings.cpp
@@ -167,6 +173,7 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 add_library(ian_ui
     src/ui/GameUi.cpp
     src/ui/HudRenderer.cpp
+    src/ui/HudMinimap.cpp
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
     src/ui/SkillTreeScreen.cpp
@@ -183,14 +190,20 @@ add_executable(its_almost_night
     src/app/App.cpp
     src/app/AppEffects.cpp
     src/app/AppEnemySpawnMenu.cpp
+    src/app/AppEventPresentation.cpp
     src/app/AppGraphicsPanel.cpp
     src/app/AppInteractionPrompt.cpp
     src/app/AppInput.cpp
     src/app/AppModularPlacement.cpp
+    src/app/AppObjectiveDebugMenu.cpp
+    src/app/AppPresentationState.cpp
+    src/app/AppPresentationEffects.cpp
     src/app/AppRenderPasses.cpp
+    src/app/AppRender.cpp
     src/app/AppRenderSupport.cpp
     src/app/AppSkillTree.cpp
     src/app/AppUpdate.cpp
+    src/app/AppWorldOverlayEffects.cpp
     src/app/AppWorldRender.cpp
     src/app/AppWorldOverlays.cpp
     src/app/main.cpp
@@ -267,6 +280,7 @@ if(BUILD_TESTING)
         tests/EnvironmentSystemTests.cpp
         tests/FlowFieldTests.cpp
         tests/GoldMineSystemTests.cpp
+        tests/CoinPickupSystemTests.cpp
         tests/PlayerWeaponSystemTests.cpp
         tests/ResourceSystemTests.cpp
         tests/SimulationTests.cpp
@@ -276,6 +290,8 @@ if(BUILD_TESTING)
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
         tests/SkillTreeTests.cpp
+        tests/InsightSystemTests.cpp
+        tests/ObjectiveSystemTests.cpp
         tests/UserSettingsTests.cpp
         tests/TowerSystemTests.cpp
         tests/TrapSystemTests.cpp

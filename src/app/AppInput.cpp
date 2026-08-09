@@ -182,6 +182,7 @@ void App::processInput() {
         pendingStartFromUi_ = false;
         simulation_.startRun();
         const auto startedSnapshot = simulation_.snapshot();
+        rebuildTerrainGraphics();
         worldRevealOrigin_ = {
             static_cast<float>(
                 startedSnapshot.playerPosition.x),
@@ -195,9 +196,14 @@ void App::processInput() {
         statusMessageRemaining_ = 0.0;
         effects_.clear();
         arrowVisuals_.clear();
+        floatingDamageNumbers_.clear();
+        resourceGainVisuals_.clear();
         productionVisuals_.clear();
+        destroyedResourceVisuals_.clear();
         soldBuildingVisuals_.clear();
         destroyedEnemyVisuals_.clear();
+        enemyDrawInstances_.clear();
+        destroyedEnemyDrawInstances_.clear();
         pendingSoldBuildingVisual_.reset();
         pendingSoldModularVisual_.reset();
         pendingSoldWallConnections_ = 0U;
@@ -220,6 +226,9 @@ void App::processInput() {
         groundCameraWasGrounded_ = false;
         cameraBobPositionInitialized_ = false;
         damageIndicators_.clear();
+        woodHudBounceRemaining_ = 0.0;
+        stoneHudBounceRemaining_ = 0.0;
+        coinHudBounceRemaining_ = 0.0;
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
@@ -275,9 +284,15 @@ void App::processInput() {
         }
     }
     if (snapshot.state != RunState::MainMenu &&
+        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
+        keyPressed(userSettings_.controls, ControlAction::Map)) {
+        minimapHidden_ = !minimapHidden_;
+    }
+    if (snapshot.state != RunState::MainMenu &&
         keyPressed(userSettings_.controls, ControlAction::Restart)) {
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
+        rebuildTerrainGraphics();
         worldRevealOrigin_ = {
             static_cast<float>(
                 restartedSnapshot.playerPosition.x),
@@ -290,9 +305,14 @@ void App::processInput() {
         statusMessageRemaining_ = 0.0;
         effects_.clear();
         arrowVisuals_.clear();
+        floatingDamageNumbers_.clear();
+        resourceGainVisuals_.clear();
         productionVisuals_.clear();
+        destroyedResourceVisuals_.clear();
         soldBuildingVisuals_.clear();
         destroyedEnemyVisuals_.clear();
+        enemyDrawInstances_.clear();
+        destroyedEnemyDrawInstances_.clear();
         pendingSoldBuildingVisual_.reset();
         pendingSoldModularVisual_.reset();
         pendingSoldWallConnections_ = 0U;
@@ -315,6 +335,9 @@ void App::processInput() {
         groundCameraWasGrounded_ = false;
         cameraBobPositionInitialized_ = false;
         damageIndicators_.clear();
+        woodHudBounceRemaining_ = 0.0;
+        stoneHudBounceRemaining_ = 0.0;
+        coinHudBounceRemaining_ = 0.0;
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
@@ -363,6 +386,10 @@ void App::processInput() {
             IsKeyPressed(KEY_F10)) {
             performanceOverlayVisible_ =
                 !performanceOverlayVisible_;
+        }
+        if (shiftDown && IsKeyPressed(KEY_F9)) {
+            objectiveDebugMenuVisible_ =
+                !objectiveDebugMenuVisible_;
         }
         if (controlDown &&
             IsKeyPressed(KEY_F6)) {
@@ -575,7 +602,7 @@ void App::processInput() {
                 selectModularBuildPiece(
                     ModularBuildPiece::Ramp);
             }
-        } else {
+        } else if (currentSnapshot.selectedBuilding) {
             if (IsKeyPressed(KEY_ONE)) {
                 selectBuildingMode(BuildingType::Core);
             }
@@ -603,6 +630,23 @@ void App::processInput() {
             }
             if (IsKeyPressed(KEY_NINE)) {
                 selectBuildingMode(BuildingType::Quarry);
+            }
+        } else {
+            constexpr std::array<int, PlayerWeaponCount> WeaponKeys{
+                KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
+                KEY_FIVE, KEY_SIX, KEY_SEVEN,
+            };
+            std::size_t visibleSlot = 0;
+            for (const PlayerWeapon weapon : PlayerWeaponHotbarOrder) {
+                const std::size_t weaponIndex =
+                    static_cast<std::size_t>(weapon);
+                if (!currentSnapshot.unlockedWeapons[weaponIndex]) {
+                    continue;
+                }
+                if (IsKeyPressed(WeaponKeys[visibleSlot])) {
+                    pendingWeaponSelection_ = weapon;
+                }
+                ++visibleSlot;
             }
         }
         if (IsKeyPressed(KEY_ZERO)) {
@@ -771,6 +815,12 @@ void App::processInput() {
                 debugSpawnType_ = EnemyType::Flying;
                 break;
             case EnemyType::Flying:
+                debugSpawnType_ = EnemyType::Splitter;
+                break;
+            case EnemyType::Splitter:
+                debugSpawnType_ = EnemyType::Splitling;
+                break;
+            case EnemyType::Splitling:
                 debugSpawnType_ = EnemyType::Boss;
                 break;
             case EnemyType::Boss:

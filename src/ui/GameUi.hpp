@@ -10,6 +10,7 @@ enum class UiBarColor {
     Red,
     Green,
     Yellow,
+    Purple,
 };
 
 enum class UiResourceIcon {

@@ -354,12 +354,15 @@ void InteractionPromptRenderer::drawPrompt(
     drawText(
         prompt.actionText, {textX, textY}, mainFontSize,
         {246, 239, 224, 255}, opacity);
+    const UiResourceIcon costIcon =
+        prompt.targetKind == InteractionPromptTargetKind::Chest
+            ? UiResourceIcon::Gold
+            : UiResourceIcon::Crystal;
 
     if (costWidth > 0.0F && !insufficient) {
         const float costX = textX + actionWidth * scale +
             CostGap * scale;
-        const Texture2D icon = ui.resourceTexture(
-            UiResourceIcon::Gold);
+        const Texture2D icon = ui.resourceTexture(costIcon);
         if (IsTextureValid(icon)) {
             DrawTexturePro(
                 icon,
@@ -388,8 +391,7 @@ void InteractionPromptRenderer::drawPrompt(
             drawText(*prompt.hint, {hintX, hintY},
                      hintFontSize, hintColor, opacity);
         } else if (insufficient) {
-            const Texture2D icon = ui.resourceTexture(
-                UiResourceIcon::Gold);
+            const Texture2D icon = ui.resourceTexture(costIcon);
             if (IsTextureValid(icon)) {
                 DrawTexturePro(
                     icon,

@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <optional>
+#include <unordered_map>
 
 namespace ian {
 
@@ -55,6 +56,12 @@ class TargetHealthBar {
         int buildingLevel{};
     };
 
+    struct EnemyHealthVisibility {
+        double previousHealth{};
+        double remaining{};
+        std::uint64_t lastSeenFrame{};
+    };
+
     std::optional<Target> target_;
     double displayedHealth_{};
     std::optional<Visual> activeVisual_;
@@ -62,6 +69,9 @@ class TargetHealthBar {
     std::optional<EntityId> repairTarget_;
     double repairPulseRemaining_{};
     double repairPulseDuration_{0.55};
+    std::unordered_map<std::uint64_t, EnemyHealthVisibility>
+        enemyHealthVisibility_;
+    std::uint64_t enemyHealthFrame_{};
 };
 
 } // namespace ian

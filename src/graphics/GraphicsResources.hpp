@@ -13,6 +13,10 @@
 
 namespace ian {
 
+// Kept below the OpenGL 3.3 minimum vertex-uniform budget while supporting
+// the 43-joint Mushroom King skeleton.
+inline constexpr int MaximumGpuSkinningBones = 48;
+
 class ShaderResource {
   public:
     ShaderResource() = default;
@@ -218,6 +222,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& upgradeEffectShader() const;
     [[nodiscard]] ShaderResource& iceMagicShader();
     [[nodiscard]] const ShaderResource& iceMagicShader() const;
+    [[nodiscard]] ShaderResource& coinOutlineShader();
+    [[nodiscard]] const ShaderResource& coinOutlineShader() const;
     [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
@@ -234,6 +240,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& iceWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
+    [[nodiscard]] ModelResource& coinModel();
     [[nodiscard]] ModelResource& appleLootModel();
     [[nodiscard]] ModelResource& breadLootModel();
     [[nodiscard]] ModelResource& ironBarLootModel();
@@ -283,10 +290,22 @@ class GraphicsResources {
     [[nodiscard]] const ModelResource& enemyFlyingModel() const;
     [[nodiscard]] ModelResource& enemyBossModel();
     [[nodiscard]] const ModelResource& enemyBossModel() const;
+    [[nodiscard]] ModelResource& enemySplitterModel();
+    [[nodiscard]] const ModelResource& enemySplitterModel() const;
+    [[nodiscard]] ModelResource& enemySplitlingModel();
+    [[nodiscard]] const ModelResource& enemySplitlingModel() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyGeneralAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyPinkBlobAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemyNinjaAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemyMushroomKingAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemySplitterAnimations() const;
+    [[nodiscard]] const ModelAnimationsResource&
+        enemySplitlingAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
         enemyMovementAnimations() const;
     [[nodiscard]] const ModelAnimationsResource&
@@ -312,6 +331,7 @@ class GraphicsResources {
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
     ShaderResource iceMagicShader_;
+    ShaderResource coinOutlineShader_;
     TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
     ModelResource placeholderModel_;
@@ -327,6 +347,7 @@ class GraphicsResources {
     ModelResource iceWandModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
+    ModelResource coinModel_;
     ModelResource appleLootModel_;
     ModelResource breadLootModel_;
     ModelResource ironBarLootModel_;
@@ -365,8 +386,14 @@ class GraphicsResources {
     ModelResource enemySapperModel_;
     ModelResource enemyFlyingModel_;
     ModelResource enemyBossModel_;
+    ModelResource enemySplitterModel_;
+    ModelResource enemySplitlingModel_;
     ModelAnimationsResource enemyGeneralAnimations_;
     ModelAnimationsResource enemyPinkBlobAnimations_;
+    ModelAnimationsResource enemyNinjaAnimations_;
+    ModelAnimationsResource enemyMushroomKingAnimations_;
+    ModelAnimationsResource enemySplitterAnimations_;
+    ModelAnimationsResource enemySplitlingAnimations_;
     ModelAnimationsResource enemyMovementAnimations_;
     ModelAnimationsResource enemySapperAnimations_;
     ModelAnimationsResource enemyFlyingAnimations_;

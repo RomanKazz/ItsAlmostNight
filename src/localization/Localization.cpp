@@ -128,6 +128,11 @@ void translateDynamicHudText(std::string& text) {
         {"AVAILABLE", "ДОСТУПНО"},
         {"LOCKED", "ЗАБЛОКИРОВАНО"},
         {"COST", "ЦЕНА"},
+        {"SKILL POINT ACQUIRED", "ОЧКО НАВЫКА ПОЛУЧЕНО"},
+        {"SKILL POINTS ACQUIRED", "ОЧКИ НАВЫКОВ ПОЛУЧЕНЫ"},
+        {"PRESS K", "НАЖМИТЕ K"},
+        {"INSIGHT", "ОЗАРЕНИЕ"},
+        {"NEXT POINT", "ДО СЛЕДУЮЩЕГО ОЧКА"},
         {"FREE", "БЕСПЛАТНО"},
     };
     for (const auto [from, to] : Replacements) {

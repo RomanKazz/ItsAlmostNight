@@ -1333,7 +1333,7 @@ void App::beginModularPlacementDrag() {
             *modularDragPlaneHeight_,
             simulation_.terrain().config().cellSize);
     } else if (modularDragPlaneHeight_) {
-        const auto snapshot = simulation_.snapshot();
+        const auto& snapshot = simulation_.snapshot();
         const double cosPitch =
             std::cos(snapshot.playerPitch);
         const Vec3 lookDirection{
@@ -1398,7 +1398,7 @@ void App::rebuildModularPlacementLine() {
         modularDragEnd_->x - modularDragStart_->x,
         modularDragEnd_->z - modularDragStart_->z,
         modularDragAxis_, spacing);
-    const auto snapshot = simulation_.snapshot();
+    const auto& snapshot = simulation_.snapshot();
     std::uint64_t previewKey = 0xcbf29ce484222325ULL;
     const auto addSigned = [&previewKey](int value) {
         hashDragPreviewValue(

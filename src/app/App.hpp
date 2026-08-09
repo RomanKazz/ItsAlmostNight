@@ -17,7 +17,9 @@
 
 #include <optional>
 #include <cstdint>
+#include <deque>
 #include <limits>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -142,6 +144,10 @@ class App {
     void drawGraphicsPanel();
     void persistUserSettings(bool force = false);
     void drawEnemySpawnMenu();
+    void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
+    void processPresentationEvents(
+        std::span<const GameEvent> events,
+        const SimulationSnapshot& snapshot);
     void setSkillTreeVisible(bool visible);
     void drawBuildModePie() const;
     void addEffect(PresentationEffectType type, Vec3 position,
@@ -222,7 +228,7 @@ class App {
     std::optional<BuildingPlatformSurface>
         placementDragSurface_;
     std::optional<PlacementLineAxis> placementDragAxis_;
-    std::vector<PlaceBuildingCommand> pendingWallPlacements_;
+    std::deque<PlaceBuildingCommand> pendingWallPlacements_;
     int pendingBuildingRotation_{};
     double buildingRotationWheelAccumulator_{};
     double buildingRotationCooldownRemaining_{};
@@ -233,11 +239,11 @@ class App {
     std::optional<EntityId> repairSweepTarget_;
     bool repairSweepActive_{};
     std::optional<SellBuildingCommand> pendingBuildingSale_;
-    std::vector<SellBuildingCommand>
+    std::deque<SellBuildingCommand>
         queuedBuildingSales_;
     std::optional<RemoveModularBuildingCommand>
         pendingModularBuildingRemoval_;
-    std::vector<RemoveModularBuildingCommand>
+    std::deque<RemoveModularBuildingCommand>
         queuedModularBuildingRemovals_;
     bool removalDragActive_{};
     std::vector<EntityId> removalDragTargets_;
@@ -249,6 +255,7 @@ class App {
     std::optional<BuildingInstance> pendingSoldBuildingVisual_;
     std::uint8_t pendingSoldWallConnections_{};
     bool pendingWeaponToggle_{};
+    std::optional<PlayerWeapon> pendingWeaponSelection_;
     bool pendingWeaponUpgrade_{};
     bool pendingBombThrow_{};
     bool pendingInteract_{};
@@ -349,6 +356,24 @@ class App {
         buildingShotRecoilVisuals_;
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
+    double coinHudBounceRemaining_{};
+    double displayedInsight_{-1.0};
+    double insightPulseRemaining_{};
+    double insightPulseDuration_{0.55};
+    double insightGainAmount_{};
+    double insightGainRemaining_{};
+    double insightGainDuration_{0.8};
+    double insightPointSequenceRemaining_{};
+    double insightPointSequenceDuration_{0.48};
+    double insightAnimationBefore_{};
+    double insightAnimationAfter_{};
+    double insightAnimationRequirement_{100.0};
+    int insightAnimationPoints_{};
+    std::unordered_map<std::string, double>
+        objectiveProgressCache_;
+    std::string objectivePulseId_;
+    double objectivePulseRemaining_{};
+    double objectivePulseDuration_{0.55};
     std::optional<EntityId> hoveredResource_;
     std::optional<EntityId> interactionResourceAim_;
     std::optional<EntityId> hoveredBuilding_;
@@ -401,6 +426,7 @@ class App {
     bool showSpatialHash_{};
     bool showTerrainWireframe_{};
     bool performanceOverlayVisible_{};
+    bool objectiveDebugMenuVisible_{};
     AppPerformanceStats performanceStats_{};
     enum class BuildModePieChoice {
         Buildings,
@@ -416,7 +442,10 @@ class App {
     float buildHotbarSelectionAlpha_{};
     float foundationHotbarSelectionPosition_{};
     float foundationHotbarSelectionAlpha_{};
+    float weaponHotbarSelectionPosition_{};
+    float weaponHotbarSelectionAlpha_{1.0F};
     float minimapExpansion_{};
+    bool minimapHidden_{};
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};

@@ -208,6 +208,32 @@ void App::drawWorldEntities(
             visual.rotation, WHITE, visual.scale,
             surfaceNormal);
     }
+    for (const CoinPickup& coin : snapshot.coinPickups) {
+        const float deltaX =
+            static_cast<float>(coin.position.x) - camera.position.x;
+        const float deltaZ =
+            static_cast<float>(coin.position.z) - camera.position.z;
+        if (deltaX * deltaX + deltaZ * deltaZ > 3600.0F) {
+            continue;
+        }
+        const float spawn = std::clamp(
+            static_cast<float>(coin.age / 0.14), 0.0F, 1.0F);
+        const float pop =
+            spawn < 1.0F
+                ? spawn + std::sin(spawn * PI) * 0.22F
+                : 1.0F;
+        const float magnetStretch = coin.magnetized
+            ? 1.0F + std::min(
+                  0.18F,
+                  static_cast<float>(coin.magnetTime) * 0.55F)
+            : 1.0F;
+        renderer_->drawCoin(
+            {static_cast<float>(coin.position.x),
+             static_cast<float>(coin.position.y),
+             static_cast<float>(coin.position.z)},
+            static_cast<float>(coin.spinPhase + coin.age * 8.5),
+            pop * magnetStretch);
+    }
     renderer_->beginWorldShader(lighting);
     for (const DestroyedResourceVisual& visual :
          destroyedResourceVisuals_) {
@@ -781,6 +807,14 @@ void App::drawWorldEntities(
                 width = 0.72F;
                 height = 1.0F;
                 body = {102, 71, 167, 255};
+            } else if (enemy.type == EnemyType::Splitter) {
+                width = 1.45F;
+                height = 2.35F;
+                body = {67, 154, 73, 255};
+            } else if (enemy.type == EnemyType::Splitling) {
+                width = 0.65F;
+                height = 1.05F;
+                body = {82, 190, 91, 255};
         }
         if (aimed) {
             body = {242, 118, 76, 255};

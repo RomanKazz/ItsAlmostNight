@@ -15,6 +15,7 @@ enum class PresentationEffectType {
     ResourceDestroyedWood,
     ResourceDestroyedStone,
     Explosion,
+    SplitBurst,
     IceImpact,
     IceCrack,
     Debris,
