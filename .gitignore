@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /tmp/
 /.cache/
 .DS_Store
