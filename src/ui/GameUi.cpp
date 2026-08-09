@@ -7,6 +7,7 @@
 #include <raygui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace ian {
