@@ -195,7 +195,21 @@ int main() {
         }
         if (!hasTexturedRenderableMesh(
                 resources.potionLootModel()) ||
-            !hasTexturedRenderableMesh(resources.coinModel()) ||
+            !hasTexturedRenderableMesh(resources.coinModel(0)) ||
+            !hasTexturedRenderableMesh(resources.coinModel(1)) ||
+            !hasTexturedRenderableMesh(resources.coinModel(2)) ||
+            !hasTexturedRenderableMesh(
+                resources.destructiblePropModel(0)) ||
+            !hasTexturedRenderableMesh(
+                resources.destructiblePropModel(1)) ||
+            !hasTexturedRenderableMesh(
+                resources.destructiblePropModel(2)) ||
+            !hasTexturedRenderableMesh(
+                resources.decorativeBushModel(6)) ||
+            !hasTexturedRenderableMesh(
+                resources.decorativeBushModel(7)) ||
+            !hasTexturedRenderableMesh(
+                resources.decorativeBushModel(8)) ||
             !hasTexturedRenderableMesh(resources.enemyRogueModel()) ||
             !hasTexturedRenderableMesh(resources.enemyWarriorModel())) {
             std::cerr << "item model has no valid albedo texture\n";

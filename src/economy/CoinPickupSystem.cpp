@@ -14,9 +14,11 @@ constexpr double Pi = 3.14159265358979323846;
 constexpr double Gravity = 18.0;
 // Fitted coin plus its expanded outline has a vertical radius near 0.23.
 // Keep a little slope clearance so the shell never cuts into terrain.
-constexpr double GroundOffset = 0.30;
-constexpr double CollisionRadius = 0.20;
-constexpr double MagnetDelay = 0.16;
+constexpr double GroundOffset = 0.40;
+constexpr double CollisionRadius = 0.28;
+// A reward must first burst outward and complete its readable bounce. Only
+// then may the magnet pull it toward a nearby player.
+constexpr double MagnetDelay = 0.85;
 constexpr double MaximumLifetime = 50.0;
 
 std::uint64_t mixBits(std::uint64_t value) {
@@ -76,13 +78,13 @@ void CoinPickupSystem::spawnValue(
                                0x9e3779b97f4a7c15ULL);
         const double angle = unitRandom(coinSeed) * Pi * 2.0;
         const double horizontalSpeed =
-            1.35 + unitRandom(coinSeed ^ 0x5f356495ULL) * 2.15;
+            2.35 + unitRandom(coinSeed ^ 0x5f356495ULL) * 2.45;
         pickups_.push_back({
             .id = nextId_++,
             .position = position,
             .velocity = {
                 std::cos(angle) * horizontalSpeed,
-                3.8 + unitRandom(coinSeed ^ 0xa13fc965ULL) * 2.2,
+                4.2 + unitRandom(coinSeed ^ 0xa13fc965ULL) * 2.4,
                 std::sin(angle) * horizontalSpeed,
             },
             .age = 0.0,

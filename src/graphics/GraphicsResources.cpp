@@ -953,11 +953,11 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
     coinModels_[2].load("assets/models/coins/coin-gold.glb");
     destructiblePropModels_[0].load(
-        "assets/models/destructibles/barrel.glb");
+        "assets/models/destructibles/barrel/barrel.glb");
     destructiblePropModels_[1].load(
-        "assets/models/destructibles/crate.glb");
+        "assets/models/destructibles/crates/crate.glb");
     destructiblePropModels_[2].load(
-        "assets/models/destructibles/crate-item.glb");
+        "assets/models/destructibles/crates/crate-item.glb");
     appleLootModel_.load("assets/models/items/apple.glb");
     breadLootModel_.load("assets/models/items/bread.glb");
     ironBarLootModel_.load(

@@ -48,7 +48,7 @@ std::pair<double, double> resourceVisualTransform(
         ? 0.80 + scaleRoll * 0.45
         : type == ResourceType::Stone
             ? 0.90 + scaleRoll * 0.20
-            : 0.88 + scaleRoll * 0.22;
+            : (0.88 + scaleRoll * 0.22) * 1.40;
     return {yaw, scale};
 }
 

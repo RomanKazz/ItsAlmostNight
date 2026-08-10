@@ -62,6 +62,20 @@ void runCoinPickupSystemTests() {
         "coin rewards decompose into gold, silver and bronze values");
 
     coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 10, 314U, terrain);
+    for (int frame = 0; frame < 30; ++frame) {
+        static_cast<void>(coins.tick(
+            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain, collision));
+    }
+    const ian::CoinPickup& burstingCoin = coins.pickups().front();
+    require(
+        !burstingCoin.magnetized &&
+            std::hypot(
+                burstingCoin.position.x,
+                burstingCoin.position.z) > 0.5,
+        "new coins burst outward before player magnet attraction begins");
+
+    coins.reset();
     coins.spawn(
         {0.0, 0.0, 0.0},
         static_cast<int>(ian::CoinPickupSystem::MaximumPickups + 20U),

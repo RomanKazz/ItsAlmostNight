@@ -1237,7 +1237,10 @@ void Renderer::drawCoin(
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
     rlRotatef(8.0F, 0.0F, 0.0F, 1.0F);
-    rlScalef(scale * 0.86F, scale * 0.86F, scale * 0.86F);
+    constexpr float NewCoinScale = 1.40F;
+    rlScalef(scale * 0.86F * NewCoinScale,
+             scale * 0.86F * NewCoinScale,
+             scale * 0.86F * NewCoinScale);
     if (resource.valid()) {
         Model& model = resource.get();
         Shader shader{
