@@ -80,7 +80,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .playerGrounded = playerGrounded_,
         .playerHorizontalVelocity =
             playerHorizontalVelocity_,
-        .dashUnlocked = skillTree_.hasEffect(SkillEffect::Dash),
+        .dashUnlocked = skillTree_.hasEffect("dash.unlock"),
         .dashing = dashRemaining_ > 0.0,
         .dashCooldownRemaining = dashCooldownRemaining_,
         .dashCooldownDuration = 0.90,
@@ -228,26 +228,24 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .coreLevel = core ? core->level : static_cast<std::uint8_t>(0),
         .unlimitedResources = unlimitedResources_,
         .playerInvulnerable = playerInvulnerable_,
-        .automaticToolSwitch = skillTree_.hasEffect(
-            SkillEffect::AutoSwitchTools),
-        .holdToGather = skillTree_.hasEffect(
-            SkillEffect::HoldToGather),
+        .automaticToolSwitch = true,
+        .holdToGather = true,
         .unlockedWeapons = {
             true,
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockAxe),
+                skillTree_.hasEffect("unlock.axe"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockPickaxe),
+                skillTree_.hasEffect("unlock.pickaxe"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockClub),
+                skillTree_.hasEffect("unlock.club"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockIceWand),
+                skillTree_.hasEffect("unlock.ice_wand"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockFireWand),
+                skillTree_.hasEffect("unlock.fire_wand"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockHammer),
+                skillTree_.hasEffect("unlock.hammer"),
             unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockRifle),
+                skillTree_.hasEffect("unlock.rifle"),
         },
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = heldDamage,
@@ -260,7 +258,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .rifleReloadDuration = playerWeapons_.reloadDuration(),
         .bombsRemaining = unlimitedResources_
             ? std::numeric_limits<int>::max()
-            : skillTree_.hasEffect(SkillEffect::UnlockBombs)
+            : skillTree_.hasEffect("unlock.bombs")
                 ? bombs_.remainingBombs()
                 : 0,
         .waveCompletionReward = saturatingMultiplyNonNegative(

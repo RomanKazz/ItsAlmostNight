@@ -43,26 +43,21 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     const SkillPurchaseError result = skillTree_.purchase(
         index, !unlimitedResources_);
     if (result != SkillPurchaseError::None) return result;
-    const SkillEffect effect = skillTree_.nodes()[index].effect;
-    switch (effect) {
-    case SkillEffect::UnlockAxe: playerWeapons_.selectWeapon(PlayerWeapon::Axe); break;
-    case SkillEffect::UnlockPickaxe: playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe); break;
-    case SkillEffect::UnlockClub: playerWeapons_.selectWeapon(PlayerWeapon::Club); break;
-    case SkillEffect::UnlockIceWand: playerWeapons_.selectWeapon(PlayerWeapon::IceWand); break;
-    case SkillEffect::UnlockFireWand: playerWeapons_.selectWeapon(PlayerWeapon::FireWand); break;
-    case SkillEffect::UnlockHammer: playerWeapons_.selectWeapon(PlayerWeapon::Hammer); break;
-    case SkillEffect::UnlockRifle: playerWeapons_.selectWeapon(PlayerWeapon::Rifle); break;
-    case SkillEffect::AutoSwitchTools: break;
-    case SkillEffect::HoldToGather: break;
-    case SkillEffect::NightlyChest: break;
-    case SkillEffect::PowerSwing: break;
-    case SkillEffect::SafeDelivery: break;
-    case SkillEffect::FieldRepairs: break;
-    case SkillEffect::UnlockBombs: break;
-    case SkillEffect::LightFootwork: break;
-    case SkillEffect::Dash: break;
-    case SkillEffect::BareHands: break;
-    }
+    const auto nodeHas = [&](std::string_view key) {
+        return std::ranges::any_of(
+            skillTree_.nodes()[index].effects,
+            [key](const SkillEffectDefinition& effect) {
+                return effect.key == key && effect.value != 0.0;
+            });
+    };
+    if (nodeHas("unlock.axe")) playerWeapons_.selectWeapon(PlayerWeapon::Axe);
+    else if (nodeHas("unlock.pickaxe")) playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
+    else if (nodeHas("unlock.club")) playerWeapons_.selectWeapon(PlayerWeapon::Club);
+    else if (nodeHas("unlock.ice_wand")) playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
+    else if (nodeHas("unlock.fire_wand")) playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
+    else if (nodeHas("unlock.hammer")) playerWeapons_.selectWeapon(PlayerWeapon::Hammer);
+    else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+    refreshSkillRuntimeEffects();
     selectedBuilding_.reset();
     buildingPreview_.reset();
     events_.push_back({.type = GameEventType::SkillUnlocked,
@@ -85,6 +80,7 @@ bool Simulation::loadSkillTreeState(const SkillTreeRunState& state) {
     if (!skillTree_.loadState(state)) return false;
     invalidateSnapshotCache();
     playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+    refreshSkillRuntimeEffects();
     return true;
 }
 
@@ -106,7 +102,51 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
     insightRewardedEnemyIds_.clear();
     invalidateSnapshotCache();
     playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+    refreshSkillRuntimeEffects();
     return true;
+}
+
+void Simulation::refreshSkillRuntimeEffects() {
+    const auto multiplier = [this](std::string_view key) {
+        return std::max(0.05, 1.0 + skillTree_.effectValue(key));
+    };
+    goldMines_.setProductionSpeedMultiplier(
+        productionSpeedMultiplier_ * multiplier("production.speed"));
+    lootChests_.setGoldCostMultiplier(
+        chestOpeningCostMultiplier_ * multiplier("loot.chest_cost"));
+    buildings_.setMaxHealthMultiplier(
+        buildingMaxHealthMultiplier_ * multiplier("building.health"));
+    foundations_.setMaxHealthMultiplier(
+        buildingMaxHealthMultiplier_ * multiplier("building.health"));
+
+    const double defenseDamage = multiplier("defense.damage");
+    const double highGround = multiplier("defense.high_ground_damage");
+    towers_.setSkillModifiers(
+        defenseDamage * multiplier("tower.damage"),
+        multiplier("tower.range"), multiplier("tower.fire_rate"),
+        highGround);
+    cannons_.setSkillModifiers(
+        defenseDamage * multiplier("cannon.damage"),
+        multiplier("cannon.radius"), multiplier("cannon.fire_rate"),
+        highGround);
+    traps_.setSkillModifiers(
+        defenseDamage * multiplier("trap.damage"),
+        multiplier("trap.radius"), multiplier("trap.fire_rate"),
+        highGround);
+    playerWeapons_.setRifleSkillModifiers(
+        multiplier("rifle.damage"), multiplier("rifle.range"),
+        multiplier("rifle.fire_rate"),
+        static_cast<int>(std::lround(
+            skillTree_.effectValue("rifle.magazine"))));
+    const double playerDamage = multiplier("player.damage");
+    iceWand_.setSkillModifiers(
+        playerDamage * multiplier("ice.damage"), multiplier("ice.radius"),
+        multiplier("ice.freeze_duration"), 1.0, 0.0);
+    fireWand_.setSkillModifiers(
+        playerDamage * multiplier("fire.damage"), multiplier("fire.radius"),
+        multiplier("fire.burn_duration"),
+        multiplier("fire.burn_damage"),
+        skillTree_.effectValue("element.thermal_shock"));
 }
 
 void Simulation::grantConfiguredInsight(
@@ -357,19 +397,19 @@ void Simulation::processInsightEvents(
 
 void Simulation::cycleUnlockedTool() {
     std::vector<PlayerWeapon> tools{PlayerWeapon::BareHands};
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockAxe))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.axe"))
         tools.push_back(PlayerWeapon::Axe);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockPickaxe))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.pickaxe"))
         tools.push_back(PlayerWeapon::Pickaxe);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockClub))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.club"))
         tools.push_back(PlayerWeapon::Club);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockIceWand))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.ice_wand"))
         tools.push_back(PlayerWeapon::IceWand);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockFireWand))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.fire_wand"))
         tools.push_back(PlayerWeapon::FireWand);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockHammer))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.hammer"))
         tools.push_back(PlayerWeapon::Hammer);
-    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockRifle))
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.rifle"))
         tools.push_back(PlayerWeapon::Rifle);
     const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
     const std::size_t next = current == tools.end()

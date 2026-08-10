@@ -80,6 +80,7 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     }
     ++lootStacks_[lootUpgradeIndex(pickup.effect)];
+    refreshSkillRuntimeEffects();
     events_.push_back({
         .type = GameEventType::LootCollected,
         .entityId = pickup.lootId,

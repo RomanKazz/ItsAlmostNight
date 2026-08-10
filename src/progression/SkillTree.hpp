@@ -9,27 +9,15 @@
 
 namespace ian {
 
-enum class SkillBranch { Root, Gathering, Weapons, Construction, Movement };
-enum class SkillNodeSize { Small, Large };
-enum class SkillEffect {
-    BareHands,
-    UnlockAxe,
-    UnlockPickaxe,
-    UnlockClub,
-    UnlockIceWand,
-    UnlockFireWand,
-    UnlockHammer,
-    UnlockRifle,
-    AutoSwitchTools,
-    HoldToGather,
-    NightlyChest,
-    PowerSwing,
-    SafeDelivery,
-    FieldRepairs,
-    UnlockBombs,
-    LightFootwork,
-    Dash,
+enum class SkillBranch {
+    Root,
+    Gathering,
+    Weapons,
+    Construction,
+    Movement,
+    Economy,
 };
+enum class SkillNodeSize { Small, Large };
 enum class SkillNodeState { Hidden, Locked, Available, Unlocked };
 enum class SkillPurchaseError {
     None,
@@ -37,9 +25,19 @@ enum class SkillPurchaseError {
     AlreadyUnlocked,
     DependenciesLocked,
     InsufficientPoints,
+    MutuallyExclusive,
 };
 
 struct SkillTreePoint { float x{}; float y{}; };
+
+struct SkillEffectDefinition {
+    std::string key;
+    double value{1.0};
+
+    friend bool operator==(
+        const SkillEffectDefinition&,
+        const SkillEffectDefinition&) = default;
+};
 
 struct SkillNodeDefinition {
     std::string id;
@@ -50,7 +48,8 @@ struct SkillNodeDefinition {
     SkillTreePoint position;
     int cost{1};
     std::vector<std::string> prerequisites;
-    SkillEffect effect{SkillEffect::BareHands};
+    std::vector<SkillEffectDefinition> effects;
+    std::string exclusiveGroup;
     SkillNodeSize size{SkillNodeSize::Small};
 };
 
@@ -74,7 +73,9 @@ class SkillTree {
     void grantPoints(int amount);
     [[nodiscard]] int points() const;
     [[nodiscard]] bool isUnlocked(std::string_view id) const;
-    [[nodiscard]] bool hasEffect(SkillEffect effect) const;
+    [[nodiscard]] bool isExcluded(std::size_t index) const;
+    [[nodiscard]] bool hasEffect(std::string_view key) const;
+    [[nodiscard]] double effectValue(std::string_view key) const;
     [[nodiscard]] std::optional<std::size_t> indexOf(std::string_view id) const;
     [[nodiscard]] std::vector<std::size_t> childrenOf(std::string_view id) const;
     [[nodiscard]] int unlockedCount() const;
@@ -84,6 +85,8 @@ class SkillTree {
 
   private:
     [[nodiscard]] bool prerequisitesUnlocked(const SkillNodeDefinition& node) const;
+    [[nodiscard]] bool conflictsWithUnlocked(
+        const SkillNodeDefinition& node) const;
     std::vector<SkillNodeDefinition> nodes_;
     std::vector<bool> unlocked_;
     int points_{};
@@ -92,6 +95,5 @@ class SkillTree {
 [[nodiscard]] std::vector<SkillNodeDefinition> loadSkillTreeDefinitions(
     const std::filesystem::path& path);
 [[nodiscard]] std::string_view skillBranchName(SkillBranch branch);
-[[nodiscard]] std::string_view skillEffectName(SkillEffect effect);
 
 } // namespace ian

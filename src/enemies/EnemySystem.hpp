@@ -220,6 +220,7 @@ class EnemySystem {
         std::optional<EntityId> source, double duration,
         double intensity = 1.0,
         StatusEffectRules rules = {});
+    bool clearStatus(EntityId id, StatusEffectType type);
     std::span<const EntityId> applyStatusInRadius(
         Vec3 position, double radius, StatusEffectType type,
         std::optional<EntityId> source, double duration,

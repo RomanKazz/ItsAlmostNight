@@ -6,168 +6,109 @@
 
 void runSkillTreeTests() {
     ian::SkillTree tree;
-
     require(
         tree.state("bare_hands") == ian::SkillNodeState::Unlocked,
         "skill tree root starts unlocked");
     require(
-        tree.state("axe") ==
-            ian::SkillNodeState::Available,
+        tree.state("axe") == ian::SkillNodeState::Available,
         "root child starts available");
+
     const auto axe = tree.indexOf("axe");
     require(axe.has_value(), "axe node exists");
-    require(tree.purchase(*axe) == ian::SkillPurchaseError::InsufficientPoints,
-            "cost blocks purchase without points");
-
-    ian::SkillTree unlimitedTree;
-    const auto unlimitedAxe = unlimitedTree.indexOf("axe");
     require(
-        unlimitedAxe &&
-            unlimitedTree.purchase(*unlimitedAxe, false) ==
-                ian::SkillPurchaseError::None &&
-            unlimitedTree.points() == 0 &&
-            unlimitedTree.isUnlocked("axe"),
-        "free purchase unlocks a skill without consuming points");
-
+        tree.purchase(*axe) ==
+            ian::SkillPurchaseError::InsufficientPoints,
+        "cost blocks purchase without points");
     tree.grantPoints(1);
-    require(tree.purchase(*axe) == ian::SkillPurchaseError::None,
-            "available skill consumes point");
-    require(tree.points() == 0 && tree.hasEffect(ian::SkillEffect::UnlockAxe),
-            "purchase applies effect and cost");
-    require(tree.state("pickaxe") == ian::SkillNodeState::Available,
-            "siblings remain independently available");
     require(
-        tree.state("auto_switch_tools") ==
-            ian::SkillNodeState::Locked,
-        "automatic tool switching requires both gathering tools");
-    require(tree.state("rifle") == ian::SkillNodeState::Locked,
-            "rifle stays locked behind club");
+        tree.purchase(*axe) == ian::SkillPurchaseError::None &&
+            tree.hasEffect("unlock.axe") &&
+            tree.effectValue("unlock.axe") == 1.0,
+        "data-driven unlock effect activates after purchase");
 
-    tree.grantPoints(2);
+    tree.grantPoints(16);
     const auto pickaxe = tree.indexOf("pickaxe");
-    const auto autoSwitch = tree.indexOf("auto_switch_tools");
+    const auto efficient = tree.indexOf("efficient_strikes");
+    const auto handsOn = tree.indexOf("hands_on");
+    const auto industrialist = tree.indexOf("industrialist");
     require(
-        pickaxe && autoSwitch &&
-            tree.purchase(*pickaxe) ==
-                ian::SkillPurchaseError::None &&
-            tree.state(*autoSwitch) ==
-                ian::SkillNodeState::Available &&
-            tree.purchase(*autoSwitch) ==
-                ian::SkillPurchaseError::None &&
-            tree.hasEffect(
-                ian::SkillEffect::AutoSwitchTools),
-        "axe and pickaxe converge into automatic tool switching");
+        pickaxe && efficient && handsOn && industrialist &&
+            tree.purchase(*pickaxe) == ian::SkillPurchaseError::None &&
+            tree.purchase(*efficient) == ian::SkillPurchaseError::None &&
+            tree.purchase(*handsOn) == ian::SkillPurchaseError::None,
+        "gathering doctrine prerequisites unlock in order");
+    requireNear(
+        tree.effectValue("gather.damage"), 0.70, 1e-9,
+        "multiple data-driven modifiers accumulate");
     require(
-        tree.state("hold_to_gather") ==
-            ian::SkillNodeState::Available,
-        "hold gathering unlocks after Smart Tools");
-    tree.grantPoints(1);
-    const auto holdToGather = tree.indexOf("hold_to_gather");
+        tree.state(*industrialist) == ian::SkillNodeState::Locked &&
+            tree.isExcluded(*industrialist) &&
+            tree.purchase(*industrialist) ==
+                ian::SkillPurchaseError::MutuallyExclusive,
+        "choosing one doctrine permanently locks its alternative");
+
+    ian::SkillTree rifleTree;
+    rifleTree.grantPoints(10);
+    const auto rifle = rifleTree.indexOf("rifle");
+    const auto marksman = rifleTree.indexOf("marksman");
+    const auto assault = rifleTree.indexOf("assault_rifle");
     require(
-        holdToGather &&
-            tree.purchase(*holdToGather) ==
+        rifle && marksman && assault &&
+            rifleTree.purchase(*rifle) ==
                 ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::HoldToGather),
-        "hold gathering node applies continuous gathering effect");
-    require(tree.state("power_swing") ==
-                ian::SkillNodeState::Available,
-            "Power Swing follows hold gathering");
-    tree.grantPoints(1);
-    const auto powerSwing = tree.indexOf("power_swing");
-    require(
-        powerSwing &&
-            tree.purchase(*powerSwing) ==
+            rifleTree.purchase(*marksman) ==
                 ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::PowerSwing),
-        "Power Swing applies radial gathering effect");
-    require(
-        tree.state("nightly_chest") ==
-            ian::SkillNodeState::Available,
-        "nightly chest branches directly from Bare Hands");
-    tree.grantPoints(1);
-    const auto nightlyChest = tree.indexOf("nightly_chest");
-    require(
-        nightlyChest &&
-            tree.purchase(*nightlyChest) ==
-                ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::NightlyChest),
-        "nightly chest node applies survived-night reward effect");
-    require(tree.state("safe_delivery") ==
-                ian::SkillNodeState::Available,
-            "Safe Delivery follows Night's Bounty");
-    tree.grantPoints(1);
-    const auto safeDelivery = tree.indexOf("safe_delivery");
-    require(
-        safeDelivery &&
-            tree.purchase(*safeDelivery) ==
-                ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::SafeDelivery),
-        "Safe Delivery applies nearby chest effect");
-    tree.grantPoints(4);
-    const auto club = tree.indexOf("club");
-    const auto bombs = tree.indexOf("bombs");
-    const auto hammer = tree.indexOf("hammer");
-    const auto fieldRepairs = tree.indexOf("field_repairs");
-    require(
-        club && bombs && hammer && fieldRepairs &&
-            tree.purchase(*club) ==
-                ian::SkillPurchaseError::None &&
-            tree.purchase(*bombs) ==
-                ian::SkillPurchaseError::None &&
-            tree.purchase(*hammer) ==
-                ian::SkillPurchaseError::None &&
-            tree.purchase(*fieldRepairs) ==
-                ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::UnlockBombs) &&
-            tree.hasEffect(ian::SkillEffect::FieldRepairs),
-        "combat and construction continuations unlock effects");
-    require(
-        tree.state("light_footwork") ==
-            ian::SkillNodeState::Available,
-        "movement branch starts at Bare Hands");
-    tree.grantPoints(3);
-    const auto lightFootwork = tree.indexOf("light_footwork");
-    const auto dash = tree.indexOf("dash");
-    require(
-        lightFootwork && dash &&
-            tree.purchase(*lightFootwork) ==
-                ian::SkillPurchaseError::None &&
-            tree.state(*dash) ==
-                ian::SkillNodeState::Available &&
-            tree.purchase(*dash) ==
-                ian::SkillPurchaseError::None &&
-            tree.hasEffect(ian::SkillEffect::LightFootwork) &&
-            tree.hasEffect(ian::SkillEffect::Dash) &&
-            tree.nodes()[*dash].size ==
-                ian::SkillNodeSize::Large,
-        "movement progression unlocks a large Dash node");
+            rifleTree.effectValue("rifle.damage") > 0.69 &&
+            rifleTree.purchase(*assault) ==
+                ian::SkillPurchaseError::MutuallyExclusive,
+        "weapon specializations are functional and exclusive");
 
     ian::SkillTree dependent({
-        {"root", "ROOT", "", "root", ian::SkillBranch::Root, {0, 0}, 0, {}, ian::SkillEffect::BareHands},
-        {"child", "CHILD", "", "child", ian::SkillBranch::Weapons, {1, 0}, 2, {"root"}, ian::SkillEffect::UnlockClub},
-        {"leaf", "LEAF", "", "leaf", ian::SkillBranch::Weapons, {2, 0}, 1, {"child"}, ian::SkillEffect::UnlockHammer},
+        {.id = "root", .title = "ROOT", .icon = "root",
+         .branch = ian::SkillBranch::Root, .position = {0, 0},
+         .cost = 0},
+        {.id = "child", .title = "CHILD", .icon = "child",
+         .branch = ian::SkillBranch::Weapons, .position = {190, 0},
+         .cost = 2, .prerequisites = {"root"},
+         .effects = {{"test.value", 0.25}}},
+        {.id = "leaf", .title = "LEAF", .icon = "leaf",
+         .branch = ian::SkillBranch::Weapons, .position = {380, 0},
+         .cost = 1, .prerequisites = {"child"}},
     });
-    require(dependent.state("leaf") == ian::SkillNodeState::Locked,
-            "dependency keeps child locked");
-    dependent.grantPoints(3);
-    require(dependent.purchase(*dependent.indexOf("child")) == ian::SkillPurchaseError::None &&
-                dependent.points() == 1 && dependent.state("leaf") == ian::SkillNodeState::Available,
-            "point grant, cost, and dependency transition work");
-
-    const auto saved = tree.saveState();
-    ian::SkillTree loaded;
-    require(loaded.loadState(saved) && loaded.isUnlocked("axe"),
-            "run state restores unlocked nodes");
-    ian::SkillTree legacyLoaded;
     require(
-        legacyLoaded.loadState({
-            .points = 0,
-            .unlockedNodeIds = {"bare_hands", "axe"},
-        }) &&
-            legacyLoaded.isUnlocked("axe") &&
-            legacyLoaded.state("auto_switch_tools") ==
+        dependent.state("leaf") == ian::SkillNodeState::Locked,
+        "dependency keeps leaf locked");
+    dependent.grantPoints(3);
+    require(
+        dependent.purchase(*dependent.indexOf("child")) ==
+                ian::SkillPurchaseError::None &&
+            dependent.points() == 1 &&
+            dependent.state("leaf") ==
+                ian::SkillNodeState::Available &&
+            dependent.effectValue("test.value") == 0.25,
+        "generic effect works without adding a C++ enum value");
+
+    const auto saved = rifleTree.saveState();
+    ian::SkillTree loaded;
+    require(
+        loaded.loadState(saved) && loaded.isUnlocked("marksman") &&
+            loaded.state("assault_rifle") ==
                 ian::SkillNodeState::Locked,
-        "older saves remain valid after adding automatic tool switching");
+        "run state restores effects and exclusion choices");
+
+    ian::SkillTree migrated;
+    require(
+        migrated.loadState({
+            .points = 0,
+            .unlockedNodeIds = {
+                "bare_hands", "axe", "pickaxe",
+                "auto_switch_tools", "hold_to_gather",
+                "power_swing",
+            },
+        }) &&
+            migrated.isUnlocked("efficient_strikes") &&
+            migrated.isUnlocked("power_swing"),
+        "retired convenience nodes migrate without breaking old runs");
 
 #ifdef IAN_SOURCE_DIR
     const auto definitions = ian::loadSkillTreeDefinitions(
@@ -176,41 +117,32 @@ void runSkillTreeTests() {
         return std::ranges::find(
             definitions, id, &ian::SkillNodeDefinition::id);
     };
-    const auto powerDefinition = definitionById("power_swing");
-    const auto bombDefinition = definitionById("bombs");
-    const auto fireDefinition = definitionById("fire_wand");
-    const auto repairDefinition = definitionById("field_repairs");
-    const auto safeDefinition = definitionById("safe_delivery");
-    const auto dashDefinition = definitionById("dash");
-    require(definitions.size() == 17 &&
-                definitions.front().icon == "placeholder_hands" &&
-                definitions[3].prerequisites ==
-                    std::vector<std::string>{"axe", "pickaxe"} &&
-                definitions[4].id == "hold_to_gather" &&
-                definitions[4].prerequisites ==
-                    std::vector<std::string>{"auto_switch_tools"} &&
-                powerDefinition != definitions.end() &&
-                bombDefinition != definitions.end() &&
-                fireDefinition != definitions.end() &&
-                fireDefinition->effect ==
-                    ian::SkillEffect::UnlockFireWand &&
-                repairDefinition != definitions.end() &&
-                safeDefinition != definitions.end() &&
-                dashDefinition != definitions.end() &&
-                dashDefinition->size ==
-                    ian::SkillNodeSize::Large &&
-                safeDefinition->prerequisites ==
-                    std::vector<std::string>{"nightly_chest"} &&
-                std::ranges::all_of(
-                    definitions,
-                    [](const ian::SkillNodeDefinition& node) {
-                        return std::fmod(node.position.x, 190.0F) == 0.0F &&
-                               std::fmod(node.position.y, 190.0F) == 0.0F;
-                    }),
-            "data-driven skill definitions load from JSON");
+    const auto thermal = definitionById("thermal_shock");
+    const auto dash = definitionById("dash");
+    const auto contract = definitionById("mercenary_contract");
+    require(
+        definitions.size() == 47 &&
+            definitionById("auto_switch_tools") == definitions.end() &&
+            definitionById("hold_to_gather") == definitions.end() &&
+            thermal != definitions.end() &&
+            thermal->effects.size() == 1 &&
+            thermal->effects.front().key ==
+                "element.thermal_shock" &&
+            dash != definitions.end() &&
+            dash->size == ian::SkillNodeSize::Large &&
+            contract != definitions.end() &&
+            contract->exclusiveGroup == "early_contract" &&
+            std::ranges::all_of(
+                definitions,
+                [](const ian::SkillNodeDefinition& node) {
+                    return std::fmod(node.position.x, 190.0F) == 0.0F &&
+                           std::fmod(node.position.y, 190.0F) == 0.0F;
+                }),
+        "expanded data-driven tree loads on a clean grid");
 #endif
 
     tree.reset();
-    require(tree.unlockedCount() == 1,
-            "reset preserves only the root unlock");
+    require(
+        tree.unlockedCount() == 1,
+        "reset preserves only the root unlock");
 }

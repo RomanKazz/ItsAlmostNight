@@ -56,6 +56,8 @@ Color branchColor(SkillBranch branch) {
         return {224, 104, 92, 255};
     case SkillBranch::Movement:
         return {91, 187, 235, 255};
+    case SkillBranch::Economy:
+        return {237, 203, 92, 255};
     case SkillBranch::Root:
         return {199, 145, 240, 255};
     }
@@ -580,6 +582,9 @@ void SkillTreeScreen::drawDetails(const GameUi& ui) const {
         if (!unlimitedPoints_ && tree_->points() < node.cost)
             status += "  •  NOT ENOUGH POINTS";
         statusColor = {236, 205, 120, 255};
+    } else if (tree_->isExcluded(*details)) {
+        status = "LOCKED  •  MUTUALLY EXCLUSIVE CHOICE";
+        statusColor = {214, 111, 101, 255};
     } else {
         status = "LOCKED  •  DISCOVER PREVIOUS LEAVES";
     }

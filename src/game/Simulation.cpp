@@ -317,6 +317,7 @@ void Simulation::resetRun(GameEventType eventType) {
     goldMines_.setProductionSpeedMultiplier(1.0);
     goldMines_.setWoodYieldMultiplier(1.0);
     lootChests_.setGoldCostMultiplier(1.0);
+    refreshSkillRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;
     wave_ = 0;

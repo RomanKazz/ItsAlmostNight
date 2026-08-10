@@ -64,6 +64,15 @@ void TowerSystem::reset() {
     shotBuffer_.clear();
 }
 
+void TowerSystem::setSkillModifiers(
+    double damage, double range, double fireRate,
+    double highGroundDamage) {
+    damageMultiplier_ = std::max(0.05, damage);
+    rangeMultiplier_ = std::max(0.05, range);
+    fireRateMultiplier_ = std::max(0.05, fireRate);
+    highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+}
+
 void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
     std::erase_if(towers_, [&buildings](const TowerRuntime& tower) {
         return std::none_of(buildings.begin(), buildings.end(),
@@ -108,13 +117,17 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         tower.targetSearchCooldownRemaining =
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
         const Vec3 origin = towerPosition(*building);
-        const double range = attackRange(building->level);
+        const double range = attackRange(building->level) *
+            rangeMultiplier_;
         const double towerBonus = building->anvilStacks > 0
             ? 1.0 + 0.10 * building->anvilStacks
             : building->anvilEnhanced ? 1.10 : 1.0;
+        const double heightBonus = building->platformStorey > 0
+            ? highGroundDamageMultiplier_ : 1.0;
         const double damage = attackDamage(building->level) *
-            towerBonus;
-        const double shotInterval = fireInterval(building->level);
+            towerBonus * damageMultiplier_ * heightBonus;
+        const double shotInterval = fireInterval(building->level) /
+            fireRateMultiplier_;
 
         if (tower.targetId) {
             const auto target = enemies.enemy(*tower.targetId);

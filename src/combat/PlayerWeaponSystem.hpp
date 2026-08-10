@@ -126,6 +126,8 @@ class PlayerWeaponSystem {
         RifleBalanceDefinition definition = GameBalance::defaults().weapons.rifle);
 
     void reset();
+    void setRifleSkillModifiers(double damage, double range,
+                                double fireRate, int magazineBonus);
     void selectWeapon(PlayerWeapon weapon);
     void tick(double deltaSeconds);
     std::optional<WeaponFireResult> fireRifle(
@@ -155,6 +157,10 @@ class PlayerWeaponSystem {
     int ammunition_{};
     double fireCooldownRemaining_{};
     double reloadRemaining_{};
+    double rifleDamageMultiplier_{1.0};
+    double rifleRangeMultiplier_{1.0};
+    double rifleFireRateMultiplier_{1.0};
+    int rifleMagazineBonus_{};
 };
 
 } // namespace ian

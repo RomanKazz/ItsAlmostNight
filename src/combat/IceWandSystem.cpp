@@ -113,6 +113,16 @@ void IceWandSystem::reset() {
     charging_ = false;
 }
 
+void IceWandSystem::setSkillModifiers(
+    double damage, double radius, double statusDuration,
+    double burnDamage, double thermalShockDamage) {
+    damageMultiplier_ = std::max(0.05, damage);
+    radiusMultiplier_ = std::max(0.05, radius);
+    statusDurationMultiplier_ = std::max(0.05, statusDuration);
+    burnDamageMultiplier_ = std::max(0.05, burnDamage);
+    thermalShockDamage_ = std::max(0.0, thermalShockDamage);
+}
+
 bool IceWandSystem::requestFire(Vec3 origin, Vec3 direction) {
     if (charging_ || cooldownRemaining_ > 0.0) {
         return false;
@@ -243,7 +253,7 @@ double IceWandSystem::cooldownRemaining() const {
 }
 
 double IceWandSystem::directDamage() const {
-    return definition_.directDamage;
+    return definition_.directDamage * damageMultiplier_;
 }
 
 double IceWandSystem::maximumRange() const {
@@ -252,7 +262,7 @@ double IceWandSystem::maximumRange() const {
 
 double IceWandSystem::burnDuration() const {
     return element_ == WandElement::Fire
-        ? fireDefinition_.burnDuration
+        ? fireDefinition_.burnDuration * statusDurationMultiplier_
         : 0.0;
 }
 
@@ -431,6 +441,8 @@ void IceWandSystem::impactProjectile(
     int killedCount = 0;
     const auto recordDamage = [&](const EnemyDamageResult& result) {
         const auto currentEnemy = enemies.enemy(result.id);
+        const bool frozenBeforeHit = currentEnemy &&
+            enemyHasStatus(*currentEnemy, StatusEffectType::Freeze);
         const bool alreadyAffected = element_ == WandElement::Ice
             ? currentEnemy && enemyHasStatus(
                   *currentEnemy, StatusEffectType::Freeze)
@@ -443,12 +455,22 @@ void IceWandSystem::impactProjectile(
         if (!result.killed && element_ == WandElement::Ice) {
             (void)enemies.applyStatus(
                 result.id, StatusEffectType::Freeze, projectile.id,
-                definition_.freezeDuration, 1.0,
+                definition_.freezeDuration *
+                    statusDurationMultiplier_, 1.0,
                 StatusEffectRules{
                     .eliteDurationMultiplier = definition_.eliteFreezeMultiplier,
                     .bossSlowAmount = definition_.bossSlowAmount,
                 });
         } else if (!result.killed) {
+            if (frozenBeforeHit && thermalShockDamage_ > 0.0 &&
+                enemies.clearStatus(
+                    result.id, StatusEffectType::Freeze)) {
+                if (const auto thermal = enemies.damage(
+                        result.id, thermalShockDamage_)) {
+                    recordHit(projectile, *thermal, true);
+                    if (thermal->killed) ++killedCount;
+                }
+            }
             applyBurn(result.id, projectile.id, enemies);
         }
     };
@@ -457,15 +479,18 @@ void IceWandSystem::impactProjectile(
     // direct hit may spawn Splitlings; those children belong to the result of
     // this impact and must not be picked up by its own subsequent AoE query.
     const auto splash = enemies.damageInRadius(
-        impactPosition, definition_.explosionRadius,
-        definition_.directDamage * definition_.areaDamageMultiplier,
+        impactPosition,
+        definition_.explosionRadius * radiusMultiplier_,
+        definition_.directDamage * damageMultiplier_ *
+            definition_.areaDamageMultiplier,
         0.0, std::nullopt, 0.0, directTarget);
     for (const auto& result : splash) {
         recordDamage(result);
     }
     if (directTarget) {
         if (const auto direct = enemies.damage(
-                *directTarget, definition_.directDamage)) {
+                *directTarget,
+                definition_.directDamage * damageMultiplier_)) {
             recordDamage(*direct);
         }
     }
@@ -523,6 +548,7 @@ void IceWandSystem::updateBurning(
                activeDelta > 0.0) {
             const double damage =
                 fireDefinition_.burnDamagePerSecond *
+                burnDamageMultiplier_ *
                 fireDefinition_.burnTickInterval;
             const auto result = enemies.damage(burning.enemyId, damage);
             if (!result) {
@@ -576,7 +602,8 @@ void IceWandSystem::applyBurn(
     const bool newlyBurning = !available->active;
     available->enemyId = enemyId;
     available->sourceProjectileId = sourceProjectileId;
-    available->remaining = fireDefinition_.burnDuration;
+    available->remaining = fireDefinition_.burnDuration *
+        statusDurationMultiplier_;
     available->tickRemaining = newlyBurning
         ? fireDefinition_.burnTickInterval
         : std::min(

@@ -15,6 +15,19 @@ void PlayerWeaponSystem::reset() {
     reloadRemaining_ = 0.0;
 }
 
+void PlayerWeaponSystem::setRifleSkillModifiers(
+    double damage, double range, double fireRate,
+    int magazineBonus) {
+    const int previousMagazine = magazineSize();
+    rifleDamageMultiplier_ = std::max(0.05, damage);
+    rifleRangeMultiplier_ = std::max(0.05, range);
+    rifleFireRateMultiplier_ = std::max(0.05, fireRate);
+    rifleMagazineBonus_ = std::max(0, magazineBonus);
+    ammunition_ = std::clamp(
+        ammunition_ + magazineSize() - previousMagazine,
+        0, magazineSize());
+}
+
 void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) { selectedWeapon_ = weapon; }
 
 void PlayerWeaponSystem::tick(double deltaSeconds) {
@@ -117,18 +130,20 @@ int PlayerWeaponSystem::upgradeGoldCost() const {
 }
 
 double PlayerWeaponSystem::rifleRange() const {
-    return definition_.range;
+    return definition_.range * rifleRangeMultiplier_;
 }
 
 double PlayerWeaponSystem::rifleDamage() const {
-    return definition_.damage +
-           definition_.damagePerLevel * static_cast<double>(rifleLevel_ - 1);
+    return (definition_.damage +
+            definition_.damagePerLevel * static_cast<double>(rifleLevel_ - 1)) *
+        rifleDamageMultiplier_;
 }
 
 double PlayerWeaponSystem::fireInterval() const {
     return definition_.fireInterval /
-           (1.0 + definition_.fireRateBonusPerLevel *
-                      static_cast<double>(rifleLevel_ - 1));
+           ((1.0 + definition_.fireRateBonusPerLevel *
+                       static_cast<double>(rifleLevel_ - 1)) *
+            rifleFireRateMultiplier_);
 }
 
 double PlayerWeaponSystem::reloadDuration() const {
@@ -138,7 +153,8 @@ double PlayerWeaponSystem::reloadDuration() const {
 
 int PlayerWeaponSystem::magazineSize() const {
     return definition_.magazineSize +
-           definition_.magazineBonusPerLevel * (rifleLevel_ - 1);
+           definition_.magazineBonusPerLevel * (rifleLevel_ - 1) +
+           rifleMagazineBonus_;
 }
 
 int PlayerWeaponSystem::ammunition() const {

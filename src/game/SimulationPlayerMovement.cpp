@@ -77,14 +77,19 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
         (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
-        playerMoveSpeedMultiplier_ *
+        playerMoveSpeedMultiplier_ * std::max(
+            0.05, 1.0 + skillTree_.effectValue("player.move_speed")) *
         terrain_.waterMovementMultiplier(
             playerPosition_.x, playerPosition_.z);
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
 
     const bool dashUnlocked =
-        skillTree_.hasEffect(SkillEffect::Dash);
+        skillTree_.hasEffect("dash.unlock");
+    const double dashSpeedMultiplier = std::max(
+        0.05, 1.0 + skillTree_.effectValue("dash.speed"));
+    const double dashRecoveryMultiplier = std::max(
+        0.05, 1.0 + skillTree_.effectValue("dash.cooldown"));
     if (command.dash && dashUnlocked &&
         dashCooldownRemaining_ <= 0.0 &&
         dashRemaining_ <= 0.0) {
@@ -96,17 +101,40 @@ void Simulation::updatePlayer(double deltaSeconds,
         dashDirection_.x /= length;
         dashDirection_.z /= length;
         dashRemaining_ = DashDuration;
-        dashCooldownRemaining_ = DashCooldown;
+        dashCooldownRemaining_ = DashCooldown /
+            dashRecoveryMultiplier;
         playerHorizontalVelocity_ = {
-            dashDirection_.x * DashStartSpeed,
+            dashDirection_.x * DashStartSpeed * dashSpeedMultiplier,
             0.0,
-            dashDirection_.z * DashStartSpeed,
+            dashDirection_.z * DashStartSpeed * dashSpeedMultiplier,
         };
         events_.push_back({
             .type = GameEventType::PlayerDashed,
             .position = playerPosition_,
             .intensity = 1.0,
         });
+        const double impactDamage = skillTree_.effectValue(
+            "dash.impact_damage");
+        if (impactDamage > 0.0) {
+            const auto hits = enemies_.damageInRadius(
+                playerPosition_, 1.8, impactDamage, 5.0,
+                playerPosition_);
+            for (const EnemyDamageResult& hit : hits) {
+                events_.push_back({
+                    .type = GameEventType::ProjectileHit,
+                    .entityId = hit.id,
+                    .position = hit.position,
+                    .damage = hit.damage,
+                });
+                if (hit.killed) {
+                    events_.push_back({
+                        .type = GameEventType::EnemyKilled,
+                        .entityId = hit.id,
+                        .position = hit.position,
+                    });
+                }
+            }
+        }
     }
 
     const bool dashing = dashRemaining_ > 0.0;
@@ -144,10 +172,8 @@ void Simulation::updatePlayer(double deltaSeconds,
         velocityChangeRate *=
             hasMovementInput ? 0.55 : 0.35;
     }
-    if (skillTree_.hasEffect(SkillEffect::LightFootwork)) {
-        constexpr double LightFootworkResponseMultiplier = 1.55;
-        velocityChangeRate *= LightFootworkResponseMultiplier;
-    }
+    velocityChangeRate *= std::max(
+        0.05, 1.0 + skillTree_.effectValue("player.acceleration"));
     if (!hasMovementInput &&
         autoJumpAssistRemaining_ > 0.0) {
         velocityChangeRate = 0.0;
@@ -157,7 +183,8 @@ void Simulation::updatePlayer(double deltaSeconds,
             1.0 - dashRemaining_ / DashDuration, 0.0, 1.0);
         const double ease = progress * progress;
         const double dashSpeed =
-            DashStartSpeed + (DashEndSpeed - DashStartSpeed) * ease;
+            (DashStartSpeed + (DashEndSpeed - DashStartSpeed) * ease) *
+            dashSpeedMultiplier;
         const double waterScale = std::sqrt(
             terrain_.waterMovementMultiplier(
                 playerPosition_.x, playerPosition_.z));

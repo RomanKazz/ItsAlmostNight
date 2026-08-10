@@ -2044,6 +2044,19 @@ bool EnemySystem::applyStatus(
     return true;
 }
 
+bool EnemySystem::clearStatus(
+    EntityId id, StatusEffectType type) {
+    EnemyInstance* enemy = findEnemy(id);
+    if (enemy == nullptr || !enemy->active) return false;
+    EnemyStatusEffect& status =
+        enemy->statusEffects[statusEffectIndex(type)];
+    const bool active = status.remaining > 0.0;
+    status.remaining = 0.0;
+    status.immunityRemaining = 0.0;
+    status.visualParameter = 0.0;
+    return active;
+}
+
 std::span<const EntityId> EnemySystem::applyStatusInRadius(
     Vec3 position, double radius, StatusEffectType type,
     std::optional<EntityId> source, double duration,

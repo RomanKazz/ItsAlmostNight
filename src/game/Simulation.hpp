@@ -459,6 +459,7 @@ class Simulation {
         BuildingType type, int blueprintStackOrdinal);
     void grantBlueprintInsightForExistingBuildings(
         int blueprintStackOrdinal);
+    void refreshSkillRuntimeEffects();
     [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};

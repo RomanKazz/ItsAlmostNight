@@ -47,6 +47,8 @@ class TrapSystem {
     [[nodiscard]] static double spikeCooldown(std::uint8_t level);
 
     void reset();
+    void setSkillModifiers(double damage, double radius,
+                           double fireRate, double highGroundDamage);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TrapActivation> tick(double deltaSeconds,
                                          const std::vector<BuildingInstance>& buildings,
@@ -58,6 +60,10 @@ class TrapSystem {
     std::vector<TrapRuntime> traps_;
     std::vector<TrapActivation> activationBuffer_;
     std::vector<TrapHit> hitBuffer_;
+    double damageMultiplier_{1.0};
+    double radiusMultiplier_{1.0};
+    double fireRateMultiplier_{1.0};
+    double highGroundDamageMultiplier_{1.0};
 };
 
 } // namespace ian

@@ -47,20 +47,45 @@ void runSimulationTests() {
         earlySimulation.grantLootUpgrade(
             ian::LootUpgradeEffect::Hourglass,
             ian::LootRarity::Rare);
+        const int hourglassBonus =
+            earlySimulation.snapshot().earlyWaveBonus;
+        const int hourglassCoins =
+            earlySimulation.snapshot().earlyWaveCoinBonus;
+        const int hourglassInsight =
+            earlySimulation.snapshot().earlyWaveInsightBonus;
+        require(hourglassBonus > 0,
+                "preparation HUD advertises an early-wave bonus");
+        require(
+            hourglassCoins == hourglassBonus &&
+                hourglassInsight == hourglassBonus,
+            "Hourglass converts early-wave time into Gold and Insight");
+
+        earlySimulation.grantSkillPoints(
+            4, ian::SkillPointSource::Event);
+        constexpr std::array<const char*, 3> EarlyPlanningPath{{
+            "nightly_chest", "safe_delivery", "early_planning",
+        }};
+        bool unlockedEarlyPlanning = true;
+        for (const char* id : EarlyPlanningPath) {
+            const auto skill = earlySimulation.skillTree().indexOf(id);
+            unlockedEarlyPlanning = unlockedEarlyPlanning && skill &&
+                earlySimulation.purchaseSkill(*skill) ==
+                    ian::SkillPurchaseError::None;
+        }
         const int advertisedBonus =
             earlySimulation.snapshot().earlyWaveBonus;
         const int advertisedCoins =
             earlySimulation.snapshot().earlyWaveCoinBonus;
         const int advertisedInsight =
             earlySimulation.snapshot().earlyWaveInsightBonus;
+        require(
+            unlockedEarlyPlanning &&
+                advertisedBonus > hourglassBonus &&
+                advertisedCoins > advertisedBonus &&
+                advertisedInsight == advertisedCoins,
+            "Early Planning adds a data-driven reward source and multiplier");
         const double insightBeforeEarlyStart =
             earlySimulation.snapshot().currentInsight;
-        require(advertisedBonus > 0,
-                "preparation HUD advertises an early-wave bonus");
-        require(
-            advertisedCoins == advertisedBonus &&
-                advertisedInsight == advertisedBonus,
-            "Hourglass converts early-wave time into Gold and Insight");
         ian::PlayerCommand startEarly;
         startEarly.startWaveEarly =
             ian::StartWaveEarlyCommand{};
@@ -617,24 +642,24 @@ void runSimulationTests() {
         ian::Simulation automaticTools;
         automaticTools.startRun();
         automaticTools.grantSkillPoints(
-            3, ian::SkillPointSource::Event);
+            2, ian::SkillPointSource::Event);
         const auto axe =
             automaticTools.skillTree().indexOf("axe");
         const auto pickaxe =
             automaticTools.skillTree().indexOf("pickaxe");
-        const auto autoSwitch =
-            automaticTools.skillTree().indexOf(
-                "auto_switch_tools");
         require(
-            axe && pickaxe && autoSwitch &&
+            axe && pickaxe &&
                 automaticTools.purchaseSkill(*axe) ==
                     ian::SkillPurchaseError::None &&
                 automaticTools.purchaseSkill(*pickaxe) ==
-                    ian::SkillPurchaseError::None &&
-                automaticTools.purchaseSkill(*autoSwitch) ==
                     ian::SkillPurchaseError::None,
-            "automatic tool switch fixture unlocks converged skill");
+            "automatic tool switch fixture unlocks both tools");
         const auto snapshot = automaticTools.snapshot();
+        require(
+            snapshot.automaticToolSwitch && snapshot.holdToGather &&
+                !automaticTools.skillTree().indexOf("auto_switch_tools") &&
+                !automaticTools.skillTree().indexOf("hold_to_gather"),
+            "Smart Tools and Hold to Harvest are base mechanics");
         const auto wood = std::find_if(
             snapshot.resourceNodes.begin(),
             snapshot.resourceNodes.end(),
@@ -682,17 +707,8 @@ void runSimulationTests() {
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
             "automatic tools cannot cancel building mode");
-        const auto holdToGather =
-            automaticTools.skillTree().indexOf(
-                "hold_to_gather");
-        automaticTools.grantSkillPoints(
-            1, ian::SkillPointSource::Event);
-        require(
-            holdToGather &&
-                automaticTools.purchaseSkill(*holdToGather) ==
-                    ian::SkillPurchaseError::None &&
-                automaticTools.snapshot().holdToGather,
-            "hold gathering skill reaches gameplay snapshot");
+        require(automaticTools.snapshot().holdToGather,
+                "building mode does not disable base hold gathering");
     }
     {
         auto powerBalance = ian::GameBalance::defaults();
@@ -711,9 +727,8 @@ void runSimulationTests() {
         powerSwing.startRun();
         powerSwing.grantSkillPoints(
             5, ian::SkillPointSource::Event);
-        constexpr std::array<const char*, 5> PowerSkills{{
-            "axe", "pickaxe", "auto_switch_tools",
-            "hold_to_gather", "power_swing",
+        constexpr std::array<const char*, 4> PowerSkills{{
+            "axe", "pickaxe", "efficient_strikes", "power_swing",
         }};
         bool unlockedPowerPath = true;
         for (const char* id : PowerSkills) {
@@ -748,11 +763,11 @@ void runSimulationTests() {
             powerSwing.snapshot().resourceNodes;
         requireNear(
             afterPowerSwing[0].health,
-            primaryHealth - 3.0, 1e-12,
+            primaryHealth - 3.75, 1e-12,
             "three gathering hits damage primary resource three times");
         requireNear(
             afterPowerSwing[1].health,
-            nearbyHealth - 1.0, 1e-12,
+            nearbyHealth - 1.25, 1e-12,
             "third Power Swing damages nearby resource once");
     }
     {
@@ -829,12 +844,16 @@ void runSimulationTests() {
             });
         require(
             pickaxeHit != hitEvents.end(),
-            "pickaxe can damage wood instead of rejecting the target");
+            "Smart Tools routes a wood hit through the unlocked axe");
         requireNear(
             pickaxeHit->damage,
-            inefficientBalance.gameplay.pickaxeDamage * 0.30,
+            inefficientBalance.gameplay.pickaxeDamage,
             1e-12,
-            "pickaxe chops wood at thirty percent efficiency");
+            "Smart Tools avoids wrong-tool efficiency loss");
+        require(
+            inefficientTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Axe,
+            "Smart Tools visibly selects the correct unlocked tool");
     }
     {
         auto bareHandsBalance = ian::GameBalance::defaults();
@@ -843,19 +862,17 @@ void runSimulationTests() {
         ian::Simulation bareHandsTools{bareHandsBalance};
         bareHandsTools.startRun();
         bareHandsTools.grantSkillPoints(
-            3, ian::SkillPointSource::Event);
+            2, ian::SkillPointSource::Event);
         const auto axe = bareHandsTools.skillTree().indexOf("axe");
         const auto pickaxe = bareHandsTools.skillTree().indexOf("pickaxe");
-        const auto autoSwitch =
-            bareHandsTools.skillTree().indexOf("auto_switch_tools");
-        require(axe && pickaxe && autoSwitch &&
+        require(axe && pickaxe &&
                     bareHandsTools.purchaseSkill(*axe) ==
                         ian::SkillPurchaseError::None &&
                     bareHandsTools.purchaseSkill(*pickaxe) ==
-                        ian::SkillPurchaseError::None &&
-                    bareHandsTools.purchaseSkill(*autoSwitch) ==
                         ian::SkillPurchaseError::None,
-                "bare-hands Smart Tools fixture unlocks gathering skills");
+                "bare-hands Smart Tools fixture unlocks gathering tools");
+        require(bareHandsTools.snapshot().automaticToolSwitch,
+                "Smart Tools remains active in Bare Hands mode");
         // Unlocking pickaxe leaves it selected; the next weapon-cycle input
         // returns to the explicit Bare Hands mode without creating a
         // virtual tool.
@@ -2168,6 +2185,8 @@ void runSimulationTests() {
     for (const ian::PlayerWeapon expected : GodModeTools) {
         ian::PlayerCommand cycle;
         cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        cycle.overrideAimedResource = true;
+        cycle.aimedResourceOverride.reset();
         simulation.tick(1.0 / 60.0, cycle);
         require(simulation.snapshot().selectedWeapon == expected,
                 "god mode weapon cycle includes every tool and weapon");
@@ -2195,8 +2214,8 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, godModeAimStone);
     require(
         simulation.snapshot().selectedWeapon ==
-            ian::PlayerWeapon::Axe,
-        "god mode resource aim does not override the manually selected tool");
+            ian::PlayerWeapon::Pickaxe,
+        "base Smart Tools also selects the correct tool in god mode");
     const auto godModeAxeSkill =
         simulation.skillTree().indexOf("axe");
     require(

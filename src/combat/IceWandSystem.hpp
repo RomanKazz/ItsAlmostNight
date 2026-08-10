@@ -67,6 +67,9 @@ class IceWandSystem {
     explicit IceWandSystem(FireWandBalanceDefinition definition);
 
     void reset();
+    void setSkillModifiers(double damage, double radius,
+                           double statusDuration, double burnDamage,
+                           double thermalShockDamage);
     bool requestFire(Vec3 origin, Vec3 direction);
     void tick(double deltaSeconds, EnemySystem& enemies,
               const TerrainHeightfield* terrain,
@@ -145,6 +148,11 @@ class IceWandSystem {
     Vec3 chargeOrigin_{};
     Vec3 chargeDirection_{0.0, 0.0, -1.0};
     bool charging_{};
+    double damageMultiplier_{1.0};
+    double radiusMultiplier_{1.0};
+    double statusDurationMultiplier_{1.0};
+    double burnDamageMultiplier_{1.0};
+    double thermalShockDamage_{};
 };
 
 } // namespace ian

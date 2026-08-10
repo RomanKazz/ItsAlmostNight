@@ -35,6 +35,8 @@ class TowerSystem {
     [[nodiscard]] static double fireInterval(std::uint8_t level);
 
     void reset();
+    void setSkillModifiers(double damage, double range,
+                           double fireRate, double highGroundDamage);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TowerShot> tick(double deltaSeconds,
                                     const std::vector<BuildingInstance>& buildings,
@@ -45,6 +47,10 @@ class TowerSystem {
   private:
     std::vector<TowerRuntime> towers_;
     std::vector<TowerShot> shotBuffer_;
+    double damageMultiplier_{1.0};
+    double rangeMultiplier_{1.0};
+    double fireRateMultiplier_{1.0};
+    double highGroundDamageMultiplier_{1.0};
 };
 
 } // namespace ian

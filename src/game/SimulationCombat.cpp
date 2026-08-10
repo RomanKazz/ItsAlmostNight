@@ -24,21 +24,38 @@ int Simulation::earlyWaveBonus() const {
         phaseTimeRemaining_ <= 0.0) {
         return 0;
     }
-    return remainingTimeUnits(phaseTimeRemaining_);
+    return static_cast<int>(std::lround(
+        static_cast<double>(remainingTimeUnits(phaseTimeRemaining_)) *
+        std::max(0.0, 1.0 +
+            skillTree_.effectValue("early.base_bonus"))));
 }
 
 int Simulation::earlyWaveCoinBonus() const {
+    if (skillTree_.effectValue("early.gold") <= -0.99) return 0;
     const int hourglassStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
-    return saturatingMultiplyNonNegative(
-        earlyWaveBonus(), hourglassStacks);
+    const int rewardSources = hourglassStacks +
+        (skillTree_.hasEffect("early.base_bonus") ? 1 : 0);
+    const double multiplier = std::max(
+        0.0, 1.0 + skillTree_.effectValue("early.base_bonus") +
+            skillTree_.effectValue("early.gold"));
+    return static_cast<int>(std::lround(
+        static_cast<double>(remainingTimeUnits(phaseTimeRemaining_)) *
+        static_cast<double>(rewardSources) * multiplier));
 }
 
 int Simulation::earlyWaveInsightBonus() const {
+    if (skillTree_.effectValue("early.insight") <= -0.99) return 0;
     const int hourglassStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
-    return saturatingMultiplyNonNegative(
-        earlyWaveBonus(), hourglassStacks);
+    const int rewardSources = hourglassStacks +
+        (skillTree_.hasEffect("early.base_bonus") ? 1 : 0);
+    const double multiplier = std::max(
+        0.0, 1.0 + skillTree_.effectValue("early.base_bonus") +
+        skillTree_.effectValue("early.insight"));
+    return static_cast<int>(std::lround(
+        static_cast<double>(remainingTimeUnits(phaseTimeRemaining_)) *
+        static_cast<double>(rewardSources) * multiplier));
 }
 
 void Simulation::updateRunPhase(

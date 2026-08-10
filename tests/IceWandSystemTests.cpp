@@ -86,6 +86,41 @@ void runIceWandSystemTests() {
         expectedBurnDamage, 1e-9,
         "fire wand burn deals configured total damage over its duration");
 
+    ian::EnemySystem thermalEnemies;
+    thermalEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
+        {ian::EnemyType::Heavy, {0.0, 1.0, -2.0}},
+    }});
+    ian::IceWandSystem thermalIce{balance};
+    require(
+        thermalIce.requestFire(
+            {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}),
+        "thermal shock fixture launches ice first");
+    thermalIce.tick(0.12, thermalEnemies, nullptr, {});
+    require(
+        ian::enemyHasStatus(
+            thermalEnemies.enemies().front(),
+            ian::StatusEffectType::Freeze),
+        "thermal shock fixture freezes its target");
+    const double healthBeforeThermal =
+        thermalEnemies.enemies().front().health;
+    ian::IceWandSystem thermalFire{fireBalance};
+    thermalFire.setSkillModifiers(1.0, 1.0, 1.0, 1.0, 5.0);
+    require(
+        thermalFire.requestFire(
+            {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}),
+        "thermal shock fixture launches fire second");
+    thermalFire.tick(0.12, thermalEnemies, nullptr, {});
+    require(
+        !ian::enemyHasStatus(
+            thermalEnemies.enemies().front(),
+            ian::StatusEffectType::Freeze),
+        "fire consumes Freeze during thermal shock");
+    require(
+        !thermalEnemies.enemies().front().active ||
+            thermalEnemies.enemies().front().health <=
+                healthBeforeThermal - 5.0,
+        "thermal shock adds burst damage to the fire impact");
+
     ian::EnemySystem bossEnemies;
     bossEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
         {ian::EnemyType::Boss, {0.0, 1.2, -2.0}},

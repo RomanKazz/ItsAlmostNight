@@ -52,6 +52,15 @@ void TrapSystem::reset() {
     hitBuffer_.clear();
 }
 
+void TrapSystem::setSkillModifiers(
+    double damage, double radius, double fireRate,
+    double highGroundDamage) {
+    damageMultiplier_ = std::max(0.05, damage);
+    radiusMultiplier_ = std::max(0.05, radius);
+    fireRateMultiplier_ = std::max(0.05, fireRate);
+    highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+}
+
 void TrapSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
     std::erase_if(traps_, [&buildings](const TrapRuntime& trap) {
         return std::none_of(buildings.begin(), buildings.end(),
@@ -100,9 +109,13 @@ std::span<const TrapActivation> TrapSystem::tick(
         const double levelBonus = static_cast<double>(building->level - 1);
         int affectedCount = 0;
         if (building->type == BuildingType::SpikeTrap) {
+            const double heightBonus = building->platformStorey > 0
+                ? highGroundDamageMultiplier_ : 1.0;
             const auto hits = enemies.damageInRadius(
-                position, spikeTriggerRadius(building->level),
-                spikeDamage(building->level));
+                position, spikeTriggerRadius(building->level) *
+                    radiusMultiplier_,
+                spikeDamage(building->level) * damageMultiplier_ *
+                    heightBonus);
             affectedCount = static_cast<int>(hits.size());
             for (const EnemyDamageResult& hit : hits) {
                 hitBuffer_.push_back({trap.buildingId, hit});
@@ -111,18 +124,21 @@ std::span<const TrapActivation> TrapSystem::tick(
                 continue;
             }
             trap.activationRemaining = SpikeAnimationDuration;
-            trap.cooldownRemaining = spikeCooldown(building->level);
+            trap.cooldownRemaining = spikeCooldown(building->level) /
+                fireRateMultiplier_;
         } else {
             const double multiplier =
                 1.0 - slowPercent(building->level) / 100.0;
             const auto affected = enemies.applySlowInRadius(
-                position, triggerRadius(building->level), multiplier,
+                position, triggerRadius(building->level) *
+                    radiusMultiplier_, multiplier,
                 slowDuration(building->level));
             affectedCount = static_cast<int>(affected.size());
             if (affectedCount == 0) {
                 continue;
             }
-            trap.cooldownRemaining = cooldown(building->level);
+            trap.cooldownRemaining = cooldown(building->level) /
+                fireRateMultiplier_;
         }
         activationBuffer_.push_back({
             .trapId = trap.buildingId,

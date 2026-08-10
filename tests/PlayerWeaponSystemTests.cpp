@@ -110,4 +110,34 @@ void runPlayerWeaponSystemTests() {
         origin, direction, boostedTargets, 5.0);
     require(boostedShot && boostedShot->killed,
             "loot damage multiplier applies to rifle hits");
+
+    ian::PlayerWeaponSystem specializedWeapon;
+    const double specializedBaseDamage =
+        specializedWeapon.rifleDamage();
+    const double specializedBaseRange =
+        specializedWeapon.rifleRange();
+    const double specializedBaseInterval =
+        specializedWeapon.fireInterval();
+    const int specializedBaseMagazine =
+        specializedWeapon.magazineSize();
+    specializedWeapon.setRifleSkillModifiers(
+        1.70, 1.35, 0.70, 4);
+    requireNear(
+        specializedWeapon.rifleDamage(),
+        specializedBaseDamage * 1.70, 1e-12,
+        "data-driven rifle specialization changes damage");
+    requireNear(
+        specializedWeapon.rifleRange(),
+        specializedBaseRange * 1.35, 1e-12,
+        "data-driven rifle specialization changes range");
+    requireNear(
+        specializedWeapon.fireInterval(),
+        specializedBaseInterval / 0.70, 1e-12,
+        "negative fire-rate specialization slows rifle cadence");
+    require(
+        specializedWeapon.magazineSize() ==
+                specializedBaseMagazine + 4 &&
+            specializedWeapon.ammunition() ==
+                specializedBaseMagazine + 4,
+        "magazine modifiers expand both capacity and current ammunition");
 }

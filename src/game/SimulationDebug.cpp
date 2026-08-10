@@ -53,19 +53,19 @@ void Simulation::processDebugCommands(
             const bool stillUnlocked =
                 selected == PlayerWeapon::BareHands ||
                 (selected == PlayerWeapon::Axe &&
-                 skillTree_.hasEffect(SkillEffect::UnlockAxe)) ||
+                 skillTree_.hasEffect("unlock.axe")) ||
                 (selected == PlayerWeapon::Pickaxe &&
-                 skillTree_.hasEffect(SkillEffect::UnlockPickaxe)) ||
+                 skillTree_.hasEffect("unlock.pickaxe")) ||
                 (selected == PlayerWeapon::Club &&
-                 skillTree_.hasEffect(SkillEffect::UnlockClub)) ||
+                 skillTree_.hasEffect("unlock.club")) ||
                 (selected == PlayerWeapon::IceWand &&
-                 skillTree_.hasEffect(SkillEffect::UnlockIceWand)) ||
+                 skillTree_.hasEffect("unlock.ice_wand")) ||
                 (selected == PlayerWeapon::FireWand &&
-                 skillTree_.hasEffect(SkillEffect::UnlockFireWand)) ||
+                 skillTree_.hasEffect("unlock.fire_wand")) ||
                 (selected == PlayerWeapon::Hammer &&
-                 skillTree_.hasEffect(SkillEffect::UnlockHammer)) ||
+                 skillTree_.hasEffect("unlock.hammer")) ||
                 (selected == PlayerWeapon::Rifle &&
-                 skillTree_.hasEffect(SkillEffect::UnlockRifle));
+                 skillTree_.hasEffect("unlock.rifle"));
             if (!stillUnlocked) {
                 playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
             }
@@ -195,31 +195,31 @@ void Simulation::processDebugCommands(
         case PlayerWeapon::BareHands: break;
         case PlayerWeapon::Axe:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockAxe);
+                skillTree_.hasEffect("unlock.axe");
             break;
         case PlayerWeapon::Pickaxe:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockPickaxe);
+                skillTree_.hasEffect("unlock.pickaxe");
             break;
         case PlayerWeapon::Club:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockClub);
+                skillTree_.hasEffect("unlock.club");
             break;
         case PlayerWeapon::IceWand:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockIceWand);
+                skillTree_.hasEffect("unlock.ice_wand");
             break;
         case PlayerWeapon::FireWand:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockFireWand);
+                skillTree_.hasEffect("unlock.fire_wand");
             break;
         case PlayerWeapon::Hammer:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockHammer);
+                skillTree_.hasEffect("unlock.hammer");
             break;
         case PlayerWeapon::Rifle:
             unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(SkillEffect::UnlockRifle);
+                skillTree_.hasEffect("unlock.rifle");
             break;
         }
         if (unlocked) {

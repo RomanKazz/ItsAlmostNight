@@ -76,6 +76,15 @@ void CannonSystem::reset() {
     shotBuffer_.clear();
 }
 
+void CannonSystem::setSkillModifiers(
+    double damage, double radius, double fireRate,
+    double highGroundDamage) {
+    damageMultiplier_ = std::max(0.05, damage);
+    radiusMultiplier_ = std::max(0.05, radius);
+    fireRateMultiplier_ = std::max(0.05, fireRate);
+    highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+}
+
 void CannonSystem::clearProjectiles() {
     for (auto& projectile : projectiles_) {
         projectile.active = false;
@@ -126,7 +135,8 @@ std::span<const CannonExplosion> CannonSystem::tick(
             std::max(0.0, cannon.targetSearchCooldownRemaining - deltaSeconds);
         const Vec3 origin = cannonPosition(*building);
         const double range = attackRange(building->level);
-        const double shotInterval = fireInterval(building->level);
+        const double shotInterval = fireInterval(building->level) /
+            fireRateMultiplier_;
         if (cannon.targetId) {
             const auto target = enemies.enemy(*cannon.targetId);
             if (!target) {
@@ -252,12 +262,15 @@ void CannonSystem::launch(const BuildingInstance& cannon, Vec3 targetPosition) {
     };
     projectile->fuseRemaining = flightTime;
     const double levelBonus = static_cast<double>(cannon.level - 1);
-    projectile->explosionRadius = explosionRadius(cannon.level);
+    projectile->explosionRadius = explosionRadius(cannon.level) *
+        radiusMultiplier_;
     const double towerBonus = cannon.anvilStacks > 0
         ? 1.0 + 0.10 * cannon.anvilStacks
         : cannon.anvilEnhanced ? 1.10 : 1.0;
+    const double heightBonus = cannon.platformStorey > 0
+        ? highGroundDamageMultiplier_ : 1.0;
     projectile->explosionDamage = explosionDamage(cannon.level) *
-        towerBonus;
+        towerBonus * damageMultiplier_ * heightBonus;
     projectile->explosionImpulse =
         BaseExplosionImpulse + 0.35 * levelBonus;
     projectile->active = true;

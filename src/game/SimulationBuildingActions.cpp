@@ -45,7 +45,7 @@ void Simulation::processBuildingActions(
 
     if (!selectedBuilding_ && command.repairBuilding) {
         if (!unlimitedResources_ &&
-            !skillTree_.hasEffect(SkillEffect::UnlockHammer)) {
+            !skillTree_.hasEffect("unlock.hammer")) {
             events_.push_back({
                 .type = GameEventType::BuildingRepairRejected,
                 .entityId = command.repairBuilding->buildingId,
