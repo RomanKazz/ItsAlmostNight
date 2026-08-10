@@ -159,6 +159,12 @@ void runSimulationTests() {
             smallFall.snapshot().playerHealth,
             smallFall.snapshot().playerMaxHealth, 1e-9,
             "small falls below safe speed deal no damage");
+        ian::Simulation oneStoreyFall =
+            fallingSimulation(3.5, false);
+        requireNear(
+            oneStoreyFall.snapshot().playerHealth,
+            oneStoreyFall.snapshot().playerMaxHealth, 1e-9,
+            "approximately one storey remains safe from fall damage");
         ian::Simulation fatalFall =
             fallingSimulation(12.0, false);
         require(

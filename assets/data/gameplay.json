@@ -9,7 +9,7 @@
   "playerMaxHealth": 100.0,
   "playerRespawnSeconds": 5.0,
   "playerDeathResourceLossFraction": 0.25,
-  "fallDamageSafeSpeed": 8.0,
+  "fallDamageSafeSpeed": 12.0,
   "fallDamagePerSpeedSquared": 3.5,
   "ropeFallDamageReduction": 0.45,
   "pickaxeRange": 4.0,

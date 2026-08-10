@@ -1341,7 +1341,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             static_cast<std::size_t>(index) < snapshot.objectives.size())
             ++objectiveCount;
     }
-    if (objectiveCount > 0 &&
+    if (!view.mapOverlayOpen &&
+        objectiveCount > 0 &&
         view.informationExpansion > 0.65F) {
         constexpr float ObjectiveX = 12.0F;
         constexpr float ObjectiveY = 374.0F;
@@ -1497,7 +1498,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             }
             ++row;
         }
-    } else if (objectiveCount > 0) {
+    } else if (!view.mapOverlayOpen &&
+               objectiveCount > 0) {
         const float screenMinimum = static_cast<float>(
             std::min(GetScreenWidth(), GetScreenHeight()));
         const float compactMapSize = std::clamp(
@@ -1591,9 +1593,11 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
-    drawLootInventory(
-        ui, snapshot, view.informationExpansion > 0.65F,
-        view.showCoreHealth);
+    if (!view.mapOverlayOpen) {
+        drawLootInventory(
+            ui, snapshot, false,
+            view.showCoreHealth);
+    }
 
     bool chestCompassVisible = false;
     if (snapshot.nearestChestPosition &&
@@ -1720,7 +1724,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
-    const std::string objective = tutorialText(snapshot);
+    const std::string objective = view.mapOverlayOpen
+        ? std::string{}
+        : tutorialText(snapshot);
     if (!objective.empty()) {
         const bool attackWarningVisible =
             snapshot.state == RunState::Sunset &&

@@ -31,6 +31,7 @@ struct HudViewState {
     float weaponHotbarSelectionPosition{};
     float weaponHotbarSelectionAlpha{};
     float informationExpansion{};
+    bool mapOverlayOpen{};
     bool minimapHidden{};
     bool showCoreHealth{};
     bool showBuildingContextCard{};

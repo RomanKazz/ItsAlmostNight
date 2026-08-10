@@ -711,6 +711,8 @@ void App::render() {
                         weaponHotbarSelectionAlpha_,
                     .informationExpansion =
                         minimapExpansion_,
+                    .mapOverlayOpen =
+                        minimapExpansion_ > 0.01F,
                     .minimapHidden = minimapHidden_,
                     .showCoreHealth =
                         presentationSnapshot.state == RunState::Wave ||

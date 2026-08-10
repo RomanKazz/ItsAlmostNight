@@ -276,7 +276,7 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .fallDamageSafeSpeed =
             value.value(
                 "fallDamageSafeSpeed",
-                value.at("jumpSpeed").get<double>() + 1.5),
+                value.at("jumpSpeed").get<double>() + 5.5),
         .fallDamagePerSpeedSquared =
             value.value("fallDamagePerSpeedSquared", 3.5),
         .ropeFallDamageReduction =
@@ -390,7 +390,7 @@ GameBalance GameBalance::defaults() {
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
-                     8.0, 3.5, 0.45, 4.0, 4.0,
+                     12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
                      120.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };
