@@ -166,6 +166,15 @@ const TextureResource& GraphicsResources::terrainTexture() const {
     return terrainTexture_;
 }
 
+TextureResource& GraphicsResources::skyboxTexture(std::size_t variant) {
+    return skyboxTextures_.at(variant);
+}
+
+const TextureResource& GraphicsResources::skyboxTexture(
+    std::size_t variant) const {
+    return skyboxTextures_.at(variant);
+}
+
 ModelResource& GraphicsResources::placeholderModel() {
     return placeholderModel_;
 }

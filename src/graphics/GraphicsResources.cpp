@@ -935,6 +935,20 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
         SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
     }
+    constexpr std::array<const char*, 3> SkyboxPaths{{
+        "assets/textures/skyboxes/day.png",
+        "assets/textures/skyboxes/morning.png",
+        "assets/textures/skyboxes/night.png",
+    }};
+    for (std::size_t index = 0; index < SkyboxPaths.size(); ++index) {
+        skyboxTextures_[index].load(SkyboxPaths[index]);
+        if (skyboxTextures_[index].valid()) {
+            Texture2D& texture = skyboxTextures_[index].get();
+            GenTextureMipmaps(&texture);
+            SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+            SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
+        }
+    }
     cannonModel_.load("assets/models/buildings/cannon.glb");
     cannonballModel_.load("assets/models/projectiles/cannonball.glb");
     arrowModel_.load("assets/models/projectiles/arrow.glb");
@@ -1256,6 +1270,7 @@ void GraphicsResources::shutdown() {
     cannonModel_.unload();
     placeholderModel_.unload();
     terrainTexture_.unload();
+    for (auto& texture : skyboxTextures_) texture.unload();
     fallbackTexture_.unload();
     upgradeEffectShader_.unload();
     iceMagicShader_.unload();

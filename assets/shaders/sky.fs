@@ -13,6 +13,10 @@ uniform vec3 celestialDirection;
 uniform vec3 celestialColor;
 uniform float celestialIntensity;
 uniform float nightAmount;
+uniform sampler2D daySkybox;
+uniform sampler2D morningSkybox;
+uniform sampler2D nightSkybox;
+uniform float skyboxEnabled;
 uniform float timeSeconds;
 uniform float exposure;
 uniform float saturation;
@@ -68,6 +72,21 @@ float cloudFbm(vec2 position)
     return result/1.011;
 }
 
+vec2 equirectangularCoordinates(vec3 direction)
+{
+    const float TwoPi = 6.28318530718;
+    const float Pi = 3.14159265359;
+    float longitude =
+        atan(direction.z, direction.x)/TwoPi + 0.5;
+    float celestialLongitude =
+        atan(celestialDirection.z, celestialDirection.x)/TwoPi + 0.5;
+    // Kenney's disc sits near U=0.92. Rotate the panorama so its dominant
+    // light follows the existing world-light azimuth and shadow direction.
+    float u = fract(longitude + 0.92 - celestialLongitude);
+    float v = acos(clamp(direction.y, -1.0, 1.0))/Pi;
+    return vec2(u, v);
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy/max(viewportSize, vec2(1.0));
@@ -92,6 +111,30 @@ void main()
     float lowerBlend = smoothstep(0.0, 0.42, -viewDirection.y);
     sky = mix(sky, lowerSkyColor, lowerBlend);
 
+    vec2 skyboxUv = equirectangularCoordinates(viewDirection);
+    vec3 authoredSky;
+    if (nightAmount <= 0.16) {
+        authoredSky = texture(daySkybox, skyboxUv).rgb;
+    } else if (nightAmount < 0.42) {
+        float blend = smoothstep(0.16, 0.42, nightAmount);
+        authoredSky = mix(
+            texture(daySkybox, skyboxUv).rgb,
+            texture(morningSkybox, skyboxUv).rgb, blend);
+    } else if (nightAmount <= 0.58) {
+        authoredSky = texture(morningSkybox, skyboxUv).rgb;
+    } else if (nightAmount < 0.90) {
+        float blend = smoothstep(0.58, 0.90, nightAmount);
+        authoredSky = mix(
+            texture(morningSkybox, skyboxUv).rgb,
+            texture(nightSkybox, skyboxUv).rgb, blend);
+    } else {
+        authoredSky = texture(nightSkybox, skyboxUv).rgb;
+    }
+    // Retain a little procedural color underneath. This ties the authored
+    // panorama to fog/time profiles and prevents harsh profile transitions.
+    sky = mix(sky, authoredSky, skyboxEnabled*0.88);
+    float proceduralDetail = mix(1.0, 0.18, skyboxEnabled);
+
     float celestialAlignment =
         dot(viewDirection, normalize(celestialDirection));
     float dayCelestial = 1.0 - smoothstep(0.48, 0.92, nightAmount);
@@ -103,10 +146,10 @@ void main()
         dayCelestial*0.38);
     sky += warmDiscColor*
         (broadHalo*0.055 + innerHalo*0.17)*
-        celestialIntensity;
+        celestialIntensity*proceduralDetail;
     sky = mix(
         sky, warmDiscColor*(1.05 + celestialIntensity*0.12),
-        disc*mix(0.72, 0.94, dayCelestial));
+        disc*mix(0.72, 0.94, dayCelestial)*proceduralDetail);
 
     vec3 starCoordinates = cubeStarCoordinates(viewDirection);
     vec2 starGrid = starCoordinates.xy*68.0;
@@ -148,7 +191,7 @@ void main()
         hash21(starCell + faceOffset + vec2(8.2, 73.1)));
     sky += starColor*
         (starCore*1.45 + starGlow*0.22)*
-        twinkle*starVisibility;
+        twinkle*starVisibility*proceduralDetail;
 
     // A faint galactic band gives the night sky large-scale structure behind
     // the stars without making the ground brighter.
@@ -165,13 +208,14 @@ void main()
     sky += mix(
         vec3(0.16, 0.24, 0.48),
         vec3(0.42, 0.22, 0.58),
-        galacticDust)*galaxy*0.16;
+        galacticDust)*galaxy*0.16*proceduralDetail;
 
     // A cold lunar halo keeps the moon readable through the richer sky.
     float lunarNight = smoothstep(0.42, 0.90, nightAmount);
     float lunarHalo = pow(
         max(celestialAlignment, 0.0), 24.0)*lunarNight;
-    sky += vec3(0.40, 0.58, 1.0)*lunarHalo*0.14;
+    sky += vec3(0.40, 0.58, 1.0)*lunarHalo*0.14*
+        proceduralDetail;
 
     // Layered northern curtains. Azimuth is evaluated only inside the north
     // mask, keeping the atan seam behind the camera.
@@ -234,9 +278,10 @@ void main()
         auroraColor, auroraViolet,
         smoothstep(0.38, 0.68, elevation)*
         (0.26 + secondWarp*0.48));
-    sky += auroraColor*aurora*0.88;
+    float authoredAuroraScale = mix(1.0, 0.58, skyboxEnabled);
+    sky += auroraColor*aurora*0.88*authoredAuroraScale;
     sky += auroraBlue*auroraVeil*
-        auroraNight*auroraNorth*0.12;
+        auroraNight*auroraNorth*0.12*authoredAuroraScale;
 
     sky *= exposure;
     float luminance = dot(sky, vec3(0.2126, 0.7152, 0.0722));

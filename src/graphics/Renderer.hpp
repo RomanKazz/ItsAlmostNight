@@ -504,6 +504,10 @@ class Renderer {
         int celestialColor{-1};
         int celestialIntensity{-1};
         int nightAmount{-1};
+        int daySkybox{-1};
+        int morningSkybox{-1};
+        int nightSkybox{-1};
+        int skyboxEnabled{-1};
         int timeSeconds{-1};
         int exposure{-1};
         int saturation{-1};

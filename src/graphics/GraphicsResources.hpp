@@ -227,6 +227,9 @@ class GraphicsResources {
     [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
+    [[nodiscard]] TextureResource& skyboxTexture(std::size_t variant);
+    [[nodiscard]] const TextureResource& skyboxTexture(
+        std::size_t variant) const;
     [[nodiscard]] ModelResource& placeholderModel();
     [[nodiscard]] ModelResource& cannonModel();
     [[nodiscard]] ModelResource& cannonballModel();
@@ -337,6 +340,7 @@ class GraphicsResources {
     ShaderResource coinOutlineShader_;
     TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
+    std::array<TextureResource, 3> skyboxTextures_;
     ModelResource placeholderModel_;
     ModelResource cannonModel_;
     ModelResource cannonballModel_;

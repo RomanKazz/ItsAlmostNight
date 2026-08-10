@@ -170,6 +170,9 @@ int main() {
             !resources.iceWandModel().valid() ||
             !resources.iceMagicShader().valid() ||
             !resources.coinOutlineShader().valid() ||
+            !resources.skyboxTexture(0).valid() ||
+            !resources.skyboxTexture(1).valid() ||
+            !resources.skyboxTexture(2).valid() ||
             !resources.woodenChestModel().valid() ||
             !resources.stoneChestModel().valid() ||
             !resources.coinModel(0).valid() ||
@@ -223,6 +226,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        renderer.beginWorldPass(BLACK);
+        renderer.drawSky(ian::SkyState{});
+        renderer.endWorldPass();
+        EndDrawing();
         BeginDrawing();
         ClearBackground(BLACK);
         const Camera3D camera{

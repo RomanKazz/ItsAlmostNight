@@ -81,6 +81,31 @@ void Renderer::drawSky(const SkyState& sky) {
                    &sky.celestialIntensity, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, skyShaderLocations_.nightAmount,
                    &sky.nightAmount, SHADER_UNIFORM_FLOAT);
+    const bool skyboxesReady =
+        resources_.skyboxTexture(0).valid() &&
+        resources_.skyboxTexture(1).valid() &&
+        resources_.skyboxTexture(2).valid();
+    const float skyboxEnabled = skyboxesReady ? 1.0F : 0.0F;
+    SetShaderValue(shader, skyShaderLocations_.skyboxEnabled,
+                   &skyboxEnabled, SHADER_UNIFORM_FLOAT);
+    constexpr int DaySkyboxSlot = 6;
+    constexpr int MorningSkyboxSlot = 7;
+    constexpr int NightSkyboxSlot = 8;
+    if (skyboxesReady) {
+        SetShaderValue(shader, skyShaderLocations_.daySkybox,
+                       &DaySkyboxSlot, SHADER_UNIFORM_INT);
+        SetShaderValue(shader, skyShaderLocations_.morningSkybox,
+                       &MorningSkyboxSlot, SHADER_UNIFORM_INT);
+        SetShaderValue(shader, skyShaderLocations_.nightSkybox,
+                       &NightSkyboxSlot, SHADER_UNIFORM_INT);
+        rlActiveTextureSlot(DaySkyboxSlot);
+        rlEnableTexture(resources_.skyboxTexture(0).get().id);
+        rlActiveTextureSlot(MorningSkyboxSlot);
+        rlEnableTexture(resources_.skyboxTexture(1).get().id);
+        rlActiveTextureSlot(NightSkyboxSlot);
+        rlEnableTexture(resources_.skyboxTexture(2).get().id);
+        rlActiveTextureSlot(0);
+    }
     SetShaderValue(shader, skyShaderLocations_.timeSeconds,
                    &sky.timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, skyShaderLocations_.exposure,
@@ -95,6 +120,15 @@ void Renderer::drawSky(const SkyState& sky) {
     rlDrawRenderBatchActive();
     rlEnableColorBlend();
     EndShaderMode();
+    if (skyboxesReady) {
+        rlActiveTextureSlot(DaySkyboxSlot);
+        rlDisableTexture();
+        rlActiveTextureSlot(MorningSkyboxSlot);
+        rlDisableTexture();
+        rlActiveTextureSlot(NightSkyboxSlot);
+        rlDisableTexture();
+        rlActiveTextureSlot(0);
+    }
 }
 
 void Renderer::drawClouds(

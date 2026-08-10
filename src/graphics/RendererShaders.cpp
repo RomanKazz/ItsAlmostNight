@@ -162,6 +162,10 @@ void Renderer::resolveSkyShaderLocations() {
         .celestialIntensity =
             GetShaderLocation(shader, "celestialIntensity"),
         .nightAmount = GetShaderLocation(shader, "nightAmount"),
+        .daySkybox = GetShaderLocation(shader, "daySkybox"),
+        .morningSkybox = GetShaderLocation(shader, "morningSkybox"),
+        .nightSkybox = GetShaderLocation(shader, "nightSkybox"),
+        .skyboxEnabled = GetShaderLocation(shader, "skyboxEnabled"),
         .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
         .exposure = GetShaderLocation(shader, "exposure"),
         .saturation = GetShaderLocation(shader, "saturation"),
