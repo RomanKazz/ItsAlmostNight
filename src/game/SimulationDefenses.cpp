@@ -91,6 +91,7 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .entityId = explosion.projectileId,
             .position = explosion.position,
             .amount = explosion.killedCount,
+            .intensity = explosion.radius,
         });
     }
     if (state_ == RunState::Wave &&

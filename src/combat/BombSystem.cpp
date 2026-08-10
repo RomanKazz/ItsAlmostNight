@@ -245,6 +245,7 @@ void BombSystem::explode(BombProjectile& projectile, EnemySystem& enemies) {
     explosionBuffer_.push_back({
         .projectileId = projectile.id,
         .position = projectile.position,
+        .radius = definition_.explosionRadius,
         .hitCount = static_cast<int>(damage.size()),
         .killedCount = killedCount,
     });

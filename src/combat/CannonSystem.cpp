@@ -281,6 +281,7 @@ void CannonSystem::explode(CannonProjectile& projectile, EnemySystem& enemies) {
     explosionBuffer_.push_back({
         .projectileId = projectile.id,
         .position = projectile.position,
+        .radius = projectile.explosionRadius,
         .hitCount = static_cast<int>(damage.size()),
         .killedCount = killedCount,
     });

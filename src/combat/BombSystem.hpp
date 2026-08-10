@@ -26,6 +26,7 @@ struct BombProjectile {
 struct BombExplosion {
     EntityId projectileId;
     Vec3 position;
+    double radius;
     int hitCount;
     int killedCount;
 };

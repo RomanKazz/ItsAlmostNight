@@ -4,6 +4,7 @@
 
 #include <raylib.h>
 #include <raymath.h>
+#include <rlgl.h>
 #include <algorithm>
 #include <cmath>
 
@@ -12,6 +13,68 @@ namespace ian {
 using namespace app_detail;
 
 namespace {
+
+void emitFlameVertex(Vector3 position, Color color) {
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlVertex3f(position.x, position.y, position.z);
+}
+
+void emitFlameTriangle(
+    Vector3 first, Color firstColor,
+    Vector3 second, Color secondColor,
+    Vector3 third, Color thirdColor) {
+    emitFlameVertex(first, firstColor);
+    emitFlameVertex(second, secondColor);
+    emitFlameVertex(third, thirdColor);
+}
+
+void emitFlameLobe(
+    Vector3 base, Vector3 cameraRight, float width,
+    float height, float sway, float amount) {
+    const Vector3 left = Vector3Add(
+        base, Vector3Scale(cameraRight, -width));
+    const Vector3 right = Vector3Add(
+        base, Vector3Scale(cameraRight, width));
+    Vector3 middle = base;
+    middle.y += height * 0.52F;
+    middle = Vector3Add(
+        middle, Vector3Scale(cameraRight, sway * 0.34F));
+    const Vector3 middleLeft = Vector3Add(
+        middle, Vector3Scale(cameraRight, -width * 0.58F));
+    const Vector3 middleRight = Vector3Add(
+        middle, Vector3Scale(cameraRight, width * 0.58F));
+    Vector3 tip = base;
+    tip.y += height;
+    tip = Vector3Add(tip, Vector3Scale(cameraRight, sway));
+    const auto alpha = [amount](float multiplier) {
+        return static_cast<unsigned char>(std::lround(
+            255.0F * std::clamp(amount * multiplier, 0.0F, 1.0F)));
+    };
+    const Color hot{255, 238, 126, alpha(0.92F)};
+    const Color orange{255, 105, 18, alpha(0.78F)};
+    const Color ember{225, 38, 6, alpha(0.38F)};
+    const Color clear{170, 20, 4, 0};
+    emitFlameTriangle(left, hot, right, hot, middleRight, orange);
+    emitFlameTriangle(left, hot, middleRight, orange, middleLeft, orange);
+    emitFlameTriangle(
+        middleLeft, orange, middleRight, ember, tip, clear);
+}
+
+float enemyFlameScale(EnemyType type) {
+    switch (type) {
+    case EnemyType::Boss: return 1.65F;
+    case EnemyType::Heavy: return 1.25F;
+    case EnemyType::Splitter: return 1.35F;
+    case EnemyType::Splitling: return 0.62F;
+    case EnemyType::Fast: return 0.82F;
+    case EnemyType::Flying: return 0.78F;
+    case EnemyType::Basic:
+    case EnemyType::Ranged:
+    case EnemyType::Sapper:
+        return 1.0F;
+    }
+    return 1.0F;
+}
 
 } // namespace
 
@@ -743,23 +806,39 @@ void App::drawWorldEntities(
         EnemyFullDetailDistance * EnemyFullDetailDistance;
     enemyHitFlashById_.clear();
     enemyHitFlashById_.reserve(effects_.size());
+    enemyBurnAmountById_.clear();
+    enemyBurnAmountById_.reserve(effects_.size());
     const auto effectKey = [](EntityId id) {
         return
             (static_cast<std::uint64_t>(id.generation) << 32U) |
             static_cast<std::uint64_t>(id.index);
     };
     for (const PresentationEffect& effect : effects_) {
-        if (effect.type != PresentationEffectType::Hit ||
-            !effect.entityId || effect.duration <= 0.0) {
+        if (!effect.entityId || effect.duration <= 0.0 ||
+            effect.startDelayRemaining > 0.0) {
             continue;
         }
         const std::uint64_t key = effectKey(*effect.entityId);
-        const float amount = static_cast<float>(
-            effect.remaining / effect.duration);
-        auto [entry, inserted] =
-            enemyHitFlashById_.try_emplace(key, amount);
-        if (!inserted) {
-            entry->second = std::max(entry->second, amount);
+        const float remainingFraction = std::clamp(
+            static_cast<float>(effect.remaining / effect.duration),
+            0.0F, 1.0F);
+        if (effect.type == PresentationEffectType::Hit) {
+            auto [entry, inserted] =
+                enemyHitFlashById_.try_emplace(
+                    key, remainingFraction);
+            if (!inserted) {
+                entry->second = std::max(
+                    entry->second, remainingFraction);
+            }
+        } else if (
+            effect.type == PresentationEffectType::EnemyBurn) {
+            const float fade = std::clamp(
+                remainingFraction / 0.28F, 0.0F, 1.0F);
+            auto [entry, inserted] =
+                enemyBurnAmountById_.try_emplace(key, fade);
+            if (!inserted) {
+                entry->second = std::max(entry->second, fade);
+            }
         }
     }
     for (const auto& enemy : snapshot.enemies) {
@@ -808,9 +887,13 @@ void App::drawWorldEntities(
         const EnemyStatusEffect& freezeStatus =
             enemyStatusEffect(enemy, StatusEffectType::Freeze);
         const bool frozen = freezeStatus.remaining > 0.0;
+        const bool burning = enemyBurnAmountById_.contains(
+            effectKey(enemy.id));
         Color modelTint = WHITE;
         if (frozen) {
             modelTint = {151, 224, 255, 255};
+        } else if (burning) {
+            modelTint = {255, 205, 166, 255};
         } else if (enemy.slowRemaining > 0.0) {
             modelTint = {184, 222, 255, 255};
         } else if (
@@ -920,6 +1003,8 @@ void App::drawWorldEntities(
             body = {242, 118, 76, 255};
         } else if (frozen) {
             body = {91, 183, 225, 255};
+        } else if (burning) {
+            body = {215, 82, 38, 255};
         } else if (enemy.slowRemaining > 0.0) {
             body = {70, 128, 170, 255};
         } else if (enemy.state == EnemyState::BossRamWindup) {
@@ -966,6 +1051,68 @@ void App::drawWorldEntities(
         }
     }
     BeginBlendMode(BLEND_ADDITIVE);
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
+    rlBegin(RL_TRIANGLES);
+    Vector3 flameRight = Vector3CrossProduct(
+        cameraForward, {0.0F, 1.0F, 0.0F});
+    if (Vector3LengthSqr(flameRight) < 0.001F) {
+        flameRight = {1.0F, 0.0F, 0.0F};
+    } else {
+        flameRight = Vector3Normalize(flameRight);
+    }
+    const bool detailedFlames = renderer_->settings().particles;
+    for (const EnemyInstance& enemy : snapshot.enemies) {
+        if (!enemy.active) {
+            continue;
+        }
+        const auto burn = enemyBurnAmountById_.find(
+            effectKey(enemy.id));
+        if (burn == enemyBurnAmountById_.end() ||
+            burn->second <= 0.01F) {
+            continue;
+        }
+        Vector3 position = enemyRenderPosition(enemy);
+        position.y += static_cast<float>(
+            simulation_.terrain().getHeight(
+                enemy.position.x, enemy.position.z));
+        const float distanceSquared = Vector3DistanceSqr(
+            position, camera.position);
+        if (distanceSquared > 1600.0F) {
+            continue;
+        }
+        const float scale = enemyFlameScale(enemy.type);
+        const int lobeCount =
+            detailedFlames && distanceSquared < 324.0F ? 3 : 2;
+        for (int lobe = 0; lobe < lobeCount; ++lobe) {
+            const float lobeIndex = static_cast<float>(lobe);
+            const float phase = static_cast<float>(
+                snapshot.elapsedSeconds * (8.2 + lobe * 1.35)) +
+                static_cast<float>(enemy.id.index % 97U) * 0.37F +
+                lobeIndex * 2.1F;
+            Vector3 base = position;
+            base.y += scale * (0.16F + lobeIndex * 0.13F);
+            base = Vector3Add(
+                base,
+                Vector3Scale(
+                    flameRight,
+                    scale * (lobeIndex -
+                        static_cast<float>(lobeCount - 1) * 0.5F) *
+                        0.22F));
+            const float height = scale *
+                (0.72F + lobeIndex * 0.15F +
+                 (0.5F + 0.5F * std::sin(phase * 1.31F)) * 0.18F);
+            const float width = scale *
+                (0.16F + 0.025F * lobeIndex);
+            const float sway = scale * 0.16F * std::sin(phase);
+            emitFlameLobe(
+                base, flameRight, width, height, sway,
+                burn->second * (1.0F - lobeIndex * 0.08F));
+        }
+    }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
     for (const auto& enemy : snapshot.enemies) {
         if (!enemy.active) {
             continue;

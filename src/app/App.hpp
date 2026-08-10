@@ -279,6 +279,8 @@ class App {
     std::vector<PresentationEffect> effects_;
     std::unordered_map<std::uint64_t, float>
         enemyHitFlashById_;
+    std::unordered_map<std::uint64_t, float>
+        enemyBurnAmountById_;
     std::vector<ArrowVisual> arrowVisuals_;
     double cameraShakeRemaining_{};
     double cameraShakeStrength_{};

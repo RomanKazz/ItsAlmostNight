@@ -35,6 +35,7 @@ struct CannonProjectile {
 struct CannonExplosion {
     EntityId projectileId;
     Vec3 position;
+    double radius;
     int hitCount;
     int killedCount;
 };

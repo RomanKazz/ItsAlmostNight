@@ -458,6 +458,7 @@ void Simulation::updatePlayerActions(
             .entityId = explosion.projectileId,
             .position = explosion.position,
             .amount = explosion.killedCount,
+            .intensity = explosion.radius,
         });
     }
 

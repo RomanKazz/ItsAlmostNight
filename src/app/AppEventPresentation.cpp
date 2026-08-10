@@ -378,6 +378,48 @@ void App::processPresentationEvents(
             const double proximity = std::clamp(
                 1.0 - distance / 30.0, 0.0, 1.0);
             addEffect(PresentationEffectType::Explosion, event.position, 1.25);
+            const double burnRadius = event.intensity > 0.0
+                ? event.intensity
+                : 4.0;
+            constexpr std::size_t MaxBurnsPerExplosion = 32U;
+            std::size_t burnCount = 0U;
+            for (const EnemyInstance& enemy : eventSnapshot.enemies) {
+                if (!enemy.active || burnCount >= MaxBurnsPerExplosion) {
+                    continue;
+                }
+                const double deltaX =
+                    enemy.position.x - event.position.x;
+                const double deltaZ =
+                    enemy.position.z - event.position.z;
+                if (deltaX * deltaX + deltaZ * deltaZ >
+                    burnRadius * burnRadius) {
+                    continue;
+                }
+                const double duration = 2.35 +
+                    static_cast<double>(enemy.id.index % 5U) * 0.09;
+                const auto existing = std::find_if(
+                    effects_.begin(), effects_.end(),
+                    [&enemy](const PresentationEffect& effect) {
+                        return effect.type ==
+                                   PresentationEffectType::EnemyBurn &&
+                            effect.entityId == enemy.id;
+                    });
+                const Vec3 burnPosition{
+                    enemy.position.x,
+                    enemy.position.y + enemy.worldSurfaceHeight,
+                    enemy.position.z,
+                };
+                if (existing != effects_.end()) {
+                    existing->position = burnPosition;
+                    existing->remaining = duration;
+                    existing->duration = duration;
+                } else {
+                    addEffect(
+                        PresentationEffectType::EnemyBurn,
+                        burnPosition, duration, 1.0F, enemy.id);
+                }
+                ++burnCount;
+            }
             addCameraShake(0.34, 0.055 + 0.17 * proximity);
             addCameraImpulse({0.0, 0.035 * proximity,
                               -0.025 * proximity});
