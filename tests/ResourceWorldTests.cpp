@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "game/ResourceWorld.hpp"
+#include "world/MapDefinition.hpp"
 #include "world/WorldConfig.hpp"
 
 #include <algorithm>
@@ -104,6 +105,40 @@ void runResourceWorldTests() {
                 return ian::isDestructibleProp(definition.type);
             }) >= 10,
         "large worlds scatter destructible barrels and crates");
+    for (std::size_t propIndex = 0;
+         propIndex < clustered.size(); ++propIndex) {
+        const auto& prop = clustered[propIndex];
+        if (!ian::isDestructibleProp(prop.type)) {
+            continue;
+        }
+        for (std::size_t otherIndex = 0;
+             otherIndex < clustered.size(); ++otherIndex) {
+            if (propIndex == otherIndex) {
+                continue;
+            }
+            const auto& other = clustered[otherIndex];
+            const double distance = std::hypot(
+                prop.position.x - other.position.x,
+                prop.position.z - other.position.z);
+            require(
+                distance + 1e-9 >=
+                    prop.radius + other.radius + 0.8,
+                "destructible props avoid nearby world resources");
+        }
+    }
+    const std::array<ian::MapObstacle, 1> coveringObstacle{{{
+        .collision = {-48.0, 48.0, -48.0, 48.0},
+        .height = 4.0,
+    }}};
+    const auto obstacleBlocked = ian::scatterResources(
+        clusterInput, 48.0, largeTerrain, coveringObstacle);
+    require(
+        std::none_of(
+            obstacleBlocked.begin(), obstacleBlocked.end(),
+            [](const ian::ResourceNodeDefinition& definition) {
+                return ian::isDestructibleProp(definition.type);
+            }),
+        "destructible props avoid static map obstacles during spawn");
     requireNear(clustered.back().position.x,
                 repeated.back().position.x, 1e-12,
                 "resource scattering stays deterministic");

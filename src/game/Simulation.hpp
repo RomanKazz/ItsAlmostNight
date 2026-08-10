@@ -442,6 +442,8 @@ class Simulation {
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
     void invalidateSnapshotCache();
+    [[nodiscard]] bool resourceGroundPositionIsSafe(
+        double x, double z, double radius) const;
     void processInsightEvents(std::size_t firstEvent, bool suppressEnemyRewards);
     void processInsightEvent(const GameEvent& event);
     void processObjectiveEvents(std::size_t firstEvent);

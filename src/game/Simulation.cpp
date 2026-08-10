@@ -104,13 +104,12 @@ Simulation::Simulation(
       }},
       resources_(scatterResources(
           map_.resources, map_.worldLimit,
-          terrain_),
+          terrain_, map_.obstacles),
           [this](double x, double z) {
               return terrain_.getHeight(x, z);
           },
           [this](double x, double z, double radius) {
-              return terrain_.waterSignedDistance(x, z) >=
-                  radius + 0.8;
+              return resourceGroundPositionIsSafe(x, z, radius);
           }),
       buildings_(balance.buildings, balance.economy, map_.coreBuildRadius),
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
@@ -171,6 +170,28 @@ std::uint32_t Simulation::nextRunTerrainSeed() {
     return seed;
 }
 
+bool Simulation::resourceGroundPositionIsSafe(
+    double x, double z, double radius) const {
+    if (terrain_.waterSignedDistance(x, z) < radius + 0.8) {
+        return false;
+    }
+    return std::none_of(
+        map_.obstacles.begin(), map_.obstacles.end(),
+        [=](const MapObstacle& obstacle) {
+            const double distanceX = std::max(
+                0.0,
+                std::max(obstacle.collision.minX - x,
+                         x - obstacle.collision.maxX));
+            const double distanceZ = std::max(
+                0.0,
+                std::max(obstacle.collision.minZ - z,
+                         z - obstacle.collision.maxZ));
+            const double required = radius + 0.30;
+            return distanceX * distanceX + distanceZ * distanceZ <
+                required * required;
+        });
+}
+
 void Simulation::returnToMainMenu() {
     invalidateSnapshotCache();
     state_ = RunState::MainMenu;
@@ -186,13 +207,12 @@ void Simulation::resetRun(GameEventType eventType) {
     terrain_.generate(nextRunTerrainSeed());
     resources_ = ResourceSystem(
         scatterResources(
-            map_.resources, map_.worldLimit, terrain_),
+            map_.resources, map_.worldLimit, terrain_, map_.obstacles),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },
         [this](double x, double z, double radius) {
-            return terrain_.waterSignedDistance(x, z) >=
-                radius + 0.8;
+            return resourceGroundPositionIsSafe(x, z, radius);
         });
     state_ = RunState::BuildPhase;
     stateBeforePause_ = RunState::BuildPhase;

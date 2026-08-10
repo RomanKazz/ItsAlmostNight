@@ -1,6 +1,8 @@
 #include "game/ResourceWorld.hpp"
 
 #include "core/DeterministicRandom.hpp"
+#include "world/MapDefinition.hpp"
+#include "world/SpatialHash.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,6 +11,7 @@ namespace ian {
 namespace {
 
 constexpr double ResourcePlacementClearance = 0.08;
+constexpr double PropPlacementClearance = 0.80;
 
 } // namespace
 
@@ -43,7 +46,8 @@ bool resourceOverlapsRectangle(
 std::vector<ResourceNodeDefinition> scatterResources(
     const std::vector<ResourceNodeDefinition>& configured,
     double worldLimit,
-    const TerrainHeightfield& terrain) {
+    const TerrainHeightfield& terrain,
+    std::span<const MapObstacle> obstacles) {
     std::vector<ResourceNodeDefinition> result = configured;
     const auto placeOnDryTerrain = [&terrain](
         std::vector<ResourceNodeDefinition>& definitions) {
@@ -206,6 +210,15 @@ std::vector<ResourceNodeDefinition> scatterResources(
     // precise hover, health bars and collision, but have their own rewards.
     const std::size_t propCount = static_cast<std::size_t>(
         std::lround(12.0 * std::sqrt(densityScale)));
+    SpatialHash placementIndex;
+    double maximumResourceRadius = 0.0;
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        placementIndex.insert(
+            {static_cast<std::uint32_t>(index), 0U},
+            result[index].position);
+        maximumResourceRadius = std::max(
+            maximumResourceRadius, result[index].radius);
+    }
     for (std::size_t index = 0; index < propCount; ++index) {
         const std::uint64_t seed =
             0xa0761d6478bd642fULL + index * 0xe7037ed1a0b428dbULL;
@@ -216,20 +229,95 @@ std::vector<ResourceNodeDefinition> scatterResources(
             (innerRadius + 2.0) * (innerRadius + 2.0) + progress *
             (outerRadius * outerRadius -
              (innerRadius + 2.0) * (innerRadius + 2.0)));
-        const double angle = static_cast<double>(index) * GoldenAngle +
-            unitRandom(seed) * 0.9;
         const double roll = unitRandom(seed ^ 0xd1b54a32d192ed03ULL);
         const ResourceType type = roll < 0.46
             ? ResourceType::Barrel
             : roll < 0.82 ? ResourceType::Crate
                           : ResourceType::ItemCrate;
         const double health = type == ResourceType::Barrel ? 4.0 : 5.0;
-        result.push_back({
-            type,
-            {std::cos(angle) * radius, 0.62,
-             std::sin(angle) * radius},
-            0.68, health, 0, 75.0,
-        });
+        ResourceNodeDefinition definition{
+            type, {}, 0.68, health, 0, 75.0,
+        };
+        constexpr std::size_t MaximumPropPlacementAttempts = 32U;
+        for (std::size_t attempt = 0;
+             attempt < MaximumPropPlacementAttempts; ++attempt) {
+            const std::uint64_t attemptSeed = seed +
+                attempt * 0x9e3779b97f4a7c15ULL;
+            const double candidateRadius = std::clamp(
+                radius +
+                    (unitRandom(attemptSeed ^ 0x243f6a8885a308d3ULL) -
+                     0.5) * 7.0,
+                innerRadius + 2.0, outerRadius);
+            const double angle =
+                static_cast<double>(index) * GoldenAngle +
+                unitRandom(seed) * 0.9 +
+                static_cast<double>(attempt) * GoldenAngle * 0.41;
+            definition.position = {
+                std::cos(angle) * candidateRadius,
+                0.62,
+                std::sin(angle) * candidateRadius,
+            };
+            if (terrain.waterSignedDistance(
+                    definition.position.x,
+                    definition.position.z) <
+                definition.radius + 0.8) {
+                continue;
+            }
+            const bool obstacleBlocked = std::any_of(
+                obstacles.begin(), obstacles.end(),
+                [&definition](const MapObstacle& obstacle) {
+                    const double distanceX = std::max(
+                        0.0,
+                        std::max(
+                            obstacle.collision.minX - definition.position.x,
+                            definition.position.x - obstacle.collision.maxX));
+                    const double distanceZ = std::max(
+                        0.0,
+                        std::max(
+                            obstacle.collision.minZ - definition.position.z,
+                            definition.position.z - obstacle.collision.maxZ));
+                    const double required = definition.radius + 0.30;
+                    return distanceX * distanceX + distanceZ * distanceZ <
+                        required * required;
+                });
+            if (obstacleBlocked) {
+                continue;
+            }
+            bool resourceBlocked = false;
+            placementIndex.forEachNearby(
+                definition.position,
+                definition.radius + maximumResourceRadius +
+                    PropPlacementClearance,
+                [&](const SpatialEntry& entry) {
+                    const std::size_t otherIndex =
+                        static_cast<std::size_t>(entry.id.index);
+                    if (otherIndex >= result.size()) {
+                        return;
+                    }
+                    const ResourceNodeDefinition& other = result[otherIndex];
+                    const double deltaX =
+                        definition.position.x - other.position.x;
+                    const double deltaZ =
+                        definition.position.z - other.position.z;
+                    const double required = definition.radius + other.radius +
+                        PropPlacementClearance;
+                    if (deltaX * deltaX + deltaZ * deltaZ <
+                        required * required) {
+                        resourceBlocked = true;
+                    }
+                });
+            if (resourceBlocked) {
+                continue;
+            }
+            const std::size_t acceptedIndex = result.size();
+            result.push_back(definition);
+            placementIndex.insert(
+                {static_cast<std::uint32_t>(acceptedIndex), 0U},
+                definition.position);
+            maximumResourceRadius = std::max(
+                maximumResourceRadius, definition.radius);
+            break;
+        }
     }
     placeOnDryTerrain(result);
     return result;

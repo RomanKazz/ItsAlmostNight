@@ -9,6 +9,8 @@
 
 namespace ian {
 
+struct MapObstacle;
+
 [[nodiscard]] bool resourceOverlapsRectangle(
     std::span<const ResourceNode> nodes,
     double minimumX, double maximumX,
@@ -17,7 +19,8 @@ namespace ian {
 [[nodiscard]] std::vector<ResourceNodeDefinition> scatterResources(
     const std::vector<ResourceNodeDefinition>& configured,
     double worldLimit,
-    const TerrainHeightfield& terrain);
+    const TerrainHeightfield& terrain,
+    std::span<const MapObstacle> obstacles = {});
 
 [[nodiscard]] Vec3 resourceImpactPosition(
     std::span<const ResourceNode> nodes, EntityId id,

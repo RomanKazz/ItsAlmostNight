@@ -49,7 +49,7 @@ Vector3 resourcePromptAnchor(
     const double height = resource.type == ResourceType::Wood
         ? 1.95 * resource.visualScale
         : isDestructibleProp(resource.type)
-            ? 0.82 * resource.visualScale
+            ? 0.82 * resource.visualScale + 0.58
             : 1.45 * resource.visualScale;
     return {
         static_cast<float>(resource.position.x),

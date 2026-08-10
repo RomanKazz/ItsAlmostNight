@@ -87,13 +87,12 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     resources_ = ResourceSystem(
         scatterResources(
             map_.resources, map_.worldLimit,
-            terrain_),
+            terrain_, map_.obstacles),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },
         [this](double x, double z, double radius) {
-            return terrain_.waterSignedDistance(x, z) >=
-                radius + 0.8;
+            return resourceGroundPositionIsSafe(x, z, radius);
         });
     resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
     if (resources_.consumeCollisionGeometryDirty()) {
