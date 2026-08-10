@@ -50,14 +50,26 @@ void emitFlameLobe(
         return static_cast<unsigned char>(std::lround(
             255.0F * std::clamp(amount * multiplier, 0.0F, 1.0F)));
     };
-    const Color hot{255, 238, 126, alpha(0.92F)};
-    const Color orange{255, 105, 18, alpha(0.78F)};
-    const Color ember{225, 38, 6, alpha(0.38F)};
+    const Color hot{255, 250, 194, alpha(1.0F)};
+    const Color orange{255, 116, 12, alpha(1.0F)};
+    const Color ember{255, 42, 3, alpha(0.72F)};
     const Color clear{170, 20, 4, 0};
     emitFlameTriangle(left, hot, right, hot, middleRight, orange);
     emitFlameTriangle(left, hot, middleRight, orange, middleLeft, orange);
     emitFlameTriangle(
         middleLeft, orange, middleRight, ember, tip, clear);
+    const Vector3 innerLeft = Vector3Add(
+        base, Vector3Scale(cameraRight, -width * 0.43F));
+    const Vector3 innerRight = Vector3Add(
+        base, Vector3Scale(cameraRight, width * 0.43F));
+    Vector3 innerTip = base;
+    innerTip.y += height * 0.72F;
+    innerTip = Vector3Add(
+        innerTip, Vector3Scale(cameraRight, sway * 0.48F));
+    emitFlameTriangle(
+        innerLeft, {255, 255, 226, alpha(1.0F)},
+        innerRight, {255, 242, 128, alpha(1.0F)},
+        innerTip, {255, 142, 18, alpha(0.18F)});
 }
 
 void emitEmber(
@@ -919,7 +931,7 @@ void App::drawWorldEntities(
         if (frozen) {
             modelTint = {151, 224, 255, 255};
         } else if (burning) {
-            modelTint = {255, 205, 166, 255};
+            modelTint = {255, 118, 42, 255};
         } else if (enemy.slowRemaining > 0.0) {
             modelTint = {184, 222, 255, 255};
         } else if (
@@ -1030,7 +1042,7 @@ void App::drawWorldEntities(
         } else if (frozen) {
             body = {91, 183, 225, 255};
         } else if (burning) {
-            body = {215, 82, 38, 255};
+            body = {246, 76, 16, 255};
         } else if (enemy.slowRemaining > 0.0) {
             body = {70, 128, 170, 255};
         } else if (enemy.state == EnemyState::BossRamWindup) {

@@ -142,6 +142,7 @@ struct EnemyStructureTarget {
         -std::numeric_limits<double>::infinity()};
     double maximumEnemySurfaceHeight{
         std::numeric_limits<double>::infinity()};
+    std::optional<double> attackSurfaceHeight;
     bool attackable{true};
 };
 

@@ -354,15 +354,48 @@ class MultiLevelNavigation {
     int maximumStorey_{};
 };
 
+std::optional<double> lockedAttackSurfaceHeight(
+    const EnemyInstance& enemy,
+    std::span<const EnemyStructureTarget> structures) {
+    if (!enemy.target ||
+        (enemy.state != EnemyState::AttackCore &&
+         enemy.state != EnemyState::AttackBuilding &&
+         enemy.state != EnemyState::BossRamWindup)) {
+        return std::nullopt;
+    }
+    const auto target = std::ranges::find(
+        structures, *enemy.target, &EnemyStructureTarget::id);
+    if (target == structures.end() ||
+        !target->attackSurfaceHeight) {
+        return std::nullopt;
+    }
+    // Only stabilize a platform the navigation system has already reached;
+    // horizontal proximity alone must never lift a ground enemy upstairs.
+    constexpr double SurfaceLockTolerance = 0.5;
+    if (enemy.worldSurfaceHeight + SurfaceLockTolerance <
+        *target->attackSurfaceHeight) {
+        return std::nullopt;
+    }
+    return target->attackSurfaceHeight;
+}
+
 void updateEnemySurface(
     EnemyInstance& enemy, const TerrainHeightfield* terrain,
-    EnemyNavigationView navigation, double deltaSeconds) {
+    EnemyNavigationView navigation, double deltaSeconds,
+    std::optional<double> lockedSurfaceHeight = std::nullopt) {
     if (enemy.type == EnemyType::Flying || terrain == nullptr ||
         navigation.collisionWorld == nullptr) {
         return;
     }
     const double terrainHeight = terrain->getHeight(
         enemy.position.x, enemy.position.z);
+    if (lockedSurfaceHeight) {
+        enemy.surfaceHeightOffset = std::max(
+            0.0, *lockedSurfaceHeight - terrainHeight);
+        enemy.worldSurfaceHeight =
+            terrainHeight + enemy.surfaceHeightOffset;
+        return;
+    }
     const double currentHeight =
         terrainHeight + enemy.surfaceHeightOffset;
     // Ground-storey frames can sit above nearby uneven terrain. Enemies hop
@@ -618,6 +651,7 @@ bool sameStructureLayout(
         }
         if (a.maximumEnemySurfaceHeight !=
                 b.maximumEnemySurfaceHeight ||
+            a.attackSurfaceHeight != b.attackSurfaceHeight ||
             a.attackable != b.attackable) {
             return false;
         }
@@ -1129,6 +1163,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 building.platformStorey >= 0
                     ? building.baseHeight - 0.45
                     : -std::numeric_limits<double>::infinity(),
+            .attackSurfaceHeight =
+                building.platformStorey >= 0
+                    ? std::optional<double>{building.baseHeight}
+                    : std::nullopt,
         });
     }
     incomingStructureBuffer_.insert(
@@ -1156,7 +1194,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
         }
 
         updateEnemySurface(
-            enemy, terrain, navigation, deltaSeconds);
+            enemy, terrain, navigation, deltaSeconds,
+            lockedAttackSurfaceHeight(
+                enemy, structureBuffer_));
 
         enemy.attackCooldownRemaining =
             std::max(0.0, enemy.attackCooldownRemaining - deltaSeconds);
@@ -1651,7 +1691,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
     for (EnemyInstance& enemy : enemies_) {
         if (enemy.active) {
             updateEnemySurface(
-                enemy, terrain, navigation, deltaSeconds);
+                enemy, terrain, navigation, deltaSeconds,
+                lockedAttackSurfaceHeight(
+                    enemy, structureBuffer_));
         }
     }
     performanceStats_.collision.sample(

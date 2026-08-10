@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 void runEnemySystemTests() {
@@ -311,6 +312,49 @@ void runEnemySystemTests() {
         require(
             attackedElevatedCore,
             "enemy reaches and attacks core through multi-level route");
+        double minimumAttackSurface =
+            std::numeric_limits<double>::infinity();
+        double maximumAttackSurface =
+            -std::numeric_limits<double>::infinity();
+        int sustainedCoreAttacks = 0;
+        for (int tick = 0; tick < 180; ++tick) {
+            const auto attacks = climbingEnemies.tick(
+                1.0 / 60.0,
+                elevatedBuildings.buildings(), elevatedFlow,
+                std::nullopt, {}, &traversalTerrain,
+                {
+                    traversalFrames,
+                    traversalRamps,
+                    1.0,
+                    &traversalCollision,
+                });
+            const ian::EnemyInstance& attacker =
+                climbingEnemies.enemies().front();
+            minimumAttackSurface = std::min(
+                minimumAttackSurface,
+                attacker.worldSurfaceHeight);
+            maximumAttackSurface = std::max(
+                maximumAttackSurface,
+                attacker.worldSurfaceHeight);
+            sustainedCoreAttacks += static_cast<int>(
+                std::ranges::count_if(
+                    attacks,
+                    [&](const ian::EnemyAttack& attack) {
+                        return attack.targetId ==
+                            elevatedCore->building.id;
+                    }));
+        }
+        requireNear(
+            minimumAttackSurface,
+            elevatedCore->building.baseHeight, 1e-9,
+            "core attacker stays on its platform working plane");
+        requireNear(
+            maximumAttackSurface,
+            elevatedCore->building.baseHeight, 1e-9,
+            "core attack cannot restart a platform hop");
+        require(
+            sustainedCoreAttacks > 0,
+            "elevated core attack continues while height is locked");
     }
 
     std::vector<ian::EnemyInstance> modularOverlap{
