@@ -30,6 +30,8 @@ struct PondDefinition {
 struct TerrainPathDefinition {
     double fromX{};
     double fromZ{};
+    double controlX{};
+    double controlZ{};
     double toX{};
     double toZ{};
     double halfWidth{};

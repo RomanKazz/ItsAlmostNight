@@ -219,19 +219,34 @@ makeTerrainPaths(
         const std::uint32_t hash = mixBits(
             seed ^ static_cast<std::uint32_t>(index) * 0x9e3779b9U ^
             0x6c8e9cf5U);
+        const double deltaX = destination.x - center.x;
+        const double deltaZ = destination.z - center.z;
+        const double length = std::max(std::hypot(deltaX, deltaZ), 0.01);
+        const double directionX = deltaX / length;
+        const double directionZ = deltaZ / length;
+        const double fromX = center.x + directionX * center.radius * 0.76;
+        const double fromZ = center.z + directionZ * center.radius * 0.76;
+        const double toX = destination.x -
+            directionX * destination.radius * 0.54;
+        const double toZ = destination.z -
+            directionZ * destination.radius * 0.54;
+        const double hashUnit =
+            static_cast<double>(hash) /
+            static_cast<double>(
+                std::numeric_limits<std::uint32_t>::max());
+        const double bendSign = (hash & 1U) == 0U ? -1.0 : 1.0;
+        const double bend = bendSign * (1.55 + hashUnit * 1.15);
         paths.push_back({
-            .fromX = center.x,
-            .fromZ = center.z,
-            .toX = destination.x,
-            .toZ = destination.z,
+            .fromX = fromX,
+            .fromZ = fromZ,
+            .controlX = (fromX + toX) * 0.5 - directionZ * bend,
+            .controlZ = (fromZ + toZ) * 0.5 + directionX * bend,
+            .toX = toX,
+            .toZ = toZ,
             .halfWidth = std::clamp(
-                config.terrainBuildPlateauRadius * 0.20,
-                2.15, 3.0),
-            .phase =
-                static_cast<double>(hash) /
-                static_cast<double>(
-                    std::numeric_limits<std::uint32_t>::max()) *
-                6.28318530717958647692,
+                config.terrainBuildPlateauRadius * 0.105,
+                1.15, 1.55),
+            .phase = hashUnit * 6.28318530717958647692,
         });
     }
     return paths;
@@ -956,27 +971,47 @@ double TerrainHeightfield::pathAmount(
     }
     double amount = 0.0;
     for (const TerrainPathDefinition& path : paths_) {
-        TerrainPlateau from{
+        constexpr int CurveSegments = 14;
+        double distance = std::numeric_limits<double>::infinity();
+        double progress = 0.0;
+        TerrainPlateau previous{
             .x = path.fromX,
             .z = path.fromZ,
         };
-        TerrainPlateau to{
-            .x = path.toX,
-            .z = path.toZ,
-        };
-        double progress = 0.0;
-        const double distance = distanceToSegment(
-            worldX, worldZ, from, to, progress);
+        for (int segment = 1; segment <= CurveSegments; ++segment) {
+            const double endProgress =
+                static_cast<double>(segment) /
+                static_cast<double>(CurveSegments);
+            const double inverse = 1.0 - endProgress;
+            TerrainPlateau current{
+                .x = inverse * inverse * path.fromX +
+                    2.0 * inverse * endProgress * path.controlX +
+                    endProgress * endProgress * path.toX,
+                .z = inverse * inverse * path.fromZ +
+                    2.0 * inverse * endProgress * path.controlZ +
+                    endProgress * endProgress * path.toZ,
+            };
+            double segmentProgress = 0.0;
+            const double segmentDistance = distanceToSegment(
+                worldX, worldZ, previous, current, segmentProgress);
+            if (segmentDistance < distance) {
+                distance = segmentDistance;
+                progress =
+                    (static_cast<double>(segment - 1) + segmentProgress) /
+                    static_cast<double>(CurveSegments);
+            }
+            previous = current;
+        }
         const double edgeNoise = valueNoise(
             worldX * 0.085 + std::cos(path.phase) * 9.0,
             worldZ * 0.085 + std::sin(path.phase) * 9.0,
             seed_ ^ 0xb5297a4dU);
         const double meander = std::sin(
-            progress * 11.0 + path.phase) * 0.22;
+            progress * 11.0 + path.phase) * 0.10;
         const double width = path.halfWidth +
-            edgeNoise * 0.52 + meander;
+            edgeNoise * 0.24 + meander;
         const double pathMask = 1.0 - smoother(
-            (distance - width) / 1.15);
+            (distance - width) / 0.58);
         amount = std::max(amount, pathMask);
     }
     return std::clamp(amount, 0.0, 1.0);

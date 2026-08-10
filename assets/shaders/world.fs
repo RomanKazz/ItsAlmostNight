@@ -150,13 +150,15 @@ vec3 terrainMaterial(
         (vertexColor.r - vertexColor.g)/(74.0/255.0), 0.0, 1.0);
     float pathDetail = valueNoise(
         worldXZ*0.31 + vec2(-12.4, 26.8));
+    vec3 pathTexture = mix(
+        vec3(textureLuminance), textureSample, 0.16)*
+        vec3(0.72, 0.51, 0.30);
     vec3 pathEarth = mix(
-        terrainDirtTint*0.70,
-        vec3(0.47, 0.34, 0.18),
-        pathDetail*0.34 + 0.16);
-    float packedEarth = smoothstep(0.08, 0.88, pathWeight);
+        terrainDirtTint*0.82, pathTexture,
+        terrainTextureEnabled*0.82);
+    float packedEarth = smoothstep(0.18, 0.90, pathWeight);
     terrain = mix(
-        terrain, pathEarth*(0.91 + pathDetail*0.12), packedEarth*0.94);
+        terrain, pathEarth*(0.94 + pathDetail*0.10), packedEarth*0.70);
 
     // Backdrop vertices encode a mountain amount as R-B. In-map terrain
     // keeps all three channels equal, so this mask cannot turn shoreline
