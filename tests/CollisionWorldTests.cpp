@@ -460,6 +460,34 @@ void runCollisionWorldTests() {
         "raised-surface sweep does not block"
         " movement below an upper floor");
 
+    const std::array<ian::PlatformFrameInstance, 1>
+        jumpFrame{{
+            {
+                .id = {105U, 1U},
+                .anchor = {0, 0, 0},
+                .floorHeight = 1.1,
+                .storey = 0,
+            },
+        }};
+    rampSweepCollision.syncModularBuildings({
+        jumpFrame,
+        std::span<const ian::WallInstance>{},
+        std::span<const ian::RampInstance>{},
+        1.0,
+    });
+    const auto waitingForEnemyHop =
+        rampSweepCollision.moveCircleAgainstRaisedSurfaces(
+            {-1.0, 1.8, 1.0},
+            {4.0, 0.0, 0.0}, 0.60, 0.20);
+    const auto completedEnemyHop =
+        rampSweepCollision.moveCircleAgainstRaisedSurfaces(
+            {-1.0, 1.8, 1.0},
+            {4.0, 0.0, 0.0}, 0.60, 1.10);
+    require(
+        waitingForEnemyHop.x <= -0.59 &&
+            completedEnemyHop.x > 2.5,
+        "enemy waits outside a platform until its hop reaches the floor height");
+
     const auto belowUpperWall =
         modularCollision.moveCircle(
             {18.5, 1.7, 2.0},

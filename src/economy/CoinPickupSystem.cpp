@@ -1,5 +1,6 @@
 #include "economy/CoinPickupSystem.hpp"
 
+#include "world/CollisionWorld.hpp"
 #include "world/TerrainHeightfield.hpp"
 
 #include <algorithm>
@@ -14,6 +15,7 @@ constexpr double Gravity = 18.0;
 // Fitted coin plus its expanded outline has a vertical radius near 0.23.
 // Keep a little slope clearance so the shell never cuts into terrain.
 constexpr double GroundOffset = 0.30;
+constexpr double CollisionRadius = 0.20;
 constexpr double MagnetDelay = 0.16;
 constexpr double MaximumLifetime = 50.0;
 
@@ -77,7 +79,8 @@ void CoinPickupSystem::spawn(
 
 CoinCollection CoinPickupSystem::tick(
     double deltaSeconds, Vec3 playerPosition,
-    const TerrainHeightfield& terrain) {
+    const TerrainHeightfield& terrain,
+    const CollisionWorld& collisionWorld) {
     CoinCollection collected{};
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
         return collected;
@@ -129,12 +132,27 @@ CoinCollection CoinPickupSystem::tick(
             coin.position.y += coin.velocity.y * deltaSeconds;
             coin.position.z += coin.velocity.z * deltaSeconds;
         } else {
+            const Vec3 previousPosition = coin.position;
             coin.velocity.y -= Gravity * deltaSeconds;
             coin.position.x += coin.velocity.x * deltaSeconds;
             coin.position.y += coin.velocity.y * deltaSeconds;
             coin.position.z += coin.velocity.z * deltaSeconds;
-            const double ground = terrain.getHeight(
+            double ground = terrain.getHeight(
                 coin.position.x, coin.position.z) + GroundOffset;
+            const auto surfaceLanding =
+                coin.velocity.y <= 0.0
+                ? collisionWorld.sweptPlayerLanding(
+                      previousPosition, coin.position,
+                      CollisionRadius,
+                      previousPosition.y - GroundOffset,
+                      coin.position.y - GroundOffset)
+                : std::nullopt;
+            if (surfaceLanding &&
+                surfaceLanding->surfaceHeight + GroundOffset > ground) {
+                coin.position.x = surfaceLanding->position.x;
+                coin.position.z = surfaceLanding->position.z;
+                ground = surfaceLanding->surfaceHeight + GroundOffset;
+            }
             if (coin.position.y < ground) {
                 coin.position.y = ground;
                 if (coin.velocity.y < -0.45) {

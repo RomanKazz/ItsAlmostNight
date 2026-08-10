@@ -372,19 +372,27 @@ void updateEnemySurface(
         navigation.collisionWorld->modularSurfaceHeight(
             enemy.position.x, enemy.position.z,
             currentHeight + MaximumStepUp);
-    if (!surface && enemy.surfaceHeightOffset < 0.05) {
-        // Begin the hop before capsule reaches the vertical platform edge.
-        // Waiting until its centre crosses the footprint made the model clip
-        // through the frame for several rendered frames.
+    if (enemyUsesForwardSurfaceProbe(enemy.state)) {
+        // Begin the hop before the capsule reaches a platform edge. Sampling
+        // ahead also lets a ramp user finish the last step onto an upper
+        // floor while its centre is still on the slope. Attack states are
+        // intentionally excluded: their yaw follows a target while the
+        // capsule is stationary, so probing along it would pull the enemy
+        // between unrelated surface heights.
         const double probeDistance =
             enemyPhysicalCapsule(enemy.type).radius + 0.20;
         const double probeX = enemy.position.x +
             std::sin(enemy.yaw) * probeDistance;
         const double probeZ = enemy.position.z +
             std::cos(enemy.yaw) * probeDistance;
-        surface = navigation.collisionWorld->modularSurfaceHeight(
-            probeX, probeZ,
-            currentHeight + MaximumStepUp);
+        const auto aheadSurface =
+            navigation.collisionWorld->modularSurfaceHeight(
+                probeX, probeZ,
+                currentHeight + MaximumStepUp);
+        if (aheadSurface &&
+            (!surface || *aheadSurface > *surface)) {
+            surface = aheadSurface;
+        }
     }
     const double targetOffset = surface
         ? std::max(0.0, *surface - terrainHeight)
@@ -404,6 +412,61 @@ void updateEnemySurface(
     }
     enemy.worldSurfaceHeight =
         terrainHeight + enemy.surfaceHeightOffset;
+}
+
+bool playerSharesAttackHeight(
+    const EnemyInstance& enemy, Vec3 playerPosition) {
+    const EnemyCapsule capsule =
+        enemyPhysicalCapsule(enemy.type);
+    const double enemyCenterHeight =
+        enemy.position.y + enemy.worldSurfaceHeight;
+    const double enemyExtent =
+        capsule.segmentHalfHeight + capsule.radius;
+    const double enemyMinimum =
+        enemyCenterHeight - enemyExtent;
+    const double enemyMaximum =
+        enemyCenterHeight + enemyExtent;
+    constexpr double PlayerBodyBelowEye = 1.70;
+    constexpr double PlayerHeadAboveEye = 0.15;
+    const double playerMinimum =
+        playerPosition.y - PlayerBodyBelowEye;
+    const double playerMaximum =
+        playerPosition.y + PlayerHeadAboveEye;
+    constexpr double VerticalAttackReach = 0.35;
+    return enemyMaximum + VerticalAttackReach >=
+               playerMinimum &&
+        playerMaximum + VerticalAttackReach >=
+               enemyMinimum;
+}
+
+void moveEnemyHorizontally(
+    EnemyInstance& enemy, Vec3 delta,
+    EnemyNavigationView navigation) {
+    if (enemy.type == EnemyType::Flying ||
+        navigation.collisionWorld == nullptr) {
+        enemy.position.x += delta.x;
+        enemy.position.z += delta.z;
+        return;
+    }
+    const EnemyCapsule capsule =
+        enemyPhysicalCapsule(enemy.type);
+    const double enemyTopHeight =
+        enemy.position.y + enemy.worldSurfaceHeight +
+        capsule.segmentHalfHeight + capsule.radius;
+    constexpr double MaximumSlopeStep = 0.20;
+    const Vec3 resolved =
+        navigation.collisionWorld
+            ->moveCircleAgainstRaisedSurfaces(
+                {
+                    enemy.position.x,
+                    enemyTopHeight,
+                    enemy.position.z,
+                },
+                delta, capsule.radius,
+                enemy.worldSurfaceHeight +
+                    MaximumSlopeStep);
+    enemy.position.x = resolved.x;
+    enemy.position.z = resolved.z;
 }
 
 double aiUpdateInterval(
@@ -911,6 +974,11 @@ std::optional<double> rayVerticalCapsuleDistance(
 
 } // namespace
 
+bool enemyUsesForwardSurfaceProbe(EnemyState state) {
+    return state == EnemyState::MoveToCore ||
+           state == EnemyState::ChasePlayer;
+}
+
 EnemySystem::EnemySystem(
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions)
     : definitions_(definitions) {
@@ -1137,8 +1205,14 @@ std::span<const EnemyAttack> EnemySystem::tick(
         const double knockbackSpeed = std::hypot(
             enemy.knockbackVelocity.x,
             enemy.knockbackVelocity.z);
-        enemy.position.x += enemy.knockbackVelocity.x * deltaSeconds;
-        enemy.position.z += enemy.knockbackVelocity.z * deltaSeconds;
+        moveEnemyHorizontally(
+            enemy,
+            {
+                enemy.knockbackVelocity.x * deltaSeconds,
+                0.0,
+                enemy.knockbackVelocity.z * deltaSeconds,
+            },
+            navigation);
         const double knockbackDecay = std::max(0.0, 1.0 - 5.0 * deltaSeconds);
         enemy.knockbackVelocity.x *= knockbackDecay;
         enemy.knockbackVelocity.z *= knockbackDecay;
@@ -1166,12 +1240,16 @@ std::span<const EnemyAttack> EnemySystem::tick(
                   enemy, playerPosition, coreWorldPosition);
         if (aiInterval > 0.0 &&
             enemy.aiUpdateRemaining > 0.0) {
-            enemy.position.x +=
-                std::sin(enemy.yaw) *
-                movementSpeed * deltaSeconds;
-            enemy.position.z +=
-                std::cos(enemy.yaw) *
-                movementSpeed * deltaSeconds;
+            moveEnemyHorizontally(
+                enemy,
+                {
+                    std::sin(enemy.yaw) *
+                        movementSpeed * deltaSeconds,
+                    0.0,
+                    std::cos(enemy.yaw) *
+                        movementSpeed * deltaSeconds,
+                },
+                navigation);
             ++performanceStats_.throttledAiMoves;
             continue;
         }
@@ -1225,6 +1303,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 playerAggroRange(enemy.type) +
                 (alreadyAggroed ? 1.5 : 0.0);
             if (playerDistanceSquared <= aggroRange * aggroRange &&
+                playerSharesAttackHeight(
+                    enemy, *playerPosition) &&
                 !buildingIsInAttackRange(
                     enemy, buildingGrid) &&
                 !buildingBlocksPathToPlayer(
@@ -1260,10 +1340,14 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     const double movement = std::min(
                         movementSpeed * deltaSeconds,
                         playerDistance - playerRange);
-                    enemy.position.x +=
-                        std::sin(enemy.yaw) * movement;
-                    enemy.position.z +=
-                        std::cos(enemy.yaw) * movement;
+                    moveEnemyHorizontally(
+                        enemy,
+                        {
+                            std::sin(enemy.yaw) * movement,
+                            0.0,
+                            std::cos(enemy.yaw) * movement,
+                        },
+                        navigation);
                 }
                 continue;
             }
@@ -1474,8 +1558,14 @@ std::span<const EnemyAttack> EnemySystem::tick(
         if (blocker == nullptr) {
             enemy.state = EnemyState::MoveToCore;
             enemy.target.reset();
-            enemy.position.x += directionX * movementSpeed * deltaSeconds;
-            enemy.position.z += directionZ * movementSpeed * deltaSeconds;
+            moveEnemyHorizontally(
+                enemy,
+                {
+                    directionX * movementSpeed * deltaSeconds,
+                    0.0,
+                    directionZ * movementSpeed * deltaSeconds,
+                },
+                navigation);
             continue;
         }
 
@@ -1508,8 +1598,14 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 std::min(movementSpeed * deltaSeconds,
                          closestContactDistance -
                              enemyAttackRange);
-            enemy.position.x += directionX * movement;
-            enemy.position.z += directionZ * movement;
+            moveEnemyHorizontally(
+                enemy,
+                {
+                    directionX * movement,
+                    0.0,
+                    directionZ * movement,
+                },
+                navigation);
             enemy.state = EnemyState::MoveToCore;
             enemy.target.reset();
             continue;

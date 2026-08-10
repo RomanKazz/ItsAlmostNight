@@ -629,8 +629,14 @@ void runFoundationSystemTests() {
     const auto base = envelope.placePlatformFrame(
         envelope.previewFoundation(
             {0.2, 0.0, 0.2}, player));
-    const auto wall = envelope.placeWall(
-        envelope.previewWall(
+    ian::FoundationSystem wallEnvelope{
+        terrain, config};
+    const auto wallBase =
+        wallEnvelope.placePlatformFrame(
+            wallEnvelope.previewFoundation(
+                {0.2, 0.0, 0.2}, player));
+    const auto wall = wallEnvelope.placeWall(
+        wallEnvelope.previewWall(
             {0.2, 0.0, 1.2}, player,
             ian::Rotation::Deg90));
     const auto rampPreview =
@@ -658,26 +664,26 @@ void runFoundationSystemTests() {
     require(
         rampPreview.anchor.x == 0 &&
             rampPreview.anchor.z ==
-                -ian::ModularRampRunCells &&
+                -ian::PlatformFrameWidthCells &&
             envelope
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
                         ian::Rotation::Deg0)
                     .anchor.z ==
-                ian::PlatformFrameWidthCells &&
+                0 &&
             envelope
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
                         ian::Rotation::Deg90)
                     .anchor.x ==
-                -ian::ModularRampRunCells &&
+                -ian::PlatformFrameWidthCells &&
             envelope
                     .previewRamp(
                         {0.2, 0.0, 0.2}, player,
                         ian::Rotation::Deg270)
                     .anchor.x ==
-                ian::PlatformFrameWidthCells,
-        "ramp footprint begins outside the supporting platform edge");
+                0,
+        "ramp low half begins directly above its supporting platform");
     const auto rampSockets =
         ian::platformRampEdgeSockets(
             {0, 0, 0}, 2.0, 1.0);
@@ -790,20 +796,20 @@ void runFoundationSystemTests() {
         " half-way boundaries one platform closer");
     require(
         ian::rampTopPlatformAnchor(
-            {0, 0, 2}, ian::Rotation::Deg0) ==
-                ian::GridCoord{0, 0, 6} &&
+            {0, 0, 0}, ian::Rotation::Deg0) ==
+                ian::GridCoord{0, 0, 4} &&
             ian::rampTopPlatformAnchor(
-                {-4, 0, 0},
+                {-2, 0, 0},
                 ian::Rotation::Deg90) ==
-                ian::GridCoord{-6, 0, 0} &&
+                ian::GridCoord{-4, 0, 0} &&
             ian::rampTopPlatformAnchor(
-                {0, 0, -4},
+                {0, 0, -2},
                 ian::Rotation::Deg180) ==
-                ian::GridCoord{0, 0, -6} &&
+                ian::GridCoord{0, 0, -4} &&
             ian::rampTopPlatformAnchor(
-                {2, 0, 0},
+                {0, 0, 0},
                 ian::Rotation::Deg270) ==
-                ian::GridCoord{6, 0, 0},
+                ian::GridCoord{4, 0, 0},
         "ramp top edge maps to the adjacent PlatformFrame anchor");
     require(
         ian::rampSocketContainsFloorAim(
@@ -820,7 +826,7 @@ void runFoundationSystemTests() {
                 {1.0, 2.0, 2.51}, 1.0),
         "ramp edge safe zone spans half a cell on both sides");
     require(
-        base && wall && ramp &&
+        base && wallBase && wall && ramp &&
             std::abs(
                 wall->topHeight -
                 wall->bottomHeight -
@@ -846,8 +852,48 @@ void runFoundationSystemTests() {
                 .error ==
             ian::ModularPlacementError::NoSupport,
         "ramp requires an existing PlatformFrame");
+
+    ian::FoundationSystem rampSupportEnvelope{
+        terrain, config};
+    const auto rearPlatform =
+        rampSupportEnvelope.placePlatformFrame(
+            rampSupportEnvelope.previewFoundation(
+                {-1.8, 0.0, 0.2}, player));
+    const auto platformUnderRamp =
+        rampSupportEnvelope.placePlatformFrame(
+            rampSupportEnvelope.previewFoundation(
+                {0.2, 0.0, 0.2}, player));
+    require(
+        rearPlatform && platformUnderRamp,
+        "ramp dependency fixture creates adjacent platforms");
+    const auto edgeRampPreview =
+        rampSupportEnvelope.previewRamp(
+            {0.2, 0.0, 0.2}, player,
+            ian::Rotation::Deg270);
+    const auto edgeRamp =
+        rampSupportEnvelope.placeRamp(
+            edgeRampPreview);
+    require(
+        edgeRampPreview.valid() && edgeRamp &&
+            edgeRamp->anchor.x ==
+                platformUnderRamp->anchor.x &&
+            rampSupportEnvelope.structuralGraph()
+                    .dependentCount(
+                        platformUnderRamp->id, false) ==
+                1U &&
+            rampSupportEnvelope.structuralGraph()
+                    .dependentCount(
+                        rearPlatform->id, false) == 0U,
+        "ramp starts over the edge platform and ignores the platform behind it");
+    require(
+        rampSupportEnvelope.remove(
+            rearPlatform->id) &&
+            rampSupportEnvelope.ramps().size() == 1U &&
+            rampSupportEnvelope.ramps()[0].supportState ==
+                ian::StructuralSupportState::Supported,
+        "removing the platform behind the ramp does not weaken it");
     const auto woundedWall =
-        envelope.damage(wall->id, 30.0);
+        wallEnvelope.damage(wall->id, 30.0);
     const auto woundedRamp =
         envelope.damage(ramp->id, 40.0);
     require(
@@ -859,7 +905,7 @@ void runFoundationSystemTests() {
                 ian::ModularRampMaxHealth - 40.0,
         "walls and ramps share modular combat damage");
     const auto repairedWall =
-        envelope.repair(wall->id, 100, 100);
+        wallEnvelope.repair(wall->id, 100, 100);
     require(
         repairedWall.valid() && repairedWall.wall &&
             repairedWall.wall->health ==

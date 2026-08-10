@@ -44,6 +44,9 @@ enum class EnemyState {
     Dead,
 };
 
+[[nodiscard]] bool enemyUsesForwardSurfaceProbe(
+    EnemyState state);
+
 enum class StatusEffectType {
     Freeze,
     Slow,

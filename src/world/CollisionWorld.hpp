@@ -62,6 +62,9 @@ class CollisionWorld {
         Vec3 position, Vec3 delta, double radius,
         double maximumWalkableSurfaceHeight =
             std::numeric_limits<double>::infinity()) const;
+    [[nodiscard]] Vec3 moveCircleAgainstRaisedSurfaces(
+        Vec3 position, Vec3 delta, double radius,
+        double maximumWalkableSurfaceHeight) const;
     [[nodiscard]] std::optional<double>
     modularSurfaceHeight(
         double worldX, double worldZ,
@@ -88,6 +91,11 @@ class CollisionWorld {
     [[nodiscard]] const std::vector<CollisionBox>& colliders() const;
 
   private:
+    [[nodiscard]] Vec3 moveCircleInternal(
+        Vec3 position, Vec3 delta, double radius,
+        double maximumWalkableSurfaceHeight,
+        bool collideWithSolidGeometry) const;
+
     enum class SurfaceKind {
         Flat,
         Ramp,

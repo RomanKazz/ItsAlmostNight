@@ -77,7 +77,7 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
     }
 
     const CoinCollection collected = coinPickups_.tick(
-        deltaSeconds, playerPosition_, terrain_);
+        deltaSeconds, playerPosition_, terrain_, collisionWorld_);
     if (collected.value <= 0) {
         return;
     }

@@ -652,6 +652,8 @@ void App::processPresentationEvents(
                 destroyedEnemyVisuals_.push_back({
                     .type = enemy->type,
                     .position = enemy->position,
+                    .surfaceHeightOffset =
+                        enemy->surfaceHeightOffset,
                     .yaw = enemy->yaw,
                     .remaining = DeathDuration,
                     .duration = DeathDuration,

@@ -24,30 +24,26 @@ int rampDepthCells(Rotation rotation) {
 
 GridCoord rampAnchorFromSupport(
     GridCoord support, Rotation rotation) {
-    // The ramp footprint begins outside the supporting
-    // PlatformFrame, with its low edge flush to the floor edge.
-    if (rotation == Rotation::Deg0) {
-        support.z += PlatformFrameWidthCells;
-    } else if (rotation == Rotation::Deg180) {
-        support.z -= ModularRampRunCells;
+    // The supporting PlatformFrame sits directly below the
+    // ramp's low half. The ramp then rises out past its edge.
+    if (rotation == Rotation::Deg180) {
+        support.z -=
+            ModularRampRunCells -
+            PlatformFrameWidthCells;
     } else if (rotation == Rotation::Deg90) {
-        support.x -= ModularRampRunCells;
-    } else {
-        support.x += PlatformFrameWidthCells;
+        support.x -=
+            ModularRampRunCells -
+            PlatformFrameWidthCells;
     }
     return support;
 }
 
 GridCoord rampSupportCell(
     GridCoord anchor, Rotation rotation) {
-    if (rotation == Rotation::Deg0) {
-        anchor.z -= 1;
-    } else if (rotation == Rotation::Deg180) {
-        anchor.z += ModularRampRunCells;
+    if (rotation == Rotation::Deg180) {
+        anchor.z += ModularRampRunCells - 1;
     } else if (rotation == Rotation::Deg90) {
-        anchor.x += ModularRampRunCells;
-    } else {
-        anchor.x -= 1;
+        anchor.x += ModularRampRunCells - 1;
     }
     return anchor;
 }
@@ -310,10 +306,10 @@ FoundationSystem::placeRamp(
             OccupancyLayer::Volume)) {
         return std::nullopt;
     }
+    std::vector<EntityId> sources;
     const auto supportCells =
         rampSupportCells(
             instance.anchor, instance.rotation);
-    std::vector<EntityId> sources;
     for (const GridCoord cell : supportCells) {
         const auto source =
             topFloorAtCell(cell.x, cell.z);

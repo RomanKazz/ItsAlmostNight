@@ -621,6 +621,23 @@ void CollisionWorld::rebuildSurfaceBroadphases() {
 Vec3 CollisionWorld::moveCircle(
     Vec3 position, Vec3 delta, double radius,
     double maximumWalkableSurfaceHeight) const {
+    return moveCircleInternal(
+        position, delta, radius,
+        maximumWalkableSurfaceHeight, true);
+}
+
+Vec3 CollisionWorld::moveCircleAgainstRaisedSurfaces(
+    Vec3 position, Vec3 delta, double radius,
+    double maximumWalkableSurfaceHeight) const {
+    return moveCircleInternal(
+        position, delta, radius,
+        maximumWalkableSurfaceHeight, false);
+}
+
+Vec3 CollisionWorld::moveCircleInternal(
+    Vec3 position, Vec3 delta, double radius,
+    double maximumWalkableSurfaceHeight,
+    bool collideWithSolidGeometry) const {
     const double distance = std::sqrt((delta.x * delta.x) + (delta.z * delta.z));
     const int stepCount =
         std::max(1, static_cast<int>(std::ceil(distance / MaxMovementStep)));
@@ -893,7 +910,8 @@ Vec3 CollisionWorld::moveCircle(
         const bool blockedX =
             raisedSurfaceBlocksMovement(
                 position, candidate) ||
-            colliderBlocksMovement(position, candidate);
+            (collideWithSolidGeometry &&
+             colliderBlocksMovement(position, candidate));
         if (!blockedX) {
             position.x = candidate.x;
         }
@@ -904,7 +922,8 @@ Vec3 CollisionWorld::moveCircle(
         const bool blockedZ =
             raisedSurfaceBlocksMovement(
                 position, candidate) ||
-            colliderBlocksMovement(position, candidate);
+            (collideWithSolidGeometry &&
+             colliderBlocksMovement(position, candidate));
         if (!blockedZ) {
             position.z = candidate.z;
         }

@@ -13,6 +13,18 @@
 #include <vector>
 
 void runEnemySystemTests() {
+    require(
+        ian::enemyUsesForwardSurfaceProbe(
+            ian::EnemyState::MoveToCore) &&
+            ian::enemyUsesForwardSurfaceProbe(
+                ian::EnemyState::ChasePlayer) &&
+            !ian::enemyUsesForwardSurfaceProbe(
+                ian::EnemyState::AttackPlayer) &&
+            !ian::enemyUsesForwardSurfaceProbe(
+                ian::EnemyState::AttackBuilding) &&
+            !ian::enemyUsesForwardSurfaceProbe(
+                ian::EnemyState::AttackCore),
+        "only moving enemies probe forward for a higher surface");
     {
         ian::EnemySystem resetIds;
         constexpr std::array<ian::Vec3, 1> Spawn{{
@@ -262,6 +274,7 @@ void runEnemySystemTests() {
         ian::FlowField elevatedFlow;
         elevatedFlow.rebuild(
             {1, 7}, elevatedBuildings.buildings());
+
         ian::EnemySystem climbingEnemies;
         const std::array<ian::Vec3, 1> climbingSpawn{{
             {1.0, 0.8, 1.0},
@@ -639,6 +652,17 @@ void runEnemySystemTests() {
                         ian::Vec3{4.0, 1.7, 4.0});
     require(contactEnemies.playerAttacks().size() == 1,
             "enemy attacks player again after cooldown");
+
+    ian::EnemySystem differentFloorEnemies;
+    differentFloorEnemies.spawnWave(ContactSpawn);
+    differentFloorEnemies.tick(
+        1.0 / 60.0, buildings.buildings(), flowField,
+        ian::Vec3{4.0, 5.7, 4.0});
+    require(
+        differentFloorEnemies.playerAttacks().empty() &&
+            differentFloorEnemies.enemies()[0].state !=
+                ian::EnemyState::AttackPlayer,
+        "enemy cannot attack or aggro a player on another storey");
 
     ian::EnemySystem chasingEnemies;
     constexpr std::array<ian::Vec3, 1> ChasingSpawn{{

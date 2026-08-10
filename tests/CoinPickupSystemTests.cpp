@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "economy/CoinPickupSystem.hpp"
+#include "world/CollisionWorld.hpp"
 #include "world/TerrainHeightfield.hpp"
 #include "world/WorldConfig.hpp"
 
@@ -11,6 +12,7 @@ void runCoinPickupSystemTests() {
     config.terrainWorldSize = 32.0;
     config.coreFlatRadius = 8.0;
     ian::TerrainHeightfield terrain{config};
+    ian::CollisionWorld collision;
     ian::CoinPickupSystem coins;
 
     coins.spawn({0.0, 0.0, 0.0}, 3, 42U, terrain);
@@ -20,7 +22,8 @@ void runCoinPickupSystemTests() {
     int collected = 0;
     for (int frame = 0; frame < 60; ++frame) {
         collected += coins.tick(
-            1.0 / 60.0, {12.0, 1.7, 0.0}, terrain).value;
+            1.0 / 60.0, {12.0, 1.7, 0.0}, terrain,
+            collision).value;
     }
     require(collected == 0 && coins.pickups().size() == 3,
             "coins wait in the world outside attraction radius");
@@ -35,7 +38,8 @@ void runCoinPickupSystemTests() {
     bool magnetized = false;
     for (int frame = 0; frame < 180 && !coins.pickups().empty(); ++frame) {
         const ian::CoinCollection result = coins.tick(
-            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain);
+            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain,
+            collision);
         collected += result.value;
         for (const ian::CoinPickup& coin : coins.pickups()) {
             magnetized = magnetized || coin.magnetized;
@@ -54,4 +58,33 @@ void runCoinPickupSystemTests() {
         coins.pickups().size() ==
             ian::CoinPickupSystem::MaximumPickups,
         "coin population is capped for large enemy waves");
+
+    std::vector<ian::PlatformFrameInstance> elevatedFrames;
+    std::uint32_t frameId = 1;
+    for (int z = -4; z <= 2; z += 2) {
+        for (int x = -4; x <= 2; x += 2) {
+            elevatedFrames.push_back({
+                .id = {frameId++, 1U},
+                .anchor = {x, 0, z},
+                .floorHeight = 3.0,
+                .storey = 0,
+            });
+        }
+    }
+    collision.syncModularBuildings({
+        elevatedFrames, {}, {}, 1.0,
+    });
+    coins.reset();
+    coins.spawn({0.0, 3.0, 0.0}, 1, 91U, terrain);
+    for (int frame = 0; frame < 180; ++frame) {
+        static_cast<void>(coins.tick(
+            1.0 / 60.0, {20.0, 1.7, 20.0}, terrain,
+            collision));
+    }
+    require(
+        coins.pickups().size() == 1,
+        "elevated platform coin remains in the world");
+    require(
+        coins.pickups().front().position.y >= 3.29,
+        "falling coins land on elevated modular platforms");
 }

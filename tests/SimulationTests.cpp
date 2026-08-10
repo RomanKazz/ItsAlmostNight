@@ -1347,7 +1347,7 @@ void runSimulationTests() {
         map.resources = {
             {
                 .type = ian::ResourceType::Wood,
-                .position = {1.0, 1.0, 1.5},
+                .position = {1.0, 5.5, 2.5},
                 .radius = 1.0,
                 .health = 3.0,
                 .yield = 15,
@@ -1374,12 +1374,12 @@ void runSimulationTests() {
         require(
             groundFrame.has_value(),
             "raised ramp resource fixture creates ground frame");
+        const auto groundRampPreview =
+            raisedRampResources.previewRamp(
+                supportHit,
+                ian::Rotation::Deg180);
         require(
-            raisedRampResources
-                    .previewRamp(
-                        supportHit,
-                        ian::Rotation::Deg180)
-                    .error ==
+            groundRampPreview.error ==
                 ian::ModularPlacementError::
                     ResourceBlocked,
             "ground ramp remains blocked by resource");
@@ -1394,12 +1394,12 @@ void runSimulationTests() {
         require(
             upperFrame.has_value(),
             "raised ramp resource fixture creates upper frame");
+        const auto raisedRampPreview =
+            raisedRampResources.previewRamp(
+                supportHit,
+                ian::Rotation::Deg180);
         require(
-            raisedRampResources
-                .previewRamp(
-                    supportHit,
-                    ian::Rotation::Deg180)
-                .valid(),
+            raisedRampPreview.valid(),
             "resource below raised ramp does not block placement");
     }
 

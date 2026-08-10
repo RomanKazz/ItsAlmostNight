@@ -312,6 +312,7 @@ class App {
     struct DestroyedEnemyVisual {
         EnemyType type;
         Vec3 position;
+        double surfaceHeightOffset;
         double yaw;
         double remaining;
         double duration;

@@ -9,6 +9,7 @@
 namespace ian {
 
 class TerrainHeightfield;
+class CollisionWorld;
 
 struct CoinPickup {
     std::uint64_t id{};
@@ -38,7 +39,8 @@ class CoinPickupSystem {
                const TerrainHeightfield& terrain);
     [[nodiscard]] CoinCollection tick(
         double deltaSeconds, Vec3 playerPosition,
-        const TerrainHeightfield& terrain);
+        const TerrainHeightfield& terrain,
+        const CollisionWorld& collisionWorld);
     [[nodiscard]] std::span<const CoinPickup> pickups() const;
 
   private:

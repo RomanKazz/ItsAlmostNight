@@ -1063,6 +1063,8 @@ void App::drawWorldEntities(
         const EnemyInstance visualEnemy{
             .type = visual.type,
             .position = visual.position,
+            .surfaceHeightOffset =
+                visual.surfaceHeightOffset,
         };
         Vector3 position =
             enemyRenderPosition(visualEnemy);
