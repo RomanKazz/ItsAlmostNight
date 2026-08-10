@@ -8,6 +8,13 @@
 #include <vector>
 
 void runCollisionWorldTests() {
+    const auto compactMineBox = ian::buildingCollisionBox(
+        ian::BuildingType::GoldMine, {2, 2});
+    requireNear(
+        compactMineBox.maximumBlockingEyeY -
+            compactMineBox.minimumBlockingEyeY,
+        0.85, 1e-9,
+        "one-cell producer collision height follows uniform half scale");
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "collision fixture creates core");

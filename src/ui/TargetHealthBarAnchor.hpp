@@ -12,11 +12,11 @@ namespace ian {
     case BuildingType::Turret:
         return 1.52;
     case BuildingType::GoldMine:
-        return 1.44;
+        return 0.72;
     case BuildingType::LumberMill:
-        return 1.70;
+        return 0.85;
     case BuildingType::Quarry:
-        return 1.12;
+        return 0.56;
     case BuildingType::Cannon:
         return 1.76;
     case BuildingType::SlowTrap:
@@ -38,7 +38,11 @@ namespace ian {
 [[nodiscard]] inline Vec3 buildingProductionVisualWorldAnchor(
     const BuildingInstance& building) {
     Vec3 anchor = buildingWorldPosition(building);
-    anchor.y += 1.35;
+    const bool compactProducer =
+        building.type == BuildingType::GoldMine ||
+        building.type == BuildingType::LumberMill ||
+        building.type == BuildingType::Quarry;
+    anchor.y += compactProducer ? 0.675 : 1.35;
     return anchor;
 }
 

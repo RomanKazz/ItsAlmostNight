@@ -157,8 +157,8 @@ void App::drawShadowPass(
                         spawnScale *
                             productionScaleAt(
                                 building.id))) {
-                    DrawCube({x, groundY + 0.55F, z},
-                             1.0F, 1.1F,
+                    DrawCube({x, groundY + 0.275F, z},
+                             1.0F, 0.55F,
                              1.0F, WHITE);
                 }
             } else if (building.type == BuildingType::Cannon) {
@@ -507,9 +507,9 @@ void App::drawSelectionPass(
                             spawnScale *
                                 productionScaleAt(
                                     building->id))) {
-                        DrawCube({x, groundY + 0.55F, z},
+                        DrawCube({x, groundY + 0.275F, z},
                                  1.0F,
-                                 1.1F, 1.0F, WHITE);
+                                 0.55F, 1.0F, WHITE);
                     }
                 } else if (building->type ==
                            BuildingType::Cannon) {

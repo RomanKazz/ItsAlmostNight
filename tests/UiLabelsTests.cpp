@@ -54,4 +54,19 @@ void runUiLabelsTests() {
         productionAnchor.y,
         elevatedTurret.baseHeight + 1.35, 1e-9,
         "production visual follows elevated building base height");
+
+    ian::BuildingInstance compactQuarry{
+        .id = {43U, 1U},
+        .type = ian::BuildingType::Quarry,
+        .gridPosition = {2, 3},
+        .baseHeight = 4.0,
+    };
+    requireNear(
+        ian::buildingHealthBarWorldAnchor(compactQuarry).y,
+        4.56, 1e-9,
+        "one-cell quarry health bar follows uniform half scale");
+    requireNear(
+        ian::buildingProductionVisualWorldAnchor(compactQuarry).y,
+        4.675, 1e-9,
+        "one-cell producer output follows uniform half scale");
 }

@@ -873,7 +873,7 @@ void App::drawWorldOverlays(
             preview.type == BuildingType::Quarry) {
             if (!renderer_->drawResourceProducer(
                     preview.type, {x, 0.0F, z}, yaw)) {
-                DrawCube({x, 0.55F, z}, 1.0F, 1.1F,
+                DrawCube({x, 0.275F, z}, 1.0F, 0.55F,
                          1.0F, WHITE);
             }
         } else if (

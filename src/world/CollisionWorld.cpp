@@ -178,7 +178,7 @@ CollisionBox buildingCollisionBox(
         type == BuildingType::GoldMine ||
         type == BuildingType::LumberMill ||
         type == BuildingType::Quarry) {
-        height = 1.7;
+        height = 0.85;
     } else if (
         type == BuildingType::WoodStorage ||
         type == BuildingType::StoneStorage ||

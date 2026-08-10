@@ -52,7 +52,7 @@ SelectionBounds selectionBounds(BuildingType type) {
     case BuildingType::GoldMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
-        return {0.44, 0.44, 0.0, 1.6};
+        return {0.44, 0.44, 0.0, 0.8};
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:

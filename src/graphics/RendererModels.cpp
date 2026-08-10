@@ -1435,7 +1435,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
         Model& model = resource->get();
         position.y += groundOffset;
         const Matrix scale = MatrixScale(
-            modelScale * horizontalScale, modelScale,
+            modelScale * horizontalScale,
+            modelScale * horizontalScale,
             modelScale * horizontalScale);
         const Matrix rotation = MatrixRotateY(yaw);
         const Matrix translation = MatrixTranslate(
@@ -1517,7 +1518,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
             building.type == BuildingType::GoldMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
-            size = {0.9F, 1.6F, 0.9F};
+            size = {0.9F, 0.8F, 0.9F};
         }
         addBox(
             {position.x, size.y * 0.5F, position.z},
@@ -1964,7 +1965,7 @@ bool Renderer::drawResourceProducer(
     DrawModelEx(
         model, position, {0.0F, 1.0F, 0.0F},
         yawRadians * RAD2DEG,
-        {modelScale * scale * 0.5F, modelScale * scale,
+        {modelScale * scale * 0.5F, modelScale * scale * 0.5F,
          modelScale * scale * 0.5F},
         tint);
     return true;

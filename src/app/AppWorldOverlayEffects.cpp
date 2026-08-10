@@ -178,8 +178,8 @@ void App::drawSoldBuildingVisuals() {
                     building.type,
                     {x, baseY - sink, z},
                     yaw, tint, scale)) {
-                drawCube(0.0F, 0.55F, 0.0F, 1.0F,
-                         1.1F, 1.0F,
+                drawCube(0.0F, 0.275F, 0.0F, 1.0F,
+                         0.55F, 1.0F,
                          {82, 101, 142, alpha});
             }
         } else if (building.type == BuildingType::Cannon) {
