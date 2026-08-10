@@ -274,7 +274,7 @@ void main()
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
     // Open-sky bounce keeps back-facing and shadowed surfaces readable.
     // Match the grass fill closely without flattening the direct sun contrast.
-    ambient += skyAmbientColor*ambientIntensity*0.24;
+    ambient += skyAmbientColor*ambientIntensity*0.27;
     float shadow = sampleShadow(normal);
     float cloudLight = 1.0;
     if (terrainAmount > 0.5 && cloudShadowStrength > 0.001)
