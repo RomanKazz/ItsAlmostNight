@@ -60,6 +60,27 @@ void emitFlameLobe(
         middleLeft, orange, middleRight, ember, tip, clear);
 }
 
+void emitEmber(
+    Vector3 center, Vector3 cameraRight,
+    float size, float amount) {
+    const Vector3 left = Vector3Add(
+        center, Vector3Scale(cameraRight, -size));
+    const Vector3 right = Vector3Add(
+        center, Vector3Scale(cameraRight, size));
+    Vector3 bottom = center;
+    bottom.y -= size * 1.55F;
+    Vector3 top = center;
+    top.y += size * 1.55F;
+    const auto alpha = static_cast<unsigned char>(std::lround(
+        255.0F * std::clamp(amount, 0.0F, 1.0F)));
+    const Color core{255, 246, 183, alpha};
+    const Color edge{255, 94, 12,
+                     static_cast<unsigned char>(alpha * 0.72F)};
+    const Color clear{190, 24, 2, 0};
+    emitFlameTriangle(bottom, clear, right, edge, top, core);
+    emitFlameTriangle(bottom, clear, top, core, left, edge);
+}
+
 float enemyFlameScale(EnemyType type) {
     switch (type) {
     case EnemyType::Boss: return 1.65F;
@@ -1087,6 +1108,15 @@ void App::drawWorldEntities(
             continue;
         }
         const float scale = enemyFlameScale(enemy.type);
+        Vector3 toCamera = Vector3Subtract(camera.position, position);
+        toCamera.y = 0.0F;
+        if (Vector3LengthSqr(toCamera) < 0.001F) {
+            toCamera = Vector3Negate(cameraForward);
+            toCamera.y = 0.0F;
+        }
+        toCamera = Vector3Normalize(toCamera);
+        const Vector3 visibleFront = Vector3Add(
+            position, Vector3Scale(toCamera, scale * 0.42F));
         const int lobeCount =
             detailedFlames && distanceSquared < 324.0F ? 3 : 2;
         for (int lobe = 0; lobe < lobeCount; ++lobe) {
@@ -1095,8 +1125,8 @@ void App::drawWorldEntities(
                 snapshot.elapsedSeconds * (8.2 + lobe * 1.35)) +
                 static_cast<float>(enemy.id.index % 97U) * 0.37F +
                 lobeIndex * 2.1F;
-            Vector3 base = position;
-            base.y += scale * (0.16F + lobeIndex * 0.13F);
+            Vector3 base = visibleFront;
+            base.y += scale * (0.12F + lobeIndex * 0.16F);
             base = Vector3Add(
                 base,
                 Vector3Scale(
@@ -1105,14 +1135,51 @@ void App::drawWorldEntities(
                         static_cast<float>(lobeCount - 1) * 0.5F) *
                         0.22F));
             const float height = scale *
-                (0.72F + lobeIndex * 0.15F +
-                 (0.5F + 0.5F * std::sin(phase * 1.31F)) * 0.18F);
+                (1.02F + lobeIndex * 0.18F +
+                 (0.5F + 0.5F * std::sin(phase * 1.31F)) * 0.24F);
             const float width = scale *
-                (0.16F + 0.025F * lobeIndex);
-            const float sway = scale * 0.16F * std::sin(phase);
+                (0.21F + 0.03F * lobeIndex);
+            const float sway = scale * 0.20F * std::sin(phase);
             emitFlameLobe(
                 base, flameRight, width, height, sway,
                 burn->second * (1.0F - lobeIndex * 0.08F));
+        }
+        const int emberCount = detailedFlames &&
+                distanceSquared < 324.0F
+            ? 6
+            : 2;
+        for (int ember = 0; ember < emberCount; ++ember) {
+            const float emberIndex = static_cast<float>(ember);
+            const float seed = static_cast<float>(
+                (enemy.id.index * 17U +
+                 static_cast<std::uint32_t>(ember) * 29U) % 101U) /
+                101.0F;
+            const float rise = std::fmod(
+                static_cast<float>(snapshot.elapsedSeconds) *
+                    (0.62F + emberIndex * 0.035F) + seed,
+                1.0F);
+            const float orbit =
+                static_cast<float>(snapshot.elapsedSeconds) *
+                    (2.2F + emberIndex * 0.18F) +
+                seed * 2.0F * PI;
+            Vector3 emberPosition = visibleFront;
+            emberPosition = Vector3Add(
+                emberPosition,
+                Vector3Scale(
+                    flameRight,
+                    std::sin(orbit) * scale *
+                        (0.24F + emberIndex * 0.035F)));
+            emberPosition = Vector3Add(
+                emberPosition,
+                Vector3Scale(toCamera, std::cos(orbit) * scale * 0.08F));
+            emberPosition.y += scale * (0.48F + rise * 1.42F);
+            const float emberFade =
+                (1.0F - rise) * std::min(1.0F, rise * 7.0F);
+            emitEmber(
+                emberPosition, flameRight,
+                scale * (0.035F + 0.008F *
+                    (0.5F + 0.5F * std::sin(orbit * 1.7F))),
+                burn->second * emberFade * 0.95F);
         }
     }
     rlEnd();
