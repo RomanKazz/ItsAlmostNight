@@ -179,6 +179,11 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
     // targets a different enemy, resource, or building.
     constexpr double EnemyHealthBarRange = 36.0;
     constexpr std::size_t MaximumWoundedEnemyBars = 64;
+    const bool aimedEnemyIsPrimaryTarget =
+        snapshot.aimedEnemy &&
+        !snapshot.aimedResource &&
+        !snapshot.aimedBuilding &&
+        !snapshot.aimedModularBuilding;
     std::size_t woundedEnemyBars = 0;
     for (const EnemyInstance& enemy : snapshot.enemies) {
         const auto visibility = enemyHealthVisibility_.find(
@@ -186,7 +191,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         if (!enemy.active ||
             visibility == enemyHealthVisibility_.end() ||
             visibility->second.remaining <= 0.0 ||
-            (snapshot.aimedEnemy && enemy.id == *snapshot.aimedEnemy)) {
+            (aimedEnemyIsPrimaryTarget &&
+             enemy.id == *snapshot.aimedEnemy)) {
             continue;
         }
         const double deltaX = enemy.position.x - snapshot.playerPosition.x;
@@ -390,6 +396,18 @@ void TargetHealthBar::reset() {
 void TargetHealthBar::notifyRepair(EntityId id) {
     repairTarget_ = id;
     repairPulseRemaining_ = repairPulseDuration_;
+}
+
+void TargetHealthBar::notifyEnemyHit(EntityId id) {
+    auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
+        entityKey(id),
+        EnemyHealthVisibility{
+            .previousHealth = 0.0,
+            .remaining = EnemyHealthBarDuration,
+            .lastSeenFrame = enemyHealthFrame_,
+        });
+    entry->second.remaining = EnemyHealthBarDuration;
+    (void)inserted;
 }
 
 void TargetHealthBar::drawBillboard(

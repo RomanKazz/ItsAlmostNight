@@ -14,6 +14,11 @@ enum class ActionMode {
     Modular,
 };
 
+[[nodiscard]] inline constexpr bool actionModeUsesEquipment(
+    ActionMode mode) {
+    return mode == ActionMode::Tools || mode == ActionMode::Weapons;
+}
+
 [[nodiscard]] inline constexpr const char*
 actionModeLabel(ActionMode mode) {
     switch (mode) {

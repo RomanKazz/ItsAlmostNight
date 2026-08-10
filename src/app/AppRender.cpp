@@ -476,6 +476,7 @@ void App::render() {
         const bool showFirstPersonTool =
             (tuningPreview ||
              displayedToolVisual_ != FirstPersonToolVisual::None) &&
+            (tuningPreview || actionModeUsesEquipment(actionMode_)) &&
             !snapshot.selectedBuilding &&
             !foundationBuildMode_ &&
             !snapshot.playerRespawning;

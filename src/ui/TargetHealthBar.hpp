@@ -24,6 +24,7 @@ class TargetHealthBar {
               const TerrainHeightfield& terrain,
               EnemyBoundsProvider enemyBoundsProvider = {});
     void notifyRepair(EntityId id);
+    void notifyEnemyHit(EntityId id);
     void reset();
 
   private:

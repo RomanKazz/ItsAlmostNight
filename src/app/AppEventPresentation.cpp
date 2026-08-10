@@ -79,8 +79,17 @@ void App::processPresentationEvents(
                 static_cast<double>((bounds.min.x + bounds.max.x) * 0.5F),
                 static_cast<double>(bounds.max.y + 0.12F),
                 static_cast<double>((bounds.min.z + bounds.max.z) * 0.5F)};
-        };
+    };
     for (const auto& event : events) {
+        const bool enemyHit =
+            event.type == GameEventType::ProjectileHit ||
+            event.type == GameEventType::TrapHit ||
+            event.type == GameEventType::PickaxeHit ||
+            event.type == GameEventType::IceWandHit ||
+            event.type == GameEventType::FireWandHit;
+        if (enemyHit && event.entityId) {
+            targetHealthBar_.notifyEnemyHit(*event.entityId);
+        }
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
             displayedInsight_ = 0.0;

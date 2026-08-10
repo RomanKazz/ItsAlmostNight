@@ -194,7 +194,7 @@ void Simulation::updatePlayerActions(
     // Smart Tools chooses between already-held real tools. Bare Hands is an
     // intentional gathering mode: keep it selected so its 25% coefficients,
     // animation and VFX remain the ones used for the hit.
-    if (automaticToolSwitch && aimedResource_ &&
+    if (automaticToolSwitch && !selectedBuilding_ && aimedResource_ &&
         heldTool != PlayerWeapon::BareHands) {
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,

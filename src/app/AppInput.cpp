@@ -123,6 +123,16 @@ void App::selectActionMode(
         }
         break;
     case ActionMode::Buildings:
+        pendingWeaponSelection_.reset();
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
+        toolSwingAttackPending_ = false;
+        toolSwingQueued_ = false;
+        toolQueuedSwingHasAttack_ = false;
+        toolQueuedResourceTarget_.reset();
+        toolSwingQueueRemaining_ = 0.0;
         setFoundationBuildMode(false);
         pendingBuildingCancel_ = false;
         pendingBuildingSelection_ =
@@ -131,6 +141,16 @@ void App::selectActionMode(
                 : lastBuildingSelection_;
         break;
     case ActionMode::Modular:
+        pendingWeaponSelection_.reset();
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
+        toolSwingAttackPending_ = false;
+        toolSwingQueued_ = false;
+        toolQueuedSwingHasAttack_ = false;
+        toolQueuedResourceTarget_.reset();
+        toolSwingQueueRemaining_ = 0.0;
         setFoundationBuildMode(true);
         break;
     }
@@ -631,14 +651,10 @@ void App::processInput() {
             userSettings_.controls, ControlAction::Sprint);
 
         const auto selectBuildingMode =
-            [this](BuildingType type) {
-                if (actionMode_ != ActionMode::Buildings) {
-                    previousActionMode_ = actionMode_;
-                    actionMode_ = ActionMode::Buildings;
-                }
+            [this, &currentSnapshot](BuildingType type) {
+                selectActionMode(
+                    ActionMode::Buildings, currentSnapshot);
                 lastBuildingSelection_ = type;
-                setFoundationBuildMode(false);
-                pendingBuildingCancel_ = false;
                 pendingBuildingSelection_ = type;
             };
         const Vector2 mouseDelta = GetMouseDelta();
@@ -1445,25 +1461,29 @@ void App::processInput() {
                     buildingContextCardStats_ =
                         currentSnapshot.aimedBuildingStats;
                 }
-            } else if (!pendingBuildingSelection_ &&
+            } else if (actionModeUsesEquipment(actionMode_) &&
+                       !pendingBuildingSelection_ &&
                        currentSnapshot.selectedWeapon == PlayerWeapon::Rifle) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingRifleShot_ = true;
-            } else if (!pendingBuildingSelection_ &&
+            } else if (actionModeUsesEquipment(actionMode_) &&
+                       !pendingBuildingSelection_ &&
                        currentSnapshot.selectedWeapon == PlayerWeapon::IceWand) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingIceWandShot_ = true;
-            } else if (!pendingBuildingSelection_ &&
+            } else if (actionModeUsesEquipment(actionMode_) &&
+                       !pendingBuildingSelection_ &&
                        currentSnapshot.selectedWeapon == PlayerWeapon::FireWand) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingFireWandShot_ = true;
-            } else if (!pendingBuildingSelection_) {
+            } else if (actionModeUsesEquipment(actionMode_) &&
+                       !pendingBuildingSelection_) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();

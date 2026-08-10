@@ -547,6 +547,19 @@ void runSimulationTests() {
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
             "automatic switch selects pickaxe for stone");
+        ian::PlayerCommand buildWhileAimingWood;
+        buildWhileAimingWood.selectBuilding =
+            ian::BuildingType::Core;
+        buildWhileAimingWood.overrideAimedResource = true;
+        buildWhileAimingWood.aimedResourceOverride = wood->id;
+        automaticTools.tick(
+            1.0 / 60.0, buildWhileAimingWood);
+        require(
+            automaticTools.snapshot().selectedBuilding ==
+                ian::BuildingType::Core &&
+            automaticTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Pickaxe,
+            "automatic tools cannot cancel building mode");
         const auto holdToGather =
             automaticTools.skillTree().indexOf(
                 "hold_to_gather");

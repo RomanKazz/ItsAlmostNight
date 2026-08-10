@@ -15,6 +15,13 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    require(
+        ian::actionModeUsesEquipment(ian::ActionMode::Tools) &&
+            ian::actionModeUsesEquipment(ian::ActionMode::Weapons) &&
+            !ian::actionModeUsesEquipment(ian::ActionMode::Buildings) &&
+            !ian::actionModeUsesEquipment(ian::ActionMode::Modular),
+        "construction modes never expose equipped viewmodels");
+
     std::vector<TimedVisual> visuals{
         {.id = 1, .remaining = 0.5},
         {.id = 2, .remaining = 0.1},
