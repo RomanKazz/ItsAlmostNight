@@ -31,6 +31,13 @@ void runUiLabelsTests() {
             ian::BuildingType::GoldMine) ==
             "Crystal Mine",
         "gold mine label follows crystal currency");
+    const std::string introReward =
+        ian::introGatherRewardMessage(60.0);
+    require(
+        introReward ==
+            "Gathering objective complete: +60 Insight" &&
+            introReward.find("Skill point") == std::string::npos,
+        "intro gathering completion reports Insight, not a skill point");
 
     ian::BuildingInstance elevatedTurret{
         .id = {42U, 1U},

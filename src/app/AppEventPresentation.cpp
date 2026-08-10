@@ -848,7 +848,9 @@ void App::processPresentationEvents(
                 std::to_string(event.amount) +
                 " Crystals";
         } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
-            message = "Skill point earned - press K to open skill tree";
+            message = introGatherRewardMessage(
+                simulation_.insightSystem().config()
+                    .introGatherObjective);
         } else if (event.type == GameEventType::SkillUnlocked) {
             message = "Skill unlocked";
         } else if (event.type == GameEventType::BuildingFortified) {

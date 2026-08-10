@@ -1,5 +1,8 @@
 #include "ui/UiLabels.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace ian {
 
 std::string_view buildingDisplayName(BuildingType type) {
@@ -32,6 +35,13 @@ std::string_view buildingDisplayName(BuildingType type) {
         return "Crystal Storage";
     }
     return {};
+}
+
+std::string introGatherRewardMessage(double insightReward) {
+    return "Gathering objective complete: +" +
+        std::to_string(static_cast<int>(std::lround(
+            std::max(0.0, insightReward)))) +
+        " Insight";
 }
 
 } // namespace ian
