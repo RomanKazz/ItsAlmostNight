@@ -231,7 +231,7 @@ void runEnemySystemTests() {
         traversalTerrain.generate(90210U);
         const double lowerFloor =
             traversalTerrain.getHeight(1.0, 1.0) + 0.10;
-        const std::array<ian::PlatformFrameInstance, 2>
+        const std::array<ian::PlatformFrameInstance, 4>
             traversalFrames{{
                 {
                     .id = {12100U, 1U},
@@ -242,6 +242,18 @@ void runEnemySystemTests() {
                 {
                     .id = {12101U, 1U},
                     .anchor = {0, 0, 6},
+                    .floorHeight = lowerFloor + 4.0,
+                    .storey = 1,
+                },
+                {
+                    .id = {12103U, 1U},
+                    .anchor = {0, 0, 8},
+                    .floorHeight = lowerFloor + 4.0,
+                    .storey = 1,
+                },
+                {
+                    .id = {12104U, 1U},
+                    .anchor = {0, 0, 10},
                     .floorHeight = lowerFloor + 4.0,
                     .storey = 1,
                 },
@@ -266,7 +278,7 @@ void runEnemySystemTests() {
         });
         ian::BuildingSystem elevatedBuildings;
         const auto elevatedCore = elevatedBuildings.place(
-            ian::BuildingType::Core, {1, 7}, 0,
+            ian::BuildingType::Core, {1, 11}, 0,
             1000, 1000, 1000,
             lowerFloor + 4.0, 1, lowerFloor + 4.0);
         require(
@@ -274,7 +286,7 @@ void runEnemySystemTests() {
             "multi-level enemy fixture creates elevated core");
         ian::FlowField elevatedFlow;
         elevatedFlow.rebuild(
-            {1, 7}, elevatedBuildings.buildings());
+            {1, 11}, elevatedBuildings.buildings());
 
         ian::EnemySystem climbingEnemies;
         const std::array<ian::Vec3, 1> climbingSpawn{{
@@ -282,19 +294,42 @@ void runEnemySystemTests() {
         }};
         climbingEnemies.spawnWave(climbingSpawn);
         bool attackedElevatedCore = false;
+        bool reactedToPlayerUpstairs = false;
+        bool testedPlayerUpstairs = false;
         double maximumSurfaceOffset = 0.0;
         for (int tick = 0;
              tick < 1200 && !attackedElevatedCore; ++tick) {
+            const ian::EnemyInstance& beforeTick =
+                climbingEnemies.enemies().front();
+            const bool probePlayer =
+                !testedPlayerUpstairs &&
+                beforeTick.surfaceHeightOffset > 3.0 &&
+                beforeTick.position.z < 8.5;
+            const std::optional<ian::Vec3> nearbyPlayer = probePlayer
+                ? std::optional<ian::Vec3>{{
+                      beforeTick.position.x,
+                      lowerFloor + 5.7,
+                      beforeTick.position.z,
+                  }}
+                : std::nullopt;
             const auto attacks = climbingEnemies.tick(
                 1.0 / 60.0,
                 elevatedBuildings.buildings(), elevatedFlow,
-                std::nullopt, {}, &traversalTerrain,
+                nearbyPlayer, {}, &traversalTerrain,
                 {
                     traversalFrames,
                     traversalRamps,
                     1.0,
                     &traversalCollision,
                 });
+            if (probePlayer) {
+                testedPlayerUpstairs = true;
+                reactedToPlayerUpstairs =
+                    climbingEnemies.enemies().front().state ==
+                        ian::EnemyState::AttackPlayer ||
+                    climbingEnemies.enemies().front().state ==
+                        ian::EnemyState::ChasePlayer;
+            }
             maximumSurfaceOffset = std::max(
                 maximumSurfaceOffset,
                 climbingEnemies.enemies().front()
@@ -309,6 +344,9 @@ void runEnemySystemTests() {
         require(
             maximumSurfaceOffset > 3.0,
             "ground enemy climbs modular ramp to upper storey");
+        require(
+            testedPlayerUpstairs && reactedToPlayerUpstairs,
+            "enemy reacts to a nearby player on the same upper storey");
         require(
             attackedElevatedCore,
             "enemy reaches and attacks core through multi-level route");

@@ -1329,9 +1329,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
             continue;
         }
 
-        if (playerPosition &&
-            (!navigationWaypoint ||
-             navigationWaypoint->y <= terrainHeight + 0.25)) {
+        // A navigation waypoint only describes the route to the core. It
+        // must not suppress aggro: playerSharesAttackHeight below is the
+        // authoritative same-storey check.
+        if (playerPosition) {
             const double playerOffsetX = playerPosition->x - enemy.position.x;
             const double playerOffsetZ = playerPosition->z - enemy.position.z;
             const double playerDistanceSquared =
