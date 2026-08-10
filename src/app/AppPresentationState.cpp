@@ -25,8 +25,22 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
         return;
     }
 
-    std::optional<EntityId> visualResource =
-        snapshot.aimedResource;
+    // Combat already gives an aimed enemy priority over gathering. Mirror
+    // that priority in presentation so a resource behind an enemy cannot
+    // steal both its outline and health bar.
+    if (snapshot.aimedEnemy) {
+        hoveredResource_.reset();
+        interactionResourceAim_.reset();
+        hoveredBuilding_.reset();
+        hoveredEnemy_ = snapshot.aimedEnemy;
+        hoveredBuildingUpgradeCost_.reset();
+        hoveredBuildingStats_.reset();
+        buildingHoverSeconds_ = 0.0;
+        hoverGraceRemaining_ = HoverGraceSeconds;
+        return;
+    }
+
+    std::optional<EntityId> visualResource = snapshot.aimedResource;
     if (interactionResourceAim_) {
         const bool stillActive = std::any_of(
             snapshot.resourceNodes.begin(), snapshot.resourceNodes.end(),
@@ -71,17 +85,6 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
         hoverGraceRemaining_ = HoverGraceSeconds;
         return;
     }
-    if (snapshot.aimedEnemy) {
-        hoveredResource_.reset();
-        hoveredBuilding_.reset();
-        hoveredEnemy_ = snapshot.aimedEnemy;
-        hoveredBuildingUpgradeCost_.reset();
-        hoveredBuildingStats_.reset();
-        buildingHoverSeconds_ = 0.0;
-        hoverGraceRemaining_ = HoverGraceSeconds;
-        return;
-    }
-
     hoverGraceRemaining_ =
         std::max(0.0, hoverGraceRemaining_ - frameSeconds);
     const bool resourceValid =

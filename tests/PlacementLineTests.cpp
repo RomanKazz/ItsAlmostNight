@@ -3,6 +3,45 @@
 #include "buildings/PlacementLine.hpp"
 
 void runPlacementLineTests() {
+    const ian::Vec3 elevatedViewer{0.0, 5.0, 0.0};
+    const auto rightAim = ian::elevatedPlatformDragAim(
+        elevatedViewer, {0.8, -0.8, 0.4}, 1.0, 12.0);
+    require(
+        rightAim &&
+            std::abs(rightAim->x - 4.0) < 1e-9 &&
+            std::abs(rightAim->y - 1.0) < 1e-9 &&
+            std::abs(rightAim->z - 2.0) < 1e-9,
+        "elevated floor drag intersects its working plane");
+    const auto leftAim = ian::elevatedPlatformDragAim(
+        elevatedViewer, {-0.8, -0.8, 0.4},
+        1.0, 12.0);
+    require(
+        leftAim &&
+            std::abs(leftAim->x + 4.0) < 1e-9 &&
+            std::abs(leftAim->z - 2.0) < 1e-9,
+        "working plane preserves world-space drag direction");
+    const auto belowAim = ian::elevatedPlatformDragAim(
+        {0.0, 1.0, 0.0}, {0.8, 0.8, 0.4},
+        5.0, 12.0);
+    require(
+        belowAim &&
+            std::abs(belowAim->x - 4.0) < 1e-9 &&
+            std::abs(belowAim->y - 5.0) < 1e-9 &&
+            std::abs(belowAim->z - 2.0) < 1e-9,
+        "working plane aim accounts for player height");
+    require(
+        !ian::elevatedPlatformDragAim(
+            elevatedViewer, {0.8, 0.8, 0.4},
+            1.0, 12.0),
+        "working plane rejects a ray aimed away from it");
+    const auto boundedAim = ian::elevatedPlatformDragAim(
+        elevatedViewer, {1.0, -0.01, 1.0},
+        1.0, 12.0);
+    require(
+        boundedAim &&
+            std::hypot(boundedAim->x, boundedAim->z) <=
+                12.0 + 1e-9,
+        "elevated floor drag endpoint respects build distance");
     using ian::PlacementLineAxis;
 
     auto axis = ian::stabilizePlacementLineAxis(
@@ -70,4 +109,19 @@ void runPlacementLineTests() {
     require(
         empty.empty(),
         "invalid spacing produces no placements");
+
+    const auto supportedPrefix =
+        ian::contiguousPlacementPrefix(
+            ian::placementLine(
+                ian::GridPosition{0, 0},
+                ian::GridPosition{8, 0}, 2,
+                PlacementLineAxis::X),
+            [](ian::GridPosition cell) {
+                return cell.x < 4;
+            });
+    require(
+        supportedPrefix.size() == 2U &&
+            supportedPrefix.back() ==
+                ian::GridPosition{2, 0},
+        "floor line stops at first missing platform support");
 }

@@ -701,23 +701,17 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                     0.45F +
                     unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
                 const float visibility = clearAreaVisibility(
-                    {x, z}, clearAreas, 2.2F, 0.25F);
-                const float clearing = 1.0F - visibility;
+                    {x, z}, clearAreas, 0.001F, 0.25F);
                 const float revealScale =
                     worldRevealScaleAt({x, z});
-                if (visibility <= 0.08F ||
+                if (visibility < 0.999F ||
                     revealScale <= 0.001F) {
                     continue;
                 }
                 const float horizontalScale =
-                    widthScale *
-                    (0.62F + visibility * 0.38F) *
-                    revealScale;
+                    widthScale * revealScale;
                 const float verticalScale =
-                    heightScale *
-                    (0.22F + visibility * 0.78F) *
-                    revealScale;
-                const float sink = clearing * 0.34F;
+                    heightScale * revealScale;
                 const float terrainHeight =
                     terrainHeightfield_ != nullptr
                         ? static_cast<float>(
@@ -736,7 +730,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                             MatrixRotateY(rotation),
                             MatrixTranslate(
                                 x,
-                                terrainHeight + 0.02F - sink,
+                                terrainHeight + 0.02F,
                                 z))),
                     .position = {x, z},
                 });
@@ -934,9 +928,9 @@ void Renderer::ensureGrassClearAreaIndex(
         mixHash(std::bit_cast<std::uint32_t>(area.innerRadius));
         mixHash(std::bit_cast<std::uint32_t>(area.amount));
     }
-    if (indexedGrassClearAreaData_ == clearAreas.data() &&
-        indexedGrassClearAreaCount_ == clearAreas.size() &&
+    if (indexedGrassClearAreaCount_ == clearAreas.size() &&
         grassClearAreaContentHash_ == contentHash) {
+        indexedGrassClearAreaData_ = clearAreas.data();
         return;
     }
     grassInstanceCacheValid_ = false;

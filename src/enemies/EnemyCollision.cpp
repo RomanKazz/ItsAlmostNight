@@ -61,8 +61,9 @@ constexpr int CollisionCellCount =
         enemyPhysicalCapsule(left.type);
     const EnemyCapsule rightCapsule =
         enemyPhysicalCapsule(right.type);
-    const double verticalDistance =
-        std::abs(left.position.y - right.position.y);
+    const double verticalDistance = std::abs(
+        left.position.y + left.surfaceHeightOffset -
+        right.position.y - right.surfaceHeightOffset);
     return verticalDistance <=
            leftCapsule.segmentHalfHeight +
                rightCapsule.segmentHalfHeight +
@@ -119,7 +120,11 @@ constexpr int CollisionCellCount =
 [[nodiscard]] bool resolveStructure(
     EnemyInstance& enemy,
     const EnemyStructureTarget& structure) {
-    if (!enemy.active ||
+    if (!enemy.active || structure.traversable ||
+        enemy.worldSurfaceHeight + 1e-6 <
+            structure.minimumEnemySurfaceHeight ||
+        enemy.worldSurfaceHeight - 1e-6 >
+            structure.maximumEnemySurfaceHeight ||
         (enemy.type == EnemyType::Flying &&
          structure.buildingType != BuildingType::Core)) {
         return false;

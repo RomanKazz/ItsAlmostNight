@@ -631,6 +631,9 @@ void App::processInput() {
             if (IsKeyPressed(KEY_NINE)) {
                 selectBuildingMode(BuildingType::Quarry);
             }
+            if (IsKeyPressed(KEY_ZERO)) {
+                selectBuildingMode(BuildingType::SpikeTrap);
+            }
         } else {
             constexpr std::array<int, PlayerWeaponCount> WeaponKeys{
                 KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,

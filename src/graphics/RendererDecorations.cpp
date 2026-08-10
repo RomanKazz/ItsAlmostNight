@@ -222,8 +222,8 @@ void Renderer::drawDecorativeRocks(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 1.8F, 0.65F);
-            if (visibility <= 0.01F) {
+                {x, z}, clearAreas, 0.001F, 0.65F);
+            if (visibility < 0.999F) {
                 continue;
             }
             const std::size_t variant =
@@ -244,7 +244,7 @@ void Renderer::drawDecorativeRocks(
             }
             const float scale =
                 baseScale * (0.88F + clusterStrength * 0.28F) *
-                visibility * revealScale;
+                revealScale;
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
                     ? static_cast<float>(
@@ -253,9 +253,7 @@ void Renderer::drawDecorativeRocks(
             const float rotation =
                 unitFloat(hash ^ 0x63d83595U) * PI * 2.0F;
             const Vector3 position{
-                x,
-                terrainHeight - (1.0F - visibility) * 0.08F,
-                z,
+                x, terrainHeight, z,
             };
             if (useInstancing) {
                 Model& model = resource.get();
@@ -338,8 +336,8 @@ void Renderer::drawDecorativeRocks(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 2.0F, 0.72F);
-            if (visibility <= 0.01F) {
+                {x, z}, clearAreas, 0.001F, 0.72F);
+            if (visibility < 0.999F) {
                 continue;
             }
             const std::size_t variant = static_cast<std::size_t>(
@@ -354,7 +352,7 @@ void Renderer::drawDecorativeRocks(
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
                 (0.90F + sharedCluster * 0.22F) *
-                visibility * revealScale;
+                revealScale;
             if (scale <= 0.001F) {
                 continue;
             }
@@ -366,9 +364,7 @@ void Renderer::drawDecorativeRocks(
             const float rotation =
                 unitFloat(hash ^ 0x1b56c4e9U) * PI * 2.0F;
             const Vector3 position{
-                x,
-                terrainHeight - (1.0F - visibility) * 0.10F,
-                z,
+                x, terrainHeight, z,
             };
             if (useInstancing) {
                 Model& model = resource.get();
@@ -629,15 +625,14 @@ void Renderer::drawDecorativeRockAo(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 1.8F, 0.65F);
-            if (visibility <= 0.01F) {
+                {x, z}, clearAreas, 0.001F, 0.65F);
+            if (visibility < 0.999F) {
                 continue;
             }
             const float scale =
                 (0.55F +
                  unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
                 (0.88F + decorativeRockClusterDensity(x, z) * 0.28F) *
-                visibility *
                 worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
                 continue;
@@ -703,8 +698,8 @@ void Renderer::drawDecorativeRockAo(
                 continue;
             }
             const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 2.0F, 0.72F);
-            if (visibility <= 0.01F) {
+                {x, z}, clearAreas, 0.001F, 0.72F);
+            if (visibility < 0.999F) {
                 continue;
             }
             const std::size_t variant = static_cast<std::size_t>(
@@ -713,7 +708,7 @@ void Renderer::drawDecorativeRockAo(
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
                 (0.90F + sharedCluster * 0.22F) *
-                visibility * worldRevealScaleAt({x, z});
+                worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
                 continue;
             }

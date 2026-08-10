@@ -257,6 +257,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& mineModel();
     [[nodiscard]] ModelResource& lumberMillModel();
     [[nodiscard]] ModelResource& quarryModel();
+    [[nodiscard]] ModelResource& spikeTrapModel();
     [[nodiscard]] ModelResource& rockModel();
     [[nodiscard]] ModelResource& treeModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& boundaryTreeModel(
@@ -364,6 +365,7 @@ class GraphicsResources {
     ModelResource mineModel_;
     ModelResource lumberMillModel_;
     ModelResource quarryModel_;
+    ModelResource spikeTrapModel_;
     ModelResource rockModel_;
     std::array<ModelResource, 3> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;

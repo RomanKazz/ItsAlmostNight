@@ -131,6 +131,7 @@ int main() {
             !resources.enemyWarriorModel().valid() ||
             !resources.enemySplitterModel().valid() ||
             !resources.enemySplitlingModel().valid() ||
+            !resources.spikeTrapModel().valid() ||
             resources.enemyPinkBlobAnimations().find("Idle") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Walk") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Death") == nullptr ||

@@ -20,6 +20,19 @@ constexpr float LootVisualScaleMultiplier = 1.20F;
 
 } // namespace
 
+float spikeTrapAnimationSeconds(
+    const SimulationSnapshot& snapshot, EntityId id) {
+    const auto runtime = std::ranges::find(
+        snapshot.traps, id, &TrapRuntime::buildingId);
+    if (runtime == snapshot.traps.end() ||
+        runtime->activationRemaining <= 0.0) {
+        return -1.0F;
+    }
+    return static_cast<float>(
+        TrapSystem::SpikeAnimationDuration -
+        runtime->activationRemaining);
+}
+
 LootItemVisual lootItemVisual(
     const SimulationSnapshot& snapshot,
     const LootChestInstance& chest) {
@@ -151,7 +164,9 @@ float enemyHitScale(const EnemyInstance& enemy) {
 Vector3 enemyRenderPosition(const EnemyInstance& enemy) {
     return {
         static_cast<float>(enemy.position.x),
-        enemy.type == EnemyType::Flying ? 1.25F : 0.02F,
+        enemy.type == EnemyType::Flying
+            ? 1.25F
+            : static_cast<float>(0.02 + enemy.surfaceHeightOffset),
         static_cast<float>(enemy.position.z),
     };
 }
@@ -889,7 +904,8 @@ void drawBuildingTacticalOverlay(
     std::optional<EntityId> targetId;
     if (building->type == BuildingType::Turret) {
         drawTacticalGroundCircle(
-            {static_cast<float>(center.x), 0.085F,
+            {static_cast<float>(center.x),
+             static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
                 TowerSystem::attackRange(building->level)),
@@ -902,10 +918,11 @@ void drawBuildingTacticalOverlay(
         if (runtime != snapshot.towers.end()) {
             targetId = runtime->targetId;
         }
-        center.y = 1.42;
+        center.y += 1.42;
     } else if (building->type == BuildingType::Cannon) {
         drawTacticalGroundCircle(
-            {static_cast<float>(center.x), 0.085F,
+            {static_cast<float>(center.x),
+             static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
                 CannonSystem::attackRange(building->level)),
@@ -918,14 +935,25 @@ void drawBuildingTacticalOverlay(
         if (runtime != snapshot.cannons.end()) {
             targetId = runtime->targetId;
         }
-        center.y = 1.5;
+        center.y += 1.5;
     } else if (building->type == BuildingType::SlowTrap) {
         drawTacticalGroundCircle(
-            {static_cast<float>(center.x), 0.085F,
+            {static_cast<float>(center.x),
+             static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
                 TrapSystem::triggerRadius(building->level)),
             {91, 209, 255, 190}, true);
+        return;
+    } else if (building->type == BuildingType::SpikeTrap) {
+        drawTacticalGroundCircle(
+            {static_cast<float>(center.x),
+             static_cast<float>(center.y) + 0.085F,
+             static_cast<float>(center.z)},
+            static_cast<float>(
+                TrapSystem::spikeTriggerRadius(
+                    building->level)),
+            {255, 115, 82, 190}, true);
         return;
     } else {
         return;

@@ -12,6 +12,7 @@ namespace ian {
 struct TrapRuntime {
     EntityId buildingId;
     double cooldownRemaining{};
+    double activationRemaining{};
 };
 
 struct TrapActivation {
@@ -21,6 +22,11 @@ struct TrapActivation {
     double wearDamage;
 };
 
+struct TrapHit {
+    EntityId trapId;
+    EnemyDamageResult result;
+};
+
 class TrapSystem {
   public:
     static constexpr double TriggerRadius = 1.6;
@@ -28,6 +34,7 @@ class TrapSystem {
     static constexpr double SlowMultiplier = 0.45;
     static constexpr double SlowDuration = 2.0;
     static constexpr double WearDamage = 10.0;
+    static constexpr double SpikeAnimationDuration = 1.2;
 
     TrapSystem();
 
@@ -35,16 +42,22 @@ class TrapSystem {
     [[nodiscard]] static double slowPercent(std::uint8_t level);
     [[nodiscard]] static double slowDuration(std::uint8_t level);
     [[nodiscard]] static double cooldown(std::uint8_t level);
+    [[nodiscard]] static double spikeTriggerRadius(std::uint8_t level);
+    [[nodiscard]] static double spikeDamage(std::uint8_t level);
+    [[nodiscard]] static double spikeCooldown(std::uint8_t level);
 
     void reset();
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TrapActivation> tick(double deltaSeconds,
                                          const std::vector<BuildingInstance>& buildings,
                                          EnemySystem& enemies);
+    [[nodiscard]] const std::vector<TrapRuntime>& traps() const;
+    [[nodiscard]] std::span<const TrapHit> hits() const;
 
   private:
     std::vector<TrapRuntime> traps_;
     std::vector<TrapActivation> activationBuffer_;
+    std::vector<TrapHit> hitBuffer_;
 };
 
 } // namespace ian

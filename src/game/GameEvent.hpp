@@ -56,6 +56,7 @@ enum class GameEventType {
     IceWandImpact,
     IceWandHit,
     TrapActivated,
+    TrapHit,
     WeaponFired,
     CannonFired,
     WeaponUpgraded,

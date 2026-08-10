@@ -41,4 +41,43 @@ void runTrapSystemTests() {
     require(movement > 0.8 && movement < 1.0, "upgraded slow reduces enemy movement speed");
     require(traps.tick(1.0, buildings.buildings(), enemies).empty(),
             "trap cooldown prevents immediate activation");
+
+    ian::BuildingSystem spikeBuildings;
+    const auto spikeCore = spikeBuildings.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(spikeCore.has_value(),
+            "spike trap fixture creates core");
+    spikeBuildings.upgrade(spikeCore->building.id, 0, 0, 50);
+    const auto spike = spikeBuildings.place(
+        ian::BuildingType::SpikeTrap, {0, -4}, 0,
+        20, 25, 15);
+    require(spike.has_value(),
+            "spike trap occupies one grid cell");
+    ian::EnemySystem spikeEnemies;
+    constexpr std::array<ian::Vec3, 1> SpikeSpawn{{
+        {0.0, 0.8, -4.0},
+    }};
+    spikeEnemies.spawnWave(SpikeSpawn);
+    ian::TrapSystem spikeTraps;
+    spikeTraps.syncBuildings(spikeBuildings.buildings());
+    const auto spikeActivation = spikeTraps.tick(
+        1.0 / 60.0, spikeBuildings.buildings(), spikeEnemies);
+    require(
+        spikeActivation.size() == 1 &&
+            spikeActivation.front().affectedCount == 1 &&
+            spikeTraps.hits().size() == 1 &&
+            spikeTraps.hits().front().result.killed,
+        "spike trap damages and kills an enemy on its cell");
+    requireNear(
+        spikeActivation.front().wearDamage,
+        ian::TrapSystem::WearDamage, 1e-12,
+        "spike trap wears on activation");
+    require(
+        spikeTraps.traps().front().activationRemaining > 1.1,
+        "spike trap exposes its trigger animation state");
+    require(
+        spikeTraps.tick(
+            0.2, spikeBuildings.buildings(), spikeEnemies)
+            .empty(),
+        "spike trap cooldown prevents retriggering");
 }

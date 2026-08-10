@@ -330,6 +330,10 @@ class Renderer {
         BuildingType type, Vector3 position,
         float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawSpikeTrap(
+        Vector3 position, float yawRadians = 0.0F,
+        float animationSeconds = -1.0F,
+        Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawRock(Vector3 position,
                                 Color tint = WHITE,
                                 float scale = 1.0F);

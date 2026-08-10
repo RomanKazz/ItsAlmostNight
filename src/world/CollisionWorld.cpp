@@ -32,6 +32,7 @@ bool buildingBlocksPlayer(
     case BuildingType::GoldMine:
     case BuildingType::Cannon:
     case BuildingType::SlowTrap:
+    case BuildingType::SpikeTrap:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
         return false;
@@ -167,7 +168,8 @@ CollisionBox buildingCollisionBox(
     if (type == BuildingType::Core) {
         height = 2.7;
     } else if (
-        type == BuildingType::SlowTrap) {
+        type == BuildingType::SlowTrap ||
+        type == BuildingType::SpikeTrap) {
         height = 0.5;
     } else if (
         type == BuildingType::GoldMine ||

@@ -753,38 +753,55 @@ void App::updateModularPlacementPreview(
         return;
     }
 
-    const double terrainRayDistance = std::max(
-        12.0,
-        modularStoreyHeight(terrain.config()) *
-                static_cast<double>(
-                    terrain.config().maxStoreys) +
-            12.0);
-    auto rawHit = simulation_.terrain().raycast(
-        snapshot.playerPosition, lookDirection,
-        terrainRayDistance);
-    // Ground-floor pieces still follow the terrain hit: that preserves the
-    // existing first-floor placement behaviour on sloped ground. Only an
-    // elevated storey gets its grid coordinates from the fixed horizontal
-    // plane, which removes the world-Y component from multi-build direction.
-    if (modularDragPiece_ &&
-        modularDragPlaneHeight_ && modularDragStorey_ &&
-        *modularDragStorey_ > 0) {
-        if (const auto dragPlaneHit =
+    const bool elevatedDrag =
+        modularDragPiece_ &&
+        modularDragPlaneHeight_ &&
+        modularDragStorey_ &&
+        *modularDragStorey_ > 0;
+    std::optional<Vec3> rawHit;
+    if (elevatedDrag) {
+        const Vec3 dragReference =
+            modularDragReferencePoint(
+                *modularDragStart_,
+                *modularDragPiece_,
+                *modularDragPlaneHeight_,
+                cellSize);
+        if (*modularDragPiece_ ==
+            ModularBuildPiece::FloorPlatform) {
+            rawHit = elevatedPlatformDragAim(
+                snapshot.playerPosition,
+                lookDirection,
+                *modularDragPlaneHeight_,
+                terrain.config().buildPreviewDistance);
+        } else {
+            const auto dragPlaneHit =
                 rampSocketAimOnFloor(
                     snapshot.playerPosition,
                     lookDirection,
-                    *modularDragPlaneHeight_)) {
-            const Vec3 dragReference =
-                modularDragReferencePoint(
-                    *modularDragStart_,
-                    *modularDragPiece_,
-                    *modularDragPlaneHeight_,
-                    cellSize);
-            rawHit = stableElevatedDragAim(
-                *dragPlaneHit, snapshot.playerPosition,
-                lookDirection, dragReference,
-                terrain.config().buildPreviewDistance);
+                    *modularDragPlaneHeight_);
+            if (dragPlaneHit) {
+                rawHit = stableElevatedDragAim(
+                    *dragPlaneHit,
+                    snapshot.playerPosition,
+                    lookDirection, dragReference,
+                    terrain.config().buildPreviewDistance);
+            }
         }
+        // Looking parallel to, or away from, the working plane keeps the
+        // previous endpoint. Never fall back to the terrain below it.
+        if (!rawHit) {
+            return;
+        }
+    } else {
+        const double terrainRayDistance = std::max(
+            12.0,
+            modularStoreyHeight(terrain.config()) *
+                    static_cast<double>(
+                        terrain.config().maxStoreys) +
+                12.0);
+        rawHit = simulation_.terrain().raycast(
+            snapshot.playerPosition, lookDirection,
+            terrainRayDistance);
     }
 
     if (rawHit &&
@@ -1285,10 +1302,15 @@ void App::beginModularPlacementDrag() {
             platformFramePreview_->anchor;
         modularDragStorey_ =
             platformFramePreview_->storey;
-        modularDragPlaneHeight_ =
-            platformFramePreview_->floorHeight;
         modularDragTargetFloorHeight_ =
             platformFramePreview_->floorHeight;
+        modularDragPlaneHeight_ =
+            modularBuildPiece_ ==
+                    ModularBuildPiece::FloorPlatform
+                ? platformFramePreview_->floorHeight -
+                      modularStoreyHeight(
+                          simulation_.terrain().config())
+                : platformFramePreview_->floorHeight;
     } else if (
         modularBuildPiece_ == ModularBuildPiece::Wall &&
         wallPreview_ && wallPreview_->valid()) {
@@ -1445,12 +1467,25 @@ void App::rebuildModularPlacementLine() {
     modularPlatformDragPreviews_.clear();
     modularWallDragPreviews_.clear();
     modularRampDragPreviews_.clear();
-    const auto cells = ian::placementLine(
+    auto cells = ian::placementLine(
         *modularDragStart_, *modularDragEnd_,
         spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
+    if (*modularDragPiece_ ==
+            ModularBuildPiece::FloorPlatform &&
+        modularDragTargetFloorHeight_) {
+        cells = contiguousPlacementPrefix(
+            std::move(cells),
+            [this](GridCoord cell) {
+                return simulation_.previewFloorPlatform(
+                           cell, *modularDragStorey_,
+                           *modularDragTargetFloorHeight_)
+                           .error !=
+                       ModularPlacementError::NoSupport;
+            });
+    }
     modularDragHits_.reserve(cells.size());
 
     Rotation wallRotation = modularRotation_;
@@ -1622,7 +1657,7 @@ bool App::finishModularPlacementDrag() {
                     .innerRadius =
                         static_cast<float>(
                             cellSize * 1.35),
-                    .amount = 0.0F,
+                    .amount = 1.0F,
                 });
             }
         }
@@ -1697,6 +1732,29 @@ bool App::finishModularPlacementDrag() {
                 rampCenter(*ramp, cellSize),
                 0.7, 1.35F, std::nullopt,
                 bounceDelayFor(placedOrdinal));
+            const bool alongZ =
+                ramp->rotation == Rotation::Deg0 ||
+                ramp->rotation == Rotation::Deg180;
+            const int widthCells =
+                alongZ ? ModularRampWidthCells
+                       : ModularRampRunCells;
+            const int depthCells =
+                alongZ ? ModularRampRunCells
+                       : ModularRampWidthCells;
+            grassClearAreas_.push_back({
+                .center = {
+                    static_cast<float>(
+                        (ramp->anchor.x +
+                         widthCells * 0.5) * cellSize),
+                    static_cast<float>(
+                        (ramp->anchor.z +
+                         depthCells * 0.5) * cellSize),
+                },
+                .innerRadius = static_cast<float>(
+                    cellSize * 0.5 *
+                    std::hypot(widthCells, depthCells)),
+                .amount = 1.0F,
+            });
             ++placedOrdinal;
         }
     }

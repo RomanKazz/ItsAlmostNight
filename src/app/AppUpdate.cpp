@@ -401,13 +401,6 @@ void App::update() {
         buildingShotRecoilVisuals_, frameSeconds);
     presentation::advanceTimeline(
         cancelledPlacementPreview_, frameSeconds);
-    for (GrassClearArea& area : grassClearAreas_) {
-        area.amount = std::min(
-            1.0F,
-            area.amount +
-                static_cast<float>(
-                    resourceAnimationSeconds / 0.48));
-    }
     if (!pendingBuildingPlacement_ &&
         !pendingWallPlacements_.empty()) {
         pendingBuildingPlacement_ =

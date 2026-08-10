@@ -157,6 +157,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::Gate),
             buildings_.configuredCost(BuildingType::LumberMill),
             buildings_.configuredCost(BuildingType::Quarry),
+            buildings_.configuredCost(BuildingType::SpikeTrap),
         },
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
@@ -181,6 +182,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .towers = std::span<const TowerRuntime>{towers_.towers()},
         .cannons = std::span<const CannonRuntime>{cannons_.cannons()},
+        .traps = std::span<const TrapRuntime>{traps_.traps()},
         .cannonProjectiles =
             std::span<const CannonProjectile>{cannons_.projectiles()},
         .bombProjectiles = std::span<const BombProjectile>{bombs_.projectiles()},

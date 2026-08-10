@@ -3,6 +3,9 @@
 #include "enemies/EnemyCollision.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "navigation/FlowField.hpp"
+#include "world/TerrainHeightfield.hpp"
+#include "world/CollisionWorld.hpp"
+#include "world/WorldConfig.hpp"
 
 #include <algorithm>
 #include <array>
@@ -133,6 +136,52 @@ void runEnemySystemTests() {
                 FoundationId,
         "enemy treats PlatformFrame as attackable structure");
 
+    ian::EnemySystem traversingEnemies;
+    traversingEnemies.spawnWave(FoundationSpawn);
+    auto walkableFoundation = foundationTargets;
+    walkableFoundation.front().traversable = true;
+    const auto traversalAttacks = traversingEnemies.tick(
+        1.0 / 60.0, buildings.buildings(),
+        flowField, std::nullopt, walkableFoundation);
+    require(
+        traversalAttacks.empty(),
+        "enemy never attacks a walkable platform surface");
+
+    auto supportCollisionEnemy =
+        traversingEnemies.enemies().front();
+    supportCollisionEnemy.position = {0.0, 0.8, 0.0};
+    supportCollisionEnemy.worldSurfaceHeight = 0.0;
+    const std::array<ian::EnemyStructureTarget, 1>
+        platformSupport{{{
+            .id = {12001U, 1U},
+            .position = {0.0, 0.0, 0.0},
+            .radius = 0.14,
+            .modular = true,
+            .maximumEnemySurfaceHeight = 1.9,
+            .attackable = false,
+        }}};
+    std::array<ian::EnemyInstance, 1> belowPlatform{{
+        supportCollisionEnemy,
+    }};
+    ian::resolveEnemyCapsuleCollisions(
+        belowPlatform, platformSupport);
+    require(
+        std::hypot(
+            belowPlatform.front().position.x,
+            belowPlatform.front().position.z) >= 0.73,
+        "enemy capsule cannot overlap platform support below floor");
+    std::array<ian::EnemyInstance, 1> abovePlatform{{
+        supportCollisionEnemy,
+    }};
+    abovePlatform.front().worldSurfaceHeight = 2.0;
+    ian::resolveEnemyCapsuleCollisions(
+        abovePlatform, platformSupport);
+    require(
+        std::hypot(
+            abovePlatform.front().position.x,
+            abovePlatform.front().position.z) < 1e-9,
+        "platform support does not repel enemy standing above it");
+
     ian::EnemySystem stackedEnemies;
     stackedEnemies.spawnWave(FoundationSpawn);
     constexpr ian::EntityId UpperStructureId{12002U, 1U};
@@ -163,6 +212,93 @@ void runEnemySystemTests() {
             stackedAttacks.front().targetId ==
                 FoundationId,
         "ground enemy attacks reachable lower support instead of upper floor");
+
+    {
+        ian::TerrainHeightfield traversalTerrain;
+        traversalTerrain.generate(90210U);
+        const double lowerFloor =
+            traversalTerrain.getHeight(1.0, 1.0) + 0.10;
+        const std::array<ian::PlatformFrameInstance, 2>
+            traversalFrames{{
+                {
+                    .id = {12100U, 1U},
+                    .anchor = {0, 0, 0},
+                    .floorHeight = lowerFloor,
+                    .storey = 0,
+                },
+                {
+                    .id = {12101U, 1U},
+                    .anchor = {0, 0, 6},
+                    .floorHeight = lowerFloor + 4.0,
+                    .storey = 1,
+                },
+            }};
+        const std::array<ian::RampInstance, 1>
+            traversalRamps{{
+                {
+                    .id = {12102U, 1U},
+                    .anchor = {0, 0, 2},
+                    .rotation = ian::Rotation::Deg0,
+                    .bottomHeight = lowerFloor,
+                    .topHeight = lowerFloor + 4.0,
+                    .targetStorey = 1,
+                },
+            }};
+        ian::CollisionWorld traversalCollision;
+        traversalCollision.syncModularBuildings({
+            traversalFrames,
+            {},
+            traversalRamps,
+            1.0,
+        });
+        ian::BuildingSystem elevatedBuildings;
+        const auto elevatedCore = elevatedBuildings.place(
+            ian::BuildingType::Core, {1, 7}, 0,
+            1000, 1000, 1000,
+            lowerFloor + 4.0, 1, lowerFloor + 4.0);
+        require(
+            elevatedCore.has_value(),
+            "multi-level enemy fixture creates elevated core");
+        ian::FlowField elevatedFlow;
+        elevatedFlow.rebuild(
+            {1, 7}, elevatedBuildings.buildings());
+        ian::EnemySystem climbingEnemies;
+        const std::array<ian::Vec3, 1> climbingSpawn{{
+            {1.0, 0.8, 1.0},
+        }};
+        climbingEnemies.spawnWave(climbingSpawn);
+        bool attackedElevatedCore = false;
+        double maximumSurfaceOffset = 0.0;
+        for (int tick = 0;
+             tick < 1200 && !attackedElevatedCore; ++tick) {
+            const auto attacks = climbingEnemies.tick(
+                1.0 / 60.0,
+                elevatedBuildings.buildings(), elevatedFlow,
+                std::nullopt, {}, &traversalTerrain,
+                {
+                    traversalFrames,
+                    traversalRamps,
+                    1.0,
+                    &traversalCollision,
+                });
+            maximumSurfaceOffset = std::max(
+                maximumSurfaceOffset,
+                climbingEnemies.enemies().front()
+                    .surfaceHeightOffset);
+            attackedElevatedCore = std::ranges::any_of(
+                attacks,
+                [&](const ian::EnemyAttack& attack) {
+                    return attack.targetId ==
+                        elevatedCore->building.id;
+                });
+        }
+        require(
+            maximumSurfaceOffset > 3.0,
+            "ground enemy climbs modular ramp to upper storey");
+        require(
+            attackedElevatedCore,
+            "enemy reaches and attacks core through multi-level route");
+    }
 
     std::vector<ian::EnemyInstance> modularOverlap{
         stackedEnemies.enemies().front()};
@@ -229,6 +365,64 @@ void runEnemySystemTests() {
 
     const auto centralEnemy = enemies.raycast({0.0, 0.8, -9.0}, {0.0, 0.0, 1.0}, 6.0);
     require(centralEnemy.has_value(), "enemy raycast finds target");
+
+    ian::EnemySystem capsuleAimEnemies;
+    constexpr std::array<ian::Vec3, 1> CapsuleAimSpawn{{
+        {0.0, 0.8, 0.0},
+    }};
+    capsuleAimEnemies.spawnWave(CapsuleAimSpawn);
+    require(
+        capsuleAimEnemies.raycast(
+            {0.0, 1.9, -4.0}, {0.0, 0.0, 1.0}, 6.0)
+            .has_value(),
+        "enemy raycast covers the full vertical capsule");
+
+    ian::WorldConfig aimTerrainConfig =
+        ian::WorldConfig::defaults();
+    aimTerrainConfig.terrainResolution = 33;
+    aimTerrainConfig.terrainWorldSize = 32.0;
+    aimTerrainConfig.coreFlatRadius = 0.0;
+    aimTerrainConfig.terrainBuildPlateauRadius = 0.0;
+    aimTerrainConfig.terrainFeatureSize = 12.0;
+    aimTerrainConfig.terrainAmplitude = 10.0;
+    aimTerrainConfig.terrainBoundaryRiseWidth = 8.0;
+    aimTerrainConfig.terrainBoundaryRiseHeight = 14.0;
+    ian::TerrainHeightfield aimTerrain{aimTerrainConfig};
+    ian::Vec3 elevatedSpawn{};
+    double largestHeightMagnitude = 0.0;
+    for (int z = -14; z <= 14; ++z) {
+        for (int x = -14; x <= 14; ++x) {
+            const double height = aimTerrain.getHeight(x, z);
+            if (std::abs(height) > largestHeightMagnitude) {
+                largestHeightMagnitude = std::abs(height);
+                elevatedSpawn = {
+                    static_cast<double>(x), 0.8,
+                    static_cast<double>(z)};
+            }
+        }
+    }
+    require(
+        largestHeightMagnitude > 1.5,
+        "enemy aim terrain fixture contains a meaningful elevation");
+    ian::EnemySystem terrainAimEnemies;
+    terrainAimEnemies.spawnWave(
+        std::span<const ian::Vec3>{&elevatedSpawn, 1});
+    const double elevatedWorldY =
+        aimTerrain.getHeight(elevatedSpawn.x, elevatedSpawn.z) +
+        elevatedSpawn.y;
+    const ian::Vec3 elevatedRayOrigin{
+        elevatedSpawn.x, elevatedWorldY,
+        elevatedSpawn.z - 4.0};
+    require(
+        !terrainAimEnemies.raycast(
+             elevatedRayOrigin, {0.0, 0.0, 1.0}, 6.0)
+             .has_value() &&
+            terrainAimEnemies.raycast(
+                elevatedRayOrigin, {0.0, 0.0, 1.0}, 6.0,
+                &aimTerrain)
+                .has_value(),
+        "enemy raycast follows rendered terrain elevation");
+
     enemies.damage(*centralEnemy, 4.0);
     const auto killed = enemies.damage(*centralEnemy, 1.0);
     require(killed.has_value() && killed->killed, "lethal damage kills enemy");

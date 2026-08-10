@@ -286,6 +286,10 @@ ModelResource& GraphicsResources::quarryModel() {
     return quarryModel_;
 }
 
+ModelResource& GraphicsResources::spikeTrapModel() {
+    return spikeTrapModel_;
+}
+
 ModelResource& GraphicsResources::rockModel() {
     return rockModel_;
 }

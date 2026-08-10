@@ -103,6 +103,7 @@ App::App()
       skillTree_(simulation_.skillTree()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
+    persistedUserSettings_ = userSettings_;
     initializeLocalization();
     setLanguage(userSettings_.language);
     audio_.settings() = userSettings_.audio;
@@ -205,12 +206,13 @@ void App::persistUserSettings(bool force) {
         .accessibility = userSettings_.accessibility,
         .language = userSettings_.language,
     };
-    if (current == userSettings_ ||
+    if (current == persistedUserSettings_ ||
         (!force && IsMouseButtonDown(MOUSE_BUTTON_LEFT))) {
         return;
     }
     if (saveUserSettings(UserSettingsPath, current)) {
         userSettings_ = current;
+        persistedUserSettings_ = current;
     }
 }
 

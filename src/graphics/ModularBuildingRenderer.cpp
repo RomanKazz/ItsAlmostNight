@@ -14,9 +14,9 @@ namespace {
 constexpr Color platformFrameColor{174, 121, 67, 255};
 constexpr Color wallColor{179, 105, 55, 255};
 constexpr Color rampColor{211, 166, 101, 255};
-constexpr Color validPreviewColor{109, 229, 142, 168};
-constexpr Color warningPreviewColor{242, 188, 72, 168};
-constexpr Color invalidPreviewColor{231, 82, 76, 168};
+constexpr Color validPreviewColor{109, 229, 142, 150};
+constexpr Color warningPreviewColor{242, 188, 72, 150};
+constexpr Color invalidPreviewColor{231, 82, 76, 150};
 constexpr Color unsupportedColor{204, 55, 51, 255};
 constexpr Color selectedColor{255, 229, 132, 255};
 

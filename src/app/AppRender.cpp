@@ -111,6 +111,11 @@ void App::render() {
         hoveredBuildingUpgradeCost_;
     presentationSnapshot.aimedBuildingStats =
         hoveredBuildingStats_;
+    if (presentationSnapshot.aimedEnemy) {
+        presentationSnapshot.aimedResource.reset();
+        presentationSnapshot.aimedBuilding.reset();
+        presentationSnapshot.aimedModularBuilding.reset();
+    }
     // Interaction feedback follows the exact aim, like chest selection.
     // The separate presentation snapshot may keep HUD context stable, but
     // outlines, prompts and healthbars must enter/leave together.
@@ -119,6 +124,11 @@ void App::render() {
         snapshot.aimedBuildingUpgradeCost;
     feedbackSnapshot.aimedBuildingStats =
         snapshot.aimedBuildingStats;
+    if (feedbackSnapshot.aimedEnemy) {
+        feedbackSnapshot.aimedResource.reset();
+        feedbackSnapshot.aimedBuilding.reset();
+        feedbackSnapshot.aimedModularBuilding.reset();
+    }
 
     if (snapshot.state == RunState::MainMenu) {
         interactionPromptRenderer_.reset();

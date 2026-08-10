@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/FoundationSystem.hpp"
 #include "core/PerformanceStats.hpp"
 #include "core/Types.hpp"
 #include "game/GameBalance.hpp"
@@ -9,6 +10,8 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <vector>
@@ -16,6 +19,7 @@
 namespace ian {
 
 class TerrainHeightfield;
+class CollisionWorld;
 
 enum class EnemyType {
     Basic,
@@ -90,6 +94,10 @@ struct EnemyInstance {
     std::optional<EntityId> target;
     bool active;
     double aiUpdateRemaining{};
+    // Height above terrain supplied by modular floors/ramps. Kept separate
+    // from authored model/capsule Y so existing combat dimensions stay valid.
+    double surfaceHeightOffset{};
+    double worldSurfaceHeight{};
     std::array<EnemyStatusEffect, 2> statusEffects{{
         EnemyStatusEffect{.type = StatusEffectType::Freeze},
         EnemyStatusEffect{.type = StatusEffectType::Slow},
@@ -124,6 +132,22 @@ struct EnemyStructureTarget {
     std::optional<BuildingType> buildingType;
     bool modular{};
     std::size_t structuralImpact{};
+    // Walkable floor/ramp geometry can still receive structural damage, but
+    // must not repel enemies while serving as navigation surface.
+    bool traversable{};
+    double minimumEnemySurfaceHeight{
+        -std::numeric_limits<double>::infinity()};
+    double maximumEnemySurfaceHeight{
+        std::numeric_limits<double>::infinity()};
+    bool attackable{true};
+};
+
+struct EnemyNavigationView {
+    std::span<const PlatformFrameInstance> platformFrames;
+    std::span<const RampInstance> ramps;
+    double cellSize{1.0};
+    const CollisionWorld* collisionWorld{};
+    std::uint64_t revision{};
 };
 
 struct EnemyDamageResult {
@@ -170,10 +194,12 @@ class EnemySystem {
                                       std::optional<Vec3> playerPosition = std::nullopt,
                                       std::span<const EnemyStructureTarget>
                                           additionalStructures = {},
-                                      const TerrainHeightfield* terrain = nullptr);
+                                      const TerrainHeightfield* terrain = nullptr,
+                                      EnemyNavigationView navigation = {});
 
-    [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
-                                                  double maxDistance) const;
+    [[nodiscard]] std::optional<EntityId> raycast(
+        Vec3 origin, Vec3 direction, double maxDistance,
+        const TerrainHeightfield* terrain = nullptr) const;
     std::optional<EnemyDamageResult> damage(EntityId id, double amount);
     [[nodiscard]] std::optional<EntityId> nearestEnemy(Vec3 position, double radius) const;
     [[nodiscard]] std::optional<EntityId> densestEnemy(Vec3 position, double radius,
@@ -237,6 +263,9 @@ class EnemySystem {
     bool spatialHashDirty_{};
     std::size_t spatialRebuildsThisTick_{};
     double spatialRebuildMillisecondsThisTick_{};
+    std::shared_ptr<void> navigationCache_;
+    std::uint64_t cachedNavigationRevision_{
+        std::numeric_limits<std::uint64_t>::max()};
 };
 
 [[nodiscard]] const EnemyStatusEffect& enemyStatusEffect(

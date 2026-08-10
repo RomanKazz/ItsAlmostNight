@@ -51,6 +51,10 @@ BuildingStats buildingStatsAtLevel(
         stats.effectRadius = TrapSystem::triggerRadius(level);
         stats.effectDuration = TrapSystem::slowDuration(level);
         stats.cooldown = TrapSystem::cooldown(level);
+    } else if (building.type == BuildingType::SpikeTrap) {
+        stats.attackDamage = TrapSystem::spikeDamage(level);
+        stats.effectRadius = TrapSystem::spikeTriggerRadius(level);
+        stats.cooldown = TrapSystem::spikeCooldown(level);
     }
     return stats;
 }

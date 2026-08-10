@@ -16,6 +16,7 @@ void runUiLabelsTests() {
         ian::BuildingType::Gate,
         ian::BuildingType::LumberMill,
         ian::BuildingType::Quarry,
+        ian::BuildingType::SpikeTrap,
     };
     for (const ian::BuildingType type : BuildingTypes) {
         require(
@@ -43,4 +44,11 @@ void runUiLabelsTests() {
             (elevatedTurret.baseHeight + 1.52)) <
             1e-9,
         "building health bar follows elevated base height");
+    const ian::Vec3 productionAnchor =
+        ian::buildingProductionVisualWorldAnchor(
+            elevatedTurret);
+    requireNear(
+        productionAnchor.y,
+        elevatedTurret.baseHeight + 1.35, 1e-9,
+        "production visual follows elevated building base height");
 }

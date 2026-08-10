@@ -31,6 +31,8 @@ struct LootItemVisual {
     const EnemyInstance& enemy);
 [[nodiscard]] float enemyAnimationSeconds(
     const EnemyInstance& enemy, double elapsedSeconds);
+[[nodiscard]] float spikeTrapAnimationSeconds(
+    const SimulationSnapshot& snapshot, EntityId id);
 void drawCentered(
     const char* text, int y, int fontSize, Color color);
 [[nodiscard]] const char* upgradeErrorMessage(

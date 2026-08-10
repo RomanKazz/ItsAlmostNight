@@ -24,6 +24,23 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             syncWorldStructures();
         }
     }
+    for (const TrapHit& hit : traps_.hits()) {
+        events_.push_back({
+            .type = GameEventType::TrapHit,
+            .entityId = hit.result.id,
+            .sourceId = hit.trapId,
+            .position = hit.result.position,
+            .damage = hit.result.damage,
+        });
+        if (hit.result.killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = hit.result.id,
+                .sourceId = hit.trapId,
+                .position = hit.result.position,
+            });
+        }
+    }
 }
 
 void Simulation::updateTowerCombat(double deltaSeconds) {

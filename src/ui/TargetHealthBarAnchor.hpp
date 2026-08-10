@@ -20,6 +20,7 @@ namespace ian {
     case BuildingType::Cannon:
         return 1.76;
     case BuildingType::SlowTrap:
+    case BuildingType::SpikeTrap:
         return 0.224;
     default:
         return 1.68;
@@ -31,6 +32,13 @@ namespace ian {
     Vec3 anchor = buildingWorldPosition(building);
     anchor.y += buildingHealthBarHeightOffset(
         building.type);
+    return anchor;
+}
+
+[[nodiscard]] inline Vec3 buildingProductionVisualWorldAnchor(
+    const BuildingInstance& building) {
+    Vec3 anchor = buildingWorldPosition(building);
+    anchor.y += 1.35;
     return anchor;
 }
 

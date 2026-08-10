@@ -179,6 +179,15 @@ void App::drawShadowPass(
                 DrawCube({x, groundY + 0.08F, z},
                          1.0F, 0.16F, 1.0F,
                          WHITE);
+            } else if (building.type == BuildingType::SpikeTrap) {
+                constexpr float QuarterTurn = PI * 0.5F;
+                static_cast<void>(renderer_->drawSpikeTrap(
+                    {x, groundY, z},
+                    static_cast<float>(building.rotation) *
+                        QuarterTurn,
+                    spikeTrapAnimationSeconds(
+                        snapshot, building.id),
+                    WHITE, spawnScale));
             } else if ((building.rotation % 2U) == 0U) {
                 DrawCube({x - 0.38F, groundY + 1.0F, z},
                          0.22F, 2.0F,
@@ -515,6 +524,16 @@ void App::drawSelectionPass(
                     DrawCube({x, groundY + 0.08F, z},
                              1.0F, 0.16F,
                              1.0F, WHITE);
+                } else if (building->type ==
+                           BuildingType::SpikeTrap) {
+                    constexpr float QuarterTurn = PI * 0.5F;
+                    static_cast<void>(renderer_->drawSpikeTrap(
+                        {x, groundY, z},
+                        static_cast<float>(building->rotation) *
+                            QuarterTurn,
+                        spikeTrapAnimationSeconds(
+                            snapshot, building->id),
+                        WHITE, spawnScale));
                 } else if ((building->rotation % 2U) == 0U) {
                     DrawCube({x - 0.38F, groundY + 1.0F, z},
                              0.22F,

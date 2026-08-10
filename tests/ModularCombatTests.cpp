@@ -31,8 +31,8 @@ void runModularCombatTests() {
         ian::buildModularEnemyTargets(
             foundations, config);
     require(
-        targets.size() == 2U,
-        "supported modular pieces become enemy targets");
+        targets.size() >= 2U,
+        "supported modular pieces expose navigation and collision targets");
     const auto frameTarget = std::find_if(
         targets.begin(), targets.end(),
         [frame](const ian::EnemyStructureTarget& target) {
@@ -41,8 +41,10 @@ void runModularCombatTests() {
     require(
         frameTarget != targets.end() &&
             frameTarget->modular &&
+            frameTarget->traversable &&
+            !frameTarget->attackable &&
             frameTarget->structuralImpact >= 2U,
-        "frame target carries recursive structural impact");
+        "frame surface is traversable and never directly attacked");
 
     const ian::Vec3 frameCenter =
         ian::modularBaseCenter(*frame, config);

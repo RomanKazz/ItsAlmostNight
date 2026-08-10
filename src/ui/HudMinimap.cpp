@@ -438,6 +438,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                      3.0F * symbolScale, 0.0F, 360.0F, 12,
                      {102, 190, 220, 235});
             break;
+        case BuildingType::SpikeTrap:
+            DrawPoly(
+                point, 4, 3.2F * symbolScale, 45.0F,
+                {222, 101, 75, 240});
+            break;
         case BuildingType::GoldMine:
         case BuildingType::LumberMill:
         case BuildingType::Quarry: {

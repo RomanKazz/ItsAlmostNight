@@ -974,6 +974,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     lumberMillModel_.load(
         "assets/models/lumber_mill.glb");
     quarryModel_.load("assets/models/quarry.glb");
+    spikeTrapModel_.load(
+        "assets/models/traps/spike_trap.glb");
     rockModel_.load("assets/models/rock.glb");
     treeModels_[0].load("assets/models/tree.glb");
     treeModels_[1].load("assets/models/tree_b.glb");
@@ -1205,6 +1207,7 @@ void GraphicsResources::shutdown() {
     }
     rockModel_.unload();
     quarryModel_.unload();
+    spikeTrapModel_.unload();
     lumberMillModel_.unload();
     mineModel_.unload();
     rampModel_.unload();

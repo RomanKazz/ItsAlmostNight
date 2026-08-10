@@ -7,6 +7,7 @@ namespace ian {
 TrapSystem::TrapSystem() {
     traps_.reserve(64);
     activationBuffer_.reserve(64);
+    hitBuffer_.reserve(64);
 }
 
 double TrapSystem::triggerRadius(std::uint8_t level) {
@@ -31,9 +32,24 @@ double TrapSystem::cooldown(std::uint8_t level) {
            0.15 * static_cast<double>(level - 1);
 }
 
+double TrapSystem::spikeTriggerRadius(std::uint8_t level) {
+    return 0.42 + 0.025 * static_cast<double>(level - 1);
+}
+
+double TrapSystem::spikeDamage(std::uint8_t level) {
+    return 18.0 + 4.0 * static_cast<double>(level - 1);
+}
+
+double TrapSystem::spikeCooldown(std::uint8_t level) {
+    return std::max(
+        SpikeAnimationDuration,
+        1.55 - 0.04 * static_cast<double>(level - 1));
+}
+
 void TrapSystem::reset() {
     traps_.clear();
     activationBuffer_.clear();
+    hitBuffer_.clear();
 }
 
 void TrapSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -41,11 +57,13 @@ void TrapSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
         return std::none_of(buildings.begin(), buildings.end(),
                             [&trap](const BuildingInstance& building) {
                                 return building.id == trap.buildingId &&
-                                       building.type == BuildingType::SlowTrap;
+                                       (building.type == BuildingType::SlowTrap ||
+                                        building.type == BuildingType::SpikeTrap);
                             });
     });
     for (const auto& building : buildings) {
-        if (building.type != BuildingType::SlowTrap) {
+        if (building.type != BuildingType::SlowTrap &&
+            building.type != BuildingType::SpikeTrap) {
             continue;
         }
         const bool exists =
@@ -61,8 +79,11 @@ void TrapSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
 std::span<const TrapActivation> TrapSystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings, EnemySystem& enemies) {
     activationBuffer_.clear();
+    hitBuffer_.clear();
     for (auto& trap : traps_) {
         trap.cooldownRemaining = std::max(0.0, trap.cooldownRemaining - deltaSeconds);
+        trap.activationRemaining = std::max(
+            0.0, trap.activationRemaining - deltaSeconds);
         if (trap.cooldownRemaining > 0.0) {
             continue;
         }
@@ -77,25 +98,49 @@ std::span<const TrapActivation> TrapSystem::tick(
         const Vec3 position =
             buildingWorldPosition(*building);
         const double levelBonus = static_cast<double>(building->level - 1);
-        const double radius = triggerRadius(building->level);
-        const double multiplier =
-            1.0 - slowPercent(building->level) / 100.0;
-        const double duration = slowDuration(building->level);
-        const auto affected = enemies.applySlowInRadius(
-            position, radius, multiplier, duration);
-        if (affected.empty()) {
-            continue;
+        int affectedCount = 0;
+        if (building->type == BuildingType::SpikeTrap) {
+            const auto hits = enemies.damageInRadius(
+                position, spikeTriggerRadius(building->level),
+                spikeDamage(building->level));
+            affectedCount = static_cast<int>(hits.size());
+            for (const EnemyDamageResult& hit : hits) {
+                hitBuffer_.push_back({trap.buildingId, hit});
+            }
+            if (affectedCount == 0) {
+                continue;
+            }
+            trap.activationRemaining = SpikeAnimationDuration;
+            trap.cooldownRemaining = spikeCooldown(building->level);
+        } else {
+            const double multiplier =
+                1.0 - slowPercent(building->level) / 100.0;
+            const auto affected = enemies.applySlowInRadius(
+                position, triggerRadius(building->level), multiplier,
+                slowDuration(building->level));
+            affectedCount = static_cast<int>(affected.size());
+            if (affectedCount == 0) {
+                continue;
+            }
+            trap.cooldownRemaining = cooldown(building->level);
         }
         activationBuffer_.push_back({
             .trapId = trap.buildingId,
             .position = position,
-            .affectedCount = static_cast<int>(affected.size()),
+            .affectedCount = affectedCount,
             .wearDamage =
                 WearDamage / (1.0 + 0.12 * levelBonus),
         });
-        trap.cooldownRemaining = cooldown(building->level);
     }
     return activationBuffer_;
+}
+
+const std::vector<TrapRuntime>& TrapSystem::traps() const {
+    return traps_;
+}
+
+std::span<const TrapHit> TrapSystem::hits() const {
+    return hitBuffer_;
 }
 
 } // namespace ian

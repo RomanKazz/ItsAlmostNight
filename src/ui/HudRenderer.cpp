@@ -378,6 +378,13 @@ void drawBuildingContextCard(
                 &BuildingStats::effectDuration, 1, "s");
             addOptional(
                 "COOLDOWN", &BuildingStats::cooldown, 1, "s");
+        } else if (building.type == BuildingType::SpikeTrap) {
+            addOptional(
+                "DAMAGE", &BuildingStats::attackDamage, 0, "");
+            addOptional(
+                "RADIUS", &BuildingStats::effectRadius, 2, "m");
+            addOptional(
+                "COOLDOWN", &BuildingStats::cooldown, 2, "s");
         }
     } else {
         rows.push_back({
@@ -743,17 +750,18 @@ void drawBuildHotbar(
         drawFoundationHotbar(ui, snapshot, view);
         return;
     }
-    constexpr std::array<BuildingType, 9> Types{
+    constexpr std::array<BuildingType, 10> Types{
         BuildingType::Core,     BuildingType::Wall,
         BuildingType::Turret,   BuildingType::GoldMine,
         BuildingType::Cannon,   BuildingType::SlowTrap,
         BuildingType::Gate,     BuildingType::LumberMill,
         BuildingType::Quarry,
+        BuildingType::SpikeTrap,
     };
-    constexpr std::array<const char*, 9> Keys{
-        "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    constexpr std::array<const char*, 10> Keys{
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
     };
-    std::array<HotbarSlot, 9> slots{};
+    std::array<HotbarSlot, 10> slots{};
     for (std::size_t index = 0; index < Types.size();
          ++index) {
         const BuildingType type = Types[index];
@@ -768,6 +776,7 @@ void drawBuildHotbar(
                 : snapshot.coreMaxHealth > 0.0;
         if (type == BuildingType::Cannon ||
             type == BuildingType::SlowTrap ||
+            type == BuildingType::SpikeTrap ||
             type == BuildingType::LumberMill ||
             type == BuildingType::Quarry) {
             unlocked = unlocked && snapshot.coreLevel >= 2;

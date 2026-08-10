@@ -3,6 +3,7 @@
 #include "graphics/WorldTransforms.hpp"
 
 #include "ui/UiLabels.hpp"
+#include "ui/TargetHealthBarAnchor.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -39,8 +40,8 @@ void App::processPresentationEvents(
                     productionVisuals_.begin());
             }
             constexpr double Duration = 0.95;
-            Vec3 position = buildingWorldPosition(*building);
-            position.y = 1.35;
+            const Vec3 position =
+                buildingProductionVisualWorldAnchor(*building);
             productionVisuals_.push_back({
                 .buildingId = buildingId,
                 .icon = icon,
@@ -305,11 +306,19 @@ void App::processPresentationEvents(
             }
         } else if (
             event.type == GameEventType::ProjectileHit ||
+            event.type == GameEventType::TrapHit ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit) {
             addEffect(PresentationEffectType::Hit,
                       event.position, 0.22, 1.0F,
                       event.entityId);
+            if (event.type == GameEventType::TrapHit &&
+                event.entityId) {
+                addFloatingDamageNumber(
+                    enemyDamageAnchor(
+                        *event.entityId, event.position),
+                    event.damage, false);
+            }
         } else if (event.type == GameEventType::ResourceCollected) {
             if (event.resourceType) {
                 const auto node = std::find_if(
@@ -488,7 +497,7 @@ void App::processPresentationEvents(
                     buildingFootprintHalfExtent(
                         *event.buildingType) +
                     0.18),
-                .amount = 0.0F,
+                .amount = 1.0F,
             });
             float effectScale = 1.0F;
             if (*event.buildingType == BuildingType::Core) {
@@ -496,8 +505,9 @@ void App::processPresentationEvents(
             } else if (*event.buildingType == BuildingType::Wall ||
                        *event.buildingType == BuildingType::Gate) {
                 effectScale = 0.78F;
-            } else if (*event.buildingType ==
-                       BuildingType::SlowTrap) {
+            } else if (
+                *event.buildingType == BuildingType::SlowTrap ||
+                *event.buildingType == BuildingType::SpikeTrap) {
                 effectScale = 0.68F;
             }
             addEffect(PresentationEffectType::BuildingPlaced,
@@ -516,8 +526,9 @@ void App::processPresentationEvents(
             } else if (*event.buildingType == BuildingType::Wall ||
                        *event.buildingType == BuildingType::Gate) {
                 effectScale = 0.78F;
-            } else if (*event.buildingType ==
-                       BuildingType::SlowTrap) {
+            } else if (
+                *event.buildingType == BuildingType::SlowTrap ||
+                *event.buildingType == BuildingType::SpikeTrap) {
                 effectScale = 0.68F;
             }
             effectScale *= 1.15F;

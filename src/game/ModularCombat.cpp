@@ -97,7 +97,7 @@ void buildModularEnemyTargets(
     std::vector<EnemyStructureTarget>& targets) {
     targets.clear();
     targets.reserve(
-        foundations.platformFrames().size() +
+        foundations.platformFrames().size() * 5U +
         foundations.walls().size() +
         foundations.ramps().size());
 
@@ -127,7 +127,33 @@ void buildModularEnemyTargets(
                 1U +
                 foundations.structuralGraph()
                     .dependentCount(frame.id),
+            .traversable = true,
+            .attackable = false,
         });
+        if (frame.storey == 0) {
+            for (const FoundationSupport& support : frame.supports) {
+                if (support.length <= 1e-4) {
+                    continue;
+                }
+                targets.push_back({
+                    .id = frame.id,
+                    .position = {
+                        (support.top.x + support.bottom.x) * 0.5,
+                        support.bottom.y,
+                        (support.top.z + support.bottom.z) * 0.5,
+                    },
+                    .radius = config.cellSize * 0.14,
+                    .buildingType = std::nullopt,
+                    .modular = true,
+                    .structuralImpact = 0U,
+                    .traversable = false,
+                    .minimumEnemySurfaceHeight = support.bottom.y,
+                    .maximumEnemySurfaceHeight =
+                        frame.floorHeight - 0.10,
+                    .attackable = false,
+                });
+            }
+        }
     }
 
     for (const WallInstance& wall :
@@ -145,6 +171,7 @@ void buildModularEnemyTargets(
             .buildingType = std::nullopt,
             .modular = true,
             .structuralImpact = 0U,
+            .traversable = false,
         });
     }
 
@@ -163,6 +190,7 @@ void buildModularEnemyTargets(
             .buildingType = std::nullopt,
             .modular = true,
             .structuralImpact = 0U,
+            .traversable = true,
         });
     }
 }

@@ -207,6 +207,7 @@ struct SimulationSnapshot {
     std::span<const EnemyInstance> enemies;
     std::span<const TowerRuntime> towers;
     std::span<const CannonRuntime> cannons;
+    std::span<const TrapRuntime> traps;
     std::span<const CannonProjectile> cannonProjectiles;
     std::span<const BombProjectile> bombProjectiles;
     std::span<const IceWandProjectile> iceWandProjectiles;

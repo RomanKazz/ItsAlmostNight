@@ -134,7 +134,8 @@ void Simulation::updatePlayerActions(
             : playerWeapons_.selectedWeapon() == PlayerWeapon::IceWand
                 ? iceWand_.maximumRange()
                 : gameplay_.pickaxeRange;
-    aimedEnemy_ = enemies_.raycast(playerPosition_, direction, enemyAimRange);
+    aimedEnemy_ = enemies_.raycast(
+        playerPosition_, direction, enemyAimRange, &terrain_);
     const bool bombsUnlocked = unlimitedResources_ ||
         skillTree_.hasEffect(SkillEffect::UnlockBombs);
     if (command.useConsumable && bombsUnlocked && bombs_.throwBomb(

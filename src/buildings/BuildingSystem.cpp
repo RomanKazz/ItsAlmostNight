@@ -31,6 +31,7 @@ Footprint footprint(BuildingType type) {
         return {1.0, 1.0};
     case BuildingType::Wall:
     case BuildingType::SlowTrap:
+    case BuildingType::SpikeTrap:
     case BuildingType::Gate:
         return {0.5, 0.5};
     }
@@ -52,6 +53,7 @@ SelectionBounds selectionBounds(BuildingType type) {
     case BuildingType::Cannon:
         return {0.82, 0.82, 0.0, 2.05};
     case BuildingType::SlowTrap:
+    case BuildingType::SpikeTrap:
         return {0.44, 0.44, 0.0, 0.45};
     case BuildingType::Gate:
         return {0.46, 0.46, 0.0, 2.05};
@@ -238,7 +240,8 @@ ResourceCost buildingSellRefund(const BuildingInstance& building) {
 }
 
 bool buildingBlocksMovement(BuildingType type) {
-    return type != BuildingType::SlowTrap;
+    return type != BuildingType::SlowTrap &&
+           type != BuildingType::SpikeTrap;
 }
 
 bool buildingBlocksMovement(const BuildingInstance& building) {

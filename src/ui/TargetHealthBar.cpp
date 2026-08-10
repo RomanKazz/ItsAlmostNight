@@ -83,7 +83,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             static_cast<float>(enemy.position.x),
             static_cast<float>(terrain.getHeight(
                 enemy.position.x, enemy.position.z) +
-                enemy.position.y + 1.0),
+                enemy.position.y + enemy.surfaceHeightOffset + 1.0),
             static_cast<float>(enemy.position.z)};
     };
 

@@ -1397,6 +1397,13 @@ std::optional<double> Renderer::buildingRaycastDistance(
               QuarterTurn;
         groundOffset = 0.005F;
         break;
+    case BuildingType::SpikeTrap:
+        resource = &resources_.spikeTrapModel();
+        modelScale = 1.2F;
+        yaw = static_cast<float>(building.rotation) *
+              QuarterTurn;
+        groundOffset = 0.005F;
+        break;
     case BuildingType::Cannon:
         resource = &resources_.cannonModel();
         modelScale = 3.0F;
@@ -1952,6 +1959,100 @@ bool Renderer::drawResourceProducer(
         {modelScale * scale, modelScale * scale,
          modelScale * scale},
         tint);
+    return true;
+}
+
+bool Renderer::drawSpikeTrap(
+    Vector3 position, float yawRadians, float animationSeconds,
+    Color tint, float scaleFactor) {
+    auto& resource = resources_.spikeTrapModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (
+        shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+
+    constexpr float ModelScale = 1.2F;
+    constexpr float HiddenOffset = -0.15F;
+    constexpr float AnimationDuration = 1.2F;
+    float exposure = 0.0F;
+    // This GLB animates an unskinned child node, which raylib does not expose
+    // through ModelAnimation. Reproduce its authored show-hide translation:
+    // 0.2 s rise, 0.8 s hold, 0.2 s retract.
+    if (animationSeconds >= 0.0F &&
+        animationSeconds < AnimationDuration) {
+        constexpr float ShowSeconds = 0.20F;
+        constexpr float HideStartSeconds = 1.0F;
+        const auto authoredEase = [](float t) {
+            const float rise = t * t * t;
+            const float fall =
+                (1.0F - t) * (1.0F - t) * (1.0F - t);
+            return rise / std::max(rise + fall, 0.0001F);
+        };
+        if (animationSeconds < ShowSeconds) {
+            const float t = animationSeconds / ShowSeconds;
+            exposure = authoredEase(t);
+        } else if (animationSeconds < HideStartSeconds) {
+            exposure = 1.0F;
+        } else {
+            const float t = std::clamp(
+                (animationSeconds - HideStartSeconds) /
+                    (AnimationDuration - HideStartSeconds),
+                0.0F, 1.0F);
+            exposure = 1.0F - authoredEase(t);
+        }
+    }
+    const float spikeOffset = HiddenOffset * (1.0F - exposure);
+    position.y += 0.005F;
+    const float scale = ModelScale * scaleFactor;
+    const Matrix scaleMatrix = MatrixScale(scale, scale, scale);
+    const Matrix rotation = MatrixRotateY(yawRadians);
+    const auto transformAt = [&](float y) {
+        return MatrixMultiply(
+            model.transform,
+            MatrixMultiply(
+                MatrixMultiply(scaleMatrix, rotation),
+                MatrixTranslate(position.x, y, position.z)));
+    };
+    const auto drawMesh = [&model, tint](int meshIndex,
+                                         Matrix transform) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint(original, tint);
+        DrawMesh(model.meshes[meshIndex], material, transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+    if (model.meshCount < 2) {
+        DrawModelEx(
+            model, position, {0.0F, 1.0F, 0.0F},
+            yawRadians * RAD2DEG, {scale, scale, scale}, tint);
+        return true;
+    }
+    drawMesh(0, transformAt(position.y));
+    drawMesh(
+        1, transformAt(position.y + spikeOffset * scale));
+    for (int meshIndex = 2; meshIndex < model.meshCount;
+         ++meshIndex) {
+        drawMesh(meshIndex, transformAt(position.y));
+    }
     return true;
 }
 

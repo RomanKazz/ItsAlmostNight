@@ -100,6 +100,9 @@ class App {
                            float nightAmount,
                            const WorldLighting& lighting,
                            float interpolationAlpha);
+    [[nodiscard]] std::vector<GrassClearArea>
+        activeDecorationClearAreas(
+            const SimulationSnapshot& snapshot) const;
     void drawSoldBuildingVisuals();
     void drawBlobShadows(const SimulationSnapshot& snapshot,
                          const Camera3D& camera);
@@ -174,6 +177,7 @@ class App {
     EnvironmentSystem environment_;
     AudioSystem audio_;
     UserSettings userSettings_;
+    UserSettings persistedUserSettings_;
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
     GameUi ui_;

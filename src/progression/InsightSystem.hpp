@@ -63,7 +63,9 @@ struct InsightConfig {
                                  4.0, 0.5}};
     std::array<double, 2> resourcePerUnit{{0.14, 0.22}};
     std::array<double, 2> resourceDepleted{{1.5, 2.0}};
-    std::array<double, 9> building{{4.0, 0.75, 1.5, 1.5, 3.0, 1.0, 1.0, 1.5, 1.5}};
+    std::array<double, 10> building{{
+        4.0, 0.75, 1.5, 1.5, 3.0,
+        1.0, 1.0, 1.5, 1.5, 1.25}};
     std::array<double, 4> modularBuilding{{1.0, 1.0, 0.5, 1.0}};
     double firstBuildingTypeBonus{2.0};
     double repairPerHealth{0.015};

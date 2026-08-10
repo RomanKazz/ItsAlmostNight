@@ -200,6 +200,14 @@ void App::drawSoldBuildingVisuals() {
             drawCube(0.0F, 0.08F, 0.0F, 1.0F,
                      0.16F, 1.0F,
                      {76, 110, 132, alpha});
+        } else if (building.type == BuildingType::SpikeTrap) {
+            if (!renderer_->drawSpikeTrap(
+                    {x, baseY - sink, z}, yaw, -1.0F,
+                    tint, scale)) {
+                drawCube(0.0F, 0.08F, 0.0F, 1.0F,
+                         0.16F, 1.0F,
+                         {112, 96, 80, alpha});
+            }
         } else if (building.type == BuildingType::Wall) {
             if (!renderer_->drawWall(
                     {x, baseY - sink, z},
@@ -292,10 +300,12 @@ void App::drawBlobShadows(
         // Keep it for High quality; gameplay-critical objects retain their
         // contact shadows on every preset.
         if (renderer_->settings().quality == GraphicsQuality::High) {
+            const auto clearAreas =
+                activeDecorationClearAreas(snapshot);
             renderer_->drawDecorativeRockAo(
                 camera.position,
                 static_cast<float>(snapshot.worldLimit),
-                grassClearAreas_);
+                clearAreas);
         }
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05) {
@@ -323,7 +333,9 @@ void App::drawBlobShadows(
             if (building.type == BuildingType::Core) {
                 radius = 1.1F;
                 opacity = 0.24F;
-            } else if (building.type == BuildingType::SlowTrap) {
+            } else if (
+                building.type == BuildingType::SlowTrap ||
+                building.type == BuildingType::SpikeTrap) {
                 radius = 0.54F;
                 opacity = 0.1F;
             }
@@ -334,7 +346,8 @@ void App::drawBlobShadows(
                 {x, groundY + 0.02F, z},
                 radius * 0.52F,
                 radius * 0.42F,
-                building.type == BuildingType::SlowTrap
+                (building.type == BuildingType::SlowTrap ||
+                 building.type == BuildingType::SpikeTrap)
                     ? 0.1F
                     : opacity + 0.04F);
         }
@@ -417,6 +430,10 @@ void App::drawCancelledPlacementPreview(
         if (preview.type == BuildingType::SlowTrap) {
             drawCube(
                 0.0F, 0.08F, 0.0F, 1.0F, 0.16F, 1.0F);
+        } else if (preview.type == BuildingType::SpikeTrap) {
+            static_cast<void>(renderer_->drawSpikeTrap(
+                {x, -sink, z}, preview.yaw, -1.0F,
+                WHITE, scale));
         } else if (
             std::abs(std::sin(preview.yaw)) < 0.5F) {
             drawCube(

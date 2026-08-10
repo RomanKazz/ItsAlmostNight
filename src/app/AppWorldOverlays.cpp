@@ -70,6 +70,56 @@ void App::drawWorldOverlays(
                     headBase, Vector3Scale(side, 0.25F)),
                 0.045F, 0.018F, 8, ArrowColor);
         };
+    const bool hasModularPreview =
+        foundationBuildMode_ &&
+        (platformFramePreview_ || wallPreview_ ||
+         rampPreview_ ||
+         !modularPlatformDragPreviews_.empty() ||
+         !modularWallDragPreviews_.empty() ||
+         !modularRampDragPreviews_.empty() ||
+         foundationTerrainHit_);
+    if (hasModularPreview) {
+        WorldMaterialState material{};
+        material.bakedAo = 0.88F;
+        renderer_->beginWorldShader(lighting);
+        renderer_->setWorldMaterial(material);
+        modularBuildingRenderer_.drawWorld(
+            {
+                {}, {}, {}, {},
+                simulation_.terrain().config().cellSize,
+                std::nullopt, {}, 1.0F,
+            },
+            {
+                platformFramePreview_ &&
+                        !modularDragPiece_
+                    ? &*platformFramePreview_
+                    : nullptr,
+                wallPreview_ && !modularDragPiece_
+                    ? &*wallPreview_
+                    : nullptr,
+                rampPreview_ && !modularDragPiece_
+                    ? &*rampPreview_
+                    : nullptr,
+                modularPlatformDragPreviews_,
+                modularWallDragPreviews_,
+                modularRampDragPreviews_,
+                foundationTerrainHit_
+                    ? &*foundationTerrainHit_
+                    : nullptr,
+                simulation_.terrain().config()
+                    .maxWoodSupportLength,
+                (wallPreview_ || rampPreview_)
+                    ? std::optional<float>{
+                          static_cast<float>(
+                              placementRotationYaw_)}
+                    : std::nullopt,
+                !modularDragPiece_ &&
+                        modularPreviewVisualOrigin_
+                    ? &*modularPreviewVisualOrigin_
+                    : nullptr,
+            });
+        renderer_->endWorldShader();
+    }
     if (modularDragStart_ && modularDragEnd_ &&
         modularDragPiece_) {
         const double cellSize =
@@ -547,7 +597,7 @@ void App::drawWorldOverlays(
         Color color =
             placementColor(
                 visualPreview.placement.error, false);
-        color.a = 110;
+        color.a = 150;
         const float yaw =
             static_cast<float>(placementRotationYaw_);
         WorldMaterialState previewMaterial{};
@@ -562,6 +612,9 @@ void App::drawWorldOverlays(
             !placementPreviewObstructed(
                 visualPreview.placement.error);
         if (drawPreviewModel) {
+            rlDrawRenderBatchActive();
+            BeginBlendMode(BLEND_ALPHA);
+            rlDisableDepthMask();
             renderer_->beginWorldShader(lighting);
             renderer_->setWorldMaterial(
                 previewMaterial);
@@ -748,8 +801,13 @@ void App::drawWorldOverlays(
                 } else if (
                     preview.type == BuildingType::SlowTrap) {
                     DrawCube(
-                        {position.x, 0.08F, position.z},
+                        {position.x, position.y + 0.08F,
+                         position.z},
                         1.0F, 0.16F, 1.0F, WHITE);
+                } else if (
+                    preview.type == BuildingType::SpikeTrap) {
+                    static_cast<void>(renderer_->drawSpikeTrap(
+                        position, yaw, -1.0F));
                 } else if ((preview.rotation % 2U) == 0U) {
                     DrawCube(
                         {position.x - 0.38F, 1.0F, position.z},
@@ -809,6 +867,12 @@ void App::drawWorldOverlays(
         } else if (preview.type == BuildingType::SlowTrap) {
             DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F,
                      WHITE);
+        } else if (preview.type == BuildingType::SpikeTrap) {
+            if (!renderer_->drawSpikeTrap(
+                    {x, 0.0F, z}, yaw, -1.0F)) {
+                DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F,
+                         WHITE);
+            }
         } else if (preview.type == BuildingType::Wall) {
             if (wallDragStart_ && wallDragEnd_) {
                 const auto cells =
@@ -947,6 +1011,9 @@ void App::drawWorldOverlays(
         }
         rlPopMatrix();
             renderer_->endWorldShader();
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
         }
 
     }

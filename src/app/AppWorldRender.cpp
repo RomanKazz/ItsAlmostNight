@@ -15,10 +15,110 @@ namespace {
 
 } // namespace
 
+std::vector<GrassClearArea>
+App::activeDecorationClearAreas(
+    const SimulationSnapshot& snapshot) const {
+    std::vector<GrassClearArea> result =
+        grassClearAreas_;
+    const double cellSize =
+        simulation_.terrain().config().cellSize;
+    const auto add = [&result](
+                         double x, double z,
+                         double radius) {
+        result.push_back({
+            .center = {
+                static_cast<float>(x),
+                static_cast<float>(z),
+            },
+            .innerRadius =
+                static_cast<float>(radius),
+            .amount = 1.0F,
+        });
+    };
+    const auto addPlatform = [&](const auto& placement) {
+        add(
+            (placement.anchor.x + 1.0) * cellSize,
+            (placement.anchor.z + 1.0) * cellSize,
+            cellSize * 1.35);
+    };
+    const auto addWall = [&](const auto& placement) {
+        add(
+            (placement.anchor.x + 0.5) * cellSize,
+            (placement.anchor.z + 0.5) * cellSize,
+            cellSize * 0.72);
+    };
+    const auto addRamp = [&](const auto& placement) {
+        const bool alongZ =
+            placement.rotation == Rotation::Deg0 ||
+            placement.rotation == Rotation::Deg180;
+        const int widthCells =
+            alongZ ? ModularRampWidthCells
+                   : ModularRampRunCells;
+        const int depthCells =
+            alongZ ? ModularRampRunCells
+                   : ModularRampWidthCells;
+        add(
+            (placement.anchor.x + widthCells * 0.5) *
+                cellSize,
+            (placement.anchor.z + depthCells * 0.5) *
+                cellSize,
+            cellSize * 0.5 *
+                std::hypot(widthCells, depthCells));
+    };
+
+    if (platformFramePreview_ &&
+        !modularDragPiece_) {
+        addPlatform(*platformFramePreview_);
+    }
+    for (const auto& placement :
+         modularPlatformDragPreviews_) {
+        addPlatform(placement);
+    }
+    if (wallPreview_ && !modularDragPiece_) {
+        addWall(*wallPreview_);
+    }
+    for (const auto& placement :
+         modularWallDragPreviews_) {
+        addWall(placement);
+    }
+    if (rampPreview_ && !modularDragPiece_) {
+        addRamp(*rampPreview_);
+    }
+    for (const auto& placement :
+         modularRampDragPreviews_) {
+        addRamp(placement);
+    }
+
+    if (snapshot.buildingPreview) {
+        const BuildingPreview& preview =
+            *snapshot.buildingPreview;
+        std::vector<GridPosition> cells{
+            preview.gridPosition};
+        if (wallDragStart_ && wallDragEnd_ &&
+            placementDragType_ &&
+            *placementDragType_ == preview.type) {
+            cells = placementLine(
+                preview.type, *wallDragStart_,
+                *wallDragEnd_, placementDragAxis_);
+        }
+        const double radius =
+            buildingFootprintHalfExtent(preview.type) +
+            0.18;
+        for (const GridPosition cell : cells) {
+            const Vec3 center =
+                buildingWorldPosition(preview.type, cell);
+            add(center.x, center.z, radius);
+        }
+    }
+    return result;
+}
+
 void App::drawWorldEntities(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
     float nightAmount, const WorldLighting& lighting,
     float interpolationAlpha) {
+    const auto clearAreas =
+        activeDecorationClearAreas(snapshot);
     WorldMaterialState obstacleMaterial{};
     obstacleMaterial.bakedAo = 0.74F;
     renderer_->setWorldMaterial(obstacleMaterial);
@@ -48,7 +148,7 @@ void App::drawWorldEntities(
     renderer_->drawDecorativeRocks(
         camera.position,
         static_cast<float>(snapshot.worldLimit),
-        grassClearAreas_);
+        clearAreas);
     const float resourceDrawDistance = static_cast<float>(
         simulation_.terrain().config().terrainRenderDistance +
         12.0);
@@ -292,35 +392,7 @@ void App::drawWorldEntities(
                 animationScales,
                 1.0F,
             },
-            {
-                platformFramePreview_
-                            && !modularDragPiece_
-                    ? &*platformFramePreview_
-                    : nullptr,
-                wallPreview_ && !modularDragPiece_
-                    ? &*wallPreview_
-                    : nullptr,
-                rampPreview_ && !modularDragPiece_
-                    ? &*rampPreview_
-                    : nullptr,
-                modularPlatformDragPreviews_,
-                modularWallDragPreviews_,
-                modularRampDragPreviews_,
-                foundationTerrainHit_
-                    ? &*foundationTerrainHit_
-                    : nullptr,
-                simulation_.terrain().config()
-                    .maxWoodSupportLength,
-                (wallPreview_ || rampPreview_)
-                    ? std::optional<float>{
-                          static_cast<float>(
-                              placementRotationYaw_)}
-                    : std::nullopt,
-                !modularDragPiece_ &&
-                        modularPreviewVisualOrigin_
-                    ? &*modularPreviewVisualOrigin_
-                    : nullptr,
-            });
+            {});
     }
     for (const auto& building : snapshot.buildings) {
         const Vec3 center = buildingWorldPosition(building);
@@ -488,6 +560,19 @@ void App::drawWorldEntities(
         } else if (building.type == BuildingType::SlowTrap) {
             drawScaledCube(0.0F, 0.08F, 0.0F, 1.0F, 0.16F,
                            1.0F, {76, 110, 132, 255});
+        } else if (building.type == BuildingType::SpikeTrap) {
+            constexpr float QuarterTurn = PI * 0.5F;
+            if (!renderer_->drawSpikeTrap(
+                    {x, groundY, z},
+                    static_cast<float>(building.rotation) *
+                        QuarterTurn,
+                    spikeTrapAnimationSeconds(
+                        snapshot, building.id),
+                    WHITE, spawnScale)) {
+                drawScaledCube(
+                    0.0F, 0.08F, 0.0F, 1.0F, 0.16F,
+                    1.0F, {112, 96, 80, 255});
+            }
         } else {
             if ((building.rotation % 2U) == 0U) {
                 drawScaledCube(-0.38F, 1.0F, 0.0F, 0.22F,
@@ -1042,7 +1127,7 @@ void App::drawWorldEntities(
     renderer_->endWorldShader();
     renderer_->drawGrassInstances(
         camera.position, static_cast<float>(snapshot.worldLimit),
-        nightAmount, lighting, grassClearAreas_);
+        nightAmount, lighting, clearAreas);
 }
 
 } // namespace ian

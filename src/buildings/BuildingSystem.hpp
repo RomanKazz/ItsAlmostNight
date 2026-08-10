@@ -22,6 +22,7 @@ enum class BuildingType {
     Gate,
     LumberMill,
     Quarry,
+    SpikeTrap,
 };
 
 enum WallConnection : std::uint8_t {

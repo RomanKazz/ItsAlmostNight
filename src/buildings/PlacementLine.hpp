@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/Types.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -14,6 +16,54 @@ enum class PlacementLineAxis {
 };
 
 inline constexpr std::size_t MaximumPlacementLineLength = 48U;
+
+// Intersect only the active construction plane. Terrain must not affect an
+// elevated drag: player height and view pitch determine which side of the
+// plane can be aimed. The horizontal bound prevents a near-parallel ray from
+// producing a horizon-sized placement line.
+[[nodiscard]] inline std::optional<Vec3>
+elevatedPlatformDragAim(
+    Vec3 viewer, Vec3 lookDirection,
+    double planeHeight, double maximumDistance) {
+    if (std::abs(lookDirection.y) <= 1e-9) {
+        return std::nullopt;
+    }
+    const double rayDistance =
+        (planeHeight - viewer.y) / lookDirection.y;
+    if (rayDistance <= 0.0) {
+        return std::nullopt;
+    }
+    Vec3 planeAim{
+        viewer.x + lookDirection.x * rayDistance,
+        planeHeight,
+        viewer.z + lookDirection.z * rayDistance,
+    };
+    const double deltaX = planeAim.x - viewer.x;
+    const double deltaZ = planeAim.z - viewer.z;
+    const double distance = std::hypot(deltaX, deltaZ);
+    if (maximumDistance > 0.0 && distance > maximumDistance) {
+        const double scale = maximumDistance / distance;
+        planeAim.x = viewer.x + deltaX * scale;
+        planeAim.z = viewer.z + deltaZ * scale;
+    }
+    return planeAim;
+}
+
+// Multi-placement must remain one connected run. Once required support is
+// absent, later cells are unreachable even if support exists farther away.
+template <typename GridPoint, typename IsSupported>
+[[nodiscard]] std::vector<GridPoint>
+contiguousPlacementPrefix(
+    std::vector<GridPoint> line,
+    IsSupported&& isSupported) {
+    const auto firstUnsupported = std::find_if(
+        line.begin(), line.end(),
+        [&isSupported](const GridPoint& point) {
+            return !isSupported(point);
+        });
+    line.erase(firstUnsupported, line.end());
+    return line;
+}
 
 [[nodiscard]] inline std::optional<PlacementLineAxis>
 stabilizePlacementLineAxis(

@@ -92,7 +92,14 @@ void Simulation::updateCombat(double deltaSeconds) {
             deltaSeconds, buildings_.buildings(), flowField_,
             playerRespawning_ ? std::nullopt
                               : std::optional<Vec3>{playerPosition_},
-            modularTargets, &terrain_);
+            modularTargets, &terrain_,
+            {
+                foundations_.platformFrames(),
+                foundations_.ramps(),
+                worldConfig_.cellSize,
+                &collisionWorld_,
+                structuralRevision_,
+            });
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             const Vec3 attackPosition =

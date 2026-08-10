@@ -219,13 +219,15 @@ void AudioSystem::playEvent(
     case GameEventType::IceWandChargeStarted:
         // Reuse the short enemy-hit texture as a quiet crystalline charge
         // cue until a dedicated wand sample is added to the audio pack.
-        play(enemyHit_, 0.18F, 1.62F);
+        play(enemyHit_, 0.18F, 1.62F * variedPitch(0.018F));
         break;
     case GameEventType::IceWandFired:
-        play(rifleShot_, 0.34F, 0.66F);
+        play(rifleShot_, 0.34F, 0.66F * variedPitch(0.015F));
         break;
     case GameEventType::IceWandImpact:
-        playAt(explosion_, event.position, snapshot, 0.42F, 1.38F, 42.0F);
+        playAt(
+            explosion_, event.position, snapshot, 0.42F,
+            1.38F * variedPitch(0.025F), 42.0F);
         break;
     case GameEventType::IceWandHit:
         // One short cue per burst is enough; the impact event already owns
@@ -234,7 +236,9 @@ void AudioSystem::playEvent(
             playAt(
                 event.critical ? critical_ : enemyHit_, event.position,
                 snapshot, event.critical ? 0.28F : 0.20F,
-                event.critical ? 1.42F : 1.58F, 30.0F);
+                (event.critical ? 1.42F : 1.58F) *
+                    variedPitch(0.025F),
+                30.0F);
             iceHitSoundCooldown_ = 0.045;
         }
         break;
@@ -284,7 +288,9 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::BuildingRepaired:
     case GameEventType::ModularBuildingRepaired:
-        playAt(repair_, event.position, snapshot, 0.7F, 1.0F);
+        playAt(
+            repair_, event.position, snapshot, 0.7F,
+            variedPitch(0.045F));
         break;
     case GameEventType::BuildingUpgraded:
         playAt(
@@ -319,20 +325,22 @@ void AudioSystem::playEvent(
              *event.buildingType == BuildingType::Quarry)) {
             playAt(
                 repair_, event.position, snapshot, 0.24F,
-                event.resourceType &&
-                        *event.resourceType ==
-                            ResourceType::Stone
-                    ? 0.9F
-                    : 1.05F,
+                (event.resourceType &&
+                         *event.resourceType ==
+                             ResourceType::Stone
+                     ? 0.9F
+                     : 1.05F) *
+                    variedPitch(0.035F),
                 16.0F);
         } else {
             play(
                 repair_, 0.2F,
-                event.resourceType &&
-                        *event.resourceType ==
-                            ResourceType::Stone
-                    ? 0.9F
-                    : 1.05F);
+                (event.resourceType &&
+                         *event.resourceType ==
+                             ResourceType::Stone
+                     ? 0.9F
+                     : 1.05F) *
+                    variedPitch(0.035F));
         }
         break;
     case GameEventType::PlayerDamaged:
@@ -367,7 +375,8 @@ void AudioSystem::playEvent(
     }
     case GameEventType::TrapActivated:
         playAt(
-            turretHit_, event.position, snapshot, 0.42F, 0.72F);
+            turretHit_, event.position, snapshot, 0.42F,
+            0.72F * variedPitch(0.04F));
         break;
     case GameEventType::GateToggled:
         playAt(
