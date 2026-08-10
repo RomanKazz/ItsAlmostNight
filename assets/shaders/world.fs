@@ -272,7 +272,9 @@ void main()
     vec3 ambientColor = mix(groundAmbientColor, skyAmbientColor, hemisphere);
     float ambientShape = mix(0.86, 1.10, hemisphere);
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
-    ambient += skyAmbientColor*ambientIntensity*0.16;
+    // Open-sky bounce keeps back-facing and shadowed surfaces readable.
+    // Match the grass fill closely without flattening the direct sun contrast.
+    ambient += skyAmbientColor*ambientIntensity*0.24;
     float shadow = sampleShadow(normal);
     float cloudLight = 1.0;
     if (terrainAmount > 0.5 && cloudShadowStrength > 0.001)
