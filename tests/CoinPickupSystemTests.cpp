@@ -50,6 +50,18 @@ void runCoinPickupSystemTests() {
             "magnetic coins reach player and grant their full value");
 
     coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 16, 123U, terrain);
+    require(
+        coins.pickups().size() == 3 &&
+            coins.pickups()[0].type == ian::CoinType::Gold &&
+            coins.pickups()[0].value == 10 &&
+            coins.pickups()[1].type == ian::CoinType::Silver &&
+            coins.pickups()[1].value == 5 &&
+            coins.pickups()[2].type == ian::CoinType::Bronze &&
+            coins.pickups()[2].value == 1,
+        "coin rewards decompose into gold, silver and bronze values");
+
+    coins.reset();
     coins.spawn(
         {0.0, 0.0, 0.0},
         static_cast<int>(ian::CoinPickupSystem::MaximumPickups + 20U),

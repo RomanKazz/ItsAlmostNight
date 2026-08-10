@@ -1486,9 +1486,12 @@ void App::processInput() {
                                 return node.id ==
                                        *currentSnapshot.aimedResource;
                             });
-                        toolSwingUsesAxe_ =
-                            resource != currentSnapshot.resourceNodes.end() &&
-                            resource->type == ResourceType::Wood;
+                        if (resource !=
+                                currentSnapshot.resourceNodes.end() &&
+                            isHarvestableResource(resource->type)) {
+                            toolSwingUsesAxe_ =
+                                resource->type == ResourceType::Wood;
+                        }
                     }
                     if (toolSwingUsesAxe_ ==
                             (displayedToolVisual_ ==

@@ -11,6 +11,17 @@ namespace ian {
 class TerrainHeightfield;
 class CollisionWorld;
 
+enum class CoinType : std::uint8_t { Bronze, Silver, Gold };
+
+[[nodiscard]] constexpr int coinValue(CoinType type) {
+    switch (type) {
+    case CoinType::Bronze: return 1;
+    case CoinType::Silver: return 5;
+    case CoinType::Gold: return 10;
+    }
+    return 1;
+}
+
 struct CoinPickup {
     std::uint64_t id{};
     Vec3 position{};
@@ -18,6 +29,7 @@ struct CoinPickup {
     double age{};
     double magnetTime{};
     double spinPhase{};
+    CoinType type{CoinType::Bronze};
     int value{1};
     bool magnetized{};
 };
@@ -37,6 +49,8 @@ class CoinPickupSystem {
     void reset();
     void spawn(Vec3 position, int amount, std::uint64_t seed,
                const TerrainHeightfield& terrain);
+    void spawnValue(Vec3 position, int value, std::uint64_t seed,
+                    const TerrainHeightfield& terrain);
     [[nodiscard]] CoinCollection tick(
         double deltaSeconds, Vec3 playerPosition,
         const TerrainHeightfield& terrain,

@@ -95,8 +95,15 @@ void runResourceWorldTests() {
         ian::scatterResources(clusterInput, 48.0, largeTerrain);
     const auto repeated =
         ian::scatterResources(clusterInput, 48.0, largeTerrain);
-    require(clustered.size() == clusterInput.size() + 48U,
+    require(clustered.size() > clusterInput.size() + 48U,
             "large worlds retain configured resource density");
+    require(
+        std::count_if(
+            clustered.begin(), clustered.end(),
+            [](const ian::ResourceNodeDefinition& definition) {
+                return ian::isDestructibleProp(definition.type);
+            }) >= 10,
+        "large worlds scatter destructible barrels and crates");
     requireNear(clustered.back().position.x,
                 repeated.back().position.x, 1e-12,
                 "resource scattering stays deterministic");

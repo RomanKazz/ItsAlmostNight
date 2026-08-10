@@ -14,7 +14,7 @@ struct ResourceNode;
 
 enum class LootChestType { Wooden, Stone };
 enum class LootChestState { Closed, Opening, Open };
-enum class LootRarity { Common, Uncommon, Rare };
+enum class LootRarity { Common, Uncommon, Rare, Legendary };
 enum class LootUpgradeEffect {
     Damage,
     MoveSpeed,
@@ -58,6 +58,7 @@ struct LootChestInstance {
     double yaw{};
     int goldCost{};
     double openingProgress{};
+    bool looseLoot{};
     ChestLoot loot;
 };
 
@@ -89,6 +90,8 @@ class LootChestSystem {
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
     [[nodiscard]] std::optional<LootPickup> collectNearby(
         Vec3 playerPosition, double radius);
+    void spawnLooseLoot(Vec3 position, LootRarity rarity,
+                        std::uint64_t seed);
 
     void spawnAdditionalChests(
         int count, std::uint32_t terrainSeed,

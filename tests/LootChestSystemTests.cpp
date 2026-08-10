@@ -134,4 +134,16 @@ void runLootChestSystemTests() {
             "revealed loot can be collected");
     require(!chests.collect(opened.loot.id).has_value(),
             "loot upgrade can only be collected once");
+
+    const std::size_t beforeLoose = chests.chests().size();
+    chests.spawnLooseLoot(
+        {3.0, 2.0, -4.0}, ian::LootRarity::Legendary, 99U);
+    const auto& loose = chests.chests().back();
+    require(
+        chests.chests().size() == beforeLoose + 1U &&
+            loose.looseLoot && loose.loot.available &&
+            loose.loot.rarity == ian::LootRarity::Legendary,
+        "destroyed item crates can spawn collectible legendary loot");
+    require(chests.collect(loose.loot.id).has_value(),
+            "loose crate loot uses the normal pickup pipeline");
 }

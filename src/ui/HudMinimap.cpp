@@ -305,7 +305,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<int>(mapBounds.height));
 
     for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active) {
+        if (!resource.active || !isHarvestableResource(resource.type)) {
             continue;
         }
         const Vector2 point = mapPoint(
@@ -326,6 +326,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
     if (mapRevealsChests) {
         for (const LootChestInstance& chest : snapshot.lootChests) {
+            if (chest.looseLoot) continue;
             const Vector2 point = mapPoint(
                 chest.position.x, chest.position.z);
             const float size = 3.2F * symbolScale;

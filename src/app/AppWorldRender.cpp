@@ -322,7 +322,7 @@ void App::drawWorldEntities(
                      nodePosition.z}, 1.15F,
                     {58, 124, 67, 255});
             }
-        } else {
+        } else if (node.type == ResourceType::Stone) {
             if (material.hitFlashAmount <= 0.001F) {
                 resourceRockDrawInstances_.push_back({
                     .position = nodePosition,
@@ -337,6 +337,12 @@ void App::drawWorldEntities(
                 DrawSphere(
                     nodePosition, 0.9F, {104, 116, 128, 255});
             }
+        } else {
+            renderer_->setWorldMaterial(material);
+            static_cast<void>(renderer_->drawDestructibleProp(
+                node.type, nodePosition,
+                static_cast<float>(node.visualYaw), WHITE,
+                hitScale * static_cast<float>(node.visualScale)));
         }
     }
     if (!resourceRockDrawInstances_.empty()) {
@@ -377,6 +383,7 @@ void App::drawWorldEntities(
     chestMaterial.bakedAo = 0.78F;
     renderer_->setWorldMaterial(chestMaterial);
     for (const LootChestInstance& chest : snapshot.lootChests) {
+        if (chest.looseLoot) continue;
         const Vector3 position{
             static_cast<float>(chest.position.x),
             static_cast<float>(chest.position.y),
@@ -425,6 +432,7 @@ void App::drawWorldEntities(
                   static_cast<float>(coin.magnetTime) * 0.55F)
             : 1.0F;
         renderer_->drawCoin(
+            coin.type,
             {static_cast<float>(coin.position.x),
              static_cast<float>(coin.position.y),
              static_cast<float>(coin.position.z)},
@@ -465,9 +473,13 @@ void App::drawWorldEntities(
                     scale * visual.visualScale,
                     visual.visualVariant,
                     visual.visualYaw));
-        } else {
+        } else if (visual.type == ResourceType::Stone) {
             static_cast<void>(
                 renderer_->drawRock(position, WHITE, scale));
+        } else {
+            static_cast<void>(renderer_->drawDestructibleProp(
+                visual.type, position, visual.visualYaw, WHITE,
+                scale * visual.visualScale));
         }
     }
     WorldMaterialState platformMaterial{};

@@ -240,7 +240,9 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& iceWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
-    [[nodiscard]] ModelResource& coinModel();
+    [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
+    [[nodiscard]] ModelResource& destructiblePropModel(
+        std::size_t variant);
     [[nodiscard]] ModelResource& appleLootModel();
     [[nodiscard]] ModelResource& breadLootModel();
     [[nodiscard]] ModelResource& ironBarLootModel();
@@ -348,7 +350,8 @@ class GraphicsResources {
     ModelResource iceWandModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
-    ModelResource coinModel_;
+    std::array<ModelResource, 3> coinModels_;
+    std::array<ModelResource, 3> destructiblePropModels_;
     ModelResource appleLootModel_;
     ModelResource breadLootModel_;
     ModelResource ironBarLootModel_;
@@ -370,7 +373,7 @@ class GraphicsResources {
     std::array<ModelResource, 3> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;
-    std::array<ModelResource, 6> decorativeBushModels_;
+    std::array<ModelResource, 9> decorativeBushModels_;
     std::array<ModelResource, 5> pondDecorModels_;
     std::array<ModelResource, 2> cloudModels_;
     ModelResource wallIsolatedModel_;

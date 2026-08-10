@@ -46,7 +46,9 @@ std::pair<double, double> resourceVisualTransform(
         unitRandom(seed ^ 0xd1b54a32d192ed03ULL);
     const double scale = type == ResourceType::Wood
         ? 0.80 + scaleRoll * 0.45
-        : 0.90 + scaleRoll * 0.20;
+        : type == ResourceType::Stone
+            ? 0.90 + scaleRoll * 0.20
+            : 0.88 + scaleRoll * 0.22;
     return {yaw, scale};
 }
 
@@ -66,10 +68,12 @@ ResourceCapacity variedCapacity(
         extraHealth = 1.0;
     }
     const double health = baseHealth + extraHealth;
-    const int yield = std::max(
-        1, static_cast<int>(std::lround(
-               static_cast<double>(baseYield) *
-               health / baseHealth)));
+    const int yield = baseYield <= 0
+        ? 0
+        : std::max(
+              1, static_cast<int>(std::lround(
+                     static_cast<double>(baseYield) *
+                     health / baseHealth)));
     return {health, yield};
 }
 
@@ -397,6 +401,9 @@ std::optional<ResourceHit> ResourceSystem::damage(EntityId id, double amount) {
     iterator->health = std::max(0.0, iterator->health - amount);
     const bool collected = iterator->health <= 0.0;
     int grantedAmount = 0;
+    if (isDestructibleProp(iterator->type)) {
+        iterator->yieldRemaining = 0;
+    }
     if (collected) {
         grantedAmount = iterator->yieldRemaining;
     } else {

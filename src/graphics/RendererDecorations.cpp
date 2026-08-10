@@ -178,7 +178,7 @@ void Renderer::drawDecorativeRocks(
             }
         }
     }
-    constexpr std::size_t BushVariantCount = 6U;
+    constexpr std::size_t BushVariantCount = 9U;
     for (std::size_t variant = 0;
          variant < BushVariantCount; ++variant) {
         ModelResource& resource =
@@ -323,6 +323,7 @@ void Renderer::drawDecorativeRocks(
     constexpr float BushSpacing = 4.9F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
+        0.76F, 0.72F, 0.82F,
     };
     const float bushTraversalRadius =
         useInstancing && !revealAnimating

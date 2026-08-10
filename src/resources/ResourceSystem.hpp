@@ -18,7 +18,19 @@ inline constexpr std::array<double, TreeVisualVariantCount>
 enum class ResourceType {
     Wood,
     Stone,
+    Barrel,
+    Crate,
+    ItemCrate,
 };
+
+[[nodiscard]] constexpr bool isHarvestableResource(ResourceType type) {
+    return type == ResourceType::Wood || type == ResourceType::Stone;
+}
+
+[[nodiscard]] constexpr bool isDestructibleProp(ResourceType type) {
+    return type == ResourceType::Barrel || type == ResourceType::Crate ||
+           type == ResourceType::ItemCrate;
+}
 
 struct ResourceNode {
     EntityId id;

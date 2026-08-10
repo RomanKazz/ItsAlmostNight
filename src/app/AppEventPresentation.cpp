@@ -339,7 +339,7 @@ void App::processPresentationEvents(
                       event.entityId);
             if (event.resourceType) {
                 addEffect(
-                    *event.resourceType == ResourceType::Wood
+                    *event.resourceType != ResourceType::Stone
                         ? PresentationEffectType::ResourceHitWood
                         : PresentationEffectType::ResourceHitStone,
                     event.position, 0.46,
@@ -376,7 +376,7 @@ void App::processPresentationEvents(
                         ? node->position
                         : event.position;
                 const auto type =
-                    *event.resourceType == ResourceType::Wood
+                    *event.resourceType != ResourceType::Stone
                         ? PresentationEffectType::ResourceDestroyedWood
                         : PresentationEffectType::ResourceDestroyedStone;
                 addEffect(type, center, 0.92, 1.0F);

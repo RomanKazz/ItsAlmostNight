@@ -249,6 +249,7 @@ void App::drawSelectionPass(
         // from a lid behind it.
         renderer_->setSelectionMaskColor(BLACK);
         for (const LootChestInstance& chest : snapshot.lootChests) {
+            if (chest.looseLoot) continue;
             if (chest.loot.revealProgress <= 0.0 ||
                 chest.loot.collected) {
                 continue;
@@ -356,7 +357,7 @@ void App::drawSelectionPass(
                             resource->id.index % TreeVisualVariantCount),
                         static_cast<float>(resource->visualYaw));
                     renderer_->setSelectionOutlineBounds(bounds);
-                } else {
+                } else if (resource->type == ResourceType::Stone) {
                     const float radius = 1.8F * hitScale;
                     renderer_->setSelectionOutlineBounds({
                         {resourcePosition.x - radius,
@@ -390,11 +391,22 @@ void App::drawSelectionPass(
                              resourcePosition.z},
                             1.15F, WHITE);
                     }
-                } else if (!renderer_->drawRock(
+                } else if (resource->type == ResourceType::Stone &&
+                           !renderer_->drawRock(
                                resourcePosition,
                                WHITE,
                                hitScale)) {
                     DrawSphere(resourcePosition, 0.9F, WHITE);
+                } else if (isDestructibleProp(resource->type)) {
+                    renderer_->setSelectionOutlineBounds(
+                        renderer_->destructiblePropWorldBounds(
+                            resource->type, resourcePosition,
+                            static_cast<float>(resource->visualYaw),
+                            visualScale));
+                    static_cast<void>(renderer_->drawDestructibleProp(
+                        resource->type, resourcePosition,
+                        static_cast<float>(resource->visualYaw), WHITE,
+                        visualScale));
                 }
             }
         } else if (snapshot.aimedBuilding) {

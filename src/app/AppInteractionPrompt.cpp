@@ -16,10 +16,12 @@ namespace ian {
 namespace {
 
 const char* recommendedTool(ResourceType type) {
+    if (isDestructibleProp(type)) return "Any tool";
     return type == ResourceType::Wood ? "Axe" : "Pickaxe";
 }
 
 bool matchingResourceTool(PlayerWeapon weapon, ResourceType type) {
+    if (isDestructibleProp(type)) return true;
     return weapon == PlayerWeapon::BareHands ||
            (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
            (type == ResourceType::Stone && weapon == PlayerWeapon::Pickaxe);
@@ -46,7 +48,9 @@ Vector3 resourcePromptAnchor(
         resource.position.x, resource.position.z);
     const double height = resource.type == ResourceType::Wood
         ? 1.95 * resource.visualScale
-        : 1.45 * resource.visualScale;
+        : isDestructibleProp(resource.type)
+            ? 1.35 * resource.visualScale
+            : 1.45 * resource.visualScale;
     return {
         static_cast<float>(resource.position.x),
         static_cast<float>(ground + height),
@@ -125,7 +129,9 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .actionText = "Pick Up",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
-                .accentColor = loot->loot.rarity == LootRarity::Rare
+                .accentColor = loot->loot.rarity == LootRarity::Legendary
+                    ? Color{255, 126, 38, 255}
+                    : loot->loot.rarity == LootRarity::Rare
                     ? Color{255, 170, 170, 255}
                     : loot->loot.rarity == LootRarity::Uncommon
                         ? Color{255, 228, 148, 255}
@@ -214,7 +220,11 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     *resource, simulation_.terrain()),
                 .actionText = resource->type == ResourceType::Wood
                     ? "Gather Wood"
-                    : "Mine Stone",
+                    : resource->type == ResourceType::Stone
+                        ? "Mine Stone"
+                        : resource->type == ResourceType::Barrel
+                            ? "Break Barrel"
+                            : "Break Crate",
                 .input = ControlAction::Attack,
                 .state = warning ? InteractionState::Warning
                                  : InteractionState::Available,

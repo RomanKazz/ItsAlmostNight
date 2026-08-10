@@ -291,12 +291,24 @@ void CollisionWorld::syncResourceCylinders(
     std::span<const GlbCollisionAsset> treeAssets) {
     resourceCylinders_.clear();
     resourceCylinders_.reserve(resources.size());
-    if (treeAssets.empty()) {
-        rebuildResourceBroadphase();
-        return;
-    }
     for (const ResourceNode& resource : resources) {
-        if (!resource.active || resource.type != ResourceType::Wood) {
+        if (!resource.active) {
+            continue;
+        }
+        if (isDestructibleProp(resource.type)) {
+            const double terrainHeight =
+                resource.position.y - resource.groundOffset;
+            resourceCylinders_.push_back({
+                .centerX = resource.position.x,
+                .centerZ = resource.position.z,
+                .radius = resource.radius * 0.78 * resource.visualScale,
+                .minimumBlockingEyeY = terrainHeight,
+                .maximumBlockingEyeY = terrainHeight +
+                    1.35 * resource.visualScale,
+            });
+            continue;
+        }
+        if (resource.type != ResourceType::Wood || treeAssets.empty()) {
             continue;
         }
         const std::size_t variant =

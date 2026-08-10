@@ -949,7 +949,15 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/buildings/chests/wooden_chest.glb");
     stoneChestModel_.load(
         "assets/models/buildings/chests/stone_chest.glb");
-    coinModel_.load("assets/models/coins/coin.glb");
+    coinModels_[0].load("assets/models/coins/coin-bronze.glb");
+    coinModels_[1].load("assets/models/coins/coin-silver.glb");
+    coinModels_[2].load("assets/models/coins/coin-gold.glb");
+    destructiblePropModels_[0].load(
+        "assets/models/destructibles/barrel.glb");
+    destructiblePropModels_[1].load(
+        "assets/models/destructibles/crate.glb");
+    destructiblePropModels_[2].load(
+        "assets/models/destructibles/crate-item.glb");
     appleLootModel_.load("assets/models/items/apple.glb");
     breadLootModel_.load("assets/models/items/bread.glb");
     ironBarLootModel_.load(
@@ -1006,6 +1014,12 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/environment/decor/bushes/e.glb");
     decorativeBushModels_[5].load(
         "assets/models/environment/decor/bushes/f.glb");
+    decorativeBushModels_[6].load(
+        "assets/models/environment/decor/plants/flowers.glb");
+    decorativeBushModels_[7].load(
+        "assets/models/environment/decor/plants/flowers-tall.glb");
+    decorativeBushModels_[8].load(
+        "assets/models/environment/decor/plants/plant.glb");
     pondDecorModels_[0].load(
         "assets/models/environment/decor/water/waterlily_A.gltf");
     pondDecorModels_[1].load(
@@ -1219,7 +1233,8 @@ void GraphicsResources::shutdown() {
     iceWandModel_.unload();
     clubModel_.unload();
     stoneChestModel_.unload();
-    coinModel_.unload();
+    for (auto& model : destructiblePropModels_) model.unload();
+    for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();
     potionLootModel_.unload();
     sawLootModel_.unload();

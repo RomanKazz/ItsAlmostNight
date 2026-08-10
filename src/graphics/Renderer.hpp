@@ -3,6 +3,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "combat/IceWandSystem.hpp"
 #include "core/PerformanceStats.hpp"
+#include "economy/CoinPickupSystem.hpp"
 #include "graphics/DecorationExclusionMap.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "game/LootChestSystem.hpp"
@@ -297,8 +298,14 @@ class Renderer {
     [[nodiscard]] bool drawLootChest(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress, Color tint = WHITE);
-    void drawCoin(Vector3 position, float rotationRadians,
+    void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
+    [[nodiscard]] bool drawDestructibleProp(
+        ResourceType type, Vector3 position, float yawRadians,
+        Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] BoundingBox destructiblePropWorldBounds(
+        ResourceType type, Vector3 position, float yawRadians,
+        float scale = 1.0F);
     [[nodiscard]] LootChestWorldTransform lootChestWorldTransform(
         LootChestType type, Vector3 position, float yawRadians,
         float openingProgress);
@@ -656,7 +663,7 @@ class Renderer {
     std::vector<Matrix> resourceRockTransforms_;
     std::array<std::vector<Matrix>, 4>
         decorativeRockTransforms_;
-    std::array<std::vector<Matrix>, 6>
+    std::array<std::vector<Matrix>, 9>
         decorativeBushTransforms_;
     // Procedural decoration is rebuilt only when the camera crosses a cache
     // cell or when terrain/clear-area/reveal inputs change. Per-frame work is
@@ -667,7 +674,7 @@ class Renderer {
         grassInstanceTransforms_;
     std::array<std::vector<CachedInstance>, 4>
         decorativeRockCandidates_;
-    std::array<std::vector<CachedInstance>, 6>
+    std::array<std::vector<CachedInstance>, 9>
         decorativeBushCandidates_;
     bool grassInstanceCacheValid_{};
     bool decorativeInstanceCacheValid_{};

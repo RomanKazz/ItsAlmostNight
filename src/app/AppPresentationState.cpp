@@ -150,7 +150,9 @@ void App::addLootPickupEffect(
         .position = position,
         .remaining = Duration,
         .duration = Duration,
-        .scale = rarity == LootRarity::Rare
+        .scale = rarity == LootRarity::Legendary
+            ? 1.34F
+            : rarity == LootRarity::Rare
             ? 1.18F
             : rarity == LootRarity::Uncommon ? 1.02F : 0.88F,
         .lootRarity = rarity,

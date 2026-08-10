@@ -172,7 +172,8 @@ void Simulation::processInsightEvent(const GameEvent& event) {
         break;
     case GameEventType::ResourceHit:
     case GameEventType::ResourceCollected:
-        if (!unlimitedResources_ && event.resourceType && event.amount > 0) {
+        if (!unlimitedResources_ && event.resourceType &&
+            isHarvestableResource(*event.resourceType) && event.amount > 0) {
             const auto type = static_cast<std::size_t>(*event.resourceType);
             grantConfiguredInsight(config.resourcePerUnit[type] * event.amount,
                 InsightSource::ResourceGathered, InsightCategory::Gathering, {});
@@ -261,7 +262,8 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
         const GameEvent& event = events_[index];
         if ((event.type == GameEventType::ResourceHit ||
              event.type == GameEventType::ResourceCollected) &&
-            event.resourceType) {
+            event.resourceType &&
+            isHarvestableResource(*event.resourceType)) {
             const double distance = core
                 ? std::hypot(event.position.x - corePosition.x,
                              event.position.z - corePosition.z) : 0.0;

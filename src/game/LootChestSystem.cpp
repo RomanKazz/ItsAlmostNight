@@ -348,6 +348,48 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
     return std::nullopt;
 }
 
+void LootChestSystem::spawnLooseLoot(
+    Vec3 position, LootRarity rarity, std::uint64_t seed) {
+    constexpr std::array<LootUpgradeEffect, 7> CommonLoot{{
+        LootUpgradeEffect::Apple, LootUpgradeEffect::Bread,
+        LootUpgradeEffect::IronBar, LootUpgradeEffect::FuelJerrycan,
+        LootUpgradeEffect::Compass, LootUpgradeEffect::Nail,
+        LootUpgradeEffect::Key,
+    }};
+    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+        LootUpgradeEffect::Map, LootUpgradeEffect::Anvil,
+        LootUpgradeEffect::Saw, LootUpgradeEffect::Potion,
+    }};
+    const auto pool = rarity == LootRarity::Common
+        ? std::span<const LootUpgradeEffect>{CommonLoot}
+        : std::span<const LootUpgradeEffect>{RareLoot};
+    const EntityId id{
+        static_cast<std::uint32_t>(chests_.size()), runGeneration_};
+    LootChestInstance loose{
+        .id = id,
+        .type = LootChestType::Wooden,
+        .state = LootChestState::Open,
+        .position = position,
+        .surfaceNormal = {0.0, 1.0, 0.0},
+        .yaw = unitRandom(seed) * 6.28318530717958647692,
+        .openingProgress = 1.0,
+        .looseLoot = true,
+        .loot = {
+            .id = id,
+            .rarity = rarity,
+            .effect = pool[mixBits64(seed ^ 0x8ebc6af09c88c6e3ULL) %
+                           pool.size()],
+            .position = position,
+            .revealProgress = 1.0,
+            .available = true,
+        },
+    };
+    // Loose items start close to the floor but still use the established
+    // hover/pickup pipeline.
+    loose.position.y -= LootExitHeight + LootRiseHeight;
+    chests_.push_back(loose);
+}
+
 const std::vector<LootChestInstance>& LootChestSystem::chests() const {
     return chests_;
 }
@@ -357,6 +399,7 @@ const char* lootRarityName(LootRarity rarity) {
     case LootRarity::Common: return "COMMON";
     case LootRarity::Uncommon: return "UNCOMMON";
     case LootRarity::Rare: return "RARE";
+    case LootRarity::Legendary: return "LEGENDARY";
     }
     return "";
 }

@@ -60,6 +60,12 @@ constexpr float RockGroundOffset = 0.204F;
 constexpr std::array<std::size_t, PlatformLegCount>
     RotatedPlatformSupportIndices{1U, 0U, 3U, 2U};
 
+std::size_t propModelIndex(ResourceType type) {
+    if (type == ResourceType::Barrel) return 0U;
+    if (type == ResourceType::Crate) return 1U;
+    return 2U;
+}
+
 BoundingBox transformedBoundingBox(
     const BoundingBox& bounds, Matrix transform) {
     BoundingBox result{};
@@ -703,6 +709,8 @@ void Renderer::drawTerrainAlignedModel(
 Color lootRarityColor(LootRarity rarity) {
     // The three tiers intentionally read as blue -> gold -> red in-world:
     // common, rare (Uncommon in the data model), legendary (Rare).
+    if (rarity == LootRarity::Legendary)
+        return {255, 126, 38, 255};
     if (rarity == LootRarity::Rare)
         return {255, 170, 170, 255};
     if (rarity == LootRarity::Uncommon)
@@ -1222,8 +1230,9 @@ void Renderer::drawLootItem(
 }
 
 void Renderer::drawCoin(
-    Vector3 position, float rotationRadians, float scale) {
-    ModelResource& resource = resources_.coinModel();
+    CoinType type, Vector3 position, float rotationRadians, float scale) {
+    ModelResource& resource = resources_.coinModel(
+        static_cast<std::size_t>(type));
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
@@ -1258,7 +1267,12 @@ void Renderer::drawCoin(
                 model.materials[index].shader = shader;
             }
         }
-        drawFittedLootModel(resource, {255, 228, 104, 255});
+        const Color tint = type == CoinType::Bronze
+            ? Color{225, 145, 84, 255}
+            : type == CoinType::Silver
+                ? Color{226, 238, 246, 255}
+                : Color{255, 226, 92, 255};
+        drawFittedLootModel(resource, tint);
     } else {
         DrawCylinder(
             {0.0F, 0.0F, 0.0F}, 0.18F, 0.18F, 0.055F,
@@ -1567,19 +1581,20 @@ std::optional<double> Renderer::resourceRaycastDistance(
     std::size_t visualVariant,
     float visualScale, float yawRadians) {
     ModelResource& resource = type == ResourceType::Wood
-                                  ? resources_.treeModel(visualVariant)
-                                  : resources_.rockModel();
+        ? resources_.treeModel(visualVariant)
+        : type == ResourceType::Stone
+            ? resources_.rockModel()
+            : resources_.destructiblePropModel(propModelIndex(type));
     if (!resource.valid() || maxDistance <= 0.0) {
         return std::nullopt;
     }
     const float modelScale = type == ResourceType::Wood
-                                 ? TreeModelScale * visualScale
-                                 : RockModelScale;
+        ? TreeModelScale * visualScale
+        : type == ResourceType::Stone ? RockModelScale : visualScale;
     position.y += type == ResourceType::Wood
-                      ? static_cast<float>(TreeVisualGroundOffsets[
-                            visualVariant % TreeVisualVariantCount] *
-                            visualScale)
-                      : RockGroundOffset;
+        ? static_cast<float>(TreeVisualGroundOffsets[
+              visualVariant % TreeVisualVariantCount] * visualScale)
+        : type == ResourceType::Stone ? RockGroundOffset : 0.0F;
     const Matrix rotation = MatrixRotateY(yawRadians);
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
@@ -2132,6 +2147,47 @@ bool Renderer::drawRock(Vector3 position, Color tint,
          RockModelScale * scale},
         tint);
     return true;
+}
+
+bool Renderer::drawDestructibleProp(
+    ResourceType type, Vector3 position, float yawRadians,
+    Color tint, float scale) {
+    if (!isDestructibleProp(type)) return false;
+    ModelResource& resource = resources_.destructiblePropModel(
+        propModelIndex(type));
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ && resources_.selectionMaskShader().valid())
+        shader = &resources_.selectionMaskShader().get();
+    else if (shadowPassOpen_ && resources_.shadowShader().valid())
+        shader = &resources_.shadowShader().get();
+    else if (worldShaderActive_ && resources_.worldShader().valid())
+        shader = &resources_.worldShader().get();
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index)
+            model.materials[index].shader = *shader;
+    }
+    scale *= worldRevealScaleAt({position.x, position.z});
+    if (scale <= 0.001F) return true;
+    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
+                yawRadians * RAD2DEG, {scale, scale, scale}, tint);
+    return true;
+}
+
+BoundingBox Renderer::destructiblePropWorldBounds(
+    ResourceType type, Vector3 position, float yawRadians, float scale) {
+    if (!isDestructibleProp(type)) return {};
+    ModelResource& resource = resources_.destructiblePropModel(
+        propModelIndex(type));
+    if (!resource.valid()) return {};
+    const Matrix transform = MatrixMultiply(
+        resource.get().transform,
+        MatrixMultiply(MatrixScale(scale, scale, scale),
+                       MatrixMultiply(MatrixRotateY(yawRadians),
+                                      MatrixTranslate(position.x, position.y,
+                                                      position.z))));
+    return world_transforms::transformBounds(resource.visualBounds(), transform);
 }
 
 bool Renderer::drawRocksInstanced(

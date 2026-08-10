@@ -172,7 +172,15 @@ int main() {
             !resources.coinOutlineShader().valid() ||
             !resources.woodenChestModel().valid() ||
             !resources.stoneChestModel().valid() ||
-            !resources.coinModel().valid() ||
+            !resources.coinModel(0).valid() ||
+            !resources.coinModel(1).valid() ||
+            !resources.coinModel(2).valid() ||
+            !resources.destructiblePropModel(0).valid() ||
+            !resources.destructiblePropModel(1).valid() ||
+            !resources.destructiblePropModel(2).valid() ||
+            !resources.decorativeBushModel(6).valid() ||
+            !resources.decorativeBushModel(7).valid() ||
+            !resources.decorativeBushModel(8).valid() ||
             !resources.ironBarLootModel().valid() ||
             !resources.fuelJerrycanLootModel().valid() ||
             !resources.compassLootModel().valid() ||
@@ -225,12 +233,20 @@ int main() {
             {0.45F, 1.2F, 0.0F},
             ian::LootUpgradeEffect::Bread,
             ian::LootRarity::Common, -0.5F);
-        renderer.drawCoin({0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
+        renderer.drawCoin(
+            ian::CoinType::Gold, {0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
+        const bool barrelDrawn = renderer.drawDestructibleProp(
+            ian::ResourceType::Barrel, {-1.3F, 0.0F, -1.0F}, 0.2F);
+        const bool crateDrawn = renderer.drawDestructibleProp(
+            ian::ResourceType::Crate, {0.0F, 0.0F, -1.0F}, -0.2F);
+        const bool itemCrateDrawn = renderer.drawDestructibleProp(
+            ian::ResourceType::ItemCrate, {1.3F, 0.0F, -1.0F}, 0.0F);
         EndMode3D();
         EndDrawing();
         renderer.shutdown();
-        if (!woodenDrawn || !stoneDrawn) {
-            std::cerr << "chest renderer failed\n";
+        if (!woodenDrawn || !stoneDrawn || !barrelDrawn ||
+            !crateDrawn || !itemCrateDrawn) {
+            std::cerr << "world prop renderer failed\n";
             result = 1;
         }
     }

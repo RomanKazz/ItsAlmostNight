@@ -218,8 +218,13 @@ ModelResource& GraphicsResources::stoneChestModel() {
     return stoneChestModel_;
 }
 
-ModelResource& GraphicsResources::coinModel() {
-    return coinModel_;
+ModelResource& GraphicsResources::coinModel(std::size_t variant) {
+    return coinModels_[variant % coinModels_.size()];
+}
+
+ModelResource& GraphicsResources::destructiblePropModel(
+    std::size_t variant) {
+    return destructiblePropModels_[variant % destructiblePropModels_.size()];
 }
 
 ModelResource& GraphicsResources::appleLootModel() {

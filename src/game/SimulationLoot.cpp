@@ -8,7 +8,9 @@
 namespace ian {
 void Simulation::applyLootPickup(const LootPickup& pickup) {
     const double rarityStrength =
-        pickup.rarity == LootRarity::Rare
+        pickup.rarity == LootRarity::Legendary
+            ? 4.0
+            : pickup.rarity == LootRarity::Rare
             ? 2.5
             : pickup.rarity == LootRarity::Uncommon ? 1.6 : 1.0;
     switch (pickup.effect) {

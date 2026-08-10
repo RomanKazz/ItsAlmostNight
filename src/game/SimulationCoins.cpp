@@ -56,7 +56,7 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         const EnemyType type = enemy != enemies_.enemies().end()
             ? enemy->type
             : EnemyType::Basic;
-        coinPickups_.spawn(
+        coinPickups_.spawnValue(
             event.position, coinDropAmount(type),
             coinSeed(*event.entityId, tick_), terrain_);
     }
@@ -71,7 +71,7 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         if (!rewardedEnemyCoins_.insert(key).second) {
             continue;
         }
-        coinPickups_.spawn(
+        coinPickups_.spawnValue(
             enemy.position, coinDropAmount(enemy.type),
             coinSeed(enemy.id, tick_), terrain_);
     }

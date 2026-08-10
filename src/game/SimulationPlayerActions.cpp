@@ -76,6 +76,9 @@ void Simulation::addGold(int amount) {
 }
 
 bool Simulation::hasStorageSpace(ResourceType resource) const {
+    if (!isHarvestableResource(resource)) {
+        return true;
+    }
     if (unlimitedResources_) {
         return true;
     }
@@ -95,6 +98,9 @@ bool Simulation::hasStorageSpace(ResourceType resource) const {
 
 double Simulation::resourceToolEfficiency(
     PlayerWeapon tool, ResourceType resource) const {
+    if (isDestructibleProp(resource)) {
+        return 1.0;
+    }
     if (tool == PlayerWeapon::BareHands) {
         // Bare Hands already receives its 25% multiplier in the common melee
         // damage calculation.
@@ -193,7 +199,8 @@ void Simulation::updatePlayerActions(
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,
             &ResourceNode::id);
-        if (node != resources_.nodes().end()) {
+        if (node != resources_.nodes().end() &&
+            isHarvestableResource(node->type)) {
             const PlayerWeapon desiredTool =
                 node->type == ResourceType::Wood
                     ? PlayerWeapon::Axe
@@ -396,6 +403,7 @@ void Simulation::updatePlayerActions(
                     targetBeforeHit != resources_.nodes().end() &&
                     targetBeforeHit->yield >= 30;
                 if (targetBeforeHit != resources_.nodes().end() &&
+                    isHarvestableResource(targetBeforeHit->type) &&
                     !hasStorageSpace(targetBeforeHit->type)) {
                     continue;
                 }
@@ -446,6 +454,45 @@ void Simulation::updatePlayerActions(
                     }
                 }
                 if (hit->collected) {
+                    if (isDestructibleProp(hit->type)) {
+                        const std::uint64_t rewardSeed = mixBits64(
+                            attackSeed ^
+                            (static_cast<std::uint64_t>(targetId.index)
+                             << 17U));
+                        const double rewardRoll = unitRandom(rewardSeed);
+                        const int coins = hit->type == ResourceType::Barrel
+                            ? 3 + static_cast<int>(rewardSeed % 5ULL)
+                            : hit->type == ResourceType::Crate
+                                ? 5 + static_cast<int>(rewardSeed % 7ULL)
+                                : 7 + static_cast<int>(rewardSeed % 9ULL);
+                        bool droppedItem = false;
+                        LootRarity rarity = LootRarity::Common;
+                        if (hit->type == ResourceType::Crate) {
+                            droppedItem = rewardRoll < 0.16;
+                            rarity = rewardRoll < 0.025
+                                ? LootRarity::Rare : LootRarity::Common;
+                        } else if (hit->type == ResourceType::ItemCrate) {
+                            droppedItem = rewardRoll < 0.62;
+                            rarity = rewardRoll < 0.025
+                                ? LootRarity::Legendary
+                                : rewardRoll < 0.16
+                                    ? LootRarity::Rare
+                                    : LootRarity::Common;
+                        }
+                        if (droppedItem) {
+                            lootChests_.spawnLooseLoot(
+                                impactPosition, rarity, rewardSeed);
+                        } else {
+                            coinPickups_.spawnValue(
+                                impactPosition, coins, rewardSeed, terrain_);
+                        }
+                        if (hit->type == ResourceType::Barrel) {
+                            grantConfiguredInsight(
+                                1.0 + unitRandom(rewardSeed ^ 0x94d049bbULL),
+                                InsightSource::Other,
+                                InsightCategory::Exploration, {});
+                        }
+                    }
                     if (targetId == primaryTarget) {
                         aimedResource_.reset();
                     }

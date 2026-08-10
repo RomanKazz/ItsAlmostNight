@@ -46,14 +46,31 @@ void CoinPickupSystem::reset() {
 void CoinPickupSystem::spawn(
     Vec3 position, int amount, std::uint64_t seed,
     const TerrainHeightfield& terrain) {
+    for (int index = 0;
+         index < amount && pickups_.size() < MaximumPickups; ++index) {
+        spawnValue(
+            position, 1,
+            mixBits(seed + static_cast<std::uint64_t>(index) *
+                               0x9e3779b97f4a7c15ULL),
+            terrain);
+    }
+}
+
+void CoinPickupSystem::spawnValue(
+    Vec3 position, int amount, std::uint64_t seed,
+    const TerrainHeightfield& terrain) {
     if (amount <= 0) {
         return;
     }
     const double ground = terrain.getHeight(position.x, position.z);
     position.y = std::max(position.y + 0.48, ground + GroundOffset + 0.32);
-    for (int index = 0;
-         index < amount && pickups_.size() < MaximumPickups;
-         ++index) {
+    int remaining = amount;
+    int index = 0;
+    while (remaining > 0 && pickups_.size() < MaximumPickups) {
+        const CoinType type = remaining >= 10
+            ? CoinType::Gold
+            : remaining >= 5 ? CoinType::Silver : CoinType::Bronze;
+        const int value = coinValue(type);
         const std::uint64_t coinSeed =
             mixBits(seed + static_cast<std::uint64_t>(index) *
                                0x9e3779b97f4a7c15ULL);
@@ -71,9 +88,12 @@ void CoinPickupSystem::spawn(
             .age = 0.0,
             .magnetTime = 0.0,
             .spinPhase = unitRandom(coinSeed ^ 0xc2b2ae35ULL) * Pi * 2.0,
-            .value = 1,
+            .type = type,
+            .value = value,
             .magnetized = false,
         });
+        remaining -= value;
+        ++index;
     }
 }
 

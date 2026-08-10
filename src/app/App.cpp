@@ -42,6 +42,7 @@ std::uint64_t decorationFingerprint(
             hash, std::bit_cast<std::uint64_t>(resource.position.z));
     }
     for (const LootChestInstance& chest : snapshot.lootChests) {
+        if (chest.looseLoot) continue;
         hash = mixDecorationFingerprint(
             hash, std::bit_cast<std::uint64_t>(chest.position.x));
         hash = mixDecorationFingerprint(
@@ -67,6 +68,7 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
         });
     }
     for (const LootChestInstance& chest : snapshot.lootChests) {
+        if (chest.looseLoot) continue;
         exclusions.push_back({
             .shape = DecorationExclusionShape::Circle,
             .centerX = chest.position.x,

@@ -286,7 +286,9 @@ void App::drawBlobShadows(
                 std::max(static_cast<float>(node.radius), 0.45F);
             radius *= node.type == ResourceType::Wood
                 ? 1.28F * static_cast<float>(node.visualScale)
-                : 1.05F;
+                : isDestructibleProp(node.type)
+                    ? 0.92F * static_cast<float>(node.visualScale)
+                    : 1.05F;
             const float revealScale =
                 renderer_->worldRevealScaleAt({
                     static_cast<float>(node.position.x),

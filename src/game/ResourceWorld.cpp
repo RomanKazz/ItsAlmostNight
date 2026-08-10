@@ -201,6 +201,36 @@ std::vector<ResourceNodeDefinition> scatterResources(
         };
         result.push_back(definition);
     }
+
+    // Sparse interactive clutter. These use the resource target pipeline for
+    // precise hover, health bars and collision, but have their own rewards.
+    const std::size_t propCount = static_cast<std::size_t>(
+        std::lround(12.0 * std::sqrt(densityScale)));
+    for (std::size_t index = 0; index < propCount; ++index) {
+        const std::uint64_t seed =
+            0xa0761d6478bd642fULL + index * 0xe7037ed1a0b428dbULL;
+        const double progress =
+            (static_cast<double>(index) + 0.6) /
+            static_cast<double>(propCount);
+        const double radius = std::sqrt(
+            (innerRadius + 2.0) * (innerRadius + 2.0) + progress *
+            (outerRadius * outerRadius -
+             (innerRadius + 2.0) * (innerRadius + 2.0)));
+        const double angle = static_cast<double>(index) * GoldenAngle +
+            unitRandom(seed) * 0.9;
+        const double roll = unitRandom(seed ^ 0xd1b54a32d192ed03ULL);
+        const ResourceType type = roll < 0.46
+            ? ResourceType::Barrel
+            : roll < 0.82 ? ResourceType::Crate
+                          : ResourceType::ItemCrate;
+        const double health = type == ResourceType::Barrel ? 4.0 : 5.0;
+        result.push_back({
+            type,
+            {std::cos(angle) * radius, 0.62,
+             std::sin(angle) * radius},
+            0.68, health, 0, 75.0,
+        });
+    }
     placeOnDryTerrain(result);
     return result;
 }
