@@ -1403,8 +1403,11 @@ void App::processInput() {
                         break;
                     }
                 }
-            } else if (mousePrimaryPressed &&
-                       currentSnapshot.buildingPreview &&
+            } else if (
+                mousePrimaryPressed &&
+                currentSnapshot.buildingPreview &&
+                currentSnapshot.buildingPreview
+                    ->placement.valid() &&
                 currentSnapshot.buildingPreview->type !=
                     BuildingType::Core) {
                 wallDragStart_ =
@@ -1429,8 +1432,11 @@ void App::processInput() {
                                 .buildingPreview
                                 ->platformStorey,
                     };
-            } else if (mousePrimaryPressed &&
-                       currentSnapshot.buildingPreview) {
+            } else if (
+                mousePrimaryPressed &&
+                currentSnapshot.buildingPreview &&
+                currentSnapshot.buildingPreview
+                    ->placement.valid()) {
                 pendingBuildingPlacement_ = PlaceBuildingCommand{
                     .type = currentSnapshot.buildingPreview->type,
                     .gridPosition = currentSnapshot.buildingPreview->gridPosition,
