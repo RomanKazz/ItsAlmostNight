@@ -231,6 +231,8 @@ struct SimulationSnapshot {
     double phaseTimeRemaining;
     double phaseDuration;
     int earlyWaveBonus;
+    int earlyWaveCoinBonus;
+    int earlyWaveInsightBonus;
     int wave;
     int bestWave;
     double coreHealth;
@@ -377,6 +379,8 @@ class Simulation {
     void updateRunPhase(double deltaSeconds,
                         const PlayerCommand& command);
     [[nodiscard]] int earlyWaveBonus() const;
+    [[nodiscard]] int earlyWaveCoinBonus() const;
+    [[nodiscard]] int earlyWaveInsightBonus() const;
     void updateCombat(double deltaSeconds);
     void updateTrapCombat(double deltaSeconds);
     void updateTowerCombat(double deltaSeconds);
@@ -413,7 +417,8 @@ class Simulation {
     void removeUnsupportedPlatformBuildings();
     void damagePlayer(
         double damage, std::optional<EntityId> attackerId,
-        Vec3 attackPosition);
+        Vec3 attackPosition, bool ignoreArmor = false);
+    void applyFallDamage(double landingSpeed);
     void beginPlayerRespawn(
         std::optional<EntityId> attackerId);
     void updatePlayerRespawn(double deltaSeconds);
@@ -450,6 +455,10 @@ class Simulation {
     void grantConfiguredInsight(double amount, InsightSource source,
                                 InsightCategory category,
                                 const InsightGrantContext& context);
+    void grantBlueprintInsightForType(
+        BuildingType type, int blueprintStackOrdinal);
+    void grantBlueprintInsightForExistingBuildings(
+        int blueprintStackOrdinal);
     [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};

@@ -836,6 +836,8 @@ void App::processPresentationEvents(
                           : "You died";
         } else if (event.type == GameEventType::PlayerRespawned) {
             message = "Respawned at Core";
+        } else if (event.type == GameEventType::RopeFallSaved) {
+            message = "Safety Rope saved you from a fatal fall";
         } else if (event.type == GameEventType::WaveRewardGranted) {
             message =
                 "Night cleared: +" +
@@ -847,6 +849,18 @@ void App::processPresentationEvents(
                 "Early wave bonus: +" +
                 std::to_string(event.amount) +
                 " Crystals";
+            if (event.coinAmount > 0) {
+                message += "  +" +
+                    std::to_string(event.coinAmount) +
+                    " Gold";
+                coinHudBounceRemaining_ = 0.32;
+            }
+            if (event.insightAmount > 0.0) {
+                message += "  +" +
+                    std::to_string(static_cast<int>(
+                        std::lround(event.insightAmount))) +
+                    " Insight";
+            }
         } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
             message = introGatherRewardMessage(
                 simulation_.insightSystem().config()

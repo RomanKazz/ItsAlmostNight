@@ -48,12 +48,23 @@ void runLootChestSystemTests() {
             (chest.loot.effect == ian::LootUpgradeEffect::Map ||
              chest.loot.effect == ian::LootUpgradeEffect::Anvil ||
              chest.loot.effect == ian::LootUpgradeEffect::Saw ||
-             chest.loot.effect == ian::LootUpgradeEffect::Potion);
+             chest.loot.effect == ian::LootUpgradeEffect::Potion ||
+             chest.loot.effect == ian::LootUpgradeEffect::Blueprint ||
+             chest.loot.effect == ian::LootUpgradeEffect::Hourglass ||
+             chest.loot.effect == ian::LootUpgradeEffect::Rope);
         require(common || rare,
                 "loot rarity matches the configured common or rare pool");
     }
     require(hasWooden && hasStone,
             "terrain population uses both supplied chest models");
+    require(
+        std::string_view(ian::lootUpgradeName(
+            ian::LootUpgradeEffect::Blueprint)) == "Blueprint" &&
+            std::string_view(ian::lootUpgradeName(
+                ian::LootUpgradeEffect::Hourglass)) == "Hourglass" &&
+            std::string_view(ian::lootUpgradeName(
+                ian::LootUpgradeEffect::Rope)) == "Safety Rope",
+        "new loot items expose readable names");
 
     const std::size_t chestCountBeforeDelivery =
         chests.chests().size();

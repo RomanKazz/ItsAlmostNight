@@ -218,6 +218,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .earlyWaveBonus = earlyWaveBonus(),
+        .earlyWaveCoinBonus = earlyWaveCoinBonus(),
+        .earlyWaveInsightBonus = earlyWaveInsightBonus(),
         .wave = wave_,
         .bestWave = bestWave_,
         .coreHealth = core ? core->health : 0.0,

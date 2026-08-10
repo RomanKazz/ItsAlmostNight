@@ -257,6 +257,9 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& anvilLootModel();
     [[nodiscard]] ModelResource& sawLootModel();
     [[nodiscard]] ModelResource& potionLootModel();
+    [[nodiscard]] ModelResource& blueprintLootModel();
+    [[nodiscard]] ModelResource& hourglassLootModel();
+    [[nodiscard]] ModelResource& ropeLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
@@ -367,6 +370,9 @@ class GraphicsResources {
     ModelResource anvilLootModel_;
     ModelResource sawLootModel_;
     ModelResource potionLootModel_;
+    ModelResource blueprintLootModel_;
+    ModelResource hourglassLootModel_;
+    ModelResource ropeLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;

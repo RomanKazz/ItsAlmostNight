@@ -70,6 +70,14 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     case LootUpgradeEffect::Potion:
         break;
+    case LootUpgradeEffect::Blueprint:
+        grantBlueprintInsightForExistingBuildings(
+            lootStacks_[lootUpgradeIndex(
+                LootUpgradeEffect::Blueprint)] + 1);
+        break;
+    case LootUpgradeEffect::Hourglass:
+    case LootUpgradeEffect::Rope:
+        break;
     }
     ++lootStacks_[lootUpgradeIndex(pickup.effect)];
     events_.push_back({

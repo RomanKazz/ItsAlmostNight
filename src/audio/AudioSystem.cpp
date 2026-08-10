@@ -366,6 +366,9 @@ void AudioSystem::playEvent(
         footstepDistance_ = 0.0;
         break;
     }
+    case GameEventType::RopeFallSaved:
+        play(upgrade_, 0.72F, 1.08F);
+        break;
     case GameEventType::PlayerDashed: {
         sequence_ = sequence_ * 1664525U + 1013904223U;
         const std::size_t index =

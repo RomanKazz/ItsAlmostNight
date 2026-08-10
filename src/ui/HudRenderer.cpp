@@ -865,6 +865,9 @@ void drawLootInventory(
         LootUpgradeEffect::Anvil,
         LootUpgradeEffect::Saw,
         LootUpgradeEffect::Potion,
+        LootUpgradeEffect::Blueprint,
+        LootUpgradeEffect::Hourglass,
+        LootUpgradeEffect::Rope,
     };
     int activeCount = 0;
     for (const LootUpgradeEffect effect : Effects) {
@@ -1637,6 +1640,18 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             phaseText += "  •  N: +" +
                 std::to_string(snapshot.earlyWaveBonus) +
                 " CRYSTALS";
+            if (snapshot.earlyWaveCoinBonus > 0) {
+                phaseText += "  +" +
+                    std::to_string(
+                        snapshot.earlyWaveCoinBonus) +
+                    " GOLD";
+            }
+            if (snapshot.earlyWaveInsightBonus > 0) {
+                phaseText += "  +" +
+                    std::to_string(
+                        snapshot.earlyWaveInsightBonus) +
+                    " INSIGHT";
+            }
         }
     } else if (snapshot.state == RunState::Sunset) {
         phaseText = "SUNSET  •  WAVE " +

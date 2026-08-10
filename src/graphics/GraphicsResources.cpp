@@ -975,23 +975,29 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     appleLootModel_.load("assets/models/items/apple.glb");
     breadLootModel_.load("assets/models/items/bread.glb");
     ironBarLootModel_.load(
-        "assets/models/items/iron_bar/Iron_Bar.gltf");
+        "assets/models/items/iron_bar.glb");
     fuelJerrycanLootModel_.load(
-        "assets/models/items/fuel_jerrycan/Fuel_A_Jerrycan.gltf");
+        "assets/models/items/fuel_jerrycan.glb");
     compassLootModel_.load(
-        "assets/models/items/compass/compass_base.gltf");
+        "assets/models/items/compass.glb");
     nailLootModel_.load(
-        "assets/models/items/nail/nail.gltf");
+        "assets/models/items/nail.glb");
     keyLootModel_.load(
-        "assets/models/items/key/key.glb");
+        "assets/models/items/key.glb");
     mapLootModel_.load(
-        "assets/models/items/map/map.gltf");
+        "assets/models/items/map.glb");
     anvilLootModel_.load(
-        "assets/models/items/anvil/anvil.gltf");
+        "assets/models/items/anvil.glb");
     sawLootModel_.load(
-        "assets/models/items/saw/saw.gltf");
+        "assets/models/items/saw.glb");
     potionLootModel_.load(
-        "assets/models/items/potion/potion.glb");
+        "assets/models/items/potion.glb");
+    blueprintLootModel_.load(
+        "assets/models/items/blueprint.glb");
+    hourglassLootModel_.load(
+        "assets/models/items/hourglass.glb");
+    ropeLootModel_.load(
+        "assets/models/items/rope.glb");
     platformModel_.load("assets/models/construction/platform.glb");
     rampModel_.load("assets/models/construction/ramp.glb");
     mineModel_.load("assets/models/buildings/mine.glb");
@@ -1250,6 +1256,9 @@ void GraphicsResources::shutdown() {
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();
+    ropeLootModel_.unload();
+    hourglassLootModel_.unload();
+    blueprintLootModel_.unload();
     potionLootModel_.unload();
     sawLootModel_.unload();
     anvilLootModel_.unload();

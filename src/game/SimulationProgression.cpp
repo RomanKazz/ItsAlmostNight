@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace ian {
@@ -134,6 +135,40 @@ void Simulation::grantConfiguredInsight(
     });
 }
 
+void Simulation::grantBlueprintInsightForType(
+    BuildingType type, int blueprintStackOrdinal) {
+    if (unlimitedResources_ || blueprintStackOrdinal <= 0) {
+        return;
+    }
+    const std::uint64_t typeIndex =
+        static_cast<std::uint64_t>(type);
+    const std::uint64_t rewardKey =
+        static_cast<std::uint64_t>(blueprintStackOrdinal - 1) *
+            GameBalance::BuildingTypeCount +
+        typeIndex + 1U;
+    grantConfiguredInsight(
+        insight_.config().firstBuildingTypeBonus,
+        InsightSource::StructureBuilt,
+        InsightCategory::Building,
+        {.eventId = insightIntegerEvent(0x501U, rewardKey),
+         .oneTime = true});
+}
+
+void Simulation::grantBlueprintInsightForExistingBuildings(
+    int blueprintStackOrdinal) {
+    std::array<bool, GameBalance::BuildingTypeCount> present{};
+    for (const BuildingInstance& building : buildings_.buildings()) {
+        present[static_cast<std::size_t>(building.type)] = true;
+    }
+    for (std::size_t type = 0; type < present.size(); ++type) {
+        if (present[type]) {
+            grantBlueprintInsightForType(
+                static_cast<BuildingType>(type),
+                blueprintStackOrdinal);
+        }
+    }
+}
+
 void Simulation::processInsightEvent(const GameEvent& event) {
     const InsightConfig& config = insight_.config();
     switch (event.type) {
@@ -191,9 +226,12 @@ void Simulation::processInsightEvent(const GameEvent& event) {
             grantConfiguredInsight(config.building[type], InsightSource::StructureBuilt,
                 InsightCategory::Building,
                 {.eventId = insightEntityEvent(0x500U, *event.entityId), .oneTime = true});
-            grantConfiguredInsight(config.firstBuildingTypeBonus,
-                InsightSource::StructureBuilt, InsightCategory::Building,
-                {.eventId = insightIntegerEvent(0x501U, type + 1U), .oneTime = true});
+            const int blueprintStacks = lootStacks_[
+                lootUpgradeIndex(LootUpgradeEffect::Blueprint)];
+            for (int stack = 1; stack <= blueprintStacks; ++stack) {
+                grantBlueprintInsightForType(
+                    *event.buildingType, stack);
+            }
             if (*event.buildingType == BuildingType::Core) {
                 grantConfiguredInsight(config.introCoreObjective, InsightSource::Objective,
                     InsightCategory::Exploration,

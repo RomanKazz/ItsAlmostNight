@@ -38,6 +38,7 @@ void Simulation::updatePlayer(double deltaSeconds,
                               const PlayerCommand& command) {
     constexpr double CoyoteTime = 0.10;
     constexpr double JumpBufferTime = 0.12;
+    double landingSpeedThisFrame = 0.0;
     autoJumpAssistRemaining_ = std::max(
         0.0,
         autoJumpAssistRemaining_ - deltaSeconds);
@@ -237,6 +238,8 @@ void Simulation::updatePlayer(double deltaSeconds,
         if (edgeCatchSurface &&
             *edgeCatchSurface >
                 currentFeetHeight + 1e-6) {
+            landingSpeedThisFrame = std::max(
+                0.0, -verticalVelocity_);
             playerPosition_.y =
                 *edgeCatchSurface + gameplay_.eyeHeight;
             verticalVelocity_ = 0.0;
@@ -385,6 +388,9 @@ void Simulation::updatePlayer(double deltaSeconds,
         if (verticalVelocity_ <= 0.0 &&
             playerPosition_.y <= landingHeight) {
             const double landingSpeed = -verticalVelocity_;
+            landingSpeedThisFrame = std::max(
+                landingSpeedThisFrame,
+                landingSpeed);
             playerPosition_.y = landingHeight;
             verticalVelocity_ = 0.0;
             playerGrounded_ = true;
@@ -393,14 +399,11 @@ void Simulation::updatePlayer(double deltaSeconds,
             edgeSupportGraceRemaining_ =
                 EdgeSupportGraceSeconds;
             lastGroundSurfaceHeight_ = landingSurface;
-            if (landingSpeed > 1.0) {
-                events_.push_back({
-                    .type = GameEventType::PlayerLanded,
-                    .position = playerPosition_,
-                    .intensity = landingSpeed,
-                });
-            }
         }
+    }
+
+    if (landingSpeedThisFrame > 1.0) {
+        applyFallDamage(landingSpeedThisFrame);
     }
 
     resources_.tick(

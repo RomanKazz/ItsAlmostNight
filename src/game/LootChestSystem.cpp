@@ -69,11 +69,14 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position) {
         LootUpgradeEffect::Nail,
         LootUpgradeEffect::Key,
     }};
-    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+    constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
         LootUpgradeEffect::Map,
         LootUpgradeEffect::Anvil,
         LootUpgradeEffect::Saw,
         LootUpgradeEffect::Potion,
+        LootUpgradeEffect::Blueprint,
+        LootUpgradeEffect::Hourglass,
+        LootUpgradeEffect::Rope,
     }};
     const bool rare = roll % 100ULL >= 72ULL;
     const std::span<const LootUpgradeEffect> pool = rare
@@ -363,9 +366,11 @@ void LootChestSystem::spawnLooseLoot(
         LootUpgradeEffect::Compass, LootUpgradeEffect::Nail,
         LootUpgradeEffect::Key,
     }};
-    constexpr std::array<LootUpgradeEffect, 4> RareLoot{{
+    constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
         LootUpgradeEffect::Map, LootUpgradeEffect::Anvil,
         LootUpgradeEffect::Saw, LootUpgradeEffect::Potion,
+        LootUpgradeEffect::Blueprint, LootUpgradeEffect::Hourglass,
+        LootUpgradeEffect::Rope,
     }};
     const auto pool = rarity == LootRarity::Common
         ? std::span<const LootUpgradeEffect>{CommonLoot}
@@ -428,6 +433,9 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Anvil: return "Anvil";
     case LootUpgradeEffect::Saw: return "Saw";
     case LootUpgradeEffect::Potion: return "Battle Potion";
+    case LootUpgradeEffect::Blueprint: return "Blueprint";
+    case LootUpgradeEffect::Hourglass: return "Hourglass";
+    case LootUpgradeEffect::Rope: return "Safety Rope";
     }
     return "Unknown Item";
 }
@@ -457,6 +465,12 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
         return "+25% wood gathering and lumber production";
     case LootUpgradeEffect::Potion:
         return "Wave start: +20 HP and +10 temporary health";
+    case LootUpgradeEffect::Blueprint:
+        return "First building of each type grants Insight; retroactive";
+    case LootUpgradeEffect::Hourglass:
+        return "Early night converts remaining time into Gold and Insight";
+    case LootUpgradeEffect::Rope:
+        return "Reduces fall damage; consumes one to prevent a fatal fall";
     }
     return "";
 }

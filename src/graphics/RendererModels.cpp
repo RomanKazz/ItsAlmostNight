@@ -539,12 +539,45 @@ ModelResource* lootItemModelFor(
         return &resources.sawLootModel();
     case LootUpgradeEffect::Potion:
         return &resources.potionLootModel();
+    case LootUpgradeEffect::Blueprint:
+        return &resources.blueprintLootModel();
+    case LootUpgradeEffect::Hourglass:
+        return &resources.hourglassLootModel();
+    case LootUpgradeEffect::Rope:
+        return &resources.ropeLootModel();
     case LootUpgradeEffect::Damage:
     case LootUpgradeEffect::MoveSpeed:
     case LootUpgradeEffect::MaximumHealth:
         return nullptr;
     }
     return nullptr;
+}
+
+constexpr float CommonLootModelScale = 0.36F;
+
+void drawAuthoredLootModel(ModelResource& resource, Color tint) {
+    Model& model = resource.get();
+    rlPushMatrix();
+    rlScalef(
+        CommonLootModelScale,
+        CommonLootModelScale,
+        CommonLootModelScale);
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        if (!resource.meshValid(static_cast<std::size_t>(meshIndex))) {
+            continue;
+        }
+        const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 || materialIndex >= model.materialCount) {
+            continue;
+        }
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(
+            original, tint);
+        DrawMesh(model.meshes[meshIndex], material, model.transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    rlPopMatrix();
 }
 
 struct LootModelFit {
@@ -595,24 +628,6 @@ void drawFittedLootModel(ModelResource& resource, Color tint) {
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     }
     rlPopMatrix();
-}
-
-void applyLootItemLocalRotation(LootUpgradeEffect effect) {
-    if (effect == LootUpgradeEffect::Bread) {
-        rlRotatef(90.0F, 1.0F, 0.0F, 0.0F);
-        rlRotatef(90.0F, 0.0F, 0.0F, 1.0F);
-    }
-}
-
-Matrix lootItemLocalRotationMatrix(LootUpgradeEffect effect) {
-    if (effect != LootUpgradeEffect::Bread) {
-        return MatrixIdentity();
-    }
-    // rlRotatef pre-multiplies the current matrix, so this is the exact
-    // matrix produced by applyLootItemLocalRotation above.
-    return MatrixMultiply(
-        MatrixRotateZ(90.0F * DEG2RAD),
-        MatrixRotateX(90.0F * DEG2RAD));
 }
 
 bool finiteBoneMatrices(const Matrix* matrices, int boneCount) {
@@ -1196,7 +1211,6 @@ void Renderer::drawLootItem(
     rlTranslatef(position.x, position.y, position.z);
     rlMultMatrixf(MatrixToFloat(world_transforms::surfaceRotation(
         surfaceNormal, rotationRadians)));
-    applyLootItemLocalRotation(effect);
     rlScalef(scale, scale, scale);
     ModelResource* resource = lootItemModelFor(resources_, effect);
     if (resource != nullptr && resource->valid()) {
@@ -1222,7 +1236,7 @@ void Renderer::drawLootItem(
         }
         // Keep the authored food colors; rarity belongs to the silhouette,
         // not to a cyan tint over the item itself.
-        drawFittedLootModel(*resource, ColorTint(WHITE, tint));
+        drawAuthoredLootModel(*resource, ColorTint(WHITE, tint));
     } else {
         drawLootItemGeometry(effect, color);
     }
@@ -1296,21 +1310,18 @@ BoundingBox Renderer::lootItemWorldBounds(
                 {position.x + radius, position.y + radius,
                  position.z + radius}};
     }
-    const LootModelFit fit = lootModelFit(*resource);
     const Matrix transform = MatrixMultiply(
         resource->get().transform,
         MatrixMultiply(
-            MatrixTranslate(-fit.center.x, -fit.center.y, -fit.center.z),
+            MatrixScale(
+                CommonLootModelScale * scale,
+                CommonLootModelScale * scale,
+                CommonLootModelScale * scale),
             MatrixMultiply(
-                MatrixScale(fit.scale * scale, fit.scale * scale,
-                            fit.scale * scale),
-                MatrixMultiply(
-                    lootItemLocalRotationMatrix(effect),
-                    MatrixMultiply(
-                        world_transforms::surfaceRotation(
-                            surfaceNormal, rotationRadians),
-                        MatrixTranslate(
-                            position.x, position.y, position.z))))));
+                world_transforms::surfaceRotation(
+                    surfaceNormal, rotationRadians),
+                MatrixTranslate(
+                    position.x, position.y, position.z))));
     return world_transforms::transformBounds(
         resource->visualBounds(), transform);
 }

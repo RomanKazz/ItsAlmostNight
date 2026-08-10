@@ -273,6 +273,14 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
             value.value("playerRespawnSeconds", 5.0),
         .playerDeathResourceLossFraction =
             value.value("playerDeathResourceLossFraction", 0.25),
+        .fallDamageSafeSpeed =
+            value.value(
+                "fallDamageSafeSpeed",
+                value.at("jumpSpeed").get<double>() + 1.5),
+        .fallDamagePerSpeedSquared =
+            value.value("fallDamagePerSpeedSquared", 3.5),
+        .ropeFallDamageReduction =
+            value.value("ropeFallDamageReduction", 0.45),
         .pickaxeRange = value.at("pickaxeRange").get<double>(),
         .resourceGatherRange = value.value(
             "resourceGatherRange",
@@ -303,6 +311,10 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.playerRespawnSeconds <= 0.0 ||
         definition.playerDeathResourceLossFraction < 0.0 ||
         definition.playerDeathResourceLossFraction > 1.0 ||
+        definition.fallDamageSafeSpeed <= definition.jumpSpeed ||
+        definition.fallDamagePerSpeedSquared <= 0.0 ||
+        definition.ropeFallDamageReduction <= 0.0 ||
+        definition.ropeFallDamageReduction > 1.0 ||
         definition.pickaxeRange <= 0.0 ||
         definition.resourceGatherRange <= 0.0 ||
         definition.pickaxeDamage <= 0.0 ||
@@ -377,7 +389,8 @@ GameBalance GameBalance::defaults() {
                          0.5, 0.14, 0.5},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
-        .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,
+        .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
+                     8.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
                      120.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };

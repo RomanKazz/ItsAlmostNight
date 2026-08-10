@@ -44,27 +44,143 @@ void runSimulationTests() {
         placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         earlySimulation.tick(1.0 / 60.0, placeFreeCore);
+        earlySimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::Hourglass,
+            ian::LootRarity::Rare);
         const int advertisedBonus =
             earlySimulation.snapshot().earlyWaveBonus;
+        const int advertisedCoins =
+            earlySimulation.snapshot().earlyWaveCoinBonus;
+        const int advertisedInsight =
+            earlySimulation.snapshot().earlyWaveInsightBonus;
+        const double insightBeforeEarlyStart =
+            earlySimulation.snapshot().currentInsight;
         require(advertisedBonus > 0,
                 "preparation HUD advertises an early-wave bonus");
+        require(
+            advertisedCoins == advertisedBonus &&
+                advertisedInsight == advertisedBonus,
+            "Hourglass converts early-wave time into Gold and Insight");
         ian::PlayerCommand startEarly;
         startEarly.startWaveEarly =
             ian::StartWaveEarlyCommand{};
         earlySimulation.tick(1.0 / 60.0, startEarly);
         require(
-            earlySimulation.snapshot().gold == advertisedBonus,
-            "starting early immediately grants the advertised crystals");
+            earlySimulation.snapshot().gold == advertisedBonus &&
+                earlySimulation.snapshot().coins == advertisedCoins,
+            "starting early grants advertised crystals and Gold");
+        requireNear(
+            earlySimulation.snapshot().currentInsight,
+            insightBeforeEarlyStart + advertisedInsight,
+            1e-9,
+            "starting early grants advertised Hourglass Insight");
         const auto earlyEvents = earlySimulation.takeEvents();
         require(
             std::ranges::any_of(
                 earlyEvents,
-                [advertisedBonus](const ian::GameEvent& event) {
+                [advertisedBonus, advertisedCoins,
+                 advertisedInsight](const ian::GameEvent& event) {
                     return event.type ==
                             ian::GameEventType::EarlyWaveBonusGranted &&
-                        event.amount == advertisedBonus;
+                        event.amount == advertisedBonus &&
+                        event.coinAmount == advertisedCoins &&
+                        event.insightAmount == advertisedInsight;
                 }),
             "early-wave bonus emits a presentation event once");
+    }
+    {
+        ian::GameBalance blueprintBalance =
+            ian::GameBalance::defaults();
+        blueprintBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        blueprintBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Wall)].wood = 0;
+        ian::MapDefinition blueprintMap =
+            ian::MapDefinition::defaults();
+        blueprintMap.obstacles.clear();
+        ian::WorldConfig blueprintWorld =
+            ian::WorldConfig::defaults();
+        blueprintWorld.terrainAmplitude = 0.0;
+        ian::Simulation blueprintSimulation{
+            blueprintBalance, blueprintMap, blueprintWorld};
+        blueprintSimulation.startRun();
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        blueprintSimulation.tick(1.0 / 60.0, placeCore);
+        const double beforeBlueprint =
+            blueprintSimulation.snapshot().currentInsight;
+        blueprintSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::Blueprint,
+            ian::LootRarity::Rare);
+        requireNear(
+            blueprintSimulation.snapshot().currentInsight,
+            beforeBlueprint + blueprintSimulation
+                .insightSystem().config().firstBuildingTypeBonus,
+            1e-9,
+            "Blueprint immediately rewards already-built unique types");
+        const double beforeWall =
+            blueprintSimulation.snapshot().currentInsight;
+        ian::PlayerCommand placeWall;
+        placeWall.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Wall, {3, 0}, 0};
+        blueprintSimulation.tick(1.0 / 60.0, placeWall);
+        require(
+            blueprintSimulation.snapshot().currentInsight >
+                beforeWall + 2.0,
+            "Blueprint rewards a newly built type plus normal building Insight");
+    }
+    {
+        auto fallingSimulation = [](double spawnHeight,
+                                    bool rope) {
+            ian::MapDefinition map =
+                ian::MapDefinition::defaults();
+            map.playerSpawn.y = spawnHeight;
+            map.obstacles.clear();
+            ian::WorldConfig world =
+                ian::WorldConfig::defaults();
+            world.terrainAmplitude = 0.0;
+            ian::Simulation simulation{
+                ian::GameBalance::defaults(), map, world};
+            simulation.startRun();
+            if (rope) {
+                simulation.grantLootUpgrade(
+                    ian::LootUpgradeEffect::Rope,
+                    ian::LootRarity::Rare);
+            }
+            for (int tick = 0; tick < 180; ++tick) {
+                simulation.tick(1.0 / 60.0);
+            }
+            return simulation;
+        };
+        ian::Simulation smallFall =
+            fallingSimulation(1.0, false);
+        requireNear(
+            smallFall.snapshot().playerHealth,
+            smallFall.snapshot().playerMaxHealth, 1e-9,
+            "small falls below safe speed deal no damage");
+        ian::Simulation fatalFall =
+            fallingSimulation(12.0, false);
+        require(
+            fatalFall.snapshot().playerRespawning,
+            "large unprotected falls can kill the player");
+        ian::Simulation savedFall =
+            fallingSimulation(12.0, true);
+        require(
+            !savedFall.snapshot().playerRespawning &&
+                savedFall.snapshot().playerHealth == 1.0 &&
+                savedFall.snapshot().lootStacks[
+                    ian::lootUpgradeIndex(
+                        ian::LootUpgradeEffect::Rope)] == 0,
+            "Rope consumes one stack and leaves one health on fatal fall");
+        require(
+            std::ranges::any_of(
+                savedFall.takeEvents(),
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                        ian::GameEventType::RopeFallSaved;
+                }),
+            "Rope rescue emits presentation feedback");
     }
     {
         ian::MapDefinition storageMap =

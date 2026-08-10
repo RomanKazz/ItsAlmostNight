@@ -280,6 +280,18 @@ ModelResource& GraphicsResources::potionLootModel() {
     return potionLootModel_;
 }
 
+ModelResource& GraphicsResources::blueprintLootModel() {
+    return blueprintLootModel_;
+}
+
+ModelResource& GraphicsResources::hourglassLootModel() {
+    return hourglassLootModel_;
+}
+
+ModelResource& GraphicsResources::ropeLootModel() {
+    return ropeLootModel_;
+}
+
 ModelResource& GraphicsResources::platformModel() {
     return platformModel_;
 }

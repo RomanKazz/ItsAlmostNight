@@ -30,6 +30,7 @@ enum class GameEventType {
     CoreDamaged,
     BossRamImpact,
     PlayerDamaged,
+    RopeFallSaved,
     PlayerDied,
     PlayerRespawned,
     EnemyKilled,
@@ -99,6 +100,7 @@ struct GameEvent {
     std::optional<WeaponUpgradeError> weaponUpgradeError;
     Vec3 position;
     int amount{};
+    int coinAmount{};
     double damage{};
     double intensity{};
     bool critical{};

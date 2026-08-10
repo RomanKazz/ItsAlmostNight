@@ -66,13 +66,16 @@ void Simulation::respawnPlayer() {
 
 void Simulation::damagePlayer(
     double damage, std::optional<EntityId> attackerId,
-    Vec3 attackPosition) {
+    Vec3 attackPosition, bool ignoreArmor) {
     if (damage <= 0.0 || playerRespawning_ ||
         unlimitedResources_ || playerInvulnerable_) {
         return;
     }
     const double mitigatedDamage =
-        damage / std::max(playerArmorMultiplier_, 1.0);
+        ignoreArmor
+            ? damage
+            : damage /
+                  std::max(playerArmorMultiplier_, 1.0);
     const double temporaryDamage = std::min(
         playerTemporaryHealth_, mitigatedDamage);
     playerTemporaryHealth_ = std::max(
@@ -89,6 +92,47 @@ void Simulation::damagePlayer(
     if (playerHealth_ <= 0.0) {
         beginPlayerRespawn(attackerId);
     }
+}
+
+void Simulation::applyFallDamage(double landingSpeed) {
+    if (landingSpeed > 1.0) {
+        events_.push_back({
+            .type = GameEventType::PlayerLanded,
+            .position = playerPosition_,
+            .intensity = landingSpeed,
+        });
+    }
+    const double excessSpeed = std::max(
+        0.0,
+        landingSpeed - gameplay_.fallDamageSafeSpeed);
+    if (excessSpeed <= 0.0 || playerRespawning_ ||
+        unlimitedResources_ || playerInvulnerable_) {
+        return;
+    }
+    int& ropeStacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Rope)];
+    const double ropeReduction = std::min(
+        0.80,
+        gameplay_.ropeFallDamageReduction *
+            static_cast<double>(ropeStacks));
+    double damage = excessSpeed * excessSpeed *
+        gameplay_.fallDamagePerSpeedSquared *
+        (1.0 - ropeReduction);
+    if (damage < 0.5) {
+        return;
+    }
+    if (damage >= playerHealth_ && ropeStacks > 0) {
+        --ropeStacks;
+        damage = std::max(0.0, playerHealth_ - 1.0);
+        events_.push_back({
+            .type = GameEventType::RopeFallSaved,
+            .position = playerPosition_,
+            .amount = ropeStacks,
+            .intensity = landingSpeed,
+        });
+    }
+    damagePlayer(
+        damage, std::nullopt, playerPosition_, true);
 }
 
 void Simulation::beginPlayerRespawn(

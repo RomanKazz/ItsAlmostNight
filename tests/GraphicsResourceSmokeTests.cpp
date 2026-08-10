@@ -184,6 +184,8 @@ int main() {
             !resources.decorativeBushModel(6).valid() ||
             !resources.decorativeBushModel(7).valid() ||
             !resources.decorativeBushModel(8).valid() ||
+            !resources.appleLootModel().valid() ||
+            !resources.breadLootModel().valid() ||
             !resources.ironBarLootModel().valid() ||
             !resources.fuelJerrycanLootModel().valid() ||
             !resources.compassLootModel().valid() ||
@@ -192,12 +194,19 @@ int main() {
             !resources.mapLootModel().valid() ||
             !resources.anvilLootModel().valid() ||
             !resources.sawLootModel().valid() ||
-            !resources.potionLootModel().valid()) {
+            !resources.potionLootModel().valid() ||
+            !resources.blueprintLootModel().valid() ||
+            !resources.hourglassLootModel().valid() ||
+            !resources.ropeLootModel().valid()) {
             std::cerr << "required graphics resource failed to load\n";
             result = 1;
         }
-        if (!hasTexturedRenderableMesh(
-                resources.potionLootModel()) ||
+        if (!hasTexturedRenderableMesh(resources.appleLootModel()) ||
+            !hasTexturedRenderableMesh(resources.breadLootModel()) ||
+            !hasTexturedRenderableMesh(resources.potionLootModel()) ||
+            !hasTexturedRenderableMesh(resources.blueprintLootModel()) ||
+            !hasTexturedRenderableMesh(resources.hourglassLootModel()) ||
+            !hasTexturedRenderableMesh(resources.ropeLootModel()) ||
             !hasTexturedRenderableMesh(resources.coinModel(0)) ||
             !hasTexturedRenderableMesh(resources.coinModel(1)) ||
             !hasTexturedRenderableMesh(resources.coinModel(2)) ||
