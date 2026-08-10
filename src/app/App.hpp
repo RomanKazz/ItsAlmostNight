@@ -447,6 +447,7 @@ class App {
     PlayerWeapon lastWeaponSelection_{PlayerWeapon::Club};
     BuildingType lastBuildingSelection_{
         BuildingType::Wall};
+    std::size_t buildingHotbarPage_{};
     float buildHotbarSelectionPosition_{1.0F};
     float buildHotbarSelectionAlpha_{};
     float foundationHotbarSelectionPosition_{};

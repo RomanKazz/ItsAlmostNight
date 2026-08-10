@@ -17,7 +17,7 @@
   "pickaxeCooldown": 0.45,
   "axeStoneEfficiency": 0.25,
   "pickaxeWoodEfficiency": 0.30,
-  "firstBuildPhaseSeconds": 15.0,
+  "firstBuildPhaseSeconds": 180.0,
   "betweenWaveSeconds": 45.0,
   "sunsetSeconds": 6.0,
   "dawnSeconds": 5.0,

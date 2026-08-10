@@ -13,7 +13,85 @@ namespace {
 
 constexpr double LootProximityPickupRadius = 2.0;
 
+constexpr int PreCoreWoodCapacity = 60;
+constexpr int PreCoreStoneCapacity = 30;
+constexpr int PreCoreCrystalCapacity = 10;
+constexpr int CoreWoodCapacity = 100;
+constexpr int CoreStoneCapacity = 75;
+constexpr int CoreCrystalCapacity = 25;
+
 } // namespace
+
+int Simulation::resourceCapacity(BuildingType storageType) const {
+    int capacity = 0;
+    int perLevel = 0;
+    if (storageType == BuildingType::WoodStorage) {
+        capacity = buildings_.hasCore() ? CoreWoodCapacity : PreCoreWoodCapacity;
+        perLevel = buildingStorageCapacityPerLevel(storageType);
+    } else if (storageType == BuildingType::StoneStorage) {
+        capacity = buildings_.hasCore() ? CoreStoneCapacity : PreCoreStoneCapacity;
+        perLevel = buildingStorageCapacityPerLevel(storageType);
+    } else {
+        capacity = buildings_.hasCore() ? CoreCrystalCapacity : PreCoreCrystalCapacity;
+        perLevel = buildingStorageCapacityPerLevel(storageType);
+    }
+    for (const BuildingInstance& building : buildings_.buildings()) {
+        if (building.type == storageType) {
+            capacity = saturatingAdd(
+                capacity,
+                perLevel * static_cast<int>(building.level));
+        }
+    }
+    return capacity;
+}
+
+void Simulation::addWood(int amount) {
+    if (unlimitedResources_) {
+        wood_ = saturatingAdd(wood_, std::max(0, amount));
+        return;
+    }
+    wood_ = std::min(
+        resourceCapacity(BuildingType::WoodStorage),
+        saturatingAdd(wood_, std::max(0, amount)));
+}
+
+void Simulation::addStone(int amount) {
+    if (unlimitedResources_) {
+        stone_ = saturatingAdd(stone_, std::max(0, amount));
+        return;
+    }
+    stone_ = std::min(
+        resourceCapacity(BuildingType::StoneStorage),
+        saturatingAdd(stone_, std::max(0, amount)));
+}
+
+void Simulation::addGold(int amount) {
+    if (unlimitedResources_) {
+        gold_ = saturatingAdd(gold_, std::max(0, amount));
+        return;
+    }
+    gold_ = std::min(
+        resourceCapacity(BuildingType::CrystalStorage),
+        saturatingAdd(gold_, std::max(0, amount)));
+}
+
+bool Simulation::hasStorageSpace(ResourceType resource) const {
+    if (unlimitedResources_) {
+        return true;
+    }
+    int pending = 0;
+    for (const PendingResourceGrant& grant : pendingResourceGrants_) {
+        if (grant.type == resource) {
+            pending = saturatingAdd(pending, grant.amount);
+        }
+    }
+    if (resource == ResourceType::Wood) {
+        return saturatingAdd(wood_, pending) <
+            resourceCapacity(BuildingType::WoodStorage);
+    }
+    return saturatingAdd(stone_, pending) <
+        resourceCapacity(BuildingType::StoneStorage);
+}
 
 double Simulation::resourceToolEfficiency(
     PlayerWeapon tool, ResourceType resource) const {
@@ -52,7 +130,7 @@ void Simulation::updatePlayerActions(
                 ? buildingWorldPosition(*building)
                 : Vec3{};
         if (produced.buildingType == BuildingType::GoldMine) {
-            gold_ = saturatingAdd(gold_, produced.amount);
+            addGold(produced.amount);
             events_.push_back({
                 .type = GameEventType::GoldProduced,
                 .entityId = produced.mineId,
@@ -68,9 +146,9 @@ void Simulation::updatePlayerActions(
                     ? ResourceType::Wood
                     : ResourceType::Stone;
             if (resourceType == ResourceType::Wood) {
-                wood_ = saturatingAdd(wood_, produced.amount);
+                addWood(produced.amount);
             } else {
-                stone_ = saturatingAdd(stone_, produced.amount);
+                addStone(produced.amount);
             }
             events_.push_back({
                 .type = GameEventType::ResourceGranted,
@@ -307,6 +385,10 @@ void Simulation::updatePlayerActions(
                 const bool largeDeposit =
                     targetBeforeHit != resources_.nodes().end() &&
                     targetBeforeHit->yield >= 30;
+                if (targetBeforeHit != resources_.nodes().end() &&
+                    !hasStorageSpace(targetBeforeHit->type)) {
+                    continue;
+                }
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);

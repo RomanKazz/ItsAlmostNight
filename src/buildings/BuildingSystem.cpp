@@ -24,11 +24,14 @@ Footprint footprint(BuildingType type) {
     switch (type) {
     case BuildingType::Core:
     case BuildingType::Turret:
-    case BuildingType::GoldMine:
     case BuildingType::Cannon:
+    case BuildingType::WoodStorage:
+    case BuildingType::StoneStorage:
+    case BuildingType::CrystalStorage:
+        return {1.0, 1.0};
+    case BuildingType::GoldMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
-        return {1.0, 1.0};
     case BuildingType::Wall:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
@@ -49,7 +52,11 @@ SelectionBounds selectionBounds(BuildingType type) {
     case BuildingType::GoldMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
-        return {0.9, 0.9, 0.0, 1.6};
+        return {0.44, 0.44, 0.0, 1.6};
+    case BuildingType::WoodStorage:
+    case BuildingType::StoneStorage:
+    case BuildingType::CrystalStorage:
+        return {0.9, 0.9, 0.0, 1.8};
     case BuildingType::Cannon:
         return {0.82, 0.82, 0.0, 2.05};
     case BuildingType::SlowTrap:
@@ -247,6 +254,19 @@ bool buildingBlocksMovement(BuildingType type) {
 bool buildingBlocksMovement(const BuildingInstance& building) {
     return buildingBlocksMovement(building.type) &&
            !(building.type == BuildingType::Gate && building.open);
+}
+
+int buildingStorageCapacityPerLevel(BuildingType type) {
+    switch (type) {
+    case BuildingType::WoodStorage:
+        return 150;
+    case BuildingType::StoneStorage:
+        return 120;
+    case BuildingType::CrystalStorage:
+        return 50;
+    default:
+        return 0;
+    }
 }
 
 double buildingFootprintHalfExtent(BuildingType type) {

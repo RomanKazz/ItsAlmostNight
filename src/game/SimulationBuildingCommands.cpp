@@ -341,12 +341,6 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                         BuildingType::Core) {
                         selectedBuilding_.reset();
                         buildingPreview_.reset();
-                        state_ = RunState::BuildPhase;
-                        phaseTimeRemaining_ =
-                            gameplay_
-                                .firstBuildPhaseSeconds;
-                        phaseDuration_ =
-                            phaseTimeRemaining_;
                     }
                 } else if (createdFoundation) {
                     static_cast<void>(

@@ -23,6 +23,9 @@ enum class BuildingType {
     LumberMill,
     Quarry,
     SpikeTrap,
+    WoodStorage,
+    StoneStorage,
+    CrystalStorage,
 };
 
 enum WallConnection : std::uint8_t {
@@ -236,6 +239,8 @@ class BuildingSystem {
 [[nodiscard]] ResourceCost buildingUpgradeCost(const BuildingInstance& building);
 [[nodiscard]] bool buildingBlocksMovement(BuildingType type);
 [[nodiscard]] bool buildingBlocksMovement(const BuildingInstance& building);
+[[nodiscard]] int buildingStorageCapacityPerLevel(
+    BuildingType type);
 [[nodiscard]] double buildingFootprintHalfExtent(
     BuildingType type);
 [[nodiscard]] Vec3 buildingWorldPosition(

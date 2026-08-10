@@ -861,9 +861,17 @@ void App::drawWorldOverlays(
             preview.type == BuildingType::Quarry) {
             if (!renderer_->drawResourceProducer(
                     preview.type, {x, 0.0F, z}, yaw)) {
-                DrawCube({x, 0.55F, z}, 2.0F, 1.1F,
-                         2.0F, WHITE);
+                DrawCube({x, 0.55F, z}, 1.0F, 1.1F,
+                         1.0F, WHITE);
             }
+        } else if (
+            preview.type == BuildingType::WoodStorage ||
+            preview.type == BuildingType::StoneStorage ||
+            preview.type == BuildingType::CrystalStorage) {
+            DrawCube({x, 0.75F, z}, 1.8F, 1.5F, 1.8F,
+                     WHITE);
+            DrawCube({x, 1.62F, z}, 1.25F, 0.24F, 1.25F,
+                     WHITE);
         } else if (preview.type == BuildingType::SlowTrap) {
             DrawCube({x, 0.08F, z}, 1.0F, 0.16F, 1.0F,
                      WHITE);

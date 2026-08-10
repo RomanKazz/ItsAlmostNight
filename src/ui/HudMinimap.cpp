@@ -459,6 +459,19 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 color);
             break;
         }
+        case BuildingType::WoodStorage:
+        case BuildingType::StoneStorage:
+        case BuildingType::CrystalStorage: {
+            const Color color =
+                building.type == BuildingType::WoodStorage
+                    ? Color{151, 98, 54, 240}
+                    : building.type == BuildingType::StoneStorage
+                        ? Color{151, 158, 166, 240}
+                        : Color{112, 126, 222, 240};
+            DrawPoly(point, 4, 4.0F * symbolScale,
+                     45.0F, color);
+            break;
+        }
         }
     }
 

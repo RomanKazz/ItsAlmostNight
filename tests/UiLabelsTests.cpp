@@ -17,6 +17,9 @@ void runUiLabelsTests() {
         ian::BuildingType::LumberMill,
         ian::BuildingType::Quarry,
         ian::BuildingType::SpikeTrap,
+        ian::BuildingType::WoodStorage,
+        ian::BuildingType::StoneStorage,
+        ian::BuildingType::CrystalStorage,
     };
     for (const ian::BuildingType type : BuildingTypes) {
         require(

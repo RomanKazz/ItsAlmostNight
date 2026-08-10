@@ -119,12 +119,15 @@ void App::update() {
         1.0F - std::exp(
                    -14.0F *
                    static_cast<float>(frameSeconds));
-    const float buildingTarget = static_cast<float>(
+    float buildingTarget = static_cast<float>(
         hotbarSnapshot.selectedBuilding
             ? static_cast<std::size_t>(
                   *hotbarSnapshot.selectedBuilding)
             : static_cast<std::size_t>(
                   lastBuildingSelection_));
+    if (buildingHotbarPage_ == 1U) {
+        buildingTarget -= 10.0F;
+    }
     buildHotbarSelectionPosition_ +=
         (buildingTarget -
          buildHotbarSelectionPosition_) *

@@ -23,6 +23,47 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::MapDefinition storageMap =
+            ian::MapDefinition::defaults();
+        storageMap.obstacles.clear();
+        ian::WorldConfig storageWorld =
+            ian::WorldConfig::defaults();
+        storageWorld.terrainAmplitude = 0.0;
+        ian::Simulation storageSimulation{
+            ian::GameBalance::defaults(), storageMap,
+            storageWorld};
+        storageSimulation.startRun();
+        require(
+            storageSimulation.snapshot().woodCapacity == 60 &&
+                storageSimulation.snapshot().stoneCapacity == 30 &&
+                storageSimulation.snapshot().goldCapacity == 10,
+            "pre-core inventory has deliberately small resource limits");
+
+        ian::PlayerCommand godMode;
+        godMode.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        storageSimulation.tick(1.0 / 60.0, godMode);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        storageSimulation.tick(1.0 / 60.0, placeCore);
+        require(
+            storageSimulation.snapshot().woodCapacity == 100 &&
+                storageSimulation.snapshot().stoneCapacity == 75 &&
+                storageSimulation.snapshot().goldCapacity == 25,
+            "core unlocks the base storage capacity");
+
+        ian::PlayerCommand placeWoodStorage;
+        placeWoodStorage.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::WoodStorage, {4, 0}, 0};
+        storageSimulation.tick(1.0 / 60.0, placeWoodStorage);
+        require(
+            storageSimulation.snapshot().woodCapacity == 250 &&
+                storageSimulation.snapshot().stoneCapacity == 75 &&
+                storageSimulation.snapshot().goldCapacity == 25,
+            "specialized storage expands only its matching resource");
+    }
+    {
         ian::MapDefinition movementMap =
             ian::MapDefinition::defaults();
         movementMap.resources.clear();
@@ -1783,7 +1824,12 @@ void runSimulationTests() {
     require(simulation.snapshot().tick == tickBeforePause, "paused simulation does not advance");
 
     simulation.restartRun();
-    require(simulation.snapshot().state == ian::RunState::Gathering, "restart enters gathering");
+    require(simulation.snapshot().state == ian::RunState::BuildPhase,
+            "restart immediately starts the first preparation timer");
+    require(simulation.snapshot().phaseTimeRemaining > 0.0 &&
+                simulation.snapshot().phaseTimeRemaining ==
+                    simulation.snapshot().phaseDuration,
+            "first preparation timer starts before the core is placed");
     require(simulation.snapshot().tick == 0, "restart resets tick counter");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "restart restores player health");

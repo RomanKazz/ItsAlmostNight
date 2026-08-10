@@ -331,6 +331,9 @@ GameBalance GameBalance::defaults() {
             {40, 15, 10, 150.0, 2, 2},
             {30, 40, 15, 170.0, 2, 2},
             {20, 25, 15, 100.0, 2, 64},
+            {20, 10, 0, 180.0, 1, 3},
+            {25, 5, 0, 200.0, 1, 3},
+            {30, 25, 0, 160.0, 1, 3},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -347,7 +350,7 @@ GameBalance GameBalance::defaults() {
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
-                     15.0, 45.0, 6.0, 5.0, 1.0, 10.0},
+                     180.0, 45.0, 6.0, 5.0, 1.0, 10.0},
     };
 }
 
@@ -425,6 +428,15 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             buildings.contains("spikeTrap")
                 ? parseBuilding(buildings.at("spikeTrap"))
                 : result.balance.buildings[9],
+            buildings.contains("woodStorage")
+                ? parseBuilding(buildings.at("woodStorage"))
+                : result.balance.buildings[10],
+            buildings.contains("stoneStorage")
+                ? parseBuilding(buildings.at("stoneStorage"))
+                : result.balance.buildings[11],
+            buildings.contains("crystalStorage")
+                ? parseBuilding(buildings.at("crystalStorage"))
+                : result.balance.buildings[12],
         }};
         if (parsed[0].maxCount != 1 || parsed[0].unlockCoreLevel != 0) {
             throw std::runtime_error("core must be unique and unlocked");

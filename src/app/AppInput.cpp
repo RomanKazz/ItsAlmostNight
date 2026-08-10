@@ -635,6 +635,10 @@ void App::processInput() {
                     actionMode_ = ActionMode::Buildings;
                 }
                 lastBuildingSelection_ = type;
+                buildingHotbarPage_ =
+                    static_cast<std::size_t>(type) >= 10U
+                        ? 1U
+                        : 0U;
                 setFoundationBuildMode(false);
                 pendingBuildingCancel_ = false;
                 pendingBuildingSelection_ = type;
@@ -763,36 +767,47 @@ void App::processInput() {
                     ModularBuildPiece::Ramp);
             }
         } else if (actionMode_ == ActionMode::Buildings) {
-            if (IsKeyPressed(KEY_ONE)) {
-                selectBuildingMode(BuildingType::Core);
-            }
-            if (IsKeyPressed(KEY_TWO)) {
-                selectBuildingMode(BuildingType::Wall);
-            }
-            if (IsKeyPressed(KEY_THREE)) {
-                selectBuildingMode(BuildingType::Turret);
-            }
-            if (IsKeyPressed(KEY_FOUR)) {
-                selectBuildingMode(BuildingType::GoldMine);
-            }
-            if (IsKeyPressed(KEY_FIVE)) {
-                selectBuildingMode(BuildingType::Cannon);
-            }
-            if (IsKeyPressed(KEY_SIX)) {
-                selectBuildingMode(BuildingType::SlowTrap);
-            }
-            if (IsKeyPressed(KEY_SEVEN)) {
-                selectBuildingMode(BuildingType::Gate);
-            }
-            if (IsKeyPressed(KEY_EIGHT)) {
-                selectBuildingMode(
-                    BuildingType::LumberMill);
-            }
-            if (IsKeyPressed(KEY_NINE)) {
-                selectBuildingMode(BuildingType::Quarry);
-            }
-            if (IsKeyPressed(KEY_ZERO)) {
-                selectBuildingMode(BuildingType::SpikeTrap);
+            if (buildingHotbarPage_ == 1U) {
+                if (IsKeyPressed(KEY_ONE)) {
+                    selectBuildingMode(BuildingType::WoodStorage);
+                }
+                if (IsKeyPressed(KEY_TWO)) {
+                    selectBuildingMode(BuildingType::StoneStorage);
+                }
+                if (IsKeyPressed(KEY_THREE)) {
+                    selectBuildingMode(BuildingType::CrystalStorage);
+                }
+            } else {
+                if (IsKeyPressed(KEY_ONE)) {
+                    selectBuildingMode(BuildingType::Core);
+                }
+                if (IsKeyPressed(KEY_TWO)) {
+                    selectBuildingMode(BuildingType::Wall);
+                }
+                if (IsKeyPressed(KEY_THREE)) {
+                    selectBuildingMode(BuildingType::Turret);
+                }
+                if (IsKeyPressed(KEY_FOUR)) {
+                    selectBuildingMode(BuildingType::GoldMine);
+                }
+                if (IsKeyPressed(KEY_FIVE)) {
+                    selectBuildingMode(BuildingType::Cannon);
+                }
+                if (IsKeyPressed(KEY_SIX)) {
+                    selectBuildingMode(BuildingType::SlowTrap);
+                }
+                if (IsKeyPressed(KEY_SEVEN)) {
+                    selectBuildingMode(BuildingType::Gate);
+                }
+                if (IsKeyPressed(KEY_EIGHT)) {
+                    selectBuildingMode(BuildingType::LumberMill);
+                }
+                if (IsKeyPressed(KEY_NINE)) {
+                    selectBuildingMode(BuildingType::Quarry);
+                }
+                if (IsKeyPressed(KEY_ZERO)) {
+                    selectBuildingMode(BuildingType::SpikeTrap);
+                }
             }
         } else {
             constexpr std::array<int, PlayerWeaponCount> EquipmentKeys{
@@ -1147,8 +1162,19 @@ void App::processInput() {
             }
         }
         const float wheel = GetMouseWheelMove();
-        if (foundationBuildMode_ ||
-            currentSnapshot.selectedBuilding) {
+        const bool changeBuildingPage =
+            actionMode_ == ActionMode::Buildings &&
+            (IsKeyDown(KEY_LEFT_SHIFT) ||
+             IsKeyDown(KEY_RIGHT_SHIFT)) &&
+            std::abs(wheel) > 0.01F;
+        if (changeBuildingPage) {
+            buildingHotbarPage_ = 1U - buildingHotbarPage_;
+            pendingBuildingCancel_ = true;
+            pendingBuildingSelection_.reset();
+        }
+        if (!changeBuildingPage &&
+            (foundationBuildMode_ ||
+             currentSnapshot.selectedBuilding)) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
                     static_cast<double>(wheel),
@@ -1192,7 +1218,7 @@ void App::processInput() {
                 buildingRotationWheelAccumulator_ = 0.0;
                 buildingRotationCooldownRemaining_ = 0.2;
             }
-        } else {
+        } else if (!changeBuildingPage) {
             buildingRotationWheelAccumulator_ = 0.0;
         }
         if (pendingBuildingCancel_) {

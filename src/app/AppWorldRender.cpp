@@ -537,8 +537,8 @@ void App::drawWorldEntities(
                     spawnScale *
                         productionScaleAt(
                             building.id))) {
-                drawScaledCube(0.0F, 0.55F, 0.0F, 2.0F,
-                               1.1F, 2.0F,
+                drawScaledCube(0.0F, 0.55F, 0.0F, 1.0F,
+                               1.1F, 1.0F,
                                {82, 101, 142, 255});
             }
         } else if (building.type == BuildingType::Cannon) {
@@ -573,6 +573,21 @@ void App::drawWorldEntities(
                     0.0F, 0.08F, 0.0F, 1.0F, 0.16F,
                     1.0F, {112, 96, 80, 255});
             }
+        } else if (
+            building.type == BuildingType::WoodStorage ||
+            building.type == BuildingType::StoneStorage ||
+            building.type == BuildingType::CrystalStorage) {
+            const Color storageColor =
+                building.type == BuildingType::WoodStorage
+                    ? Color{142, 91, 48, 255}
+                    : building.type == BuildingType::StoneStorage
+                        ? Color{104, 112, 122, 255}
+                        : Color{92, 104, 184, 255};
+            drawScaledCube(0.0F, 0.75F, 0.0F, 1.8F,
+                           1.5F, 1.8F, storageColor);
+            drawScaledCube(0.0F, 1.62F, 0.0F, 1.25F,
+                           0.24F, 1.25F,
+                           {224, 195, 123, 255});
         } else {
             if ((building.rotation % 2U) == 0U) {
                 drawScaledCube(-0.38F, 1.0F, 0.0F, 0.22F,

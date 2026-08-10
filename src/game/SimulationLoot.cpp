@@ -142,9 +142,9 @@ void Simulation::updatePendingResourceGrants(
             continue;
         }
         if (grant.type == ResourceType::Wood) {
-            wood_ = saturatingAdd(wood_, grant.amount);
+            addWood(grant.amount);
         } else {
-            stone_ = saturatingAdd(stone_, grant.amount);
+            addStone(grant.amount);
         }
         events_.push_back({
             .type = GameEventType::ResourceGranted,

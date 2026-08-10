@@ -24,6 +24,7 @@ struct HudViewState {
     ActionMode actionMode{ActionMode::Tools};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
+    std::size_t buildingHotbarPage{};
     float buildHotbarSelectionPosition{};
     float buildHotbarSelectionAlpha{};
     float foundationHotbarSelectionPosition{};

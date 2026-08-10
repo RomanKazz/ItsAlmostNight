@@ -193,8 +193,8 @@ void Simulation::resetRun(GameEventType eventType) {
             return terrain_.waterSignedDistance(x, z) >=
                 radius + 0.8;
         });
-    state_ = RunState::Gathering;
-    stateBeforePause_ = RunState::Gathering;
+    state_ = RunState::BuildPhase;
+    stateBeforePause_ = RunState::BuildPhase;
     tick_ = 0;
     elapsedSeconds_ = 0.0;
     playerPosition_ = {
@@ -295,8 +295,8 @@ void Simulation::resetRun(GameEventType eventType) {
     goldMines_.setProductionSpeedMultiplier(1.0);
     goldMines_.setWoodYieldMultiplier(1.0);
     lootChests_.setGoldCostMultiplier(1.0);
-    phaseTimeRemaining_ = 0.0;
-    phaseDuration_ = 0.0;
+    phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
+    phaseDuration_ = phaseTimeRemaining_;
     wave_ = 0;
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;

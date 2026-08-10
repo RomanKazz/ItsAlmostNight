@@ -121,7 +121,7 @@ void Simulation::completeWave() {
     currentWaveHasBoss_ = false;
     const int reward = saturatingMultiplyNonNegative(
         economy_.waveRewardPerWave, wave_);
-    gold_ = saturatingAdd(gold_, reward);
+    addGold(reward);
     events_.push_back({
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,

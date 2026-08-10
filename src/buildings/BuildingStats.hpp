@@ -19,6 +19,7 @@ struct BuildingStats {
     std::optional<double> slowPercent;
     std::optional<double> effectDuration;
     std::optional<double> cooldown;
+    std::optional<double> storageCapacity;
 };
 
 struct BuildingStatComparison {

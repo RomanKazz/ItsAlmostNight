@@ -24,6 +24,12 @@ std::string_view buildingDisplayName(BuildingType type) {
         return "Quarry";
     case BuildingType::SpikeTrap:
         return "Spike Trap";
+    case BuildingType::WoodStorage:
+        return "Wood Storage";
+    case BuildingType::StoneStorage:
+        return "Stone Storage";
+    case BuildingType::CrystalStorage:
+        return "Crystal Storage";
     }
     return {};
 }

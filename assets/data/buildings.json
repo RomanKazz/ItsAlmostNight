@@ -39,6 +39,18 @@
     "wood": 20, "stone": 25, "gold": 15,
     "maxHealth": 100, "unlockCoreLevel": 2, "maxCount": 64
   },
+  "woodStorage": {
+    "wood": 20, "stone": 10, "gold": 0,
+    "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 3
+  },
+  "stoneStorage": {
+    "wood": 25, "stone": 5, "gold": 0,
+    "maxHealth": 200, "unlockCoreLevel": 1, "maxCount": 3
+  },
+  "crystalStorage": {
+    "wood": 30, "stone": 25, "gold": 0,
+    "maxHealth": 160, "unlockCoreLevel": 1, "maxCount": 3
+  },
   "modular": {
     "platform": {"wood": 20, "stone": 5, "gold": 0},
     "wall": {"wood": 5, "stone": 10, "gold": 0},

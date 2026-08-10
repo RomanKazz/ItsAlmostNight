@@ -158,8 +158,8 @@ void App::drawShadowPass(
                             productionScaleAt(
                                 building.id))) {
                     DrawCube({x, groundY + 0.55F, z},
-                             2.0F, 1.1F,
-                             2.0F, WHITE);
+                             1.0F, 1.1F,
+                             1.0F, WHITE);
                 }
             } else if (building.type == BuildingType::Cannon) {
                 if (!renderer_->drawCannon({x, groundY, z},
@@ -188,6 +188,16 @@ void App::drawShadowPass(
                     spikeTrapAnimationSeconds(
                         snapshot, building.id),
                     WHITE, spawnScale));
+            } else if (
+                building.type == BuildingType::WoodStorage ||
+                building.type == BuildingType::StoneStorage ||
+                building.type == BuildingType::CrystalStorage) {
+                DrawCube({x, groundY + 0.75F, z},
+                         1.8F * spawnScale, 1.5F * spawnScale,
+                         1.8F * spawnScale, WHITE);
+                DrawCube({x, groundY + 1.62F, z},
+                         1.25F * spawnScale, 0.24F * spawnScale,
+                         1.25F * spawnScale, WHITE);
             } else if ((building.rotation % 2U) == 0U) {
                 DrawCube({x - 0.38F, groundY + 1.0F, z},
                          0.22F, 2.0F,
@@ -498,8 +508,8 @@ void App::drawSelectionPass(
                                 productionScaleAt(
                                     building->id))) {
                         DrawCube({x, groundY + 0.55F, z},
-                                 2.0F,
-                                 1.1F, 2.0F, WHITE);
+                                 1.0F,
+                                 1.1F, 1.0F, WHITE);
                     }
                 } else if (building->type ==
                            BuildingType::Cannon) {
@@ -534,6 +544,18 @@ void App::drawSelectionPass(
                         spikeTrapAnimationSeconds(
                             snapshot, building->id),
                         WHITE, spawnScale));
+                } else if (
+                    building->type == BuildingType::WoodStorage ||
+                    building->type == BuildingType::StoneStorage ||
+                    building->type == BuildingType::CrystalStorage) {
+                    DrawCube({x, groundY + 0.75F, z},
+                             1.8F * spawnScale,
+                             1.5F * spawnScale,
+                             1.8F * spawnScale, WHITE);
+                    DrawCube({x, groundY + 1.62F, z},
+                             1.25F * spawnScale,
+                             0.24F * spawnScale,
+                             1.25F * spawnScale, WHITE);
                 } else if ((building->rotation % 2U) == 0U) {
                     DrawCube({x - 0.38F, groundY + 1.0F, z},
                              0.22F,

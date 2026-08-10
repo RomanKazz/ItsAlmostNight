@@ -12,7 +12,8 @@ void Simulation::updateRunPhase(
     double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::BuildPhase) {
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
-        if (phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) {
+        if ((phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) &&
+            buildings_.hasCore()) {
             state_ = RunState::Sunset;
             phaseTimeRemaining_ = gameplay_.sunsetSeconds;
             phaseDuration_ = phaseTimeRemaining_;

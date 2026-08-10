@@ -35,6 +35,9 @@ bool buildingBlocksPlayer(
     case BuildingType::SpikeTrap:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
+    case BuildingType::WoodStorage:
+    case BuildingType::StoneStorage:
+    case BuildingType::CrystalStorage:
         return false;
     }
     return false;
@@ -176,6 +179,11 @@ CollisionBox buildingCollisionBox(
         type == BuildingType::LumberMill ||
         type == BuildingType::Quarry) {
         height = 1.7;
+    } else if (
+        type == BuildingType::WoodStorage ||
+        type == BuildingType::StoneStorage ||
+        type == BuildingType::CrystalStorage) {
+        height = 1.8;
     }
     return {
         center.x - halfExtent,

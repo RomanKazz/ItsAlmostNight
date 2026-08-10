@@ -385,6 +385,13 @@ void drawBuildingContextCard(
                 "RADIUS", &BuildingStats::effectRadius, 2, "m");
             addOptional(
                 "COOLDOWN", &BuildingStats::cooldown, 2, "s");
+        } else if (
+            building.type == BuildingType::WoodStorage ||
+            building.type == BuildingType::StoneStorage ||
+            building.type == BuildingType::CrystalStorage) {
+            addOptional(
+                "CAPACITY", &BuildingStats::storageCapacity,
+                0, "");
         }
     } else {
         rows.push_back({
@@ -769,18 +776,22 @@ void drawBuildHotbar(
         drawFoundationHotbar(ui, snapshot, view);
         return;
     }
-    constexpr std::array<BuildingType, 10> Types{
+    constexpr std::array<BuildingType, 13> Types{
         BuildingType::Core,     BuildingType::Wall,
         BuildingType::Turret,   BuildingType::GoldMine,
         BuildingType::Cannon,   BuildingType::SlowTrap,
         BuildingType::Gate,     BuildingType::LumberMill,
         BuildingType::Quarry,
         BuildingType::SpikeTrap,
+        BuildingType::WoodStorage,
+        BuildingType::StoneStorage,
+        BuildingType::CrystalStorage,
     };
-    constexpr std::array<const char*, 10> Keys{
+    constexpr std::array<const char*, 13> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+        "1", "2", "3",
     };
-    std::array<HotbarSlot, 10> slots{};
+    std::array<HotbarSlot, 13> slots{};
     for (std::size_t index = 0; index < Types.size();
          ++index) {
         const BuildingType type = Types[index];
@@ -814,11 +825,18 @@ void drawBuildHotbar(
             .available = available,
         };
     }
+    const std::span<const HotbarSlot> visibleSlots =
+        view.buildingHotbarPage == 0U
+            ? std::span<const HotbarSlot>{slots.data(), 10U}
+            : std::span<const HotbarSlot>{slots.data() + 10U, 3U};
     drawHotbarSlots(
-        ui, slots,
+        ui, visibleSlots,
         view.buildHotbarSelectionPosition,
         view.buildHotbarSelectionAlpha,
-        false, true, "BUILDINGS");
+        false, true,
+        view.buildingHotbarPage == 0U
+            ? "BUILDINGS  1/2  SHIFT+WHEEL"
+            : "STORAGE  2/2  SHIFT+WHEEL");
 }
 
 void drawLootInventory(
@@ -1197,36 +1215,39 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float stoneY = -view.stoneResourceBounce;
     const float goldY = -view.goldResourceBounce;
     const float coinY = -view.coinResourceBounce;
-    constexpr float ResourcePanelWidth = 342.0F;
+    constexpr float ResourcePanelWidth = 454.0F;
     ui.drawPanel(
         {12.0F, 12.0F, ResourcePanelWidth, 46.0F}, 155);
     ui.drawResourceIcon({19.0F, 18.0F + woodY, 30.0F, 30.0F},
                         UiResourceIcon::Wood);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
-                   : compactAmount(snapshot.wood),
+                   : compactAmount(snapshot.wood) + "/" +
+                         compactAmount(snapshot.woodCapacity),
                {51.0F, 22.0F + woodY},
                15.0F, RAYWHITE);
-    ui.drawResourceIcon({99.0F, 18.0F + stoneY, 30.0F, 30.0F},
+    ui.drawResourceIcon({125.0F, 18.0F + stoneY, 30.0F, 30.0F},
                         UiResourceIcon::Stone);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
-                   : compactAmount(snapshot.stone),
-               {131.0F, 22.0F + stoneY},
+                   : compactAmount(snapshot.stone) + "/" +
+                         compactAmount(snapshot.stoneCapacity),
+               {157.0F, 22.0F + stoneY},
                15.0F, RAYWHITE);
-    ui.drawResourceIcon({179.0F, 18.0F + goldY, 30.0F, 30.0F},
+    ui.drawResourceIcon({231.0F, 18.0F + goldY, 30.0F, 30.0F},
                         UiResourceIcon::Crystal);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
-                   : compactAmount(snapshot.gold),
-               {211.0F, 22.0F + goldY},
+                   : compactAmount(snapshot.gold) + "/" +
+                         compactAmount(snapshot.goldCapacity),
+               {263.0F, 22.0F + goldY},
                15.0F, RAYWHITE);
-    ui.drawResourceIcon({263.0F, 18.0F + coinY, 30.0F, 30.0F},
+    ui.drawResourceIcon({367.0F, 18.0F + coinY, 30.0F, 30.0F},
                         UiResourceIcon::Gold);
     drawUiText(snapshot.unlimitedResources
                    ? "∞"
                    : compactAmount(snapshot.coins),
-               {295.0F, 22.0F + coinY},
+               {399.0F, 22.0F + coinY},
                15.0F, {255, 236, 152, 255});
     const auto drawResourcePulse =
         [](Rectangle bounds, float remaining) {
@@ -1244,16 +1265,16 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 {255, 236, 160, alpha});
         };
     drawResourcePulse(
-        {16.0F, 16.0F, 73.0F, 38.0F},
+        {16.0F, 16.0F, 103.0F, 38.0F},
         view.woodResourcePulse);
     drawResourcePulse(
-        {96.0F, 16.0F, 73.0F, 38.0F},
+        {122.0F, 16.0F, 103.0F, 38.0F},
         view.stoneResourcePulse);
     drawResourcePulse(
-        {176.0F, 16.0F, 77.0F, 38.0F},
+        {228.0F, 16.0F, 133.0F, 38.0F},
         view.goldResourcePulse);
     drawResourcePulse(
-        {260.0F, 16.0F, 89.0F, 38.0F},
+        {364.0F, 16.0F, 85.0F, 38.0F},
         view.coinResourcePulse);
 
     const float healthY = static_cast<float>(GetScreenHeight()) -

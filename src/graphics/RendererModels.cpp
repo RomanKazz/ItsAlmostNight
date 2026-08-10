@@ -1276,6 +1276,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         static_cast<float>(worldCenter.z)};
     ModelResource* resource = nullptr;
     float modelScale = 1.0F;
+    float horizontalScale = 1.0F;
     float yaw = 0.0F;
     float groundOffset = 0.0F;
     static_cast<void>(cannonPitchRadians);
@@ -1382,6 +1383,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         yaw = static_cast<float>(building.rotation) *
               QuarterTurn;
         groundOffset = 0.005F;
+        horizontalScale = 0.5F;
         break;
     case BuildingType::LumberMill:
         resource = &resources_.lumberMillModel();
@@ -1389,6 +1391,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         yaw = static_cast<float>(building.rotation) *
               QuarterTurn;
         groundOffset = 0.005F;
+        horizontalScale = 0.5F;
         break;
     case BuildingType::Quarry:
         resource = &resources_.quarryModel();
@@ -1396,6 +1399,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         yaw = static_cast<float>(building.rotation) *
               QuarterTurn;
         groundOffset = 0.005F;
+        horizontalScale = 0.5F;
         break;
     case BuildingType::SpikeTrap:
         resource = &resources_.spikeTrapModel();
@@ -1412,6 +1416,9 @@ std::optional<double> Renderer::buildingRaycastDistance(
         break;
     case BuildingType::SlowTrap:
     case BuildingType::Gate:
+    case BuildingType::WoodStorage:
+    case BuildingType::StoneStorage:
+    case BuildingType::CrystalStorage:
         break;
     }
 
@@ -1428,7 +1435,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
         Model& model = resource->get();
         position.y += groundOffset;
         const Matrix scale = MatrixScale(
-            modelScale, modelScale, modelScale);
+            modelScale * horizontalScale, modelScale,
+            modelScale * horizontalScale);
         const Matrix rotation = MatrixRotateY(yaw);
         const Matrix translation = MatrixTranslate(
             position.x, position.y, position.z);
@@ -1509,7 +1517,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
             building.type == BuildingType::GoldMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
-            size = {1.8F, 1.6F, 1.8F};
+            size = {0.9F, 1.6F, 0.9F};
         }
         addBox(
             {position.x, size.y * 0.5F, position.z},
@@ -1956,8 +1964,8 @@ bool Renderer::drawResourceProducer(
     DrawModelEx(
         model, position, {0.0F, 1.0F, 0.0F},
         yawRadians * RAD2DEG,
-        {modelScale * scale, modelScale * scale,
-         modelScale * scale},
+        {modelScale * scale * 0.5F, modelScale * scale,
+         modelScale * scale * 0.5F},
         tint);
     return true;
 }

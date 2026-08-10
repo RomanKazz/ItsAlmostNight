@@ -291,12 +291,22 @@ void runBuildingSystemTests() {
         "two-cell core center matches an even PlatformFrame anchor");
     require(
         ian::buildingFootprintHalfExtent(
-            ian::BuildingType::GoldMine) == 1.0 &&
+            ian::BuildingType::GoldMine) == 0.5 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::LumberMill) == 0.5 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::Quarry) == 0.5 &&
             ian::buildingFootprintHalfExtent(
                 ian::BuildingType::Turret) == 1.0 &&
             ian::buildingFootprintHalfExtent(
-                ian::BuildingType::Cannon) == 1.0,
-        "mine turret and cannon use two-by-two footprints");
+                ian::BuildingType::Cannon) == 1.0 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::WoodStorage) == 1.0 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::StoneStorage) == 1.0 &&
+            ian::buildingFootprintHalfExtent(
+                ian::BuildingType::CrystalStorage) == 1.0,
+        "producers use one-cell footprints and storages use two-by-two footprints");
     const ian::Vec3 turretCenter =
         ian::buildingWorldPosition(
             ian::BuildingType::Turret, {2, 6});

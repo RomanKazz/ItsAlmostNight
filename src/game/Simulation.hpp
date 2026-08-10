@@ -160,6 +160,9 @@ struct SimulationSnapshot {
     int wood;
     int stone;
     int gold;
+    int woodCapacity;
+    int stoneCapacity;
+    int goldCapacity;
     int coins;
     std::span<const CoinPickup> coinPickups;
     std::optional<EntityId> aimedChest;
@@ -421,6 +424,13 @@ class Simulation {
     void updateCoinPickups(double deltaSeconds);
     [[nodiscard]] double resourceToolEfficiency(
         PlayerWeapon tool, ResourceType resource) const;
+    [[nodiscard]] int resourceCapacity(
+        BuildingType storageType) const;
+    void addWood(int amount);
+    void addStone(int amount);
+    void addGold(int amount);
+    [[nodiscard]] bool hasStorageSpace(
+        ResourceType resource) const;
     [[nodiscard]] double playerPermanentMaxHealth() const;
     [[nodiscard]] bool isFortified(EntityId id) const;
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;

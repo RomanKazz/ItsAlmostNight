@@ -178,8 +178,8 @@ void App::drawSoldBuildingVisuals() {
                     building.type,
                     {x, baseY - sink, z},
                     yaw, tint, scale)) {
-                drawCube(0.0F, 0.55F, 0.0F, 2.0F,
-                         1.1F, 2.0F,
+                drawCube(0.0F, 0.55F, 0.0F, 1.0F,
+                         1.1F, 1.0F,
                          {82, 101, 142, alpha});
             }
         } else if (building.type == BuildingType::Cannon) {
@@ -208,6 +208,21 @@ void App::drawSoldBuildingVisuals() {
                          0.16F, 1.0F,
                          {112, 96, 80, alpha});
             }
+        } else if (
+            building.type == BuildingType::WoodStorage ||
+            building.type == BuildingType::StoneStorage ||
+            building.type == BuildingType::CrystalStorage) {
+            const Color storageColor =
+                building.type == BuildingType::WoodStorage
+                    ? Color{142, 91, 48, alpha}
+                    : building.type == BuildingType::StoneStorage
+                        ? Color{104, 112, 122, alpha}
+                        : Color{92, 104, 184, alpha};
+            drawCube(0.0F, 0.75F, 0.0F, 1.8F,
+                     1.5F, 1.8F, storageColor);
+            drawCube(0.0F, 1.62F, 0.0F, 1.25F,
+                     0.24F, 1.25F,
+                     {224, 195, 123, alpha});
         } else if (building.type == BuildingType::Wall) {
             if (!renderer_->drawWall(
                     {x, baseY - sink, z},
@@ -434,6 +449,14 @@ void App::drawCancelledPlacementPreview(
             static_cast<void>(renderer_->drawSpikeTrap(
                 {x, -sink, z}, preview.yaw, -1.0F,
                 WHITE, scale));
+        } else if (
+            preview.type == BuildingType::WoodStorage ||
+            preview.type == BuildingType::StoneStorage ||
+            preview.type == BuildingType::CrystalStorage) {
+            drawCube(0.0F, 0.75F, 0.0F, 1.8F,
+                     1.5F, 1.8F);
+            drawCube(0.0F, 1.62F, 0.0F, 1.25F,
+                     0.24F, 1.25F);
         } else if (
             std::abs(std::sin(preview.yaw)) < 0.5F) {
             drawCube(

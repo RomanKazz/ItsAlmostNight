@@ -55,6 +55,13 @@ BuildingStats buildingStatsAtLevel(
         stats.attackDamage = TrapSystem::spikeDamage(level);
         stats.effectRadius = TrapSystem::spikeTriggerRadius(level);
         stats.cooldown = TrapSystem::spikeCooldown(level);
+    } else if (
+        building.type == BuildingType::WoodStorage ||
+        building.type == BuildingType::StoneStorage ||
+        building.type == BuildingType::CrystalStorage) {
+        stats.storageCapacity = static_cast<double>(
+            buildingStorageCapacityPerLevel(building.type) *
+            static_cast<int>(level));
     }
     return stats;
 }
