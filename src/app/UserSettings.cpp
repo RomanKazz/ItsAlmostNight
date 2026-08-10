@@ -578,7 +578,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::Sprint: return "SPRINT";
     case ControlAction::Dash: return "DASH";
     case ControlAction::Attack: return "ATTACK";
-    case ControlAction::ToggleTool: return "NEXT TOOL";
+    case ControlAction::ToggleTool: return "NEXT EQUIPMENT";
     case ControlAction::Interact: return "INTERACT";
     case ControlAction::Bomb: return "BOMB";
     case ControlAction::Repair: return "REPAIR";
@@ -586,7 +586,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::Upgrade: return "UPGRADE BUILDING";
     case ControlAction::Sell: return "SELL / REMOVE";
     case ControlAction::UpgradeWeapon: return "UPGRADE WEAPON";
-    case ControlAction::BuildMode: return "BUILD MODE";
+    case ControlAction::BuildMode: return "MODE WHEEL";
     case ControlAction::Pause: return "PAUSE";
     case ControlAction::Skills: return "SKILL TREE";
     case ControlAction::Map: return "MAP";

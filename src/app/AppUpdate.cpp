@@ -61,8 +61,28 @@ void App::update() {
             (1.0 - std::exp(-10.0 * frameSeconds));
     }
     if (const auto purchase = skillTree_.update(static_cast<float>(frameSeconds))) {
-        if (simulation_.purchaseSkill(*purchase) == SkillPurchaseError::None)
+        const PlayerWeapon weaponBeforePurchase =
+            simulation_.snapshot().selectedWeapon;
+        if (simulation_.purchaseSkill(*purchase) == SkillPurchaseError::None) {
             audio_.playUiConfirm();
+            const auto& purchasedSnapshot = simulation_.snapshot();
+            if (purchasedSnapshot.selectedWeapon !=
+                weaponBeforePurchase) {
+                if (isPlayerTool(
+                        purchasedSnapshot.selectedWeapon)) {
+                    lastToolSelection_ =
+                        purchasedSnapshot.selectedWeapon;
+                } else {
+                    lastWeaponSelection_ =
+                        purchasedSnapshot.selectedWeapon;
+                }
+                selectActionMode(
+                    isPlayerTool(purchasedSnapshot.selectedWeapon)
+                        ? ActionMode::Tools
+                        : ActionMode::Weapons,
+                    purchasedSnapshot);
+            }
+        }
     }
     const auto& hotbarSnapshot = simulation_.snapshot();
     if (playerSpawnDropActive_ &&
@@ -114,22 +134,27 @@ void App::update() {
          foundationHotbarSelectionPosition_) *
         hotbarBlend;
     const float weaponTarget = static_cast<float>(
-        playerWeaponVisibleHotbarIndex(
-            hotbarSnapshot.selectedWeapon,
-            hotbarSnapshot.unlockedWeapons));
+        actionMode_ == ActionMode::Tools
+            ? playerWeaponVisibleHotbarIndex(
+                  hotbarSnapshot.selectedWeapon,
+                  hotbarSnapshot.unlockedWeapons,
+                  PlayerToolHotbarOrder)
+            : playerWeaponVisibleHotbarIndex(
+                  hotbarSnapshot.selectedWeapon,
+                  hotbarSnapshot.unlockedWeapons,
+                  PlayerCombatHotbarOrder));
     weaponHotbarSelectionPosition_ +=
         (weaponTarget - weaponHotbarSelectionPosition_) *
         hotbarBlend;
     const float buildAlphaTarget =
-        !foundationBuildMode_ &&
-                hotbarSnapshot.selectedBuilding
+        actionMode_ == ActionMode::Buildings
             ? 1.0F
             : 0.0F;
     const float foundationAlphaTarget =
-        foundationBuildMode_ ? 1.0F : 0.0F;
+        actionMode_ == ActionMode::Modular ? 1.0F : 0.0F;
     const float weaponAlphaTarget =
-        !foundationBuildMode_ &&
-                !hotbarSnapshot.selectedBuilding
+        actionMode_ == ActionMode::Tools ||
+                actionMode_ == ActionMode::Weapons
             ? 1.0F
             : 0.0F;
     buildHotbarSelectionAlpha_ +=
@@ -524,9 +549,6 @@ void App::update() {
             tickInput.sellBuilding = pendingBuildingSale_;
             tickInput.removeModularBuilding =
                 pendingModularBuildingRemoval_;
-            if (pendingWeaponToggle_) {
-                tickInput.toggleWeapon = ToggleWeaponCommand{};
-            }
             if (pendingWeaponSelection_) {
                 tickInput.selectWeapon = SelectWeaponCommand{
                     *pendingWeaponSelection_};
@@ -584,7 +606,6 @@ void App::update() {
         pendingBuildingRepair_.reset();
         pendingBuildingSale_.reset();
         pendingModularBuildingRemoval_.reset();
-        pendingWeaponToggle_ = false;
         pendingWeaponSelection_.reset();
         pendingWeaponUpgrade_ = false;
         pendingBombThrow_ = false;

@@ -332,129 +332,180 @@ void App::drawBuildModePie() const {
         return;
     }
 
-    constexpr float OuterRadius = 150.0F;
-    constexpr float InnerRadius = 42.0F;
-    constexpr float ArrowRadius = 78.0F;
+    constexpr float OuterRadius = 174.0F;
+    constexpr float InnerRadius = 62.0F;
+    constexpr float LabelRadius = 119.0F;
     const Vector2 center{
         static_cast<float>(GetScreenWidth()) * 0.5F,
         static_cast<float>(GetScreenHeight()) * 0.5F,
     };
-    const bool buildingsSelected =
-        buildModePieChoice_ ==
-        BuildModePieChoice::Buildings;
-    const bool foundationsSelected =
-        buildModePieChoice_ ==
-        BuildModePieChoice::Foundations;
+    struct Segment {
+        ActionMode mode;
+        float startAngle;
+        float endAngle;
+        Vector2 direction;
+        const char* subtitle;
+        Color accent;
+    };
+    constexpr std::array<Segment, 4> Segments{{
+        {ActionMode::Tools, 137.0F, 223.0F, {-1.0F, 0.0F},
+         "GATHER & REPAIR", {104, 190, 132, 255}},
+        {ActionMode::Weapons, 227.0F, 313.0F, {0.0F, -1.0F},
+         "COMBAT", {222, 105, 92, 255}},
+        {ActionMode::Buildings, -43.0F, 43.0F, {1.0F, 0.0F},
+         "STRUCTURES", {236, 190, 91, 255}},
+        {ActionMode::Modular, 47.0F, 133.0F, {0.0F, 1.0F},
+         "FLOORS & RAMPS", {100, 164, 224, 255}},
+    }};
 
-    DrawCircleV(center, OuterRadius + 7.0F,
-                {247, 224, 173, 95});
-    DrawCircleV(center, OuterRadius,
-                {15, 18, 25, 238});
-    DrawCircleSector(
-        center, OuterRadius - 5.0F, 90.0F,
-        270.0F, 48,
-        buildingsSelected
-            ? Color{239, 197, 101, 225}
-            : Color{52, 62, 78, 220});
-    DrawCircleSector(
-        center, OuterRadius - 5.0F, -90.0F,
-        90.0F, 48,
-        foundationsSelected
-            ? Color{239, 197, 101, 225}
-            : Color{52, 62, 78, 220});
-    DrawLineEx(
-        {center.x, center.y - OuterRadius + 5.0F},
-        {center.x, center.y - InnerRadius},
-        3.0F, {20, 24, 32, 180});
-    DrawLineEx(
-        {center.x, center.y + InnerRadius},
-        {center.x, center.y + OuterRadius - 5.0F},
-        3.0F, {20, 24, 32, 180});
-    DrawCircleV(center, InnerRadius + 4.0F,
-                {247, 224, 173, 130});
-    DrawCircleV(center, InnerRadius,
-                {20, 24, 32, 255});
+    DrawCircleV(
+        {center.x + 4.0F, center.y + 7.0F},
+        OuterRadius + 12.0F, {5, 7, 12, 145});
+    DrawCircleV(center, OuterRadius + 8.0F,
+                {247, 225, 177, 105});
+    DrawCircleV(center, OuterRadius + 3.0F,
+                {14, 18, 25, 248});
 
-    const auto drawLabel =
-        [](std::string_view label, Vector2 position,
-           bool selected, bool activeMode) {
-            const Color color =
-                selected
-                    ? Color{31, 27, 20, 255}
-                    : Color{242, 232, 211, 255};
-            const Vector2 size =
-                measureUiText(label, 16.0F);
-            drawUiText(
-                label,
-                {position.x - size.x * 0.5F,
-                 position.y - size.y * 0.5F},
-                16.0F, color);
-            if (activeMode) {
-                DrawCircleV(
-                    {position.x,
-                     position.y + 37.0F},
-                    5.0F,
-                    selected
-                        ? Color{31, 27, 20, 255}
-                        : Color{239, 197, 101, 255});
-            }
+    const auto& snapshot = simulation_.snapshot();
+    const bool weaponsAvailable = std::ranges::any_of(
+        PlayerCombatHotbarOrder,
+        [&snapshot](PlayerWeapon weapon) {
+            return snapshot.unlockedWeapons[
+                static_cast<std::size_t>(weapon)];
+        });
+
+    for (const Segment& segment : Segments) {
+        const bool selected =
+            buildModePieChoice_ == segment.mode;
+        const bool active = actionMode_ == segment.mode;
+        const bool available =
+            segment.mode != ActionMode::Weapons ||
+            weaponsAvailable;
+        Color fill = selected
+            ? (available
+                   ? segment.accent
+                   : Color{91, 91, 96, 255})
+            : active
+                ? Color{
+                      static_cast<unsigned char>(
+                          segment.accent.r * 0.48F),
+                      static_cast<unsigned char>(
+                          segment.accent.g * 0.48F),
+                      static_cast<unsigned char>(
+                          segment.accent.b * 0.48F),
+                      245}
+                : Color{43, 51, 64, 242};
+        DrawRing(
+            center, InnerRadius + 5.0F,
+            OuterRadius - (selected ? 0.0F : 5.0F),
+            segment.startAngle, segment.endAngle,
+            32, fill);
+        if (active) {
+            DrawRing(
+                center, OuterRadius - 10.0F,
+                OuterRadius - 5.0F,
+                segment.startAngle, segment.endAngle,
+                32, segment.accent);
+        }
+
+        const Vector2 labelCenter{
+            center.x + segment.direction.x * LabelRadius,
+            center.y + segment.direction.y * LabelRadius,
         };
-    drawLabel("BUILDINGS",
-              {center.x - 93.0F, center.y},
-              buildingsSelected,
-              !foundationBuildMode_);
-    drawLabel("PLATFORMS",
-              {center.x + 93.0F, center.y},
-              foundationsSelected,
-              foundationBuildMode_);
+        const Color textColor = !available
+            ? Color{171, 169, 164, 235}
+            : selected
+                ? Color{25, 26, 27, 255}
+                : Color{250, 241, 220, 255};
+        const std::string_view label =
+            actionModeLabel(segment.mode);
+        const Vector2 labelSize = measureUiText(label, 17.0F);
+        drawUiText(
+            label,
+            {labelCenter.x - labelSize.x * 0.5F,
+             labelCenter.y - 13.0F},
+            17.0F, textColor);
+        const std::string_view subtitle = available
+            ? segment.subtitle
+            : "LOCKED • SKILL TREE";
+        const Vector2 subtitleSize =
+            measureUiText(subtitle, 9.0F);
+        drawUiText(
+            subtitle,
+            {labelCenter.x - subtitleSize.x * 0.5F,
+             labelCenter.y + 10.0F},
+            9.0F,
+            selected
+                ? Color{39, 42, 44, 230}
+                : Color{207, 211, 214, 220});
+        if (active) {
+            DrawCircleV(
+                {labelCenter.x,
+                 labelCenter.y + 31.0F},
+                4.0F,
+                selected
+                    ? Color{25, 26, 27, 255}
+                    : segment.accent);
+        }
+    }
+
+    DrawCircleV(center, InnerRadius + 5.0F,
+                {245, 224, 178, 145});
+    DrawCircleV(center, InnerRadius,
+                {18, 22, 30, 255});
+    const ActionMode centerMode =
+        buildModePieChoice_.value_or(actionMode_);
+    const std::string_view centerCaption =
+        buildModePieChoice_ ? "SELECT" : "CURRENT";
+    const Vector2 captionSize =
+        measureUiText(centerCaption, 9.0F);
+    drawUiText(
+        centerCaption,
+        {center.x - captionSize.x * 0.5F,
+         center.y - 22.0F},
+        9.0F, {178, 183, 190, 240});
+    const std::string_view centerLabel =
+        actionModeLabel(centerMode);
+    const float centerFont = centerLabel.size() > 7U
+        ? 13.0F : 15.0F;
+    const Vector2 centerLabelSize =
+        measureUiText(centerLabel, centerFont);
+    drawUiText(
+        centerLabel,
+        {center.x - centerLabelSize.x * 0.5F,
+         center.y - 5.0F},
+        centerFont, {255, 238, 196, 255});
 
     const float length =
         Vector2Length(buildModePieDirection_);
-    if (length > 1.0F) {
+    if (length > 8.0F) {
         const Vector2 direction =
             Vector2Scale(
                 buildModePieDirection_,
                 1.0F / length);
-        const Vector2 arrowCenter =
+        const Vector2 pointer =
             Vector2Add(
                 center,
-                Vector2Scale(direction, ArrowRadius));
-        const Vector2 tip =
-            Vector2Add(
-                arrowCenter,
-                Vector2Scale(direction, 17.0F));
-        const Vector2 arrowBase =
-            Vector2Subtract(
-                arrowCenter,
-                Vector2Scale(direction, 2.0F));
-        const Vector2 tail =
-            Vector2Subtract(
-                arrowCenter,
-                Vector2Scale(direction, 13.0F));
-        const Vector2 perpendicular{
-            -direction.y, direction.x};
-        const Color arrowColor{
-            255, 247, 224, 255};
-        DrawLineEx(tail, arrowBase, 7.0F,
-                   arrowColor);
-        DrawTriangle(
-            tip,
-            Vector2Add(
-                arrowBase,
-                Vector2Scale(perpendicular, 9.0F)),
-            Vector2Subtract(
-                arrowBase,
-                Vector2Scale(perpendicular, 9.0F)),
-            arrowColor);
-    } else {
-        DrawCircleV(center, 7.0F,
-                    {255, 247, 224, 255});
+                Vector2Scale(direction, InnerRadius - 13.0F));
+        DrawCircleV(pointer, 8.0F,
+                    {255, 245, 220, 255});
+        DrawCircleLines(
+            static_cast<int>(pointer.x),
+            static_cast<int>(pointer.y),
+            11.0F, {255, 245, 220, 155});
     }
 
+    const std::string key = keyboardKeyName(controlKey(
+        userSettings_.controls, ControlAction::BuildMode));
     drawCenteredUiText(
-        "HOLD TAB  |  RELEASE TO SELECT",
-        center.y + OuterRadius + 20.0F,
-        14.0F, {242, 232, 211, 235});
+        "HOLD " + key + "  •  MOVE MOUSE  •  RELEASE",
+        center.y + OuterRadius + 22.0F,
+        13.0F, {247, 237, 215, 245});
+    drawCenteredUiText(
+        std::string{"TAP: "} +
+            actionModeLabel(previousActionMode_),
+        center.y + OuterRadius + 43.0F,
+        10.0F, {183, 189, 198, 225});
 }
 
 

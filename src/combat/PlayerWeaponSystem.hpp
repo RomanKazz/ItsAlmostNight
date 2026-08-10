@@ -34,6 +34,52 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
         PlayerWeapon::Rifle,
     };
 
+inline constexpr std::array<PlayerWeapon, 4>
+    PlayerToolHotbarOrder{
+        PlayerWeapon::BareHands,
+        PlayerWeapon::Pickaxe,
+        PlayerWeapon::Axe,
+        PlayerWeapon::Hammer,
+    };
+
+inline constexpr std::array<PlayerWeapon, 3>
+    PlayerCombatHotbarOrder{
+        PlayerWeapon::Club,
+        PlayerWeapon::IceWand,
+        PlayerWeapon::Rifle,
+    };
+
+[[nodiscard]] inline constexpr bool isPlayerTool(
+    PlayerWeapon weapon) {
+    return weapon == PlayerWeapon::BareHands ||
+           weapon == PlayerWeapon::Pickaxe ||
+           weapon == PlayerWeapon::Axe ||
+           weapon == PlayerWeapon::Hammer;
+}
+
+[[nodiscard]] inline constexpr bool isPlayerCombatWeapon(
+    PlayerWeapon weapon) {
+    return !isPlayerTool(weapon);
+}
+
+template <std::size_t Size>
+[[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(
+    PlayerWeapon selected,
+    const std::array<bool, PlayerWeaponCount>& unlocked,
+    const std::array<PlayerWeapon, Size>& order) {
+    std::size_t visibleIndex = 0;
+    for (const PlayerWeapon weapon : order) {
+        if (!unlocked[static_cast<std::size_t>(weapon)]) {
+            continue;
+        }
+        if (weapon == selected) {
+            return visibleIndex;
+        }
+        ++visibleIndex;
+    }
+    return 0;
+}
+
 [[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(
     PlayerWeapon selected,
     const std::array<bool, PlayerWeaponCount>& unlocked) {

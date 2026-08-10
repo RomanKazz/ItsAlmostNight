@@ -153,6 +153,11 @@ class App {
         const SimulationSnapshot& snapshot);
     void setSkillTreeVisible(bool visible);
     void drawBuildModePie() const;
+    void selectActionMode(
+        ActionMode mode,
+        const SimulationSnapshot& snapshot);
+    void selectNextActionModeItem(
+        const SimulationSnapshot& snapshot);
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
                    std::optional<EntityId> entityId =
@@ -258,7 +263,6 @@ class App {
     bool structuralRiskCacheValid_{};
     std::optional<BuildingInstance> pendingSoldBuildingVisual_;
     std::uint8_t pendingSoldWallConnections_{};
-    bool pendingWeaponToggle_{};
     std::optional<PlayerWeapon> pendingWeaponSelection_;
     bool pendingWeaponUpgrade_{};
     bool pendingBombThrow_{};
@@ -433,14 +437,14 @@ class App {
     bool performanceOverlayVisible_{};
     bool objectiveDebugMenuVisible_{};
     AppPerformanceStats performanceStats_{};
-    enum class BuildModePieChoice {
-        Buildings,
-        Foundations,
-    };
     bool buildModePieVisible_{};
     Vector2 buildModePieDirection_{};
-    std::optional<BuildModePieChoice>
+    std::optional<ActionMode>
         buildModePieChoice_;
+    ActionMode actionMode_{ActionMode::Tools};
+    ActionMode previousActionMode_{ActionMode::Weapons};
+    PlayerWeapon lastToolSelection_{PlayerWeapon::BareHands};
+    PlayerWeapon lastWeaponSelection_{PlayerWeapon::Club};
     BuildingType lastBuildingSelection_{
         BuildingType::Wall};
     float buildHotbarSelectionPosition_{1.0F};

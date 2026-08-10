@@ -426,6 +426,10 @@ void AudioSystem::playUiConfirm() {
     play(uiConfirm_, 0.5F, 1.0F);
 }
 
+void AudioSystem::playUiError() {
+    play(uiError_, 0.55F, 1.0F);
+}
+
 AudioSettings& AudioSystem::settings() {
     return settings_;
 }

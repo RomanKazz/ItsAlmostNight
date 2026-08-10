@@ -681,6 +681,7 @@ void App::render() {
                     .statusMessage = statusMessage_,
                     .statusMessageRemaining = statusMessageRemaining_,
                     .hideBottomHints = hideBottomHud_,
+                    .actionMode = actionMode_,
                     .foundationBuildMode =
                         foundationBuildMode_,
                     .selectedModularBuildPiece =

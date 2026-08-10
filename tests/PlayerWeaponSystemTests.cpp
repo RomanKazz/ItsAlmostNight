@@ -5,6 +5,33 @@
 #include <array>
 
 void runPlayerWeaponSystemTests() {
+    require(
+        ian::PlayerToolHotbarOrder ==
+                std::array{
+                    ian::PlayerWeapon::BareHands,
+                    ian::PlayerWeapon::Pickaxe,
+                    ian::PlayerWeapon::Axe,
+                    ian::PlayerWeapon::Hammer} &&
+            ian::PlayerCombatHotbarOrder ==
+                std::array{
+                    ian::PlayerWeapon::Club,
+                    ian::PlayerWeapon::IceWand,
+                    ian::PlayerWeapon::Rifle} &&
+            ian::isPlayerTool(ian::PlayerWeapon::Pickaxe) &&
+            !ian::isPlayerTool(ian::PlayerWeapon::Rifle),
+        "tools and combat weapons use separate canonical hotbars");
+
+    std::array<bool, ian::PlayerWeaponCount> categoryUnlocks{};
+    categoryUnlocks[static_cast<std::size_t>(
+        ian::PlayerWeapon::BareHands)] = true;
+    categoryUnlocks[static_cast<std::size_t>(
+        ian::PlayerWeapon::Axe)] = true;
+    require(
+        ian::playerWeaponVisibleHotbarIndex(
+            ian::PlayerWeapon::Axe, categoryUnlocks,
+            ian::PlayerToolHotbarOrder) == 1U,
+        "category hotbar index skips locked equipment");
+
     ian::EnemySystem enemies;
     constexpr std::array<ian::Vec3, 1> Spawn{{{0.0, 0.8, -10.0}}};
     enemies.spawnWave(Spawn);

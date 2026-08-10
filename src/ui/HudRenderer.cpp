@@ -597,7 +597,8 @@ void drawHotbarSlots(
     GameUi& ui, std::span<const HotbarSlot> slots,
     float selectionPosition, float selectionAlpha,
     bool showSlotLabels = false,
-    bool showSelectedInfo = true) {
+    bool showSelectedInfo = true,
+    std::string_view categoryLabel = {}) {
     constexpr float Gap = 6.0F;
     constexpr float MaximumSize = 54.0F;
     const float screenWidth =
@@ -616,6 +617,23 @@ void drawHotbarSlots(
         (screenWidth - totalWidth) * 0.5F;
     const float slotY = static_cast<float>(GetScreenHeight()) -
         slotSize - 12.0F;
+    if (!categoryLabel.empty()) {
+        const float labelWidth =
+            measureUiText(categoryLabel, 10.0F).x;
+        const Rectangle badge{
+            startX, slotY - 25.0F,
+            labelWidth + 20.0F, 20.0F};
+        DrawRectangleRounded(
+            badge, 0.42F, 6,
+            {22, 26, 33, 225});
+        DrawRectangleLinesEx(
+            badge, 1.0F,
+            {213, 183, 119, 185});
+        drawUiText(
+            categoryLabel,
+            {badge.x + 10.0F, badge.y + 4.0F},
+            10.0F, {249, 225, 171, 245});
+    }
     const auto centeredText =
         [](std::string_view text, float centerX, float textY,
            float fontSize, float maximumWidth, Color color) {
@@ -740,7 +758,8 @@ void drawFoundationHotbar(
     drawHotbarSlots(
         ui, slots,
         view.foundationHotbarSelectionPosition,
-        view.foundationHotbarSelectionAlpha);
+        view.foundationHotbarSelectionAlpha,
+        false, true, "MODULAR");
 }
 
 void drawBuildHotbar(
@@ -798,7 +817,8 @@ void drawBuildHotbar(
     drawHotbarSlots(
         ui, slots,
         view.buildHotbarSelectionPosition,
-        view.buildHotbarSelectionAlpha);
+        view.buildHotbarSelectionAlpha,
+        false, true, "BUILDINGS");
 }
 
 void drawLootInventory(
@@ -1133,8 +1153,12 @@ void drawWeaponHotbar(
     const HudViewState& view) {
     std::array<HotbarSlot, PlayerWeaponCount> slots{};
     std::array<std::string, PlayerWeaponCount> keys{};
+    const std::span<const PlayerWeapon> order =
+        view.actionMode == ActionMode::Tools
+            ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
+            : std::span<const PlayerWeapon>{PlayerCombatHotbarOrder};
     std::size_t visibleCount = 0;
-    for (const PlayerWeapon weapon : PlayerWeaponHotbarOrder) {
+    for (const PlayerWeapon weapon : order) {
         if (snapshot.unlockedWeapons[static_cast<std::size_t>(weapon)]) {
             keys[visibleCount] = std::to_string(visibleCount + 1U);
             slots[visibleCount] = {
@@ -1153,7 +1177,7 @@ void drawWeaponHotbar(
         ui, std::span<const HotbarSlot>{slots.data(), visibleCount},
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
-        true, false);
+        true, false, actionModeLabel(view.actionMode));
 }
 
 std::string phaseClock(double seconds) {
@@ -1656,7 +1680,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
 
     const bool buildModeActive =
-        view.foundationBuildMode || snapshot.selectedBuilding.has_value();
+        view.actionMode == ActionMode::Buildings ||
+        view.actionMode == ActionMode::Modular;
     drawCompactInsight(ui, snapshot, view, buildModeActive);
     if (!view.hideBottomHints && buildModeActive) {
         drawBuildHotbar(ui, snapshot, view);

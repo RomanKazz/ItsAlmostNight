@@ -36,6 +36,7 @@ class AudioSystem {
     void playEvent(const GameEvent& event,
                    const SimulationSnapshot& snapshot);
     void playUiConfirm();
+    void playUiError();
     [[nodiscard]] AudioSettings& settings();
     [[nodiscard]] const AudioSettings& settings() const;
     void applySettings();

@@ -7,6 +7,24 @@
 
 namespace ian {
 
+enum class ActionMode {
+    Tools,
+    Weapons,
+    Buildings,
+    Modular,
+};
+
+[[nodiscard]] inline constexpr const char*
+actionModeLabel(ActionMode mode) {
+    switch (mode) {
+    case ActionMode::Tools: return "TOOLS";
+    case ActionMode::Weapons: return "WEAPONS";
+    case ActionMode::Buildings: return "BUILDINGS";
+    case ActionMode::Modular: return "MODULAR";
+    }
+    return "TOOLS";
+}
+
 enum class PresentationEffectType {
     Hit,
     ResourceBurst,
