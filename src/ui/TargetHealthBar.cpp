@@ -98,7 +98,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
 
     const auto resourceAnchor = [&](const ResourceNode& resource) {
         const float AnchorHeight = isDestructibleProp(resource.type)
-            ? 1.35F * static_cast<float>(resource.visualScale)
+            ? 0.82F * static_cast<float>(resource.visualScale)
             : 1.12F;
         // Resource meshes are placed on the current terrain surface at
         // render time; simulation Y can contain a stale authored offset.

@@ -305,11 +305,55 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<int>(mapBounds.height));
 
     for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active || !isHarvestableResource(resource.type)) {
+        if (!resource.active) {
             continue;
         }
         const Vector2 point = mapPoint(
             resource.position.x, resource.position.z);
+        if (isDestructibleProp(resource.type)) {
+            if (!snapshot.unlimitedResources) {
+                continue;
+            }
+            const float size = 2.8F * symbolScale;
+            const Color color = resource.type == ResourceType::Barrel
+                ? Color{203, 120, 61, 245}
+                : resource.type == ResourceType::ItemCrate
+                    ? Color{242, 190, 60, 250}
+                    : Color{174, 112, 59, 245};
+            DrawRectangleRec(
+                {point.x - size, point.y - size,
+                 size * 2.0F, size * 2.0F},
+                {31, 24, 19, 220});
+            if (resource.type == ResourceType::Barrel) {
+                DrawRectangleRec(
+                    {point.x - size * 0.62F, point.y - size * 0.82F,
+                     size * 1.24F, size * 1.64F}, color);
+                DrawLineEx(
+                    {point.x - size * 0.68F, point.y},
+                    {point.x + size * 0.68F, point.y},
+                    std::max(1.0F, symbolScale), {57, 37, 25, 255});
+            } else {
+                DrawRectangleRec(
+                    {point.x - size * 0.76F, point.y - size * 0.76F,
+                     size * 1.52F, size * 1.52F}, color);
+                DrawLineEx(
+                    {point.x - size * 0.58F, point.y - size * 0.58F},
+                    {point.x + size * 0.58F, point.y + size * 0.58F},
+                    std::max(1.0F, symbolScale), {67, 43, 27, 255});
+                DrawLineEx(
+                    {point.x + size * 0.58F, point.y - size * 0.58F},
+                    {point.x - size * 0.58F, point.y + size * 0.58F},
+                    std::max(1.0F, symbolScale), {67, 43, 27, 255});
+                if (resource.type == ResourceType::ItemCrate) {
+                    DrawCircleV(point, 1.1F * symbolScale,
+                                {255, 242, 165, 255});
+                }
+            }
+            continue;
+        }
+        if (!isHarvestableResource(resource.type)) {
+            continue;
+        }
         const float radius =
             (resource.type == ResourceType::Wood ? 1.35F : 1.2F) *
             symbolScale;

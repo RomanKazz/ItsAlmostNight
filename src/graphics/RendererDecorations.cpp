@@ -320,10 +320,10 @@ void Renderer::drawDecorativeRocks(
         }
     }
 
-    constexpr float BushSpacing = 4.9F;
+    constexpr float BushSpacing = 4.35F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
-        1.064F, 1.008F, 1.148F,
+        1.596F, 1.512F, 1.722F,
     };
     const float bushTraversalRadius =
         useInstancing && !revealAnimating
@@ -356,7 +356,17 @@ void Renderer::drawDecorativeRocks(
             const float clusterDensity = std::clamp(
                 sharedCluster * 0.74F + secondaryCluster * 0.34F,
                 0.0F, 0.88F);
-            if (unitFloat(hash) > clusterDensity ||
+            const std::size_t selector = static_cast<std::size_t>(
+                (hash ^ 0x7f4a7c15U) % 14U);
+            const std::size_t variant = selector < 6U
+                ? selector
+                : selector < 10U ? 6U : selector < 13U ? 7U : 8U;
+            const bool flora = variant >= 6U;
+            const float placementDensity = flora
+                ? std::clamp(0.28F + clusterDensity * 0.62F,
+                             0.28F, 0.82F)
+                : clusterDensity;
+            if (unitFloat(hash ^ 0x68e31da4U) > placementDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
@@ -384,8 +394,6 @@ void Renderer::drawDecorativeRocks(
             if (visibility < 0.999F) {
                 continue;
             }
-            const std::size_t variant = static_cast<std::size_t>(
-                (hash >> 4U) % BushVariantCount);
             ModelResource& resource =
                 resources_.decorativeBushModel(variant);
             if (!resource.valid()) {
