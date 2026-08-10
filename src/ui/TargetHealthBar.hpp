@@ -25,6 +25,7 @@ class TargetHealthBar {
               EnemyBoundsProvider enemyBoundsProvider = {});
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id);
+    void notifyResourceHit(EntityId id);
     void reset();
 
   private:
@@ -57,8 +58,7 @@ class TargetHealthBar {
         int buildingLevel{};
     };
 
-    struct EnemyHealthVisibility {
-        double previousHealth{};
+    struct HealthVisibility {
         double remaining{};
         std::uint64_t lastSeenFrame{};
     };
@@ -70,9 +70,12 @@ class TargetHealthBar {
     std::optional<EntityId> repairTarget_;
     double repairPulseRemaining_{};
     double repairPulseDuration_{0.55};
-    std::unordered_map<std::uint64_t, EnemyHealthVisibility>
+    std::unordered_map<std::uint64_t, HealthVisibility>
         enemyHealthVisibility_;
     std::uint64_t enemyHealthFrame_{};
+    std::unordered_map<std::uint64_t, HealthVisibility>
+        resourceHealthVisibility_;
+    std::uint64_t resourceHealthFrame_{};
 };
 
 } // namespace ian

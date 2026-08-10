@@ -17,7 +17,7 @@ namespace {
 
 constexpr float FadeInSeconds = 0.035F;
 constexpr float FadeOutSeconds = 0.045F;
-constexpr double EnemyHealthBarDuration = 2.5;
+constexpr double TargetHealthBarDuration = 1.8;
 constexpr double EnemyHealthBarFadeSeconds = 0.3;
 
 std::uint64_t entityKey(EntityId id) {
@@ -110,22 +110,39 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             static_cast<float>(resource.position.z)};
     };
 
-    const auto drawResourceBar = [&](const ResourceNode& resource) {
-        drawBillboard(
-            {TargetKind::Resource, resource.id},
-            resourceAnchor(resource),
-            resource.health, resource.maxHealth,
-            {235, 186, 55, 255}, camera);
-    };
+    ++resourceHealthFrame_;
+    for (const ResourceNode& resource : snapshot.resourceNodes) {
+        if (!resource.active) {
+            continue;
+        }
+        auto [entry, inserted] = resourceHealthVisibility_.try_emplace(
+            entityKey(resource.id),
+            HealthVisibility{
+                .remaining = 0.0,
+                .lastSeenFrame = resourceHealthFrame_,
+            });
+        entry->second.lastSeenFrame = resourceHealthFrame_;
+        entry->second.remaining = std::max(
+            0.0, entry->second.remaining - frameSeconds);
+        (void)inserted;
+    }
+    std::erase_if(
+        resourceHealthVisibility_,
+        [this](const auto& entry) {
+            return entry.second.lastSeenFrame != resourceHealthFrame_;
+        });
 
     // Power Swing can damage several resources while only one remains under
-    // the crosshair. Keep bars visible for every nearby wounded resource so
-    // secondary hits receive the same health feedback as the primary hit.
+    // the crosshair. Each hit gets the same finite visibility timer.
     constexpr double ResourceHealthBarRange = 18.0;
     constexpr std::size_t MaximumWoundedResourceBars = 32;
     std::size_t woundedResourceBars = 0;
     for (const ResourceNode& resource : snapshot.resourceNodes) {
-        if (!resource.active || resource.health >= resource.maxHealth ||
+        const auto visibility = resourceHealthVisibility_.find(
+            entityKey(resource.id));
+        if (!resource.active ||
+            visibility == resourceHealthVisibility_.end() ||
+            visibility->second.remaining <= 0.0 ||
             (snapshot.aimedResource &&
              resource.id == *snapshot.aimedResource)) {
             continue;
@@ -138,14 +155,21 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             ResourceHealthBarRange * ResourceHealthBarRange) {
             continue;
         }
-        drawResourceBar(resource);
+        const float opacity = static_cast<float>(std::clamp(
+            visibility->second.remaining / EnemyHealthBarFadeSeconds,
+            0.0, 1.0));
+        drawBillboard(
+            {TargetKind::Resource, resource.id},
+            resourceAnchor(resource),
+            resource.health, resource.maxHealth,
+            {235, 186, 55, 255}, camera, 0, opacity);
         if (++woundedResourceBars >= MaximumWoundedResourceBars) {
             break;
         }
     }
 
-    // Remember actual health decreases instead of treating every wounded
-    // enemy as permanently recent. A new hit refreshes the visibility timer.
+    // Player hit events drive visibility. Automated defenses do not leave
+    // bars covering every wounded enemy on the battlefield.
     ++enemyHealthFrame_;
     for (const EnemyInstance& enemy : snapshot.enemies) {
         if (!enemy.active) {
@@ -154,19 +178,14 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         const std::uint64_t key = entityKey(enemy.id);
         auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
             key,
-            EnemyHealthVisibility{
-                .previousHealth = enemy.maxHealth,
+            HealthVisibility{
                 .remaining = 0.0,
                 .lastSeenFrame = enemyHealthFrame_,
             });
-        EnemyHealthVisibility& visibility = entry->second;
+        HealthVisibility& visibility = entry->second;
         visibility.lastSeenFrame = enemyHealthFrame_;
         visibility.remaining = std::max(
             0.0, visibility.remaining - frameSeconds);
-        if (enemy.health + 0.001 < visibility.previousHealth) {
-            visibility.remaining = EnemyHealthBarDuration;
-        }
-        visibility.previousHealth = enemy.health;
         (void)inserted;
     }
     std::erase_if(
@@ -391,6 +410,8 @@ void TargetHealthBar::reset() {
     opacity_ = 0.0F;
     enemyHealthVisibility_.clear();
     enemyHealthFrame_ = 0;
+    resourceHealthVisibility_.clear();
+    resourceHealthFrame_ = 0;
 }
 
 void TargetHealthBar::notifyRepair(EntityId id) {
@@ -401,12 +422,22 @@ void TargetHealthBar::notifyRepair(EntityId id) {
 void TargetHealthBar::notifyEnemyHit(EntityId id) {
     auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
         entityKey(id),
-        EnemyHealthVisibility{
-            .previousHealth = 0.0,
-            .remaining = EnemyHealthBarDuration,
+        HealthVisibility{
+            .remaining = TargetHealthBarDuration,
             .lastSeenFrame = enemyHealthFrame_,
         });
-    entry->second.remaining = EnemyHealthBarDuration;
+    entry->second.remaining = TargetHealthBarDuration;
+    (void)inserted;
+}
+
+void TargetHealthBar::notifyResourceHit(EntityId id) {
+    auto [entry, inserted] = resourceHealthVisibility_.try_emplace(
+        entityKey(id),
+        HealthVisibility{
+            .remaining = TargetHealthBarDuration,
+            .lastSeenFrame = resourceHealthFrame_,
+        });
+    entry->second.remaining = TargetHealthBarDuration;
     (void)inserted;
 }
 

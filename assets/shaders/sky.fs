@@ -87,6 +87,13 @@ vec2 equirectangularCoordinates(vec3 direction)
     return vec2(u, v);
 }
 
+vec3 sampleSkybox(
+    sampler2D skyboxTexture, vec2 uv,
+    vec2 uvDx, vec2 uvDy)
+{
+    return textureGrad(skyboxTexture, uv, uvDx, uvDy).rgb;
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy/max(viewportSize, vec2(1.0));
@@ -112,28 +119,44 @@ void main()
     sky = mix(sky, lowerSkyColor, lowerBlend);
 
     vec2 skyboxUv = equirectangularCoordinates(viewDirection);
+    vec2 skyboxUvDx = dFdx(skyboxUv);
+    vec2 skyboxUvDy = dFdy(skyboxUv);
+    // atan wraps U from 1 back to 0. Correct that discontinuity before the
+    // GPU selects a mip level, otherwise it produces a vertical seam.
+    skyboxUvDx.x -= round(skyboxUvDx.x);
+    skyboxUvDy.x -= round(skyboxUvDy.x);
     vec3 authoredSky;
     if (nightAmount <= 0.16) {
-        authoredSky = texture(daySkybox, skyboxUv).rgb;
+        authoredSky = sampleSkybox(
+            daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
     } else if (nightAmount < 0.42) {
         float blend = smoothstep(0.16, 0.42, nightAmount);
         authoredSky = mix(
-            texture(daySkybox, skyboxUv).rgb,
-            texture(morningSkybox, skyboxUv).rgb, blend);
+            sampleSkybox(
+                daySkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+            sampleSkybox(
+                morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+            blend);
     } else if (nightAmount <= 0.58) {
-        authoredSky = texture(morningSkybox, skyboxUv).rgb;
+        authoredSky = sampleSkybox(
+            morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
     } else if (nightAmount < 0.90) {
         float blend = smoothstep(0.58, 0.90, nightAmount);
         authoredSky = mix(
-            texture(morningSkybox, skyboxUv).rgb,
-            texture(nightSkybox, skyboxUv).rgb, blend);
+            sampleSkybox(
+                morningSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+            sampleSkybox(
+                nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy),
+            blend);
     } else {
-        authoredSky = texture(nightSkybox, skyboxUv).rgb;
+        authoredSky = sampleSkybox(
+            nightSkybox, skyboxUv, skyboxUvDx, skyboxUvDy);
     }
     // Retain a little procedural color underneath. This ties the authored
     // panorama to fog/time profiles and prevents harsh profile transitions.
     sky = mix(sky, authoredSky, skyboxEnabled*0.88);
     float proceduralDetail = mix(1.0, 0.18, skyboxEnabled);
+    float proceduralStarDetail = mix(1.0, 0.68, skyboxEnabled);
 
     float celestialAlignment =
         dot(viewDirection, normalize(celestialDirection));
@@ -191,7 +214,7 @@ void main()
         hash21(starCell + faceOffset + vec2(8.2, 73.1)));
     sky += starColor*
         (starCore*1.45 + starGlow*0.22)*
-        twinkle*starVisibility*proceduralDetail;
+        twinkle*starVisibility*proceduralStarDetail;
 
     // A faint galactic band gives the night sky large-scale structure behind
     // the stars without making the ground brighter.

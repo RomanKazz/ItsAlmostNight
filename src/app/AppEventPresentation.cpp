@@ -82,13 +82,18 @@ void App::processPresentationEvents(
     };
     for (const auto& event : events) {
         const bool enemyHit =
-            event.type == GameEventType::ProjectileHit ||
-            event.type == GameEventType::TrapHit ||
+            (event.type == GameEventType::ProjectileHit &&
+             !event.sourceId) ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
+        }
+        if ((event.type == GameEventType::ResourceHit ||
+             event.type == GameEventType::ResourceCollected) &&
+            event.entityId) {
+            targetHealthBar_.notifyResourceHit(*event.entityId);
         }
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
