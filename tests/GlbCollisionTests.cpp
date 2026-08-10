@@ -66,7 +66,7 @@ void runGlbCollisionTests() {
 
     const GlbCollisionAsset platform =
         loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/platform.glb");
+            IAN_SOURCE_DIR "/assets/models/construction/platform.glb");
     require(platform.valid() && platform.colliders.size() == 1,
             "shipped platform GLB must contain one valid collider");
     require(platform.renderMeshIndices.size() == 1 &&
@@ -87,7 +87,7 @@ void runGlbCollisionTests() {
 
     const GlbCollisionAsset ramp =
         loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/ramp.glb");
+            IAN_SOURCE_DIR "/assets/models/construction/ramp.glb");
     require(ramp.valid() && ramp.colliders.size() == 1,
             "shipped ramp GLB must contain one valid collider");
     require(ramp.renderMeshIndices.size() == 1 &&
@@ -104,7 +104,7 @@ void runGlbCollisionTests() {
 
     const GlbCollisionAsset tree =
         loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/tree.glb");
+            IAN_SOURCE_DIR "/assets/models/environment/tree.glb");
     require(tree.valid() && tree.colliders.size() == 4,
             "tree GLB must expose three boxes and one cylinder");
     require(tree.renderMeshIndices.size() == 4,
@@ -115,12 +115,12 @@ void runGlbCollisionTests() {
 
     const GlbCollisionAsset treeB =
         loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/tree_b.glb");
+            IAN_SOURCE_DIR "/assets/models/environment/tree_b.glb");
     require(treeB.valid() && treeB.colliders.size() == 4,
             "tree B GLB must expose three boxes and one cylinder");
     const GlbCollisionAsset treeC =
         loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/tree_c.glb");
+            IAN_SOURCE_DIR "/assets/models/environment/tree_c.glb");
     require(treeC.valid() && treeC.colliders.size() == 5,
             "tree C GLB must expose four boxes and one cylinder");
 }

@@ -935,18 +935,20 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
         SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
     }
-    cannonModel_.load("assets/models/cannon.glb");
-    cannonballModel_.load("assets/models/cannonball.glb");
-    arrowModel_.load("assets/models/arrow.glb");
-    crossbowModel_.load("assets/models/crossbow.glb");
-    coreModel_.load("assets/models/core.glb");
+    cannonModel_.load("assets/models/buildings/cannon.glb");
+    cannonballModel_.load("assets/models/projectiles/cannonball.glb");
+    arrowModel_.load("assets/models/projectiles/arrow.glb");
+    crossbowModel_.load("assets/models/weapons/crossbow.glb");
+    coreModel_.load("assets/models/buildings/core.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
     clubModel_.load("assets/models/tools/club.glb");
     hammerModel_.load("assets/models/tools/hammer.glb");
     iceWandModel_.load("assets/models/weapons/ice_wand/wand.glb");
-    woodenChestModel_.load("assets/models/wooden_chest.glb");
-    stoneChestModel_.load("assets/models/stone_chest.glb");
+    woodenChestModel_.load(
+        "assets/models/buildings/chests/wooden_chest.glb");
+    stoneChestModel_.load(
+        "assets/models/buildings/chests/stone_chest.glb");
     coinModel_.load("assets/models/coins/coin.glb");
     appleLootModel_.load("assets/models/items/apple.glb");
     breadLootModel_.load("assets/models/items/bread.glb");
@@ -968,65 +970,66 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/items/saw/saw.gltf");
     potionLootModel_.load(
         "assets/models/items/potion/potion.glb");
-    platformModel_.load("assets/models/platform.glb");
-    rampModel_.load("assets/models/ramp.glb");
-    mineModel_.load("assets/models/mine.glb");
+    platformModel_.load("assets/models/construction/platform.glb");
+    rampModel_.load("assets/models/construction/ramp.glb");
+    mineModel_.load("assets/models/buildings/mine.glb");
     lumberMillModel_.load(
-        "assets/models/lumber_mill.glb");
-    quarryModel_.load("assets/models/quarry.glb");
+        "assets/models/buildings/lumber_mill.glb");
+    quarryModel_.load("assets/models/buildings/quarry.glb");
     spikeTrapModel_.load(
         "assets/models/traps/spike_trap.glb");
-    rockModel_.load("assets/models/rock.glb");
-    treeModels_[0].load("assets/models/tree.glb");
-    treeModels_[1].load("assets/models/tree_b.glb");
-    treeModels_[2].load("assets/models/tree_c.glb");
+    rockModel_.load("assets/models/environment/rock.glb");
+    treeModels_[0].load("assets/models/environment/tree.glb");
+    treeModels_[1].load("assets/models/environment/tree_b.glb");
+    treeModels_[2].load("assets/models/environment/tree_c.glb");
     boundaryTreeModels_[0].load(
-        "assets/models/boundary_forest/tree.glb");
+        "assets/models/environment/boundary_forest/tree.glb");
     boundaryTreeModels_[1].load(
-        "assets/models/boundary_forest/tree_high.glb");
+        "assets/models/environment/boundary_forest/tree_high.glb");
     decorativeRockModels_[0].load(
-        "assets/models/decor/rock_small_a.glb");
+        "assets/models/environment/decor/rock_small_a.glb");
     decorativeRockModels_[1].load(
-        "assets/models/decor/rock_small_b.glb");
+        "assets/models/environment/decor/rock_small_b.glb");
     decorativeRockModels_[2].load(
-        "assets/models/decor/rock_small_c.glb");
+        "assets/models/environment/decor/rock_small_c.glb");
     decorativeRockModels_[3].load(
-        "assets/models/decor/rock_small_d.glb");
+        "assets/models/environment/decor/rock_small_d.glb");
     decorativeBushModels_[0].load(
-        "assets/models/decor/bushes/a.glb");
+        "assets/models/environment/decor/bushes/a.glb");
     decorativeBushModels_[1].load(
-        "assets/models/decor/bushes/b.glb");
+        "assets/models/environment/decor/bushes/b.glb");
     decorativeBushModels_[2].load(
-        "assets/models/decor/bushes/c.glb");
+        "assets/models/environment/decor/bushes/c.glb");
     decorativeBushModels_[3].load(
-        "assets/models/decor/bushes/d.glb");
+        "assets/models/environment/decor/bushes/d.glb");
     decorativeBushModels_[4].load(
-        "assets/models/decor/bushes/e.glb");
+        "assets/models/environment/decor/bushes/e.glb");
     decorativeBushModels_[5].load(
-        "assets/models/decor/bushes/f.glb");
+        "assets/models/environment/decor/bushes/f.glb");
     pondDecorModels_[0].load(
-        "assets/models/decor/water/waterlily_A.gltf");
+        "assets/models/environment/decor/water/waterlily_A.gltf");
     pondDecorModels_[1].load(
-        "assets/models/decor/water/waterlily_B.gltf");
+        "assets/models/environment/decor/water/waterlily_B.gltf");
     pondDecorModels_[2].load(
-        "assets/models/decor/water/waterplant_A.gltf");
+        "assets/models/environment/decor/water/waterplant_A.gltf");
     pondDecorModels_[3].load(
-        "assets/models/decor/water/waterplant_B.gltf");
+        "assets/models/environment/decor/water/waterplant_B.gltf");
     pondDecorModels_[4].load(
-        "assets/models/decor/water/waterplant_C.gltf");
-    cloudModels_[0].load("assets/models/clouds/small.glb");
-    cloudModels_[1].load("assets/models/clouds/big.glb");
-    wallIsolatedModel_.load("assets/models/walls/isolated.glb");
-    wallEndModel_.load("assets/models/walls/end.glb");
-    wallCornerModel_.load("assets/models/walls/corner.glb");
-    wallTModel_.load("assets/models/walls/t.glb");
-    wallCrossModel_.load("assets/models/walls/cross.glb");
+        "assets/models/environment/decor/water/waterplant_C.gltf");
+    cloudModels_[0].load("assets/models/environment/clouds/small.glb");
+    cloudModels_[1].load("assets/models/environment/clouds/big.glb");
+    wallIsolatedModel_.load(
+        "assets/models/construction/walls/isolated.glb");
+    wallEndModel_.load("assets/models/construction/walls/end.glb");
+    wallCornerModel_.load("assets/models/construction/walls/corner.glb");
+    wallTModel_.load("assets/models/construction/walls/t.glb");
+    wallCrossModel_.load("assets/models/construction/walls/cross.glb");
     grassModelB_.load(
-        "assets/models/grass/Grass_2_B_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/Grass_2_B_Singlesided_Color1.gltf");
     grassModelC_.load(
-        "assets/models/grass/Grass_2_C_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/Grass_2_C_Singlesided_Color1.gltf");
     grassModelD_.load(
-        "assets/models/grass/Grass_2_D_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/Grass_2_D_Singlesided_Color1.gltf");
     enemyMinionModel_.load(
         "assets/models/enemies/pink_blob.gltf");
     enemyRogueModel_.load(

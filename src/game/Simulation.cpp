@@ -72,13 +72,13 @@ Simulation::Simulation(
       runSeedState_(initialRunSeedState(worldConfig_.terrainSeed)),
       foundations_(terrain_, worldConfig_),
       platformCollisionAsset_(loadGlbCollisionAsset(
-          "assets/models/platform.glb")),
+          "assets/models/construction/platform.glb")),
       rampCollisionAsset_(loadGlbCollisionAsset(
-          "assets/models/ramp.glb")),
+          "assets/models/construction/ramp.glb")),
       treeCollisionAssets_{{
-          loadGlbCollisionAsset("assets/models/tree.glb"),
-          loadGlbCollisionAsset("assets/models/tree_b.glb"),
-          loadGlbCollisionAsset("assets/models/tree_c.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_b.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_c.glb"),
       }},
       modularBuildingCosts_{{
           {
