@@ -76,6 +76,20 @@ void runCoinPickupSystemTests() {
         "new coins burst outward before player magnet attraction begins");
 
     coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 10, 515U, terrain, 1.0);
+    const double fullSpread = std::hypot(
+        coins.pickups().front().velocity.x,
+        coins.pickups().front().velocity.z);
+    coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 10, 515U, terrain, 0.5);
+    const double propSpread = std::hypot(
+        coins.pickups().front().velocity.x,
+        coins.pickups().front().velocity.z);
+    requireNear(
+        propSpread, fullSpread * 0.5, 1e-12,
+        "destructible prop coins use half lateral burst distance");
+
+    coins.reset();
     coins.spawn(
         {0.0, 0.0, 0.0},
         static_cast<int>(ian::CoinPickupSystem::MaximumPickups + 20U),

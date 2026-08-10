@@ -484,7 +484,8 @@ void Simulation::updatePlayerActions(
                                 impactPosition, rarity, rewardSeed);
                         } else {
                             coinPickups_.spawnValue(
-                                impactPosition, coins, rewardSeed, terrain_);
+                                impactPosition, coins, rewardSeed, terrain_,
+                                0.5);
                         }
                         if (hit->type == ResourceType::Barrel) {
                             grantConfiguredInsight(

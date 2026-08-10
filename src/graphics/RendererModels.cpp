@@ -1237,7 +1237,8 @@ void Renderer::drawCoin(
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
     rlRotatef(8.0F, 0.0F, 0.0F, 1.0F);
-    constexpr float NewCoinScale = 1.40F;
+    // 30% smaller than the previous 1.40 import multiplier.
+    constexpr float NewCoinScale = 0.98F;
     rlScalef(scale * 0.86F * NewCoinScale,
              scale * 0.86F * NewCoinScale,
              scale * 0.86F * NewCoinScale);

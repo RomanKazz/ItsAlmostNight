@@ -144,6 +144,9 @@ void runLootChestSystemTests() {
             loose.looseLoot && loose.loot.available &&
             loose.loot.rarity == ian::LootRarity::Legendary,
         "destroyed item crates can spawn collectible legendary loot");
+    require(!chests.collect(loose.loot.id).has_value(),
+            "loose crate loot cannot be collected before it is readable");
+    chests.tick(1.36);
     require(chests.collect(loose.loot.id).has_value(),
-            "loose crate loot uses the normal pickup pipeline");
+            "loose crate loot unlocks normal pickup after its display delay");
 }

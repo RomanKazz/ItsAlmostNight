@@ -50,7 +50,8 @@ class CoinPickupSystem {
     void spawn(Vec3 position, int amount, std::uint64_t seed,
                const TerrainHeightfield& terrain);
     void spawnValue(Vec3 position, int value, std::uint64_t seed,
-                    const TerrainHeightfield& terrain);
+                    const TerrainHeightfield& terrain,
+                    double burstSpread = 1.0);
     [[nodiscard]] CoinCollection tick(
         double deltaSeconds, Vec3 playerPosition,
         const TerrainHeightfield& terrain,

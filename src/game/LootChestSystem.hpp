@@ -45,6 +45,7 @@ struct ChestLoot {
     Vec3 position;
     double revealProgress{};
     double hoverTime{};
+    double pickupDelayRemaining{};
     bool available{};
     bool collected{};
 };

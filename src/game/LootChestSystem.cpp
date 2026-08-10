@@ -246,6 +246,8 @@ void LootChestSystem::spawnAdditionalChests(
 void LootChestSystem::tick(double deltaSeconds) {
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) return;
     for (LootChestInstance& chest : chests_) {
+        chest.loot.pickupDelayRemaining = std::max(
+            0.0, chest.loot.pickupDelayRemaining - deltaSeconds);
         if (chest.state == LootChestState::Opening) {
             chest.openingProgress = std::min(
                 1.0, chest.openingProgress + deltaSeconds / OpeningDuration);
@@ -283,7 +285,8 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
     std::optional<EntityId> closest;
     double closestDistance = maximumDistance;
     for (const LootChestInstance& chest : chests_) {
-        if (!chest.loot.available || chest.loot.collected) continue;
+        if (!chest.loot.available || chest.loot.collected ||
+            chest.loot.pickupDelayRemaining > 0.0) continue;
         const Vec3 center = lootVisualPositionImpl(chest);
         const auto distance = raySphereDistance(
             origin, direction, center, LootRaycastRadius);
@@ -327,7 +330,8 @@ int LootChestSystem::openingCost(
 std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
     for (LootChestInstance& chest : chests_) {
         if (chest.loot.id != id || !chest.loot.available ||
-            chest.loot.collected) continue;
+            chest.loot.collected ||
+            chest.loot.pickupDelayRemaining > 0.0) continue;
         chest.loot.collected = true;
         return LootPickup{
             chest.loot.id, chest.loot.rarity,
@@ -342,6 +346,7 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
     for (LootChestInstance& chest : chests_) {
         const Vec3 itemPosition = lootVisualPositionImpl(chest);
         if (chest.loot.available && !chest.loot.collected &&
+            chest.loot.pickupDelayRemaining <= 0.0 &&
             distanceSquared(playerPosition, itemPosition) <= radius * radius)
             return collect(chest.loot.id);
     }
@@ -381,6 +386,7 @@ void LootChestSystem::spawnLooseLoot(
                            pool.size()],
             .position = position,
             .revealProgress = 1.0,
+            .pickupDelayRemaining = 1.35,
             .available = true,
         },
     };
