@@ -635,10 +635,6 @@ void App::processInput() {
                     actionMode_ = ActionMode::Buildings;
                 }
                 lastBuildingSelection_ = type;
-                buildingHotbarPage_ =
-                    static_cast<std::size_t>(type) >= 10U
-                        ? 1U
-                        : 0U;
                 setFoundationBuildMode(false);
                 pendingBuildingCancel_ = false;
                 pendingBuildingSelection_ = type;
@@ -767,7 +763,10 @@ void App::processInput() {
                     ModularBuildPiece::Ramp);
             }
         } else if (actionMode_ == ActionMode::Buildings) {
-            if (buildingHotbarPage_ == 1U) {
+            const bool shiftHeld =
+                IsKeyDown(KEY_LEFT_SHIFT) ||
+                IsKeyDown(KEY_RIGHT_SHIFT);
+            if (shiftHeld) {
                 if (IsKeyPressed(KEY_ONE)) {
                     selectBuildingMode(BuildingType::WoodStorage);
                 }
@@ -1162,19 +1161,8 @@ void App::processInput() {
             }
         }
         const float wheel = GetMouseWheelMove();
-        const bool changeBuildingPage =
-            actionMode_ == ActionMode::Buildings &&
-            (IsKeyDown(KEY_LEFT_SHIFT) ||
-             IsKeyDown(KEY_RIGHT_SHIFT)) &&
-            std::abs(wheel) > 0.01F;
-        if (changeBuildingPage) {
-            buildingHotbarPage_ = 1U - buildingHotbarPage_;
-            pendingBuildingCancel_ = true;
-            pendingBuildingSelection_.reset();
-        }
-        if (!changeBuildingPage &&
-            (foundationBuildMode_ ||
-             currentSnapshot.selectedBuilding)) {
+        if (foundationBuildMode_ ||
+            currentSnapshot.selectedBuilding) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
                     static_cast<double>(wheel),
@@ -1218,7 +1206,7 @@ void App::processInput() {
                 buildingRotationWheelAccumulator_ = 0.0;
                 buildingRotationCooldownRemaining_ = 0.2;
             }
-        } else if (!changeBuildingPage) {
+        } else {
             buildingRotationWheelAccumulator_ = 0.0;
         }
         if (pendingBuildingCancel_) {

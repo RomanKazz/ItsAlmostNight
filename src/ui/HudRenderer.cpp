@@ -605,7 +605,9 @@ void drawHotbarSlots(
     float selectionPosition, float selectionAlpha,
     bool showSlotLabels = false,
     bool showSelectedInfo = true,
-    std::string_view categoryLabel = {}) {
+    std::string_view categoryLabel = {},
+    float verticalOffset = 0.0F,
+    float selectedInfoOffset = 0.0F) {
     constexpr float Gap = 6.0F;
     constexpr float MaximumSize = 54.0F;
     const float screenWidth =
@@ -623,7 +625,7 @@ void drawHotbarSlots(
     const float startX =
         (screenWidth - totalWidth) * 0.5F;
     const float slotY = static_cast<float>(GetScreenHeight()) -
-        slotSize - 12.0F;
+        slotSize - 12.0F + verticalOffset;
     if (!categoryLabel.empty()) {
         const float labelWidth =
             measureUiText(categoryLabel, 10.0F).x;
@@ -696,7 +698,7 @@ void drawHotbarSlots(
         const float costWidth = measureUiText(cost, 12.0F).x;
         const float infoWidth = std::max(titleWidth, costWidth) + 32.0F;
         const float infoX = (screenWidth - infoWidth) * 0.5F;
-        const float infoY = slotY - 59.0F;
+        const float infoY = slotY - 59.0F + selectedInfoOffset;
         DrawRectangleRounded(
             {infoX, infoY, infoWidth, 49.0F},
             0.22F, 6, {23, 20, 17, 218});
@@ -789,7 +791,7 @@ void drawBuildHotbar(
     };
     constexpr std::array<const char*, 13> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-        "1", "2", "3",
+        "SHIFT 1", "SHIFT 2", "SHIFT 3",
     };
     std::array<HotbarSlot, 13> slots{};
     for (std::size_t index = 0; index < Types.size();
@@ -825,18 +827,24 @@ void drawBuildHotbar(
             .available = available,
         };
     }
-    const std::span<const HotbarSlot> visibleSlots =
-        view.buildingHotbarPage == 0U
-            ? std::span<const HotbarSlot>{slots.data(), 10U}
-            : std::span<const HotbarSlot>{slots.data() + 10U, 3U};
+    const std::span<const HotbarSlot> buildingSlots{
+        slots.data(), 10U};
+    const std::span<const HotbarSlot> storageSlots{
+        slots.data() + 10U, 3U};
+    const bool storageSelected =
+        snapshot.selectedBuilding &&
+        static_cast<std::size_t>(*snapshot.selectedBuilding) >= 10U;
     drawHotbarSlots(
-        ui, visibleSlots,
+        ui, buildingSlots,
         view.buildHotbarSelectionPosition,
-        view.buildHotbarSelectionAlpha,
-        false, true,
-        view.buildingHotbarPage == 0U
-            ? "BUILDINGS  1/2  SHIFT+WHEEL"
-            : "STORAGE  2/2  SHIFT+WHEEL");
+        storageSelected ? 0.0F : view.buildHotbarSelectionAlpha,
+        false, !storageSelected, {},
+        -60.0F);
+    drawHotbarSlots(
+        ui, storageSlots,
+        view.buildHotbarSelectionPosition - 10.0F,
+        storageSelected ? view.buildHotbarSelectionAlpha : 0.0F,
+        false, storageSelected, {}, 0.0F, -60.0F);
 }
 
 void drawLootInventory(

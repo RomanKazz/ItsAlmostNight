@@ -687,8 +687,6 @@ void App::render() {
                     .selectedModularBuildPiece =
                         static_cast<std::size_t>(
                             modularBuildPiece_),
-                    .buildingHotbarPage =
-                        buildingHotbarPage_,
                     .buildHotbarSelectionPosition =
                         buildHotbarSelectionPosition_,
                     .buildHotbarSelectionAlpha =

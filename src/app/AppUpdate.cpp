@@ -125,9 +125,6 @@ void App::update() {
                   *hotbarSnapshot.selectedBuilding)
             : static_cast<std::size_t>(
                   lastBuildingSelection_));
-    if (buildingHotbarPage_ == 1U) {
-        buildingTarget -= 10.0F;
-    }
     buildHotbarSelectionPosition_ +=
         (buildingTarget -
          buildHotbarSelectionPosition_) *

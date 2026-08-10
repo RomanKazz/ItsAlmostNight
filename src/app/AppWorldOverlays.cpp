@@ -808,6 +808,18 @@ void App::drawWorldOverlays(
                     preview.type == BuildingType::SpikeTrap) {
                     static_cast<void>(renderer_->drawSpikeTrap(
                         position, yaw, -1.0F));
+                } else if (
+                    preview.type == BuildingType::WoodStorage ||
+                    preview.type == BuildingType::StoneStorage ||
+                    preview.type == BuildingType::CrystalStorage) {
+                    DrawCube(
+                        {position.x, position.y + 0.75F,
+                         position.z},
+                        1.8F, 1.5F, 1.8F, WHITE);
+                    DrawCube(
+                        {position.x, position.y + 1.62F,
+                         position.z},
+                        1.25F, 0.24F, 1.25F, WHITE);
                 } else if ((preview.rotation % 2U) == 0U) {
                     DrawCube(
                         {position.x - 0.38F, 1.0F, position.z},
