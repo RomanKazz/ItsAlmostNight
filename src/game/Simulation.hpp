@@ -225,6 +225,7 @@ struct SimulationSnapshot {
     std::optional<AttackDirection> upcomingAttackDirection;
     double phaseTimeRemaining;
     double phaseDuration;
+    int earlyWaveBonus;
     int wave;
     int bestWave;
     double coreHealth;
@@ -370,6 +371,7 @@ class Simulation {
     void updatePendingResourceGrants(double deltaSeconds);
     void updateRunPhase(double deltaSeconds,
                         const PlayerCommand& command);
+    [[nodiscard]] int earlyWaveBonus() const;
     void updateCombat(double deltaSeconds);
     void updateTrapCombat(double deltaSeconds);
     void updateTowerCombat(double deltaSeconds);

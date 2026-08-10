@@ -8,9 +8,23 @@
 #include <limits>
 
 namespace ian {
+int Simulation::earlyWaveBonus() const {
+    constexpr double SecondsPerCrystal = 10.0;
+    if (unlimitedResources_ || !buildings_.hasCore() ||
+        state_ != RunState::BuildPhase ||
+        phaseTimeRemaining_ <= 0.0) {
+        return 0;
+    }
+    return static_cast<int>(
+        std::floor(phaseTimeRemaining_ / SecondsPerCrystal));
+}
+
 void Simulation::updateRunPhase(
     double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::BuildPhase) {
+        const int earlyBonus = command.startWaveEarly
+            ? earlyWaveBonus()
+            : 0;
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if ((phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) &&
             buildings_.hasCore()) {
@@ -34,6 +48,15 @@ void Simulation::updateRunPhase(
                 });
             }
             if (command.startWaveEarly) {
+                const int goldBeforeBonus = gold_;
+                addGold(earlyBonus);
+                const int grantedBonus = gold_ - goldBeforeBonus;
+                if (grantedBonus > 0) {
+                    events_.push_back({
+                        .type = GameEventType::EarlyWaveBonusGranted,
+                        .amount = grantedBonus,
+                    });
+                }
                 wave_ = saturatingAdd(wave_, 1);
                 applyPotionWaveStart();
                 beginPreparedWave();

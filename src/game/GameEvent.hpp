@@ -37,6 +37,7 @@ enum class GameEventType {
     SunsetStarted,
     AttackDirectionWarned,
     WaveStarted,
+    EarlyWaveBonusGranted,
     WaveCompleted,
     WaveRewardGranted,
     RunEnded,

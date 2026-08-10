@@ -23,6 +23,50 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::GameBalance earlyBalance =
+            ian::GameBalance::defaults();
+        earlyBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        ian::MapDefinition earlyMap =
+            ian::MapDefinition::defaults();
+        earlyMap.obstacles.clear();
+        ian::WorldConfig earlyWorld =
+            ian::WorldConfig::defaults();
+        earlyWorld.terrainAmplitude = 0.0;
+        ian::Simulation earlySimulation{
+            earlyBalance, earlyMap, earlyWorld};
+        earlySimulation.startRun();
+        requireNear(
+            earlySimulation.snapshot().phaseDuration,
+            120.0, 1e-9,
+            "first wave preparation lasts two minutes");
+        ian::PlayerCommand placeFreeCore;
+        placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        earlySimulation.tick(1.0 / 60.0, placeFreeCore);
+        const int advertisedBonus =
+            earlySimulation.snapshot().earlyWaveBonus;
+        require(advertisedBonus > 0,
+                "preparation HUD advertises an early-wave bonus");
+        ian::PlayerCommand startEarly;
+        startEarly.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        earlySimulation.tick(1.0 / 60.0, startEarly);
+        require(
+            earlySimulation.snapshot().gold == advertisedBonus,
+            "starting early immediately grants the advertised crystals");
+        const auto earlyEvents = earlySimulation.takeEvents();
+        require(
+            std::ranges::any_of(
+                earlyEvents,
+                [advertisedBonus](const ian::GameEvent& event) {
+                    return event.type ==
+                            ian::GameEventType::EarlyWaveBonusGranted &&
+                        event.amount == advertisedBonus;
+                }),
+            "early-wave bonus emits a presentation event once");
+    }
+    {
         ian::MapDefinition storageMap =
             ian::MapDefinition::defaults();
         storageMap.obstacles.clear();

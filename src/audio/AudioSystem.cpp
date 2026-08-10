@@ -317,6 +317,7 @@ void AudioSystem::playEvent(
                     static_cast<float>(event.amount) * 0.018F));
         break;
     case GameEventType::WaveRewardGranted:
+    case GameEventType::EarlyWaveBonusGranted:
         play(gold_, 0.58F, variedPitch(0.04F));
         break;
     case GameEventType::ResourceGranted:

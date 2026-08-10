@@ -744,6 +744,12 @@ void App::processPresentationEvents(
                 "Night cleared: +" +
                 std::to_string(event.amount) +
                 " Crystals";
+        } else if (
+            event.type == GameEventType::EarlyWaveBonusGranted) {
+            message =
+                "Early wave bonus: +" +
+                std::to_string(event.amount) +
+                " Crystals";
         } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
             message = "Skill point earned - press K to open skill tree";
         } else if (event.type == GameEventType::SkillUnlocked) {
