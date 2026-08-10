@@ -120,6 +120,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
     const Json& bomb = document.at("bomb");
     const Json club = document.value("club", Json::object());
     const Json iceWand = document.value("iceWand", Json::object());
+    const Json fireWand = document.value("fireWand", Json::object());
     const WeaponBalanceDefinition definition{
         .rifle = {
             .range = rifle.at("range").get<double>(),
@@ -163,11 +164,25 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
             .chargeUpDuration = iceWand.value("chargeUpDuration", 0.12),
             .areaDamageMultiplier = iceWand.value("areaDamageMultiplier", 0.55),
         },
+        .fireWand = {
+            .cooldown = fireWand.value("cooldown", 0.9),
+            .directDamage = fireWand.value("directDamage", 12.0),
+            .projectileSpeed = fireWand.value("projectileSpeed", 18.0),
+            .projectileRadius = fireWand.value("projectileRadius", 0.24),
+            .maxLifetime = fireWand.value("maxLifetime", 2.5),
+            .explosionRadius = fireWand.value("explosionRadius", 3.25),
+            .burnDuration = fireWand.value("burnDuration", 4.0),
+            .burnDamagePerSecond = fireWand.value("burnDamagePerSecond", 3.0),
+            .burnTickInterval = fireWand.value("burnTickInterval", 0.5),
+            .chargeUpDuration = fireWand.value("chargeUpDuration", 0.14),
+            .areaDamageMultiplier = fireWand.value("areaDamageMultiplier", 0.5),
+        },
     };
     const auto& configuredRifle = definition.rifle;
     const auto& configuredBomb = definition.bomb;
     const auto& configuredClub = definition.club;
     const auto& configuredIceWand = definition.iceWand;
+    const auto& configuredFireWand = definition.fireWand;
     if (configuredRifle.range <= 0.0 || configuredRifle.damage <= 0.0 ||
         configuredRifle.damagePerLevel < 0.0 || configuredRifle.fireInterval <= 0.0 ||
         configuredRifle.fireRateBonusPerLevel < 0.0 || configuredRifle.reloadDuration <= 0.0 ||
@@ -197,7 +212,19 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
         configuredIceWand.bossSlowAmount > 1.0 ||
         configuredIceWand.chargeUpDuration < 0.0 ||
         configuredIceWand.areaDamageMultiplier <= 0.0 ||
-        configuredIceWand.areaDamageMultiplier > 1.0) {
+        configuredIceWand.areaDamageMultiplier > 1.0 ||
+        configuredFireWand.cooldown <= 0.0 ||
+        configuredFireWand.directDamage <= 0.0 ||
+        configuredFireWand.projectileSpeed <= 0.0 ||
+        configuredFireWand.projectileRadius <= 0.0 ||
+        configuredFireWand.maxLifetime <= 0.0 ||
+        configuredFireWand.explosionRadius <= 0.0 ||
+        configuredFireWand.burnDuration <= 0.0 ||
+        configuredFireWand.burnDamagePerSecond <= 0.0 ||
+        configuredFireWand.burnTickInterval <= 0.0 ||
+        configuredFireWand.chargeUpDuration < 0.0 ||
+        configuredFireWand.areaDamageMultiplier <= 0.0 ||
+        configuredFireWand.areaDamageMultiplier > 1.0) {
         throw std::runtime_error("invalid weapon definition");
     }
     return definition;
@@ -346,6 +373,8 @@ GameBalance GameBalance::defaults() {
             .club = {1.35, 1.25, 3.0, 4.0},
             .iceWand = {0.85, 16.0, 18.0, 0.22, 2.5, 3.5, 1.4, 0.65,
                         0.35, 0.12, 0.55},
+            .fireWand = {0.9, 12.0, 18.0, 0.24, 2.5, 3.25, 4.0, 3.0,
+                         0.5, 0.14, 0.5},
         },
         .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25, 4.0, 4.0,

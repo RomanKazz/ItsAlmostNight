@@ -174,7 +174,8 @@ void App::processPresentationEvents(
             crosshairHitRemaining_ = crosshairHitDuration_;
             crosshairHitCritical_ = event.critical;
         }
-        if (event.type == GameEventType::IceWandChargeStarted) {
+        if (event.type == GameEventType::IceWandChargeStarted ||
+            event.type == GameEventType::FireWandChargeStarted) {
             // Use the same authored tool-swing timeline as the other
             // first-person tools; the wand's charge glow runs in parallel.
             toolSwingUsesAxe_ = false;
@@ -190,7 +191,8 @@ void App::processPresentationEvents(
             weaponRecoilRemaining_ = weaponRecoilDuration_;
             weaponRecoilStrength_ = 0.045F;
             addCameraImpulse({0.0, 0.008, -0.012});
-        } else if (event.type == GameEventType::IceWandFired) {
+        } else if (event.type == GameEventType::IceWandFired ||
+                   event.type == GameEventType::FireWandFired) {
             iceWandRecoilDuration_ = 0.20;
             iceWandRecoilRemaining_ = iceWandRecoilDuration_;
             addCameraImpulse({0.0, 0.006, -0.018});
@@ -222,6 +224,46 @@ void App::processPresentationEvents(
                 addEffect(PresentationEffectType::IceCrack,
                           event.position, 0.38, 0.55F,
                           event.entityId);
+            }
+        } else if (event.type == GameEventType::FireWandImpact) {
+            addEffect(
+                PresentationEffectType::FireImpact,
+                event.position, 0.62, 1.0F, event.entityId);
+            const double distance = std::hypot(
+                event.position.x - eventSnapshot.playerPosition.x,
+                event.position.z - eventSnapshot.playerPosition.z);
+            if (distance < 9.0) {
+                addCameraImpulse({0.0, 0.004, -0.008});
+                addCameraShake(
+                    0.11, 0.022 *
+                        (1.0 - std::min(distance / 9.0, 1.0)));
+            }
+            if (event.amount > 0) {
+                hitStopRemaining_ = std::max(hitStopRemaining_, 0.025);
+            }
+        } else if (event.type == GameEventType::FireWandHit) {
+            const Vec3 numberPosition = event.entityId
+                ? enemyDamageAnchor(*event.entityId, event.position)
+                : event.position;
+            addFloatingDamageNumber(numberPosition, event.damage, false);
+            if (event.entityId && event.intensity > 0.0) {
+                const auto existing = std::find_if(
+                    effects_.begin(), effects_.end(),
+                    [&event](const PresentationEffect& effect) {
+                        return effect.type ==
+                                   PresentationEffectType::EnemyBurn &&
+                            effect.entityId == event.entityId;
+                    });
+                if (existing != effects_.end()) {
+                    existing->position = event.position;
+                    existing->remaining = event.intensity;
+                    existing->duration = event.intensity;
+                } else {
+                    addEffect(
+                        PresentationEffectType::EnemyBurn,
+                        event.position, event.intensity, 1.0F,
+                        event.entityId);
+                }
             }
         } else if (
             event.type == GameEventType::PickaxeHit ||
@@ -308,7 +350,8 @@ void App::processPresentationEvents(
             event.type == GameEventType::ProjectileHit ||
             event.type == GameEventType::TrapHit ||
             event.type == GameEventType::PickaxeHit ||
-            event.type == GameEventType::IceWandHit) {
+            event.type == GameEventType::IceWandHit ||
+            event.type == GameEventType::FireWandHit) {
             addEffect(PresentationEffectType::Hit,
                       event.position, 0.22, 1.0F,
                       event.entityId);

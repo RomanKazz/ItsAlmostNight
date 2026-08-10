@@ -675,6 +675,67 @@ void App::drawPresentationEffects() {
             EndBlendMode();
             continue;
         }
+        if (effect.type == PresentationEffectType::FireImpact) {
+            const float fade = 1.0F - smoothstep(0.42F, 1.0F, progress);
+            const float shock = 1.0F - smoothstep(0.05F, 0.62F, progress);
+            const float travel = smoothstep(0.0F, 0.34F, progress);
+            BeginBlendMode(BLEND_ADDITIVE);
+            for (int layer = 0; layer < 3; ++layer) {
+                const float layerIndex = static_cast<float>(layer);
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.025F + layerIndex * 0.014F,
+                     origin.z},
+                    effect.scale * (0.18F + progress * 2.45F) -
+                        layerIndex * 0.065F,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {255,
+                     static_cast<unsigned char>(190 - layer * 42),
+                     static_cast<unsigned char>(55 - layer * 14),
+                     atmosphereAlpha(shock *
+                         (0.88F - layerIndex * 0.2F))});
+            }
+            constexpr int FlameRayCount = 8;
+            for (int index = 0; index < FlameRayCount; ++index) {
+                const float angle = effectUnit(index, 150) * 2.0F * PI;
+                const float length = effect.scale *
+                    (0.2F + travel *
+                        (0.65F + effectUnit(index, 151) * 1.5F));
+                const Vector3 direction{
+                    std::cos(angle),
+                    0.18F + effectUnit(index, 152) * 0.72F,
+                    std::sin(angle)};
+                const Vector3 tip = Vector3Add(
+                    origin, Vector3Scale(direction, length));
+                DrawCylinderEx(
+                    origin, tip, effect.scale * 0.026F * shock,
+                    0.0F, 4,
+                    index % 3 == 0
+                        ? Color{255, 244, 172,
+                                atmosphereAlpha(shock)}
+                        : Color{255, 91, 15,
+                                atmosphereAlpha(shock * 0.82F)});
+            }
+            if (renderer_->settings().particles) {
+                constexpr int EmberCount = 6;
+                for (int index = 0; index < EmberCount; ++index) {
+                    const float angle = effectUnit(index, 160) * 2.0F * PI;
+                    const float distance = effect.scale * progress *
+                        (0.8F + effectUnit(index, 161) * 2.4F);
+                    const Vector3 ember{
+                        origin.x + std::cos(angle) * distance,
+                        origin.y + 0.12F + progress *
+                            (0.4F + effectUnit(index, 162) * 1.1F),
+                        origin.z + std::sin(angle) * distance};
+                    DrawSphereEx(
+                        ember, effect.scale * 0.025F,
+                        4, 4,
+                        {255, 181, 52,
+                         atmosphereAlpha(fade * 0.82F)});
+                }
+            }
+            EndBlendMode();
+            continue;
+        }
         if (effect.type == PresentationEffectType::IceImpact ||
             effect.type == PresentationEffectType::IceCrack) {
             const bool crack = effect.type == PresentationEffectType::IceCrack;

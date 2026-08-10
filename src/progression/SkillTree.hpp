@@ -17,6 +17,7 @@ enum class SkillEffect {
     UnlockPickaxe,
     UnlockClub,
     UnlockIceWand,
+    UnlockFireWand,
     UnlockHammer,
     UnlockRifle,
     AutoSwitchTools,

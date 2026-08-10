@@ -245,6 +245,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                         cannons_.clearProjectiles();
                         bombs_.clearProjectiles();
                         iceWand_.clearProjectiles();
+                        fireWand_.clearProjectiles();
                         state_ = RunState::Defeat;
                         events_.push_back({
                             .type =
@@ -301,6 +302,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     cannons_.clearProjectiles();
                     bombs_.clearProjectiles();
                     iceWand_.clearProjectiles();
+                    fireWand_.clearProjectiles();
                     state_ = RunState::Defeat;
                     events_.push_back({.type = GameEventType::RunEnded});
                     break;

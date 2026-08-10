@@ -77,6 +77,7 @@ void Simulation::completeWave() {
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
     iceWand_.clearProjectiles();
+    fireWand_.clearProjectiles();
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
     upcomingAttackDirection_.reset();

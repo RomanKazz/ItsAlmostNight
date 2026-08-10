@@ -687,6 +687,11 @@ void App::drawWorldEntities(
             projectile, camera.position, projectileTime,
             interpolationAlpha);
     }
+    for (const auto& projectile : snapshot.fireWandProjectiles) {
+        renderer_->drawIceWandProjectile(
+            projectile, camera.position, projectileTime,
+            interpolationAlpha);
+    }
     for (const auto& projectile : snapshot.cannonProjectiles) {
         if (projectile.active) {
             const Vector3 projectilePosition{

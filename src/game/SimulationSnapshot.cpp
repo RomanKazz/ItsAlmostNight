@@ -59,6 +59,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
     case PlayerWeapon::BareHands: heldDamage *= 0.25; break;
     case PlayerWeapon::Club: heldDamage *= club_.damageMultiplier; break;
     case PlayerWeapon::IceWand: heldDamage = iceWand_.directDamage(); break;
+    case PlayerWeapon::FireWand: heldDamage = fireWand_.directDamage(); break;
     case PlayerWeapon::Hammer: heldDamage *= 0.75; break;
     case PlayerWeapon::Rifle: heldDamage = playerWeapons_.rifleDamage(); break;
     case PlayerWeapon::Axe:
@@ -196,6 +197,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .iceWandChargeRemaining = iceWand_.chargeRemaining(),
         .iceWandChargeDuration = iceWand_.chargeDuration(),
         .iceWandCooldownRemaining = iceWand_.cooldownRemaining(),
+        .fireWandProjectiles =
+            std::span<const IceWandProjectile>{fireWand_.projectiles()},
+        .fireWandChargeRemaining = fireWand_.chargeRemaining(),
+        .fireWandChargeDuration = fireWand_.chargeDuration(),
+        .fireWandCooldownRemaining = fireWand_.cooldownRemaining(),
         .activeEnemyCount = enemies_.activeCount(),
         .pendingEnemyCount = waveSpawnQueue_.size() - nextWaveSpawnIndex_,
         .upcomingEnemyCounts = {
@@ -234,6 +240,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
                 skillTree_.hasEffect(SkillEffect::UnlockClub),
             unlimitedResources_ ||
                 skillTree_.hasEffect(SkillEffect::UnlockIceWand),
+            unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockFireWand),
             unlimitedResources_ ||
                 skillTree_.hasEffect(SkillEffect::UnlockHammer),
             unlimitedResources_ ||

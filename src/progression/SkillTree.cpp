@@ -23,6 +23,7 @@ SkillEffect parseEffect(std::string_view value) {
     if (value == "unlock_pickaxe") return SkillEffect::UnlockPickaxe;
     if (value == "unlock_club") return SkillEffect::UnlockClub;
     if (value == "unlock_ice_wand") return SkillEffect::UnlockIceWand;
+    if (value == "unlock_fire_wand") return SkillEffect::UnlockFireWand;
     if (value == "unlock_hammer") return SkillEffect::UnlockHammer;
     if (value == "unlock_rifle") return SkillEffect::UnlockRifle;
     if (value == "auto_switch_tools") return SkillEffect::AutoSwitchTools;
@@ -65,6 +66,10 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
          "Launch a freezing orb that freezes enemies near the impact.",
          "ice_wand", SkillBranch::Weapons, {190, -190}, 2,
          {"bare_hands"}, SkillEffect::UnlockIceWand},
+        {"fire_wand", "FIRE WAND",
+         "Launch a fire orb that ignites enemies near the impact.",
+         "fire_wand", SkillBranch::Weapons, {190, -380}, 2,
+         {"ice_wand"}, SkillEffect::UnlockFireWand},
         {"rifle", "RIFLE", "Unlocks the rifle and ranged combat.",
          "placeholder_rifle", SkillBranch::Weapons, {0, -380}, 1, {"club"}, SkillEffect::UnlockRifle},
         {"bombs", "BOMBS",
@@ -263,6 +268,7 @@ std::string_view skillEffectName(SkillEffect effect) {
     case SkillEffect::UnlockPickaxe: return "unlock_pickaxe";
     case SkillEffect::UnlockClub: return "unlock_club";
     case SkillEffect::UnlockIceWand: return "unlock_ice_wand";
+    case SkillEffect::UnlockFireWand: return "unlock_fire_wand";
     case SkillEffect::UnlockHammer: return "unlock_hammer";
     case SkillEffect::UnlockRifle: return "unlock_rifle";
     case SkillEffect::AutoSwitchTools: return "auto_switch_tools";

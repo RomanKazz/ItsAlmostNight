@@ -16,6 +16,7 @@ void runPlayerWeaponSystemTests() {
                 std::array{
                     ian::PlayerWeapon::Club,
                     ian::PlayerWeapon::IceWand,
+                    ian::PlayerWeapon::FireWand,
                     ian::PlayerWeapon::Rifle} &&
             ian::isPlayerTool(ian::PlayerWeapon::Pickaxe) &&
             !ian::isPlayerTool(ian::PlayerWeapon::Rifle),

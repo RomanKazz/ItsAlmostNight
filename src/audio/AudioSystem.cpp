@@ -217,19 +217,23 @@ void AudioSystem::playEvent(
         play(rifleShot_, 0.72F, variedPitch(0.025F));
         break;
     case GameEventType::IceWandChargeStarted:
+    case GameEventType::FireWandChargeStarted:
         // Reuse the short enemy-hit texture as a quiet crystalline charge
         // cue until a dedicated wand sample is added to the audio pack.
         play(enemyHit_, 0.18F, 1.62F * variedPitch(0.018F));
         break;
     case GameEventType::IceWandFired:
+    case GameEventType::FireWandFired:
         play(rifleShot_, 0.34F, 0.66F * variedPitch(0.015F));
         break;
     case GameEventType::IceWandImpact:
+    case GameEventType::FireWandImpact:
         playAt(
             explosion_, event.position, snapshot, 0.42F,
             1.38F * variedPitch(0.025F), 42.0F);
         break;
     case GameEventType::IceWandHit:
+    case GameEventType::FireWandHit:
         // One short cue per burst is enough; the impact event already owns
         // the group hit sound, so a cluster cannot flood the audio mixer.
         if (iceHitSoundCooldown_ <= 0.0) {

@@ -39,6 +39,53 @@ void runIceWandSystemTests() {
                 enemies.enemies()[0], ian::StatusEffectType::Freeze),
             "ice wand applies universal freeze status");
 
+    ian::FireWandBalanceDefinition fireBalance{
+        .cooldown = 0.1,
+        .directDamage = 1.0,
+        .projectileSpeed = 18.0,
+        .projectileRadius = 0.24,
+        .maxLifetime = 2.5,
+        .explosionRadius = 3.25,
+        .burnDuration = 1.0,
+        .burnDamagePerSecond = 2.0,
+        .burnTickInterval = 0.25,
+        .chargeUpDuration = 0.12,
+        .areaDamageMultiplier = 0.5,
+    };
+    ian::IceWandSystem fireWand{fireBalance};
+    ian::EnemySystem fireEnemies;
+    fireEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
+        {ian::EnemyType::Heavy, {0.0, 1.0, -2.0}},
+    }});
+    require(
+        fireWand.requestFire(
+            {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}),
+        "fire wand shares the elemental charge and sweep path");
+    fireWand.tick(0.12, fireEnemies, nullptr, {});
+    require(
+        fireWand.launches().size() == 1 &&
+            fireWand.projectiles().front().element ==
+                ian::WandElement::Fire &&
+            fireWand.launches().front().projectileId.index >= 6100U,
+        "fire wand emits a distinct fire projectile identity");
+    const double healthAfterImpact =
+        fireEnemies.enemies().front().health;
+    fireWand.tick(0.25, fireEnemies, nullptr, {});
+    require(
+        fireWand.hits().size() == 1 &&
+            fireWand.hits().front().periodicBurn &&
+            fireEnemies.enemies().front().health < healthAfterImpact,
+        "fire wand burn deals a periodic damage tick");
+    for (int tick = 0; tick < 3; ++tick) {
+        fireWand.tick(0.25, fireEnemies, nullptr, {});
+    }
+    const double expectedBurnDamage =
+        fireBalance.burnDuration * fireBalance.burnDamagePerSecond;
+    requireNear(
+        healthAfterImpact - fireEnemies.enemies().front().health,
+        expectedBurnDamage, 1e-9,
+        "fire wand burn deals configured total damage over its duration");
+
     ian::EnemySystem bossEnemies;
     bossEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
         {ian::EnemyType::Boss, {0.0, 1.2, -2.0}},

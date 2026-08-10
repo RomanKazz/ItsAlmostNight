@@ -121,6 +121,7 @@ Simulation::Simulation(
       objectives_(std::move(objectiveDefinitions)),
       bombs_(balance.weapons.bomb),
       iceWand_(balance.weapons.iceWand),
+      fireWand_(balance.weapons.fireWand),
       goldMines_(balance.economy),
       waveDirector_(balance.waves, map_.enemySpawnAnchors),
       economy_(balance.economy), gameplay_(balance.gameplay),
@@ -291,6 +292,7 @@ void Simulation::resetRun(GameEventType eventType) {
     activeFortifications_.clear();
     bombs_.reset();
     iceWand_.reset();
+    fireWand_.reset();
     goldMines_.reset();
     goldMines_.setProductionSpeedMultiplier(1.0);
     goldMines_.setWoodYieldMultiplier(1.0);

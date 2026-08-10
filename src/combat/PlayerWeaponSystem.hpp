@@ -16,11 +16,12 @@ enum class PlayerWeapon {
     Pickaxe,
     Club,
     IceWand,
+    FireWand,
     Hammer,
     Rifle,
 };
 
-inline constexpr std::size_t PlayerWeaponCount = 7;
+inline constexpr std::size_t PlayerWeaponCount = 8;
 
 // Canonical order shared by input, HUD layout and selection animation.
 inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
@@ -30,6 +31,7 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
         PlayerWeapon::Pickaxe,
         PlayerWeapon::Axe,
         PlayerWeapon::IceWand,
+        PlayerWeapon::FireWand,
         PlayerWeapon::Hammer,
         PlayerWeapon::Rifle,
     };
@@ -42,10 +44,11 @@ inline constexpr std::array<PlayerWeapon, 4>
         PlayerWeapon::Hammer,
     };
 
-inline constexpr std::array<PlayerWeapon, 3>
+inline constexpr std::array<PlayerWeapon, 4>
     PlayerCombatHotbarOrder{
         PlayerWeapon::Club,
         PlayerWeapon::IceWand,
+        PlayerWeapon::FireWand,
         PlayerWeapon::Rifle,
     };
 

@@ -194,6 +194,7 @@ void App::processInput() {
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
         return;
     }
     if (graphicsPanelVisible != graphicsPanelWasVisible_) {
@@ -221,6 +222,7 @@ void App::processInput() {
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
         return;
     }
     if (!graphicsPanelVisible &&
@@ -714,6 +716,7 @@ void App::processInput() {
             pendingPickaxe_ = false;
             pendingRifleShot_ = false;
             pendingIceWandShot_ = false;
+            pendingFireWandShot_ = false;
 
             if (keyReleased(userSettings_.controls,
                             ControlAction::BuildMode)) {
@@ -811,7 +814,7 @@ void App::processInput() {
         } else {
             constexpr std::array<int, PlayerWeaponCount> EquipmentKeys{
                 KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
-                KEY_FIVE, KEY_SIX, KEY_SEVEN,
+                KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
             };
             const auto order = equipmentOrder(actionMode_);
             std::size_t visibleSlot = 0;
@@ -1454,6 +1457,12 @@ void App::processInput() {
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
                 pendingIceWandShot_ = true;
+            } else if (!pendingBuildingSelection_ &&
+                       currentSnapshot.selectedWeapon == PlayerWeapon::FireWand) {
+                buildingContextCardTarget_.reset();
+                buildingContextCardUpgradeCost_.reset();
+                buildingContextCardStats_.reset();
+                pendingFireWandShot_ = true;
             } else if (!pendingBuildingSelection_) {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();

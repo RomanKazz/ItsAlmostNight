@@ -491,15 +491,24 @@ void App::render() {
                                         toolSwingDuration_),
                           0.0F, 1.0F)
                     : 0.0F;
+            const bool fireWand =
+                toolVisual == FirstPersonToolVisual::FireWand;
+            const bool elementalWand = fireWand ||
+                toolVisual == FirstPersonToolVisual::IceWand;
+            const double wandChargeDuration = fireWand
+                ? snapshot.fireWandChargeDuration
+                : snapshot.iceWandChargeDuration;
+            const double wandChargeRemaining = fireWand
+                ? snapshot.fireWandChargeRemaining
+                : snapshot.iceWandChargeRemaining;
             const float iceChargeProgress =
-                toolVisual == FirstPersonToolVisual::IceWand &&
-                        snapshot.iceWandChargeDuration > 0.0
+                elementalWand && wandChargeDuration > 0.0
                     ? std::clamp(static_cast<float>(
-                          1.0 - snapshot.iceWandChargeRemaining /
-                              snapshot.iceWandChargeDuration), 0.0F, 1.0F)
+                          1.0 - wandChargeRemaining /
+                              wandChargeDuration), 0.0F, 1.0F)
                     : 0.0F;
             const float iceRecoilProgress =
-                toolVisual == FirstPersonToolVisual::IceWand &&
+                elementalWand &&
                         iceWandRecoilDuration_ > 0.0
                     ? std::clamp(static_cast<float>(
                           iceWandRecoilRemaining_ /

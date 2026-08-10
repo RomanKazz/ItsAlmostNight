@@ -81,6 +81,7 @@ struct PlayerCommand {
     bool usePickaxe{};
     bool fireRifle{};
     bool fireIceWand{};
+    bool fireFireWand{};
     std::optional<BuildingType> selectBuilding;
     bool cancelBuilding{};
     std::optional<PlaceBuildingCommand> placeBuilding;
@@ -217,6 +218,10 @@ struct SimulationSnapshot {
     double iceWandChargeRemaining{};
     double iceWandChargeDuration{};
     double iceWandCooldownRemaining{};
+    std::span<const IceWandProjectile> fireWandProjectiles;
+    double fireWandChargeRemaining{};
+    double fireWandChargeDuration{};
+    double fireWandCooldownRemaining{};
     std::size_t activeEnemyCount;
     std::size_t pendingEnemyCount;
     std::array<int, GameBalance::EnemyTypeCount>
@@ -529,6 +534,7 @@ class Simulation {
     std::unordered_set<std::uint64_t> insightRewardedEnemyIds_;
     BombSystem bombs_;
     IceWandSystem iceWand_;
+    IceWandSystem fireWand_;
     GoldMineSystem goldMines_;
     WaveDirector waveDirector_;
     EconomyBalanceDefinition economy_;

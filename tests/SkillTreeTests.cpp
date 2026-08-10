@@ -178,10 +178,11 @@ void runSkillTreeTests() {
     };
     const auto powerDefinition = definitionById("power_swing");
     const auto bombDefinition = definitionById("bombs");
+    const auto fireDefinition = definitionById("fire_wand");
     const auto repairDefinition = definitionById("field_repairs");
     const auto safeDefinition = definitionById("safe_delivery");
     const auto dashDefinition = definitionById("dash");
-    require(definitions.size() == 16 &&
+    require(definitions.size() == 17 &&
                 definitions.front().icon == "placeholder_hands" &&
                 definitions[3].prerequisites ==
                     std::vector<std::string>{"axe", "pickaxe"} &&
@@ -190,6 +191,9 @@ void runSkillTreeTests() {
                     std::vector<std::string>{"auto_switch_tools"} &&
                 powerDefinition != definitions.end() &&
                 bombDefinition != definitions.end() &&
+                fireDefinition != definitions.end() &&
+                fireDefinition->effect ==
+                    ian::SkillEffect::UnlockFireWand &&
                 repairDefinition != definitions.end() &&
                 safeDefinition != definitions.end() &&
                 dashDefinition != definitions.end() &&

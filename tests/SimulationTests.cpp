@@ -299,6 +299,16 @@ void runSimulationTests() {
                     iceProgression.snapshot().selectedWeapon ==
                         ian::PlayerWeapon::IceWand,
                 "ice wand purchase spends two points and equips immediately");
+        iceProgression.grantSkillPoints(
+            2, ian::SkillPointSource::Event);
+        const auto fireWand =
+            iceProgression.skillTree().indexOf("fire_wand");
+        require(
+            fireWand && iceProgression.purchaseSkill(*fireWand) ==
+                    ian::SkillPurchaseError::None &&
+                iceProgression.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::FireWand,
+            "fire wand unlock follows ice wand and equips immediately");
         iceProgression.restartRun();
         iceProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
         ian::PlayerCommand cycle;
@@ -2010,11 +2020,12 @@ void runSimulationTests() {
         "nightly chest fixture unlocks survived-night reward");
     const std::size_t chestsBeforeFirstNight =
         simulation.snapshot().lootChests.size();
-    constexpr std::array<ian::PlayerWeapon, 7> GodModeTools{{
+    constexpr std::array<ian::PlayerWeapon, 8> GodModeTools{{
         ian::PlayerWeapon::Axe,
         ian::PlayerWeapon::Pickaxe,
         ian::PlayerWeapon::Club,
         ian::PlayerWeapon::IceWand,
+        ian::PlayerWeapon::FireWand,
         ian::PlayerWeapon::Hammer,
         ian::PlayerWeapon::Rifle,
         ian::PlayerWeapon::BareHands,

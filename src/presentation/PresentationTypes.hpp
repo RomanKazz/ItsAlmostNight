@@ -37,6 +37,7 @@ enum class PresentationEffectType {
     SplitBurst,
     IceImpact,
     IceCrack,
+    FireImpact,
     Debris,
     LandingDust,
     RamImpact,

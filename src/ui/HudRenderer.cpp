@@ -1097,6 +1097,7 @@ const char* weaponLabel(PlayerWeapon weapon) {
     case PlayerWeapon::Pickaxe: return "PICKAXE";
     case PlayerWeapon::Club: return "CLUB";
     case PlayerWeapon::IceWand: return "ICE WAND";
+    case PlayerWeapon::FireWand: return "FIRE WAND";
     case PlayerWeapon::Hammer: return "HAMMER";
     case PlayerWeapon::Rifle: return "RIFLE";
     }

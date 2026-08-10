@@ -485,13 +485,17 @@ void SkillTreeScreen::drawNodes() const {
                      withAlpha({255, 214, 91, 255}, confirmationPulse_[index] * 0.9F));
         }
 
-        if (node.icon == "ice_wand") {
+        if (node.icon == "ice_wand" || node.icon == "fire_wand") {
+            const bool fireWand = node.icon == "fire_wand";
             const Color iconColor = withAlpha(
-                {142, 229, 255, 255},
+                fireWand ? Color{255, 139, 48, 255}
+                         : Color{142, 229, 255, 255},
                 state == SkillNodeState::Locked ? 0.32F : 0.98F);
             const float orbRadius = 9.0F * zoom_;
             DrawCircleV(center, orbRadius,
-                        withAlpha({33, 140, 218, 255},
+                        withAlpha(
+                            fireWand ? Color{218, 62, 18, 255}
+                                     : Color{33, 140, 218, 255},
                                   state == SkillNodeState::Locked ? 0.25F : 0.66F));
             DrawCircleLines(static_cast<int>(center.x),
                             static_cast<int>(center.y),

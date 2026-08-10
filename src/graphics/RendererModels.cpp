@@ -717,6 +717,8 @@ bool Renderer::drawFirstPersonTool(
     float iceChargeProgress, float iceRecoilProgress) {
     ModelResource* resource = nullptr;
     const bool iceWand = visual == FirstPersonToolVisual::IceWand;
+    const bool fireWand = visual == FirstPersonToolVisual::FireWand;
+    const bool wand = iceWand || fireWand;
     switch (visual) {
     case FirstPersonToolVisual::None:
         break;
@@ -730,6 +732,7 @@ bool Renderer::drawFirstPersonTool(
         resource = &resources_.clubModel();
         break;
     case FirstPersonToolVisual::IceWand:
+    case FirstPersonToolVisual::FireWand:
         resource = &resources_.iceWandModel();
         break;
     case FirstPersonToolVisual::Hammer:
@@ -770,13 +773,13 @@ bool Renderer::drawFirstPersonTool(
         std::clamp(iceRecoilProgress, 0.0F, 1.0F) * PI);
     Model& model = resource->get();
     rlPushMatrix();
-    const float wandX = iceWand
+    const float wandX = wand
         ? tuning.position.x + 0.035F + bobX
         : tuning.position.x + bobX;
-    const float wandY = iceWand
+    const float wandY = wand
         ? tuning.position.y - bobY + charge * 0.045F
         : tuning.position.y - bobY;
-    const float wandZ = iceWand
+    const float wandZ = wand
         ? tuning.position.z + recoil * 0.075F
         : tuning.position.z + swingPush;
     rlTranslatef(wandX, wandY, wandZ);
@@ -788,12 +791,13 @@ bool Renderer::drawFirstPersonTool(
     rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
     rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
     rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
-    const float modelScale = iceWand
+    const float modelScale = wand
         ? tuning.scale * 1.0F
         : tuning.scale;
     rlScalef(modelScale, modelScale, modelScale);
-    DrawModel(model, {}, 1.0F, WHITE);
-    if (iceWand) {
+    DrawModel(model, {}, 1.0F,
+              fireWand ? Color{255, 193, 150, 255} : WHITE);
+    if (wand) {
         constexpr float CrystalHeight = 0.365F;
         const float crystalPulse = 0.42F + charge * 0.28F +
             0.035F * std::sin(static_cast<float>(GetTime()) * 5.0F);
@@ -801,7 +805,8 @@ bool Renderer::drawFirstPersonTool(
             {0.0F, CrystalHeight, 0.0F},
             0.052F + charge * 0.012F,
             static_cast<float>(GetTime()), crystalPulse,
-            {142, 229, 255, 145});
+            fireWand ? Color{255, 104, 24, 165}
+                     : Color{142, 229, 255, 145});
         if (charge > 0.01F && settings_.particles) {
             BeginBlendMode(BLEND_ADDITIVE);
             for (int particle = 0; particle < 5; ++particle) {
@@ -814,7 +819,8 @@ bool Renderer::drawFirstPersonTool(
                      CrystalHeight + std::sin(phase * 1.3F) * orbit,
                      std::sin(phase) * orbit},
                     0.008F + charge * 0.005F, 4, 4,
-                    {142, 229, 255, 135});
+                    fireWand ? Color{255, 128, 32, 155}
+                             : Color{142, 229, 255, 135});
             }
             EndBlendMode();
         }
@@ -867,6 +873,25 @@ void Renderer::drawIceWandProjectile(
         static_cast<float>(projectile.position.z)};
     const Vector3 position = Vector3Lerp(previous, current, alpha);
     const float radius = static_cast<float>(projectile.radius);
+    const bool fire = projectile.element == WandElement::Fire;
+    const Color trailOuterHead = fire
+        ? Color{255, 92, 12, 170}
+        : Color{52, 175, 255, 145};
+    const Color trailOuterTail = fire
+        ? Color{188, 28, 4, 125}
+        : Color{24, 105, 235, 120};
+    const Color trailInnerHead = fire
+        ? Color{255, 244, 174, 245}
+        : Color{223, 248, 255, 235};
+    const Color trailInnerTail = fire
+        ? Color{255, 146, 34, 215}
+        : Color{142, 229, 255, 205};
+    const auto fadedColor = [](Color color, float amount) {
+        color.a = static_cast<unsigned char>(std::lround(
+            static_cast<float>(color.a) *
+            std::clamp(amount, 0.0F, 1.0F)));
+        return color;
+    };
 
     if (projectile.trailCount > 1U) {
         rlDrawRenderBatchActive();
@@ -926,13 +951,13 @@ void Renderer::drawIceWandProjectile(
             emitRibbon(
                 radius * (0.92F * fade + 0.05F),
                 radius * (0.92F * nextFade + 0.025F),
-                {52, 175, 255, static_cast<unsigned char>(145.0F * fade)},
-                {24, 105, 235, static_cast<unsigned char>(120.0F * nextFade)});
+                fadedColor(trailOuterHead, fade),
+                fadedColor(trailOuterTail, nextFade));
             emitRibbon(
                 radius * (0.28F * fade + 0.018F),
                 radius * (0.28F * nextFade + 0.008F),
-                {223, 248, 255, static_cast<unsigned char>(235.0F * fade)},
-                {142, 229, 255, static_cast<unsigned char>(205.0F * nextFade)});
+                fadedColor(trailInnerHead, fade),
+                fadedColor(trailInnerTail, nextFade));
         }
         rlEnd();
         EndBlendMode();
@@ -942,22 +967,26 @@ void Renderer::drawIceWandProjectile(
         timeSeconds * 4.6F + static_cast<float>(projectile.id.index) * 0.41F);
     BeginBlendMode(BLEND_ALPHA);
     DrawSphereEx(position, radius * (0.94F + pulse * 0.025F), 12, 12,
-                 {48, 145, 232, 255});
+                 fire ? Color{232, 61, 12, 255}
+                      : Color{48, 145, 232, 255});
     EndBlendMode();
     drawIceMagicSphere(position, radius * (1.48F + pulse * 0.04F),
                        timeSeconds, 0.96F,
-                       {142, 229, 255, 225});
+                       fire ? Color{255, 126, 28, 235}
+                            : Color{142, 229, 255, 225});
     BeginBlendMode(BLEND_ADDITIVE);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
     rlRotatef(timeSeconds * 72.0F, 0.0F, 1.0F, 0.0F);
     DrawCircle3D({}, radius * 1.42F,
                  {1.0F, 0.0F, 0.0F}, 63.0F,
-                 {191, 246, 255, 145});
+                 fire ? Color{255, 212, 91, 165}
+                      : Color{191, 246, 255, 145});
     rlRotatef(117.0F, 0.45F, 0.72F, 0.53F);
     DrawCircle3D({}, radius * 1.27F,
                  {0.0F, 0.0F, 1.0F}, 47.0F,
-                 {85, 207, 255, 112});
+                 fire ? Color{255, 76, 12, 135}
+                      : Color{85, 207, 255, 112});
     rlPopMatrix();
     EndBlendMode();
     if (settings_.particles) {
@@ -978,8 +1007,10 @@ void Renderer::drawIceWandProjectile(
                  position.z + std::sin(phase) * distance},
                 sparkSize, 4, 4,
                 spark % 3 == 0
-                    ? Color{223, 248, 255, 215}
-                    : Color{142, 229, 255, 172});
+                    ? (fire ? Color{255, 245, 181, 225}
+                            : Color{223, 248, 255, 215})
+                    : (fire ? Color{255, 113, 24, 185}
+                            : Color{142, 229, 255, 172}));
             if (projectile.trailCount > 2U) {
                 const std::size_t trailIndex = std::min<std::size_t>(
                     projectile.trailCount - 1U,
@@ -995,8 +1026,11 @@ void Renderer::drawIceWandProjectile(
                     trailPosition.z + std::sin(phase) * radius * 0.28F};
                 DrawLine3D(
                     trailPosition, streakEnd,
-                    {142, 229, 255,
-                     static_cast<unsigned char>(95.0F * pulse)});
+                    fire
+                        ? Color{255, 112, 18,
+                              static_cast<unsigned char>(105.0F * pulse)}
+                        : Color{142, 229, 255,
+                              static_cast<unsigned char>(95.0F * pulse)});
             }
         }
         EndBlendMode();

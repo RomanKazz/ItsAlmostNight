@@ -12,7 +12,6 @@
 namespace ian {
 namespace {
 
-constexpr std::uint32_t FirstProjectileIndex = 6000;
 constexpr double MinimumDistanceSquared = 1e-12;
 
 double dot(Vec3 left, Vec3 right) {
@@ -76,9 +75,31 @@ IceWandSystem::IceWandSystem(IceWandBalanceDefinition definition)
     reset();
 }
 
+IceWandSystem::IceWandSystem(FireWandBalanceDefinition definition)
+    : definition_{
+          definition.cooldown,
+          definition.directDamage,
+          definition.projectileSpeed,
+          definition.projectileRadius,
+          definition.maxLifetime,
+          definition.explosionRadius,
+          1.0,
+          1.0,
+          0.0,
+          definition.chargeUpDuration,
+          definition.areaDamageMultiplier,
+      },
+      fireDefinition_(definition), element_(WandElement::Fire),
+      firstProjectileIndex_(6100) {
+    reset();
+}
+
 void IceWandSystem::reset() {
     for (IceWandProjectile& projectile : projectiles_) {
         projectile = {};
+    }
+    for (BurningEnemy& burning : burningEnemies_) {
+        burning = {};
     }
     generations_.fill(0);
     launchCount_ = 0;
@@ -111,6 +132,7 @@ void IceWandSystem::tick(
     launchCount_ = 0;
     hitCount_ = 0;
     impactCount_ = 0;
+    updateBurning(deltaSeconds, enemies);
     cooldownRemaining_ = std::max(
         0.0, cooldownRemaining_ - deltaSeconds);
 
@@ -226,6 +248,12 @@ double IceWandSystem::directDamage() const {
 
 double IceWandSystem::maximumRange() const {
     return definition_.projectileSpeed * definition_.maxLifetime;
+}
+
+double IceWandSystem::burnDuration() const {
+    return element_ == WandElement::Fire
+        ? fireDefinition_.burnDuration
+        : 0.0;
 }
 
 std::optional<IceWandSystem::EnemySweepHit> IceWandSystem::sweepEnemy(
@@ -366,7 +394,7 @@ void IceWandSystem::spawnProjectile() {
             projectile = &projectiles_[slot];
             const std::uint32_t generation = ++generations_[slot];
             projectile->id = {
-                FirstProjectileIndex + static_cast<std::uint32_t>(slot),
+                firstProjectileIndex_ + static_cast<std::uint32_t>(slot),
                 generation,
             };
             break;
@@ -386,6 +414,7 @@ void IceWandSystem::spawnProjectile() {
     projectile->age = 0.0;
     projectile->lifetime = definition_.maxLifetime;
     projectile->radius = definition_.projectileRadius;
+    projectile->element = element_;
     projectile->active = true;
     if (launchCount_ < launchBuffer_.size()) {
         launchBuffer_[launchCount_++] = {
@@ -402,20 +431,26 @@ void IceWandSystem::impactProjectile(
     int killedCount = 0;
     const auto recordDamage = [&](const EnemyDamageResult& result) {
         const auto currentEnemy = enemies.enemy(result.id);
-        const bool alreadyFrozen = currentEnemy && enemyHasStatus(
-            *currentEnemy, StatusEffectType::Freeze);
-        recordHit(projectile, result, alreadyFrozen);
+        const bool alreadyAffected = element_ == WandElement::Ice
+            ? currentEnemy && enemyHasStatus(
+                  *currentEnemy, StatusEffectType::Freeze)
+            : isBurning(result.id);
+        recordHit(projectile, result, alreadyAffected);
         ++hitCount;
         if (result.killed) {
             ++killedCount;
         }
-        (void)enemies.applyStatus(
-            result.id, StatusEffectType::Freeze, projectile.id,
-            definition_.freezeDuration, 1.0,
-            StatusEffectRules{
-                .eliteDurationMultiplier = definition_.eliteFreezeMultiplier,
-                .bossSlowAmount = definition_.bossSlowAmount,
-            });
+        if (!result.killed && element_ == WandElement::Ice) {
+            (void)enemies.applyStatus(
+                result.id, StatusEffectType::Freeze, projectile.id,
+                definition_.freezeDuration, 1.0,
+                StatusEffectRules{
+                    .eliteDurationMultiplier = definition_.eliteFreezeMultiplier,
+                    .bossSlowAmount = definition_.bossSlowAmount,
+                });
+        } else if (!result.killed) {
+            applyBurn(result.id, projectile.id, enemies);
+        }
     };
 
     // Resolve the splash against the pre-impact population first. A lethal
@@ -460,8 +495,102 @@ void IceWandSystem::recordHit(
         .damage = result.damage,
         .killed = result.killed,
         .alreadyFrozen = alreadyFrozen,
+        .periodicBurn = false,
     };
     ++hitCount_;
+}
+
+void IceWandSystem::updateBurning(
+    double deltaSeconds, EnemySystem& enemies) {
+    if (element_ != WandElement::Fire) {
+        return;
+    }
+    for (BurningEnemy& burning : burningEnemies_) {
+        if (!burning.active) {
+            continue;
+        }
+        const double activeDelta = std::min(
+            deltaSeconds, burning.remaining);
+        burning.remaining = std::max(
+            0.0, burning.remaining - deltaSeconds);
+        burning.tickRemaining -= activeDelta;
+        const auto enemy = enemies.enemy(burning.enemyId);
+        if (!enemy || !enemy->active) {
+            burning.active = false;
+            continue;
+        }
+        while (burning.active && burning.tickRemaining <= 1e-9 &&
+               activeDelta > 0.0) {
+            const double damage =
+                fireDefinition_.burnDamagePerSecond *
+                fireDefinition_.burnTickInterval;
+            const auto result = enemies.damage(burning.enemyId, damage);
+            if (!result) {
+                burning.active = false;
+                break;
+            }
+            if (hitCount_ < hitBuffer_.size()) {
+                hitBuffer_[hitCount_++] = {
+                    .projectileId = burning.sourceProjectileId,
+                    .enemyId = result->id,
+                    .position = result->position,
+                    .damage = result->damage,
+                    .killed = result->killed,
+                    .alreadyFrozen = false,
+                    .periodicBurn = true,
+                };
+            }
+            if (result->killed) {
+                burning.active = false;
+                break;
+            }
+            burning.tickRemaining +=
+                fireDefinition_.burnTickInterval;
+        }
+        if (burning.remaining <= 0.0) {
+            burning.active = false;
+        }
+    }
+}
+
+void IceWandSystem::applyBurn(
+    EntityId enemyId, EntityId sourceProjectileId,
+    const EnemySystem& enemies) {
+    const auto enemy = enemies.enemy(enemyId);
+    if (!enemy || !enemy->active) {
+        return;
+    }
+    BurningEnemy* available = nullptr;
+    for (BurningEnemy& burning : burningEnemies_) {
+        if (burning.active && burning.enemyId == enemyId) {
+            available = &burning;
+            break;
+        }
+        if (!burning.active && available == nullptr) {
+            available = &burning;
+        }
+    }
+    if (available == nullptr) {
+        return;
+    }
+    const bool newlyBurning = !available->active;
+    available->enemyId = enemyId;
+    available->sourceProjectileId = sourceProjectileId;
+    available->remaining = fireDefinition_.burnDuration;
+    available->tickRemaining = newlyBurning
+        ? fireDefinition_.burnTickInterval
+        : std::min(
+              available->tickRemaining,
+              fireDefinition_.burnTickInterval);
+    available->active = true;
+}
+
+bool IceWandSystem::isBurning(EntityId enemyId) const {
+    return std::ranges::any_of(
+        burningEnemies_, [enemyId](const BurningEnemy& burning) {
+            return burning.active && burning.enemyId == enemyId &&
+                burning.remaining > 0.0;
+        });
 }
 
 } // namespace ian

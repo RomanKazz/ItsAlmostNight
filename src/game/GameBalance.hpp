@@ -92,11 +92,26 @@ struct IceWandBalanceDefinition {
     double areaDamageMultiplier;
 };
 
+struct FireWandBalanceDefinition {
+    double cooldown;
+    double directDamage;
+    double projectileSpeed;
+    double projectileRadius;
+    double maxLifetime;
+    double explosionRadius;
+    double burnDuration;
+    double burnDamagePerSecond;
+    double burnTickInterval;
+    double chargeUpDuration;
+    double areaDamageMultiplier;
+};
+
 struct WeaponBalanceDefinition {
     RifleBalanceDefinition rifle;
     BombBalanceDefinition bomb;
     ClubBalanceDefinition club;
     IceWandBalanceDefinition iceWand;
+    FireWandBalanceDefinition fireWand;
 };
 
 struct EconomyBalanceDefinition {

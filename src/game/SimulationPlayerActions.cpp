@@ -211,6 +211,8 @@ void Simulation::updatePlayerActions(
             ? playerWeapons_.rifleRange()
             : playerWeapons_.selectedWeapon() == PlayerWeapon::IceWand
                 ? iceWand_.maximumRange()
+            : playerWeapons_.selectedWeapon() == PlayerWeapon::FireWand
+                ? fireWand_.maximumRange()
                 : gameplay_.pickaxeRange;
     aimedEnemy_ = enemies_.raycast(
         playerPosition_, direction, enemyAimRange, &terrain_);
@@ -256,9 +258,17 @@ void Simulation::updatePlayerActions(
             .position = playerPosition_,
         });
     }
+    if (command.fireFireWand && heldTool == PlayerWeapon::FireWand &&
+        !selectedBuilding_ && fireWand_.requestFire(playerPosition_, direction)) {
+        events_.push_back({
+            .type = GameEventType::FireWandChargeStarted,
+            .position = playerPosition_,
+        });
+    }
     constexpr double PickaxeInputBufferSeconds = 0.14;
     const bool meleeTool = heldTool != PlayerWeapon::Rifle &&
-                           heldTool != PlayerWeapon::IceWand;
+                           heldTool != PlayerWeapon::IceWand &&
+                           heldTool != PlayerWeapon::FireWand;
     if (command.usePickaxe && meleeTool && !selectedBuilding_) {
         pickaxeInputBufferRemaining_ = PickaxeInputBufferSeconds;
     } else {
@@ -497,6 +507,50 @@ void Simulation::updatePlayerActions(
     for (const auto& impact : iceWand_.impacts()) {
         events_.push_back({
             .type = GameEventType::IceWandImpact,
+            .entityId = impact.projectileId,
+            .position = impact.position,
+            .amount = impact.hitCount,
+            .intensity = static_cast<double>(impact.killedCount),
+        });
+    }
+
+    fireWand_.tick(
+        deltaSeconds, enemies_, &terrain_,
+        std::span<const BuildingInstance>{buildings_.buildings()},
+        std::span<const MapObstacle>{map_.obstacles});
+    for (const auto& launch : fireWand_.launches()) {
+        events_.push_back({
+            .type = GameEventType::FireWandFired,
+            .entityId = launch.projectileId,
+            .position = launch.position,
+        });
+    }
+    for (const auto& hit : fireWand_.hits()) {
+        events_.push_back({
+            .type = GameEventType::FireWandHit,
+            .entityId = hit.enemyId,
+            .sourceId = hit.projectileId,
+            .position = hit.position,
+            .damage = hit.damage,
+            .intensity = hit.periodicBurn
+                ? 0.0
+                : fireWand_.burnDuration(),
+        });
+        if (hit.killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = hit.enemyId,
+                .sourceId = hit.projectileId,
+                .position = hit.position,
+            });
+            if (aimedEnemy_ && *aimedEnemy_ == hit.enemyId) {
+                aimedEnemy_.reset();
+            }
+        }
+    }
+    for (const auto& impact : fireWand_.impacts()) {
+        events_.push_back({
+            .type = GameEventType::FireWandImpact,
             .entityId = impact.projectileId,
             .position = impact.position,
             .amount = impact.hitCount,

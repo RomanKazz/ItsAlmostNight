@@ -228,6 +228,7 @@ class App {
     double toolSwapDuration_{0.32};
     bool pendingRifleShot_{};
     bool pendingIceWandShot_{};
+    bool pendingFireWandShot_{};
     std::optional<BuildingType> pendingBuildingSelection_;
     bool pendingBuildingCancel_{};
     std::optional<PlaceBuildingCommand> pendingBuildingPlacement_;

@@ -120,6 +120,7 @@ enum class FirstPersonToolVisual {
     Pickaxe,
     Club,
     IceWand,
+    FireWand,
     Hammer,
 };
 

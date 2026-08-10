@@ -40,5 +40,18 @@
     "bossSlowAmount": 0.35,
     "chargeUpDuration": 0.12,
     "areaDamageMultiplier": 0.55
+  },
+  "fireWand": {
+    "cooldown": 0.9,
+    "directDamage": 12.0,
+    "projectileSpeed": 18.0,
+    "projectileRadius": 0.24,
+    "maxLifetime": 2.5,
+    "explosionRadius": 3.25,
+    "burnDuration": 4.0,
+    "burnDamagePerSecond": 3.0,
+    "burnTickInterval": 0.5,
+    "chargeUpDuration": 0.14,
+    "areaDamageMultiplier": 0.5
   }
 }

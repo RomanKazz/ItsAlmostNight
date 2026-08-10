@@ -48,6 +48,7 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     case SkillEffect::UnlockPickaxe: playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe); break;
     case SkillEffect::UnlockClub: playerWeapons_.selectWeapon(PlayerWeapon::Club); break;
     case SkillEffect::UnlockIceWand: playerWeapons_.selectWeapon(PlayerWeapon::IceWand); break;
+    case SkillEffect::UnlockFireWand: playerWeapons_.selectWeapon(PlayerWeapon::FireWand); break;
     case SkillEffect::UnlockHammer: playerWeapons_.selectWeapon(PlayerWeapon::Hammer); break;
     case SkillEffect::UnlockRifle: playerWeapons_.selectWeapon(PlayerWeapon::Rifle); break;
     case SkillEffect::AutoSwitchTools: break;
@@ -324,6 +325,8 @@ void Simulation::cycleUnlockedTool() {
         tools.push_back(PlayerWeapon::Club);
     if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockIceWand))
         tools.push_back(PlayerWeapon::IceWand);
+    if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockFireWand))
+        tools.push_back(PlayerWeapon::FireWand);
     if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockHammer))
         tools.push_back(PlayerWeapon::Hammer);
     if (unlimitedResources_ || skillTree_.hasEffect(SkillEffect::UnlockRifle))

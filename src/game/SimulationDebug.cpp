@@ -60,6 +60,8 @@ void Simulation::processDebugCommands(
                  skillTree_.hasEffect(SkillEffect::UnlockClub)) ||
                 (selected == PlayerWeapon::IceWand &&
                  skillTree_.hasEffect(SkillEffect::UnlockIceWand)) ||
+                (selected == PlayerWeapon::FireWand &&
+                 skillTree_.hasEffect(SkillEffect::UnlockFireWand)) ||
                 (selected == PlayerWeapon::Hammer &&
                  skillTree_.hasEffect(SkillEffect::UnlockHammer)) ||
                 (selected == PlayerWeapon::Rifle &&
@@ -206,6 +208,10 @@ void Simulation::processDebugCommands(
         case PlayerWeapon::IceWand:
             unlocked = unlimitedResources_ ||
                 skillTree_.hasEffect(SkillEffect::UnlockIceWand);
+            break;
+        case PlayerWeapon::FireWand:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect(SkillEffect::UnlockFireWand);
             break;
         case PlayerWeapon::Hammer:
             unlocked = unlimitedResources_ ||

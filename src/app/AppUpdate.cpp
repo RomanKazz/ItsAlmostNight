@@ -259,6 +259,9 @@ void App::update() {
         case PlayerWeapon::IceWand:
             desiredToolVisual = FirstPersonToolVisual::IceWand;
             break;
+        case PlayerWeapon::FireWand:
+            desiredToolVisual = FirstPersonToolVisual::FireWand;
+            break;
         case PlayerWeapon::Hammer:
             desiredToolVisual = FirstPersonToolVisual::Hammer;
             break;
@@ -534,6 +537,7 @@ void App::update() {
             tickInput.usePickaxe = pendingPickaxe_;
             tickInput.fireRifle = pendingRifleShot_;
             tickInput.fireIceWand = pendingIceWandShot_;
+            tickInput.fireFireWand = pendingFireWandShot_;
             tickInput.selectBuilding = pendingBuildingSelection_;
             tickInput.cancelBuilding = pendingBuildingCancel_;
             tickInput.placeBuilding = pendingBuildingPlacement_;
@@ -596,6 +600,7 @@ void App::update() {
         pendingPickaxe_ = false;
         pendingRifleShot_ = false;
         pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
         pendingBuildingSelection_.reset();
         pendingBuildingCancel_ = false;
         pendingBuildingPlacement_.reset();

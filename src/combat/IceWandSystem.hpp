@@ -18,6 +18,11 @@ struct MapObstacle;
 inline constexpr std::size_t IceWandMaximumProjectiles = 12;
 inline constexpr std::size_t IceWandTrailPointCount = 18;
 
+enum class WandElement {
+    Ice,
+    Fire,
+};
+
 struct IceWandProjectile {
     EntityId id{};
     Vec3 previousPosition{};
@@ -28,6 +33,7 @@ struct IceWandProjectile {
     double age{};
     double lifetime{};
     double radius{};
+    WandElement element{WandElement::Ice};
     bool active{};
 };
 
@@ -43,6 +49,7 @@ struct IceWandHit {
     double damage{};
     bool killed{};
     bool alreadyFrozen{};
+    bool periodicBurn{};
 };
 
 struct IceWandImpact {
@@ -57,6 +64,7 @@ class IceWandSystem {
     explicit IceWandSystem(
         IceWandBalanceDefinition definition =
             GameBalance::defaults().weapons.iceWand);
+    explicit IceWandSystem(FireWandBalanceDefinition definition);
 
     void reset();
     bool requestFire(Vec3 origin, Vec3 direction);
@@ -75,12 +83,21 @@ class IceWandSystem {
     [[nodiscard]] double cooldownRemaining() const;
     [[nodiscard]] double directDamage() const;
     [[nodiscard]] double maximumRange() const;
+    [[nodiscard]] double burnDuration() const;
 
   private:
     struct EnemySweepHit {
         EntityId id{};
         double time{};
         Vec3 position{};
+    };
+
+    struct BurningEnemy {
+        EntityId enemyId{};
+        EntityId sourceProjectileId{};
+        double remaining{};
+        double tickRemaining{};
+        bool active{};
     };
 
     [[nodiscard]] std::optional<EnemySweepHit> sweepEnemy(
@@ -104,17 +121,25 @@ class IceWandSystem {
     void recordHit(const IceWandProjectile& projectile,
                    const EnemyDamageResult& result,
                    bool alreadyFrozen);
+    void updateBurning(double deltaSeconds, EnemySystem& enemies);
+    void applyBurn(EntityId enemyId, EntityId sourceProjectileId,
+                   const EnemySystem& enemies);
+    [[nodiscard]] bool isBurning(EntityId enemyId) const;
 
     std::array<IceWandProjectile, IceWandMaximumProjectiles> projectiles_{};
     std::array<std::uint32_t, IceWandMaximumProjectiles> generations_{};
     std::array<IceWandLaunch, IceWandMaximumProjectiles> launchBuffer_{};
     std::array<IceWandHit, EnemySystem::MaxActiveEnemies> hitBuffer_{};
     std::array<IceWandImpact, IceWandMaximumProjectiles> impactBuffer_{};
+    std::array<BurningEnemy, EnemySystem::MaxActiveEnemies> burningEnemies_{};
     std::size_t launchCount_{};
     std::size_t hitCount_{};
     std::size_t impactCount_{};
     std::size_t nextSlot_{};
     IceWandBalanceDefinition definition_;
+    FireWandBalanceDefinition fireDefinition_{};
+    WandElement element_{WandElement::Ice};
+    std::uint32_t firstProjectileIndex_{6000};
     double cooldownRemaining_{};
     double chargeRemaining_{};
     Vec3 chargeOrigin_{};
