@@ -130,6 +130,9 @@ void runLootChestSystemTests() {
                 "hovering loot has no permanent forward X offset");
     requireNear(flatLootPosition.z, flatChest.position.z, 1e-12,
                 "hovering loot has no permanent forward Z offset");
+    requireNear(
+        flatLootPosition.y - flatChest.position.y, 1.296, 1e-12,
+        "ordinary chest loot hovers twenty percent lower");
     require(chests.collect(opened.loot.id).has_value(),
             "revealed loot can be collected");
     require(!chests.collect(opened.loot.id).has_value(),

@@ -19,7 +19,9 @@ constexpr double OpeningDuration = 1.05;
 // render passes. Keep the reward above the chest without adding a permanent
 // forward displacement that becomes visible on sloped chests.
 constexpr double LootExitHeight = 0.56;
-constexpr double LootRiseHeight = 1.06;
+// Previous final offset was 1.62. Keep the authored lid exit, then reduce the
+// complete hovering height to exactly 80%: 0.56 + 0.736 = 1.296.
+constexpr double LootRiseHeight = 0.736;
 constexpr double LootBobAmplitude = 0.072;
 // A slightly generous silhouette makes a hovering reward easy to target
 // without making nearby chest interactions ambiguous.

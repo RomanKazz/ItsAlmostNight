@@ -1599,7 +1599,9 @@ std::optional<double> Renderer::resourceRaycastDistance(
         ? static_cast<float>(TreeVisualGroundOffsets[
               visualVariant % TreeVisualVariantCount] * visualScale)
         : type == ResourceType::Stone ? RockGroundOffset : 0.0F;
-    const Matrix rotation = MatrixRotateY(yawRadians);
+    const Matrix rotation = isDestructibleProp(type)
+        ? terrainAlignedRotation(position.x, position.z, yawRadians)
+        : MatrixRotateY(yawRadians);
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
@@ -2174,8 +2176,8 @@ bool Renderer::drawDestructibleProp(
     }
     scale *= worldRevealScaleAt({position.x, position.z});
     if (scale <= 0.001F) return true;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                yawRadians * RAD2DEG, {scale, scale, scale}, tint);
+    drawTerrainAlignedModel(
+        model, position, yawRadians, {scale, scale, scale}, tint);
     return true;
 }
 
@@ -2185,10 +2187,12 @@ BoundingBox Renderer::destructiblePropWorldBounds(
     ModelResource& resource = resources_.destructiblePropModel(
         propModelIndex(type));
     if (!resource.valid()) return {};
+    const Matrix rotation = terrainAlignedRotation(
+        position.x, position.z, yawRadians);
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(MatrixScale(scale, scale, scale),
-                       MatrixMultiply(MatrixRotateY(yawRadians),
+                       MatrixMultiply(rotation,
                                       MatrixTranslate(position.x, position.y,
                                                       position.z))));
     return world_transforms::transformBounds(resource.visualBounds(), transform);
