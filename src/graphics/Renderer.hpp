@@ -50,6 +50,7 @@ struct WorldMaterialState {
     Vector3 terrainDirtTint{0.46F, 0.32F, 0.18F};
     float windAmount{};
     float localWindHeight{};
+    float distantFadeAmount{};
     float hitFlashAmount{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
@@ -467,6 +468,7 @@ class Renderer {
         int timeSeconds{-1};
         int windAmount{-1};
         int localWindHeight{-1};
+        int distantFadeAmount{-1};
         int hitFlashAmount{-1};
         int selectionAmount{-1};
         int selectionTint{-1};

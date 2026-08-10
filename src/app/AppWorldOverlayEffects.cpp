@@ -303,18 +303,18 @@ void App::drawBlobShadows(
                 groundY + 0.018F,
                  static_cast<float>(node.position.z)},
                 radius, radius * 0.82F,
-                node.type == ResourceType::Wood ? 0.22F : 0.18F);
+                node.type == ResourceType::Wood ? 0.30F : 0.25F);
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
                 groundY + 0.02F,
                  static_cast<float>(node.position.z)},
                 radius * 0.52F, radius * 0.42F,
-                node.type == ResourceType::Wood ? 0.34F : 0.28F);
+                node.type == ResourceType::Wood ? 0.48F : 0.40F);
         }
         // Decorative rock/bush AO repeats the full decoration grid traversal.
         // Keep it for High quality; gameplay-critical objects retain their
         // contact shadows on every preset.
-        if (renderer_->settings().quality == GraphicsQuality::High) {
+        if (renderer_->settings().quality != GraphicsQuality::Low) {
             const auto clearAreas =
                 activeDecorationClearAreas(snapshot);
             renderer_->drawDecorativeRockAo(

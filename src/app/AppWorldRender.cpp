@@ -233,9 +233,10 @@ void App::drawWorldEntities(
     }
     WorldMaterialState boundaryForestMaterial{};
     boundaryForestMaterial.baseColor = {
-        0.56F, 0.62F, 0.48F, 1.0F};
-    boundaryForestMaterial.bakedAo = 0.66F;
-    boundaryForestMaterial.windAmount = 0.28F;
+        0.62F, 0.68F, 0.64F, 1.0F};
+    boundaryForestMaterial.bakedAo = 0.72F;
+    boundaryForestMaterial.windAmount = 0.18F;
+    boundaryForestMaterial.distantFadeAmount = 0.72F;
     renderer_->setWorldMaterial(boundaryForestMaterial);
     renderer_->drawBoundaryForest();
     WorldMaterialState decorativeRockMaterial{};

@@ -538,8 +538,8 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
         segmentCountOverride == 24) {
         segmentCount = segmentCountOverride;
     }
-    const float finalOpacity =
-        std::clamp(opacity * fade * qualityOpacity, 0.0F, 1.0F);
+    const float finalOpacity = std::clamp(
+        opacity * 1.18F * fade * qualityOpacity, 0.0F, 1.0F);
     const auto centerAlpha =
         static_cast<unsigned char>(finalOpacity * 255.0F);
     ++performanceStats_.blobShadowCount;

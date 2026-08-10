@@ -95,6 +95,8 @@ void Renderer::resolveWorldShaderLocations() {
         .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
         .windAmount = GetShaderLocation(shader, "windAmount"),
         .localWindHeight = GetShaderLocation(shader, "localWindHeight"),
+        .distantFadeAmount =
+            GetShaderLocation(shader, "distantFadeAmount"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
@@ -378,6 +380,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.windAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.localWindHeight,
                    &material.localWindHeight, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.distantFadeAmount,
+                   &material.distantFadeAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,

@@ -810,6 +810,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.terrainDirtTint.z == worldMaterial_.terrainDirtTint.z &&
         material.windAmount == worldMaterial_.windAmount &&
         material.localWindHeight == worldMaterial_.localWindHeight &&
+        material.distantFadeAmount == worldMaterial_.distantFadeAmount &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&

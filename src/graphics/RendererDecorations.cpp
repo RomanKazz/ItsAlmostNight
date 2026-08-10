@@ -59,6 +59,34 @@ float decorativeRockClusterDensity(float x, float z) {
         0.012F, 0.89F);
 }
 
+float pathEdgeRockAmount(
+    const TerrainHeightfield* terrain, float x, float z) {
+    if (terrain == nullptr) {
+        return 0.0F;
+    }
+    const float center = static_cast<float>(
+        terrain->pathAmount(x, z));
+    constexpr float Probe = 1.55F;
+    float nearby = center;
+    nearby = std::max(nearby, static_cast<float>(
+        terrain->pathAmount(x + Probe, z)));
+    nearby = std::max(nearby, static_cast<float>(
+        terrain->pathAmount(x - Probe, z)));
+    nearby = std::max(nearby, static_cast<float>(
+        terrain->pathAmount(x, z + Probe)));
+    nearby = std::max(nearby, static_cast<float>(
+        terrain->pathAmount(x, z - Probe)));
+    const auto smoothstep = [](float from, float to, float value) {
+        float amount = std::clamp(
+            (value - from) / (to - from), 0.0F, 1.0F);
+        return amount * amount * (3.0F - 2.0F * amount);
+    };
+    const float closeToPath = smoothstep(0.10F, 0.72F, nearby);
+    const float outsideCore =
+        1.0F - smoothstep(0.28F, 0.82F, center);
+    return closeToPath * outsideCore;
+}
+
 
 } // namespace
 
@@ -199,8 +227,12 @@ void Renderer::drawDecorativeRocks(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 jitterZ;
-            if (unitFloat(hash) >
-                decorativeRockClusterDensity(x, z)) {
+            const float pathEdge = pathEdgeRockAmount(
+                terrainHeightfield_, x, z);
+            const float rockDensity = std::max(
+                decorativeRockClusterDensity(x, z),
+                pathEdge * 0.46F);
+            if (unitFloat(hash) > rockDensity) {
                 continue;
             }
             if (std::abs(x) > worldLimit - 0.7F ||
@@ -215,8 +247,11 @@ void Renderer::drawDecorativeRocks(
                 terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
             }
-            if (terrainHeightfield_ != nullptr &&
-                terrainHeightfield_->pathAmount(x, z) > 0.06) {
+            const float pathAmount = terrainHeightfield_ != nullptr
+                ? static_cast<float>(
+                      terrainHeightfield_->pathAmount(x, z))
+                : 0.0F;
+            if (pathAmount > 0.70F && pathEdge < 0.08F) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -248,7 +283,7 @@ void Renderer::drawDecorativeRocks(
             }
             const float scale =
                 baseScale * (0.88F + clusterStrength * 0.28F) *
-                revealScale;
+                revealScale * (1.0F - pathEdge * 0.62F);
             const float terrainHeight =
                 terrainHeightfield_ != nullptr
                     ? static_cast<float>(
@@ -540,13 +575,13 @@ void Renderer::drawDecorativeRockAo(
                      instance.groundHeight + 0.018F,
                      instance.position.y},
                     instance.scale * 0.62F,
-                    instance.scale * 0.52F, 0.16F);
+                    instance.scale * 0.52F, 0.24F);
                 drawBlobShadow(
                     {instance.position.x,
                      instance.groundHeight + 0.02F,
                      instance.position.y},
                     instance.scale * 0.34F,
-                    instance.scale * 0.28F, 0.27F);
+                    instance.scale * 0.28F, 0.42F);
             }
         }
         for (std::size_t variant = 0;
@@ -567,12 +602,12 @@ void Renderer::drawDecorativeRockAo(
                     {instance.position.x,
                      instance.groundHeight + 0.018F,
                      instance.position.y},
-                    radius, radius * 0.82F, 0.14F);
+                    radius, radius * 0.82F, 0.20F);
                 drawBlobShadow(
                     {instance.position.x,
                      instance.groundHeight + 0.02F,
                      instance.position.y},
-                    radius * 0.52F, radius * 0.42F, 0.22F);
+                    radius * 0.52F, radius * 0.42F, 0.34F);
             }
         }
         return;
@@ -610,8 +645,12 @@ void Renderer::drawDecorativeRockAo(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.78F;
-            if (unitFloat(hash) >
-                decorativeRockClusterDensity(x, z)) {
+            const float pathEdge = pathEdgeRockAmount(
+                terrainHeightfield_, x, z);
+            const float rockDensity = std::max(
+                decorativeRockClusterDensity(x, z),
+                pathEdge * 0.46F);
+            if (unitFloat(hash) > rockDensity) {
                 continue;
             }
             if (std::abs(x) > worldLimit - 0.7F ||
@@ -626,7 +665,9 @@ void Renderer::drawDecorativeRockAo(
             if (terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
             }
-            if (terrainHeightfield_->pathAmount(x, z) > 0.06) {
+            const float pathAmount = static_cast<float>(
+                terrainHeightfield_->pathAmount(x, z));
+            if (pathAmount > 0.70F && pathEdge < 0.08F) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -644,7 +685,8 @@ void Renderer::drawDecorativeRockAo(
                 (0.55F +
                  unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
                 (0.88F + decorativeRockClusterDensity(x, z) * 0.28F) *
-                worldRevealScaleAt({x, z});
+                worldRevealScaleAt({x, z}) *
+                (1.0F - pathEdge * 0.62F);
             if (scale <= 0.001F) {
                 continue;
             }
@@ -652,10 +694,10 @@ void Renderer::drawDecorativeRockAo(
                 terrainHeightfield_->getHeight(x, z));
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
-                scale * 0.62F, scale * 0.52F, 0.16F);
+                scale * 0.62F, scale * 0.52F, 0.24F);
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
-                scale * 0.34F, scale * 0.28F, 0.27F);
+                scale * 0.34F, scale * 0.28F, 0.42F);
         }
     }
 
@@ -731,10 +773,10 @@ void Renderer::drawDecorativeRockAo(
             const float radius = BushAoRadii[variant] * scale;
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
-                radius, radius * 0.82F, 0.14F);
+                radius, radius * 0.82F, 0.20F);
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
-                radius * 0.52F, radius * 0.42F, 0.22F);
+                radius * 0.52F, radius * 0.42F, 0.34F);
         }
     }
 }
@@ -804,6 +846,12 @@ void Renderer::drawBoundaryForest() {
                     edgeDistance > forestOuterLimit) {
                     continue;
                 }
+                const float slopeProgress = std::clamp(
+                    (edgeDistance - forestInnerLimit) /
+                        std::max(
+                            forestOuterLimit - forestInnerLimit,
+                            0.001F),
+                    0.0F, 1.0F);
                 const std::size_t variant =
                     static_cast<std::size_t>(
                         (hash >> 4U) % VariantCount);
@@ -816,17 +864,11 @@ void Renderer::drawBoundaryForest() {
                 if (!resource.valid()) {
                     continue;
                 }
-                const float slopeProgress = std::clamp(
-                    (edgeDistance - forestInnerLimit) /
-                        std::max(
-                            forestOuterLimit - forestInnerLimit,
-                            0.001F),
-                    0.0F, 1.0F);
                 const float sizeRoll =
                     unitFloat(hash ^ 0x63d83595U);
                 const float scale =
-                    6.0F + sizeRoll * sizeRoll * 9.0F +
-                    slopeProgress * 1.5F;
+                    5.0F + sizeRoll * sizeRoll * 6.0F +
+                    slopeProgress * 0.8F;
                 const float yaw =
                     unitFloat(hash ^ 0x9e3779b9U) * PI * 2.0F;
                 const float height = static_cast<float>(

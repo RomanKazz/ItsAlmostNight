@@ -1061,9 +1061,9 @@ double TerrainHeightfield::pathAmount(
             worldZ * 0.085 + std::sin(path.phase) * 9.0,
             seed_ ^ 0xb5297a4dU);
         const double meander = std::sin(
-            progress * 11.0 + path.phase) * 0.10;
+            progress * 11.0 + path.phase) * 0.16;
         const double width = path.halfWidth +
-            edgeNoise * 0.24 + meander;
+            edgeNoise * 0.38 + meander;
         const double pathMask = 1.0 - smoother(
             (distance - width) / 0.58);
         const double startFade = path.fadeIn > 0.0

@@ -672,10 +672,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 if (shoreDistance < 0.15F) {
                     continue;
                 }
-                if (terrainHeightfield_ != nullptr &&
-                    terrainHeightfield_->pathAmount(x, z) > 0.08) {
-                    continue;
-                }
+                const float pathAmount = terrainHeightfield_ != nullptr
+                    ? static_cast<float>(
+                          terrainHeightfield_->pathAmount(x, z))
+                    : 0.0F;
 
                 const float cluster = clusterNoise(x, z);
                 float shapedCluster = std::clamp(
@@ -686,11 +686,14 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                     (shoreDistance - 0.22F) / 2.45F, 0.0F, 1.0F);
                 shoreRecovery = shoreRecovery * shoreRecovery *
                     (3.0F - 2.0F * shoreRecovery);
-                const float clusterDensity = std::clamp(
+                float clusterDensity = std::clamp(
                     (0.025F + shapedCluster * 0.10F +
                      shapedCluster * shapedCluster * 0.84F) *
                         (0.18F + shoreRecovery * 0.82F),
                     0.008F, 0.96F);
+                const float pathGrass = std::clamp(
+                    (pathAmount - 0.04F) / 0.78F, 0.0F, 1.0F);
+                clusterDensity *= 1.0F - pathGrass * 0.94F;
                 if (unitFloat(hash ^ 0xb5297a4dU) >
                     clusterDensity) {
                     continue;
@@ -715,7 +718,8 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 const float horizontalScale =
                     widthScale * revealScale;
                 const float verticalScale =
-                    heightScale * revealScale;
+                    heightScale * revealScale *
+                    (1.0F - pathGrass * 0.42F);
                 const float terrainHeight =
                     terrainHeightfield_ != nullptr
                         ? static_cast<float>(

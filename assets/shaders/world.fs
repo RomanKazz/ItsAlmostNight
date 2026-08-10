@@ -38,6 +38,7 @@ uniform sampler2D terrainTexture;
 uniform float terrainTextureEnabled;
 uniform sampler2D terrainPathMask;
 uniform float terrainPathMaskEnabled;
+uniform float distantFadeAmount;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
@@ -105,14 +106,15 @@ vec3 terrainMaterial(
     float detailNoise = valueNoise(worldXZ*0.42 + vec2(-31.7, 42.9));
     float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
 
+    // Steep terrace walls stay dirt-covered. Returning very steep fragments
+    // to grass exposed the terrain triangulation as green/brown wedges.
     float dirtSlopeBand =
-        smoothstep(0.045, 0.18, slope)*
-        (1.0 - smoothstep(0.32, 0.58, slope));
+        smoothstep(0.055, 0.24, slope);
     float dirtPatch =
         smoothstep(0.68, 0.86, broadNoise*0.72 + patchNoise*0.28)*
         (1.0 - smoothstep(0.10, 0.30, slope));
     float dirtWeight = clamp(
-        max(dirtSlopeBand*0.72, dirtPatch*0.66), 0.0, 1.0);
+        max(dirtSlopeBand*0.86, dirtPatch*0.66), 0.0, 1.0);
 
     vec3 textureSample =
         texture(terrainTexture, worldXZ*0.08).rgb;
@@ -127,10 +129,15 @@ vec3 terrainMaterial(
         textureSample,
         terrainTextureEnabled);
 
+    float sideDetail = valueNoise(vec2(
+        worldPosition.y*0.21 + worldPosition.x*0.035,
+        worldPosition.z*0.12 - worldPosition.y*0.08));
+    float topProjection =
+        terrainTextureEnabled*(1.0 - smoothstep(0.10, 0.34, slope));
     float dirtDetail = mix(
-        0.82 + patchNoise*0.22 + detailNoise*0.10,
+        0.78 + patchNoise*0.12 + detailNoise*0.06 + sideDetail*0.16,
         0.68 + textureLuminance*0.52,
-        terrainTextureEnabled);
+        topProjection);
     vec3 dirt = terrainDirtTint*dirtDetail;
 
     vec3 terrain = mix(grass, dirt, dirtWeight);
@@ -323,6 +330,12 @@ void main()
     litColor += directionalRimColor*directionalRim*
         mix(albedo.rgb, vec3(1.0), 0.42);
     litColor *= dayNightTint;
+    float distantFade = clamp(distantFadeAmount, 0.0, 1.0);
+    float distantLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    vec3 distantColor = mix(
+        vec3(distantLuminance), fogColor, 0.46);
+    litColor = mix(litColor, distantColor, distantFade*0.64);
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
     litColor = mix(litColor, vec3(1.0, 0.28, 0.12), clamp(hitFlashAmount, 0.0, 1.0));
 
