@@ -73,6 +73,7 @@ void TerrainRenderer::rebuild(
     const TerrainHeightfield& terrain) {
     shutdown();
     terrain_ = &terrain;
+    buildPathMask();
     mountainBackdropModel_ = buildMountainBackdrop();
     waterModel_ = buildWaterModel();
     ready_ = true;
@@ -212,15 +213,8 @@ Model TerrainRenderer::buildChunk(
                 0.0, 1.0);
             const auto shade = static_cast<unsigned char>(
                 std::lround(255.0 - wetShore * 36.0));
-            const double path = terrain_->pathAmount(worldX, worldZ);
-            const auto pathGreen = static_cast<unsigned char>(
-                std::lround(std::clamp(
-                    static_cast<double>(shade) - path * 74.0,
-                    0.0, 255.0)));
             mesh.colors[index * 4] = shade;
-            // R-G stores path coverage. Mountain backdrop uses the same
-            // channel only behind the playable terrain, where R-B is nonzero.
-            mesh.colors[index * 4 + 1] = pathGreen;
+            mesh.colors[index * 4 + 1] = shade;
             mesh.colors[index * 4 + 2] = shade;
             mesh.colors[index * 4 + 3] = 255U;
         }
@@ -613,6 +607,44 @@ Model TerrainRenderer::buildWaterModel() const {
     return buildTriangleModel(vertices, normals, texcoords);
 }
 
+void TerrainRenderer::buildPathMask() {
+    if (terrain_ == nullptr) {
+        return;
+    }
+    const int resolution = std::clamp(
+        terrain_->resolution(), 257, 1025);
+    Image image = GenImageColor(resolution, resolution, BLACK);
+    if (!IsImageValid(image) || image.data == nullptr) {
+        UnloadImage(image);
+        return;
+    }
+    auto* pixels = static_cast<Color*>(image.data);
+    const double worldSize = terrain_->config().terrainWorldSize;
+    const double halfSize = worldSize * 0.5;
+    for (int z = 0; z < resolution; ++z) {
+        const double worldZ = -halfSize + worldSize *
+            static_cast<double>(z) /
+            static_cast<double>(resolution - 1);
+        for (int x = 0; x < resolution; ++x) {
+            const double worldX = -halfSize + worldSize *
+                static_cast<double>(x) /
+                static_cast<double>(resolution - 1);
+            const auto mask = static_cast<unsigned char>(std::lround(
+                terrain_->pathAmount(worldX, worldZ) * 255.0));
+            pixels[static_cast<std::size_t>(z) *
+                       static_cast<std::size_t>(resolution) +
+                   static_cast<std::size_t>(x)] =
+                {mask, mask, mask, 255U};
+        }
+    }
+    pathMaskTexture_ = LoadTextureFromImage(image);
+    UnloadImage(image);
+    if (IsTextureValid(pathMaskTexture_)) {
+        SetTextureFilter(pathMaskTexture_, TEXTURE_FILTER_BILINEAR);
+        SetTextureWrap(pathMaskTexture_, TEXTURE_WRAP_CLAMP);
+    }
+}
+
 void TerrainRenderer::updateVisibleChunks(
     Vector3 focusPosition) {
     if (terrain_ == nullptr) {
@@ -657,6 +689,24 @@ void TerrainRenderer::draw(
         return;
     }
     updateVisibleChunks(focusPosition);
+    constexpr int PathMaskTextureSlot = 11;
+    const float pathMaskEnabled =
+        IsTextureValid(pathMaskTexture_) ? 1.0F : 0.0F;
+    const int pathMaskLocation =
+        GetShaderLocation(shader, "terrainPathMask");
+    const int pathMaskEnabledLocation =
+        GetShaderLocation(shader, "terrainPathMaskEnabled");
+    if (pathMaskLocation >= 0 && pathMaskEnabledLocation >= 0) {
+        SetShaderValue(shader, pathMaskLocation,
+                       &PathMaskTextureSlot, SHADER_UNIFORM_INT);
+        SetShaderValue(shader, pathMaskEnabledLocation,
+                       &pathMaskEnabled, SHADER_UNIFORM_FLOAT);
+    }
+    if (pathMaskEnabled > 0.5F && pathMaskLocation >= 0) {
+        rlActiveTextureSlot(PathMaskTextureSlot);
+        rlEnableTexture(pathMaskTexture_.id);
+        rlActiveTextureSlot(0);
+    }
     const auto& config = terrain_->config();
     const float halfSize = static_cast<float>(
         config.terrainWorldSize * 0.5);
@@ -771,6 +821,10 @@ void TerrainRenderer::shutdown() {
         UnloadModel(waterModel_);
     }
     waterModel_ = {};
+    if (IsTextureValid(pathMaskTexture_)) {
+        UnloadTexture(pathMaskTexture_);
+    }
+    pathMaskTexture_ = {};
     terrain_ = nullptr;
     ready_ = false;
 }

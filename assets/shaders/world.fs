@@ -36,6 +36,8 @@ uniform vec3 terrainGrassTint;
 uniform vec3 terrainDirtTint;
 uniform sampler2D terrainTexture;
 uniform float terrainTextureEnabled;
+uniform sampler2D terrainPathMask;
+uniform float terrainPathMaskEnabled;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
@@ -144,21 +146,24 @@ vec3 terrainMaterial(
     terrain = mix(terrain, wetEarth,
                   shoreWeight*(0.62 + shoreVariation*0.16));
 
-    // Playable terrain stores procedural path coverage as R-G. R and B stay
-    // equal, keeping this independent from mountain and shoreline masks.
-    float pathWeight = clamp(
-        (vertexColor.r - vertexColor.g)/(74.0/255.0), 0.0, 1.0);
+    // Dedicated bilinear mask keeps narrow path edges independent from the
+    // terrain triangle grid. Backdrop UVs use another scale, so exclude it.
+    float playableTerrain =
+        1.0 - step(0.001, abs(vertexColor.r - vertexColor.b));
+    float pathWeight = texture(
+        terrainPathMask, fragTexCoord).r*
+        terrainPathMaskEnabled*playableTerrain;
     float pathDetail = valueNoise(
         worldXZ*0.31 + vec2(-12.4, 26.8));
     vec3 pathTexture = mix(
         vec3(textureLuminance), textureSample, 0.16)*
-        vec3(0.72, 0.51, 0.30);
+        vec3(0.68, 0.54, 0.36);
     vec3 pathEarth = mix(
         terrainDirtTint*0.82, pathTexture,
         terrainTextureEnabled*0.82);
     float packedEarth = smoothstep(0.18, 0.90, pathWeight);
     terrain = mix(
-        terrain, pathEarth*(0.94 + pathDetail*0.10), packedEarth*0.70);
+        terrain, pathEarth*(0.96 + pathDetail*0.08), packedEarth*0.54);
 
     // Backdrop vertices encode a mountain amount as R-B. In-map terrain
     // keeps all three channels equal, so this mask cannot turn shoreline

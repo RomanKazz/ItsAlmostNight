@@ -212,30 +212,32 @@ makeTerrainPaths(
     if (plateaus.size() < 2U) {
         return paths;
     }
-    paths.reserve(plateaus.size() - 1U);
+    const std::size_t outerCount = plateaus.size() - 1U;
+    paths.reserve(outerCount * 3U);
     const TerrainPlateau& center = plateaus.front();
-    for (std::size_t index = 1U; index < plateaus.size(); ++index) {
-        const TerrainPlateau& destination = plateaus[index];
+    const double halfWidth = std::clamp(
+        config.terrainBuildPlateauRadius * 0.105,
+        1.15, 1.55);
+    const auto appendPath = [&](double fromX, double fromZ,
+                                double toX, double toZ,
+                                std::uint32_t salt,
+                                double bendScale,
+                                double fadeIn,
+                                double fadeOut) {
         const std::uint32_t hash = mixBits(
-            seed ^ static_cast<std::uint32_t>(index) * 0x9e3779b9U ^
-            0x6c8e9cf5U);
-        const double deltaX = destination.x - center.x;
-        const double deltaZ = destination.z - center.z;
+            seed ^ salt * 0x9e3779b9U ^ 0x6c8e9cf5U);
+        const double deltaX = toX - fromX;
+        const double deltaZ = toZ - fromZ;
         const double length = std::max(std::hypot(deltaX, deltaZ), 0.01);
         const double directionX = deltaX / length;
         const double directionZ = deltaZ / length;
-        const double fromX = center.x + directionX * center.radius * 0.76;
-        const double fromZ = center.z + directionZ * center.radius * 0.76;
-        const double toX = destination.x -
-            directionX * destination.radius * 0.54;
-        const double toZ = destination.z -
-            directionZ * destination.radius * 0.54;
         const double hashUnit =
             static_cast<double>(hash) /
             static_cast<double>(
                 std::numeric_limits<std::uint32_t>::max());
         const double bendSign = (hash & 1U) == 0U ? -1.0 : 1.0;
-        const double bend = bendSign * (1.55 + hashUnit * 1.15);
+        const double bend = bendSign * bendScale *
+            (0.72 + hashUnit * 0.56);
         paths.push_back({
             .fromX = fromX,
             .fromZ = fromZ,
@@ -243,11 +245,63 @@ makeTerrainPaths(
             .controlZ = (fromZ + toZ) * 0.5 + directionX * bend,
             .toX = toX,
             .toZ = toZ,
-            .halfWidth = std::clamp(
-                config.terrainBuildPlateauRadius * 0.105,
-                1.15, 1.55),
+            .halfWidth = halfWidth,
             .phase = hashUnit * 6.28318530717958647692,
+            .fadeIn = fadeIn,
+            .fadeOut = fadeOut,
         });
+    };
+    const auto appendPlateauConnection = [&appendPath](
+        const TerrainPlateau& from,
+        const TerrainPlateau& to,
+        std::uint32_t salt,
+        double bendScale) {
+        const double deltaX = to.x - from.x;
+        const double deltaZ = to.z - from.z;
+        const double length = std::max(std::hypot(deltaX, deltaZ), 0.01);
+        const double directionX = deltaX / length;
+        const double directionZ = deltaZ / length;
+        appendPath(
+            from.x + directionX * from.radius * 0.68,
+            from.z + directionZ * from.radius * 0.68,
+            to.x - directionX * to.radius * 0.68,
+            to.z - directionZ * to.radius * 0.68,
+            salt, bendScale, 0.12, 0.12);
+    };
+
+    // Four spokes give each build plateau a separate entrance.
+    for (std::size_t index = 1U; index < plateaus.size(); ++index) {
+        appendPlateauConnection(
+            center, plateaus[index],
+            static_cast<std::uint32_t>(index), 2.2);
+    }
+    // Ring links turn isolated spokes into a traversable path network.
+    for (std::size_t index = 0U; index < outerCount; ++index) {
+        const TerrainPlateau& from = plateaus[index + 1U];
+        const TerrainPlateau& to =
+            plateaus[(index + 1U) % outerCount + 1U];
+        appendPlateauConnection(
+            from, to,
+            0x100U + static_cast<std::uint32_t>(index), 3.8);
+    }
+    // One route from each plateau continues into the outer world. These
+    // taper into the boundary terrain instead of ending in a hard round cap.
+    const double playableLimit =
+        config.terrainWorldSize * 0.5 -
+        config.terrainBoundaryRiseWidth - 8.0;
+    for (std::size_t index = 1U; index < plateaus.size(); ++index) {
+        const TerrainPlateau& from = plateaus[index];
+        const double radialLength = std::max(
+            std::hypot(from.x - center.x, from.z - center.z), 0.01);
+        const double directionX = (from.x - center.x) / radialLength;
+        const double directionZ = (from.z - center.z) / radialLength;
+        appendPath(
+            from.x + directionX * from.radius * 0.68,
+            from.z + directionZ * from.radius * 0.68,
+            center.x + directionX * playableLimit,
+            center.z + directionZ * playableLimit,
+            0x200U + static_cast<std::uint32_t>(index),
+            5.2, 0.10, 0.16);
     }
     return paths;
 }
@@ -1012,7 +1066,14 @@ double TerrainHeightfield::pathAmount(
             edgeNoise * 0.24 + meander;
         const double pathMask = 1.0 - smoother(
             (distance - width) / 0.58);
-        amount = std::max(amount, pathMask);
+        const double startFade = path.fadeIn > 0.0
+            ? smoother(progress / path.fadeIn)
+            : 1.0;
+        const double endFade = path.fadeOut > 0.0
+            ? smoother((1.0 - progress) / path.fadeOut)
+            : 1.0;
+        amount = std::max(
+            amount, pathMask * startFade * endFade);
     }
     return std::clamp(amount, 0.0, 1.0);
 }

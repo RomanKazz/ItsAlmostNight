@@ -36,6 +36,8 @@ struct TerrainPathDefinition {
     double toZ{};
     double halfWidth{};
     double phase{};
+    double fadeIn{};
+    double fadeOut{};
 };
 
 class TerrainHeightfield {

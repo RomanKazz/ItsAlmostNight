@@ -39,6 +39,7 @@ class TerrainRenderer {
         int chunkX, int chunkZ) const;
     [[nodiscard]] Model buildMountainBackdrop() const;
     [[nodiscard]] Model buildWaterModel() const;
+    void buildPathMask();
     void updateVisibleChunks(Vector3 focusPosition);
 
     const TerrainHeightfield* terrain_{};
@@ -49,6 +50,7 @@ class TerrainRenderer {
     int chunkGridCount_{};
     Model mountainBackdropModel_{};
     Model waterModel_{};
+    Texture2D pathMaskTexture_{};
     bool ready_{};
 };
 
