@@ -45,9 +45,21 @@ void App::update() {
         progress->second = objective.progress;
     }
     if (displayedInsight_ < 0.0) displayedInsight_ = progressionSnapshot.currentInsight;
+    const double insightPointProgress =
+        presentation::timelineProgress(
+            insightPointSequenceRemaining_,
+            insightPointSequenceDuration_);
+    if (pendingInsightPointNotification_ > 0 &&
+        insightPointProgress >= 0.35) {
+        statusMessage_ = pendingInsightPointNotification_ == 1
+            ? "SKILL POINT ACQUIRED — PRESS K"
+            : std::to_string(pendingInsightPointNotification_) +
+                  " SKILL POINTS ACQUIRED — PRESS K";
+        statusMessageRemaining_ = 3.0;
+        pendingInsightPointNotification_ = 0;
+    }
     if (insightPointSequenceRemaining_ > 0.0) {
-        const double progress = 1.0 - insightPointSequenceRemaining_ /
-            std::max(0.01, insightPointSequenceDuration_);
+        const double progress = insightPointProgress;
         if (progress < 0.35) {
             displayedInsight_ = insightAnimationBefore_ +
                 (insightAnimationRequirement_ - insightAnimationBefore_) * (progress / 0.35);

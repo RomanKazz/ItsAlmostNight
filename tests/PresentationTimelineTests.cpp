@@ -15,6 +15,18 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    requireNear(
+        ian::presentation::timelineProgress(0.48, 0.48),
+        0.0, 1e-9,
+        "point notification waits at timeline start");
+    require(
+        ian::presentation::timelineProgress(0.312, 0.48) >= 0.35,
+        "point notification unlocks after insight reaches requirement");
+    requireNear(
+        ian::presentation::timelineProgress(0.0, 0.48),
+        1.0, 1e-9,
+        "completed point timeline cannot lose its notification");
+
     require(
         ian::actionModeUsesEquipment(ian::ActionMode::Tools) &&
             ian::actionModeUsesEquipment(ian::ActionMode::Weapons) &&

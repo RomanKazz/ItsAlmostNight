@@ -8,6 +8,13 @@
 
 namespace ian::presentation {
 
+[[nodiscard]] inline double timelineProgress(
+    double remaining, double duration) {
+    return std::clamp(
+        1.0 - remaining / std::max(0.01, duration),
+        0.0, 1.0);
+}
+
 inline void advanceTimeline(
     std::vector<PresentationEffect>& effects,
     double deltaSeconds) {

@@ -381,6 +381,7 @@ class App {
     double insightAnimationAfter_{};
     double insightAnimationRequirement_{100.0};
     int insightAnimationPoints_{};
+    int pendingInsightPointNotification_{};
     std::unordered_map<std::string, double>
         objectiveProgressCache_;
     std::string objectivePulseId_;

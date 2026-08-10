@@ -101,6 +101,7 @@ void App::processPresentationEvents(
             insightGainAmount_ = 0.0;
             insightGainRemaining_ = 0.0;
             insightPointSequenceRemaining_ = 0.0;
+            pendingInsightPointNotification_ = 0;
             objectiveProgressCache_.clear();
             objectivePulseId_.clear();
             objectivePulseRemaining_ = 0.0;
@@ -124,11 +125,8 @@ void App::processPresentationEvents(
                 insightAnimationAfter_ = event.insightAfter;
                 insightAnimationRequirement_ = event.insightRequirement;
                 insightAnimationPoints_ = event.treePointsGranted;
-                statusMessage_ = event.treePointsGranted == 1
-                    ? "SKILL POINT ACQUIRED — PRESS K"
-                    : std::to_string(event.treePointsGranted) +
-                          " SKILL POINTS ACQUIRED — PRESS K";
-                statusMessageRemaining_ = 3.0;
+                pendingInsightPointNotification_ +=
+                    event.treePointsGranted;
             } else if (event.insightAmount >= insightConfig.hudLargeRewardThreshold &&
                        event.insightSource &&
                        *event.insightSource != InsightSource::Objective) {
