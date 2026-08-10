@@ -672,6 +672,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 if (shoreDistance < 0.15F) {
                     continue;
                 }
+                if (terrainHeightfield_ != nullptr &&
+                    terrainHeightfield_->pathAmount(x, z) > 0.08) {
+                    continue;
+                }
 
                 const float cluster = clusterNoise(x, z);
                 float shapedCluster = std::clamp(

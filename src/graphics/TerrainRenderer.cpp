@@ -212,8 +212,15 @@ Model TerrainRenderer::buildChunk(
                 0.0, 1.0);
             const auto shade = static_cast<unsigned char>(
                 std::lround(255.0 - wetShore * 36.0));
+            const double path = terrain_->pathAmount(worldX, worldZ);
+            const auto pathGreen = static_cast<unsigned char>(
+                std::lround(std::clamp(
+                    static_cast<double>(shade) - path * 74.0,
+                    0.0, 255.0)));
             mesh.colors[index * 4] = shade;
-            mesh.colors[index * 4 + 1] = shade;
+            // R-G stores path coverage. Mountain backdrop uses the same
+            // channel only behind the playable terrain, where R-B is nonzero.
+            mesh.colors[index * 4 + 1] = pathGreen;
             mesh.colors[index * 4 + 2] = shade;
             mesh.colors[index * 4 + 3] = 255U;
         }

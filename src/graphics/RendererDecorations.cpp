@@ -215,6 +215,10 @@ void Renderer::drawDecorativeRocks(
                 terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
             }
+            if (terrainHeightfield_ != nullptr &&
+                terrainHeightfield_->pathAmount(x, z) > 0.06) {
+                continue;
+            }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
@@ -327,6 +331,10 @@ void Renderer::drawDecorativeRocks(
             }
             if (terrainHeightfield_ != nullptr &&
                 terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
+                continue;
+            }
+            if (terrainHeightfield_ != nullptr &&
+                terrainHeightfield_->pathAmount(x, z) > 0.06) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -618,6 +626,9 @@ void Renderer::drawDecorativeRockAo(
             if (terrainHeightfield_->waterSignedDistance(x, z) < 0.7) {
                 continue;
             }
+            if (terrainHeightfield_->pathAmount(x, z) > 0.06) {
+                continue;
+            }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
             if (cameraX * cameraX + cameraZ * cameraZ >
@@ -689,6 +700,9 @@ void Renderer::drawDecorativeRockAo(
                 continue;
             }
             if (terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
+                continue;
+            }
+            if (terrainHeightfield_->pathAmount(x, z) > 0.06) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;

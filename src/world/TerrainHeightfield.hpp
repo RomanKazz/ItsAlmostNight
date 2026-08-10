@@ -27,6 +27,15 @@ struct PondDefinition {
     double islandRadius{};
 };
 
+struct TerrainPathDefinition {
+    double fromX{};
+    double fromZ{};
+    double toX{};
+    double toZ{};
+    double halfWidth{};
+    double phase{};
+};
+
 class TerrainHeightfield {
   public:
     explicit TerrainHeightfield(
@@ -66,6 +75,10 @@ class TerrainHeightfield {
         double worldX, double worldZ) const;
     [[nodiscard]] double waterMovementMultiplier(
         double worldX, double worldZ) const;
+    // Smooth deterministic mask for routes joining the central clearing to
+    // the outer build plateaus. Zero is ordinary terrain, one is path core.
+    [[nodiscard]] double pathAmount(
+        double worldX, double worldZ) const;
 
   private:
     [[nodiscard]] std::size_t sampleIndex(
@@ -76,6 +89,7 @@ class TerrainHeightfield {
     double spacing_{};
     std::vector<float> heights_;
     std::vector<PondDefinition> ponds_;
+    std::vector<TerrainPathDefinition> paths_;
     double minimumHeight_{};
     double maximumHeight_{};
 };

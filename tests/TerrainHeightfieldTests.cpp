@@ -323,6 +323,25 @@ void runTerrainHeightfieldTests() {
     require(
         plateauMaximum - plateauMinimum < 0.02,
         "terrain provides wide deterministic build plateaus");
+    require(
+        defaultTerrain.pathAmount(
+            EastPlateauX * 0.5,
+            EastPlateauZ * 0.5) > 0.75,
+        "terrain generates a visible route to each build plateau");
+    require(
+        defaultTerrain.pathAmount(
+            EastPlateauX * 0.5 + 8.0,
+            EastPlateauZ * 0.5 + 10.0) < 0.05,
+        "procedural path mask stays local to its route");
+    requireNear(
+        deterministicPonds.pathAmount(
+            EastPlateauX * 0.5,
+            EastPlateauZ * 0.5),
+        defaultTerrain.pathAmount(
+            EastPlateauX * 0.5,
+            EastPlateauZ * 0.5),
+        1e-12,
+        "procedural path layout is deterministic");
     double maximumConnectionStep = 0.0;
     double previousConnectionHeight =
         defaultTerrain.getHeight(0.0, 0.0);

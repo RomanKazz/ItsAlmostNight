@@ -32,7 +32,7 @@ void main()
     float luminance =
         dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
     albedo.rgb =
-        mix(vec3(luminance), albedo.rgb, 1.38);
+        mix(vec3(luminance), albedo.rgb, 1.12);
     vec3 normal = normalize(fragNormal);
     if (!gl_FrontFacing)
     {
@@ -86,6 +86,10 @@ void main()
     }
     vec3 atmosphereColor =
         mix(fogColor, skyAmbientColor, 0.14 + fogDistance*0.08);
+    float preFogLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    litColor = mix(
+        litColor, vec3(preFogLuminance), fogAmount*0.34);
     litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float litLuminance =

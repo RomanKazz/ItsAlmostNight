@@ -144,6 +144,20 @@ vec3 terrainMaterial(
     terrain = mix(terrain, wetEarth,
                   shoreWeight*(0.62 + shoreVariation*0.16));
 
+    // Playable terrain stores procedural path coverage as R-G. R and B stay
+    // equal, keeping this independent from mountain and shoreline masks.
+    float pathWeight = clamp(
+        (vertexColor.r - vertexColor.g)/(74.0/255.0), 0.0, 1.0);
+    float pathDetail = valueNoise(
+        worldXZ*0.31 + vec2(-12.4, 26.8));
+    vec3 pathEarth = mix(
+        terrainDirtTint*0.70,
+        vec3(0.47, 0.34, 0.18),
+        pathDetail*0.34 + 0.16);
+    float packedEarth = smoothstep(0.08, 0.88, pathWeight);
+    terrain = mix(
+        terrain, pathEarth*(0.91 + pathDetail*0.12), packedEarth*0.94);
+
     // Backdrop vertices encode a mountain amount as R-B. In-map terrain
     // keeps all three channels equal, so this mask cannot turn shoreline
     // pixels into rock. The transition is green at the map edge, then
@@ -327,7 +341,7 @@ void main()
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(
         litColor, vec3(preFogLuminance),
-        fogAmount*0.16);
+        fogAmount*0.34);
     litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));

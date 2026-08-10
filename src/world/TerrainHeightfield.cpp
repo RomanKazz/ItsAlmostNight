@@ -203,6 +203,40 @@ makeBuildPlateaus(
     return plateaus;
 }
 
+[[nodiscard]] std::vector<TerrainPathDefinition>
+makeTerrainPaths(
+    const std::vector<TerrainPlateau>& plateaus,
+    const WorldConfig& config,
+    std::uint32_t seed) {
+    std::vector<TerrainPathDefinition> paths;
+    if (plateaus.size() < 2U) {
+        return paths;
+    }
+    paths.reserve(plateaus.size() - 1U);
+    const TerrainPlateau& center = plateaus.front();
+    for (std::size_t index = 1U; index < plateaus.size(); ++index) {
+        const TerrainPlateau& destination = plateaus[index];
+        const std::uint32_t hash = mixBits(
+            seed ^ static_cast<std::uint32_t>(index) * 0x9e3779b9U ^
+            0x6c8e9cf5U);
+        paths.push_back({
+            .fromX = center.x,
+            .fromZ = center.z,
+            .toX = destination.x,
+            .toZ = destination.z,
+            .halfWidth = std::clamp(
+                config.terrainBuildPlateauRadius * 0.20,
+                2.15, 3.0),
+            .phase =
+                static_cast<double>(hash) /
+                static_cast<double>(
+                    std::numeric_limits<std::uint32_t>::max()) *
+                6.28318530717958647692,
+        });
+    }
+    return paths;
+}
+
 [[nodiscard]] TerrainShape shapeInteriorTerrain(
     double worldX, double worldZ,
     const WorldConfig& config,
@@ -406,6 +440,7 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
         config_.terrainWorldSize * 0.5;
     const std::vector<TerrainPlateau> plateaus =
         makeBuildPlateaus(config_, seed_);
+    paths_ = makeTerrainPaths(plateaus, config_, seed_);
     ponds_.clear();
     for (int z = 0; z < size; ++z) {
         const double worldZ =
@@ -500,6 +535,9 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
                 std::abs(z) <= radiusZ + RouteHalfWidth ||
                 std::hypot(x, z) <=
                     maximumRadius + config_.coreFlatRadius + 10.0) {
+                continue;
+            }
+            if (pathAmount(x, z) > 0.02) {
                 continue;
             }
             bool overlapsProtected = false;
@@ -909,6 +947,39 @@ double TerrainHeightfield::waterMovementMultiplier(
         0.0, 1.0));
     return interpolate(
         1.0, config_.pondShallowMovementMultiplier, amount);
+}
+
+double TerrainHeightfield::pathAmount(
+    double worldX, double worldZ) const {
+    if (!std::isfinite(worldX) || !std::isfinite(worldZ)) {
+        return 0.0;
+    }
+    double amount = 0.0;
+    for (const TerrainPathDefinition& path : paths_) {
+        TerrainPlateau from{
+            .x = path.fromX,
+            .z = path.fromZ,
+        };
+        TerrainPlateau to{
+            .x = path.toX,
+            .z = path.toZ,
+        };
+        double progress = 0.0;
+        const double distance = distanceToSegment(
+            worldX, worldZ, from, to, progress);
+        const double edgeNoise = valueNoise(
+            worldX * 0.085 + std::cos(path.phase) * 9.0,
+            worldZ * 0.085 + std::sin(path.phase) * 9.0,
+            seed_ ^ 0xb5297a4dU);
+        const double meander = std::sin(
+            progress * 11.0 + path.phase) * 0.22;
+        const double width = path.halfWidth +
+            edgeNoise * 0.52 + meander;
+        const double pathMask = 1.0 - smoother(
+            (distance - width) / 1.15);
+        amount = std::max(amount, pathMask);
+    }
+    return std::clamp(amount, 0.0, 1.0);
 }
 
 std::size_t TerrainHeightfield::sampleIndex(
