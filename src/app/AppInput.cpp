@@ -1454,6 +1454,7 @@ void App::processInput() {
                 };
             } else if (mousePrimaryPressed &&
                 !pendingBuildingSelection_ &&
+                !currentSnapshot.aimedEnemy &&
                 currentSnapshot.aimedBuilding) {
                 if (buildingContextCardTarget_ ==
                     currentSnapshot.aimedBuilding) {
