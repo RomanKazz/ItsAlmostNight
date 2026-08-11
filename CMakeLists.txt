@@ -188,6 +188,7 @@ target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression)
 
 add_executable(its_almost_night
     src/app/App.cpp
+    src/app/AppActionModes.cpp
     src/app/AppEffects.cpp
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppEventPresentation.cpp
