@@ -23,6 +23,36 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::GameBalance objectiveBalance =
+            ian::GameBalance::defaults();
+        objectiveBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        ian::MapDefinition objectiveMap =
+            ian::MapDefinition::defaults();
+        objectiveMap.obstacles.clear();
+        ian::WorldConfig objectiveWorld =
+            ian::WorldConfig::defaults();
+        objectiveWorld.terrainAmplitude = 0.0;
+        ian::Simulation objectiveSimulation{
+            objectiveBalance, objectiveMap, objectiveWorld};
+        objectiveSimulation.startRun();
+        static_cast<void>(objectiveSimulation.takeEvents());
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        objectiveSimulation.tick(1.0 / 60.0, placeCore);
+        const auto events = objectiveSimulation.takeEvents();
+        require(
+            std::ranges::any_of(
+                events, [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::ObjectiveCompleted &&
+                        event.objectiveId == "buildings_1" &&
+                        event.intensity == 4.0;
+                }),
+            "placing a building completes its small Insight objective");
+    }
+    {
         ian::GameBalance earlyBalance =
             ian::GameBalance::defaults();
         earlyBalance.buildings[static_cast<std::size_t>(
@@ -96,9 +126,9 @@ void runSimulationTests() {
             "starting early grants advertised crystals and Gold");
         requireNear(
             earlySimulation.snapshot().currentInsight,
-            insightBeforeEarlyStart + advertisedInsight,
+            insightBeforeEarlyStart + advertisedInsight + 6.0,
             1e-9,
-            "starting early grants advertised Hourglass Insight");
+            "starting early grants Hourglass and small-objective Insight");
         const auto earlyEvents = earlySimulation.takeEvents();
         require(
             std::ranges::any_of(
@@ -112,6 +142,16 @@ void runSimulationTests() {
                         event.insightAmount == advertisedInsight;
                 }),
             "early-wave bonus emits a presentation event once");
+        require(
+            std::ranges::any_of(
+                earlyEvents,
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::ObjectiveCompleted &&
+                        event.objectiveId == "early_waves_1" &&
+                        event.intensity == 6.0;
+                }),
+            "early wave start completes its first objective step");
     }
     {
         ian::GameBalance blueprintBalance =

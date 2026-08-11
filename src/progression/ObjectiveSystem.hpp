@@ -2,6 +2,8 @@
 
 #include "core/Types.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -29,6 +31,27 @@ enum class ObjectiveMetric : std::uint8_t {
     ConsecutiveDepletions,
     NightResourcesGathered,
     FarResourceGathered,
+    EnemiesKilled,
+    BuildingsPlaced,
+    ModularPiecesPlaced,
+    BuildingsUpgraded,
+    StructuresRepaired,
+    WavesCompleted,
+    CoinsCollected,
+    ChestsOpened,
+    LootCollected,
+    PlayerDashes,
+    RifleShots,
+    ElementalHits,
+    TrapHits,
+    CannonShots,
+    BombsThrown,
+    EarlyWavesStarted,
+    StructuresFortified,
+    GatesToggled,
+    BuildingsSold,
+    FallsSaved,
+    Count,
 };
 
 struct ObjectiveDefinition {
@@ -95,6 +118,7 @@ struct ObjectiveRunState {
     int nightResourcesGathered{};
     int farResourcesGathered{};
     std::vector<std::pair<double, int>> recentGathering;
+    std::vector<int> eventMetricProgress;
 };
 
 class ObjectiveSystem {
@@ -107,6 +131,8 @@ class ObjectiveSystem {
         const ObjectiveResourceEvent& event);
     [[nodiscard]] std::vector<ObjectiveCompletion> onCrystalsGathered(
         int amount, double elapsedSeconds, bool night);
+    [[nodiscard]] std::vector<ObjectiveCompletion> onGameplayEvent(
+        ObjectiveMetric metric, int amount, double elapsedSeconds);
     void onGatheringMiss();
     [[nodiscard]] std::vector<ObjectiveCompletion> beginNewDay();
     void reset();
@@ -139,6 +165,8 @@ class ObjectiveSystem {
     int nightResourcesGathered_{};
     int farResourcesGathered_{};
     std::deque<std::pair<double, int>> recentGathering_;
+    std::array<int, static_cast<std::size_t>(ObjectiveMetric::Count)>
+        eventMetricProgress_{};
 };
 
 [[nodiscard]] const char* objectiveKindName(ObjectiveKind kind);

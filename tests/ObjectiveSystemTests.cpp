@@ -89,17 +89,54 @@ void worldEventAndSaveStateWork() {
             "new run clears objective state");
 }
 
+void gameplayEventsFeedSmallObjectiveChains() {
+    ian::ObjectiveSystem objectives;
+    const auto enemyCompletions = objectives.onGameplayEvent(
+        ian::ObjectiveMetric::EnemiesKilled, 3, 5.0);
+    require(
+        status(objectives, "enemies_3").completed &&
+            !status(objectives, "enemies_10").completed &&
+            enemyCompletions.size() == 1 &&
+            enemyCompletions.front().insightReward == 4.0,
+        "small combat objective completes from event counters");
+    static_cast<void>(objectives.onGameplayEvent(
+        ian::ObjectiveMetric::BuildingsPlaced, 1, 6.0));
+    static_cast<void>(objectives.onGameplayEvent(
+        ian::ObjectiveMetric::CoinsCollected, 12, 7.0));
+    require(
+        status(objectives, "buildings_1").completed &&
+            status(objectives, "coins_10").completed,
+        "construction and economy events use the same objective path");
+
+    const auto saved = objectives.saveState();
+    ian::ObjectiveSystem loaded;
+    require(
+        loaded.loadState(saved) &&
+            status(loaded, "enemies_10").progress == 3.0 &&
+            status(loaded, "coins_50").progress == 12.0,
+        "generic gameplay objective counters survive save and load");
+}
+
 void dataDrivenDefinitionsLoad() {
+    require(
+        ian::ObjectiveSystem::defaultDefinitions().size() == 85,
+        "fallback objective pool matches data-driven content");
     const auto definitions = ian::loadObjectiveDefinitions(
         IAN_SOURCE_DIR "/assets/data/objectives.json");
-    require(definitions.size() == 24,
-            "objective data file exposes the complete prototype list");
+    require(definitions.size() == 85,
+            "objective data file exposes the expanded objective pool");
     require(std::ranges::any_of(definitions, [](const ian::ObjectiveDefinition& value) {
                 return value.id == "far_from_home" &&
                        value.kind == ian::ObjectiveKind::WorldEvent &&
                        value.insightReward == 30.0;
             }),
             "world-event definition and reward load from data");
+    require(std::ranges::any_of(definitions, [](const ian::ObjectiveDefinition& value) {
+                return value.id == "elemental_hits_10" &&
+                       value.metric == ian::ObjectiveMetric::ElementalHits &&
+                       value.insightReward == 4.0;
+            }),
+            "new gameplay objective metrics load from data");
 }
 
 } // namespace
@@ -109,5 +146,6 @@ void runObjectiveSystemTests() {
     gatheringChallengesUseTimeAndMisses();
     dayConditionsAndChallengeRotationWork();
     worldEventAndSaveStateWork();
+    gameplayEventsFeedSmallObjectiveChains();
     dataDrivenDefinitionsLoad();
 }

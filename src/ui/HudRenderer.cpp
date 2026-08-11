@@ -186,6 +186,48 @@ std::string objectiveInstruction(
         return "Gather 30 resources during the night";
     case ObjectiveMetric::FarResourceGathered:
         return "Gather a resource far away from the Core";
+    case ObjectiveMetric::EnemiesKilled:
+        return "Defeat enemies by any means";
+    case ObjectiveMetric::BuildingsPlaced:
+        return "Place complete buildings";
+    case ObjectiveMetric::ModularPiecesPlaced:
+        return "Place platforms, walls, ramps or gates";
+    case ObjectiveMetric::BuildingsUpgraded:
+        return "Upgrade existing buildings";
+    case ObjectiveMetric::StructuresRepaired:
+        return "Repair damaged buildings or modular pieces";
+    case ObjectiveMetric::WavesCompleted:
+        return "Survive enemy waves";
+    case ObjectiveMetric::CoinsCollected:
+        return "Pick up Gold dropped in the world";
+    case ObjectiveMetric::ChestsOpened:
+        return "Open loot chests";
+    case ObjectiveMetric::LootCollected:
+        return "Collect items from chests or props";
+    case ObjectiveMetric::PlayerDashes:
+        return "Use Dash while moving";
+    case ObjectiveMetric::RifleShots:
+        return "Fire the rifle";
+    case ObjectiveMetric::ElementalHits:
+        return "Damage enemies with Ice or Fire Wand";
+    case ObjectiveMetric::TrapHits:
+        return "Let traps hit enemies";
+    case ObjectiveMetric::CannonShots:
+        return "Let cannons fire at enemies";
+    case ObjectiveMetric::BombsThrown:
+        return "Throw bombs";
+    case ObjectiveMetric::EarlyWavesStarted:
+        return "Start waves early enough to earn a reward";
+    case ObjectiveMetric::StructuresFortified:
+        return "Use the hammer to fortify structures";
+    case ObjectiveMetric::GatesToggled:
+        return "Open or close gates";
+    case ObjectiveMetric::BuildingsSold:
+        return "Sell buildings";
+    case ObjectiveMetric::FallsSaved:
+        return "Use Rope to survive a lethal fall";
+    case ObjectiveMetric::Count:
+        break;
     }
     return objective.title;
 }

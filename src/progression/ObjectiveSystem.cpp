@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <unordered_map>
 
 namespace ian {
@@ -52,6 +53,46 @@ std::vector<ObjectiveDefinition> ObjectiveSystem::defaultDefinitions() {
              {10, 50, 200, 500}, {10, 20, 40, 75});
     addChain("resources", "Gather resources", ObjectiveMetric::TotalResourcesGathered,
              {100, 500, 1000}, {10, 30, 60});
+    addChain("enemies", "Defeat enemies", ObjectiveMetric::EnemiesKilled,
+             {3, 10, 25, 50, 100}, {4, 7, 12, 18, 28});
+    addChain("buildings", "Place buildings", ObjectiveMetric::BuildingsPlaced,
+             {1, 5, 12, 25}, {4, 8, 14, 22});
+    addChain("modular", "Place floor pieces", ObjectiveMetric::ModularPiecesPlaced,
+             {5, 15, 40, 100}, {4, 8, 15, 25});
+    addChain("upgrades", "Upgrade buildings", ObjectiveMetric::BuildingsUpgraded,
+             {1, 3, 8}, {5, 9, 16});
+    addChain("repairs", "Repair structures", ObjectiveMetric::StructuresRepaired,
+             {1, 5, 15}, {4, 8, 14});
+    addChain("waves", "Survive waves", ObjectiveMetric::WavesCompleted,
+             {1, 2, 4, 7}, {8, 12, 20, 32});
+    addChain("coins", "Collect Gold", ObjectiveMetric::CoinsCollected,
+             {10, 50, 150, 400}, {4, 8, 14, 22});
+    addChain("chests", "Open chests", ObjectiveMetric::ChestsOpened,
+             {1, 3, 8}, {5, 9, 16});
+    addChain("loot", "Collect items", ObjectiveMetric::LootCollected,
+             {1, 5, 12}, {5, 10, 18});
+    addChain("dashes", "Use Dash", ObjectiveMetric::PlayerDashes,
+             {5, 20, 50}, {3, 6, 10});
+    addChain("rifle_shots", "Fire rifle shots", ObjectiveMetric::RifleShots,
+             {10, 30, 75}, {4, 8, 13});
+    addChain("elemental_hits", "Hit with wands", ObjectiveMetric::ElementalHits,
+             {10, 30, 75}, {4, 8, 13});
+    addChain("trap_hits", "Hit with traps", ObjectiveMetric::TrapHits,
+             {5, 20, 50}, {4, 8, 14});
+    addChain("cannon_shots", "Fire cannon shots", ObjectiveMetric::CannonShots,
+             {5, 20, 50}, {4, 8, 14});
+    addChain("bombs", "Throw bombs", ObjectiveMetric::BombsThrown,
+             {1, 5, 15}, {4, 8, 14});
+    addChain("early_waves", "Start waves early", ObjectiveMetric::EarlyWavesStarted,
+             {1, 3, 6}, {6, 12, 20});
+    addChain("fortifications", "Fortify structures", ObjectiveMetric::StructuresFortified,
+             {1, 5}, {5, 10});
+    addChain("gates", "Toggle gates", ObjectiveMetric::GatesToggled,
+             {3, 10}, {3, 6});
+    addChain("sales", "Sell buildings", ObjectiveMetric::BuildingsSold,
+             {1, 5}, {3, 7});
+    addChain("fall_saves", "Survive lethal falls", ObjectiveMetric::FallsSaved,
+             {1}, {12});
     result.push_back(milestone(
         "large_deposit", "Deep excavation",
         "Fully deplete a large resource deposit",
@@ -112,6 +153,7 @@ void ObjectiveSystem::reset() {
     nightResourcesGathered_ = 0;
     farResourcesGathered_ = 0;
     recentGathering_.clear();
+    eventMetricProgress_.fill(0);
     activateChallenges();
     refreshProgress(0.0);
 }
@@ -166,6 +208,30 @@ void ObjectiveSystem::refreshProgress(double elapsedSeconds) {
         case ObjectiveMetric::ConsecutiveDepletions: status.progress = consecutiveDepletions_; break;
         case ObjectiveMetric::NightResourcesGathered: status.progress = nightResourcesGathered_; break;
         case ObjectiveMetric::FarResourceGathered: status.progress = farResourcesGathered_; break;
+        case ObjectiveMetric::EnemiesKilled:
+        case ObjectiveMetric::BuildingsPlaced:
+        case ObjectiveMetric::ModularPiecesPlaced:
+        case ObjectiveMetric::BuildingsUpgraded:
+        case ObjectiveMetric::StructuresRepaired:
+        case ObjectiveMetric::WavesCompleted:
+        case ObjectiveMetric::CoinsCollected:
+        case ObjectiveMetric::ChestsOpened:
+        case ObjectiveMetric::LootCollected:
+        case ObjectiveMetric::PlayerDashes:
+        case ObjectiveMetric::RifleShots:
+        case ObjectiveMetric::ElementalHits:
+        case ObjectiveMetric::TrapHits:
+        case ObjectiveMetric::CannonShots:
+        case ObjectiveMetric::BombsThrown:
+        case ObjectiveMetric::EarlyWavesStarted:
+        case ObjectiveMetric::StructuresFortified:
+        case ObjectiveMetric::GatesToggled:
+        case ObjectiveMetric::BuildingsSold:
+        case ObjectiveMetric::FallsSaved:
+            status.progress = eventMetricProgress_[
+                static_cast<std::size_t>(status.definition.metric)];
+            break;
+        case ObjectiveMetric::Count: break;
         }
         status.progress = std::min(status.progress, status.definition.target);
     }
@@ -234,6 +300,20 @@ std::vector<ObjectiveCompletion> ObjectiveSystem::onCrystalsGathered(
     return collectCompletions();
 }
 
+std::vector<ObjectiveCompletion> ObjectiveSystem::onGameplayEvent(
+    ObjectiveMetric metric, int amount, double elapsedSeconds) {
+    const auto index = static_cast<std::size_t>(metric);
+    if (metric == ObjectiveMetric::Count ||
+        index >= eventMetricProgress_.size() || amount <= 0) {
+        return {};
+    }
+    const int room = std::numeric_limits<int>::max() -
+        eventMetricProgress_[index];
+    eventMetricProgress_[index] += std::min(room, amount);
+    refreshProgress(elapsedSeconds);
+    return collectCompletions();
+}
+
 void ObjectiveSystem::onGatheringMiss() {
     consecutiveDepletions_ = 0;
     refreshProgress(recentGathering_.empty() ? 0.0 : recentGathering_.back().first);
@@ -295,6 +375,8 @@ ObjectiveRunState ObjectiveSystem::saveState() const {
         state.statuses.push_back({status.definition.id, status.progress,
                                   status.completed, status.active, status.cycle});
     state.recentGathering.assign(recentGathering_.begin(), recentGathering_.end());
+    state.eventMetricProgress.assign(
+        eventMetricProgress_.begin(), eventMetricProgress_.end());
     return state;
 }
 
@@ -306,6 +388,12 @@ bool ObjectiveSystem::loadState(const ObjectiveRunState& state) {
         state.consecutiveDepletions < 0 || state.largeDepositsDepleted < 0 ||
         state.bareHandsDepletions < 0 || state.nightResourcesGathered < 0 ||
         state.farResourcesGathered < 0) return false;
+    if (state.eventMetricProgress.size() > eventMetricProgress_.size() ||
+        std::ranges::any_of(
+            state.eventMetricProgress,
+            [](int progress) { return progress < 0; })) {
+        return false;
+    }
     std::unordered_map<std::string, ObjectiveSavedStatus> saved;
     for (const auto& status : state.statuses) {
         if (!std::isfinite(status.progress) || status.progress < 0.0 ||
@@ -326,6 +414,9 @@ bool ObjectiveSystem::loadState(const ObjectiveRunState& state) {
     loaded.nightResourcesGathered_ = state.nightResourcesGathered;
     loaded.farResourcesGathered_ = state.farResourcesGathered;
     loaded.recentGathering_.assign(state.recentGathering.begin(), state.recentGathering.end());
+    std::ranges::copy(
+        state.eventMetricProgress,
+        loaded.eventMetricProgress_.begin());
     for (auto& status : loaded.statuses_) {
         const auto found = saved.find(status.definition.id);
         if (found == saved.end()) continue;
@@ -375,6 +466,26 @@ std::vector<ObjectiveDefinition> loadObjectiveDefinitions(
                 {"consecutive_depletions", ObjectiveMetric::ConsecutiveDepletions},
                 {"night_resources", ObjectiveMetric::NightResourcesGathered},
                 {"far_resource", ObjectiveMetric::FarResourceGathered},
+                {"enemies_killed", ObjectiveMetric::EnemiesKilled},
+                {"buildings_placed", ObjectiveMetric::BuildingsPlaced},
+                {"modular_pieces", ObjectiveMetric::ModularPiecesPlaced},
+                {"buildings_upgraded", ObjectiveMetric::BuildingsUpgraded},
+                {"structures_repaired", ObjectiveMetric::StructuresRepaired},
+                {"waves_completed", ObjectiveMetric::WavesCompleted},
+                {"coins_collected", ObjectiveMetric::CoinsCollected},
+                {"chests_opened", ObjectiveMetric::ChestsOpened},
+                {"loot_collected", ObjectiveMetric::LootCollected},
+                {"player_dashes", ObjectiveMetric::PlayerDashes},
+                {"rifle_shots", ObjectiveMetric::RifleShots},
+                {"elemental_hits", ObjectiveMetric::ElementalHits},
+                {"trap_hits", ObjectiveMetric::TrapHits},
+                {"cannon_shots", ObjectiveMetric::CannonShots},
+                {"bombs_thrown", ObjectiveMetric::BombsThrown},
+                {"early_waves", ObjectiveMetric::EarlyWavesStarted},
+                {"structures_fortified", ObjectiveMetric::StructuresFortified},
+                {"gates_toggled", ObjectiveMetric::GatesToggled},
+                {"buildings_sold", ObjectiveMetric::BuildingsSold},
+                {"falls_saved", ObjectiveMetric::FallsSaved},
             };
             const auto metric = metrics.find(metricName);
             if (metric == metrics.end())

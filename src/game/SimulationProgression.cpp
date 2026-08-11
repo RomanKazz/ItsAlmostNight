@@ -336,6 +336,11 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
             });
         }
     };
+    const auto recordGameplayObjective =
+        [this, &emitCompletions](ObjectiveMetric metric, int amount = 1) {
+            emitCompletions(objectives_.onGameplayEvent(
+                metric, amount, elapsedSeconds_));
+        };
     for (std::size_t index = firstEvent; index < lastGameplayEvent; ++index) {
         const GameEvent& event = events_[index];
         if ((event.type == GameEventType::ResourceHit ||
@@ -362,7 +367,74 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
         } else if (event.type == GameEventType::ResourceGatherMissed) {
             objectives_.onGatheringMiss();
         } else if (event.type == GameEventType::WaveCompleted) {
+            recordGameplayObjective(ObjectiveMetric::WavesCompleted);
             static_cast<void>(objectives_.beginNewDay());
+        } else {
+            switch (event.type) {
+            case GameEventType::EnemyKilled:
+                recordGameplayObjective(ObjectiveMetric::EnemiesKilled);
+                break;
+            case GameEventType::BuildingPlaced:
+                recordGameplayObjective(ObjectiveMetric::BuildingsPlaced);
+                break;
+            case GameEventType::ModularBuildingPlaced:
+                recordGameplayObjective(ObjectiveMetric::ModularPiecesPlaced);
+                break;
+            case GameEventType::BuildingUpgraded:
+                recordGameplayObjective(ObjectiveMetric::BuildingsUpgraded);
+                break;
+            case GameEventType::BuildingRepaired:
+            case GameEventType::ModularBuildingRepaired:
+                recordGameplayObjective(ObjectiveMetric::StructuresRepaired);
+                break;
+            case GameEventType::CoinCollected:
+                recordGameplayObjective(
+                    ObjectiveMetric::CoinsCollected,
+                    std::max(0, event.amount));
+                break;
+            case GameEventType::ChestOpened:
+                recordGameplayObjective(ObjectiveMetric::ChestsOpened);
+                break;
+            case GameEventType::LootCollected:
+                recordGameplayObjective(ObjectiveMetric::LootCollected);
+                break;
+            case GameEventType::PlayerDashed:
+                recordGameplayObjective(ObjectiveMetric::PlayerDashes);
+                break;
+            case GameEventType::WeaponFired:
+                recordGameplayObjective(ObjectiveMetric::RifleShots);
+                break;
+            case GameEventType::IceWandHit:
+            case GameEventType::FireWandHit:
+                recordGameplayObjective(ObjectiveMetric::ElementalHits);
+                break;
+            case GameEventType::TrapHit:
+                recordGameplayObjective(ObjectiveMetric::TrapHits);
+                break;
+            case GameEventType::CannonFired:
+                recordGameplayObjective(ObjectiveMetric::CannonShots);
+                break;
+            case GameEventType::ConsumableUsed:
+                recordGameplayObjective(ObjectiveMetric::BombsThrown);
+                break;
+            case GameEventType::EarlyWaveBonusGranted:
+                recordGameplayObjective(ObjectiveMetric::EarlyWavesStarted);
+                break;
+            case GameEventType::BuildingFortified:
+                recordGameplayObjective(ObjectiveMetric::StructuresFortified);
+                break;
+            case GameEventType::GateToggled:
+                recordGameplayObjective(ObjectiveMetric::GatesToggled);
+                break;
+            case GameEventType::BuildingSold:
+                recordGameplayObjective(ObjectiveMetric::BuildingsSold);
+                break;
+            case GameEventType::RopeFallSaved:
+                recordGameplayObjective(ObjectiveMetric::FallsSaved);
+                break;
+            default:
+                break;
+            }
         }
     }
 }
