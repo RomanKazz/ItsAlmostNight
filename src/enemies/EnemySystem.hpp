@@ -250,6 +250,7 @@ class EnemySystem {
     void spawnSplitlings(
         EntityId parentId, Vec3 position,
         double healthMultiplier, double damageMultiplier);
+    void markEnemyDead(EnemyInstance& enemy);
     void rebuildSpatialIndex();
     [[nodiscard]] EnemyInstance* findEnemy(EntityId id);
     [[nodiscard]] const EnemyInstance* findEnemy(EntityId id) const;

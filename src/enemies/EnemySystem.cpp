@@ -1666,11 +1666,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     const double damageMultiplier = enemy->damage /
         definitions_[static_cast<std::size_t>(enemy->type)].damage;
     if (killed) {
-        enemy->active = false;
-        --activeCount_;
-        enemy->state = EnemyState::Dead;
-        enemy->target.reset();
-        spatialHashDirty_ = true;
+        markEnemyDead(*enemy);
     }
     const EnemyDamageResult result{
         .id = id,
@@ -1811,11 +1807,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         const double childDamageMultiplier = enemy->damage /
             definitions_[static_cast<std::size_t>(enemy->type)].damage;
         if (killed) {
-            enemy->active = false;
-            --activeCount_;
-            enemy->state = EnemyState::Dead;
-            enemy->target.reset();
-            spatialHashDirty_ = true;
+            markEnemyDead(*enemy);
         }
         areaDamageBuffer_.push_back({
             .id = enemy->id,
@@ -1999,13 +1991,10 @@ std::size_t EnemySystem::defeatAll() {
         if (!enemy.active) {
             continue;
         }
-        enemy.active = false;
         enemy.health = 0.0;
-        enemy.state = EnemyState::Dead;
-        enemy.target.reset();
+        markEnemyDead(enemy);
         ++defeated;
     }
-    activeCount_ = 0;
     rebuildSpatialIndex();
     return defeated;
 }
@@ -2167,6 +2156,19 @@ void EnemySystem::spawnSplitlings(
         if (activeCount_ > before) {
             ++split->childCount;
         }
+    }
+    spatialHashDirty_ = true;
+}
+
+void EnemySystem::markEnemyDead(EnemyInstance& enemy) {
+    if (!enemy.active) {
+        return;
+    }
+    enemy.active = false;
+    enemy.state = EnemyState::Dead;
+    enemy.target.reset();
+    if (activeCount_ > 0U) {
+        --activeCount_;
     }
     spatialHashDirty_ = true;
 }
