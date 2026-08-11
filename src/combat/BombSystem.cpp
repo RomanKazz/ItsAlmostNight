@@ -1,4 +1,5 @@
 #include "combat/BombSystem.hpp"
+#include "core/Geometry.hpp"
 #include "world/TerrainHeightfield.hpp"
 
 #include <algorithm>
@@ -14,9 +15,9 @@ constexpr double BounceTangentRetention = 0.62;
 constexpr double RollingFriction = 1.8;
 constexpr double Pi = 3.14159265358979323846;
 
-double dot(Vec3 a, Vec3 b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
+using geometry::cross;
+using geometry::dot;
+using geometry::scale;
 
 Vec3 subtract(Vec3 value, Vec3 direction, double amount) {
     return {
@@ -26,25 +27,8 @@ Vec3 subtract(Vec3 value, Vec3 direction, double amount) {
     };
 }
 
-Vec3 scale(Vec3 value, double amount) {
-    return {value.x * amount, value.y * amount, value.z * amount};
-}
-
-Vec3 cross(Vec3 a, Vec3 b) {
-    return {
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x,
-    };
-}
-
 Vec3 moveToward(Vec3 value, Vec3 target, double amount) {
-    const double blend = std::clamp(amount, 0.0, 1.0);
-    return {
-        value.x + (target.x - value.x) * blend,
-        value.y + (target.y - value.y) * blend,
-        value.z + (target.z - value.z) * blend,
-    };
+    return geometry::lerpClamped(value, target, amount);
 }
 
 void advanceRotation(BombProjectile& projectile, double step) {

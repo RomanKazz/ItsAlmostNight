@@ -1,6 +1,7 @@
 #include "combat/IceWandSystem.hpp"
 
 #include "buildings/BuildingSystem.hpp"
+#include "core/Geometry.hpp"
 #include "enemies/EnemyCollision.hpp"
 #include "world/TerrainHeightfield.hpp"
 #include "world/MapDefinition.hpp"
@@ -14,31 +15,9 @@ namespace {
 
 constexpr double MinimumDistanceSquared = 1e-12;
 
-double dot(Vec3 left, Vec3 right) {
-    return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-Vec3 add(Vec3 left, Vec3 right) {
-    return {left.x + right.x, left.y + right.y, left.z + right.z};
-}
-
-Vec3 subtract(Vec3 left, Vec3 right) {
-    return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-Vec3 scale(Vec3 value, double factor) {
-    return {value.x * factor, value.y * factor, value.z * factor};
-}
-
-double length(Vec3 value) {
-    return std::sqrt(dot(value, value));
-}
-
-Vec3 normalized(Vec3 value) {
-    const double magnitude = length(value);
-    return magnitude > 1e-9 ? scale(value, 1.0 / magnitude)
-                            : Vec3{0.0, 0.0, -1.0};
-}
+using geometry::add;
+using geometry::scale;
+using geometry::subtract;
 
 std::optional<double> segmentCircleTime(
     Vec3 start, Vec3 end, Vec3 center, double radius) {
@@ -128,7 +107,7 @@ bool IceWandSystem::requestFire(Vec3 origin, Vec3 direction) {
         return false;
     }
     chargeOrigin_ = origin;
-    chargeDirection_ = normalized(direction);
+    chargeDirection_ = geometry::normalizedOr(direction);
     chargeRemaining_ = definition_.chargeUpDuration;
     charging_ = true;
     return true;

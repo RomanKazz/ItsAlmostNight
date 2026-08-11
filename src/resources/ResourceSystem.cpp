@@ -1,5 +1,6 @@
 #include "resources/ResourceSystem.hpp"
 #include "core/DeterministicRandom.hpp"
+#include "core/Geometry.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -75,33 +76,6 @@ ResourceCapacity variedCapacity(
                      static_cast<double>(baseYield) *
                      health / baseHealth)));
     return {health, yield};
-}
-
-double dot(Vec3 left, Vec3 right) {
-    return (left.x * right.x) + (left.y * right.y) + (left.z * right.z);
-}
-
-Vec3 subtract(Vec3 left, Vec3 right) {
-    return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-std::optional<double> raySphereDistance(Vec3 origin, Vec3 direction, const ResourceNode& node) {
-    const Vec3 offset = subtract(origin, node.position);
-    const double halfB = dot(offset, direction);
-    const double c = dot(offset, offset) - (node.radius * node.radius);
-    const double discriminant = (halfB * halfB) - c;
-    if (discriminant < 0.0) {
-        return std::nullopt;
-    }
-
-    const double root = std::sqrt(discriminant);
-    const double nearDistance = -halfB - root;
-    if (nearDistance >= 0.0) {
-        return nearDistance;
-    }
-
-    const double farDistance = -halfB + root;
-    return farDistance >= 0.0 ? std::optional<double>{farDistance} : std::nullopt;
 }
 
 } // namespace
@@ -382,7 +356,8 @@ std::optional<EntityId> ResourceSystem::raycast(Vec3 origin, Vec3 direction,
             continue;
         }
 
-        const auto distance = raySphereDistance(origin, direction, node);
+        const auto distance = geometry::raySphereDistance(
+            origin, direction, node.position, node.radius);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {
             result = node.id;
             closestDistance = *distance;

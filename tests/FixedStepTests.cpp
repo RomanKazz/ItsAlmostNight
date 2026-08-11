@@ -39,6 +39,7 @@ void runPlacementLineTests();
 void runGlbCollisionTests();
 void runSkillTreeTests();
 void runSaturatingArithmeticTests();
+void runGeometryTests();
 void runUserSettingsTests();
 void runLootChestSystemTests();
 void runInsightSystemTests();
@@ -89,6 +90,7 @@ int main() {
     fixedStepProducesSixtyTicksPerSecond();
     fixedStepClampsLongFrames();
     fixedStepIgnoresNonFiniteFrames();
+    runGeometryTests();
     runSaturatingArithmeticTests();
     runUserSettingsTests();
     runGameBalanceTests();

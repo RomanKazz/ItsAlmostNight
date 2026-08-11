@@ -1,6 +1,7 @@
 #include "game/LootChestSystem.hpp"
 
 #include "core/DeterministicRandom.hpp"
+#include "core/Geometry.hpp"
 #include "core/SurfaceBasis.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -26,33 +27,6 @@ constexpr double LootBobAmplitude = 0.072;
 // A slightly generous silhouette makes a hovering reward easy to target
 // without making nearby chest interactions ambiguous.
 constexpr double LootRaycastRadius = 0.72;
-
-double distanceSquared(Vec3 left, Vec3 right) {
-    const double x = left.x - right.x;
-    const double y = left.y - right.y;
-    const double z = left.z - right.z;
-    return x * x + y * y + z * z;
-}
-
-std::optional<double> raySphereDistance(
-    Vec3 origin, Vec3 direction, Vec3 center, double radius) {
-    const Vec3 offset{
-        origin.x - center.x,
-        origin.y - center.y,
-        origin.z - center.z,
-    };
-    const double halfB = offset.x * direction.x +
-        offset.y * direction.y + offset.z * direction.z;
-    const double c = distanceSquared(origin, center) - radius * radius;
-    const double discriminant = halfB * halfB - c;
-    if (discriminant < 0.0) return std::nullopt;
-    const double root = std::sqrt(discriminant);
-    const double nearDistance = -halfB - root;
-    if (nearDistance >= 0.0) return nearDistance;
-    const double farDistance = -halfB + root;
-    return farDistance >= 0.0 ? std::optional<double>{farDistance}
-                              : std::nullopt;
-}
 
 ChestLoot makeLoot(EntityId chestId, Vec3 position) {
     const std::uint64_t seed =
@@ -211,19 +185,21 @@ void LootChestSystem::spawnAdditionalChests(
         position.y = terrain.getHeight(position.x, position.z);
         if (terrain.waterSignedDistance(position.x, position.z) < 2.5 ||
             terrain.getNormal(position.x, position.z).y < 0.82 ||
-            distanceSquared(position, playerSpawn) < 100.0) {
+            geometry::distanceSquared(position, playerSpawn) < 100.0) {
             continue;
         }
         const bool resourceBlocked = std::any_of(
             resources.begin(), resources.end(),
             [position](const ResourceNode& resource) {
                 return resource.active &&
-                    distanceSquared(position, resource.position) < 12.25;
+                    geometry::distanceSquared(
+                        position, resource.position) < 12.25;
             });
         const bool chestBlocked = std::any_of(
             chests_.begin(), chests_.end(),
             [position](const LootChestInstance& chest) {
-                return distanceSquared(position, chest.position) < 64.0;
+                return geometry::distanceSquared(
+                    position, chest.position) < 64.0;
             });
         if (resourceBlocked || chestBlocked) continue;
 
@@ -275,7 +251,7 @@ std::optional<EntityId> LootChestSystem::raycastChest(
         if (chest.state != LootChestState::Closed) continue;
         Vec3 center = chest.position;
         center.y += 0.55;
-        const auto distance = raySphereDistance(
+        const auto distance = geometry::raySphereDistance(
             origin, direction, center, 0.72);
         if (distance && *distance <= closestDistance) {
             closestDistance = *distance;
@@ -293,7 +269,7 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
         if (!chest.loot.available || chest.loot.collected ||
             chest.loot.pickupDelayRemaining > 0.0) continue;
         const Vec3 center = lootVisualPositionImpl(chest);
-        const auto distance = raySphereDistance(
+        const auto distance = geometry::raySphereDistance(
             origin, direction, center, LootRaycastRadius);
         if (distance && *distance <= closestDistance) {
             closestDistance = *distance;
@@ -352,7 +328,8 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
         const Vec3 itemPosition = lootVisualPositionImpl(chest);
         if (chest.loot.available && !chest.loot.collected &&
             chest.loot.pickupDelayRemaining <= 0.0 &&
-            distanceSquared(playerPosition, itemPosition) <= radius * radius)
+            geometry::distanceSquared(
+                playerPosition, itemPosition) <= radius * radius)
             return collect(chest.loot.id);
     }
     return std::nullopt;

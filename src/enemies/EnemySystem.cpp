@@ -1,5 +1,7 @@
 #include "enemies/EnemySystem.hpp"
 
+#include "core/Geometry.hpp"
+
 #include "world/TerrainHeightfield.hpp"
 #include "world/CollisionWorld.hpp"
 #include "enemies/EnemyCollision.hpp"
@@ -920,92 +922,6 @@ double buildingRadius(BuildingType type) {
                : 0.55;
 }
 
-double dot(Vec3 left, Vec3 right) {
-    return (left.x * right.x) + (left.y * right.y) + (left.z * right.z);
-}
-
-Vec3 subtract(Vec3 left, Vec3 right) {
-    return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-std::optional<double> raySphereDistance(Vec3 origin, Vec3 direction, Vec3 center, double radius) {
-    const Vec3 offset = subtract(origin, center);
-    const double halfB = dot(offset, direction);
-    const double c = dot(offset, offset) - (radius * radius);
-    const double discriminant = (halfB * halfB) - c;
-    if (discriminant < 0.0) {
-        return std::nullopt;
-    }
-
-    const double root = std::sqrt(discriminant);
-    const double nearDistance = -halfB - root;
-    if (nearDistance >= 0.0) {
-        return nearDistance;
-    }
-    const double farDistance = -halfB + root;
-    return farDistance >= 0.0 ? std::optional<double>{farDistance} : std::nullopt;
-}
-
-std::optional<double> rayVerticalCapsuleDistance(
-    Vec3 origin, Vec3 direction, Vec3 center,
-    double radius, double segmentHalfHeight) {
-    double closest = std::numeric_limits<double>::max();
-    const auto accept = [&closest](std::optional<double> distance) {
-        if (distance && *distance >= 0.0 && *distance < closest) {
-            closest = *distance;
-        }
-    };
-
-    // A vertical capsule is the union of its cylindrical body and the two
-    // endpoint spheres. Test all three so aiming remains reliable across the
-    // complete visible height instead of only around the model origin.
-    const double offsetX = origin.x - center.x;
-    const double offsetZ = origin.z - center.z;
-    const double horizontalDirectionSquared =
-        direction.x * direction.x + direction.z * direction.z;
-    const double horizontalOffsetSquared =
-        offsetX * offsetX + offsetZ * offsetZ;
-    const double minimumY = center.y - segmentHalfHeight;
-    const double maximumY = center.y + segmentHalfHeight;
-    if (horizontalOffsetSquared <= radius * radius &&
-        origin.y >= minimumY && origin.y <= maximumY) {
-        closest = 0.0;
-    }
-    if (horizontalDirectionSquared > 1e-12) {
-        const double halfB =
-            offsetX * direction.x + offsetZ * direction.z;
-        const double c = horizontalOffsetSquared - radius * radius;
-        const double discriminant =
-            halfB * halfB - horizontalDirectionSquared * c;
-        if (discriminant >= 0.0) {
-            const double root = std::sqrt(discriminant);
-            const std::array distances{
-                (-halfB - root) / horizontalDirectionSquared,
-                (-halfB + root) / horizontalDirectionSquared,
-            };
-            for (const double distance : distances) {
-                if (distance < 0.0) {
-                    continue;
-                }
-                const double hitY = origin.y + direction.y * distance;
-                if (hitY >= minimumY && hitY <= maximumY) {
-                    closest = std::min(closest, distance);
-                }
-            }
-        }
-    }
-    Vec3 lower = center;
-    lower.y = minimumY;
-    Vec3 upper = center;
-    upper.y = maximumY;
-    accept(raySphereDistance(origin, direction, lower, radius));
-    accept(raySphereDistance(origin, direction, upper, radius));
-    if (closest == std::numeric_limits<double>::max()) {
-        return std::nullopt;
-    }
-    return closest;
-}
-
 } // namespace
 
 bool enemyUsesForwardSurfaceProbe(EnemyState state) {
@@ -1720,7 +1636,7 @@ std::optional<EntityId> EnemySystem::raycast(
             center.y += terrain->getHeight(center.x, center.z);
         }
         center.y += enemy.surfaceHeightOffset;
-        const auto distance = rayVerticalCapsuleDistance(
+        const auto distance = geometry::rayVerticalCapsuleDistance(
             origin, direction, center, capsule.radius,
             capsule.segmentHalfHeight);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {

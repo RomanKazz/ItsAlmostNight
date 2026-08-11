@@ -257,6 +257,7 @@ endif()
 if(BUILD_TESTING)
     add_executable(ian_tests
         tests/FixedStepTests.cpp
+        tests/GeometryTests.cpp
         tests/SaturatingArithmeticTests.cpp
         tests/DeterministicRandomTests.cpp
         tests/DecorationExclusionMapTests.cpp
