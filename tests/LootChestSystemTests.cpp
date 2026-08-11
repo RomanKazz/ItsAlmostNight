@@ -156,11 +156,29 @@ void runLootChestSystemTests() {
     require(
         chests.chests().size() == beforeLoose + 1U &&
             loose.looseLoot && loose.loot.available &&
-            loose.loot.rarity == ian::LootRarity::Legendary,
+            loose.loot.rarity == ian::LootRarity::Legendary &&
+            loose.loot.revealProgress == 0.0,
         "destroyed item crates can spawn collectible legendary loot");
+    const ian::Vec3 looseStartPosition =
+        ian::lootVisualPosition(loose);
     require(!chests.collect(loose.loot.id).has_value(),
             "loose crate loot cannot be collected before it is readable");
-    chests.tick(1.36);
+    chests.tick(0.19);
+    require(
+        chests.chests().back().loot.revealProgress > 0.0 &&
+            chests.chests().back().loot.revealProgress < 1.0,
+        "loose crate loot scales in instead of appearing instantly");
+    const ian::Vec3 looseMidRevealPosition =
+        ian::lootVisualPosition(chests.chests().back());
+    require(
+        std::abs(
+            looseMidRevealPosition.y -
+            looseStartPosition.y) < 0.08,
+        "crate scale-in keeps only the normal hover bob, not chest motion");
+    chests.tick(1.17);
+    requireNear(
+        chests.chests().back().loot.revealProgress, 1.0, 1e-12,
+        "loose crate loot finishes its scale-in animation");
     require(chests.collect(loose.loot.id).has_value(),
             "loose crate loot unlocks normal pickup after its display delay");
 }

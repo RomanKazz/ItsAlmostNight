@@ -16,6 +16,7 @@ namespace {
 
 constexpr std::size_t ChestCount = 10;
 constexpr double OpeningDuration = 1.05;
+constexpr double LooseLootRevealDuration = 0.38;
 // These values are shared by the simulation position, raycast, prompt and
 // render passes. Keep the reward above the chest without adding a permanent
 // forward displacement that becomes visible on sloped chests.
@@ -79,8 +80,12 @@ Vec3 surfaceVector(const SurfaceBasis& basis, Vec3 local) {
 
 Vec3 lootVisualPositionImpl(const LootChestInstance& chest) {
     const double reveal = std::clamp(chest.loot.revealProgress, 0.0, 1.0);
+    // Loose crate drops use revealProgress for the same scale-in animation as
+    // chest loot, but they have no lid to fly out of. Keep their established
+    // final hover position while only their visual scale is revealed.
+    const double motionReveal = chest.looseLoot ? 1.0 : reveal;
     const double eased = 1.0 -
-        std::pow(1.0 - reveal, 3.0);
+        std::pow(1.0 - motionReveal, 3.0);
     const SurfaceBasis basis = makeSurfaceBasis(
         chest.surfaceNormal, chest.yaw);
     const Vec3 localExit{0.0, LootExitHeight, 0.0};
@@ -238,6 +243,13 @@ void LootChestSystem::tick(double deltaSeconds) {
             if (chest.openingProgress >= 1.0)
                 chest.state = LootChestState::Open;
         }
+        if (chest.looseLoot && chest.loot.available &&
+            !chest.loot.collected) {
+            chest.loot.revealProgress = std::min(
+                1.0,
+                chest.loot.revealProgress +
+                    deltaSeconds / LooseLootRevealDuration);
+        }
         if (chest.loot.available && !chest.loot.collected)
             chest.loot.hoverTime += deltaSeconds;
     }
@@ -369,7 +381,7 @@ void LootChestSystem::spawnLooseLoot(
             .effect = pool[mixBits64(seed ^ 0x8ebc6af09c88c6e3ULL) %
                            pool.size()],
             .position = position,
-            .revealProgress = 1.0,
+            .revealProgress = 0.0,
             .pickupDelayRemaining = 1.35,
             .available = true,
         },
