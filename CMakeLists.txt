@@ -174,6 +174,7 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 
 add_library(ian_ui
     src/ui/GameUi.cpp
+    src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
     src/ui/HudMinimap.cpp
     src/ui/InputKeycap.cpp
