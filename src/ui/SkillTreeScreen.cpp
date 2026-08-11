@@ -16,6 +16,7 @@ namespace {
 constexpr float NodeHalfSize = 38.0F;
 constexpr float LargeNodeHalfSize = 50.0F;
 constexpr float RootNodeHalfSize = 48.0F;
+constexpr float NodePositionScale = 1.0F / 1.5F;
 
 float nodeHalfSize(const SkillNodeDefinition& node) {
     if (node.branch == SkillBranch::Root) {
@@ -319,8 +320,8 @@ Vector2 SkillTreeScreen::worldToScreen(SkillTreePoint point) const {
         static_cast<float>(GetScreenHeight()) * 0.5F,
     };
     return {
-        center.x + (point.x + camera_.x) * zoom_,
-        center.y + (point.y + camera_.y) * zoom_,
+        center.x + (point.x * NodePositionScale + camera_.x) * zoom_,
+        center.y + (point.y * NodePositionScale + camera_.y) * zoom_,
     };
 }
 
