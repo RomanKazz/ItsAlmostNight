@@ -80,6 +80,7 @@ add_library(ian_simulation
     src/combat/PlayerWeaponSystem.cpp
     src/economy/GoldMineSystem.cpp
     src/economy/CoinPickupSystem.cpp
+    src/enemies/EnemyCombat.cpp
     src/enemies/EnemyCollision.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
