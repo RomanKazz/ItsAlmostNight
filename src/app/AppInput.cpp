@@ -1517,8 +1517,23 @@ void App::processInput() {
                         if (resource !=
                                 currentSnapshot.resourceNodes.end() &&
                             isHarvestableResource(resource->type)) {
-                            toolSwingUsesAxe_ =
-                                resource->type == ResourceType::Wood;
+                            const PlayerWeapon desiredTool =
+                                resource->type == ResourceType::Wood
+                                    ? PlayerWeapon::Axe
+                                    : PlayerWeapon::Pickaxe;
+                            const bool desiredToolUnlocked =
+                                currentSnapshot.unlimitedResources ||
+                                currentSnapshot.unlockedWeapons[
+                                    static_cast<std::size_t>(
+                                        desiredTool)];
+                            // Keep the animation on the held tool when the
+                            // ideal tool is unavailable. The simulation then
+                            // applies the intended inefficient-tool damage
+                            // (for example, an axe can still mine stone).
+                            if (desiredToolUnlocked) {
+                                toolSwingUsesAxe_ =
+                                    desiredTool == PlayerWeapon::Axe;
+                            }
                         }
                     }
                     if (toolSwingUsesAxe_ ==
