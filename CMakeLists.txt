@@ -158,6 +158,7 @@ add_library(ian_graphics
     src/graphics/Renderer.cpp
     src/graphics/RendererDecorations.cpp
     src/graphics/RendererFramePasses.cpp
+    src/graphics/RendererModelRaycasts.cpp
     src/graphics/RendererModels.cpp
     src/graphics/RendererSettings.cpp
     src/graphics/RendererShaders.cpp
