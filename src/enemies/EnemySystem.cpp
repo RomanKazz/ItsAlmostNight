@@ -943,6 +943,7 @@ EnemySystem::EnemySystem(
     structureGridHeads_.reserve(BuildingGridCellCount);
     collisionEnemyLinks_.reserve(MaxEnemies);
     areaTargetBuffer_.resize(SpatialHash::MaxEntries);
+    pendingSplitBuffer_.reserve(MaxActiveEnemies);
 }
 
 void EnemySystem::reset() {
@@ -958,6 +959,7 @@ void EnemySystem::reset() {
     areaDamageBuffer_.clear();
     statusTargetBuffer_.clear();
     splitEventBuffer_.clear();
+    pendingSplitBuffer_.clear();
     structureBuffer_.clear();
     incomingStructureBuffer_.clear();
     structureNextBuffer_.clear();
@@ -1792,13 +1794,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             : amount;
     const Vec3 impulseOrigin =
         knockbackOrigin.value_or(position);
-    struct PendingSplit {
-        EntityId id;
-        Vec3 position;
-        double healthMultiplier;
-        double damageMultiplier;
-    };
-    std::vector<PendingSplit> pendingSplits;
+    pendingSplitBuffer_.clear();
     for (std::size_t index = 0; index < targetCount; ++index) {
         EnemyInstance* enemy = findEnemy(areaTargetBuffer_[index]);
         if (enemy == nullptr || !enemy->active || amount <= 0.0) {
@@ -1829,7 +1825,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
             .killed = killed,
         });
         if (killed && killedType == EnemyType::Splitter) {
-            pendingSplits.push_back({
+            pendingSplitBuffer_.push_back({
                 .id = enemy->id,
                 .position = enemy->position,
                 .healthMultiplier = childHealthMultiplier,
@@ -1872,14 +1868,14 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
     }
     // Spawn only after resolving the original area target set. Children are
     // never damaged by the same explosion that created them.
-    for (const PendingSplit& split : pendingSplits) {
+    for (const PendingSplit& split : pendingSplitBuffer_) {
         splitEventBuffer_.push_back({
             .parentId = split.id,
             .position = split.position,
             .childCount = 0,
         });
     }
-    for (const PendingSplit& split : pendingSplits) {
+    for (const PendingSplit& split : pendingSplitBuffer_) {
         spawnSplitlings(
             split.id, split.position,
             split.healthMultiplier,

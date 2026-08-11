@@ -3,7 +3,7 @@
 #include "app/ActionModeEquipment.hpp"
 
 #include <algorithm>
-#include <vector>
+#include <array>
 
 namespace ian {
 using namespace app_detail;
@@ -95,25 +95,27 @@ void App::selectNextActionModeItem(
     if (order.empty()) {
         return;
     }
-    std::vector<PlayerWeapon> available;
-    available.reserve(order.size());
+    std::array<PlayerWeapon, PlayerWeaponCount> available{};
+    std::size_t availableCount = 0U;
     for (const PlayerWeapon weapon : order) {
         if (snapshot.unlockedWeapons[
                 static_cast<std::size_t>(weapon)]) {
-            available.push_back(weapon);
+            available[availableCount++] = weapon;
         }
     }
-    if (available.empty()) {
+    if (availableCount == 0U) {
         return;
     }
+    const auto availableItems = std::span{
+        available.data(), availableCount};
     const auto current = std::ranges::find(
-        available, snapshot.selectedWeapon);
+        availableItems, snapshot.selectedWeapon);
     const std::size_t nextIndex =
-        current == available.end()
+        current == availableItems.end()
             ? 0U
             : (static_cast<std::size_t>(
-                   std::distance(available.begin(), current)) + 1U) %
-                  available.size();
+                   std::distance(availableItems.begin(), current)) + 1U) %
+                  availableCount;
     pendingWeaponSelection_ = available[nextIndex];
     if (actionMode_ == ActionMode::Tools) {
         lastToolSelection_ = available[nextIndex];

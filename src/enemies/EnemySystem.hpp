@@ -239,6 +239,13 @@ class EnemySystem {
   private:
     static constexpr std::uint32_t FirstEnemyIndex = 2000;
 
+    struct PendingSplit {
+        EntityId id;
+        Vec3 position;
+        double healthMultiplier;
+        double damageMultiplier;
+    };
+
     void appendEnemy(const EnemySpawn& spawn);
     void spawnSplitlings(
         EntityId parentId, Vec3 position,
@@ -259,6 +266,7 @@ class EnemySystem {
     std::vector<int> structureGridHeads_;
     std::vector<int> collisionEnemyLinks_;
     std::vector<EntityId> areaTargetBuffer_;
+    std::vector<PendingSplit> pendingSplitBuffer_;
     std::size_t activeCount_{};
     std::uint32_t nextIndex_{FirstEnemyIndex};
     SpatialHash spatialHash_;
