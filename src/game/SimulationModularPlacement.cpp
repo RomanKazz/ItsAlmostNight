@@ -11,12 +11,6 @@ namespace {
 
 constexpr double ResourcePlacementClearance = 0.08;
 
-bool canAfford(ResourceCost cost, int wood, int stone, int gold) {
-    return wood >= cost.wood &&
-           stone >= cost.stone &&
-           gold >= cost.gold;
-}
-
 bool resourceOverlapsBox(
     std::span<const ResourceNode> nodes,
     const CollisionBox& box) {

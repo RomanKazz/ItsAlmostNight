@@ -801,9 +801,9 @@ void drawFoundationHotbar(
                 view.selectedModularBuildPiece == index,
             .available =
                 snapshot.unlimitedResources ||
-                (snapshot.wood >= cost.wood &&
-                 snapshot.stone >= cost.stone &&
-                 snapshot.gold >= cost.gold),
+                canAfford(
+                    cost, snapshot.wood,
+                    snapshot.stone, snapshot.gold),
         };
     }
     drawHotbarSlots(
@@ -857,9 +857,9 @@ void drawBuildHotbar(
         }
         const bool affordable =
             snapshot.unlimitedResources ||
-            (snapshot.wood >= cost.wood &&
-             snapshot.stone >= cost.stone &&
-             snapshot.gold >= cost.gold);
+            canAfford(
+                cost, snapshot.wood,
+                snapshot.stone, snapshot.gold);
         const bool available = unlocked && affordable;
         slots[index] = {
             .key = Keys[index],

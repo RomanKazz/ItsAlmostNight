@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.hpp"
+#include "economy/ResourceCost.hpp"
 #include "game/GameBalance.hpp"
 
 #include <cstdint>
@@ -40,15 +41,6 @@ struct GridPosition {
     int z{};
 
     friend bool operator==(const GridPosition&, const GridPosition&) = default;
-};
-
-struct ResourceCost {
-    int wood{};
-    int stone{};
-    int gold{};
-
-    friend bool operator==(
-        const ResourceCost&, const ResourceCost&) = default;
 };
 
 struct BuildingInstance {

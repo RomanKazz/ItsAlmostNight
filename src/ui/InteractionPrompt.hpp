@@ -1,8 +1,8 @@
 #pragma once
 
 #include "app/UserSettings.hpp"
-#include "buildings/BuildingSystem.hpp"
 #include "core/Types.hpp"
+#include "economy/ResourceCost.hpp"
 
 #include <raylib.h>
 

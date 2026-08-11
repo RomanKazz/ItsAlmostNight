@@ -1,29 +1,10 @@
 #include "game/Simulation.hpp"
 
-#include "core/SaturatingArithmetic.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace ian {
-namespace {
-
-ResourceCost addCosts(ResourceCost left, ResourceCost right) {
-    return {
-        saturatingAdd(left.wood, right.wood),
-        saturatingAdd(left.stone, right.stone),
-        saturatingAdd(left.gold, right.gold),
-    };
-}
-
-bool canPay(ResourceCost cost, int wood, int stone, int gold) {
-    return wood >= cost.wood && stone >= cost.stone &&
-           gold >= cost.gold;
-}
-
-} // namespace
-
 void Simulation::processBuildingCommands(const PlayerCommand& command) {
     if (command.selectBuilding) {
         selectedBuilding_ = command.selectBuilding;
@@ -139,14 +120,14 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 gridPosition, surface);
         if (automaticFoundation &&
             automaticFoundation->valid()) {
-            previewPlacement.cost = addCosts(
+            previewPlacement.cost = addResourceCosts(
                 previewPlacement.cost,
                 modularBuildingCosts_[
                     static_cast<std::size_t>(
                         ModularBuildPiece::Foundation)]);
             if (previewPlacement.valid() &&
                 !unlimitedResources_ &&
-                !canPay(
+                !canAfford(
                     previewPlacement.cost,
                     wood_, stone_, gold_)) {
                 previewPlacement.error =
@@ -228,14 +209,14 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 surface);
         if (automaticFoundation &&
             automaticFoundation->valid()) {
-            placement.cost = addCosts(
+            placement.cost = addResourceCosts(
                 placement.cost,
                 modularBuildingCosts_[
                     static_cast<std::size_t>(
                         ModularBuildPiece::Foundation)]);
             if (placement.valid() &&
                 !unlimitedResources_ &&
-                !canPay(
+                !canAfford(
                     placement.cost,
                     wood_, stone_, gold_)) {
                 placement.error =
@@ -317,7 +298,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                         ResourceCost transactionCost =
                             placed->cost;
                         if (createdFoundation) {
-                            transactionCost = addCosts(
+                            transactionCost = addResourceCosts(
                                 transactionCost,
                                 modularBuildingCosts_[
                                     static_cast<std::size_t>(
