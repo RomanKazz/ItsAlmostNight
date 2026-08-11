@@ -53,6 +53,51 @@ void runSimulationTests() {
             "placing a building completes its small Insight objective");
     }
     {
+        ian::GameBalance defeatBalance =
+            ian::GameBalance::defaults();
+        defeatBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        ian::MapDefinition defeatMap =
+            ian::MapDefinition::defaults();
+        defeatMap.obstacles.clear();
+        ian::WorldConfig defeatWorld =
+            ian::WorldConfig::defaults();
+        defeatWorld.terrainAmplitude = 0.0;
+        ian::Simulation defeatSimulation{
+            defeatBalance, defeatMap, defeatWorld};
+        defeatSimulation.startRun();
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        defeatSimulation.tick(1.0 / 60.0, placeCore);
+        ian::PlayerCommand spawnEnemy;
+        spawnEnemy.spawnEnemy = ian::SpawnEnemyCommand{
+            ian::EnemyType::Basic, 5};
+        defeatSimulation.tick(1.0 / 60.0, spawnEnemy);
+        ian::PlayerCommand defeatEnemies;
+        defeatEnemies.defeatAllEnemies =
+            ian::DefeatAllEnemiesCommand{};
+        defeatSimulation.tick(1.0 / 60.0, defeatEnemies);
+        require(
+            !defeatSimulation.snapshot().coinPickups.empty(),
+            "defeat fixture creates existing physical coin drops");
+        ian::PlayerCommand destroyCore;
+        destroyCore.damageCore = ian::DamageCoreCommand{100000.0};
+        defeatSimulation.tick(1.0 / 60.0, destroyCore);
+        const auto defeatEvents = defeatSimulation.takeEvents();
+        require(
+            defeatSimulation.snapshot().state ==
+                    ian::RunState::Defeat &&
+                defeatSimulation.snapshot().coinPickups.empty() &&
+                std::ranges::any_of(
+                    defeatEvents,
+                    [](const ian::GameEvent& event) {
+                        return event.type ==
+                            ian::GameEventType::RunEnded;
+                    }),
+            "core destruction clears coin drops before automatic restart");
+    }
+    {
         ian::GameBalance earlyBalance =
             ian::GameBalance::defaults();
         earlyBalance.buildings[static_cast<std::size_t>(
@@ -734,6 +779,32 @@ void runSimulationTests() {
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
             "automatic switch selects pickaxe for stone");
+        automaticTools.grantSkillPoints(
+            1, ian::SkillPointSource::Event);
+        const auto hammer =
+            automaticTools.skillTree().indexOf("hammer");
+        require(
+            hammer && automaticTools.purchaseSkill(*hammer) ==
+                           ian::SkillPurchaseError::None &&
+                automaticTools.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::Hammer,
+            "Smart Tools fixture equips the hammer");
+        automaticTools.tick(1.0 / 60.0, aimWood);
+        require(
+            automaticTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Axe,
+            "Smart Tools switches from hammer to axe for wood");
+        ian::PlayerCommand selectHammer;
+        selectHammer.selectWeapon = ian::SelectWeaponCommand{
+            ian::PlayerWeapon::Hammer};
+        selectHammer.overrideAimedResource = true;
+        selectHammer.aimedResourceOverride.reset();
+        automaticTools.tick(1.0 / 60.0, selectHammer);
+        automaticTools.tick(1.0 / 60.0, aimStone);
+        require(
+            automaticTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Pickaxe,
+            "Smart Tools switches from hammer to pickaxe for stone");
         ian::PlayerCommand buildWhileAimingWood;
         buildWhileAimingWood.selectBuilding =
             ian::BuildingType::Core;
@@ -2386,6 +2457,32 @@ void runSimulationTests() {
         if (event.type == ian::GameEventType::BuildingFortified) fortified = true;
     }
     require(fortified, "hammer fortifies full-health building");
+
+    simulation.tick(1.0 / 60.0, repairFullWall);
+    buildingEvents = simulation.takeEvents();
+    require(
+        std::ranges::any_of(
+            buildingEvents,
+            [](const ian::GameEvent& event) {
+                return event.type ==
+                           ian::GameEventType::BuildingRepairRejected &&
+                    event.buildingActionError ==
+                        ian::BuildingActionError::Cooldown &&
+                    event.intensity > 0.0;
+            }),
+        "hammer repair and fortification have a per-target cooldown");
+    simulation.tick(
+        ian::GameBalance::defaults().economy.repairCooldownSeconds);
+    simulation.tick(1.0 / 60.0, repairFullWall);
+    buildingEvents = simulation.takeEvents();
+    require(
+        std::ranges::any_of(
+            buildingEvents,
+            [](const ian::GameEvent& event) {
+                return event.type ==
+                    ian::GameEventType::BuildingFortified;
+            }),
+        "hammer can affect the target after repair cooldown expires");
 
     ian::PlayerCommand sellWall;
     sellWall.sellBuilding = ian::SellBuildingCommand{*wall};

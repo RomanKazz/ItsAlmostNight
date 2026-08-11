@@ -310,6 +310,7 @@ void Simulation::resetRun(GameEventType eventType) {
     bareHandsStoneGathered_ = 0;
     introSkillObjectiveCompleted_ = false;
     activeFortifications_.clear();
+    activeRepairCooldowns_.clear();
     bombs_.reset();
     iceWand_.reset();
     fireWand_.reset();
@@ -369,6 +370,13 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         processDebugCommands(command);
         processBuildingCommands(command);
     }
+    if (state_ == RunState::Defeat) {
+        coinPickups_.reset();
+        rewardedEnemyCoins_.clear();
+        ++tick_;
+        elapsedSeconds_ += deltaSeconds;
+        return;
+    }
     if (foundations_.updateStructuralSupport(
             deltaSeconds)) {
         for (const ModularBuildingDamageResult& collapsed :
@@ -394,6 +402,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             cannons_.clearProjectiles();
             bombs_.clearProjectiles();
             state_ = RunState::Defeat;
+            coinPickups_.reset();
+            rewardedEnemyCoins_.clear();
             events_.push_back({
                 .type = GameEventType::RunEnded,
             });
@@ -422,6 +432,13 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
+    if (state_ == RunState::Defeat) {
+        coinPickups_.reset();
+        rewardedEnemyCoins_.clear();
+        ++tick_;
+        elapsedSeconds_ += deltaSeconds;
+        return;
+    }
     for (const EnemySplitResult& split : enemies_.takeSplitEvents()) {
         events_.push_back({
             .type = GameEventType::EnemySplit,
@@ -446,12 +463,40 @@ void Simulation::updateFortifications(double deltaSeconds) {
     std::erase_if(activeFortifications_, [](const ActiveFortification& value) {
         return value.remaining <= 0.0;
     });
+    for (auto& cooldown : activeRepairCooldowns_)
+        cooldown.remaining -= deltaSeconds;
+    std::erase_if(
+        activeRepairCooldowns_,
+        [](const ActiveRepairCooldown& value) {
+            return value.remaining <= 0.0;
+        });
 }
 
 bool Simulation::isFortified(EntityId id) const {
     return std::ranges::any_of(activeFortifications_, [id](const ActiveFortification& value) {
         return value.id == id;
     });
+}
+
+double Simulation::repairCooldownRemaining(EntityId id) const {
+    const auto cooldown = std::ranges::find(
+        activeRepairCooldowns_, id,
+        &ActiveRepairCooldown::id);
+    return cooldown == activeRepairCooldowns_.end()
+        ? 0.0 : std::max(0.0, cooldown->remaining);
+}
+
+void Simulation::startRepairCooldown(EntityId id) {
+    if (economy_.repairCooldownSeconds <= 0.0) return;
+    auto cooldown = std::ranges::find(
+        activeRepairCooldowns_, id,
+        &ActiveRepairCooldown::id);
+    if (cooldown == activeRepairCooldowns_.end()) {
+        activeRepairCooldowns_.push_back(
+            {id, economy_.repairCooldownSeconds});
+    } else {
+        cooldown->remaining = economy_.repairCooldownSeconds;
+    }
 }
 
 std::vector<GameEvent> Simulation::takeEvents() {

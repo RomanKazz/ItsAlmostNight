@@ -53,6 +53,19 @@ void Simulation::processBuildingActions(
             });
             return;
         }
+        const double cooldownRemaining =
+            repairCooldownRemaining(
+                command.repairBuilding->buildingId);
+        if (cooldownRemaining > 0.0) {
+            events_.push_back({
+                .type = GameEventType::BuildingRepairRejected,
+                .entityId = command.repairBuilding->buildingId,
+                .buildingActionError =
+                    BuildingActionError::Cooldown,
+                .intensity = cooldownRemaining,
+            });
+            return;
+        }
         const auto fortifyTarget = std::ranges::find(
             buildings_.buildings(), command.repairBuilding->buildingId,
             &BuildingInstance::id);
@@ -70,6 +83,7 @@ void Simulation::processBuildingActions(
                                .buildingType = fortifyTarget->type,
                                .position = buildingWorldPosition(*fortifyTarget),
                                .amount = 10});
+            startRepairCooldown(fortifyTarget->id);
             return;
         }
         const int availableWood =
@@ -97,6 +111,7 @@ void Simulation::processBuildingActions(
                     buildingWorldPosition(*result.building),
                 .amount = static_cast<int>(result.repairedHealth),
             });
+            startRepairCooldown(result.building->id);
         } else if (
             result.error == BuildingActionError::NotFound) {
             const ModularBuildingRepairResult
@@ -123,6 +138,7 @@ void Simulation::processBuildingActions(
                     .amount = static_cast<int>(
                         modularResult.repairedHealth),
                 });
+                startRepairCooldown(modularResult.id);
             } else {
                 events_.push_back({
                     .type =

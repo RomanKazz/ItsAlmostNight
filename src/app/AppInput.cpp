@@ -439,7 +439,9 @@ void App::processInput() {
         minimapHidden_ = !minimapHidden_;
     }
     if (snapshot.state != RunState::MainMenu &&
-        keyPressed(userSettings_.controls, ControlAction::Restart)) {
+        (automaticRunRestartPending_ ||
+         keyPressed(userSettings_.controls, ControlAction::Restart))) {
+        automaticRunRestartPending_ = false;
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
         rebuildTerrainGraphics();

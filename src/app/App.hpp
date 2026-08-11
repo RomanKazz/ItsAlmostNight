@@ -191,6 +191,7 @@ class App {
     bool pendingOpenSkillTreeFromUi_{};
     bool pendingResumeFromUi_{};
     bool pendingReturnToMenuFromUi_{};
+    bool automaticRunRestartPending_{};
     bool exitRequested_{};
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};

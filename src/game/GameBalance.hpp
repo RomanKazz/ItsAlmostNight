@@ -119,6 +119,7 @@ struct EconomyBalanceDefinition {
     int goldMineAmount;
     int waveRewardPerWave;
     double repairCostFraction;
+    double repairCooldownSeconds;
     double sellRefundFraction;
     std::array<double, 2> buildingUpgradeCostMultiplier;
     std::array<int, 2> buildingUpgradeGoldBonus;

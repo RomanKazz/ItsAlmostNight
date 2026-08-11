@@ -187,7 +187,8 @@ void Simulation::updatePlayerActions(
     PlayerWeapon heldTool = playerWeapons_.selectedWeapon();
     const bool canGather = heldTool == PlayerWeapon::BareHands ||
                            heldTool == PlayerWeapon::Axe ||
-                           heldTool == PlayerWeapon::Pickaxe;
+                           heldTool == PlayerWeapon::Pickaxe ||
+                           heldTool == PlayerWeapon::Hammer;
     aimedResource_ = canGather
         ? resources_.raycast(playerPosition_, direction, gameplay_.resourceGatherRange)
         : std::nullopt;

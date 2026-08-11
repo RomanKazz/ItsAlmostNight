@@ -240,6 +240,8 @@ const char* buildingActionErrorMessage(BuildingActionError error) {
         return "Core cannot be sold";
     case BuildingActionError::InsufficientResources:
         return "Not enough resources for repair";
+    case BuildingActionError::Cooldown:
+        return "Repair is recharging";
     }
     return "";
 }

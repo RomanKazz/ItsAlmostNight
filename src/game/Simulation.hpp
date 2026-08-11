@@ -445,6 +445,8 @@ class Simulation {
         ResourceType resource) const;
     [[nodiscard]] double playerPermanentMaxHealth() const;
     [[nodiscard]] bool isFortified(EntityId id) const;
+    [[nodiscard]] double repairCooldownRemaining(EntityId id) const;
+    void startRepairCooldown(EntityId id);
     [[nodiscard]] std::optional<TutorialObjective> tutorialObjective() const;
     void invalidateSnapshotCache();
     [[nodiscard]] bool resourceGroundPositionIsSafe(
@@ -580,6 +582,8 @@ class Simulation {
     bool introSkillObjectiveCompleted_{};
     struct ActiveFortification { EntityId id; double remaining; };
     std::vector<ActiveFortification> activeFortifications_;
+    struct ActiveRepairCooldown { EntityId id; double remaining; };
+    std::vector<ActiveRepairCooldown> activeRepairCooldowns_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;
     std::vector<GameEvent> events_;
     mutable std::optional<SimulationSnapshot> snapshotCache_;

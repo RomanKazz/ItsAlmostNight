@@ -236,6 +236,8 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         .goldMineAmount = value.at("goldMineAmount").get<int>(),
         .waveRewardPerWave = value.at("waveRewardPerWave").get<int>(),
         .repairCostFraction = value.at("repairCostFraction").get<double>(),
+        .repairCooldownSeconds =
+            value.value("repairCooldownSeconds", 3.0),
         .sellRefundFraction = value.at("sellRefundFraction").get<double>(),
         .buildingUpgradeCostMultiplier =
             value.at("buildingUpgradeCostMultiplier").get<std::array<double, 2>>(),
@@ -245,7 +247,9 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
     };
     if (definition.goldMineInterval <= 0.0 || definition.goldMineAmount <= 0 ||
         definition.waveRewardPerWave < 0 || definition.repairCostFraction < 0.0 ||
-        definition.repairCostFraction > 1.0 || definition.sellRefundFraction < 0.0 ||
+        definition.repairCostFraction > 1.0 ||
+        definition.repairCooldownSeconds < 0.0 ||
+        definition.sellRefundFraction < 0.0 ||
         definition.sellRefundFraction > 1.0 ||
         definition.buildingUpgradeCostMultiplier[0] <= 0.0 ||
         definition.buildingUpgradeCostMultiplier[1] <= 0.0 ||
@@ -388,7 +392,7 @@ GameBalance GameBalance::defaults() {
             .fireWand = {0.9, 12.0, 18.0, 0.24, 2.5, 3.25, 4.0, 3.0,
                          0.5, 0.14, 0.5},
         },
-        .economy = {5.0, 5, 15, 0.5, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
+        .economy = {5.0, 5, 15, 0.5, 3.0, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,

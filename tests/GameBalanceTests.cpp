@@ -99,6 +99,7 @@ void runGameBalanceTests() {
         "goldMineAmount": 7,
         "waveRewardPerWave": 11,
         "repairCostFraction": 0.25,
+        "repairCooldownSeconds": 2.5,
         "sellRefundFraction": 0.75,
         "buildingUpgradeCostMultiplier": [0.25, 0.8],
         "buildingUpgradeGoldBonus": [3, 4],
@@ -156,6 +157,9 @@ void runGameBalanceTests() {
                 loaded.balance.gameplay.pickaxeDamageVariation == 0.25 &&
                 loaded.balance.gameplay.pickaxeCriticalChance == 0.2,
             "gameplay parameters come from JSON");
+    require(
+        loaded.balance.economy.repairCooldownSeconds == 2.5,
+        "repair cooldown comes from economy JSON");
     ian::Simulation configuredSimulation{loaded.balance};
     configuredSimulation.startRun();
     require(configuredSimulation.snapshot().playerHealth == 125.0 &&

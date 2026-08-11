@@ -138,6 +138,7 @@ enum class BuildingActionError {
     FullHealth,
     Unsupported,
     InsufficientResources,
+    Cooldown,
 };
 
 struct RepairResult {

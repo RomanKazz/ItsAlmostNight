@@ -815,7 +815,18 @@ void App::processPresentationEvents(
         } else if ((event.type == GameEventType::BuildingRepairRejected ||
                     event.type == GameEventType::BuildingSellRejected) &&
                    event.buildingActionError) {
-            message = buildingActionErrorMessage(*event.buildingActionError);
+            if (*event.buildingActionError ==
+                    BuildingActionError::Cooldown &&
+                event.intensity > 0.0) {
+                message = "Repair ready in " +
+                    std::to_string(std::max(
+                        1, static_cast<int>(
+                               std::ceil(event.intensity)))) +
+                    "s";
+            } else {
+                message = buildingActionErrorMessage(
+                    *event.buildingActionError);
+            }
         } else if (event.type == GameEventType::BuildingSold && event.buildingType) {
             message =
                 std::string(buildingDisplayName(
