@@ -559,8 +559,8 @@ float smoothstep(float edge0, float edge1, float value) {
 void drawBuildGrid(
     Vector3 playerPosition, double worldLimit,
     const TerrainHeightfield& terrain) {
-    constexpr float FadeStart = 15.0F;
-    constexpr float FadeEnd = 25.0F;
+    constexpr float FadeStart = 13.0F;
+    constexpr float FadeEnd = 20.0F;
     constexpr float GridTerrainOffset = 0.025F;
     constexpr float MinorOpacity = 0.15F;
     constexpr float MajorOpacity = 0.28F;
@@ -602,17 +602,48 @@ void drawBuildGrid(
                             255.0F)),
         };
     };
-    const auto gridPoint =
-        [&terrain](float x, float z) {
-            return Vector3{
-                x,
-                static_cast<float>(
-                    terrain.getHeight(x, z)) +
+    constexpr int MaximumGridPointsPerAxis =
+        static_cast<int>(FadeEnd) * 2 + 2;
+    std::array<Vector3,
+               MaximumGridPointsPerAxis *
+                   MaximumGridPointsPerAxis>
+        gridPoints{};
+    const int pointCountX = maximumX - minimumX + 1;
+    const int pointCountZ = maximumZ - minimumZ + 1;
+    for (int z = 0; z < pointCountZ; ++z) {
+        for (int x = 0; x < pointCountX; ++x) {
+            const float worldX =
+                static_cast<float>(minimumX + x);
+            const float worldZ =
+                static_cast<float>(minimumZ + z);
+            gridPoints[static_cast<std::size_t>(
+                z * pointCountX + x)] = {
+                worldX,
+                static_cast<float>(terrain.getHeight(
+                    worldX, worldZ)) +
                     GridTerrainOffset,
-                z,
+                worldZ,
             };
+        }
+    }
+    const auto gridPoint =
+        [&](int x, int z) -> Vector3 {
+            return gridPoints[static_cast<std::size_t>(
+                (z - minimumZ) * pointCountX +
+                (x - minimumX))];
         };
+    const auto emitLine = [](Vector3 start, Vector3 end,
+                             Color color) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(start.x, start.y, start.z);
+        rlVertex3f(end.x, end.y, end.z);
+    };
 
+    // DrawLine3D wraps every tiny segment in its own rlBegin/rlEnd pair.
+    // The build grid contains thousands of segments, so that overhead can
+    // push otherwise busy scenes over the frame budget.  Keep the same
+    // terrain-conforming geometry, but submit it as one line batch.
+    rlBegin(RL_LINES);
     for (int x = minimumX; x <= maximumX; ++x) {
         const bool major = x % MajorInterval == 0;
         for (int z = minimumZ; z < maximumZ; ++z) {
@@ -622,16 +653,17 @@ void drawBuildGrid(
             if (color.a == 0U) {
                 continue;
             }
-            const float lineX = static_cast<float>(x);
-            const float startZ = static_cast<float>(z);
-            const float middleZ = startZ + 0.5F;
-            const float endZ = startZ + 1.0F;
-            DrawLine3D(
-                gridPoint(lineX, startZ),
-                gridPoint(lineX, middleZ), color);
-            DrawLine3D(
-                gridPoint(lineX, middleZ),
-                gridPoint(lineX, endZ), color);
+            const Vector3 start = gridPoint(x, z);
+            const Vector3 end = gridPoint(x, z + 1);
+            Vector3 middle = Vector3Lerp(
+                start, end, 0.5F);
+            middle.y = static_cast<float>(terrain.getHeight(
+                           middle.x, middle.z)) +
+                GridTerrainOffset;
+            emitLine(
+                start, middle, color);
+            emitLine(
+                middle, end, color);
         }
     }
     for (int z = minimumZ; z <= maximumZ; ++z) {
@@ -643,18 +675,20 @@ void drawBuildGrid(
             if (color.a == 0U) {
                 continue;
             }
-            const float lineZ = static_cast<float>(z);
-            const float startX = static_cast<float>(x);
-            const float middleX = startX + 0.5F;
-            const float endX = startX + 1.0F;
-            DrawLine3D(
-                gridPoint(startX, lineZ),
-                gridPoint(middleX, lineZ), color);
-            DrawLine3D(
-                gridPoint(middleX, lineZ),
-                gridPoint(endX, lineZ), color);
+            const Vector3 start = gridPoint(x, z);
+            const Vector3 end = gridPoint(x + 1, z);
+            Vector3 middle = Vector3Lerp(
+                start, end, 0.5F);
+            middle.y = static_cast<float>(terrain.getHeight(
+                           middle.x, middle.z)) +
+                GridTerrainOffset;
+            emitLine(
+                start, middle, color);
+            emitLine(
+                middle, end, color);
         }
     }
+    rlEnd();
 }
 
 Color placementColor(
