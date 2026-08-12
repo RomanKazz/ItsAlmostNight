@@ -71,8 +71,8 @@ void main()
     float luminance =
         dot(albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
     albedo.rgb =
-        mix(vec3(luminance), albedo.rgb, 0.76)*
-        vec3(1.04, 0.98, 0.90);
+        mix(vec3(luminance), albedo.rgb, 0.82)*
+        vec3(1.045, 0.99, 0.91);
     vec2 biome = terrainBiomeFields(fragWorldPosition.xz);
     float clearing = smoothstep(0.60, 0.78, biome.x)*
         (1.0 - smoothstep(0.38, 0.68, biome.y));
@@ -82,10 +82,10 @@ void main()
     albedo.rgb = mix(
         albedo.rgb,
         mutedGrass*vec3(1.10, 1.055, 0.93),
-        clearing*0.36);
+        clearing*0.42);
     albedo.rgb = mix(
         albedo.rgb,
-        mutedGrass*vec3(0.73, 0.84, 0.92),
+        mutedGrass*vec3(0.77, 0.88, 0.97),
         grove*0.46);
     vec3 normal = normalize(fragNormal);
     if (!gl_FrontFacing)

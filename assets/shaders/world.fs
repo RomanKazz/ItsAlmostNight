@@ -136,11 +136,11 @@ vec3 terrainMaterial(
         texture(terrainTexture, worldXZ*0.08).rgb;
     float textureLuminance = dot(
         textureSample, vec3(0.2126, 0.7152, 0.0722));
-    // The source watercolor is intentionally vivid. Grade it here so the
-    // ground supports the scene instead of becoming its brightest subject.
+    // Keep the watercolor lively, but below the saturation of foliage and
+    // gameplay accents so the ground still supports the scene.
     vec3 gradedGrassTexture = mix(
-        vec3(textureLuminance), textureSample, 0.68)*
-        vec3(1.03, 0.90, 0.86);
+        vec3(textureLuminance), textureSample, 0.74)*
+        vec3(1.04, 0.93, 0.88);
     float grassDetail = mix(
         0.82 + detailNoise*0.24,
         1.0,
@@ -203,16 +203,16 @@ vec3 terrainMaterial(
     float terrainLuminance = dot(
         terrain, vec3(0.2126, 0.7152, 0.0722));
     vec3 meadowColor = mix(
-        vec3(terrainLuminance), terrain, 0.72)*
-        vec3(1.13, 1.08, 0.91);
+        vec3(terrainLuminance), terrain, 0.78)*
+        vec3(1.15, 1.10, 0.92);
     vec3 groveColor = mix(
-        vec3(terrainLuminance), terrain, 0.54)*
-        vec3(0.72, 0.84, 0.91);
+        vec3(terrainLuminance), terrain, 0.61)*
+        vec3(0.76, 0.88, 0.96);
     float highlandNoise = valueNoise(
         worldXZ*0.13 + vec2(-15.2, 37.1));
     vec3 highlandColor = mix(
-        vec3(0.31, 0.315, 0.285),
-        vec3(0.43, 0.39, 0.31),
+        vec3(0.32, 0.335, 0.30),
+        vec3(0.46, 0.405, 0.31),
         highlandNoise);
     terrain = mix(terrain, meadowColor, clearing*0.56);
     terrain = mix(terrain, groveColor, grove*0.54);
