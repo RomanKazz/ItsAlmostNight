@@ -70,6 +70,18 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         defeatSimulation.tick(1.0 / 60.0, placeCore);
+        defeatSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::Hourglass,
+            ian::LootRarity::Rare);
+        ian::PlayerCommand startDefeatWave;
+        startDefeatWave.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        defeatSimulation.tick(
+            1.0 / 60.0, startDefeatWave);
+        require(
+            defeatSimulation.snapshot().gold > 0 &&
+                defeatSimulation.snapshot().coins > 0,
+            "defeat fixture carries both currencies");
         ian::PlayerCommand spawnEnemy;
         spawnEnemy.spawnEnemy = ian::SpawnEnemyCommand{
             ian::EnemyType::Basic, 5};
@@ -88,6 +100,8 @@ void runSimulationTests() {
         require(
             defeatSimulation.snapshot().state ==
                     ian::RunState::Defeat &&
+                defeatSimulation.snapshot().gold == 0 &&
+                defeatSimulation.snapshot().coins == 0 &&
                 defeatSimulation.snapshot().coinPickups.empty() &&
                 std::ranges::any_of(
                     defeatEvents,
@@ -115,6 +129,27 @@ void runSimulationTests() {
             earlySimulation.snapshot().phaseDuration,
             120.0, 1e-9,
             "first wave preparation lasts two minutes");
+        earlySimulation.grantSkillPoints(
+            7, ian::SkillPointSource::Event);
+        constexpr std::array<const char*, 4> LongerDayPath{{
+            "nightly_chest", "keymaster", "expanded_storage",
+            "longer_days",
+        }};
+        bool unlockedLongerDays = true;
+        for (const char* id : LongerDayPath) {
+            const auto skill =
+                earlySimulation.skillTree().indexOf(id);
+            unlockedLongerDays = unlockedLongerDays && skill &&
+                earlySimulation.purchaseSkill(*skill) ==
+                    ian::SkillPurchaseError::None;
+        }
+        requireNear(
+            earlySimulation.snapshot().phaseDuration,
+            135.0, 1e-9,
+            "Longer Days adds exactly fifteen seconds to current daytime");
+        require(
+            unlockedLongerDays,
+            "Longer Days unlocks through its complete prerequisite path");
         ian::PlayerCommand placeFreeCore;
         placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
@@ -137,8 +172,8 @@ void runSimulationTests() {
 
         earlySimulation.grantSkillPoints(
             4, ian::SkillPointSource::Event);
-        constexpr std::array<const char*, 3> EarlyPlanningPath{{
-            "nightly_chest", "safe_delivery", "early_planning",
+        constexpr std::array<const char*, 2> EarlyPlanningPath{{
+            "safe_delivery", "early_planning",
         }};
         bool unlockedEarlyPlanning = true;
         for (const char* id : EarlyPlanningPath) {
@@ -357,15 +392,20 @@ void runSimulationTests() {
         baseline.startRun();
         movementSkills.startRun();
         movementSkills.grantSkillPoints(
-            3, ian::SkillPointSource::Event);
+            4, ian::SkillPointSource::Event);
         const auto light =
             movementSkills.skillTree().indexOf(
                 "light_footwork");
+        const auto sprinter =
+            movementSkills.skillTree().indexOf(
+                "sprinter");
         const auto dash =
             movementSkills.skillTree().indexOf("dash");
         require(
-            light && dash &&
+            light && sprinter && dash &&
                 movementSkills.purchaseSkill(*light) ==
+                    ian::SkillPurchaseError::None &&
+                movementSkills.purchaseSkill(*sprinter) ==
                     ian::SkillPurchaseError::None &&
                 movementSkills.purchaseSkill(*dash) ==
                     ian::SkillPurchaseError::None,
@@ -488,9 +528,16 @@ void runSimulationTests() {
                     ian::PlayerWeapon::BareHands,
                 "direct hotbar selection cannot equip a locked weapon");
 
-        weaponProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
+        weaponProgression.grantSkillPoints(2, ian::SkillPointSource::Event);
+        const auto combatTraining =
+            weaponProgression.skillTree().indexOf(
+                "combat_training");
         const auto club = weaponProgression.skillTree().indexOf("club");
-        require(club && weaponProgression.purchaseSkill(*club) ==
+        require(combatTraining && club &&
+                    weaponProgression.purchaseSkill(
+                        *combatTraining) ==
+                        ian::SkillPurchaseError::None &&
+                    weaponProgression.purchaseSkill(*club) ==
                             ian::SkillPurchaseError::None,
                 "club can be unlocked before rifle");
         require(weaponProgression.snapshot().unlockedWeapons[
@@ -524,9 +571,16 @@ void runSimulationTests() {
     {
         ian::Simulation iceProgression;
         iceProgression.startRun();
-        iceProgression.grantSkillPoints(2, ian::SkillPointSource::Event);
+        iceProgression.grantSkillPoints(3, ian::SkillPointSource::Event);
+        const auto combatTraining =
+            iceProgression.skillTree().indexOf(
+                "combat_training");
         const auto iceWand = iceProgression.skillTree().indexOf("ice_wand");
-        require(iceWand && iceProgression.purchaseSkill(*iceWand) ==
+        require(combatTraining && iceWand &&
+                    iceProgression.purchaseSkill(
+                        *combatTraining) ==
+                        ian::SkillPurchaseError::None &&
+                    iceProgression.purchaseSkill(*iceWand) ==
                     ian::SkillPurchaseError::None &&
                     iceProgression.snapshot().selectedWeapon ==
                         ian::PlayerWeapon::IceWand,
@@ -578,8 +632,14 @@ void runSimulationTests() {
         clubCombat.tick(1.0 / 60.0, unlimited);
         const auto clubSkill =
             clubCombat.skillTree().indexOf("club");
+        const auto combatTraining =
+            clubCombat.skillTree().indexOf(
+                "combat_training");
         require(
-            clubSkill &&
+            combatTraining && clubSkill &&
+                clubCombat.purchaseSkill(
+                    *combatTraining) ==
+                    ian::SkillPurchaseError::None &&
                 clubCombat.purchaseSkill(*clubSkill) ==
                     ian::SkillPurchaseError::None &&
                 clubCombat.snapshot().selectedWeapon ==
@@ -1039,13 +1099,19 @@ void runSimulationTests() {
             bombUnlock.snapshot().bombProjectiles.empty(),
             "bomb input is blocked before skill unlock");
         bombUnlock.grantSkillPoints(
-            2, ian::SkillPointSource::Event);
+            3, ian::SkillPointSource::Event);
+        const auto combatTraining =
+            bombUnlock.skillTree().indexOf(
+                "combat_training");
         const auto club =
             bombUnlock.skillTree().indexOf("club");
         const auto bombs =
             bombUnlock.skillTree().indexOf("bombs");
         require(
-            club && bombs &&
+            combatTraining && club && bombs &&
+                bombUnlock.purchaseSkill(
+                    *combatTraining) ==
+                    ian::SkillPurchaseError::None &&
                 bombUnlock.purchaseSkill(*club) ==
                     ian::SkillPurchaseError::None &&
                 bombUnlock.purchaseSkill(*bombs) ==

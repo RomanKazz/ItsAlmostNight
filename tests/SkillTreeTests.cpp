@@ -50,10 +50,21 @@ void runSkillTreeTests() {
     ian::SkillTree rifleTree;
     rifleTree.grantPoints(10);
     const auto rifle = rifleTree.indexOf("rifle");
+    const auto combatTraining =
+        rifleTree.indexOf("combat_training");
     const auto marksman = rifleTree.indexOf("marksman");
     const auto assault = rifleTree.indexOf("assault_rifle");
     require(
-        rifle && marksman && assault &&
+        combatTraining && rifle &&
+            rifleTree.state(*rifle) ==
+                ian::SkillNodeState::Locked &&
+            rifleTree.purchase(*rifle) ==
+                ian::SkillPurchaseError::DependenciesLocked,
+        "weapon unlock cannot bypass Combat Training");
+    require(
+        combatTraining && rifle && marksman && assault &&
+            rifleTree.purchase(*combatTraining) ==
+                ian::SkillPurchaseError::None &&
             rifleTree.purchase(*rifle) ==
                 ian::SkillPurchaseError::None &&
             rifleTree.purchase(*marksman) ==
@@ -110,6 +121,19 @@ void runSkillTreeTests() {
             migrated.isUnlocked("power_swing"),
         "retired convenience nodes migrate without breaking old runs");
 
+    ian::SkillTree gatedMigration;
+    require(
+        gatedMigration.loadState({
+            .points = 0,
+            .unlockedNodeIds = {
+                "bare_hands", "club", "light_footwork",
+                "dash",
+            },
+        }) &&
+            gatedMigration.isUnlocked("combat_training") &&
+            gatedMigration.isUnlocked("sprinter"),
+        "old saves gain newly inserted prerequisite gates");
+
 #ifdef IAN_SOURCE_DIR
     const auto definitions = ian::loadSkillTreeDefinitions(
         std::string(IAN_SOURCE_DIR) + "/assets/data/skills.json");
@@ -119,9 +143,10 @@ void runSkillTreeTests() {
     };
     const auto thermal = definitionById("thermal_shock");
     const auto dash = definitionById("dash");
+    const auto longerDays = definitionById("longer_days");
     const auto contract = definitionById("mercenary_contract");
     require(
-        definitions.size() == 47 &&
+        definitions.size() == 48 &&
             definitionById("auto_switch_tools") == definitions.end() &&
             definitionById("hold_to_gather") == definitions.end() &&
             thermal != definitions.end() &&
@@ -130,6 +155,12 @@ void runSkillTreeTests() {
                 "element.thermal_shock" &&
             dash != definitions.end() &&
             dash->size == ian::SkillNodeSize::Large &&
+            dash->prerequisites ==
+                std::vector<std::string>{"sprinter"} &&
+            longerDays != definitions.end() &&
+            longerDays->effects.size() == 1 &&
+            longerDays->effects.front().key ==
+                "day.duration_seconds" &&
             contract != definitions.end() &&
             contract->exclusiveGroup == "early_contract" &&
             std::ranges::all_of(

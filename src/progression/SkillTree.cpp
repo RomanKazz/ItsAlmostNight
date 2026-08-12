@@ -51,11 +51,11 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("industrialist", "INDUSTRIALIST", "Producers work 40% faster, but manual gathering is 20% weaker.", "placeholder_hammer", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"production.speed", 0.40}, E{"gather.damage", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
 
         make("combat_training", "COMBAT TRAINING", "All player attacks deal 10% more damage.", "placeholder_club", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, {E{"player.damage", 0.10}}),
-        make("club", "CLUB", "Unlock the club and its sweeping melee attacks.", "placeholder_club", SkillBranch::Weapons, {-380, -380}, 1, {"bare_hands"}, {E{"unlock.club"}}),
-        make("rifle", "RIFLE", "Unlock accurate ranged combat.", "placeholder_rifle", SkillBranch::Weapons, {-190, -380}, 1, {"bare_hands"}, {E{"unlock.rifle"}}),
-        make("ice_wand", "ICE WAND", "Unlock freezing projectiles and area control.", "ice_wand", SkillBranch::Weapons, {0, -380}, 2, {"bare_hands"}, {E{"unlock.ice_wand"}}),
-        make("fire_wand", "FIRE WAND", "Unlock burning projectiles and damage over time.", "fire_wand", SkillBranch::Weapons, {190, -380}, 2, {"bare_hands"}, {E{"unlock.fire_wand"}}),
-        make("bombs", "BOMBS", "Unlock throwable explosive crowd control.", "placeholder_bomb", SkillBranch::Weapons, {380, -380}, 1, {"bare_hands"}, {E{"unlock.bombs"}}),
+        make("club", "CLUB", "Unlock the club and its sweeping melee attacks.", "placeholder_club", SkillBranch::Weapons, {-380, -380}, 1, {"combat_training"}, {E{"unlock.club"}}),
+        make("rifle", "RIFLE", "Unlock accurate ranged combat.", "placeholder_rifle", SkillBranch::Weapons, {-190, -380}, 1, {"combat_training"}, {E{"unlock.rifle"}}),
+        make("ice_wand", "ICE WAND", "Unlock freezing projectiles and area control.", "ice_wand", SkillBranch::Weapons, {0, -380}, 2, {"combat_training"}, {E{"unlock.ice_wand"}}),
+        make("fire_wand", "FIRE WAND", "Unlock burning projectiles and damage over time.", "fire_wand", SkillBranch::Weapons, {190, -380}, 2, {"combat_training"}, {E{"unlock.fire_wand"}}),
+        make("bombs", "BOMBS", "Unlock throwable explosive crowd control.", "placeholder_bomb", SkillBranch::Weapons, {380, -380}, 1, {"combat_training"}, {E{"unlock.bombs"}}),
         make("bruiser", "BRUISER", "Club damage and knockback increase greatly, but its area shrinks.", "placeholder_club", SkillBranch::Weapons, {-570, -570}, 2, {"club"}, {E{"club.damage", 0.55}, E{"club.knockback", 0.50}, E{"club.area", -0.20}}, "club_style", SkillNodeSize::Large),
         make("crowd_breaker", "CROWD BREAKER", "Club swings cover a much wider area, but deal less damage.", "placeholder_club", SkillBranch::Weapons, {-380, -570}, 2, {"club"}, {E{"club.area", 0.55}, E{"club.damage", -0.20}}, "club_style", SkillNodeSize::Large),
         make("marksman", "MARKSMAN", "Rifle shots gain 70% damage and 35% range, but fire 30% slower.", "placeholder_rifle", SkillBranch::Weapons, {-190, -570}, 3, {"rifle"}, {E{"rifle.damage", 0.70}, E{"rifle.range", 0.35}, E{"rifle.fire_rate", -0.30}}, "rifle_style", SkillNodeSize::Large),
@@ -79,7 +79,7 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
 
         make("light_footwork", "LIGHT FOOTWORK", "Accelerate, stop and turn 55% faster.", "placeholder_boot", SkillBranch::Movement, {570, -190}, 1, {"bare_hands"}, {E{"player.acceleration", 0.55}}),
         make("sprinter", "SPRINTER", "Move 10% faster at all times.", "placeholder_boot", SkillBranch::Movement, {760, -190}, 1, {"light_footwork"}, {E{"player.move_speed", 0.10}}),
-        make("dash", "DASH", "Burst in the movement direction.", "placeholder_dash", SkillBranch::Movement, {950, -190}, 2, {"light_footwork"}, {E{"dash.unlock"}}, {}, SkillNodeSize::Large),
+        make("dash", "DASH", "Burst in the movement direction.", "placeholder_dash", SkillBranch::Movement, {950, -190}, 2, {"sprinter"}, {E{"dash.unlock"}}, {}, SkillNodeSize::Large),
         make("impact_dash", "IMPACT DASH", "Starting a dash damages and knocks back nearby enemies.", "placeholder_dash", SkillBranch::Movement, {1140, -190}, 2, {"dash"}, {E{"dash.impact_damage", 10.0}}, {}, SkillNodeSize::Large),
         make("long_dash", "LONG DASH", "Dash travels farther and faster, but recovers 35% slower.", "placeholder_dash", SkillBranch::Movement, {1140, 0}, 2, {"dash"}, {E{"dash.speed", 0.30}, E{"dash.cooldown", -0.35}}, "dash_style", SkillNodeSize::Large),
         make("rapid_dash", "RAPID DASH", "Dash recovers 45% faster, but travels a shorter distance.", "placeholder_dash", SkillBranch::Movement, {1140, -380}, 2, {"dash"}, {E{"dash.speed", -0.20}, E{"dash.cooldown", 0.45}}, "dash_style", SkillNodeSize::Large),
@@ -92,6 +92,7 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more Insight, but no bonus Gold.", "placeholder_blueprint", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.gold", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
         make("expanded_storage", "EXPANDED STORAGE", "Every storage building holds 40% more resources.", "placeholder_crate", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
         make("scavenger", "SCAVENGER", "Destructible world props drop 50% more coins.", "placeholder_crate", SkillBranch::Economy, {-380, 570}, 2, {"safe_delivery"}, {E{"prop.coins", 0.50}}),
+        make("longer_days", "LONGER DAYS", "Each daytime build phase lasts 15 seconds longer.", "placeholder_hourglass", SkillBranch::Economy, {380, 760}, 2, {"expanded_storage"}, {E{"day.duration_seconds", 15.0}}),
     };
 }
 
@@ -214,6 +215,31 @@ bool SkillTree::loadState(const SkillTreeRunState& stateToLoad) {
         }
         loaded[*index] = true;
     }
+    // Preserve runs saved before Combat Training and Sprinter became real
+    // gates instead of visually skipped nodes.
+    const auto migrateGate =
+        [this, &loaded](
+            std::string_view gate,
+            std::initializer_list<std::string_view>
+                descendants) {
+            const auto gateIndex = indexOf(gate);
+            if (!gateIndex || loaded[*gateIndex]) return;
+            const bool hadDescendant = std::ranges::any_of(
+                descendants,
+                [this, &loaded](std::string_view id) {
+                    const auto index = indexOf(id);
+                    return index && loaded[*index];
+                });
+            if (hadDescendant) loaded[*gateIndex] = true;
+        };
+    migrateGate(
+        "combat_training",
+        {"club", "rifle", "ice_wand", "fire_wand",
+         "bombs"});
+    migrateGate(
+        "sprinter",
+        {"dash", "impact_dash", "long_dash",
+         "rapid_dash"});
     for (std::size_t i = 0; i < nodes_.size(); ++i) {
         if (nodes_[i].cost == 0) loaded[i] = true;
         if (!loaded[i]) continue;

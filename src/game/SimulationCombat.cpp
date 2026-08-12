@@ -157,7 +157,12 @@ void Simulation::updateRunPhase(
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0) {
             state_ = RunState::BuildPhase;
-            phaseTimeRemaining_ = gameplay_.betweenWaveSeconds;
+            phaseTimeRemaining_ =
+                gameplay_.betweenWaveSeconds +
+                std::max(
+                    0.0,
+                    skillTree_.effectValue(
+                        "day.duration_seconds"));
             phaseDuration_ = phaseTimeRemaining_;
         }
     }

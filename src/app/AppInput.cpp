@@ -1293,9 +1293,17 @@ void App::processInput() {
             !currentSnapshot.buildingPreview &&
             !foundationBuildMode_ &&
             IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        const bool heldWeaponAttack =
+            actionMode_ == ActionMode::Weapons &&
+            isPlayerCombatWeapon(
+                currentSnapshot.selectedWeapon) &&
+            !currentSnapshot.buildingPreview &&
+            !foundationBuildMode_ &&
+            IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         const bool attackPressed =
             mousePrimaryPressed ||
             heldResourceGather ||
+            heldWeaponAttack ||
             keyPressed(userSettings_.controls,
                        ControlAction::Attack);
         if (attackPressed) {
@@ -1374,6 +1382,32 @@ void App::processInput() {
                             ->platformStorey,
                     .lockHeight = true,
                 };
+            } else if (
+                mousePrimaryPressed &&
+                actionModeUsesEquipment(actionMode_) &&
+                !pendingBuildingSelection_ &&
+                currentSnapshot.selectedWeapon ==
+                    PlayerWeapon::Hammer &&
+                (currentSnapshot.aimedBuilding ||
+                 currentSnapshot.aimedModularBuilding)) {
+                const EntityId target =
+                    currentSnapshot.aimedBuilding
+                        ? *currentSnapshot.aimedBuilding
+                        : *currentSnapshot
+                               .aimedModularBuilding;
+                pendingBuildingRepair_ =
+                    RepairBuildingCommand{target};
+                if (toolSwapRemaining_ <= 0.0 &&
+                    toolSwingRemaining_ <= 0.0) {
+                    toolSwingDuration_ =
+                        toolTuning_.swingDuration;
+                    toolSwingRemaining_ =
+                        toolSwingDuration_;
+                    toolSwingAttackPending_ = false;
+                }
+                buildingContextCardTarget_.reset();
+                buildingContextCardUpgradeCost_.reset();
+                buildingContextCardStats_.reset();
             } else if (mousePrimaryPressed &&
                 !pendingBuildingSelection_ &&
                 !currentSnapshot.aimedEnemy &&

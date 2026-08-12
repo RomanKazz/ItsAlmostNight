@@ -371,6 +371,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         processBuildingCommands(command);
     }
     if (state_ == RunState::Defeat) {
+        gold_ = 0;
+        coins_ = 0;
         coinPickups_.reset();
         rewardedEnemyCoins_.clear();
         ++tick_;
@@ -402,6 +404,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             cannons_.clearProjectiles();
             bombs_.clearProjectiles();
             state_ = RunState::Defeat;
+            gold_ = 0;
+            coins_ = 0;
             coinPickups_.reset();
             rewardedEnemyCoins_.clear();
             events_.push_back({
@@ -433,6 +437,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
     if (state_ == RunState::Defeat) {
+        gold_ = 0;
+        coins_ = 0;
         coinPickups_.reset();
         rewardedEnemyCoins_.clear();
         ++tick_;

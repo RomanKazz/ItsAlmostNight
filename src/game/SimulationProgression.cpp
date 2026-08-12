@@ -40,6 +40,8 @@ std::uint64_t Simulation::structuralRevision() const {
 
 SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     invalidateSnapshotCache();
+    const double previousDayExtension =
+        skillTree_.effectValue("day.duration_seconds");
     const SkillPurchaseError result = skillTree_.purchase(
         index, !unlimitedResources_);
     if (result != SkillPurchaseError::None) return result;
@@ -58,6 +60,16 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     else if (nodeHas("unlock.hammer")) playerWeapons_.selectWeapon(PlayerWeapon::Hammer);
     else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
     refreshSkillRuntimeEffects();
+    const RunState effectiveState =
+        state_ == RunState::Paused ? stateBeforePause_ : state_;
+    if (effectiveState == RunState::BuildPhase) {
+        const double addedSeconds = std::max(
+            0.0,
+            skillTree_.effectValue("day.duration_seconds") -
+                previousDayExtension);
+        phaseTimeRemaining_ += addedSeconds;
+        phaseDuration_ += addedSeconds;
+    }
     selectedBuilding_.reset();
     buildingPreview_.reset();
     events_.push_back({.type = GameEventType::SkillUnlocked,
