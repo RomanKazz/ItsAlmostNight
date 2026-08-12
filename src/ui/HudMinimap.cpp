@@ -368,9 +368,14 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const bool mapRevealsChests =
         snapshot.unlimitedResources ||
         snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
-    if (mapRevealsChests) {
+    if (mapRevealsChests || std::ranges::any_of(
+            snapshot.lootChests,
+            [](const LootChestInstance& chest) {
+                return chest.revealed;
+            })) {
         for (const LootChestInstance& chest : snapshot.lootChests) {
-            if (chest.looseLoot) continue;
+            if (chest.looseLoot ||
+                (!mapRevealsChests && !chest.revealed)) continue;
             const Vector2 point = mapPoint(
                 chest.position.x, chest.position.z);
             const float size = 3.2F * symbolScale;
@@ -488,7 +493,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 point, 4, 3.2F * symbolScale, 45.0F,
                 {222, 101, 75, 240});
             break;
-        case BuildingType::GoldMine:
+        case BuildingType::CrystalMine:
         case BuildingType::LumberMill:
         case BuildingType::Quarry: {
             Color color{120, 209, 218, 240};

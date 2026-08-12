@@ -53,6 +53,18 @@ void App::processInput() {
     const auto snapshot = simulation_.snapshot();
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
+    const bool primaryMouseDown =
+        IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    if (primaryMouseDown &&
+        acceptsGameplayInput(snapshot.state) &&
+        !skillTree_.isOpen() &&
+        !graphicsPanelVisible &&
+        !pendingControlRebind_) {
+        primaryAttackHoldSeconds_ +=
+            static_cast<double>(GetFrameTime());
+    } else {
+        primaryAttackHoldSeconds_ = 0.0;
+    }
     if (pendingControlRebind_) {
         const int pressedKey = GetKeyPressed();
         if (pressedKey == KEY_ESCAPE) {
@@ -683,7 +695,7 @@ void App::processInput() {
                     selectBuildingMode(BuildingType::Turret);
                 }
                 if (IsKeyPressed(KEY_FOUR)) {
-                    selectBuildingMode(BuildingType::GoldMine);
+                    selectBuildingMode(BuildingType::CrystalMine);
                 }
                 if (IsKeyPressed(KEY_FIVE)) {
                     selectBuildingMode(BuildingType::Cannon);
@@ -875,8 +887,9 @@ void App::processInput() {
             (actionMode_ == ActionMode::Weapons &&
              keyPressed(userSettings_.controls,
                         ControlAction::UpgradeWeapon));
-        pendingBombThrow_ = pendingBombThrow_ || keyPressed(
-            userSettings_.controls, ControlAction::Bomb);
+        pendingRevealChest_ = pendingRevealChest_ ||
+            keyPressed(userSettings_.controls,
+                       ControlAction::RevealChest);
         pendingDefeatAllEnemies_ =
             pendingDefeatAllEnemies_ || IsKeyPressed(KEY_K);
         pendingToggleInvulnerability_ =
@@ -915,12 +928,16 @@ void App::processInput() {
             }
         }
         if (keyPressed(userSettings_.controls,
-                      ControlAction::Upgrade) &&
-            !currentSnapshot.selectedBuilding) {
-            if (actionBuilding) {
+                      ControlAction::Upgrade)) {
+            if (currentSnapshot.aimedLoot) {
+                pendingChestReroll_ = RerollChestCommand{
+                    *currentSnapshot.aimedLoot};
+            } else if (!currentSnapshot.selectedBuilding &&
+                       actionBuilding) {
                 pendingBuildingUpgrade_ =
                     UpgradeBuildingCommand{*actionBuilding};
-            } else if (currentSnapshot.coreId) {
+            } else if (!currentSnapshot.selectedBuilding &&
+                       currentSnapshot.coreId) {
                 pendingBuildingUpgrade_ = UpgradeBuildingCommand{*currentSnapshot.coreId};
             }
         }
@@ -1045,13 +1062,13 @@ void App::processInput() {
             buildingContextCardUpgradeCost_.reset();
             buildingContextCardStats_.reset();
         }
-        if (!currentSnapshot.selectedBuilding &&
-            keyPressed(userSettings_.controls,
+        if (keyPressed(userSettings_.controls,
                        ControlAction::Interact)) {
             if (currentSnapshot.aimedChest ||
                 currentSnapshot.aimedLoot) {
                 pendingInteract_ = true;
-            } else if (actionBuilding) {
+            } else if (!currentSnapshot.selectedBuilding &&
+                       actionBuilding) {
                 pendingGateToggle_ =
                     ToggleGateCommand{*actionBuilding};
             }
@@ -1244,8 +1261,8 @@ void App::processInput() {
                          dragCost.wood * nextCount ||
                      currentSnapshot.stone <
                          dragCost.stone * nextCount ||
-                     currentSnapshot.gold <
-                         dragCost.gold * nextCount)) {
+                     currentSnapshot.crystals <
+                         dragCost.crystals * nextCount)) {
                     continue;
                 }
                 pendingWallPlacements_.push_back({
@@ -1287,19 +1304,28 @@ void App::processInput() {
         }
         const bool mousePrimaryPressed =
             IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        // A press always performs one immediate attack. Repeating starts only
+        // after an intentional hold, so an ordinary click cannot queue a
+        // second swing on the following frame.
+        constexpr double AttackHoldRepeatDelaySeconds = 0.18;
+        const bool primaryMouseHeldForRepeat =
+            primaryMouseDown &&
+            primaryAttackHoldSeconds_ >=
+                AttackHoldRepeatDelaySeconds;
         const bool heldResourceGather =
             currentSnapshot.holdToGather &&
-            currentSnapshot.aimedResource &&
+            actionMode_ == ActionMode::Tools &&
+            isPlayerTool(currentSnapshot.selectedWeapon) &&
             !currentSnapshot.buildingPreview &&
             !foundationBuildMode_ &&
-            IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+            primaryMouseHeldForRepeat;
         const bool heldWeaponAttack =
             actionMode_ == ActionMode::Weapons &&
             isPlayerCombatWeapon(
                 currentSnapshot.selectedWeapon) &&
             !currentSnapshot.buildingPreview &&
             !foundationBuildMode_ &&
-            IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+            primaryMouseHeldForRepeat;
         const bool attackPressed =
             mousePrimaryPressed ||
             heldResourceGather ||
@@ -1400,7 +1426,7 @@ void App::processInput() {
                 if (toolSwapRemaining_ <= 0.0 &&
                     toolSwingRemaining_ <= 0.0) {
                     toolSwingDuration_ =
-                        toolTuning_.swingDuration;
+                        activeToolTuning().swingDuration;
                     toolSwingRemaining_ =
                         toolSwingDuration_;
                     toolSwingAttackPending_ = false;
@@ -1425,6 +1451,21 @@ void App::processInput() {
                             .aimedBuildingUpgradeCost;
                     buildingContextCardStats_ =
                         currentSnapshot.aimedBuildingStats;
+                }
+            } else if (actionModeUsesEquipment(actionMode_) &&
+                       !pendingBuildingSelection_ &&
+                       currentSnapshot.selectedWeapon == PlayerWeapon::Bomb) {
+                buildingContextCardTarget_.reset();
+                buildingContextCardUpgradeCost_.reset();
+                buildingContextCardStats_.reset();
+                if (mousePrimaryPressed) {
+                    pendingBombThrow_ = true;
+                    if (toolSwapRemaining_ <= 0.0 &&
+                        toolSwingRemaining_ <= 0.0) {
+                        toolSwingDuration_ =
+                            activeToolTuning().swingDuration;
+                        toolSwingRemaining_ = toolSwingDuration_;
+                    }
                 }
             } else if (actionModeUsesEquipment(actionMode_) &&
                        !pendingBuildingSelection_ &&
@@ -1501,7 +1542,7 @@ void App::processInput() {
                         toolSwapRemaining_ <= 0.0 &&
                         toolSwingRemaining_ <= 0.0) {
                         toolSwingDuration_ =
-                            toolTuning_.swingDuration;
+                            activeToolTuning().swingDuration;
                         toolSwingRemaining_ =
                             toolSwingDuration_;
                         toolSwingAttackPending_ = true;

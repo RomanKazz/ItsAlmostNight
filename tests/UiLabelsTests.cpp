@@ -10,7 +10,7 @@ void runUiLabelsTests() {
         ian::BuildingType::Core,
         ian::BuildingType::Wall,
         ian::BuildingType::Turret,
-        ian::BuildingType::GoldMine,
+        ian::BuildingType::CrystalMine,
         ian::BuildingType::Cannon,
         ian::BuildingType::SlowTrap,
         ian::BuildingType::Gate,
@@ -28,9 +28,9 @@ void runUiLabelsTests() {
     }
     require(
         ian::buildingDisplayName(
-            ian::BuildingType::GoldMine) ==
+            ian::BuildingType::CrystalMine) ==
             "Crystal Mine",
-        "gold mine label follows crystal currency");
+        "crystals mine label follows crystal currency");
     const std::string introReward =
         ian::introGatherRewardMessage(60.0);
     require(

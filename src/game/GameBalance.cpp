@@ -85,12 +85,12 @@ BuildingBalanceDefinition parseBuilding(const Json& value) {
     const BuildingBalanceDefinition definition{
         .wood = value.at("wood").get<int>(),
         .stone = value.at("stone").get<int>(),
-        .gold = value.at("gold").get<int>(),
+        .crystals = value.at("crystals").get<int>(),
         .maxHealth = value.at("maxHealth").get<double>(),
         .unlockCoreLevel = value.at("unlockCoreLevel").get<int>(),
         .maxCount = value.at("maxCount").get<int>(),
     };
-    if (definition.wood < 0 || definition.stone < 0 || definition.gold < 0 ||
+    if (definition.wood < 0 || definition.stone < 0 || definition.crystals < 0 ||
         definition.maxHealth <= 0.0 || definition.unlockCoreLevel < 0 ||
         definition.unlockCoreLevel > 3 || definition.maxCount <= 0 ||
         definition.maxCount > 256) {
@@ -104,11 +104,11 @@ parseModularBuilding(const Json& value) {
     const ModularBuildingBalanceDefinition definition{
         .wood = value.at("wood").get<int>(),
         .stone = value.at("stone").get<int>(),
-        .gold = value.at("gold").get<int>(),
+        .crystals = value.at("crystals").get<int>(),
     };
     if (definition.wood < 0 ||
         definition.stone < 0 ||
-        definition.gold < 0) {
+        definition.crystals < 0) {
         throw std::runtime_error(
             "invalid modular building definition");
     }
@@ -132,7 +132,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
             .reloadReductionPerLevel = rifle.at("reloadReductionPerLevel").get<double>(),
             .magazineSize = rifle.at("magazineSize").get<int>(),
             .magazineBonusPerLevel = rifle.at("magazineBonusPerLevel").get<int>(),
-            .upgradeGold = rifle.at("upgradeGold").get<std::array<int, 2>>(),
+            .upgradeCrystal = rifle.at("upgradeCrystal").get<std::array<int, 2>>(),
         },
         .bomb = {
             .startingBombs = bomb.at("startingBombs").get<int>(),
@@ -148,7 +148,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
         .club = {
             .damageMultiplier = club.value("damageMultiplier", 1.35),
             .areaRadius = club.value("areaRadius", 1.25),
-            .knockbackStrength = club.value("knockbackStrength", 3.0),
+            .knockbackStrength = club.value("knockbackStrength", 0.0),
             .maxDamagePerAttack = club.value("maxDamagePerAttack", 4.0),
         },
         .iceWand = {
@@ -189,7 +189,7 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
         configuredRifle.reloadReductionPerLevel < 0.0 ||
         configuredRifle.reloadDuration - 2.0 * configuredRifle.reloadReductionPerLevel <= 0.0 ||
         configuredRifle.magazineSize <= 0 || configuredRifle.magazineBonusPerLevel < 0 ||
-        configuredRifle.upgradeGold[0] < 0 || configuredRifle.upgradeGold[1] < 0 ||
+        configuredRifle.upgradeCrystal[0] < 0 || configuredRifle.upgradeCrystal[1] < 0 ||
         configuredBomb.startingBombs < 0 || configuredBomb.throwSpeed <= 0.0 ||
         configuredBomb.upwardSpeed < 0.0 || configuredBomb.gravity <= 0.0 ||
         configuredBomb.fuseDuration <= 0.0 || configuredBomb.groundHeight < 0.0 ||
@@ -232,30 +232,38 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
 
 EconomyBalanceDefinition parseEconomy(const Json& value) {
     const EconomyBalanceDefinition definition{
-        .goldMineInterval = value.at("goldMineInterval").get<double>(),
-        .goldMineAmount = value.at("goldMineAmount").get<int>(),
+        .crystalMineInterval = value.at("crystalMineInterval").get<double>(),
+        .crystalMineAmount = value.at("crystalMineAmount").get<int>(),
+        .waveRewardBase = value.value("waveRewardBase", 0),
         .waveRewardPerWave = value.at("waveRewardPerWave").get<int>(),
+        .bombPurchaseCoinCost = value.value("bombPurchaseCoinCost", 15),
+        .chestRerollCoinCost = value.value("chestRerollCoinCost", 10),
+        .chestRevealCoinCost = value.value("chestRevealCoinCost", 20),
         .repairCostFraction = value.at("repairCostFraction").get<double>(),
         .repairCooldownSeconds =
             value.value("repairCooldownSeconds", 3.0),
         .sellRefundFraction = value.at("sellRefundFraction").get<double>(),
         .buildingUpgradeCostMultiplier =
             value.at("buildingUpgradeCostMultiplier").get<std::array<double, 2>>(),
-        .buildingUpgradeGoldBonus =
-            value.at("buildingUpgradeGoldBonus").get<std::array<int, 2>>(),
-        .coreUpgradeGold = value.at("coreUpgradeGold").get<std::array<int, 2>>(),
+        .buildingUpgradeCrystalBonus =
+            value.at("buildingUpgradeCrystalBonus").get<std::array<int, 2>>(),
+        .coreUpgradeCrystals = value.at("coreUpgradeCrystals").get<std::array<int, 2>>(),
     };
-    if (definition.goldMineInterval <= 0.0 || definition.goldMineAmount <= 0 ||
-        definition.waveRewardPerWave < 0 || definition.repairCostFraction < 0.0 ||
+    if (definition.crystalMineInterval <= 0.0 || definition.crystalMineAmount <= 0 ||
+        definition.waveRewardBase < 0 || definition.waveRewardPerWave < 0 ||
+        definition.bombPurchaseCoinCost < 0 ||
+        definition.chestRerollCoinCost < 0 ||
+        definition.chestRevealCoinCost < 0 ||
+        definition.repairCostFraction < 0.0 ||
         definition.repairCostFraction > 1.0 ||
         definition.repairCooldownSeconds < 0.0 ||
         definition.sellRefundFraction < 0.0 ||
         definition.sellRefundFraction > 1.0 ||
         definition.buildingUpgradeCostMultiplier[0] <= 0.0 ||
         definition.buildingUpgradeCostMultiplier[1] <= 0.0 ||
-        definition.buildingUpgradeGoldBonus[0] < 0 ||
-        definition.buildingUpgradeGoldBonus[1] < 0 ||
-        definition.coreUpgradeGold[0] < 0 || definition.coreUpgradeGold[1] < 0) {
+        definition.buildingUpgradeCrystalBonus[0] < 0 ||
+        definition.buildingUpgradeCrystalBonus[1] < 0 ||
+        definition.coreUpgradeCrystals[0] < 0 || definition.coreUpgradeCrystals[1] < 0) {
         throw std::runtime_error("invalid economy definition");
     }
     return definition;
@@ -385,14 +393,15 @@ GameBalance GameBalance::defaults() {
         }},
         .weapons = {
             .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {40, 80}},
-            .bomb = {3, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
-            .club = {1.35, 1.25, 3.0, 4.0},
-            .iceWand = {0.85, 16.0, 18.0, 0.22, 2.5, 3.5, 1.4, 0.65,
-                        0.35, 0.12, 0.55},
-            .fireWand = {0.9, 12.0, 18.0, 0.24, 2.5, 3.25, 4.0, 3.0,
-                         0.5, 0.14, 0.5},
+            .bomb = {0, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
+            .club = {1.35, 1.25, 0.0, 4.0},
+            .iceWand = {0.95, 11.0, 18.0, 0.22, 2.5, 2.8, 1.4, 0.65,
+                        0.35, 0.12, 0.45},
+            .fireWand = {1.0, 8.0, 18.0, 0.24, 2.5, 2.7, 3.5, 2.0,
+                         0.5, 0.14, 0.4},
         },
-        .economy = {5.0, 5, 15, 0.5, 3.0, 0.5, {0.5, 1.0}, {10, 25}, {50, 100}},
+        .economy = {8.0, 4, 10, 5, 15, 10, 20, 0.5, 3.0, 0.5,
+                    {0.5, 1.0}, {10, 25}, {50, 100}},
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
@@ -461,7 +470,7 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             parseBuilding(buildings.at("core")),
             parseBuilding(buildings.at("wall")),
             parseBuilding(buildings.at("turret")),
-            parseBuilding(buildings.at("goldMine")),
+            parseBuilding(buildings.at("crystalMine")),
             parseBuilding(buildings.at("cannon")),
             parseBuilding(buildings.at("slowTrap")),
             parseBuilding(buildings.at("gate")),

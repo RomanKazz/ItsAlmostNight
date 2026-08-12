@@ -17,7 +17,7 @@ enum class UiResourceIcon {
     Wood,
     Stone,
     Crystal,
-    Gold,
+    Coin,
 };
 
 class GameUi {
@@ -89,7 +89,7 @@ class GameUi {
     Texture2D resourceWood_{};
     Texture2D resourceStone_{};
     Texture2D resourceCrystal_{};
-    Texture2D resourceGold_{};
+    Texture2D resourceCoin_{};
     bool initialized_{};
 };
 

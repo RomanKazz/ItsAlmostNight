@@ -203,9 +203,9 @@ void InteractionPromptRenderer::drawPrompt(
     constexpr float CostGap = 10.0F;
     constexpr float ProgressGap = 6.0F;
     const bool insufficient =
-        prompt.cost && prompt.cost->gold > 0 &&
-        prompt.availableGold &&
-        *prompt.availableGold < prompt.cost->gold &&
+        prompt.cost && prompt.cost->crystals > 0 &&
+        prompt.availableCurrency &&
+        *prompt.availableCurrency < prompt.cost->crystals &&
         !prompt.hint.has_value();
     const bool hasHint = prompt.hint.has_value() || insufficient;
     const bool hasObjectName = !prompt.objectName.empty();
@@ -215,9 +215,9 @@ void InteractionPromptRenderer::drawPrompt(
     const float maximumContentWidth =
         maximumPanelWidth - PaddingX * 2.0F;
     const float preferredCostWidth =
-        prompt.cost && prompt.cost->gold > 0
+        prompt.cost && prompt.cost->crystals > 0
             ? 18.0F + 5.0F + measureUiText(
-                  std::to_string(prompt.cost->gold),
+                  std::to_string(prompt.cost->crystals),
                   PreferredMainFontSize).x
             : 0.0F;
     const float actionMaximumWidth = std::max(
@@ -241,9 +241,9 @@ void InteractionPromptRenderer::drawPrompt(
             maximumContentWidth - keySize.x - KeyGap));
     const float actionWidth =
         measureUiText(prompt.actionText, mainFontSize).x;
-    const float costWidth = prompt.cost && prompt.cost->gold > 0
+    const float costWidth = prompt.cost && prompt.cost->crystals > 0
         ? 18.0F + 5.0F + measureUiText(
-              std::to_string(prompt.cost->gold), mainFontSize).x
+              std::to_string(prompt.cost->crystals), mainFontSize).x
         : 0.0F;
     const float lineWidth = keySize.x + KeyGap + actionWidth +
         ((costWidth > 0.0F && !insufficient) ? CostGap + costWidth : 0.0F);
@@ -252,9 +252,9 @@ void InteractionPromptRenderer::drawPrompt(
         : (insufficient
                ? 18.0F + 5.0F +
                      measureUiText(
-                         std::to_string(*prompt.availableGold) +
+                         std::to_string(*prompt.availableCurrency) +
                              " / " +
-                             std::to_string(prompt.cost->gold),
+                             std::to_string(prompt.cost->crystals),
                          hintFontSize).x
                : 0.0F);
     const float contentWidth = std::max(lineWidth, hintWidth);
@@ -356,7 +356,7 @@ void InteractionPromptRenderer::drawPrompt(
         {246, 239, 224, 255}, opacity);
     const UiResourceIcon costIcon =
         prompt.targetKind == InteractionPromptTargetKind::Chest
-            ? UiResourceIcon::Gold
+            ? UiResourceIcon::Coin
             : UiResourceIcon::Crystal;
 
     if (costWidth > 0.0F && !insufficient) {
@@ -374,7 +374,7 @@ void InteractionPromptRenderer::drawPrompt(
                 withOpacity(WHITE, opacity));
         }
         drawText(
-            std::to_string(prompt.cost->gold),
+            std::to_string(prompt.cost->crystals),
             {costX + 23.0F * scale, textY},
             mainFontSize, {244, 233, 205, 255}, opacity);
     }
@@ -404,14 +404,14 @@ void InteractionPromptRenderer::drawPrompt(
             }
             const float currentX = hintX + 21.0F * scale;
             drawText(
-                std::to_string(*prompt.availableGold),
+                std::to_string(*prompt.availableCurrency),
                 {currentX, hintY}, hintFontSize,
                 {224, 108, 96, 245}, opacity);
             const float slashX = currentX + measureUiText(
-                std::to_string(*prompt.availableGold),
+                std::to_string(*prompt.availableCurrency),
                 hintFontSize).x;
             drawText(
-                " / " + std::to_string(prompt.cost->gold),
+                " / " + std::to_string(prompt.cost->crystals),
                 {slashX, hintY}, hintFontSize,
                 {220, 214, 201, 235}, opacity);
         }

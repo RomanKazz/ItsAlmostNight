@@ -74,7 +74,7 @@ void runBuildingSystemTests() {
 
     const auto poorUpgrade = buildings.validateUpgrade(core->building.id, 0, 0, 49);
     require(poorUpgrade.error == ian::UpgradeError::InsufficientResources,
-            "core upgrade requires gold");
+            "core upgrade requires crystals");
     const auto levelTwo = buildings.upgrade(core->building.id, 0, 0, 50);
     require(levelTwo.valid() && levelTwo.building->level == 2,
             "first core upgrade reaches level two");
@@ -93,7 +93,7 @@ void runBuildingSystemTests() {
                 "core remains available through progression");
         const auto cost = buildings.upgradeCost(*currentCore);
         const auto upgraded = buildings.upgrade(
-            currentCore->id, cost.wood, cost.stone, cost.gold);
+            currentCore->id, cost.wood, cost.stone, cost.crystals);
         require(
             upgraded.valid() &&
                 upgraded.building->level == expectedLevel,
@@ -234,17 +234,17 @@ void runBuildingSystemTests() {
                 ian::BuildingActionError::Unsupported,
             "core cannot be sold");
 
-    require(buildings.place(ian::BuildingType::GoldMine, {4, 3}, 0, 20, 10).has_value(),
-            "first gold mine placement succeeds");
-    require(buildings.place(ian::BuildingType::GoldMine, {4, 5}, 0, 20, 10).has_value(),
-            "second gold mine placement succeeds");
-    require(buildings.place(ian::BuildingType::GoldMine, {6, 3}, 0, 20, 10).has_value(),
-            "third gold mine placement succeeds");
-    require(buildings.place(ian::BuildingType::GoldMine, {6, 5}, 0, 20, 10).has_value(),
-            "fourth gold mine placement succeeds");
-    require(buildings.validate(ian::BuildingType::GoldMine, {8, 3}, 20, 10).error ==
+    require(buildings.place(ian::BuildingType::CrystalMine, {4, 3}, 0, 20, 10).has_value(),
+            "first crystals mine placement succeeds");
+    require(buildings.place(ian::BuildingType::CrystalMine, {4, 5}, 0, 20, 10).has_value(),
+            "second crystals mine placement succeeds");
+    require(buildings.place(ian::BuildingType::CrystalMine, {6, 3}, 0, 20, 10).has_value(),
+            "third crystals mine placement succeeds");
+    require(buildings.place(ian::BuildingType::CrystalMine, {6, 5}, 0, 20, 10).has_value(),
+            "fourth crystals mine placement succeeds");
+    require(buildings.validate(ian::BuildingType::CrystalMine, {8, 3}, 20, 10).error ==
                 ian::PlacementError::LimitReached,
-            "gold mine limit is four");
+            "crystals mine limit is four");
 
     const ian::Vec3 player{0.0, 1.7, 6.0};
     const auto closeAim =
@@ -291,7 +291,7 @@ void runBuildingSystemTests() {
         "two-cell core center matches an even PlatformFrame anchor");
     require(
         ian::buildingFootprintHalfExtent(
-            ian::BuildingType::GoldMine) == 0.5 &&
+            ian::BuildingType::CrystalMine) == 0.5 &&
             ian::buildingFootprintHalfExtent(
                 ian::BuildingType::LumberMill) == 0.5 &&
             ian::buildingFootprintHalfExtent(

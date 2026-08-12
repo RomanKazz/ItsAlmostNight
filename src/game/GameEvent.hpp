@@ -43,7 +43,7 @@ enum class GameEventType {
     WaveRewardGranted,
     RunEnded,
     ProjectileHit,
-    GoldProduced,
+    CrystalProduced,
     CoinCollected,
     BuildingUpgraded,
     BuildingUpgradeRejected,
@@ -81,6 +81,13 @@ enum class GameEventType {
     BuildingFortified,
     ChestOpened,
     ChestOpenRejected,
+    ChestRerolled,
+    ChestRerollAlreadyUsed,
+    ChestRerollUnavailable,
+    ChestRevealed,
+    BombPurchased,
+    EconomyPurchaseRejected,
+    CrystalStorageFull,
     LootCollected,
 };
 

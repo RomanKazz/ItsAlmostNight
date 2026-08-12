@@ -417,6 +417,10 @@ const std::vector<EnemyInstance>& EnemySystem::enemies() const {
     return enemies_;
 }
 
+std::span<const EnemyProjectile> EnemySystem::projectiles() const {
+    return projectiles_;
+}
+
 std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {
     return playerAttackBuffer_;
 }
@@ -440,4 +444,3 @@ bool enemyHasStatus(const EnemyInstance& enemy, StatusEffectType type) {
 
 
 } // namespace ian
-

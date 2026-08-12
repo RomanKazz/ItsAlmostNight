@@ -17,7 +17,8 @@ void runPlayerWeaponSystemTests() {
                     ian::PlayerWeapon::Club,
                     ian::PlayerWeapon::IceWand,
                     ian::PlayerWeapon::FireWand,
-                    ian::PlayerWeapon::Rifle} &&
+                    ian::PlayerWeapon::Rifle,
+                    ian::PlayerWeapon::Bomb} &&
             ian::isPlayerTool(ian::PlayerWeapon::Pickaxe) &&
             !ian::isPlayerTool(ian::PlayerWeapon::Rifle),
         "tools and combat weapons use separate canonical hotbars");
@@ -79,10 +80,10 @@ void runPlayerWeaponSystemTests() {
                 ian::WeaponUpgradeError::CoreLevelRequired,
             "rifle cannot exceed core level");
     require(upgradedWeapon.validateUpgrade(2, 39).error ==
-                ian::WeaponUpgradeError::InsufficientGold,
-            "rifle upgrade validates gold");
+                ian::WeaponUpgradeError::InsufficientCrystals,
+            "rifle upgrade validates crystals");
     const auto levelTwo = upgradedWeapon.upgrade(2, 40);
-    require(levelTwo.valid() && levelTwo.level == 2 && levelTwo.goldCost == 40,
+    require(levelTwo.valid() && levelTwo.level == 2 && levelTwo.crystalCost == 40,
             "rifle reaches level two");
     require(upgradedWeapon.magazineSize() == 10 && upgradedWeapon.ammunition() == 10,
             "rifle upgrade expands current magazine");

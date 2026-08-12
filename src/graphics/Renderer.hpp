@@ -125,26 +125,27 @@ enum class FirstPersonToolVisual {
     IceWand,
     FireWand,
     Hammer,
+    Bomb,
 };
 
 struct FirstPersonToolTuning {
-    Vector3 position{0.34F, -0.40F, -0.92F};
-    Vector3 rotation{-8.0F, -118.0F, 22.0F};
-    float scale{0.78F};
-    float windupDegrees{30.0F};
-    float strikeDegrees{-75.0F};
-    float depthPush{-0.055F};
+    Vector3 position{0.47401315F, -0.409843F, -0.7427701F};
+    Vector3 rotation{19.27515F, -72.26504F, 5.6109023F};
+    float scale{0.9171346F};
+    float windupDegrees{34.0625F};
+    float strikeDegrees{-75.38535F};
+    float depthPush{-0.098322F};
     float swingDuration{0.48F};
-    float hitProgress{0.36F};
-    float movementBob{1.0F};
+    float hitProgress{0.42F};
+    float movementBob{0.5010769F};
     float swapDuration{0.32F};
     float swapDrop{0.72F};
     bool outlineEnabled{true};
-    float outlineWidth{2.0F};
-    float outlineStrength{0.82F};
-    float rimStrength{0.28F};
-    float brightness{1.12F};
-    float saturation{1.0F};
+    float outlineWidth{3.3623266F};
+    float outlineStrength{0.3901942F};
+    float rimStrength{0.4286008F};
+    float brightness{1.2466959F};
+    float saturation{1.1411145F};
 };
 
 [[nodiscard]] bool loadFirstPersonToolTuning(
@@ -182,7 +183,9 @@ struct TreeDrawInstance {
 
 struct RockDrawInstance {
     Vector3 position{};
+    float yawRadians{};
     float scale{1.0F};
+    std::size_t visualVariant{};
 };
 
 class Renderer {
@@ -304,6 +307,8 @@ class Renderer {
         float scale = 1.0F);
     void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
+    void drawHeart(Vector3 position, float rotationRadians,
+                   float scale = 1.0F);
     [[nodiscard]] bool drawDestructibleProp(
         ResourceType type, Vector3 position, float yawRadians,
         Color tint = WHITE, float scale = 1.0F);
@@ -349,7 +354,9 @@ class Renderer {
         Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawRock(Vector3 position,
                                 Color tint = WHITE,
-                                float scale = 1.0F);
+                                float scale = 1.0F,
+                                std::size_t visualVariant = 0U,
+                                float yawRadians = 0.0F);
     [[nodiscard]] bool drawRocksInstanced(
         std::span<const RockDrawInstance> instances);
     [[nodiscard]] bool drawTree(Vector3 position,
@@ -702,7 +709,8 @@ class Renderer {
         boundaryForestRevealTransforms_;
     std::array<std::vector<Matrix>, TreeVisualVariantCount>
         resourceTreeTransforms_;
-    std::vector<Matrix> resourceRockTransforms_;
+    std::array<std::vector<Matrix>, StoneVisualVariantCount>
+        resourceRockTransforms_;
     std::array<std::vector<Matrix>, 4>
         decorativeRockTransforms_;
     std::array<std::vector<Matrix>, 9>

@@ -69,7 +69,7 @@ void AudioSystem::initialize() {
     load(repair_, "assets/audio/repair.ogg");
     load(upgrade_, "assets/audio/upgrade.wav");
     load(gate_, "assets/audio/gate.ogg");
-    load(gold_, "assets/audio/gold.ogg");
+    load(crystals_, "assets/audio/crystals.ogg");
     load(playerHit_, "assets/audio/player_hit.ogg");
     load(enemyHit_, "assets/audio/enemy_hit.ogg");
     load(turretHit_, "assets/audio/turret_hit.ogg");
@@ -103,7 +103,7 @@ void AudioSystem::shutdown() {
     unload(repair_);
     unload(upgrade_);
     unload(gate_);
-    unload(gold_);
+    unload(crystals_);
     unload(playerHit_);
     unload(enemyHit_);
     unload(turretHit_);
@@ -322,14 +322,14 @@ void AudioSystem::playEvent(
     case GameEventType::WeaponUpgraded:
         play(upgrade_, 0.75F, 1.0F);
         break;
-    case GameEventType::GoldProduced:
+    case GameEventType::CrystalProduced:
         playAt(
-            gold_, event.position, snapshot, 0.34F,
+            crystals_, event.position, snapshot, 0.34F,
             variedPitch(0.04F), 16.0F);
         break;
     case GameEventType::CoinCollected:
         play(
-            gold_,
+            crystals_,
             std::min(
                 0.78F,
                 0.42F + static_cast<float>(event.amount) * 0.055F),
@@ -340,7 +340,7 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::WaveRewardGranted:
     case GameEventType::EarlyWaveBonusGranted:
-        play(gold_, 0.58F, variedPitch(0.04F));
+        play(crystals_, 0.58F, variedPitch(0.04F));
         break;
     case GameEventType::ResourceGranted:
         if (event.entityId && event.buildingType &&
@@ -431,6 +431,11 @@ void AudioSystem::playEvent(
     case GameEventType::ChestOpened:
         play(gate_, 0.62F, 0.78F);
         break;
+    case GameEventType::ChestRerolled:
+    case GameEventType::ChestRevealed:
+    case GameEventType::BombPurchased:
+        play(uiConfirm_, 0.52F, 1.08F);
+        break;
     case GameEventType::LootCollected:
         play(upgrade_, 0.78F, 1.08F);
         break;
@@ -441,6 +446,8 @@ void AudioSystem::playEvent(
     case GameEventType::WeaponUpgradeRejected:
     case GameEventType::GateToggleRejected:
     case GameEventType::ChestOpenRejected:
+    case GameEventType::EconomyPurchaseRejected:
+    case GameEventType::CrystalStorageFull:
         play(uiError_, 0.55F, 1.0F);
         break;
     default:

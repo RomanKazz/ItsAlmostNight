@@ -778,72 +778,72 @@ void App::drawGraphicsPanel() {
             };
 
         if (toolPanelPage_ == 0) {
-            toolSlider(0, 0, "POSITION X", toolTuning_.position.x,
+            toolSlider(0, 0, "POSITION X", activeToolTuning().position.x,
                        -0.8F, 0.8F);
-            toolSlider(0, 1, "POSITION Y", toolTuning_.position.y,
+            toolSlider(0, 1, "POSITION Y", activeToolTuning().position.y,
                        -1.0F, 0.3F);
-            toolSlider(0, 2, "POSITION Z", toolTuning_.position.z,
+            toolSlider(0, 2, "POSITION Z", activeToolTuning().position.z,
                        -2.0F, -0.25F);
-            toolSlider(0, 3, "SCALE", toolTuning_.scale,
+            toolSlider(0, 3, "SCALE", activeToolTuning().scale,
                        0.2F, 2.0F);
-            toolSlider(1, 0, "ROTATION X", toolTuning_.rotation.x,
+            toolSlider(1, 0, "ROTATION X", activeToolTuning().rotation.x,
                        -180.0F, 180.0F);
-            toolSlider(1, 1, "ROTATION Y", toolTuning_.rotation.y,
+            toolSlider(1, 1, "ROTATION Y", activeToolTuning().rotation.y,
                        -180.0F, 180.0F);
-            toolSlider(1, 2, "ROTATION Z", toolTuning_.rotation.z,
+            toolSlider(1, 2, "ROTATION Z", activeToolTuning().rotation.z,
                        -180.0F, 180.0F);
         } else if (toolPanelPage_ == 1) {
             toolSlider(0, 0, "WINDUP ANGLE",
-                       toolTuning_.windupDegrees,
+                       activeToolTuning().windupDegrees,
                        -140.0F, 140.0F);
             toolSlider(0, 1, "STRIKE ANGLE",
-                       toolTuning_.strikeDegrees,
+                       activeToolTuning().strikeDegrees,
                        -160.0F, 160.0F);
             toolSlider(0, 2, "DEPTH PUSH",
-                       toolTuning_.depthPush,
+                       activeToolTuning().depthPush,
                        -0.25F, 0.25F);
             toolSlider(0, 3, "HIT POINT",
-                       toolTuning_.hitProgress,
+                       activeToolTuning().hitProgress,
                        0.25F, 0.65F);
             toolSlider(1, 0, "SWING DURATION",
-                       toolTuning_.swingDuration,
+                       activeToolTuning().swingDuration,
                        0.15F, 1.5F);
             toolSlider(1, 1, "WALK BOB",
-                       toolTuning_.movementBob,
+                       activeToolTuning().movementBob,
                        0.0F, 2.0F);
             toolSlider(1, 2, "SWAP DURATION",
-                       toolTuning_.swapDuration,
+                       activeToolTuning().swapDuration,
                        0.1F, 1.2F);
             toolSlider(1, 3, "SWAP DROP",
-                       toolTuning_.swapDrop,
+                       activeToolTuning().swapDrop,
                        0.2F, 1.5F);
         } else {
             toolSlider(0, 0, "OUTLINE WIDTH",
-                       toolTuning_.outlineWidth,
+                       activeToolTuning().outlineWidth,
                        0.5F, 5.0F);
             toolSlider(0, 1, "OUTLINE STRENGTH",
-                       toolTuning_.outlineStrength,
+                       activeToolTuning().outlineStrength,
                        0.0F, 1.0F);
             toolSlider(0, 2, "RIM LIGHT",
-                       toolTuning_.rimStrength,
+                       activeToolTuning().rimStrength,
                        0.0F, 1.5F);
             toolSlider(1, 0, "BRIGHTNESS",
-                       toolTuning_.brightness,
+                       activeToolTuning().brightness,
                        0.5F, 2.0F);
             toolSlider(1, 1, "SATURATION",
-                       toolTuning_.saturation,
+                       activeToolTuning().saturation,
                        0.0F, 2.0F);
             const float toggleY =
                 panelY + ControlStartY + RowHeight * 2.0F;
             if (ui_.drawToggleButton(
                     {contentX + columnWidth + Gap, toggleY,
                      columnWidth, ButtonHeight},
-                    toolTuning_.outlineEnabled
+                    activeToolTuning().outlineEnabled
                         ? "OUTLINE: ON"
                         : "OUTLINE: OFF",
-                    toolTuning_.outlineEnabled)) {
-                toolTuning_.outlineEnabled =
-                    !toolTuning_.outlineEnabled;
+                    activeToolTuning().outlineEnabled)) {
+                activeToolTuning().outlineEnabled =
+                    !activeToolTuning().outlineEnabled;
             }
         }
 
@@ -862,11 +862,20 @@ void App::drawGraphicsPanel() {
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, modelY,
                  columnWidth, ButtonHeight},
-                toolPanelPreviewUsesAxe_
-                    ? "MODEL: AXE"
-                    : "MODEL: PICKAXE")) {
-            toolPanelPreviewUsesAxe_ =
-                !toolPanelPreviewUsesAxe_;
+                TextFormat("MODEL: %s",
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::Axe ? "AXE" :
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::Pickaxe ? "PICKAXE" :
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::Club ? "CLUB" :
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::IceWand ? "ICE WAND" :
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::FireWand ? "FIRE WAND" :
+                    toolPanelPreviewVisual_ == FirstPersonToolVisual::Hammer ? "HAMMER" :
+                    "BOMB"))) {
+            int visual = static_cast<int>(toolPanelPreviewVisual_) + 1;
+            if (visual > static_cast<int>(FirstPersonToolVisual::Bomb)) {
+                visual = static_cast<int>(FirstPersonToolVisual::Axe);
+            }
+            toolPanelPreviewVisual_ =
+                static_cast<FirstPersonToolVisual>(visual);
         }
         const float actionY =
             panelY + ControlStartY + RowHeight * 5.0F;
@@ -875,15 +884,17 @@ void App::drawGraphicsPanel() {
                  columnWidth, ButtonHeight},
                 "SAVE TOOL")) {
             static_cast<void>(saveFirstPersonToolTuning(
-                "user_settings/first_person_tool.json",
-                toolTuning_));
+                toolTuningPath(toolPanelPreviewVisual_),
+                activeToolTuning()));
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, actionY,
                  columnWidth, ButtonHeight},
                 "PLAY SWING")) {
-            toolSwingUsesAxe_ = toolPanelPreviewUsesAxe_;
-            toolSwingDuration_ = toolTuning_.swingDuration;
+            toolSwingUsesAxe_ =
+                toolPanelPreviewVisual_ == FirstPersonToolVisual::Axe ||
+                toolPanelPreviewVisual_ == FirstPersonToolVisual::Club;
+            toolSwingDuration_ = activeToolTuning().swingDuration;
             toolSwingRemaining_ = toolSwingDuration_;
         }
         const float bottomY =
@@ -891,10 +902,10 @@ void App::drawGraphicsPanel() {
         if (ui_.drawButton(
                 {contentX, bottomY, columnWidth, ButtonHeight},
                 "RESET TOOL")) {
-            toolTuning_ = {};
+            activeToolTuning() = {};
             static_cast<void>(saveFirstPersonToolTuning(
-                "user_settings/first_person_tool.json",
-                toolTuning_));
+                toolTuningPath(toolPanelPreviewVisual_),
+                activeToolTuning()));
         }
         if (ui_.drawButton(
                 {contentX + columnWidth + Gap, bottomY,
@@ -904,8 +915,8 @@ void App::drawGraphicsPanel() {
         }
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
             static_cast<void>(saveFirstPersonToolTuning(
-                "user_settings/first_person_tool.json",
-                toolTuning_));
+                toolTuningPath(toolPanelPreviewVisual_),
+                activeToolTuning()));
         }
     }
 

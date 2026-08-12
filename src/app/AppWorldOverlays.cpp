@@ -438,7 +438,7 @@ void App::drawWorldOverlays(
                     snapshot.unlimitedResources ||
                     (snapshot.wood >= cost.wood * count &&
                      snapshot.stone >= cost.stone * count &&
-                     snapshot.gold >= cost.gold * count);
+                     snapshot.crystals >= cost.crystals * count);
                 if (!lineAffordable &&
                     cellPreview.placement.valid()) {
                     cellPreview.placement.error =
@@ -581,7 +581,7 @@ void App::drawWorldOverlays(
                     snapshot.unlimitedResources ||
                     (snapshot.wood >= cost.wood * count &&
                      snapshot.stone >= cost.stone * count &&
-                     snapshot.gold >= cost.gold * count);
+                     snapshot.crystals >= cost.crystals * count);
                 if (!affordable &&
                     visualPreview.placement.valid()) {
                     visualPreview.placement.error =
@@ -751,7 +751,7 @@ void App::drawWorldOverlays(
                     snapshot.unlimitedResources ||
                     (snapshot.wood >= cost.wood * count &&
                      snapshot.stone >= cost.stone * count &&
-                     snapshot.gold >= cost.gold * count);
+                     snapshot.crystals >= cost.crystals * count);
                 if (!affordable && placement.valid()) {
                     placement.error =
                         PlacementError::InsufficientResources;
@@ -794,7 +794,7 @@ void App::drawWorldOverlays(
                         renderer_->drawCannon(
                             position, yaw, 0.0F));
                 } else if (
-                    preview.type == BuildingType::GoldMine ||
+                    preview.type == BuildingType::CrystalMine ||
                     preview.type == BuildingType::LumberMill ||
                     preview.type == BuildingType::Quarry) {
                     static_cast<void>(
@@ -870,7 +870,7 @@ void App::drawWorldOverlays(
                          0.28F, 1.4F, WHITE);
             }
         } else if (
-            preview.type == BuildingType::GoldMine ||
+            preview.type == BuildingType::CrystalMine ||
             preview.type == BuildingType::LumberMill ||
             preview.type == BuildingType::Quarry) {
             if (!renderer_->drawResourceProducer(
@@ -924,8 +924,8 @@ void App::drawWorldOverlays(
                              cost.wood * count &&
                          snapshot.stone >=
                              cost.stone * count &&
-                         snapshot.gold >=
-                             cost.gold * count);
+                         snapshot.crystals >=
+                             cost.crystals * count);
                     const bool valid =
                         placement.valid() && affordable;
                     WorldMaterialState cellMaterial =

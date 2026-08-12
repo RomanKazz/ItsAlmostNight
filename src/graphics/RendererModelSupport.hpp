@@ -11,8 +11,14 @@
 namespace ian::renderer_model_detail {
 
 inline constexpr float TreeModelScale = 1.0F;
-inline constexpr float RockModelScale = 2.0F;
-inline constexpr float RockGroundOffset = 0.204F;
+inline constexpr float RockModelScale =
+    static_cast<float>(StoneVisualModelScale);
+
+[[nodiscard]] constexpr float rockGroundOffset(
+    std::size_t variant) {
+    return static_cast<float>(StoneVisualGroundOffsets[
+        variant % StoneVisualVariantCount]);
+}
 
 [[nodiscard]] constexpr std::size_t propModelIndex(ResourceType type) {
     if (type == ResourceType::Barrel) return 0U;

@@ -438,7 +438,8 @@ void Simulation::updatePlayer(double deltaSeconds,
         map_.worldLimit, playerPosition_);
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
-            resources_.nodes(), treeCollisionAssets_);
+            resources_.nodes(), treeCollisionAssets_,
+            stoneCollisionAssets_);
     }
     pickaxeCooldownRemaining_ = std::max(0.0, pickaxeCooldownRemaining_ - deltaSeconds);
     playerWeapons_.tick(deltaSeconds);

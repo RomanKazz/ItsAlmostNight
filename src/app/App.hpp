@@ -17,6 +17,7 @@
 #include "ui/TargetHealthBar.hpp"
 
 #include <optional>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <limits>
@@ -162,6 +163,10 @@ class App {
     void persistUserSettings(bool force = false);
     void drawEnemySpawnMenu();
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
+    [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
+    [[nodiscard]] const FirstPersonToolTuning& activeToolTuning() const;
+    [[nodiscard]] static const char* toolTuningPath(
+        FirstPersonToolVisual visual);
     void processPresentationEvents(
         std::span<const GameEvent> events,
         const SimulationSnapshot& snapshot);
@@ -211,8 +216,9 @@ class App {
     bool graphicsPanelWasVisible_{};
     int graphicsPanelTab_{};
     std::optional<ControlAction> pendingControlRebind_;
-    FirstPersonToolTuning toolTuning_{};
-    bool toolPanelPreviewUsesAxe_{};
+    std::array<FirstPersonToolTuning, 8> toolTunings_{};
+    FirstPersonToolVisual toolPanelPreviewVisual_{
+        FirstPersonToolVisual::Axe};
     int toolPanelPage_{};
     TargetHealthBar targetHealthBar_;
     InteractionPromptRenderer interactionPromptRenderer_;
@@ -227,6 +233,7 @@ class App {
     bool toolQueuedSwingHasAttack_{};
     std::optional<EntityId> toolQueuedResourceTarget_;
     bool toolSwingAttackPending_{};
+    double primaryAttackHoldSeconds_{};
     double toolSwingQueueRemaining_{};
     double toolSwingRemaining_{};
     double toolSwingDuration_{0.48};
@@ -287,6 +294,8 @@ class App {
     bool pendingWeaponUpgrade_{};
     bool pendingBombThrow_{};
     bool pendingInteract_{};
+    std::optional<RerollChestCommand> pendingChestReroll_;
+    bool pendingRevealChest_{};
     bool pendingDefeatAllEnemies_{};
     bool pendingToggleInvulnerability_{};
     bool pendingDamageCore_{};

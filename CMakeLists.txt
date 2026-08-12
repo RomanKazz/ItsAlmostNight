@@ -88,7 +88,7 @@ add_library(ian_simulation
     src/combat/BombSystem.cpp
     src/combat/IceWandSystem.cpp
     src/combat/PlayerWeaponSystem.cpp
-    src/economy/GoldMineSystem.cpp
+    src/economy/CrystalMineSystem.cpp
     src/economy/CoinPickupSystem.cpp
     src/enemies/EnemyCombat.cpp
     src/enemies/EnemyCollision.cpp
@@ -297,7 +297,7 @@ if(BUILD_TESTING)
         tests/EnemySystemTests.cpp
         tests/EnvironmentSystemTests.cpp
         tests/FlowFieldTests.cpp
-        tests/GoldMineSystemTests.cpp
+        tests/CrystalMineSystemTests.cpp
         tests/CoinPickupSystemTests.cpp
         tests/PlayerWeaponSystemTests.cpp
         tests/ResourceSystemTests.cpp

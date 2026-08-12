@@ -38,10 +38,10 @@ struct HudViewState {
     bool repairSweepActive{};
     float woodResourceBounce{};
     float stoneResourceBounce{};
-    float goldResourceBounce{};
+    float crystalResourceBounce{};
     float woodResourcePulse{};
     float stoneResourcePulse{};
-    float goldResourcePulse{};
+    float crystalResourcePulse{};
     float coinResourceBounce{};
     float coinResourcePulse{};
     double displayedInsight{};

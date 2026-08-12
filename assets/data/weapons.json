@@ -9,10 +9,10 @@
     "reloadReductionPerLevel": 0.25,
     "magazineSize": 8,
     "magazineBonusPerLevel": 2,
-    "upgradeGold": [40, 80]
+    "upgradeCrystal": [40, 80]
   },
   "bomb": {
-    "startingBombs": 3,
+    "startingBombs": 0,
     "throwSpeed": 6.0,
     "upwardSpeed": 4.0,
     "gravity": 9.8,
@@ -25,33 +25,33 @@
   "club": {
     "damageMultiplier": 1.35,
     "areaRadius": 1.25,
-    "knockbackStrength": 3.0,
+    "knockbackStrength": 0.0,
     "maxDamagePerAttack": 4.0
   },
   "iceWand": {
-    "cooldown": 0.85,
-    "directDamage": 16.0,
+    "cooldown": 0.95,
+    "directDamage": 11.0,
     "projectileSpeed": 18.0,
     "projectileRadius": 0.22,
     "maxLifetime": 2.5,
-    "explosionRadius": 3.5,
+    "explosionRadius": 2.8,
     "freezeDuration": 1.4,
     "eliteFreezeMultiplier": 0.65,
     "bossSlowAmount": 0.35,
     "chargeUpDuration": 0.12,
-    "areaDamageMultiplier": 0.55
+    "areaDamageMultiplier": 0.45
   },
   "fireWand": {
-    "cooldown": 0.9,
-    "directDamage": 12.0,
+    "cooldown": 1.0,
+    "directDamage": 8.0,
     "projectileSpeed": 18.0,
     "projectileRadius": 0.24,
     "maxLifetime": 2.5,
-    "explosionRadius": 3.25,
-    "burnDuration": 4.0,
-    "burnDamagePerSecond": 3.0,
+    "explosionRadius": 2.7,
+    "burnDuration": 3.5,
+    "burnDamagePerSecond": 2.0,
     "burnTickInterval": 0.5,
     "chargeUpDuration": 0.14,
-    "areaDamageMultiplier": 0.5
+    "areaDamageMultiplier": 0.4
   }
 }

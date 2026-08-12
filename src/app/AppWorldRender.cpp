@@ -329,14 +329,18 @@ void App::drawWorldEntities(
             if (material.hitFlashAmount <= 0.001F) {
                 resourceRockDrawInstances_.push_back({
                     .position = nodePosition,
+                    .yawRadians =
+                        static_cast<float>(node.visualYaw),
                     .scale = hitScale,
+                    .visualVariant = node.visualVariant,
                 });
                 continue;
             }
             renderer_->setWorldMaterial(material);
             if (!renderer_->drawRock(
                     nodePosition,
-                    WHITE, hitScale)) {
+                    WHITE, hitScale, node.visualVariant,
+                    static_cast<float>(node.visualYaw))) {
                 DrawSphere(
                     nodePosition, 0.9F, {104, 116, 128, 255});
             }
@@ -357,7 +361,8 @@ void App::drawWorldEntities(
             for (const RockDrawInstance& rock :
                  resourceRockDrawInstances_) {
                 static_cast<void>(renderer_->drawRock(
-                    rock.position, WHITE, rock.scale));
+                    rock.position, WHITE, rock.scale,
+                    rock.visualVariant, rock.yawRadians));
             }
         }
     }
@@ -435,10 +440,27 @@ void App::drawWorldEntities(
             static_cast<float>(chest.surfaceNormal.y),
             static_cast<float>(chest.surfaceNormal.z),
         };
-        renderer_->drawLootItem(
-            visual.position, chest.loot.effect, chest.loot.rarity,
-            visual.rotation, WHITE, visual.scale,
-            surfaceNormal);
+        if (const auto target =
+                rerollTargetLootItemVisual(snapshot, chest)) {
+            BeginBlendMode(BLEND_ALPHA);
+            rlDisableDepthMask();
+            renderer_->drawLootItem(
+                visual.position, chest.loot.effect, chest.loot.rarity,
+                visual.rotation, visual.tint, visual.scale,
+                surfaceNormal);
+            renderer_->drawLootItem(
+                target->position, chest.rerollTargetEffect,
+                chest.rerollTargetRarity, target->rotation,
+                target->tint, target->scale, surfaceNormal);
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
+        } else {
+            renderer_->drawLootItem(
+                visual.position, chest.loot.effect, chest.loot.rarity,
+                visual.rotation, visual.tint, visual.scale,
+                surfaceNormal);
+        }
     }
     for (const CoinPickup& coin : snapshot.coinPickups) {
         const float deltaX =
@@ -459,13 +481,20 @@ void App::drawWorldEntities(
                   0.18F,
                   static_cast<float>(coin.magnetTime) * 0.55F)
             : 1.0F;
-        renderer_->drawCoin(
-            coin.type,
-            {static_cast<float>(coin.position.x),
-             static_cast<float>(coin.position.y),
-             static_cast<float>(coin.position.z)},
-            static_cast<float>(coin.spinPhase + coin.age * 8.5),
-            pop * magnetStretch);
+        const Vector3 pickupPosition{
+            static_cast<float>(coin.position.x),
+            static_cast<float>(coin.position.y),
+            static_cast<float>(coin.position.z)};
+        const float rotation = static_cast<float>(
+            coin.spinPhase + coin.age * 8.5);
+        if (coin.kind == PickupKind::Heart) {
+            renderer_->drawHeart(
+                pickupPosition, rotation, pop * magnetStretch);
+        } else {
+            renderer_->drawCoin(
+                coin.type, pickupPosition, rotation,
+                pop * magnetStretch);
+        }
     }
     renderer_->beginWorldShader(lighting);
     for (const DestroyedResourceVisual& visual :
@@ -503,7 +532,9 @@ void App::drawWorldEntities(
                     visual.visualYaw));
         } else if (visual.type == ResourceType::Stone) {
             static_cast<void>(
-                renderer_->drawRock(position, WHITE, scale));
+                renderer_->drawRock(
+                    position, WHITE, scale,
+                    visual.visualVariant, visual.visualYaw));
         } else {
             static_cast<void>(renderer_->drawDestructibleProp(
                 visual.type, position, visual.visualYaw, WHITE,
@@ -662,7 +693,7 @@ void App::drawWorldEntities(
                     1.0F, {50, 58, 67, 255});
             }
         } else if (
-            building.type == BuildingType::GoldMine ||
+            building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
             constexpr float QuarterTurn = PI * 0.5F;
@@ -1129,6 +1160,32 @@ void App::drawWorldEntities(
             }
         }
     }
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
+        if (!projectile.active) continue;
+        const Vector3 head{
+            static_cast<float>(projectile.position.x),
+            static_cast<float>(projectile.position.y),
+            static_cast<float>(projectile.position.z)};
+        Vector3 velocity{
+            static_cast<float>(projectile.velocity.x),
+            static_cast<float>(projectile.velocity.y),
+            static_cast<float>(projectile.velocity.z)};
+        if (Vector3LengthSqr(velocity) > 0.001F) {
+            velocity = Vector3Normalize(velocity);
+        }
+        const Vector3 tail = Vector3Subtract(
+            head, Vector3Scale(velocity, 0.72F));
+        const float pulse = 0.5F + 0.5F * std::sin(
+            static_cast<float>(snapshot.elapsedSeconds) * 13.0F +
+            static_cast<float>(projectile.id.index) * 0.73F);
+        DrawCylinderEx(tail, head, 0.035F, 0.12F, 8,
+                       {84, 58, 220, 150});
+        DrawSphere(head, 0.20F + pulse * 0.035F,
+                   {166, 105, 255, 235});
+        DrawSphere(head, 0.09F, {238, 221, 255, 255});
+    }
+    EndBlendMode();
     BeginBlendMode(BLEND_ADDITIVE);
     rlDrawRenderBatchActive();
     rlDisableDepthMask();

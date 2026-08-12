@@ -9,7 +9,7 @@
 
 void runCollisionWorldTests() {
     const auto compactMineBox = ian::buildingCollisionBox(
-        ian::BuildingType::GoldMine, {2, 2});
+        ian::BuildingType::CrystalMine, {2, 2});
     requireNear(
         compactMineBox.maximumBlockingEyeY -
             compactMineBox.minimumBlockingEyeY,
@@ -109,6 +109,35 @@ void runCollisionWorldTests() {
             ian::CollisionWorld::PlayerRadius);
     require(passedDestroyedTree.z < -2.5,
             "destroyed tree removes physical cylinder");
+
+    treeNodes[0] = {
+        .id = {1U, 1U},
+        .type = ian::ResourceType::Stone,
+        .position = {0.0, 0.8, 0.0},
+        .radius = 0.9,
+        .groundOffset = 0.8,
+        .health = 4.0,
+        .maxHealth = 4.0,
+        .yield = 12,
+        .yieldRemaining = 12,
+        .respawnSeconds = 15.0,
+        .visualVariant = 0U,
+        .active = true,
+    };
+    std::array<ian::GlbCollisionAsset, 1> stoneAssets{};
+    stoneAssets[0].colliders = {{
+        .name = "COL_SPHERE_00",
+        .type = ian::ModelColliderType::Sphere,
+        .minimum = {-1.95, -1.95, -1.95},
+        .maximum = {1.95, 1.95, 1.95},
+    }};
+    resourceCollision.syncResourceCylinders(
+        treeNodes, treeAssets, stoneAssets);
+    const auto stoppedByStone = resourceCollision.moveCircle(
+        {0.0, 1.7, 3.0}, {0.0, 0.0, -6.0},
+        ian::CollisionWorld::PlayerRadius);
+    require(stoppedByStone.z > 0.6,
+            "authored stone sphere physically blocks player movement");
 
     const auto wall =
         buildings.place(ian::BuildingType::Wall, {3, 0}, 0, 30, 30);

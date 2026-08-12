@@ -558,7 +558,7 @@ void App::render() {
                 .fovy = 58.0F,
                 .projection = CAMERA_PERSPECTIVE,
             };
-            FirstPersonToolTuning renderTuning = toolTuning_;
+            FirstPersonToolTuning renderTuning = activeToolTuning();
             if (toolSwapRemaining_ > 0.0 &&
                 toolSwapDuration_ > 0.0) {
                 const float progress = std::clamp(
@@ -581,7 +581,7 @@ void App::render() {
                          (clampedPhase * 6.0F - 15.0F) +
                      10.0F);
                 renderTuning.position.y -=
-                    toolTuning_.swapDrop * smooth;
+                    activeToolTuning().swapDrop * smooth;
             }
             if (renderer_->beginFirstPersonToolPass()) {
                 BeginMode3D(viewModelCamera);
@@ -594,7 +594,7 @@ void App::render() {
                     iceChargeProgress,
                     iceRecoilProgress));
                 EndMode3D();
-                renderer_->endFirstPersonToolPass(toolTuning_);
+                renderer_->endFirstPersonToolPass(activeToolTuning());
             }
         }
 
@@ -784,14 +784,14 @@ void App::render() {
                                       PI) *
                                   10.0)
                             : 0.0F,
-                    .goldResourceBounce = 0.0F,
+                    .crystalResourceBounce = 0.0F,
                     .woodResourcePulse =
                         static_cast<float>(
                             woodHudBounceRemaining_ / 0.28),
                     .stoneResourcePulse =
                         static_cast<float>(
                             stoneHudBounceRemaining_ / 0.28),
-                    .goldResourcePulse = 0.0F,
+                    .crystalResourcePulse = 0.0F,
                     .coinResourceBounce =
                         coinHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
@@ -1009,7 +1009,7 @@ void App::render() {
                     "  S:" +
                     std::to_string(cost.stone * count) +
                     "  C:" +
-                    std::to_string(cost.gold * count);
+                    std::to_string(cost.crystals * count);
                 constexpr float Width = 470.0F;
                 const float x =
                     static_cast<float>(GetScreenWidth()) *
@@ -1051,7 +1051,7 @@ void App::render() {
                 "  S:" +
                 std::to_string(buildingCost.stone * count) +
                 "  C:" +
-                std::to_string(buildingCost.gold * count);
+                std::to_string(buildingCost.crystals * count);
             constexpr float Width = 470.0F;
             const float x =
                 static_cast<float>(GetScreenWidth()) * 0.5F -

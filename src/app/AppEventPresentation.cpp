@@ -191,7 +191,7 @@ void App::processPresentationEvents(
             // Use the same authored tool-swing timeline as the other
             // first-person tools; the wand's charge glow runs in parallel.
             toolSwingUsesAxe_ = false;
-            toolSwingDuration_ = toolTuning_.swingDuration;
+            toolSwingDuration_ = activeToolTuning().swingDuration;
             toolSwingRemaining_ = toolSwingDuration_;
             toolSwingAttackPending_ = false;
             toolSwingQueued_ = false;
@@ -414,7 +414,7 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::EnemySplit) {
             addEffect(
                 PresentationEffectType::SplitBurst,
-                event.position, 0.72,
+                event.position, 1.05,
                 0.9F + static_cast<float>(event.amount) * 0.08F,
                 event.entityId);
             const double distance = std::hypot(
@@ -711,7 +711,7 @@ void App::processPresentationEvents(
                     event.amount);
             }
         } else if (
-            event.type == GameEventType::GoldProduced &&
+            event.type == GameEventType::CrystalProduced &&
             event.entityId && event.amount > 0) {
             addProductionVisual(
                 *event.entityId, UiResourceIcon::Crystal,
@@ -861,7 +861,7 @@ void App::processPresentationEvents(
             if (event.coinAmount > 0) {
                 message += "  +" +
                     std::to_string(event.coinAmount) +
-                    " Gold";
+                    " Coins";
                 coinHudBounceRemaining_ = 0.32;
             }
             if (event.insightAmount > 0.0) {
@@ -879,16 +879,36 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";
         } else if (event.type == GameEventType::ChestOpenRejected) {
-            message = "Not enough Gold";
+            message = "Not enough Coins";
+        } else if (event.type == GameEventType::ChestRerolled) {
+            message = "Chest reward rerolled: -" +
+                std::to_string(event.amount) + " Coins";
+        } else if (
+            event.type == GameEventType::ChestRerollAlreadyUsed) {
+            message = "Reroll already used";
+        } else if (
+            event.type == GameEventType::ChestRerollUnavailable) {
+            message = "Reroll unavailable";
+        } else if (event.type == GameEventType::ChestRevealed) {
+            message = "Nearest chest revealed: -" +
+                std::to_string(event.amount) + " Coins";
+        } else if (event.type == GameEventType::BombPurchased) {
+            message = "Bomb purchased: -" +
+                std::to_string(event.amount) + " Coins";
+        } else if (event.type == GameEventType::EconomyPurchaseRejected) {
+            message = "Not enough Coins";
+        } else if (event.type == GameEventType::CrystalStorageFull) {
+            message = "Crystal storage full";
         } else if (event.type == GameEventType::LootCollected &&
                    event.lootRarity && event.lootUpgradeEffect) {
             message = std::string(lootRarityName(*event.lootRarity)) +
                 " " + lootUpgradeName(*event.lootUpgradeEffect) +
-                " acquired";
+                " — " + lootUpgradeDescription(*event.lootUpgradeEffect);
         }
         if (!message.empty()) {
             statusMessage_ = std::move(message);
-            statusMessageRemaining_ = 2.5;
+            statusMessageRemaining_ =
+                event.type == GameEventType::LootCollected ? 4.0 : 2.5;
         }
     }
 }

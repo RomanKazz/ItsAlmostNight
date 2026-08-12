@@ -186,7 +186,7 @@ void drawFoundationHotbar(
                 snapshot.unlimitedResources ||
                 canAfford(
                     cost, snapshot.wood,
-                    snapshot.stone, snapshot.gold),
+                    snapshot.stone, snapshot.crystals),
         };
     }
     drawHotbarSlots(
@@ -205,7 +205,7 @@ void drawBuildHotbar(
     }
     constexpr std::array<BuildingType, 13> Types{
         BuildingType::Core,     BuildingType::Wall,
-        BuildingType::Turret,   BuildingType::GoldMine,
+        BuildingType::Turret,   BuildingType::CrystalMine,
         BuildingType::Cannon,   BuildingType::SlowTrap,
         BuildingType::Gate,     BuildingType::LumberMill,
         BuildingType::Quarry,
@@ -242,7 +242,7 @@ void drawBuildHotbar(
             snapshot.unlimitedResources ||
             canAfford(
                 cost, snapshot.wood,
-                snapshot.stone, snapshot.gold);
+                snapshot.stone, snapshot.crystals);
         const bool available = unlocked && affordable;
         slots[index] = {
             .key = Keys[index],
@@ -528,6 +528,7 @@ const char* weaponLabel(PlayerWeapon weapon) {
     case PlayerWeapon::FireWand: return "FIRE WAND";
     case PlayerWeapon::Hammer: return "HAMMER";
     case PlayerWeapon::Rifle: return "RIFLE";
+    case PlayerWeapon::Bomb: return "BOMBS";
     }
     return "WEAPON";
 }
@@ -608,6 +609,7 @@ void drawWeaponHotbar(
     const HudViewState& view) {
     std::array<HotbarSlot, PlayerWeaponCount> slots{};
     std::array<std::string, PlayerWeaponCount> keys{};
+    std::array<std::string, PlayerWeaponCount> labels{};
     const std::span<const PlayerWeapon> order =
         view.actionMode == ActionMode::Tools
             ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
@@ -616,11 +618,20 @@ void drawWeaponHotbar(
     for (const PlayerWeapon weapon : order) {
         if (snapshot.unlockedWeapons[static_cast<std::size_t>(weapon)]) {
             keys[visibleCount] = std::to_string(visibleCount + 1U);
+            labels[visibleCount] = weapon == PlayerWeapon::Bomb
+                ? std::string("BOMBS x") +
+                    (snapshot.unlimitedResources
+                        ? "INF"
+                        : std::to_string(snapshot.bombsRemaining)) +
+                    (snapshot.selectedWeapon == PlayerWeapon::Bomb
+                         ? " · V +1/" +
+                               std::to_string(snapshot.bombPurchaseCoinCost)
+                         : "")
+                : weapon == PlayerWeapon::BareHands
+                    ? "HANDS" : weaponLabel(weapon);
             slots[visibleCount] = {
                 .key = keys[visibleCount],
-                .label = weapon == PlayerWeapon::BareHands
-                    ? "HANDS"
-                    : weaponLabel(weapon),
+                .label = labels[visibleCount],
                 .cost = {},
                 .selected = snapshot.selectedWeapon == weapon,
                 .available = true,

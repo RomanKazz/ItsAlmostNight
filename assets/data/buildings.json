@@ -1,59 +1,59 @@
 {
   "core": {
-    "wood": 30, "stone": 0, "gold": 0,
+    "wood": 30, "stone": 0, "crystals": 0,
     "maxHealth": 500, "unlockCoreLevel": 0, "maxCount": 1
   },
   "wall": {
-    "wood": 10, "stone": 0, "gold": 0,
+    "wood": 10, "stone": 0, "crystals": 0,
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 256
   },
   "turret": {
-    "wood": 25, "stone": 15, "gold": 0,
+    "wood": 25, "stone": 15, "crystals": 0,
     "maxHealth": 120, "unlockCoreLevel": 1, "maxCount": 64
   },
-  "goldMine": {
-    "wood": 20, "stone": 10, "gold": 0,
+  "crystalMine": {
+    "wood": 20, "stone": 10, "crystals": 0,
     "maxHealth": 140, "unlockCoreLevel": 1, "maxCount": 4
   },
   "cannon": {
-    "wood": 40, "stone": 30, "gold": 25,
+    "wood": 40, "stone": 30, "crystals": 25,
     "maxHealth": 180, "unlockCoreLevel": 2, "maxCount": 64
   },
   "slowTrap": {
-    "wood": 15, "stone": 20, "gold": 10,
+    "wood": 15, "stone": 20, "crystals": 10,
     "maxHealth": 100, "unlockCoreLevel": 2, "maxCount": 64
   },
   "gate": {
-    "wood": 15, "stone": 5, "gold": 0,
+    "wood": 15, "stone": 5, "crystals": 0,
     "maxHealth": 130, "unlockCoreLevel": 1, "maxCount": 128
   },
   "lumberMill": {
-    "wood": 40, "stone": 15, "gold": 10,
+    "wood": 40, "stone": 15, "crystals": 10,
     "maxHealth": 150, "unlockCoreLevel": 2, "maxCount": 2
   },
   "quarry": {
-    "wood": 30, "stone": 40, "gold": 15,
+    "wood": 30, "stone": 40, "crystals": 15,
     "maxHealth": 170, "unlockCoreLevel": 2, "maxCount": 2
   },
   "spikeTrap": {
-    "wood": 20, "stone": 25, "gold": 15,
+    "wood": 20, "stone": 25, "crystals": 15,
     "maxHealth": 100, "unlockCoreLevel": 2, "maxCount": 64
   },
   "woodStorage": {
-    "wood": 20, "stone": 10, "gold": 0,
+    "wood": 20, "stone": 10, "crystals": 0,
     "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 3
   },
   "stoneStorage": {
-    "wood": 25, "stone": 5, "gold": 0,
+    "wood": 25, "stone": 5, "crystals": 0,
     "maxHealth": 200, "unlockCoreLevel": 1, "maxCount": 3
   },
   "crystalStorage": {
-    "wood": 30, "stone": 25, "gold": 0,
+    "wood": 30, "stone": 25, "crystals": 0,
     "maxHealth": 160, "unlockCoreLevel": 1, "maxCount": 3
   },
   "modular": {
-    "platform": {"wood": 20, "stone": 5, "gold": 0},
-    "wall": {"wood": 5, "stone": 10, "gold": 0},
-    "ramp": {"wood": 16, "stone": 4, "gold": 0}
+    "platform": {"wood": 20, "stone": 5, "crystals": 0},
+    "wall": {"wood": 5, "stone": 10, "crystals": 0},
+    "ramp": {"wood": 16, "stone": 4, "crystals": 0}
   }
 }

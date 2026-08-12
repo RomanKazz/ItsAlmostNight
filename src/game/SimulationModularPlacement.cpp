@@ -91,12 +91,13 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
-            resources_.nodes(), treeCollisionAssets_);
+            resources_.nodes(), treeCollisionAssets_,
+            stoneCollisionAssets_);
     }
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
-    lootChests_.setGoldCostMultiplier(
+    lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
     foundations_.reset();
     syncModularStructures();
@@ -167,7 +168,7 @@ PlatformFramePlacement Simulation::previewFoundation(
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Foundation)],
-            wood_, stone_, gold_)) {
+            wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
@@ -224,7 +225,7 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Foundation)],
-            wood_, stone_, gold_)) {
+            wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
@@ -244,7 +245,7 @@ std::optional<PlatformFrameInstance> Simulation::placeFoundation(
                     ModularBuildPiece::Foundation)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
-            gold_ -= cost.gold;
+            crystals_ -= cost.crystals;
         }
         syncModularStructures();
         raisePlayerOntoGroundFrame(*placed);
@@ -271,7 +272,7 @@ Simulation::placeFoundationAtHeight(
                     ModularBuildPiece::Foundation)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
-            gold_ -= cost.gold;
+            crystals_ -= cost.crystals;
         }
         syncModularStructures();
         raisePlayerOntoGroundFrame(*placed);
@@ -313,7 +314,7 @@ PlatformFramePlacement Simulation::previewFloorPlatform(
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::FloorPlatform)],
-            wood_, stone_, gold_)) {
+            wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
@@ -334,7 +335,7 @@ Simulation::placeFloorPlatform(
                     ModularBuildPiece::FloorPlatform)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
-            gold_ -= cost.gold;
+            crystals_ -= cost.crystals;
         }
         syncModularStructures();
         events_.push_back({.type = GameEventType::ModularBuildingPlaced,
@@ -374,7 +375,7 @@ WallPlacement Simulation::previewWall(
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Wall)],
-            wood_, stone_, gold_)) {
+            wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
@@ -393,7 +394,7 @@ std::optional<WallInstance> Simulation::placeWall(
                     ModularBuildPiece::Wall)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
-            gold_ -= cost.gold;
+            crystals_ -= cost.crystals;
         }
         syncModularStructures();
         events_.push_back({.type = GameEventType::ModularBuildingPlaced,
@@ -471,7 +472,7 @@ RampPlacement Simulation::previewRamp(
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Ramp)],
-            wood_, stone_, gold_)) {
+            wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
@@ -490,7 +491,7 @@ std::optional<RampInstance> Simulation::placeRamp(
                     ModularBuildPiece::Ramp)];
             wood_ -= cost.wood;
             stone_ -= cost.stone;
-            gold_ -= cost.gold;
+            crystals_ -= cost.crystals;
         }
         syncModularStructures();
         events_.push_back({.type = GameEventType::ModularBuildingPlaced,

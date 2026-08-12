@@ -34,7 +34,7 @@ struct WaveDefinition {
 struct BuildingBalanceDefinition {
     int wood;
     int stone;
-    int gold;
+    int crystals;
     double maxHealth;
     int unlockCoreLevel;
     int maxCount;
@@ -43,7 +43,7 @@ struct BuildingBalanceDefinition {
 struct ModularBuildingBalanceDefinition {
     int wood;
     int stone;
-    int gold;
+    int crystals;
 };
 
 struct RifleBalanceDefinition {
@@ -56,7 +56,7 @@ struct RifleBalanceDefinition {
     double reloadReductionPerLevel;
     int magazineSize;
     int magazineBonusPerLevel;
-    std::array<int, 2> upgradeGold;
+    std::array<int, 2> upgradeCrystal;
 };
 
 struct BombBalanceDefinition {
@@ -115,15 +115,19 @@ struct WeaponBalanceDefinition {
 };
 
 struct EconomyBalanceDefinition {
-    double goldMineInterval;
-    int goldMineAmount;
+    double crystalMineInterval;
+    int crystalMineAmount;
+    int waveRewardBase;
     int waveRewardPerWave;
+    int bombPurchaseCoinCost;
+    int chestRerollCoinCost;
+    int chestRevealCoinCost;
     double repairCostFraction;
     double repairCooldownSeconds;
     double sellRefundFraction;
     std::array<double, 2> buildingUpgradeCostMultiplier;
-    std::array<int, 2> buildingUpgradeGoldBonus;
-    std::array<int, 2> coreUpgradeGold;
+    std::array<int, 2> buildingUpgradeCrystalBonus;
+    std::array<int, 2> coreUpgradeCrystals;
 };
 
 struct GameplayBalanceDefinition {

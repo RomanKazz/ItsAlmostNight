@@ -1417,7 +1417,7 @@ void App::rebuildModularPlacementLine() {
                   : 0);
     addSigned(snapshot.wood);
     addSigned(snapshot.stone);
-    addSigned(snapshot.gold);
+    addSigned(snapshot.crystals);
     hashDragPreviewValue(
         previewKey, simulation_.structuralRevision());
     hashDragPreviewValue(

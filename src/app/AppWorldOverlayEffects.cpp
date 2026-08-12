@@ -171,7 +171,7 @@ void App::drawSoldBuildingVisuals() {
                     {176, 128, 60, alpha});
             }
         } else if (
-            building.type == BuildingType::GoldMine ||
+            building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
             if (!renderer_->drawResourceProducer(
@@ -284,11 +284,20 @@ void App::drawBlobShadows(
             }
             float radius =
                 std::max(static_cast<float>(node.radius), 0.45F);
-            radius *= node.type == ResourceType::Wood
-                ? 1.28F * static_cast<float>(node.visualScale)
-                : isDestructibleProp(node.type)
-                    ? 0.92F * static_cast<float>(node.visualScale)
-                    : 1.05F;
+            if (node.type == ResourceType::Wood) {
+                radius *= 1.28F *
+                    static_cast<float>(node.visualScale);
+            } else if (node.type == ResourceType::Stone) {
+                // The authored rocks are wider than their gameplay radius.
+                // Keep a soft rim visible around that footprint instead of
+                // hiding the entire contact shadow beneath the mesh.
+                radius *= 1.48F;
+            } else if (isDestructibleProp(node.type)) {
+                radius *= 0.92F *
+                    static_cast<float>(node.visualScale);
+            } else {
+                radius *= 1.05F;
+            }
             const float revealScale =
                 renderer_->worldRevealScaleAt({
                     static_cast<float>(node.position.x),
@@ -300,18 +309,33 @@ void App::drawBlobShadows(
             }
             const float groundY = static_cast<float>(
                 node.position.y - node.groundOffset);
+            const float outerOpacity =
+                node.type == ResourceType::Wood
+                    ? 0.30F
+                    : node.type == ResourceType::Stone
+                        ? 0.22F
+                        : 0.25F;
+            const float contactOpacity =
+                node.type == ResourceType::Wood
+                    ? 0.48F
+                    : node.type == ResourceType::Stone
+                        ? 0.38F
+                        : 0.40F;
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
                 groundY + 0.018F,
                  static_cast<float>(node.position.z)},
                 radius, radius * 0.82F,
-                node.type == ResourceType::Wood ? 0.30F : 0.25F);
+                outerOpacity);
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),
                 groundY + 0.02F,
                  static_cast<float>(node.position.z)},
-                radius * 0.52F, radius * 0.42F,
-                node.type == ResourceType::Wood ? 0.48F : 0.40F);
+                radius *
+                    (node.type == ResourceType::Stone ? 0.68F : 0.52F),
+                radius *
+                    (node.type == ResourceType::Stone ? 0.56F : 0.42F),
+                contactOpacity);
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.looseLoot) {
@@ -439,7 +463,7 @@ void App::drawCancelledPlacementPreview(
             renderer_->drawCannon(
                 modelPosition, yaw, 0.0F, WHITE, scale));
     } else if (
-        preview.type == BuildingType::GoldMine ||
+        preview.type == BuildingType::CrystalMine ||
         preview.type == BuildingType::LumberMill ||
         preview.type == BuildingType::Quarry) {
         static_cast<void>(

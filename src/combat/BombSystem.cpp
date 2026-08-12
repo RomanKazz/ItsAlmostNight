@@ -57,6 +57,10 @@ void BombSystem::reset() {
     remainingBombs_ = definition_.startingBombs;
 }
 
+void BombSystem::addBombs(int amount) {
+    remainingBombs_ = std::max(0, remainingBombs_ + std::max(0, amount));
+}
+
 bool BombSystem::throwBomb(
     Vec3 origin, Vec3 direction, bool consumeBomb) {
     if (consumeBomb && remainingBombs_ <= 0) {

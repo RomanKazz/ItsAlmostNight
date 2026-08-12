@@ -12,6 +12,7 @@ namespace ian {
 enum class ModelColliderType {
     Box,
     Cylinder,
+    Sphere,
     Slope,
 };
 

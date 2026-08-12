@@ -129,7 +129,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 !unlimitedResources_ &&
                 !canAfford(
                     previewPlacement.cost,
-                    wood_, stone_, gold_)) {
+                    wood_, stone_, crystals_)) {
                 previewPlacement.error =
                     PlacementError::InsufficientResources;
             }
@@ -218,7 +218,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 !unlimitedResources_ &&
                 !canAfford(
                     placement.cost,
-                    wood_, stone_, gold_)) {
+                    wood_, stone_, crystals_)) {
                 placement.error =
                     PlacementError::InsufficientResources;
             }
@@ -290,7 +290,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                         : stone_,
                     unlimitedResources_
                         ? std::numeric_limits<int>::max()
-                        : gold_,
+                        : crystals_,
                     surface.height, surface.storey,
                     surface.foundationBottomHeight);
                 if (placed) {
@@ -306,7 +306,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                         }
                         wood_ -= transactionCost.wood;
                         stone_ -= transactionCost.stone;
-                        gold_ -= transactionCost.gold;
+                        crystals_ -= transactionCost.crystals;
                     }
                     syncWorldStructures();
                     events_.push_back({

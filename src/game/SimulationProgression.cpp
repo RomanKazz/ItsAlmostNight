@@ -59,6 +59,7 @@ SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     else if (nodeHas("unlock.fire_wand")) playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
     else if (nodeHas("unlock.hammer")) playerWeapons_.selectWeapon(PlayerWeapon::Hammer);
     else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+    else if (nodeHas("unlock.bombs")) playerWeapons_.selectWeapon(PlayerWeapon::Bomb);
     refreshSkillRuntimeEffects();
     const RunState effectiveState =
         state_ == RunState::Paused ? stateBeforePause_ : state_;
@@ -122,9 +123,9 @@ void Simulation::refreshSkillRuntimeEffects() {
     const auto multiplier = [this](std::string_view key) {
         return std::max(0.05, 1.0 + skillTree_.effectValue(key));
     };
-    goldMines_.setProductionSpeedMultiplier(
+    crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * multiplier("production.speed"));
-    lootChests_.setGoldCostMultiplier(
+    lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_ * multiplier("loot.chest_cost"));
     buildings_.setMaxHealthMultiplier(
         buildingMaxHealthMultiplier_ * multiplier("building.health"));
@@ -373,7 +374,7 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
                 .distanceFromCore = distance,
                 .elapsedSeconds = elapsedSeconds_,
             }));
-        } else if (event.type == GameEventType::GoldProduced) {
+        } else if (event.type == GameEventType::CrystalProduced) {
             emitCompletions(objectives_.onCrystalsGathered(
                 std::max(0, event.amount), elapsedSeconds_, event.night || nightNow));
         } else if (event.type == GameEventType::ResourceGatherMissed) {
@@ -495,6 +496,8 @@ void Simulation::cycleUnlockedTool() {
         tools.push_back(PlayerWeapon::Hammer);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.rifle"))
         tools.push_back(PlayerWeapon::Rifle);
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.bombs"))
+        tools.push_back(PlayerWeapon::Bomb);
     const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
     const std::size_t next = current == tools.end()
         ? 0 : (static_cast<std::size_t>(std::distance(tools.begin(), current)) + 1) % tools.size();

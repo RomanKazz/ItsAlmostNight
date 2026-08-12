@@ -99,19 +99,28 @@ void runLootChestSystemTests() {
         "preferred delivery spawns additional chest near base");
 
     const ian::EntityId id = chests.chests().front().id;
-    const int cost = chests.chests().front().goldCost;
-    int poorGold = cost - 1;
-    require(chests.open(id, poorGold) ==
-                ian::ChestOpenResult::InsufficientGold &&
-                poorGold == cost - 1,
-            "failed chest purchase never spends gold");
-    int gold = cost + 4;
-    require(chests.open(id, gold) == ian::ChestOpenResult::Opened &&
-                gold == 4,
-            "chest purchase spends configured gold once");
-    require(chests.open(id, gold) ==
+    const int cost = chests.chests().front().coinCost;
+    const auto revealed = chests.revealNearest(spawn);
+    require(
+        revealed.has_value() &&
+            std::ranges::any_of(
+                chests.chests(),
+                [](const ian::LootChestInstance& chest) {
+                    return chest.revealed;
+                }),
+        "nearest chest can be permanently revealed on the map");
+    int poorCoins = cost - 1;
+    require(chests.open(id, poorCoins) ==
+                ian::ChestOpenResult::InsufficientCoins &&
+                poorCoins == cost - 1,
+            "failed chest purchase never spends coins");
+    int coins = cost + 4;
+    require(chests.open(id, coins) == ian::ChestOpenResult::Opened &&
+                coins == 4,
+            "chest purchase spends configured coins once");
+    require(chests.open(id, coins) ==
                 ian::ChestOpenResult::AlreadyOpen &&
-                gold == 4,
+                coins == 4,
             "opened chest cannot charge player twice");
     chests.tick(0.25);
     require(chests.chests().front().openingProgress > 0.0 &&
@@ -130,6 +139,40 @@ void runLootChestSystemTests() {
                 opened.loot.available &&
                 opened.loot.revealProgress == 1.0,
             "completed opening reveals one hovering loot item");
+    const auto previousEffect = opened.loot.effect;
+    int poorRerollCoins = 9;
+    require(
+        chests.reroll(id, poorRerollCoins, 10) ==
+                ian::ChestRerollResult::InsufficientCoins &&
+            poorRerollCoins == 9,
+        "failed revealed-item reroll does not spend coins");
+    int rerollCoins = 10;
+    require(
+        chests.reroll(id, rerollCoins, 10) ==
+                ian::ChestRerollResult::Rerolled &&
+            rerollCoins == 0 &&
+            chests.chests().front().rerolling &&
+            !chests.chests().front().loot.available,
+        "revealed item starts one paid reroll animation");
+    chests.tick(0.31);
+    require(
+        chests.chests().front().rerolling &&
+            chests.chests().front().rerollProgress > 0.0 &&
+            chests.chests().front().rerollProgress < 1.0 &&
+            chests.chests().front().loot.effect == previousEffect,
+        "reroll cross-fades the original item without cycling previews");
+    chests.tick(0.18);
+    require(
+        !chests.chests().front().rerolling &&
+            chests.chests().front().loot.available &&
+            chests.chests().front().loot.effect != previousEffect,
+        "reroll settles on a different collectible item");
+    int secondRerollCoins = 10;
+    require(
+        chests.reroll(id, secondRerollCoins, 10) ==
+                ian::ChestRerollResult::AlreadyRerolled &&
+            secondRerollCoins == 10,
+        "ordinary chest permits only one reroll");
     const ian::Vec3 visualPosition = ian::lootVisualPosition(opened);
     require(std::isfinite(visualPosition.x) &&
                 std::isfinite(visualPosition.y) &&
@@ -160,6 +203,11 @@ void runLootChestSystemTests() {
     requireNear(
         flatLootPosition.y - flatChest.position.y, 1.296, 1e-12,
         "ordinary chest loot hovers twenty percent lower");
+    require(
+        !chests.collectNearby(
+             ian::lootVisualPosition(chests.chests().front()), 3.0)
+             .has_value(),
+        "ordinary chest reward waits for deliberate E pickup");
     require(chests.collect(opened.loot.id).has_value(),
             "revealed loot can be collected");
     require(!chests.collect(opened.loot.id).has_value(),
@@ -201,8 +249,9 @@ void runLootChestSystemTests() {
         "destroyed item crates can spawn collectible legendary loot");
     const ian::Vec3 looseStartPosition =
         ian::lootVisualPosition(loose);
-    require(!chests.collect(loose.loot.id).has_value(),
-            "loose crate loot cannot be collected before it is readable");
+    require(loose.loot.pickupDelayRemaining == 0.0 &&
+                loose.loot.proximityPickupRadius < 1.0,
+            "loose crate loot has no lock and uses a small auto-pickup radius");
     chests.tick(0.19);
     require(
         chests.chests().back().loot.revealProgress > 0.0 &&
@@ -220,5 +269,5 @@ void runLootChestSystemTests() {
         chests.chests().back().loot.revealProgress, 1.0, 1e-12,
         "loose crate loot finishes its scale-in animation");
     require(chests.collect(loose.loot.id).has_value(),
-            "loose crate loot unlocks normal pickup after its display delay");
+            "loose crate loot remains collectible after its reveal");
 }

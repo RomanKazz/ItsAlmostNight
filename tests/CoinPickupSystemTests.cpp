@@ -53,13 +53,13 @@ void runCoinPickupSystemTests() {
     coins.spawnValue({0.0, 0.0, 0.0}, 16, 123U, terrain);
     require(
         coins.pickups().size() == 3 &&
-            coins.pickups()[0].type == ian::CoinType::Gold &&
+            coins.pickups()[0].type == ian::CoinType::HighValue &&
             coins.pickups()[0].value == 10 &&
             coins.pickups()[1].type == ian::CoinType::Silver &&
             coins.pickups()[1].value == 5 &&
             coins.pickups()[2].type == ian::CoinType::Bronze &&
             coins.pickups()[2].value == 1,
-        "coin rewards decompose into gold, silver and bronze values");
+        "coin rewards decompose into crystals, silver and bronze values");
 
     coins.reset();
     coins.spawnValue({0.0, 0.0, 0.0}, 10, 314U, terrain);
@@ -127,4 +127,38 @@ void runCoinPickupSystemTests() {
     require(
         coins.pickups().front().position.y >= 3.29,
         "falling coins land on elevated modular platforms");
+
+    coins.reset();
+    coins.spawnHeart({0.0, 0.0, 0.0}, 177U, terrain);
+    double healing = 0.0;
+    for (int frame = 0; frame < 180; ++frame) {
+        healing += coins.tick(
+            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain,
+            collision, 0.0).healing;
+    }
+    require(
+        healing == 0.0 && coins.pickups().size() == 1 &&
+            coins.pickups().front().kind == ian::PickupKind::Heart &&
+            !coins.pickups().front().magnetized,
+        "heart stays on the ground and does not attract at full health");
+    for (int frame = 0; frame < 240 && !coins.pickups().empty(); ++frame) {
+        const ian::CoinCollection result = coins.tick(
+            1.0 / 60.0, {0.0, 1.7, 0.0}, terrain,
+            collision, 12.0 - healing);
+        healing += result.healing;
+    }
+    requireNear(
+        healing, 12.0, 1e-12,
+        "heart attracts when health is missing and cannot overheal");
+    require(coins.pickups().empty(),
+            "collected heart leaves the pickup world");
+
+    coins.spawnHeart({0.0, 0.0, 0.0}, 188U, terrain);
+    for (int frame = 0; frame < 510; ++frame) {
+        static_cast<void>(coins.tick(
+            0.1, {0.0, 1.7, 0.0}, terrain,
+            collision, 0.0));
+    }
+    require(coins.pickups().empty(),
+            "unneeded heart expires after the coin pickup lifetime");
 }

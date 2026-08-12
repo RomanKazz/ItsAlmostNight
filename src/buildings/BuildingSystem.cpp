@@ -29,7 +29,7 @@ Footprint footprint(BuildingType type) {
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
         return {1.0, 1.0};
-    case BuildingType::GoldMine:
+    case BuildingType::CrystalMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
     case BuildingType::Wall:
@@ -49,7 +49,7 @@ SelectionBounds selectionBounds(BuildingType type) {
         return {0.42, 0.42, 0.0, 2.05};
     case BuildingType::Turret:
         return {0.76, 0.76, 0.0, 2.15};
-    case BuildingType::GoldMine:
+    case BuildingType::CrystalMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
         return {0.44, 0.44, 0.0, 0.8};
@@ -136,7 +136,7 @@ ResourceCost upgradeCostFor(
         if (building.level >= 1 && building.level <= 2) {
             return {
                 0, 0,
-                economy.coreUpgradeGold[building.level - 1],
+                economy.coreUpgradeCrystals[building.level - 1],
             };
         }
         if (building.level < MaxBuildingLevel) {
@@ -157,16 +157,16 @@ ResourceCost upgradeCostFor(
             static_cast<int>(std::ceil(
                 static_cast<double>(base.stone) * multiplier)),
             static_cast<int>(std::ceil(
-                static_cast<double>(base.gold) * multiplier)) +
-                economy.buildingUpgradeGoldBonus[index],
+                static_cast<double>(base.crystals) * multiplier)) +
+                economy.buildingUpgradeCrystalBonus[index],
         };
     }
     if (building.level < MaxBuildingLevel) {
         const double multiplier =
             1.0 +
             0.25 * static_cast<double>(building.level - 2);
-        const int goldBonus =
-            economy.buildingUpgradeGoldBonus.back() +
+        const int crystalBonus =
+            economy.buildingUpgradeCrystalBonus.back() +
             10 * static_cast<int>(building.level - 2);
         return {
             static_cast<int>(std::ceil(
@@ -174,8 +174,8 @@ ResourceCost upgradeCostFor(
             static_cast<int>(std::ceil(
                 static_cast<double>(base.stone) * multiplier)),
             static_cast<int>(std::ceil(
-                static_cast<double>(base.gold) * multiplier)) +
-                goldBonus,
+                static_cast<double>(base.crystals) * multiplier)) +
+                crystalBonus,
         };
     }
     return {};
@@ -201,7 +201,7 @@ ResourceCost repairCostFor(
     return {
         scaled(base.wood),
         scaled(base.stone),
-        scaled(base.gold),
+        scaled(base.crystals),
     };
 }
 
@@ -217,7 +217,7 @@ ResourceCost sellRefundFor(
     return {
         scaled(base.wood),
         scaled(base.stone),
-        scaled(base.gold),
+        scaled(base.crystals),
     };
 }
 
@@ -225,7 +225,7 @@ ResourceCost sellRefundFor(
 
 ResourceCost buildingCost(BuildingType type) {
     const auto& definition = defaultBuildingDefinitions()[buildingTypeIndex(type)];
-    return {definition.wood, definition.stone, definition.gold};
+    return {definition.wood, definition.stone, definition.crystals};
 }
 
 ResourceCost buildingUpgradeCost(const BuildingInstance& building) {
@@ -263,7 +263,7 @@ int buildingStorageCapacityPerLevel(BuildingType type) {
     case BuildingType::StoneStorage:
         return 120;
     case BuildingType::CrystalStorage:
-        return 50;
+        return 80;
     default:
         return 0;
     }
@@ -431,7 +431,7 @@ const BuildingBalanceDefinition& BuildingSystem::definition(BuildingType type) c
 
 ResourceCost BuildingSystem::cost(BuildingType type) const {
     const auto& configured = definition(type);
-    return {configured.wood, configured.stone, configured.gold};
+    return {configured.wood, configured.stone, configured.crystals};
 }
 
 ResourceCost BuildingSystem::configuredCost(BuildingType type) const {
@@ -501,7 +501,7 @@ void BuildingSystem::setNewTowerBonusStacks(int stacks) {
 }
 
 PlacementResult BuildingSystem::validate(BuildingType type, GridPosition position, int wood,
-                                         int stone, int gold,
+                                         int stone, int crystals,
                                          double baseHeight) const {
     const ResourceCost requiredCost = cost(type);
     if (type == BuildingType::Core && hasCore()) {
@@ -528,7 +528,7 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
         return {PlacementError::Occupied, requiredCost};
     }
     if (wood < requiredCost.wood || stone < requiredCost.stone ||
-        gold < requiredCost.gold) {
+        crystals < requiredCost.crystals) {
         return {PlacementError::InsufficientResources, requiredCost};
     }
 
@@ -552,11 +552,11 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
 
 std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosition position,
                                                     std::uint8_t rotation, int wood, int stone,
-                                                    int gold, double baseHeight,
+                                                    int crystals, double baseHeight,
                                                     int platformStorey,
                                                     double foundationBottomHeight) {
     const PlacementResult validation =
-        validate(type, position, wood, stone, gold,
+        validate(type, position, wood, stone, crystals,
                  baseHeight);
     if (!validation.valid()) {
         return std::nullopt;
@@ -659,7 +659,7 @@ std::optional<EntityId> BuildingSystem::raycast(Vec3 origin, Vec3 direction,
     return result;
 }
 
-RepairResult BuildingSystem::validateRepair(EntityId id, int wood, int stone, int gold) const {
+RepairResult BuildingSystem::validateRepair(EntityId id, int wood, int stone, int crystals) const {
     const auto iterator = std::find_if(buildings_.begin(), buildings_.end(),
                                        [id](const BuildingInstance& building) {
                                            return building.id == id;
@@ -673,7 +673,7 @@ RepairResult BuildingSystem::validateRepair(EntityId id, int wood, int stone, in
 
     const ResourceCost requiredCost = repairCost(*iterator);
     if (wood < requiredCost.wood || stone < requiredCost.stone ||
-        gold < requiredCost.gold) {
+        crystals < requiredCost.crystals) {
         return {
             .error = BuildingActionError::InsufficientResources,
             .building = *iterator,
@@ -687,8 +687,8 @@ RepairResult BuildingSystem::validateRepair(EntityId id, int wood, int stone, in
     };
 }
 
-RepairResult BuildingSystem::repair(EntityId id, int wood, int stone, int gold) {
-    const RepairResult validation = validateRepair(id, wood, stone, gold);
+RepairResult BuildingSystem::repair(EntityId id, int wood, int stone, int crystals) {
+    const RepairResult validation = validateRepair(id, wood, stone, crystals);
     if (!validation.valid()) {
         return validation;
     }
@@ -729,7 +729,7 @@ SellResult BuildingSystem::sell(EntityId id) {
     };
 }
 
-UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, int gold) const {
+UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, int crystals) const {
     const auto iterator = std::find_if(buildings_.begin(), buildings_.end(),
                                        [id](const BuildingInstance& building) {
                                            return building.id == id;
@@ -749,7 +749,7 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
 
     const ResourceCost requiredCost = upgradeCost(*iterator);
     if (wood < requiredCost.wood || stone < requiredCost.stone ||
-        gold < requiredCost.gold) {
+        crystals < requiredCost.crystals) {
         return {
             .error = UpgradeError::InsufficientResources,
             .building = *iterator,
@@ -763,8 +763,8 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
     };
 }
 
-UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int gold) {
-    const UpgradeResult validation = validateUpgrade(id, wood, stone, gold);
+UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int crystals) {
+    const UpgradeResult validation = validateUpgrade(id, wood, stone, crystals);
     if (!validation.valid()) {
         return validation;
     }

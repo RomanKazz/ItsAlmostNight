@@ -145,7 +145,7 @@ void App::drawShadowPass(
                              0.18F, 1.0F, WHITE);
                 }
             } else if (
-                building.type == BuildingType::GoldMine ||
+                building.type == BuildingType::CrystalMine ||
                 building.type == BuildingType::LumberMill ||
                 building.type == BuildingType::Quarry) {
                 constexpr float QuarterTurn = PI * 0.5F;
@@ -248,10 +248,23 @@ void App::drawSelectionPass(
         // uses the encoded depth to distinguish a lid in front of the item
         // from a lid behind it.
         renderer_->setSelectionMaskColor(BLACK);
+        const bool aimedStone = snapshot.aimedResource &&
+            std::ranges::any_of(
+                snapshot.resourceNodes,
+                [&snapshot](const ResourceNode& node) {
+                    return node.active &&
+                        node.id == *snapshot.aimedResource &&
+                        node.type == ResourceType::Stone;
+                });
+        if (aimedStone) {
+            // Seed depth with terrain so the mask contains only the part of
+            // an embedded stone that is actually visible above the ground.
+            renderer_->drawTerrain(BLACK, camera.position);
+        }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.looseLoot) continue;
             if (chest.loot.revealProgress <= 0.0 ||
-                chest.loot.collected) {
+                chest.loot.collected || chest.rerolling) {
                 continue;
             }
             const Vector3 position{
@@ -287,7 +300,7 @@ void App::drawSelectionPass(
             renderer_->drawLootItem(
                 visual.position, chest.loot.effect,
                 chest.loot.rarity, visual.rotation,
-                WHITE, visual.scale, surfaceNormal);
+                visual.tint, visual.scale, surfaceNormal);
         }
         renderer_->setSelectionMaskColor(WHITE);
         if (snapshot.aimedLoot) {
@@ -392,7 +405,10 @@ void App::drawSelectionPass(
                            !renderer_->drawRock(
                                resourcePosition,
                                WHITE,
-                               hitScale)) {
+                               hitScale,
+                               resource->visualVariant,
+                               static_cast<float>(
+                                   resource->visualYaw))) {
                     DrawSphere(resourcePosition, 0.9F, WHITE);
                 } else if (isDestructibleProp(resource->type)) {
                     renderer_->setSelectionOutlineBounds(
@@ -500,7 +516,7 @@ void App::drawSelectionPass(
                     }
                 } else if (
                     building->type ==
-                        BuildingType::GoldMine ||
+                        BuildingType::CrystalMine ||
                     building->type ==
                         BuildingType::LumberMill ||
                     building->type ==

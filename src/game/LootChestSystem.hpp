@@ -49,6 +49,7 @@ struct ChestLoot {
     double revealProgress{};
     double hoverTime{};
     double pickupDelayRemaining{};
+    double proximityPickupRadius{2.0};
     bool available{};
     bool collected{};
 };
@@ -60,15 +61,28 @@ struct LootChestInstance {
     Vec3 position;
     Vec3 surfaceNormal{0.0, 1.0, 0.0};
     double yaw{};
-    int goldCost{};
+    int coinCost{};
+    std::uint32_t rerollCount{};
+    double rerollProgress{};
+    LootUpgradeEffect rerollTargetEffect{LootUpgradeEffect::Damage};
+    LootRarity rerollTargetRarity{LootRarity::Common};
+    bool rerolling{};
     double openingProgress{};
     double disappearanceDelayRemaining{};
     double disappearanceProgress{};
     bool looseLoot{};
+    bool revealed{};
     ChestLoot loot;
 };
 
-enum class ChestOpenResult { None, Opened, InsufficientGold, AlreadyOpen };
+enum class ChestOpenResult { None, Opened, InsufficientCoins, AlreadyOpen };
+enum class ChestRerollResult {
+    None,
+    Rerolled,
+    InsufficientCoins,
+    NotReady,
+    AlreadyRerolled,
+};
 
 struct LootPickup {
     EntityId lootId;
@@ -89,8 +103,12 @@ class LootChestSystem {
         Vec3 origin, Vec3 direction, double maximumDistance) const;
     [[nodiscard]] std::optional<EntityId> raycastLoot(
         Vec3 origin, Vec3 direction, double maximumDistance) const;
-    [[nodiscard]] ChestOpenResult open(EntityId id, int& gold);
-    void setGoldCostMultiplier(double multiplier);
+    [[nodiscard]] ChestOpenResult open(EntityId id, int& coins);
+    [[nodiscard]] ChestRerollResult reroll(
+        EntityId id, int& coins, int cost = 10);
+    [[nodiscard]] std::optional<Vec3> revealNearest(
+        Vec3 playerPosition);
+    void setCoinCostMultiplier(double multiplier);
     [[nodiscard]] int openingCost(
         const LootChestInstance& chest) const;
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
@@ -98,6 +116,11 @@ class LootChestSystem {
         Vec3 playerPosition, double radius);
     void spawnLooseLoot(Vec3 position, LootRarity rarity,
                         std::uint64_t seed);
+    void spawnLooseLootEffect(
+        Vec3 position, LootUpgradeEffect effect,
+        LootRarity rarity, std::uint64_t seed,
+        double pickupDelay = 0.0,
+        double proximityPickupRadius = 0.72);
 
     void spawnAdditionalChests(
         int count, std::uint32_t terrainSeed,
@@ -113,7 +136,7 @@ class LootChestSystem {
     std::vector<LootChestInstance> chests_;
     std::uint32_t runGeneration_{};
     std::uint32_t nextEntityIndex_{};
-    double goldCostMultiplier_{1.0};
+    double coinCostMultiplier_{1.0};
 };
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);

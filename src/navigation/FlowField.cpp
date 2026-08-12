@@ -79,7 +79,7 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
                 } else if (building.type == BuildingType::Turret) {
                     cell.terrainCost = 8.0;
                 } else if (
-                    building.type == BuildingType::GoldMine ||
+                    building.type == BuildingType::CrystalMine ||
                     building.type == BuildingType::LumberMill ||
                     building.type == BuildingType::Quarry) {
                     cell.terrainCost = 8.0;

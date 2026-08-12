@@ -1,11 +1,15 @@
 {
-  "goldMineInterval": 5.0,
-  "goldMineAmount": 5,
-  "waveRewardPerWave": 15,
+  "crystalMineInterval": 8.0,
+  "crystalMineAmount": 4,
+  "waveRewardBase": 10,
+  "waveRewardPerWave": 5,
+  "bombPurchaseCoinCost": 15,
+  "chestRerollCoinCost": 10,
+  "chestRevealCoinCost": 20,
   "repairCostFraction": 0.5,
   "repairCooldownSeconds": 3.0,
   "sellRefundFraction": 0.5,
   "buildingUpgradeCostMultiplier": [0.5, 1.0],
-  "buildingUpgradeGoldBonus": [10, 25],
-  "coreUpgradeGold": [50, 100]
+  "buildingUpgradeCrystalBonus": [10, 25],
+  "coreUpgradeCrystals": [50, 100]
 }

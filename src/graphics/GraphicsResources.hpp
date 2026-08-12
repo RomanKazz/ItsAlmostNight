@@ -2,6 +2,7 @@
 
 #include "assets/GlbCollision.hpp"
 #include "graphics/GraphicsSettings.hpp"
+#include "resources/ResourceSystem.hpp"
 
 #include <raylib.h>
 
@@ -237,6 +238,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& iceMagicShader() const;
     [[nodiscard]] ShaderResource& coinOutlineShader();
     [[nodiscard]] const ShaderResource& coinOutlineShader() const;
+    [[nodiscard]] ShaderResource& heartOutlineShader();
+    [[nodiscard]] const ShaderResource& heartOutlineShader() const;
     [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
@@ -273,13 +276,15 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& blueprintLootModel();
     [[nodiscard]] ModelResource& hourglassLootModel();
     [[nodiscard]] ModelResource& ropeLootModel();
+    [[nodiscard]] ModelResource& heartLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
     [[nodiscard]] ModelResource& mineModel();
     [[nodiscard]] ModelResource& lumberMillModel();
     [[nodiscard]] ModelResource& quarryModel();
     [[nodiscard]] ModelResource& spikeTrapModel();
-    [[nodiscard]] ModelResource& rockModel();
+    [[nodiscard]] ModelResource& rockModel(
+        std::size_t variant = 0U);
     [[nodiscard]] ModelResource& treeModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& boundaryTreeModel(
         std::size_t variant = 0U);
@@ -355,6 +360,7 @@ class GraphicsResources {
     ShaderResource upgradeEffectShader_;
     ShaderResource iceMagicShader_;
     ShaderResource coinOutlineShader_;
+    ShaderResource heartOutlineShader_;
     TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
     std::array<TextureResource, 3> skyboxTextures_;
@@ -387,13 +393,14 @@ class GraphicsResources {
     ModelResource blueprintLootModel_;
     ModelResource hourglassLootModel_;
     ModelResource ropeLootModel_;
+    ModelResource heartLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;
     ModelResource mineModel_;
     ModelResource lumberMillModel_;
     ModelResource quarryModel_;
     ModelResource spikeTrapModel_;
-    ModelResource rockModel_;
+    std::array<ModelResource, StoneVisualVariantCount> rockModels_;
     std::array<ModelResource, 9> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;

@@ -14,9 +14,14 @@ struct LootItemVisual {
     Vector3 position{};
     float rotation{};
     float scale{};
+    Color tint{WHITE};
 };
 
 [[nodiscard]] LootItemVisual lootItemVisual(
+    const SimulationSnapshot& snapshot,
+    const LootChestInstance& chest);
+[[nodiscard]] std::optional<LootItemVisual>
+rerollTargetLootItemVisual(
     const SimulationSnapshot& snapshot,
     const LootChestInstance& chest);
 

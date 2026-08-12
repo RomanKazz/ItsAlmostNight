@@ -65,7 +65,7 @@ std::vector<ObjectiveDefinition> ObjectiveSystem::defaultDefinitions() {
              {1, 5, 15}, {4, 8, 14});
     addChain("waves", "Survive waves", ObjectiveMetric::WavesCompleted,
              {1, 2, 4, 7}, {8, 12, 20, 32});
-    addChain("coins", "Collect Gold", ObjectiveMetric::CoinsCollected,
+    addChain("coins", "Collect Coins", ObjectiveMetric::CoinsCollected,
              {10, 50, 150, 400}, {4, 8, 14, 22});
     addChain("chests", "Open chests", ObjectiveMetric::ChestsOpened,
              {1, 3, 8}, {5, 9, 16});

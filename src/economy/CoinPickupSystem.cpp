@@ -20,6 +20,7 @@ constexpr double CollisionRadius = 0.20;
 // then may the magnet pull it toward a nearby player.
 constexpr double MagnetDelay = 0.85;
 constexpr double MaximumLifetime = 50.0;
+constexpr double HeartHealing = 25.0;
 
 std::uint64_t mixBits(std::uint64_t value) {
     value += 0x9e3779b97f4a7c15ULL;
@@ -70,7 +71,7 @@ void CoinPickupSystem::spawnValue(
     int index = 0;
     while (remaining > 0 && pickups_.size() < MaximumPickups) {
         const CoinType type = remaining >= 10
-            ? CoinType::Gold
+            ? CoinType::HighValue
             : remaining >= 5 ? CoinType::Silver : CoinType::Bronze;
         const int value = coinValue(type);
         const std::uint64_t coinSeed =
@@ -100,10 +101,35 @@ void CoinPickupSystem::spawnValue(
     }
 }
 
+void CoinPickupSystem::spawnHeart(
+    Vec3 position, std::uint64_t seed,
+    const TerrainHeightfield& terrain, double burstSpread) {
+    if (pickups_.size() >= MaximumPickups) return;
+    const double ground = terrain.getHeight(position.x, position.z);
+    position.y = std::max(position.y + 0.48, ground + GroundOffset + 0.32);
+    const double angle = unitRandom(seed) * Pi * 2.0;
+    const double horizontalSpeed =
+        (2.35 + unitRandom(seed ^ 0x5f356495ULL) * 2.45) *
+        std::max(0.0, burstSpread);
+    pickups_.push_back({
+        .id = nextId_++,
+        .position = position,
+        .velocity = {
+            std::cos(angle) * horizontalSpeed,
+            4.2 + unitRandom(seed ^ 0xa13fc965ULL) * 2.4,
+            std::sin(angle) * horizontalSpeed,
+        },
+        .spinPhase = unitRandom(seed ^ 0xc2b2ae35ULL) * Pi * 2.0,
+        .kind = PickupKind::Heart,
+        .value = 0,
+    });
+}
+
 CoinCollection CoinPickupSystem::tick(
     double deltaSeconds, Vec3 playerPosition,
     const TerrainHeightfield& terrain,
-    const CollisionWorld& collisionWorld) {
+    const CollisionWorld& collisionWorld,
+    double missingHealth) {
     CoinCollection collected{};
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
         return collected;
@@ -116,6 +142,7 @@ CoinCollection CoinPickupSystem::tick(
     };
     const double attractionSquared = AttractionRadius * AttractionRadius;
     const double collectionSquared = CollectionRadius * CollectionRadius;
+    missingHealth = std::max(0.0, missingHealth);
 
     for (CoinPickup& coin : pickups_) {
         coin.age += deltaSeconds;
@@ -127,7 +154,13 @@ CoinCollection CoinPickupSystem::tick(
         const double distanceSquared =
             toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y +
             toPlayer.z * toPlayer.z;
-        if (!coin.magnetized && coin.age >= MagnetDelay &&
+        const bool canMagnetize = coin.kind == PickupKind::Coin ||
+            missingHealth > 0.0;
+        if (!canMagnetize && coin.magnetized) {
+            coin.magnetized = false;
+            coin.magnetTime = 0.0;
+        }
+        if (!coin.magnetized && canMagnetize && coin.age >= MagnetDelay &&
             distanceSquared <= attractionSquared) {
             coin.magnetized = true;
             coin.magnetTime = 0.0;
@@ -190,17 +223,32 @@ CoinCollection CoinPickupSystem::tick(
         }
     }
 
-    std::erase_if(pickups_, [&](const CoinPickup& coin) {
+    std::erase_if(pickups_, [&](CoinPickup& coin) {
         const double deltaX = target.x - coin.position.x;
         const double deltaY = target.y - coin.position.y;
         const double deltaZ = target.z - coin.position.z;
-        const bool reachedPlayer = coin.magnetized &&
+        bool reachedPlayer = coin.magnetized &&
             deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <=
                 collectionSquared;
         if (reachedPlayer) {
-            collected.value += coin.value;
-            ++collected.count;
-            collected.position = coin.position;
+            if (coin.kind == PickupKind::Heart) {
+                if (missingHealth <= 0.0) {
+                    coin.magnetized = false;
+                    coin.magnetTime = 0.0;
+                    reachedPlayer = false;
+                } else {
+                    const double healing = std::min(
+                        HeartHealing, missingHealth);
+                    collected.healing += healing;
+                    ++collected.heartCount;
+                    missingHealth -= healing;
+                    collected.position = coin.position;
+                }
+            } else {
+                collected.value += coin.value;
+                ++collected.count;
+                collected.position = coin.position;
+            }
         }
         return reachedPlayer || coin.age >= MaximumLifetime;
     });

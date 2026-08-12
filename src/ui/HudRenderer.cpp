@@ -183,7 +183,7 @@ std::string objectiveInstruction(
     case ObjectiveMetric::WavesCompleted:
         return "Survive enemy waves";
     case ObjectiveMetric::CoinsCollected:
-        return "Pick up Gold dropped in the world";
+        return "Pick up Coins dropped in the world";
     case ObjectiveMetric::ChestsOpened:
         return "Open loot chests";
     case ObjectiveMetric::LootCollected:
@@ -271,7 +271,7 @@ std::string tutorialText(const SimulationSnapshot& snapshot) {
         return "OBJECTIVE: Mine rocks - Stone " +
                std::to_string(snapshot.stone) + "/" +
                std::to_string(snapshot.tutorialStoneTarget);
-    case TutorialObjective::BuildGoldMine:
+    case TutorialObjective::BuildCrystalMine:
         return "OBJECTIVE: Build Crystal Mine [4]";
     case TutorialObjective::PrepareForNight:
         return "OBJECTIVE: Build defenses - [N] starts sunset";
@@ -380,17 +380,17 @@ void drawBuildingContextCard(
                     &BuildingStats::effectRadius, 1, "m");
             }
         } else if (
-            building.type == BuildingType::GoldMine ||
+            building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
             addOptional(
-                building.type == BuildingType::GoldMine
+                building.type == BuildingType::CrystalMine
                     ? "CRYSTALS / CYCLE"
                     : building.type ==
                               BuildingType::LumberMill
                           ? "WOOD / CYCLE"
                           : "STONE / CYCLE",
-                &BuildingStats::goldPerCycle, 0, "");
+                &BuildingStats::productionPerCycle, 0, "");
             addOptional(
                 "CYCLE TIME",
                 &BuildingStats::productionInterval, 1, "s");
@@ -511,8 +511,8 @@ void drawBuildingContextCard(
               snapshot.aimedBuildingUpgradeCost->wood &&
           snapshot.stone >=
               snapshot.aimedBuildingUpgradeCost->stone &&
-          snapshot.gold >=
-              snapshot.aimedBuildingUpgradeCost->gold));
+          snapshot.crystals >=
+              snapshot.aimedBuildingUpgradeCost->crystals));
     constexpr std::string_view ActionPrefix =
         "Q  COPY    F  REPAIR    ";
     constexpr float ActionFontSize = 14.0F;
@@ -570,7 +570,7 @@ void drawBuildingContextCard(
 
     const ResourceCost repairCost = buildingRepairCost(building);
     if (repairCost.wood > 0 || repairCost.stone > 0 ||
-        repairCost.gold > 0) {
+        repairCost.crystals > 0) {
         drawUiText(
             "REPAIR  " + hud_detail::costText(repairCost) + "  +" +
                 std::to_string(static_cast<int>(std::ceil(
@@ -615,7 +615,7 @@ void drawBuildingContextCard(
     drawCost(UiResourceIcon::Wood, cost.wood, snapshot.wood);
     drawCost(UiResourceIcon::Stone, cost.stone, snapshot.stone);
     drawCost(
-        UiResourceIcon::Crystal, cost.gold, snapshot.gold);
+        UiResourceIcon::Crystal, cost.crystals, snapshot.crystals);
 }
 
 std::string phaseClock(double seconds) {
@@ -635,7 +635,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const ControlSettings& controls) {
     const float woodY = -view.woodResourceBounce;
     const float stoneY = -view.stoneResourceBounce;
-    const float goldY = -view.goldResourceBounce;
+    const float crystalY = -view.crystalResourceBounce;
     const float coinY = -view.coinResourceBounce;
     constexpr float ResourcePanelX = 12.0F;
     constexpr float ResourcePanelY = 12.0F;
@@ -674,15 +674,31 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         2U, UiResourceIcon::Crystal,
         snapshot.unlimitedResources
             ? "∞"
-            : compactAmount(snapshot.gold) + "/" +
-                  compactAmount(snapshot.goldCapacity),
-        goldY, RAYWHITE);
+            : compactAmount(snapshot.crystals) + "/" +
+                  compactAmount(snapshot.crystalCapacity),
+        crystalY,
+        snapshot.crystalStorageFull
+            ? Color{255, 174, 112, 255}
+            : RAYWHITE);
+    if (snapshot.crystalStorageFull) {
+        drawUiText(
+            "FULL",
+            {20.0F + 2.0F * ResourceCellWidth + 40.0F,
+             45.0F},
+            8.0F, {255, 153, 92, 245});
+    }
     drawResourceCell(
-        3U, UiResourceIcon::Gold,
+        3U, UiResourceIcon::Coin,
         snapshot.unlimitedResources
             ? "∞"
             : compactAmount(snapshot.coins),
         coinY, {255, 236, 152, 255});
+    drawUiText(
+        "L FIND CHEST " +
+            std::to_string(snapshot.chestRevealCoinCost),
+        {ResourcePanelX + ResourcePanelWidth - 142.0F,
+         ResourcePanelY + 40.0F},
+        8.0F, {220, 207, 173, 205});
     const auto drawResourcePulse =
         [](Rectangle bounds, float remaining) {
             if (remaining <= 0.0F) {
@@ -700,7 +716,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         };
     const std::array<float, 4> resourcePulses{
         view.woodResourcePulse, view.stoneResourcePulse,
-        view.goldResourcePulse, view.coinResourcePulse};
+        view.crystalResourcePulse, view.coinResourcePulse};
     for (std::size_t index = 0;
          index < resourcePulses.size(); ++index) {
         drawResourcePulse(
@@ -1058,7 +1074,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 phaseText += "  +" +
                     std::to_string(
                         snapshot.earlyWaveCoinBonus) +
-                    " GOLD";
+                    " COINS";
             }
             if (snapshot.earlyWaveInsightBonus > 0) {
                 phaseText += "  +" +
@@ -1377,7 +1393,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             std::string(buildingDisplayName(preview.type)) +
             "  W:" + std::to_string(cost.wood) +
             " S:" + std::to_string(cost.stone) +
-            " C:" + std::to_string(cost.gold);
+            " C:" + std::to_string(cost.crystals);
         const Vec3 previewCenter = buildingWorldPosition(
             preview.type, preview.gridPosition);
         const Vector2 anchor = GetWorldToScreen(
@@ -1479,7 +1495,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             "Lost  Wood %d   Stone %d   Crystals %d",
             snapshot.deathLostWood,
             snapshot.deathLostStone,
-            snapshot.deathLostGold);
+            snapshot.deathLostCrystals);
         drawCenteredUiText(
             lossText,
             static_cast<float>(panelY + 91), 19.0F,

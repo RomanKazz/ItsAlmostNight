@@ -15,6 +15,12 @@ inline constexpr std::size_t TreeVisualStyleCount = 3U;
 inline constexpr std::size_t TreeVisualVariantsPerStyle = 3U;
 inline constexpr std::size_t TreeVisualVariantCount =
     TreeVisualStyleCount * TreeVisualVariantsPerStyle;
+inline constexpr std::size_t StoneVisualVariantCount = 3U;
+inline constexpr double StoneVisualModelScale = 0.60;
+inline constexpr std::array<double, StoneVisualVariantCount>
+    StoneVisualGroundOffsets{
+        0.196310, 0.191065, 0.171163,
+    };
 inline constexpr std::array<double, TreeVisualVariantCount>
     TreeVisualGroundOffsets{
         0.207503, 0.289934, 0.261318,

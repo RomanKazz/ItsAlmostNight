@@ -9,41 +9,43 @@
 
 namespace ian {
 
-struct GoldMineRuntime {
+struct CrystalMineRuntime {
     EntityId buildingId;
-    BuildingType buildingType{BuildingType::GoldMine};
+    BuildingType buildingType{BuildingType::CrystalMine};
     std::uint8_t level{1};
     double productionProgress{};
-    bool operational{true};
+    double healthEfficiency{1.0};
 };
 
-struct GoldProduced {
+struct CrystalProduced {
     EntityId mineId;
     BuildingType buildingType;
     int amount;
 };
 
-class GoldMineSystem {
+class CrystalMineSystem {
   public:
-    explicit GoldMineSystem(
+    explicit CrystalMineSystem(
         EconomyBalanceDefinition definition = GameBalance::defaults().economy);
 
     void reset();
     void setProductionSpeedMultiplier(double multiplier);
     void setWoodYieldMultiplier(double multiplier);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
-    std::span<const GoldProduced> tick(double deltaSeconds);
+    std::span<const CrystalProduced> tick(double deltaSeconds);
 
     [[nodiscard]] int productionAmount(
         std::uint8_t level,
-        BuildingType type = BuildingType::GoldMine) const;
+        BuildingType type = BuildingType::CrystalMine) const;
     [[nodiscard]] double productionInterval(
-        BuildingType type = BuildingType::GoldMine) const;
-    [[nodiscard]] const std::vector<GoldMineRuntime>& mines() const;
+        BuildingType type = BuildingType::CrystalMine,
+        std::uint8_t level = 1,
+        double healthEfficiency = 1.0) const;
+    [[nodiscard]] const std::vector<CrystalMineRuntime>& mines() const;
 
   private:
-    std::vector<GoldMineRuntime> mines_;
-    std::vector<GoldProduced> productionBuffer_;
+    std::vector<CrystalMineRuntime> mines_;
+    std::vector<CrystalProduced> productionBuffer_;
     EconomyBalanceDefinition definition_;
     double productionSpeedMultiplier_{1.0};
     double woodYieldMultiplier_{1.0};

@@ -19,6 +19,7 @@ constexpr double OpeningDuration = 1.05;
 constexpr double LooseLootRevealDuration = 0.38;
 constexpr double ChestDisappearanceDelay = 1.15;
 constexpr double ChestDisappearanceDuration = 0.35;
+constexpr double RerollDuration = 0.48;
 // These values are shared by the simulation position, raycast, prompt and
 // render passes. Keep the reward above the chest without adding a permanent
 // forward displacement that becomes visible on sloped chests.
@@ -31,12 +32,14 @@ constexpr double LootBobAmplitude = 0.072;
 // without making nearby chest interactions ambiguous.
 constexpr double LootRaycastRadius = 0.72;
 
-ChestLoot makeLoot(EntityId chestId, Vec3 position) {
+ChestLoot makeLoot(EntityId chestId, Vec3 position,
+                   std::uint64_t reroll = 0U) {
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(chestId.generation) << 32U) |
         chestId.index;
     const std::uint64_t roll =
-        mixBits64(seed ^ 0xe7037ed1a0b428dbULL);
+        mixBits64(seed ^ 0xe7037ed1a0b428dbULL ^
+                  mixBits64(reroll + 0x9e3779b97f4a7c15ULL));
     constexpr std::array<LootUpgradeEffect, 7> CommonLoot{{
         LootUpgradeEffect::Apple,
         LootUpgradeEffect::Bread,
@@ -252,7 +255,7 @@ void LootChestSystem::spawnAdditionalChests(
             .surfaceNormal = surfaceNormal,
             .yaw = unitRandom(seed ^ 0x452821e638d01377ULL) *
                 6.28318530717958647692,
-            .goldCost = type == LootChestType::Wooden ? 15 : 30,
+            .coinCost = type == LootChestType::Wooden ? 20 : 40,
             .loot = makeLoot(id, position),
         });
     }
@@ -271,6 +274,17 @@ void LootChestSystem::tick(double deltaSeconds) {
             chest.loot.available = chest.openingProgress >= 0.58;
             if (chest.openingProgress >= 1.0)
                 chest.state = LootChestState::Open;
+        }
+        if (chest.rerolling) {
+            chest.rerollProgress = std::min(
+                1.0, chest.rerollProgress +
+                         deltaSeconds / RerollDuration);
+            if (chest.rerollProgress >= 1.0) {
+                chest.rerolling = false;
+                chest.loot.effect = chest.rerollTargetEffect;
+                chest.loot.rarity = chest.rerollTargetRarity;
+                chest.loot.available = true;
+            }
         }
         if (chest.looseLoot && chest.loot.available &&
             !chest.loot.collected) {
@@ -345,7 +359,7 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
     return closest;
 }
 
-ChestOpenResult LootChestSystem::open(EntityId id, int& gold) {
+ChestOpenResult LootChestSystem::open(EntityId id, int& coins) {
     const auto chest = std::find_if(
         chests_.begin(), chests_.end(),
         [id](const LootChestInstance& value) { return value.id == id; });
@@ -353,16 +367,68 @@ ChestOpenResult LootChestSystem::open(EntityId id, int& gold) {
     if (chest->state != LootChestState::Closed)
         return ChestOpenResult::AlreadyOpen;
     const int cost = openingCost(*chest);
-    if (gold < cost)
-        return ChestOpenResult::InsufficientGold;
-    gold -= cost;
+    if (coins < cost)
+        return ChestOpenResult::InsufficientCoins;
+    coins -= cost;
     chest->state = LootChestState::Opening;
     chest->openingProgress = 0.0;
     return ChestOpenResult::Opened;
 }
 
-void LootChestSystem::setGoldCostMultiplier(double multiplier) {
-    goldCostMultiplier_ = std::clamp(multiplier, 0.01, 1.0);
+ChestRerollResult LootChestSystem::reroll(
+    EntityId id, int& coins, int cost) {
+    const auto chest = std::find_if(
+        chests_.begin(), chests_.end(),
+        [id](const LootChestInstance& value) { return value.id == id; });
+    if (chest == chests_.end()) return ChestRerollResult::None;
+    if (chest->looseLoot || chest->state != LootChestState::Open ||
+        !chest->loot.available || chest->loot.collected ||
+        chest->rerolling)
+        return ChestRerollResult::NotReady;
+    if (chest->rerollCount > 0U)
+        return ChestRerollResult::AlreadyRerolled;
+    cost = std::max(0, cost);
+    if (coins < cost) return ChestRerollResult::InsufficientCoins;
+    coins -= cost;
+    const LootUpgradeEffect previous = chest->loot.effect;
+    ChestLoot target{};
+    do {
+        ++chest->rerollCount;
+        target = makeLoot(
+            chest->id, chest->position, chest->rerollCount);
+    } while (target.effect == previous && chest->rerollCount < 32U);
+    // A reroll is one purchase even if deterministic retries were needed to
+    // avoid offering the exact same item.
+    chest->rerollCount = 1U;
+    chest->rerollTargetEffect = target.effect;
+    chest->rerollTargetRarity = target.rarity;
+    chest->rerollProgress = 0.0;
+    chest->rerolling = true;
+    chest->loot.available = false;
+    return ChestRerollResult::Rerolled;
+}
+
+std::optional<Vec3> LootChestSystem::revealNearest(
+    Vec3 playerPosition) {
+    LootChestInstance* nearest = nullptr;
+    double nearestDistance = std::numeric_limits<double>::infinity();
+    for (LootChestInstance& chest : chests_) {
+        if (chest.looseLoot || chest.state != LootChestState::Closed ||
+            chest.loot.collected) continue;
+        const double distance = geometry::distanceSquared(
+            chest.position, playerPosition);
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = &chest;
+        }
+    }
+    if (!nearest) return std::nullopt;
+    nearest->revealed = true;
+    return nearest->position;
+}
+
+void LootChestSystem::setCoinCostMultiplier(double multiplier) {
+    coinCostMultiplier_ = std::clamp(multiplier, 0.01, 1.0);
 }
 
 int LootChestSystem::openingCost(
@@ -370,8 +436,8 @@ int LootChestSystem::openingCost(
     return std::max(
         1,
         static_cast<int>(std::lround(
-            static_cast<double>(chest.goldCost) *
-            goldCostMultiplier_)));
+            static_cast<double>(chest.coinCost) *
+            coinCostMultiplier_)));
 }
 
 std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
@@ -393,11 +459,14 @@ std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
 std::optional<LootPickup> LootChestSystem::collectNearby(
     Vec3 playerPosition, double radius) {
     for (LootChestInstance& chest : chests_) {
+        if (!chest.looseLoot) continue;
         const Vec3 itemPosition = lootVisualPositionImpl(chest);
         if (chest.loot.available && !chest.loot.collected &&
             chest.loot.pickupDelayRemaining <= 0.0 &&
             geometry::distanceSquared(
-                playerPosition, itemPosition) <= radius * radius)
+                playerPosition, itemPosition) <=
+                std::min(radius, chest.loot.proximityPickupRadius) *
+                std::min(radius, chest.loot.proximityPickupRadius))
             return collect(chest.loot.id);
     }
     return std::nullopt;
@@ -420,6 +489,16 @@ void LootChestSystem::spawnLooseLoot(
     const auto pool = rarity == LootRarity::Common
         ? std::span<const LootUpgradeEffect>{CommonLoot}
         : std::span<const LootUpgradeEffect>{RareLoot};
+    spawnLooseLootEffect(
+        position,
+        pool[mixBits64(seed ^ 0x8ebc6af09c88c6e3ULL) % pool.size()],
+        rarity, seed);
+}
+
+void LootChestSystem::spawnLooseLootEffect(
+    Vec3 position, LootUpgradeEffect effect,
+    LootRarity rarity, std::uint64_t seed,
+    double pickupDelay, double proximityPickupRadius) {
     const EntityId id{nextEntityIndex_++, runGeneration_};
     LootChestInstance loose{
         .id = id,
@@ -433,11 +512,12 @@ void LootChestSystem::spawnLooseLoot(
         .loot = {
             .id = id,
             .rarity = rarity,
-            .effect = pool[mixBits64(seed ^ 0x8ebc6af09c88c6e3ULL) %
-                           pool.size()],
+            .effect = effect,
             .position = position,
             .revealProgress = 0.0,
-            .pickupDelayRemaining = 1.35,
+            .pickupDelayRemaining = std::max(0.0, pickupDelay),
+            .proximityPickupRadius = std::max(
+                0.1, proximityPickupRadius),
             .available = true,
         },
     };
@@ -486,19 +566,19 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
 
 const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     switch (effect) {
-    case LootUpgradeEffect::Damage: return "+12% damage";
-    case LootUpgradeEffect::MoveSpeed: return "+7% movement speed";
+    case LootUpgradeEffect::Damage: return "+12% damage (max +60%)";
+    case LootUpgradeEffect::MoveSpeed: return "+7% movement speed (max +35%)";
     case LootUpgradeEffect::MaximumHealth: return "+15% maximum health";
     case LootUpgradeEffect::Apple: return "+12 maximum health per stack";
     case LootUpgradeEffect::Bread:
         return "After 6s without damage: +0.4 HP/s per stack";
     case LootUpgradeEffect::IronBar: return "+3% armor";
     case LootUpgradeEffect::FuelJerrycan:
-        return "+8% producer speed per stack";
+        return "+8% producer speed per stack (max +40%)";
     case LootUpgradeEffect::Compass:
         return "Points to nearby chests; range grows per stack";
     case LootUpgradeEffect::Nail:
-        return "+8% maximum health for buildings";
+        return "+8% maximum health for buildings (max +40%)";
     case LootUpgradeEffect::Key:
         return "-5% chest cost per stack (max -25%)";
     case LootUpgradeEffect::Map:
@@ -512,7 +592,7 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Blueprint:
         return "First building of each type grants Insight; retroactive";
     case LootUpgradeEffect::Hourglass:
-        return "Early night converts remaining time into Gold and Insight";
+        return "Early night converts remaining time into Coins and Insight";
     case LootUpgradeEffect::Rope:
         return "Reduces fall damage; consumes one to prevent a fatal fall";
     }

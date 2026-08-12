@@ -1,9 +1,9 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingStats.hpp"
-#include "economy/GoldMineSystem.hpp"
+#include "economy/CrystalMineSystem.hpp"
 
 void runBuildingStatsTests() {
-    ian::GoldMineSystem producers;
+    ian::CrystalMineSystem producers;
     const ian::BuildingInstance turret{
         .id = ian::EntityId{1, 0},
         .type = ian::BuildingType::Turret,
@@ -46,7 +46,7 @@ void runBuildingStatsTests() {
             !maximum.next.has_value(),
         "maximum building level has no upgrade preview");
     require(
-        maximum.current.goldPerCycle.has_value() &&
+        maximum.current.productionPerCycle.has_value() &&
             maximum.current.productionInterval.has_value(),
         "producer stats expose output and interval");
 }

@@ -37,6 +37,7 @@ class BombSystem {
         BombBalanceDefinition definition = GameBalance::defaults().weapons.bomb);
 
     void reset();
+    void addBombs(int amount);
     bool throwBomb(Vec3 origin, Vec3 direction,
                    bool consumeBomb = true);
     std::span<const BombExplosion> tick(

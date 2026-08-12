@@ -158,7 +158,7 @@ void GameUi::initialize() {
     resourceStone_ = loadTexture("assets/ui/resource_stone.png");
     resourceCrystal_ =
         loadTexture("assets/ui/resource_crystal.png");
-    resourceGold_ = loadTexture("assets/ui/resource_gold.png");
+    resourceCoin_ = loadTexture("assets/ui/resource_coin.png");
     initializeUiText();
     initialized_ = true;
 
@@ -185,7 +185,7 @@ void GameUi::initialize() {
 
 void GameUi::shutdown() {
     unloadTexture(resourceCrystal_);
-    unloadTexture(resourceGold_);
+    unloadTexture(resourceCoin_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
     unloadTexture(arrowRight_);
@@ -342,8 +342,8 @@ Texture2D GameUi::resourceTexture(
     if (icon == UiResourceIcon::Crystal) {
         return resourceCrystal_;
     }
-    if (icon == UiResourceIcon::Gold) {
-        return resourceGold_;
+    if (icon == UiResourceIcon::Coin) {
+        return resourceCoin_;
     }
     return resourceWood_;
 }

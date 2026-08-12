@@ -36,6 +36,11 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
 
 void Simulation::beginPreparedWave() {
     bestWave_ = std::max(bestWave_, wave_);
+    if (unlimitedResources_ || skillTree_.hasEffect("unlock.bombs")) {
+        bombs_.addBombs(2 + std::max(
+            0, static_cast<int>(std::lround(
+                skillTree_.effectValue("bomb.nightly_bonus")))));
+    }
     const std::size_t firstGroupSize = std::min({
         static_cast<std::size_t>(waveSpawnGroupSize_),
         waveSpawnQueue_.size(), MaximumActiveEnemies});
@@ -81,8 +86,13 @@ void Simulation::completeWave() {
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
     upcomingAttackDirection_.reset();
-    const int nightlyChests = static_cast<int>(std::lround(
+    int nightlyChests = static_cast<int>(std::lround(
         skillTree_.effectValue("loot.nightly_chests")));
+    if (nightlyChests <= 0 &&
+        skillTree_.hasEffect("loot.chest_every_two_nights") &&
+        wave_ % 2 == 0) {
+        nightlyChests = 1;
+    }
     if (nightlyChests > 0) {
         std::optional<Vec3> preferredCenter;
         double preferredRadius = 0.0;
@@ -123,9 +133,11 @@ void Simulation::completeWave() {
         .critical = currentWaveHasBoss_,
     });
     currentWaveHasBoss_ = false;
-    const int reward = saturatingMultiplyNonNegative(
-        economy_.waveRewardPerWave, wave_);
-    addGold(reward);
+    const int reward = saturatingAdd(
+        economy_.waveRewardBase,
+        saturatingMultiplyNonNegative(
+            economy_.waveRewardPerWave, wave_));
+    addCrystals(reward);
     events_.push_back({
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,

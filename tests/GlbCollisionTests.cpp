@@ -134,4 +134,21 @@ void runGlbCollisionTests() {
                     }),
                 "every tree needs a cylinder collider");
     }
+
+    constexpr std::array<std::string_view, 3> StonePaths{{
+        "/assets/models/environment/stone_1.glb",
+        "/assets/models/environment/stone_2.glb",
+        "/assets/models/environment/stone_3.glb",
+    }};
+    for (const std::string_view path : StonePaths) {
+        const GlbCollisionAsset stone = loadGlbCollisionAsset(
+            std::string(IAN_SOURCE_DIR) + std::string(path));
+        require(stone.valid() && stone.colliders.size() == 1U,
+                "every stone GLB must expose its authored collider");
+        require(stone.renderMeshIndices.size() == 1U,
+                "stone collision mesh must stay hidden");
+        require(stone.colliders.front().type ==
+                    ModelColliderType::Sphere,
+                "COL_SPHERE stone collider must parse as a sphere");
+    }
 }

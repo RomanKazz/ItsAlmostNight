@@ -15,16 +15,16 @@ void Simulation::processBuildingActions(
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =
             unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
-        const int availableGold =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : gold_;
+        const int availableCurrency =
+            unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
         const UpgradeResult result =
             buildings_.upgrade(command.upgradeBuilding->buildingId, availableWood, availableStone,
-                               availableGold);
+                               availableCurrency);
         if (result.valid() && result.building) {
             if (!unlimitedResources_) {
                 wood_ -= result.cost.wood;
                 stone_ -= result.cost.stone;
-                gold_ -= result.cost.gold;
+                crystals_ -= result.cost.crystals;
             }
             syncBuildingRuntimeSystems();
             events_.push_back({
@@ -90,18 +90,18 @@ void Simulation::processBuildingActions(
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
         const int availableStone =
             unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
-        const int availableGold =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : gold_;
+        const int availableCurrency =
+            unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
         const RepairResult result =
             buildings_.repair(command.repairBuilding->buildingId, availableWood, availableStone,
-                              availableGold);
+                              availableCurrency);
         if (result.valid() && result.building) {
             if (!unlimitedResources_) {
                 wood_ -= result.cost.wood;
                 stone_ -= result.cost.stone;
-                gold_ -= result.cost.gold;
+                crystals_ -= result.cost.crystals;
             }
-            goldMines_.syncBuildings(
+            crystalMines_.syncBuildings(
                 buildings_.buildings());
             events_.push_back({
                 .type = GameEventType::BuildingRepaired,
@@ -166,7 +166,7 @@ void Simulation::processBuildingActions(
             if (!unlimitedResources_) {
                 wood_ = saturatingAdd(wood_, result.refund.wood);
                 stone_ = saturatingAdd(stone_, result.refund.stone);
-                gold_ = saturatingAdd(gold_, result.refund.gold);
+                crystals_ = saturatingAdd(crystals_, result.refund.crystals);
             }
             aimedBuilding_.reset();
             syncWorldStructures();

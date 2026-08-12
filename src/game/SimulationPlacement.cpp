@@ -23,8 +23,8 @@ PlacementResult Simulation::validatePlacement(
         unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
     const int availableStone =
         unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
-    const int availableGold =
-        unlimitedResources_ ? std::numeric_limits<int>::max() : gold_;
+    const int availableCurrency =
+        unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     const int footprintWidth = twoByTwo ? 2 : 1;
@@ -40,7 +40,7 @@ PlacementResult Simulation::validatePlacement(
     const PlacementResult buildingValidation =
         buildings_.validate(
             type, position, availableWood,
-            availableStone, availableGold,
+            availableStone, availableCurrency,
             surface.height);
     if (!buildingValidation.valid()) {
         return buildingValidation;
@@ -296,12 +296,12 @@ PlacementResult Simulation::previewPlacement(
     placement.cost = {
         saturatingAdd(placement.cost.wood, foundationCost.wood),
         saturatingAdd(placement.cost.stone, foundationCost.stone),
-        saturatingAdd(placement.cost.gold, foundationCost.gold),
+        saturatingAdd(placement.cost.crystals, foundationCost.crystals),
     };
     if (placement.valid() && !unlimitedResources_ &&
         (wood_ < placement.cost.wood ||
          stone_ < placement.cost.stone ||
-         gold_ < placement.cost.gold)) {
+         crystals_ < placement.cost.crystals)) {
         placement.error = PlacementError::InsufficientResources;
     }
     return placement;

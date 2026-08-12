@@ -146,7 +146,7 @@ void runSkillTreeTests() {
     const auto longerDays = definitionById("longer_days");
     const auto contract = definitionById("mercenary_contract");
     require(
-        definitions.size() == 48 &&
+        definitions.size() == 51 &&
             definitionById("auto_switch_tools") == definitions.end() &&
             definitionById("hold_to_gather") == definitions.end() &&
             thermal != definitions.end() &&

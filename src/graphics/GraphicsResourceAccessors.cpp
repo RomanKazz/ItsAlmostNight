@@ -186,6 +186,14 @@ const ShaderResource& GraphicsResources::coinOutlineShader() const {
     return coinOutlineShader_;
 }
 
+ShaderResource& GraphicsResources::heartOutlineShader() {
+    return heartOutlineShader_;
+}
+
+const ShaderResource& GraphicsResources::heartOutlineShader() const {
+    return heartOutlineShader_;
+}
+
 TextureResource& GraphicsResources::fallbackTexture() {
     return fallbackTexture_;
 }
@@ -324,6 +332,10 @@ ModelResource& GraphicsResources::ropeLootModel() {
     return ropeLootModel_;
 }
 
+ModelResource& GraphicsResources::heartLootModel() {
+    return heartLootModel_;
+}
+
 ModelResource& GraphicsResources::platformModel() {
     return platformModel_;
 }
@@ -348,8 +360,8 @@ ModelResource& GraphicsResources::spikeTrapModel() {
     return spikeTrapModel_;
 }
 
-ModelResource& GraphicsResources::rockModel() {
-    return rockModel_;
+ModelResource& GraphicsResources::rockModel(std::size_t variant) {
+    return rockModels_[variant % rockModels_.size()];
 }
 
 ModelResource& GraphicsResources::treeModel(std::size_t variant) {

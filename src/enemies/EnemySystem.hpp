@@ -167,6 +167,21 @@ struct EnemyPlayerAttack {
     double damage;
 };
 
+struct EnemyProjectile {
+    EntityId id;
+    EntityId ownerId;
+    std::optional<EntityId> targetId;
+    Vec3 position;
+    Vec3 targetPosition;
+    Vec3 velocity;
+    double damage{};
+    double radius{0.24};
+    double targetRadius{0.42};
+    double lifetimeRemaining{};
+    bool targetsPlayer{true};
+    bool active{true};
+};
+
 struct EnemyPerformanceStats {
     PerformanceMetric tick;
     PerformanceMetric collision;
@@ -233,6 +248,7 @@ class EnemySystem {
 
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
+    [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
     [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 
@@ -246,7 +262,8 @@ class EnemySystem {
         double damageMultiplier;
     };
 
-    void appendEnemy(const EnemySpawn& spawn);
+    void appendEnemy(const EnemySpawn& spawn,
+                     bool allowActiveOverflow = false);
     void spawnSplitlings(
         EntityId parentId, Vec3 position,
         double healthMultiplier, double damageMultiplier);
@@ -258,6 +275,7 @@ class EnemySystem {
     std::vector<EnemyInstance> enemies_;
     std::vector<EnemyAttack> attackBuffer_;
     std::vector<EnemyPlayerAttack> playerAttackBuffer_;
+    std::vector<EnemyProjectile> projectiles_;
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
     std::vector<EnemySplitResult> splitEventBuffer_;
@@ -270,6 +288,7 @@ class EnemySystem {
     std::vector<PendingSplit> pendingSplitBuffer_;
     std::size_t activeCount_{};
     std::uint32_t nextIndex_{FirstEnemyIndex};
+    std::uint32_t nextProjectileIndex_{1U};
     SpatialHash spatialHash_;
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions_;
     EnemyPerformanceStats performanceStats_{};

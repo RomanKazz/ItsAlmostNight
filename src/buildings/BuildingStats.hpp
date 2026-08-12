@@ -6,7 +6,7 @@
 
 namespace ian {
 
-class GoldMineSystem;
+class CrystalMineSystem;
 
 struct BuildingStats {
     double maxHealth{};
@@ -14,7 +14,7 @@ struct BuildingStats {
     std::optional<double> attackRange;
     std::optional<double> attacksPerSecond;
     std::optional<double> effectRadius;
-    std::optional<double> goldPerCycle;
+    std::optional<double> productionPerCycle;
     std::optional<double> productionInterval;
     std::optional<double> slowPercent;
     std::optional<double> effectDuration;
@@ -30,11 +30,11 @@ struct BuildingStatComparison {
 
 [[nodiscard]] BuildingStats buildingStatsAtLevel(
     const BuildingInstance& building, std::uint8_t level,
-    const GoldMineSystem& producers);
+    const CrystalMineSystem& producers);
 
 [[nodiscard]] BuildingStatComparison compareBuildingStats(
     const BuildingInstance& building,
-    const GoldMineSystem& producers,
+    const CrystalMineSystem& producers,
     std::uint8_t maximumLevel);
 
 } // namespace ian

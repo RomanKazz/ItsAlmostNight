@@ -15,10 +15,12 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
             : pickup.rarity == LootRarity::Uncommon ? 1.6 : 1.0;
     switch (pickup.effect) {
     case LootUpgradeEffect::Damage:
-        playerDamageMultiplier_ += 0.12 * rarityStrength;
+        playerDamageMultiplier_ = std::min(
+            1.60, playerDamageMultiplier_ + 0.12 * rarityStrength);
         break;
     case LootUpgradeEffect::MoveSpeed:
-        playerMoveSpeedMultiplier_ += 0.07 * rarityStrength;
+        playerMoveSpeedMultiplier_ = std::min(
+            1.35, playerMoveSpeedMultiplier_ + 0.07 * rarityStrength);
         break;
     case LootUpgradeEffect::MaximumHealth: {
         const double previousMaximum = playerPermanentMaxHealth();
@@ -37,14 +39,16 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         playerArmorMultiplier_ += 0.03;
         break;
     case LootUpgradeEffect::FuelJerrycan:
-        productionSpeedMultiplier_ += 0.08;
-        goldMines_.setProductionSpeedMultiplier(
+        productionSpeedMultiplier_ = std::min(
+            1.40, productionSpeedMultiplier_ + 0.08);
+        crystalMines_.setProductionSpeedMultiplier(
             productionSpeedMultiplier_);
         break;
     case LootUpgradeEffect::Compass:
         break;
     case LootUpgradeEffect::Nail:
-        buildingMaxHealthMultiplier_ += 0.08;
+        buildingMaxHealthMultiplier_ = std::min(
+            1.40, buildingMaxHealthMultiplier_ + 0.08);
         buildings_.setMaxHealthMultiplier(
             buildingMaxHealthMultiplier_);
         foundations_.setMaxHealthMultiplier(
@@ -53,7 +57,7 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
     case LootUpgradeEffect::Key:
         chestOpeningCostMultiplier_ = std::max(
             0.75, chestOpeningCostMultiplier_ - 0.05);
-        lootChests_.setGoldCostMultiplier(
+        lootChests_.setCoinCostMultiplier(
             chestOpeningCostMultiplier_);
         break;
     case LootUpgradeEffect::Map:
@@ -66,7 +70,7 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
     case LootUpgradeEffect::Saw:
         woodYieldMultiplier_ += 0.25;
         resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
-        goldMines_.setWoodYieldMultiplier(woodYieldMultiplier_);
+        crystalMines_.setWoodYieldMultiplier(woodYieldMultiplier_);
         break;
     case LootUpgradeEffect::Potion:
         break;

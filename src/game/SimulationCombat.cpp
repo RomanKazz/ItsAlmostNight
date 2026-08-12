@@ -31,14 +31,14 @@ int Simulation::earlyWaveBonus() const {
 }
 
 int Simulation::earlyWaveCoinBonus() const {
-    if (skillTree_.effectValue("early.gold") <= -0.99) return 0;
+    if (skillTree_.effectValue("early.coins") <= -0.99) return 0;
     const int hourglassStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::Hourglass)];
     const int rewardSources = hourglassStacks +
         (skillTree_.hasEffect("early.base_bonus") ? 1 : 0);
     const double multiplier = std::max(
         0.0, 1.0 + skillTree_.effectValue("early.base_bonus") +
-            skillTree_.effectValue("early.gold"));
+            skillTree_.effectValue("early.coins"));
     return static_cast<int>(std::lround(
         static_cast<double>(remainingTimeUnits(phaseTimeRemaining_)) *
         static_cast<double>(rewardSources) * multiplier));
@@ -93,9 +93,9 @@ void Simulation::updateRunPhase(
                 });
             }
             if (command.startWaveEarly) {
-                const int goldBeforeBonus = gold_;
-                addGold(earlyBonus);
-                const int grantedBonus = gold_ - goldBeforeBonus;
+                const int crystalsBeforeBonus = crystals_;
+                addCrystals(earlyBonus);
+                const int grantedBonus = crystals_ - crystalsBeforeBonus;
                 coins_ = saturatingAdd(
                     coins_, earlyCoinBonus);
                 if (earlyInsightBonus > 0) {
@@ -380,7 +380,7 @@ void Simulation::updateCombat(double deltaSeconds) {
         if (worldStructuresDirty) {
             syncWorldStructures();
         } else if (producerRuntimeDirty) {
-            goldMines_.syncBuildings(buildings_.buildings());
+            crystalMines_.syncBuildings(buildings_.buildings());
         }
 
         updateTowerCombat(deltaSeconds);

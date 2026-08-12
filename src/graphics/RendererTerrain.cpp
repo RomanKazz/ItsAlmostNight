@@ -386,7 +386,10 @@ void Renderer::drawTerrain(
     Color tint, Vector3 focusPosition,
     bool wireframe) {
     Shader shader{};
-    if (shadowPassOpen_ &&
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ &&
         resources_.shadowShader().valid()) {
         shader = resources_.shadowShader().get();
     } else if (

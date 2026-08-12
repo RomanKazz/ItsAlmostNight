@@ -470,7 +470,7 @@ ProjectileImpact
 WeaponFired
 WaveStarted
 NightStarted
-GoldDeposited
+CrystalsDeposited
 ```
 
 Добавь:

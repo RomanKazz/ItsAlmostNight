@@ -17,7 +17,7 @@ enum class BuildingType {
     Core,
     Wall,
     Turret,
-    GoldMine,
+    CrystalMine,
     Cannon,
     SlowTrap,
     Gate,
@@ -184,10 +184,10 @@ class BuildingSystem {
     void setNewTowerBonusStacks(int stacks);
 
     [[nodiscard]] PlacementResult validate(BuildingType type, GridPosition position, int wood,
-                                           int stone, int gold = 0,
+                                           int stone, int crystals = 0,
                                            double baseHeight = 0.0) const;
     std::optional<PlacedBuilding> place(BuildingType type, GridPosition position,
-                                        std::uint8_t rotation, int wood, int stone, int gold = 0,
+                                        std::uint8_t rotation, int wood, int stone, int crystals = 0,
                                         double baseHeight = 0.0,
                                         int platformStorey = -1,
                                         double foundationBottomHeight = 0.0);
@@ -196,13 +196,13 @@ class BuildingSystem {
     std::optional<BuildingInstance> toggleGate(EntityId id);
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
-    [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int gold) const;
-    RepairResult repair(EntityId id, int wood, int stone, int gold);
+    [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals) const;
+    RepairResult repair(EntityId id, int wood, int stone, int crystals);
     SellResult sell(EntityId id);
     [[nodiscard]] ResourceCost configuredCost(BuildingType type) const;
     [[nodiscard]] ResourceCost upgradeCost(const BuildingInstance& building) const;
-    [[nodiscard]] UpgradeResult validateUpgrade(EntityId id, int wood, int stone, int gold) const;
-    UpgradeResult upgrade(EntityId id, int wood, int stone, int gold);
+    [[nodiscard]] UpgradeResult validateUpgrade(EntityId id, int wood, int stone, int crystals) const;
+    UpgradeResult upgrade(EntityId id, int wood, int stone, int crystals);
 
     [[nodiscard]] bool hasCore() const;
     [[nodiscard]] std::optional<BuildingInstance> core() const;

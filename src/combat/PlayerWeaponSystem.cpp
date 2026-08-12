@@ -81,30 +81,30 @@ PlayerWeapon PlayerWeaponSystem::selectedWeapon() const {
     return selectedWeapon_;
 }
 
-WeaponUpgradeResult PlayerWeaponSystem::validateUpgrade(int coreLevel, int gold) const {
+WeaponUpgradeResult PlayerWeaponSystem::validateUpgrade(int coreLevel, int crystals) const {
     if (rifleLevel_ >= 3) {
         return {.error = WeaponUpgradeError::MaxLevel, .level = rifleLevel_};
     }
     if (coreLevel <= rifleLevel_) {
         return {.error = WeaponUpgradeError::CoreLevelRequired, .level = rifleLevel_};
     }
-    const int cost = upgradeGoldCost();
-    if (gold < cost) {
+    const int cost = upgradeCrystalCost();
+    if (crystals < cost) {
         return {
-            .error = WeaponUpgradeError::InsufficientGold,
+            .error = WeaponUpgradeError::InsufficientCrystals,
             .level = rifleLevel_,
-            .goldCost = cost,
+            .crystalCost = cost,
         };
     }
     return {
         .error = WeaponUpgradeError::None,
         .level = rifleLevel_,
-        .goldCost = cost,
+        .crystalCost = cost,
     };
 }
 
-WeaponUpgradeResult PlayerWeaponSystem::upgrade(int coreLevel, int gold) {
-    const WeaponUpgradeResult validation = validateUpgrade(coreLevel, gold);
+WeaponUpgradeResult PlayerWeaponSystem::upgrade(int coreLevel, int crystals) {
+    const WeaponUpgradeResult validation = validateUpgrade(coreLevel, crystals);
     if (!validation.valid()) {
         return validation;
     }
@@ -114,7 +114,7 @@ WeaponUpgradeResult PlayerWeaponSystem::upgrade(int coreLevel, int gold) {
     return {
         .error = WeaponUpgradeError::None,
         .level = rifleLevel_,
-        .goldCost = validation.goldCost,
+        .crystalCost = validation.crystalCost,
     };
 }
 
@@ -122,9 +122,9 @@ int PlayerWeaponSystem::rifleLevel() const {
     return rifleLevel_;
 }
 
-int PlayerWeaponSystem::upgradeGoldCost() const {
+int PlayerWeaponSystem::upgradeCrystalCost() const {
     if (rifleLevel_ >= 1 && rifleLevel_ <= 2) {
-        return definition_.upgradeGold[static_cast<std::size_t>(rifleLevel_ - 1)];
+        return definition_.upgradeCrystal[static_cast<std::size_t>(rifleLevel_ - 1)];
     }
     return 0;
 }

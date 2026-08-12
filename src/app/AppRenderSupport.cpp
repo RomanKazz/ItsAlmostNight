@@ -41,7 +41,7 @@ LootItemVisual lootItemVisual(
     const float eased = 1.0F - std::pow(1.0F - reveal, 3.0F);
     const float riseSpin = reveal * reveal * (3.0F - 2.0F * reveal);
     const Vec3 position = lootVisualPosition(chest);
-    return {
+    LootItemVisual visual{
         .position = {
             static_cast<float>(position.x),
             static_cast<float>(position.y),
@@ -53,6 +53,56 @@ LootItemVisual lootItemVisual(
             (1.50F * (0.35F + eased * 0.65F) +
              std::sin(reveal * PI) * 0.24F),
     };
+    if (chest.rerolling) {
+        const float progress = static_cast<float>(
+            std::clamp(chest.rerollProgress, 0.0, 1.0));
+        const float outgoing = std::clamp(
+            progress * 2.0F, 0.0F, 1.0F);
+        const float transitionEased = outgoing * outgoing * outgoing *
+            (outgoing * (outgoing * 6.0F - 15.0F) + 10.0F);
+        visual.rotation += transitionEased * PI * 2.0F;
+        visual.scale *= 1.0F - transitionEased;
+        visual.tint.a = static_cast<unsigned char>(std::lround(
+            255.0F * (1.0F - transitionEased)));
+    }
+    return visual;
+}
+
+std::optional<LootItemVisual> rerollTargetLootItemVisual(
+    const SimulationSnapshot& snapshot,
+    const LootChestInstance& chest) {
+    if (!chest.rerolling) return std::nullopt;
+    const float progress = static_cast<float>(
+        std::clamp(chest.rerollProgress, 0.0, 1.0));
+    const float incoming = std::clamp(
+        (progress - 0.5F) * 2.0F, 0.0F, 1.0F);
+    const float eased = incoming * incoming * incoming *
+        (incoming * (incoming * 6.0F - 15.0F) + 10.0F);
+    LootItemVisual visual = lootItemVisual(snapshot, chest);
+    // Reconstruct the idle transform: lootItemVisual currently contains the
+    // outgoing half of the transition.
+    const float outgoing = std::clamp(
+        progress * 2.0F, 0.0F, 1.0F);
+    const float outgoingEased = outgoing * outgoing * outgoing *
+        (outgoing * (outgoing * 6.0F - 15.0F) + 10.0F);
+    visual.rotation -= outgoingEased * PI * 2.0F;
+    visual.rotation += (eased - 1.0F) * PI * 2.0F;
+    const float outgoingScale = 1.0F - outgoingEased;
+    if (outgoingScale > 0.0001F) {
+        visual.scale /= outgoingScale;
+    } else {
+        const float reveal = static_cast<float>(
+            std::clamp(chest.loot.revealProgress, 0.0, 1.0));
+        const float revealEased =
+            1.0F - std::pow(1.0F - reveal, 3.0F);
+        visual.scale = LootVisualScaleMultiplier *
+            (1.50F * (0.35F + revealEased * 0.65F) +
+             std::sin(reveal * PI) * 0.24F);
+    }
+    visual.scale *= eased;
+    visual.tint.a = static_cast<unsigned char>(std::lround(
+        255.0F * eased));
+    return visual;
 }
 
 EnemyModelVisual enemyModelVisual(EnemyType type) {
@@ -149,7 +199,7 @@ float enemyHitScale(const EnemyInstance& enemy) {
         enemy.spawnAnimationRemaining <= 0.0) {
         return hitScale;
     }
-    constexpr double SpawnDuration = 0.38;
+    constexpr double SpawnDuration = 0.72;
     const float spawnProgress = std::clamp(
         static_cast<float>(
             1.0 - enemy.spawnAnimationRemaining / SpawnDuration),
@@ -254,7 +304,7 @@ const char* weaponUpgradeErrorMessage(WeaponUpgradeError error) {
         return "Rifle already level III";
     case WeaponUpgradeError::CoreLevelRequired:
         return "Upgrade Core before Rifle";
-    case WeaponUpgradeError::InsufficientGold:
+    case WeaponUpgradeError::InsufficientCrystals:
         return "Not enough crystals for Rifle upgrade";
     }
     return "";

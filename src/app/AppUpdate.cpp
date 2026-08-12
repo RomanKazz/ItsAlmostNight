@@ -252,7 +252,7 @@ void App::update() {
                  ? 0.0
                  : frameSeconds));
     const double toolContactProgress = std::clamp(
-        static_cast<double>(toolTuning_.hitProgress),
+        static_cast<double>(activeToolTuning().hitProgress),
         0.25, 0.65);
     const double toolContactRemaining =
         toolSwingDuration_ * (1.0 - toolContactProgress);
@@ -276,14 +276,15 @@ void App::update() {
         FirstPersonToolVisual::None;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == ToolSettingsTab) {
-        desiredToolVisual = toolPanelPreviewUsesAxe_
-            ? FirstPersonToolVisual::Axe
-            : FirstPersonToolVisual::Pickaxe;
+        desiredToolVisual = toolPanelPreviewVisual_;
     } else {
         switch (hotbarSnapshot.selectedWeapon) {
         case PlayerWeapon::BareHands:
         case PlayerWeapon::Rifle:
             desiredToolVisual = FirstPersonToolVisual::None;
+            break;
+        case PlayerWeapon::Bomb:
+            desiredToolVisual = FirstPersonToolVisual::Bomb;
             break;
         case PlayerWeapon::Axe:
             desiredToolVisual = FirstPersonToolVisual::Axe;
@@ -343,7 +344,7 @@ void App::update() {
             toolSwapDestinationVisual_ =
                 toolSwapCandidateVisual_;
             toolSwapDuration_ = std::clamp(
-                static_cast<double>(toolTuning_.swapDuration) *
+                static_cast<double>(activeToolTuning().swapDuration) *
                     ToolSwapDurationScale,
                 0.40, 1.20);
             toolSwapRemaining_ = toolSwapDuration_;
@@ -371,7 +372,7 @@ void App::update() {
         (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
          displayedToolVisual_ == FirstPersonToolVisual::Club) ==
             toolSwingUsesAxe_) {
-        toolSwingDuration_ = toolTuning_.swingDuration;
+        toolSwingDuration_ = activeToolTuning().swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;
         toolSwingAttackPending_ =
             toolQueuedSwingHasAttack_;
@@ -604,6 +605,11 @@ void App::update() {
             if (pendingInteract_) {
                 tickInput.interact = InteractCommand{};
             }
+            tickInput.rerollChest = pendingChestReroll_;
+            if (pendingRevealChest_) {
+                tickInput.revealNearestChest =
+                    RevealNearestChestCommand{};
+            }
             if (pendingDefeatAllEnemies_) {
                 tickInput.defeatAllEnemies = DefeatAllEnemiesCommand{};
             }
@@ -653,6 +659,8 @@ void App::update() {
         pendingWeaponUpgrade_ = false;
         pendingBombThrow_ = false;
         pendingInteract_ = false;
+        pendingChestReroll_.reset();
+        pendingRevealChest_ = false;
         pendingDefeatAllEnemies_ = false;
         pendingToggleInvulnerability_ = false;
         pendingDamageCore_ = false;

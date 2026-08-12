@@ -1,4 +1,4 @@
-#include "economy/GoldMineSystem.hpp"
+#include "economy/CrystalMineSystem.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,28 +6,28 @@
 
 namespace ian {
 
-GoldMineSystem::GoldMineSystem(EconomyBalanceDefinition definition)
+CrystalMineSystem::CrystalMineSystem(EconomyBalanceDefinition definition)
     : definition_(definition) {
     mines_.reserve(4);
     productionBuffer_.reserve(4);
 }
 
-void GoldMineSystem::reset() {
+void CrystalMineSystem::reset() {
     mines_.clear();
     productionBuffer_.clear();
 }
 
-void GoldMineSystem::setProductionSpeedMultiplier(
+void CrystalMineSystem::setProductionSpeedMultiplier(
     double multiplier) {
     productionSpeedMultiplier_ = std::max(0.01, multiplier);
 }
 
-void GoldMineSystem::setWoodYieldMultiplier(double multiplier) {
+void CrystalMineSystem::setWoodYieldMultiplier(double multiplier) {
     woodYieldMultiplier_ = std::max(0.0, multiplier);
 }
 
-void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
-    std::erase_if(mines_, [&buildings](const GoldMineRuntime& mine) {
+void CrystalMineSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
+    std::erase_if(mines_, [&buildings](const CrystalMineRuntime& mine) {
         return std::none_of(buildings.begin(), buildings.end(),
                             [&mine](const BuildingInstance& building) {
                                 return building.id == mine.buildingId &&
@@ -36,44 +36,54 @@ void GoldMineSystem::syncBuildings(const std::vector<BuildingInstance>& building
     });
 
     for (const auto& building : buildings) {
-        if (building.type != BuildingType::GoldMine &&
+        if (building.type != BuildingType::CrystalMine &&
             building.type != BuildingType::LumberMill &&
             building.type != BuildingType::Quarry) {
             continue;
         }
         const auto runtime = std::find_if(
             mines_.begin(), mines_.end(),
-            [&building](const GoldMineRuntime& mine) {
+            [&building](const CrystalMineRuntime& mine) {
                 return mine.buildingId == building.id;
             });
         if (runtime == mines_.end()) {
+            const double healthFraction = building.maxHealth > 0.0
+                ? std::clamp(building.health / building.maxHealth, 0.0, 1.0)
+                : 0.0;
             mines_.push_back({
                 .buildingId = building.id,
                 .buildingType = building.type,
                 .level = building.level,
-                .operational =
-                    building.health >= building.maxHealth,
+                .healthEfficiency = healthFraction >= 0.25
+                    ? healthFraction
+                    : 0.0,
             });
         } else {
             runtime->level = building.level;
             runtime->buildingType = building.type;
-            runtime->operational =
-                building.health >= building.maxHealth;
+            const double healthFraction = building.maxHealth > 0.0
+                ? std::clamp(building.health / building.maxHealth, 0.0, 1.0)
+                : 0.0;
+            runtime->healthEfficiency = healthFraction >= 0.25
+                ? healthFraction
+                : 0.0;
         }
     }
 }
 
-std::span<const GoldProduced> GoldMineSystem::tick(double deltaSeconds) {
+std::span<const CrystalProduced> CrystalMineSystem::tick(double deltaSeconds) {
     productionBuffer_.clear();
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
         return productionBuffer_;
     }
     for (auto& mine : mines_) {
-        if (!mine.operational) {
+        if (mine.healthEfficiency <= 0.0) {
             continue;
         }
         const double interval =
-            productionInterval(mine.buildingType);
+            productionInterval(
+                mine.buildingType, mine.level,
+                mine.healthEfficiency);
         const double totalProgress =
             mine.productionProgress + deltaSeconds;
         double completedIntervals = 0.0;
@@ -109,9 +119,9 @@ std::span<const GoldProduced> GoldMineSystem::tick(double deltaSeconds) {
     return productionBuffer_;
 }
 
-int GoldMineSystem::productionAmount(
+int CrystalMineSystem::productionAmount(
     std::uint8_t level, BuildingType type) const {
-    int baseAmount = definition_.goldMineAmount;
+    int baseAmount = definition_.crystalMineAmount;
     if (type == BuildingType::LumberMill) {
         baseAmount = 3;
     } else if (type == BuildingType::Quarry) {
@@ -125,19 +135,24 @@ int GoldMineSystem::productionAmount(
     return static_cast<int>(std::lround(amount));
 }
 
-double GoldMineSystem::productionInterval(
-    BuildingType type) const {
+double CrystalMineSystem::productionInterval(
+    BuildingType type, std::uint8_t level,
+    double healthEfficiency) const {
+    const double levelSpeed = 1.0 +
+        0.10 * static_cast<double>(std::max<int>(1, level) - 1);
+    const double effectiveSpeed = productionSpeedMultiplier_ *
+        levelSpeed * std::clamp(healthEfficiency, 0.01, 1.0);
     if (type == BuildingType::LumberMill) {
-        return 8.0 / productionSpeedMultiplier_;
+        return 8.0 / effectiveSpeed;
     }
     if (type == BuildingType::Quarry) {
-        return 10.0 / productionSpeedMultiplier_;
+        return 10.0 / effectiveSpeed;
     }
-    return definition_.goldMineInterval /
-        productionSpeedMultiplier_;
+    return definition_.crystalMineInterval /
+        effectiveSpeed;
 }
 
-const std::vector<GoldMineRuntime>& GoldMineSystem::mines() const {
+const std::vector<CrystalMineRuntime>& CrystalMineSystem::mines() const {
     return mines_;
 }
 

@@ -425,6 +425,54 @@ void Renderer::drawCoin(
     rlPopMatrix();
 }
 
+void Renderer::drawHeart(
+    Vector3 position, float rotationRadians, float scale) {
+    ModelResource& resource = resources_.heartLootModel();
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    rlRotatef(8.0F, 0.0F, 0.0F, 1.0F);
+    constexpr float PickupScale = 0.98F;
+    rlScalef(scale * 0.86F * PickupScale,
+             scale * 0.86F * PickupScale,
+             scale * 0.86F * PickupScale);
+    if (resource.valid()) {
+        Model& model = resource.get();
+        Shader shader{
+            .id = rlGetShaderIdDefault(),
+            .locs = rlGetShaderLocsDefault(),
+        };
+        if (worldShaderActive_ && resources_.worldShader().valid()) {
+            shader = resources_.worldShader().get();
+        }
+        if (model.materials != nullptr) {
+            if (resources_.heartOutlineShader().valid()) {
+                const Shader outlineShader =
+                    resources_.heartOutlineShader().get();
+                for (int index = 0; index < model.materialCount; ++index) {
+                    model.materials[index].shader = outlineShader;
+                }
+                rlDrawRenderBatchActive();
+                rlEnableBackfaceCulling();
+                rlSetCullFace(RL_CULL_FACE_FRONT);
+                drawFittedLootModel(resource, WHITE);
+                rlDrawRenderBatchActive();
+                rlSetCullFace(RL_CULL_FACE_BACK);
+            }
+            for (int index = 0; index < model.materialCount; ++index) {
+                model.materials[index].shader = shader;
+            }
+        }
+        drawFittedLootModel(resource, {255, 105, 112, 255});
+    } else {
+        DrawSphereEx({-0.08F, 0.05F, 0.0F}, 0.13F, 8, 8,
+                     {235, 62, 72, 255});
+        DrawSphereEx({0.08F, 0.05F, 0.0F}, 0.13F, 8, 8,
+                     {235, 62, 72, 255});
+    }
+    rlPopMatrix();
+}
+
 BoundingBox Renderer::lootItemWorldBounds(
     Vector3 position, LootUpgradeEffect effect,
     float rotationRadians, float scale, Vector3 surfaceNormal) {

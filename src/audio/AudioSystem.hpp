@@ -79,7 +79,7 @@ class AudioSystem {
     Clip repair_;
     Clip upgrade_;
     Clip gate_;
-    Clip gold_;
+    Clip crystals_;
     Clip playerHit_;
     Clip enemyHit_;
     Clip turretHit_;

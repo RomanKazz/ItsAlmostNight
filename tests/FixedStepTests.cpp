@@ -13,7 +13,7 @@ void runCollisionWorldTests();
 void runFlowFieldTests();
 void runSpatialHashTests();
 void runTowerSystemTests();
-void runGoldMineSystemTests();
+void runCrystalMineSystemTests();
 void runCoinPickupSystemTests();
 void runWaveDirectorTests();
 void runCannonSystemTests();
@@ -121,7 +121,7 @@ int main() {
     runFlowFieldTests();
     runSpatialHashTests();
     runTowerSystemTests();
-    runGoldMineSystemTests();
+    runCrystalMineSystemTests();
     runCoinPickupSystemTests();
     runWaveDirectorTests();
     runCannonSystemTests();

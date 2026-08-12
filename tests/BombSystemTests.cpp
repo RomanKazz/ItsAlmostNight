@@ -15,6 +15,7 @@ void runBombSystemTests() {
     enemies.spawnWave(Spawn);
 
     ian::BombSystem bombs;
+    bombs.addBombs(3);
     require(bombs.throwBomb({0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}),
             "bomb throw consumes available bomb");
     require(bombs.remainingBombs() == 2, "bomb stock decreases after throw");
@@ -26,6 +27,7 @@ void runBombSystemTests() {
     const ian::EntityId firstRunProjectile =
         bombs.projectiles().front().id;
     bombs.reset();
+    bombs.addBombs(3);
     require(
         bombs.throwBomb(
             {0.0, 1.7, 0.0}, {0.0, 0.0, -1.0}) &&
@@ -69,6 +71,7 @@ void runBombSystemTests() {
     }
     ian::EnemySystem emptyEnemies;
     ian::BombSystem slopeBomb;
+    slopeBomb.addBombs(1);
     require(slopeBomb.throwBomb(
                 {steepPoint.x, steepPoint.y + 0.05, steepPoint.z}, {}),
             "slope physics fixture throws bomb");

@@ -126,7 +126,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
         yaw = defensiveYaw + PI;
         groundOffset = 0.13F;
         break;
-    case BuildingType::GoldMine:
+    case BuildingType::CrystalMine:
         resource = &resources_.mineModel();
         modelScale = 2.1F;
         yaw = static_cast<float>(building.rotation) *
@@ -264,7 +264,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
             building.type == BuildingType::Wall) {
             size = {0.84F, 2.05F, 0.84F};
         } else if (
-            building.type == BuildingType::GoldMine ||
+            building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||
             building.type == BuildingType::Quarry) {
             size = {0.9F, 0.8F, 0.9F};
@@ -284,7 +284,7 @@ std::optional<double> Renderer::resourceRaycastDistance(
     ModelResource& resource = type == ResourceType::Wood
         ? resources_.treeModel(visualVariant)
         : type == ResourceType::Stone
-            ? resources_.rockModel()
+            ? resources_.rockModel(visualVariant)
             : resources_.destructiblePropModel(propModelIndex(type));
     if (!resource.valid() || maxDistance <= 0.0) {
         return std::nullopt;
@@ -295,7 +295,9 @@ std::optional<double> Renderer::resourceRaycastDistance(
     position.y += type == ResourceType::Wood
         ? static_cast<float>(TreeVisualGroundOffsets[
               visualVariant % TreeVisualVariantCount] * visualScale)
-        : type == ResourceType::Stone ? RockGroundOffset : 0.0F;
+        : type == ResourceType::Stone
+            ? rockGroundOffset(visualVariant)
+            : 0.0F;
     const Matrix rotation = isDestructibleProp(type)
         ? terrainAlignedRotation(position.x, position.z, yawRadians)
         : MatrixRotateY(yawRadians);
@@ -312,4 +314,3 @@ std::optional<double> Renderer::resourceRaycastDistance(
 
 
 } // namespace ian
-

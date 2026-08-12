@@ -11,7 +11,7 @@ namespace ian {
         return 2.08;
     case BuildingType::Turret:
         return 1.52;
-    case BuildingType::GoldMine:
+    case BuildingType::CrystalMine:
         return 0.72;
     case BuildingType::LumberMill:
         return 0.85;
@@ -39,7 +39,7 @@ namespace ian {
     const BuildingInstance& building) {
     Vec3 anchor = buildingWorldPosition(building);
     const bool compactProducer =
-        building.type == BuildingType::GoldMine ||
+        building.type == BuildingType::CrystalMine ||
         building.type == BuildingType::LumberMill ||
         building.type == BuildingType::Quarry;
     anchor.y += compactProducer ? 0.675 : 1.35;

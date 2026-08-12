@@ -1,11 +1,14 @@
 #include "game/Simulation.hpp"
 
 #include "core/SaturatingArithmetic.hpp"
+#include "core/DeterministicRandom.hpp"
 
 #include <algorithm>
 
 namespace ian {
 namespace {
+
+constexpr double EnemyMedkitDropChance = 0.06;
 
 int coinDropAmount(EnemyType type) {
     switch (type) {
@@ -37,6 +40,16 @@ std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
 } // namespace
 
 void Simulation::updateCoinPickups(double deltaSeconds) {
+    const auto maybeDropMedkit = [this](
+        EntityId id, Vec3 position, EnemyType type) {
+        const double chance = type == EnemyType::Boss
+            ? 0.25 : EnemyMedkitDropChance;
+        const std::uint64_t seed = coinSeed(id, tick_) ^
+            0xa0761d6478bd642fULL;
+        if (unitRandom(seed) < chance) {
+            coinPickups_.spawnHeart(position, seed, terrain_);
+        }
+    };
     // Explicit kill events preserve the death position even when the enemy
     // slot is reused by wave spawning later in the same simulation tick.
     for (const GameEvent& event : events_) {
@@ -59,6 +72,7 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         coinPickups_.spawnValue(
             event.position, coinDropAmount(type),
             coinSeed(*event.entityId, tick_), terrain_);
+        maybeDropMedkit(*event.entityId, event.position, type);
     }
 
     // Area systems such as cannons only report an aggregate kill count.
@@ -74,20 +88,27 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         coinPickups_.spawnValue(
             enemy.position, coinDropAmount(enemy.type),
             coinSeed(enemy.id, tick_), terrain_);
+        maybeDropMedkit(enemy.id, enemy.position, enemy.type);
     }
 
     const CoinCollection collected = coinPickups_.tick(
-        deltaSeconds, playerPosition_, terrain_, collisionWorld_);
-    if (collected.value <= 0) {
-        return;
+        deltaSeconds, playerPosition_, terrain_, collisionWorld_,
+        playerPermanentMaxHealth() + playerTemporaryHealth_ -
+            playerHealth_);
+    if (collected.healing > 0.0) {
+        playerHealth_ = std::min(
+            playerPermanentMaxHealth() + playerTemporaryHealth_,
+            playerHealth_ + collected.healing);
     }
-    coins_ = saturatingAdd(coins_, collected.value);
-    events_.push_back({
-        .type = GameEventType::CoinCollected,
-        .position = collected.position,
-        .amount = collected.value,
-        .intensity = static_cast<double>(collected.count),
-    });
+    if (collected.value > 0) {
+        coins_ = saturatingAdd(coins_, collected.value);
+        events_.push_back({
+            .type = GameEventType::CoinCollected,
+            .position = collected.position,
+            .amount = collected.value,
+            .intensity = static_cast<double>(collected.count),
+        });
+    }
 }
 
 } // namespace ian

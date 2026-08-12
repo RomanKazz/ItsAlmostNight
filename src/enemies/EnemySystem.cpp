@@ -33,6 +33,31 @@ constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
 
+double pointSegmentDistanceSquared(
+    Vec3 point, Vec3 start, Vec3 end) {
+    const Vec3 segment{
+        end.x - start.x,
+        end.y - start.y,
+        end.z - start.z};
+    const Vec3 offset{
+        point.x - start.x,
+        point.y - start.y,
+        point.z - start.z};
+    const double lengthSquared =
+        segment.x * segment.x + segment.y * segment.y +
+        segment.z * segment.z;
+    const double projection = lengthSquared > 1e-12
+        ? std::clamp(
+              (offset.x * segment.x + offset.y * segment.y +
+               offset.z * segment.z) / lengthSquared,
+              0.0, 1.0)
+        : 0.0;
+    const double dx = offset.x - segment.x * projection;
+    const double dy = offset.y - segment.y * projection;
+    const double dz = offset.z - segment.z * projection;
+    return dx * dx + dy * dy + dz * dz;
+}
+
 struct TraversalEdge {
     int to{-1};
     const RampInstance* ramp{};
@@ -711,11 +736,11 @@ double enemyRadius(EnemyType type) {
 }
 
 double attackRange(EnemyType type) {
-    return type == EnemyType::Ranged ? 4.5 : AttackRange;
+    return type == EnemyType::Ranged ? 8.5 : AttackRange;
 }
 
 double playerAttackRange(EnemyType type) {
-    return type == EnemyType::Ranged ? 4.5 : PlayerAttackRange;
+    return type == EnemyType::Ranged ? 9.0 : PlayerAttackRange;
 }
 
 double buildingRadius(BuildingType type);
@@ -727,7 +752,7 @@ double playerAggroRange(EnemyType type) {
     case EnemyType::Flying:
         return 6.0;
     case EnemyType::Ranged:
-        return 6.0;
+        return 11.0;
     case EnemyType::Boss:
         return 5.0;
     case EnemyType::Heavy:
@@ -907,6 +932,7 @@ EnemySystem::EnemySystem(
     enemies_.reserve(MaxEnemies);
     attackBuffer_.reserve(MaxEnemies);
     playerAttackBuffer_.reserve(MaxEnemies);
+    projectiles_.reserve(256);
     areaDamageBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
     structureBuffer_.reserve(256);
@@ -926,6 +952,8 @@ void EnemySystem::reset() {
     enemies_.clear();
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
+    projectiles_.clear();
+    nextProjectileIndex_ = 1U;
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
     areaDamageBuffer_.clear();
@@ -999,6 +1027,72 @@ std::span<const EnemyAttack> EnemySystem::tick(
     playerAttackBuffer_.clear();
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
+    for (EnemyProjectile& projectile : projectiles_) {
+        if (!projectile.active) continue;
+        const Vec3 previousPosition = projectile.position;
+        projectile.position.x += projectile.velocity.x * deltaSeconds;
+        projectile.position.y += projectile.velocity.y * deltaSeconds;
+        projectile.position.z += projectile.velocity.z * deltaSeconds;
+        projectile.lifetimeRemaining -= deltaSeconds;
+        if (projectile.lifetimeRemaining <= 0.0) {
+            projectile.active = false;
+            continue;
+        }
+        if (projectile.targetsPlayer) {
+            if (playerPosition) {
+                const Vec3 playerCenter{
+                    playerPosition->x, playerPosition->y - 0.62,
+                    playerPosition->z};
+                constexpr double PlayerHitRadius = 0.42;
+                const double hitRadius =
+                    projectile.radius + PlayerHitRadius;
+                if (pointSegmentDistanceSquared(
+                        playerCenter, previousPosition,
+                        projectile.position) <=
+                    hitRadius * hitRadius) {
+                    playerAttackBuffer_.push_back(
+                        {projectile.ownerId, projectile.damage});
+                    projectile.active = false;
+                }
+            }
+        } else if (projectile.targetId) {
+            const bool targetExists =
+                std::ranges::any_of(
+                    buildings, [&projectile](const BuildingInstance& building) {
+                        return building.id == *projectile.targetId;
+                    }) ||
+                std::ranges::any_of(
+                    additionalStructures,
+                    [&projectile](const EnemyStructureTarget& structure) {
+                        return structure.id == *projectile.targetId;
+                    });
+            if (!targetExists) {
+                projectile.active = false;
+            } else {
+                const double hitRadius =
+                    projectile.radius + projectile.targetRadius;
+                if (pointSegmentDistanceSquared(
+                        projectile.targetPosition, previousPosition,
+                        projectile.position) <=
+                    hitRadius * hitRadius) {
+                    attackBuffer_.push_back({
+                        projectile.ownerId, *projectile.targetId,
+                        projectile.damage, false});
+                    projectile.active = false;
+                }
+            }
+        }
+        if (projectile.active && terrain &&
+            projectile.position.y <=
+                terrain->getHeight(
+                    projectile.position.x,
+                    projectile.position.z) + 0.12) {
+            projectile.active = false;
+        }
+    }
+    std::erase_if(projectiles_, [](const EnemyProjectile& projectile) {
+        return !projectile.active;
+    });
     const auto core =
         std::find_if(buildings.begin(), buildings.end(), [](const BuildingInstance& building) {
             return building.type == BuildingType::Core;
@@ -1236,8 +1330,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
             if (playerDistanceSquared <= aggroRange * aggroRange &&
                 playerSharesAttackHeight(
                     enemy, *playerPosition) &&
-                !buildingIsInAttackRange(
-                    enemy, buildingGrid) &&
+                (enemy.type == EnemyType::Ranged ||
+                 !buildingIsInAttackRange(
+                    enemy, buildingGrid)) &&
                 !buildingBlocksPathToPlayer(
                     enemy, buildingGrid,
                     *playerPosition)) {
@@ -1261,8 +1356,47 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 if (playerDistance <= playerRange) {
                     enemy.state = EnemyState::AttackPlayer;
                     if (enemy.attackCooldownRemaining <= 0.0) {
-                        playerAttackBuffer_.push_back(
-                            {enemy.id, enemy.damage});
+                        if (enemy.type == EnemyType::Ranged) {
+                            const double originSurface = terrain
+                                ? terrain->getHeight(
+                                      enemy.position.x,
+                                      enemy.position.z) +
+                                      enemy.surfaceHeightOffset
+                                : enemy.worldSurfaceHeight;
+                            const Vec3 origin{
+                                enemy.position.x,
+                                originSurface + 1.02,
+                                enemy.position.z};
+                            const Vec3 target{
+                                playerPosition->x,
+                                playerPosition->y - 0.62,
+                                playerPosition->z};
+                            const double dx = target.x - origin.x;
+                            const double dy = target.y - origin.y;
+                            const double dz = target.z - origin.z;
+                            const double length = std::max(
+                                1e-6, std::sqrt(dx * dx + dy * dy + dz * dz));
+                            constexpr double ProjectileSpeed = 7.2;
+                            projectiles_.push_back({
+                                .id = {nextProjectileIndex_++, 1U},
+                                .ownerId = enemy.id,
+                                .targetId = std::nullopt,
+                                .position = origin,
+                                .targetPosition = target,
+                                .velocity = {
+                                    dx / length * ProjectileSpeed,
+                                    dy / length * ProjectileSpeed,
+                                    dz / length * ProjectileSpeed},
+                                .damage = enemy.damage,
+                                .radius = 0.24,
+                                .targetRadius = 0.42,
+                                .lifetimeRemaining = 3.0,
+                                .targetsPlayer = true,
+                            });
+                        } else {
+                            playerAttackBuffer_.push_back(
+                                {enemy.id, enemy.damage});
+                        }
                         enemy.attackCooldownRemaining =
                             attackInterval(enemy.type);
                     }
@@ -1389,6 +1523,36 @@ std::span<const EnemyAttack> EnemySystem::tick(
         const EnemyStructureTarget* blocker = nullptr;
         double closestContactDistance = std::numeric_limits<double>::max();
         std::size_t greatestStructuralImpact = 0U;
+        // Ranged enemies should acquire a structure anywhere inside their
+        // firing radius. The narrow forward corridor below is suitable for
+        // melee path blockers, but made ranged units walk almost into the
+        // target whenever steering was even slightly off-center.
+        if (enemy.type == EnemyType::Ranged) {
+            buildingGrid.forEachNearby(
+                enemy.position,
+                attackRange(enemy.type) +
+                    enemyRadius(enemy.type) + 1.6,
+                [&](const EnemyStructureTarget& building) {
+                    if (!structureIsVerticallyReachable(
+                            enemy, building)) {
+                        return;
+                    }
+                    const double offsetX =
+                        building.position.x - enemy.position.x;
+                    const double offsetZ =
+                        building.position.z - enemy.position.z;
+                    const double contactDistance = std::max(
+                        0.0,
+                        std::hypot(offsetX, offsetZ) -
+                            building.radius -
+                            enemyRadius(enemy.type));
+                    if (contactDistance <= attackRange(enemy.type) &&
+                        contactDistance < closestContactDistance) {
+                        blocker = &building;
+                        closestContactDistance = contactDistance;
+                    }
+                });
+        }
         if (enemy.type == EnemyType::Sapper) {
             buildingGrid.forEachNearby(
                 enemy.position,
@@ -1472,7 +1636,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 building.structuralImpact >
                     greatestStructuralImpact;
             const bool equalSapperPriority =
-                enemy.type != EnemyType::Sapper ||
+                (enemy.type != EnemyType::Sapper &&
+                 enemy.type != EnemyType::Ranged) ||
                 building.structuralImpact ==
                     greatestStructuralImpact;
             if (sapperPriority ||
@@ -1560,16 +1725,54 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 ? EnemyState::AttackCore
                 : EnemyState::AttackBuilding;
         if (enemy.attackCooldownRemaining <= 0.0) {
-            attackBuffer_.push_back({
-                enemy.id, blocker->id,
-                blocker->buildingType
-                    ? buildingDamage(
-                          enemy, *blocker->buildingType)
-                    : (enemy.type == EnemyType::Sapper &&
-                               blocker->modular
-                           ? enemy.damage * 2.5
-                           : enemy.damage),
-                false});
+            const double damage = blocker->buildingType
+                ? buildingDamage(enemy, *blocker->buildingType)
+                : (enemy.type == EnemyType::Sapper && blocker->modular
+                       ? enemy.damage * 2.5
+                       : enemy.damage);
+            if (enemy.type == EnemyType::Ranged) {
+                const double originSurface = terrain
+                    ? terrain->getHeight(
+                          enemy.position.x, enemy.position.z) +
+                          enemy.surfaceHeightOffset
+                    : enemy.worldSurfaceHeight;
+                const Vec3 origin{
+                    enemy.position.x, originSurface + 1.02,
+                    enemy.position.z};
+                Vec3 target = blocker->position;
+                target.y = blocker->attackSurfaceHeight
+                    ? *blocker->attackSurfaceHeight + 0.70
+                    : blocker->position.y +
+                          (blocker->buildingType == BuildingType::Core
+                               ? 1.05
+                               : 0.70);
+                const double dx = target.x - origin.x;
+                const double dy = target.y - origin.y;
+                const double dz = target.z - origin.z;
+                const double length = std::max(
+                    1e-6, std::sqrt(dx * dx + dy * dy + dz * dz));
+                constexpr double ProjectileSpeed = 7.2;
+                projectiles_.push_back({
+                    .id = {nextProjectileIndex_++, 1U},
+                    .ownerId = enemy.id,
+                    .targetId = blocker->id,
+                    .position = origin,
+                    .targetPosition = target,
+                    .velocity = {
+                        dx / length * ProjectileSpeed,
+                        dy / length * ProjectileSpeed,
+                        dz / length * ProjectileSpeed},
+                    .damage = damage,
+                    .radius = 0.24,
+                    .targetRadius = std::clamp(
+                        blocker->radius * 0.45, 0.32, 0.82),
+                    .lifetimeRemaining = 3.0,
+                    .targetsPlayer = false,
+                });
+            } else {
+                attackBuffer_.push_back({
+                    enemy.id, blocker->id, damage, false});
+            }
             enemy.attackCooldownRemaining =
                 attackInterval(enemy.type);
         }
@@ -1594,8 +1797,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
     return attackBuffer_;
 }
 
-void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
-    if (activeCount() >= MaxActiveEnemies) {
+void EnemySystem::appendEnemy(
+    const EnemySpawn& spawn, bool allowActiveOverflow) {
+    if (!allowActiveOverflow && activeCount() >= MaxActiveEnemies) {
         return;
     }
     const EnemyType type = spawn.type;
@@ -1647,7 +1851,7 @@ void EnemySystem::appendEnemy(const EnemySpawn& spawn) {
         .attackCooldownRemaining = 0.0,
         .hitAnimationRemaining = 0.0,
         .spawnAnimationRemaining =
-            type == EnemyType::Splitling ? 0.38 : 0.0,
+            type == EnemyType::Splitling ? 0.72 : 0.0,
         .ramWindup = stats.ramWindup,
         .ramDamageMultiplier = stats.ramDamageMultiplier,
         .ramCooldown = stats.ramCooldown,
@@ -1680,7 +1884,7 @@ void EnemySystem::spawnSplitlings(
     double healthMultiplier, double damageMultiplier) {
     constexpr int ChildCount = 3;
     constexpr double SpawnRadius = 0.42;
-    constexpr double LaunchSpeed = 3.8;
+    constexpr double LaunchSpeed = 2.8;
     constexpr double TwoPi = 6.28318530717958647692;
     auto split = std::ranges::find(
         splitEventBuffer_, parentId,
@@ -1696,9 +1900,6 @@ void EnemySystem::spawnSplitlings(
     const double phase = hashUnit(
         parentId.index * 0x9e3779b9U + parentId.generation) * TwoPi;
     for (int child = 0; child < ChildCount; ++child) {
-        if (activeCount_ >= MaxActiveEnemies) {
-            break;
-        }
         const double angle = phase + TwoPi *
             static_cast<double>(child) /
             static_cast<double>(ChildCount);
@@ -1718,7 +1919,7 @@ void EnemySystem::spawnSplitlings(
                 0.0,
                 direction.z * LaunchSpeed,
             },
-        });
+        }, true);
         if (activeCount_ > before) {
             ++split->childCount;
         }

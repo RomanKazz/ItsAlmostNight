@@ -26,7 +26,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         }
         if (aimed != buildings_.buildings().end()) {
             aimedStats = compareBuildingStats(
-                *aimed, goldMines_, MaxBuildingLevel);
+                *aimed, crystalMines_, MaxBuildingLevel);
         }
     }
     const WaveDefinition upcomingComposition =
@@ -62,6 +62,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
     case PlayerWeapon::FireWand: heldDamage = fireWand_.directDamage(); break;
     case PlayerWeapon::Hammer: heldDamage *= 0.75; break;
     case PlayerWeapon::Rifle: heldDamage = playerWeapons_.rifleDamage(); break;
+    case PlayerWeapon::Bomb:
+        heldDamage = 6.0;
+        break;
     case PlayerWeapon::Axe:
     case PlayerWeapon::Pickaxe: break;
     }
@@ -95,13 +98,15 @@ const SimulationSnapshot& Simulation::snapshot() const {
             gameplay_.playerRespawnSeconds,
         .deathLostWood = deathLostWood_,
         .deathLostStone = deathLostStone_,
-        .deathLostGold = deathLostGold_,
+        .deathLostCrystals = deathLostCrystals_,
         .wood = wood_,
         .stone = stone_,
-        .gold = gold_,
+        .crystals = crystals_,
         .woodCapacity = resourceCapacity(BuildingType::WoodStorage),
         .stoneCapacity = resourceCapacity(BuildingType::StoneStorage),
-        .goldCapacity = resourceCapacity(BuildingType::CrystalStorage),
+        .crystalCapacity = resourceCapacity(BuildingType::CrystalStorage),
+        .crystalStorageFull = !unlimitedResources_ &&
+            crystals_ >= resourceCapacity(BuildingType::CrystalStorage),
         .coins = coins_,
         .coinPickups = coinPickups_.pickups(),
         .aimedChest = aimedChest_,
@@ -155,7 +160,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::Core),
             buildings_.configuredCost(BuildingType::Wall),
             buildings_.configuredCost(BuildingType::Turret),
-            buildings_.configuredCost(BuildingType::GoldMine),
+            buildings_.configuredCost(BuildingType::CrystalMine),
             buildings_.configuredCost(BuildingType::Cannon),
             buildings_.configuredCost(BuildingType::SlowTrap),
             buildings_.configuredCost(BuildingType::Gate),
@@ -187,6 +192,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
         .aimedBuildingStats = aimedStats,
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
+        .enemyProjectiles = enemies_.projectiles(),
         .towers = std::span<const TowerRuntime>{towers_.towers()},
         .cannons = std::span<const CannonRuntime>{cannons_.cannons()},
         .traps = std::span<const TrapRuntime>{traps_.traps()},
@@ -246,25 +252,30 @@ const SimulationSnapshot& Simulation::snapshot() const {
                 skillTree_.hasEffect("unlock.hammer"),
             unlimitedResources_ ||
                 skillTree_.hasEffect("unlock.rifle"),
+            unlimitedResources_ ||
+                skillTree_.hasEffect("unlock.bombs"),
         },
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = heldDamage,
         .rifleLevel = playerWeapons_.rifleLevel(),
         .rifleAmmunition = playerWeapons_.ammunition(),
         .rifleMagazineSize = playerWeapons_.magazineSize(),
-        .rifleUpgradeGoldCost = playerWeapons_.upgradeGoldCost(),
+        .rifleUpgradeCrystalCost = playerWeapons_.upgradeCrystalCost(),
         .rifleReloading = playerWeapons_.reloading(),
         .rifleReloadRemaining = playerWeapons_.reloadRemaining(),
         .rifleReloadDuration = playerWeapons_.reloadDuration(),
         .bombsRemaining = unlimitedResources_
             ? std::numeric_limits<int>::max()
-            : skillTree_.hasEffect("unlock.bombs")
-                ? bombs_.remainingBombs()
-                : 0,
-        .waveCompletionReward = saturatingMultiplyNonNegative(
-            economy_.waveRewardPerWave, wave_),
+            : bombs_.remainingBombs(),
+        .bombPurchaseCoinCost = economy_.bombPurchaseCoinCost,
+        .chestRerollCoinCost = economy_.chestRerollCoinCost,
+        .chestRevealCoinCost = economy_.chestRevealCoinCost,
+        .waveCompletionReward = saturatingAdd(
+            economy_.waveRewardBase,
+            saturatingMultiplyNonNegative(
+                economy_.waveRewardPerWave, wave_)),
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
-        .tutorialStoneTarget = buildings_.configuredCost(BuildingType::GoldMine).stone,
+        .tutorialStoneTarget = buildings_.configuredCost(BuildingType::CrystalMine).stone,
         .tutorialObjective = tutorialObjective(),
         .skillPoints = unlimitedResources_
             ? std::numeric_limits<int>::max()

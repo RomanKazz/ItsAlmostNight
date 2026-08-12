@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <ranges>
 #include <tuple>
 #include <utility>
 
@@ -155,11 +156,27 @@ std::optional<double> modelColliderRaycastDistanceImpl(
                                ModelColliderType type) {
         const BoundingBox worldBounds =
             transformedBoundingBox(bounds, transform);
-        const auto distance = type == ModelColliderType::Cylinder
-                                  ? rayCylinderDistance(
-                                        ray, worldBounds, maxDistance)
-                                  : accept(GetRayCollisionBox(
-                                        ray, worldBounds));
+        std::optional<double> distance;
+        if (type == ModelColliderType::Cylinder) {
+            distance = rayCylinderDistance(
+                ray, worldBounds, maxDistance);
+        } else if (type == ModelColliderType::Sphere) {
+            const Vector3 center{
+                (worldBounds.min.x + worldBounds.max.x) * 0.5F,
+                (worldBounds.min.y + worldBounds.max.y) * 0.5F,
+                (worldBounds.min.z + worldBounds.max.z) * 0.5F,
+            };
+            const float radius = std::max({
+                worldBounds.max.x - center.x,
+                worldBounds.max.y - center.y,
+                worldBounds.max.z - center.z,
+            });
+            distance = accept(GetRayCollisionSphere(
+                ray, center, radius));
+        } else {
+            distance = accept(GetRayCollisionBox(
+                ray, worldBounds));
+        }
         if (distance && (!closest || *distance < *closest)) {
             closest = distance;
         }
@@ -555,7 +572,7 @@ void Renderer::drawTerrainAlignedModel(
 }
 
 Color lootRarityColor(LootRarity rarity) {
-    // The three tiers intentionally read as blue -> gold -> red in-world:
+    // The three tiers intentionally read as blue -> crystals -> red in-world:
     // common, rare (Uncommon in the data model), legendary (Rare).
     if (rarity == LootRarity::Legendary)
         return {255, 126, 38, 255};
@@ -575,6 +592,7 @@ bool Renderer::drawFirstPersonTool(
     const bool iceWand = visual == FirstPersonToolVisual::IceWand;
     const bool fireWand = visual == FirstPersonToolVisual::FireWand;
     const bool wand = iceWand || fireWand;
+    const bool bomb = visual == FirstPersonToolVisual::Bomb;
     switch (visual) {
     case FirstPersonToolVisual::None:
         break;
@@ -594,8 +612,10 @@ bool Renderer::drawFirstPersonTool(
     case FirstPersonToolVisual::Hammer:
         resource = &resources_.hammerModel();
         break;
+    case FirstPersonToolVisual::Bomb:
+        break;
     }
-    if (resource == nullptr || !resource->valid()) {
+    if (!bomb && (resource == nullptr || !resource->valid())) {
         return false;
     }
 
@@ -627,7 +647,6 @@ bool Renderer::drawFirstPersonTool(
     const float charge = smoothStep(std::clamp(iceChargeProgress, 0.0F, 1.0F));
     const float recoil = std::sin(
         std::clamp(iceRecoilProgress, 0.0F, 1.0F) * PI);
-    Model& model = resource->get();
     rlPushMatrix();
     const float wandX = wand
         ? tuning.position.x + 0.035F + bobX
@@ -647,12 +666,21 @@ bool Renderer::drawFirstPersonTool(
     rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
     rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
     rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
-    const float modelScale = wand
-        ? tuning.scale * 1.0F
+    const float modelScale = bomb
+        ? tuning.scale / 1.5F
         : tuning.scale;
     rlScalef(modelScale, modelScale, modelScale);
-    DrawModel(model, {}, 1.0F,
-              fireWand ? Color{255, 193, 150, 255} : WHITE);
+    if (bomb) {
+        DrawSphereEx({}, 0.27F, 12, 12, {49, 55, 63, 255});
+        DrawCylinder({0.0F, 0.29F, 0.0F}, 0.055F, 0.04F,
+                     0.16F, 8, {124, 80, 39, 255});
+        DrawSphere({0.0F, 0.39F, 0.0F}, 0.035F,
+                   {255, 152, 38, 255});
+    } else {
+        Model& model = resource->get();
+        DrawModel(model, {}, 1.0F,
+                  fireWand ? Color{255, 193, 150, 255} : WHITE);
+    }
     if (wand) {
         constexpr float CrystalHeight = 0.365F;
         const float crystalPulse = 0.42F + charge * 0.28F +
@@ -1166,7 +1194,7 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
 bool Renderer::drawMine(Vector3 position, float yawRadians,
                         Color tint, float scale) {
     return drawResourceProducer(
-        BuildingType::GoldMine, position, yawRadians,
+        BuildingType::CrystalMine, position, yawRadians,
         tint, scale);
 }
 
@@ -1266,7 +1294,7 @@ bool Renderer::drawResourceProducer(
     Color tint, float scale) {
     ModelResource* resource = nullptr;
     float modelScale = 1.0F;
-    if (type == BuildingType::GoldMine) {
+    if (type == BuildingType::CrystalMine) {
         resource = &resources_.mineModel();
         modelScale = 2.1F;
     } else if (type == BuildingType::LumberMill) {
@@ -1401,8 +1429,11 @@ bool Renderer::drawSpikeTrap(
 }
 
 bool Renderer::drawRock(Vector3 position, Color tint,
-                        float scale) {
-    auto& resource = resources_.rockModel();
+                        float scale, std::size_t visualVariant,
+                        float yawRadians) {
+    const std::size_t variant =
+        visualVariant % StoneVisualVariantCount;
+    auto& resource = resources_.rockModel(variant);
     if (!resource.valid()) {
         return false;
     }
@@ -1426,9 +1457,10 @@ bool Renderer::drawRock(Vector3 position, Color tint,
     if (scale <= 0.001F) {
         return true;
     }
-    position.y += RockGroundOffset;
+    position.y += rockGroundOffset(variant) * scale;
     DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
+        model, position, {0.0F, 1.0F, 0.0F},
+        yawRadians * RAD2DEG,
         {RockModelScale * scale, RockModelScale * scale,
          RockModelScale * scale},
         tint);
@@ -1482,15 +1514,22 @@ bool Renderer::drawRocksInstanced(
     std::span<const RockDrawInstance> instances) {
     if (instances.empty() || shadowPassOpen_ ||
         selectionMaskPassOpen_ || !worldShaderActive_ ||
-        !resources_.worldShader().valid() ||
-        !resources_.rockModel().valid()) {
+        !resources_.worldShader().valid()) {
         return false;
     }
 
-    Model& model = resources_.rockModel().get();
-    resourceRockTransforms_.clear();
-    resourceRockTransforms_.reserve(instances.size());
+    for (auto& variantTransforms : resourceRockTransforms_) {
+        variantTransforms.clear();
+        variantTransforms.reserve(
+            instances.size() / StoneVisualVariantCount + 1U);
+    }
     for (const RockDrawInstance& instance : instances) {
+        const std::size_t variant =
+            instance.visualVariant % StoneVisualVariantCount;
+        ModelResource& resource = resources_.rockModel(variant);
+        if (!resource.valid()) {
+            return false;
+        }
         const float scale = instance.scale * worldRevealScaleAt(
             {instance.position.x, instance.position.z});
         if (scale <= 0.001F) {
@@ -1498,10 +1537,11 @@ bool Renderer::drawRocksInstanced(
         }
         const float modelScale = RockModelScale * scale;
         Vector3 position = instance.position;
-        position.y += RockGroundOffset;
-        const Matrix rotation = MatrixIdentity();
-        resourceRockTransforms_.push_back(MatrixMultiply(
-            model.transform,
+        position.y += rockGroundOffset(variant) * scale;
+        const Matrix rotation = MatrixRotateY(
+            instance.yawRadians);
+        resourceRockTransforms_[variant].push_back(MatrixMultiply(
+            resource.get().transform,
             MatrixMultiply(
                 MatrixScale(
                     modelScale, modelScale, modelScale),
@@ -1510,7 +1550,10 @@ bool Renderer::drawRocksInstanced(
                     MatrixTranslate(
                         position.x, position.y, position.z)))));
     }
-    if (resourceRockTransforms_.empty()) {
+    const bool anyTransforms = std::ranges::any_of(
+        resourceRockTransforms_,
+        [](const auto& transforms) { return !transforms.empty(); });
+    if (!anyTransforms) {
         return true;
     }
 
@@ -1521,16 +1564,27 @@ bool Renderer::drawRocksInstanced(
         shader, worldInstancingEnabledLocation_, &enabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
-    for (int meshIndex = 0; meshIndex < model.meshCount;
-         ++meshIndex) {
-        const int materialIndex = model.meshMaterial[meshIndex];
-        Material material = model.materials[materialIndex];
-        material.shader = shader;
-        material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-        DrawMeshInstanced(
-            model.meshes[meshIndex], material,
-            resourceRockTransforms_.data(),
-            static_cast<int>(resourceRockTransforms_.size()));
+    for (std::size_t variant = 0;
+         variant < StoneVisualVariantCount; ++variant) {
+        if (resourceRockTransforms_[variant].empty()) continue;
+        ModelResource& resource = resources_.rockModel(variant);
+        Model& model = resource.get();
+        for (int meshIndex = 0; meshIndex < model.meshCount;
+             ++meshIndex) {
+            if (!resource.meshValid(
+                    static_cast<std::size_t>(meshIndex))) continue;
+            const int materialIndex = model.meshMaterial[meshIndex];
+            if (materialIndex < 0 ||
+                materialIndex >= model.materialCount) continue;
+            Material material = model.materials[materialIndex];
+            material.shader = shader;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
+            DrawMeshInstanced(
+                model.meshes[meshIndex], material,
+                resourceRockTransforms_[variant].data(),
+                static_cast<int>(
+                    resourceRockTransforms_[variant].size()));
+        }
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();

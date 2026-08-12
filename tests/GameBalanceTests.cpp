@@ -1,7 +1,7 @@
 #include "TestHarness.hpp"
 #include "combat/BombSystem.hpp"
 #include "combat/PlayerWeaponSystem.hpp"
-#include "economy/GoldMineSystem.hpp"
+#include "economy/CrystalMineSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "game/GameBalance.hpp"
 #include "game/Simulation.hpp"
@@ -34,7 +34,7 @@ void runGameBalanceTests() {
         "resource gathering range is tuned separately from melee range");
     require(
         assetBalance.balance.weapons.club.areaRadius == 1.25 &&
-            assetBalance.balance.weapons.club.knockbackStrength == 3.0 &&
+            assetBalance.balance.weapons.club.knockbackStrength == 0.0 &&
             assetBalance.balance.weapons.club.maxDamagePerAttack == 4.0,
         "club balance exposes area, knockback, and total damage cap");
 
@@ -64,19 +64,19 @@ void runGameBalanceTests() {
         ]
     })json";
     constexpr std::string_view Buildings = R"json({
-        "core": {"wood": 35, "stone": 0, "gold": 0, "maxHealth": 600,
+        "core": {"wood": 35, "stone": 0, "crystals": 0, "maxHealth": 600,
                  "unlockCoreLevel": 0, "maxCount": 1},
-        "wall": {"wood": 12, "stone": 0, "gold": 0, "maxHealth": 110,
+        "wall": {"wood": 12, "stone": 0, "crystals": 0, "maxHealth": 110,
                  "unlockCoreLevel": 1, "maxCount": 200},
-        "turret": {"wood": 25, "stone": 15, "gold": 0, "maxHealth": 120,
+        "turret": {"wood": 25, "stone": 15, "crystals": 0, "maxHealth": 120,
                    "unlockCoreLevel": 1, "maxCount": 64},
-        "goldMine": {"wood": 20, "stone": 10, "gold": 0, "maxHealth": 140,
+        "crystalMine": {"wood": 20, "stone": 10, "crystals": 0, "maxHealth": 140,
                      "unlockCoreLevel": 1, "maxCount": 4},
-        "cannon": {"wood": 40, "stone": 30, "gold": 25, "maxHealth": 180,
+        "cannon": {"wood": 40, "stone": 30, "crystals": 25, "maxHealth": 180,
                    "unlockCoreLevel": 2, "maxCount": 64},
-        "slowTrap": {"wood": 15, "stone": 20, "gold": 10, "maxHealth": 100,
+        "slowTrap": {"wood": 15, "stone": 20, "crystals": 10, "maxHealth": 100,
                      "unlockCoreLevel": 2, "maxCount": 64},
-        "gate": {"wood": 15, "stone": 5, "gold": 0, "maxHealth": 130,
+        "gate": {"wood": 15, "stone": 5, "crystals": 0, "maxHealth": 130,
                  "unlockCoreLevel": 1, "maxCount": 128}
     })json";
     constexpr std::string_view Weapons = R"json({
@@ -85,7 +85,7 @@ void runGameBalanceTests() {
             "fireInterval": 0.4, "fireRateBonusPerLevel": 0.1,
             "reloadDuration": 2, "reloadReductionPerLevel": 0.2,
             "magazineSize": 4, "magazineBonusPerLevel": 1,
-            "upgradeGold": [5, 9]
+            "upgradeCrystal": [5, 9]
         },
         "bomb": {
             "startingBombs": 5, "throwSpeed": 7, "upwardSpeed": 3,
@@ -95,15 +95,15 @@ void runGameBalanceTests() {
         }
     })json";
     constexpr std::string_view Economy = R"json({
-        "goldMineInterval": 2,
-        "goldMineAmount": 7,
+        "crystalMineInterval": 2,
+        "crystalMineAmount": 7,
         "waveRewardPerWave": 11,
         "repairCostFraction": 0.25,
         "repairCooldownSeconds": 2.5,
         "sellRefundFraction": 0.75,
         "buildingUpgradeCostMultiplier": [0.25, 0.8],
-        "buildingUpgradeGoldBonus": [3, 4],
-        "coreUpgradeGold": [20, 30]
+        "buildingUpgradeCrystalBonus": [3, 4],
+        "coreUpgradeCrystals": [20, 30]
     })json";
     constexpr std::string_view Gameplay = R"json({
         "eyeHeight": 1.8,
@@ -205,13 +205,13 @@ void runGameBalanceTests() {
             "sale consumes loaded economy fraction");
     const auto coreUpgrade =
         buildings.upgrade(configuredCore->building.id, 0, 0, 20);
-    require(coreUpgrade.valid() && coreUpgrade.cost.gold == 20,
+    require(coreUpgrade.valid() && coreUpgrade.cost.crystals == 20,
             "core upgrade consumes loaded economy price");
 
     const auto mine =
-        buildings.place(ian::BuildingType::GoldMine, {4, 0}, 0, 20, 10);
+        buildings.place(ian::BuildingType::CrystalMine, {4, 0}, 0, 20, 10);
     require(mine.has_value(), "configured mine placement succeeds");
-    ian::GoldMineSystem mines{loaded.balance.economy};
+    ian::CrystalMineSystem mines{loaded.balance.economy};
     mines.syncBuildings(buildings.buildings());
     const auto configuredProduction = mines.tick(2.0);
     require(configuredProduction.size() == 1 && configuredProduction[0].amount == 7,
@@ -219,7 +219,7 @@ void runGameBalanceTests() {
 
     ian::PlayerWeaponSystem rifle{loaded.balance.weapons.rifle};
     require(rifle.rifleRange() == 12.0 && rifle.rifleDamage() == 5.0 &&
-                rifle.magazineSize() == 4 && rifle.upgradeGoldCost() == 5,
+                rifle.magazineSize() == 4 && rifle.upgradeCrystalCost() == 5,
             "rifle consumes loaded weapon definition");
     ian::BombSystem bombs{loaded.balance.weapons.bomb};
     require(bombs.remainingBombs() == 5 &&
@@ -239,7 +239,7 @@ void runGameBalanceTests() {
         "bomb": {}
     })json";
     constexpr std::string_view InvalidEconomy = R"json({
-        "goldMineInterval": 0
+        "crystalMineInterval": 0
     })json";
     constexpr std::string_view InvalidGameplay = R"json({
         "eyeHeight": 0
@@ -257,8 +257,8 @@ void runGameBalanceTests() {
                     ian::GameBalance::defaults().buildings[0].maxHealth &&
                 fallback.balance.weapons.rifle.damage ==
                     ian::GameBalance::defaults().weapons.rifle.damage &&
-                fallback.balance.economy.goldMineAmount ==
-                    ian::GameBalance::defaults().economy.goldMineAmount &&
+                fallback.balance.economy.crystalMineAmount ==
+                    ian::GameBalance::defaults().economy.crystalMineAmount &&
                 fallback.balance.gameplay.playerMaxHealth ==
                     ian::GameBalance::defaults().gameplay.playerMaxHealth,
             "invalid config preserves safe fallback balance");

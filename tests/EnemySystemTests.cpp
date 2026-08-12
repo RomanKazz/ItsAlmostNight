@@ -608,7 +608,7 @@ void runEnemySystemTests() {
                 std::abs(enemy.maxHealth - 4.5) < 1e-9 &&
                 std::abs(enemy.damage - 8.75) < 1e-9 &&
                 std::hypot(enemy.knockbackVelocity.x,
-                           enemy.knockbackVelocity.z) > 3.7,
+                           enemy.knockbackVelocity.z) > 2.7,
             "split children inherit scaling and launch outwards");
         firstSplitling = enemy.id;
     }
@@ -617,6 +617,20 @@ void runEnemySystemTests() {
         splitterEnemies.damage(*firstSplitling, 1000.0)->killed &&
             splitterEnemies.takeSplitEvents().empty(),
         "split children cannot recursively split");
+
+    ian::EnemySystem crowdedSplitters;
+    std::vector<ian::EnemySpawn> crowdedSpawns(
+        ian::EnemySystem::MaxActiveEnemies,
+        {ian::EnemyType::Basic, {0.0, 0.8, -8.0}});
+    crowdedSpawns.front().type = ian::EnemyType::Splitter;
+    crowdedSplitters.spawnWave(crowdedSpawns);
+    const ian::EntityId crowdedSplitterId =
+        crowdedSplitters.enemies().front().id;
+    require(
+        crowdedSplitters.damage(crowdedSplitterId, 1000.0)->killed &&
+            crowdedSplitters.activeCount() ==
+                ian::EnemySystem::MaxActiveEnemies + 2U,
+        "splitter always creates all three children at the active cap");
 
     ian::EnemySystem scaledEnemy;
     constexpr std::array<ian::EnemySpawn, 1> ScaledSpawn{{
@@ -638,19 +652,49 @@ void runEnemySystemTests() {
         {ian::EnemyType::Ranged, {0.5, 0.85, -6.0}},
     }};
     rangedEnemy.spawnWave(RangedSpawn);
+    bool rangedLaunchedAtWall = false;
     bool rangedAttackedWall = false;
-    for (int tick = 0; tick < 180 && !rangedAttackedWall;
+    for (int tick = 0; tick < 240 && !rangedAttackedWall;
          ++tick) {
         const auto attacks = rangedEnemy.tick(
             1.0 / 60.0, buildings.buildings(), flowField);
-        rangedAttackedWall =
-            !attacks.empty() &&
-            attacks.front().targetId != core->building.id;
+        if (!rangedLaunchedAtWall &&
+            !rangedEnemy.projectiles().empty()) {
+            rangedLaunchedAtWall = true;
+            require(attacks.empty(),
+                    "ranged structure shot deals no instant damage");
+        }
+        rangedAttackedWall = std::ranges::any_of(
+            attacks, [&core](const ian::EnemyAttack& attack) {
+                return attack.targetId != core->building.id;
+            });
     }
-    require(rangedAttackedWall &&
+    require(rangedLaunchedAtWall && rangedAttackedWall &&
                 rangedEnemy.enemies().front().position.z <
                     -4.0,
-            "ranged enemy attacks blocker from stand-off distance");
+            "ranged enemy projectile reaches blocker from stand-off distance");
+
+    ian::BuildingSystem sideTargetBuildings;
+    const auto sideCore = sideTargetBuildings.place(
+        ian::BuildingType::Core, {6, -6}, 0, 30, 0);
+    require(sideCore.has_value(),
+            "ranged radial targeting fixture creates side target");
+    ian::FlowField sideTargetFlow;
+    sideTargetFlow.rebuild(
+        {6, -6}, sideTargetBuildings.buildings());
+    ian::EnemySystem sideTargetRanged;
+    constexpr std::array<ian::EnemySpawn, 1> SideTargetSpawn{{{
+        ian::EnemyType::Ranged, {0.0, 0.85, -6.0}}}};
+    sideTargetRanged.spawnWave(SideTargetSpawn);
+    sideTargetRanged.tick(
+        1.0 / 60.0, sideTargetBuildings.buildings(),
+        sideTargetFlow);
+    require(
+        sideTargetRanged.projectiles().size() == 1U &&
+            sideTargetRanged.projectiles().front().targetId ==
+                sideCore->building.id &&
+            sideTargetRanged.enemies().front().position.x < 0.05,
+        "ranged enemy acquires an off-axis structure at full firing range");
 
     ian::EnemySystem sapperEnemy;
     constexpr std::array<ian::EnemySpawn, 1> SapperSpawn{{
@@ -762,6 +806,33 @@ void runEnemySystemTests() {
 
     require(contactEnemies.defeatAll() == 1 && contactEnemies.activeCount() == 0,
             "debug defeat clears all active enemies");
+
+    ian::BuildingSystem projectileBuildings;
+    require(projectileBuildings.place(
+                ian::BuildingType::Core, {20, 20}, 0, 30, 0).has_value(),
+            "ranged projectile fixture creates distant core");
+    ian::FlowField projectileFlow;
+    projectileFlow.rebuild({20, 20}, projectileBuildings.buildings());
+    ian::EnemySystem projectileEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> ProjectileSpawn{{{
+        ian::EnemyType::Ranged, {0.0, 0.85, -6.0}}}};
+    projectileEnemy.spawnWave(ProjectileSpawn);
+    projectileEnemy.tick(
+        1.0 / 60.0, projectileBuildings.buildings(), projectileFlow,
+        ian::Vec3{0.0, 1.7, 0.0});
+    require(
+        projectileEnemy.playerAttacks().empty() &&
+            projectileEnemy.projectiles().size() == 1U,
+        "ranged enemy launches a projectile instead of instant damage");
+    bool projectileHit = false;
+    for (int tick = 0; tick < 120 && !projectileHit; ++tick) {
+        projectileEnemy.tick(
+            1.0 / 60.0, projectileBuildings.buildings(), projectileFlow,
+            ian::Vec3{0.0, 1.7, 0.0});
+        projectileHit = !projectileEnemy.playerAttacks().empty();
+    }
+    require(projectileHit,
+            "ranged projectile damages player only after travel time");
 
     std::vector<ian::EnemySpawn> stressSpawns;
     stressSpawns.reserve(ian::EnemySystem::MaxEnemies + 64);

@@ -19,9 +19,10 @@ enum class PlayerWeapon {
     FireWand,
     Hammer,
     Rifle,
+    Bomb,
 };
 
-inline constexpr std::size_t PlayerWeaponCount = 8;
+inline constexpr std::size_t PlayerWeaponCount = 9;
 
 // Canonical order shared by input, HUD layout and selection animation.
 inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
@@ -34,6 +35,7 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
         PlayerWeapon::FireWand,
         PlayerWeapon::Hammer,
         PlayerWeapon::Rifle,
+        PlayerWeapon::Bomb,
     };
 
 inline constexpr std::array<PlayerWeapon, 4>
@@ -44,12 +46,13 @@ inline constexpr std::array<PlayerWeapon, 4>
         PlayerWeapon::Hammer,
     };
 
-inline constexpr std::array<PlayerWeapon, 4>
+inline constexpr std::array<PlayerWeapon, 5>
     PlayerCombatHotbarOrder{
         PlayerWeapon::Club,
         PlayerWeapon::IceWand,
         PlayerWeapon::FireWand,
         PlayerWeapon::Rifle,
+        PlayerWeapon::Bomb,
     };
 
 [[nodiscard]] inline constexpr bool isPlayerTool(
@@ -109,13 +112,13 @@ enum class WeaponUpgradeError {
     None,
     MaxLevel,
     CoreLevelRequired,
-    InsufficientGold,
+    InsufficientCrystals,
 };
 
 struct WeaponUpgradeResult {
     WeaponUpgradeError error{WeaponUpgradeError::None};
     int level{};
-    int goldCost{};
+    int crystalCost{};
 
     [[nodiscard]] bool valid() const { return error == WeaponUpgradeError::None; }
 };
@@ -133,12 +136,12 @@ class PlayerWeaponSystem {
     std::optional<WeaponFireResult> fireRifle(
         Vec3 origin, Vec3 direction, EnemySystem& enemies,
         double damageMultiplier = 1.0);
-    [[nodiscard]] WeaponUpgradeResult validateUpgrade(int coreLevel, int gold) const;
-    WeaponUpgradeResult upgrade(int coreLevel, int gold);
+    [[nodiscard]] WeaponUpgradeResult validateUpgrade(int coreLevel, int crystals) const;
+    WeaponUpgradeResult upgrade(int coreLevel, int crystals);
 
     [[nodiscard]] PlayerWeapon selectedWeapon() const;
     [[nodiscard]] int rifleLevel() const;
-    [[nodiscard]] int upgradeGoldCost() const;
+    [[nodiscard]] int upgradeCrystalCost() const;
     [[nodiscard]] double rifleRange() const;
     [[nodiscard]] double rifleDamage() const;
     [[nodiscard]] double fireInterval() const;

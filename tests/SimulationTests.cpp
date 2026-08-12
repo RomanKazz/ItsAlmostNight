@@ -79,7 +79,7 @@ void runSimulationTests() {
         defeatSimulation.tick(
             1.0 / 60.0, startDefeatWave);
         require(
-            defeatSimulation.snapshot().gold > 0 &&
+            defeatSimulation.snapshot().crystals > 0 &&
                 defeatSimulation.snapshot().coins > 0,
             "defeat fixture carries both currencies");
         ian::PlayerCommand spawnEnemy;
@@ -100,7 +100,7 @@ void runSimulationTests() {
         require(
             defeatSimulation.snapshot().state ==
                     ian::RunState::Defeat &&
-                defeatSimulation.snapshot().gold == 0 &&
+                defeatSimulation.snapshot().crystals == 0 &&
                 defeatSimulation.snapshot().coins == 0 &&
                 defeatSimulation.snapshot().coinPickups.empty() &&
                 std::ranges::any_of(
@@ -114,7 +114,7 @@ void runSimulationTests() {
         defeatSimulation.tick(1.0 / 60.0);
         require(
             defeatSimulation.snapshot().coins == 0 &&
-                defeatSimulation.snapshot().gold == 0 &&
+                defeatSimulation.snapshot().crystals == 0 &&
                 defeatSimulation.snapshot().coinPickups.empty(),
             "first restarted tick cannot reward enemies from the lost run");
     }
@@ -175,7 +175,7 @@ void runSimulationTests() {
         require(
             hourglassCoins == hourglassBonus &&
                 hourglassInsight == hourglassBonus,
-            "Hourglass converts early-wave time into Gold and Insight");
+            "Hourglass converts early-wave time into Coins and Insight");
 
         earlySimulation.grantSkillPoints(
             4, ian::SkillPointSource::Event);
@@ -208,9 +208,9 @@ void runSimulationTests() {
             ian::StartWaveEarlyCommand{};
         earlySimulation.tick(1.0 / 60.0, startEarly);
         require(
-            earlySimulation.snapshot().gold == advertisedBonus &&
+            earlySimulation.snapshot().crystals == advertisedBonus &&
                 earlySimulation.snapshot().coins == advertisedCoins,
-            "starting early grants advertised crystals and Gold");
+            "starting early grants advertised crystals and Coins");
         requireNear(
             earlySimulation.snapshot().currentInsight,
             insightBeforeEarlyStart + advertisedInsight + 6.0,
@@ -354,7 +354,7 @@ void runSimulationTests() {
         require(
             storageSimulation.snapshot().woodCapacity == 60 &&
                 storageSimulation.snapshot().stoneCapacity == 30 &&
-                storageSimulation.snapshot().goldCapacity == 10,
+                storageSimulation.snapshot().crystalCapacity == 10,
             "pre-core inventory has deliberately small resource limits");
 
         ian::PlayerCommand godMode;
@@ -368,7 +368,7 @@ void runSimulationTests() {
         require(
             storageSimulation.snapshot().woodCapacity == 100 &&
                 storageSimulation.snapshot().stoneCapacity == 75 &&
-                storageSimulation.snapshot().goldCapacity == 25,
+                storageSimulation.snapshot().crystalCapacity == 40,
             "core unlocks the base storage capacity");
 
         ian::PlayerCommand placeWoodStorage;
@@ -378,7 +378,7 @@ void runSimulationTests() {
         require(
             storageSimulation.snapshot().woodCapacity == 250 &&
                 storageSimulation.snapshot().stoneCapacity == 75 &&
-                storageSimulation.snapshot().goldCapacity == 25,
+                storageSimulation.snapshot().crystalCapacity == 40,
             "specialized storage expands only its matching resource");
     }
     {
@@ -520,13 +520,19 @@ void runSimulationTests() {
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
-                "weapon cycle skips locked rifle and keeps bare hands selectable");
+                "weapon cycle skips locked weapons and keeps bare hands selectable");
         const auto initialWeapons =
             weaponProgression.snapshot().unlockedWeapons;
         require(initialWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::BareHands)] &&
+                    !initialWeapons[static_cast<std::size_t>(
+                        ian::PlayerWeapon::Bomb)] &&
                     std::count(initialWeapons.begin(), initialWeapons.end(), true) == 1,
                 "weapon hotbar initially exposes only bare hands");
+        ian::PlayerCommand selectHandsInitially;
+        selectHandsInitially.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
+        weaponProgression.tick(1.0 / 60.0, selectHandsInitially);
         ian::PlayerCommand lockedSelection;
         lockedSelection.selectWeapon =
             ian::SelectWeaponCommand{ian::PlayerWeapon::Club};
@@ -573,7 +579,7 @@ void runSimulationTests() {
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
-                "weapon cycle wraps from rifle to fists");
+                "weapon cycle wraps from rifle to fists while bombs are locked");
     }
     {
         ian::Simulation iceProgression;
@@ -609,7 +615,7 @@ void runSimulationTests() {
         iceProgression.tick(1.0 / 60.0, cycle);
         require(iceProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
-                "locked ice wand is absent from the weapon cycle");
+                "locked wands and bombs are absent from the weapon cycle");
     }
     {
         auto clubBalance = ian::GameBalance::defaults();
@@ -639,19 +645,24 @@ void runSimulationTests() {
         clubCombat.tick(1.0 / 60.0, unlimited);
         const auto clubSkill =
             clubCombat.skillTree().indexOf("club");
+        const auto concussiveSkill =
+            clubCombat.skillTree().indexOf("concussive_swings");
         const auto combatTraining =
             clubCombat.skillTree().indexOf(
                 "combat_training");
-        require(
-            combatTraining && clubSkill &&
-                clubCombat.purchaseSkill(
-                    *combatTraining) ==
+        require(combatTraining && clubSkill && concussiveSkill,
+                "club combat skills exist");
+        require(clubCombat.purchaseSkill(*combatTraining) ==
+                    ian::SkillPurchaseError::None,
+                "club combat fixture buys combat training");
+        require(clubCombat.purchaseSkill(*clubSkill) ==
+                    ian::SkillPurchaseError::None,
+                "club combat fixture buys club");
+        require(clubCombat.purchaseSkill(*concussiveSkill) ==
                     ian::SkillPurchaseError::None &&
-                clubCombat.purchaseSkill(*clubSkill) ==
-                    ian::SkillPurchaseError::None &&
-                clubCombat.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::Club,
-            "club combat fixture selects club");
+                    clubCombat.snapshot().selectedWeapon ==
+                        ian::PlayerWeapon::Club,
+                "club combat fixture selects club");
 
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
@@ -1051,11 +1062,9 @@ void runSimulationTests() {
                 "bare-hands Smart Tools fixture unlocks gathering tools");
         require(bareHandsTools.snapshot().automaticToolSwitch,
                 "Smart Tools remains active in Bare Hands mode");
-        // Unlocking pickaxe leaves it selected; the next weapon-cycle input
-        // returns to the explicit Bare Hands mode without creating a
-        // virtual tool.
         ian::PlayerCommand selectBareHands;
-        selectBareHands.toggleWeapon = ian::ToggleWeaponCommand{};
+        selectBareHands.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
         bareHandsTools.tick(1.0 / 60.0, selectBareHands);
         require(bareHandsTools.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
@@ -1096,40 +1105,37 @@ void runSimulationTests() {
         ian::Simulation bombUnlock;
         bombUnlock.startRun();
         require(
-            bombUnlock.snapshot().bombsRemaining == 0,
-            "bomb stock stays hidden before skill unlock");
+            bombUnlock.snapshot().bombsRemaining == 0 &&
+            !bombUnlock.snapshot().unlockedWeapons[
+                static_cast<std::size_t>(ian::PlayerWeapon::Bomb)],
+            "bomb weapon starts locked");
         ian::PlayerCommand lockedThrow;
         lockedThrow.useConsumable =
             ian::UseConsumableCommand{};
         bombUnlock.tick(1.0 / 60.0, lockedThrow);
         require(
             bombUnlock.snapshot().bombProjectiles.empty(),
-            "bomb input is blocked before skill unlock");
+            "locked bomb input cannot fire");
         bombUnlock.grantSkillPoints(
-            3, ian::SkillPointSource::Event);
+            2, ian::SkillPointSource::Event);
         const auto combatTraining =
             bombUnlock.skillTree().indexOf(
                 "combat_training");
-        const auto club =
-            bombUnlock.skillTree().indexOf("club");
         const auto bombs =
             bombUnlock.skillTree().indexOf("bombs");
         require(
-            combatTraining && club && bombs &&
+            combatTraining && bombs &&
                 bombUnlock.purchaseSkill(
                     *combatTraining) ==
                     ian::SkillPurchaseError::None &&
-                bombUnlock.purchaseSkill(*club) ==
-                    ian::SkillPurchaseError::None &&
                 bombUnlock.purchaseSkill(*bombs) ==
                     ian::SkillPurchaseError::None &&
-                bombUnlock.snapshot().bombsRemaining == 3,
-            "Bombs unlock after Club with starting stock");
-        bombUnlock.tick(1.0 / 60.0, lockedThrow);
-        require(
-            bombUnlock.snapshot().bombProjectiles.size() == 1U &&
-                bombUnlock.snapshot().bombsRemaining == 2,
-            "unlocked bomb input throws and consumes bomb");
+                bombUnlock.snapshot().unlockedWeapons[
+                    static_cast<std::size_t>(ian::PlayerWeapon::Bomb)] &&
+                bombUnlock.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::Bomb &&
+                bombUnlock.snapshot().bombsRemaining == 0,
+            "Bombs node unlocks and equips the weapon; ammunition arrives at night");
     }
     {
         auto transactionBalance =
@@ -1142,18 +1148,18 @@ void runSimulationTests() {
                     ian::BuildingType::Core)];
         coreDefinition.wood = 5;
         coreDefinition.stone = 0;
-        coreDefinition.gold = 0;
+        coreDefinition.crystals = 0;
         auto& turretDefinition =
             transactionBalance.buildings[
                 static_cast<std::size_t>(
                     ian::BuildingType::Turret)];
         turretDefinition.wood = 4;
         turretDefinition.stone = 0;
-        turretDefinition.gold = 0;
+        turretDefinition.crystals = 0;
         transactionBalance.modularBuildings[0] = {
             .wood = 3,
             .stone = 0,
-            .gold = 0,
+            .crystals = 0,
         };
 
         ian::Simulation transactions{transactionBalance};
@@ -2354,9 +2360,16 @@ void runSimulationTests() {
             simulation.purchaseSkill(*nightlyChestSkill) ==
                 ian::SkillPurchaseError::None,
         "nightly chest fixture unlocks survived-night reward");
+    const auto frequentBountySkill =
+        simulation.skillTree().indexOf("frequent_bounty");
+    require(
+        frequentBountySkill &&
+            simulation.purchaseSkill(*frequentBountySkill) ==
+                ian::SkillPurchaseError::None,
+        "nightly delivery fixture upgrades the reward to every night");
     const std::size_t chestsBeforeFirstNight =
         simulation.snapshot().lootChests.size();
-    constexpr std::array<ian::PlayerWeapon, 8> GodModeTools{{
+    constexpr std::array<ian::PlayerWeapon, 9> GodModeTools{{
         ian::PlayerWeapon::Axe,
         ian::PlayerWeapon::Pickaxe,
         ian::PlayerWeapon::Club,
@@ -2364,6 +2377,7 @@ void runSimulationTests() {
         ian::PlayerWeapon::FireWand,
         ian::PlayerWeapon::Hammer,
         ian::PlayerWeapon::Rifle,
+        ian::PlayerWeapon::Bomb,
         ian::PlayerWeapon::BareHands,
     }};
     for (const ian::PlayerWeapon expected : GodModeTools) {
@@ -2411,6 +2425,8 @@ void runSimulationTests() {
             simulation.skillTree().points() == 0,
         "god mode purchases skills without consuming stored points");
     ian::PlayerCommand freeBomb;
+    freeBomb.selectWeapon =
+        ian::SelectWeaponCommand{ian::PlayerWeapon::Bomb};
     freeBomb.useConsumable = ian::UseConsumableCommand{};
     simulation.tick(1.0 / 60.0, freeBomb);
     require(simulation.snapshot().bombsRemaining ==
@@ -2428,8 +2444,8 @@ void runSimulationTests() {
             "placing core publishes flow-field debug samples");
     require(simulation.snapshot().wood == 0, "unlimited building does not spend inventory");
     require(simulation.snapshot().tutorialObjective ==
-                ian::TutorialObjective::BuildGoldMine,
-            "tutorial requests first gold mine after core");
+                ian::TutorialObjective::BuildCrystalMine,
+            "tutorial requests first crystals mine after core");
     ian::PlayerCommand toggleInvulnerability;
     toggleInvulnerability.toggleInvulnerability =
         ian::ToggleInvulnerabilityCommand{};
@@ -2464,6 +2480,8 @@ void runSimulationTests() {
         wallBuilding->id;
 
     ian::PlayerCommand lockedWeaponUpgrade;
+    lockedWeaponUpgrade.selectWeapon =
+        ian::SelectWeaponCommand{ian::PlayerWeapon::Rifle};
     lockedWeaponUpgrade.upgradeWeapon = ian::UpgradeWeaponCommand{};
     simulation.tick(1.0 / 60.0, lockedWeaponUpgrade);
     require(simulation.snapshot().rifleLevel == 1,
@@ -2576,6 +2594,9 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, startWaveEarly);
     require(simulation.snapshot().state == ian::RunState::Wave,
             "early-wave command immediately starts wave");
+    require(simulation.snapshot().bombsRemaining ==
+                std::numeric_limits<int>::max(),
+            "god mode keeps infinite bombs when night begins");
     require(simulation.snapshot().upcomingAttackDirection ==
                 ian::AttackDirection::South,
             "early wave uses least-visible attack direction");
@@ -2637,8 +2658,8 @@ void runSimulationTests() {
     const double dawnDuration = simulation.snapshot().phaseDuration;
     requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
                 "dawn starts with configured duration");
-    require(simulation.snapshot().gold == simulation.snapshot().waveCompletionReward,
-            "wave completion grants gold reward");
+    require(simulation.snapshot().crystals == simulation.snapshot().waveCompletionReward,
+            "wave completion grants crystals reward");
     require(
             simulation.snapshot().skillPoints ==
                 std::numeric_limits<int>::max() &&
@@ -2682,17 +2703,17 @@ void runSimulationTests() {
                     ian::RunState::Wave &&
                 simulation.snapshot().wave == expectedWave,
             "infinite cycle starts the next numbered wave");
-        const int goldBeforeReward =
-            simulation.snapshot().gold;
+        const int crystalsBeforeReward =
+            simulation.snapshot().crystals;
         simulation.tick(1.0 / 60.0, defeatWave);
         require(
             simulation.snapshot().state ==
                 ian::RunState::WaveComplete,
             "every cleared wave returns to dawn without victory");
         require(
-            simulation.snapshot().gold ==
-                goldBeforeReward + 15 * expectedWave,
-            "endless wave reward remains fifteen times wave number");
+            simulation.snapshot().crystals ==
+                crystalsBeforeReward + 10 + 5 * expectedWave,
+            "endless wave reward follows the balanced base plus wave curve");
         if (expectedWave < 7) {
             simulation.tick(
                 simulation.snapshot().phaseDuration);
@@ -2720,7 +2741,7 @@ void runSimulationTests() {
     require(
         simulation.snapshot().coins == 0 &&
             simulation.snapshot().coinPickups.empty(),
-        "run restart removes collected gold and physical coin drops");
+        "run restart removes collected crystals and physical coin drops");
     require(
         simulation.snapshot().terrainSeed != completedRunSeed,
         "run restart regenerates the map with a new seed");

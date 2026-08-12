@@ -221,6 +221,10 @@ void Simulation::processDebugCommands(
             unlocked = unlimitedResources_ ||
                 skillTree_.hasEffect("unlock.rifle");
             break;
+        case PlayerWeapon::Bomb:
+            unlocked = unlimitedResources_ ||
+                skillTree_.hasEffect("unlock.bombs");
+            break;
         }
         if (unlocked) {
             playerWeapons_.selectWeapon(weapon);
@@ -229,17 +233,35 @@ void Simulation::processDebugCommands(
         }
     }
     if (command.upgradeWeapon) {
+        if (playerWeapons_.selectedWeapon() == PlayerWeapon::Bomb) {
+            if (unlimitedResources_ ||
+                coins_ >= economy_.bombPurchaseCoinCost) {
+                if (!unlimitedResources_)
+                    coins_ -= economy_.bombPurchaseCoinCost;
+                bombs_.addBombs(1);
+                events_.push_back({
+                    .type = GameEventType::BombPurchased,
+                    .amount = economy_.bombPurchaseCoinCost,
+                });
+            } else {
+                events_.push_back({
+                    .type = GameEventType::EconomyPurchaseRejected,
+                    .amount = economy_.bombPurchaseCoinCost,
+                });
+            }
+            return;
+        }
         const auto core = buildings_.core();
         const int coreLevel =
             core ? static_cast<int>(core->level) : 0;
-        const int availableGold = unlimitedResources_
+        const int availableCurrency = unlimitedResources_
             ? std::numeric_limits<int>::max()
-            : gold_;
+            : crystals_;
         const WeaponUpgradeResult result =
-            playerWeapons_.upgrade(coreLevel, availableGold);
+            playerWeapons_.upgrade(coreLevel, availableCurrency);
         if (result.valid()) {
             if (!unlimitedResources_) {
-                gold_ -= result.goldCost;
+                crystals_ -= result.crystalCost;
             }
             events_.push_back({
                 .type = GameEventType::WeaponUpgraded,

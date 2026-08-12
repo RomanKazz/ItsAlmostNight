@@ -175,6 +175,7 @@ int main() {
             !resources.iceWandModel().valid() ||
             !resources.iceMagicShader().valid() ||
             !resources.coinOutlineShader().valid() ||
+            !resources.heartOutlineShader().valid() ||
             !resources.skyboxTexture(0).valid() ||
             !resources.skyboxTexture(1).valid() ||
             !resources.skyboxTexture(2).valid() ||
@@ -202,7 +203,8 @@ int main() {
             !resources.potionLootModel().valid() ||
             !resources.blueprintLootModel().valid() ||
             !resources.hourglassLootModel().valid() ||
-            !resources.ropeLootModel().valid()) {
+            !resources.ropeLootModel().valid() ||
+            !resources.heartLootModel().valid()) {
             std::cerr << "required graphics resource failed to load\n";
             result = 1;
         }
@@ -212,6 +214,7 @@ int main() {
             !hasTexturedRenderableMesh(resources.blueprintLootModel()) ||
             !hasTexturedRenderableMesh(resources.hourglassLootModel()) ||
             !hasTexturedRenderableMesh(resources.ropeLootModel()) ||
+            !hasTexturedRenderableMesh(resources.heartLootModel()) ||
             !hasTexturedRenderableMesh(resources.coinModel(0)) ||
             !hasTexturedRenderableMesh(resources.coinModel(1)) ||
             !hasTexturedRenderableMesh(resources.coinModel(2)) ||
@@ -302,7 +305,8 @@ int main() {
             ian::LootUpgradeEffect::Bread,
             ian::LootRarity::Common, -0.5F);
         renderer.drawCoin(
-            ian::CoinType::Gold, {0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
+            ian::CoinType::HighValue, {0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
+        renderer.drawHeart({0.55F, 0.55F, 0.0F}, 0.7F, 1.0F);
         const bool barrelDrawn = renderer.drawDestructibleProp(
             ian::ResourceType::Barrel, {-1.3F, 0.0F, -1.0F}, 0.2F);
         const bool crateDrawn = renderer.drawDestructibleProp(

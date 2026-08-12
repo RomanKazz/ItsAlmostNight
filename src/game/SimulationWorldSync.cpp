@@ -160,7 +160,7 @@ void Simulation::syncBuildingRuntimeSystems() {
     towers_.syncBuildings(buildings_.buildings());
     cannons_.syncBuildings(buildings_.buildings());
     traps_.syncBuildings(buildings_.buildings());
-    goldMines_.syncBuildings(buildings_.buildings());
+    crystalMines_.syncBuildings(buildings_.buildings());
 }
 
 void Simulation::syncWorldStructures() {
@@ -170,7 +170,8 @@ void Simulation::syncWorldStructures() {
         map_.worldLimit, playerPosition_);
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
-            resources_.nodes(), treeCollisionAssets_);
+            resources_.nodes(), treeCollisionAssets_,
+            stoneCollisionAssets_);
     }
     collisionWorld_.syncBuildings(buildings_.buildings());
     syncBuildingRuntimeSystems();

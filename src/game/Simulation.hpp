@@ -10,7 +10,7 @@
 #include "combat/TowerSystem.hpp"
 #include "combat/TrapSystem.hpp"
 #include "core/Types.hpp"
-#include "economy/GoldMineSystem.hpp"
+#include "economy/CrystalMineSystem.hpp"
 #include "economy/CoinPickupSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "game/GameEvent.hpp"
@@ -45,6 +45,8 @@ struct SelectWeaponCommand {
 struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
 struct InteractCommand {};
+struct RerollChestCommand { EntityId chestId; };
+struct RevealNearestChestCommand {};
 struct DefeatAllEnemiesCommand {};
 struct ToggleInvulnerabilityCommand {};
 struct DamageCoreCommand {
@@ -96,6 +98,8 @@ struct PlayerCommand {
     std::optional<UpgradeWeaponCommand> upgradeWeapon;
     std::optional<UseConsumableCommand> useConsumable;
     std::optional<InteractCommand> interact;
+    std::optional<RerollChestCommand> rerollChest;
+    std::optional<RevealNearestChestCommand> revealNearestChest;
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
     std::optional<ToggleInvulnerabilityCommand> toggleInvulnerability;
     std::optional<DamageCoreCommand> damageCore;
@@ -122,7 +126,7 @@ enum class TutorialObjective {
     MineWood,
     PlaceCore,
     MineStone,
-    BuildGoldMine,
+    BuildCrystalMine,
     PrepareForNight,
     SurviveFirstWave,
 };
@@ -157,13 +161,14 @@ struct SimulationSnapshot {
     double playerRespawnDuration;
     int deathLostWood;
     int deathLostStone;
-    int deathLostGold;
+    int deathLostCrystals;
     int wood;
     int stone;
-    int gold;
+    int crystals;
     int woodCapacity;
     int stoneCapacity;
-    int goldCapacity;
+    int crystalCapacity;
+    bool crystalStorageFull;
     int coins;
     std::span<const CoinPickup> coinPickups;
     std::optional<EntityId> aimedChest;
@@ -209,6 +214,7 @@ struct SimulationSnapshot {
     std::optional<ResourceCost> aimedBuildingUpgradeCost;
     std::optional<BuildingStatComparison> aimedBuildingStats;
     std::span<const EnemyInstance> enemies;
+    std::span<const EnemyProjectile> enemyProjectiles;
     std::span<const TowerRuntime> towers;
     std::span<const CannonRuntime> cannons;
     std::span<const TrapRuntime> traps;
@@ -249,11 +255,14 @@ struct SimulationSnapshot {
     int rifleLevel;
     int rifleAmmunition;
     int rifleMagazineSize;
-    int rifleUpgradeGoldCost;
+    int rifleUpgradeCrystalCost;
     bool rifleReloading;
     double rifleReloadRemaining;
     double rifleReloadDuration;
     int bombsRemaining;
+    int bombPurchaseCoinCost;
+    int chestRerollCoinCost;
+    int chestRevealCoinCost;
     int waveCompletionReward;
     int tutorialWoodTarget;
     int tutorialStoneTarget;
@@ -440,7 +449,7 @@ class Simulation {
         BuildingType storageType) const;
     void addWood(int amount);
     void addStone(int amount);
-    void addGold(int amount);
+    void addCrystals(int amount);
     [[nodiscard]] bool hasStorageSpace(
         ResourceType resource) const;
     [[nodiscard]] double playerPermanentMaxHealth() const;
@@ -479,6 +488,8 @@ class Simulation {
     GlbCollisionAsset rampCollisionAsset_;
     std::array<GlbCollisionAsset, TreeVisualVariantCount>
         treeCollisionAssets_;
+    std::array<GlbCollisionAsset, StoneVisualVariantCount>
+        stoneCollisionAssets_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};
@@ -499,10 +510,11 @@ class Simulation {
     double playerRespawnTimeRemaining_{};
     int deathLostWood_{};
     int deathLostStone_{};
-    int deathLostGold_{};
+    int deathLostCrystals_{};
     int wood_{};
     int stone_{};
-    int gold_{};
+    int crystals_{};
+    bool crystalStorageFullNotified_{};
     int coins_{};
     CoinPickupSystem coinPickups_;
     std::unordered_set<std::uint64_t> rewardedEnemyCoins_;
@@ -549,7 +561,7 @@ class Simulation {
     BombSystem bombs_;
     IceWandSystem iceWand_;
     IceWandSystem fireWand_;
-    GoldMineSystem goldMines_;
+    CrystalMineSystem crystalMines_;
     WaveDirector waveDirector_;
     EconomyBalanceDefinition economy_;
     GameplayBalanceDefinition gameplay_;

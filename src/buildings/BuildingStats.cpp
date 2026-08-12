@@ -3,13 +3,13 @@
 #include "combat/CannonSystem.hpp"
 #include "combat/TowerSystem.hpp"
 #include "combat/TrapSystem.hpp"
-#include "economy/GoldMineSystem.hpp"
+#include "economy/CrystalMineSystem.hpp"
 
 namespace ian {
 
 BuildingStats buildingStatsAtLevel(
     const BuildingInstance& building, std::uint8_t level,
-    const GoldMineSystem& producers) {
+    const CrystalMineSystem& producers) {
     const double currentHealthMultiplier =
         1.0 + 0.15 * static_cast<double>(building.level - 1);
     const double baseMaxHealth =
@@ -39,13 +39,13 @@ BuildingStats buildingStatsAtLevel(
             1.0 / CannonSystem::fireInterval(level);
         stats.effectRadius = CannonSystem::explosionRadius(level);
     } else if (
-        building.type == BuildingType::GoldMine ||
+        building.type == BuildingType::CrystalMine ||
         building.type == BuildingType::LumberMill ||
         building.type == BuildingType::Quarry) {
-        stats.goldPerCycle = static_cast<double>(
+        stats.productionPerCycle = static_cast<double>(
             producers.productionAmount(level, building.type));
         stats.productionInterval =
-            producers.productionInterval(building.type);
+            producers.productionInterval(building.type, level);
     } else if (building.type == BuildingType::SlowTrap) {
         stats.slowPercent = TrapSystem::slowPercent(level);
         stats.effectRadius = TrapSystem::triggerRadius(level);
@@ -68,7 +68,7 @@ BuildingStats buildingStatsAtLevel(
 
 BuildingStatComparison compareBuildingStats(
     const BuildingInstance& building,
-    const GoldMineSystem& producers,
+    const CrystalMineSystem& producers,
     std::uint8_t maximumLevel) {
     BuildingStatComparison comparison{
         .current = buildingStatsAtLevel(

@@ -150,10 +150,10 @@ void Simulation::beginPlayerRespawn(
     };
     deathLostWood_ = loss(wood_);
     deathLostStone_ = loss(stone_);
-    deathLostGold_ = loss(gold_);
+    deathLostCrystals_ = loss(crystals_);
     wood_ -= deathLostWood_;
     stone_ -= deathLostStone_;
-    gold_ -= deathLostGold_;
+    crystals_ -= deathLostCrystals_;
     playerRespawning_ = true;
     playerRespawnTimeRemaining_ =
         gameplay_.playerRespawnSeconds;
@@ -176,7 +176,7 @@ void Simulation::beginPlayerRespawn(
         .sourceId = attackerId,
         .position = playerPosition_,
         .amount = deathLostWood_ + deathLostStone_ +
-                  deathLostGold_,
+                  deathLostCrystals_,
     });
 }
 
@@ -223,20 +223,20 @@ Simulation::tutorialObjective() const {
         }
         return TutorialObjective::PlaceCore;
     }
-    const bool hasGoldMine = std::any_of(
+    const bool hasCrystalMine = std::any_of(
         buildings_.buildings().begin(),
         buildings_.buildings().end(),
         [](const BuildingInstance& building) {
-            return building.type == BuildingType::GoldMine;
+            return building.type == BuildingType::CrystalMine;
         });
-    if (!hasGoldMine) {
+    if (!hasCrystalMine) {
         if (!unlimitedResources_ &&
             stone_ < buildings_
-                         .configuredCost(BuildingType::GoldMine)
+                         .configuredCost(BuildingType::CrystalMine)
                          .stone) {
             return TutorialObjective::MineStone;
         }
-        return TutorialObjective::BuildGoldMine;
+        return TutorialObjective::BuildCrystalMine;
     }
     return TutorialObjective::PrepareForNight;
 }

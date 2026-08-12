@@ -29,7 +29,7 @@ bool buildingBlocksPlayer(
     case BuildingType::Gate:
         return !building.open;
     case BuildingType::Turret:
-    case BuildingType::GoldMine:
+    case BuildingType::CrystalMine:
     case BuildingType::Cannon:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
@@ -175,7 +175,7 @@ CollisionBox buildingCollisionBox(
         type == BuildingType::SpikeTrap) {
         height = 0.5;
     } else if (
-        type == BuildingType::GoldMine ||
+        type == BuildingType::CrystalMine ||
         type == BuildingType::LumberMill ||
         type == BuildingType::Quarry) {
         height = 0.85;
@@ -288,7 +288,8 @@ void CollisionWorld::reset() {
 
 void CollisionWorld::syncResourceCylinders(
     std::span<const ResourceNode> resources,
-    std::span<const GlbCollisionAsset> treeAssets) {
+    std::span<const GlbCollisionAsset> treeAssets,
+    std::span<const GlbCollisionAsset> stoneAssets) {
     resourceCylinders_.clear();
     resourceCylinders_.reserve(resources.size());
     for (const ResourceNode& resource : resources) {
@@ -308,23 +309,33 @@ void CollisionWorld::syncResourceCylinders(
             });
             continue;
         }
-        if (resource.type != ResourceType::Wood || treeAssets.empty()) {
+        const bool tree = resource.type == ResourceType::Wood;
+        const bool stone = resource.type == ResourceType::Stone;
+        const std::span<const GlbCollisionAsset> assets =
+            tree ? treeAssets : stone ? stoneAssets
+                                      : std::span<const GlbCollisionAsset>{};
+        if (assets.empty()) {
             continue;
         }
         const std::size_t variant =
-            resource.visualVariant % treeAssets.size();
-        const double scale = resource.visualScale;
+            resource.visualVariant % assets.size();
+        const double scale = tree
+            ? resource.visualScale
+            : StoneVisualModelScale;
         const double cosine = std::cos(resource.visualYaw);
         const double sine = std::sin(resource.visualYaw);
         const double terrainHeight =
             resource.position.y - resource.groundOffset;
         const double modelOriginY = terrainHeight +
-            TreeVisualGroundOffsets[
-                variant % TreeVisualVariantCount] *
-                scale;
+            (tree
+                 ? TreeVisualGroundOffsets[
+                       variant % TreeVisualVariantCount] * scale
+                 : StoneVisualGroundOffsets[
+                       variant % StoneVisualVariantCount]);
         for (const ModelCollider& collider :
-             treeAssets[variant].colliders) {
-            if (collider.type != ModelColliderType::Cylinder) {
+             assets[variant].colliders) {
+            if (collider.type != ModelColliderType::Cylinder &&
+                collider.type != ModelColliderType::Sphere) {
                 continue;
             }
             const double localX =
@@ -342,8 +353,14 @@ void CollisionWorld::syncResourceCylinders(
                     0.5 * scale,
                 .minimumBlockingEyeY = modelOriginY +
                     collider.minimum.y * scale,
-                .maximumBlockingEyeY = modelOriginY +
-                    collider.maximum.y * scale,
+                .maximumBlockingEyeY = stone
+                    ? std::max(
+                          modelOriginY +
+                              collider.maximum.y * scale,
+                          terrainHeight +
+                              WallJumpClearanceEyeHeight)
+                    : modelOriginY +
+                          collider.maximum.y * scale,
             });
         }
     }

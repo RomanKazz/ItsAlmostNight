@@ -20,7 +20,7 @@ namespace ian::hud_detail {
     };
     append("W:", cost.wood);
     append("S:", cost.stone);
-    append("C:", cost.gold);
+    append("C:", cost.crystals);
     return result.empty() ? "FREE" : result;
 }
 

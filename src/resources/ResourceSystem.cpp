@@ -53,6 +53,22 @@ std::pair<double, double> resourceVisualTransform(
     return {yaw, scale};
 }
 
+std::size_t resourceVisualVariant(
+    EntityId id, ResourceType type,
+    std::size_t authoredVariant,
+    std::uint32_t respawnGeneration) {
+    if (type != ResourceType::Stone) {
+        return authoredVariant % TreeVisualVariantCount;
+    }
+    const std::uint64_t seed =
+        (static_cast<std::uint64_t>(id.index) << 32U) ^
+        (static_cast<std::uint64_t>(id.generation) << 8U) ^
+        static_cast<std::uint64_t>(respawnGeneration) ^
+        0xa24baed4963ee407ULL;
+    return static_cast<std::size_t>(
+        mixBits64(seed) % StoneVisualVariantCount);
+}
+
 ResourceCapacity variedCapacity(
     double baseHealth, int baseYield, EntityId id,
     std::uint32_t respawnGeneration) {
@@ -128,8 +144,9 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             .respawnGeneration = 0,
             .visualYaw = visualYaw,
             .visualScale = visualScale,
-            .visualVariant = definition.visualVariant %
-                TreeVisualVariantCount,
+            .visualVariant = resourceVisualVariant(
+                id, definition.type,
+                definition.visualVariant, 0U),
             .active = true,
         });
     }
@@ -205,6 +222,9 @@ void ResourceSystem::tick(
                     node.respawnGeneration);
             node.visualYaw = visualYaw;
             node.visualScale = visualScale;
+            node.visualVariant = resourceVisualVariant(
+                node.id, node.type, node.visualVariant,
+                node.respawnGeneration);
             const auto definitionIndex =
                 static_cast<std::size_t>(node.id.index);
             if (definitionIndex < definitions_.size()) {

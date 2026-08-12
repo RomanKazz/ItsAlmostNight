@@ -1033,6 +1033,9 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coinOutlineShader_.load(
         "assets/shaders/coin_outline.vs",
         "assets/shaders/coin_outline.fs");
+    heartOutlineShader_.load(
+        "assets/shaders/heart_outline.vs",
+        "assets/shaders/coin_outline.fs");
     terrainTexture_.load("assets/textures/grass_watercolor.png");
     if (terrainTexture_.valid()) {
         Texture2D& texture = terrainTexture_.get();
@@ -1070,7 +1073,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/buildings/chests/stone_chest.glb");
     coinModels_[0].load("assets/models/coins/coin-bronze.glb");
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
-    coinModels_[2].load("assets/models/coins/coin-gold.glb");
+    coinModels_[2].load("assets/models/coins/coin-high-value.glb");
     destructiblePropModels_[0].load(
         "assets/models/destructibles/barrel/barrel.glb");
     destructiblePropModels_[1].load(
@@ -1103,6 +1106,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/items/hourglass.glb");
     ropeLootModel_.load(
         "assets/models/items/rope.glb");
+    heartLootModel_.load(
+        "assets/models/items/heart.glb");
     platformModel_.load("assets/models/construction/platform.glb");
     rampModel_.load("assets/models/construction/ramp.glb");
     mineModel_.load("assets/models/buildings/mine.glb");
@@ -1111,7 +1116,9 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     quarryModel_.load("assets/models/buildings/quarry.glb");
     spikeTrapModel_.load(
         "assets/models/traps/spike_trap.glb");
-    rockModel_.load("assets/models/environment/rock.glb");
+    rockModels_[0].load("assets/models/environment/stone_1.glb");
+    rockModels_[1].load("assets/models/environment/stone_2.glb");
+    rockModels_[2].load("assets/models/environment/stone_3.glb");
     treeModels_[0].load("assets/models/environment/tree_1_a.glb");
     treeModels_[1].load("assets/models/environment/tree_1_b.glb");
     treeModels_[2].load("assets/models/environment/tree_1_c.glb");
@@ -1392,7 +1399,9 @@ void GraphicsResources::shutdown() {
     for (auto& cloudModel : cloudModels_) {
         cloudModel.unload();
     }
-    rockModel_.unload();
+    for (auto& rockModel : rockModels_) {
+        rockModel.unload();
+    }
     quarryModel_.unload();
     spikeTrapModel_.unload();
     lumberMillModel_.unload();
@@ -1406,6 +1415,7 @@ void GraphicsResources::shutdown() {
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();
+    heartLootModel_.unload();
     ropeLootModel_.unload();
     hourglassLootModel_.unload();
     blueprintLootModel_.unload();
@@ -1434,6 +1444,7 @@ void GraphicsResources::shutdown() {
     upgradeEffectShader_.unload();
     iceMagicShader_.unload();
     coinOutlineShader_.unload();
+    heartOutlineShader_.unload();
     grassShader_.unload();
     ssaoShader_.unload();
     postProcessShader_.unload();

@@ -86,26 +86,31 @@ Simulation::Simulation(
           loadGlbCollisionAsset("assets/models/environment/tree_3_b.glb"),
           loadGlbCollisionAsset("assets/models/environment/tree_3_c.glb"),
       }},
+      stoneCollisionAssets_{{
+          loadGlbCollisionAsset("assets/models/environment/stone_1.glb"),
+          loadGlbCollisionAsset("assets/models/environment/stone_2.glb"),
+          loadGlbCollisionAsset("assets/models/environment/stone_3.glb"),
+      }},
       modularBuildingCosts_{{
           {
               balance.modularBuildings[0].wood,
               balance.modularBuildings[0].stone,
-              balance.modularBuildings[0].gold,
+              balance.modularBuildings[0].crystals,
           },
           {
               balance.modularBuildings[0].wood,
               balance.modularBuildings[0].stone,
-              balance.modularBuildings[0].gold,
+              balance.modularBuildings[0].crystals,
           },
           {
               balance.modularBuildings[1].wood,
               balance.modularBuildings[1].stone,
-              balance.modularBuildings[1].gold,
+              balance.modularBuildings[1].crystals,
           },
           {
               balance.modularBuildings[2].wood,
               balance.modularBuildings[2].stone,
-              balance.modularBuildings[2].gold,
+              balance.modularBuildings[2].crystals,
           },
       }},
       resources_(scatterResources(
@@ -127,7 +132,7 @@ Simulation::Simulation(
       bombs_(balance.weapons.bomb),
       iceWand_(balance.weapons.iceWand),
       fireWand_(balance.weapons.fireWand),
-      goldMines_(balance.economy),
+      crystalMines_(balance.economy),
       waveDirector_(balance.waves, map_.enemySpawnAnchors),
       economy_(balance.economy), gameplay_(balance.gameplay),
       club_(balance.weapons.club) {
@@ -146,7 +151,7 @@ Simulation::Simulation(
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
-    lootChests_.setGoldCostMultiplier(
+    lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
 }
@@ -252,10 +257,11 @@ void Simulation::resetRun(GameEventType eventType) {
     playerRespawnTimeRemaining_ = 0.0;
     deathLostWood_ = 0;
     deathLostStone_ = 0;
-    deathLostGold_ = 0;
+    deathLostCrystals_ = 0;
     wood_ = 0;
     stone_ = 0;
-    gold_ = 0;
+    crystals_ = 0;
+    crystalStorageFullNotified_ = false;
     coins_ = 0;
     coinPickups_.reset();
     rewardedEnemyCoins_.clear();
@@ -320,10 +326,10 @@ void Simulation::resetRun(GameEventType eventType) {
     bombs_.reset();
     iceWand_.reset();
     fireWand_.reset();
-    goldMines_.reset();
-    goldMines_.setProductionSpeedMultiplier(1.0);
-    goldMines_.setWoodYieldMultiplier(1.0);
-    lootChests_.setGoldCostMultiplier(1.0);
+    crystalMines_.reset();
+    crystalMines_.setProductionSpeedMultiplier(1.0);
+    crystalMines_.setWoodYieldMultiplier(1.0);
+    lootChests_.setCoinCostMultiplier(1.0);
     refreshSkillRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;
@@ -377,7 +383,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         processBuildingCommands(command);
     }
     if (state_ == RunState::Defeat) {
-        gold_ = 0;
+        crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
         rewardedEnemyCoins_.clear();
@@ -410,7 +416,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             cannons_.clearProjectiles();
             bombs_.clearProjectiles();
             state_ = RunState::Defeat;
-            gold_ = 0;
+            crystals_ = 0;
             coins_ = 0;
             coinPickups_.reset();
             rewardedEnemyCoins_.clear();
@@ -430,7 +436,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     // cannot remain a physical obstacle until its respawn.
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
-            resources_.nodes(), treeCollisionAssets_);
+            resources_.nodes(), treeCollisionAssets_,
+            stoneCollisionAssets_);
     }
     if (playerRespawning_) {
         aimedResource_.reset();
@@ -443,7 +450,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
     if (state_ == RunState::Defeat) {
-        gold_ = 0;
+        crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
         rewardedEnemyCoins_.clear();

@@ -96,6 +96,52 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
 
 using namespace app_detail;
 
+const char* App::toolTuningPath(FirstPersonToolVisual visual) {
+    switch (visual) {
+    case FirstPersonToolVisual::Axe:
+        return "user_settings/first_person_tool_axe.json";
+    case FirstPersonToolVisual::Pickaxe:
+        return "user_settings/first_person_tool_pickaxe.json";
+    case FirstPersonToolVisual::Club:
+        return "user_settings/first_person_tool_club.json";
+    case FirstPersonToolVisual::IceWand:
+        return "user_settings/first_person_tool_ice_wand.json";
+    case FirstPersonToolVisual::FireWand:
+        return "user_settings/first_person_tool_fire_wand.json";
+    case FirstPersonToolVisual::Hammer:
+        return "user_settings/first_person_tool_hammer.json";
+    case FirstPersonToolVisual::Bomb:
+        return "user_settings/first_person_tool_bomb.json";
+    case FirstPersonToolVisual::None:
+        return "user_settings/first_person_tool_axe.json";
+    }
+    return "user_settings/first_person_tool_axe.json";
+}
+
+FirstPersonToolTuning& App::activeToolTuning() {
+    FirstPersonToolVisual visual = displayedToolVisual_;
+    if (renderer_ && renderer_->graphicsPanelVisible() &&
+        graphicsPanelTab_ == ToolSettingsTab) {
+        visual = toolPanelPreviewVisual_;
+    }
+    const std::size_t index = visual == FirstPersonToolVisual::None
+        ? static_cast<std::size_t>(FirstPersonToolVisual::Axe)
+        : static_cast<std::size_t>(visual);
+    return toolTunings_[index];
+}
+
+const FirstPersonToolTuning& App::activeToolTuning() const {
+    FirstPersonToolVisual visual = displayedToolVisual_;
+    if (renderer_ && renderer_->graphicsPanelVisible() &&
+        graphicsPanelTab_ == ToolSettingsTab) {
+        visual = toolPanelPreviewVisual_;
+    }
+    const std::size_t index = visual == FirstPersonToolVisual::None
+        ? static_cast<std::size_t>(FirstPersonToolVisual::Axe)
+        : static_cast<std::size_t>(visual);
+    return toolTunings_[index];
+}
+
 App::App()
     : simulation_(
       loadAppBalance(), loadAppMap(),
@@ -113,8 +159,14 @@ App::App()
     motionShakeIntensity_ = userSettings_.motion.shakeIntensity;
     motionLandingIntensity_ = userSettings_.motion.landingIntensity;
     motionSwayIntensity_ = userSettings_.motion.swayIntensity;
-    static_cast<void>(loadFirstPersonToolTuning(
-        "user_settings/first_person_tool.json", toolTuning_));
+    for (int visual = static_cast<int>(FirstPersonToolVisual::Axe);
+         visual <= static_cast<int>(FirstPersonToolVisual::Bomb);
+         ++visual) {
+        const auto toolVisual = static_cast<FirstPersonToolVisual>(visual);
+        static_cast<void>(loadFirstPersonToolTuning(
+            toolTuningPath(toolVisual),
+            toolTunings_[static_cast<std::size_t>(visual)]));
+    }
     effects_.reserve(128);
     arrowVisuals_.reserve(64);
     damageIndicators_.reserve(12);
@@ -212,8 +264,14 @@ int App::run() {
 
     performanceRecorder_.stop();
     persistUserSettings(true);
-    static_cast<void>(saveFirstPersonToolTuning(
-        "user_settings/first_person_tool.json", toolTuning_));
+    for (int visual = static_cast<int>(FirstPersonToolVisual::Axe);
+         visual <= static_cast<int>(FirstPersonToolVisual::Bomb);
+         ++visual) {
+        const auto toolVisual = static_cast<FirstPersonToolVisual>(visual);
+        static_cast<void>(saveFirstPersonToolTuning(
+            toolTuningPath(toolVisual),
+            toolTunings_[static_cast<std::size_t>(visual)]));
+    }
 
     ui_.shutdown();
     audio_.shutdown();

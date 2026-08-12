@@ -129,6 +129,20 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .actionText = "Pick Up",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
+                .hint = keyboardKeyName(controlKey(
+                    userSettings_.controls, ControlAction::Interact)) +
+                    " TAKE · " +
+                    (loot->looseLoot
+                         ? std::string("CRATE DROP")
+                         : loot->rerollCount > 0U
+                             ? std::string("REROLL USED")
+                             : keyboardKeyName(controlKey(
+                                   userSettings_.controls,
+                                   ControlAction::Upgrade)) +
+                                   " REROLL · " +
+                                   std::to_string(
+                                       snapshot.chestRerollCoinCost) +
+                                   " COINS"),
                 .accentColor = loot->loot.rarity == LootRarity::Legendary
                     ? Color{255, 126, 38, 255}
                     : loot->loot.rarity == LootRarity::Rare
@@ -151,10 +165,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             const int openingCost = std::max(
                 1,
                 static_cast<int>(std::lround(
-                    static_cast<double>(chest->goldCost) *
+                    static_cast<double>(chest->coinCost) *
                     snapshot.chestOpeningCostMultiplier)));
             ResourceCost cost{};
-            cost.gold = openingCost;
+            cost.crystals = openingCost;
             const bool affordable = snapshot.unlimitedResources ||
                                     snapshot.coins >= openingCost;
             return finalize(InteractionPrompt{
@@ -173,7 +187,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .state = affordable ? InteractionState::Available
                                     : InteractionState::Warning,
                 .cost = cost,
-                .availableGold = snapshot.unlimitedResources
+                .availableCurrency = snapshot.unlimitedResources
                     ? std::nullopt
                     : std::optional<int>{snapshot.coins},
                 .recentFailure = invalidActionRemaining_ > 0.0,

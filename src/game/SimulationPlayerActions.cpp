@@ -18,7 +18,7 @@ constexpr int PreCoreStoneCapacity = 30;
 constexpr int PreCoreCrystalCapacity = 10;
 constexpr int CoreWoodCapacity = 100;
 constexpr int CoreStoneCapacity = 75;
-constexpr int CoreCrystalCapacity = 25;
+constexpr int CoreCrystalCapacity = 40;
 
 } // namespace
 
@@ -70,14 +70,14 @@ void Simulation::addStone(int amount) {
         saturatingAdd(stone_, std::max(0, amount)));
 }
 
-void Simulation::addGold(int amount) {
+void Simulation::addCrystals(int amount) {
     if (unlimitedResources_) {
-        gold_ = saturatingAdd(gold_, std::max(0, amount));
+        crystals_ = saturatingAdd(crystals_, std::max(0, amount));
         return;
     }
-    gold_ = std::min(
+    crystals_ = std::min(
         resourceCapacity(BuildingType::CrystalStorage),
-        saturatingAdd(gold_, std::max(0, amount)));
+        saturatingAdd(crystals_, std::max(0, amount)));
 }
 
 bool Simulation::hasStorageSpace(ResourceType resource) const {
@@ -128,7 +128,10 @@ double Simulation::resourceToolEfficiency(
 
 void Simulation::updatePlayerActions(
     double deltaSeconds, const PlayerCommand& command) {
-    const auto production = goldMines_.tick(deltaSeconds);
+    const auto production = crystalMines_.tick(deltaSeconds);
+    if (crystals_ < resourceCapacity(BuildingType::CrystalStorage)) {
+        crystalStorageFullNotified_ = false;
+    }
     for (const auto& produced : production) {
         const auto building = std::find_if(
             buildings_.buildings().begin(),
@@ -140,16 +143,29 @@ void Simulation::updatePlayerActions(
             building != buildings_.buildings().end()
                 ? buildingWorldPosition(*building)
                 : Vec3{};
-        if (produced.buildingType == BuildingType::GoldMine) {
-            addGold(produced.amount);
+        if (produced.buildingType == BuildingType::CrystalMine) {
+            const int before = crystals_;
+            addCrystals(produced.amount);
+            const int granted = crystals_ - before;
             events_.push_back({
-                .type = GameEventType::GoldProduced,
+                .type = GameEventType::CrystalProduced,
                 .entityId = produced.mineId,
                 .buildingType = produced.buildingType,
                 .position = productionPosition,
-                .amount = produced.amount,
+                .amount = granted,
                 .night = state_ == RunState::Sunset || state_ == RunState::Wave,
             });
+            if (granted < produced.amount &&
+                !crystalStorageFullNotified_) {
+                crystalStorageFullNotified_ = true;
+                events_.push_back({
+                    .type = GameEventType::CrystalStorageFull,
+                    .entityId = produced.mineId,
+                    .buildingType = produced.buildingType,
+                    .position = productionPosition,
+                    .amount = produced.amount - granted,
+                });
+            }
         } else {
             const ResourceType resourceType =
                 produced.buildingType ==
@@ -232,9 +248,8 @@ void Simulation::updatePlayerActions(
                 : gameplay_.pickaxeRange;
     aimedEnemy_ = enemies_.raycast(
         playerPosition_, direction, enemyAimRange, &terrain_);
-    const bool bombsUnlocked = unlimitedResources_ ||
-        skillTree_.hasEffect("unlock.bombs");
-    if (command.useConsumable && bombsUnlocked && bombs_.throwBomb(
+    if (command.useConsumable && heldTool == PlayerWeapon::Bomb &&
+        bombs_.throwBomb(
             playerPosition_, direction, !unlimitedResources_)) {
         events_.push_back({
             .type = GameEventType::ConsumableUsed,
@@ -338,8 +353,10 @@ void Simulation::updatePlayerActions(
             const auto results = enemies_.damageInRadius(
                 impactPosition, club_.areaRadius * std::max(
                     0.05, 1.0 + skillTree_.effectValue("club.area")),
-                damage, club_.knockbackStrength * std::max(
-                    0.05, 1.0 + skillTree_.effectValue("club.knockback")),
+                damage, (club_.knockbackStrength +
+                    skillTree_.effectValue("club.knockback_strength")) *
+                    std::max(0.05, 1.0 +
+                        skillTree_.effectValue("club.knockback")),
                 playerPosition_,
                 club_.maxDamagePerAttack);
             for (const auto& result : results) {
@@ -516,6 +533,20 @@ void Simulation::updatePlayerActions(
                                 impactPosition, coins, rewardSeed, terrain_,
                                 0.5);
                         }
+                        const double medkitChance =
+                            hit->type == ResourceType::Barrel ? 0.05 : 0.08;
+                        const std::uint64_t medkitSeed = rewardSeed ^
+                            0xe7037ed1a0b428dbULL;
+                        if (unitRandom(medkitSeed) < medkitChance) {
+                            if (droppedItem) {
+                                coinPickups_.spawnValue(
+                                    impactPosition, coins, rewardSeed,
+                                    terrain_, 0.5);
+                            }
+                            coinPickups_.spawnHeart(
+                                impactPosition, medkitSeed,
+                                terrain_, 0.5);
+                        }
                         if (hit->type == ResourceType::Barrel) {
                             grantConfiguredInsight(
                                 1.0 + unitRandom(rewardSeed ^ 0x94d049bbULL),
@@ -645,13 +676,13 @@ void Simulation::updatePlayerActions(
             if (const auto pickup = lootChests_.collect(*aimedLoot_))
                 applyLootPickup(*pickup);
         } else if (aimedChest_) {
-            int availableGold = unlimitedResources_
+            int availableCurrency = unlimitedResources_
                 ? std::numeric_limits<int>::max()
                 : coins_;
             const ChestOpenResult result =
-                lootChests_.open(*aimedChest_, availableGold);
+                lootChests_.open(*aimedChest_, availableCurrency);
             if (!unlimitedResources_) {
-                coins_ = availableGold;
+                coins_ = availableCurrency;
             }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened
@@ -661,6 +692,49 @@ void Simulation::updatePlayerActions(
             });
             if (result == ChestOpenResult::Opened)
                 aimedChest_.reset();
+        }
+    }
+    if (command.rerollChest) {
+        int availableCoins = unlimitedResources_
+            ? std::numeric_limits<int>::max()
+            : coins_;
+        const ChestRerollResult result = lootChests_.reroll(
+            command.rerollChest->chestId, availableCoins,
+            economy_.chestRerollCoinCost);
+        if (!unlimitedResources_) coins_ = availableCoins;
+        const GameEventType eventType =
+            result == ChestRerollResult::Rerolled
+                ? GameEventType::ChestRerolled
+                : result == ChestRerollResult::AlreadyRerolled
+                    ? GameEventType::ChestRerollAlreadyUsed
+                    : result == ChestRerollResult::InsufficientCoins
+                        ? GameEventType::EconomyPurchaseRejected
+                        : GameEventType::ChestRerollUnavailable;
+        events_.push_back({
+            .type = eventType,
+            .entityId = command.rerollChest->chestId,
+            .amount = economy_.chestRerollCoinCost,
+        });
+    }
+    if (command.revealNearestChest) {
+        const bool affordable = unlimitedResources_ ||
+            coins_ >= economy_.chestRevealCoinCost;
+        const auto revealed = affordable
+            ? lootChests_.revealNearest(playerPosition_)
+            : std::nullopt;
+        if (revealed) {
+            if (!unlimitedResources_)
+                coins_ -= economy_.chestRevealCoinCost;
+            events_.push_back({
+                .type = GameEventType::ChestRevealed,
+                .position = *revealed,
+                .amount = economy_.chestRevealCoinCost,
+            });
+        } else {
+            events_.push_back({
+                .type = GameEventType::EconomyPurchaseRejected,
+                .amount = economy_.chestRevealCoinCost,
+            });
         }
     }
     if (!playerRespawning_) {
