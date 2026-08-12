@@ -139,6 +139,8 @@ int App::run() {
     rebuildTerrainGraphics();
     ui_.initialize();
     audio_.initialize();
+    static_cast<void>(performanceRecorder_.start(
+        "performance_logs"));
 
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
@@ -153,9 +155,58 @@ int App::run() {
             performanceMilliseconds(renderStart));
         performanceStats_.frame.sample(
             performanceMilliseconds(frameStart));
+        const SimulationSnapshot& performanceSnapshot =
+            simulation_.snapshot();
+        const EnemyPerformanceStats& enemyStats =
+            simulation_.enemyPerformanceStats();
+        performanceRecorder_.record({
+            .frame = performanceFrameIndex_++,
+            .sessionSeconds = GetTime(),
+            .runState = static_cast<int>(performanceSnapshot.state),
+            .buildMode = performanceSnapshot.selectedBuilding.has_value(),
+            .modularBuildMode = foundationBuildMode_,
+            .fixedTicks = performanceStats_.fixedTicks,
+            .activeEnemies = performanceSnapshot.activeEnemyCount,
+            .visibleEnemies = performanceStats_.visibleEnemies,
+            .buildings = performanceSnapshot.buildings.size(),
+            .modularPieces =
+                performanceSnapshot.platformFrames.size() +
+                performanceSnapshot.modularWalls.size() +
+                performanceSnapshot.ramps.size(),
+            .frameMs = performanceStats_.frame.lastMilliseconds,
+            .inputMs = performanceStats_.input.lastMilliseconds,
+            .updateMs = performanceStats_.simulation.lastMilliseconds,
+            .simulationTickMs =
+                performanceStats_.simulationTick.lastMilliseconds,
+            .renderMs = performanceStats_.render.lastMilliseconds,
+            .presentMs = performanceStats_.present.lastMilliseconds,
+            .renderPreparationMs =
+                performanceStats_.renderPreparation.lastMilliseconds,
+            .shadowMs = performanceStats_.shadowPass.lastMilliseconds,
+            .selectionMs =
+                performanceStats_.selectionPass.lastMilliseconds,
+            .terrainMs =
+                performanceStats_.terrainRender.lastMilliseconds,
+            .worldObjectsMs =
+                performanceStats_.worldEntitiesRender.lastMilliseconds,
+            .environmentMs =
+                performanceStats_.environmentRender.lastMilliseconds,
+            .overlaysMs =
+                performanceStats_.overlayRender.lastMilliseconds,
+            .postProcessMs =
+                performanceStats_.postProcess.lastMilliseconds,
+            .uiMs = performanceStats_.uiRender.lastMilliseconds,
+            .enemyAiMs = enemyStats.tick.lastMilliseconds,
+            .enemyCollisionMs = enemyStats.collision.lastMilliseconds,
+            .enemyDrawMs =
+                performanceStats_.enemyRender.lastMilliseconds,
+            .blobShadowsMs =
+                performanceStats_.blobShadows.lastMilliseconds,
+        });
         persistUserSettings();
     }
 
+    performanceRecorder_.stop();
     persistUserSettings(true);
     static_cast<void>(saveFirstPersonToolTuning(
         "user_settings/first_person_tool.json", toolTuning_));
@@ -300,6 +351,9 @@ void App::drawPerformanceOverlay(
         performanceStats_.blobShadows.averageMilliseconds,
         static_cast<int>(performanceStats_.enemyShadowDraws),
         static_cast<int>(rendererStats.blobShadowTriangles)));
+    drawLine(20, performanceRecorder_.active()
+        ? "SESSION RECORDING: performance_logs/*.csv"
+        : "SESSION RECORDING: FAILED");
     drawLine(21, "AVG = LOAD   PEAK = RECENT HITCH");
     drawLine(22, "HIGH PRESENT/WAIT = VSYNC OR FPS LIMIT");
 }

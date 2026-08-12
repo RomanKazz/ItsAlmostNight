@@ -4,6 +4,7 @@
 #include "audio/AudioSystem.hpp"
 #include "buildings/PlacementLine.hpp"
 #include "core/FixedStep.hpp"
+#include "core/PerformanceRecorder.hpp"
 #include "game/Simulation.hpp"
 #include "graphics/EnvironmentSystem.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
@@ -457,6 +458,8 @@ class App {
     bool performanceOverlayVisible_{};
     bool objectiveDebugMenuVisible_{};
     AppPerformanceStats performanceStats_{};
+    PerformanceRecorder performanceRecorder_{};
+    std::uint64_t performanceFrameIndex_{};
     bool buildModePieVisible_{};
     Vector2 buildModePieDirection_{};
     std::optional<ActionMode>
