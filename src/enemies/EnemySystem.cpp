@@ -919,11 +919,11 @@ EnemySystem::EnemySystem(
 }
 
 void EnemySystem::reset() {
-    for (EnemyInstance& enemy : enemies_) {
-        enemy.active = false;
-        enemy.state = EnemyState::Dead;
-        enemy.target.reset();
-    }
+    // A new run has no enemy deaths to reward. Keeping old slots in the
+    // Dead state made the coin fallback scanner interpret every enemy from
+    // the previous run as a fresh kill on the first restarted tick.
+    // clear() retains vector capacity, so restart stays allocation-free.
+    enemies_.clear();
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     performanceStats_.fullAiUpdates = 0U;

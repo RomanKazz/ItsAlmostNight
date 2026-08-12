@@ -110,6 +110,13 @@ void runSimulationTests() {
                             ian::GameEventType::RunEnded;
                     }),
             "core destruction clears coin drops before automatic restart");
+        defeatSimulation.restartRun();
+        defeatSimulation.tick(1.0 / 60.0);
+        require(
+            defeatSimulation.snapshot().coins == 0 &&
+                defeatSimulation.snapshot().gold == 0 &&
+                defeatSimulation.snapshot().coinPickups.empty(),
+            "first restarted tick cannot reward enemies from the lost run");
     }
     {
         ian::GameBalance earlyBalance =
