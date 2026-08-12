@@ -65,6 +65,8 @@ struct AppPerformanceStats {
     PerformanceMetric selectionPass;
     PerformanceMetric terrainRender;
     PerformanceMetric worldEntitiesRender;
+    PerformanceMetric decorationsRender;
+    PerformanceMetric grassRender;
     PerformanceMetric environmentRender;
     PerformanceMetric overlayRender;
     PerformanceMetric postProcess;

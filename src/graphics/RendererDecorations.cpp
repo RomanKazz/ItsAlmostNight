@@ -104,11 +104,13 @@ void Renderer::drawDecorativeRocks(
                 : 34.0F;
     constexpr float CoreClearRadius = 10.5F;
     constexpr float CacheCellSize = 8.0F;
+    constexpr float CacheCellOffsetX = CacheCellSize * 0.5F;
+    constexpr float CacheCellOffsetZ = CacheCellSize * 0.25F;
     constexpr float CachePadding = 10.0F;
     const int cameraCellX = static_cast<int>(std::floor(
-        cameraPosition.x / CacheCellSize));
+        (cameraPosition.x + CacheCellOffsetX) / CacheCellSize));
     const int cameraCellZ = static_cast<int>(std::floor(
-        cameraPosition.z / CacheCellSize));
+        (cameraPosition.z + CacheCellOffsetZ) / CacheCellSize));
     const bool revealAnimating = worldRevealElapsed_ < 1.7F;
     const auto hashCell = [](int x, int z) {
         std::uint32_t value =
@@ -142,7 +144,6 @@ void Renderer::drawDecorativeRocks(
         decorativeCacheCameraCellZ_ == cameraCellZ &&
         decorativeCacheQuality_ == settings_.quality &&
         decorativeCacheWorldLimit_ == worldLimit &&
-        decorativeCacheClearAreaHash_ == grassClearAreaContentHash_ &&
         decorativeCacheTerrain_ == terrainHeightfield_ &&
         decorativeCacheRevealOrigin_.x == worldRevealOrigin_.x &&
         decorativeCacheRevealOrigin_.y == worldRevealOrigin_.y;
@@ -260,9 +261,9 @@ void Renderer::drawDecorativeRocks(
                 traversalRadius * traversalRadius) {
                 continue;
             }
-            const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 0.001F, 0.65F);
-            if (visibility < 0.999F) {
+            if (!useInstancing && clearAreaVisibility(
+                    {x, z}, clearAreas,
+                    0.001F, 0.65F) < 0.999F) {
                 continue;
             }
             const std::size_t variant =
@@ -389,9 +390,9 @@ void Renderer::drawDecorativeRocks(
                 bushTraversalRadius * bushTraversalRadius) {
                 continue;
             }
-            const float visibility = clearAreaVisibility(
-                {x, z}, clearAreas, 0.001F, 0.72F);
-            if (visibility < 0.999F) {
+            if (!useInstancing && clearAreaVisibility(
+                    {x, z}, clearAreas,
+                    0.001F, 0.72F) < 0.999F) {
                 continue;
             }
             ModelResource& resource =
@@ -457,7 +458,10 @@ void Renderer::drawDecorativeRocks(
             const float offsetZ =
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ <=
-                DrawRadius * DrawRadius) {
+                    DrawRadius * DrawRadius &&
+                clearAreaVisibility(
+                    instance.position, clearAreas,
+                    0.001F, 0.65F) >= 0.999F) {
                 decorativeRockTransforms_[variant].push_back(
                     instance.transform);
             }
@@ -472,7 +476,10 @@ void Renderer::drawDecorativeRocks(
             const float offsetZ =
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ <=
-                BushDrawRadius * BushDrawRadius) {
+                    BushDrawRadius * BushDrawRadius &&
+                clearAreaVisibility(
+                    instance.position, clearAreas,
+                    0.001F, 0.72F) >= 0.999F) {
                 decorativeBushTransforms_[variant].push_back(
                     instance.transform);
             }
@@ -484,7 +491,6 @@ void Renderer::drawDecorativeRocks(
         decorativeCacheCameraCellZ_ = cameraCellZ;
         decorativeCacheQuality_ = settings_.quality;
         decorativeCacheWorldLimit_ = worldLimit;
-        decorativeCacheClearAreaHash_ = grassClearAreaContentHash_;
         decorativeCacheTerrain_ = terrainHeightfield_;
         decorativeCacheRevealOrigin_ = worldRevealOrigin_;
     } else {
@@ -555,16 +561,15 @@ void Renderer::drawDecorativeRockAo(
     };
     constexpr float BushDrawRadius = 36.0F;
     const int cameraCellX = static_cast<int>(std::floor(
-        cameraPosition.x / 8.0F));
+        (cameraPosition.x + 4.0F) / 8.0F));
     const int cameraCellZ = static_cast<int>(std::floor(
-        cameraPosition.z / 8.0F));
+        (cameraPosition.z + 2.0F) / 8.0F));
     const bool cachedCandidates =
         decorativeInstanceCacheValid_ &&
         decorativeCacheCameraCellX_ == cameraCellX &&
         decorativeCacheCameraCellZ_ == cameraCellZ &&
         decorativeCacheQuality_ == settings_.quality &&
         decorativeCacheWorldLimit_ == worldLimit &&
-        decorativeCacheClearAreaHash_ == grassClearAreaContentHash_ &&
         decorativeCacheTerrain_ == terrainHeightfield_ &&
         decorativeCacheRevealOrigin_.x == worldRevealOrigin_.x &&
         decorativeCacheRevealOrigin_.y == worldRevealOrigin_.y &&
@@ -578,6 +583,11 @@ void Renderer::drawDecorativeRockAo(
                     instance.position.y - cameraPosition.z;
                 if (offsetX * offsetX + offsetZ * offsetZ >
                     DrawRadius * DrawRadius) {
+                    continue;
+                }
+                if (clearAreaVisibility(
+                        instance.position, clearAreas,
+                        0.001F, 0.65F) < 0.999F) {
                     continue;
                 }
                 drawBlobShadow(
@@ -604,6 +614,11 @@ void Renderer::drawDecorativeRockAo(
                     instance.position.y - cameraPosition.z;
                 if (offsetX * offsetX + offsetZ * offsetZ >
                     BushDrawRadius * BushDrawRadius) {
+                    continue;
+                }
+                if (clearAreaVisibility(
+                        instance.position, clearAreas,
+                        0.001F, 0.72F) < 0.999F) {
                     continue;
                 }
                 const float radius =

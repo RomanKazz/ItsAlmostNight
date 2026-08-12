@@ -721,8 +721,6 @@ class Renderer {
     GraphicsQuality decorativeCacheQuality_{GraphicsQuality::High};
     float grassCacheWorldLimit_{-1.0F};
     float decorativeCacheWorldLimit_{-1.0F};
-    std::size_t grassCacheClearAreaHash_{};
-    std::size_t decorativeCacheClearAreaHash_{};
     const TerrainHeightfield* grassCacheTerrain_{};
     const TerrainHeightfield* decorativeCacheTerrain_{};
     Vector2 grassCacheRevealOrigin_{};

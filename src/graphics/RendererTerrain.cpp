@@ -578,7 +578,6 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         grassCacheCameraCellZ_ == cameraCellZ &&
         grassCacheQuality_ == settings_.quality &&
         grassCacheWorldLimit_ == worldLimit &&
-        grassCacheClearAreaHash_ == grassClearAreaContentHash_ &&
         grassCacheTerrain_ == terrainHeightfield_ &&
         grassCacheRevealOrigin_.x == worldRevealOrigin_.x &&
         grassCacheRevealOrigin_.y == worldRevealOrigin_.y;
@@ -707,12 +706,9 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 const float heightScale =
                     0.45F +
                     unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
-                const float visibility = clearAreaVisibility(
-                    {x, z}, clearAreas, 0.001F, 0.25F);
                 const float revealScale =
                     worldRevealScaleAt({x, z});
-                if (visibility < 0.999F ||
-                    revealScale <= 0.001F) {
+                if (revealScale <= 0.001F) {
                     continue;
                 }
                 const float horizontalScale =
@@ -750,7 +746,6 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             grassCacheCameraCellZ_ = cameraCellZ;
             grassCacheQuality_ = settings_.quality;
             grassCacheWorldLimit_ = worldLimit;
-            grassCacheClearAreaHash_ = grassClearAreaContentHash_;
             grassCacheTerrain_ = terrainHeightfield_;
             grassCacheRevealOrigin_ = worldRevealOrigin_;
         } else {
@@ -773,6 +768,11 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ >
                 DrawRadius * DrawRadius) {
+                continue;
+            }
+            if (clearAreaVisibility(
+                    instance.position, clearAreas,
+                    0.001F, 0.25F) < 0.999F) {
                 continue;
             }
             if (grassInstanceTransforms_[variant].size() >=
@@ -941,8 +941,6 @@ void Renderer::ensureGrassClearAreaIndex(
         indexedGrassClearAreaData_ = clearAreas.data();
         return;
     }
-    grassInstanceCacheValid_ = false;
-    decorativeInstanceCacheValid_ = false;
     indexedGrassClearAreaData_ = clearAreas.data();
     indexedGrassClearAreaCount_ = clearAreas.size();
     grassClearAreaContentHash_ = contentHash;

@@ -189,6 +189,10 @@ int App::run() {
                 performanceStats_.terrainRender.lastMilliseconds,
             .worldObjectsMs =
                 performanceStats_.worldEntitiesRender.lastMilliseconds,
+            .decorationsMs =
+                performanceStats_.decorationsRender.lastMilliseconds,
+            .grassMs =
+                performanceStats_.grassRender.lastMilliseconds,
             .environmentMs =
                 performanceStats_.environmentRender.lastMilliseconds,
             .overlaysMs =
@@ -351,11 +355,14 @@ void App::drawPerformanceOverlay(
         performanceStats_.blobShadows.averageMilliseconds,
         static_cast<int>(performanceStats_.enemyShadowDraws),
         static_cast<int>(rendererStats.blobShadowTriangles)));
-    drawLine(20, performanceRecorder_.active()
+    drawLine(20, TextFormat(
+        "DECOR %.2f ms  GRASS %.2f ms",
+        performanceStats_.decorationsRender.averageMilliseconds,
+        performanceStats_.grassRender.averageMilliseconds));
+    drawLine(21, performanceRecorder_.active()
         ? "SESSION RECORDING: performance_logs/*.csv"
         : "SESSION RECORDING: FAILED");
-    drawLine(21, "AVG = LOAD   PEAK = RECENT HITCH");
-    drawLine(22, "HIGH PRESENT/WAIT = VSYNC OR FPS LIMIT");
+    drawLine(22, "AVG = LOAD   PEAK = RECENT HITCH");
 }
 
 void App::drawBuildModePie() const {

@@ -30,6 +30,8 @@ struct PerformanceFrameRecord {
     double selectionMs{};
     double terrainMs{};
     double worldObjectsMs{};
+    double decorationsMs{};
+    double grassMs{};
     double environmentMs{};
     double overlaysMs{};
     double postProcessMs{};

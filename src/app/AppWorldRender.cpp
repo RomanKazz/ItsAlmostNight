@@ -213,6 +213,7 @@ void App::drawWorldEntities(
     const SimulationSnapshot& snapshot, const Camera3D& camera,
     float nightAmount, const WorldLighting& lighting,
     float interpolationAlpha) {
+    const auto decorationsStart = PerformanceClock::now();
     const auto clearAreas =
         activeDecorationClearAreas(snapshot);
     WorldMaterialState obstacleMaterial{};
@@ -248,6 +249,8 @@ void App::drawWorldEntities(
         camera.position,
         static_cast<float>(snapshot.worldLimit),
         clearAreas);
+    performanceStats_.decorationsRender.sample(
+        performanceMilliseconds(decorationsStart));
     const float resourceDrawDistance = static_cast<float>(
         simulation_.terrain().config().terrainRenderDistance +
         12.0);
@@ -1413,9 +1416,12 @@ void App::drawWorldEntities(
         }
     }
     renderer_->endWorldShader();
+    const auto grassStart = PerformanceClock::now();
     renderer_->drawGrassInstances(
         camera.position, static_cast<float>(snapshot.worldLimit),
         nightAmount, lighting, clearAreas);
+    performanceStats_.grassRender.sample(
+        performanceMilliseconds(grassStart));
 }
 
 } // namespace ian
