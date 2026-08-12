@@ -310,6 +310,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     syncModularStructures();
                     removeUnsupportedPlatformBuildings();
                     if (!buildings_.core()) {
+                        enemies_.clearProjectiles();
                         cannons_.clearProjectiles();
                         bombs_.clearProjectiles();
                         iceWand_.clearProjectiles();
@@ -367,6 +368,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 });
                 worldStructuresDirty = true;
                 if (damage->type == BuildingType::Core) {
+                    enemies_.clearProjectiles();
                     cannons_.clearProjectiles();
                     bombs_.clearProjectiles();
                     iceWand_.clearProjectiles();

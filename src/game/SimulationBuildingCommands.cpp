@@ -7,7 +7,12 @@
 namespace ian {
 void Simulation::processBuildingCommands(const PlayerCommand& command) {
     if (command.selectBuilding) {
-        selectedBuilding_ = command.selectBuilding;
+        if (buildingUnlocked(*command.selectBuilding)) {
+            selectedBuilding_ = command.selectBuilding;
+        } else {
+            selectedBuilding_.reset();
+            buildingPreview_.reset();
+        }
     }
     if (command.cancelBuilding) {
         selectedBuilding_.reset();

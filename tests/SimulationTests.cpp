@@ -161,6 +161,66 @@ void runSimulationTests() {
         placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         earlySimulation.tick(1.0 / 60.0, placeFreeCore);
+        const auto twilightResource = std::ranges::find_if(
+            earlySimulation.snapshot().resourceNodes,
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    ian::isHarvestableResource(node.type);
+            });
+        require(
+            twilightResource !=
+                earlySimulation.snapshot().resourceNodes.end(),
+            "twilight fixture has a harvestable resource");
+        const ian::EntityId twilightResourceId =
+            twilightResource->id;
+        const double twilightResourceHealth =
+            twilightResource->health;
+        const double remainingDay =
+            earlySimulation.snapshot().phaseTimeRemaining;
+        earlySimulation.tick(remainingDay);
+        require(
+            earlySimulation.snapshot().state ==
+                    ian::RunState::Sunset &&
+                earlySimulation.snapshot().phaseDuration ==
+                    earlyBalance.gameplay.sunsetSeconds,
+            "day expiry begins the full twilight construction window");
+        ian::PlayerCommand twilightGather;
+        twilightGather.overrideAimedResource = true;
+        twilightGather.aimedResourceOverride =
+            twilightResourceId;
+        twilightGather.usePickaxe = true;
+        earlySimulation.tick(1.0 / 60.0, twilightGather);
+        const auto resourceAfterTwilightGather =
+            std::ranges::find(
+                earlySimulation.snapshot().resourceNodes,
+                twilightResourceId,
+                &ian::ResourceNode::id);
+        require(
+            resourceAfterTwilightGather !=
+                    earlySimulation.snapshot().resourceNodes.end() &&
+                resourceAfterTwilightGather->health <
+                    twilightResourceHealth,
+            "manual gathering remains available during twilight");
+        ian::PlayerCommand skipTwilight;
+        skipTwilight.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        earlySimulation.tick(1.0 / 60.0, skipTwilight);
+        require(
+            earlySimulation.snapshot().state ==
+                ian::RunState::Wave,
+            "twilight can be skipped after the player finishes building");
+        earlySimulation.restartRun();
+        earlySimulation.grantSkillPoints(
+            11, ian::SkillPointSource::Event);
+        for (const char* id : LongerDayPath) {
+            const auto skill =
+                earlySimulation.skillTree().indexOf(id);
+            if (skill) {
+                static_cast<void>(
+                    earlySimulation.purchaseSkill(*skill));
+            }
+        }
+        earlySimulation.tick(1.0 / 60.0, placeFreeCore);
         earlySimulation.grantLootUpgrade(
             ian::LootUpgradeEffect::Hourglass,
             ian::LootRarity::Rare);
@@ -347,8 +407,17 @@ void runSimulationTests() {
         ian::WorldConfig storageWorld =
             ian::WorldConfig::defaults();
         storageWorld.terrainAmplitude = 0.0;
+        ian::GameBalance storageBalance =
+            ian::GameBalance::defaults();
+        storageBalance.economy.sellRefundFraction = 1.0;
+        auto& woodStorageDefinition =
+            storageBalance.buildings[static_cast<std::size_t>(
+                ian::BuildingType::WoodStorage)];
+        woodStorageDefinition.wood = 200;
+        woodStorageDefinition.stone = 0;
+        woodStorageDefinition.crystals = 0;
         ian::Simulation storageSimulation{
-            ian::GameBalance::defaults(), storageMap,
+            storageBalance, storageMap,
             storageWorld};
         storageSimulation.startRun();
         require(
@@ -380,6 +449,24 @@ void runSimulationTests() {
                 storageSimulation.snapshot().stoneCapacity == 75 &&
                 storageSimulation.snapshot().crystalCapacity == 40,
             "specialized storage expands only its matching resource");
+
+        const auto woodStorage = std::ranges::find(
+            storageSimulation.snapshot().buildings,
+            ian::BuildingType::WoodStorage,
+            &ian::BuildingInstance::type);
+        require(
+            woodStorage != storageSimulation.snapshot().buildings.end(),
+            "storage clamp fixture finds placed wood storage");
+        const ian::EntityId woodStorageId = woodStorage->id;
+        storageSimulation.tick(1.0 / 60.0, godMode);
+        ian::PlayerCommand sellWoodStorage;
+        sellWoodStorage.sellBuilding =
+            ian::SellBuildingCommand{woodStorageId};
+        storageSimulation.tick(1.0 / 60.0, sellWoodStorage);
+        require(
+            storageSimulation.snapshot().wood == 100 &&
+                storageSimulation.snapshot().woodCapacity == 100,
+            "removing storage clamps inventory to reduced capacity");
     }
     {
         ian::MapDefinition movementMap =
@@ -1332,7 +1419,58 @@ void runSimulationTests() {
             "pickaxe input shortly before cooldown end is buffered");
     }
     {
-        ian::Simulation productionSimulation;
+        ian::GameBalance producerUnlockBalance =
+            ian::GameBalance::defaults();
+        producerUnlockBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        ian::WorldConfig producerUnlockWorld =
+            ian::WorldConfig::defaults();
+        producerUnlockWorld.terrainAmplitude = 0.0;
+        ian::Simulation producerUnlocks{
+            producerUnlockBalance,
+            ian::MapDefinition::defaults(),
+            producerUnlockWorld};
+        producerUnlocks.startRun();
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        producerUnlocks.tick(1.0 / 60.0, placeCore);
+        require(
+            producerUnlocks.previewPlacement(
+                ian::BuildingType::LumberMill, {3, 3}).error ==
+                    ian::PlacementError::SkillRequired &&
+            producerUnlocks.previewPlacement(
+                ian::BuildingType::Quarry, {5, 3}).error ==
+                    ian::PlacementError::SkillRequired &&
+            producerUnlocks.previewPlacement(
+                ian::BuildingType::CrystalMine, {7, 3}).error ==
+                    ian::PlacementError::SkillRequired,
+            "fresh runs lock all three production buildings behind skills");
+        producerUnlocks.grantSkillPoints(
+            1, ian::SkillPointSource::Event);
+        const auto lumberSkill =
+            producerUnlocks.skillTree().indexOf("lumber_mill");
+        require(
+            lumberSkill &&
+                producerUnlocks.purchaseSkill(*lumberSkill) ==
+                    ian::SkillPurchaseError::None &&
+                producerUnlocks.previewPlacement(
+                    ian::BuildingType::LumberMill, {3, 3}).error !=
+                    ian::PlacementError::SkillRequired &&
+                producerUnlocks.previewPlacement(
+                    ian::BuildingType::Quarry, {5, 3}).error ==
+                    ian::PlacementError::SkillRequired,
+            "each producer unlock affects only its own building");
+    }
+    {
+        ian::GameBalance productionBalance =
+            ian::GameBalance::defaults();
+        for (auto& enemy : productionBalance.enemies) {
+            enemy.speed = 0.01;
+            enemy.damage = 0.01;
+        }
+        ian::Simulation productionSimulation{
+            productionBalance};
         productionSimulation.startRun();
         const auto terrainSurface =
             productionSimulation
@@ -1373,6 +1511,20 @@ void runSimulationTests() {
                     terrainSurface
                         .foundationBottomHeight,
             "preferred standing level raises terrain building and extends its automatic foundation");
+        productionSimulation.grantSkillPoints(
+            6, ian::SkillPointSource::Event);
+        constexpr std::array<const char*, 3> ProducerSkills{{
+            "lumber_mill", "quarry", "crystal_mine",
+        }};
+        for (const char* id : ProducerSkills) {
+            const auto skill =
+                productionSimulation.skillTree().indexOf(id);
+            require(
+                skill &&
+                    productionSimulation.purchaseSkill(*skill) ==
+                        ian::SkillPurchaseError::None,
+                "production fixture unlocks each producer separately");
+        }
         ian::PlayerCommand unlimited;
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
@@ -1457,6 +1609,11 @@ void runSimulationTests() {
         productionSimulation.tick(
             1.0 / 60.0, placeQuarry);
 
+        productionSimulation.tick(1.0 / 60.0, unlimited);
+        require(
+            !productionSimulation.snapshot().unlimitedResources,
+            "production fixture leaves setup god mode before measuring output");
+
         const int woodBefore =
             productionSimulation.snapshot().wood;
         const int stoneBefore =
@@ -1468,6 +1625,39 @@ void runSimulationTests() {
                 productionSimulation.snapshot().stone ==
                     stoneBefore + 2,
             "autonomous buildings grant wood and stone");
+
+        ian::PlayerCommand startProductionWave;
+        startProductionWave.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        productionSimulation.tick(
+            1.0 / 60.0, startProductionWave);
+        require(
+            productionSimulation.snapshot().state ==
+                ian::RunState::Wave,
+            "production fixture starts an active night wave");
+        const int woodAtNight =
+            productionSimulation.snapshot().wood;
+        const int stoneAtNight =
+            productionSimulation.snapshot().stone;
+        productionSimulation.tick(20.0);
+        require(
+            productionSimulation.snapshot().wood == woodAtNight &&
+                productionSimulation.snapshot().stone == stoneAtNight,
+            "production buildings stop during waves by default");
+
+        const auto nightShift =
+            productionSimulation.skillTree().indexOf("night_shift");
+        const bool nightShiftUnlocked = nightShift &&
+            productionSimulation.purchaseSkill(*nightShift) ==
+                ian::SkillPurchaseError::None;
+        productionSimulation.tick(20.0);
+        require(
+            nightShiftUnlocked &&
+                productionSimulation.snapshot().wood ==
+                    woodAtNight + 3 &&
+                productionSimulation.snapshot().stone ==
+                    stoneAtNight + 2,
+            "Night Shift restores exactly half-speed wave production");
     }
 
     {
@@ -2655,6 +2845,15 @@ void runSimulationTests() {
         simulation.snapshot().lootChests.size() ==
             chestsBeforeFirstNight + 1U,
         "survived night spawns one skill-granted chest");
+    const auto rewardChestCount = std::ranges::count_if(
+        simulation.snapshot().lootChests,
+        [](const ian::LootChestInstance& chest) {
+            return chest.purpose ==
+                ian::LootChestPurpose::Reward;
+        });
+    require(
+        rewardChestCount == 1,
+        "post-wave chests are classified as nearby rewards");
     const double dawnDuration = simulation.snapshot().phaseDuration;
     requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
                 "dawn starts with configured duration");

@@ -9,6 +9,20 @@
 
 namespace ian {
 
+bool Simulation::buildingUnlocked(BuildingType type) const {
+    if (unlimitedResources_) return true;
+    switch (type) {
+    case BuildingType::LumberMill:
+        return skillTree_.hasEffect("unlock.lumber_mill");
+    case BuildingType::Quarry:
+        return skillTree_.hasEffect("unlock.quarry");
+    case BuildingType::CrystalMine:
+        return skillTree_.hasEffect("unlock.crystal_mine");
+    default:
+        return true;
+    }
+}
+
 PlacementResult Simulation::validatePlacement(
     BuildingType type, GridPosition position) const {
     return validatePlacement(
@@ -19,6 +33,12 @@ PlacementResult Simulation::validatePlacement(
 PlacementResult Simulation::validatePlacement(
     BuildingType type, GridPosition position,
     const BuildingPlatformSurface& surface) const {
+    if (!buildingUnlocked(type)) {
+        return {
+            PlacementError::SkillRequired,
+            buildings_.configuredCost(type),
+        };
+    }
     const int availableWood =
         unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
     const int availableStone =

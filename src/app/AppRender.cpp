@@ -134,46 +134,8 @@ void App::render() {
 
     if (snapshot.state == RunState::MainMenu) {
         interactionPromptRenderer_.reset();
-        renderer_->beginUiOnlyFrame({18, 22, 31, 255});
-        const float centerX =
-            static_cast<float>(GetScreenWidth()) * 0.5F;
-        const float centerY =
-            static_cast<float>(GetScreenHeight()) * 0.5F;
-        ui_.drawPanel({centerX - 420.0F, centerY - 330.0F,
-                       840.0F, 660.0F});
-        ui_.drawInsetPanel({centerX - 380.0F, centerY - 254.0F,
-                            760.0F, 128.0F});
-        drawCentered("IT'S ALMOST NIGHT",
-                     static_cast<int>(centerY) - 230, 42,
-                     {245, 220, 174, 255});
-        if (!renderer_->graphicsPanelVisible()) {
-        pendingStartFromUi_ =
-            ui_.drawButton({centerX - 210.0F, centerY - 84.0F,
-                            420.0F, 64.0F},
-                           "START RUN") ||
-            pendingStartFromUi_;
-        if (ui_.drawButton(
-                {centerX - 210.0F, centerY - 6.0F,
-                 420.0F, 64.0F},
-                "SETTINGS")) {
-            renderer_->setGraphicsPanelVisible(true);
-        }
-        pendingOpenSkillTreeFromUi_ =
-            ui_.drawButton(
-                {centerX - 210.0F, centerY + 72.0F,
-                 420.0F, 64.0F},
-                "TREE OF KNOWLEDGE") ||
-            pendingOpenSkillTreeFromUi_;
-        if (ui_.drawButton(
-                {centerX - 210.0F, centerY + 150.0F,
-                 420.0F, 64.0F},
-                "EXIT GAME")) {
-            exitRequested_ = true;
-        }
-        drawCentered("ENTER: PLAY  •  F2: SETTINGS  •  K: TREE",
-                     static_cast<int>(centerY) + 250, 16,
-                     {199, 174, 142, 255});
-        }
+        drawMainMenuWorld(snapshot);
+        drawMainMenu(snapshot);
     } else {
         const double visualYaw = snapshot.playerYaw;
         const double visualPitch = snapshot.playerPitch;

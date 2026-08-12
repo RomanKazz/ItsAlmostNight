@@ -45,6 +45,8 @@ const char* placementMessage(PlacementError error) {
         return "Placement is too far";
     case PlacementError::CoreLevelRequired:
         return "Core level II required";
+    case PlacementError::SkillRequired:
+        return "Unlock in Skill Tree";
     case PlacementError::ResourceBlocked:
         return "Clear tree or stone first";
     }
@@ -65,6 +67,7 @@ Color placementMessageColor(PlacementError error) {
         return {255, 222, 82, 255};
     case PlacementError::CoreRequired:
     case PlacementError::CoreLevelRequired:
+    case PlacementError::SkillRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:
         return {255, 132, 71, 255};
@@ -272,7 +275,11 @@ std::string tutorialText(const SimulationSnapshot& snapshot) {
                std::to_string(snapshot.stone) + "/" +
                std::to_string(snapshot.tutorialStoneTarget);
     case TutorialObjective::BuildCrystalMine:
-        return "OBJECTIVE: Build Crystal Mine [4]";
+        return snapshot.unlockedBuildings[
+                   static_cast<std::size_t>(
+                       BuildingType::CrystalMine)]
+            ? "OBJECTIVE: Build Crystal Mine [4]"
+            : "OBJECTIVE: Unlock Crystal Mine [K]";
     case TutorialObjective::PrepareForNight:
         return "OBJECTIVE: Build defenses - [N] starts sunset";
     case TutorialObjective::SurviveFirstWave:
@@ -1084,7 +1091,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             }
         }
     } else if (snapshot.state == RunState::Sunset) {
-        phaseText = "SUNSET  •  WAVE " +
+        phaseText = "TWILIGHT  •  BUILD / REPAIR  •  WAVE " +
             std::to_string(snapshot.wave + 1) + " IN " +
             phaseClock(snapshot.phaseTimeRemaining);
         phaseColor = {255, 146, 79, 255};

@@ -543,6 +543,7 @@ void App::processInput() {
                 pendingBuildingSelection_ = type;
             };
         const Vector2 mouseDelta = GetMouseDelta();
+        const float wheel = GetMouseWheelMove();
         if (wallDragStart_) {
             placementDragLookMovement_ +=
                 static_cast<double>(Vector2Length(mouseDelta));
@@ -738,6 +739,14 @@ void App::processInput() {
                     }
                 }
                 ++visibleSlot;
+            }
+            const float hotbarWheel = wheel;
+            if (std::abs(hotbarWheel) > 0.01F) {
+                // Wheel up moves left, wheel down moves right, matching the
+                // visible slot order in the current tools/weapons hotbar.
+                selectNextActionModeItem(
+                    currentSnapshot,
+                    hotbarWheel > 0.0F ? -1 : 1);
             }
         }
         if (foundationBuildMode_ &&
@@ -1073,7 +1082,6 @@ void App::processInput() {
                     ToggleGateCommand{*actionBuilding};
             }
         }
-        const float wheel = GetMouseWheelMove();
         if (foundationBuildMode_ ||
             currentSnapshot.selectedBuilding) {
             buildingRotationWheelAccumulator_ = std::clamp(

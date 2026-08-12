@@ -989,6 +989,7 @@ void EnemySystem::spawnWave(std::span<const Vec3> positions) {
 }
 
 void EnemySystem::spawnWave(std::span<const EnemySpawn> spawns) {
+    clearProjectiles();
     for (EnemyInstance& enemy : enemies_) {
         enemy.active = false;
     }

@@ -15,6 +15,8 @@ namespace ian {
 namespace {
 
 constexpr std::size_t ChestCount = 10;
+constexpr double ExplorationMinimumRadius = 48.0;
+constexpr double ExplorationMaximumRadius = 120.0;
 constexpr double OpeningDuration = 1.05;
 constexpr double LooseLootRevealDuration = 0.38;
 constexpr double ChestDisappearanceDelay = 1.15;
@@ -33,7 +35,9 @@ constexpr double LootBobAmplitude = 0.072;
 constexpr double LootRaycastRadius = 0.72;
 
 ChestLoot makeLoot(EntityId chestId, Vec3 position,
-                   std::uint64_t reroll = 0U) {
+                   std::uint64_t reroll = 0U,
+                   LootChestPurpose purpose =
+                       LootChestPurpose::Exploration) {
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(chestId.generation) << 32U) |
         chestId.index;
@@ -58,7 +62,12 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position,
         LootUpgradeEffect::Hourglass,
         LootUpgradeEffect::Rope,
     }};
-    const bool rare = roll % 100ULL >= 72ULL;
+    // Distant exploration chests demand a meaningful detour during the short
+    // day, so they deserve a noticeably better rare-item chance than the
+    // safely delivered post-wave rewards.
+    const std::uint64_t rareThreshold =
+        purpose == LootChestPurpose::Exploration ? 60ULL : 72ULL;
+    const bool rare = roll % 100ULL >= rareThreshold;
     const std::span<const LootUpgradeEffect> pool = rare
         ? std::span<const LootUpgradeEffect>{RareLoot}
         : std::span<const LootUpgradeEffect>{CommonLoot};
@@ -161,7 +170,9 @@ void LootChestSystem::reset(
     chests_.reserve(ChestCount);
     spawnAdditionalChests(
         static_cast<int>(ChestCount), terrainSeed, worldLimit,
-        terrain, resources, playerSpawn);
+        terrain, resources, playerSpawn, playerSpawn,
+        ExplorationMaximumRadius, ExplorationMinimumRadius,
+        LootChestPurpose::Exploration);
 }
 
 void LootChestSystem::spawnAdditionalChests(
@@ -169,7 +180,9 @@ void LootChestSystem::spawnAdditionalChests(
     const TerrainHeightfield& terrain,
     std::span<const ResourceNode> resources, Vec3 playerSpawn,
     std::optional<Vec3> preferredCenter,
-    double preferredRadius) {
+    double preferredRadius,
+    double preferredMinimumRadius,
+    LootChestPurpose purpose) {
     if (count <= 0) return;
     constexpr std::size_t MaximumAttempts = 4096;
     const std::size_t targetCount = chests_.size() +
@@ -186,21 +199,22 @@ void LootChestSystem::spawnAdditionalChests(
              0xd1b54a32d192ed03ULL);
         const double limit = std::max(1.0, worldLimit - 3.0);
         Vec3 position{};
-        if (preferredCenter && preferredRadius > 10.0) {
-            constexpr double MinimumDeliveryRadius = 10.0;
+        const double minimumRadius = std::max(
+            0.0, preferredMinimumRadius);
+        if (preferredCenter && preferredRadius > minimumRadius) {
             constexpr double TwoPi =
                 6.28318530717958647692;
             const double angle =
                 unitRandom(seed ^ 0x243f6a8885a308d3ULL) *
                 TwoPi;
             const double outerRadius = std::max(
-                MinimumDeliveryRadius,
+                minimumRadius,
                 std::min(preferredRadius, limit));
             const double radius = std::sqrt(
-                MinimumDeliveryRadius * MinimumDeliveryRadius +
+                minimumRadius * minimumRadius +
                 unitRandom(seed ^ 0x13198a2e03707344ULL) *
                     (outerRadius * outerRadius -
-                     MinimumDeliveryRadius * MinimumDeliveryRadius));
+                     minimumRadius * minimumRadius));
             position.x = preferredCenter->x +
                 std::cos(angle) * radius;
             position.z = preferredCenter->z +
@@ -251,12 +265,17 @@ void LootChestSystem::spawnAdditionalChests(
         chests_.push_back({
             .id = id,
             .type = type,
+            .purpose = purpose,
             .position = position,
             .surfaceNormal = surfaceNormal,
             .yaw = unitRandom(seed ^ 0x452821e638d01377ULL) *
                 6.28318530717958647692,
             .coinCost = type == LootChestType::Wooden ? 20 : 40,
-            .loot = makeLoot(id, position),
+            // Exploration chests are deliberately far away. Keep them on the
+            // map from the beginning so reaching one is a strategic choice,
+            // not a blind search against the day timer.
+            .revealed = purpose == LootChestPurpose::Exploration,
+            .loot = makeLoot(id, position, 0U, purpose),
         });
     }
 }
@@ -395,7 +414,8 @@ ChestRerollResult LootChestSystem::reroll(
     do {
         ++chest->rerollCount;
         target = makeLoot(
-            chest->id, chest->position, chest->rerollCount);
+            chest->id, chest->position, chest->rerollCount,
+            chest->purpose);
     } while (target.effect == previous && chest->rerollCount < 32U);
     // A reroll is one purchase even if deterministic retries were needed to
     // avoid offering the exact same item.

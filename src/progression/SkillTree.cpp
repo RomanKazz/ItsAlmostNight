@@ -49,6 +49,10 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("wide_swing", "WIDE SWING", "Power Swing reaches 50% farther.", "placeholder_tools", SkillBranch::Gathering, {-760, 0}, 1, {"power_swing"}, {E{"gather.power_swing_radius", 0.5}}),
         make("hands_on", "HANDS-ON", "Manual gathering is 45% stronger, but producers work 20% slower.", "placeholder_hands", SkillBranch::Gathering, {-570, 190}, 2, {"efficient_strikes"}, {E{"gather.damage", 0.45}, E{"production.speed", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
         make("industrialist", "INDUSTRIALIST", "Producers work 40% faster, but manual gathering is 20% weaker.", "placeholder_hammer", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"production.speed", 0.40}, E{"gather.damage", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
+        make("lumber_mill", "LUMBER MILL", "Unlock the Lumber Mill for passive wood production during the day.", "placeholder_axe", SkillBranch::Gathering, {-380, 190}, 1, {"bare_hands"}, {E{"unlock.lumber_mill"}}),
+        make("quarry", "QUARRY", "Unlock the Quarry for passive stone production during the day.", "placeholder_pickaxe", SkillBranch::Gathering, {-380, 380}, 1, {"bare_hands"}, {E{"unlock.quarry"}}),
+        make("crystal_mine", "CRYSTAL MINE", "Unlock the Crystal Mine for passive crystal production during the day.", "placeholder_crystal", SkillBranch::Gathering, {-570, 570}, 1, {"bare_hands"}, {E{"unlock.crystal_mine"}}),
+        make("night_shift", "NIGHT SHIFT", "All production buildings operate at 50% speed during enemy waves.", "placeholder_moon", SkillBranch::Gathering, {-760, 570}, 3, {"lumber_mill", "quarry", "crystal_mine"}, {E{"production.night_speed", 0.50}}, {}, SkillNodeSize::Large),
 
         make("combat_training", "COMBAT TRAINING", "All player attacks deal 10% more damage.", "placeholder_club", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, {E{"player.damage", 0.10}}),
         make("club", "CLUB", "Unlock the club and its sweeping melee attacks.", "placeholder_club", SkillBranch::Weapons, {-380, -380}, 1, {"combat_training"}, {E{"unlock.club"}}),

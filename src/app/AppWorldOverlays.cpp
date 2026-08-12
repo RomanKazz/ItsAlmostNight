@@ -499,37 +499,50 @@ void App::drawWorldOverlays(
             static_cast<float>(enemy.position.z),
         };
         float width = 0.8F;
-        float height = 1.6F;
         if (enemy.type == EnemyType::Fast) {
             width = 0.65F;
-            height = 1.35F;
         } else if (enemy.type == EnemyType::Heavy) {
             width = 1.15F;
-            height = 2.0F;
         } else if (enemy.type == EnemyType::Boss) {
             width = 2.0F;
-            height = 3.2F;
         } else if (enemy.type == EnemyType::Ranged) {
             width = 0.75F;
-            height = 1.55F;
         } else if (enemy.type == EnemyType::Sapper) {
             width = 0.86F;
-            height = 1.5F;
         } else if (enemy.type == EnemyType::Flying) {
             width = 0.72F;
-            height = 1.0F;
         } else if (enemy.type == EnemyType::Splitter) {
             width = 1.45F;
-            height = 2.35F;
         } else if (enemy.type == EnemyType::Splitling) {
             width = 0.65F;
-            height = 1.05F;
         }
         if (enemy.state == EnemyState::BossRamWindup) {
             const float pulse =
                 0.12F + static_cast<float>(std::sin(snapshot.elapsedSeconds * 18.0)) * 0.06F;
-            DrawCubeWires(enemyPosition, width + pulse, height + pulse,
-                          width + pulse, ORANGE);
+            const float groundY = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy.position.x, enemy.position.z));
+            const Vector3 center{
+                enemyPosition.x, groundY + 0.045F,
+                enemyPosition.z};
+            const float progress = enemy.ramWindup > 0.0
+                ? std::clamp(
+                      static_cast<float>(1.0 -
+                          enemy.ramWindupRemaining /
+                              enemy.ramWindup),
+                      0.0F, 1.0F)
+                : 1.0F;
+            const float outerRadius =
+                width * (0.82F + pulse + progress * 0.12F);
+            DrawCircle3D(
+                center, outerRadius,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 96, 55, 205});
+            DrawCircle3D(
+                {center.x, center.y + 0.008F, center.z},
+                outerRadius * (0.38F + 0.5F * (1.0F - progress)),
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 196, 72, 225});
         }
     }
     if (snapshot.buildingPreview) {

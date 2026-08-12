@@ -44,6 +44,14 @@ void runLootChestSystemTests() {
         require(terrain.getNormal(
                     chest.position.x, chest.position.z).y >= 0.82,
                 "loot chest avoids steep terrain");
+        const double explorationDistance = std::hypot(
+            chest.position.x - spawn.x,
+            chest.position.z - spawn.z);
+        require(
+            chest.purpose == ian::LootChestPurpose::Exploration &&
+                chest.revealed && explorationDistance >= 48.0 &&
+                explorationDistance <= 120.0,
+            "exploration chests stay in the distant ring and are map-marked");
         const ian::Vec3 sampledNormal = terrain.getNormal(
             chest.position.x, chest.position.z);
         requireNear(chest.surfaceNormal.x, sampledNormal.x, 1e-12,
@@ -87,11 +95,15 @@ void runLootChestSystemTests() {
     constexpr double DeliveryRadius = 28.0;
     chests.spawnAdditionalChests(
         1, terrain.seed(), 120.0, terrain, {}, spawn,
-        ian::Vec3{0.0, 0.0, 0.0}, DeliveryRadius);
+        ian::Vec3{0.0, 0.0, 0.0}, DeliveryRadius, 8.0,
+        ian::LootChestPurpose::Reward);
     const auto& deliveredChest = chests.chests().back();
     require(
         chests.chests().size() ==
                 chestCountBeforeDelivery + 1U &&
+            deliveredChest.purpose ==
+                ian::LootChestPurpose::Reward &&
+            !deliveredChest.revealed &&
             std::hypot(
                 deliveredChest.position.x,
                 deliveredChest.position.z) <=

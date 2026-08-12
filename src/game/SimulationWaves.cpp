@@ -79,6 +79,7 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
 }
 
 void Simulation::completeWave() {
+    enemies_.clearProjectiles();
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
     iceWand_.clearProjectiles();
@@ -95,17 +96,16 @@ void Simulation::completeWave() {
     }
     if (nightlyChests > 0) {
         std::optional<Vec3> preferredCenter;
-        double preferredRadius = 0.0;
-        if (skillTree_.hasEffect("loot.safe_delivery")) {
-            if (const auto core = buildings_.core()) {
-                preferredCenter = buildingWorldPosition(*core);
-                preferredRadius = 28.0;
-            }
+        if (const auto core = buildings_.core()) {
+            preferredCenter = buildingWorldPosition(*core);
         }
+        const double preferredRadius =
+            skillTree_.hasEffect("loot.safe_delivery") ? 18.0 : 28.0;
         lootChests_.spawnAdditionalChests(
             nightlyChests, terrain_.seed(), map_.worldLimit,
             terrain_, resources_.nodes(), playerPosition_,
-            preferredCenter, preferredRadius);
+            preferredCenter, preferredRadius, 8.0,
+            LootChestPurpose::Reward);
     }
     int additionalChests = 0;
     if (currentWaveHasBoss_) {
@@ -115,9 +115,17 @@ void Simulation::completeWave() {
             additionalChests, mapStacks);
     }
     if (additionalChests > 0) {
+        std::optional<Vec3> preferredCenter;
+        if (const auto core = buildings_.core()) {
+            preferredCenter = buildingWorldPosition(*core);
+        }
+        const double preferredRadius =
+            skillTree_.hasEffect("loot.safe_delivery") ? 18.0 : 28.0;
         lootChests_.spawnAdditionalChests(
             additionalChests, terrain_.seed(), map_.worldLimit,
-            terrain_, resources_.nodes(), playerPosition_);
+            terrain_, resources_.nodes(), playerPosition_,
+            preferredCenter, preferredRadius, 8.0,
+            LootChestPurpose::Reward);
     }
     const double restoredHealthFraction = std::clamp(
         skillTree_.effectValue("wave.repair_fraction"), 0.0, 1.0);

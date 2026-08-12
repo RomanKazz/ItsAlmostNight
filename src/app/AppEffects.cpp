@@ -1116,10 +1116,36 @@ void App::drawPresentationEffects() {
             }
             EndBlendMode();
         } else if (effect.type == PresentationEffectType::RamImpact) {
-            DrawSphereWires(origin, 0.4F + progress * 2.8F, 8, 8,
-                            {255, 72, 45, 255});
-            DrawSphereWires(origin, 0.2F + progress * 1.7F, 8, 8,
-                            ORANGE);
+            const float fade = 1.0F - smoothstep(0.35F, 1.0F, progress);
+            const Vector3 ground{
+                origin.x, origin.y + 0.035F, origin.z};
+            DrawCircle3D(
+                ground, 0.35F + progress * 3.0F,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 72, 45, atmosphereAlpha(fade * 0.88F)});
+            DrawCircle3D(
+                {ground.x, ground.y + 0.008F, ground.z},
+                0.18F + progress * 1.85F,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 177, 56, atmosphereAlpha(fade)});
+            constexpr int RayCount = 10;
+            for (int ray = 0; ray < RayCount; ++ray) {
+                const float angle =
+                    static_cast<float>(ray) * 2.0F * PI /
+                    static_cast<float>(RayCount);
+                const float inner = 0.28F + progress * 0.55F;
+                const float outer = 0.55F + progress *
+                    (1.65F + effectUnit(ray, 141) * 1.1F);
+                DrawLine3D(
+                    {ground.x + std::cos(angle) * inner,
+                     ground.y,
+                     ground.z + std::sin(angle) * inner},
+                    {ground.x + std::cos(angle) * outer,
+                     ground.y + progress * 0.12F,
+                     ground.z + std::sin(angle) * outer},
+                    {255, 117, 42,
+                     atmosphereAlpha(fade * 0.82F)});
+            }
         } else {
             const Color color =
                 effect.type == PresentationEffectType::ResourceBurst

@@ -231,6 +231,7 @@ void drawBuildHotbar(
             type == BuildingType::Core
                 ? snapshot.coreMaxHealth <= 0.0
                 : snapshot.coreMaxHealth > 0.0;
+        unlocked = unlocked && snapshot.unlockedBuildings[index];
         if (type == BuildingType::Cannon ||
             type == BuildingType::SlowTrap ||
             type == BuildingType::SpikeTrap ||

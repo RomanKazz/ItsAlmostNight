@@ -205,6 +205,7 @@ bool Simulation::resourceGroundPositionIsSafe(
 
 void Simulation::returnToMainMenu() {
     invalidateSnapshotCache();
+    enemies_.clearProjectiles();
     state_ = RunState::MainMenu;
     stateBeforePause_ = RunState::Gathering;
     selectedBuilding_.reset();
@@ -413,6 +414,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             buildings_.hasCore();
         removeUnsupportedPlatformBuildings();
         if (coreWasSupported && !buildings_.hasCore()) {
+            enemies_.clearProjectiles();
             cannons_.clearProjectiles();
             bombs_.clearProjectiles();
             state_ = RunState::Defeat;

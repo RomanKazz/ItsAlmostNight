@@ -13,6 +13,7 @@ class TerrainHeightfield;
 struct ResourceNode;
 
 enum class LootChestType { Wooden, Stone };
+enum class LootChestPurpose { Exploration, Reward };
 enum class LootChestState { Closed, Opening, Open };
 enum class LootRarity { Common, Uncommon, Rare, Legendary };
 enum class LootUpgradeEffect {
@@ -57,6 +58,7 @@ struct ChestLoot {
 struct LootChestInstance {
     EntityId id;
     LootChestType type{LootChestType::Wooden};
+    LootChestPurpose purpose{LootChestPurpose::Exploration};
     LootChestState state{LootChestState::Closed};
     Vec3 position;
     Vec3 surfaceNormal{0.0, 1.0, 0.0};
@@ -128,7 +130,9 @@ class LootChestSystem {
         std::span<const ResourceNode> resources,
         Vec3 playerSpawn,
         std::optional<Vec3> preferredCenter = std::nullopt,
-        double preferredRadius = 0.0);
+        double preferredRadius = 0.0,
+        double preferredMinimumRadius = 10.0,
+        LootChestPurpose purpose = LootChestPurpose::Exploration);
 
     [[nodiscard]] const std::vector<LootChestInstance>& chests() const;
 

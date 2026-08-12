@@ -48,6 +48,7 @@ void Simulation::processDebugCommands(
             playerHealth_ = playerPermanentMaxHealth() +
                 playerTemporaryHealth_;
         } else {
+            clampResourcesToCapacity();
             const PlayerWeapon selected =
                 playerWeapons_.selectedWeapon();
             const bool stillUnlocked =
@@ -91,6 +92,7 @@ void Simulation::processDebugCommands(
                 });
                 if (damage->destroyed) {
                     syncWorldStructures();
+                    enemies_.clearProjectiles();
                     state_ = RunState::Defeat;
                     events_.push_back({
                         .type = GameEventType::BuildingDestroyed,
@@ -280,6 +282,7 @@ void Simulation::processDebugCommands(
             nextWaveSpawnIndex_ = waveSpawnQueue_.size();
         }
         enemies_.defeatAll();
+        enemies_.clearProjectiles();
     }
 }
 

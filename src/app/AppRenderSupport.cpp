@@ -758,6 +758,7 @@ Color placementColor(
         return {255, 222, 82, alpha};
     case PlacementError::CoreRequired:
     case PlacementError::CoreLevelRequired:
+    case PlacementError::SkillRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:
         return {255, 132, 71, alpha};

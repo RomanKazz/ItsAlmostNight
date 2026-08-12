@@ -160,6 +160,8 @@ class App {
     void drawCancelledPlacementPreview(
         const WorldLighting& lighting);
     void drawGraphicsPanel();
+    void drawMainMenu(const SimulationSnapshot& snapshot);
+    void drawMainMenuWorld(const SimulationSnapshot& snapshot);
     void persistUserSettings(bool force = false);
     void drawEnemySpawnMenu();
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
@@ -176,7 +178,8 @@ class App {
         ActionMode mode,
         const SimulationSnapshot& snapshot);
     void selectNextActionModeItem(
-        const SimulationSnapshot& snapshot);
+        const SimulationSnapshot& snapshot,
+        int direction = 1);
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
                    std::optional<EntityId> entityId =

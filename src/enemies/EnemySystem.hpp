@@ -249,6 +249,7 @@ class EnemySystem {
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
+    void clearProjectiles();
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
     [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 

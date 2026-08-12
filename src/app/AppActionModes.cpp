@@ -90,7 +90,8 @@ void App::selectActionMode(
 }
 
 void App::selectNextActionModeItem(
-    const SimulationSnapshot& snapshot) {
+    const SimulationSnapshot& snapshot,
+    int direction) {
     const auto order = equipmentOrder(actionMode_);
     if (order.empty()) {
         return;
@@ -110,12 +111,16 @@ void App::selectNextActionModeItem(
         available.data(), availableCount};
     const auto current = std::ranges::find(
         availableItems, snapshot.selectedWeapon);
-    const std::size_t nextIndex =
-        current == availableItems.end()
-            ? 0U
-            : (static_cast<std::size_t>(
-                   std::distance(availableItems.begin(), current)) + 1U) %
-                  availableCount;
+    std::size_t nextIndex = 0U;
+    if (current != availableItems.end()) {
+        const std::size_t currentIndex = static_cast<std::size_t>(
+            std::distance(availableItems.begin(), current));
+        nextIndex = direction < 0
+            ? (currentIndex + availableCount - 1U) % availableCount
+            : (currentIndex + 1U) % availableCount;
+    } else if (direction < 0) {
+        nextIndex = availableCount - 1U;
+    }
     pendingWeaponSelection_ = available[nextIndex];
     if (actionMode_ == ActionMode::Tools) {
         lastToolSelection_ = available[nextIndex];

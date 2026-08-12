@@ -834,6 +834,24 @@ void runEnemySystemTests() {
     require(projectileHit,
             "ranged projectile damages player only after travel time");
 
+    projectileEnemy.tick(
+        1.5, projectileBuildings.buildings(), projectileFlow,
+        ian::Vec3{0.0, 1.7, 0.0});
+    projectileEnemy.clearProjectiles();
+    require(projectileEnemy.projectiles().empty(),
+            "enemy projectiles can be cleared at a phase boundary");
+
+    ian::EnemySystem replacementWaveEnemy;
+    replacementWaveEnemy.spawnWave(ProjectileSpawn);
+    replacementWaveEnemy.tick(
+        1.0 / 60.0, projectileBuildings.buildings(), projectileFlow,
+        ian::Vec3{0.0, 1.7, 0.0});
+    require(!replacementWaveEnemy.projectiles().empty(),
+            "replacement-wave fixture launches a projectile");
+    replacementWaveEnemy.spawnWave(ProjectileSpawn);
+    require(replacementWaveEnemy.projectiles().empty(),
+            "starting a new wave clears old enemy projectiles");
+
     std::vector<ian::EnemySpawn> stressSpawns;
     stressSpawns.reserve(ian::EnemySystem::MaxEnemies + 64);
     for (std::size_t index = 0;

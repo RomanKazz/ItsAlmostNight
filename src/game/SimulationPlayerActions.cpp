@@ -50,6 +50,21 @@ int Simulation::resourceCapacity(BuildingType storageType) const {
                     "storage.capacity"))))));
 }
 
+void Simulation::clampResourcesToCapacity() {
+    if (unlimitedResources_) {
+        return;
+    }
+    wood_ = std::clamp(
+        wood_, 0,
+        resourceCapacity(BuildingType::WoodStorage));
+    stone_ = std::clamp(
+        stone_, 0,
+        resourceCapacity(BuildingType::StoneStorage));
+    crystals_ = std::clamp(
+        crystals_, 0,
+        resourceCapacity(BuildingType::CrystalStorage));
+}
+
 void Simulation::addWood(int amount) {
     if (unlimitedResources_) {
         wood_ = saturatingAdd(wood_, std::max(0, amount));
@@ -128,7 +143,16 @@ double Simulation::resourceToolEfficiency(
 
 void Simulation::updatePlayerActions(
     double deltaSeconds, const PlayerCommand& command) {
-    const auto production = crystalMines_.tick(deltaSeconds);
+    double productionDeltaSeconds = deltaSeconds;
+    if (state_ == RunState::Wave) {
+        productionDeltaSeconds *= unlimitedResources_
+            ? 1.0
+            : std::clamp(
+                  skillTree_.effectValue("production.night_speed"),
+                  0.0, 1.0);
+    }
+    const auto production = crystalMines_.tick(
+        productionDeltaSeconds);
     if (crystals_ < resourceCapacity(BuildingType::CrystalStorage)) {
         crystalStorageFullNotified_ = false;
     }

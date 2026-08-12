@@ -199,6 +199,8 @@ struct SimulationSnapshot {
     std::optional<BuildingType> selectedBuilding;
     std::array<ResourceCost, GameBalance::BuildingTypeCount>
         buildingCosts;
+    std::array<bool, GameBalance::BuildingTypeCount>
+        unlockedBuildings;
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts;
     std::optional<BuildingPreview> buildingPreview;
@@ -399,6 +401,7 @@ class Simulation {
     [[nodiscard]] PlacementResult validatePlacement(
         BuildingType type, GridPosition position,
         const BuildingPlatformSurface& surface) const;
+    [[nodiscard]] bool buildingUnlocked(BuildingType type) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,
                      GridPosition position) const;
@@ -447,6 +450,7 @@ class Simulation {
         PlayerWeapon tool, ResourceType resource) const;
     [[nodiscard]] int resourceCapacity(
         BuildingType storageType) const;
+    void clampResourcesToCapacity();
     void addWood(int amount);
     void addStone(int amount);
     void addCrystals(int amount);

@@ -106,6 +106,8 @@ void translateDynamicHudText(std::string& text) {
         {"WAVE ", "ВОЛНА "},
         {"BEST ", "ЛУЧШИЙ "},
         {"SUNSET", "ЗАКАТ"},
+        {"TWILIGHT", "СУМЕРКИ"},
+        {"BUILD / REPAIR", "СТРОЙКА / РЕМОНТ"},
         {"DAWN", "РАССВЕТ"},
         {"DAY IN", "ДЕНЬ ЧЕРЕЗ"},
         {"IN ", "ЧЕРЕЗ "},

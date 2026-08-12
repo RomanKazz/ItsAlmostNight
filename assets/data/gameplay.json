@@ -22,7 +22,7 @@
   "pickaxeWoodEfficiency": 0.30,
   "firstBuildPhaseSeconds": 120.0,
   "betweenWaveSeconds": 45.0,
-  "sunsetSeconds": 6.0,
+  "sunsetSeconds": 15.0,
   "dawnSeconds": 5.0,
   "minimumPlacementDistance": 1.0,
   "maximumPlacementDistance": 10.0

@@ -421,6 +421,10 @@ std::span<const EnemyProjectile> EnemySystem::projectiles() const {
     return projectiles_;
 }
 
+void EnemySystem::clearProjectiles() {
+    projectiles_.clear();
+}
+
 std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {
     return playerAttackBuffer_;
 }

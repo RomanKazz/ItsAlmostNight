@@ -146,7 +146,7 @@ void runSkillTreeTests() {
     const auto longerDays = definitionById("longer_days");
     const auto contract = definitionById("mercenary_contract");
     require(
-        definitions.size() == 51 &&
+        definitions.size() == 55 &&
             definitionById("auto_switch_tools") == definitions.end() &&
             definitionById("hold_to_gather") == definitions.end() &&
             thermal != definitions.end() &&
@@ -163,6 +163,13 @@ void runSkillTreeTests() {
                 "day.duration_seconds" &&
             contract != definitions.end() &&
             contract->exclusiveGroup == "early_contract" &&
+            definitionById("lumber_mill") != definitions.end() &&
+            definitionById("quarry") != definitions.end() &&
+            definitionById("crystal_mine") != definitions.end() &&
+            definitionById("night_shift") != definitions.end() &&
+            definitionById("night_shift")->effects.front().key ==
+                "production.night_speed" &&
+            definitionById("night_shift")->effects.front().value == 0.5 &&
             std::ranges::all_of(
                 definitions,
                 [](const ian::SkillNodeDefinition& node) {
