@@ -13,6 +13,23 @@ namespace {
 constexpr double ResourcePlacementClearance = 0.08;
 constexpr double PropPlacementClearance = 0.80;
 
+std::size_t clusteredTreeVariant(
+    std::size_t cluster, std::size_t member) {
+    const std::uint64_t clusterSeed = mixBits64(
+        0x8f3f73b5cf1c9adeULL +
+        static_cast<std::uint64_t>(cluster) *
+            0x9e3779b97f4a7c15ULL);
+    const std::size_t style = static_cast<std::size_t>(
+        clusterSeed % TreeVisualStyleCount);
+    const std::size_t variation = static_cast<std::size_t>(
+        mixBits64(
+            clusterSeed +
+            static_cast<std::uint64_t>(member) *
+                0xd1b54a32d192ed03ULL) %
+        TreeVisualVariantsPerStyle);
+    return style * TreeVisualVariantsPerStyle + variation;
+}
+
 } // namespace
 
 bool resourceOverlapsRectangle(
@@ -124,6 +141,9 @@ std::vector<ResourceNodeDefinition> scatterResources(
         if (index >= clusteredTreeCount) {
             const std::size_t singleIndex =
                 index - clusteredTreeCount;
+            definition.visualVariant = clusteredTreeVariant(
+                singleIndex / TreesPerCluster,
+                singleIndex % TreesPerCluster);
             const double progress =
                 (static_cast<double>(singleIndex) + 0.5) /
                 static_cast<double>(
@@ -146,6 +166,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
         }
         const std::size_t cluster = index % treeClusterCount;
         const std::size_t member = index / treeClusterCount;
+        definition.visualVariant = clusteredTreeVariant(
+            cluster, member);
         const double clusterProgress =
             (static_cast<double>(cluster) + 0.65) /
             static_cast<double>(treeClusterCount);

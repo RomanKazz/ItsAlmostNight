@@ -468,8 +468,7 @@ std::optional<EntityId> preciseResourceAim(
         };
         const auto distance = renderer.resourceRaycastDistance(
             node.type, position, ray, MaximumDistance,
-            static_cast<std::size_t>(
-                node.id.index % TreeVisualVariantCount),
+            node.visualVariant,
             static_cast<float>(node.visualScale),
             static_cast<float>(node.visualYaw));
         if (distance && *distance < closestDistance) {

@@ -11,9 +11,22 @@
 
 namespace ian {
 
-inline constexpr std::size_t TreeVisualVariantCount = 3U;
+inline constexpr std::size_t TreeVisualStyleCount = 3U;
+inline constexpr std::size_t TreeVisualVariantsPerStyle = 3U;
+inline constexpr std::size_t TreeVisualVariantCount =
+    TreeVisualStyleCount * TreeVisualVariantsPerStyle;
 inline constexpr std::array<double, TreeVisualVariantCount>
-    TreeVisualGroundOffsets{0.262, 0.290, 0.208};
+    TreeVisualGroundOffsets{
+        0.207503, 0.289934, 0.261318,
+        0.136335, 0.226958, 0.275734,
+        0.238943, 0.203602, 0.208361,
+    };
+
+[[nodiscard]] constexpr std::size_t treeVisualStyle(
+    std::size_t variant) {
+    return (variant % TreeVisualVariantCount) /
+        TreeVisualVariantsPerStyle;
+}
 
 enum class ResourceType {
     Wood,
@@ -47,6 +60,7 @@ struct ResourceNode {
     std::uint32_t respawnGeneration{};
     double visualYaw{};
     double visualScale{1.0};
+    std::size_t visualVariant{};
     bool active;
 };
 
@@ -57,6 +71,7 @@ struct ResourceNodeDefinition {
     double health;
     int yield;
     double respawnSeconds;
+    std::size_t visualVariant{};
 };
 
 struct ResourceHit {

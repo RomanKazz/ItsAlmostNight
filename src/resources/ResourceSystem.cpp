@@ -128,6 +128,8 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             .respawnGeneration = 0,
             .visualYaw = visualYaw,
             .visualScale = visualScale,
+            .visualVariant = definition.visualVariant %
+                TreeVisualVariantCount,
             .active = true,
         });
     }

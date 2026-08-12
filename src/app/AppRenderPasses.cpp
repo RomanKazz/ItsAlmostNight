@@ -353,8 +353,7 @@ void App::drawSelectionPass(
                 if (resource->type == ResourceType::Wood) {
                     const BoundingBox bounds = renderer_->treeWorldBounds(
                         resourcePosition, visualScale,
-                        static_cast<std::size_t>(
-                            resource->id.index % TreeVisualVariantCount),
+                        resource->visualVariant,
                         static_cast<float>(resource->visualYaw));
                     renderer_->setSelectionOutlineBounds(bounds);
                 } else if (resource->type == ResourceType::Stone) {
@@ -375,9 +374,7 @@ void App::drawSelectionPass(
                             WHITE,
                             hitScale * static_cast<float>(
                                 resource->visualScale),
-                            static_cast<std::size_t>(
-                                resource->id.index %
-                                TreeVisualVariantCount),
+                            resource->visualVariant,
                             static_cast<float>(
                                 resource->visualYaw))) {
                         DrawCylinder(

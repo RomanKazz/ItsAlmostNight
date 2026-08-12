@@ -312,8 +312,7 @@ void CollisionWorld::syncResourceCylinders(
             continue;
         }
         const std::size_t variant =
-            static_cast<std::size_t>(resource.id.index) %
-            treeAssets.size();
+            resource.visualVariant % treeAssets.size();
         const double scale = resource.visualScale;
         const double cosine = std::cos(resource.visualYaw);
         const double sine = std::sin(resource.visualYaw);

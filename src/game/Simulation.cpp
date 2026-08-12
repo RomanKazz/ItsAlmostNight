@@ -76,9 +76,15 @@ Simulation::Simulation(
       rampCollisionAsset_(loadGlbCollisionAsset(
           "assets/models/construction/ramp.glb")),
       treeCollisionAssets_{{
-          loadGlbCollisionAsset("assets/models/environment/tree.glb"),
-          loadGlbCollisionAsset("assets/models/environment/tree_b.glb"),
-          loadGlbCollisionAsset("assets/models/environment/tree_c.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_1_a.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_1_b.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_1_c.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_2_a.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_2_b.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_2_c.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_3_a.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_3_b.glb"),
+          loadGlbCollisionAsset("assets/models/environment/tree_3_c.glb"),
       }},
       modularBuildingCosts_{{
           {

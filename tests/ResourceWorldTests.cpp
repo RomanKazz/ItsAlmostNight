@@ -164,6 +164,41 @@ void runResourceWorldTests() {
     }
     require(nearbyTreePairs >= 25,
             "generated trees form several visible local clusters");
+    constexpr std::size_t GeneratedTreeCount = 30U;
+    constexpr std::size_t GeneratedTreeClusterCount = 5U;
+    constexpr std::size_t TreesPerGeneratedCluster = 5U;
+    static_assert(
+        GeneratedTreeClusterCount * TreesPerGeneratedCluster ==
+        25U);
+    for (std::size_t clusterIndex = 0;
+         clusterIndex < GeneratedTreeClusterCount; ++clusterIndex) {
+        const std::size_t firstTreeIndex =
+            clusterInput.size() + clusterIndex;
+        const std::size_t expectedStyle = ian::treeVisualStyle(
+            clustered[firstTreeIndex].visualVariant);
+        for (std::size_t member = 1U;
+             member < TreesPerGeneratedCluster; ++member) {
+            const std::size_t treeIndex =
+                firstTreeIndex +
+                member * GeneratedTreeClusterCount;
+            require(
+                ian::treeVisualStyle(
+                    clustered[treeIndex].visualVariant) ==
+                    expectedStyle,
+                "each generated cluster keeps one tree visual style");
+        }
+    }
+    require(
+        std::all_of(
+            clustered.begin() + static_cast<std::ptrdiff_t>(
+                clusterInput.size()),
+            clustered.begin() + static_cast<std::ptrdiff_t>(
+                clusterInput.size() + GeneratedTreeCount),
+            [](const ian::ResourceNodeDefinition& tree) {
+                return tree.visualVariant <
+                    ian::TreeVisualVariantCount;
+            }),
+        "generated trees select one of nine visual variants");
 
     config.terrainWorldSize = 384.0;
     config.terrainBoundaryRiseWidth = 48.0;

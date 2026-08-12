@@ -172,10 +172,14 @@ std::optional<ModelColliderType> colliderType(
         }
     }
     if (typeName.empty()) {
-        if (upperName.starts_with("COL_BOX")) {
+        if (upperName.starts_with("COL_BOX") ||
+            upperName.starts_with("COLLIDER_BOX") ||
+            upperName.starts_with("COLLISION_BOX")) {
             typeName = "BOX";
         } else if (upperName.starts_with("COL_CYLINDER") ||
-                   upperName.starts_with("COL_CYL_")) {
+                   upperName.starts_with("COL_CYL_") ||
+                   upperName.starts_with("COLLIDER_CYLINDER") ||
+                   upperName.starts_with("COLLISION_CYLINDER")) {
             typeName = "CYLINDER";
         } else if (upperName.starts_with("COL_SLOPE") ||
                    upperName.starts_with("COL_RAMP")) {

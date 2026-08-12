@@ -1,6 +1,9 @@
 #include "TestHarness.hpp"
 #include "assets/GlbCollision.hpp"
 
+#include <algorithm>
+#include <array>
+#include <string>
 #include <string_view>
 
 using namespace ian;
@@ -12,7 +15,7 @@ void runGlbCollisionTests() {
         "scenes": [{"nodes": [0]}],
         "nodes": [
             {"name": "Root", "translation": [0, 2, 0], "children": [1, 2, 3]},
-            {"name": "COL_BOX_WALK_00", "mesh": 2, "translation": [1, 0, 0], "scale": [2, 1, 1]},
+            {"name": "COLLIDER_BOX_WALK.001", "mesh": 2, "translation": [1, 0, 0], "scale": [2, 1, 1]},
             {"name": "Visual", "mesh": 0},
             {"name": "AnyName", "mesh": 1, "extras": {"collision_type": "CYLINDER", "walkable": false}}
         ],
@@ -44,7 +47,7 @@ void runGlbCollisionTests() {
 
     const ModelCollider& box = asset.colliders[0];
     require(box.type == ModelColliderType::Box && box.walkable,
-            "COL_BOX_WALK convention must set box and walkable");
+            "COLLIDER_BOX suffix convention must set box and walkable");
     requireNear(box.minimum.x, -1.0, 1e-9,
                 "parent, translation, and scale must affect minimum x");
     requireNear(box.maximum.x, 3.0, 1e-9,
@@ -102,25 +105,33 @@ void runGlbCollisionTests() {
     requireNear(rampSlope.maximum.y, 3.999996, 1e-4,
                 "ramp collider high edge must match model");
 
-    const GlbCollisionAsset tree =
-        loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/environment/tree.glb");
-    require(tree.valid() && tree.colliders.size() == 4,
-            "tree GLB must expose three boxes and one cylinder");
-    require(tree.renderMeshIndices.size() == 4,
-            "all tree collision meshes must be hidden");
-    require(tree.colliders.back().type ==
-                ModelColliderType::Cylinder,
-            "COL_CYL alias must create cylinder collider");
-
-    const GlbCollisionAsset treeB =
-        loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/environment/tree_b.glb");
-    require(treeB.valid() && treeB.colliders.size() == 4,
-            "tree B GLB must expose three boxes and one cylinder");
-    const GlbCollisionAsset treeC =
-        loadGlbCollisionAsset(
-            IAN_SOURCE_DIR "/assets/models/environment/tree_c.glb");
-    require(treeC.valid() && treeC.colliders.size() == 5,
-            "tree C GLB must expose four boxes and one cylinder");
+    constexpr std::array<std::string_view, 9> TreePaths{{
+        "/assets/models/environment/tree_1_a.glb",
+        "/assets/models/environment/tree_1_b.glb",
+        "/assets/models/environment/tree_1_c.glb",
+        "/assets/models/environment/tree_2_a.glb",
+        "/assets/models/environment/tree_2_b.glb",
+        "/assets/models/environment/tree_2_c.glb",
+        "/assets/models/environment/tree_3_a.glb",
+        "/assets/models/environment/tree_3_b.glb",
+        "/assets/models/environment/tree_3_c.glb",
+    }};
+    constexpr std::array<std::size_t, 9> ColliderCounts{{
+        5U, 4U, 4U, 4U, 4U, 4U, 3U, 2U, 2U,
+    }};
+    for (std::size_t index = 0; index < TreePaths.size(); ++index) {
+        const GlbCollisionAsset tree = loadGlbCollisionAsset(
+            std::string(IAN_SOURCE_DIR) + std::string(TreePaths[index]));
+        require(tree.valid() &&
+                    tree.colliders.size() == ColliderCounts[index],
+                "every tree GLB must expose all authored colliders");
+        require(tree.renderMeshIndices.size() == ColliderCounts[index],
+                "every tree collider mesh must be hidden");
+        require(std::any_of(
+                    tree.colliders.begin(), tree.colliders.end(),
+                    [](const ModelCollider& collider) {
+                        return collider.type == ModelColliderType::Cylinder;
+                    }),
+                "every tree needs a cylinder collider");
+    }
 }

@@ -396,9 +396,7 @@ void App::processPresentationEvents(
                     .type = *event.resourceType,
                     .visualVariant =
                         node != eventSnapshot.resourceNodes.end()
-                            ? static_cast<std::size_t>(
-                                  node->id.index %
-                                  TreeVisualVariantCount)
+                            ? node->visualVariant
                             : 0U,
                     .visualYaw =
                         node != eventSnapshot.resourceNodes.end()

@@ -394,7 +394,7 @@ class GraphicsResources {
     ModelResource quarryModel_;
     ModelResource spikeTrapModel_;
     ModelResource rockModel_;
-    std::array<ModelResource, 3> treeModels_;
+    std::array<ModelResource, 9> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;
     std::array<ModelResource, 9> decorativeBushModels_;

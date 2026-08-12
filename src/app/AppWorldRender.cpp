@@ -303,8 +303,7 @@ void App::drawWorldEntities(
                         static_cast<float>(node.visualYaw),
                     .scale = hitScale *
                         static_cast<float>(node.visualScale),
-                    .visualVariant = static_cast<std::size_t>(
-                        node.id.index % TreeVisualVariantCount),
+                    .visualVariant = node.visualVariant,
                 });
                 continue;
             }
@@ -313,8 +312,7 @@ void App::drawWorldEntities(
                     nodePosition,
                     WHITE,
                     hitScale * static_cast<float>(node.visualScale),
-                    static_cast<std::size_t>(
-                        node.id.index % TreeVisualVariantCount),
+                    node.visualVariant,
                     static_cast<float>(node.visualYaw))) {
                 DrawCylinder(
                     {nodePosition.x,

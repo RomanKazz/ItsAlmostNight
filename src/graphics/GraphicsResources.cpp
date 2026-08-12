@@ -1112,9 +1112,15 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     spikeTrapModel_.load(
         "assets/models/traps/spike_trap.glb");
     rockModel_.load("assets/models/environment/rock.glb");
-    treeModels_[0].load("assets/models/environment/tree.glb");
-    treeModels_[1].load("assets/models/environment/tree_b.glb");
-    treeModels_[2].load("assets/models/environment/tree_c.glb");
+    treeModels_[0].load("assets/models/environment/tree_1_a.glb");
+    treeModels_[1].load("assets/models/environment/tree_1_b.glb");
+    treeModels_[2].load("assets/models/environment/tree_1_c.glb");
+    treeModels_[3].load("assets/models/environment/tree_2_a.glb");
+    treeModels_[4].load("assets/models/environment/tree_2_b.glb");
+    treeModels_[5].load("assets/models/environment/tree_2_c.glb");
+    treeModels_[6].load("assets/models/environment/tree_3_a.glb");
+    treeModels_[7].load("assets/models/environment/tree_3_b.glb");
+    treeModels_[8].load("assets/models/environment/tree_3_c.glb");
     boundaryTreeModels_[0].load(
         "assets/models/environment/boundary_forest/tree.glb");
     boundaryTreeModels_[1].load(
