@@ -142,7 +142,10 @@ int App::run() {
 
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
+        const auto inputStart = PerformanceClock::now();
         processInput();
+        performanceStats_.input.sample(
+            performanceMilliseconds(inputStart));
         update();
         const auto renderStart = PerformanceClock::now();
         render();
@@ -230,8 +233,8 @@ void App::drawPerformanceOverlay(
         renderer_->performanceStats();
     constexpr float PanelX = 18.0F;
     constexpr float PanelY = 48.0F;
-    constexpr float PanelWidth = 390.0F;
-    constexpr float PanelHeight = 350.0F;
+    constexpr float PanelWidth = 450.0F;
+    constexpr float PanelHeight = 482.0F;
     constexpr float FontSize = 15.0F;
     constexpr float LineHeight = 18.0F;
     DrawRectangleRounded(
@@ -251,82 +254,54 @@ void App::drawPerformanceOverlay(
              78.0F + static_cast<float>(index) * LineHeight},
             FontSize, {220, 235, 226, 255});
     };
-    drawLine(
-        0, TextFormat(
-               "FPS %d  FRAME %.2f ms",
-               GetFPS(), performanceStats_.frame.averageMilliseconds));
-    drawLine(
-        1, TextFormat(
-               "UPDATE %.2f ms  FIXED %d",
-               performanceStats_.simulation.averageMilliseconds,
-               static_cast<int>(performanceStats_.fixedTicks)));
-    drawLine(
-        2, TextFormat(
-               "SIM TICK %.2f ms",
-               performanceStats_.simulationTick.averageMilliseconds));
-    drawLine(
-        3, TextFormat(
-               "ENEMY %.2f ms  COLL %.2f ms",
-               enemyStats.tick.averageMilliseconds,
-               enemyStats.collision.averageMilliseconds));
-    drawLine(
-        4, TextFormat(
-               "HASH %.2f ms  REBUILDS %d",
-               enemyStats.spatialRebuild.averageMilliseconds,
-               static_cast<int>(enemyStats.spatialRebuilds)));
-    drawLine(
-        5, TextFormat(
-               "ACTIVE %d  VISIBLE %d",
-               static_cast<int>(snapshot.activeEnemyCount),
-               static_cast<int>(performanceStats_.visibleEnemies)));
-    drawLine(
-        6, TextFormat(
-               "RENDER %.2f ms",
-               performanceStats_.render.averageMilliseconds));
-    drawLine(
-        7, TextFormat(
-               "ENEMY DRAW %.2f  INST %.2f ms",
-               performanceStats_.enemyRender.averageMilliseconds,
-               rendererStats.instancedEnemyDraw.averageMilliseconds));
-    drawLine(
-        8, TextFormat(
-               "INSTANCES %d  BATCHES %d  LOD %d",
-               static_cast<int>(rendererStats.instancedEnemyCount),
-               static_cast<int>(rendererStats.enemyBatchCount),
-               static_cast<int>(rendererStats.lowDetailEnemyCount)));
-    drawLine(
-        9, TextFormat(
-               "BLOB %.2f ms  SHADOWS %d",
-               performanceStats_.blobShadows.averageMilliseconds,
-               static_cast<int>(performanceStats_.enemyShadowDraws)));
-    drawLine(
-        10, TextFormat(
-                "BLOB TRIANGLES %d",
-                static_cast<int>(rendererStats.blobShadowTriangles)));
-    const InsightSystem& insight = simulation_.insightSystem();
-    const InsightGrantResult& lastInsight = insight.lastGrant();
-    drawLine(11, TextFormat(
-        "INSIGHT %.1f / %.1f  POINTS %d",
-        snapshot.currentInsight, snapshot.requiredInsight,
-        snapshot.skillPoints));
-    drawLine(12, TextFormat(
-        "LAST +%.2f  %s  DR x%.2f",
-        lastInsight.finalAmount,
-        insightSourceName(lastInsight.source).data(),
-        lastInsight.diminishingMultiplier));
-    const auto& earned = insight.earnedByCategory();
-    drawLine(13, TextFormat(
-        "COMBAT %.1f  GATHER %.1f  BUILD %.1f",
-        earned[static_cast<std::size_t>(InsightCategory::Combat)],
-        earned[static_cast<std::size_t>(InsightCategory::Gathering)],
-        earned[static_cast<std::size_t>(InsightCategory::Building)]));
-    drawLine(14, TextFormat(
-        "REPAIR %.1f  EXPLORE %.1f",
-        earned[static_cast<std::size_t>(InsightCategory::Repair)],
-        earned[static_cast<std::size_t>(InsightCategory::Exploration)]));
-    drawLine(15, TextFormat(
-        "BLOCKED DUPLICATES %llu",
-        static_cast<unsigned long long>(insight.blockedDuplicateEvents())));
+    const auto metricLine = [&drawLine](
+                                int index, const char* name,
+                                const PerformanceMetric& metric) {
+        drawLine(index, TextFormat(
+            "%-13s %6.2f ms   PEAK %6.2f",
+            name, metric.averageMilliseconds,
+            metric.recentPeakMilliseconds));
+    };
+    drawLine(0, TextFormat(
+        "FPS %d   FIXED TICKS %d",
+        GetFPS(), static_cast<int>(performanceStats_.fixedTicks)));
+    metricLine(1, "FRAME", performanceStats_.frame);
+    metricLine(2, "INPUT", performanceStats_.input);
+    metricLine(3, "UPDATE", performanceStats_.simulation);
+    metricLine(4, "SIM TICK", performanceStats_.simulationTick);
+    metricLine(5, "RENDER+WAIT", performanceStats_.render);
+    metricLine(6, "PRESENT/WAIT", performanceStats_.present);
+    metricLine(7, "RENDER PREP", performanceStats_.renderPreparation);
+    metricLine(8, "SHADOW", performanceStats_.shadowPass);
+    metricLine(9, "SELECTION", performanceStats_.selectionPass);
+    metricLine(10, "TERRAIN+SKY", performanceStats_.terrainRender);
+    metricLine(11, "WORLD OBJECTS", performanceStats_.worldEntitiesRender);
+    metricLine(12, "WATER/CLOUD", performanceStats_.environmentRender);
+    metricLine(13, "OVERLAYS", performanceStats_.overlayRender);
+    metricLine(14, "POSTPROCESS", performanceStats_.postProcess);
+    metricLine(15, "HUD/UI", performanceStats_.uiRender);
+    drawLine(16, TextFormat(
+        "ENEMY AI %.2f  COLL %.2f  HASH %.2f",
+        enemyStats.tick.averageMilliseconds,
+        enemyStats.collision.averageMilliseconds,
+        enemyStats.spatialRebuild.averageMilliseconds));
+    drawLine(17, TextFormat(
+        "ENEMY DRAW %.2f  INST %.2f ms",
+        performanceStats_.enemyRender.averageMilliseconds,
+        rendererStats.instancedEnemyDraw.averageMilliseconds));
+    drawLine(18, TextFormat(
+        "ACTIVE %d  VISIBLE %d  BATCHES %d  LOD %d",
+        static_cast<int>(snapshot.activeEnemyCount),
+        static_cast<int>(performanceStats_.visibleEnemies),
+        static_cast<int>(rendererStats.enemyBatchCount),
+        static_cast<int>(rendererStats.lowDetailEnemyCount)));
+    drawLine(19, TextFormat(
+        "BLOB %.2f ms  SHADOWS %d  TRIANGLES %d",
+        performanceStats_.blobShadows.averageMilliseconds,
+        static_cast<int>(performanceStats_.enemyShadowDraws),
+        static_cast<int>(rendererStats.blobShadowTriangles)));
+    drawLine(21, "AVG = LOAD   PEAK = RECENT HITCH");
+    drawLine(22, "HIGH PRESENT/WAIT = VSYNC OR FPS LIMIT");
 }
 
 void App::drawBuildModePie() const {

@@ -54,6 +54,8 @@ const char* modularPlacementMessage(
 using namespace app_detail;
 
 void App::render() {
+    const auto renderPreparationStart = PerformanceClock::now();
+    auto uiStart = renderPreparationStart;
     const auto& snapshot = simulation_.snapshot();
     structuralRiskIds_.clear();
     std::vector<EntityId> structuralRiskRoots;
@@ -377,8 +379,20 @@ void App::render() {
         renderer_->setWorldReveal(
             worldRevealOrigin_,
             static_cast<float>(worldRevealElapsed_));
+        performanceStats_.renderPreparation.sample(
+            performanceMilliseconds(renderPreparationStart));
+
+        const auto shadowStart = PerformanceClock::now();
         drawShadowPass(snapshot, lighting);
+        performanceStats_.shadowPass.sample(
+            performanceMilliseconds(shadowStart));
+
+        const auto selectionStart = PerformanceClock::now();
         drawSelectionPass(feedbackSnapshot, camera);
+        performanceStats_.selectionPass.sample(
+            performanceMilliseconds(selectionStart));
+
+        const auto terrainStart = PerformanceClock::now();
         renderer_->beginWorldPass(environment.skyHorizon, camera);
         renderer_->drawSky(skyState);
         BeginMode3D(camera);
@@ -390,9 +404,17 @@ void App::render() {
         renderer_->drawTerrain(
             ground, camera.position,
             showTerrainWireframe_);
+        performanceStats_.terrainRender.sample(
+            performanceMilliseconds(terrainStart));
+
+        const auto worldEntitiesStart = PerformanceClock::now();
         drawWorldEntities(presentationSnapshot, camera, nightAmount,
                           lighting,
                           static_cast<float>(fixedStep_.interpolationAlpha()));
+        performanceStats_.worldEntitiesRender.sample(
+            performanceMilliseconds(worldEntitiesStart));
+
+        const auto environmentStart = PerformanceClock::now();
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondRockMaterial{};
         pondRockMaterial.bakedAo = 0.76F;
@@ -418,11 +440,17 @@ void App::render() {
         renderer_->drawClouds(
             camera.position, nightAmount, lighting);
         drawAtmosphereParticles(camera, nightAmount);
+        performanceStats_.environmentRender.sample(
+            performanceMilliseconds(environmentStart));
+
+        const auto overlayStart = PerformanceClock::now();
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
         drawPresentationEffects();
         EndMode3D();
         renderer_->drawSelectionOutline();
+        performanceStats_.overlayRender.sample(
+            performanceMilliseconds(overlayStart));
 
         auto healthBarSnapshot = feedbackSnapshot;
         if (!healthBarSnapshot.aimedBuilding &&
@@ -471,7 +499,12 @@ void App::render() {
                 }
             }
         }
+        const auto postProcessStart = PerformanceClock::now();
         renderer_->endWorldPass();
+        performanceStats_.postProcess.sample(
+            performanceMilliseconds(postProcessStart));
+
+        uiStart = PerformanceClock::now();
 
         const bool tuningPreview =
             renderer_->graphicsPanelVisible() &&
@@ -1132,7 +1165,17 @@ void App::render() {
         HideCursor();
         ui_.drawCursor();
     }
+    if (snapshot.state != RunState::MainMenu) {
+        performanceStats_.uiRender.sample(
+            performanceMilliseconds(uiStart));
+    } else {
+        performanceStats_.renderPreparation.sample(
+            performanceMilliseconds(renderPreparationStart));
+    }
+    const auto presentStart = PerformanceClock::now();
     renderer_->endFrame();
+    performanceStats_.present.sample(
+        performanceMilliseconds(presentStart));
 }
 
 

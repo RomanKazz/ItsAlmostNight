@@ -53,6 +53,20 @@ cmake --preset release
 cmake --build --preset release
 ```
 
+Профилирование реального геймплея:
+
+```bash
+cmake --preset profile
+cmake --build --preset profile
+./build/profile/its_almost_night
+```
+
+Preset `profile` использует Release (`-O3 -DNDEBUG`) и дополнительно сохраняет
+символы функций для Instruments. В игре `Shift+F10` открывает
+телеметрию стадий кадра. `AVG` показывает постоянную нагрузку, `PEAK` — недавний
+скачок. Если CPU-проходы быстрые, а время уходит в `PRESENT/WAIT`, профилировать
+нужно GPU через Instruments → Metal System Trace.
+
 ### Готовая Windows-сборка
 
 Workflow `Windows Release` создаёт переносимый архив

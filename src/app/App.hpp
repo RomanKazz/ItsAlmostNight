@@ -55,9 +55,20 @@ struct ProductionVisual {
 
 struct AppPerformanceStats {
     PerformanceMetric frame;
+    PerformanceMetric input;
     PerformanceMetric simulation;
     PerformanceMetric simulationTick;
     PerformanceMetric render;
+    PerformanceMetric renderPreparation;
+    PerformanceMetric shadowPass;
+    PerformanceMetric selectionPass;
+    PerformanceMetric terrainRender;
+    PerformanceMetric worldEntitiesRender;
+    PerformanceMetric environmentRender;
+    PerformanceMetric overlayRender;
+    PerformanceMetric postProcess;
+    PerformanceMetric uiRender;
+    PerformanceMetric present;
     PerformanceMetric enemyRender;
     PerformanceMetric blobShadows;
     std::size_t fixedTicks{};

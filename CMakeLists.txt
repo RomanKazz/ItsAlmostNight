@@ -3,10 +3,20 @@ cmake_minimum_required(VERSION 3.25)
 project(ItsAlmostNight VERSION 0.1.0 LANGUAGES CXX)
 
 option(IAN_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(IAN_ENABLE_PROFILING_SYMBOLS "Keep symbols in optimized profiling builds" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(IAN_ENABLE_PROFILING_SYMBOLS)
+    if(MSVC)
+        add_compile_options(/Zi)
+        add_link_options(/DEBUG)
+    else()
+        add_compile_options(-g)
+    endif()
+endif()
 
 include(CTest)
 include(FetchContent)

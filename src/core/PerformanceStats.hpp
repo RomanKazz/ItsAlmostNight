@@ -24,11 +24,17 @@ struct PerformanceMetric {
         averageMilliseconds = sampleCount == 0U
             ? value
             : averageMilliseconds * 0.9 + value * 0.1;
+        // A slowly decaying peak keeps short hitches visible for a few
+        // seconds without requiring allocations or a sample history.
+        recentPeakMilliseconds = sampleCount == 0U
+            ? value
+            : std::max(value, recentPeakMilliseconds * 0.995);
         ++sampleCount;
     }
 
     double lastMilliseconds{};
     double averageMilliseconds{};
+    double recentPeakMilliseconds{};
     std::uint64_t sampleCount{};
 };
 
