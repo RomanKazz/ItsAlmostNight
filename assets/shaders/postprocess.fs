@@ -25,6 +25,9 @@ uniform float curveMidtones;
 uniform float curveHighlights;
 uniform float sharpness;
 uniform float vignette;
+uniform float lowHealthAmount;
+uniform float lowHealthTime;
+uniform float lowHealthPulse;
 uniform float paletteEnabled;
 uniform float paletteLevels;
 uniform float ditherEnabled;
@@ -210,14 +213,42 @@ vec3 rotateHue(vec3 color, float angle)
 void main()
 {
     ivec2 sourceSize = textureSize(texture0, 0);
+    vec2 healthCentered = fragTexCoord*2.0 - 1.0;
+    float healthRadius = length(healthCentered);
+    float healthEdge = smoothstep(0.18, 1.18, healthRadius);
+    vec2 healthDirection = vec2(0.0);
+    vec2 healthUv = fragTexCoord;
+    if (lowHealthAmount > 0.001)
+    {
+        healthDirection = healthRadius > 0.0001
+            ? healthCentered/healthRadius
+            : vec2(0.0);
+        float healthWave = sin(
+            healthRadius*17.0 - lowHealthTime*2.4);
+        healthUv = clamp(
+            fragTexCoord + healthDirection*healthWave*healthEdge*
+                lowHealthAmount*0.0032,
+            vec2(0.0), vec2(1.0));
+    }
     ivec2 sourceCoordinate = clamp(
-        ivec2(floor(fragTexCoord*vec2(sourceSize))),
+        ivec2(floor(healthUv*vec2(sourceSize))),
         ivec2(0), sourceSize - ivec2(1));
     vec2 pixelUv =
         (vec2(sourceCoordinate) + 0.5)/vec2(sourceSize);
     vec4 source =
         texelFetch(texture0, sourceCoordinate, 0)*fragColor;
     vec2 texel = 1.0/vec2(sourceSize);
+    if (lowHealthAmount > 0.001)
+    {
+        vec2 chromaticOffset = healthDirection*texel*2.2*
+            healthEdge*lowHealthAmount;
+        source.r = texture(
+            texture0, clamp(healthUv + chromaticOffset,
+                            vec2(0.0), vec2(1.0))).r;
+        source.b = texture(
+            texture0, clamp(healthUv - chromaticOffset,
+                            vec2(0.0), vec2(1.0))).b;
+    }
     vec2 stylePixel = vec2(sourceCoordinate);
     vec3 color = source.rgb;
     float contactAo = bilateralSsao(pixelUv)*
@@ -337,6 +368,23 @@ void main()
     float vignetteMask =
         smoothstep(0.28, 1.25, dot(centered, centered));
     color *= 1.0 - vignetteMask*vignette;
+
+    float heartbeat = 0.5 + 0.5*sin(lowHealthTime*4.1);
+    heartbeat = heartbeat*heartbeat*lowHealthPulse;
+    float dangerMask = smoothstep(
+        0.12, 1.08, dot(centered, centered));
+    float danger = clamp(
+        dangerMask*lowHealthAmount*(0.72 + heartbeat*0.18),
+        0.0, 0.88);
+    vec3 dangerColor =
+        color*vec3(0.58, 0.24, 0.29) +
+        vec3(0.045 + heartbeat*0.018, 0.0, 0.008);
+    color = mix(color, dangerColor, danger);
+    float centerDrain = lowHealthAmount*
+        (1.0 - smoothstep(
+            0.05, 1.0, dot(centered, centered)))*0.08;
+    float healthLuminance = luminanceOf(color);
+    color = mix(color, vec3(healthLuminance), centerDrain);
 
     finalColor = vec4(clamp(color, vec3(0.0), vec3(1.0)), 1.0);
 }

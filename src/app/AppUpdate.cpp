@@ -97,6 +97,32 @@ void App::update() {
         }
     }
     const auto& hotbarSnapshot = simulation_.snapshot();
+    const bool lowHealthActive =
+        hotbarSnapshot.state != RunState::MainMenu &&
+        hotbarSnapshot.state != RunState::Defeat &&
+        !hotbarSnapshot.playerRespawning &&
+        hotbarSnapshot.playerHealth > 0.0 &&
+        hotbarSnapshot.playerMaxHealth > 0.0;
+    const double healthRatio = lowHealthActive
+        ? hotbarSnapshot.playerHealth /
+              hotbarSnapshot.playerMaxHealth
+        : 1.0;
+    const float lowHealthTarget = static_cast<float>(
+        std::clamp(
+            (0.35 - healthRatio) / 0.25,
+            0.0, 1.0));
+    const float lowHealthBlend =
+        1.0F - std::exp(
+            -(lowHealthTarget > lowHealthEffect_
+                  ? 7.5F
+                  : 4.0F) *
+            static_cast<float>(frameSeconds));
+    lowHealthEffect_ +=
+        (lowHealthTarget - lowHealthEffect_) *
+        lowHealthBlend;
+    renderer_->setLowHealthEffect(
+        lowHealthEffect_,
+        userSettings_.accessibility.reduceFlashes);
     if (playerSpawnDropActive_ &&
         hotbarSnapshot.state != RunState::Paused) {
         constexpr double SpawnGravity = 14.0;

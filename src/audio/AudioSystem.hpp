@@ -50,7 +50,8 @@ class AudioSystem {
     void load(Clip& clip, std::string_view path);
     void unload(Clip& clip);
     void play(const Clip& clip, float volume = 1.0F,
-              float pitch = 1.0F, float pan = 0.5F);
+              float pitch = 1.0F, float pan = 0.5F,
+              bool affectedByLowHealth = true);
     void playAt(const Clip& clip, Vec3 position,
                 const SimulationSnapshot& snapshot,
                 float volume = 1.0F, float pitch = 1.0F,
@@ -89,6 +90,7 @@ class AudioSystem {
     double footstepDistance_{};
     double iceHitSoundCooldown_{};
     double insightSoundCooldown_{};
+    float lowHealthAmount_{};
 };
 
 } // namespace ian

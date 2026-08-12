@@ -40,6 +40,12 @@ const RendererPerformanceStats& Renderer::performanceStats() const {
     return performanceStats_;
 }
 
+void Renderer::setLowHealthEffect(
+    float amount, bool reduceFlashes) {
+    lowHealthEffect_ = std::clamp(amount, 0.0F, 1.0F);
+    lowHealthPulse_ = reduceFlashes ? 0.0F : 1.0F;
+}
+
 void Renderer::resolveWorldShaderLocations() {
     if (!resources_.worldShader().valid()) {
         return;
@@ -206,6 +212,12 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "sharpness"),
         .vignette =
             GetShaderLocation(shader, "vignette"),
+        .lowHealthAmount =
+            GetShaderLocation(shader, "lowHealthAmount"),
+        .lowHealthTime =
+            GetShaderLocation(shader, "lowHealthTime"),
+        .lowHealthPulse =
+            GetShaderLocation(shader, "lowHealthPulse"),
         .paletteEnabled =
             GetShaderLocation(shader, "paletteEnabled"),
         .paletteLevels =
@@ -297,6 +309,14 @@ void Renderer::uploadPostProcessSettings() {
            settings_.sharpness);
     upload(postProcessLocations_.vignette,
            settings_.vignette);
+    upload(postProcessLocations_.lowHealthAmount,
+           lowHealthEffect_);
+    const float lowHealthTime =
+        static_cast<float>(GetTime());
+    upload(postProcessLocations_.lowHealthTime,
+           lowHealthTime);
+    upload(postProcessLocations_.lowHealthPulse,
+           lowHealthPulse_);
     upload(postProcessLocations_.paletteEnabled,
            settings_.paletteQuantization ? 1.0F : 0.0F);
     upload(postProcessLocations_.paletteLevels,

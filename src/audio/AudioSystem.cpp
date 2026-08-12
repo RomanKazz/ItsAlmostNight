@@ -115,6 +115,7 @@ void AudioSystem::shutdown() {
     footstepDistance_ = 0.0;
     iceHitSoundCooldown_ = 0.0;
     insightSoundCooldown_ = 0.0;
+    lowHealthAmount_ = 0.0F;
     if (ownsAudioDevice_ && IsAudioDeviceReady()) {
         CloseAudioDevice();
     }
@@ -122,10 +123,27 @@ void AudioSystem::shutdown() {
 }
 
 void AudioSystem::update(const SimulationSnapshot& snapshot) {
+    const bool activeRun =
+        snapshot.state != RunState::MainMenu &&
+        snapshot.state != RunState::Defeat &&
+        !snapshot.playerRespawning &&
+        snapshot.playerHealth > 0.0 &&
+        snapshot.playerMaxHealth > 0.0;
+    const double healthRatio = activeRun
+        ? snapshot.playerHealth / snapshot.playerMaxHealth
+        : 1.0;
+    const float lowHealthTarget = static_cast<float>(
+        std::clamp((0.35 - healthRatio) / 0.25, 0.0, 1.0));
+    const float frameSeconds = std::max(GetFrameTime(), 0.0F);
+    const float lowHealthBlend = 1.0F - std::exp(
+        -(lowHealthTarget > lowHealthAmount_ ? 7.5F : 4.0F) *
+        frameSeconds);
+    lowHealthAmount_ +=
+        (lowHealthTarget - lowHealthAmount_) * lowHealthBlend;
     iceHitSoundCooldown_ = std::max(
-        0.0, iceHitSoundCooldown_ - GetFrameTime());
+        0.0, iceHitSoundCooldown_ - frameSeconds);
     insightSoundCooldown_ = std::max(
-        0.0, insightSoundCooldown_ - GetFrameTime());
+        0.0, insightSoundCooldown_ - frameSeconds);
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
@@ -431,11 +449,11 @@ void AudioSystem::playEvent(
 }
 
 void AudioSystem::playUiConfirm() {
-    play(uiConfirm_, 0.5F, 1.0F);
+    play(uiConfirm_, 0.5F, 1.0F, 0.5F, false);
 }
 
 void AudioSystem::playUiError() {
-    play(uiError_, 0.55F, 1.0F);
+    play(uiError_, 0.55F, 1.0F, 0.5F, false);
 }
 
 AudioSettings& AudioSystem::settings() {
@@ -481,15 +499,25 @@ void AudioSystem::unload(Clip& clip) {
 }
 
 void AudioSystem::play(
-    const Clip& clip, float volume, float pitch, float pan) {
+    const Clip& clip, float volume, float pitch, float pan,
+    bool affectedByLowHealth) {
     if (!initialized_ || !clip.loaded) {
         return;
     }
+    const float healthAmount =
+        affectedByLowHealth ? lowHealthAmount_ : 0.0F;
+    const float healthVolume =
+        1.0F - healthAmount*0.24F;
+    const float healthPitch =
+        1.0F - healthAmount*0.20F;
     SetSoundVolume(
         clip.sound,
         std::clamp(
-            volume * settings_.sfxVolume, 0.0F, 1.0F));
-    SetSoundPitch(clip.sound, std::clamp(pitch, 0.5F, 2.0F));
+            volume * settings_.sfxVolume * healthVolume,
+            0.0F, 1.0F));
+    SetSoundPitch(
+        clip.sound,
+        std::clamp(pitch * healthPitch, 0.5F, 2.0F));
     SetSoundPan(clip.sound, std::clamp(pan, 0.0F, 1.0F));
     PlaySound(clip.sound);
 }

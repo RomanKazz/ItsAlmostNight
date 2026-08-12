@@ -208,6 +208,8 @@ class Renderer {
     void cycleFrameRateLimit();
     void applyFrameRateLimit() const;
     void adjustPixelSize(int direction);
+    void setLowHealthEffect(float amount,
+                            bool reduceFlashes);
 
     void beginWorldPass(Color clearColor, const Camera3D& camera);
     void drawSky(const SkyState& sky);
@@ -531,6 +533,9 @@ class Renderer {
         int curveHighlights{-1};
         int sharpness{-1};
         int vignette{-1};
+        int lowHealthAmount{-1};
+        int lowHealthTime{-1};
+        int lowHealthPulse{-1};
         int paletteEnabled{-1};
         int paletteLevels{-1};
         int ditherEnabled{-1};
@@ -588,6 +593,8 @@ class Renderer {
                             float timeSeconds, float intensity,
                             Color tint);
     GraphicsSettings settings_;
+    float lowHealthEffect_{};
+    float lowHealthPulse_{1.0F};
     GraphicsResources resources_;
     TerrainRenderer terrainRenderer_;
     DecorationExclusionMap decorationExclusionMap_;

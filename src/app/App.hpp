@@ -422,6 +422,7 @@ class App {
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
+    float lowHealthEffect_{};
     double iceImpactFlashRemaining_{};
     double iceWandRecoilRemaining_{};
     double iceWandRecoilDuration_{0.20};
