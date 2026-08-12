@@ -1,0 +1,63 @@
+name: Windows Profile
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/windows-build
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build Windows x64 profiling package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Enable MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Configure optimized profiling build
+        run: cmake --preset profile
+
+      - name: Build optimized profiling package
+        run: cmake --build --preset profile
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $packageName = "ItsAlmostNight-Windows-x64-Profile"
+          $packageDir = Join-Path "dist" $packageName
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item "build/profile/its_almost_night.exe" (Join-Path $packageDir "ItsAlmostNight.exe")
+          Copy-Item "build/profile/assets" (Join-Path $packageDir "assets") -Recurse
+          Copy-Item "README.md" (Join-Path $packageDir "README.txt")
+          if (Test-Path "build/profile/its_almost_night.pdb") {
+            Copy-Item "build/profile/its_almost_night.pdb" (Join-Path $packageDir "ItsAlmostNight.pdb")
+          }
+          @"
+          OPTIMIZED GAMEPLAY PROFILING BUILD
+
+          1. Extract the entire ZIP before launching the game.
+          2. Run ItsAlmostNight.exe and play through the slow sections.
+          3. Exit the game normally so the final samples are flushed.
+          4. Send the newest performance_logs/session_*.csv file.
+
+          The game records automatically. This is a Release build with compiler
+          optimizations enabled; profiling symbols do not disable optimizations.
+          "@ | Set-Content (Join-Path $packageDir "PROFILING.txt")
+          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip" -Force
+
+      - name: Upload Windows profiling package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ItsAlmostNight-Windows-x64-Profile
+          path: dist/ItsAlmostNight-Windows-x64-Profile.zip
+          if-no-files-found: error
