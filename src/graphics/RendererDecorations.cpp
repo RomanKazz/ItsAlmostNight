@@ -241,7 +241,8 @@ void Renderer::drawDecorativeRocks(
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
                 continue;
             }
-            if (decorationExclusionMap_.blocked(x, z)) {
+            if (!useInstancing &&
+                decorationExclusionMap_.blocked(x, z)) {
                 continue;
             }
             if (terrainHeightfield_ != nullptr &&
@@ -373,7 +374,8 @@ void Renderer::drawDecorativeRocks(
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
                 continue;
             }
-            if (decorationExclusionMap_.blocked(x, z)) {
+            if (!useInstancing &&
+                decorationExclusionMap_.blocked(x, z)) {
                 continue;
             }
             if (terrainHeightfield_ != nullptr &&
@@ -459,6 +461,8 @@ void Renderer::drawDecorativeRocks(
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ <=
                     DrawRadius * DrawRadius &&
+                !decorationExclusionMap_.blocked(
+                    instance.position.x, instance.position.y) &&
                 clearAreaVisibility(
                     instance.position, clearAreas,
                     0.001F, 0.65F) >= 0.999F) {
@@ -477,6 +481,8 @@ void Renderer::drawDecorativeRocks(
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ <=
                     BushDrawRadius * BushDrawRadius &&
+                !decorationExclusionMap_.blocked(
+                    instance.position.x, instance.position.y) &&
                 clearAreaVisibility(
                     instance.position, clearAreas,
                     0.001F, 0.72F) >= 0.999F) {
@@ -585,6 +591,10 @@ void Renderer::drawDecorativeRockAo(
                     DrawRadius * DrawRadius) {
                     continue;
                 }
+                if (decorationExclusionMap_.blocked(
+                        instance.position.x, instance.position.y)) {
+                    continue;
+                }
                 if (clearAreaVisibility(
                         instance.position, clearAreas,
                         0.001F, 0.65F) < 0.999F) {
@@ -614,6 +624,10 @@ void Renderer::drawDecorativeRockAo(
                     instance.position.y - cameraPosition.z;
                 if (offsetX * offsetX + offsetZ * offsetZ >
                     BushDrawRadius * BushDrawRadius) {
+                    continue;
+                }
+                if (decorationExclusionMap_.blocked(
+                        instance.position.x, instance.position.y)) {
                     continue;
                 }
                 if (clearAreaVisibility(

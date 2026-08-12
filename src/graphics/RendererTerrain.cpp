@@ -80,8 +80,9 @@ void Renderer::rebuildDecorationExclusions(
     decorationExclusionMap_.rebuild(
         terrainHeightfield_->config().terrainWorldSize * 0.5,
         exclusions);
-    grassInstanceCacheValid_ = false;
-    decorativeInstanceCacheValid_ = false;
+    // Procedural candidates cover the whole map and are filtered against
+    // this map while drawing. Resource/chest relocation therefore no longer
+    // forces thousands of terrain/path samples to be regenerated.
     // Shore decoration is cached, so refresh only those transforms. Terrain
     // meshes and textures remain untouched during a resource relocation.
     rebuildPondDecorInstances();
@@ -654,9 +655,6 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                     std::abs(z) > worldLimit - 0.5F) {
                     continue;
                 }
-                if (decorationExclusionMap_.blocked(x, z)) {
-                    continue;
-                }
                 const float offsetX = x - cameraPosition.x;
                 const float offsetZ = z - cameraPosition.z;
                 const float distanceSquared =
@@ -768,6 +766,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 instance.position.y - cameraPosition.z;
             if (offsetX * offsetX + offsetZ * offsetZ >
                 DrawRadius * DrawRadius) {
+                continue;
+            }
+            if (decorationExclusionMap_.blocked(
+                    instance.position.x, instance.position.y)) {
                 continue;
             }
             if (clearAreaVisibility(

@@ -701,8 +701,8 @@ class Renderer {
     std::array<std::vector<Matrix>, 9>
         decorativeBushTransforms_;
     // Procedural decoration is rebuilt only when the camera crosses a cache
-    // cell or when terrain/clear-area/reveal inputs change. Per-frame work is
-    // limited to distance filtering and GPU submission.
+    // cell or when terrain/reveal inputs change. Dynamic exclusions and clear
+    // areas are filtered without invalidating candidate generation.
     std::array<std::vector<CachedInstance>, 3>
         grassInstanceCandidates_;
     std::array<std::vector<Matrix>, 3>

@@ -87,11 +87,17 @@ class TerrainHeightfield {
   private:
     [[nodiscard]] std::size_t sampleIndex(
         int x, int z) const;
+    [[nodiscard]] double sampleCachedField(
+        std::span<const float> field,
+        double worldX, double worldZ) const;
+    void rebuildSurfaceFieldCaches();
 
     WorldConfig config_;
     std::uint32_t seed_{};
     double spacing_{};
     std::vector<float> heights_;
+    std::vector<float> waterDistanceCache_;
+    std::vector<float> pathAmountCache_;
     std::vector<PondDefinition> ponds_;
     std::vector<TerrainPathDefinition> paths_;
     double minimumHeight_{};

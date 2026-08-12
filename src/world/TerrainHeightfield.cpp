@@ -497,6 +497,8 @@ TerrainHeightfield::TerrainHeightfield(
 
 void TerrainHeightfield::generate(std::uint32_t seed) {
     seed_ = seed;
+    waterDistanceCache_.clear();
+    pathAmountCache_.clear();
     const int size = config_.terrainResolution;
     heights_.resize(
         static_cast<std::size_t>(size) *
@@ -537,6 +539,7 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
 
     if (config_.pondMaximumCount <= 0 ||
         config_.pondMaximumAreaFraction <= 0.0) {
+        rebuildSurfaceFieldCaches();
         return;
     }
     const std::uint32_t waterSeed =
@@ -732,6 +735,7 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
             maximumHeight_ = std::max(maximumHeight_, height);
         }
     }
+    rebuildSurfaceFieldCaches();
 }
 
 double TerrainHeightfield::getHeight(
@@ -963,6 +967,10 @@ TerrainHeightfield::ponds() const {
 
 double TerrainHeightfield::waterSignedDistance(
     double worldX, double worldZ) const {
+    if (!waterDistanceCache_.empty()) {
+        return sampleCachedField(
+            waterDistanceCache_, worldX, worldZ);
+    }
     double distance = std::numeric_limits<double>::infinity();
     for (const PondDefinition& pond : ponds_) {
         distance = std::min(
@@ -1023,6 +1031,10 @@ double TerrainHeightfield::pathAmount(
     if (!std::isfinite(worldX) || !std::isfinite(worldZ)) {
         return 0.0;
     }
+    if (!pathAmountCache_.empty()) {
+        return std::clamp(sampleCachedField(
+            pathAmountCache_, worldX, worldZ), 0.0, 1.0);
+    }
     double amount = 0.0;
     for (const TerrainPathDefinition& path : paths_) {
         constexpr int CurveSegments = 14;
@@ -1076,6 +1088,73 @@ double TerrainHeightfield::pathAmount(
             amount, pathMask * startFade * endFade);
     }
     return std::clamp(amount, 0.0, 1.0);
+}
+
+double TerrainHeightfield::sampleCachedField(
+    std::span<const float> field,
+    double worldX, double worldZ) const {
+    if (field.empty() || !std::isfinite(worldX) ||
+        !std::isfinite(worldZ)) {
+        return 0.0;
+    }
+    const double halfSize = config_.terrainWorldSize * 0.5;
+    const double sampleX = std::clamp(
+        (worldX + halfSize) / spacing_, 0.0,
+        static_cast<double>(config_.terrainResolution - 1));
+    const double sampleZ = std::clamp(
+        (worldZ + halfSize) / spacing_, 0.0,
+        static_cast<double>(config_.terrainResolution - 1));
+    const int x0 = static_cast<int>(std::floor(sampleX));
+    const int z0 = static_cast<int>(std::floor(sampleZ));
+    const int x1 = std::min(x0 + 1, config_.terrainResolution - 1);
+    const int z1 = std::min(z0 + 1, config_.terrainResolution - 1);
+    const double amountX = sampleX - static_cast<double>(x0);
+    const double amountZ = sampleZ - static_cast<double>(z0);
+    const double north = interpolate(
+        field[sampleIndex(x0, z0)],
+        field[sampleIndex(x1, z0)], amountX);
+    const double south = interpolate(
+        field[sampleIndex(x0, z1)],
+        field[sampleIndex(x1, z1)], amountX);
+    return interpolate(north, south, amountZ);
+}
+
+void TerrainHeightfield::rebuildSurfaceFieldCaches() {
+    const int size = config_.terrainResolution;
+    const double halfSize = config_.terrainWorldSize * 0.5;
+    waterDistanceCache_.resize(
+        static_cast<std::size_t>(size) * static_cast<std::size_t>(size));
+    std::vector<float> cachedPaths(waterDistanceCache_.size());
+    for (int z = 0; z < size; ++z) {
+        const double worldZ =
+            -halfSize + static_cast<double>(z) * spacing_;
+        for (int x = 0; x < size; ++x) {
+            const double worldX =
+                -halfSize + static_cast<double>(x) * spacing_;
+            double waterDistance = 1000000.0;
+            for (const PondDefinition& pond : ponds_) {
+                waterDistance = std::min(
+                    waterDistance,
+                    pondSignedDistance(pond, worldX, worldZ));
+            }
+            waterDistanceCache_[sampleIndex(x, z)] =
+                static_cast<float>(waterDistance);
+
+        }
+    }
+    // pathAmountCache_ remains empty here, so authored curves are evaluated
+    // exactly once instead of sampling a partially initialized cache.
+    for (int z = 0; z < size; ++z) {
+        const double worldZ =
+            -halfSize + static_cast<double>(z) * spacing_;
+        for (int x = 0; x < size; ++x) {
+            const double worldX =
+                -halfSize + static_cast<double>(x) * spacing_;
+            cachedPaths[sampleIndex(x, z)] =
+                static_cast<float>(pathAmount(worldX, worldZ));
+        }
+    }
+    pathAmountCache_ = std::move(cachedPaths);
 }
 
 std::size_t TerrainHeightfield::sampleIndex(
