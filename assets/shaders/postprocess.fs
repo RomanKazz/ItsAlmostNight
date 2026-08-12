@@ -4,6 +4,13 @@ in vec2 fragTexCoord;
 in vec4 fragColor;
 
 uniform sampler2D texture0;
+uniform sampler2D sceneDepth;
+uniform sampler2D sceneNormal;
+uniform sampler2D ssaoTexture;
+uniform mat4 inverseProjection;
+uniform vec2 ssaoTexelSize;
+uniform float ssaoEnabled;
+uniform float ssaoStrength;
 uniform float postExposure;
 uniform float brightness;
 uniform float contrast;
@@ -38,6 +45,81 @@ const vec3 LuminanceWeights =
 float luminanceOf(vec3 color)
 {
     return dot(color, LuminanceWeights);
+}
+
+vec3 reconstructViewPosition(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uv*2.0 - 1.0, depth*2.0 - 1.0, 1.0);
+    vec4 view = inverseProjection*clip;
+    return view.xyz/max(view.w, 0.000001);
+}
+
+vec3 decodeOctahedralNormal(vec2 encoded)
+{
+    vec2 octahedron = encoded*2.0 - 1.0;
+    vec3 normal = vec3(
+        octahedron.x, octahedron.y,
+        1.0 - abs(octahedron.x) - abs(octahedron.y));
+    if (normal.z < 0.0)
+    {
+        normal.xy =
+            (1.0 - abs(normal.yx))*sign(normal.xy);
+    }
+    return normalize(normal);
+}
+
+float bilateralSsao(vec2 uv)
+{
+    if (ssaoEnabled < 0.5)
+    {
+        return 0.0;
+    }
+    float centerDepth = texture(sceneDepth, uv).r;
+    vec3 centerPackedNormal = texture(sceneNormal, uv).rgb;
+    if (centerDepth >= 0.999999 || centerPackedNormal.b <= 0.001)
+    {
+        return 0.0;
+    }
+    vec3 centerPosition = reconstructViewPosition(uv, centerDepth);
+    vec3 centerNormal = decodeOctahedralNormal(centerPackedNormal.rg);
+    float total = 0.0;
+    float totalWeight = 0.0;
+    for (int sampleIndex = 0; sampleIndex < 5; ++sampleIndex)
+    {
+        vec2 offset = sampleIndex == 0
+            ? vec2(0.0)
+            : sampleIndex == 1
+                ? vec2(1.0, 0.0)
+                : sampleIndex == 2
+                    ? vec2(-1.0, 0.0)
+                    : sampleIndex == 3
+                        ? vec2(0.0, 1.0)
+                        : vec2(0.0, -1.0);
+        vec2 sampleUv = clamp(
+            uv + offset*ssaoTexelSize,
+            ssaoTexelSize*0.5,
+            vec2(1.0) - ssaoTexelSize*0.5);
+        float sampleDepth = texture(sceneDepth, sampleUv).r;
+        vec3 samplePackedNormal = texture(sceneNormal, sampleUv).rgb;
+        if (sampleDepth >= 0.999999 ||
+            samplePackedNormal.b <= 0.001)
+        {
+            continue;
+        }
+        vec3 samplePosition = reconstructViewPosition(
+            sampleUv, sampleDepth);
+        vec3 sampleNormal = decodeOctahedralNormal(
+            samplePackedNormal.rg);
+        float depthWeight = exp(
+            -abs(samplePosition.z - centerPosition.z)*3.6);
+        float normalWeight = pow(
+            max(dot(centerNormal, sampleNormal), 0.0), 5.0);
+        float spatialWeight = sampleIndex == 0 ? 1.0 : 0.62;
+        float weight = depthWeight*normalWeight*spatialWeight;
+        total += texture(ssaoTexture, sampleUv).r*weight;
+        totalWeight += weight;
+    }
+    return total/max(totalWeight, 0.0001);
 }
 
 vec3 sourcePixel(ivec2 coordinate)
@@ -138,6 +220,11 @@ void main()
     vec2 texel = 1.0/vec2(sourceSize);
     vec2 stylePixel = vec2(sourceCoordinate);
     vec3 color = source.rgb;
+    float contactAo = bilateralSsao(pixelUv)*
+        clamp(ssaoStrength, 0.0, 0.6);
+    // Cool green-grey contact, never black. Keeps bright low-poly palette.
+    color *= mix(
+        vec3(1.0), vec3(0.38, 0.52, 0.47), contactAo);
     if (abs(sharpness) > 0.001)
     {
         vec3 neighborhood =

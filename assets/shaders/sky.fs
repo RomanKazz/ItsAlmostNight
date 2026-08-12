@@ -21,7 +21,8 @@ uniform float timeSeconds;
 uniform float exposure;
 uniform float saturation;
 
-out vec4 finalColor;
+layout(location = 0) out vec4 finalColor;
+layout(location = 1) out vec4 normalAo;
 
 float hash21(vec2 position)
 {
@@ -107,13 +108,13 @@ void main()
     float zenithBlend = pow(
         smoothstep(0.0, 0.88, upperElevation), 0.58);
     vec3 turquoiseHorizon = mix(
-        horizonColor, vec3(0.72, 0.91, 0.92),
-        (1.0 - nightAmount)*0.34);
+        horizonColor, vec3(0.48, 0.69, 0.72),
+        (1.0 - nightAmount)*0.18);
     vec3 sky = mix(turquoiseHorizon, zenithColor, zenithBlend);
 
     float horizonHaze =
         exp(-abs(viewDirection.y)*15.0)*(1.0 - nightAmount);
-    sky = mix(sky, turquoiseHorizon*1.045, horizonHaze*0.34);
+    sky = mix(sky, turquoiseHorizon, horizonHaze*0.18);
 
     float lowerBlend = smoothstep(0.0, 0.42, -viewDirection.y);
     sky = mix(sky, lowerSkyColor, lowerBlend);
@@ -154,7 +155,11 @@ void main()
     }
     // Retain a little procedural color underneath. This ties the authored
     // panorama to fog/time profiles and prevents harsh profile transitions.
-    sky = mix(sky, authoredSky, skyboxEnabled*0.88);
+    float authoredLuminance = dot(
+        authoredSky, vec3(0.2126, 0.7152, 0.0722));
+    authoredSky = mix(
+        vec3(authoredLuminance), authoredSky, 1.08)*0.91;
+    sky = mix(sky, authoredSky, skyboxEnabled*0.72);
     float proceduralDetail = mix(1.0, 0.18, skyboxEnabled);
     float proceduralStarDetail = mix(1.0, 0.68, skyboxEnabled);
 
@@ -313,4 +318,5 @@ void main()
     // Alpha is an internal material mask for post-processing.
     // The final composite restores opaque output.
     finalColor = vec4(sky, 0.0);
+    normalAo = vec4(0.0, 0.0, 0.0, 1.0);
 }

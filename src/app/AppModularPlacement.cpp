@@ -291,6 +291,10 @@ void App::setFoundationBuildMode(bool enabled) {
         placementDragType_.reset();
         placementDragSurface_.reset();
         placementDragAxis_.reset();
+        placementDragCandidateEnd_.reset();
+        placementDragCandidateFrames_ = 0;
+        placementDragLookMovement_ = 0.0;
+        placementDragExtended_ = false;
         pendingWallPlacements_.clear();
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();

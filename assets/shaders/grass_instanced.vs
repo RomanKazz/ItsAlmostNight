@@ -11,6 +11,7 @@ uniform float timeSeconds;
 out vec2 fragTexCoord;
 out vec3 fragNormal;
 out vec3 fragWorldPosition;
+out float fragLocalHeight;
 
 void main()
 {
@@ -30,5 +31,6 @@ void main()
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(mat3(instanceTransform)*vertexNormal);
     fragWorldPosition = worldPosition.xyz;
+    fragLocalHeight = vertexPosition.y;
     gl_Position = mvp*worldPosition;
 }

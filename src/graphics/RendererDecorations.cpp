@@ -548,9 +548,10 @@ void Renderer::drawDecorativeRockAo(
     constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
     constexpr float CoreClearRadius = 10.5F;
-    constexpr std::size_t BushVariantCount = 6U;
+    constexpr std::size_t BushVariantCount = 9U;
     constexpr std::array<float, BushVariantCount> BushAoRadii{
         0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
+        0.0F, 0.34F, 0.38F,
     };
     constexpr float BushDrawRadius = 36.0F;
     const int cameraCellX = static_cast<int>(std::floor(
@@ -607,16 +608,22 @@ void Renderer::drawDecorativeRockAo(
                 }
                 const float radius =
                     BushAoRadii[variant] * instance.scale;
+                if (radius <= 0.001F) {
+                    continue;
+                }
+                const bool largePlant = variant >= 7U;
                 drawBlobShadow(
                     {instance.position.x,
                      instance.groundHeight + 0.018F,
                      instance.position.y},
-                    radius, radius * 0.82F, 0.20F);
+                    radius, radius * 0.82F,
+                    largePlant ? 0.07F : 0.11F);
                 drawBlobShadow(
                     {instance.position.x,
                      instance.groundHeight + 0.02F,
                      instance.position.y},
-                    radius * 0.52F, radius * 0.42F, 0.34F);
+                    radius * 0.52F, radius * 0.42F,
+                    largePlant ? 0.12F : 0.19F);
             }
         }
         return;
@@ -710,9 +717,10 @@ void Renderer::drawDecorativeRockAo(
         }
     }
 
-    constexpr float BushSpacing = 4.9F;
+    constexpr float BushSpacing = 4.35F;
     constexpr std::array<float, BushVariantCount> BushVariantScales{
         1.35F, 0.62F, 0.82F, 0.70F, 0.90F, 1.00F,
+        1.596F, 1.512F, 1.722F,
     };
     const int minimumBushX = static_cast<int>(std::floor(
         (cameraPosition.x - BushDrawRadius) / BushSpacing));
@@ -741,7 +749,17 @@ void Renderer::drawDecorativeRockAo(
             const float clusterDensity = std::clamp(
                 sharedCluster * 0.74F + secondaryCluster * 0.34F,
                 0.0F, 0.88F);
-            if (unitFloat(hash) > clusterDensity ||
+            const std::size_t selector = static_cast<std::size_t>(
+                (hash ^ 0x7f4a7c15U) % 14U);
+            const std::size_t variant = selector < 6U
+                ? selector
+                : selector < 10U ? 6U : selector < 13U ? 7U : 8U;
+            const bool flora = variant >= 6U;
+            const float placementDensity = flora
+                ? std::clamp(0.28F + clusterDensity * 0.62F,
+                             0.28F, 0.82F)
+                : clusterDensity;
+            if (unitFloat(hash ^ 0x68e31da4U) > placementDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
                 x * x + z * z < CoreClearRadius * CoreClearRadius) {
@@ -767,8 +785,6 @@ void Renderer::drawDecorativeRockAo(
             if (visibility < 0.999F) {
                 continue;
             }
-            const std::size_t variant = static_cast<std::size_t>(
-                (hash >> 4U) % BushVariantCount);
             const float scale =
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
@@ -780,12 +796,18 @@ void Renderer::drawDecorativeRockAo(
             const float groundY = static_cast<float>(
                 terrainHeightfield_->getHeight(x, z));
             const float radius = BushAoRadii[variant] * scale;
+            if (radius <= 0.001F) {
+                continue;
+            }
+            const bool largePlant = variant >= 7U;
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
-                radius, radius * 0.82F, 0.20F);
+                radius, radius * 0.82F,
+                largePlant ? 0.07F : 0.11F);
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
-                radius * 0.52F, radius * 0.42F, 0.34F);
+                radius * 0.52F, radius * 0.42F,
+                largePlant ? 0.12F : 0.19F);
         }
     }
 }
@@ -861,6 +883,12 @@ void Renderer::drawBoundaryForest() {
                             forestOuterLimit - forestInnerLimit,
                             0.001F),
                     0.0F, 1.0F);
+                const float treeLine = 1.0F - std::clamp(
+                    (slopeProgress - 0.48F) / 0.28F,
+                    0.0F, 1.0F);
+                if (unitFloat(hash ^ 0x51f15e1dU) > treeLine) {
+                    continue;
+                }
                 const std::size_t variant =
                     static_cast<std::size_t>(
                         (hash >> 4U) % VariantCount);
@@ -877,7 +905,7 @@ void Renderer::drawBoundaryForest() {
                     unitFloat(hash ^ 0x63d83595U);
                 const float scale =
                     5.0F + sizeRoll * sizeRoll * 6.0F +
-                    slopeProgress * 0.8F;
+                    (1.0F - slopeProgress) * 0.8F;
                 const float yaw =
                     unitFloat(hash ^ 0x9e3779b9U) * PI * 2.0F;
                 const float height = static_cast<float>(

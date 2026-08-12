@@ -30,6 +30,7 @@ uniform float toonShadingEnabled;
 uniform float toonLightSteps;
 uniform float bakedAo;
 uniform float vertexAoAmount;
+uniform float screenAoAmount;
 uniform float aoStrength;
 uniform float terrainAmount;
 uniform vec3 terrainGrassTint;
@@ -50,7 +51,8 @@ uniform float slopeBias;
 uniform float shadowStrength;
 uniform float shadowMapTexelSize;
 
-out vec4 finalColor;
+layout(location = 0) out vec4 finalColor;
+layout(location = 1) out vec4 normalAo;
 
 float toonRamp(float value, float steps)
 {
@@ -82,6 +84,20 @@ float valueNoise(vec2 position)
                mix(topLeft, topRight, blend.x), blend.y);
 }
 
+vec2 terrainBiomeFields(vec2 worldPosition)
+{
+    // Broad warped fields form readable regions tens of metres wide. They
+    // are deliberately much larger than the surface texture detail.
+    vec2 broadPosition = worldPosition*0.0135;
+    vec2 warp = vec2(
+        valueNoise(broadPosition*0.72 + vec2(18.7, -6.4)),
+        valueNoise(broadPosition*0.72 + vec2(-9.1, 27.3))) - 0.5;
+    vec2 warped = broadPosition + warp*0.56;
+    return vec2(
+        valueNoise(warped + vec2(4.8, 13.2)),
+        valueNoise(warped*0.91 + vec2(-17.5, 8.6)));
+}
+
 float cloudShadowPattern(vec2 worldPosition)
 {
     // Large, coherent shapes moving in the same direction as the model
@@ -109,31 +125,36 @@ vec3 terrainMaterial(
     // Steep terrace walls stay dirt-covered. Returning very steep fragments
     // to grass exposed the terrain triangulation as green/brown wedges.
     float dirtSlopeBand =
-        smoothstep(0.055, 0.24, slope);
+        smoothstep(0.045, 0.16, slope);
     float dirtPatch =
         smoothstep(0.68, 0.86, broadNoise*0.72 + patchNoise*0.28)*
         (1.0 - smoothstep(0.10, 0.30, slope));
     float dirtWeight = clamp(
-        max(dirtSlopeBand*0.86, dirtPatch*0.66), 0.0, 1.0);
+        max(dirtSlopeBand*0.96, dirtPatch*0.66), 0.0, 1.0);
 
     vec3 textureSample =
         texture(terrainTexture, worldXZ*0.08).rgb;
     float textureLuminance = dot(
         textureSample, vec3(0.2126, 0.7152, 0.0722));
+    // The source watercolor is intentionally vivid. Grade it here so the
+    // ground supports the scene instead of becoming its brightest subject.
+    vec3 gradedGrassTexture = mix(
+        vec3(textureLuminance), textureSample, 0.68)*
+        vec3(1.03, 0.90, 0.86);
     float grassDetail = mix(
         0.82 + detailNoise*0.24,
         1.0,
         terrainTextureEnabled);
     vec3 grass = mix(
         terrainGrassTint*grassDetail,
-        textureSample,
+        gradedGrassTexture,
         terrainTextureEnabled);
 
     float sideDetail = valueNoise(vec2(
         worldPosition.y*0.21 + worldPosition.x*0.035,
         worldPosition.z*0.12 - worldPosition.y*0.08));
     float topProjection =
-        terrainTextureEnabled*(1.0 - smoothstep(0.10, 0.34, slope));
+        terrainTextureEnabled*(1.0 - smoothstep(0.06, 0.18, slope));
     float dirtDetail = mix(
         0.78 + patchNoise*0.12 + detailNoise*0.06 + sideDetail*0.16,
         0.68 + textureLuminance*0.52,
@@ -141,17 +162,61 @@ vec3 terrainMaterial(
     vec3 dirt = terrainDirtTint*dirtDetail;
 
     vec3 terrain = mix(grass, dirt, dirtWeight);
+    float stableTerraceWall = smoothstep(0.06, 0.20, slope);
+    vec3 warmTerraceEarth = mix(
+        terrainGrassTint*vec3(1.05, 0.88, 0.68),
+        terrainDirtTint*vec3(1.16, 1.08, 0.94),
+        smoothstep(0.04, 0.30, slope));
+    warmTerraceEarth *= 0.92 + sideDetail*0.10;
+    terrain = mix(
+        terrain, warmTerraceEarth,
+        stableTerraceWall*0.88);
     // Terrain chunks encode proximity to water as subtle greyscale vertex
     // darkening. Expand it into a cool damp shoreline material.
     float shoreWeight = clamp(
         (1.0 - vertexColor.r)/(36.0/255.0), 0.0, 1.0);
     float shoreVariation = valueNoise(worldXZ*0.24 + vec2(8.2, -15.7));
     vec3 wetEarth = mix(
-        terrainDirtTint*0.54,
-        vec3(0.18, 0.27, 0.13),
-        shoreVariation*0.34);
+        vec3(0.19, 0.245, 0.19),
+        vec3(0.13, 0.205, 0.19),
+        shoreVariation*0.58);
     terrain = mix(terrain, wetEarth,
-                  shoreWeight*(0.62 + shoreVariation*0.16));
+                  shoreWeight*(0.68 + shoreVariation*0.16));
+
+    // Four broad visual regions break up the otherwise uniform olive field.
+    // Water remains driven by the authored shoreline mask; the other zones
+    // fade through low-frequency fields so no hard biome borders appear.
+    vec2 biome = terrainBiomeFields(worldXZ);
+    float flatGround = 1.0 - smoothstep(0.08, 0.24, slope);
+    float clearing = smoothstep(0.60, 0.78, biome.x)*
+        flatGround*(1.0 - shoreWeight)*
+        (1.0 - smoothstep(0.38, 0.68, biome.y));
+    float grove = smoothstep(0.59, 0.79, biome.y)*
+        (1.0 - clearing*0.80)*(1.0 - shoreWeight*0.74);
+    float highGround = smoothstep(2.2, 7.6, worldPosition.y);
+    float highlandField = valueNoise(
+        worldXZ*0.020 + vec2(31.4, -22.8));
+    float rockyHighland = smoothstep(0.48, 0.72, highlandField)*
+        highGround*(0.46 + slope*0.74)*
+        (1.0 - shoreWeight);
+
+    float terrainLuminance = dot(
+        terrain, vec3(0.2126, 0.7152, 0.0722));
+    vec3 meadowColor = mix(
+        vec3(terrainLuminance), terrain, 0.72)*
+        vec3(1.13, 1.08, 0.91);
+    vec3 groveColor = mix(
+        vec3(terrainLuminance), terrain, 0.54)*
+        vec3(0.72, 0.84, 0.91);
+    float highlandNoise = valueNoise(
+        worldXZ*0.13 + vec2(-15.2, 37.1));
+    vec3 highlandColor = mix(
+        vec3(0.31, 0.315, 0.285),
+        vec3(0.43, 0.39, 0.31),
+        highlandNoise);
+    terrain = mix(terrain, meadowColor, clearing*0.56);
+    terrain = mix(terrain, groveColor, grove*0.54);
+    terrain = mix(terrain, highlandColor, rockyHighland*0.64);
 
     // Dedicated bilinear mask keeps narrow path edges independent from the
     // terrain triangle grid. Backdrop UVs use another scale, so exclude it.
@@ -172,10 +237,9 @@ vec3 terrainMaterial(
     terrain = mix(
         terrain, pathEarth*(0.96 + pathDetail*0.08), packedEarth*0.54);
 
-    // Backdrop vertices encode a mountain amount as R-B. In-map terrain
-    // keeps all three channels equal, so this mask cannot turn shoreline
-    // pixels into rock. The transition is green at the map edge, then
-    // becomes exposed grey stone on increasingly steep mountain faces.
+    // Terrain vertex R-B encodes the mountain band on the raised boundary
+    // and backdrop. Shore vertices remain greyscale, so water-darkening
+    // cannot accidentally become rock.
     float mountainAmount = clamp(
         vertexColor.r - vertexColor.b, 0.0, 1.0);
     float rockSlope = smoothstep(0.12, 0.42, slope);
@@ -183,10 +247,22 @@ vec3 terrainMaterial(
         mountainAmount*(0.60 + rockSlope*0.40), 0.0, 1.0);
     float rockNoise = valueNoise(
         worldXZ*0.115 + vec2(11.7, -24.6));
+    float rockMass = valueNoise(
+        worldXZ*0.028 + vec2(-7.4, 16.9));
+    float weathering = valueNoise(vec2(
+        worldPosition.x*0.038 + worldPosition.y*0.052,
+        worldPosition.z*0.038 - worldPosition.y*0.031));
     vec3 rock = mix(
-        vec3(0.24, 0.27, 0.28),
-        vec3(0.56, 0.59, 0.59),
-        rockNoise*0.72 + 0.14);
+        vec3(0.19, 0.24, 0.25),
+        vec3(0.46, 0.42, 0.34),
+        0.22 + rockMass*0.58);
+    rock *= 0.88 + rockNoise*0.13;
+    rock = mix(rock, rock*vec3(0.72, 0.78, 0.80),
+               smoothstep(0.58, 0.86, weathering)*0.34);
+    vec3 treeLineRock = vec3(0.20, 0.29, 0.22);
+    rock = mix(
+        treeLineRock, rock,
+        smoothstep(0.18, 0.58, mountainAmount));
     terrain = mix(terrain, rock, rockWeight);
 
     // The green channel carries a second, height-and-normal-aware mask for
@@ -201,10 +277,14 @@ vec3 terrainMaterial(
     float snowEdge = smoothstep(0.30, 0.50, snowAmount);
     float snowWeight = snowEdge*(0.84 + snowNoise*0.16);
     vec3 snow = mix(
-        vec3(0.72, 0.80, 0.86),
-        vec3(0.98, 0.995, 1.0),
+        vec3(0.66, 0.72, 0.75),
+        vec3(0.88, 0.90, 0.89),
         snowNoise*0.72 + 0.18);
-    return mix(terrain, snow, clamp(snowWeight, 0.0, 1.0));
+    vec3 result = mix(
+        terrain, snow, clamp(snowWeight, 0.0, 1.0));
+    // Restore middle-value readability below the mountain band while the
+    // raised boundary and backdrop retain a deeper silhouette.
+    return result*mix(1.10, 1.0, mountainAmount);
 }
 
 float sampleShadow(vec3 normal)
@@ -248,20 +328,47 @@ float sampleShadow(vec3 normal)
     return 1.0 - occlusion*clamp(shadowStrength, 0.0, 1.0);
 }
 
+vec2 encodeOctahedralNormal(vec3 normal)
+{
+    normal /= abs(normal.x) + abs(normal.y) + abs(normal.z);
+    if (normal.z < 0.0)
+    {
+        normal.xy =
+            (1.0 - abs(normal.yx))*sign(normal.xy);
+    }
+    return normal.xy*0.5 + 0.5;
+}
+
 void main()
 {
     vec3 normal = normalize(fragWorldNormal);
+    float mountainSurface = clamp(
+        fragVertexColor.r - fragVertexColor.b, 0.0, 1.0)*
+        clamp(terrainAmount, 0.0, 1.0);
+    float terrainSlope = 1.0 - clamp(normal.y, 0.0, 1.0);
+    float terraceWall = clamp(terrainAmount, 0.0, 1.0)*
+        (1.0 - mountainSurface)*
+        smoothstep(0.06, 0.20, terrainSlope);
     vec3 lightDirection = normalize(-sunDirection);
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     float lightFacing = dot(normal, lightDirection);
     float lambert = max(lightFacing, 0.0);
-    float diffuseRamp = smoothstep(-0.12, 0.78, lightFacing);
-    float stylizedDiffuse = mix(lambert, diffuseRamp, 0.42);
+    float diffuseRamp = smoothstep(-0.02, 0.74, lightFacing);
+    float stylizedDiffuse = mix(lambert, diffuseRamp, 0.22);
     if (toonShadingEnabled > 0.5)
     {
         stylizedDiffuse = toonRamp(
             stylizedDiffuse, toonLightSteps);
     }
+    float mountainDiffuse = 0.16 + stylizedDiffuse*0.58;
+    stylizedDiffuse = mix(
+        stylizedDiffuse, mountainDiffuse,
+        mountainSurface*0.78);
+    // Terrace walls are built from long triangle strips. Compress their
+    // normal-dependent response so interpolation cannot reveal each cell.
+    float wallDiffuse = 0.55;
+    stylizedDiffuse = mix(
+        stylizedDiffuse, wallDiffuse, terraceWall);
 
     float hemisphere = normal.y*0.5 + 0.5;
     if (toonShadingEnabled > 0.5)
@@ -269,13 +376,26 @@ void main()
         hemisphere = toonRamp(
             hemisphere, max(toonLightSteps - 1.0, 2.0));
     }
+    hemisphere = mix(hemisphere, 0.62, terraceWall);
     vec3 ambientColor = mix(groundAmbientColor, skyAmbientColor, hemisphere);
-    float ambientShape = mix(0.86, 1.10, hemisphere);
+    float ambientShape = mix(0.84, 1.08, hemisphere);
     vec3 ambient = ambientColor*ambientIntensity*ambientShape;
     // Open-sky bounce keeps back-facing and shadowed surfaces readable.
     // Match the grass fill closely without flattening the direct sun contrast.
-    ambient += skyAmbientColor*ambientIntensity*0.27;
-    float shadow = sampleShadow(normal);
+    ambient += skyAmbientColor*ambientIntensity*0.26;
+    float backFacingFill = 1.0 - smoothstep(
+        -0.24, 0.34, lightFacing);
+    vec3 coolShadowFill = mix(
+        groundAmbientColor, skyAmbientColor, 0.78);
+    ambient += coolShadowFill*ambientIntensity*
+        (0.12 + backFacingFill*0.24);
+    vec3 wallAmbient = mix(
+        groundAmbientColor, skyAmbientColor, 0.68)*
+        ambientIntensity*1.12 +
+        skyAmbientColor*ambientIntensity*0.24;
+    ambient = mix(ambient, wallAmbient, terraceWall);
+    float shadow = mix(
+        sampleShadow(normal), 1.0, terraceWall);
     float cloudLight = 1.0;
     if (terrainAmount > 0.5 && cloudShadowStrength > 0.001)
     {
@@ -283,7 +403,9 @@ void main()
         cloudLight -= cloudShadow*
             clamp(cloudShadowStrength, 0.0, 0.50);
     }
-    float sunHighlight = pow(max(lightFacing, 0.0), 2.0)*0.06;
+    float sunHighlight = pow(max(lightFacing, 0.0), 2.0)*0.06*
+        mix(1.0, 0.24, mountainSurface)*
+        mix(1.0, 0.20, terraceWall);
     float silhouetteRim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.15);
     float lightSideRim =
@@ -295,12 +417,13 @@ void main()
     float directionalRim =
         silhouetteRim*lightSideRim*
         mix(0.58, 0.075, clamp(terrainAmount, 0.0, 1.0))*
-        timeOfDayRimStrength;
+        timeOfDayRimStrength*(1.0 - terraceWall);
     vec3 direct = sunColor*sunIntensity*
         (stylizedDiffuse + sunHighlight)*shadow;
     float rim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
-        smoothstep(-0.2, 0.75, normal.y);
+        smoothstep(-0.2, 0.75, normal.y)*
+        (1.0 - terraceWall);
     vec3 skyRim = skyAmbientColor*ambientIntensity*rim*0.08;
 
     vec4 albedo = baseColor*colDiffuse*texture(texture0, fragTexCoord)*fragVertexColor;
@@ -319,6 +442,17 @@ void main()
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
     vec3 litColor = albedo.rgb*(ambient + direct + skyRim)*ao;
+    // Sunlit ground leans gently warm; indirect and shadowed ground leans
+    // cool. Luminance contrast changes more than saturation.
+    float terrainSunAmount = smoothstep(
+        0.04, 0.72, lightFacing)*shadow*cloudLight;
+    vec3 terrainTemperature = mix(
+        vec3(0.88, 0.96, 1.07),
+        vec3(1.07, 1.015, 0.92),
+        terrainSunAmount);
+    litColor *= mix(
+        vec3(1.0), terrainTemperature,
+        clamp(terrainAmount, 0.0, 1.0)*0.48);
     float cloudOcclusion = 1.0 - cloudLight;
     vec3 cloudShadowTint = vec3(
         1.0 - cloudOcclusion*1.06,
@@ -336,8 +470,9 @@ void main()
     float distantLuminance =
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     vec3 distantColor = mix(
-        vec3(distantLuminance), fogColor, 0.46);
-    litColor = mix(litColor, distantColor, distantFade*0.64);
+        vec3(distantLuminance)*vec3(0.86, 0.94, 0.92),
+        fogColor, 0.28);
+    litColor = mix(litColor, distantColor, distantFade*0.38);
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
     litColor = mix(litColor, vec3(1.0, 0.28, 0.12), clamp(hitFlashAmount, 0.0, 1.0));
 
@@ -347,7 +482,7 @@ void main()
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
     float distanceFog =
-        (1.0 - exp(-2.5*fogDistance*fogDistance))*0.96;
+        (1.0 - exp(-2.15*fogDistance*fogDistance))*0.74;
     float groundDensity = exp(-max(fragWorldPosition.y, 0.0)*0.16);
     float fogAmount =
         distanceFog*mix(0.72, 1.0, groundDensity);
@@ -363,7 +498,7 @@ void main()
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(
         litColor, vec3(preFogLuminance),
-        fogAmount*0.34);
+        fogAmount*0.14);
     litColor = mix(litColor, atmosphereColor, fogAmount);
     litColor *= exposure;
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
@@ -371,4 +506,8 @@ void main()
 
     finalColor = vec4(litColor,
                       albedo.a*step(0.5, inkOutlineEligible));
+    normalAo = vec4(
+        encodeOctahedralNormal(normal),
+        clamp(screenAoAmount, 0.0, 1.0)*
+        (1.0 - terraceWall), 1.0);
 }

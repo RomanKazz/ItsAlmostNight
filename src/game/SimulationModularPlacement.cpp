@@ -152,6 +152,17 @@ PlatformFramePlacement Simulation::previewFoundation(
         placement.error =
             ModularPlacementError::ResourceBlocked;
     }
+    if (placement.valid() &&
+        lootChestOverlapsRectangle(
+            lootChests_.chests(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + PlatformFrameWidthCells) *
+                cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + PlatformFrameWidthCells) *
+                cellSize)) {
+        placement.error = ModularPlacementError::Occupied;
+    }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
@@ -197,6 +208,17 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
                 cellSize)) {
         placement.error =
             ModularPlacementError::ResourceBlocked;
+    }
+    if (placement.valid() &&
+        lootChestOverlapsRectangle(
+            lootChests_.chests(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + PlatformFrameWidthCells) *
+                cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + PlatformFrameWidthCells) *
+                cellSize)) {
+        placement.error = ModularPlacementError::Occupied;
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
@@ -280,6 +302,13 @@ PlatformFramePlacement Simulation::previewFloorPlatform(
         placement.error =
             ModularPlacementError::ResourceBlocked;
     }
+    if (placement.valid() &&
+        lootChestOverlapsRectangle(
+            lootChests_.chests(),
+            floorBox.minX, floorBox.maxX,
+            floorBox.minZ, floorBox.maxZ)) {
+        placement.error = ModularPlacementError::Occupied;
+    }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
@@ -331,6 +360,15 @@ WallPlacement Simulation::previewWall(
             (placement.anchor.z + 1) * cellSize)) {
         placement.error =
             ModularPlacementError::ResourceBlocked;
+    }
+    if (placement.valid() &&
+        lootChestOverlapsRectangle(
+            lootChests_.chests(),
+            placement.anchor.x * cellSize,
+            (placement.anchor.x + 1) * cellSize,
+            placement.anchor.z * cellSize,
+            (placement.anchor.z + 1) * cellSize)) {
+        placement.error = ModularPlacementError::Occupied;
     }
     if (placement.valid() && !unlimitedResources_ &&
         !canAfford(
@@ -406,6 +444,14 @@ RampPlacement Simulation::previewRamp(
                 return resourceOverlapsBox(
                     resources_.nodes(), box);
             });
+        const bool blockedByChest = std::any_of(
+            rampBoxes.begin(), rampBoxes.end(),
+            [this](const CollisionBox& box) {
+                return lootChestOverlapsRectangle(
+                    lootChests_.chests(),
+                    box.minX, box.maxX,
+                    box.minZ, box.maxZ);
+            });
         const bool blockedByWater = std::any_of(
             rampBoxes.begin(), rampBoxes.end(),
             [this](const CollisionBox& box) {
@@ -414,7 +460,7 @@ RampPlacement Simulation::previewRamp(
                     box.minZ, box.maxZ);
             });
         if (blockedByWorld || blockedByWater ||
-            blockedByBuilding) {
+            blockedByBuilding || blockedByChest) {
             placement.error = ModularPlacementError::Occupied;
         } else if (blockedByResource) {
             placement.error =

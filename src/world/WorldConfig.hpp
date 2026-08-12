@@ -20,7 +20,7 @@ struct WorldConfig {
     std::uint32_t terrainSeed{73129U};
     double terrainFeatureSize{78.0};
     double terrainTerraceHeight{2.5};
-    double terrainSlopeWidth{14.0};
+    double terrainSlopeWidth{28.0};
     double terrainSurfaceNoiseAmplitude{0.08};
     double terrainBuildPlateauRadius{13.0};
     double coreFlatRadius{13.0};

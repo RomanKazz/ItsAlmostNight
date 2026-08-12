@@ -82,6 +82,7 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "toonLightSteps"),
         .bakedAo = GetShaderLocation(shader, "bakedAo"),
         .vertexAoAmount = GetShaderLocation(shader, "vertexAoAmount"),
+        .screenAoAmount = GetShaderLocation(shader, "screenAoAmount"),
         .aoStrength = GetShaderLocation(shader, "aoStrength"),
         .terrainAmount = GetShaderLocation(shader, "terrainAmount"),
         .terrainGrassTint =
@@ -227,6 +228,35 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "paperGrainEnabled"),
         .paperGrainStrength = GetShaderLocation(
             shader, "paperGrainStrength"),
+        .sceneDepth = GetShaderLocation(shader, "sceneDepth"),
+        .sceneNormal = GetShaderLocation(shader, "sceneNormal"),
+        .ssaoTexture = GetShaderLocation(shader, "ssaoTexture"),
+        .inverseProjection = GetShaderLocation(
+            shader, "inverseProjection"),
+        .ssaoTexelSize = GetShaderLocation(shader, "ssaoTexelSize"),
+        .ssaoEnabled = GetShaderLocation(shader, "ssaoEnabled"),
+        .ssaoStrength = GetShaderLocation(shader, "ssaoStrength"),
+    };
+}
+
+void Renderer::resolveSsaoLocations() {
+    if (!resources_.ssaoShader().valid()) {
+        return;
+    }
+    const Shader& shader = resources_.ssaoShader().get();
+    ssaoLocations_ = {
+        .sceneDepth = GetShaderLocation(shader, "sceneDepth"),
+        .sceneNormal = GetShaderLocation(shader, "sceneNormal"),
+        .projection = GetShaderLocation(shader, "projection"),
+        .inverseProjection = GetShaderLocation(
+            shader, "inverseProjection"),
+        .viewMatrix = GetShaderLocation(shader, "viewMatrix"),
+        .texelSize = GetShaderLocation(shader, "texelSize"),
+        .radius = GetShaderLocation(shader, "radius"),
+        .bias = GetShaderLocation(shader, "bias"),
+        .fadeStart = GetShaderLocation(shader, "fadeStart"),
+        .fadeEnd = GetShaderLocation(shader, "fadeEnd"),
+        .sampleCount = GetShaderLocation(shader, "sampleCount"),
     };
 }
 
@@ -289,6 +319,33 @@ void Renderer::uploadPostProcessSettings() {
            settings_.paperGrain ? 1.0F : 0.0F);
     upload(postProcessLocations_.paperGrainStrength,
            settings_.paperGrainStrength);
+    const float ssaoEnabled =
+        ssaoFrameReady_ && resources_.ssaoTargetValid() ? 1.0F : 0.0F;
+    const float ssaoStrength = settings_.aoStrength*1.15F;
+    upload(postProcessLocations_.ssaoEnabled, ssaoEnabled);
+    upload(postProcessLocations_.ssaoStrength, ssaoStrength);
+    SetShaderValueMatrix(
+        shader, postProcessLocations_.inverseProjection,
+        ssaoInverseProjection_);
+    if (ssaoEnabled > 0.5F) {
+        const Vector2 ssaoTexelSize{
+            1.0F / static_cast<float>(
+                       std::max(resources_.ssaoWidth(), 1)),
+            1.0F / static_cast<float>(
+                       std::max(resources_.ssaoHeight(), 1)),
+        };
+        SetShaderValue(shader, postProcessLocations_.ssaoTexelSize,
+                       &ssaoTexelSize, SHADER_UNIFORM_VEC2);
+        SetShaderValueTexture(
+            shader, postProcessLocations_.sceneDepth,
+            resources_.sceneTarget().depth);
+        SetShaderValueTexture(
+            shader, postProcessLocations_.sceneNormal,
+            resources_.sceneNormalTexture());
+        SetShaderValueTexture(
+            shader, postProcessLocations_.ssaoTexture,
+            resources_.ssaoTarget().texture);
+    }
 }
 
 void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
@@ -374,6 +431,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.bakedAo, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.vertexAoAmount,
                    &material.vertexAoAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.screenAoAmount,
+                   &material.screenAoAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.terrainAmount,
                    &material.terrainAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.terrainGrassTint,

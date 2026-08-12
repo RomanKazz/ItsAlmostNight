@@ -233,14 +233,16 @@ void App::drawWorldEntities(
     }
     WorldMaterialState boundaryForestMaterial{};
     boundaryForestMaterial.baseColor = {
-        0.62F, 0.68F, 0.64F, 1.0F};
+        0.45F, 0.53F, 0.43F, 1.0F};
     boundaryForestMaterial.bakedAo = 0.72F;
+    boundaryForestMaterial.screenAoAmount = 0.0F;
     boundaryForestMaterial.windAmount = 0.18F;
-    boundaryForestMaterial.distantFadeAmount = 0.72F;
+    boundaryForestMaterial.distantFadeAmount = 0.34F;
     renderer_->setWorldMaterial(boundaryForestMaterial);
     renderer_->drawBoundaryForest();
     WorldMaterialState decorativeRockMaterial{};
     decorativeRockMaterial.bakedAo = 0.82F;
+    decorativeRockMaterial.screenAoAmount = 0.0F;
     renderer_->setWorldMaterial(decorativeRockMaterial);
     renderer_->drawDecorativeRocks(
         camera.position,
@@ -384,14 +386,39 @@ void App::drawWorldEntities(
     renderer_->setWorldMaterial(chestMaterial);
     for (const LootChestInstance& chest : snapshot.lootChests) {
         if (chest.looseLoot) continue;
+        const float disappear = smoothstep(
+            0.0F, 1.0F,
+            static_cast<float>(
+                chest.disappearanceProgress));
+        const float bounce =
+            std::sin(disappear*PI)*
+            (1.0F - disappear)*0.16F;
+        const float visualScale =
+            1.0F + bounce - disappear*0.92F;
         const Vector3 position{
-            static_cast<float>(chest.position.x),
-            static_cast<float>(chest.position.y),
-            static_cast<float>(chest.position.z),
+            static_cast<float>(
+                chest.position.x +
+                chest.surfaceNormal.x*disappear*0.24),
+            static_cast<float>(
+                chest.position.y +
+                chest.surfaceNormal.y*disappear*0.24),
+            static_cast<float>(
+                chest.position.z +
+                chest.surfaceNormal.z*disappear*0.24),
+        };
+        const Color tint{
+            255,
+            static_cast<unsigned char>(
+                std::lround(255.0F - disappear*40.0F)),
+            static_cast<unsigned char>(
+                std::lround(255.0F - disappear*92.0F)),
+            static_cast<unsigned char>(
+                std::lround(255.0F*(1.0F - disappear))),
         };
         static_cast<void>(renderer_->drawLootChest(
             chest.type, position, static_cast<float>(chest.yaw),
-            static_cast<float>(chest.openingProgress)));
+            static_cast<float>(chest.openingProgress),
+            tint, visualScale));
     }
     // Loot is deliberately rendered without the lit world shader so its
     // rarity color, glow and permanent silhouette stay vivid at night.

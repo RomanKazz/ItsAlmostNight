@@ -89,17 +89,10 @@ PlacementResult Simulation::validatePlacement(
     const double minimumZ = footprintMinimumZ * cellSize;
     const double maximumZ =
         (footprintMinimumZ + footprintWidth) * cellSize;
-    const bool chestBlocked = std::any_of(
-        lootChests_.chests().begin(), lootChests_.chests().end(),
-        [minimumX, maximumX, minimumZ, maximumZ](
-            const LootChestInstance& chest) {
-            constexpr double Radius = 0.72;
-            return chest.position.x + Radius >= minimumX &&
-                chest.position.x - Radius <= maximumX &&
-                chest.position.z + Radius >= minimumZ &&
-                chest.position.z - Radius <= maximumZ;
-        });
-    if (chestBlocked) {
+    if (lootChestOverlapsRectangle(
+            lootChests_.chests(),
+            minimumX, maximumX,
+            minimumZ, maximumZ)) {
         return {
             PlacementError::WorldCollision,
             buildingValidation.cost,

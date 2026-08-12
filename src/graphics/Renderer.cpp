@@ -85,6 +85,7 @@ void Renderer::initialize() {
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
     resolvePostProcessLocations();
+    resolveSsaoLocations();
     if (resources_.iceMagicShader().valid()) {
         Shader& shader = resources_.iceMagicShader().get();
         shader.locs[SHADER_LOC_MATRIX_MVP] =
@@ -545,29 +546,58 @@ void Renderer::drawBlobShadow(Vector3 groundPosition, float radiusX,
     ++performanceStats_.blobShadowCount;
     performanceStats_.blobShadowTriangles +=
         static_cast<std::size_t>(segmentCount);
-    constexpr unsigned char ShadowRed = 25;
-    constexpr unsigned char ShadowGreen = 32;
-    constexpr unsigned char ShadowBlue = 38;
+    constexpr unsigned char ShadowRed = 24;
+    constexpr unsigned char ShadowGreen = 36;
+    constexpr unsigned char ShadowBlue = 34;
     const std::size_t ringIndex = segmentCount == 12
         ? 0U
         : segmentCount == 18 ? 1U : 2U;
     const auto& unitCircle = blobShadowUnitCircles()[ringIndex];
+
+    Vector3 surfaceNormal{0.0F, 1.0F, 0.0F};
+    if (terrainHeightfield_ != nullptr) {
+        const float terrainY = static_cast<float>(
+            terrainHeightfield_->getHeight(
+                groundPosition.x, groundPosition.z));
+        // Ground props follow terrain. Shadows belonging to elevated floors
+        // or supports stay horizontal instead of tilting toward terrain far
+        // below them.
+        if (std::abs(groundPosition.y - terrainY) <= 0.75F) {
+            surfaceNormal = terrainSurfaceNormal(
+                groundPosition.x, groundPosition.z);
+        }
+    }
+    Vector3 tangentX = Vector3Normalize({
+        surfaceNormal.y, -surfaceNormal.x, 0.0F});
+    if (Vector3LengthSqr(tangentX) <= 0.0001F) {
+        tangentX = {1.0F, 0.0F, 0.0F};
+    }
+    Vector3 tangentZ = Vector3Normalize(
+        Vector3CrossProduct(tangentX, surfaceNormal));
+    const Vector3 center = Vector3Add(
+        groundPosition, Vector3Scale(surfaceNormal, 0.008F));
+
+    const auto surfacePoint = [&](Vector2 point) {
+        return Vector3Add(
+            center,
+            Vector3Add(
+                Vector3Scale(tangentX, point.x * radiusX),
+                Vector3Scale(tangentZ, point.y * radiusZ)));
+    };
 
     for (int segment = 0; segment < segmentCount; ++segment) {
         const Vector2 point0 =
             unitCircle[static_cast<std::size_t>(segment)];
         const Vector2 point1 =
             unitCircle[static_cast<std::size_t>(segment + 1)];
+        const Vector3 vertex0 = surfacePoint(point0);
+        const Vector3 vertex1 = surfacePoint(point1);
         rlColor4ub(ShadowRed, ShadowGreen, ShadowBlue, centerAlpha);
-        rlVertex3f(groundPosition.x, groundPosition.y, groundPosition.z);
+        rlVertex3f(center.x, center.y, center.z);
         rlColor4ub(ShadowRed, ShadowGreen, ShadowBlue, 0);
-        // Counter-clockwise from above: keep contact AO front-facing.
-        rlVertex3f(groundPosition.x + point1.x * radiusX,
-                   groundPosition.y,
-                   groundPosition.z + point1.y * radiusZ);
-        rlVertex3f(groundPosition.x + point0.x * radiusX,
-                   groundPosition.y,
-                   groundPosition.z + point0.y * radiusZ);
+        // Counter-clockwise along the sampled surface normal.
+        rlVertex3f(vertex1.x, vertex1.y, vertex1.z);
+        rlVertex3f(vertex0.x, vertex0.y, vertex0.z);
     }
 }
 

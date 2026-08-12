@@ -185,11 +185,12 @@ Model TerrainRenderer::buildChunk(
                     static_cast<double>(cellsZ);
             const ian::Vec3 normal =
                 terrain_->getNormal(worldX, worldZ);
+            const double height =
+                terrain_->getHeight(worldX, worldZ);
             mesh.vertices[index * 3] =
                 static_cast<float>(worldX);
             mesh.vertices[index * 3 + 1] =
-                static_cast<float>(
-                    terrain_->getHeight(worldX, worldZ));
+                static_cast<float>(height);
             mesh.vertices[index * 3 + 2] =
                 static_cast<float>(worldZ);
             mesh.normals[index * 3] =
@@ -213,9 +214,38 @@ Model TerrainRenderer::buildChunk(
                 0.0, 1.0);
             const auto shade = static_cast<unsigned char>(
                 std::lround(255.0 - wetShore * 36.0));
-            mesh.colors[index * 4] = shade;
-            mesh.colors[index * 4 + 1] = shade;
-            mesh.colors[index * 4 + 2] = shade;
+            const double boundaryStart =
+                halfSize - config.terrainBoundaryRiseWidth;
+            const double edgeDistance =
+                std::max(std::abs(worldX), std::abs(worldZ));
+            const double boundaryProgress = std::clamp(
+                (edgeDistance - boundaryStart) /
+                    std::max(config.terrainBoundaryRiseWidth, 0.001),
+                0.0, 1.0);
+            const double mountainInput = std::clamp(
+                (boundaryProgress - 0.22) / 0.58, 0.0, 1.0);
+            const double mountainAmount =
+                mountainInput * mountainInput *
+                (3.0 - 2.0 * mountainInput);
+            const double snowHeight = std::clamp(
+                (height - 32.0) / 15.0, 0.0, 1.0);
+            const double snowSurface = std::clamp(
+                (normal.y - 0.38) / 0.30, 0.0, 1.0);
+            const double snowAmount =
+                mountainAmount * snowHeight * snowSurface;
+            if (mountainAmount > 0.001) {
+                mesh.colors[index * 4] = 255U;
+                mesh.colors[index * 4 + 1] =
+                    static_cast<unsigned char>(std::lround(
+                        255.0 * (1.0 - snowAmount)));
+                mesh.colors[index * 4 + 2] =
+                    static_cast<unsigned char>(std::lround(
+                        255.0 * (1.0 - mountainAmount)));
+            } else {
+                mesh.colors[index * 4] = shade;
+                mesh.colors[index * 4 + 1] = shade;
+                mesh.colors[index * 4 + 2] = shade;
+            }
             mesh.colors[index * 4 + 3] = 255U;
         }
     }
@@ -323,9 +353,11 @@ Model TerrainRenderer::buildMountainBackdrop() const {
             (mountainProgress *
                  (mountainProgress * 6.0 - 15.0) +
              10.0);
+        const double mountainMaterialAmount =
+            0.88 + smoothMountainProgress * 0.12;
         const auto mountainBlue = static_cast<unsigned char>(
             std::lround(255.0 *
-                        (1.0 - smoothMountainProgress)));
+                        (1.0 - mountainMaterialAmount)));
         const double edgeX = std::clamp(x, -inner, inner);
         const double edgeZ = std::clamp(z, -inner, inner);
         const double relativeMountainHeight =
@@ -344,7 +376,7 @@ Model TerrainRenderer::buildMountainBackdrop() const {
                 0.0, 1.0);
         const double snowAmount =
             smoothHeightSnow * topSurfaceSnow *
-            smoothMountainProgress;
+            mountainMaterialAmount;
         const auto snowGreen = static_cast<unsigned char>(
             std::lround(255.0 * (1.0 - snowAmount)));
         vertices.insert(vertices.end(), {

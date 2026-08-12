@@ -2,9 +2,25 @@
 #include "game/LootChestSystem.hpp"
 #include "world/TerrainHeightfield.hpp"
 
+#include <array>
 #include <cmath>
 
 void runLootChestSystemTests() {
+    const std::array placementChests{
+        ian::LootChestInstance{
+            .id = {1, 1},
+            .position = {0.0, 0.0, 0.0},
+        },
+    };
+    require(
+        ian::lootChestOverlapsRectangle(
+            placementChests, 0.7, 1.7, -0.2, 0.2),
+        "chest radius blocks a touching build footprint");
+    require(
+        !ian::lootChestOverlapsRectangle(
+            placementChests, 0.9, 1.9, -0.2, 0.2),
+        "chest does not block a separated build footprint");
+
     ian::TerrainHeightfield terrain;
     ian::LootChestSystem chests;
     const ian::Vec3 spawn{
@@ -148,6 +164,30 @@ void runLootChestSystemTests() {
             "revealed loot can be collected");
     require(!chests.collect(opened.loot.id).has_value(),
             "loot upgrade can only be collected once");
+    const std::size_t chestCountBeforeDisappearance =
+        chests.chests().size();
+    chests.tick(1.0);
+    require(
+        chests.chests().size() == chestCountBeforeDisappearance &&
+            chests.chests().front().disappearanceProgress == 0.0,
+        "empty chest remains briefly after loot collection");
+    chests.tick(0.30);
+    const auto disappearingChest = std::ranges::find(
+        chests.chests(), id, &ian::LootChestInstance::id);
+    require(
+        disappearingChest != chests.chests().end() &&
+            disappearingChest->disappearanceProgress > 0.0 &&
+            disappearingChest->disappearanceProgress < 1.0,
+        "empty chest exposes a visible disappearance animation");
+    chests.tick(0.40);
+    require(
+        std::ranges::find(
+            chests.chests(), id,
+            &ian::LootChestInstance::id) ==
+            chests.chests().end() &&
+            chests.chests().size() ==
+                chestCountBeforeDisappearance - 1U,
+        "empty chest leaves the world after its animation");
 
     const std::size_t beforeLoose = chests.chests().size();
     chests.spawnLooseLoot(

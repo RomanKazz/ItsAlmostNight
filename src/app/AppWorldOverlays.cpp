@@ -81,6 +81,7 @@ void App::drawWorldOverlays(
     if (hasModularPreview) {
         WorldMaterialState material{};
         material.bakedAo = 0.88F;
+        material.screenAoAmount = 0.0F;
         renderer_->beginWorldShader(lighting);
         renderer_->setWorldMaterial(material);
         modularBuildingRenderer_.drawWorld(
@@ -608,6 +609,7 @@ void App::drawWorldOverlays(
             static_cast<float>(color.a) / 255.0F,
         };
         previewMaterial.bakedAo = 0.85F;
+        previewMaterial.screenAoAmount = 0.0F;
         const bool drawPreviewModel =
             !placementPreviewObstructed(
                 visualPreview.placement.error);

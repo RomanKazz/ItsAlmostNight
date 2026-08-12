@@ -184,7 +184,7 @@ void App::drawGraphicsPanel() {
     toggleButton(1, y, "INSTANCED GRASS", settings.grass);
     y += ButtonHeight + Gap;
     toggleButton(0, y, "PIXEL BLOOM", settings.bloom);
-    toggleButton(1, y, "SSAO (RESERVED)", settings.ssao);
+    toggleButton(1, y, "SCREEN-SPACE AO", settings.ssao);
     y += ButtonHeight + Gap;
     if (ui_.drawButton(
             {contentX, y, columnWidth,

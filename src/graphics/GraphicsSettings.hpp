@@ -18,7 +18,7 @@ struct GraphicsSettings {
     bool grass{true};
     bool blobShadows{true};
     bool bloom{false};
-    bool ssao{false};
+    bool ssao{true};
     bool paletteQuantization{false};
     bool dithering{false};
     bool posterizedLighting{true};
@@ -29,7 +29,7 @@ struct GraphicsSettings {
     int shadowMapSize{2048};
     int frameRateLimit{60};
 
-    int pixelSize{3};
+    int pixelSize{1};
     float shadowDistance{55.0F};
     float constantBias{0.00003F};
     float slopeBias{0.0002F};

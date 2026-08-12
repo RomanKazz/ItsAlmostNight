@@ -345,7 +345,7 @@ void App::render() {
             .skyAmbientColor = environment.skyAmbientColor,
             .groundAmbientColor = environment.groundAmbientColor,
             .ambientIntensity = environment.ambientIntensity,
-            .cloudShadowStrength = 0.20F * (1.0F - nightAmount),
+            .cloudShadowStrength = 0.18F * (1.0F - nightAmount),
             .fogColor = colorToVector(environment.fogColor),
             .fogStart = environment.fogStart,
             .fogEnd = environment.fogEnd,
@@ -379,7 +379,7 @@ void App::render() {
             static_cast<float>(worldRevealElapsed_));
         drawShadowPass(snapshot, lighting);
         drawSelectionPass(feedbackSnapshot, camera);
-        renderer_->beginWorldPass(environment.skyHorizon);
+        renderer_->beginWorldPass(environment.skyHorizon, camera);
         renderer_->drawSky(skyState);
         BeginMode3D(camera);
         renderer_->beginWorldShader(lighting);
@@ -396,10 +396,12 @@ void App::render() {
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondRockMaterial{};
         pondRockMaterial.bakedAo = 0.76F;
+        pondRockMaterial.screenAoAmount = 0.0F;
         renderer_->setWorldMaterial(pondRockMaterial);
         renderer_->drawPondShoreRocks();
         WorldMaterialState pondPlantMaterial{};
         pondPlantMaterial.bakedAo = 0.82F;
+        pondPlantMaterial.screenAoAmount = 0.0F;
         pondPlantMaterial.windAmount = 0.32F;
         pondPlantMaterial.localWindHeight = 1.0F;
         renderer_->setWorldMaterial(pondPlantMaterial);
@@ -409,6 +411,7 @@ void App::render() {
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondSurfaceMaterial{};
         pondSurfaceMaterial.bakedAo = 0.82F;
+        pondSurfaceMaterial.screenAoAmount = 0.0F;
         renderer_->setWorldMaterial(pondSurfaceMaterial);
         renderer_->drawPondSurfaceDecor();
         renderer_->endWorldShader();

@@ -313,6 +313,30 @@ void App::drawBlobShadows(
                 radius * 0.52F, radius * 0.42F,
                 node.type == ResourceType::Wood ? 0.48F : 0.40F);
         }
+        for (const LootChestInstance& chest : snapshot.lootChests) {
+            if (chest.looseLoot) {
+                continue;
+            }
+            const float visible = 1.0F - smoothstep(
+                0.0F, 1.0F,
+                static_cast<float>(
+                    chest.disappearanceProgress));
+            const float radius = chest.type == LootChestType::Stone
+                ? 0.72F
+                : 0.62F;
+            const Vector3 position{
+                static_cast<float>(chest.position.x),
+                static_cast<float>(chest.position.y) + 0.018F,
+                static_cast<float>(chest.position.z),
+            };
+            renderer_->drawBlobShadow(
+                position, radius*visible,
+                radius*0.76F*visible, 0.14F*visible);
+            renderer_->drawBlobShadow(
+                {position.x, position.y + 0.002F, position.z},
+                radius*0.52F*visible,
+                radius*0.38F*visible, 0.25F*visible);
+        }
         // Decorative rock/bush AO repeats the full decoration grid traversal.
         // Keep it for High quality; gameplay-critical objects retain their
         // contact shadows on every preset.
@@ -398,6 +422,7 @@ void App::drawCancelledPlacementPreview(
     material.baseColor = {
         0.28F, 0.88F, 0.48F, fade * 0.42F};
     material.bakedAo = 0.85F;
+    material.screenAoAmount = 0.0F;
     renderer_->beginWorldShader(lighting);
     renderer_->setWorldMaterial(material);
     const Vector3 modelPosition{x, -sink, z};

@@ -48,6 +48,11 @@ void drawCentered(
     GridPosition end,
     std::optional<PlacementLineAxis> axis =
         std::nullopt);
+[[nodiscard]] std::vector<GridPosition> placementGestureLine(
+    BuildingType type, GridPosition start,
+    GridPosition aimedEnd, bool dragExtended,
+    std::optional<PlacementLineAxis> axis =
+        std::nullopt);
 [[nodiscard]] std::uint8_t wallConnectionToward(
     GridPosition from, GridPosition to);
 [[nodiscard]] Vector2 repelInvalidPreview(

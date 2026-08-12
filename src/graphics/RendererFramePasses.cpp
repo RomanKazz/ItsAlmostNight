@@ -16,7 +16,8 @@
 #include <cstring>
 
 namespace ian {
-void Renderer::beginWorldPass(Color clearColor) {
+void Renderer::beginWorldPass(
+    Color clearColor, const Camera3D& camera) {
     performanceStats_.instancedEnemyCount = 0U;
     performanceStats_.enemyBatchCount = 0U;
     performanceStats_.lowDetailEnemyCount = 0U;
@@ -24,10 +25,22 @@ void Renderer::beginWorldPass(Color clearColor) {
     performanceStats_.blobShadowTriangles = 0U;
     instancedEnemyMillisecondsThisFrame_ = 0.0;
     resources_.updateFramebuffer(settings_);
+    const float aspectRatio = static_cast<float>(
+        std::max(resources_.sceneWidth(), 1)) /
+        static_cast<float>(std::max(resources_.sceneHeight(), 1));
+    ssaoProjection_ = MatrixPerspective(
+        static_cast<double>(camera.fovy*DEG2RAD),
+        static_cast<double>(aspectRatio),
+        rlGetCullDistanceNear(), rlGetCullDistanceFar());
+    ssaoInverseProjection_ = MatrixInvert(ssaoProjection_);
+    ssaoViewMatrix_ = GetCameraMatrix(camera);
+    ssaoFrameReady_ = false;
     usingOffscreenTarget_ =
         settings_.postProcessing && resources_.sceneTargetValid();
     if (usingOffscreenTarget_) {
         BeginTextureMode(resources_.sceneTarget());
+        rlActiveDrawBuffers(
+            resources_.sceneScreenSpaceBuffers() ? 2 : 1);
     } else {
         BeginDrawing();
     }
@@ -241,17 +254,19 @@ void Renderer::drawClouds(
         const float distanceFade = 1.0F -
             smoothstep(FadeStart, FadeEnd, distance);
         const float visibility =
-            dayVisibility * distanceFade * 0.96F;
+            dayVisibility * distanceFade * 0.82F;
         if (visibility <= 0.002F) {
             continue;
         }
 
         const std::size_t variant =
             unitFloat(seed + 4U) < 0.46F ? 0U : 1U;
+        const float scaleRoll = unitFloat(seed + 5U);
+        const float scaleShape =
+            scaleRoll * scaleRoll * (3.0F - 2.0F * scaleRoll);
         const float baseScale =
-            (variant == 0U ? 6.6F : 7.2F) +
-            unitFloat(seed + 5U) *
-                (variant == 0U ? 8.8F : 9.2F);
+            (variant == 0U ? 4.8F : 5.4F) +
+            scaleShape * (variant == 0U ? 14.2F : 15.8F);
         clouds[visibleCount++] = {
             .position = {
                 x,
@@ -260,11 +275,11 @@ void Renderer::drawClouds(
             },
             .scale = {
                 baseScale *
-                    (0.85F + unitFloat(seed + 7U) * 0.50F),
+                    (0.72F + unitFloat(seed + 7U) * 0.76F),
                 baseScale *
-                    (0.84F + unitFloat(seed + 8U) * 0.30F),
+                    (0.42F + unitFloat(seed + 8U) * 0.30F),
                 baseScale *
-                    (0.78F + unitFloat(seed + 9U) * 0.44F),
+                    (0.68F + unitFloat(seed + 9U) * 0.68F),
             },
             .rotationDegrees =
                 (unitFloat(seed + 10U) * 2.0F - 1.0F) * 8.0F,
@@ -321,6 +336,7 @@ void Renderer::endWorldPass() {
 
     if (usingOffscreenTarget_) {
         EndTextureMode();
+        drawSsaoPass();
         BeginDrawing();
         ClearBackground(BLACK);
 
@@ -352,6 +368,81 @@ void Renderer::endWorldPass() {
         }
     }
     worldPassOpen_ = false;
+}
+
+void Renderer::drawSsaoPass() {
+    ssaoFrameReady_ = false;
+    if (!settings_.ssao || !resources_.ssaoShader().valid() ||
+        !resources_.ssaoTargetValid() ||
+        !resources_.sceneTargetValid()) {
+        return;
+    }
+
+    const RenderTexture2D& scene = resources_.sceneTarget();
+    const RenderTexture2D& target = resources_.ssaoTarget();
+    Shader& shader = resources_.ssaoShader().get();
+    const Vector2 texelSize{
+        1.0F / static_cast<float>(std::max(scene.texture.width, 1)),
+        1.0F / static_cast<float>(std::max(scene.texture.height, 1)),
+    };
+    float radius = 0.9F;
+    float bias = 0.045F;
+    float fadeStart = 30.0F;
+    float fadeEnd = 50.0F;
+    int sampleCount = 12;
+    if (settings_.quality == GraphicsQuality::Low) {
+        radius = 0.65F;
+        bias = 0.055F;
+        fadeStart = 18.0F;
+        fadeEnd = 30.0F;
+        sampleCount = 4;
+    } else if (settings_.quality == GraphicsQuality::Medium) {
+        radius = 0.78F;
+        bias = 0.05F;
+        fadeStart = 26.0F;
+        fadeEnd = 42.0F;
+        sampleCount = 8;
+    }
+    SetShaderValueTexture(
+        shader, ssaoLocations_.sceneDepth, scene.depth);
+    SetShaderValueTexture(
+        shader, ssaoLocations_.sceneNormal,
+        resources_.sceneNormalTexture());
+    SetShaderValueMatrix(
+        shader, ssaoLocations_.projection, ssaoProjection_);
+    SetShaderValueMatrix(
+        shader, ssaoLocations_.inverseProjection,
+        ssaoInverseProjection_);
+    SetShaderValueMatrix(
+        shader, ssaoLocations_.viewMatrix, ssaoViewMatrix_);
+    SetShaderValue(shader, ssaoLocations_.texelSize,
+                   &texelSize, SHADER_UNIFORM_VEC2);
+    SetShaderValue(shader, ssaoLocations_.radius,
+                   &radius, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, ssaoLocations_.bias,
+                   &bias, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, ssaoLocations_.fadeStart,
+                   &fadeStart, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, ssaoLocations_.fadeEnd,
+                   &fadeEnd, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, ssaoLocations_.sampleCount,
+                   &sampleCount, SHADER_UNIFORM_INT);
+
+    BeginTextureMode(target);
+    ClearBackground(BLACK);
+    BeginShaderMode(shader);
+    DrawTexturePro(
+        scene.texture,
+        {0.0F, 0.0F,
+         static_cast<float>(scene.texture.width),
+         -static_cast<float>(scene.texture.height)},
+        {0.0F, 0.0F,
+         static_cast<float>(target.texture.width),
+         static_cast<float>(target.texture.height)},
+        {}, 0.0F, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+    ssaoFrameReady_ = true;
 }
 
 bool Renderer::beginFirstPersonToolPass() {
@@ -452,6 +543,7 @@ void Renderer::beginUiOnlyFrame(Color clearColor) {
     instancedEnemyMillisecondsThisFrame_ = 0.0;
     resources_.updateFramebuffer(settings_);
     usingOffscreenTarget_ = false;
+    ssaoFrameReady_ = false;
     BeginDrawing();
     ClearBackground(clearColor);
     frameOpen_ = true;
@@ -835,6 +927,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.baseColor.w == worldMaterial_.baseColor.w &&
         material.bakedAo == worldMaterial_.bakedAo &&
         material.vertexAoAmount == worldMaterial_.vertexAoAmount &&
+        material.screenAoAmount == worldMaterial_.screenAoAmount &&
         material.terrainAmount == worldMaterial_.terrainAmount &&
         material.terrainGrassTint.x == worldMaterial_.terrainGrassTint.x &&
         material.terrainGrassTint.y == worldMaterial_.terrainGrassTint.y &&
@@ -867,6 +960,7 @@ void Renderer::beginGhostPreviewMaterial() {
     ghostPreviewRestoreMaterial_ = worldMaterial_;
     WorldMaterialState ghost = worldMaterial_;
     ghost.bakedAo = std::max(ghost.bakedAo, 0.88F);
+    ghost.screenAoAmount = 0.0F;
     ghost.selectionAmount = 0.16F;
     ghost.selectionTint = {1.0F, 1.0F, 1.0F};
     setWorldMaterial(ghost);

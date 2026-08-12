@@ -18,6 +18,30 @@ int GraphicsResources::sceneHeight() const {
     return requestedSceneHeight_;
 }
 
+bool GraphicsResources::sceneScreenSpaceBuffers() const {
+    return sceneTarget_.screenSpaceBuffers();
+}
+
+const Texture2D& GraphicsResources::sceneNormalTexture() const {
+    return sceneTarget_.normalTexture();
+}
+
+bool GraphicsResources::ssaoTargetValid() const {
+    return ssaoTarget_.valid();
+}
+
+const RenderTexture2D& GraphicsResources::ssaoTarget() const {
+    return ssaoTarget_.get();
+}
+
+int GraphicsResources::ssaoWidth() const {
+    return requestedSsaoWidth_;
+}
+
+int GraphicsResources::ssaoHeight() const {
+    return requestedSsaoHeight_;
+}
+
 bool GraphicsResources::selectionMaskValid() const {
     return selectionMaskTarget_.valid();
 }
@@ -112,6 +136,14 @@ ShaderResource& GraphicsResources::postProcessShader() {
 
 const ShaderResource& GraphicsResources::postProcessShader() const {
     return postProcessShader_;
+}
+
+ShaderResource& GraphicsResources::ssaoShader() {
+    return ssaoShader_;
+}
+
+const ShaderResource& GraphicsResources::ssaoShader() const {
+    return ssaoShader_;
 }
 
 ShaderResource& GraphicsResources::viewModelCompositeShader() {

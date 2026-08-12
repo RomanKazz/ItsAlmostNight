@@ -10,7 +10,7 @@
   "terrainSeed": 73129,
   "terrainFeatureSize": 78.0,
   "terrainTerraceHeight": 2.5,
-  "terrainSlopeWidth": 14.0,
+  "terrainSlopeWidth": 28.0,
   "terrainSurfaceNoiseAmplitude": 0.08,
   "terrainBuildPlateauRadius": 13.0,
   "coreFlatRadius": 13.0,

@@ -46,8 +46,9 @@ struct WorldMaterialState {
     Vector4 baseColor{1.0F, 1.0F, 1.0F, 1.0F};
     float bakedAo{1.0F};
     float vertexAoAmount{};
+    float screenAoAmount{1.0F};
     float terrainAmount{};
-    Vector3 terrainGrassTint{0.25F, 0.46F, 0.20F};
+    Vector3 terrainGrassTint{0.22F, 0.34F, 0.14F};
     Vector3 terrainDirtTint{0.46F, 0.32F, 0.18F};
     float windAmount{};
     float localWindHeight{};
@@ -208,7 +209,7 @@ class Renderer {
     void applyFrameRateLimit() const;
     void adjustPixelSize(int direction);
 
-    void beginWorldPass(Color clearColor);
+    void beginWorldPass(Color clearColor, const Camera3D& camera);
     void drawSky(const SkyState& sky);
     void drawClouds(Vector3 cameraPosition, float nightAmount,
                     const WorldLighting& lighting);
@@ -297,7 +298,8 @@ class Renderer {
         float interpolationAlpha = 1.0F);
     [[nodiscard]] bool drawLootChest(
         LootChestType type, Vector3 position, float yawRadians,
-        float openingProgress, Color tint = WHITE);
+        float openingProgress, Color tint = WHITE,
+        float scale = 1.0F);
     void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
     [[nodiscard]] bool drawDestructibleProp(
@@ -308,7 +310,7 @@ class Renderer {
         float scale = 1.0F);
     [[nodiscard]] LootChestWorldTransform lootChestWorldTransform(
         LootChestType type, Vector3 position, float yawRadians,
-        float openingProgress);
+        float openingProgress, float scale = 1.0F);
     void drawLootItem(
         Vector3 position, LootUpgradeEffect effect,
         LootRarity rarity, float rotationRadians,
@@ -466,6 +468,7 @@ class Renderer {
         int toonLightSteps{-1};
         int bakedAo{-1};
         int vertexAoAmount{-1};
+        int screenAoAmount{-1};
         int aoStrength{-1};
         int terrainAmount{-1};
         int terrainGrassTint{-1};
@@ -539,11 +542,34 @@ class Renderer {
         int outlineWidth{-1};
         int paperGrainEnabled{-1};
         int paperGrainStrength{-1};
+        int sceneDepth{-1};
+        int sceneNormal{-1};
+        int ssaoTexture{-1};
+        int inverseProjection{-1};
+        int ssaoTexelSize{-1};
+        int ssaoEnabled{-1};
+        int ssaoStrength{-1};
+    };
+
+    struct SsaoLocations {
+        int sceneDepth{-1};
+        int sceneNormal{-1};
+        int projection{-1};
+        int inverseProjection{-1};
+        int viewMatrix{-1};
+        int texelSize{-1};
+        int radius{-1};
+        int bias{-1};
+        int fadeStart{-1};
+        int fadeEnd{-1};
+        int sampleCount{-1};
     };
 
     void resolveWorldShaderLocations();
     void resolveSkyShaderLocations();
     void resolvePostProcessLocations();
+    void resolveSsaoLocations();
+    void drawSsaoPass();
     void uploadPostProcessSettings();
     void uploadWorldLighting(const WorldLighting& lighting);
     void uploadWorldMaterial(const WorldMaterialState& material);
@@ -569,6 +595,7 @@ class Renderer {
     WorldShaderLocations worldShaderLocations_;
     SkyShaderLocations skyShaderLocations_;
     PostProcessLocations postProcessLocations_;
+    SsaoLocations ssaoLocations_;
     WorldMaterialState worldMaterial_;
     std::optional<WorldMaterialState>
         ghostPreviewRestoreMaterial_;
@@ -632,6 +659,9 @@ class Renderer {
     int iceMagicTintLocation_{-1};
     int iceMagicIntensityLocation_{-1};
     Matrix lightViewProjection_{};
+    Matrix ssaoProjection_{};
+    Matrix ssaoInverseProjection_{};
+    Matrix ssaoViewMatrix_{};
     Vector3 shadowFocus_{};
     Vector3 blobShadowCamera_{};
     Camera3D selectionMaskCamera_{};
@@ -642,6 +672,7 @@ class Renderer {
     bool frameOpen_{};
     bool worldPassOpen_{};
     bool usingOffscreenTarget_{};
+    bool ssaoFrameReady_{};
     bool worldShaderActive_{};
     bool shadowPassOpen_{};
     bool shadowFrameValid_{};

@@ -134,14 +134,19 @@ class RenderTextureResource {
     RenderTextureResource& operator=(RenderTextureResource&&) = delete;
 
     bool load(int width, int height);
+    bool loadScreenSpace(int width, int height);
     void unload();
 
     [[nodiscard]] bool valid() const;
     [[nodiscard]] RenderTexture2D& get();
     [[nodiscard]] const RenderTexture2D& get() const;
+    [[nodiscard]] const Texture2D& normalTexture() const;
+    [[nodiscard]] bool screenSpaceBuffers() const;
 
   private:
     RenderTexture2D target_{};
+    Texture2D normalTexture_{};
+    bool screenSpaceBuffers_{};
     bool loaded_{};
 };
 
@@ -189,6 +194,12 @@ class GraphicsResources {
     [[nodiscard]] const RenderTexture2D& sceneTarget() const;
     [[nodiscard]] int sceneWidth() const;
     [[nodiscard]] int sceneHeight() const;
+    [[nodiscard]] bool sceneScreenSpaceBuffers() const;
+    [[nodiscard]] const Texture2D& sceneNormalTexture() const;
+    [[nodiscard]] bool ssaoTargetValid() const;
+    [[nodiscard]] const RenderTexture2D& ssaoTarget() const;
+    [[nodiscard]] int ssaoWidth() const;
+    [[nodiscard]] int ssaoHeight() const;
     [[nodiscard]] bool selectionMaskValid() const;
     [[nodiscard]] const RenderTexture2D& selectionMask() const;
     [[nodiscard]] int selectionMaskWidth() const;
@@ -214,6 +225,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& selectionOutlineShader() const;
     [[nodiscard]] ShaderResource& postProcessShader();
     [[nodiscard]] const ShaderResource& postProcessShader() const;
+    [[nodiscard]] ShaderResource& ssaoShader();
+    [[nodiscard]] const ShaderResource& ssaoShader() const;
     [[nodiscard]] ShaderResource& viewModelCompositeShader();
     [[nodiscard]] const ShaderResource& viewModelCompositeShader() const;
     [[nodiscard]] ShaderResource& grassShader();
@@ -336,6 +349,7 @@ class GraphicsResources {
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
     ShaderResource postProcessShader_;
+    ShaderResource ssaoShader_;
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
@@ -414,11 +428,14 @@ class GraphicsResources {
     ModelAnimationsResource enemyFlyingAnimations_;
     ModelAnimationsResource enemyBossAnimations_;
     RenderTextureResource sceneTarget_;
+    RenderTextureResource ssaoTarget_;
     RenderTextureResource viewModelTarget_;
     RenderTextureResource selectionMaskTarget_;
     ShadowMapResource shadowMap_;
     int requestedSceneWidth_{};
     int requestedSceneHeight_{};
+    int requestedSsaoWidth_{};
+    int requestedSsaoHeight_{};
     int requestedViewModelWidth_{};
     int requestedViewModelHeight_{};
     int requestedSelectionMaskWidth_{};

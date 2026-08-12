@@ -62,6 +62,8 @@ struct LootChestInstance {
     double yaw{};
     int goldCost{};
     double openingProgress{};
+    double disappearanceDelayRemaining{};
+    double disappearanceProgress{};
     bool looseLoot{};
     ChestLoot loot;
 };
@@ -110,6 +112,7 @@ class LootChestSystem {
   private:
     std::vector<LootChestInstance> chests_;
     std::uint32_t runGeneration_{};
+    std::uint32_t nextEntityIndex_{};
     double goldCostMultiplier_{1.0};
 };
 
@@ -121,5 +124,12 @@ class LootChestSystem {
 // Keeping this in the simulation makes raycasts, pickup results, UI and
 // rendering agree on sloped terrain as well as on flat ground.
 [[nodiscard]] Vec3 lootVisualPosition(const LootChestInstance& chest);
+
+// Placement uses a horizontal footprint: chests remain reserved props even
+// while opening, and cannot be hidden inside foundations or other structures.
+[[nodiscard]] bool lootChestOverlapsRectangle(
+    std::span<const LootChestInstance> chests,
+    double minimumX, double maximumX,
+    double minimumZ, double maximumZ);
 
 } // namespace ian

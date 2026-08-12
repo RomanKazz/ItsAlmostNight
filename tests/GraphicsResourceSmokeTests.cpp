@@ -124,6 +124,11 @@ int main() {
         std::cerr << "graphics smoke: initialize 1\n";
         resources.initialize(settings);
         if (!resources.sceneTargetValid() ||
+            !resources.sceneScreenSpaceBuffers() ||
+            !IsTextureValid(resources.sceneTarget().depth) ||
+            !IsTextureValid(resources.sceneNormalTexture()) ||
+            !resources.ssaoTargetValid() ||
+            !resources.ssaoShader().valid() ||
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
             !resources.enemyMinionModel().valid() ||
@@ -227,6 +232,32 @@ int main() {
             std::cerr << "item model has no valid albedo texture\n";
             result = 1;
         }
+        settings.ssao = false;
+        resources.updateFramebuffer(settings);
+        if (!resources.sceneTargetValid() ||
+            resources.sceneScreenSpaceBuffers() ||
+            resources.ssaoTargetValid()) {
+            std::cerr << "SSAO disable transition failed\n";
+            result = 1;
+        }
+        settings.postProcessing = false;
+        resources.updateFramebuffer(settings);
+        if (resources.sceneTargetValid() ||
+            resources.ssaoTargetValid()) {
+            std::cerr << "post-process disable transition failed\n";
+            result = 1;
+        }
+        settings.postProcessing = true;
+        settings.ssao = true;
+        resources.updateFramebuffer(settings);
+        if (!resources.sceneTargetValid() ||
+            !resources.sceneScreenSpaceBuffers() ||
+            !IsTextureValid(resources.sceneTarget().depth) ||
+            !IsTextureValid(resources.sceneNormalTexture()) ||
+            !resources.ssaoTargetValid()) {
+            std::cerr << "SSAO enable transition failed\n";
+            result = 1;
+        }
         resources.shutdown();
         resources.shutdown();
         std::cerr << "graphics smoke: initialize 2\n";
@@ -235,7 +266,14 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
-        renderer.beginWorldPass(BLACK);
+        const Camera3D smokeCamera{
+            .position = {0.0F, 2.0F, 4.0F},
+            .target = {0.0F, 0.5F, 0.0F},
+            .up = {0.0F, 1.0F, 0.0F},
+            .fovy = 60.0F,
+            .projection = CAMERA_PERSPECTIVE,
+        };
+        renderer.beginWorldPass(BLACK, smokeCamera);
         renderer.drawSky(ian::SkyState{});
         renderer.endWorldPass();
         EndDrawing();

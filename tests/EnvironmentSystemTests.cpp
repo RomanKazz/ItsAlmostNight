@@ -64,6 +64,11 @@ void assetProfilesLoad() {
     const auto loaded =
         ian::loadEnvironmentProfiles("assets/data/environment.json");
     require(loaded.valid(), "environment profile JSON loads from runtime path");
+    const auto& day = loaded.profiles[1];
+    require(day.sunIntensity > day.ambientIntensity*2.5F,
+            "day profile preserves directional-light hierarchy");
+    require(day.fogStart >= 50.0F && day.fogEnd >= 175.0F,
+            "day atmosphere preserves middle and distant planes");
 }
 
 } // namespace

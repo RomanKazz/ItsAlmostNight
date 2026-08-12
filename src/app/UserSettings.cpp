@@ -487,7 +487,8 @@ void applyGraphicsPreset(
     settings.postProcessing = true;
     settings.particles = true;
     settings.blobShadows = true;
-    settings.ssao = false;
+    settings.ssao = preset != GraphicsQuality::Low;
+    settings.pixelSize = 1;
 
     if (preset == GraphicsQuality::Low) {
         settings.shadows = false;
@@ -495,7 +496,6 @@ void applyGraphicsPreset(
         settings.bloom = false;
         settings.shadowMapSize = 512;
         settings.shadowDistance = 32.0F;
-        settings.pixelSize = 6;
         settings.aoStrength = 0.2F;
     } else if (preset == GraphicsQuality::Medium) {
         settings.shadows = true;
@@ -503,7 +503,6 @@ void applyGraphicsPreset(
         settings.bloom = false;
         settings.shadowMapSize = 1024;
         settings.shadowDistance = 44.0F;
-        settings.pixelSize = 4;
         settings.aoStrength = 0.3F;
     } else {
         settings.shadows = true;
@@ -511,7 +510,6 @@ void applyGraphicsPreset(
         settings.bloom = true;
         settings.shadowMapSize = 2048;
         settings.shadowDistance = 55.0F;
-        settings.pixelSize = 3;
         settings.aoStrength = 0.35F;
     }
 }

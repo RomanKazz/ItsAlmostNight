@@ -152,4 +152,18 @@ template <typename GridPoint>
     return result;
 }
 
+// A click may cross a grid boundary because first-person aim moves slightly
+// between press and release. Until a real drag gesture is confirmed, keep
+// placement strictly on the pressed cell.
+template <typename GridPoint>
+[[nodiscard]] std::vector<GridPoint> placementGestureLine(
+    GridPoint start, GridPoint aimedEnd, int spacing,
+    bool dragExtended,
+    std::optional<PlacementLineAxis> preferredAxis = std::nullopt,
+    std::size_t maximumLength = MaximumPlacementLineLength) {
+    return placementLine(
+        start, dragExtended ? aimedEnd : start,
+        spacing, preferredAxis, maximumLength);
+}
+
 } // namespace ian

@@ -7,13 +7,13 @@ Date: 2026-07-26
 - Adjustable AO strength in the shared world shader.
 - Temporary per-material AO coefficient for graybox geometry.
 - Optional vertex-alpha AO source for future GLB models.
+- Half-resolution screen-space AO for opaque large objects.
+- Depth/normal material mask and bilateral AO upscale.
 - Soft blob-shadow batch for resources, buildings, and enemies.
 - Object-specific blob size and opacity.
 - Camera-distance fade.
 - Graphics-quality-dependent segment count and opacity.
 - Existing `F7` blob-shadow toggle is now functional.
-
-Full-screen SSAO was intentionally not implemented.
 
 ## AO path
 
@@ -33,6 +33,17 @@ global `aoStrength`. Default strength is `0.30`. Runtime levels are:
 This keeps AO restrained and adjustable. Future opaque GLB assets may store AO
 in vertex alpha without changing the world shader. When vertex alpha is used
 for AO, it is removed from output opacity.
+
+Screen-space AO uses a sampleable scene depth texture plus octahedrally packed
+world normals. It runs at half scene resolution (quarter resolution on Low),
+uses 4/8/12 samples by quality, then receives a five-tap bilateral upscale in
+the post-process pass. High quality fades between 30 and 50 metres; Medium
+between 26 and 42 metres. Low preset disables SSAO.
+
+`screenAoAmount` classifies materials. Terrain and large opaque props
+participate. Grass, water, distant boundary trees, pond plants, small flowers,
+and decorative pebbles do not. AO tint is a restrained cool green-grey rather
+than black.
 
 Current graybox coefficients:
 
@@ -54,7 +65,8 @@ Each shadow is a low-segment ellipse with:
 - smooth camera-distance fade;
 - disabled depth writes.
 
-Resources, buildings, and all active enemy types contribute blobs. Distant
+Resources, loot chests, buildings, bushes, large flowers, and all active enemy
+types contribute blobs. Distant
 objects therefore retain cheap ground contact when outside useful shadow-map
 coverage.
 
@@ -72,19 +84,20 @@ does not issue one high-level draw call per object.
 - `F7`: enable or disable blob shadows.
 - `Shift+F7`: cycle AO strength through 0/20/30/35%.
 - `F2`: inspect blob state and current AO strength.
-- `F9`: reserved SSAO toggle; SSAO remains unimplemented.
+- `F9`: enable or disable screen-space AO.
 
 ## Automated verification
 
-- Debug build: passed.
 - Release build: passed.
-- AddressSanitizer + UndefinedBehaviorSanitizer build: passed.
-- Unit tests: 1/1 passed in Debug, Release, and sanitizer configurations.
+- Unit tests: passed.
+- Graphics-resource smoke test: passed with a real OpenGL context.
+- Driver-side compilation passed for world, grass, sky, water, cloud,
+  post-process, and SSAO shaders.
 - Source whitespace check: passed.
 
-The application was not launched and no screenshots were taken. No standalone
-GLSL validator is installed. Driver-side shader compilation, contact-shadow
-tuning, and visual comparison remain owner-run integration work.
+The application was launched successfully. Contact shadows were visually
+confirmed in-game. SSAO intensity and distance tuning remain visual integration
+work if the art direction changes.
 
 ## Manual integration checklist
 
@@ -97,11 +110,13 @@ tuning, and visual comparison remain owner-run integration work.
 6. Inspect Night; confirm AO and blobs do not crush enemy silhouettes.
 7. Disable directional shadows with `F3`; confirm blobs still provide contact.
 8. Spawn many enemies; confirm blob rendering remains stable.
+9. Toggle `F9`; confirm AO appears around large object/ground intersections,
+   fades by 50 metres, and does not add speckled shading to grass.
 
 ## Known limitations
 
 - Graybox primitives have no authored vertex AO; they use material coefficients.
 - Blob ellipses follow world axes rather than individual model orientation.
 - Terrain intersection height assumes the current flat ground plane.
-- AO textures and packed material channels can be added when production GLB
-  materials arrive.
+- AO textures and packed material channels can supplement current vertex and
+  scalar AO when more production GLB materials arrive.

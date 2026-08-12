@@ -19,7 +19,8 @@ uniform float exposure;
 uniform float timeSeconds;
 uniform float waveSpeed;
 
-out vec4 finalColor;
+layout(location = 0) out vec4 finalColor;
+layout(location = 1) out vec4 normalAo;
 
 float hash21(vec2 value)
 {
@@ -117,4 +118,5 @@ void main()
     water = mix(water, fogColor, fog);
     alpha = mix(alpha, 1.0, fog*0.65);
     finalColor = vec4(water, alpha);
+    normalAo = vec4(0.0, 0.0, 0.0, 1.0);
 }

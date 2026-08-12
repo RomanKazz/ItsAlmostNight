@@ -275,6 +275,16 @@ std::vector<GridPosition> placementLine(
         start, end, spacing, axis);
 }
 
+std::vector<GridPosition> placementGestureLine(
+    BuildingType type, GridPosition start,
+    GridPosition aimedEnd, bool dragExtended,
+    std::optional<PlacementLineAxis> axis) {
+    const int spacing =
+        buildingFootprintHalfExtent(type) == 1.0 ? 2 : 1;
+    return ian::placementGestureLine(
+        start, aimedEnd, spacing, dragExtended, axis);
+}
+
 std::uint8_t wallConnectionToward(
     GridPosition from, GridPosition neighbor) {
     const int deltaX = neighbor.x - from.x;

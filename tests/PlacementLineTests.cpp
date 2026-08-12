@@ -110,6 +110,26 @@ void runPlacementLineTests() {
         empty.empty(),
         "invalid spacing produces no placements");
 
+    const auto clickAcrossBoundary =
+        ian::placementGestureLine(
+            ian::GridPosition{4, 5},
+            ian::GridPosition{5, 5}, 1, false);
+    require(
+        clickAcrossBoundary.size() == 1U &&
+            clickAcrossBoundary.front() ==
+                ian::GridPosition{4, 5},
+        "unconfirmed click stays on its pressed cell");
+
+    const auto confirmedDrag =
+        ian::placementGestureLine(
+            ian::GridPosition{4, 5},
+            ian::GridPosition{7, 5}, 1, true);
+    require(
+        confirmedDrag.size() == 4U &&
+            confirmedDrag.back() ==
+                ian::GridPosition{7, 5},
+        "confirmed drag keeps multi-building placement");
+
     const auto supportedPrefix =
         ian::contiguousPlacementPrefix(
             ian::placementLine(

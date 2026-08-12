@@ -767,6 +767,7 @@ RenderTextureResource::~RenderTextureResource() {
 
 bool RenderTextureResource::load(int width, int height) {
     unload();
+    screenSpaceBuffers_ = false;
     if (width <= 0 || height <= 0) {
         return false;
     }
@@ -792,8 +793,103 @@ bool RenderTextureResource::load(int width, int height) {
     return loaded_;
 }
 
+bool RenderTextureResource::loadScreenSpace(int width, int height) {
+    unload();
+    screenSpaceBuffers_ = true;
+    if (width <= 0 || height <= 0) {
+        screenSpaceBuffers_ = false;
+        return false;
+    }
+
+    target_.id = rlLoadFramebuffer();
+    target_.texture = {
+        .id = rlLoadTexture(nullptr, width, height,
+                            RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1),
+        .width = width,
+        .height = height,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+    };
+    normalTexture_ = {
+        .id = rlLoadTexture(nullptr, width, height,
+                            RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1),
+        .width = width,
+        .height = height,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+    };
+    target_.depth = {
+        .id = rlLoadTextureDepth(width, height, false),
+        .width = width,
+        .height = height,
+        .mipmaps = 1,
+        .format = PIXELFORMAT_UNCOMPRESSED_R32,
+    };
+    if (target_.id == 0U || target_.texture.id == 0U ||
+        normalTexture_.id == 0U || target_.depth.id == 0U) {
+        if (target_.id != 0U) {
+            rlUnloadFramebuffer(target_.id);
+        }
+        if (target_.texture.id != 0U) {
+            rlUnloadTexture(target_.texture.id);
+        }
+        if (normalTexture_.id != 0U) {
+            rlUnloadTexture(normalTexture_.id);
+        }
+        if (target_.depth.id != 0U) {
+            rlUnloadTexture(target_.depth.id);
+        }
+        target_ = {};
+        normalTexture_ = {};
+        screenSpaceBuffers_ = false;
+        return false;
+    }
+
+    rlFramebufferAttach(target_.id, target_.texture.id,
+                        RL_ATTACHMENT_COLOR_CHANNEL0,
+                        RL_ATTACHMENT_TEXTURE2D, 0);
+    rlFramebufferAttach(target_.id, normalTexture_.id,
+                        RL_ATTACHMENT_COLOR_CHANNEL1,
+                        RL_ATTACHMENT_TEXTURE2D, 0);
+    rlFramebufferAttach(target_.id, target_.depth.id,
+                        RL_ATTACHMENT_DEPTH,
+                        RL_ATTACHMENT_TEXTURE2D, 0);
+    rlEnableFramebuffer(target_.id);
+    rlActiveDrawBuffers(2);
+    rlDisableFramebuffer();
+    loaded_ = rlFramebufferComplete(target_.id);
+    if (!loaded_) {
+        unload();
+        return false;
+    }
+    SetTextureFilter(target_.texture, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target_.texture, TEXTURE_WRAP_CLAMP);
+    SetTextureFilter(normalTexture_, TEXTURE_FILTER_POINT);
+    SetTextureWrap(normalTexture_, TEXTURE_WRAP_CLAMP);
+    SetTextureFilter(target_.depth, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target_.depth, TEXTURE_WRAP_CLAMP);
+    return true;
+}
+
 void RenderTextureResource::unload() {
-    if (loaded_) {
+    if (screenSpaceBuffers_) {
+        if (normalTexture_.id != 0U) {
+            rlUnloadTexture(normalTexture_.id);
+        }
+        if (target_.texture.id != 0U) {
+            rlUnloadTexture(target_.texture.id);
+        }
+        if (target_.depth.id != 0U) {
+            rlUnloadTexture(target_.depth.id);
+        }
+        if (target_.id != 0U) {
+            rlUnloadFramebuffer(target_.id);
+        }
+        normalTexture_ = {};
+        target_ = {};
+        screenSpaceBuffers_ = false;
+        loaded_ = false;
+    } else if (loaded_) {
         UnloadRenderTexture(target_);
         target_ = {};
         loaded_ = false;
@@ -810,6 +906,14 @@ RenderTexture2D& RenderTextureResource::get() {
 
 const RenderTexture2D& RenderTextureResource::get() const {
     return target_;
+}
+
+const Texture2D& RenderTextureResource::normalTexture() const {
+    return normalTexture_;
+}
+
+bool RenderTextureResource::screenSpaceBuffers() const {
+    return screenSpaceBuffers_;
 }
 
 ShadowMapResource::~ShadowMapResource() {
@@ -918,6 +1022,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                                  "assets/shaders/selection_outline.fs");
     postProcessShader_.load(
         nullptr, "assets/shaders/postprocess.fs");
+    ssaoShader_.load(nullptr, "assets/shaders/ssao.fs");
     viewModelCompositeShader_.load(
         nullptr, "assets/shaders/viewmodel_composite.fs");
     grassShader_.load("assets/shaders/grass_instanced.vs",
@@ -1133,6 +1238,16 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         return;
     }
 
+    if (!settings.postProcessing) {
+        sceneTarget_.unload();
+        ssaoTarget_.unload();
+        requestedSceneWidth_ = 0;
+        requestedSceneHeight_ = 0;
+        requestedSsaoWidth_ = 0;
+        requestedSsaoHeight_ = 0;
+        return;
+    }
+
     const int framebufferWidth = GetRenderWidth();
     const int framebufferHeight = GetRenderHeight();
     if (framebufferWidth <= 0 || framebufferHeight <= 0) {
@@ -1144,13 +1259,41 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         std::max(1, (framebufferWidth + pixelSize - 1) / pixelSize);
     const int desiredHeight =
         std::max(1, (framebufferHeight + pixelSize - 1) / pixelSize);
-    if (desiredWidth == requestedSceneWidth_ && desiredHeight == requestedSceneHeight_) {
-        return;
+    const bool needsScreenSpaceBuffers = settings.ssao;
+    if (desiredWidth != requestedSceneWidth_ ||
+        desiredHeight != requestedSceneHeight_ ||
+        !sceneTarget_.valid() ||
+        sceneTarget_.screenSpaceBuffers() != needsScreenSpaceBuffers) {
+        requestedSceneWidth_ = desiredWidth;
+        requestedSceneHeight_ = desiredHeight;
+        if (needsScreenSpaceBuffers) {
+            sceneTarget_.loadScreenSpace(desiredWidth, desiredHeight);
+        } else {
+            sceneTarget_.load(desiredWidth, desiredHeight);
+        }
     }
 
-    requestedSceneWidth_ = desiredWidth;
-    requestedSceneHeight_ = desiredHeight;
-    sceneTarget_.load(desiredWidth, desiredHeight);
+    if (!settings.ssao || !sceneTarget_.valid()) {
+        ssaoTarget_.unload();
+        requestedSsaoWidth_ = 0;
+        requestedSsaoHeight_ = 0;
+        return;
+    }
+    const int divisor = settings.quality == GraphicsQuality::Low ? 4 : 2;
+    const int ssaoWidth = std::max(1, (desiredWidth + divisor - 1) / divisor);
+    const int ssaoHeight = std::max(1, (desiredHeight + divisor - 1) / divisor);
+    if (ssaoWidth == requestedSsaoWidth_ &&
+        ssaoHeight == requestedSsaoHeight_ &&
+        ssaoTarget_.valid()) {
+        return;
+    }
+    requestedSsaoWidth_ = ssaoWidth;
+    requestedSsaoHeight_ = ssaoHeight;
+    ssaoTarget_.load(ssaoWidth, ssaoHeight);
+    if (ssaoTarget_.valid()) {
+        SetTextureFilter(ssaoTarget_.get().texture,
+                         TEXTURE_FILTER_BILINEAR);
+    }
 }
 
 void GraphicsResources::updateSelectionMask(
@@ -1196,6 +1339,7 @@ void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {
 
 void GraphicsResources::shutdown() {
     viewModelTarget_.unload();
+    ssaoTarget_.unload();
     shadowMap_.unload();
     enemyBossAnimations_.unload();
     enemySplitlingAnimations_.unload();
@@ -1285,6 +1429,7 @@ void GraphicsResources::shutdown() {
     iceMagicShader_.unload();
     coinOutlineShader_.unload();
     grassShader_.unload();
+    ssaoShader_.unload();
     postProcessShader_.unload();
     viewModelCompositeShader_.unload();
     selectionOutlineShader_.unload();
@@ -1299,6 +1444,8 @@ void GraphicsResources::shutdown() {
     selectionMaskTarget_.unload();
     requestedSceneWidth_ = 0;
     requestedSceneHeight_ = 0;
+    requestedSsaoWidth_ = 0;
+    requestedSsaoHeight_ = 0;
     requestedViewModelWidth_ = 0;
     requestedViewModelHeight_ = 0;
     requestedSelectionMaskWidth_ = 0;

@@ -130,7 +130,7 @@ void graphicsPresetsAreCompleteAndDetectable() {
                 ian::GraphicsQuality::Low,
             "low graphics preset is detectable");
     require(!settings.shadows && !settings.grass &&
-                settings.pixelSize == 6,
+                !settings.ssao && settings.pixelSize == 1,
             "low preset applies performance settings together");
     requireNear(settings.brightness, 0.31, 1e-6,
                 "graphics preset preserves color calibration");
@@ -140,6 +140,13 @@ void graphicsPresetsAreCompleteAndDetectable() {
     settings.shadows = true;
     require(!ian::detectGraphicsPreset(settings),
             "manual tuning is reported as custom");
+
+    ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Medium);
+    require(settings.ssao && settings.pixelSize == 1,
+            "medium preset enables SSAO without pixelization");
+    ian::applyGraphicsPreset(settings, ian::GraphicsQuality::High);
+    require(settings.ssao && settings.pixelSize == 1,
+            "high preset enables SSAO without pixelization");
 }
 
 void tabResetsPreserveOtherTabs() {
@@ -151,7 +158,7 @@ void tabResetsPreserveOtherTabs() {
     settings.inkOutlines = true;
 
     ian::resetDisplaySettings(settings);
-    require(settings.shadows && settings.pixelSize == 3 &&
+    require(settings.shadows && settings.pixelSize == 1 &&
                 settings.frameRateLimit == 60,
             "display reset restores display defaults");
     requireNear(settings.brightness, 0.4, 1e-6,

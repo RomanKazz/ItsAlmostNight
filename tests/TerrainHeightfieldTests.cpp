@@ -206,7 +206,8 @@ void runTerrainHeightfieldTests() {
         "mountain backdrop rises beyond the map boundary");
     require(
         ian::WorldConfig::defaults().terrainWorldSize >= 384.0 &&
-            ian::WorldConfig::defaults().terrainResolution >= 513,
+            ian::WorldConfig::defaults().terrainResolution >= 513 &&
+            ian::WorldConfig::defaults().terrainSlopeWidth >= 28.0,
         "default world uses large chunk-ready terrain");
 
     ian::TerrainHeightfield defaultTerrain{

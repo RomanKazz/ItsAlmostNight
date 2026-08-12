@@ -239,6 +239,10 @@ class App {
     std::optional<BuildingPlatformSurface>
         placementDragSurface_;
     std::optional<PlacementLineAxis> placementDragAxis_;
+    std::optional<GridPosition> placementDragCandidateEnd_;
+    int placementDragCandidateFrames_{};
+    double placementDragLookMovement_{};
+    bool placementDragExtended_{};
     std::deque<PlaceBuildingCommand> pendingWallPlacements_;
     int pendingBuildingRotation_{};
     double buildingRotationWheelAccumulator_{};

@@ -261,6 +261,10 @@ void App::processInput() {
         placementDragType_.reset();
         placementDragSurface_.reset();
         placementDragAxis_.reset();
+        placementDragCandidateEnd_.reset();
+        placementDragCandidateFrames_ = 0;
+        placementDragLookMovement_ = 0.0;
+        placementDragExtended_ = false;
         pendingWallPlacements_.clear();
         clearModularPlacementDrag();
         modularSnapHit_.reset();
@@ -377,6 +381,10 @@ void App::processInput() {
         placementDragType_.reset();
         placementDragSurface_.reset();
         placementDragAxis_.reset();
+        placementDragCandidateEnd_.reset();
+        placementDragCandidateFrames_ = 0;
+        placementDragLookMovement_ = 0.0;
+        placementDragExtended_ = false;
         pendingWallPlacements_.clear();
         clearModularPlacementDrag();
         modularSnapHit_.reset();
@@ -493,6 +501,10 @@ void App::processInput() {
             placementDragType_.reset();
             placementDragSurface_.reset();
             placementDragAxis_.reset();
+            placementDragCandidateEnd_.reset();
+            placementDragCandidateFrames_ = 0;
+            placementDragLookMovement_ = 0.0;
+            placementDragExtended_ = false;
         }
         input_.moveForward =
             static_cast<double>(
@@ -519,6 +531,10 @@ void App::processInput() {
                 pendingBuildingSelection_ = type;
             };
         const Vector2 mouseDelta = GetMouseDelta();
+        if (wallDragStart_) {
+            placementDragLookMovement_ +=
+                static_cast<double>(Vector2Length(mouseDelta));
+        }
         if (modularDragPiece_) {
             modularDragLookMovement_ +=
                 static_cast<double>(
@@ -1095,14 +1111,23 @@ void App::processInput() {
             placementDragType_.reset();
             placementDragSurface_.reset();
             placementDragAxis_.reset();
+            placementDragCandidateEnd_.reset();
+            placementDragCandidateFrames_ = 0;
+            placementDragLookMovement_ = 0.0;
+            placementDragExtended_ = false;
+            placementDragCandidateEnd_.reset();
+            placementDragCandidateFrames_ = 0;
+            placementDragLookMovement_ = 0.0;
+            placementDragExtended_ = false;
             pendingWallPlacements_.clear();
         }
         if (wallDragStart_ &&
             placementDragType_ &&
             currentSnapshot.selectedBuilding ==
                 placementDragType_) {
+            std::optional<GridPosition> aimedEnd;
             if (placementDragSurface_) {
-                wallDragEnd_ =
+                aimedEnd =
                     aimedBuildingGridPosition(
                         currentSnapshot.playerPosition,
                         currentSnapshot.playerYaw,
@@ -1115,9 +1140,42 @@ void App::processInput() {
                 currentSnapshot.buildingPreview &&
                 currentSnapshot.buildingPreview->type ==
                     *placementDragType_) {
-                wallDragEnd_ =
+                aimedEnd =
                     currentSnapshot.buildingPreview
                         ->gridPosition;
+            }
+            if (aimedEnd) {
+                const bool movedCell =
+                    *aimedEnd != *wallDragStart_;
+                if (!movedCell) {
+                    wallDragEnd_ = wallDragStart_;
+                    placementDragCandidateEnd_.reset();
+                    placementDragCandidateFrames_ = 0;
+                } else if (!placementDragExtended_) {
+                    constexpr double MinimumDragPixels = 4.0;
+                    constexpr int ConfirmationFrames = 2;
+                    if (placementDragLookMovement_ < MinimumDragPixels) {
+                        wallDragEnd_ = wallDragStart_;
+                        placementDragCandidateEnd_.reset();
+                        placementDragCandidateFrames_ = 0;
+                    } else {
+                        if (placementDragCandidateEnd_ == aimedEnd) {
+                            ++placementDragCandidateFrames_;
+                        } else {
+                            placementDragCandidateEnd_ = aimedEnd;
+                            placementDragCandidateFrames_ = 1;
+                        }
+                        if (placementDragCandidateFrames_ >=
+                            ConfirmationFrames) {
+                            placementDragExtended_ = true;
+                            wallDragEnd_ = aimedEnd;
+                        } else {
+                            wallDragEnd_ = wallDragStart_;
+                        }
+                    }
+                } else {
+                    wallDragEnd_ = aimedEnd;
+                }
             }
             constexpr double AxisSwitchMarginCells = 1.0;
             placementDragAxis_ =
@@ -1134,9 +1192,10 @@ void App::processInput() {
             IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
             const BuildingType dragType =
                 *placementDragType_;
-            const auto cells = placementLine(
+            const auto cells = placementGestureLine(
                 dragType, *wallDragStart_,
                 wallDragEnd_.value_or(*wallDragStart_),
+                placementDragExtended_,
                 placementDragAxis_);
             const std::size_t count = cells.size();
             std::uint8_t dragRotation =
@@ -1278,6 +1337,10 @@ void App::processInput() {
                 placementDragType_ =
                     currentSnapshot.buildingPreview->type;
                 placementDragAxis_.reset();
+                placementDragCandidateEnd_.reset();
+                placementDragCandidateFrames_ = 0;
+                placementDragLookMovement_ = 0.0;
+                placementDragExtended_ = false;
                 placementDragSurface_ =
                     BuildingPlatformSurface{
                         .height =

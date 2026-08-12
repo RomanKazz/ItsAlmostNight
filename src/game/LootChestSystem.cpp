@@ -17,6 +17,8 @@ namespace {
 constexpr std::size_t ChestCount = 10;
 constexpr double OpeningDuration = 1.05;
 constexpr double LooseLootRevealDuration = 0.38;
+constexpr double ChestDisappearanceDelay = 1.15;
+constexpr double ChestDisappearanceDuration = 0.35;
 // These values are shared by the simulation position, raycast, prompt and
 // render passes. Keep the reward above the chest without adding a permanent
 // forward displacement that becomes visible on sloped chests.
@@ -118,12 +120,40 @@ Vec3 lootVisualPosition(const LootChestInstance& chest) {
     return lootVisualPositionImpl(chest);
 }
 
+bool lootChestOverlapsRectangle(
+    std::span<const LootChestInstance> chests,
+    double minimumX, double maximumX,
+    double minimumZ, double maximumZ) {
+    constexpr double PlacementRadius = 0.82;
+    return std::any_of(
+        chests.begin(), chests.end(),
+        [=](const LootChestInstance& chest) {
+            if (chest.looseLoot) {
+                return false;
+            }
+            const double distanceX = std::max(
+                0.0,
+                std::max(
+                    minimumX - chest.position.x,
+                    chest.position.x - maximumX));
+            const double distanceZ = std::max(
+                0.0,
+                std::max(
+                    minimumZ - chest.position.z,
+                    chest.position.z - maximumZ));
+            return distanceX * distanceX +
+                       distanceZ * distanceZ <=
+                   PlacementRadius * PlacementRadius;
+        });
+}
+
 void LootChestSystem::reset(
     std::uint32_t terrainSeed, double worldLimit,
     const TerrainHeightfield& terrain,
     std::span<const ResourceNode> resources, Vec3 playerSpawn) {
     ++runGeneration_;
     if (runGeneration_ == 0U) ++runGeneration_;
+    nextEntityIndex_ = 0U;
     chests_.clear();
     chests_.reserve(ChestCount);
     spawnAdditionalChests(
@@ -208,8 +238,7 @@ void LootChestSystem::spawnAdditionalChests(
             });
         if (resourceBlocked || chestBlocked) continue;
 
-        const std::uint32_t index =
-            static_cast<std::uint32_t>(chests_.size());
+        const std::uint32_t index = nextEntityIndex_++;
         const LootChestType type = index % 3U == 2U
             ? LootChestType::Stone
             : LootChestType::Wooden;
@@ -252,7 +281,32 @@ void LootChestSystem::tick(double deltaSeconds) {
         }
         if (chest.loot.available && !chest.loot.collected)
             chest.loot.hoverTime += deltaSeconds;
+        if (chest.loot.collected) {
+            if (chest.looseLoot) {
+                chest.disappearanceProgress = 1.0;
+                continue;
+            }
+            double disappearanceDelta = deltaSeconds;
+            if (chest.disappearanceDelayRemaining > 0.0) {
+                const double delayStep = std::min(
+                    chest.disappearanceDelayRemaining,
+                    disappearanceDelta);
+                chest.disappearanceDelayRemaining -= delayStep;
+                disappearanceDelta -= delayStep;
+            }
+            if (disappearanceDelta > 0.0) {
+                chest.disappearanceProgress = std::min(
+                    1.0,
+                    chest.disappearanceProgress +
+                        disappearanceDelta /
+                            ChestDisappearanceDuration);
+            }
+        }
     }
+    std::erase_if(
+        chests_, [](const LootChestInstance& chest) {
+            return chest.disappearanceProgress >= 1.0;
+        });
 }
 
 std::optional<EntityId> LootChestSystem::raycastChest(
@@ -326,6 +380,8 @@ std::optional<LootPickup> LootChestSystem::collect(EntityId id) {
             chest.loot.collected ||
             chest.loot.pickupDelayRemaining > 0.0) continue;
         chest.loot.collected = true;
+        chest.disappearanceDelayRemaining =
+            chest.looseLoot ? 0.0 : ChestDisappearanceDelay;
         return LootPickup{
             chest.loot.id, chest.loot.rarity,
             chest.loot.effect, lootVisualPositionImpl(chest),
@@ -364,8 +420,7 @@ void LootChestSystem::spawnLooseLoot(
     const auto pool = rarity == LootRarity::Common
         ? std::span<const LootUpgradeEffect>{CommonLoot}
         : std::span<const LootUpgradeEffect>{RareLoot};
-    const EntityId id{
-        static_cast<std::uint32_t>(chests_.size()), runGeneration_};
+    const EntityId id{nextEntityIndex_++, runGeneration_};
     LootChestInstance loose{
         .id = id,
         .type = LootChestType::Wooden,

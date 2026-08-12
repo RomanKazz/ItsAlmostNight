@@ -184,7 +184,7 @@ void drawFittedLootModel(ModelResource& resource, Color tint) {
 
 bool Renderer::drawLootChest(
     LootChestType type, Vector3 position, float yawRadians,
-    float openingProgress, Color tint) {
+    float openingProgress, Color tint, float scale) {
     ModelResource& resource = type == LootChestType::Wooden
         ? resources_.woodenChestModel()
         : resources_.stoneChestModel();
@@ -206,7 +206,7 @@ bool Renderer::drawLootChest(
 
     const LootChestWorldTransform worldTransform =
         lootChestWorldTransform(
-            type, position, yawRadians, openingProgress);
+            type, position, yawRadians, openingProgress, scale);
     if (!worldTransform.valid) return false;
     const auto drawMesh = [&resource, &model, tint](
                               int meshIndex, Matrix transform) {
@@ -242,7 +242,7 @@ bool Renderer::drawLootChest(
 
 LootChestWorldTransform Renderer::lootChestWorldTransform(
     LootChestType type, Vector3 position, float yawRadians,
-    float openingProgress) {
+    float openingProgress, float visualScale) {
     LootChestWorldTransform result{};
     ModelResource& resource = type == LootChestType::Wooden
         ? resources_.woodenChestModel()
@@ -255,6 +255,7 @@ LootChestWorldTransform Renderer::lootChestWorldTransform(
     }
 
     constexpr float ModelScale = 2.45F;
+    const float safeScale = std::clamp(visualScale, 0.0F, 4.0F);
     const float progress = std::clamp(openingProgress, 0.0F, 1.0F);
     const float delayed = std::clamp(
         (progress - 0.08F) / 0.76F, 0.0F, 1.0F);
@@ -264,7 +265,10 @@ LootChestWorldTransform Renderer::lootChestWorldTransform(
         Back * shifted * shifted;
     const float lidAngle = std::clamp(eased, 0.0F, 1.08F) *
         -108.0F * DEG2RAD;
-    const Matrix scale = MatrixScale(ModelScale, ModelScale, ModelScale);
+    const Matrix scale = MatrixScale(
+        ModelScale*safeScale,
+        ModelScale*safeScale,
+        ModelScale*safeScale);
     const Matrix terrainRotation = terrainAlignedRotation(
         position.x, position.z, yawRadians);
     const Matrix translation = MatrixTranslate(
@@ -450,4 +454,3 @@ BoundingBox Renderer::lootItemWorldBounds(
 
 
 } // namespace ian
-
