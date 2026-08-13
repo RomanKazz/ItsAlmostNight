@@ -55,11 +55,13 @@ struct InsightConfig {
 
     double introGatherObjective{60.0};
     double introCoreObjective{40.0};
-    double normalWave{20.0};
-    double milestoneWave{40.0};
-    double bossWave{75.0};
+    double normalWave{30.0};
+    double milestoneWave{55.0};
+    double bossWave{100.0};
     int milestoneWaveInterval{5};
-    std::array<double, 9> enemy{{0.75, 1.0, 3.0, 2.0, 3.0, 2.5, 75.0,
+    // EnemyType order: Basic, Fast, Heavy, Boss, Ranged, Sapper, Flying,
+    // Splitter, Splitling.
+    std::array<double, 9> enemy{{0.75, 1.0, 3.0, 75.0, 2.0, 3.0, 2.5,
                                  4.0, 0.5}};
     std::array<double, 2> resourcePerUnit{{0.14, 0.22}};
     std::array<double, 2> resourceDepleted{{1.5, 2.0}};

@@ -271,10 +271,9 @@ void LootChestSystem::spawnAdditionalChests(
             .yaw = unitRandom(seed ^ 0x452821e638d01377ULL) *
                 6.28318530717958647692,
             .coinCost = type == LootChestType::Wooden ? 20 : 40,
-            // Exploration chests are deliberately far away. Keep them on the
-            // map from the beginning so reaching one is a strategic choice,
-            // not a blind search against the day timer.
-            .revealed = purpose == LootChestPurpose::Exploration,
+            // Exploration chests stay hidden from the minimap until the
+            // player reveals one or acquires an effect that exposes chests.
+            .revealed = false,
             .loot = makeLoot(id, position, 0U, purpose),
         });
     }

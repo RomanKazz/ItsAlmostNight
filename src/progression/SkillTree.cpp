@@ -40,65 +40,65 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
     };
     using E = SkillEffectDefinition;
     return {
-        make("bare_hands", "SURVIVOR", "The origin of every run.", "placeholder_hands", SkillBranch::Root, {0, 0}, 0, {}),
+        make("bare_hands", "SURVIVOR", "The origin of every run.", "bare_hands", SkillBranch::Root, {0, 0}, 0, {}),
 
-        make("axe", "AXE", "Unlock the axe for efficient wood gathering.", "placeholder_axe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, {E{"unlock.axe"}}),
-        make("pickaxe", "PICKAXE", "Unlock the pickaxe for efficient stone gathering.", "placeholder_pickaxe", SkillBranch::Gathering, {-190, 190}, 1, {"bare_hands"}, {E{"unlock.pickaxe"}}),
-        make("efficient_strikes", "EFFICIENT STRIKES", "Tools deal 25% more damage to resources.", "placeholder_tools", SkillBranch::Gathering, {-380, 0}, 1, {"axe", "pickaxe"}, {E{"gather.damage", 0.25}}),
-        make("power_swing", "POWER SWING", "Every third resource hit also strikes nearby deposits.", "placeholder_tools", SkillBranch::Gathering, {-570, 0}, 2, {"efficient_strikes"}, {E{"gather.power_swing"}}, {}, SkillNodeSize::Large),
-        make("wide_swing", "WIDE SWING", "Power Swing reaches 50% farther.", "placeholder_tools", SkillBranch::Gathering, {-760, 0}, 1, {"power_swing"}, {E{"gather.power_swing_radius", 0.5}}),
-        make("hands_on", "HANDS-ON", "Manual gathering is 45% stronger, but producers work 20% slower.", "placeholder_hands", SkillBranch::Gathering, {-570, 190}, 2, {"efficient_strikes"}, {E{"gather.damage", 0.45}, E{"production.speed", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
-        make("industrialist", "INDUSTRIALIST", "Producers work 40% faster, but manual gathering is 20% weaker.", "placeholder_hammer", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"production.speed", 0.40}, E{"gather.damage", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
-        make("lumber_mill", "LUMBER MILL", "Unlock the Lumber Mill for passive wood production during the day.", "placeholder_axe", SkillBranch::Gathering, {-380, 190}, 1, {"bare_hands"}, {E{"unlock.lumber_mill"}}),
-        make("quarry", "QUARRY", "Unlock the Quarry for passive stone production during the day.", "placeholder_pickaxe", SkillBranch::Gathering, {-380, 380}, 1, {"bare_hands"}, {E{"unlock.quarry"}}),
-        make("crystal_mine", "CRYSTAL MINE", "Unlock the Crystal Mine for passive crystal production during the day.", "placeholder_crystal", SkillBranch::Gathering, {-570, 570}, 1, {"bare_hands"}, {E{"unlock.crystal_mine"}}),
-        make("night_shift", "NIGHT SHIFT", "All production buildings operate at 50% speed during enemy waves.", "placeholder_moon", SkillBranch::Gathering, {-760, 570}, 3, {"lumber_mill", "quarry", "crystal_mine"}, {E{"production.night_speed", 0.50}}, {}, SkillNodeSize::Large),
+        make("axe", "AXE", "Unlock the axe for efficient wood gathering.", "axe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, {E{"unlock.axe"}}),
+        make("pickaxe", "PICKAXE", "Unlock the pickaxe for efficient stone gathering.", "pickaxe", SkillBranch::Gathering, {-190, 190}, 1, {"bare_hands"}, {E{"unlock.pickaxe"}}),
+        make("efficient_strikes", "EFFICIENT STRIKES", "Tools deal 25% more damage to resources.", "efficient_strikes", SkillBranch::Gathering, {-380, 0}, 1, {"axe", "pickaxe"}, {E{"gather.damage", 0.25}}),
+        make("power_swing", "POWER SWING", "Every third resource hit also strikes nearby deposits.", "power_swing", SkillBranch::Gathering, {-570, 0}, 2, {"efficient_strikes"}, {E{"gather.power_swing"}}, {}, SkillNodeSize::Large),
+        make("wide_swing", "WIDE SWING", "Power Swing reaches 50% farther.", "wide_swing", SkillBranch::Gathering, {-760, 0}, 1, {"power_swing"}, {E{"gather.power_swing_radius", 0.5}}),
+        make("hands_on", "HANDS-ON", "Manual gathering is 45% stronger, but producers work 20% slower.", "hands_on", SkillBranch::Gathering, {-570, 190}, 2, {"efficient_strikes"}, {E{"gather.damage", 0.45}, E{"production.speed", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
+        make("industrialist", "INDUSTRIALIST", "Producers work 40% faster, but manual gathering is 20% weaker.", "industrialist", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"production.speed", 0.40}, E{"gather.damage", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
+        make("lumber_mill", "LUMBER MILL", "Unlock the Lumber Mill for passive wood production during the day.", "lumber_mill", SkillBranch::Gathering, {-380, 190}, 1, {"bare_hands"}, {E{"unlock.lumber_mill"}}),
+        make("quarry", "QUARRY", "Unlock the Quarry for passive stone production during the day.", "quarry", SkillBranch::Gathering, {-380, 380}, 1, {"bare_hands"}, {E{"unlock.quarry"}}),
+        make("crystal_mine", "CRYSTAL MINE", "Unlock the Crystal Mine for passive crystal production during the day.", "crystal_mine", SkillBranch::Gathering, {-570, 570}, 1, {"bare_hands"}, {E{"unlock.crystal_mine"}}),
+        make("night_shift", "NIGHT SHIFT", "All production buildings operate at 50% speed during enemy waves.", "night_shift", SkillBranch::Gathering, {-760, 570}, 3, {"lumber_mill", "quarry", "crystal_mine"}, {E{"production.night_speed", 0.50}}, {}, SkillNodeSize::Large),
 
-        make("combat_training", "COMBAT TRAINING", "All player attacks deal 10% more damage.", "placeholder_club", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, {E{"player.damage", 0.10}}),
-        make("club", "CLUB", "Unlock the club and its sweeping melee attacks.", "placeholder_club", SkillBranch::Weapons, {-380, -380}, 1, {"combat_training"}, {E{"unlock.club"}}),
-        make("rifle", "RIFLE", "Unlock accurate ranged combat.", "placeholder_rifle", SkillBranch::Weapons, {-190, -380}, 1, {"combat_training"}, {E{"unlock.rifle"}}),
+        make("combat_training", "COMBAT TRAINING", "All player attacks deal 10% more damage.", "combat_training", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, {E{"player.damage", 0.10}}),
+        make("club", "CLUB", "Unlock the club and its sweeping melee attacks.", "club", SkillBranch::Weapons, {-380, -380}, 1, {"combat_training"}, {E{"unlock.club"}}),
+        make("rifle", "RIFLE", "Unlock accurate ranged combat.", "rifle", SkillBranch::Weapons, {-190, -380}, 1, {"combat_training"}, {E{"unlock.rifle"}}),
         make("ice_wand", "ICE WAND", "Unlock freezing projectiles and area control.", "ice_wand", SkillBranch::Weapons, {0, -380}, 2, {"combat_training"}, {E{"unlock.ice_wand"}}),
         make("fire_wand", "FIRE WAND", "Unlock burning projectiles and damage over time.", "fire_wand", SkillBranch::Weapons, {190, -380}, 2, {"combat_training"}, {E{"unlock.fire_wand"}}),
-        make("bombs", "BOMBS", "Unlock bombs and receive two at the start of every night.", "placeholder_bomb", SkillBranch::Weapons, {380, -380}, 1, {"combat_training"}, {E{"unlock.bombs"}}),
-        make("bomb_pouch", "BOMB POUCH", "Receive one additional bomb at the start of every night.", "placeholder_bomb", SkillBranch::Weapons, {570, -570}, 2, {"bombs"}, {E{"bomb.nightly_bonus", 1.0}}),
-        make("concussive_swings", "CONCUSSIVE SWINGS", "Club attacks gain strong knockback.", "placeholder_club", SkillBranch::Weapons, {-570, -380}, 1, {"club"}, {E{"club.knockback_strength", 3.0}}),
-        make("bruiser", "BRUISER", "Club damage and knockback increase greatly, but its area shrinks.", "placeholder_club", SkillBranch::Weapons, {-570, -570}, 2, {"concussive_swings"}, {E{"club.damage", 0.55}, E{"club.knockback", 0.50}, E{"club.area", -0.20}}, "club_style", SkillNodeSize::Large),
-        make("crowd_breaker", "CROWD BREAKER", "Club swings cover a much wider area, but deal less damage.", "placeholder_club", SkillBranch::Weapons, {-380, -570}, 2, {"club"}, {E{"club.area", 0.55}, E{"club.damage", -0.20}}, "club_style", SkillNodeSize::Large),
-        make("marksman", "MARKSMAN", "Rifle shots gain 70% damage and 35% range, but fire 30% slower.", "placeholder_rifle", SkillBranch::Weapons, {-190, -570}, 3, {"rifle"}, {E{"rifle.damage", 0.70}, E{"rifle.range", 0.35}, E{"rifle.fire_rate", -0.30}}, "rifle_style", SkillNodeSize::Large),
-        make("assault_rifle", "ASSAULT DRILL", "Rifle fires 50% faster with a larger magazine, but loses damage.", "placeholder_rifle", SkillBranch::Weapons, {-190, -760}, 3, {"rifle"}, {E{"rifle.damage", -0.20}, E{"rifle.fire_rate", 0.50}, E{"rifle.magazine", 4.0}}, "rifle_style", SkillNodeSize::Large),
-        make("deep_freeze", "DEEP FREEZE", "Ice covers a wider area and freezes longer, but deals less damage.", "ice_wand", SkillBranch::Weapons, {0, -570}, 3, {"ice_wand"}, {E{"ice.radius", 0.35}, E{"ice.freeze_duration", 0.55}, E{"ice.damage", -0.20}}, "ice_style", SkillNodeSize::Large),
-        make("ice_lance", "ICE LANCE", "Ice projectiles deal heavy direct damage but have a smaller blast.", "ice_wand", SkillBranch::Weapons, {0, -760}, 3, {"ice_wand"}, {E{"ice.damage", 0.65}, E{"ice.radius", -0.25}}, "ice_style", SkillNodeSize::Large),
-        make("wildfire", "WILDFIRE", "Fire spreads through a larger area and burns longer, with weaker impact.", "fire_wand", SkillBranch::Weapons, {190, -570}, 3, {"fire_wand"}, {E{"fire.radius", 0.40}, E{"fire.burn_duration", 0.50}, E{"fire.damage", -0.20}}, "fire_style", SkillNodeSize::Large),
-        make("inferno", "INFERNO", "Fire impact and burn damage increase, but the blast becomes smaller.", "fire_wand", SkillBranch::Weapons, {190, -760}, 3, {"fire_wand"}, {E{"fire.damage", 0.45}, E{"fire.burn_damage", 0.45}, E{"fire.radius", -0.20}}, "fire_style", SkillNodeSize::Large),
-        make("thermal_shock", "THERMAL SHOCK", "Fire striking a frozen enemy consumes Freeze for a violent burst.", "fire_wand", SkillBranch::Weapons, {380, -760}, 3, {"ice_wand", "fire_wand"}, {E{"element.thermal_shock", 18.0}}, {}, SkillNodeSize::Large),
+        make("bombs", "BOMBS", "Unlock bombs and receive two at the start of every night.", "bombs", SkillBranch::Weapons, {380, -380}, 1, {"combat_training"}, {E{"unlock.bombs"}}),
+        make("bomb_pouch", "BOMB POUCH", "Receive one additional bomb at the start of every night.", "bomb_pouch", SkillBranch::Weapons, {570, -570}, 2, {"bombs"}, {E{"bomb.nightly_bonus", 1.0}}),
+        make("concussive_swings", "CONCUSSIVE SWINGS", "Club attacks gain strong knockback.", "concussive_swings", SkillBranch::Weapons, {-570, -380}, 1, {"club"}, {E{"club.knockback_strength", 3.0}}),
+        make("bruiser", "BRUISER", "Club damage and knockback increase greatly, but its area shrinks.", "bruiser", SkillBranch::Weapons, {-570, -570}, 2, {"concussive_swings"}, {E{"club.damage", 0.55}, E{"club.knockback", 0.50}, E{"club.area", -0.20}}, "club_style", SkillNodeSize::Large),
+        make("crowd_breaker", "CROWD BREAKER", "Club swings cover a much wider area, but deal less damage.", "crowd_breaker", SkillBranch::Weapons, {-380, -570}, 2, {"club"}, {E{"club.area", 0.55}, E{"club.damage", -0.20}}, "club_style", SkillNodeSize::Large),
+        make("marksman", "MARKSMAN", "Rifle shots gain 70% damage and 35% range, but fire 30% slower.", "marksman", SkillBranch::Weapons, {-190, -570}, 3, {"rifle"}, {E{"rifle.damage", 0.70}, E{"rifle.range", 0.35}, E{"rifle.fire_rate", -0.30}}, "rifle_style", SkillNodeSize::Large),
+        make("assault_rifle", "ASSAULT DRILL", "Rifle fires 50% faster with a larger magazine, but loses damage.", "assault_rifle", SkillBranch::Weapons, {-190, -760}, 3, {"rifle"}, {E{"rifle.damage", -0.20}, E{"rifle.fire_rate", 0.50}, E{"rifle.magazine", 4.0}}, "rifle_style", SkillNodeSize::Large),
+        make("deep_freeze", "DEEP FREEZE", "Ice covers a wider area and freezes longer, but deals less damage.", "deep_freeze", SkillBranch::Weapons, {0, -570}, 3, {"ice_wand"}, {E{"ice.radius", 0.35}, E{"ice.freeze_duration", 0.55}, E{"ice.damage", -0.20}}, "ice_style", SkillNodeSize::Large),
+        make("ice_lance", "ICE LANCE", "Ice projectiles deal heavy direct damage but have a smaller blast.", "ice_lance", SkillBranch::Weapons, {0, -760}, 3, {"ice_wand"}, {E{"ice.damage", 0.65}, E{"ice.radius", -0.25}}, "ice_style", SkillNodeSize::Large),
+        make("wildfire", "WILDFIRE", "Fire spreads through a larger area and burns longer, with weaker impact.", "wildfire", SkillBranch::Weapons, {190, -570}, 3, {"fire_wand"}, {E{"fire.radius", 0.40}, E{"fire.burn_duration", 0.50}, E{"fire.damage", -0.20}}, "fire_style", SkillNodeSize::Large),
+        make("inferno", "INFERNO", "Fire impact and burn damage increase, but the blast becomes smaller.", "inferno", SkillBranch::Weapons, {190, -760}, 3, {"fire_wand"}, {E{"fire.damage", 0.45}, E{"fire.burn_damage", 0.45}, E{"fire.radius", -0.20}}, "fire_style", SkillNodeSize::Large),
+        make("thermal_shock", "THERMAL SHOCK", "Fire striking a frozen enemy consumes Freeze for a violent burst.", "thermal_shock", SkillBranch::Weapons, {380, -760}, 3, {"ice_wand", "fire_wand"}, {E{"element.thermal_shock", 18.0}}, {}, SkillNodeSize::Large),
 
-        make("hammer", "HAMMER", "Unlock repair and active fortification.", "placeholder_hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, {E{"unlock.hammer"}}),
-        make("reinforced_frames", "REINFORCED FRAMES", "All structures gain 20% maximum health.", "placeholder_hammer", SkillBranch::Construction, {380, 0}, 1, {"hammer"}, {E{"building.health", 0.20}}),
-        make("field_repairs", "FIELD REPAIRS", "Surviving structures recover 18% health after every night.", "placeholder_hammer", SkillBranch::Construction, {570, 0}, 2, {"reinforced_frames"}, {E{"wave.repair_fraction", 0.18}}, {}, SkillNodeSize::Large),
-        make("defense_engineering", "DEFENSE ENGINEERING", "Turrets, cannons and spike traps deal 12% more damage.", "placeholder_hammer", SkillBranch::Construction, {380, 190}, 1, {"hammer"}, {E{"defense.damage", 0.12}}),
-        make("turret_calibration", "TURRET CALIBRATION", "Turrets gain 20% range and damage.", "placeholder_rifle", SkillBranch::Construction, {570, 190}, 1, {"defense_engineering"}, {E{"tower.range", 0.20}, E{"tower.damage", 0.20}}),
-        make("rapid_battery", "RAPID BATTERY", "Turrets fire 45% faster but lose 20% range.", "placeholder_rifle", SkillBranch::Construction, {760, 190}, 3, {"turret_calibration"}, {E{"tower.fire_rate", 0.45}, E{"tower.range", -0.20}}, "turret_doctrine", SkillNodeSize::Large),
-        make("long_watch", "LONG WATCH", "Turrets gain 45% range and 30% damage, but fire slower.", "placeholder_rifle", SkillBranch::Construction, {760, 380}, 3, {"turret_calibration"}, {E{"tower.range", 0.45}, E{"tower.damage", 0.30}, E{"tower.fire_rate", -0.25}}, "turret_doctrine", SkillNodeSize::Large),
-        make("artillery_corps", "ARTILLERY CORPS", "Cannons gain 30% blast radius and damage.", "placeholder_bomb", SkillBranch::Construction, {570, 380}, 2, {"defense_engineering"}, {E{"cannon.radius", 0.30}, E{"cannon.damage", 0.30}}),
-        make("trap_engineer", "TRAP ENGINEER", "Traps gain radius, damage and faster recovery.", "placeholder_tools", SkillBranch::Construction, {380, 380}, 2, {"defense_engineering"}, {E{"trap.radius", 0.25}, E{"trap.damage", 0.30}, E{"trap.fire_rate", 0.25}}),
-        make("high_ground", "HIGH GROUND", "Defenses built above terrain deal 35% more damage.", "placeholder_hammer", SkillBranch::Construction, {570, 570}, 3, {"artillery_corps", "trap_engineer"}, {E{"defense.high_ground_damage", 0.35}}, {}, SkillNodeSize::Large),
+        make("hammer", "HAMMER", "Unlock repair and active fortification.", "hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, {E{"unlock.hammer"}}),
+        make("reinforced_frames", "REINFORCED FRAMES", "All structures gain 20% maximum health.", "reinforced_frames", SkillBranch::Construction, {380, 0}, 1, {"hammer"}, {E{"building.health", 0.20}}),
+        make("field_repairs", "FIELD REPAIRS", "Surviving structures recover 18% health after every night.", "field_repairs", SkillBranch::Construction, {570, 0}, 2, {"reinforced_frames"}, {E{"wave.repair_fraction", 0.18}}, {}, SkillNodeSize::Large),
+        make("defense_engineering", "DEFENSE ENGINEERING", "Turrets, cannons and spike traps deal 12% more damage.", "defense_engineering", SkillBranch::Construction, {380, 190}, 1, {"hammer"}, {E{"defense.damage", 0.12}}),
+        make("turret_calibration", "TURRET CALIBRATION", "Turrets gain 20% range and damage.", "turret_calibration", SkillBranch::Construction, {570, 190}, 1, {"defense_engineering"}, {E{"tower.range", 0.20}, E{"tower.damage", 0.20}}),
+        make("rapid_battery", "RAPID BATTERY", "Turrets fire 45% faster but lose 20% range.", "rapid_battery", SkillBranch::Construction, {760, 190}, 3, {"turret_calibration"}, {E{"tower.fire_rate", 0.45}, E{"tower.range", -0.20}}, "turret_doctrine", SkillNodeSize::Large),
+        make("long_watch", "LONG WATCH", "Turrets gain 45% range and 30% damage, but fire slower.", "long_watch", SkillBranch::Construction, {760, 380}, 3, {"turret_calibration"}, {E{"tower.range", 0.45}, E{"tower.damage", 0.30}, E{"tower.fire_rate", -0.25}}, "turret_doctrine", SkillNodeSize::Large),
+        make("artillery_corps", "ARTILLERY CORPS", "Cannons gain 30% blast radius and damage.", "artillery_corps", SkillBranch::Construction, {570, 380}, 2, {"defense_engineering"}, {E{"cannon.radius", 0.30}, E{"cannon.damage", 0.30}}),
+        make("trap_engineer", "TRAP ENGINEER", "Traps gain radius, damage and faster recovery.", "trap_engineer", SkillBranch::Construction, {380, 380}, 2, {"defense_engineering"}, {E{"trap.radius", 0.25}, E{"trap.damage", 0.30}, E{"trap.fire_rate", 0.25}}),
+        make("high_ground", "HIGH GROUND", "Defenses built above terrain deal 35% more damage.", "high_ground", SkillBranch::Construction, {570, 570}, 3, {"artillery_corps", "trap_engineer"}, {E{"defense.high_ground_damage", 0.35}}, {}, SkillNodeSize::Large),
 
-        make("light_footwork", "LIGHT FOOTWORK", "Accelerate, stop and turn 55% faster.", "placeholder_boot", SkillBranch::Movement, {570, -190}, 1, {"bare_hands"}, {E{"player.acceleration", 0.55}}),
-        make("sprinter", "SPRINTER", "Move 10% faster at all times.", "placeholder_boot", SkillBranch::Movement, {760, -190}, 1, {"light_footwork"}, {E{"player.move_speed", 0.10}}),
-        make("dash", "DASH", "Burst in the movement direction.", "placeholder_dash", SkillBranch::Movement, {950, -190}, 2, {"sprinter"}, {E{"dash.unlock"}}, {}, SkillNodeSize::Large),
-        make("impact_dash", "IMPACT DASH", "Starting a dash damages and knocks back nearby enemies.", "placeholder_dash", SkillBranch::Movement, {1140, -190}, 2, {"dash"}, {E{"dash.impact_damage", 10.0}}, {}, SkillNodeSize::Large),
-        make("long_dash", "LONG DASH", "Dash travels farther and faster, but recovers 35% slower.", "placeholder_dash", SkillBranch::Movement, {1140, 0}, 2, {"dash"}, {E{"dash.speed", 0.30}, E{"dash.cooldown", -0.35}}, "dash_style", SkillNodeSize::Large),
-        make("rapid_dash", "RAPID DASH", "Dash recovers 45% faster, but travels a shorter distance.", "placeholder_dash", SkillBranch::Movement, {1140, -380}, 2, {"dash"}, {E{"dash.speed", -0.20}, E{"dash.cooldown", 0.45}}, "dash_style", SkillNodeSize::Large),
+        make("light_footwork", "LIGHT FOOTWORK", "Accelerate, stop and turn 55% faster.", "light_footwork", SkillBranch::Movement, {190, -190}, 1, {"bare_hands"}, {E{"player.acceleration", 0.55}}),
+        make("sprinter", "SPRINTER", "Move 10% faster at all times.", "sprinter", SkillBranch::Movement, {380, -190}, 1, {"light_footwork"}, {E{"player.move_speed", 0.10}}),
+        make("dash", "DASH", "Burst in the movement direction.", "dash", SkillBranch::Movement, {570, -190}, 2, {"sprinter"}, {E{"dash.unlock"}}, {}, SkillNodeSize::Large),
+        make("impact_dash", "IMPACT DASH", "Starting a dash damages and knocks back nearby enemies.", "impact_dash", SkillBranch::Movement, {760, -190}, 2, {"dash"}, {E{"dash.impact_damage", 10.0}}, {}, SkillNodeSize::Large),
+        make("long_dash", "LONG DASH", "Dash travels farther and faster, but recovers 35% slower.", "long_dash", SkillBranch::Movement, {760, 0}, 2, {"dash"}, {E{"dash.speed", 0.30}, E{"dash.cooldown", -0.35}}, "dash_style", SkillNodeSize::Large),
+        make("rapid_dash", "RAPID DASH", "Dash recovers 45% faster, but travels a shorter distance.", "rapid_dash", SkillBranch::Movement, {760, -380}, 2, {"dash"}, {E{"dash.speed", -0.20}, E{"dash.cooldown", 0.45}}, "dash_style", SkillNodeSize::Large),
 
-        make("nightly_chest", "NIGHT'S BOUNTY", "Spawn an additional chest after every second survived night.", "placeholder_chest", SkillBranch::Economy, {0, 190}, 2, {"bare_hands"}, {E{"loot.chest_every_two_nights", 1.0}}, {}, SkillNodeSize::Large),
-        make("frequent_bounty", "NIGHTLY DELIVERY", "Night's Bounty now delivers a chest after every survived night.", "placeholder_chest", SkillBranch::Economy, {-190, 380}, 2, {"nightly_chest"}, {E{"loot.nightly_chests", 1.0}}),
-        make("safe_delivery", "SAFE DELIVERY", "Reward chests arrive closer to the base.", "placeholder_chest", SkillBranch::Economy, {0, 380}, 1, {"nightly_chest"}, {E{"loot.safe_delivery", 1.0}}),
-        make("keymaster", "KEYMASTER", "All chests cost 20% fewer Coins to open.", "placeholder_key", SkillBranch::Economy, {190, 380}, 1, {"nightly_chest"}, {E{"loot.chest_cost", -0.20}}),
-        make("early_planning", "EARLY PLANNING", "Early wave starts grant Crystals, Coins and Insight; all early rewards increase 25%.", "placeholder_hourglass", SkillBranch::Economy, {0, 570}, 1, {"safe_delivery"}, {E{"early.base_bonus", 0.25}}),
-        make("mercenary_contract", "MERCENARY CONTRACT", "Early starts grant many more Coins, but no bonus Insight.", "placeholder_coin", SkillBranch::Economy, {-190, 760}, 3, {"early_planning"}, {E{"early.coins", 1.0}, E{"early.insight", -1.0}}, "early_contract", SkillNodeSize::Large),
-        make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more Insight, but no bonus Coins.", "placeholder_blueprint", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.coins", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
-        make("expanded_storage", "EXPANDED STORAGE", "Every storage building holds 40% more resources.", "placeholder_crate", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
-        make("scavenger", "SCAVENGER", "Destructible world props drop 50% more coins.", "placeholder_crate", SkillBranch::Economy, {-380, 570}, 2, {"safe_delivery"}, {E{"prop.coins", 0.50}}),
+        make("nightly_chest", "NIGHT'S BOUNTY", "Spawn an additional chest after every second survived night.", "nightly_chest", SkillBranch::Economy, {0, 190}, 2, {"bare_hands"}, {E{"loot.chest_every_two_nights", 1.0}}, {}, SkillNodeSize::Large),
+        make("frequent_bounty", "NIGHTLY DELIVERY", "Night's Bounty now delivers a chest after every survived night.", "frequent_bounty", SkillBranch::Economy, {-190, 380}, 2, {"nightly_chest"}, {E{"loot.nightly_chests", 1.0}}),
+        make("safe_delivery", "SAFE DELIVERY", "Reward chests arrive closer to the base.", "safe_delivery", SkillBranch::Economy, {0, 380}, 1, {"nightly_chest"}, {E{"loot.safe_delivery", 1.0}}),
+        make("keymaster", "KEYMASTER", "All chests cost 20% fewer Coins to open.", "keymaster", SkillBranch::Economy, {190, 380}, 1, {"nightly_chest"}, {E{"loot.chest_cost", -0.20}}),
+        make("early_planning", "EARLY PLANNING", "Early wave starts grant Crystals, Coins and Insight; all early rewards increase 25%.", "early_planning", SkillBranch::Economy, {0, 570}, 1, {"safe_delivery"}, {E{"early.base_bonus", 0.25}}),
+        make("mercenary_contract", "MERCENARY CONTRACT", "Early starts grant many more Coins, but no bonus Insight.", "mercenary_contract", SkillBranch::Economy, {-190, 760}, 3, {"early_planning"}, {E{"early.coins", 1.0}, E{"early.insight", -1.0}}, "early_contract", SkillNodeSize::Large),
+        make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more Insight, but no bonus Coins.", "scholar_contract", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.coins", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
+        make("expanded_storage", "EXPANDED STORAGE", "Every storage building holds 40% more resources.", "expanded_storage", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
+        make("scavenger", "SCAVENGER", "Destructible world props drop 50% more coins.", "scavenger", SkillBranch::Economy, {-380, 570}, 2, {"safe_delivery"}, {E{"prop.coins", 0.50}}),
         make("longer_days", "LONGER DAYS", "Each daytime build phase lasts 15 seconds longer.", "placeholder_hourglass", SkillBranch::Economy, {380, 760}, 2, {"expanded_storage"}, {E{"day.duration_seconds", 15.0}}),
     };
 }
@@ -116,6 +116,7 @@ const std::vector<SkillNodeDefinition>& SkillTree::nodes() const { return nodes_
 SkillNodeState SkillTree::state(std::size_t index) const {
     if (index >= nodes_.size()) return SkillNodeState::Hidden;
     if (unlocked_[index]) return SkillNodeState::Unlocked;
+    if (!isRevealed(nodes_[index])) return SkillNodeState::Hidden;
     if (conflictsWithUnlocked(nodes_[index])) return SkillNodeState::Locked;
     return prerequisitesUnlocked(nodes_[index]) ? SkillNodeState::Available
                                                  : SkillNodeState::Locked;
@@ -273,6 +274,18 @@ void SkillTree::reset() {
     points_ = 0;
     for (std::size_t i = 0; i < nodes_.size(); ++i)
         if (nodes_[i].cost == 0 && nodes_[i].prerequisites.empty()) unlocked_[i] = true;
+}
+
+bool SkillTree::isRevealed(
+    const SkillNodeDefinition& node) const {
+    if (node.prerequisites.empty()) {
+        return true;
+    }
+    return std::ranges::any_of(
+        node.prerequisites,
+        [this](const std::string& id) {
+            return isUnlocked(id);
+        });
 }
 
 bool SkillTree::prerequisitesUnlocked(const SkillNodeDefinition& node) const {

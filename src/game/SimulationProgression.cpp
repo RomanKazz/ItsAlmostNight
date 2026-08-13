@@ -240,7 +240,7 @@ void Simulation::processInsightEvent(const GameEvent& event) {
             InsightSource::WaveCompleted, InsightCategory::Combat,
             {.eventId = insightIntegerEvent(0x200U,
                  static_cast<std::uint64_t>(std::max(0, event.amount))),
-             .oneTime = true, .bypassDiminishing = boss || milestone});
+             .oneTime = true, .bypassDiminishing = true});
         insight_.beginNewDiminishingCycle();
         break;
     }

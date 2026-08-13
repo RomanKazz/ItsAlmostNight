@@ -190,6 +190,7 @@ int App::run() {
     modularBuildingRenderer_.setRenderer(&*renderer_);
     rebuildTerrainGraphics();
     ui_.initialize();
+    skillTree_.initialize();
     audio_.initialize();
     static_cast<void>(performanceRecorder_.start(
         "performance_logs"));
@@ -273,6 +274,7 @@ int App::run() {
             toolTunings_[static_cast<std::size_t>(visual)]));
     }
 
+    skillTree_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
     modularBuildingRenderer_.setRenderer(nullptr);

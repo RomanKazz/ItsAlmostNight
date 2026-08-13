@@ -49,9 +49,9 @@ void runLootChestSystemTests() {
             chest.position.z - spawn.z);
         require(
             chest.purpose == ian::LootChestPurpose::Exploration &&
-                chest.revealed && explorationDistance >= 48.0 &&
+                !chest.revealed && explorationDistance >= 48.0 &&
                 explorationDistance <= 120.0,
-            "exploration chests stay in the distant ring and are map-marked");
+            "exploration chests stay in the distant ring and begin hidden");
         const ian::Vec3 sampledNormal = terrain.getNormal(
             chest.position.x, chest.position.z);
         requireNear(chest.surfaceNormal.x, sampledNormal.x, 1e-12,
@@ -112,6 +112,13 @@ void runLootChestSystemTests() {
 
     const ian::EntityId id = chests.chests().front().id;
     const int cost = chests.chests().front().coinCost;
+    require(
+        std::ranges::none_of(
+            chests.chests(),
+            [](const ian::LootChestInstance& chest) {
+                return chest.revealed;
+            }),
+        "a new run does not reveal exploration chests by default");
     const auto revealed = chests.revealNearest(spawn);
     require(
         revealed.has_value() &&

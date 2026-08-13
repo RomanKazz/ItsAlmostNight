@@ -84,6 +84,8 @@ class SkillTree {
     void reset();
 
   private:
+    [[nodiscard]] bool isRevealed(
+        const SkillNodeDefinition& node) const;
     [[nodiscard]] bool prerequisitesUnlocked(const SkillNodeDefinition& node) const;
     [[nodiscard]] bool conflictsWithUnlocked(
         const SkillNodeDefinition& node) const;

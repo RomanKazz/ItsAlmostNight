@@ -5,6 +5,8 @@
 #include <raylib.h>
 
 #include <optional>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace ian {
@@ -14,6 +16,9 @@ class GameUi;
 class SkillTreeScreen {
   public:
     explicit SkillTreeScreen(const SkillTree& tree);
+
+    void initialize();
+    void shutdown();
 
     void open();
     void close();
@@ -58,6 +63,7 @@ class SkillTreeScreen {
     std::optional<std::size_t> hovered_;
     std::optional<std::size_t> selected_;
     std::optional<std::size_t> confirmation_;
+    std::unordered_map<std::string, Texture2D> icons_;
 };
 
 } // namespace ian

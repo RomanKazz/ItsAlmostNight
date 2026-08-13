@@ -12,6 +12,10 @@ void runSkillTreeTests() {
     require(
         tree.state("axe") == ian::SkillNodeState::Available,
         "root child starts available");
+    require(
+        tree.state("efficient_strikes") == ian::SkillNodeState::Hidden &&
+            tree.state("power_swing") == ian::SkillNodeState::Hidden,
+        "deeper skill nodes begin hidden");
 
     const auto axe = tree.indexOf("axe");
     require(axe.has_value(), "axe node exists");
@@ -23,8 +27,10 @@ void runSkillTreeTests() {
     require(
         tree.purchase(*axe) == ian::SkillPurchaseError::None &&
             tree.hasEffect("unlock.axe") &&
-            tree.effectValue("unlock.axe") == 1.0,
-        "data-driven unlock effect activates after purchase");
+            tree.effectValue("unlock.axe") == 1.0 &&
+            tree.state("efficient_strikes") ==
+                ian::SkillNodeState::Locked,
+        "purchase reveals its direct child before every parent is unlocked");
 
     tree.grantPoints(16);
     const auto pickaxe = tree.indexOf("pickaxe");
@@ -57,10 +63,10 @@ void runSkillTreeTests() {
     require(
         combatTraining && rifle &&
             rifleTree.state(*rifle) ==
-                ian::SkillNodeState::Locked &&
+                ian::SkillNodeState::Hidden &&
             rifleTree.purchase(*rifle) ==
                 ian::SkillPurchaseError::DependenciesLocked,
-        "weapon unlock cannot bypass Combat Training");
+        "hidden weapon unlock cannot bypass Combat Training");
     require(
         combatTraining && rifle && marksman && assault &&
             rifleTree.purchase(*combatTraining) ==
@@ -87,8 +93,8 @@ void runSkillTreeTests() {
          .cost = 1, .prerequisites = {"child"}},
     });
     require(
-        dependent.state("leaf") == ian::SkillNodeState::Locked,
-        "dependency keeps leaf locked");
+        dependent.state("leaf") == ian::SkillNodeState::Hidden,
+        "dependency keeps a distant leaf hidden");
     dependent.grantPoints(3);
     require(
         dependent.purchase(*dependent.indexOf("child")) ==

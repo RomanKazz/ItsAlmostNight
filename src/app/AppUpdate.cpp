@@ -50,6 +50,7 @@ void App::update() {
             insightPointSequenceRemaining_,
             insightPointSequenceDuration_);
     if (pendingInsightPointNotification_ > 0 &&
+        lootDescriptionRemaining_ <= 0.0 &&
         insightPointProgress >= 0.35) {
         statusMessage_ = pendingInsightPointNotification_ == 1
             ? "SKILL POINT ACQUIRED — PRESS K"
@@ -415,6 +416,8 @@ void App::update() {
             : 0.0;
     statusMessageRemaining_ =
         std::max(0.0, statusMessageRemaining_ - frameSeconds);
+    lootDescriptionRemaining_ =
+        std::max(0.0, lootDescriptionRemaining_ - frameSeconds);
     cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
     landingResponseRemaining_ = std::max(
         0.0, landingResponseRemaining_ - frameSeconds);

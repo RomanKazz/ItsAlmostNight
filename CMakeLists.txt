@@ -231,6 +231,13 @@ target_link_libraries(its_almost_night PRIVATE
 )
 target_include_directories(its_almost_night SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src")
+
+add_executable(ian_skill_icon_parser
+    tools/skill_icon_parser.cpp
+)
+target_link_libraries(ian_skill_icon_parser PRIVATE raylib)
+target_include_directories(ian_skill_icon_parser SYSTEM PRIVATE
+    "${raylib_SOURCE_DIR}/src")
 add_custom_command(
     TARGET its_almost_night POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
@@ -263,6 +270,7 @@ ian_set_warnings(ian_progression)
 ian_set_warnings(ian_graphics)
 ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
+ian_set_warnings(ian_skill_icon_parser)
 
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
     foreach(target ian_assets ian_simulation ian_text ian_audio ian_settings ian_presentation ian_progression ian_graphics ian_ui its_almost_night)

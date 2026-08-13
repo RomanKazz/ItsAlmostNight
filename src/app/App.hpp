@@ -308,6 +308,7 @@ class App {
     std::optional<ToggleGateCommand> pendingGateToggle_;
     std::string statusMessage_;
     double statusMessageRemaining_{};
+    double lootDescriptionRemaining_{};
     std::vector<PresentationEffect> effects_;
     std::unordered_map<std::uint64_t, float>
         enemyHitFlashById_;

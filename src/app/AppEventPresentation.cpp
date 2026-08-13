@@ -21,6 +21,18 @@ using namespace app_detail;
 void App::processPresentationEvents(
     std::span<const GameEvent> events,
     const SimulationSnapshot& eventSnapshot) {
+    const auto setStatusMessage =
+        [this](std::string message, double duration,
+               bool lootDescription = false) {
+            if (!lootDescription && lootDescriptionRemaining_ > 0.0) {
+                return;
+            }
+            statusMessage_ = std::move(message);
+            statusMessageRemaining_ = duration;
+            if (lootDescription) {
+                lootDescriptionRemaining_ = duration;
+            }
+        };
     const auto addProductionVisual =
         [this, &eventSnapshot](EntityId buildingId,
                                UiResourceIcon icon,
@@ -102,6 +114,7 @@ void App::processPresentationEvents(
             insightGainRemaining_ = 0.0;
             insightPointSequenceRemaining_ = 0.0;
             pendingInsightPointNotification_ = 0;
+            lootDescriptionRemaining_ = 0.0;
             objectiveProgressCache_.clear();
             objectivePulseId_.clear();
             objectivePulseRemaining_ = 0.0;
@@ -130,10 +143,10 @@ void App::processPresentationEvents(
             } else if (event.insightAmount >= insightConfig.hudLargeRewardThreshold &&
                        event.insightSource &&
                        *event.insightSource != InsightSource::Objective) {
-                statusMessage_ = "+" + std::to_string(
+                setStatusMessage("+" + std::to_string(
                     static_cast<int>(std::lround(event.insightAmount))) +
-                    " INSIGHT — " + std::string(insightSourceName(*event.insightSource));
-                statusMessageRemaining_ = 1.8;
+                    " INSIGHT — " + std::string(insightSourceName(*event.insightSource)),
+                    1.8);
             }
         }
         if (event.type == GameEventType::ObjectiveCompleted && event.objectiveId) {
@@ -144,10 +157,9 @@ void App::processPresentationEvents(
                 });
             const std::string title = objective != eventSnapshot.objectives.end()
                 ? objective->definition.title : *event.objectiveId;
-            statusMessage_ = "OBJECTIVE COMPLETE: " + title + "  +" +
+            setStatusMessage("OBJECTIVE COMPLETE: " + title + "  +" +
                 std::to_string(static_cast<int>(std::lround(event.intensity))) +
-                " INSIGHT";
-            statusMessageRemaining_ = 2.6;
+                " INSIGHT", 2.6);
         }
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
@@ -906,9 +918,11 @@ void App::processPresentationEvents(
                 " — " + lootUpgradeDescription(*event.lootUpgradeEffect);
         }
         if (!message.empty()) {
-            statusMessage_ = std::move(message);
-            statusMessageRemaining_ =
-                event.type == GameEventType::LootCollected ? 4.0 : 2.5;
+            const bool lootDescription =
+                event.type == GameEventType::LootCollected;
+            setStatusMessage(
+                std::move(message), lootDescription ? 4.0 : 2.5,
+                lootDescription);
         }
     }
 }

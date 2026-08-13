@@ -16,7 +16,11 @@ namespace {
 constexpr float NodeHalfSize = 38.0F;
 constexpr float LargeNodeHalfSize = 50.0F;
 constexpr float RootNodeHalfSize = 48.0F;
-constexpr float NodePositionScale = 1.0F / 1.5F;
+constexpr float LayoutSpacingMultiplier = 1.30F;
+constexpr float NodePositionScale =
+    LayoutSpacingMultiplier / 1.5F;
+constexpr float CameraLimitX = 620.0F * LayoutSpacingMultiplier;
+constexpr float CameraLimitY = 460.0F * LayoutSpacingMultiplier;
 
 float nodeHalfSize(const SkillNodeDefinition& node) {
     if (node.branch == SkillBranch::Root) {
@@ -74,6 +78,36 @@ void drawGrowingCurve(Vector2 start, Vector2 end, float progress,
     DrawLineEx(start, Vector2Lerp(start, end, progress), thickness, color);
 }
 
+Vector2 quadraticPoint(Vector2 start, Vector2 control, Vector2 end,
+                       float progress) {
+    const float inverse = 1.0F - progress;
+    return {
+        inverse * inverse * start.x +
+            2.0F * inverse * progress * control.x +
+            progress * progress * end.x,
+        inverse * inverse * start.y +
+            2.0F * inverse * progress * control.y +
+            progress * progress * end.y,
+    };
+}
+
+void drawGrowingCurve(Vector2 start, Vector2 control, Vector2 end,
+                      float progress, float thickness, Color color) {
+    progress = std::clamp(progress, 0.0F, 1.0F);
+    if (progress <= 0.0F) {
+        return;
+    }
+    constexpr int Segments = 24;
+    Vector2 previous = start;
+    for (int segment = 1; segment <= Segments; ++segment) {
+        const float time = progress *
+            static_cast<float>(segment) / static_cast<float>(Segments);
+        const Vector2 current = quadraticPoint(start, control, end, time);
+        DrawLineEx(previous, current, thickness, color);
+        previous = current;
+    }
+}
+
 void drawWrappedText(std::string_view text, Vector2 position,
                      float fontSize, float maximumWidth,
                      Color color) {
@@ -117,6 +151,29 @@ SkillTreeScreen::SkillTreeScreen(const SkillTree& tree)
       pulse_(tree.nodes().size(), 0.0F),
       confirmationPulse_(tree.nodes().size(), 0.0F),
       rejectShake_(tree.nodes().size(), 0.0F) {}
+
+void SkillTreeScreen::initialize() {
+    shutdown();
+    for (const SkillNodeDefinition& node : tree_->nodes()) {
+        if (icons_.contains(node.icon)) continue;
+        const std::string path =
+            "assets/ui/skill_icons/" + node.icon + ".png";
+        if (!FileExists(path.c_str())) continue;
+        Texture2D texture = LoadTexture(path.c_str());
+        if (IsTextureValid(texture)) {
+            SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+            icons_.emplace(node.icon, texture);
+        }
+    }
+}
+
+void SkillTreeScreen::shutdown() {
+    for (auto& [name, texture] : icons_) {
+        static_cast<void>(name);
+        if (IsTextureValid(texture)) UnloadTexture(texture);
+    }
+    icons_.clear();
+}
 
 void SkillTreeScreen::open() {
     open_ = true;
@@ -201,8 +258,10 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
             const Vector2 delta = Vector2Subtract(mouse, previousMouse_);
             targetCamera_ = Vector2Add(
                 targetCamera_, Vector2Scale(delta, 1.0F / zoom_));
-            targetCamera_.x = std::clamp(targetCamera_.x, -620.0F, 620.0F);
-            targetCamera_.y = std::clamp(targetCamera_.y, -460.0F, 460.0F);
+            targetCamera_.x = std::clamp(
+                targetCamera_.x, -CameraLimitX, CameraLimitX);
+            targetCamera_.y = std::clamp(
+                targetCamera_.y, -CameraLimitY, CameraLimitY);
             previousMouse_ = mouse;
         } else {
             dragging_ = false;
@@ -234,7 +293,7 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
     for (std::size_t index = 0; index < reveal_.size(); ++index) {
         const bool visible =
             tree_->state(index) != SkillNodeState::Hidden;
-        if (revealDelay_[index] > 0.0F) {
+        if (visible && revealDelay_[index] > 0.0F) {
             revealDelay_[index] = std::max(
                 0.0F, revealDelay_[index] - deltaSeconds);
         } else {
@@ -242,7 +301,7 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
             reveal_[index] += (target - reveal_[index]) *
                 (1.0F - std::exp(-11.0F * deltaSeconds));
         }
-        if (connectionDelay_[index] > 0.0F) {
+        if (visible && connectionDelay_[index] > 0.0F) {
             connectionDelay_[index] = std::max(
                 0.0F, connectionDelay_[index] - deltaSeconds);
         } else {
@@ -365,20 +424,85 @@ void SkillTreeScreen::drawConnections() const {
             const bool active =
                 tree_->state(child) == SkillNodeState::Unlocked ||
                 tree_->state(child) == SkillNodeState::Available;
-            drawGrowingCurve(
-                start, end, progress, 7.0F * zoom_,
-                withAlpha({13, 10, 11, 255}, 0.92F));
-            drawGrowingCurve(
-                start, end, progress, 2.5F * zoom_,
-                active
-                    ? withAlpha({246, 184, 58, 255}, 0.92F)
-                    : withAlpha({115, 112, 109, 255}, 0.36F));
+            const Vector2 midpoint = Vector2Lerp(start, end, 0.5F);
+            const Vector2 delta{end.x - start.x, end.y - start.y};
+            const float length = std::max(
+                1.0F, std::hypot(delta.x, delta.y));
+            const Vector2 perpendicular{-delta.y / length, delta.x / length};
+            const auto collisionScore =
+                [this, child, parent, start, end](Vector2 control) {
+                    int score = 0;
+                    constexpr int Samples = 32;
+                    for (std::size_t candidate = 0;
+                         candidate < tree_->nodes().size(); ++candidate) {
+                        if (candidate == child || candidate == *parent ||
+                            tree_->state(candidate) == SkillNodeState::Hidden) {
+                            continue;
+                        }
+                        const Vector2 center = worldToScreen(
+                            tree_->nodes()[candidate].position);
+                        const float clearance =
+                            (nodeHalfSize(tree_->nodes()[candidate]) + 13.0F) *
+                            zoom_;
+                        for (int sample = 3; sample < Samples - 2; ++sample) {
+                            const Vector2 point = quadraticPoint(
+                                start, control, end,
+                                static_cast<float>(sample) /
+                                    static_cast<float>(Samples));
+                            if (std::abs(point.x - center.x) < clearance &&
+                                std::abs(point.y - center.y) < clearance) {
+                                ++score;
+                            }
+                        }
+                    }
+                    return score;
+                };
+
+            Vector2 control = midpoint;
+            int bestScore = collisionScore(control);
+            if (bestScore > 0) {
+                for (const float bend : {85.0F, -85.0F, 140.0F, -140.0F,
+                                         210.0F, -210.0F}) {
+                    const Vector2 candidate{
+                        midpoint.x + perpendicular.x * bend * zoom_,
+                        midpoint.y + perpendicular.y * bend * zoom_,
+                    };
+                    const int candidateScore = collisionScore(candidate);
+                    if (candidateScore < bestScore) {
+                        control = candidate;
+                        bestScore = candidateScore;
+                    }
+                    if (bestScore == 0) {
+                        break;
+                    }
+                }
+            }
+            const bool curved =
+                std::abs(control.x - midpoint.x) > 0.01F ||
+                std::abs(control.y - midpoint.y) > 0.01F;
+            const Color outer = withAlpha({13, 10, 11, 255}, 0.92F);
+            const Color inner = active
+                ? withAlpha({246, 184, 58, 255}, 0.92F)
+                : withAlpha({115, 112, 109, 255}, 0.36F);
+            if (curved) {
+                drawGrowingCurve(start, control, end, progress,
+                                 7.0F * zoom_, outer);
+                drawGrowingCurve(start, control, end, progress,
+                                 2.5F * zoom_, inner);
+            } else {
+                drawGrowingCurve(start, end, progress,
+                                 7.0F * zoom_, outer);
+                drawGrowingCurve(start, end, progress,
+                                 2.5F * zoom_, inner);
+            }
 
             if (active && progress > 0.12F) {
                 const float travel = std::fmod(
                     time * 0.38F + static_cast<float>(child) * 0.23F,
                     std::max(progress, 0.001F));
-                const Vector2 spark = Vector2Lerp(start, end, travel);
+                const Vector2 spark = curved
+                    ? quadraticPoint(start, control, end, travel)
+                    : Vector2Lerp(start, end, travel);
                 DrawCircleV(spark, 5.0F * zoom_,
                             withAlpha({246, 184, 58, 255}, 0.12F));
                 DrawCircleV(spark, 2.0F * zoom_,
@@ -488,7 +612,22 @@ void SkillTreeScreen::drawNodes() const {
                      withAlpha({255, 214, 91, 255}, confirmationPulse_[index] * 0.9F));
         }
 
-        if (node.icon == "ice_wand" || node.icon == "fire_wand") {
+        const auto icon = icons_.find(node.icon);
+        if (icon != icons_.end() && IsTextureValid(icon->second)) {
+            const float iconSize = halfSize * 2.01F;
+            DrawTexturePro(
+                icon->second,
+                {0.0F, 0.0F,
+                 static_cast<float>(icon->second.width),
+                 static_cast<float>(icon->second.height)},
+                {center.x - iconSize * 0.5F,
+                 center.y - iconSize * 0.5F,
+                 iconSize, iconSize},
+                {0.0F, 0.0F}, 0.0F,
+                withAlpha(
+                    WHITE,
+                    state == SkillNodeState::Locked ? 0.30F : 0.98F));
+        } else if (node.icon == "ice_wand" || node.icon == "fire_wand") {
             const bool fireWand = node.icon == "fire_wand";
             const Color iconColor = withAlpha(
                 fireWand ? Color{255, 139, 48, 255}
@@ -528,7 +667,13 @@ void SkillTreeScreen::drawNodes() const {
                           state == SkillNodeState::Locked ? 0.32F : 0.98F));
         }
 
-        const float labelSize = std::clamp(13.0F * zoom_, 10.0F, 17.0F);
+        // At overview zoom, long titles are intentionally replaced by the
+        // always-visible details panel. This prevents neighboring branches
+        // from turning into an unreadable block of overlapping labels.
+        const float labelVisibility = smoothStep(
+            (zoom_ - 0.72F) / 0.18F);
+        if (labelVisibility <= 0.01F) continue;
+        const float labelSize = std::clamp(13.0F * zoom_, 9.0F, 17.0F);
         const Vector2 labelMeasure = measureUiText(node.title, labelSize);
         drawUiText(
             node.title,
@@ -538,7 +683,7 @@ void SkillTreeScreen::drawNodes() const {
             withAlpha(state == SkillNodeState::Locked
                           ? Color{130, 135, 132, 255}
                           : Color{234, 226, 205, 255},
-                      reveal_[index]));
+                      reveal_[index] * labelVisibility));
     }
 }
 
@@ -574,7 +719,7 @@ void SkillTreeScreen::drawDetails(const GameUi& ui) const {
     std::string status;
     Color statusColor{145, 151, 148, 255};
     if (state == SkillNodeState::Unlocked) {
-        status = "UNLOCKED  •  " + node.icon;
+        status = "UNLOCKED";
         statusColor = branchColor(node.branch);
     } else if (state == SkillNodeState::Available) {
         status = confirmation_ == details
