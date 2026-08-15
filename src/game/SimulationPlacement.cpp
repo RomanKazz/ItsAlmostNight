@@ -224,10 +224,12 @@ Simulation::placementSurfaceWithPreferredHeight(
     double preferredHeight) const {
     BuildingPlatformSurface surface =
         placementSurface(type, position);
-    if (surface.storey >= 0 ||
-        preferredHeight <= surface.height + 1e-6) {
+    if (surface.storey >= 0) {
         return surface;
     }
+    // A preferred construction plane comes from an already rendered preview
+    // or a snapped platform. Keep it exact: silently replacing it with a
+    // higher terrain plane makes the placed building jump after the click.
     surface.height = preferredHeight;
     surface.foundationBottomHeight =
         std::min(surface.foundationBottomHeight, preferredHeight);

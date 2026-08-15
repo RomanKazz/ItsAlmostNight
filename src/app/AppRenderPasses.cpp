@@ -280,6 +280,7 @@ void App::drawShadowPass(
 
         for (const ChallengeColumnInstance& column :
              snapshot.challengeColumns) {
+            drawChallengeFence(column, false);
             const float progress = smoothstep(
                 0.0F, 1.0F,
                 static_cast<float>(column.completionProgress));

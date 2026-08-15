@@ -681,6 +681,81 @@ void App::drawPresentationEffects() {
             EndBlendMode();
             continue;
         }
+        if (effect.type == PresentationEffectType::SawSplinter &&
+            effect.targetPosition) {
+            const Vector3 target{
+                static_cast<float>(effect.targetPosition->x),
+                static_cast<float>(effect.targetPosition->y),
+                static_cast<float>(effect.targetPosition->z),
+            };
+            const float eased = progress * progress *
+                (3.0F - 2.0F * progress);
+            Vector3 center = Vector3Lerp(origin, target, eased);
+            center.y += std::sin(progress * PI) * 0.82F;
+            const Vector3 direction = Vector3Normalize(
+                Vector3Subtract(target, origin));
+            Vector3 side = Vector3CrossProduct(
+                direction, Vector3{0.0F, 1.0F, 0.0F});
+            if (Vector3LengthSqr(side) < 0.001F) {
+                side = {1.0F, 0.0F, 0.0F};
+            } else {
+                side = Vector3Normalize(side);
+            }
+            const float fade = 1.0F -
+                smoothstep(0.86F, 1.0F, progress);
+            constexpr int ShardCount = 4;
+            for (int shard = 0; shard < ShardCount; ++shard) {
+                const float phase = effectUnit(
+                    shard + effect.variant * 7, 417);
+                const float spread =
+                    (static_cast<float>(shard) - 1.5F) * 0.12F;
+                const Vector3 shardPosition = Vector3Add(
+                    center, Vector3Add(
+                        Vector3Scale(side, spread),
+                        Vector3{0.0F,
+                            std::sin(progress * 18.0F + phase * 6.0F) *
+                                0.08F,
+                            0.0F}));
+                rlPushMatrix();
+                rlTranslatef(
+                    shardPosition.x, shardPosition.y,
+                    shardPosition.z);
+                rlRotatef(
+                    progress * (760.0F + phase * 420.0F),
+                    0.7F + phase, 1.0F, 0.35F);
+                DrawCubeV(
+                    {0.0F, 0.0F, 0.0F},
+                    {0.08F + phase * 0.035F,
+                     0.10F + phase * 0.07F,
+                     0.34F + phase * 0.20F},
+                    {static_cast<unsigned char>(174 + phase * 45.0F),
+                     static_cast<unsigned char>(82 + phase * 38.0F),
+                     28, atmosphereAlpha(fade)});
+                rlPopMatrix();
+            }
+            if (renderer_->settings().particles) {
+                rlDrawRenderBatchActive();
+                BeginBlendMode(BLEND_ADDITIVE);
+                rlDisableDepthMask();
+                for (int mote = 0; mote < 5; ++mote) {
+                    const float delay = static_cast<float>(mote) * 0.035F;
+                    const float trailProgress = std::clamp(
+                        eased - delay, 0.0F, 1.0F);
+                    Vector3 motePosition = Vector3Lerp(
+                        origin, target, trailProgress);
+                    motePosition.y +=
+                        std::sin(trailProgress * PI) * 0.82F;
+                    DrawSphere(
+                        motePosition, 0.025F,
+                        {255, 187, 78,
+                         atmosphereAlpha(fade * 0.55F)});
+                }
+                rlDrawRenderBatchActive();
+                rlEnableDepthMask();
+                EndBlendMode();
+            }
+            continue;
+        }
         if (effect.type ==
             PresentationEffectType::BuildingUpgrade) {
             renderer_->drawUpgradeEffect(

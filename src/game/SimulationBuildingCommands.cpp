@@ -179,15 +179,18 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             placementSurface(
                 command.placeBuilding->type,
                 command.placeBuilding->gridPosition);
-        BuildingPlatformSurface surface =
-            command.placeBuilding->lockHeight
-                ? placementSurfaceWithPreferredHeight(
-                      command.placeBuilding->type,
-                      command.placeBuilding
-                          ->gridPosition,
-                      command.placeBuilding
-                          ->baseHeight)
-                : naturalSurface;
+        BuildingPlatformSurface surface = naturalSurface;
+        if (command.placeBuilding->lockHeight &&
+            command.placeBuilding->platformStorey < 0) {
+            // The click commits the exact construction plane shown by the
+            // preview. Re-querying the natural surface here can discover a
+            // neighbouring/new foundation and silently lift the building.
+            surface.height = command.placeBuilding->baseHeight;
+            surface.foundationBottomHeight = std::min(
+                surface.foundationBottomHeight,
+                command.placeBuilding->baseHeight);
+            surface.storey = -1;
+        }
         const bool needsAutomaticFoundation = surface.storey < 0;
         auto automaticFoundation =
             needsAutomaticFoundation

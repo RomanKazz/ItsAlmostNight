@@ -116,6 +116,9 @@ class App {
                            float nightAmount,
                            const WorldLighting& lighting,
                            float interpolationAlpha);
+    void drawChallengeFence(
+        const ChallengeColumnInstance& column,
+        bool drawRopes);
     [[nodiscard]] std::vector<GrassClearArea>
         activeDecorationClearAreas(
             const SimulationSnapshot& snapshot) const;
@@ -164,7 +167,9 @@ class App {
     void drawMainMenu(const SimulationSnapshot& snapshot);
     void drawMainMenuWorld(const SimulationSnapshot& snapshot);
     void persistUserSettings(bool force = false);
+    void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
+    void drawItemGrantMenu();
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
     [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
     [[nodiscard]] const FirstPersonToolTuning& activeToolTuning() const;
@@ -218,6 +223,7 @@ class App {
     bool exitRequested_{};
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
+    bool fullscreenApplied_{};
     int graphicsPanelTab_{};
     std::optional<ControlAction> pendingControlRebind_;
     std::array<FirstPersonToolTuning, 8> toolTunings_{};
@@ -308,7 +314,18 @@ class App {
     bool pendingSpawnEnemy_{};
     bool pendingChainLightning_{};
     bool enemySpawnMenuVisible_{};
+    bool itemGrantMenuVisible_{};
     int debugSpawnCount_{50};
+    LootUpgradeEffect debugGrantLootEffect_{
+        LootUpgradeEffect::Apple};
+    LootRarity debugGrantLootRarity_{LootRarity::Common};
+    int debugGrantLootCount_{1};
+    struct PendingLootGrant {
+        LootUpgradeEffect effect;
+        LootRarity rarity;
+        int count;
+    };
+    std::optional<PendingLootGrant> pendingLootGrant_;
     std::optional<ToggleGateCommand> pendingGateToggle_;
     std::string statusMessage_;
     double statusMessageRemaining_{};

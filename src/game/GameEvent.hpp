@@ -20,6 +20,7 @@ enum class GameEventType {
     ResourceCollected,
     ResourceGatherMissed,
     ResourceGranted,
+    SawSplinterLaunched,
     PickaxeHit,
     BuildingPlaced,
     BuildingRejected,

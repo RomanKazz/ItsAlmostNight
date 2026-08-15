@@ -171,6 +171,7 @@ void Simulation::activateChallengeColumn(EntityId id) {
         8, static_cast<int>(std::ceil(
                static_cast<double>(composition.budget) * 0.55)));
     column->state = ChallengeColumnState::Active;
+    column->fenceProgress = 0.0;
     column->enemyBudget = budget;
     activeChallengeColumn_ = columnIndex;
     selectedBuilding_.reset();
@@ -254,6 +255,20 @@ void Simulation::activateChallengeColumn(EntityId id) {
     aimedChallengeColumn_.reset();
 }
 
+void Simulation::failActiveChallenge() {
+    if (!activeChallengeColumn_) {
+        return;
+    }
+    ChallengeColumnInstance& column =
+        challengeColumns_[*activeChallengeColumn_];
+    column.state = ChallengeColumnState::Dormant;
+    column.completionProgress = 0.0;
+    column.enemyBudget = 0;
+    activeChallengeColumn_.reset();
+    aimedChallengeColumn_.reset();
+    enemies_.spawnWave(std::span<const EnemySpawn>{});
+}
+
 void Simulation::updateChallengeColumns(
     double deltaSeconds, const PlayerCommand& command) {
     const Vec3 direction = lookDirection(playerYaw_, playerPitch_);
@@ -280,10 +295,21 @@ void Simulation::updateChallengeColumns(
     }
 
     for (ChallengeColumnInstance& column : challengeColumns_) {
+        if (column.state == ChallengeColumnState::Active) {
+            column.fenceProgress = std::min(
+                1.0, column.fenceProgress + deltaSeconds / 1.05);
+        }
+        if (column.state == ChallengeColumnState::Dormant &&
+            column.fenceProgress > 0.0) {
+            column.fenceProgress = std::max(
+                0.0, column.fenceProgress - deltaSeconds / 0.62);
+        }
         if (column.state == ChallengeColumnState::Completed) {
             column.completionProgress = std::min(
                 1.0,
                 column.completionProgress + deltaSeconds / 0.48);
+            column.fenceProgress = std::max(
+                0.0, column.fenceProgress - deltaSeconds / 0.62);
         }
     }
     if (!activeChallengeColumn_) {

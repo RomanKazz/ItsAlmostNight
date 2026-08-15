@@ -295,9 +295,9 @@ void App::processPresentationEvents(
             }
         } else if (
             event.type == GameEventType::PickaxeHit ||
-            event.type == GameEventType::ResourceHit ||
-            event.type ==
-                GameEventType::ResourceCollected) {
+            (!event.sourceId &&
+             (event.type == GameEventType::ResourceHit ||
+              event.type == GameEventType::ResourceCollected))) {
             weaponRecoilDuration_ = 0.12;
             weaponRecoilRemaining_ = weaponRecoilDuration_;
             weaponRecoilStrength_ =
@@ -311,7 +311,25 @@ void App::processPresentationEvents(
             hitStopRemaining_ =
                 std::max(hitStopRemaining_, 0.045);
         }
-        if (event.type == GameEventType::EliteEnemySpawned) {
+        if (event.type == GameEventType::SawSplinterLaunched &&
+            event.targetPosition) {
+            constexpr std::size_t MaxEffects = 128;
+            if (effects_.size() >= MaxEffects) {
+                effects_.erase(effects_.begin());
+            }
+            const double duration = event.intensity > 0.0
+                ? event.intensity : 0.36;
+            effects_.push_back({
+                .type = PresentationEffectType::SawSplinter,
+                .entityId = event.entityId,
+                .position = event.position,
+                .targetPosition = event.targetPosition,
+                .remaining = duration,
+                .duration = duration,
+                .scale = 1.0F,
+                .variant = event.amount,
+            });
+        } else if (event.type == GameEventType::EliteEnemySpawned) {
             addEffect(
                 PresentationEffectType::EliteSpawn,
                 event.position, 0.72, 1.0F,
@@ -351,10 +369,12 @@ void App::processPresentationEvents(
                 target, event.damage, false);
             addCameraShake(
                 0.10, event.amount == 0 ? 0.025 : 0.012);
-        } else if (event.type == GameEventType::ResourceHit) {
+        } else if (event.type == GameEventType::ResourceHit &&
+            !event.sourceId) {
             toolContactHoldRemaining_ = std::max(
                 toolContactHoldRemaining_, 0.025);
-        } else if (event.type == GameEventType::ResourceCollected) {
+        } else if (event.type == GameEventType::ResourceCollected &&
+            !event.sourceId) {
             toolContactHoldRemaining_ = std::max(
                 toolContactHoldRemaining_, 0.04);
         }

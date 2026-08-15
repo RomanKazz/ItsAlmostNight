@@ -98,7 +98,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         return std::nullopt;
     }
     if (skillTree_.isOpen() || renderer_->graphicsPanelVisible() ||
-        enemySpawnMenuVisible_) {
+        enemySpawnMenuVisible_ || itemGrantMenuVisible_) {
         return std::nullopt;
     }
 

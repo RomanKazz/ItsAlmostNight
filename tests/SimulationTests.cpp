@@ -23,6 +23,61 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        auto sawBalance = ian::GameBalance::defaults();
+        sawBalance.gameplay.pickaxeDamage = 10000.0;
+        sawBalance.gameplay.pickaxeDamageVariation = 0.0;
+        sawBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::Simulation sawSimulation{sawBalance};
+        sawSimulation.startRun();
+        sawSimulation.grantLootUpgrade(ian::LootUpgradeEffect::Saw);
+        static_cast<void>(sawSimulation.takeEvents());
+        const auto before = sawSimulation.snapshot();
+        const auto tree = std::ranges::find_if(
+            before.resourceNodes, [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Wood;
+            });
+        require(tree != before.resourceNodes.end(),
+                "Saw fixture has a tree to destroy");
+        ian::PlayerCommand destroyTree;
+        destroyTree.overrideAimedResource = true;
+        destroyTree.aimedResourceOverride = tree->id;
+        destroyTree.usePickaxe = true;
+        sawSimulation.tick(1.0 / 60.0, destroyTree);
+        const auto launchEvents = sawSimulation.takeEvents();
+        const auto splinterLaunch = std::ranges::find_if(
+            launchEvents, [](const ian::GameEvent& event) {
+                return event.type ==
+                           ian::GameEventType::SawSplinterLaunched &&
+                    event.entityId.has_value() &&
+                    event.targetPosition.has_value();
+            });
+        require(
+            splinterLaunch != launchEvents.end(),
+            "destroying a tree with Saw launches visible splinters");
+        const auto splinterTarget = std::ranges::find(
+            before.resourceNodes, *splinterLaunch->entityId,
+            &ian::ResourceNode::id);
+        require(
+            splinterTarget != before.resourceNodes.end(),
+            "Saw splinter targets an existing resource");
+        requireNear(
+            splinterLaunch->damage,
+            splinterTarget->maxHealth * 0.225, 1e-9,
+            "first Saw stack deals the reduced splinter damage");
+        sawSimulation.tick(0.6);
+        const auto impactEvents = sawSimulation.takeEvents();
+        require(
+            std::ranges::any_of(
+                impactEvents, [&tree](const ian::GameEvent& event) {
+                    return (event.type == ian::GameEventType::ResourceHit ||
+                            event.type ==
+                                ian::GameEventType::ResourceCollected) &&
+                        event.sourceId == tree->id;
+                }),
+            "Saw splinters harvest nearby resources after their flight");
+    }
+    {
         ian::GameBalance objectiveBalance =
             ian::GameBalance::defaults();
         objectiveBalance.buildings[static_cast<std::size_t>(
@@ -37,6 +92,14 @@ void runSimulationTests() {
             objectiveBalance, objectiveMap, objectiveWorld};
         objectiveSimulation.startRun();
         static_cast<void>(objectiveSimulation.takeEvents());
+        const auto naturalCoreSurface =
+            objectiveSimulation.previewPlacementSurface(
+                ian::BuildingType::Core, {0, 0});
+        require(
+            !objectiveSimulation.previewPlacement(
+                 ian::BuildingType::Core, {0, 0},
+                 naturalCoreSurface.height - 0.5).valid(),
+            "an exact preview height below terrain is rejected instead of silently lifted");
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};

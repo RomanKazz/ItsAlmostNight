@@ -33,6 +33,12 @@ constexpr std::array<std::string_view, 5> GrassFootstepPaths{
     "assets/audio/footstep_grass_4.ogg",
 };
 
+constexpr std::array<std::string_view, 3> MusicPaths{
+    "assets/audio/music_day_0.mp3",
+    "assets/audio/music_day_1.mp3",
+    "assets/audio/music_day_2.mp3",
+};
+
 } // namespace
 
 AudioSystem::~AudioSystem() {
@@ -76,7 +82,11 @@ void AudioSystem::initialize() {
     load(uiError_, "assets/audio/ui_error.wav");
     load(uiConfirm_, "assets/audio/ui_confirm.wav");
     load(waveWarning_, "assets/audio/wave_warning.wav");
+    for (std::size_t index = 0; index < musicTracks_.size(); ++index) {
+        load(musicTracks_[index], MusicPaths[index]);
+    }
     initialized_ = true;
+    playNextMusicTrack();
 }
 
 void AudioSystem::shutdown() {
@@ -110,6 +120,10 @@ void AudioSystem::shutdown() {
     unload(uiError_);
     unload(uiConfirm_);
     unload(waveWarning_);
+    for (MusicTrack& track : musicTracks_) {
+        unload(track);
+    }
+    currentMusicTrack_.reset();
     initialized_ = false;
     previousPlayerPosition_.reset();
     footstepDistance_ = 0.0;
@@ -123,6 +137,7 @@ void AudioSystem::shutdown() {
 }
 
 void AudioSystem::update(const SimulationSnapshot& snapshot) {
+    updateMusic();
     const bool activeRun =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Defeat &&
@@ -199,6 +214,11 @@ void AudioSystem::playEvent(
         return;
     }
     switch (event.type) {
+    case GameEventType::SawSplinterLaunched:
+        playAt(
+            woodBreak_, event.position, snapshot, 0.22F,
+            1.48F * variedPitch(0.09F), 28.0F);
+        break;
     case GameEventType::ResourceHit:
         if (event.resourceType) {
             playResourceHit(
@@ -513,6 +533,13 @@ void AudioSystem::applySettings() {
             ? 0.0F
             : std::clamp(
                   settings_.masterVolume, 0.0F, 1.0F));
+    const float musicVolume = std::clamp(
+        settings_.musicVolume, 0.0F, 1.0F);
+    for (const MusicTrack& track : musicTracks_) {
+        if (track.loaded) {
+            SetMusicVolume(track.music, musicVolume);
+        }
+    }
 }
 
 void AudioSystem::load(Clip& clip, std::string_view path) {
@@ -536,6 +563,100 @@ void AudioSystem::unload(Clip& clip) {
     }
     UnloadSound(clip.sound);
     clip = {};
+}
+
+void AudioSystem::load(
+    MusicTrack& track, std::string_view path) {
+    const std::string pathString(path);
+    if (!FileExists(pathString.c_str())) {
+        return;
+    }
+    track.music = LoadMusicStream(pathString.c_str());
+    track.loaded = IsMusicValid(track.music);
+    if (!track.loaded) {
+        UnloadMusicStream(track.music);
+        track.music = {};
+        return;
+    }
+    track.music.looping = false;
+    SetMusicVolume(
+        track.music,
+        std::clamp(settings_.musicVolume, 0.0F, 1.0F));
+}
+
+void AudioSystem::unload(MusicTrack& track) {
+    if (!track.loaded) {
+        return;
+    }
+    StopMusicStream(track.music);
+    UnloadMusicStream(track.music);
+    track = {};
+}
+
+void AudioSystem::updateMusic() {
+    if (!initialized_) {
+        return;
+    }
+    if (!currentMusicTrack_ ||
+        *currentMusicTrack_ >= musicTracks_.size() ||
+        !musicTracks_[*currentMusicTrack_].loaded) {
+        playNextMusicTrack();
+        return;
+    }
+    Music& music = musicTracks_[*currentMusicTrack_].music;
+    UpdateMusicStream(music);
+    const float length = GetMusicTimeLength(music);
+    const bool reachedEnd = length > 0.0F &&
+        GetMusicTimePlayed(music) >= length - 0.08F;
+    if (reachedEnd || !IsMusicStreamPlaying(music)) {
+        playNextMusicTrack();
+    }
+}
+
+void AudioSystem::playNextMusicTrack() {
+    std::size_t loadedCount = 0;
+    for (const MusicTrack& track : musicTracks_) {
+        loadedCount += track.loaded ? 1U : 0U;
+    }
+    if (loadedCount == 0U) {
+        currentMusicTrack_.reset();
+        return;
+    }
+    if (currentMusicTrack_ &&
+        *currentMusicTrack_ < musicTracks_.size() &&
+        musicTracks_[*currentMusicTrack_].loaded) {
+        StopMusicStream(
+            musicTracks_[*currentMusicTrack_].music);
+    }
+    sequence_ = sequence_ * 1664525U + 1013904223U;
+    const std::size_t start = static_cast<std::size_t>(
+        sequence_) % musicTracks_.size();
+    std::optional<std::size_t> selected;
+    for (std::size_t offset = 0; offset < musicTracks_.size(); ++offset) {
+        const std::size_t index =
+            (start + offset) % musicTracks_.size();
+        if (!musicTracks_[index].loaded) {
+            continue;
+        }
+        if (loadedCount > 1U && currentMusicTrack_ &&
+            index == *currentMusicTrack_) {
+            continue;
+        }
+        selected = index;
+        break;
+    }
+    if (!selected) {
+        selected = currentMusicTrack_;
+    }
+    if (!selected) {
+        return;
+    }
+    currentMusicTrack_ = *selected;
+    Music& music = musicTracks_[*selected].music;
+    SeekMusicStream(music, 0.0F);
+    SetMusicVolume(
+        music, std::clamp(settings_.musicVolume, 0.0F, 1.0F));
+    PlayMusicStream(music);
 }
 
 void AudioSystem::play(

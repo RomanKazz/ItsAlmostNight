@@ -44,6 +44,7 @@ enum class PresentationEffectType {
     IceCrack,
     FireImpact,
     ChainLightning,
+    SawSplinter,
     EliteSpawn,
     VolatileCharge,
     Debris,

@@ -523,6 +523,10 @@ void Simulation::updatePlayerActions(
                     }
                 }
                 if (hit->collected) {
+                    if (hit->type == ResourceType::Wood) {
+                        launchSawSplinters(
+                            hit->nodeId, hit->position);
+                    }
                     if (isDestructibleProp(hit->type)) {
                         const std::uint64_t rewardSeed = mixBits64(
                             attackSeed ^

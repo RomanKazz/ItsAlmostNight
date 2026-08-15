@@ -9,6 +9,7 @@ enum class GraphicsQuality {
 };
 
 struct GraphicsSettings {
+    bool fullscreen{false};
     bool sky{true};
     bool worldShader{true};
     bool shadows{true};

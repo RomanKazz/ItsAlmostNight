@@ -146,6 +146,7 @@ struct ChallengeColumnInstance {
     double yaw{};
     ChallengeColumnState state{ChallengeColumnState::Dormant};
     double completionProgress{};
+    double fenceProgress{};
     int enemyBudget{};
 };
 
@@ -424,6 +425,9 @@ class Simulation {
     void updatePlayerActions(double deltaSeconds,
                              const PlayerCommand& command);
     void updatePendingResourceGrants(double deltaSeconds);
+    void launchSawSplinters(EntityId sourceId, Vec3 origin,
+                            int chainDepth = 0);
+    void updateSawSplinters(double deltaSeconds);
     void updateRunPhase(double deltaSeconds,
                         const PlayerCommand& command);
     [[nodiscard]] int earlyWaveBonus() const;
@@ -496,6 +500,7 @@ class Simulation {
     void updateChallengeColumns(
         double deltaSeconds, const PlayerCommand& command);
     void activateChallengeColumn(EntityId id);
+    void failActiveChallenge();
     void constrainPlayerToChallengeArena();
     [[nodiscard]] bool challengeActive() const;
     void updateCoinPickups(double deltaSeconds);
@@ -584,6 +589,16 @@ class Simulation {
         double remaining;
     };
     std::vector<PendingResourceGrant> pendingResourceGrants_;
+    struct PendingSawSplinter {
+        EntityId sourceId;
+        EntityId targetId;
+        Vec3 origin;
+        Vec3 targetPosition;
+        double damage{};
+        double remaining{};
+        int chainDepth{};
+    };
+    std::vector<PendingSawSplinter> pendingSawSplinters_;
     bool unlimitedResources_{};
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};

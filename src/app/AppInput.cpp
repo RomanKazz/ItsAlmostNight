@@ -59,6 +59,8 @@ void App::processInput() {
         acceptsGameplayInput(snapshot.state) &&
         !skillTree_.isOpen() &&
         !graphicsPanelVisible &&
+        !enemySpawnMenuVisible_ &&
+        !itemGrantMenuVisible_ &&
         !pendingControlRebind_) {
         primaryAttackHoldSeconds_ +=
             static_cast<double>(GetFrameTime());
@@ -159,9 +161,38 @@ void App::processInput() {
         return;
     }
     if (snapshot.state != RunState::MainMenu &&
+        !IsKeyDown(KEY_LEFT_SHIFT) &&
+        !IsKeyDown(KEY_RIGHT_SHIFT) &&
+        IsKeyPressed(KEY_F5)) {
+        itemGrantMenuVisible_ = !itemGrantMenuVisible_;
+        if (itemGrantMenuVisible_) {
+            enemySpawnMenuVisible_ = false;
+            EnableCursor();
+        } else if (snapshot.state != RunState::Paused) {
+            DisableCursor();
+        }
+        audio_.playUiConfirm();
+    }
+    if (itemGrantMenuVisible_) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            itemGrantMenuVisible_ = false;
+            if (snapshot.state != RunState::Paused) {
+                DisableCursor();
+            }
+            audio_.playUiConfirm();
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        return;
+    }
+    if (snapshot.state != RunState::MainMenu &&
         IsKeyPressed(KEY_B)) {
         enemySpawnMenuVisible_ = !enemySpawnMenuVisible_;
         if (enemySpawnMenuVisible_) {
+            itemGrantMenuVisible_ = false;
             EnableCursor();
         } else if (snapshot.state != RunState::Paused) {
             DisableCursor();
@@ -186,6 +217,13 @@ void App::processInput() {
             simulation_.clearModularBuildings());
     }
     if (enemySpawnMenuVisible_) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            enemySpawnMenuVisible_ = false;
+            if (snapshot.state != RunState::Paused) {
+                DisableCursor();
+            }
+            audio_.playUiConfirm();
+        }
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;
         input_.sprint = false;
@@ -1273,12 +1311,7 @@ void App::processInput() {
                  index < count; ++index) {
                 const BuildingPlatformSurface surface =
                     placementDragSurface_
-                        ? simulation_
-                              .previewPlacementSurface(
-                                  dragType,
-                                  cells[index],
-                                  placementDragSurface_
-                                      ->height)
+                        ? *placementDragSurface_
                         : simulation_
                               .previewPlacementSurface(
                                   dragType,

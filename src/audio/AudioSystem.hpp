@@ -46,9 +46,17 @@ class AudioSystem {
         Sound sound{};
         bool loaded{};
     };
+    struct MusicTrack {
+        Music music{};
+        bool loaded{};
+    };
 
     void load(Clip& clip, std::string_view path);
     void unload(Clip& clip);
+    void load(MusicTrack& track, std::string_view path);
+    void unload(MusicTrack& track);
+    void updateMusic();
+    void playNextMusicTrack();
     void play(const Clip& clip, float volume = 1.0F,
               float pitch = 1.0F, float pan = 0.5F,
               bool affectedByLowHealth = true);
@@ -86,6 +94,8 @@ class AudioSystem {
     Clip uiError_;
     Clip uiConfirm_;
     Clip waveWarning_;
+    std::array<MusicTrack, 3> musicTracks_;
+    std::optional<std::size_t> currentMusicTrack_;
     std::optional<Vec3> previousPlayerPosition_;
     double footstepDistance_{};
     double iceHitSoundCooldown_{};

@@ -93,6 +93,7 @@ const char* qualityName(GraphicsQuality quality) {
 }
 
 void readGraphics(const Json& value, GraphicsSettings& settings) {
+    readValue(value, "fullscreen", settings.fullscreen);
     readValue(value, "sky", settings.sky);
     readValue(value, "worldShader", settings.worldShader);
     readValue(value, "shadows", settings.shadows);
@@ -213,6 +214,7 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
 
 Json graphicsJson(const GraphicsSettings& settings) {
     return {
+        {"fullscreen", settings.fullscreen},
         {"sky", settings.sky},
         {"worldShader", settings.worldShader},
         {"shadows", settings.shadows},
@@ -421,6 +423,7 @@ bool saveUserSettings(
 
 void resetDisplaySettings(GraphicsSettings& settings) {
     const GraphicsSettings defaults;
+    settings.fullscreen = defaults.fullscreen;
     settings.sky = defaults.sky;
     settings.worldShader = defaults.worldShader;
     settings.shadows = defaults.shadows;

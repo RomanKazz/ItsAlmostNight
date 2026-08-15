@@ -1116,6 +1116,7 @@ void App::render() {
             drawGraphicsPanel();
         }
         drawEnemySpawnMenu();
+        drawItemGrantMenu();
     }
     drawObjectiveDebugMenu(snapshot);
     if (performanceOverlayVisible_) {
@@ -1125,7 +1126,8 @@ void App::render() {
         snapshot.state == RunState::MainMenu ||
         snapshot.state == RunState::Paused ||
         renderer_->graphicsPanelVisible() ||
-        skillTree_.isOpen() || enemySpawnMenuVisible_;
+        skillTree_.isOpen() || enemySpawnMenuVisible_ ||
+        itemGrantMenuVisible_;
     if (uiCursorVisible) {
         HideCursor();
         ui_.drawCursor();

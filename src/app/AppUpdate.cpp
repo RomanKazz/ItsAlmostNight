@@ -22,6 +22,18 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
+    if (renderer_ &&
+        renderer_->settings().fullscreen != fullscreenApplied_) {
+        applyFullscreenSetting(renderer_->settings().fullscreen);
+    }
+    if (pendingLootGrant_) {
+        for (int index = 0; index < pendingLootGrant_->count; ++index) {
+            simulation_.grantLootUpgrade(
+                pendingLootGrant_->effect,
+                pendingLootGrant_->rarity);
+        }
+        pendingLootGrant_.reset();
+    }
     const auto& progressionSnapshot = simulation_.snapshot();
     skillTree_.setUnlimitedPoints(progressionSnapshot.unlimitedResources);
     skillTree_.setInsightProgress(progressionSnapshot.currentInsight,

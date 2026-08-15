@@ -212,6 +212,7 @@ add_executable(its_almost_night
     src/app/AppInteractionPrompt.cpp
     src/app/AppMainMenu.cpp
     src/app/AppInput.cpp
+    src/app/AppItemGrantMenu.cpp
     src/app/AppModularPlacement.cpp
     src/app/AppObjectiveDebugMenu.cpp
     src/app/AppPresentationState.cpp

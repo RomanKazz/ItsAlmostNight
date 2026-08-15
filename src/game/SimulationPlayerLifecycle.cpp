@@ -137,6 +137,7 @@ void Simulation::applyFallDamage(double landingSpeed) {
 
 void Simulation::beginPlayerRespawn(
     std::optional<EntityId> attackerId) {
+    failActiveChallenge();
     const auto loss = [this](int carried) {
         if (carried <= 0) {
             return 0;

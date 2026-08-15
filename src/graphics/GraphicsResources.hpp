@@ -264,6 +264,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& challengeColumnModel();
+    [[nodiscard]] ModelResource& challengeArenaPegModel();
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& destructiblePropModel(
         std::size_t variant);
@@ -384,6 +385,7 @@ class GraphicsResources {
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
     ModelResource challengeColumnModel_;
+    ModelResource challengeArenaPegModel_;
     std::array<ModelResource, 3> coinModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
     ModelResource appleLootModel_;

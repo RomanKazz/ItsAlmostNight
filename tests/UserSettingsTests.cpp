@@ -19,6 +19,7 @@ void settingsRoundTrip() {
     std::filesystem::remove(path, error);
 
     ian::UserSettings written;
+    written.graphics.fullscreen = true;
     written.graphics.inkOutlines = true;
     written.graphics.outlineWidth = 3.0F;
     written.graphics.pixelSize = 6;
@@ -44,6 +45,8 @@ void settingsRoundTrip() {
             "user settings load succeeds");
     require(loaded.graphics.inkOutlines,
             "style toggle survives settings round trip");
+    require(loaded.graphics.fullscreen,
+            "fullscreen setting survives settings round trip");
     requireNear(loaded.graphics.outlineWidth, 3.0, 1e-6,
                 "style slider survives settings round trip");
     require(loaded.graphics.pixelSize == 6,

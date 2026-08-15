@@ -196,7 +196,7 @@ int App::run() {
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "It's Almost Night");
     SetExitKey(KEY_NULL);
-    ToggleBorderlessWindowed();
+    applyFullscreenSetting(userSettings_.graphics.fullscreen);
     renderer_.emplace();
     renderer_->settings() = userSettings_.graphics;
     renderer_->applyFrameRateLimit();
@@ -306,6 +306,19 @@ void App::rebuildTerrainGraphics() {
     const auto exclusions = makeDecorationExclusions(snapshot);
     decorationExclusionFingerprint_ = decorationFingerprint(snapshot);
     renderer_->rebuildTerrain(simulation_.terrain(), exclusions);
+}
+
+void App::applyFullscreenSetting(bool fullscreen) {
+    const bool borderless = IsWindowState(
+        FLAG_BORDERLESS_WINDOWED_MODE);
+    if (borderless != fullscreen) {
+        ToggleBorderlessWindowed();
+    }
+    if (!fullscreen) {
+        // A maximized native window retains minimize and reliable Alt+Tab.
+        MaximizeWindow();
+    }
+    fullscreenApplied_ = fullscreen;
 }
 
 void App::refreshDecorationExclusions(

@@ -19,6 +19,7 @@ void App::setSkillTreeVisible(bool visible) {
             fixedStep_.reset();
         }
         enemySpawnMenuVisible_ = false;
+        itemGrantMenuVisible_ = false;
         skillTree_.open();
         EnableCursor();
         return;

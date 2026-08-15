@@ -268,6 +268,7 @@ void Simulation::resetRun(GameEventType eventType) {
     coinPickups_.reset();
     rewardedEnemyCoins_.clear();
     pendingResourceGrants_.clear();
+    pendingSawSplinters_.clear();
     unlimitedResources_ = false;
     playerInvulnerable_ = false;
     debugSpawnSequence_ = 0;
@@ -389,6 +390,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
     updatePendingResourceGrants(deltaSeconds);
+    updateSawSplinters(deltaSeconds);
     if (!playerRespawning_) {
         processDebugCommands(command);
         processBuildingCommands(command);

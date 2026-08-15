@@ -631,7 +631,7 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Anvil:
         return "New towers: +10% damage and health";
     case LootUpgradeEffect::Saw:
-        return "+25% wood gathering and lumber production";
+        return "Destroyed trees launch splinters into nearby resources";
     case LootUpgradeEffect::Potion:
         return "Wave start: +20 HP and +10 temporary health";
     case LootUpgradeEffect::Blueprint:
