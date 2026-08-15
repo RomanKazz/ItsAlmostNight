@@ -41,6 +41,50 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         objectiveSimulation.tick(1.0 / 60.0, placeCore);
+        const auto objectiveSnapshot =
+            objectiveSimulation.snapshot();
+        require(
+            objectiveSnapshot.challengeColumns.size() == 5U &&
+                std::ranges::all_of(
+                    objectiveSnapshot.challengeColumns,
+                    [&objectiveSimulation](
+                        const ian::ChallengeColumnInstance& column) {
+                        return objectiveSimulation.terrain().isInside(
+                                   column.position.x,
+                                   column.position.z) &&
+                               column.state ==
+                                   ian::ChallengeColumnState::Dormant;
+                    }),
+            "a new run scatters five dormant skull trials on valid terrain");
+        require(
+            objectiveSnapshot.platformFrames.size() == 1U &&
+                objectiveSnapshot.platformFrames.front().anchor.x == -1 &&
+                objectiveSnapshot.platformFrames.front().anchor.z == -1,
+            "every terrain building receives an exactly aligned foundation");
+        require(
+            std::ranges::all_of(
+                objectiveSnapshot.platformFrames.front().supports,
+                [&objectiveWorld](
+                    const ian::FoundationSupport& support) {
+                    return support.length >=
+                               objectiveWorld.minimumGroundClearance - 1e-6 &&
+                           support.length < 0.20;
+                }),
+            "flat-ground building foundation leaves only a thin pallet top visible");
+        ian::PlayerCommand enableFoundationTestResources;
+        enableFoundationTestResources.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        objectiveSimulation.tick(
+            1.0 / 60.0, enableFoundationTestResources);
+        const auto upperFoundationPreview =
+            objectiveSimulation.previewFloorPlatform(
+                objectiveSnapshot.platformFrames.front().anchor,
+                1,
+                objectiveSnapshot.platformFrames.front().floorHeight +
+                    ian::modularStoreyHeight(objectiveWorld));
+        require(
+            upperFoundationPreview.valid(),
+            "thin automatic foundation still supports a full upper storey");
         const auto events = objectiveSimulation.takeEvents();
         require(
             std::ranges::any_of(
@@ -1397,7 +1441,7 @@ void runSimulationTests() {
             });
         require(
             turret != transactions.snapshot().buildings.end() &&
-                transactions.snapshot().platformFrames.size() == 1U &&
+                transactions.snapshot().platformFrames.size() == 2U &&
                 transactions.snapshot().wood == 3,
             "raised placement atomically spends building and foundation costs");
         const ian::EntityId turretId = turret->id;
@@ -1790,7 +1834,7 @@ void runSimulationTests() {
             raisedTurret !=
                     raisedSnapshot.buildings.end() &&
                 raisedSnapshot.platformFrames.size() ==
-                    1 &&
+                    2 &&
                 raisedTurret->platformStorey == 0,
             "raised building creates a real ground platform");
         require(
@@ -1800,8 +1844,22 @@ void runSimulationTests() {
 
         const ian::EntityId turretId =
             raisedTurret->id;
+        const auto raisedFoundation = std::find_if(
+            raisedSnapshot.platformFrames.begin(),
+            raisedSnapshot.platformFrames.end(),
+            [turretPosition](
+                const ian::PlatformFrameInstance& frame) {
+                return frame.anchor.x ==
+                           turretPosition.x - 1 &&
+                       frame.anchor.z ==
+                           turretPosition.z - 1;
+            });
+        require(
+            raisedFoundation !=
+                raisedSnapshot.platformFrames.end(),
+            "raised building foundation matches its footprint");
         const ian::EntityId foundationId =
-            raisedSnapshot.platformFrames.front().id;
+            raisedFoundation->id;
         ian::PlayerCommand sellTurret;
         sellTurret.sellBuilding =
             ian::SellBuildingCommand{turretId};
@@ -1809,22 +1867,32 @@ void runSimulationTests() {
             1.0 / 60.0, sellTurret);
         require(
             foundationLifecycle.snapshot()
-                    .platformFrames.size() == 1 &&
+                    .platformFrames.size() == 2 &&
                 foundationLifecycle.snapshot()
                     .buildings.size() == 1,
             "selling building leaves its automatic platform");
 
-        const auto platform =
-            foundationLifecycle.snapshot()
-                .platformFrames.front();
+        const auto retainedSnapshot =
+            foundationLifecycle.snapshot();
+        const auto retainedPlatform = std::find_if(
+            retainedSnapshot.platformFrames.begin(),
+            retainedSnapshot.platformFrames.end(),
+            [foundationId](
+                const ian::PlatformFrameInstance& frame) {
+                return frame.id == foundationId;
+            });
+        require(
+            retainedPlatform !=
+                retainedSnapshot.platformFrames.end(),
+            "selling building retains its matching foundation");
         ian::PlayerCommand replaceTurret;
         replaceTurret.placeBuilding =
             ian::PlaceBuildingCommand{
                 .type = ian::BuildingType::Turret,
                 .gridPosition = turretPosition,
                 .rotation = 0,
-                .baseHeight = platform.floorHeight,
-                .platformStorey = platform.storey,
+                .baseHeight = retainedPlatform->floorHeight,
+                .platformStorey = retainedPlatform->storey,
                 .lockHeight = true,
             };
         foundationLifecycle.tick(
@@ -1844,7 +1912,7 @@ void runSimulationTests() {
             1.0 / 60.0, removeFoundation);
         require(
             foundationLifecycle.snapshot()
-                    .platformFrames.empty() &&
+                    .platformFrames.size() == 1 &&
                 foundationLifecycle.snapshot()
                     .buildings.size() == 1,
             "removing platform destroys building supported by it");

@@ -41,6 +41,23 @@ void runEnemySystemTests() {
             "enemy reset never aliases a previous run ID");
     }
     {
+        ian::EnemySystem trialEnemies;
+        constexpr std::array<ian::EnemySpawn, 1> TrialSpawn{{
+            {ian::EnemyType::Basic, {0.0, 0.8, -10.0}},
+        }};
+        trialEnemies.spawnGroup(TrialSpawn);
+        ian::FlowField noCoreFlow;
+        const double initialZ = trialEnemies.enemies().front().position.z;
+        static_cast<void>(trialEnemies.tick(
+            0.5, {}, noCoreFlow, ian::Vec3{0.0, 1.7, 0.0},
+            {}, nullptr, {}, true));
+        require(
+            trialEnemies.enemies().front().position.z > initialZ &&
+                trialEnemies.enemies().front().state ==
+                    ian::EnemyState::ChasePlayer,
+            "trial enemy pursues player even before a core exists");
+    }
+    {
         constexpr std::array<ian::EnemySpawn, 3> EliteSpawns{{
             {
                 .type = ian::EnemyType::Basic,

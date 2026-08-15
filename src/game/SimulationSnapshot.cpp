@@ -113,6 +113,16 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .aimedLoot = aimedLoot_,
         .lootChests =
             std::span<const LootChestInstance>{lootChests_.chests()},
+        .aimedChallengeColumn = aimedChallengeColumn_,
+        .challengeColumns =
+            std::span<const ChallengeColumnInstance>{challengeColumns_},
+        .activeChallengeCenter = activeChallengeColumn_
+            ? std::optional<Vec3>{
+                  challengeColumns_[*activeChallengeColumn_].position}
+            : std::nullopt,
+        .activeChallengeRadius = activeChallengeColumn_
+            ? 18.0
+            : 0.0,
         .nearestChestPosition = nearestChestPosition,
         .nearestChestDistance = nearestChestPosition
             ? nearestChestDistance

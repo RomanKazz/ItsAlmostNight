@@ -236,7 +236,8 @@ Simulation::placementSurfaceWithPreferredHeight(
 
 std::optional<PlatformFramePlacement>
 Simulation::automaticFoundationPlacement(
-    BuildingType type, GridPosition position) const {
+    BuildingType type, GridPosition position,
+    std::optional<double> preferredHeight) const {
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     GridCoord anchor{
@@ -244,8 +245,13 @@ Simulation::automaticFoundationPlacement(
         0,
         twoByTwo ? position.z - 1 : position.z,
     };
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    // A 2x2 building is centred on its grid position, so its exact lower
+    // corner can be odd or even. Keep that anchor exact. A 1x1 building uses
+    // the containing modular 2x2 frame so nearby small buildings can share it.
+    if (!twoByTwo) {
+        anchor.x = snapPlatformFrameAxis(anchor.x);
+        anchor.z = snapPlatformFrameAxis(anchor.z);
+    }
     const double cellSize = worldConfig_.cellSize;
     const Vec3 terrainHit{
         (anchor.x + 0.5) * cellSize,
@@ -254,7 +260,81 @@ Simulation::automaticFoundationPlacement(
             (anchor.z + 0.5) * cellSize),
         (anchor.z + 0.5) * cellSize,
     };
-    PlatformFramePlacement placement = previewFoundation(terrainHit);
+    // Adjacent ground frames define a shared construction plane. This keeps
+    // separately clicked neighbouring buildings perfectly level.
+    std::optional<double> adjacentFoundationHeight;
+    for (const PlatformFrameInstance& frame :
+         foundations_.platformFrames()) {
+        if (frame.storey != 0 ||
+            frame.supportState !=
+                StructuralSupportState::Supported) {
+            continue;
+        }
+        const int deltaX = std::abs(
+            frame.anchor.x - anchor.x);
+        const int deltaZ = std::abs(
+            frame.anchor.z - anchor.z);
+        if ((deltaX == PlatformFrameWidthCells &&
+             deltaZ == 0) ||
+            (deltaZ == PlatformFrameWidthCells &&
+             deltaX == 0)) {
+            adjacentFoundationHeight = frame.floorHeight;
+            break;
+        }
+    }
+
+    PlatformFramePlacement placement;
+    const auto previewAtHeight =
+        [this, anchor, terrainHit, twoByTwo](double height) {
+            return twoByTwo
+                ? foundations_
+                      .previewAutomaticBuildingFoundationAtHeight(
+                          anchor, height, playerPosition_)
+                : previewFoundationAtHeight(
+                      terrainHit, height);
+        };
+    if (preferredHeight) {
+        placement = previewAtHeight(*preferredHeight);
+    } else if (adjacentFoundationHeight) {
+        placement = previewAtHeight(
+            *adjacentFoundationHeight);
+    } else {
+        // Automatic building foundations are compact ground plinths, not a
+        // full one-metre storey. Sample the complete 2x2 footprint and leave
+        // only the pallet top visible above its highest terrain point.
+        constexpr int SamplesPerAxis = 5;
+        constexpr double CompactHeightStep = 0.05;
+        const double minimumX = anchor.x * cellSize;
+        const double minimumZ = anchor.z * cellSize;
+        const double maximumX =
+            (anchor.x + PlatformFrameWidthCells) * cellSize;
+        const double maximumZ =
+            (anchor.z + PlatformFrameWidthCells) * cellSize;
+        double highestTerrain =
+            -std::numeric_limits<double>::infinity();
+        for (int z = 0; z < SamplesPerAxis; ++z) {
+            for (int x = 0; x < SamplesPerAxis; ++x) {
+                const double amountX =
+                    static_cast<double>(x) /
+                    static_cast<double>(SamplesPerAxis - 1);
+                const double amountZ =
+                    static_cast<double>(z) /
+                    static_cast<double>(SamplesPerAxis - 1);
+                highestTerrain = std::max(
+                    highestTerrain,
+                    terrain_.getHeight(
+                        minimumX +
+                            (maximumX - minimumX) * amountX,
+                        minimumZ +
+                            (maximumZ - minimumZ) * amountZ));
+            }
+        }
+        const double compactHeight = std::ceil(
+            (highestTerrain +
+             worldConfig_.minimumGroundClearance) /
+            CompactHeightStep) * CompactHeightStep;
+        placement = previewAtHeight(compactHeight);
+    }
     if (placement.error ==
         ModularPlacementError::InsufficientResources) {
         // Combined affordability is checked after adding building cost.
@@ -266,27 +346,49 @@ Simulation::automaticFoundationPlacement(
     return placement;
 }
 
+bool Simulation::foundationAddsPlacementCost(
+    const PlatformFramePlacement& placement) const {
+    // The compact pallet top is part of every building. Charge the separate
+    // modular-foundation cost only when terrain needs visibly extended legs.
+    constexpr double IncludedSupportAllowance = 0.20;
+    return std::any_of(
+        placement.supports.begin(), placement.supports.end(),
+        [this](const FoundationSupport& support) {
+            return support.length >
+                worldConfig_.minimumGroundClearance +
+                    IncludedSupportAllowance;
+        });
+}
+
 PlacementResult Simulation::previewPlacement(
     BuildingType type, GridPosition position) const {
-    return previewPlacement(
-        type, position,
-        placementSurface(type, position).height);
+    return previewPlacementWithOptionalHeight(
+        type, position, std::nullopt);
 }
 
 PlacementResult Simulation::previewPlacement(
     BuildingType type, GridPosition position,
     double preferredHeight) const {
+    return previewPlacementWithOptionalHeight(
+        type, position, preferredHeight);
+}
+
+PlacementResult
+Simulation::previewPlacementWithOptionalHeight(
+    BuildingType type, GridPosition position,
+    std::optional<double> preferredHeight) const {
     BuildingPlatformSurface surface =
-        placementSurfaceWithPreferredHeight(
-            type, position, preferredHeight);
-    const bool needsAutomaticFoundation =
-        surface.storey < 0 &&
-        surface.height - surface.foundationBottomHeight > 0.025;
+        preferredHeight
+            ? placementSurfaceWithPreferredHeight(
+                  type, position, *preferredHeight)
+            : placementSurface(type, position);
+    const bool needsAutomaticFoundation = surface.storey < 0;
     if (!needsAutomaticFoundation) {
         return validatePlacement(type, position, surface);
     }
     const auto automaticFoundation =
-        automaticFoundationPlacement(type, position);
+        automaticFoundationPlacement(
+            type, position, preferredHeight);
     PlacementResult placement =
         validatePlacement(type, position, surface);
     if (!automaticFoundation || !automaticFoundation->valid()) {
@@ -310,14 +412,16 @@ PlacementResult Simulation::previewPlacement(
             })
             ->bottom.y;
     placement = validatePlacement(type, position, surface);
-    const ResourceCost foundationCost =
-        modularBuildingCosts_[static_cast<std::size_t>(
-            ModularBuildPiece::Foundation)];
-    placement.cost = {
-        saturatingAdd(placement.cost.wood, foundationCost.wood),
-        saturatingAdd(placement.cost.stone, foundationCost.stone),
-        saturatingAdd(placement.cost.crystals, foundationCost.crystals),
-    };
+    if (foundationAddsPlacementCost(*automaticFoundation)) {
+        const ResourceCost foundationCost =
+            modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Foundation)];
+        placement.cost = {
+            saturatingAdd(placement.cost.wood, foundationCost.wood),
+            saturatingAdd(placement.cost.stone, foundationCost.stone),
+            saturatingAdd(placement.cost.crystals, foundationCost.crystals),
+        };
+    }
     if (placement.valid() && !unlimitedResources_ &&
         (wood_ < placement.cost.wood ||
          stone_ < placement.cost.stone ||

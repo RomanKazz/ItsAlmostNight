@@ -43,14 +43,19 @@ std::optional<EntityId> EnemySystem::raycast(
         }
 
         const EnemyCapsule capsule = enemyCapsule(enemy.type);
+        // Aim follows the animated silhouette with a small tolerance. This
+        // does not affect physical crowd collision or melee reach.
+        constexpr double AimRadiusPadding = 0.14;
+        constexpr double AimHeightPadding = 0.12;
         Vec3 center = enemy.position;
         if (terrain != nullptr) {
             center.y += terrain->getHeight(center.x, center.z);
         }
         center.y += enemy.surfaceHeightOffset;
         const auto distance = geometry::rayVerticalCapsuleDistance(
-            origin, direction, center, capsule.radius,
-            capsule.segmentHalfHeight);
+            origin, direction, center,
+            capsule.radius + AimRadiusPadding,
+            capsule.segmentHalfHeight + AimHeightPadding);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {
             result = enemy.id;
             closestDistance = *distance;

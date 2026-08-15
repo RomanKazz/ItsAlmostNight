@@ -242,7 +242,8 @@ class EnemySystem {
                                       std::span<const EnemyStructureTarget>
                                           additionalStructures = {},
                                       const TerrainHeightfield* terrain = nullptr,
-                                      EnemyNavigationView navigation = {});
+                                      EnemyNavigationView navigation = {},
+                                      bool prioritizePlayerTarget = false);
 
     [[nodiscard]] std::optional<EntityId> raycast(
         Vec3 origin, Vec3 direction, double maxDistance,
@@ -280,6 +281,8 @@ class EnemySystem {
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
     void clearProjectiles();
+    void constrainToArena(
+        Vec3 center, double radius);
     [[nodiscard]] std::span<const EnemyPlayerAttack> playerAttacks() const;
     [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 

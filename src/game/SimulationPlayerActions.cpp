@@ -144,6 +144,9 @@ double Simulation::resourceToolEfficiency(
 void Simulation::updatePlayerActions(
     double deltaSeconds, const PlayerCommand& command) {
     double productionDeltaSeconds = deltaSeconds;
+    if (challengeActive()) {
+        productionDeltaSeconds = 0.0;
+    }
     if (state_ == RunState::Wave) {
         productionDeltaSeconds *= unlimitedResources_
             ? 1.0

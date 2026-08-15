@@ -387,6 +387,24 @@ void App::drawWorldEntities(
     renderer_->endWorldShader();
     drawChestLootGlow(snapshot, camera);
     renderer_->beginWorldShader(lighting);
+    WorldMaterialState challengeMaterial{};
+    challengeMaterial.bakedAo = 0.76F;
+    renderer_->setWorldMaterial(challengeMaterial);
+    for (const ChallengeColumnInstance& column : snapshot.challengeColumns) {
+        const float progress = smoothstep(
+            0.0F, 1.0F, static_cast<float>(column.completionProgress));
+        const float bounce = std::sin(progress * PI) * (1.0F - progress) * 0.12F;
+        const float scale = std::max(0.0F, 1.0F + bounce - progress);
+        if (scale <= 0.001F) continue;
+        const Color tint = column.state == ChallengeColumnState::Active
+            ? Color{205, 235, 255, 255}
+            : WHITE;
+        static_cast<void>(renderer_->drawChallengeColumn(
+            {static_cast<float>(column.position.x),
+             static_cast<float>(column.position.y),
+             static_cast<float>(column.position.z)},
+            static_cast<float>(column.yaw), tint, scale));
+    }
     WorldMaterialState chestMaterial{};
     chestMaterial.bakedAo = 0.78F;
     renderer_->setWorldMaterial(chestMaterial);

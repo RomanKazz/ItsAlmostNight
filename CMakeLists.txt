@@ -96,6 +96,7 @@ add_library(ian_simulation
     src/game/Simulation.cpp
     src/game/SimulationCombat.cpp
     src/game/SimulationCoins.cpp
+    src/game/SimulationChallenges.cpp
     src/game/LootChestSystem.cpp
     src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp

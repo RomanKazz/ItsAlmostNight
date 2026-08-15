@@ -484,6 +484,15 @@ void App::processInput() {
 
     if (acceptsGameplayInput(simulation_.snapshot().state)) {
         auto currentSnapshot = simulation_.snapshot();
+        if (currentSnapshot.activeChallengeCenter) {
+            foundationBuildMode_ = false;
+            pendingBuildingCancel_ = true;
+            platformFramePreview_.reset();
+            wallPreview_.reset();
+            rampPreview_.reset();
+            foundationTerrainHit_.reset();
+            clearModularPlacementDrag();
+        }
         currentSnapshot.aimedBuilding =
             preciseBuildingAim(
                 *renderer_, currentSnapshot);
@@ -1091,7 +1100,8 @@ void App::processInput() {
         if (keyPressed(userSettings_.controls,
                        ControlAction::Interact)) {
             if (currentSnapshot.aimedChest ||
-                currentSnapshot.aimedLoot) {
+                currentSnapshot.aimedLoot ||
+                currentSnapshot.aimedChallengeColumn) {
                 pendingInteract_ = true;
             } else if (!currentSnapshot.selectedBuilding &&
                        actionBuilding) {

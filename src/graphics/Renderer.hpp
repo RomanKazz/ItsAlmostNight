@@ -294,6 +294,9 @@ class Renderer {
     [[nodiscard]] bool drawCore(Vector3 position, float yawRadians = 0.0F,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
+    [[nodiscard]] bool drawChallengeColumn(
+        Vector3 position, float yawRadians = 0.0F,
+        Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawFirstPersonTool(
         FirstPersonToolVisual visual, float swingProgress,
         float movementPhase, float movementAmount,

@@ -279,6 +279,29 @@ void LootChestSystem::spawnAdditionalChests(
     }
 }
 
+void LootChestSystem::spawnRewardChest(
+    Vec3 position, const TerrainHeightfield& terrain,
+    LootChestType type) {
+    position.y = terrain.getHeight(position.x, position.z);
+    const std::uint32_t index = nextEntityIndex_++;
+    const EntityId id{index, runGeneration_};
+    const std::uint64_t seed = mixBits64(
+        (static_cast<std::uint64_t>(terrain.seed()) << 32U) ^
+        static_cast<std::uint64_t>(index));
+    chests_.push_back({
+        .id = id,
+        .type = type,
+        .purpose = LootChestPurpose::Reward,
+        .position = position,
+        .surfaceNormal = terrain.getNormal(position.x, position.z),
+        .yaw = unitRandom(seed) * 6.28318530717958647692,
+        .coinCost = 0,
+        .revealed = true,
+        .loot = makeLoot(
+            id, position, 0U, LootChestPurpose::Reward),
+    });
+}
+
 void LootChestSystem::tick(double deltaSeconds) {
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) return;
     for (LootChestInstance& chest : chests_) {

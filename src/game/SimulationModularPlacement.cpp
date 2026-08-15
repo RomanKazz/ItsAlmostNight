@@ -99,6 +99,7 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
         resources_.nodes(), playerPosition_);
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
+    resetChallengeColumns();
     foundations_.reset();
     syncModularStructures();
     syncWorldStructures();

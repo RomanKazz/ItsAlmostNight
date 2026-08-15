@@ -153,6 +153,7 @@ Simulation::Simulation(
         resources_.nodes(), playerPosition_);
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
+    resetChallengeColumns();
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
 }
 
@@ -280,6 +281,7 @@ void Simulation::resetRun(GameEventType eventType) {
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
+    resetChallengeColumns();
     aimedChest_.reset();
     aimedLoot_.reset();
     playerDamageMultiplier_ = 1.0;
@@ -383,6 +385,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     updatePlayer(
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
+    updateChallengeColumns(
+        deltaSeconds,
+        playerRespawning_ ? PlayerCommand{} : command);
     updatePendingResourceGrants(deltaSeconds);
     if (!playerRespawning_) {
         processDebugCommands(command);
@@ -458,6 +463,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     updateCombat(deltaSeconds);
     updateEliteEffects(deltaSeconds);
     collectEliteEnemyEvents();
+    updateChallengeColumns(0.0, PlayerCommand{});
     if (state_ == RunState::Defeat) {
         crystals_ = 0;
         coins_ = 0;

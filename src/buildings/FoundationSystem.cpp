@@ -174,12 +174,26 @@ FoundationSystem::previewFoundationAtHeight(
 }
 
 PlatformFramePlacement
+FoundationSystem::previewAutomaticBuildingFoundationAtHeight(
+    GridCoord anchor, double floorHeight,
+    Vec3 playerPosition) const {
+    return PlacementValidator{terrain_, grid_}
+        .validateAutomaticBuildingFoundationAt(
+            anchor, floorHeight, playerPosition);
+}
+
+PlatformFramePlacement
 FoundationSystem::previewFloorPlatform(
     GridCoord anchor, int storey,
     double floorHeight,
     Vec3 playerPosition) const {
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    // Automatic foundations follow the building's exact footprint and may
+    // therefore use an odd anchor. Preserve it when stacking on a real frame;
+    // only free/manual placement is snapped to the modular two-cell grid.
+    if (storey <= 0 || !frameAt(anchor, storey - 1)) {
+        anchor.x = snapPlatformFrameAxis(anchor.x);
+        anchor.z = snapPlatformFrameAxis(anchor.z);
+    }
     PlatformFramePlacement placement{
         .anchor = anchor,
         .floorHeight = floorHeight,

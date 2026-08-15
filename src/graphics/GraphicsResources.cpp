@@ -1072,6 +1072,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/buildings/chests/wooden_chest.glb");
     stoneChestModel_.load(
         "assets/models/buildings/chests/stone_chest.glb");
+    challengeColumnModel_.load(
+        "assets/models/challenges/skull_column.glb");
     coinModels_[0].load("assets/models/coins/coin-bronze.glb");
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
     coinModels_[2].load("assets/models/coins/coin-high-value.glb");
@@ -1423,6 +1425,7 @@ void GraphicsResources::shutdown() {
     iceWandModel_.unload();
     clubModel_.unload();
     stoneChestModel_.unload();
+    challengeColumnModel_.unload();
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();

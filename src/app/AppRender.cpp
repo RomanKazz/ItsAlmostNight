@@ -118,10 +118,11 @@ void App::render() {
         presentationSnapshot.aimedBuilding.reset();
         presentationSnapshot.aimedModularBuilding.reset();
     }
-    // Interaction feedback follows the exact aim, like chest selection.
-    // The separate presentation snapshot may keep HUD context stable, but
-    // outlines, prompts and healthbars must enter/leave together.
+    // Enemy feedback uses the same short hover grace as its health bar.
+    // Fast animation and movement must not make outline/prompt flicker.
     auto feedbackSnapshot = snapshot;
+    feedbackSnapshot.aimedEnemy = hoveredEnemy_
+        ? hoveredEnemy_ : snapshot.aimedEnemy;
     feedbackSnapshot.aimedBuildingUpgradeCost =
         snapshot.aimedBuildingUpgradeCost;
     feedbackSnapshot.aimedBuildingStats =

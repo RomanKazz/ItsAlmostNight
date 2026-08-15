@@ -1191,6 +1191,37 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
     return true;
 }
 
+bool Renderer::drawChallengeColumn(
+    Vector3 position, float yawRadians, Color tint, float scale) {
+    auto& resource = resources_.challengeColumnModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    const BoundingBox bounds = resource.visualBounds();
+    const float authoredHeight = std::max(0.001F, bounds.max.y - bounds.min.y);
+    const float modelScale = 3.25F / authoredHeight;
+    position.y -= bounds.min.y * modelScale * scale;
+    DrawModelEx(
+        model, position, {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
+        {modelScale * scale, modelScale * scale, modelScale * scale}, tint);
+    return true;
+}
+
 bool Renderer::drawMine(Vector3 position, float yawRadians,
                         Color tint, float scale) {
     return drawResourceProducer(

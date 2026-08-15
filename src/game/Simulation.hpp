@@ -134,6 +134,21 @@ enum class RunState {
     Paused,
 };
 
+enum class ChallengeColumnState {
+    Dormant,
+    Active,
+    Completed,
+};
+
+struct ChallengeColumnInstance {
+    EntityId id;
+    Vec3 position;
+    double yaw{};
+    ChallengeColumnState state{ChallengeColumnState::Dormant};
+    double completionProgress{};
+    int enemyBudget{};
+};
+
 enum class TutorialObjective {
     BareHandsTraining,
     MineWood,
@@ -187,6 +202,10 @@ struct SimulationSnapshot {
     std::optional<EntityId> aimedChest;
     std::optional<EntityId> aimedLoot;
     std::span<const LootChestInstance> lootChests;
+    std::optional<EntityId> aimedChallengeColumn;
+    std::span<const ChallengeColumnInstance> challengeColumns;
+    std::optional<Vec3> activeChallengeCenter;
+    double activeChallengeRadius{};
     std::optional<Vec3> nearestChestPosition;
     double nearestChestDistance{};
     std::array<int, LootUpgradeEffectCount> lootStacks;
@@ -421,6 +440,10 @@ class Simulation {
     [[nodiscard]] PlacementResult validatePlacement(
         BuildingType type, GridPosition position,
         const BuildingPlatformSurface& surface) const;
+    [[nodiscard]] PlacementResult
+    previewPlacementWithOptionalHeight(
+        BuildingType type, GridPosition position,
+        std::optional<double> preferredHeight) const;
     [[nodiscard]] bool buildingUnlocked(BuildingType type) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,
@@ -432,7 +455,11 @@ class Simulation {
     [[nodiscard]] std::optional<
         PlatformFramePlacement>
     automaticFoundationPlacement(
-        BuildingType type, GridPosition position) const;
+        BuildingType type, GridPosition position,
+        std::optional<double> preferredHeight =
+            std::nullopt) const;
+    [[nodiscard]] bool foundationAddsPlacementCost(
+        const PlatformFramePlacement& placement) const;
     [[nodiscard]] bool rectangleHasDeepWater(
         double minimumX, double maximumX,
         double minimumZ, double maximumZ) const;
@@ -465,6 +492,12 @@ class Simulation {
     void applyLootPickup(const LootPickup& pickup);
     void applyPotionWaveStart();
     void updateLootEffects(double deltaSeconds);
+    void resetChallengeColumns();
+    void updateChallengeColumns(
+        double deltaSeconds, const PlayerCommand& command);
+    void activateChallengeColumn(EntityId id);
+    void constrainPlayerToChallengeArena();
+    [[nodiscard]] bool challengeActive() const;
     void updateCoinPickups(double deltaSeconds);
     [[nodiscard]] double resourceToolEfficiency(
         PlayerWeapon tool, ResourceType resource) const;
@@ -563,6 +596,10 @@ class Simulation {
     std::optional<EntityId> aimedChest_;
     std::optional<EntityId> aimedLoot_;
     LootChestSystem lootChests_;
+    std::vector<ChallengeColumnInstance> challengeColumns_;
+    std::optional<EntityId> aimedChallengeColumn_;
+    std::optional<std::size_t> activeChallengeColumn_;
+    std::uint32_t challengeRunGeneration_{};
     std::optional<BuildingType> selectedBuilding_;
     std::uint8_t buildingRotation_{};
     std::optional<BuildingPreview> buildingPreview_;

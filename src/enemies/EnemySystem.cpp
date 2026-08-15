@@ -1015,12 +1015,48 @@ void EnemySystem::spawnGroup(std::span<const EnemySpawn> spawns) {
     rebuildSpatialIndex();
 }
 
+void EnemySystem::constrainToArena(
+    Vec3 center, double radius) {
+    const double maximumDistance = std::max(0.5, radius - 0.55);
+    bool moved = false;
+    for (EnemyInstance& enemy : enemies_) {
+        if (!enemy.active) {
+            continue;
+        }
+        const double dx = enemy.position.x - center.x;
+        const double dz = enemy.position.z - center.z;
+        const double distance = std::hypot(dx, dz);
+        if (distance <= maximumDistance || distance <= 1e-9) {
+            continue;
+        }
+        enemy.position.x = center.x + dx / distance * maximumDistance;
+        enemy.position.z = center.z + dz / distance * maximumDistance;
+        enemy.knockbackVelocity.x = 0.0;
+        enemy.knockbackVelocity.z = 0.0;
+        moved = true;
+    }
+    for (EnemyProjectile& projectile : projectiles_) {
+        if (!projectile.active) {
+            continue;
+        }
+        const double dx = projectile.position.x - center.x;
+        const double dz = projectile.position.z - center.z;
+        if (dx * dx + dz * dz > radius * radius) {
+            projectile.active = false;
+        }
+    }
+    if (moved) {
+        rebuildSpatialIndex();
+    }
+}
+
 std::span<const EnemyAttack> EnemySystem::tick(
     double deltaSeconds, const std::vector<BuildingInstance>& buildings,
     const FlowField& flowField, std::optional<Vec3> playerPosition,
     std::span<const EnemyStructureTarget> additionalStructures,
     const TerrainHeightfield* terrain,
-    EnemyNavigationView navigation) {
+    EnemyNavigationView navigation,
+    bool prioritizePlayerTarget) {
     const auto tickStart = PerformanceClock::now();
     spatialRebuildsThisTick_ = 0U;
     spatialRebuildMillisecondsThisTick_ = 0.0;
@@ -1109,12 +1145,15 @@ std::span<const EnemyAttack> EnemySystem::tick(
         std::find_if(buildings.begin(), buildings.end(), [](const BuildingInstance& building) {
             return building.type == BuildingType::Core;
         });
-    if (core == buildings.end()) {
+    if (core == buildings.end() &&
+        (!prioritizePlayerTarget || !playerPosition)) {
         finishTelemetry();
         return attackBuffer_;
     }
     const Vec3 coreWorldPosition =
-        buildingWorldPosition(*core);
+        prioritizePlayerTarget && playerPosition
+            ? *playerPosition
+            : buildingWorldPosition(*core);
     std::shared_ptr<MultiLevelNavigation> multiLevelNavigation;
     if (navigation.revision != 0U &&
         navigationCache_ &&
@@ -1126,7 +1165,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
         multiLevelNavigation =
             std::make_shared<MultiLevelNavigation>(
                 navigation, coreWorldPosition,
-                core->platformStorey);
+                core == buildings.end() ? -1 : core->platformStorey);
         if (navigation.revision != 0U) {
             navigationCache_ = multiLevelNavigation;
             cachedNavigationRevision_ = navigation.revision;
@@ -1271,7 +1310,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
                   enemy.position.x, enemy.position.z)
             : 0.0;
         const auto navigationWaypoint =
-            enemy.type == EnemyType::Flying
+            prioritizePlayerTarget || enemy.type == EnemyType::Flying
                 ? std::optional<Vec3>{}
                 : multiLevelNavigation->waypoint(
                       enemy, terrainHeight,
@@ -1345,15 +1384,18 @@ std::span<const EnemyAttack> EnemySystem::tick(
             const double aggroRange =
                 playerAggroRange(enemy.type) +
                 (alreadyAggroed ? 1.5 : 0.0);
-            if (playerDistanceSquared <= aggroRange * aggroRange &&
+            if ((prioritizePlayerTarget ||
+                 playerDistanceSquared <= aggroRange * aggroRange) &&
                 playerSharesAttackHeight(
                     enemy, *playerPosition) &&
-                (enemy.type == EnemyType::Ranged ||
+                (prioritizePlayerTarget ||
+                 enemy.type == EnemyType::Ranged ||
                  !buildingIsInAttackRange(
                     enemy, buildingGrid)) &&
-                !buildingBlocksPathToPlayer(
-                    enemy, buildingGrid,
-                    *playerPosition)) {
+                (prioritizePlayerTarget ||
+                 !buildingBlocksPathToPlayer(
+                     enemy, buildingGrid,
+                     *playerPosition))) {
                 const double playerDistance =
                     std::sqrt(playerDistanceSquared);
                 const double directionX =
@@ -1447,7 +1489,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
         double directionX = toCoreX / coreDistance;
         double directionZ = toCoreZ / coreDistance;
         const auto flowDirection =
-            enemy.type == EnemyType::Flying || navigationWaypoint
+            prioritizePlayerTarget || enemy.type == EnemyType::Flying ||
+                    navigationWaypoint
                 ? std::optional<Vec3>{}
                 : flowField.directionAt(enemy.position);
         if (navigationWaypoint) {

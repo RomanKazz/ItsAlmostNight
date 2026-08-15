@@ -113,6 +113,24 @@ void runLootChestSystemTests() {
         chests.openingCost(deliveredChest) == 0,
         "post-wave reward chests remain free to open");
 
+    const std::size_t chestCountBeforeTrialReward =
+        chests.chests().size();
+    const ian::Vec3 trialPosition{7.0, 0.0, -9.0};
+    chests.spawnRewardChest(
+        trialPosition, terrain, ian::LootChestType::Stone);
+    const auto& trialReward = chests.chests().back();
+    require(
+        chests.chests().size() == chestCountBeforeTrialReward + 1U &&
+            trialReward.type == ian::LootChestType::Stone &&
+            trialReward.purpose == ian::LootChestPurpose::Reward &&
+            trialReward.revealed &&
+            chests.openingCost(trialReward) == 0,
+        "completed trial creates one visible free stone reward chest");
+    requireNear(
+        trialReward.position.y,
+        terrain.getHeight(trialPosition.x, trialPosition.z),
+        1e-8, "trial reward chest rests on terrain");
+
     const ian::EntityId id = chests.chests().front().id;
     chests.setOpeningCostSurcharge(8);
     const int cost = chests.openingCost(chests.chests().front());
@@ -123,7 +141,9 @@ void runLootChestSystemTests() {
         std::ranges::none_of(
             chests.chests(),
             [](const ian::LootChestInstance& chest) {
-                return chest.revealed;
+                return chest.purpose ==
+                           ian::LootChestPurpose::Exploration &&
+                       chest.revealed;
             }),
         "a new run does not reveal exploration chests by default");
     const auto revealed = chests.revealNearest(spawn);

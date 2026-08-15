@@ -108,8 +108,26 @@ PlatformFramePlacement
 PlacementValidator::validateGroundPlatformFrameAt(
     GridCoord anchor, double floorHeight,
     Vec3 playerPosition) const {
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    return validateGroundPlatformFrameAtImpl(
+        anchor, floorHeight, playerPosition, true);
+}
+
+PlatformFramePlacement
+PlacementValidator::validateAutomaticBuildingFoundationAt(
+    GridCoord anchor, double floorHeight,
+    Vec3 playerPosition) const {
+    return validateGroundPlatformFrameAtImpl(
+        anchor, floorHeight, playerPosition, false);
+}
+
+PlatformFramePlacement
+PlacementValidator::validateGroundPlatformFrameAtImpl(
+    GridCoord anchor, double floorHeight,
+    Vec3 playerPosition, bool snapAnchor) const {
+    if (snapAnchor) {
+        anchor.x = snapPlatformFrameAxis(anchor.x);
+        anchor.z = snapPlatformFrameAxis(anchor.z);
+    }
     PlatformFramePlacement placement{
         .anchor = anchor,
         .floorHeight = floorHeight,

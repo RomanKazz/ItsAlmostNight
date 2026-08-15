@@ -60,6 +60,9 @@ int Simulation::earlyWaveInsightBonus() const {
 
 void Simulation::updateRunPhase(
     double deltaSeconds, const PlayerCommand& command) {
+    if (challengeActive()) {
+        return;
+    }
     if (state_ == RunState::BuildPhase) {
         const int earlyBonus = command.startWaveEarly
             ? earlyWaveBonus()
@@ -191,7 +194,13 @@ void Simulation::updateCombat(double deltaSeconds) {
                 worldConfig_.cellSize,
                 &collisionWorld_,
                 structuralRevision_,
-            });
+            },
+            challengeActive());
+        if (challengeActive() && activeChallengeColumn_) {
+            enemies_.constrainToArena(
+                challengeColumns_[*activeChallengeColumn_].position,
+                18.0);
+        }
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);
             const Vec3 attackPosition =

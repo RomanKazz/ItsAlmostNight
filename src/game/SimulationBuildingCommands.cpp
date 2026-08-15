@@ -6,6 +6,11 @@
 
 namespace ian {
 void Simulation::processBuildingCommands(const PlayerCommand& command) {
+    if (challengeActive()) {
+        selectedBuilding_.reset();
+        buildingPreview_.reset();
+        return;
+    }
     if (command.selectBuilding) {
         if (buildingUnlocked(*command.selectBuilding)) {
             selectedBuilding_ = command.selectBuilding;
@@ -91,16 +96,18 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 : placementSurface(
                       *selectedBuilding_,
                       gridPosition);
-        const bool needsAutomaticFoundation =
-            surface.storey < 0 &&
-            surface.height -
-                    surface.foundationBottomHeight >
-                0.025;
+        const bool needsAutomaticFoundation = surface.storey < 0;
         const auto automaticFoundation =
             needsAutomaticFoundation
                 ? automaticFoundationPlacement(
-                      *selectedBuilding_,
-                      gridPosition)
+                      *selectedBuilding_, gridPosition,
+                      aimedPlatformSurface
+                          ? std::optional<double>{
+                                aimedPlatformSurface->y}
+                          : standingOnFoundation
+                              ? std::optional<double>{
+                                    *standingSurface}
+                              : std::nullopt)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {
@@ -123,8 +130,12 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             validatePlacement(
                 *selectedBuilding_,
                 gridPosition, surface);
-        if (automaticFoundation &&
-            automaticFoundation->valid()) {
+        const bool foundationAddsCost =
+            automaticFoundation &&
+            automaticFoundation->valid() &&
+            foundationAddsPlacementCost(
+                *automaticFoundation);
+        if (foundationAddsCost) {
             previewPlacement.cost = addResourceCosts(
                 previewPlacement.cost,
                 modularBuildingCosts_[
@@ -177,17 +188,16 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                       command.placeBuilding
                           ->baseHeight)
                 : naturalSurface;
-        const bool needsAutomaticFoundation =
-            surface.storey < 0 &&
-            surface.height -
-                    surface.foundationBottomHeight >
-                0.025;
+        const bool needsAutomaticFoundation = surface.storey < 0;
         auto automaticFoundation =
             needsAutomaticFoundation
                 ? automaticFoundationPlacement(
                       command.placeBuilding->type,
-                      command.placeBuilding
-                          ->gridPosition)
+                      command.placeBuilding->gridPosition,
+                      command.placeBuilding->lockHeight
+                          ? std::optional<double>{
+                                command.placeBuilding->baseHeight}
+                          : std::nullopt)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {
@@ -212,8 +222,12 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 command.placeBuilding
                     ->gridPosition,
                 surface);
-        if (automaticFoundation &&
-            automaticFoundation->valid()) {
+        const bool foundationAddsCost =
+            automaticFoundation &&
+            automaticFoundation->valid() &&
+            foundationAddsPlacementCost(
+                *automaticFoundation);
+        if (foundationAddsCost) {
             placement.cost = addResourceCosts(
                 placement.cost,
                 modularBuildingCosts_[
@@ -302,7 +316,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                     if (!unlimitedResources_) {
                         ResourceCost transactionCost =
                             placed->cost;
-                        if (createdFoundation) {
+                        if (foundationAddsCost) {
                             transactionCost = addResourceCosts(
                                 transactionCost,
                                 modularBuildingCosts_[

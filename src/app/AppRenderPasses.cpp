@@ -278,6 +278,20 @@ void App::drawShadowPass(
                 WHITE, scale));
         }
 
+        for (const ChallengeColumnInstance& column :
+             snapshot.challengeColumns) {
+            const float progress = smoothstep(
+                0.0F, 1.0F,
+                static_cast<float>(column.completionProgress));
+            const float scale = std::max(0.0F, 1.0F - progress);
+            if (scale <= 0.001F) continue;
+            static_cast<void>(renderer_->drawChallengeColumn(
+                {static_cast<float>(column.position.x),
+                 static_cast<float>(column.position.y),
+                 static_cast<float>(column.position.z)},
+                static_cast<float>(column.yaw), WHITE, scale));
+        }
+
         const double modularCellSize =
             simulation_.terrain().config().cellSize;
         const auto animationScales =
@@ -479,6 +493,7 @@ void App::drawSelectionPass(
     if (!removalDragActive_ &&
         (hasVisibleLoot || hasEliteEnemies ||
          snapshot.aimedChest || snapshot.aimedResource ||
+         snapshot.aimedChallengeColumn ||
          snapshot.aimedBuilding || snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
@@ -604,6 +619,28 @@ void App::drawSelectionPass(
                     chest->type, position,
                     static_cast<float>(chest->yaw),
                     static_cast<float>(chest->openingProgress), WHITE));
+            }
+        } else if (snapshot.aimedChallengeColumn) {
+            const auto column = std::find_if(
+                snapshot.challengeColumns.begin(),
+                snapshot.challengeColumns.end(),
+                [&snapshot](const ChallengeColumnInstance& value) {
+                    return value.id == *snapshot.aimedChallengeColumn;
+                });
+            if (column != snapshot.challengeColumns.end()) {
+                renderer_->setSelectionOutlineBounds({
+                    {static_cast<float>(column->position.x - 0.75),
+                     static_cast<float>(column->position.y),
+                     static_cast<float>(column->position.z - 0.75)},
+                    {static_cast<float>(column->position.x + 0.75),
+                     static_cast<float>(column->position.y + 3.35),
+                     static_cast<float>(column->position.z + 0.75)},
+                });
+                static_cast<void>(renderer_->drawChallengeColumn(
+                    {static_cast<float>(column->position.x),
+                     static_cast<float>(column->position.y),
+                     static_cast<float>(column->position.z)},
+                    static_cast<float>(column->yaw), WHITE));
             }
         } else if (snapshot.aimedResource) {
             const auto resource = std::find_if(

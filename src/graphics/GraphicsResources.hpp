@@ -263,6 +263,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& iceWandModel();
     [[nodiscard]] ModelResource& woodenChestModel();
     [[nodiscard]] ModelResource& stoneChestModel();
+    [[nodiscard]] ModelResource& challengeColumnModel();
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& destructiblePropModel(
         std::size_t variant);
@@ -382,6 +383,7 @@ class GraphicsResources {
     ModelResource iceWandModel_;
     ModelResource woodenChestModel_;
     ModelResource stoneChestModel_;
+    ModelResource challengeColumnModel_;
     std::array<ModelResource, 3> coinModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
     ModelResource appleLootModel_;

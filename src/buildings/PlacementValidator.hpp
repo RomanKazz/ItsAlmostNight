@@ -54,8 +54,17 @@ class PlacementValidator {
     validateGroundPlatformFrameAt(
         GridCoord anchor, double floorHeight,
         Vec3 playerPosition) const;
+    [[nodiscard]] PlatformFramePlacement
+    validateAutomaticBuildingFoundationAt(
+        GridCoord anchor, double floorHeight,
+        Vec3 playerPosition) const;
 
   private:
+    [[nodiscard]] PlatformFramePlacement
+    validateGroundPlatformFrameAtImpl(
+        GridCoord anchor, double floorHeight,
+        Vec3 playerPosition, bool snapAnchor) const;
+
     const TerrainHeightfield& terrain_;
     const BuildGrid& grid_;
 };

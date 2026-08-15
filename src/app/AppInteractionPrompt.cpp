@@ -108,6 +108,33 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         return prompt;
     };
 
+    if (snapshot.aimedChallengeColumn) {
+        const auto column = std::find_if(
+            snapshot.challengeColumns.begin(),
+            snapshot.challengeColumns.end(),
+            [&snapshot](const ChallengeColumnInstance& value) {
+                return value.id == *snapshot.aimedChallengeColumn &&
+                       value.state == ChallengeColumnState::Dormant;
+            });
+        if (column != snapshot.challengeColumns.end()) {
+            return finalize(InteractionPrompt{
+                .targetKind = InteractionPromptTargetKind::Challenge,
+                .targetId = column->id,
+                .worldAnchor = {
+                    static_cast<float>(column->position.x),
+                    static_cast<float>(column->position.y + 2.65),
+                    static_cast<float>(column->position.z),
+                },
+                .objectName = "Skull Trial",
+                .actionText = "Begin Challenge",
+                .input = ControlAction::Interact,
+                .state = InteractionState::Available,
+                .hint = "SEALED ARENA  ·  DEFEAT ALL ENEMIES",
+                .accentColor = Color{132, 206, 255, 255},
+            });
+        }
+    }
+
     if (snapshot.aimedLoot) {
         const auto loot = std::find_if(
             snapshot.lootChests.begin(), snapshot.lootChests.end(),

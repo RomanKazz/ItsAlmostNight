@@ -283,6 +283,10 @@ ModelResource& GraphicsResources::stoneChestModel() {
     return stoneChestModel_;
 }
 
+ModelResource& GraphicsResources::challengeColumnModel() {
+    return challengeColumnModel_;
+}
+
 ModelResource& GraphicsResources::coinModel(std::size_t variant) {
     return coinModels_[variant % coinModels_.size()];
 }

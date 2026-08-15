@@ -134,6 +134,9 @@ class LootChestSystem {
         double preferredRadius = 0.0,
         double preferredMinimumRadius = 10.0,
         LootChestPurpose purpose = LootChestPurpose::Exploration);
+    void spawnRewardChest(
+        Vec3 position, const TerrainHeightfield& terrain,
+        LootChestType type = LootChestType::Stone);
 
     [[nodiscard]] const std::vector<LootChestInstance>& chests() const;
 

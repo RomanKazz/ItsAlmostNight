@@ -433,6 +433,8 @@ void Simulation::updatePlayer(double deltaSeconds,
         applyFallDamage(landingSpeedThisFrame);
     }
 
+    constrainPlayerToChallengeArena();
+
     resources_.tick(
         deltaSeconds, buildings_.buildings(),
         map_.worldLimit, playerPosition_);
