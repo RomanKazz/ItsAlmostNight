@@ -719,12 +719,21 @@ void Simulation::updatePlayerActions(
         }
     }
     if (command.rerollChest) {
+        const auto rerollChest = std::ranges::find(
+            lootChests_.chests(), command.rerollChest->chestId,
+            [](const LootChestInstance& value) { return value.loot.id; });
+        const std::size_t rerollIndex = rerollChest == lootChests_.chests().end()
+            ? 0U
+            : std::min<std::size_t>(
+                  rerollChest->rerollCount,
+                  economy_.chestRerollCoinCosts.size() - 1U);
+        const int rerollCost = economy_.chestRerollCoinCosts[rerollIndex];
         int availableCoins = unlimitedResources_
             ? std::numeric_limits<int>::max()
             : coins_;
         const ChestRerollResult result = lootChests_.reroll(
             command.rerollChest->chestId, availableCoins,
-            economy_.chestRerollCoinCost);
+            rerollCost);
         if (!unlimitedResources_) coins_ = availableCoins;
         const GameEventType eventType =
             result == ChestRerollResult::Rerolled
@@ -737,7 +746,7 @@ void Simulation::updatePlayerActions(
         events_.push_back({
             .type = eventType,
             .entityId = command.rerollChest->chestId,
-            .amount = economy_.chestRerollCoinCost,
+            .amount = rerollCost,
         });
     }
     if (command.revealNearestChest) {

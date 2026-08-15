@@ -199,6 +199,8 @@ class GraphicsResources {
     [[nodiscard]] const Texture2D& sceneNormalTexture() const;
     [[nodiscard]] bool ssaoTargetValid() const;
     [[nodiscard]] const RenderTexture2D& ssaoTarget() const;
+    [[nodiscard]] bool postProcessTargetValid() const;
+    [[nodiscard]] const RenderTexture2D& postProcessTarget() const;
     [[nodiscard]] int ssaoWidth() const;
     [[nodiscard]] int ssaoHeight() const;
     [[nodiscard]] bool selectionMaskValid() const;
@@ -226,6 +228,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& selectionOutlineShader() const;
     [[nodiscard]] ShaderResource& postProcessShader();
     [[nodiscard]] const ShaderResource& postProcessShader() const;
+    [[nodiscard]] ShaderResource& fxaaShader();
+    [[nodiscard]] const ShaderResource& fxaaShader() const;
     [[nodiscard]] ShaderResource& ssaoShader();
     [[nodiscard]] const ShaderResource& ssaoShader() const;
     [[nodiscard]] ShaderResource& viewModelCompositeShader();
@@ -354,6 +358,7 @@ class GraphicsResources {
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
     ShaderResource postProcessShader_;
+    ShaderResource fxaaShader_;
     ShaderResource ssaoShader_;
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
@@ -435,6 +440,7 @@ class GraphicsResources {
     ModelAnimationsResource enemyFlyingAnimations_;
     ModelAnimationsResource enemyBossAnimations_;
     RenderTextureResource sceneTarget_;
+    RenderTextureResource postProcessTarget_;
     RenderTextureResource ssaoTarget_;
     RenderTextureResource viewModelTarget_;
     RenderTextureResource selectionMaskTarget_;

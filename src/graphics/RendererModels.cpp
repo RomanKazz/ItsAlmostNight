@@ -1512,9 +1512,12 @@ BoundingBox Renderer::destructiblePropWorldBounds(
 
 bool Renderer::drawRocksInstanced(
     std::span<const RockDrawInstance> instances) {
-    if (instances.empty() || shadowPassOpen_ ||
-        selectionMaskPassOpen_ || !worldShaderActive_ ||
-        !resources_.worldShader().valid()) {
+    const bool shadowInstancing = shadowPassOpen_ &&
+        resources_.shadowShader().valid();
+    const bool worldInstancing = worldShaderActive_ &&
+        resources_.worldShader().valid();
+    if (instances.empty() || selectionMaskPassOpen_ ||
+        (!shadowInstancing && !worldInstancing)) {
         return false;
     }
 
@@ -1557,11 +1560,16 @@ bool Renderer::drawRocksInstanced(
         return true;
     }
 
-    Shader& shader = resources_.worldShader().get();
+    Shader& shader = shadowInstancing
+        ? resources_.shadowShader().get()
+        : resources_.worldShader().get();
+    const int instancingLocation = shadowInstancing
+        ? shadowInstancingEnabledLocation_
+        : worldInstancingEnabledLocation_;
     const int enabled = 1;
     rlDrawRenderBatchActive();
     SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &enabled,
+        shader, instancingLocation, &enabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
     for (std::size_t variant = 0;
@@ -1589,7 +1597,7 @@ bool Renderer::drawRocksInstanced(
     const int disabled = 0;
     rlDrawRenderBatchActive();
     SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &disabled,
+        shader, instancingLocation, &disabled,
         SHADER_UNIFORM_INT);
     return true;
 }
@@ -1677,9 +1685,12 @@ BoundingBox Renderer::treeWorldBounds(
 
 bool Renderer::drawTreesInstanced(
     std::span<const TreeDrawInstance> instances) {
-    if (instances.empty() || shadowPassOpen_ ||
-        selectionMaskPassOpen_ || !worldShaderActive_ ||
-        !resources_.worldShader().valid()) {
+    const bool shadowInstancing = shadowPassOpen_ &&
+        resources_.shadowShader().valid();
+    const bool worldInstancing = worldShaderActive_ &&
+        resources_.worldShader().valid();
+    if (instances.empty() || selectionMaskPassOpen_ ||
+        (!shadowInstancing && !worldInstancing)) {
         return false;
     }
 
@@ -1718,11 +1729,16 @@ bool Renderer::drawTreesInstanced(
                     position.x, position.y, position.z))));
     }
 
-    Shader& shader = resources_.worldShader().get();
+    Shader& shader = shadowInstancing
+        ? resources_.shadowShader().get()
+        : resources_.worldShader().get();
+    const int instancingLocation = shadowInstancing
+        ? shadowInstancingEnabledLocation_
+        : worldInstancingEnabledLocation_;
     const int enabled = 1;
     rlDrawRenderBatchActive();
     SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &enabled,
+        shader, instancingLocation, &enabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
     for (std::size_t variant = 0;
@@ -1754,7 +1770,7 @@ bool Renderer::drawTreesInstanced(
     const int disabled = 0;
     rlDrawRenderBatchActive();
     SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &disabled,
+        shader, instancingLocation, &disabled,
         SHADER_UNIFORM_INT);
     return true;
 }
@@ -1892,7 +1908,7 @@ bool Renderer::drawEnemy(
     EnemyAnimationVisual animationVisual,
     float animationSeconds, Vector3 position,
     float yawRadians, Color tint, float scale, bool loop,
-    bool inkOutlineEligible) {
+    bool inkOutlineEligible, bool quantizeCrowdPose) {
     ModelResource* modelResource =
         enemyModelFor(resources_, modelVisual);
     if (modelResource == nullptr || !modelResource->valid()) {
@@ -1919,8 +1935,16 @@ bool Renderer::drawEnemy(
             std::max(0.0F, animationSeconds) * 30.0F;
         int frame = static_cast<int>(frameValue);
         frame = loop
-                    ? frame % clip->keyframeCount
-                    : std::min(frame, clip->keyframeCount - 1);
+            ? frame % clip->keyframeCount
+            : std::min(frame, clip->keyframeCount - 1);
+        if (quantizeCrowdPose) {
+            constexpr int CrowdPoseCount = 6;
+            const int pose = std::min(
+                CrowdPoseCount - 1,
+                frame * CrowdPoseCount / clip->keyframeCount);
+            frame = pose * clip->keyframeCount /
+                CrowdPoseCount;
+        }
         if (animation.nativeSkeleton) {
             UpdateModelAnimation(
                 model, *clip,

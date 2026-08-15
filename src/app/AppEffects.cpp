@@ -48,6 +48,82 @@ float effectUnit(int index, int channel) {
         0x85ebca6bU * static_cast<std::uint32_t>(channel + 3));
 }
 
+Vector3 lightningOffsetDirection(
+    Vector3 direction, Vector3 axis) {
+    Vector3 result = Vector3CrossProduct(direction, axis);
+    if (Vector3LengthSqr(result) < 0.0001F) {
+        result = Vector3CrossProduct(
+            direction, Vector3{1.0F, 0.0F, 0.0F});
+    }
+    return Vector3Normalize(result);
+}
+
+void drawLightningArc(
+    Vector3 start, Vector3 end, float progress,
+    int seed, float amplitudeScale, float alphaScale) {
+    const Vector3 delta = Vector3Subtract(end, start);
+    const float length = Vector3Length(delta);
+    if (length < 0.01F) {
+        return;
+    }
+    const Vector3 direction = Vector3Scale(delta, 1.0F / length);
+    const Vector3 side = lightningOffsetDirection(
+        direction, Vector3{0.0F, 1.0F, 0.0F});
+    const Vector3 lift = Vector3Normalize(
+        Vector3CrossProduct(side, direction));
+    const int segmentCount = std::clamp(
+        static_cast<int>(std::ceil(length * 2.2F)), 7, 20);
+    const int flickerFrame =
+        static_cast<int>(std::floor(progress * 34.0F));
+    const float baseAmplitude =
+        std::min(0.42F, 0.075F * length) * amplitudeScale;
+    Vector3 previous = start;
+    for (int segment = 1; segment <= segmentCount; ++segment) {
+        const float t = static_cast<float>(segment) /
+            static_cast<float>(segmentCount);
+        Vector3 point = Vector3Lerp(start, end, t);
+        if (segment < segmentCount) {
+            const float envelope = std::sin(t * PI);
+            const int sample = segment + flickerFrame * 29 + seed * 101;
+            const float sideNoise =
+                effectUnit(sample, 201 + seed) * 2.0F - 1.0F;
+            const float liftNoise =
+                effectUnit(sample, 263 + seed) * 2.0F - 1.0F;
+            const float wave = std::sin(
+                t * (10.0F + static_cast<float>(seed % 5)) +
+                progress * 22.0F + static_cast<float>(seed));
+            point = Vector3Add(
+                point,
+                Vector3Scale(
+                    side,
+                    (sideNoise * 0.78F + wave * 0.22F) *
+                        baseAmplitude * envelope));
+            point = Vector3Add(
+                point,
+                Vector3Scale(
+                    lift, liftNoise * baseAmplitude * 0.62F *
+                        envelope));
+        }
+
+        DrawCylinderEx(
+            previous, point, 0.070F * amplitudeScale,
+            0.070F * amplitudeScale, 5,
+            {48, 126, 255,
+             atmosphereAlpha(0.16F * alphaScale)});
+        DrawCylinderEx(
+            previous, point, 0.031F * amplitudeScale,
+            0.031F * amplitudeScale, 5,
+            {72, 199, 255,
+             atmosphereAlpha(0.62F * alphaScale)});
+        DrawCylinderEx(
+            previous, point, 0.010F * amplitudeScale,
+            0.010F * amplitudeScale, 4,
+            {224, 250, 255,
+             atmosphereAlpha(0.98F * alphaScale)});
+        previous = point;
+    }
+}
+
 } // namespace
 
 void App::drawAtmosphereParticles(
@@ -396,6 +472,148 @@ void App::drawPresentationEffects() {
             static_cast<float>(effect.position.y),
             static_cast<float>(effect.position.z),
         };
+        if (effect.type == PresentationEffectType::EliteSpawn ||
+            effect.type == PresentationEffectType::VolatileCharge) {
+            const bool volatileCharge = effect.type ==
+                PresentationEffectType::VolatileCharge;
+            const float fade = volatileCharge
+                ? smoothstep(0.0F, 0.16F, progress)
+                : 1.0F - smoothstep(0.48F, 1.0F, progress);
+            const float acceleratingPulse = 0.5F + 0.5F * std::sin(
+                progress * progress *
+                    (volatileCharge ? 58.0F : 24.0F));
+            const Color accent = volatileCharge
+                ? Color{255, 120, 38, 255}
+                : Color{255, 207, 82, 255};
+            rlDrawRenderBatchActive();
+            BeginBlendMode(BLEND_ADDITIVE);
+            rlDisableDepthMask();
+            if (volatileCharge) {
+                const float radius =
+                    0.42F + progress * 0.72F +
+                    acceleratingPulse * 0.08F;
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.04F, origin.z},
+                    radius, {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {accent.r, accent.g, accent.b,
+                     atmosphereAlpha(fade * 0.72F)});
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.055F, origin.z},
+                    radius * 0.68F,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {255, 220, 116,
+                     atmosphereAlpha(fade * 0.55F)});
+                DrawSphere(
+                    {origin.x, origin.y + 0.38F, origin.z},
+                    0.10F + progress * 0.20F +
+                        acceleratingPulse * 0.055F,
+                    {255, 174, 70,
+                     atmosphereAlpha(fade * 0.58F)});
+                constexpr int WarningRays = 8;
+                for (int ray = 0; ray < WarningRays; ++ray) {
+                    const float angle =
+                        static_cast<float>(ray) * 2.0F * PI /
+                            static_cast<float>(WarningRays) +
+                        progress * 1.7F;
+                    const float inner = radius * 0.76F;
+                    const float outer = radius *
+                        (0.98F + acceleratingPulse * 0.16F);
+                    DrawLine3D(
+                        {origin.x + std::cos(angle) * inner,
+                         origin.y + 0.05F,
+                         origin.z + std::sin(angle) * inner},
+                        {origin.x + std::cos(angle) * outer,
+                         origin.y + 0.05F,
+                         origin.z + std::sin(angle) * outer},
+                        {255, 211, 107,
+                         atmosphereAlpha(fade * 0.82F)});
+                }
+            } else {
+                const float shock = 1.0F -
+                    smoothstep(0.0F, 0.72F, progress);
+                DrawCircle3D(
+                    {origin.x, origin.y + 0.04F, origin.z},
+                    0.20F + progress * 1.45F,
+                    {1.0F, 0.0F, 0.0F}, 90.0F,
+                    {accent.r, accent.g, accent.b,
+                     atmosphereAlpha(fade * shock)});
+                DrawSphere(
+                    {origin.x, origin.y + 0.72F, origin.z},
+                    0.10F + shock * 0.24F,
+                    {255, 239, 177,
+                     atmosphereAlpha(fade * 0.62F)});
+                constexpr int ShardCount = 10;
+                for (int shard = 0; shard < ShardCount; ++shard) {
+                    const float angle = effectUnit(shard, 311) *
+                        2.0F * PI;
+                    const float distance = progress *
+                        (0.45F + effectUnit(shard, 312) * 0.95F);
+                    DrawSphereEx(
+                        {origin.x + std::cos(angle) * distance,
+                         origin.y + 0.18F +
+                             effectUnit(shard, 313) * 1.15F,
+                         origin.z + std::sin(angle) * distance},
+                        0.025F + effectUnit(shard, 314) * 0.045F,
+                        4, 4,
+                        {accent.r, accent.g, accent.b,
+                         atmosphereAlpha(fade * 0.78F)});
+                }
+            }
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
+            continue;
+        }
+        if (effect.type ==
+                PresentationEffectType::ChainLightning &&
+            effect.targetPosition) {
+            const Vector3 target{
+                static_cast<float>(effect.targetPosition->x),
+                static_cast<float>(effect.targetPosition->y),
+                static_cast<float>(effect.targetPosition->z),
+            };
+            const float appear = smoothstep(0.0F, 0.08F, progress);
+            const float fade = 1.0F -
+                smoothstep(0.48F, 1.0F, progress);
+            const float pulse = appear * fade;
+            const int seed = effect.variant * 37 +
+                (effect.entityId
+                     ? static_cast<int>(effect.entityId->index % 997U)
+                     : 0);
+            rlDrawRenderBatchActive();
+            BeginBlendMode(BLEND_ADDITIVE);
+            rlDisableDepthMask();
+            drawLightningArc(
+                origin, target, progress, seed, 1.0F, pulse);
+            drawLightningArc(
+                origin, target, progress, seed + 17,
+                0.52F, pulse * 0.48F);
+            drawLightningArc(
+                origin, target, progress, seed + 41,
+                0.34F, pulse * 0.30F);
+
+            const float flash = pulse *
+                (0.72F + 0.28F * std::sin(progress * 48.0F));
+            DrawSphere(
+                target, 0.34F + flash * 0.16F,
+                {61, 165, 255,
+                 atmosphereAlpha(flash * 0.18F)});
+            DrawSphere(
+                target, 0.105F + flash * 0.055F,
+                {218, 250, 255,
+                 atmosphereAlpha(flash * 0.82F)});
+            const Vector3 ringCenter{
+                target.x, target.y + 0.015F, target.z};
+            DrawCircle3D(
+                ringCenter, 0.18F + progress * 0.75F,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {92, 207, 255,
+                 atmosphereAlpha(pulse * 0.72F)});
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
+            continue;
+        }
         if (effect.type ==
             PresentationEffectType::LootCollected) {
             const LootRarity rarity = effect.lootRarity.value_or(

@@ -134,7 +134,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     " TAKE · " +
                     (loot->looseLoot
                          ? std::string("CRATE DROP")
-                         : loot->rerollCount > 0U
+                         : loot->rerollCount >= 3U
                              ? std::string("REROLL USED")
                              : keyboardKeyName(controlKey(
                                    userSettings_.controls,
@@ -162,11 +162,15 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                        value.state == LootChestState::Closed;
         });
         if (chest != snapshot.lootChests.end()) {
-            const int openingCost = std::max(
-                1,
-                static_cast<int>(std::lround(
-                    static_cast<double>(chest->coinCost) *
-                    snapshot.chestOpeningCostMultiplier)));
+            const int openingCost = chest->coinCost <= 0
+                ? 0
+                : std::max(
+                      1,
+                      static_cast<int>(std::lround(
+                          static_cast<double>(
+                              chest->coinCost +
+                              snapshot.chestOpeningCostSurcharge) *
+                          snapshot.chestOpeningCostMultiplier)));
             ResourceCost cost{};
             cost.crystals = openingCost;
             const bool affordable = snapshot.unlimitedResources ||

@@ -15,6 +15,7 @@ struct WavePlan {
     bool hasBoss;
     int groupSize;
     double groupInterval;
+    int eliteCount{};
     std::span<const EnemySpawn> spawns;
 };
 
@@ -38,6 +39,7 @@ class WaveDirector {
         GridPosition corePosition, int groupSize,
         double healthMultiplier,
         double damageMultiplier);
+    int applyEliteUpgrades(int wave);
 
     std::vector<EnemySpawn> spawnBuffer_;
     std::vector<Vec3> spawnAnchors_;

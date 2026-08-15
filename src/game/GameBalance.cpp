@@ -236,8 +236,17 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         .crystalMineAmount = value.at("crystalMineAmount").get<int>(),
         .waveRewardBase = value.value("waveRewardBase", 0),
         .waveRewardPerWave = value.at("waveRewardPerWave").get<int>(),
-        .bombPurchaseCoinCost = value.value("bombPurchaseCoinCost", 15),
-        .chestRerollCoinCost = value.value("chestRerollCoinCost", 10),
+        .bombPurchaseCoinCost = value.value("bombPurchaseCoinCost", 30),
+        .bombPurchaseCoinCostPerWave =
+            value.value("bombPurchaseCoinCostPerWave", 3),
+        .bombPurchaseAmount = value.value("bombPurchaseAmount", 2),
+        .chestRerollCoinCosts = value.value(
+            "chestRerollCoinCosts", std::array<int, 3>{15, 30, 60}),
+        .chestOpeningCoinCostPerWave =
+            value.value("chestOpeningCoinCostPerWave", 4),
+        .repairAllCoinCost = value.value("repairAllCoinCost", 35),
+        .repairAllCoinCostPerWave =
+            value.value("repairAllCoinCostPerWave", 6),
         .chestRevealCoinCost = value.value("chestRevealCoinCost", 20),
         .repairCostFraction = value.at("repairCostFraction").get<double>(),
         .repairCooldownSeconds =
@@ -252,7 +261,14 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
     if (definition.crystalMineInterval <= 0.0 || definition.crystalMineAmount <= 0 ||
         definition.waveRewardBase < 0 || definition.waveRewardPerWave < 0 ||
         definition.bombPurchaseCoinCost < 0 ||
-        definition.chestRerollCoinCost < 0 ||
+        definition.bombPurchaseCoinCostPerWave < 0 ||
+        definition.bombPurchaseAmount <= 0 ||
+        std::ranges::any_of(
+            definition.chestRerollCoinCosts,
+            [](int cost) { return cost < 0; }) ||
+        definition.chestOpeningCoinCostPerWave < 0 ||
+        definition.repairAllCoinCost < 0 ||
+        definition.repairAllCoinCostPerWave < 0 ||
         definition.chestRevealCoinCost < 0 ||
         definition.repairCostFraction < 0.0 ||
         definition.repairCostFraction > 1.0 ||
@@ -400,8 +416,26 @@ GameBalance GameBalance::defaults() {
             .fireWand = {1.0, 8.0, 18.0, 0.24, 2.5, 2.7, 3.5, 2.0,
                          0.5, 0.14, 0.4},
         },
-        .economy = {8.0, 4, 10, 5, 15, 10, 20, 0.5, 3.0, 0.5,
-                    {0.5, 1.0}, {10, 25}, {50, 100}},
+        .economy = {
+            .crystalMineInterval = 8.0,
+            .crystalMineAmount = 4,
+            .waveRewardBase = 10,
+            .waveRewardPerWave = 5,
+            .bombPurchaseCoinCost = 30,
+            .bombPurchaseCoinCostPerWave = 3,
+            .bombPurchaseAmount = 2,
+            .chestRerollCoinCosts = {15, 30, 60},
+            .chestOpeningCoinCostPerWave = 4,
+            .repairAllCoinCost = 35,
+            .repairAllCoinCostPerWave = 6,
+            .chestRevealCoinCost = 20,
+            .repairCostFraction = 0.5,
+            .repairCooldownSeconds = 3.0,
+            .sellRefundFraction = 0.5,
+            .buildingUpgradeCostMultiplier = {0.5, 1.0},
+            .buildingUpgradeCrystalBonus = {10, 25},
+            .coreUpgradeCrystals = {50, 100},
+        },
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.2, 0.15, 0.45, 0.25, 0.30,

@@ -623,6 +623,15 @@ void App::drawWorldOverlays(
         };
         previewMaterial.bakedAo = 0.85F;
         previewMaterial.screenAoAmount = 0.0F;
+        if (visualPreview.placement.valid()) {
+            previewMaterial.baseColor = {
+                0.72F, 0.94F, 1.0F, 0.46F};
+            previewMaterial.bakedAo = 1.0F;
+            previewMaterial.ghostAmount = 1.0F;
+            previewMaterial.ghostTint = {
+                0.16F, 0.68F, 1.0F};
+            previewMaterial.ghostOpacity = 0.44F;
+        }
         const bool drawPreviewModel =
             !placementPreviewObstructed(
                 visualPreview.placement.error);

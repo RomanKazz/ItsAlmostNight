@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -43,6 +44,25 @@ enum class EnemyState {
     BossRamWindup,
     Dead,
 };
+
+enum class EliteAffix : std::uint8_t {
+    None = 0,
+    Berserker = 1U << 0U,
+    Warden = 1U << 1U,
+    Volatile = 1U << 2U,
+};
+
+using EliteAffixMask = std::uint8_t;
+
+[[nodiscard]] constexpr EliteAffixMask eliteAffixMask(
+    EliteAffix affix) {
+    return static_cast<EliteAffixMask>(affix);
+}
+
+[[nodiscard]] constexpr bool hasEliteAffix(
+    EliteAffixMask mask, EliteAffix affix) {
+    return (mask & eliteAffixMask(affix)) != 0U;
+}
 
 [[nodiscard]] bool enemyUsesForwardSurfaceProbe(
     EnemyState state);
@@ -96,6 +116,7 @@ struct EnemyInstance {
     EnemyState state;
     std::optional<EntityId> target;
     bool active;
+    EliteAffixMask eliteAffixes{};
     double aiUpdateRemaining{};
     // Height above terrain supplied by modular floors/ramps. Kept separate
     // from authored model/capsule Y so existing combat dimensions stay valid.
@@ -113,6 +134,13 @@ struct EnemySpawn {
     double healthMultiplier{1.0};
     double damageMultiplier{1.0};
     Vec3 initialKnockbackVelocity{};
+    EliteAffixMask eliteAffixes{};
+};
+
+struct EliteEnemyEvent {
+    EntityId id;
+    Vec3 position;
+    EliteAffixMask affixes{};
 };
 
 struct EnemySplitResult {
@@ -245,6 +273,8 @@ class EnemySystem {
                                                double duration);
     std::size_t defeatAll();
     [[nodiscard]] std::vector<EnemySplitResult> takeSplitEvents();
+    [[nodiscard]] std::vector<EliteEnemyEvent> takeEliteSpawnEvents();
+    [[nodiscard]] std::vector<EliteEnemyEvent> takeEliteDeathEvents();
 
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
@@ -269,6 +299,8 @@ class EnemySystem {
         EntityId parentId, Vec3 position,
         double healthMultiplier, double damageMultiplier);
     void markEnemyDead(EnemyInstance& enemy);
+    [[nodiscard]] double incomingDamageMultiplier(
+        const EnemyInstance& enemy) const;
     void rebuildSpatialIndex();
     [[nodiscard]] EnemyInstance* findEnemy(EntityId id);
     [[nodiscard]] const EnemyInstance* findEnemy(EntityId id) const;
@@ -280,6 +312,8 @@ class EnemySystem {
     std::vector<EnemyDamageResult> areaDamageBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
     std::vector<EnemySplitResult> splitEventBuffer_;
+    std::vector<EliteEnemyEvent> eliteSpawnEventBuffer_;
+    std::vector<EliteEnemyEvent> eliteDeathEventBuffer_;
     std::vector<EnemyStructureTarget> structureBuffer_;
     std::vector<EnemyStructureTarget> incomingStructureBuffer_;
     std::vector<int> structureNextBuffer_;

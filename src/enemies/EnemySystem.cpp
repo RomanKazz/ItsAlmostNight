@@ -19,6 +19,13 @@
 namespace ian {
 namespace {
 
+bool berserkerActive(const EnemyInstance& enemy) {
+    return hasEliteAffix(
+               enemy.eliteAffixes, EliteAffix::Berserker) &&
+        enemy.maxHealth > 0.0 &&
+        enemy.health / enemy.maxHealth <= 0.5;
+}
+
 constexpr double AttackRange = 0.55;
 constexpr double PlayerAttackRange = 1.0;
 constexpr double AttackInterval = 1.0;
@@ -935,6 +942,8 @@ EnemySystem::EnemySystem(
     projectiles_.reserve(256);
     areaDamageBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
+    eliteSpawnEventBuffer_.reserve(64);
+    eliteDeathEventBuffer_.reserve(64);
     structureBuffer_.reserve(256);
     incomingStructureBuffer_.reserve(256);
     structureNextBuffer_.reserve(256);
@@ -959,6 +968,8 @@ void EnemySystem::reset() {
     areaDamageBuffer_.clear();
     statusTargetBuffer_.clear();
     splitEventBuffer_.clear();
+    eliteSpawnEventBuffer_.clear();
+    eliteDeathEventBuffer_.clear();
     pendingSplitBuffer_.clear();
     structureBuffer_.clear();
     incomingStructureBuffer_.clear();
@@ -1183,8 +1194,13 @@ std::span<const EnemyAttack> EnemySystem::tick(
             lockedAttackSurfaceHeight(
                 enemy, structureBuffer_));
 
+        const double eliteActionSpeed =
+            berserkerActive(enemy) ? 1.35 : 1.0;
         enemy.attackCooldownRemaining =
-            std::max(0.0, enemy.attackCooldownRemaining - deltaSeconds);
+            std::max(
+                0.0,
+                enemy.attackCooldownRemaining -
+                    deltaSeconds * eliteActionSpeed);
         enemy.hitAnimationRemaining =
             std::max(
                 0.0,
@@ -1226,7 +1242,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
                       enemy.position.x, enemy.position.z)
                 : 1.0;
         const double movementSpeed =
-            enemy.speed * enemy.movementMultiplier * waterMultiplier;
+            enemy.speed * enemy.movementMultiplier * waterMultiplier *
+            (berserkerActive(enemy) ? 1.28 : 1.0);
         const double knockbackSpeed = std::hypot(
             enemy.knockbackVelocity.x,
             enemy.knockbackVelocity.z);
@@ -1807,10 +1824,13 @@ void EnemySystem::appendEnemy(
     const Vec3 position = spawn.position;
     const EnemyDefinition stats =
         definitions_[static_cast<std::size_t>(type)];
+    const bool elite = spawn.eliteAffixes != 0U;
     const double healthMultiplier =
-        std::max(0.01, spawn.healthMultiplier);
+        std::max(0.01, spawn.healthMultiplier) *
+        (elite ? 1.6 : 1.0);
     const double damageMultiplier =
-        std::max(0.01, spawn.damageMultiplier);
+        std::max(0.01, spawn.damageMultiplier) *
+        (elite ? 1.1 : 1.0);
     const auto reusable = std::find_if(
         enemies_.begin(), enemies_.end(),
         [this](const EnemyInstance& enemy) {
@@ -1819,6 +1839,11 @@ void EnemySystem::appendEnemy(
                     splitEventBuffer_,
                     [&enemy](const EnemySplitResult& split) {
                         return split.parentId == enemy.id;
+                    }) &&
+                std::ranges::none_of(
+                    eliteDeathEventBuffer_,
+                    [&enemy](const EliteEnemyEvent& event) {
+                        return event.id == enemy.id;
                     });
         });
     if (reusable == enemies_.end() && enemies_.size() >= MaxEnemies) {
@@ -1871,6 +1896,7 @@ void EnemySystem::appendEnemy(
         .state = EnemyState::Spawn,
         .target = std::nullopt,
         .active = true,
+        .eliteAffixes = spawn.eliteAffixes,
     };
     if (reusable == enemies_.end()) {
         enemies_.push_back(instance);
@@ -1878,6 +1904,13 @@ void EnemySystem::appendEnemy(
         *reusable = instance;
     }
     ++activeCount_;
+    if (elite) {
+        eliteSpawnEventBuffer_.push_back({
+            .id = id,
+            .position = position,
+            .affixes = spawn.eliteAffixes,
+        });
+    }
 }
 
 void EnemySystem::spawnSplitlings(
@@ -1935,6 +1968,13 @@ void EnemySystem::markEnemyDead(EnemyInstance& enemy) {
     enemy.active = false;
     enemy.state = EnemyState::Dead;
     enemy.target.reset();
+    if (enemy.eliteAffixes != 0U) {
+        eliteDeathEventBuffer_.push_back({
+            .id = enemy.id,
+            .position = enemy.position,
+            .affixes = enemy.eliteAffixes,
+        });
+    }
     if (activeCount_ > 0U) {
         --activeCount_;
     }

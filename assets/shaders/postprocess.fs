@@ -125,20 +125,28 @@ float bilateralSsao(vec2 uv)
     return total/max(totalWeight, 0.0001);
 }
 
-vec3 sourcePixel(ivec2 coordinate)
+vec4 sourcePixel(ivec2 coordinate)
 {
     ivec2 size = textureSize(texture0, 0);
     return texelFetch(
         texture0,
         clamp(coordinate, ivec2(0), size - ivec2(1)),
-        0).rgb;
+        0);
 }
 
 float inkDifference(
     vec3 centerColor, float centerLuminance,
     ivec2 coordinate, float directionWeight)
 {
-    vec3 neighborColor = sourcePixel(coordinate);
+    vec4 neighbor = sourcePixel(coordinate);
+    // Grass uses a reserved alpha tag. Ignoring it here prevents the
+    // eligible terrain pixel beside a blade from drawing the missing half
+    // of the outline back onto the ground.
+    if (neighbor.a > 0.06 && neighbor.a < 0.20)
+    {
+        return 0.0;
+    }
+    vec3 neighborColor = neighbor.rgb;
     float neighborLuminance = luminanceOf(neighborColor);
     float luminanceContrast =
         abs(centerLuminance - neighborLuminance);
@@ -314,6 +322,14 @@ void main()
 
     if (inkOutlinesEnabled > 0.5 && source.a > 0.25)
     {
+        float centerDepth = texture(sceneDepth, pixelUv).r;
+        float viewDistance = centerDepth < 0.999999
+            ? length(reconstructViewPosition(pixelUv, centerDepth))
+            : 100000.0;
+        // Strong readable silhouettes nearby, restrained marks through the
+        // middle ground, and no black tracing over distant forests/mountains.
+        float outlineDistance =
+            1.0 - smoothstep(30.0, 86.0, viewDistance);
         float centerLuminance = luminanceOf(source.rgb);
         float edge = 0.0;
         int pixelWidth = int(round(clamp(
@@ -354,8 +370,18 @@ void main()
                 sourceCoordinate + ivec2(-ring, ring), 0.72));
             edge = max(edge, ringEdge);
         }
-        float ink = smoothstep(0.060, 0.26, edge)*outlineStrength;
-        color *= 1.0 - clamp(ink, 0.0, 0.92);
+        // A steeper response restores the chunky foreground silhouette.
+        // Distance still removes it from the background independently.
+        float nearBoost = mix(1.0, 1.24,
+            1.0 - smoothstep(18.0, 32.0, viewDistance));
+        float ink = smoothstep(0.045, 0.205, edge)*outlineStrength*
+            outlineDistance*nearBoost;
+        // A cold green-grey reads as ink without cutting holes into the
+        // bright low-poly palette like a pure black multiply does.
+        vec3 inkColor = mix(
+            vec3(0.018, 0.043, 0.049),
+            color*vec3(0.16, 0.24, 0.23), 0.22);
+        color = mix(color, inkColor, clamp(ink, 0.0, 0.96));
     }
 
     if (paperGrainEnabled > 0.5)

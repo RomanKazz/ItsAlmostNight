@@ -251,7 +251,13 @@ void Simulation::processInsightEvent(const GameEvent& event) {
             const EnemyType type = found != enemies_.enemies().end()
                 ? found->type : EnemyType::Basic;
             const bool boss = type == EnemyType::Boss;
-            grantConfiguredInsight(config.enemy[static_cast<std::size_t>(type)],
+            const double eliteMultiplier =
+                found != enemies_.enemies().end() &&
+                    found->eliteAffixes != 0U
+                ? 1.7 : 1.0;
+            grantConfiguredInsight(
+                config.enemy[static_cast<std::size_t>(type)] *
+                    eliteMultiplier,
                 boss ? InsightSource::BossKilled : InsightSource::EnemyKilled,
                 InsightCategory::Combat,
                 {.eventId = insightEntityEvent(0x300U, *event.entityId),

@@ -65,16 +65,23 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
         return std::nullopt;
     }
 
+    amount *= incomingDamageMultiplier(*enemy);
     const double previousHealth = enemy->health;
     enemy->health = std::max(0.0, enemy->health - amount);
     enemy->hitAnimationRemaining = 0.22;
     const bool killed = enemy->health <= 0.0;
     const EnemyType killedType = enemy->type;
     const Vec3 killedPosition = enemy->position;
+    const double eliteHealthMultiplier =
+        enemy->eliteAffixes != 0U ? 1.6 : 1.0;
+    const double eliteDamageMultiplier =
+        enemy->eliteAffixes != 0U ? 1.1 : 1.0;
     const double healthMultiplier = enemy->maxHealth /
-        definitions_[static_cast<std::size_t>(enemy->type)].health;
+        definitions_[static_cast<std::size_t>(enemy->type)].health /
+        eliteHealthMultiplier;
     const double damageMultiplier = enemy->damage /
-        definitions_[static_cast<std::size_t>(enemy->type)].damage;
+        definitions_[static_cast<std::size_t>(enemy->type)].damage /
+        eliteDamageMultiplier;
     if (killed) {
         markEnemyDead(*enemy);
     }
@@ -91,6 +98,24 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
             healthMultiplier, damageMultiplier);
     }
     return result;
+}
+
+double EnemySystem::incomingDamageMultiplier(
+    const EnemyInstance& target) const {
+    constexpr double WardenRadiusSquared = 5.5 * 5.5;
+    for (const EnemyInstance& candidate : enemies_) {
+        if (!candidate.active || candidate.id == target.id ||
+            !hasEliteAffix(
+                candidate.eliteAffixes, EliteAffix::Warden)) {
+            continue;
+        }
+        const double x = candidate.position.x - target.position.x;
+        const double z = candidate.position.z - target.position.z;
+        if (x * x + z * z <= WardenRadiusSquared) {
+            return 0.75;
+        }
+    }
+    return 1.0;
 }
 
 std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) const {
@@ -206,16 +231,20 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         if (enemy == nullptr || !enemy->active || amount <= 0.0) {
             continue;
         }
+        const double effectiveDamage = damagePerTarget *
+            incomingDamageMultiplier(*enemy);
         const double previousHealth = enemy->health;
         enemy->health = std::max(
-            0.0, enemy->health - damagePerTarget);
+            0.0, enemy->health - effectiveDamage);
         enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
         const EnemyType killedType = enemy->type;
         const double childHealthMultiplier = enemy->maxHealth /
-            definitions_[static_cast<std::size_t>(enemy->type)].health;
+            definitions_[static_cast<std::size_t>(enemy->type)].health /
+            (enemy->eliteAffixes != 0U ? 1.6 : 1.0);
         const double childDamageMultiplier = enemy->damage /
-            definitions_[static_cast<std::size_t>(enemy->type)].damage;
+            definitions_[static_cast<std::size_t>(enemy->type)].damage /
+            (enemy->eliteAffixes != 0U ? 1.1 : 1.0);
         if (killed) {
             markEnemyDead(*enemy);
         }
@@ -311,7 +340,8 @@ bool EnemySystem::applyStatus(
         return false;
     }
 
-    const bool elite = enemy->type == EnemyType::Heavy;
+    const bool elite = enemy->eliteAffixes != 0U ||
+        enemy->type == EnemyType::Heavy;
     const bool boss = enemy->type == EnemyType::Boss;
     const StatusEffectType appliedType =
         requestedType == StatusEffectType::Freeze && boss
@@ -435,6 +465,14 @@ const EnemyPerformanceStats& EnemySystem::performanceStats() const {
 
 std::vector<EnemySplitResult> EnemySystem::takeSplitEvents() {
     return std::exchange(splitEventBuffer_, {});
+}
+
+std::vector<EliteEnemyEvent> EnemySystem::takeEliteSpawnEvents() {
+    return std::exchange(eliteSpawnEventBuffer_, {});
+}
+
+std::vector<EliteEnemyEvent> EnemySystem::takeEliteDeathEvents() {
+    return std::exchange(eliteDeathEventBuffer_, {});
 }
 
 const EnemyStatusEffect& enemyStatusEffect(

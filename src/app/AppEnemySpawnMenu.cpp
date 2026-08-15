@@ -5,6 +5,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
 
@@ -43,6 +44,38 @@ namespace {
     return static_cast<EnemyType>(index);
 }
 
+[[nodiscard]] const char* eliteAffixName(EliteAffix affix) {
+    switch (affix) {
+    case EliteAffix::None:
+        return "NORMAL";
+    case EliteAffix::Berserker:
+        return "ELITE: BERSERKER";
+    case EliteAffix::Warden:
+        return "ELITE: WARDEN";
+    case EliteAffix::Volatile:
+        return "ELITE: VOLATILE";
+    }
+    return "NORMAL";
+}
+
+[[nodiscard]] EliteAffix adjacentEliteAffix(
+    EliteAffix affix, int direction) {
+    constexpr std::array EliteAffixes{
+        EliteAffix::None,
+        EliteAffix::Berserker,
+        EliteAffix::Warden,
+        EliteAffix::Volatile,
+    };
+    const auto found = std::ranges::find(EliteAffixes, affix);
+    const int current = found == EliteAffixes.end()
+        ? 0
+        : static_cast<int>(
+              std::distance(EliteAffixes.begin(), found));
+    const int count = static_cast<int>(EliteAffixes.size());
+    return EliteAffixes[static_cast<std::size_t>(
+        (current + direction + count) % count)];
+}
+
 } // namespace
 
 void App::drawEnemySpawnMenu() {
@@ -51,7 +84,7 @@ void App::drawEnemySpawnMenu() {
     }
 
     constexpr float Width = 620.0F;
-    constexpr float Height = 510.0F;
+    constexpr float Height = 610.0F;
     constexpr float Padding = 34.0F;
     constexpr float ButtonHeight = 66.0F;
     const float x =
@@ -97,19 +130,47 @@ void App::drawEnemySpawnMenu() {
     }
 
     drawUiText(
+        "VARIANT", {x + Padding, y + 250.0F},
+        17.0F, {245, 220, 174, 255});
+    const float variantY = y + 282.0F;
+    if (ui_.drawButton(
+            {x + Padding, variantY, ArrowWidth, ButtonHeight},
+            "<")) {
+        debugSpawnEliteAffix_ = adjacentEliteAffix(
+            debugSpawnEliteAffix_, -1);
+    }
+    ui_.drawInsetPanel(
+        {x + Padding + ArrowWidth + 12.0F, variantY,
+         contentWidth - ArrowWidth * 2.0F - 24.0F,
+         ButtonHeight},
+        240);
+    ui_.drawLabel(
+        {x + Padding + ArrowWidth + 12.0F, variantY,
+         contentWidth - ArrowWidth * 2.0F - 24.0F,
+         ButtonHeight},
+        eliteAffixName(debugSpawnEliteAffix_), 1);
+    if (ui_.drawButton(
+            {x + Width - Padding - ArrowWidth, variantY,
+             ArrowWidth, ButtonHeight},
+            ">")) {
+        debugSpawnEliteAffix_ = adjacentEliteAffix(
+            debugSpawnEliteAffix_, 1);
+    }
+
+    drawUiText(
         TextFormat("COUNT: %d", debugSpawnCount_),
-        {x + Padding, y + 258.0F}, 18.0F,
+        {x + Padding, y + 376.0F}, 18.0F,
         {245, 220, 174, 255});
     ui_.drawInsetPanel(
-        {x + Padding, y + 300.0F, contentWidth, 48.0F}, 235);
+        {x + Padding, y + 410.0F, contentWidth, 48.0F}, 235);
     const float selectedCount = ui_.drawSliderBar(
-        {x + Padding + 12.0F, y + 310.0F,
+        {x + Padding + 12.0F, y + 420.0F,
          contentWidth - 24.0F, 28.0F},
         static_cast<float>(debugSpawnCount_), 1.0F, 1000.0F);
     debugSpawnCount_ = std::clamp(
         static_cast<int>(std::lround(selectedCount)), 1, 1000);
 
-    const float actionY = y + 382.0F;
+    const float actionY = y + 496.0F;
     if (ui_.drawButton(
             {x + Padding, actionY,
              contentWidth * 0.66F - 7.0F, ButtonHeight},

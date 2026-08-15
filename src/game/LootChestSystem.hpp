@@ -111,6 +111,7 @@ class LootChestSystem {
     [[nodiscard]] std::optional<Vec3> revealNearest(
         Vec3 playerPosition);
     void setCoinCostMultiplier(double multiplier);
+    void setOpeningCostSurcharge(int surcharge);
     [[nodiscard]] int openingCost(
         const LootChestInstance& chest) const;
     [[nodiscard]] std::optional<LootPickup> collect(EntityId id);
@@ -141,6 +142,7 @@ class LootChestSystem {
     std::uint32_t runGeneration_{};
     std::uint32_t nextEntityIndex_{};
     double coinCostMultiplier_{1.0};
+    int openingCostSurcharge_{};
 };
 
 [[nodiscard]] const char* lootRarityName(LootRarity rarity);

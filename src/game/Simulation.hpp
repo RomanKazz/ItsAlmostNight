@@ -46,6 +46,8 @@ struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
 struct InteractCommand {};
 struct RerollChestCommand { EntityId chestId; };
+struct RepairAllBuildingsCommand {};
+struct PurchaseBombBundleCommand {};
 struct RevealNearestChestCommand {};
 struct DefeatAllEnemiesCommand {};
 struct ToggleInvulnerabilityCommand {};
@@ -58,6 +60,14 @@ struct DamagePlayerCommand {
 struct SpawnEnemyCommand {
     EnemyType type{EnemyType::Basic};
     int count{1};
+    EliteAffixMask eliteAffixes{};
+};
+struct CastChainLightningCommand {
+    std::optional<EntityId> firstTarget;
+    double damage{28.0};
+    double jumpRadius{6.5};
+    double damageFalloff{0.82};
+    int maximumTargets{6};
 };
 struct ToggleGateCommand {
     EntityId gateId;
@@ -99,12 +109,15 @@ struct PlayerCommand {
     std::optional<UseConsumableCommand> useConsumable;
     std::optional<InteractCommand> interact;
     std::optional<RerollChestCommand> rerollChest;
+    std::optional<RepairAllBuildingsCommand> repairAllBuildings;
+    std::optional<PurchaseBombBundleCommand> purchaseBombBundle;
     std::optional<RevealNearestChestCommand> revealNearestChest;
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
     std::optional<ToggleInvulnerabilityCommand> toggleInvulnerability;
     std::optional<DamageCoreCommand> damageCore;
     std::optional<DamagePlayerCommand> damagePlayer;
     std::optional<SpawnEnemyCommand> spawnEnemy;
+    std::optional<CastChainLightningCommand> castChainLightning;
     std::optional<ToggleGateCommand> toggleGate;
     std::optional<RemoveModularBuildingCommand>
         removeModularBuilding;
@@ -182,6 +195,7 @@ struct SimulationSnapshot {
     double playerArmorMultiplier;
     double playerTemporaryHealth;
     double chestOpeningCostMultiplier;
+    int chestOpeningCostSurcharge;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
     double aimedResourceEfficiency{1.0};
@@ -263,7 +277,9 @@ struct SimulationSnapshot {
     double rifleReloadDuration;
     int bombsRemaining;
     int bombPurchaseCoinCost;
+    int bombPurchaseAmount;
     int chestRerollCoinCost;
+    int repairAllCoinCost;
     int chestRevealCoinCost;
     int waveCompletionReward;
     int tutorialWoodTarget;
@@ -382,6 +398,8 @@ class Simulation {
     void updatePlayer(double deltaSeconds,
                       const PlayerCommand& command);
     void processDebugCommands(const PlayerCommand& command);
+    void castChainLightning(
+        const CastChainLightningCommand& command);
     void processBuildingCommands(const PlayerCommand& command);
     void processBuildingActions(const PlayerCommand& command);
     void updatePlayerActions(double deltaSeconds,
@@ -393,6 +411,8 @@ class Simulation {
     [[nodiscard]] int earlyWaveCoinBonus() const;
     [[nodiscard]] int earlyWaveInsightBonus() const;
     void updateCombat(double deltaSeconds);
+    void updateEliteEffects(double deltaSeconds);
+    void collectEliteEnemyEvents();
     void updateTrapCombat(double deltaSeconds);
     void updateTowerCombat(double deltaSeconds);
     void updateCannonCombat(double deltaSeconds);
@@ -601,6 +621,12 @@ class Simulation {
     struct ActiveRepairCooldown { EntityId id; double remaining; };
     std::vector<ActiveRepairCooldown> activeRepairCooldowns_;
     std::vector<EnemyStructureTarget> modularTargetBuffer_;
+    struct PendingEliteExplosion {
+        EntityId sourceId;
+        Vec3 position;
+        double remaining{1.15};
+    };
+    std::vector<PendingEliteExplosion> pendingEliteExplosions_;
     std::vector<GameEvent> events_;
     mutable std::optional<SimulationSnapshot> snapshotCache_;
     std::uint64_t structuralRevision_{};

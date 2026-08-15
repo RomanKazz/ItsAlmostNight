@@ -27,6 +27,24 @@ void runWaveDirectorTests() {
         require(bossCount == (wave == 6 ? 1 : 0), "boss appears only in sixth wave");
         require(plan.groupSize > 0 && plan.groupInterval > 0.0,
                 "wave exposes valid group schedule");
+        const int eliteCount = static_cast<int>(std::count_if(
+            plan.spawns.begin(), plan.spawns.end(),
+            [](const ian::EnemySpawn& spawn) {
+                return spawn.eliteAffixes != 0U;
+            }));
+        require(
+            eliteCount == plan.eliteCount &&
+                (wave < 3 ? eliteCount == 0
+                          : eliteCount > 0),
+            "elite enemies begin on wave three and match plan metadata");
+        require(
+            std::none_of(
+                plan.spawns.begin(), plan.spawns.end(),
+                [](const ian::EnemySpawn& spawn) {
+                    return spawn.type == ian::EnemyType::Boss &&
+                        spawn.eliteAffixes != 0U;
+                }),
+            "bosses never receive elite affixes");
     }
     const auto firstComposition = director.composition(1);
     const auto secondComposition = director.composition(2);

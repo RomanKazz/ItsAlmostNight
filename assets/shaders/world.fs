@@ -43,6 +43,9 @@ uniform float distantFadeAmount;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
+uniform float ghostAmount;
+uniform vec3 ghostTint;
+uniform float ghostOpacity;
 uniform float inkOutlineEligible;
 uniform sampler2D shadowMap;
 uniform float shadowsEnabled;
@@ -305,27 +308,41 @@ float sampleShadow(vec3 normal)
 
     float lightFacing = max(dot(normal, normalize(-sunDirection)), 0.0);
     float bias = constantBias + slopeBias*(1.0 - lightFacing);
-    // A compact 3x3 PCF kernel keeps the shadow edge soft enough while
-    // avoiding 16 redundant texture reads per world fragment.
-    const float kernel[3] = float[3](1.0, 2.0, 1.0);
+    // A compact disc-shaped PCF kernel avoids the square, technical-looking
+    // edge produced by a regular grid. It deliberately keeps the old nine
+    // texture reads: softer silhouettes without additional fill-rate cost.
+    const vec2 disc[9] = vec2[9](
+        vec2( 0.00,  0.00),
+        vec2(-0.34, -0.91),
+        vec2( 0.82, -0.57),
+        vec2(-0.91,  0.24),
+        vec2( 0.43,  0.86),
+        vec2(-0.69, -0.32),
+        vec2( 0.19, -0.68),
+        vec2( 0.72,  0.31),
+        vec2(-0.24,  0.70));
     float occlusion = 0.0;
     float totalWeight = 0.0;
-    for (int offsetY = -1; offsetY <= 1; ++offsetY)
+    for (int sampleIndex = 0; sampleIndex < 9; ++sampleIndex)
     {
-        for (int offsetX = -1; offsetX <= 1; ++offsetX)
-        {
-            float weight = kernel[offsetX + 1]*kernel[offsetY + 1];
-            vec2 offset =
-                vec2(float(offsetX), float(offsetY))*
-                shadowMapTexelSize*2.0;
-            float closestDepth = texture(shadowMap, projected.xy + offset).r;
-            occlusion +=
-                (projected.z - bias > closestDepth ? 1.0 : 0.0)*weight;
-            totalWeight += weight;
-        }
+        float centerWeight = sampleIndex == 0 ? 1.55 : 1.0;
+        vec2 offset = disc[sampleIndex]*shadowMapTexelSize*3.15;
+        float closestDepth = texture(
+            shadowMap, projected.xy + offset).r;
+        occlusion +=
+            (projected.z - bias > closestDepth ? 1.0 : 0.0)*centerWeight;
+        totalWeight += centerWeight;
     }
     occlusion /= totalWeight;
-    return 1.0 - occlusion*clamp(shadowStrength, 0.0, 1.0);
+    // Fade before the orthographic map border so a moving camera never
+    // exposes a hard rectangular cutoff.
+    vec2 mapEdge = abs(projected.xy*2.0 - 1.0);
+    float edgeFade = 1.0 - smoothstep(
+        0.72, 0.98, max(mapEdge.x, mapEdge.y));
+    // Preserve readable ambient colour in full shadow. With the normal
+    // 0.58 setting this caps direct-light darkening below fifty percent.
+    float artisticStrength = clamp(shadowStrength, 0.0, 1.0)*0.82;
+    return 1.0 - occlusion*artisticStrength*edgeFade;
 }
 
 vec2 encodeOctahedralNormal(vec3 normal)
@@ -442,6 +459,14 @@ void main()
     float aoSource = clamp(bakedAo*vertexAo, 0.0, 1.0);
     float ao = mix(1.0, aoSource, clamp(aoStrength, 0.0, 1.0));
     vec3 litColor = albedo.rgb*(ambient + direct + skyRim)*ao;
+    // Shadows lean toward cool forest green instead of neutral black. This
+    // is intentionally subtle and luminance-preserving: the ambient term
+    // remains responsible for keeping back-facing surfaces readable.
+    float directionalShadowAmount = clamp(1.0 - shadow, 0.0, 1.0);
+    vec3 directionalShadowTint = vec3(0.90, 0.965, 1.035);
+    litColor *= mix(
+        vec3(1.0), directionalShadowTint,
+        directionalShadowAmount*0.46);
     // Sunlit ground leans gently warm; indirect and shadowed ground leans
     // cool. Luminance contrast changes more than saturation.
     float terrainSunAmount = smoothstep(
@@ -504,10 +529,41 @@ void main()
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(luminance), litColor, saturation);
 
-    finalColor = vec4(litColor,
-                      albedo.a*step(0.5, inkOutlineEligible));
+    float ghost = clamp(ghostAmount, 0.0, 1.0);
+    float outputAlpha = albedo.a*step(0.5, inkOutlineEligible);
+    if (ghost > 0.001)
+    {
+        // A stable world-space hologram: soft cyan body, animated vertical
+        // scan bands, and a view-dependent rim that makes the silhouette
+        // readable against both bright grass and dark terrain.
+        float fresnel = pow(
+            1.0 - clamp(abs(dot(normal, viewDirection)), 0.0, 1.0),
+            2.15);
+        float broadWave = 0.5 + 0.5*sin(
+            fragWorldPosition.y*7.0 - timeSeconds*2.8 +
+            (fragWorldPosition.x + fragWorldPosition.z)*0.75);
+        float scanWave = 0.5 + 0.5*sin(
+            fragWorldPosition.y*20.0 - timeSeconds*5.4);
+        float scanLine = pow(scanWave, 14.0);
+        float shimmer = 0.5 + 0.5*sin(
+            (fragWorldPosition.x - fragWorldPosition.z)*3.2 +
+            fragWorldPosition.y*4.5 + timeSeconds*2.1);
+
+        vec3 ghostBody = ghostTint*(0.62 + broadWave*0.13);
+        vec3 ghostHighlight = mix(ghostTint, vec3(0.78, 0.96, 1.0), 0.78);
+        vec3 hologramColor = ghostBody + ghostHighlight*
+            (fresnel*0.72 + scanLine*0.26 + shimmer*0.055);
+        litColor = mix(litColor, hologramColor, ghost);
+        outputAlpha = mix(
+            outputAlpha,
+            clamp(ghostOpacity*(0.68 + fresnel*0.34 + scanLine*0.16),
+                  0.0, 0.82),
+            ghost);
+    }
+
+    finalColor = vec4(litColor, outputAlpha);
     normalAo = vec4(
         encodeOctahedralNormal(normal),
-        clamp(screenAoAmount, 0.0, 1.0)*
+        clamp(screenAoAmount, 0.0, 1.0)*(1.0 - ghost)*
         (1.0 - terraceWall), 1.0);
 }

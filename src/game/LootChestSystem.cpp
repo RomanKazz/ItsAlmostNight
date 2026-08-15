@@ -270,7 +270,7 @@ void LootChestSystem::spawnAdditionalChests(
             .surfaceNormal = surfaceNormal,
             .yaw = unitRandom(seed ^ 0x452821e638d01377ULL) *
                 6.28318530717958647692,
-            .coinCost = type == LootChestType::Wooden ? 20 : 40,
+            .coinCost = purpose == LootChestPurpose::Reward ? 0 : 20,
             // Exploration chests stay hidden from the minimap until the
             // player reveals one or acquires an effect that exposes chests.
             .revealed = false,
@@ -403,22 +403,20 @@ ChestRerollResult LootChestSystem::reroll(
         !chest->loot.available || chest->loot.collected ||
         chest->rerolling)
         return ChestRerollResult::NotReady;
-    if (chest->rerollCount > 0U)
+    if (chest->rerollCount >= 3U)
         return ChestRerollResult::AlreadyRerolled;
     cost = std::max(0, cost);
     if (coins < cost) return ChestRerollResult::InsufficientCoins;
     coins -= cost;
     const LootUpgradeEffect previous = chest->loot.effect;
     ChestLoot target{};
+    std::uint64_t candidateRoll = chest->rerollCount + 1U;
     do {
-        ++chest->rerollCount;
         target = makeLoot(
-            chest->id, chest->position, chest->rerollCount,
+            chest->id, chest->position, candidateRoll++,
             chest->purpose);
-    } while (target.effect == previous && chest->rerollCount < 32U);
-    // A reroll is one purchase even if deterministic retries were needed to
-    // avoid offering the exact same item.
-    chest->rerollCount = 1U;
+    } while (target.effect == previous && candidateRoll < 32U);
+    ++chest->rerollCount;
     chest->rerollTargetEffect = target.effect;
     chest->rerollTargetRarity = target.rarity;
     chest->rerollProgress = 0.0;
@@ -450,12 +448,17 @@ void LootChestSystem::setCoinCostMultiplier(double multiplier) {
     coinCostMultiplier_ = std::clamp(multiplier, 0.01, 1.0);
 }
 
+void LootChestSystem::setOpeningCostSurcharge(int surcharge) {
+    openingCostSurcharge_ = std::max(0, surcharge);
+}
+
 int LootChestSystem::openingCost(
     const LootChestInstance& chest) const {
+    if (chest.coinCost <= 0) return 0;
     return std::max(
         1,
         static_cast<int>(std::lround(
-            static_cast<double>(chest.coinCost) *
+            static_cast<double>(chest.coinCost + openingCostSurcharge_) *
             coinCostMultiplier_)));
 }
 

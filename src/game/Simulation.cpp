@@ -311,6 +311,7 @@ void Simulation::resetRun(GameEventType eventType) {
     aimedBuilding_.reset();
     aimedModularBuilding_.reset();
     enemies_.reset();
+    pendingEliteExplosions_.clear();
     towers_.reset();
     cannons_.reset();
     traps_.reset();
@@ -331,6 +332,7 @@ void Simulation::resetRun(GameEventType eventType) {
     crystalMines_.setProductionSpeedMultiplier(1.0);
     crystalMines_.setWoodYieldMultiplier(1.0);
     lootChests_.setCoinCostMultiplier(1.0);
+    lootChests_.setOpeningCostSurcharge(0);
     refreshSkillRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;
@@ -371,6 +373,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         return;
     }
     invalidateSnapshotCache();
+    lootChests_.setOpeningCostSurcharge(
+        saturatingMultiplyNonNegative(
+            economy_.chestOpeningCoinCostPerWave, wave_));
     const std::size_t firstInsightEvent = events_.size();
 
     updatePlayerRespawn(deltaSeconds);
@@ -451,6 +456,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
     updateCombat(deltaSeconds);
+    updateEliteEffects(deltaSeconds);
+    collectEliteEnemyEvents();
     if (state_ == RunState::Defeat) {
         crystals_ = 0;
         coins_ = 0;

@@ -155,6 +155,9 @@ void main()
     float litLuminance =
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(litLuminance), litColor, saturation);
-    finalColor = vec4(litColor, albedo.a);
+    // Scene alpha doubles as a lightweight material tag for the ink pass.
+    // 0.125 uniquely marks grass: unlike sky (0) and regular geometry (1),
+    // it lets the post-process suppress both sides of a grass boundary.
+    finalColor = vec4(litColor, 0.125);
     normalAo = vec4(0.0, 0.0, 0.0, 1.0);
 }

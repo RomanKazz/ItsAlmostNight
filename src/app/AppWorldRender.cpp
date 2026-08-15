@@ -985,6 +985,7 @@ void App::drawWorldEntities(
             *snapshot.aimedEnemy == enemy.id;
         const bool lowDetail =
             !aimed && enemy.type != EnemyType::Boss &&
+            enemy.eliteAffixes == 0U &&
             enemyDistanceSquared > EnemyFullDetailDistanceSquared;
         const auto flash = enemyHitFlashById_.find(
             effectKey(enemy.id));
@@ -993,7 +994,8 @@ void App::drawWorldEntities(
                 ? flash->second
                 : 0.0F;
         const float enemyScale =
-            enemyVisualScale(enemy.type) * enemyHitScale(enemy);
+            enemyVisualScale(enemy.type) * enemyHitScale(enemy) *
+            (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         const EnemyStatusEffect& freezeStatus =
             enemyStatusEffect(enemy, StatusEffectType::Freeze);
         const bool frozen = freezeStatus.remaining > 0.0;
@@ -1009,6 +1011,22 @@ void App::drawWorldEntities(
         } else if (
             enemy.state == EnemyState::BossRamWindup) {
             modelTint = {255, 178, 150, 255};
+        } else if (hasEliteAffix(
+                       enemy.eliteAffixes,
+                       EliteAffix::Berserker)) {
+            const bool enraged = enemy.maxHealth > 0.0 &&
+                enemy.health / enemy.maxHealth <= 0.5;
+            modelTint = enraged
+                ? Color{255, 82, 70, 255}
+                : Color{238, 150, 140, 255};
+        } else if (hasEliteAffix(
+                       enemy.eliteAffixes,
+                       EliteAffix::Warden)) {
+            modelTint = {124, 195, 255, 255};
+        } else if (hasEliteAffix(
+                       enemy.eliteAffixes,
+                       EliteAffix::Volatile)) {
+            modelTint = {255, 181, 78, 255};
         }
         if (!aimed) {
             if (hitFlash > 0.001F) {
@@ -1161,6 +1179,77 @@ void App::drawWorldEntities(
         }
     }
     BeginBlendMode(BLEND_ADDITIVE);
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
+    for (const EnemyInstance& elite : snapshot.enemies) {
+        if (!elite.active || elite.eliteAffixes == 0U) {
+            continue;
+        }
+        Vector3 center = enemyRenderPosition(elite);
+        center.y += static_cast<float>(
+            simulation_.terrain().getHeight(
+                elite.position.x, elite.position.z));
+        const float pulse = 0.5F + 0.5F * std::sin(
+            static_cast<float>(snapshot.elapsedSeconds) * 5.5F +
+            static_cast<float>(elite.id.index % 31U));
+        Color aura{255, 128, 68, 125};
+        if (hasEliteAffix(
+                elite.eliteAffixes, EliteAffix::Warden)) {
+            aura = {74, 174, 255, 130};
+        } else if (hasEliteAffix(
+                       elite.eliteAffixes,
+                       EliteAffix::Berserker)) {
+            aura = elite.maxHealth > 0.0 &&
+                    elite.health / elite.maxHealth <= 0.5
+                ? Color{255, 54, 42, 170}
+                : Color{255, 112, 82, 110};
+        }
+        DrawCircle3D(
+            {center.x, center.y + 0.025F, center.z},
+            0.68F + pulse * 0.11F,
+            {1.0F, 0.0F, 0.0F}, 90.0F, aura);
+        DrawCircle3D(
+            {center.x, center.y + 0.035F, center.z},
+            0.42F + pulse * 0.07F,
+            {1.0F, 0.0F, 0.0F}, 90.0F,
+            {aura.r, aura.g, aura.b,
+             static_cast<unsigned char>(aura.a / 2U)});
+
+        if (!hasEliteAffix(
+                elite.eliteAffixes, EliteAffix::Warden)) {
+            continue;
+        }
+        int linked = 0;
+        for (const EnemyInstance& protectedEnemy :
+             snapshot.enemies) {
+            if (!protectedEnemy.active ||
+                protectedEnemy.id == elite.id || linked >= 8) {
+                continue;
+            }
+            const double x =
+                protectedEnemy.position.x - elite.position.x;
+            const double z =
+                protectedEnemy.position.z - elite.position.z;
+            if (x * x + z * z > 5.5 * 5.5) {
+                continue;
+            }
+            Vector3 target = enemyRenderPosition(protectedEnemy);
+            target.y += static_cast<float>(
+                simulation_.terrain().getHeight(
+                    protectedEnemy.position.x,
+                    protectedEnemy.position.z)) + 0.55F;
+            const Vector3 source{
+                center.x, center.y + 0.72F, center.z};
+            DrawCylinderEx(
+                source, target, 0.025F, 0.012F, 5,
+                {63, 162, 255, 48});
+            DrawLine3D(
+                source, target, {176, 226, 255, 155});
+            ++linked;
+        }
+    }
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
     for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
         if (!projectile.active) continue;
         const Vector3 head{
@@ -1407,6 +1496,7 @@ void App::drawWorldEntities(
         const EnemyInstance visualEnemy{
             .type = visual.type,
             .position = visual.position,
+            .eliteAffixes = visual.eliteAffixes,
             .surfaceHeightOffset =
                 visual.surfaceHeightOffset,
         };
@@ -1442,8 +1532,11 @@ void App::drawWorldEntities(
             .position = position,
             .yawRadians =
                 static_cast<float>(visual.yaw),
-            .tint = {255, 255, 255, alpha},
-            .scale = enemyVisualScale(visual.type),
+            .tint = visual.eliteAffixes != 0U
+                ? Color{255, 176, 122, alpha}
+                : Color{255, 255, 255, alpha},
+            .scale = enemyVisualScale(visual.type) *
+                (visual.eliteAffixes != 0U ? 1.08F : 1.0F),
             .loop = false,
             .lowDetail = distanceSquared >
                 EnemyFullDetailDistanceSquared &&

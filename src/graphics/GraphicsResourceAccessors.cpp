@@ -34,6 +34,14 @@ const RenderTexture2D& GraphicsResources::ssaoTarget() const {
     return ssaoTarget_.get();
 }
 
+bool GraphicsResources::postProcessTargetValid() const {
+    return postProcessTarget_.valid();
+}
+
+const RenderTexture2D& GraphicsResources::postProcessTarget() const {
+    return postProcessTarget_.get();
+}
+
 int GraphicsResources::ssaoWidth() const {
     return requestedSsaoWidth_;
 }
@@ -136,6 +144,14 @@ ShaderResource& GraphicsResources::postProcessShader() {
 
 const ShaderResource& GraphicsResources::postProcessShader() const {
     return postProcessShader_;
+}
+
+ShaderResource& GraphicsResources::fxaaShader() {
+    return fxaaShader_;
+}
+
+const ShaderResource& GraphicsResources::fxaaShader() const {
+    return fxaaShader_;
 }
 
 ShaderResource& GraphicsResources::ssaoShader() {

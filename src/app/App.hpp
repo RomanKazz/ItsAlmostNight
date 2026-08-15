@@ -24,6 +24,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace ian {
@@ -275,6 +276,8 @@ class App {
     bool pendingUnlimitedResources_{};
     std::optional<UpgradeBuildingCommand> pendingBuildingUpgrade_;
     std::optional<RepairBuildingCommand> pendingBuildingRepair_;
+    bool pendingRepairAllBuildings_{};
+    bool pendingPurchaseBombBundle_{};
     std::optional<EntityId> repairSweepTarget_;
     bool repairSweepActive_{};
     std::optional<SellBuildingCommand> pendingBuildingSale_;
@@ -303,6 +306,7 @@ class App {
     bool pendingToggleInvulnerability_{};
     bool pendingDamageCore_{};
     bool pendingSpawnEnemy_{};
+    bool pendingChainLightning_{};
     bool enemySpawnMenuVisible_{};
     int debugSpawnCount_{50};
     std::optional<ToggleGateCommand> pendingGateToggle_;
@@ -350,6 +354,7 @@ class App {
         destroyedResourceVisuals_;
     struct DestroyedEnemyVisual {
         EnemyType type;
+        EliteAffixMask eliteAffixes{};
         Vec3 position;
         double surfaceHeightOffset;
         double yaw;
@@ -366,6 +371,8 @@ class App {
         resourceTreeDrawInstances_;
     std::vector<RockDrawInstance>
         resourceRockDrawInstances_;
+    std::vector<std::pair<float, std::size_t>>
+        shadowCandidateBuffer_;
     struct SoldBuildingVisual {
         std::optional<BuildingInstance> building;
         std::optional<PlatformFrameInstance>
@@ -466,6 +473,7 @@ class App {
     double buildingStatsUpgradeRemaining_{};
     double buildingStatsUpgradeDuration_{0.9};
     EnemyType debugSpawnType_{EnemyType::Basic};
+    EliteAffix debugSpawnEliteAffix_{EliteAffix::None};
     bool slowMotion_{};
     bool showColliders_{};
     bool showFlowField_{};

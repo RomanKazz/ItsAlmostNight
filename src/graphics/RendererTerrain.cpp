@@ -851,6 +851,15 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                        &lighting.saturation, SHADER_UNIFORM_FLOAT);
     }
 
+    // Grass should remain a soft supporting layer rather than thousands of
+    // tiny ink silhouettes. RGB remains fully opaque while shader alpha
+    // writes a reserved grass tag for the post-process ink mask.
+    rlDrawRenderBatchActive();
+    rlSetBlendFactorsSeparate(
+        RL_ONE, RL_ZERO,
+        RL_ONE, RL_ZERO,
+        RL_FUNC_ADD, RL_FUNC_ADD);
+    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
     for (std::size_t variant = 0; variant < VariantCount;
          ++variant) {
         ModelResource& resource = *variants[variant];
@@ -875,6 +884,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 static_cast<int>(counts[variant]));
         }
     }
+    EndBlendMode();
 }
 
 void Renderer::setWorldReveal(

@@ -107,6 +107,9 @@ void Renderer::resolveWorldShaderLocations() {
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
+        .ghostAmount = GetShaderLocation(shader, "ghostAmount"),
+        .ghostTint = GetShaderLocation(shader, "ghostTint"),
+        .ghostOpacity = GetShaderLocation(shader, "ghostOpacity"),
         .shadowMap = GetShaderLocation(shader, "shadowMap"),
         .lightViewProjection = GetShaderLocation(shader, "lightViewProjection"),
         .shadowsEnabled = GetShaderLocation(shader, "shadowsEnabled"),
@@ -347,6 +350,11 @@ void Renderer::uploadPostProcessSettings() {
     SetShaderValueMatrix(
         shader, postProcessLocations_.inverseProjection,
         ssaoInverseProjection_);
+    // Distance-aware ink outlines also consume scene depth, even when SSAO
+    // itself is disabled by the active quality preset.
+    SetShaderValueTexture(
+        shader, postProcessLocations_.sceneDepth,
+        resources_.sceneTarget().depth);
     if (ssaoEnabled > 0.5F) {
         const Vector2 ssaoTexelSize{
             1.0F / static_cast<float>(
@@ -356,9 +364,6 @@ void Renderer::uploadPostProcessSettings() {
         };
         SetShaderValue(shader, postProcessLocations_.ssaoTexelSize,
                        &ssaoTexelSize, SHADER_UNIFORM_VEC2);
-        SetShaderValueTexture(
-            shader, postProcessLocations_.sceneDepth,
-            resources_.sceneTarget().depth);
         SetShaderValueTexture(
             shader, postProcessLocations_.sceneNormal,
             resources_.sceneNormalTexture());
@@ -471,6 +476,12 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.selectionAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionTint,
                    &material.selectionTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.ghostAmount,
+                   &material.ghostAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.ghostTint,
+                   &material.ghostTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.ghostOpacity,
+                   &material.ghostOpacity, SHADER_UNIFORM_FLOAT);
     const float inkOutlineEligible = material.inkOutlineEligible
         ? 1.0F : 0.0F;
     SetShaderValue(shader, worldShaderLocations_.inkOutlineEligible,

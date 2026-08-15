@@ -453,6 +453,9 @@ void App::processInput() {
             IsKeyPressed(KEY_F8)) {
             showColliders_ = !showColliders_;
         }
+        if (controlDown && IsKeyPressed(KEY_F10)) {
+            pendingChainLightning_ = true;
+        }
         if (IsKeyPressed(KEY_H)) {
             showFlowField_ = !showFlowField_;
         }
@@ -891,9 +894,12 @@ void App::processInput() {
                 }
             }
         }
+        const bool aimingCore =
+            currentSnapshot.aimedBuilding && currentSnapshot.coreId &&
+            currentSnapshot.aimedBuilding == currentSnapshot.coreId;
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
-            (actionMode_ == ActionMode::Weapons &&
+            (!aimingCore && actionMode_ == ActionMode::Weapons &&
              keyPressed(userSettings_.controls,
                         ControlAction::UpgradeWeapon));
         pendingRevealChest_ = pendingRevealChest_ ||
@@ -950,8 +956,19 @@ void App::processInput() {
                 pendingBuildingUpgrade_ = UpgradeBuildingCommand{*currentSnapshot.coreId};
             }
         }
+        if (aimingCore &&
+            keyPressed(userSettings_.controls, ControlAction::Repair)) {
+            pendingRepairAllBuildings_ = true;
+        }
+        if (aimingCore &&
+            currentSnapshot.unlockedWeapons[
+                static_cast<std::size_t>(PlayerWeapon::Bomb)] &&
+            keyPressed(userSettings_.controls, ControlAction::UpgradeWeapon)) {
+            pendingPurchaseBombBundle_ = true;
+        }
         repairSweepActive_ =
             !currentSnapshot.selectedBuilding &&
+            !aimingCore &&
             keyDown(userSettings_.controls, ControlAction::Repair);
         if (repairSweepActive_) {
             if (currentSnapshot.aimedBuilding) {

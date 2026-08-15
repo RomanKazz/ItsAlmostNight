@@ -191,8 +191,12 @@ void Renderer::initialize() {
     if (resources_.shadowShader().valid()) {
         Shader& shader = resources_.shadowShader().get();
         configureSkinningLocations(shader);
+        shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
+            GetShaderLocationAttrib(shader, "instanceTransform");
         shadowSkinningEnabledLocation_ =
             GetShaderLocation(shader, "skinningEnabled");
+        shadowInstancingEnabledLocation_ =
+            GetShaderLocation(shader, "instancingEnabled");
     }
     if (resources_.grassShader().valid()) {
         Shader& shader = resources_.grassShader().get();

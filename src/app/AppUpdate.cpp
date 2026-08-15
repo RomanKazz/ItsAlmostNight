@@ -592,6 +592,12 @@ void App::update() {
             }
             tickInput.upgradeBuilding = pendingBuildingUpgrade_;
             tickInput.repairBuilding = pendingBuildingRepair_;
+            if (pendingRepairAllBuildings_) {
+                tickInput.repairAllBuildings = RepairAllBuildingsCommand{};
+            }
+            if (pendingPurchaseBombBundle_) {
+                tickInput.purchaseBombBundle = PurchaseBombBundleCommand{};
+            }
             tickInput.sellBuilding = pendingBuildingSale_;
             tickInput.removeModularBuilding =
                 pendingModularBuildingRemoval_;
@@ -624,7 +630,18 @@ void App::update() {
             }
             if (pendingSpawnEnemy_) {
                 tickInput.spawnEnemy = SpawnEnemyCommand{
-                    debugSpawnType_, debugSpawnCount_};
+                    .type = debugSpawnType_,
+                    .count = debugSpawnCount_,
+                    .eliteAffixes = eliteAffixMask(
+                        debugSpawnEliteAffix_),
+                };
+            }
+            if (pendingChainLightning_) {
+                tickInput.castChainLightning =
+                    CastChainLightningCommand{
+                        .firstTarget =
+                            simulation_.snapshot().aimedEnemy,
+                    };
             }
             tickInput.toggleGate = pendingGateToggle_;
             consumedTransientInput = true;
@@ -656,6 +673,8 @@ void App::update() {
         pendingUnlimitedResources_ = false;
         pendingBuildingUpgrade_.reset();
         pendingBuildingRepair_.reset();
+        pendingRepairAllBuildings_ = false;
+        pendingPurchaseBombBundle_ = false;
         pendingBuildingSale_.reset();
         pendingModularBuildingRemoval_.reset();
         pendingWeaponSelection_.reset();
@@ -668,6 +687,7 @@ void App::update() {
         pendingToggleInvulnerability_ = false;
         pendingDamageCore_ = false;
         pendingSpawnEnemy_ = false;
+        pendingChainLightning_ = false;
         pendingGateToggle_.reset();
     }
     const auto events = simulation_.takeEvents();

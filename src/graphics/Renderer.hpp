@@ -56,6 +56,9 @@ struct WorldMaterialState {
     float hitFlashAmount{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
+    float ghostAmount{};
+    Vector3 ghostTint{0.18F, 0.72F, 1.0F};
+    float ghostOpacity{0.46F};
     // The post-process ink mask is carried by the world pass alpha.  This is
     // a material/render-type flag, never an instance-name convention.
     bool inkOutlineEligible{true};
@@ -377,7 +380,8 @@ class Renderer {
         float animationSeconds, Vector3 position,
         float yawRadians, Color tint = WHITE,
         float scale = 1.0F, bool loop = true,
-        bool inkOutlineEligible = true);
+        bool inkOutlineEligible = true,
+        bool quantizeCrowdPose = false);
     [[nodiscard]] bool drawEnemiesInstanced(
         std::span<const EnemyDrawInstance> instances);
     void drawGrassInstances(Vector3 cameraPosition,
@@ -491,6 +495,9 @@ class Renderer {
         int hitFlashAmount{-1};
         int selectionAmount{-1};
         int selectionTint{-1};
+        int ghostAmount{-1};
+        int ghostTint{-1};
+        int ghostOpacity{-1};
         int shadowMap{-1};
         int lightViewProjection{-1};
         int shadowsEnabled{-1};
@@ -621,6 +628,7 @@ class Renderer {
     int worldSkinningEnabledLocation_{-1};
     int worldInstancingEnabledLocation_{-1};
     int shadowSkinningEnabledLocation_{-1};
+    int shadowInstancingEnabledLocation_{-1};
     int selectionMaskSkinningEnabledLocation_{-1};
     int viewModelTexelSizeLocation_{-1};
     int viewModelOutlineEnabledLocation_{-1};

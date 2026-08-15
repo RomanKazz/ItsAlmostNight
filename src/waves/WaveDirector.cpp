@@ -138,6 +138,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
             });
         }
     }
+    const int eliteCount = applyEliteUpgrades(normalizedWave);
     const int actualRegularBudget =
         std::accumulate(
             spawnBuffer_.begin(), spawnBuffer_.end(), 0,
@@ -152,8 +153,52 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
         .hasBoss = composition.boss,
         .groupSize = composition.groupSize,
         .groupInterval = composition.groupInterval,
+        .eliteCount = eliteCount,
         .spawns = std::span<const EnemySpawn>{spawnBuffer_},
     };
+}
+
+int WaveDirector::applyEliteUpgrades(int wave) {
+    if (wave < 3) {
+        return 0;
+    }
+    std::vector<std::size_t> eligible;
+    eligible.reserve(spawnBuffer_.size());
+    for (std::size_t index = 0; index < spawnBuffer_.size(); ++index) {
+        const EnemyType type = spawnBuffer_[index].type;
+        if (type != EnemyType::Boss && type != EnemyType::Splitling) {
+            eligible.push_back(index);
+        }
+    }
+    if (eligible.empty()) {
+        return 0;
+    }
+
+    int requested = wave <= 4 ? 1 : wave <= 6 ? 2 :
+        2 + (wave - 6) / 2;
+    const int populationLimit = std::max(
+        1, static_cast<int>(std::ceil(
+               static_cast<double>(eligible.size()) * 0.12)));
+    requested = std::clamp(
+        requested, 1,
+        std::min(populationLimit,
+                 static_cast<int>(eligible.size())));
+
+    for (int elite = 0; elite < requested; ++elite) {
+        const std::size_t pick =
+            (static_cast<std::size_t>(wave) * 7U +
+             static_cast<std::size_t>(elite) * 11U) % eligible.size();
+        EnemySpawn& spawn = spawnBuffer_[eligible[pick]];
+        const int affixIndex = (wave + elite * 2) % 3;
+        const EliteAffix affix = affixIndex == 0
+            ? EliteAffix::Berserker
+            : affixIndex == 1 ? EliteAffix::Warden
+                              : EliteAffix::Volatile;
+        spawn.eliteAffixes = eliteAffixMask(affix);
+        eligible.erase(eligible.begin() +
+                       static_cast<std::ptrdiff_t>(pick));
+    }
+    return requested;
 }
 
 WaveDefinition WaveDirector::composition(int wave) const {

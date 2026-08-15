@@ -533,7 +533,13 @@ void Renderer::drawDecorativeRocks(
             resources_.decorativeRockModel(variant).get(),
             decorativeRockTransforms_[variant]);
     }
+    constexpr std::size_t FirstFlowerVariant = 6U;
+    constexpr std::size_t LastFlowerVariant = 7U;
     for (std::size_t variant = 0; variant < BushVariantCount; ++variant) {
+        if (variant >= FirstFlowerVariant &&
+            variant <= LastFlowerVariant) {
+            continue;
+        }
         if (decorativeBushTransforms_[variant].empty() ||
             !resources_.decorativeBushModel(variant).valid()) {
             continue;
@@ -542,6 +548,30 @@ void Renderer::drawDecorativeRocks(
             resources_.decorativeBushModel(variant).get(),
             decorativeBushTransforms_[variant]);
     }
+    // Small flower clusters share the same reserved material tag as grass.
+    // Their RGB stays opaque, while post-process ink ignores both sides of
+    // the flower/terrain boundary. Bushes and the larger plant keep ink.
+    WorldMaterialState flowerMaterial = worldMaterial_;
+    flowerMaterial.baseColor.w = 0.125F;
+    uploadWorldMaterial(flowerMaterial);
+    rlDrawRenderBatchActive();
+    rlSetBlendFactorsSeparate(
+        RL_ONE, RL_ZERO,
+        RL_ONE, RL_ZERO,
+        RL_FUNC_ADD, RL_FUNC_ADD);
+    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+    for (std::size_t variant = FirstFlowerVariant;
+         variant <= LastFlowerVariant; ++variant) {
+        if (decorativeBushTransforms_[variant].empty() ||
+            !resources_.decorativeBushModel(variant).valid()) {
+            continue;
+        }
+        drawInstanced(
+            resources_.decorativeBushModel(variant).get(),
+            decorativeBushTransforms_[variant]);
+    }
+    EndBlendMode();
+    uploadWorldMaterial(worldMaterial_);
     const int disabled = 0;
     rlDrawRenderBatchActive();
     SetShaderValue(

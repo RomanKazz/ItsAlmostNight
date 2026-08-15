@@ -35,6 +35,8 @@ enum class GameEventType {
     PlayerRespawned,
     EnemyKilled,
     EnemySplit,
+    EliteEnemySpawned,
+    EliteVolatilePrimed,
     SunsetStarted,
     AttackDirectionWarned,
     WaveStarted,
@@ -61,6 +63,7 @@ enum class GameEventType {
     FireWandFired,
     FireWandImpact,
     FireWandHit,
+    ChainLightningHit,
     TrapActivated,
     TrapHit,
     WeaponFired,
@@ -86,6 +89,7 @@ enum class GameEventType {
     ChestRerollUnavailable,
     ChestRevealed,
     BombPurchased,
+    AllBuildingsRepaired,
     EconomyPurchaseRejected,
     CrystalStorageFull,
     LootCollected,
@@ -106,6 +110,7 @@ struct GameEvent {
     std::optional<BuildingActionError> buildingActionError;
     std::optional<WeaponUpgradeError> weaponUpgradeError;
     Vec3 position;
+    std::optional<Vec3> targetPosition;
     int amount{};
     int coinAmount{};
     double damage{};

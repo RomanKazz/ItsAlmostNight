@@ -12,6 +12,48 @@ namespace ian {
 
 using namespace app_detail;
 
+namespace {
+
+Color eliteOutlineColor(const EnemyInstance& enemy) {
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Warden)) {
+        return {64, 180, 255, 255};
+    }
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Volatile)) {
+        return {255, 164, 42, 255};
+    }
+    return {255, 70, 62, 255};
+}
+
+struct PropShadowBudget {
+    float treeDistance{};
+    float rockDistance{};
+    float propDistance{};
+    float chestDistance{};
+    std::size_t trees{};
+    std::size_t rocks{};
+    std::size_t props{};
+    std::size_t chests{};
+};
+
+PropShadowBudget propShadowBudget(GraphicsQuality quality) {
+    switch (quality) {
+    case GraphicsQuality::Low:
+        return {30.0F, 24.0F, 28.0F, 30.0F,
+                32U, 24U, 16U, 10U};
+    case GraphicsQuality::Medium:
+        return {38.0F, 30.0F, 34.0F, 38.0F,
+                64U, 48U, 28U, 16U};
+    case GraphicsQuality::High:
+        return {46.0F, 36.0F, 40.0F, 45.0F,
+                96U, 72U, 40U, 24U};
+    }
+    return {};
+}
+
+} // namespace
+
 void App::drawShadowPass(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
@@ -44,6 +86,198 @@ void App::drawShadowPass(
                          static_cast<float>(obstacle.height), depth, WHITE);
             }
         }
+
+        // Static props use real geometry in the shadow map near the player,
+        // but are capped by category. Contact AO remains beyond these
+        // distances, so exceeding a budget cannot create a hard visual gap.
+        const PropShadowBudget shadowBudget = propShadowBudget(
+            renderer_->settings().quality);
+        const auto selectResources =
+            [this, &snapshot, shadowFocus](
+                const auto& predicate, float distance,
+                std::size_t maximumCount) {
+                shadowCandidateBuffer_.clear();
+                shadowCandidateBuffer_.reserve(
+                    snapshot.resourceNodes.size());
+                const float distanceSquared = distance * distance;
+                for (std::size_t index = 0;
+                     index < snapshot.resourceNodes.size(); ++index) {
+                    const ResourceNode& node =
+                        snapshot.resourceNodes[index];
+                    if (!node.active || !predicate(node)) {
+                        continue;
+                    }
+                    const float x = static_cast<float>(
+                        node.position.x) - shadowFocus.x;
+                    const float z = static_cast<float>(
+                        node.position.z) - shadowFocus.z;
+                    const float squared = x * x + z * z;
+                    if (squared <= distanceSquared) {
+                        shadowCandidateBuffer_.emplace_back(
+                            squared, index);
+                    }
+                }
+                if (shadowCandidateBuffer_.size() > maximumCount) {
+                    std::nth_element(
+                        shadowCandidateBuffer_.begin(),
+                        shadowCandidateBuffer_.begin() +
+                            static_cast<std::ptrdiff_t>(maximumCount),
+                        shadowCandidateBuffer_.end());
+                    shadowCandidateBuffer_.resize(maximumCount);
+                }
+            };
+
+        resourceTreeDrawInstances_.clear();
+        selectResources(
+            [](const ResourceNode& node) {
+                return node.type == ResourceType::Wood;
+            },
+            shadowBudget.treeDistance, shadowBudget.trees);
+        resourceTreeDrawInstances_.reserve(
+            shadowCandidateBuffer_.size());
+        for (const auto& [distance, index] : shadowCandidateBuffer_) {
+            (void)distance;
+            const ResourceNode& node = snapshot.resourceNodes[index];
+            const Vec3 hitOffset = presentation::resourceHitOffset(
+                effects_, node.id, node.position);
+            resourceTreeDrawInstances_.push_back({
+                .position = {
+                    static_cast<float>(node.position.x + hitOffset.x),
+                    static_cast<float>(
+                        node.position.y - node.groundOffset),
+                    static_cast<float>(node.position.z + hitOffset.z),
+                },
+                .yawRadians = static_cast<float>(node.visualYaw),
+                .scale = presentation::resourceHitScale(
+                             effects_, node.id) *
+                    static_cast<float>(node.visualScale),
+                .visualVariant = node.visualVariant,
+            });
+        }
+        if (!resourceTreeDrawInstances_.empty() &&
+            !renderer_->drawTreesInstanced(
+                resourceTreeDrawInstances_)) {
+            for (const TreeDrawInstance& tree :
+                 resourceTreeDrawInstances_) {
+                static_cast<void>(renderer_->drawTree(
+                    tree.position, WHITE, tree.scale,
+                    tree.visualVariant, tree.yawRadians));
+            }
+        }
+
+        resourceRockDrawInstances_.clear();
+        selectResources(
+            [](const ResourceNode& node) {
+                return node.type == ResourceType::Stone;
+            },
+            shadowBudget.rockDistance, shadowBudget.rocks);
+        resourceRockDrawInstances_.reserve(
+            shadowCandidateBuffer_.size());
+        for (const auto& [distance, index] : shadowCandidateBuffer_) {
+            (void)distance;
+            const ResourceNode& node = snapshot.resourceNodes[index];
+            const Vec3 hitOffset = presentation::resourceHitOffset(
+                effects_, node.id, node.position);
+            resourceRockDrawInstances_.push_back({
+                .position = {
+                    static_cast<float>(node.position.x + hitOffset.x),
+                    static_cast<float>(
+                        node.position.y - node.groundOffset),
+                    static_cast<float>(node.position.z + hitOffset.z),
+                },
+                .yawRadians = static_cast<float>(node.visualYaw),
+                .scale = presentation::resourceHitScale(
+                    effects_, node.id),
+                .visualVariant = node.visualVariant,
+            });
+        }
+        if (!resourceRockDrawInstances_.empty() &&
+            !renderer_->drawRocksInstanced(
+                resourceRockDrawInstances_)) {
+            for (const RockDrawInstance& rock :
+                 resourceRockDrawInstances_) {
+                static_cast<void>(renderer_->drawRock(
+                    rock.position, WHITE, rock.scale,
+                    rock.visualVariant, rock.yawRadians));
+            }
+        }
+
+        selectResources(
+            [](const ResourceNode& node) {
+                return isDestructibleProp(node.type);
+            },
+            shadowBudget.propDistance, shadowBudget.props);
+        for (const auto& [distance, index] : shadowCandidateBuffer_) {
+            (void)distance;
+            const ResourceNode& node = snapshot.resourceNodes[index];
+            const Vec3 hitOffset = presentation::resourceHitOffset(
+                effects_, node.id, node.position);
+            static_cast<void>(renderer_->drawDestructibleProp(
+                node.type,
+                {
+                    static_cast<float>(node.position.x + hitOffset.x),
+                    static_cast<float>(
+                        node.position.y - node.groundOffset),
+                    static_cast<float>(node.position.z + hitOffset.z),
+                },
+                static_cast<float>(node.visualYaw), WHITE,
+                presentation::resourceHitScale(effects_, node.id) *
+                    static_cast<float>(node.visualScale)));
+        }
+
+        shadowCandidateBuffer_.clear();
+        shadowCandidateBuffer_.reserve(snapshot.lootChests.size());
+        const float chestDistanceSquared =
+            shadowBudget.chestDistance * shadowBudget.chestDistance;
+        for (std::size_t index = 0;
+             index < snapshot.lootChests.size(); ++index) {
+            const LootChestInstance& chest = snapshot.lootChests[index];
+            if (chest.looseLoot ||
+                chest.disappearanceProgress >= 1.0) {
+                continue;
+            }
+            const float x = static_cast<float>(chest.position.x) -
+                shadowFocus.x;
+            const float z = static_cast<float>(chest.position.z) -
+                shadowFocus.z;
+            const float squared = x * x + z * z;
+            if (squared <= chestDistanceSquared) {
+                shadowCandidateBuffer_.emplace_back(squared, index);
+            }
+        }
+        if (shadowCandidateBuffer_.size() > shadowBudget.chests) {
+            std::nth_element(
+                shadowCandidateBuffer_.begin(),
+                shadowCandidateBuffer_.begin() +
+                    static_cast<std::ptrdiff_t>(shadowBudget.chests),
+                shadowCandidateBuffer_.end());
+            shadowCandidateBuffer_.resize(shadowBudget.chests);
+        }
+        for (const auto& [distance, index] : shadowCandidateBuffer_) {
+            (void)distance;
+            const LootChestInstance& chest = snapshot.lootChests[index];
+            const float disappear = smoothstep(
+                0.0F, 1.0F,
+                static_cast<float>(chest.disappearanceProgress));
+            const float bounce = std::sin(disappear * PI) *
+                (1.0F - disappear) * 0.16F;
+            const float scale =
+                1.0F + bounce - disappear * 0.92F;
+            static_cast<void>(renderer_->drawLootChest(
+                chest.type,
+                {
+                    static_cast<float>(chest.position.x +
+                        chest.surfaceNormal.x * disappear * 0.24),
+                    static_cast<float>(chest.position.y +
+                        chest.surfaceNormal.y * disappear * 0.24),
+                    static_cast<float>(chest.position.z +
+                        chest.surfaceNormal.z * disappear * 0.24),
+                },
+                static_cast<float>(chest.yaw),
+                static_cast<float>(chest.openingProgress),
+                WHITE, scale));
+        }
+
         const double modularCellSize =
             simulation_.terrain().config().cellSize;
         const auto animationScales =
@@ -237,8 +471,14 @@ void App::drawSelectionPass(
             return chest.loot.revealProgress > 0.0 &&
                    !chest.loot.collected;
         });
+    const bool hasEliteEnemies = std::any_of(
+        snapshot.enemies.begin(), snapshot.enemies.end(),
+        [](const EnemyInstance& enemy) {
+            return enemy.active && enemy.eliteAffixes != 0U;
+        });
     if (!removalDragActive_ &&
-        (hasVisibleLoot || snapshot.aimedChest || snapshot.aimedResource ||
+        (hasVisibleLoot || hasEliteEnemies ||
+         snapshot.aimedChest || snapshot.aimedResource ||
          snapshot.aimedBuilding || snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
@@ -301,6 +541,40 @@ void App::drawSelectionPass(
                 visual.position, chest.loot.effect,
                 chest.loot.rarity, visual.rotation,
                 visual.tint, visual.scale, surfaceNormal);
+        }
+
+        // Elites remain outlined even without crosshair focus. The mask
+        // stores each enemy's own color, allowing all three variants to
+        // share one outline pass and one texture.
+        for (const EnemyInstance& enemy : snapshot.enemies) {
+            if (!enemy.active || enemy.eliteAffixes == 0U) {
+                continue;
+            }
+            if (snapshot.aimedEnemy &&
+                *snapshot.aimedEnemy == enemy.id) {
+                // The focused enemy is rendered below with its full pose,
+                // matching the non-instanced visible render path.
+                continue;
+            }
+            Vector3 enemyPosition = enemyRenderPosition(enemy);
+            enemyPosition.y += static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy.position.x, enemy.position.z));
+            const float scale = enemyVisualScale(enemy.type) *
+                enemyHitScale(enemy) * 1.08F;
+            renderer_->setSelectionMaskColor(
+                eliteOutlineColor(enemy));
+            renderer_->setSelectionOutlineBounds(
+                renderer_->enemyWorldBounds(
+                    enemyModelVisual(enemy.type), enemyPosition,
+                    static_cast<float>(enemy.yaw), scale));
+            static_cast<void>(renderer_->drawEnemy(
+                enemyModelVisual(enemy.type),
+                enemyAnimationVisual(enemy),
+                enemyAnimationSeconds(
+                    enemy, snapshot.elapsedSeconds),
+                enemyPosition, static_cast<float>(enemy.yaw),
+                WHITE, scale, true, true, true));
         }
         renderer_->setSelectionMaskColor(WHITE);
         if (snapshot.aimedLoot) {
@@ -627,7 +901,12 @@ void App::drawSelectionPass(
                 // on the exact same transform so the outline follows it.
                 const float scale =
                     enemyVisualScale(enemy->type) *
-                    enemyHitScale(*enemy);
+                    enemyHitScale(*enemy) *
+                    (enemy->eliteAffixes != 0U ? 1.08F : 1.0F);
+                renderer_->setSelectionMaskColor(
+                    enemy->eliteAffixes != 0U
+                        ? eliteOutlineColor(*enemy)
+                        : WHITE);
                 renderer_->setSelectionOutlineBounds(
                     renderer_->enemyWorldBounds(
                         enemyModelVisual(enemy->type), enemyPosition,

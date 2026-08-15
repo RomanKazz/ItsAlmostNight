@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "core/DeterministicRandom.hpp"
+#include "core/SaturatingArithmetic.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -37,7 +38,104 @@ double enemyHeight(EnemyType type) {
     return 0.8;
 }
 
+double horizontalDistanceSquared(Vec3 a, Vec3 b) {
+    const double x = a.x - b.x;
+    const double z = a.z - b.z;
+    return x * x + z * z;
+}
+
 } // namespace
+
+void Simulation::castChainLightning(
+    const CastChainLightningCommand& command) {
+    const int maximumTargets =
+        std::clamp(command.maximumTargets, 1, 32);
+    const double jumpRadius =
+        std::clamp(command.jumpRadius, 0.25, 50.0);
+    const double falloff =
+        std::clamp(command.damageFalloff, 0.0, 1.0);
+    double damage = std::max(0.0, command.damage);
+    if (damage <= 0.0) {
+        return;
+    }
+
+    std::optional<EntityId> current = command.firstTarget;
+    if (!current || !enemies_.enemy(*current)) {
+        current = aimedEnemy_;
+    }
+    if (!current || !enemies_.enemy(*current)) {
+        current = enemies_.nearestEnemy(playerPosition_, 24.0);
+    }
+    if (!current) {
+        return;
+    }
+
+    std::vector<EntityId> visited;
+    visited.reserve(static_cast<std::size_t>(maximumTargets));
+    Vec3 sourcePosition = playerPosition_;
+    sourcePosition.y += 0.85;
+    std::optional<EntityId> sourceId;
+
+    for (int jump = 0; jump < maximumTargets && current;
+         ++jump) {
+        const auto target = enemies_.enemy(*current);
+        if (!target || !target->active) {
+            break;
+        }
+        Vec3 targetPosition = target->position;
+        targetPosition.y += target->worldSurfaceHeight + 0.15;
+        const auto result = enemies_.damage(*current, damage);
+        if (!result) {
+            break;
+        }
+
+        events_.push_back({
+            .type = GameEventType::ChainLightningHit,
+            .entityId = current,
+            .sourceId = sourceId,
+            .position = sourcePosition,
+            .targetPosition = targetPosition,
+            .amount = jump,
+            .damage = result->damage,
+            .intensity = damage,
+        });
+        if (result->killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = current,
+                .position = result->position,
+            });
+            if (aimedEnemy_ == current) {
+                aimedEnemy_.reset();
+            }
+        }
+
+        visited.push_back(*current);
+        sourceId = current;
+        sourcePosition = targetPosition;
+        damage *= falloff;
+
+        std::optional<EntityId> next;
+        double closestDistanceSquared = jumpRadius * jumpRadius;
+        for (const EnemyInstance& candidate : enemies_.enemies()) {
+            if (!candidate.active ||
+                std::ranges::find(visited, candidate.id) !=
+                    visited.end()) {
+                continue;
+            }
+            const double distanceSquared =
+                horizontalDistanceSquared(
+                    target->position, candidate.position);
+            if (distanceSquared < closestDistanceSquared ||
+                (distanceSquared == closestDistanceSquared &&
+                 (!next || candidate.id.index < next->index))) {
+                next = candidate.id;
+                closestDistanceSquared = distanceSquared;
+            }
+        }
+        current = next;
+    }
+}
 
 void Simulation::processDebugCommands(
     const PlayerCommand& command) {
@@ -176,6 +274,8 @@ void Simulation::processDebugCommands(
                     spawns.push_back({
                         .type = command.spawnEnemy->type,
                         .position = position,
+                        .eliteAffixes =
+                            command.spawnEnemy->eliteAffixes,
                     });
                     break;
                 }
@@ -184,6 +284,9 @@ void Simulation::processDebugCommands(
                 enemies_.spawnGroup(spawns);
             }
         }
+    }
+    if (command.castChainLightning) {
+        castChainLightning(*command.castChainLightning);
     }
     if (command.toggleWeapon) {
         cycleUnlockedTool();
@@ -236,19 +339,24 @@ void Simulation::processDebugCommands(
     }
     if (command.upgradeWeapon) {
         if (playerWeapons_.selectedWeapon() == PlayerWeapon::Bomb) {
+            const int bombCost = saturatingAdd(
+                economy_.bombPurchaseCoinCost,
+                saturatingMultiplyNonNegative(
+                    economy_.bombPurchaseCoinCostPerWave, wave_));
             if (unlimitedResources_ ||
-                coins_ >= economy_.bombPurchaseCoinCost) {
+                coins_ >= bombCost) {
                 if (!unlimitedResources_)
-                    coins_ -= economy_.bombPurchaseCoinCost;
-                bombs_.addBombs(1);
+                    coins_ -= bombCost;
+                bombs_.addBombs(economy_.bombPurchaseAmount);
                 events_.push_back({
                     .type = GameEventType::BombPurchased,
-                    .amount = economy_.bombPurchaseCoinCost,
+                    .amount = bombCost,
+                    .coinAmount = economy_.bombPurchaseAmount,
                 });
             } else {
                 events_.push_back({
                     .type = GameEventType::EconomyPurchaseRejected,
-                    .amount = economy_.bombPurchaseCoinCost,
+                    .amount = bombCost,
                 });
             }
             return;
@@ -282,6 +390,9 @@ void Simulation::processDebugCommands(
             nextWaveSpawnIndex_ = waveSpawnQueue_.size();
         }
         enemies_.defeatAll();
+        // The debug wave-clear command must not turn every volatile elite
+        // into a delayed base-wiping explosion.
+        static_cast<void>(enemies_.takeEliteDeathEvents());
         enemies_.clearProjectiles();
     }
 }

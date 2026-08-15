@@ -40,6 +40,58 @@ void runEnemySystemTests() {
             resetIds.enemies().front().id != beforeReset,
             "enemy reset never aliases a previous run ID");
     }
+    {
+        constexpr std::array<ian::EnemySpawn, 3> EliteSpawns{{
+            {
+                .type = ian::EnemyType::Basic,
+                .position = {0.0, 0.8, 0.0},
+                .eliteAffixes = ian::eliteAffixMask(
+                    ian::EliteAffix::Warden),
+            },
+            {
+                .type = ian::EnemyType::Basic,
+                .position = {2.0, 0.8, 0.0},
+            },
+            {
+                .type = ian::EnemyType::Basic,
+                .position = {10.0, 0.8, 0.0},
+                .eliteAffixes = ian::eliteAffixMask(
+                    ian::EliteAffix::Volatile),
+            },
+        }};
+        ian::EnemySystem eliteEnemies;
+        eliteEnemies.spawnWave(EliteSpawns);
+        const auto spawnEvents =
+            eliteEnemies.takeEliteSpawnEvents();
+        require(
+            spawnEvents.size() == 2U &&
+                eliteEnemies.enemies()[0].maxHealth >
+                    eliteEnemies.enemies()[1].maxHealth,
+            "elite spawns carry affixes and increased health");
+        const auto protectedHit = eliteEnemies.damage(
+            eliteEnemies.enemies()[1].id, 1.0);
+        const auto wardenHit = eliteEnemies.damage(
+            eliteEnemies.enemies()[0].id, 1.0);
+        require(
+            protectedHit && wardenHit &&
+                std::abs(protectedHit->damage - 0.75) < 1e-9 &&
+                std::abs(wardenHit->damage - 1.0) < 1e-9,
+            "warden protects nearby allies but not itself");
+        const ian::EntityId volatileId =
+            eliteEnemies.enemies()[2].id;
+        require(
+            eliteEnemies.damage(volatileId, 1000.0)->killed,
+            "volatile elite fixture dies");
+        const auto eliteDeaths =
+            eliteEnemies.takeEliteDeathEvents();
+        require(
+            eliteDeaths.size() == 1U &&
+                eliteDeaths.front().id == volatileId &&
+                ian::hasEliteAffix(
+                    eliteDeaths.front().affixes,
+                    ian::EliteAffix::Volatile),
+            "volatile death is preserved for delayed explosion");
+    }
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "enemy fixture creates core");

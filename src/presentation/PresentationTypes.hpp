@@ -43,6 +43,9 @@ enum class PresentationEffectType {
     IceImpact,
     IceCrack,
     FireImpact,
+    ChainLightning,
+    EliteSpawn,
+    VolatileCharge,
     Debris,
     LandingDust,
     RamImpact,
@@ -57,10 +60,12 @@ struct PresentationEffect {
     PresentationEffectType type;
     std::optional<EntityId> entityId;
     Vec3 position;
+    std::optional<Vec3> targetPosition;
     double remaining;
     double duration;
     double startDelayRemaining{};
     float scale{1.0F};
+    int variant{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };

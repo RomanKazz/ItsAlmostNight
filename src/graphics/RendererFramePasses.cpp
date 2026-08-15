@@ -337,9 +337,6 @@ void Renderer::endWorldPass() {
     if (usingOffscreenTarget_) {
         EndTextureMode();
         drawSsaoPass();
-        BeginDrawing();
-        ClearBackground(BLACK);
-
         const auto& target = resources_.sceneTarget();
         const Rectangle source{
             0.0F,
@@ -353,18 +350,53 @@ void Renderer::endWorldPass() {
             static_cast<float>(GetScreenWidth()),
             static_cast<float>(GetScreenHeight()),
         };
-        if (resources_.postProcessShader().valid()) {
+        const bool useFxaa =
+            resources_.postProcessShader().valid() &&
+            resources_.fxaaShader().valid() &&
+            resources_.postProcessTargetValid();
+        if (useFxaa) {
+            const RenderTexture2D& postTarget =
+                resources_.postProcessTarget();
+            BeginTextureMode(postTarget);
+            ClearBackground(BLACK);
             uploadPostProcessSettings();
             BeginShaderMode(
                 resources_.postProcessShader().get());
             DrawTexturePro(
-                target.texture, source, destination,
+                target.texture, source,
+                {0.0F, 0.0F,
+                 static_cast<float>(postTarget.texture.width),
+                 static_cast<float>(postTarget.texture.height)},
                 {0.0F, 0.0F}, 0.0F, WHITE);
             EndShaderMode();
-        } else {
+            EndTextureMode();
+
+            BeginDrawing();
+            ClearBackground(BLACK);
+            BeginShaderMode(resources_.fxaaShader().get());
             DrawTexturePro(
-                target.texture, source, destination,
-                {0.0F, 0.0F}, 0.0F, WHITE);
+                postTarget.texture,
+                {0.0F, 0.0F,
+                 static_cast<float>(postTarget.texture.width),
+                 -static_cast<float>(postTarget.texture.height)},
+                destination, {0.0F, 0.0F}, 0.0F, WHITE);
+            EndShaderMode();
+        } else {
+            BeginDrawing();
+            ClearBackground(BLACK);
+            if (resources_.postProcessShader().valid()) {
+                uploadPostProcessSettings();
+                BeginShaderMode(
+                    resources_.postProcessShader().get());
+                DrawTexturePro(
+                    target.texture, source, destination,
+                    {0.0F, 0.0F}, 0.0F, WHITE);
+                EndShaderMode();
+            } else {
+                DrawTexturePro(
+                    target.texture, source, destination,
+                    {0.0F, 0.0F}, 0.0F, WHITE);
+            }
         }
     }
     worldPassOpen_ = false;

@@ -5,10 +5,12 @@ in vec3 vertexPosition;
 // integer-pointer API required by an ivec4 input.
 in vec4 vertexBoneIndices;
 in vec4 vertexBoneWeights;
+in mat4 instanceTransform;
 
 uniform mat4 mvp;
 uniform mat4 boneMatrices[48];
 uniform int skinningEnabled;
+uniform int instancingEnabled;
 
 void main()
 {
@@ -25,6 +27,9 @@ void main()
              boneMatrices[safeBoneIndices.w]*vertexBoneWeights.w) /
             skinWeight;
     }
-    gl_Position =
-        mvp*skinMatrix*vec4(vertexPosition, 1.0);
+    vec4 localPosition =
+        skinMatrix*vec4(vertexPosition, 1.0);
+    gl_Position = instancingEnabled != 0
+        ? mvp*instanceTransform*localPosition
+        : mvp*localPosition;
 }

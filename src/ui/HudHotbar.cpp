@@ -625,7 +625,9 @@ void drawWeaponHotbar(
                         ? "INF"
                         : std::to_string(snapshot.bombsRemaining)) +
                     (snapshot.selectedWeapon == PlayerWeapon::Bomb
-                         ? " · V +1/" +
+                         ? " · V +" +
+                               std::to_string(snapshot.bombPurchaseAmount) +
+                               "/" +
                                std::to_string(snapshot.bombPurchaseCoinCost)
                          : "")
                 : weapon == PlayerWeapon::BareHands

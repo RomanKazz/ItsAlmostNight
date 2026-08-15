@@ -109,9 +109,16 @@ void runLootChestSystemTests() {
                 deliveredChest.position.z) <=
                 DeliveryRadius + 1e-9,
         "preferred delivery spawns additional chest near base");
+    require(
+        chests.openingCost(deliveredChest) == 0,
+        "post-wave reward chests remain free to open");
 
     const ian::EntityId id = chests.chests().front().id;
-    const int cost = chests.chests().front().coinCost;
+    chests.setOpeningCostSurcharge(8);
+    const int cost = chests.openingCost(chests.chests().front());
+    require(
+        cost == chests.chests().front().coinCost + 8,
+        "exploration chest opening cost scales with wave surcharge");
     require(
         std::ranges::none_of(
             chests.chests(),
@@ -159,15 +166,15 @@ void runLootChestSystemTests() {
                 opened.loot.revealProgress == 1.0,
             "completed opening reveals one hovering loot item");
     const auto previousEffect = opened.loot.effect;
-    int poorRerollCoins = 9;
+    int poorRerollCoins = 14;
     require(
-        chests.reroll(id, poorRerollCoins, 10) ==
+        chests.reroll(id, poorRerollCoins, 15) ==
                 ian::ChestRerollResult::InsufficientCoins &&
-            poorRerollCoins == 9,
+            poorRerollCoins == 14,
         "failed revealed-item reroll does not spend coins");
-    int rerollCoins = 10;
+    int rerollCoins = 15;
     require(
-        chests.reroll(id, rerollCoins, 10) ==
+        chests.reroll(id, rerollCoins, 15) ==
                 ian::ChestRerollResult::Rerolled &&
             rerollCoins == 0 &&
             chests.chests().front().rerolling &&
@@ -186,12 +193,26 @@ void runLootChestSystemTests() {
             chests.chests().front().loot.available &&
             chests.chests().front().loot.effect != previousEffect,
         "reroll settles on a different collectible item");
-    int secondRerollCoins = 10;
+    int secondRerollCoins = 30;
     require(
-        chests.reroll(id, secondRerollCoins, 10) ==
+        chests.reroll(id, secondRerollCoins, 30) ==
+                ian::ChestRerollResult::Rerolled &&
+            secondRerollCoins == 0,
+        "ordinary chest permits a second escalating reroll");
+    chests.tick(0.6);
+    int thirdRerollCoins = 60;
+    require(
+        chests.reroll(id, thirdRerollCoins, 60) ==
+                ian::ChestRerollResult::Rerolled &&
+            thirdRerollCoins == 0,
+        "ordinary chest permits a third escalating reroll");
+    chests.tick(0.6);
+    int exhaustedRerollCoins = 60;
+    require(
+        chests.reroll(id, exhaustedRerollCoins, 60) ==
                 ian::ChestRerollResult::AlreadyRerolled &&
-            secondRerollCoins == 10,
-        "ordinary chest permits only one reroll");
+            exhaustedRerollCoins == 60,
+        "ordinary chest stops charging after three rerolls");
     const ian::Vec3 visualPosition = ian::lootVisualPosition(opened);
     require(std::isfinite(visualPosition.x) &&
                 std::isfinite(visualPosition.y) &&

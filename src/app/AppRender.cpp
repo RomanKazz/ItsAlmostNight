@@ -579,7 +579,9 @@ void App::render() {
                 const BoundingBox bounds = renderer_->enemyWorldBounds(
                     enemyModelVisual(enemy.type), position,
                     static_cast<float>(enemy.yaw),
-                    enemyVisualScale(enemy.type));
+                    enemyVisualScale(enemy.type) *
+                        (enemy.eliteAffixes != 0U
+                            ? 1.08F : 1.0F));
                 return world_transforms::finite(bounds)
                     ? std::optional<BoundingBox>{bounds}
                     : std::nullopt;

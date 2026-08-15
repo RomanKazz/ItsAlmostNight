@@ -53,6 +53,76 @@ void runSimulationTests() {
             "placing a building completes its small Insight objective");
     }
     {
+        ian::GameBalance lightningBalance =
+            ian::GameBalance::defaults();
+        lightningBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        lightningBalance.enemies[static_cast<std::size_t>(
+            ian::EnemyType::Heavy)].health = 100.0;
+        ian::MapDefinition lightningMap =
+            ian::MapDefinition::defaults();
+        lightningMap.obstacles.clear();
+        ian::WorldConfig lightningWorld =
+            ian::WorldConfig::defaults();
+        lightningWorld.terrainAmplitude = 0.0;
+        ian::Simulation lightningSimulation{
+            lightningBalance, lightningMap, lightningWorld};
+        lightningSimulation.startRun();
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        lightningSimulation.tick(1.0 / 60.0, placeCore);
+        ian::PlayerCommand spawnEnemies;
+        spawnEnemies.spawnEnemy = ian::SpawnEnemyCommand{
+            ian::EnemyType::Heavy, 4};
+        lightningSimulation.tick(1.0 / 60.0, spawnEnemies);
+        const auto before = lightningSimulation.snapshot();
+        require(before.enemies.size() >= 4,
+                "chain lightning fixture spawns enemies");
+        const ian::EntityId firstTarget = before.enemies.front().id;
+        static_cast<void>(lightningSimulation.takeEvents());
+
+        ian::PlayerCommand castLightning;
+        castLightning.castChainLightning =
+            ian::CastChainLightningCommand{
+                .firstTarget = firstTarget,
+                .damage = 20.0,
+                .jumpRadius = 50.0,
+                .damageFalloff = 0.5,
+                .maximumTargets = 3,
+            };
+        lightningSimulation.tick(1.0 / 60.0, castLightning);
+        const auto lightningEvents =
+            lightningSimulation.takeEvents();
+        std::vector<const ian::GameEvent*> hits;
+        for (const ian::GameEvent& event : lightningEvents) {
+            if (event.type ==
+                ian::GameEventType::ChainLightningHit) {
+                hits.push_back(&event);
+            }
+        }
+        require(hits.size() == 3,
+                "chain lightning respects its target cap");
+        requireNear(hits[0]->damage, 20.0, 1e-9,
+                    "first lightning target receives full damage");
+        requireNear(hits[1]->damage, 10.0, 1e-9,
+                    "lightning damage falls off on first jump");
+        requireNear(hits[2]->damage, 5.0, 1e-9,
+                    "lightning damage falls off on second jump");
+        require(
+            hits[0]->entityId != hits[1]->entityId &&
+                hits[0]->entityId != hits[2]->entityId &&
+                hits[1]->entityId != hits[2]->entityId,
+            "chain lightning never strikes one enemy twice");
+        require(
+            !hits[0]->sourceId && hits[1]->sourceId &&
+                hits[2]->sourceId &&
+                hits[0]->targetPosition &&
+                hits[1]->targetPosition &&
+                hits[2]->targetPosition,
+            "lightning events preserve every visual segment");
+    }
+    {
         ian::GameBalance defeatBalance =
             ian::GameBalance::defaults();
         defeatBalance.buildings[static_cast<std::size_t>(
@@ -2335,6 +2405,27 @@ void runSimulationTests() {
         require(firstPosition.x != secondPosition.x ||
                     firstPosition.z != secondPosition.z,
                 "daytime debug spawns use different positions");
+
+        ian::PlayerCommand spawnElite;
+        spawnElite.spawnEnemy = ian::SpawnEnemyCommand{
+            .type = ian::EnemyType::Fast,
+            .count = 1,
+            .eliteAffixes = ian::eliteAffixMask(
+                ian::EliteAffix::Berserker),
+        };
+        daytimeSpawning.tick(1.0 / 60.0, spawnElite);
+        const auto eliteSnapshot = daytimeSpawning.snapshot();
+        const auto elite = std::find_if(
+            eliteSnapshot.enemies.begin(),
+            eliteSnapshot.enemies.end(),
+            [](const ian::EnemyInstance& enemy) {
+                return enemy.active && ian::hasEliteAffix(
+                    enemy.eliteAffixes,
+                    ian::EliteAffix::Berserker);
+            });
+        require(
+            elite != eliteSnapshot.enemies.end(),
+            "debug command spawns selected elite variant");
     }
 
     auto simulationBalance = ian::GameBalance::defaults();

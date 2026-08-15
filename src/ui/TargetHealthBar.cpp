@@ -43,6 +43,38 @@ Color withOpacity(Color color, float opacity) {
     return color;
 }
 
+Color enemyHealthColor(const EnemyInstance& enemy) {
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Warden)) {
+        return {72, 169, 244, 255};
+    }
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Volatile)) {
+        return {244, 151, 46, 255};
+    }
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Berserker)) {
+        return {239, 70, 61, 255};
+    }
+    return {224, 66, 58, 255};
+}
+
+const char* eliteAffixLabel(const EnemyInstance& enemy) {
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Warden)) {
+        return "WARDEN";
+    }
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Volatile)) {
+        return "VOLATILE";
+    }
+    if (hasEliteAffix(
+            enemy.eliteAffixes, EliteAffix::Berserker)) {
+        return "BERSERKER";
+    }
+    return "";
+}
+
 } // namespace
 
 void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
@@ -87,13 +119,40 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             static_cast<float>(enemy.position.z)};
     };
 
+    const auto drawEliteLabel = [&](const EnemyInstance& enemy,
+                                    Vector3 anchor,
+                                    float opacity = 1.0F) {
+        if (enemy.eliteAffixes == 0U) {
+            return;
+        }
+        Vector3 forward = Vector3Subtract(
+            anchor, camera.position);
+        forward = Vector3LengthSqr(forward) > 0.0001F
+            ? Vector3Normalize(forward)
+            : Vector3{0.0F, 0.0F, -1.0F};
+        Vector3 right = Vector3CrossProduct(
+            forward, camera.up);
+        right = Vector3LengthSqr(right) > 0.0001F
+            ? Vector3Normalize(right)
+            : Vector3{1.0F, 0.0F, 0.0F};
+        const Vector3 up = Vector3Normalize(
+            Vector3CrossProduct(right, forward));
+        drawWorldBillboardText(
+            eliteAffixLabel(enemy),
+            Vector3Add(anchor, Vector3Scale(up, 0.27F)),
+            0.135F, camera, right, up,
+            withOpacity(enemyHealthColor(enemy), opacity));
+    };
+
     const auto drawEnemyBar = [&](const EnemyInstance& enemy,
                                   float opacity = 1.0F) {
+        const Vector3 anchor = enemyAnchor(enemy);
         drawBillboard(
             {TargetKind::Enemy, enemy.id},
-            enemyAnchor(enemy),
+            anchor,
             enemy.health, enemy.maxHealth,
-            {224, 66, 58, 255}, camera, 0, opacity);
+            enemyHealthColor(enemy), camera, 0, opacity);
+        drawEliteLabel(enemy, anchor, opacity);
     };
 
     const auto resourceAnchor = [&](const ResourceNode& resource) {
@@ -230,6 +289,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
     }
 
     std::optional<Visual> candidate;
+    const EnemyInstance* aimedEnemy = nullptr;
     if (snapshot.aimedResource) {
         const auto resource = std::find_if(
             snapshot.resourceNodes.begin(), snapshot.resourceNodes.end(),
@@ -361,12 +421,13 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                        candidate.id == *snapshot.aimedEnemy;
         });
         if (enemy != snapshot.enemies.end()) {
+            aimedEnemy = &*enemy;
             candidate = Visual{
                 .target = {TargetKind::Enemy, enemy->id},
                 .anchorPosition = enemyAnchor(*enemy),
                 .health = enemy->health,
                 .maxHealth = enemy->maxHealth,
-                .fillColor = {224, 66, 58, 255},
+                .fillColor = enemyHealthColor(*enemy),
             };
         }
     }
@@ -397,6 +458,12 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             visual.health, visual.maxHealth,
             visual.fillColor, camera, visual.buildingLevel,
             opacity_);
+        if (aimedEnemy &&
+            visual.target.kind == TargetKind::Enemy &&
+            visual.target.id == aimedEnemy->id) {
+            drawEliteLabel(
+                *aimedEnemy, visual.anchorPosition, opacity_);
+        }
     }
     if (!candidate && opacity_ <= 0.005F) {
         activeVisual_.reset();

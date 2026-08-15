@@ -1022,6 +1022,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                                  "assets/shaders/selection_outline.fs");
     postProcessShader_.load(
         nullptr, "assets/shaders/postprocess.fs");
+    fxaaShader_.load(nullptr, "assets/shaders/fxaa.fs");
     ssaoShader_.load(nullptr, "assets/shaders/ssao.fs");
     viewModelCompositeShader_.load(
         nullptr, "assets/shaders/viewmodel_composite.fs");
@@ -1253,6 +1254,7 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
 
     if (!settings.postProcessing) {
         sceneTarget_.unload();
+        postProcessTarget_.unload();
         ssaoTarget_.unload();
         requestedSceneWidth_ = 0;
         requestedSceneHeight_ = 0;
@@ -1283,6 +1285,15 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
             sceneTarget_.loadScreenSpace(desiredWidth, desiredHeight);
         } else {
             sceneTarget_.load(desiredWidth, desiredHeight);
+        }
+    }
+    if (!postProcessTarget_.valid() ||
+        postProcessTarget_.get().texture.width != desiredWidth ||
+        postProcessTarget_.get().texture.height != desiredHeight) {
+        postProcessTarget_.load(desiredWidth, desiredHeight);
+        if (postProcessTarget_.valid()) {
+            SetTextureFilter(postProcessTarget_.get().texture,
+                             TEXTURE_FILTER_BILINEAR);
         }
     }
 
@@ -1447,6 +1458,7 @@ void GraphicsResources::shutdown() {
     heartOutlineShader_.unload();
     grassShader_.unload();
     ssaoShader_.unload();
+    fxaaShader_.unload();
     postProcessShader_.unload();
     viewModelCompositeShader_.unload();
     selectionOutlineShader_.unload();
@@ -1458,6 +1470,7 @@ void GraphicsResources::shutdown() {
     shadowShader_.unload();
     worldShader_.unload();
     sceneTarget_.unload();
+    postProcessTarget_.unload();
     selectionMaskTarget_.unload();
     requestedSceneWidth_ = 0;
     requestedSceneHeight_ = 0;

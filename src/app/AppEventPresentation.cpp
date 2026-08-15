@@ -83,7 +83,9 @@ void App::processPresentationEvents(
             const BoundingBox bounds = renderer_->enemyWorldBounds(
                 enemyModelVisual(enemy->type), position,
                 static_cast<float>(enemy->yaw),
-                enemyVisualScale(enemy->type));
+                enemyVisualScale(enemy->type) *
+                    (enemy->eliteAffixes != 0U
+                        ? 1.08F : 1.0F));
             if (!world_transforms::finite(bounds)) {
                 return fallback;
             }
@@ -98,7 +100,8 @@ void App::processPresentationEvents(
              !event.sourceId) ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
-            event.type == GameEventType::FireWandHit;
+            event.type == GameEventType::FireWandHit ||
+            event.type == GameEventType::ChainLightningHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
         }
@@ -192,6 +195,7 @@ void App::processPresentationEvents(
             event.type == GameEventType::ResourceHit ||
             event.type == GameEventType::ResourceCollected ||
             event.type == GameEventType::PickaxeHit ||
+            event.type == GameEventType::ChainLightningHit ||
             (event.type == GameEventType::ProjectileHit &&
              !event.sourceId);
         if (playerHit) {
@@ -307,7 +311,47 @@ void App::processPresentationEvents(
             hitStopRemaining_ =
                 std::max(hitStopRemaining_, 0.045);
         }
-        if (event.type == GameEventType::ResourceHit) {
+        if (event.type == GameEventType::EliteEnemySpawned) {
+            addEffect(
+                PresentationEffectType::EliteSpawn,
+                event.position, 0.72, 1.0F,
+                event.entityId);
+        } else if (
+            event.type == GameEventType::EliteVolatilePrimed) {
+            addEffect(
+                PresentationEffectType::VolatileCharge,
+                event.position,
+                event.intensity > 0.0 ? event.intensity : 1.15,
+                1.0F, event.entityId);
+        } else if (event.type == GameEventType::ChainLightningHit &&
+            event.entityId && event.targetPosition) {
+            constexpr std::size_t MaxEffects = 128;
+            if (effects_.size() >= MaxEffects) {
+                effects_.erase(effects_.begin());
+            }
+            const Vec3 target = enemyDamageAnchor(
+                *event.entityId, *event.targetPosition);
+            const Vec3 source = event.sourceId
+                ? enemyDamageAnchor(
+                      *event.sourceId, event.position)
+                : event.position;
+            effects_.push_back({
+                .type = PresentationEffectType::ChainLightning,
+                .entityId = event.entityId,
+                .position = source,
+                .targetPosition = target,
+                .remaining = 0.30,
+                .duration = 0.30,
+                .startDelayRemaining =
+                    static_cast<double>(event.amount) * 0.045,
+                .scale = 1.0F,
+                .variant = event.amount,
+            });
+            addFloatingDamageNumber(
+                target, event.damage, false);
+            addCameraShake(
+                0.10, event.amount == 0 ? 0.025 : 0.012);
+        } else if (event.type == GameEventType::ResourceHit) {
             toolContactHoldRemaining_ = std::max(
                 toolContactHoldRemaining_, 0.025);
         } else if (event.type == GameEventType::ResourceCollected) {
@@ -758,6 +802,7 @@ void App::processPresentationEvents(
                 constexpr double DeathDuration = 0.9;
                 destroyedEnemyVisuals_.push_back({
                     .type = enemy->type,
+                    .eliteAffixes = enemy->eliteAffixes,
                     .position = enemy->position,
                     .surfaceHeightOffset =
                         enemy->surfaceHeightOffset,
@@ -905,7 +950,11 @@ void App::processPresentationEvents(
             message = "Nearest chest revealed: -" +
                 std::to_string(event.amount) + " Coins";
         } else if (event.type == GameEventType::BombPurchased) {
-            message = "Bomb purchased: -" +
+            message = "+" + std::to_string(event.coinAmount) +
+                " bombs: -" +
+                std::to_string(event.amount) + " Coins";
+        } else if (event.type == GameEventType::AllBuildingsRepaired) {
+            message = "All structures repaired: -" +
                 std::to_string(event.amount) + " Coins";
         } else if (event.type == GameEventType::EconomyPurchaseRejected) {
             message = "Not enough Coins";

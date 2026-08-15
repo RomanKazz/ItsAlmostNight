@@ -264,6 +264,28 @@ void AudioSystem::playEvent(
             iceHitSoundCooldown_ = 0.045;
         }
         break;
+    case GameEventType::ChainLightningHit: {
+        const Vec3 impact =
+            event.targetPosition.value_or(event.position);
+        if (event.amount == 0) {
+            // Layer a sharp electrical crack over a short low transient.
+            // Following jumps are quieter so a long chain stays readable.
+            playAt(
+                rifleShot_, impact, snapshot, 0.24F,
+                1.72F * variedPitch(0.022F), 38.0F);
+            playAt(
+                critical_, impact, snapshot, 0.18F,
+                1.34F * variedPitch(0.018F), 36.0F);
+        } else if (iceHitSoundCooldown_ <= 0.0) {
+            playAt(
+                enemyHit_, impact, snapshot, 0.13F,
+                (1.76F + static_cast<float>(event.amount) * 0.035F) *
+                    variedPitch(0.02F),
+                30.0F);
+            iceHitSoundCooldown_ = 0.035;
+        }
+        break;
+    }
     case GameEventType::CannonFired:
         playAt(
             rifleShot_, event.position, snapshot, 0.48F,
@@ -288,6 +310,16 @@ void AudioSystem::playEvent(
                variedPitch(0.04F) * 0.68F, 34.0F);
         playAt(critical_, event.position, snapshot, 0.22F,
                variedPitch(0.03F) * 1.28F, 30.0F);
+        break;
+    case GameEventType::EliteEnemySpawned:
+        playAt(
+            waveWarning_, event.position, snapshot,
+            0.30F, 1.32F * variedPitch(0.025F), 42.0F);
+        break;
+    case GameEventType::EliteVolatilePrimed:
+        playAt(
+            critical_, event.position, snapshot,
+            0.22F, 0.72F * variedPitch(0.02F), 34.0F);
         break;
     case GameEventType::BuildingPlaced:
         playAt(
@@ -434,6 +466,7 @@ void AudioSystem::playEvent(
     case GameEventType::ChestRerolled:
     case GameEventType::ChestRevealed:
     case GameEventType::BombPurchased:
+    case GameEventType::AllBuildingsRepaired:
         play(uiConfirm_, 0.52F, 1.08F);
         break;
     case GameEventType::LootCollected:

@@ -10,6 +10,75 @@ namespace ian {
 
 void Simulation::processBuildingActions(
     const PlayerCommand& command) {
+    if (command.purchaseBombBundle) {
+        const int cost = saturatingAdd(
+            economy_.bombPurchaseCoinCost,
+            saturatingMultiplyNonNegative(
+                economy_.bombPurchaseCoinCostPerWave, wave_));
+        const bool bombsUnlocked = unlimitedResources_ ||
+            skillTree_.hasEffect("unlock.bombs");
+        if (bombsUnlocked &&
+            (unlimitedResources_ || coins_ >= cost)) {
+            if (!unlimitedResources_) coins_ -= cost;
+            bombs_.addBombs(economy_.bombPurchaseAmount);
+            events_.push_back({
+                .type = GameEventType::BombPurchased,
+                .amount = cost,
+                .coinAmount = economy_.bombPurchaseAmount,
+            });
+        } else {
+            events_.push_back({
+                .type = GameEventType::EconomyPurchaseRejected,
+                .amount = cost,
+            });
+        }
+    }
+
+    if (command.repairAllBuildings) {
+        const int cost = saturatingAdd(
+            economy_.repairAllCoinCost,
+            saturatingMultiplyNonNegative(
+                economy_.repairAllCoinCostPerWave, wave_));
+        const bool damaged =
+            std::ranges::any_of(
+                buildings_.buildings(), [](const BuildingInstance& building) {
+                    return building.health < building.maxHealth;
+                }) ||
+            std::ranges::any_of(
+                foundations_.platformFrames(), [](const auto& building) {
+                    return building.health < building.maxHealth;
+                }) ||
+            std::ranges::any_of(
+                foundations_.walls(), [](const auto& building) {
+                    return building.health < building.maxHealth;
+                }) ||
+            std::ranges::any_of(
+                foundations_.ramps(), [](const auto& building) {
+                    return building.health < building.maxHealth;
+                });
+        if (!damaged) {
+            events_.push_back({
+                .type = GameEventType::BuildingRepairRejected,
+                .buildingActionError = BuildingActionError::FullHealth,
+            });
+        } else if (unlimitedResources_ || coins_ >= cost) {
+            if (!unlimitedResources_) coins_ -= cost;
+            const double restored =
+                buildings_.restoreHealthFraction(1.0) +
+                foundations_.restoreHealthFraction(1.0);
+            events_.push_back({
+                .type = GameEventType::AllBuildingsRepaired,
+                .amount = cost,
+                .intensity = restored,
+            });
+        } else {
+            events_.push_back({
+                .type = GameEventType::EconomyPurchaseRejected,
+                .amount = cost,
+            });
+        }
+    }
+
     if (!selectedBuilding_ && command.upgradeBuilding) {
         const int availableWood =
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;

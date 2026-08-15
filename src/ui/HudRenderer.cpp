@@ -520,8 +520,10 @@ void drawBuildingContextCard(
               snapshot.aimedBuildingUpgradeCost->stone &&
           snapshot.crystals >=
               snapshot.aimedBuildingUpgradeCost->crystals));
-    constexpr std::string_view ActionPrefix =
-        "Q  COPY    F  REPAIR    ";
+    const bool coreActions = building.type == BuildingType::Core;
+    const std::string actionPrefix = coreActions
+        ? "Q  COPY    F  REPAIR ALL    "
+        : "Q  COPY    F  REPAIR    ";
     constexpr float ActionFontSize = 14.0F;
     if (upgradeAffordable) {
         const float glowPulse =
@@ -532,7 +534,7 @@ void drawBuildingContextCard(
         const float upgradeX =
             x + 24.0F +
             measureUiText(
-                ActionPrefix, ActionFontSize).x -
+                actionPrefix, ActionFontSize).x -
             7.0F;
         const Rectangle glowBounds{
             upgradeX, y + 332.0F, 150.0F, 34.0F};
@@ -558,7 +560,7 @@ void drawBuildingContextCard(
                actionKeyLabel(controls, ControlAction::Copy) +
                    "  COPY    " +
                    actionKeyLabel(controls, ControlAction::Repair) +
-                   "  REPAIR    " +
+                   (coreActions ? "  REPAIR ALL    " : "  REPAIR    ") +
                    actionKeyLabel(controls, ControlAction::Upgrade) +
                    "  UPGRADE",
                {x + 24.0F, y + 340.0F}, 14.0F,
@@ -566,6 +568,18 @@ void drawBuildingContextCard(
     std::string actions;
     if (building.type != BuildingType::Core) {
         actions = "X  SELL";
+    } else {
+        actions = "F  REPAIR ALL  " +
+            std::to_string(snapshot.repairAllCoinCost) +
+            " COINS";
+        if (snapshot.unlockedWeapons[
+                static_cast<std::size_t>(PlayerWeapon::Bomb)]) {
+            actions += "    V  +" +
+                std::to_string(snapshot.bombPurchaseAmount) +
+                " BOMBS  " +
+                std::to_string(snapshot.bombPurchaseCoinCost) +
+                " COINS";
+        }
     }
     if (building.type == BuildingType::Gate) {
         actions += "    E  TOGGLE";

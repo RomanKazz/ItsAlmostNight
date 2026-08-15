@@ -41,9 +41,11 @@ std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
 
 void Simulation::updateCoinPickups(double deltaSeconds) {
     const auto maybeDropMedkit = [this](
-        EntityId id, Vec3 position, EnemyType type) {
+        EntityId id, Vec3 position, EnemyType type,
+        bool elite) {
         const double chance = type == EnemyType::Boss
-            ? 0.25 : EnemyMedkitDropChance;
+            ? 0.25
+            : elite ? 0.14 : EnemyMedkitDropChance;
         const std::uint64_t seed = coinSeed(id, tick_) ^
             0xa0761d6478bd642fULL;
         if (unitRandom(seed) < chance) {
@@ -69,10 +71,15 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         const EnemyType type = enemy != enemies_.enemies().end()
             ? enemy->type
             : EnemyType::Basic;
+        const bool elite = enemy != enemies_.enemies().end() &&
+            enemy->eliteAffixes != 0U;
+        const int baseCoins = coinDropAmount(type);
         coinPickups_.spawnValue(
-            event.position, coinDropAmount(type),
+            event.position,
+            baseCoins + (elite ? std::max(2, baseCoins / 2) : 0),
             coinSeed(*event.entityId, tick_), terrain_);
-        maybeDropMedkit(*event.entityId, event.position, type);
+        maybeDropMedkit(
+            *event.entityId, event.position, type, elite);
     }
 
     // Area systems such as cannons only report an aggregate kill count.
@@ -85,10 +92,15 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         if (!rewardedEnemyCoins_.insert(key).second) {
             continue;
         }
+        const int baseCoins = coinDropAmount(enemy.type);
         coinPickups_.spawnValue(
-            enemy.position, coinDropAmount(enemy.type),
+            enemy.position,
+            baseCoins + (enemy.eliteAffixes != 0U
+                ? std::max(2, baseCoins / 2) : 0),
             coinSeed(enemy.id, tick_), terrain_);
-        maybeDropMedkit(enemy.id, enemy.position, enemy.type);
+        maybeDropMedkit(
+            enemy.id, enemy.position, enemy.type,
+            enemy.eliteAffixes != 0U);
     }
 
     const CoinCollection collected = coinPickups_.tick(

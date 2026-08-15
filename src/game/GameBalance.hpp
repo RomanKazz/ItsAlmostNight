@@ -120,7 +120,12 @@ struct EconomyBalanceDefinition {
     int waveRewardBase;
     int waveRewardPerWave;
     int bombPurchaseCoinCost;
-    int chestRerollCoinCost;
+    int bombPurchaseCoinCostPerWave;
+    int bombPurchaseAmount;
+    std::array<int, 3> chestRerollCoinCosts;
+    int chestOpeningCoinCostPerWave;
+    int repairAllCoinCost;
+    int repairAllCoinCostPerWave;
     int chestRevealCoinCost;
     double repairCostFraction;
     double repairCooldownSeconds;

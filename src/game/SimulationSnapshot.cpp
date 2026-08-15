@@ -124,6 +124,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .playerTemporaryHealth = playerTemporaryHealth_,
         .chestOpeningCostMultiplier =
             chestOpeningCostMultiplier_,
+        .chestOpeningCostSurcharge =
+            saturatingMultiplyNonNegative(
+                economy_.chestOpeningCoinCostPerWave, wave_),
         .pickaxeCooldownRemaining = pickaxeCooldownRemaining_,
         .aimedResource = aimedResource_,
         .aimedResourceEfficiency = [this]() {
@@ -282,8 +285,29 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .bombsRemaining = unlimitedResources_
             ? std::numeric_limits<int>::max()
             : bombs_.remainingBombs(),
-        .bombPurchaseCoinCost = economy_.bombPurchaseCoinCost,
-        .chestRerollCoinCost = economy_.chestRerollCoinCost,
+        .bombPurchaseCoinCost = saturatingAdd(
+            economy_.bombPurchaseCoinCost,
+            saturatingMultiplyNonNegative(
+                economy_.bombPurchaseCoinCostPerWave, wave_)),
+        .bombPurchaseAmount = economy_.bombPurchaseAmount,
+        .chestRerollCoinCost = economy_.chestRerollCoinCosts.at(
+            [&]() -> std::size_t {
+                if (!aimedLoot_) return 0U;
+                const auto chest = std::ranges::find(
+                    lootChests_.chests(), *aimedLoot_,
+                    [](const LootChestInstance& value) {
+                        return value.loot.id;
+                    });
+                return chest == lootChests_.chests().end()
+                    ? 0U
+                    : std::min<std::size_t>(
+                          chest->rerollCount,
+                          economy_.chestRerollCoinCosts.size() - 1U);
+            }()),
+        .repairAllCoinCost = saturatingAdd(
+            economy_.repairAllCoinCost,
+            saturatingMultiplyNonNegative(
+                economy_.repairAllCoinCostPerWave, wave_)),
         .chestRevealCoinCost = economy_.chestRevealCoinCost,
         .waveCompletionReward = saturatingAdd(
             economy_.waveRewardBase,

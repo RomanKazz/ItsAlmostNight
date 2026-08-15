@@ -390,4 +390,207 @@ void Simulation::updateCombat(double deltaSeconds) {
     }
 }
 
+void Simulation::collectEliteEnemyEvents() {
+    for (const EliteEnemyEvent& event :
+         enemies_.takeEliteSpawnEvents()) {
+        events_.push_back({
+            .type = GameEventType::EliteEnemySpawned,
+            .entityId = event.id,
+            .position = event.position,
+            .amount = static_cast<int>(event.affixes),
+        });
+    }
+    for (const EliteEnemyEvent& event :
+         enemies_.takeEliteDeathEvents()) {
+        if (!hasEliteAffix(
+                event.affixes, EliteAffix::Volatile)) {
+            continue;
+        }
+        pendingEliteExplosions_.push_back({
+            .sourceId = event.id,
+            .position = event.position,
+            .remaining = 1.15,
+        });
+        events_.push_back({
+            .type = GameEventType::EliteVolatilePrimed,
+            .entityId = event.id,
+            .position = event.position,
+            .intensity = 1.15,
+        });
+    }
+}
+
+void Simulation::updateEliteEffects(double deltaSeconds) {
+    constexpr double Radius = 3.5;
+    constexpr double EnemyDamage = 18.0;
+    constexpr double PlayerDamage = 22.0;
+    constexpr double BuildingDamage = 14.0;
+    bool worldStructuresDirty = false;
+    bool modularStructuresDirty = false;
+
+    for (PendingEliteExplosion& pending :
+         pendingEliteExplosions_) {
+        pending.remaining -= deltaSeconds;
+        if (pending.remaining > 0.0) {
+            continue;
+        }
+
+        int killedCount = 0;
+        for (const EnemyDamageResult& hit :
+             enemies_.damageInRadius(
+                 pending.position, Radius, EnemyDamage,
+                 2.2, pending.position, 0.0,
+                 pending.sourceId)) {
+            events_.push_back({
+                .type = GameEventType::ProjectileHit,
+                .entityId = hit.id,
+                .sourceId = pending.sourceId,
+                .position = hit.position,
+                .damage = hit.damage,
+            });
+            if (hit.killed) {
+                ++killedCount;
+                events_.push_back({
+                    .type = GameEventType::EnemyKilled,
+                    .entityId = hit.id,
+                    .sourceId = pending.sourceId,
+                    .position = hit.position,
+                });
+            }
+        }
+
+        const double playerDistance = std::hypot(
+            playerPosition_.x - pending.position.x,
+            playerPosition_.z - pending.position.z);
+        if (playerDistance < Radius && !playerRespawning_) {
+            const double falloff =
+                1.0 - playerDistance / Radius;
+            damagePlayer(
+                PlayerDamage * falloff,
+                pending.sourceId, pending.position);
+        }
+
+        std::vector<std::pair<EntityId, Vec3>> buildingTargets;
+        for (const BuildingInstance& building :
+             buildings_.buildings()) {
+            const Vec3 center = buildingWorldPosition(building);
+            if (std::hypot(
+                    center.x - pending.position.x,
+                    center.z - pending.position.z) < Radius) {
+                buildingTargets.emplace_back(building.id, center);
+            }
+        }
+        for (const auto& [id, center] : buildingTargets) {
+            const auto result =
+                buildings_.damage(id, BuildingDamage);
+            if (!result) {
+                continue;
+            }
+            events_.push_back({
+                .type = GameEventType::BuildingDamaged,
+                .entityId = result->id,
+                .sourceId = pending.sourceId,
+                .buildingType = result->type,
+                .position = center,
+                .amount = static_cast<int>(BuildingDamage),
+            });
+            if (result->type == BuildingType::Core) {
+                events_.push_back({
+                    .type = GameEventType::CoreDamaged,
+                    .entityId = result->id,
+                    .sourceId = pending.sourceId,
+                    .buildingType = result->type,
+                    .position = center,
+                    .amount = static_cast<int>(BuildingDamage),
+                });
+            }
+            if (result->destroyed) {
+                events_.push_back({
+                    .type = GameEventType::BuildingDestroyed,
+                    .entityId = result->id,
+                    .buildingType = result->type,
+                    .position = center,
+                });
+                worldStructuresDirty = true;
+                if (result->type == BuildingType::Core) {
+                    state_ = RunState::Defeat;
+                    events_.push_back({
+                        .type = GameEventType::RunEnded,
+                    });
+                }
+            }
+        }
+
+        std::vector<EnemyStructureTarget> modularTargets;
+        buildModularEnemyTargets(
+            foundations_, worldConfig_, modularTargets);
+        std::vector<std::pair<EntityId, Vec3>> nearbyModularTargets;
+        nearbyModularTargets.reserve(modularTargets.size());
+        for (const EnemyStructureTarget& target : modularTargets) {
+            if (std::hypot(
+                    target.position.x - pending.position.x,
+                    target.position.z - pending.position.z) < Radius) {
+                nearbyModularTargets.emplace_back(
+                    target.id, target.position);
+            }
+        }
+        for (const auto& [id, center] : nearbyModularTargets) {
+            const auto result =
+                foundations_.damage(id, BuildingDamage);
+            if (!result) {
+                continue;
+            }
+            Vec3 effectCenter = center;
+            if (result->wall) {
+                effectCenter.y = result->wall->bottomHeight;
+            } else if (result->ramp) {
+                effectCenter.y = result->ramp->bottomHeight;
+            }
+            events_.push_back({
+                .type = GameEventType::ModularBuildingDamaged,
+                .entityId = result->id,
+                .sourceId = pending.sourceId,
+                .platformFrame = result->platformFrame,
+                .modularWall = result->wall,
+                .ramp = result->ramp,
+                .position = effectCenter,
+                .amount = static_cast<int>(BuildingDamage),
+            });
+            if (result->destroyed) {
+                events_.push_back({
+                    .type = GameEventType::ModularBuildingDestroyed,
+                    .entityId = result->id,
+                    .sourceId = pending.sourceId,
+                    .platformFrame = result->platformFrame,
+                    .modularWall = result->wall,
+                    .ramp = result->ramp,
+                    .position = effectCenter,
+                });
+                modularStructuresDirty = true;
+            }
+        }
+        events_.push_back({
+            .type = GameEventType::Explosion,
+            .entityId = pending.sourceId,
+            .sourceId = pending.sourceId,
+            .position = pending.position,
+            .amount = killedCount,
+            .damage = EnemyDamage,
+            .intensity = Radius,
+        });
+    }
+    std::erase_if(
+        pendingEliteExplosions_,
+        [](const PendingEliteExplosion& pending) {
+            return pending.remaining <= 0.0;
+        });
+    if (worldStructuresDirty) {
+        syncWorldStructures();
+    }
+    if (modularStructuresDirty) {
+        syncModularStructures();
+        removeUnsupportedPlatformBuildings();
+    }
+}
+
 } // namespace ian
