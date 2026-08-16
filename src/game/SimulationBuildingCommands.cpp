@@ -182,14 +182,27 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
         BuildingPlatformSurface surface = naturalSurface;
         if (command.placeBuilding->lockHeight &&
             command.placeBuilding->platformStorey < 0) {
-            // The click commits the exact construction plane shown by the
-            // preview. Re-querying the natural surface here can discover a
-            // neighbouring/new foundation and silently lift the building.
-            surface.height = command.placeBuilding->baseHeight;
-            surface.foundationBottomHeight = std::min(
-                surface.foundationBottomHeight,
-                command.placeBuilding->baseHeight);
-            surface.storey = -1;
+            constexpr double LockedHeightTolerance = 0.05;
+            const bool matchingFoundationWasCreated =
+                naturalSurface.storey >= 0 &&
+                std::abs(
+                    naturalSurface.height -
+                    command.placeBuilding->baseHeight) <=
+                    LockedHeightTolerance;
+            if (!matchingFoundationWasCreated) {
+                // The click commits the exact construction plane shown by
+                // the preview. A different-height neighbouring foundation
+                // must never silently lift the building. A matching one can
+                // have been created by an earlier piece in this same drag;
+                // reuse it instead of trying to overlap it with another
+                // automatic 2x2 foundation.
+                surface.height =
+                    command.placeBuilding->baseHeight;
+                surface.foundationBottomHeight = std::min(
+                    surface.foundationBottomHeight,
+                    command.placeBuilding->baseHeight);
+                surface.storey = -1;
+            }
         }
         const bool needsAutomaticFoundation = surface.storey < 0;
         auto automaticFoundation =

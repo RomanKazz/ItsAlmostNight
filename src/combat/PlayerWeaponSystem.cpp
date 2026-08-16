@@ -61,6 +61,7 @@ std::optional<WeaponFireResult> PlayerWeaponSystem::fireRifle(Vec3 origin, Vec3 
         if (target && damage) {
             result.targetId = *targetId;
             result.hitPosition = target->position;
+            result.damage = damage->damage;
             result.killed = damage->killed;
         }
     } else {

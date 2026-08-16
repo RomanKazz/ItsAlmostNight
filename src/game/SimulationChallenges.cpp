@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "game/ChallengeArena.hpp"
+
 #include "core/DeterministicRandom.hpp"
 #include "core/Geometry.hpp"
 
@@ -12,7 +14,6 @@ namespace ian {
 namespace {
 
 constexpr int ChallengeColumnCount = 5;
-constexpr double ChallengeArenaRadius = 18.0;
 constexpr double ColumnInteractionDistance = 5.0;
 constexpr double ColumnRaycastRadius = 1.15;
 constexpr double ColumnMinimumSpawnDistance = 34.0;
@@ -87,7 +88,7 @@ void Simulation::resetChallengeColumns() {
     constexpr std::size_t MaximumAttempts = 8192;
     const double maximumRadius = std::max(
         ColumnMinimumSpawnDistance + 1.0,
-        map_.worldLimit - ChallengeArenaRadius - 5.0);
+        map_.worldLimit - challenge_arena::Radius - 5.0);
     for (std::size_t attempt = 0;
          attempt < MaximumAttempts &&
          challengeColumns_.size() < ChallengeColumnCount;
@@ -357,9 +358,8 @@ void Simulation::constrainPlayerToChallengeArena() {
     }
     const Vec3 center =
         challengeColumns_[*activeChallengeColumn_].position;
-    constexpr double PlayerBoundaryInset = 0.55;
-    const double maximumDistance =
-        ChallengeArenaRadius - PlayerBoundaryInset;
+    constexpr double maximumDistance =
+        challenge_arena::InteriorActorRadius;
     const double dx = playerPosition_.x - center.x;
     const double dz = playerPosition_.z - center.z;
     const double distance = std::hypot(dx, dz);

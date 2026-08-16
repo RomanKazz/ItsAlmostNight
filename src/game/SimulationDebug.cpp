@@ -72,9 +72,13 @@ void Simulation::castChainLightning(
 
     std::vector<EntityId> visited;
     visited.reserve(static_cast<std::size_t>(maximumTargets));
-    Vec3 sourcePosition = playerPosition_;
-    sourcePosition.y += 0.85;
-    std::optional<EntityId> sourceId;
+    if (command.excludedTarget) {
+        visited.push_back(*command.excludedTarget);
+    }
+    Vec3 sourcePosition = command.sourcePosition.value_or(
+        Vec3{playerPosition_.x, playerPosition_.y + 0.85,
+             playerPosition_.z});
+    std::optional<EntityId> sourceId = command.excludedTarget;
 
     for (int jump = 0; jump < maximumTargets && current;
          ++jump) {
@@ -135,6 +139,55 @@ void Simulation::castChainLightning(
         }
         current = next;
     }
+}
+
+void Simulation::registerNailHit(
+    EntityId primaryTarget, Vec3 impactPosition,
+    double directHitDamage) {
+    const int stacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Nail)];
+    if (stacks <= 0 || directHitDamage <= 0.0) {
+        return;
+    }
+
+    const int hitsPerTrigger = std::max(2, 6 - stacks);
+    ++nailHitCounter_;
+    if (nailHitCounter_ % static_cast<std::uint64_t>(hitsPerTrigger) != 0U) {
+        return;
+    }
+
+    const double jumpRadius = std::min(
+        9.0, 6.5 + static_cast<double>(stacks - 1) * 0.5);
+    const double jumpRadiusSquared = jumpRadius * jumpRadius;
+    std::optional<EntityId> firstTarget;
+    double closestDistanceSquared = jumpRadiusSquared;
+    for (const EnemyInstance& candidate : enemies_.enemies()) {
+        if (!candidate.active || candidate.id == primaryTarget) {
+            continue;
+        }
+        const double distanceSquared = horizontalDistanceSquared(
+            impactPosition, candidate.position);
+        if (distanceSquared < closestDistanceSquared ||
+            (distanceSquared == closestDistanceSquared &&
+             (!firstTarget || candidate.id.index < firstTarget->index))) {
+            firstTarget = candidate.id;
+            closestDistanceSquared = distanceSquared;
+        }
+    }
+    if (!firstTarget) {
+        return;
+    }
+
+    castChainLightning({
+        .firstTarget = firstTarget,
+        .excludedTarget = primaryTarget,
+        .sourcePosition = impactPosition,
+        .damage = directHitDamage * std::min(
+            0.75, 0.45 + static_cast<double>(stacks - 1) * 0.08),
+        .jumpRadius = jumpRadius,
+        .damageFalloff = 0.78,
+        .maximumTargets = std::min(6, stacks + 1),
+    });
 }
 
 void Simulation::processDebugCommands(

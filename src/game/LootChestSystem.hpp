@@ -105,7 +105,8 @@ class LootChestSystem {
         Vec3 origin, Vec3 direction, double maximumDistance) const;
     [[nodiscard]] std::optional<EntityId> raycastLoot(
         Vec3 origin, Vec3 direction, double maximumDistance) const;
-    [[nodiscard]] ChestOpenResult open(EntityId id, int& coins);
+    [[nodiscard]] ChestOpenResult open(
+        EntityId id, int& coins, bool freeOpening = false);
     [[nodiscard]] ChestRerollResult reroll(
         EntityId id, int& coins, int cost = 10);
     [[nodiscard]] std::optional<Vec3> revealNearest(

@@ -269,7 +269,8 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
         fill = barRed_;
     } else if (color == UiBarColor::Yellow) {
         fill = barYellow_;
-    } else if (color == UiBarColor::Purple) {
+    } else if (color == UiBarColor::Purple ||
+               color == UiBarColor::Blue) {
         fill = {};
     }
     Rectangle filled = bounds;
@@ -277,23 +278,28 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
     if (filled.width <= 0.0F) {
         return;
     }
-    if (color == UiBarColor::Purple) {
+    if (color == UiBarColor::Purple ||
+        color == UiBarColor::Blue) {
+        const bool blue = color == UiBarColor::Blue;
         const Rectangle purpleFill{
             filled.x + 2.0F, filled.y + 2.0F,
             std::max(0.0F, filled.width - 4.0F),
             std::max(0.0F, filled.height - 4.0F)};
         if (purpleFill.width > 0.0F) {
             DrawRectangleRounded(purpleFill, 0.42F, 8,
-                                 {113, 76, 199, 255});
+                                 blue ? Color{42, 137, 190, 255}
+                                      : Color{113, 76, 199, 255});
             const Rectangle highlight{
                 purpleFill.x + 1.0F, purpleFill.y + 1.0F,
                 std::max(0.0F, purpleFill.width - 2.0F),
                 std::max(1.0F, purpleFill.height * 0.38F)};
             DrawRectangleRounded(highlight, 0.5F, 8,
-                                 {190, 157, 255, 210});
+                                 blue ? Color{131, 226, 255, 220}
+                                      : Color{190, 157, 255, 210});
             DrawRectangleRoundedLinesEx(
                 purpleFill, 0.42F, 8, 1.0F,
-                {218, 197, 255, 210});
+                blue ? Color{183, 239, 255, 220}
+                     : Color{218, 197, 255, 210});
         }
     } else if (IsTextureValid(fill)) {
         Texture2D fillLeft = barGreenLeft_;
@@ -315,6 +321,8 @@ void GameUi::drawProgressBar(Rectangle bounds, float fraction,
                        ? Color{218, 170, 58, 255}
                        : (color == UiBarColor::Purple
                               ? Color{139, 112, 218, 255}
+                              : color == UiBarColor::Blue
+                              ? Color{55, 166, 214, 255}
                               : Color{72, 164, 82, 255}));
         DrawRectangleRec(filled, fallback);
     }

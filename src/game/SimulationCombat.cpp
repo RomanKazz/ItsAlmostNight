@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "game/ChallengeArena.hpp"
+
 #include "core/SaturatingArithmetic.hpp"
 #include "game/ModularCombat.hpp"
 
@@ -160,6 +162,9 @@ void Simulation::updateRunPhase(
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0) {
             state_ = RunState::BuildPhase;
+            freeChestOpeningAvailable_ =
+                lootStacks_[lootUpgradeIndex(
+                    LootUpgradeEffect::Key)] > 0;
             phaseTimeRemaining_ =
                 gameplay_.betweenWaveSeconds +
                 std::max(
@@ -199,7 +204,8 @@ void Simulation::updateCombat(double deltaSeconds) {
         if (challengeActive() && activeChallengeColumn_) {
             enemies_.constrainToArena(
                 challengeColumns_[*activeChallengeColumn_].position,
-                18.0);
+                challenge_arena::FenceRadius -
+                    challenge_arena::FenceHalfThickness);
         }
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);

@@ -767,8 +767,20 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 instance.position.x - cameraPosition.x;
             const float offsetZ =
                 instance.position.y - cameraPosition.z;
-            if (offsetX * offsetX + offsetZ * offsetZ >
-                DrawRadius * DrawRadius) {
+            const float distanceSquared =
+                offsetX * offsetX + offsetZ * offsetZ;
+            if (distanceSquared > DrawRadius * DrawRadius) {
+                continue;
+            }
+            const float distance = std::sqrt(distanceSquared);
+            const float detailFade = std::clamp(
+                (distance - DrawRadius * 0.46F) /
+                    (DrawRadius * 0.54F),
+                0.0F, 1.0F);
+            const float stableNoise = std::fmod(std::abs(std::sin(
+                instance.position.x * 12.9898F +
+                instance.position.y * 78.233F) * 43758.5453F), 1.0F);
+            if (stableNoise > 1.0F - detailFade * 0.48F) {
                 continue;
             }
             if (decorationExclusionMap_.blocked(

@@ -299,7 +299,11 @@ void Simulation::updatePlayerActions(
                     .type = GameEventType::ProjectileHit,
                     .entityId = fire->targetId,
                     .position = fire->hitPosition,
+                    .damage = fire->damage,
                 });
+                registerNailHit(
+                    *fire->targetId, fire->hitPosition,
+                    fire->damage);
                 if (fire->killed) {
                     events_.push_back({
                         .type = GameEventType::EnemyKilled,
@@ -386,6 +390,7 @@ void Simulation::updatePlayerActions(
                         skillTree_.effectValue("club.knockback")),
                 playerPosition_,
                 club_.maxDamagePerAttack);
+            bool nailHitRegistered = false;
             for (const auto& result : results) {
                 events_.push_back({
                     .type = GameEventType::PickaxeHit,
@@ -394,6 +399,12 @@ void Simulation::updatePlayerActions(
                     .damage = result.damage,
                     .critical = critical,
                 });
+                if (!nailHitRegistered) {
+                    registerNailHit(
+                        result.id, result.position,
+                        result.damage);
+                    nailHitRegistered = true;
+                }
                 if (result.killed) {
                     events_.push_back({
                         .type = GameEventType::EnemyKilled,
@@ -413,9 +424,12 @@ void Simulation::updatePlayerActions(
                     .type = GameEventType::PickaxeHit,
                     .entityId = result->id,
                     .position = result->position,
-                    .damage = damage,
+                    .damage = result->damage,
                     .critical = critical,
                 });
+                registerNailHit(
+                    result->id, result->position,
+                    result->damage);
             }
             if (result && result->killed) {
                 events_.push_back({
@@ -631,6 +645,7 @@ void Simulation::updatePlayerActions(
             .damage = hit.damage,
             .critical = hit.alreadyFrozen,
         });
+        registerNailHit(hit.enemyId, hit.position, hit.damage);
         if (hit.killed) {
             events_.push_back({
                 .type = GameEventType::EnemyKilled,
@@ -675,6 +690,9 @@ void Simulation::updatePlayerActions(
                 ? 0.0
                 : fireWand_.burnDuration(),
         });
+        if (!hit.periodicBurn) {
+            registerNailHit(hit.enemyId, hit.position, hit.damage);
+        }
         if (hit.killed) {
             events_.push_back({
                 .type = GameEventType::EnemyKilled,
@@ -710,16 +728,32 @@ void Simulation::updatePlayerActions(
             int availableCurrency = unlimitedResources_
                 ? std::numeric_limits<int>::max()
                 : coins_;
+            const auto chest = std::ranges::find(
+                lootChests_.chests(), *aimedChest_,
+                &LootChestInstance::id);
+            const bool paidChest =
+                chest != lootChests_.chests().end() &&
+                lootChests_.openingCost(*chest) > 0;
+            const bool useFreeKey =
+                !unlimitedResources_ && paidChest &&
+                freeChestOpeningAvailable_ &&
+                lootStacks_[lootUpgradeIndex(
+                    LootUpgradeEffect::Key)] > 0;
             const ChestOpenResult result =
-                lootChests_.open(*aimedChest_, availableCurrency);
+                lootChests_.open(
+                    *aimedChest_, availableCurrency, useFreeKey);
             if (!unlimitedResources_) {
                 coins_ = availableCurrency;
+            }
+            if (result == ChestOpenResult::Opened && useFreeKey) {
+                freeChestOpeningAvailable_ = false;
             }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened
                     ? GameEventType::ChestOpened
                     : GameEventType::ChestOpenRejected,
                 .entityId = aimedChest_,
+                .critical = result == ChestOpenResult::Opened && useFreeKey,
             });
             if (result == ChestOpenResult::Opened)
                 aimedChest_.reset();

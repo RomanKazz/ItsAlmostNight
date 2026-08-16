@@ -33,7 +33,8 @@ float resourceHitFlash(
         amount = std::max(
             amount,
             static_cast<float>(
-                effect.remaining / effect.duration));
+                effect.remaining / effect.duration) *
+                0.30F * std::clamp(effect.scale, 0.8F, 1.3F));
     }
     return amount;
 }

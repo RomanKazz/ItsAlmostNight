@@ -189,7 +189,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                        value.state == LootChestState::Closed;
         });
         if (chest != snapshot.lootChests.end()) {
-            const int openingCost = chest->coinCost <= 0
+            const int paidOpeningCost = chest->coinCost <= 0
                 ? 0
                 : std::max(
                       1,
@@ -198,6 +198,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                               chest->coinCost +
                               snapshot.chestOpeningCostSurcharge) *
                           snapshot.chestOpeningCostMultiplier)));
+            const bool freeWithKey =
+                paidOpeningCost > 0 &&
+                snapshot.freeChestOpeningAvailable;
+            const int openingCost = freeWithKey ? 0 : paidOpeningCost;
             ResourceCost cost{};
             cost.crystals = openingCost;
             const bool affordable = snapshot.unlimitedResources ||
@@ -213,7 +217,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .actionText = std::string("Open ") +
                     (chest->type == LootChestType::Stone
                          ? "Stone Chest"
-                         : "Wooden Chest"),
+                         : "Wooden Chest") +
+                    (freeWithKey ? " (Free Key)" : ""),
                 .input = ControlAction::Interact,
                 .state = affordable ? InteractionState::Available
                                     : InteractionState::Warning,

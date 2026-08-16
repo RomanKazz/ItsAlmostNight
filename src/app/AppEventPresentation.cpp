@@ -63,8 +63,9 @@ void App::processPresentationEvents(
                 .duration = Duration,
             });
         };
-    const auto enemyDamageAnchor =
-        [this, &eventSnapshot](EntityId id, Vec3 fallback) {
+    const auto enemyBounds =
+        [this, &eventSnapshot](EntityId id)
+            -> std::optional<BoundingBox> {
             const auto enemy = std::find_if(
                 eventSnapshot.enemies.begin(), eventSnapshot.enemies.end(),
                 [id](const EnemyInstance& candidate) {
@@ -75,7 +76,7 @@ void App::processPresentationEvents(
                     return candidate.id == id;
                 });
             if (enemy == eventSnapshot.enemies.end()) {
-                return fallback;
+                return std::nullopt;
             }
             Vector3 position = enemyRenderPosition(*enemy);
             position.y += static_cast<float>(simulation_.terrain().getHeight(
@@ -87,13 +88,69 @@ void App::processPresentationEvents(
                     (enemy->eliteAffixes != 0U
                         ? 1.08F : 1.0F));
             if (!world_transforms::finite(bounds)) {
+                return std::nullopt;
+            }
+            return bounds;
+        };
+    const auto enemyDamageAnchor =
+        [&enemyBounds](EntityId id, Vec3 fallback) {
+            const auto bounds = enemyBounds(id);
+            if (!bounds) {
                 return fallback;
             }
             return Vec3{
-                static_cast<double>((bounds.min.x + bounds.max.x) * 0.5F),
-                static_cast<double>(bounds.max.y + 0.12F),
-                static_cast<double>((bounds.min.z + bounds.max.z) * 0.5F)};
-    };
+                static_cast<double>((bounds->min.x + bounds->max.x) * 0.5F),
+                static_cast<double>(bounds->max.y + 0.12F),
+                static_cast<double>((bounds->min.z + bounds->max.z) * 0.5F)};
+        };
+    const auto enemyImpactAnchor =
+        [&enemyBounds](EntityId id, Vec3 fallback) {
+            const auto bounds = enemyBounds(id);
+            if (!bounds) {
+                return fallback;
+            }
+            const float height = bounds->max.y - bounds->min.y;
+            return Vec3{
+                fallback.x,
+                static_cast<double>(bounds->min.y + height * 0.56F),
+                fallback.z};
+        };
+    const auto enemySurfaceImpactAnchor =
+        [&enemyBounds](EntityId id, Vec3 fallback, Vec3 source) {
+            const auto bounds = enemyBounds(id);
+            if (!bounds) {
+                return fallback;
+            }
+            const double centerX =
+                static_cast<double>((bounds->min.x + bounds->max.x) * 0.5F);
+            const double centerZ =
+                static_cast<double>((bounds->min.z + bounds->max.z) * 0.5F);
+            double directionX = centerX - source.x;
+            double directionZ = centerZ - source.z;
+            const double directionLength =
+                std::hypot(directionX, directionZ);
+            if (directionLength <= 1e-6) {
+                directionX = 0.0;
+                directionZ = 1.0;
+            } else {
+                directionX /= directionLength;
+                directionZ /= directionLength;
+            }
+            const double halfWidth =
+                static_cast<double>(bounds->max.x - bounds->min.x) * 0.5;
+            const double halfDepth =
+                static_cast<double>(bounds->max.z - bounds->min.z) * 0.5;
+            const double surfaceDistance =
+                std::abs(directionX) * halfWidth +
+                std::abs(directionZ) * halfDepth + 0.10;
+            const double height =
+                static_cast<double>(bounds->max.y - bounds->min.y);
+            return Vec3{
+                centerX - directionX * surfaceDistance,
+                static_cast<double>(bounds->min.y) + height * 0.56,
+                centerZ - directionZ * surfaceDistance,
+            };
+        };
     for (const auto& event : events) {
         const bool enemyHit =
             (event.type == GameEventType::ProjectileHit &&
@@ -104,6 +161,41 @@ void App::processPresentationEvents(
             event.type == GameEventType::ChainLightningHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
+            const Vec3 sourcePosition =
+                event.type == GameEventType::ChainLightningHit
+                    ? event.position
+                    : eventSnapshot.playerPosition;
+            const Vec3 impactPosition = enemySurfaceImpactAnchor(
+                *event.entityId,
+                event.targetPosition.value_or(event.position),
+                sourcePosition);
+            const double distance = std::hypot(
+                impactPosition.x - eventSnapshot.playerPosition.x,
+                impactPosition.z - eventSnapshot.playerPosition.z);
+            const float distanceScale = static_cast<float>(
+                1.0 - std::clamp((distance - 10.0) / 28.0, 0.0, 1.0) *
+                    0.38);
+            int variant = 0;
+            if (event.type == GameEventType::IceWandHit) {
+                variant = 1;
+            } else if (event.type == GameEventType::FireWandHit) {
+                variant = 2;
+            } else if (event.type == GameEventType::ChainLightningHit) {
+                variant = 3;
+            } else if (event.type == GameEventType::ProjectileHit) {
+                variant = 4;
+            }
+            if (event.critical) {
+                variant |= 8;
+            }
+            addEffect(
+                PresentationEffectType::EnemyHitImpact,
+                impactPosition, event.critical ? 0.46 : 0.38,
+                distanceScale * (event.critical ? 1.38F : 1.0F),
+                event.entityId);
+            PresentationEffect& impact = effects_.back();
+            impact.targetPosition = sourcePosition;
+            impact.variant = variant;
         }
         if ((event.type == GameEventType::ResourceHit ||
              event.type == GameEventType::ResourceCollected) &&
@@ -347,10 +439,13 @@ void App::processPresentationEvents(
             if (effects_.size() >= MaxEffects) {
                 effects_.erase(effects_.begin());
             }
-            const Vec3 target = enemyDamageAnchor(
+            // Lightning should connect through the enemies' torsos. The
+            // damage-number anchor intentionally sits above the head and is
+            // therefore unsuitable for a world-space electrical arc.
+            const Vec3 target = enemyImpactAnchor(
                 *event.entityId, *event.targetPosition);
             const Vec3 source = event.sourceId
-                ? enemyDamageAnchor(
+                ? enemyImpactAnchor(
                       *event.sourceId, event.position)
                 : event.position;
             effects_.push_back({
@@ -358,8 +453,8 @@ void App::processPresentationEvents(
                 .entityId = event.entityId,
                 .position = source,
                 .targetPosition = target,
-                .remaining = 0.30,
-                .duration = 0.30,
+                .remaining = 0.42,
+                .duration = 0.42,
                 .startDelayRemaining =
                     static_cast<double>(event.amount) * 0.045,
                 .scale = 1.0F,
@@ -440,9 +535,16 @@ void App::processPresentationEvents(
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit) {
-            addEffect(PresentationEffectType::Hit,
-                      event.position, 0.22, 1.0F,
-                      event.entityId);
+            const Vec3 impactPosition = event.entityId
+                ? enemyImpactAnchor(*event.entityId, event.position)
+                : event.position;
+            if (event.type == GameEventType::TrapHit ||
+                (event.type == GameEventType::ProjectileHit &&
+                 event.sourceId)) {
+                addEffect(PresentationEffectType::Hit,
+                          impactPosition, 0.18, 0.8F,
+                          event.entityId);
+            }
             if (event.type == GameEventType::TrapHit &&
                 event.entityId) {
                 addFloatingDamageNumber(
@@ -867,6 +969,11 @@ void App::processPresentationEvents(
                           event.entityId);
             }
             addCameraImpulse({0.0, 0.012, -0.008});
+        } else if (event.type == GameEventType::BattlePotionActivated) {
+            addLootPickupEffect(
+                event.position, LootRarity::Rare,
+                LootUpgradeEffect::Potion, std::nullopt);
+            addCameraImpulse({0.0, 0.025, -0.018});
         }
 
         std::string message;
@@ -924,6 +1031,11 @@ void App::processPresentationEvents(
             message = "Respawned at Core";
         } else if (event.type == GameEventType::RopeFallSaved) {
             message = "Safety Rope saved you from a fatal fall";
+        } else if (event.type == GameEventType::BattlePotionActivated) {
+            message = "BERSERK: attack speed, movement speed and lifesteal";
+        } else if (event.type == GameEventType::ChestOpened &&
+                   event.critical) {
+            message = "Chest Key: opened free";
         } else if (event.type == GameEventType::WaveRewardGranted) {
             message =
                 "Night cleared: +" +

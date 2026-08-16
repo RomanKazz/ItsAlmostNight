@@ -106,19 +106,19 @@ void drawLightningArc(
         }
 
         DrawCylinderEx(
-            previous, point, 0.070F * amplitudeScale,
-            0.070F * amplitudeScale, 5,
-            {48, 126, 255,
-             atmosphereAlpha(0.16F * alphaScale)});
+            previous, point, 0.120F * amplitudeScale,
+            0.120F * amplitudeScale, 6,
+            {35, 104, 255,
+             atmosphereAlpha(0.24F * alphaScale)});
         DrawCylinderEx(
-            previous, point, 0.031F * amplitudeScale,
-            0.031F * amplitudeScale, 5,
-            {72, 199, 255,
-             atmosphereAlpha(0.62F * alphaScale)});
+            previous, point, 0.052F * amplitudeScale,
+            0.052F * amplitudeScale, 6,
+            {63, 187, 255,
+             atmosphereAlpha(0.82F * alphaScale)});
         DrawCylinderEx(
-            previous, point, 0.010F * amplitudeScale,
-            0.010F * amplitudeScale, 4,
-            {224, 250, 255,
+            previous, point, 0.016F * amplitudeScale,
+            0.016F * amplitudeScale, 5,
+            {238, 253, 255,
              atmosphereAlpha(0.98F * alphaScale)});
         previous = point;
     }
@@ -583,6 +583,10 @@ void App::drawPresentationEffects() {
             rlDrawRenderBatchActive();
             BeginBlendMode(BLEND_ADDITIVE);
             rlDisableDepthMask();
+            // The arc often runs through a dense pack. It is a very short
+            // gameplay cue, so render its emissive layers over silhouettes
+            // instead of letting several enemy meshes hide it completely.
+            rlDisableDepthTest();
             drawLightningArc(
                 origin, target, progress, seed, 1.0F, pulse);
             drawLightningArc(
@@ -595,13 +599,43 @@ void App::drawPresentationEffects() {
             const float flash = pulse *
                 (0.72F + 0.28F * std::sin(progress * 48.0F));
             DrawSphere(
-                target, 0.34F + flash * 0.16F,
-                {61, 165, 255,
-                 atmosphereAlpha(flash * 0.18F)});
+                origin, 0.26F + flash * 0.12F,
+                {45, 132, 255,
+                 atmosphereAlpha(flash * 0.22F)});
             DrawSphere(
-                target, 0.105F + flash * 0.055F,
-                {218, 250, 255,
-                 atmosphereAlpha(flash * 0.82F)});
+                origin, 0.075F + flash * 0.035F,
+                {231, 252, 255,
+                 atmosphereAlpha(flash * 0.92F)});
+            DrawSphere(
+                target, 0.52F + flash * 0.22F,
+                {45, 132, 255,
+                 atmosphereAlpha(flash * 0.26F)});
+            DrawSphere(
+                target, 0.135F + flash * 0.065F,
+                {231, 252, 255,
+                 atmosphereAlpha(flash * 0.96F)});
+            for (int spark = 0; spark < 7; ++spark) {
+                const float angle = effectUnit(
+                    seed + spark * 13, 509) * 2.0F * PI;
+                const float lift =
+                    effectUnit(seed + spark * 17, 521) * 2.0F - 0.65F;
+                Vector3 sparkDirection{
+                    std::cos(angle), lift, std::sin(angle)};
+                sparkDirection = Vector3Normalize(sparkDirection);
+                const float sparkLength =
+                    0.34F + effectUnit(seed + spark * 19, 523) * 0.48F;
+                const Vector3 sparkEnd = Vector3Add(
+                    target, Vector3Scale(
+                        sparkDirection, sparkLength * flash));
+                DrawCylinderEx(
+                    target, sparkEnd, 0.018F, 0.004F, 4,
+                    {139, 224, 255,
+                     atmosphereAlpha(flash * 0.78F)});
+                DrawSphere(
+                    sparkEnd, 0.025F,
+                    {230, 253, 255,
+                     atmosphereAlpha(flash * 0.72F)});
+            }
             const Vector3 ringCenter{
                 target.x, target.y + 0.015F, target.z};
             DrawCircle3D(
@@ -610,6 +644,7 @@ void App::drawPresentationEffects() {
                 {92, 207, 255,
                  atmosphereAlpha(pulse * 0.72F)});
             rlDrawRenderBatchActive();
+            rlEnableDepthTest();
             rlEnableDepthMask();
             EndBlendMode();
             continue;
@@ -691,48 +726,17 @@ void App::drawPresentationEffects() {
             const float eased = progress * progress *
                 (3.0F - 2.0F * progress);
             Vector3 center = Vector3Lerp(origin, target, eased);
-            center.y += std::sin(progress * PI) * 0.82F;
+            center.y += std::sin(progress * PI) * 0.95F;
             const Vector3 direction = Vector3Normalize(
                 Vector3Subtract(target, origin));
-            Vector3 side = Vector3CrossProduct(
-                direction, Vector3{0.0F, 1.0F, 0.0F});
-            if (Vector3LengthSqr(side) < 0.001F) {
-                side = {1.0F, 0.0F, 0.0F};
-            } else {
-                side = Vector3Normalize(side);
-            }
             const float fade = 1.0F -
                 smoothstep(0.86F, 1.0F, progress);
-            constexpr int ShardCount = 4;
-            for (int shard = 0; shard < ShardCount; ++shard) {
-                const float phase = effectUnit(
-                    shard + effect.variant * 7, 417);
-                const float spread =
-                    (static_cast<float>(shard) - 1.5F) * 0.12F;
-                const Vector3 shardPosition = Vector3Add(
-                    center, Vector3Add(
-                        Vector3Scale(side, spread),
-                        Vector3{0.0F,
-                            std::sin(progress * 18.0F + phase * 6.0F) *
-                                0.08F,
-                            0.0F}));
-                rlPushMatrix();
-                rlTranslatef(
-                    shardPosition.x, shardPosition.y,
-                    shardPosition.z);
-                rlRotatef(
-                    progress * (760.0F + phase * 420.0F),
-                    0.7F + phase, 1.0F, 0.35F);
-                DrawCubeV(
-                    {0.0F, 0.0F, 0.0F},
-                    {0.08F + phase * 0.035F,
-                     0.10F + phase * 0.07F,
-                     0.34F + phase * 0.20F},
-                    {static_cast<unsigned char>(174 + phase * 45.0F),
-                     static_cast<unsigned char>(82 + phase * 38.0F),
-                     28, atmosphereAlpha(fade)});
-                rlPopMatrix();
-            }
+            const float spinPhase = effectUnit(
+                effect.variant * 7, 417) * 360.0F;
+            renderer_->drawSawBladeProjectile(
+                center, direction,
+                spinPhase + progress * 1440.0F,
+                1.0F, Fade(WHITE, fade));
             if (renderer_->settings().particles) {
                 rlDrawRenderBatchActive();
                 BeginBlendMode(BLEND_ADDITIVE);
@@ -744,10 +748,10 @@ void App::drawPresentationEffects() {
                     Vector3 motePosition = Vector3Lerp(
                         origin, target, trailProgress);
                     motePosition.y +=
-                        std::sin(trailProgress * PI) * 0.82F;
+                        std::sin(trailProgress * PI) * 0.95F;
                     DrawSphere(
                         motePosition, 0.025F,
-                        {255, 187, 78,
+                        {205, 226, 238,
                          atmosphereAlpha(fade * 0.55F)});
                 }
                 rlDrawRenderBatchActive();
@@ -1181,7 +1185,114 @@ void App::drawPresentationEffects() {
         if (!renderer_->settings().particles) {
             continue;
         }
-        if (effect.type == PresentationEffectType::Hit) {
+        if (effect.type == PresentationEffectType::EnemyHitImpact) {
+            const float fade =
+                1.0F - smoothstep(0.42F, 1.0F, progress);
+            const float flash =
+                1.0F - smoothstep(0.0F, 0.24F, progress);
+            const bool critical = (effect.variant & 8) != 0;
+            const int impactStyle = effect.variant & 7;
+            Color core{255, 226, 142, 255};
+            Color edge{235, 143, 62, 255};
+            if (impactStyle == 1) {
+                core = {215, 250, 255, 255};
+                edge = {86, 199, 255, 255};
+            } else if (impactStyle == 2) {
+                core = {255, 239, 154, 255};
+                edge = {255, 92, 35, 255};
+            } else if (impactStyle == 3) {
+                core = {242, 224, 255, 255};
+                edge = {151, 102, 255, 255};
+            } else if (impactStyle == 4) {
+                core = {255, 244, 207, 255};
+                edge = {203, 176, 119, 255};
+            }
+
+            Vector3 source{
+                origin.x, origin.y - 0.1F, origin.z - 1.0F};
+            if (effect.targetPosition) {
+                source = {
+                    static_cast<float>(effect.targetPosition->x),
+                    static_cast<float>(effect.targetPosition->y),
+                    static_cast<float>(effect.targetPosition->z),
+                };
+            }
+            Vector3 forward = Vector3Subtract(origin, source);
+            forward.y *= 0.28F;
+            if (Vector3LengthSqr(forward) < 0.0001F) {
+                forward = {0.0F, 0.12F, -1.0F};
+            }
+            forward = Vector3Normalize(forward);
+            Vector3 side = Vector3CrossProduct(
+                {0.0F, 1.0F, 0.0F}, forward);
+            if (Vector3LengthSqr(side) < 0.0001F) {
+                side = {1.0F, 0.0F, 0.0F};
+            } else {
+                side = Vector3Normalize(side);
+            }
+
+            const Vector3 visibleOrigin = Vector3Add(
+                origin, Vector3Scale(
+                    forward, -0.06F));
+            const int shardCount = critical ? 14 : 10;
+            for (int index = 0; index < shardCount; ++index) {
+                const float lateral =
+                    effectUnit(index, 91) * 2.0F - 1.0F;
+                Vector3 shardDirection = Vector3Add(
+                    Vector3Scale(side, lateral * 0.92F),
+                    Vector3Scale(forward,
+                        -0.04F - effectUnit(index, 96) * 0.06F));
+                shardDirection.y =
+                    0.24F + effectUnit(index, 93) * 0.68F;
+                shardDirection = Vector3Normalize(shardDirection);
+                const float speed = effect.scale *
+                    (0.34F + effectUnit(index, 92) * 0.62F);
+                Vector3 position = Vector3Add(
+                    visibleOrigin,
+                    Vector3Scale(shardDirection, progress * speed));
+                position.y += std::sin(progress * PI) *
+                        (0.08F + effectUnit(index, 94) * 0.18F) -
+                    progress * progress * 0.16F;
+                const float size = effect.scale *
+                    (0.052F + effectUnit(index, 95) * 0.072F) *
+                    (1.0F - progress * 0.42F);
+                Color shardColor = index % 3 == 0 ? core : edge;
+                shardColor.a = atmosphereAlpha(fade * 0.94F);
+                DrawSphereEx(
+                    position, size, 4, 3, shardColor);
+            }
+
+            BeginBlendMode(BLEND_ADDITIVE);
+            const int streakCount = critical ? 5 : 3;
+            for (int index = 0; index < streakCount; ++index) {
+                const float lateral =
+                    (effectUnit(index, 101) * 2.0F - 1.0F) * 0.82F;
+                Vector3 streakDirection = Vector3Add(
+                    Vector3Scale(forward, -0.05F),
+                    Vector3Scale(side, lateral));
+                streakDirection.y =
+                    0.18F + effectUnit(index, 102) * 0.42F;
+                streakDirection = Vector3Normalize(streakDirection);
+                const float length = effect.scale *
+                    (0.24F + effectUnit(index, 103) * 0.34F) *
+                    (0.45F + progress);
+                const Vector3 start = Vector3Add(
+                    visibleOrigin,
+                    Vector3Scale(streakDirection, progress * 0.28F));
+                const Vector3 end = Vector3Add(
+                    start, Vector3Scale(streakDirection, length));
+                DrawLine3D(
+                    start, end,
+                    {core.r, core.g, core.b,
+                     atmosphereAlpha(flash * 0.9F)});
+            }
+            DrawSphereEx(
+                visibleOrigin, effect.scale * 0.24F * flash,
+                6, 4,
+                {core.r, core.g, core.b,
+                 atmosphereAlpha(flash * 0.82F)});
+            EndBlendMode();
+        } else if (effect.type == PresentationEffectType::Hit) {
             DrawSphere(origin, 0.18F * (1.0F - progress),
                        {255, 220, 120, 255});
         } else if (effect.type == PresentationEffectType::LandingDust) {

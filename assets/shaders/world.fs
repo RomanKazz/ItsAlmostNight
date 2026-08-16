@@ -40,6 +40,7 @@ uniform float terrainTextureEnabled;
 uniform sampler2D terrainPathMask;
 uniform float terrainPathMaskEnabled;
 uniform float distantFadeAmount;
+uniform float vegetationAmount;
 uniform float hitFlashAmount;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
@@ -437,6 +438,10 @@ void main()
         timeOfDayRimStrength*(1.0 - terraceWall);
     vec3 direct = sunColor*sunIntensity*
         (stylizedDiffuse + sunHighlight)*shadow;
+    // Keep the rest of the world lively while taking the fluorescent peak
+    // specifically out of sunlit terrain grass.
+    direct *= mix(
+        1.0, 0.88, clamp(terrainAmount, 0.0, 1.0));
     float rim =
         pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
         smoothstep(-0.2, 0.75, normal.y)*
@@ -491,18 +496,41 @@ void main()
     litColor += directionalRimColor*directionalRim*
         mix(albedo.rgb, vec3(1.0), 0.42);
     litColor *= dayNightTint;
-    float distantFade = clamp(distantFadeAmount, 0.0, 1.0);
+    float horizontalDistance =
+        length(cameraPosition.xz - fragWorldPosition.xz);
+    // Scenic materials use distance as an art-direction axis. The foreground
+    // stays warm and crisp, the middle ground rests, and the background loses
+    // contrast while leaning toward the cool atmosphere.
+    float depthPalette = clamp(distantFadeAmount, 0.0, 1.0);
+    float nearPlane =
+        1.0 - smoothstep(17.0, 34.0, horizontalDistance);
+    float middlePlane =
+        smoothstep(16.0, 32.0, horizontalDistance)*
+        (1.0 - smoothstep(43.0, 66.0, horizontalDistance));
+    float farPlane = smoothstep(34.0, 80.0, horizontalDistance);
+    vec3 nearColor = litColor*vec3(1.035, 1.012, 0.965);
+    float nearLuminance =
+        dot(nearColor, vec3(0.2126, 0.7152, 0.0722));
+    nearColor = mix(vec3(nearLuminance), nearColor, 1.055);
+    litColor = mix(
+        litColor, nearColor, depthPalette*nearPlane*0.72);
+    float middleLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    vec3 middleColor = mix(
+        vec3(middleLuminance)*vec3(0.975, 1.0, 0.985),
+        litColor, 0.84);
+    litColor = mix(
+        litColor, middleColor, depthPalette*middlePlane*0.34);
     float distantLuminance =
         dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     vec3 distantColor = mix(
-        vec3(distantLuminance)*vec3(0.86, 0.94, 0.92),
-        fogColor, 0.28);
-    litColor = mix(litColor, distantColor, distantFade*0.38);
+        vec3(distantLuminance)*vec3(0.84, 0.925, 1.015),
+        fogColor, 0.24);
+    litColor = mix(
+        litColor, distantColor, depthPalette*farPlane*0.46);
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
-    litColor = mix(litColor, vec3(1.0, 0.28, 0.12), clamp(hitFlashAmount, 0.0, 1.0));
+    litColor = mix(litColor, vec3(1.0, 0.95, 0.78), clamp(hitFlashAmount, 0.0, 1.0));
 
-    float horizontalDistance =
-        length(cameraPosition.xz - fragWorldPosition.xz);
     float fogRange = max(fogEnd - fogStart, 0.01);
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
@@ -565,5 +593,5 @@ void main()
     normalAo = vec4(
         encodeOctahedralNormal(normal),
         clamp(screenAoAmount, 0.0, 1.0)*(1.0 - ghost)*
-        (1.0 - terraceWall), 1.0);
+        (1.0 - terraceWall), clamp(vegetationAmount, 0.0, 1.0));
 }

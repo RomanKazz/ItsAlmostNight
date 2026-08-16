@@ -11,7 +11,8 @@
 namespace ian {
 namespace {
 
-Font font{};
+Font primaryFont{};
+Font cyrillicFallbackFont{};
 bool initialized{};
 
 constexpr int AsciiFirst = 32;
@@ -29,8 +30,20 @@ constexpr int GlyphCount =
     (AsciiLast - AsciiFirst + 1) +
     (CyrillicLast - CyrillicFirst + 1) +
     static_cast<int>(ExtraUiCodepoints.size());
+constexpr int LatinGlyphCount =
+    (AsciiLast - AsciiFirst + 1) +
+    static_cast<int>(ExtraUiCodepoints.size());
 constexpr float UiTextScale = 1.68F;
 constexpr float TwoPi = 6.28318530717958647692F;
+
+void configureFontFiltering(Font& loadedFont) {
+    if (!IsFontValid(loadedFont) ||
+        !IsTextureValid(loadedFont.texture)) {
+        return;
+    }
+    SetTextureFilter(
+        loadedFont.texture, TEXTURE_FILTER_BILINEAR);
+}
 
 bool isStandaloneInfinity(std::string_view text) {
     return text == "∞";
@@ -116,22 +129,46 @@ void initializeUiText() {
     for (const int codepoint : ExtraUiCodepoints) {
         codepoints[static_cast<std::size_t>(index++)] = codepoint;
     }
-    font = LoadFontEx(
+    std::array<int, LatinGlyphCount> latinCodepoints{};
+    index = 0;
+    for (int codepoint = AsciiFirst; codepoint <= AsciiLast;
+         ++codepoint) {
+        latinCodepoints[static_cast<std::size_t>(index++)] = codepoint;
+    }
+    for (const int codepoint : ExtraUiCodepoints) {
+        latinCodepoints[static_cast<std::size_t>(index++)] = codepoint;
+    }
+    primaryFont = LoadFontEx(
+        "assets/ui/LilitaOne-Regular.ttf", 96,
+        latinCodepoints.data(), LatinGlyphCount);
+    cyrillicFallbackFont = LoadFontEx(
         "assets/ui/FredokaOneCyrillic-Regular.ttf", 64,
         codepoints.data(), GlyphCount);
-    initialized = IsFontValid(font);
+    configureFontFiltering(primaryFont);
+    configureFontFiltering(cyrillicFallbackFont);
+    initialized = IsFontValid(primaryFont) ||
+        IsFontValid(cyrillicFallbackFont);
 }
 
 void shutdownUiText() {
-    if (initialized) {
-        UnloadFont(font);
+    if (IsFontValid(primaryFont)) UnloadFont(primaryFont);
+    if (IsFontValid(cyrillicFallbackFont)) {
+        UnloadFont(cyrillicFallbackFont);
     }
-    font = {};
+    primaryFont = {};
+    cyrillicFallbackFont = {};
     initialized = false;
 }
 
 Font uiFont() {
-    return initialized ? font : GetFontDefault();
+    if (currentLanguage() == Language::English &&
+        IsFontValid(primaryFont)) {
+        return primaryFont;
+    }
+    if (IsFontValid(cyrillicFallbackFont)) {
+        return cyrillicFallbackFont;
+    }
+    return IsFontValid(primaryFont) ? primaryFont : GetFontDefault();
 }
 
 Vector2 measureUiText(std::string_view text, float fontSize) {

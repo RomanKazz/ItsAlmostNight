@@ -53,6 +53,7 @@ struct WorldMaterialState {
     float windAmount{};
     float localWindHeight{};
     float distantFadeAmount{};
+    float vegetationAmount{};
     float hitFlashAmount{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
@@ -318,6 +319,10 @@ class Renderer {
                   float scale = 1.0F);
     void drawHeart(Vector3 position, float rotationRadians,
                    float scale = 1.0F);
+    void drawSawBladeProjectile(
+        Vector3 position, Vector3 direction,
+        float spinDegrees, float scale = 1.0F,
+        Color tint = WHITE);
     [[nodiscard]] bool drawDestructibleProp(
         ResourceType type, Vector3 position, float yawRadians,
         Color tint = WHITE, float scale = 1.0F);
@@ -498,6 +503,7 @@ class Renderer {
         int windAmount{-1};
         int localWindHeight{-1};
         int distantFadeAmount{-1};
+        int vegetationAmount{-1};
         int hitFlashAmount{-1};
         int selectionAmount{-1};
         int selectionTint{-1};

@@ -32,6 +32,7 @@ enum class GameEventType {
     BossRamImpact,
     PlayerDamaged,
     RopeFallSaved,
+    BattlePotionActivated,
     PlayerDied,
     PlayerRespawned,
     EnemyKilled,

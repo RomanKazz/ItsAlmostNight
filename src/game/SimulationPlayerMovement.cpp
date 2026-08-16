@@ -77,7 +77,8 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
         (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
-        playerMoveSpeedMultiplier_ * std::max(
+        playerMoveSpeedMultiplier_ *
+        (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) * std::max(
             0.05, 1.0 + skillTree_.effectValue("player.move_speed")) *
         terrain_.waterMovementMultiplier(
             playerPosition_.x, playerPosition_.z);
@@ -443,8 +444,11 @@ void Simulation::updatePlayer(double deltaSeconds,
             resources_.nodes(), treeCollisionAssets_,
             stoneCollisionAssets_);
     }
-    pickaxeCooldownRemaining_ = std::max(0.0, pickaxeCooldownRemaining_ - deltaSeconds);
-    playerWeapons_.tick(deltaSeconds);
+    const double attackSpeed = battlePotionBerserkRemaining_ > 0.0
+        ? 1.35 : 1.0;
+    pickaxeCooldownRemaining_ = std::max(
+        0.0, pickaxeCooldownRemaining_ - deltaSeconds * attackSpeed);
+    playerWeapons_.tick(deltaSeconds * attackSpeed);
 }
 
 } // namespace ian

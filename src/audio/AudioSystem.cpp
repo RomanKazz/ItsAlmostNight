@@ -128,7 +128,6 @@ void AudioSystem::shutdown() {
     previousPlayerPosition_.reset();
     footstepDistance_ = 0.0;
     iceHitSoundCooldown_ = 0.0;
-    insightSoundCooldown_ = 0.0;
     lowHealthAmount_ = 0.0F;
     if (ownsAudioDevice_ && IsAudioDeviceReady()) {
         CloseAudioDevice();
@@ -157,8 +156,6 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         (lowHealthTarget - lowHealthAmount_) * lowHealthBlend;
     iceHitSoundCooldown_ = std::max(
         0.0, iceHitSoundCooldown_ - frameSeconds);
-    insightSoundCooldown_ = std::max(
-        0.0, insightSoundCooldown_ - frameSeconds);
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
@@ -222,8 +219,7 @@ void AudioSystem::playEvent(
     case GameEventType::ResourceHit:
         if (event.resourceType) {
             playResourceHit(
-                *event.resourceType, event.position, snapshot,
-                event.critical);
+                *event.resourceType, event.position, snapshot);
         }
         break;
     case GameEventType::ResourceCollected:
@@ -234,11 +230,6 @@ void AudioSystem::playEvent(
                     : stoneBreak_,
                 event.position, snapshot, 0.95F,
                 variedPitch(0.07F));
-            if (event.critical) {
-                playAt(
-                    critical_, event.position, snapshot, 0.45F,
-                    1.12F);
-            }
         }
         break;
     case GameEventType::PickaxeHit:
@@ -395,28 +386,6 @@ void AudioSystem::playEvent(
         play(crystals_, 0.58F, variedPitch(0.04F));
         break;
     case GameEventType::ResourceGranted:
-        if (event.entityId && event.buildingType &&
-            (*event.buildingType == BuildingType::LumberMill ||
-             *event.buildingType == BuildingType::Quarry)) {
-            playAt(
-                repair_, event.position, snapshot, 0.24F,
-                (event.resourceType &&
-                         *event.resourceType ==
-                             ResourceType::Stone
-                     ? 0.9F
-                     : 1.05F) *
-                    variedPitch(0.035F),
-                16.0F);
-        } else {
-            play(
-                repair_, 0.2F,
-                (event.resourceType &&
-                         *event.resourceType ==
-                             ResourceType::Stone
-                     ? 0.9F
-                     : 1.05F) *
-                    variedPitch(0.035F));
-        }
         break;
     case GameEventType::PlayerDamaged:
     case GameEventType::BossRamImpact:
@@ -471,14 +440,6 @@ void AudioSystem::playEvent(
         play(uiConfirm_, 0.52F, 0.94F);
         break;
     case GameEventType::InsightGranted:
-        if (event.treePointsGranted > 0) {
-            play(upgrade_, 0.76F, 1.12F);
-            insightSoundCooldown_ = 0.10;
-        } else if (insightSoundCooldown_ <= 0.0) {
-            play(uiConfirm_, event.insightAmount >= 10.0 ? 0.24F : 0.09F,
-                 event.insightAmount >= 10.0 ? 1.18F : 1.34F);
-            insightSoundCooldown_ = 0.08;
-        }
         break;
     case GameEventType::ChestOpened:
         play(gate_, 0.62F, 0.78F);
@@ -491,6 +452,9 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::LootCollected:
         play(upgrade_, 0.78F, 1.08F);
+        break;
+    case GameEventType::BattlePotionActivated:
+        play(upgrade_, 0.86F, 0.82F);
         break;
     case GameEventType::BuildingRejected:
     case GameEventType::BuildingUpgradeRejected:
@@ -718,7 +682,7 @@ void AudioSystem::playAt(
 
 void AudioSystem::playResourceHit(
     ResourceType type, Vec3 position,
-    const SimulationSnapshot& snapshot, bool critical) {
+    const SimulationSnapshot& snapshot) {
     auto& clips =
         type == ResourceType::Wood ? woodHits_ : stoneHits_;
     sequence_ = sequence_ * 1664525U + 1013904223U;
@@ -727,10 +691,6 @@ void AudioSystem::playResourceHit(
     playAt(
         clips[index], position, snapshot, 0.85F,
         variedPitch(0.075F));
-    if (critical) {
-        playAt(
-            critical_, position, snapshot, 0.45F, 1.12F);
-    }
 }
 
 float AudioSystem::variedPitch(float spread) {

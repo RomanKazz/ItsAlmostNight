@@ -124,7 +124,7 @@ void main()
         silhouetteRim*lightSideRim*0.34*timeOfDayRimStrength;
     vec3 direct =
         sunColor*sunIntensity*
-        (diffuse + leafTransmission + directionalRim);
+        (diffuse + leafTransmission + directionalRim)*0.88;
     vec3 litColor = albedo.rgb*(ambient + direct)*dayNightTint;
     vec3 directionalRimColor =
         mix(sunColor, vec3(1.0), 0.20)*sunIntensity;
@@ -133,6 +133,16 @@ void main()
 
     float horizontalDistance =
         length(cameraPosition.xz - fragWorldPosition.xz);
+    // Blades retain their silhouette nearby, then shed local color contrast
+    // before fog takes over. This avoids noisy high-frequency vegetation in
+    // the middle and far planes.
+    float detailFade = smoothstep(22.0, 58.0, horizontalDistance);
+    float detailLuminance =
+        dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    vec3 calmGrass = mix(
+        vec3(detailLuminance)*vec3(0.88, 0.96, 1.0),
+        litColor, 0.58);
+    litColor = mix(litColor, calmGrass, detailFade*0.48);
     float fogRange = max(fogEnd - fogStart, 0.01);
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
@@ -159,5 +169,5 @@ void main()
     // 0.125 uniquely marks grass: unlike sky (0) and regular geometry (1),
     // it lets the post-process suppress both sides of a grass boundary.
     finalColor = vec4(litColor, 0.125);
-    normalAo = vec4(0.0, 0.0, 0.0, 1.0);
+    normalAo = vec4(0.0);
 }

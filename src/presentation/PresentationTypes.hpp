@@ -32,6 +32,7 @@ actionModeLabel(ActionMode mode) {
 
 enum class PresentationEffectType {
     Hit,
+    EnemyHitImpact,
     ResourceBurst,
     ResourceHitWood,
     ResourceHitStone,

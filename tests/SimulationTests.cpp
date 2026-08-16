@@ -23,6 +23,83 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        ian::Simulation wallDragFoundations;
+        wallDragFoundations.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        wallDragFoundations.tick(1.0 / 60.0, unlimited);
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+            .rotation = 0,
+        };
+        wallDragFoundations.tick(1.0 / 60.0, placeCore);
+        require(
+            wallDragFoundations.snapshot().coreId.has_value(),
+            "wall drag foundation fixture creates core");
+
+        constexpr ian::GridPosition FirstWall{0, 4};
+        constexpr ian::GridPosition SecondWall{1, 4};
+        ian::PlayerCommand placeFirstWall;
+        placeFirstWall.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Wall,
+                .gridPosition = FirstWall,
+                .rotation = 0,
+            };
+        wallDragFoundations.tick(
+            1.0 / 60.0, placeFirstWall);
+        require(
+            std::ranges::count_if(
+                wallDragFoundations.snapshot().buildings,
+                [](const ian::BuildingInstance& building) {
+                    return building.type ==
+                           ian::BuildingType::Wall;
+                }) == 1,
+            "wall drag foundation fixture places first wall");
+        const auto sharedSurface =
+            wallDragFoundations.previewPlacementSurface(
+                ian::BuildingType::Wall, SecondWall);
+        require(
+            sharedSurface.storey == 0,
+            "adjacent wall cell discovers the newly created foundation");
+        ian::PlayerCommand placeSecondWall;
+        placeSecondWall.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Wall,
+                .gridPosition = SecondWall,
+                .rotation = 0,
+                .baseHeight = sharedSurface.height,
+                .platformStorey = -1,
+                .lockHeight = true,
+            };
+        wallDragFoundations.tick(
+            1.0 / 60.0, placeSecondWall);
+
+        const auto built = wallDragFoundations.snapshot();
+        const auto wallCount = std::ranges::count_if(
+            built.buildings,
+            [](const ian::BuildingInstance& building) {
+                return building.type ==
+                       ian::BuildingType::Wall;
+            });
+        require(
+            wallCount == 2,
+            "adjacent dragged walls share their automatic foundation");
+        require(
+            std::ranges::all_of(
+                built.buildings,
+                [](const ian::BuildingInstance& building) {
+                    return building.type !=
+                               ian::BuildingType::Wall ||
+                           building.platformStorey == 0;
+                }),
+            "every dragged wall remains attached to the shared foundation");
+    }
+    {
         auto sawBalance = ian::GameBalance::defaults();
         sawBalance.gameplay.pickaxeDamage = 10000.0;
         sawBalance.gameplay.pickaxeDamageVariation = 0.0;
@@ -54,18 +131,18 @@ void runSimulationTests() {
             });
         require(
             splinterLaunch != launchEvents.end(),
-            "destroying a tree with Saw launches visible splinters");
+            "destroying a tree with Saw launches visible saw blades");
         const auto splinterTarget = std::ranges::find(
             before.resourceNodes, *splinterLaunch->entityId,
             &ian::ResourceNode::id);
         require(
             splinterTarget != before.resourceNodes.end(),
-            "Saw splinter targets an existing resource");
+            "Saw blade targets an existing resource");
         requireNear(
             splinterLaunch->damage,
             splinterTarget->maxHealth * 0.225, 1e-9,
-            "first Saw stack deals the reduced splinter damage");
-        sawSimulation.tick(0.6);
+            "first Saw stack deals the reduced saw blade damage");
+        sawSimulation.tick(1.05);
         const auto impactEvents = sawSimulation.takeEvents();
         require(
             std::ranges::any_of(
@@ -75,7 +152,7 @@ void runSimulationTests() {
                                 ian::GameEventType::ResourceCollected) &&
                         event.sourceId == tree->id;
                 }),
-            "Saw splinters harvest nearby resources after their flight");
+            "Saw blades harvest nearby resources after their flight");
     }
     {
         ian::GameBalance objectiveBalance =
@@ -768,13 +845,109 @@ void runSimulationTests() {
                 ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 2,
             "snapshot exposes stacked bread count");
 
+        lootEffects.grantLootUpgrade(
+            ian::LootUpgradeEffect::IronBar);
+        requireNear(
+            lootEffects.snapshot().playerMaxRecoverableArmor,
+            12.0, 1e-9,
+            "iron bar grants a separate recoverable armor pool");
+        const double healthBeforeArmorHits =
+            lootEffects.snapshot().playerHealth;
+        ian::PlayerCommand armorHit;
+        armorHit.damagePlayer = ian::DamagePlayerCommand{7.0};
+        lootEffects.tick(0.0, armorHit);
+        requireNear(
+            lootEffects.snapshot().playerRecoverableArmor,
+            5.0, 1e-9,
+            "recoverable armor absorbs incoming damage first");
+        requireNear(
+            lootEffects.snapshot().playerHealth,
+            healthBeforeArmorHits, 1e-9,
+            "fully absorbed armor damage does not reduce health");
+        armorHit.damagePlayer = ian::DamagePlayerCommand{10.0};
+        lootEffects.tick(0.0, armorHit);
+        requireNear(
+            lootEffects.snapshot().playerHealth,
+            healthBeforeArmorHits - 5.0, 1e-9,
+            "damage beyond remaining armor reaches health");
+        lootEffects.tick(4.9);
+        requireNear(
+            lootEffects.snapshot().playerRecoverableArmor,
+            0.0, 1e-9,
+            "armor waits five damage-free seconds before recharging");
+        lootEffects.tick(0.2);
+        requireNear(
+            lootEffects.snapshot().playerRecoverableArmor,
+            0.5, 1e-9,
+            "armor begins recharging smoothly after its delay");
+
+        lootEffects.grantLootUpgrade(
+            ian::LootUpgradeEffect::Key);
+        require(
+            lootEffects.snapshot().freeChestOpeningAvailable &&
+                std::abs(
+                    lootEffects.snapshot().chestOpeningCostMultiplier -
+                    1.0) < 1e-9,
+            "first Chest Key grants a free daily opening without a passive discount");
+        lootEffects.grantLootUpgrade(
+            ian::LootUpgradeEffect::Key);
+        requireNear(
+            lootEffects.snapshot().chestOpeningCostMultiplier,
+            0.95, 1e-9,
+            "additional Chest Key stacks reduce paid chest cost");
+
         lootEffects.restartRun();
         require(
             lootEffects.snapshot().lootStacks[
                 ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 0 &&
             lootEffects.snapshot().lootStacks[
-                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 0,
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 0 &&
+            lootEffects.snapshot().playerMaxRecoverableArmor == 0.0,
             "run restart clears collected item stacks");
+    }
+    {
+        ian::GameBalance potionBalance =
+            ian::GameBalance::defaults();
+        potionBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        ian::MapDefinition potionMap =
+            ian::MapDefinition::defaults();
+        potionMap.obstacles.clear();
+        ian::WorldConfig potionWorld =
+            ian::WorldConfig::defaults();
+        potionWorld.terrainAmplitude = 0.0;
+        ian::Simulation potionSimulation{
+            potionBalance, potionMap, potionWorld};
+        potionSimulation.startRun();
+        potionSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::Potion,
+            ian::LootRarity::Rare);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        potionSimulation.tick(0.0, placeCore);
+        ian::PlayerCommand startWave;
+        startWave.startWaveEarly =
+            ian::StartWaveEarlyCommand{};
+        potionSimulation.tick(0.0, startWave);
+        require(
+            potionSimulation.snapshot().state == ian::RunState::Wave &&
+                potionSimulation.snapshot().battlePotionAvailable,
+            "Battle Potion arms once at the beginning of a night");
+        ian::PlayerCommand criticalDamage;
+        criticalDamage.damagePlayer =
+            ian::DamagePlayerCommand{66.0};
+        potionSimulation.tick(0.0, criticalDamage);
+        require(
+            !potionSimulation.snapshot().battlePotionAvailable &&
+                potionSimulation.snapshot().battlePotionBerserkRemaining >
+                    5.9,
+            "Battle Potion automatically activates below 35 percent health");
+        potionSimulation.tick(6.1);
+        require(
+            potionSimulation.snapshot().battlePotionBerserkRemaining == 0.0 &&
+                potionSimulation.snapshot().playerTemporaryHealth >= 10.0,
+            "Berserk ends with temporary health instead of its old wave-start heal");
     }
     {
         ian::Simulation weaponProgression;

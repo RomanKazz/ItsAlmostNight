@@ -363,6 +363,7 @@ void App::render() {
         WorldMaterialState terrainMaterial{};
         terrainMaterial.terrainAmount = 1.0F;
         terrainMaterial.bakedAo = 0.9F;
+        terrainMaterial.distantFadeAmount = 1.0F;
         renderer_->setWorldMaterial(terrainMaterial);
         renderer_->drawTerrain(
             ground, camera.position,
@@ -389,6 +390,8 @@ void App::render() {
         pondPlantMaterial.screenAoAmount = 0.0F;
         pondPlantMaterial.windAmount = 0.32F;
         pondPlantMaterial.localWindHeight = 1.0F;
+        pondPlantMaterial.distantFadeAmount = 0.9F;
+        pondPlantMaterial.vegetationAmount = 1.0F;
         renderer_->setWorldMaterial(pondPlantMaterial);
         renderer_->drawPondDecor();
         renderer_->endWorldShader();

@@ -70,6 +70,7 @@ class IceWandSystem {
     void setSkillModifiers(double damage, double radius,
                            double statusDuration, double burnDamage,
                            double thermalShockDamage);
+    void setCastSpeedMultiplier(double multiplier);
     bool requestFire(Vec3 origin, Vec3 direction);
     void tick(double deltaSeconds, EnemySystem& enemies,
               const TerrainHeightfield* terrain,
@@ -153,6 +154,7 @@ class IceWandSystem {
     double statusDurationMultiplier_{1.0};
     double burnDamageMultiplier_{1.0};
     double thermalShockDamage_{};
+    double castSpeedMultiplier_{1.0};
 };
 
 } // namespace ian

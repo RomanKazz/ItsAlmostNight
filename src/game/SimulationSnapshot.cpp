@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "game/ChallengeArena.hpp"
+
 #include "core/SaturatingArithmetic.hpp"
 
 #include <algorithm>
@@ -121,7 +123,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
                   challengeColumns_[*activeChallengeColumn_].position}
             : std::nullopt,
         .activeChallengeRadius = activeChallengeColumn_
-            ? 18.0
+            ? challenge_arena::FenceRadius
             : 0.0,
         .nearestChestPosition = nearestChestPosition,
         .nearestChestDistance = nearestChestPosition
@@ -132,8 +134,19 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .playerMoveSpeedMultiplier = playerMoveSpeedMultiplier_,
         .playerArmorMultiplier = playerArmorMultiplier_,
         .playerTemporaryHealth = playerTemporaryHealth_,
+        .playerRecoverableArmor = playerRecoverableArmor_,
+        .playerMaxRecoverableArmor = playerMaxRecoverableArmor_,
+        .playerArmorRechargeDelayRemaining = std::max(
+            0.0, 5.0 - secondsSincePlayerDamage_),
+        .battlePotionAvailable = battlePotionAvailable_,
+        .battlePotionBerserkRemaining =
+            battlePotionBerserkRemaining_,
+        .battlePotionBerserkDuration =
+            battlePotionBerserkDuration_,
         .chestOpeningCostMultiplier =
             chestOpeningCostMultiplier_,
+        .freeChestOpeningAvailable =
+            freeChestOpeningAvailable_,
         .chestOpeningCostSurcharge =
             saturatingMultiplyNonNegative(
                 economy_.chestOpeningCoinCostPerWave, wave_),

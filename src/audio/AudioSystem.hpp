@@ -65,8 +65,7 @@ class AudioSystem {
                 float volume = 1.0F, float pitch = 1.0F,
                 float maximumDistance = 38.0F);
     void playResourceHit(ResourceType type, Vec3 position,
-                         const SimulationSnapshot& snapshot,
-                         bool critical);
+                         const SimulationSnapshot& snapshot);
     [[nodiscard]] float variedPitch(float spread);
 
     bool initialized_{};
@@ -99,7 +98,6 @@ class AudioSystem {
     std::optional<Vec3> previousPlayerPosition_;
     double footstepDistance_{};
     double iceHitSoundCooldown_{};
-    double insightSoundCooldown_{};
     float lowHealthAmount_{};
 };
 

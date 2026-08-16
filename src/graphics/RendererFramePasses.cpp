@@ -970,11 +970,17 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.windAmount == worldMaterial_.windAmount &&
         material.localWindHeight == worldMaterial_.localWindHeight &&
         material.distantFadeAmount == worldMaterial_.distantFadeAmount &&
+        material.vegetationAmount == worldMaterial_.vegetationAmount &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
         material.selectionTint.y == worldMaterial_.selectionTint.y &&
         material.selectionTint.z == worldMaterial_.selectionTint.z &&
+        material.ghostAmount == worldMaterial_.ghostAmount &&
+        material.ghostTint.x == worldMaterial_.ghostTint.x &&
+        material.ghostTint.y == worldMaterial_.ghostTint.y &&
+        material.ghostTint.z == worldMaterial_.ghostTint.z &&
+        material.ghostOpacity == worldMaterial_.ghostOpacity &&
         material.inkOutlineEligible == worldMaterial_.inkOutlineEligible) {
         return;
     }

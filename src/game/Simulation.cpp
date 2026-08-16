@@ -148,6 +148,8 @@ Simulation::Simulation(
         map_.playerSpawn.z};
     playerHealth_ = gameplay_.playerMaxHealth;
     playerTemporaryHealth_ = 0.0;
+    playerRecoverableArmor_ = 0.0;
+    playerMaxRecoverableArmor_ = 0.0;
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
@@ -274,6 +276,7 @@ void Simulation::resetRun(GameEventType eventType) {
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
     powerSwingResourceHits_ = 0;
+    nailHitCounter_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
     pickaxeInputBufferRemaining_ = 0.0;
     aimedResource_.reset();
@@ -295,7 +298,14 @@ void Simulation::resetRun(GameEventType eventType) {
     chestOpeningCostMultiplier_ = 1.0;
     playerBonusMaxHealth_ = 0.0;
     playerTemporaryHealth_ = 0.0;
+    playerRecoverableArmor_ = 0.0;
+    playerMaxRecoverableArmor_ = 0.0;
     secondsSincePlayerDamage_ = 0.0;
+    battlePotionAvailable_ = false;
+    battlePotionBerserkRemaining_ = 0.0;
+    battlePotionBerserkDuration_ = 0.0;
+    battlePotionLifestealRemaining_ = 0.0;
+    freeChestOpeningAvailable_ = false;
     lootStacks_.fill(0);
     selectedBuilding_.reset();
     buildingRotation_ = 0;
@@ -484,7 +494,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             .intensity = 1.0,
         });
     }
-    updateLootEffects(deltaSeconds);
+    updateLootEffects(deltaSeconds, firstInsightEvent);
     updateCoinPickups(deltaSeconds);
     processObjectiveEvents(firstInsightEvent);
     processInsightEvents(firstInsightEvent, command.defeatAllEnemies.has_value());

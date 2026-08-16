@@ -76,12 +76,18 @@ void Simulation::damagePlayer(
             ? damage
             : damage /
                   std::max(playerArmorMultiplier_, 1.0);
+    const double absorbedByArmor = ignoreArmor
+        ? 0.0
+        : std::min(playerRecoverableArmor_, mitigatedDamage);
+    playerRecoverableArmor_ = std::max(
+        0.0, playerRecoverableArmor_ - absorbedByArmor);
+    const double healthDamage = mitigatedDamage - absorbedByArmor;
     const double temporaryDamage = std::min(
-        playerTemporaryHealth_, mitigatedDamage);
+        playerTemporaryHealth_, healthDamage);
     playerTemporaryHealth_ = std::max(
         0.0, playerTemporaryHealth_ - temporaryDamage);
     playerHealth_ = std::max(
-        0.0, playerHealth_ - mitigatedDamage);
+        0.0, playerHealth_ - healthDamage);
     secondsSincePlayerDamage_ = 0.0;
     events_.push_back({
         .type = GameEventType::PlayerDamaged,
@@ -167,6 +173,7 @@ void Simulation::beginPlayerRespawn(
     edgeSupportGraceRemaining_ = 0.0;
     playerGrounded_ = true;
     playerTemporaryHealth_ = 0.0;
+    playerRecoverableArmor_ = 0.0;
     buildingPreview_.reset();
     aimedResource_.reset();
     aimedEnemy_.reset();

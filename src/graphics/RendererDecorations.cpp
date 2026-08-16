@@ -479,8 +479,20 @@ void Renderer::drawDecorativeRocks(
                 instance.position.x - cameraPosition.x;
             const float offsetZ =
                 instance.position.y - cameraPosition.z;
-            if (offsetX * offsetX + offsetZ * offsetZ <=
-                    BushDrawRadius * BushDrawRadius &&
+            const float distanceSquared =
+                offsetX * offsetX + offsetZ * offsetZ;
+            const float distance = std::sqrt(distanceSquared);
+            const float detailFade = std::clamp(
+                (distance - BushDrawRadius * 0.58F) /
+                    (BushDrawRadius * 0.42F),
+                0.0F, 1.0F);
+            const float stableNoise = std::fmod(std::abs(std::sin(
+                instance.position.x * 12.9898F +
+                instance.position.y * 78.233F) * 43758.5453F), 1.0F);
+            const bool keepDistantDetail =
+                stableNoise <= 1.0F - detailFade * 0.42F;
+            if (distanceSquared <= BushDrawRadius * BushDrawRadius &&
+                keepDistantDetail &&
                 !decorationExclusionMap_.blocked(
                     instance.position.x, instance.position.y) &&
                 clearAreaVisibility(
@@ -535,6 +547,11 @@ void Renderer::drawDecorativeRocks(
     }
     constexpr std::size_t FirstFlowerVariant = 6U;
     constexpr std::size_t LastFlowerVariant = 7U;
+    rlDrawRenderBatchActive();
+    WorldMaterialState bushMaterial = worldMaterial_;
+    bushMaterial.distantFadeAmount = 1.0F;
+    bushMaterial.vegetationAmount = 1.0F;
+    uploadWorldMaterial(bushMaterial);
     for (std::size_t variant = 0; variant < BushVariantCount; ++variant) {
         if (variant >= FirstFlowerVariant &&
             variant <= LastFlowerVariant) {
@@ -548,13 +565,13 @@ void Renderer::drawDecorativeRocks(
             resources_.decorativeBushModel(variant).get(),
             decorativeBushTransforms_[variant]);
     }
+    rlDrawRenderBatchActive();
     // Small flower clusters share the same reserved material tag as grass.
     // Their RGB stays opaque, while post-process ink ignores both sides of
     // the flower/terrain boundary. Bushes and the larger plant keep ink.
     WorldMaterialState flowerMaterial = worldMaterial_;
     flowerMaterial.baseColor.w = 0.125F;
     uploadWorldMaterial(flowerMaterial);
-    rlDrawRenderBatchActive();
     rlSetBlendFactorsSeparate(
         RL_ONE, RL_ZERO,
         RL_ONE, RL_ZERO,

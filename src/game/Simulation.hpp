@@ -64,6 +64,8 @@ struct SpawnEnemyCommand {
 };
 struct CastChainLightningCommand {
     std::optional<EntityId> firstTarget;
+    std::optional<EntityId> excludedTarget;
+    std::optional<Vec3> sourcePosition;
     double damage{28.0};
     double jumpRadius{6.5};
     double damageFalloff{0.82};
@@ -214,7 +216,14 @@ struct SimulationSnapshot {
     double playerMoveSpeedMultiplier;
     double playerArmorMultiplier;
     double playerTemporaryHealth;
+    double playerRecoverableArmor;
+    double playerMaxRecoverableArmor;
+    double playerArmorRechargeDelayRemaining;
+    bool battlePotionAvailable{};
+    double battlePotionBerserkRemaining{};
+    double battlePotionBerserkDuration{};
     double chestOpeningCostMultiplier;
+    bool freeChestOpeningAvailable{};
     int chestOpeningCostSurcharge;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
@@ -420,6 +429,9 @@ class Simulation {
     void processDebugCommands(const PlayerCommand& command);
     void castChainLightning(
         const CastChainLightningCommand& command);
+    void registerNailHit(
+        EntityId primaryTarget, Vec3 impactPosition,
+        double directHitDamage);
     void processBuildingCommands(const PlayerCommand& command);
     void processBuildingActions(const PlayerCommand& command);
     void updatePlayerActions(double deltaSeconds,
@@ -495,7 +507,8 @@ class Simulation {
     void updateFortifications(double deltaSeconds);
     void applyLootPickup(const LootPickup& pickup);
     void applyPotionWaveStart();
-    void updateLootEffects(double deltaSeconds);
+    void updateLootEffects(double deltaSeconds,
+                           std::size_t firstGameplayEvent);
     void resetChallengeColumns();
     void updateChallengeColumns(
         double deltaSeconds, const PlayerCommand& command);
@@ -604,6 +617,7 @@ class Simulation {
     std::uint64_t debugSpawnSequence_{};
     std::uint64_t pickaxeAttackSequence_{};
     std::uint64_t powerSwingResourceHits_{};
+    std::uint64_t nailHitCounter_{};
     double pickaxeCooldownRemaining_{};
     double pickaxeInputBufferRemaining_{};
     std::optional<EntityId> aimedResource_;
@@ -663,7 +677,14 @@ class Simulation {
     double chestOpeningCostMultiplier_{1.0};
     double playerBonusMaxHealth_{};
     double playerTemporaryHealth_{};
+    double playerRecoverableArmor_{};
+    double playerMaxRecoverableArmor_{};
     double secondsSincePlayerDamage_{};
+    bool battlePotionAvailable_{};
+    double battlePotionBerserkRemaining_{};
+    double battlePotionBerserkDuration_{};
+    double battlePotionLifestealRemaining_{};
+    bool freeChestOpeningAvailable_{};
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     int bareHandsWoodGathered_{};
     int bareHandsStoneGathered_{};

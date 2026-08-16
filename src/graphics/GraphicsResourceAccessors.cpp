@@ -247,6 +247,10 @@ ModelResource& GraphicsResources::arrowModel() {
     return arrowModel_;
 }
 
+ModelResource& GraphicsResources::sawBladeModel() {
+    return sawBladeModel_;
+}
+
 ModelResource& GraphicsResources::crossbowModel() {
     return crossbowModel_;
 }

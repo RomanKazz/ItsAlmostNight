@@ -134,9 +134,19 @@ vec4 sourcePixel(ivec2 coordinate)
         0);
 }
 
+vec4 normalPixel(ivec2 coordinate)
+{
+    ivec2 size = textureSize(sceneNormal, 0);
+    return texelFetch(
+        sceneNormal,
+        clamp(coordinate, ivec2(0), size - ivec2(1)),
+        0);
+}
+
 float inkDifference(
     vec3 centerColor, float centerLuminance,
-    ivec2 coordinate, float directionWeight)
+    ivec2 coordinate, float directionWeight,
+    float vegetationOutlineFade)
 {
     vec4 neighbor = sourcePixel(coordinate);
     // Grass uses a reserved alpha tag. Ignoring it here prevents the
@@ -146,6 +156,8 @@ float inkDifference(
     {
         return 0.0;
     }
+    float neighborVegetation =
+        step(0.5, normalPixel(coordinate).a);
     vec3 neighborColor = neighbor.rgb;
     float neighborLuminance = luminanceOf(neighborColor);
     float luminanceContrast =
@@ -156,7 +168,8 @@ float inkDifference(
         -0.025, 0.065,
         neighborLuminance - centerLuminance);
     return (luminanceContrast + colorContrast)*
-        mix(0.04, 1.0, darkerSide)*directionWeight;
+        mix(0.04, 1.0, darkerSide)*directionWeight*
+        mix(1.0, vegetationOutlineFade, neighborVegetation);
 }
 
 float bayer4(vec2 pixel)
@@ -330,6 +343,16 @@ void main()
         // middle ground, and no black tracing over distant forests/mountains.
         float outlineDistance =
             1.0 - smoothstep(30.0, 86.0, viewDistance);
+        // The auxiliary normal/AO target marks trees and sizeable plants.
+        // Their ink disappears earlier than prop/enemy ink, including the
+        // terrain-side half of an edge, so distant foliage becomes a clean
+        // mass instead of line noise without making its RGB transparent.
+        float vegetationOutlineFade =
+            1.0 - smoothstep(18.0, 60.0, viewDistance);
+        float sourceVegetation = step(
+            0.5, texture(sceneNormal, pixelUv).a);
+        outlineDistance *= mix(
+            1.0, vegetationOutlineFade, sourceVegetation);
         float centerLuminance = luminanceOf(source.rgb);
         float edge = 0.0;
         int pixelWidth = int(round(clamp(
@@ -346,28 +369,36 @@ void main()
             float ringEdge = 0.0;
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate + horizontal, 1.0));
+                sourceCoordinate + horizontal, 1.0,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate - horizontal, 1.0));
+                sourceCoordinate - horizontal, 1.0,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate + vertical, 1.0));
+                sourceCoordinate + vertical, 1.0,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate - vertical, 1.0));
+                sourceCoordinate - vertical, 1.0,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate + diagonal, 0.72));
+                sourceCoordinate + diagonal, 0.72,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate - diagonal, 0.72));
+                sourceCoordinate - diagonal, 0.72,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate + ivec2(ring, -ring), 0.72));
+                sourceCoordinate + ivec2(ring, -ring), 0.72,
+                vegetationOutlineFade));
             ringEdge = max(ringEdge, inkDifference(
                 source.rgb, centerLuminance,
-                sourceCoordinate + ivec2(-ring, ring), 0.72));
+                sourceCoordinate + ivec2(-ring, ring), 0.72,
+                vegetationOutlineFade));
             edge = max(edge, ringEdge);
         }
         // A steeper response restores the chunky foreground silhouette.

@@ -90,6 +90,7 @@ void IceWandSystem::reset() {
     chargeOrigin_ = {};
     chargeDirection_ = {0.0, 0.0, -1.0};
     charging_ = false;
+    castSpeedMultiplier_ = 1.0;
 }
 
 void IceWandSystem::setSkillModifiers(
@@ -102,13 +103,18 @@ void IceWandSystem::setSkillModifiers(
     thermalShockDamage_ = std::max(0.0, thermalShockDamage);
 }
 
+void IceWandSystem::setCastSpeedMultiplier(double multiplier) {
+    castSpeedMultiplier_ = std::max(0.05, multiplier);
+}
+
 bool IceWandSystem::requestFire(Vec3 origin, Vec3 direction) {
     if (charging_ || cooldownRemaining_ > 0.0) {
         return false;
     }
     chargeOrigin_ = origin;
     chargeDirection_ = geometry::normalizedOr(direction);
-    chargeRemaining_ = definition_.chargeUpDuration;
+    chargeRemaining_ =
+        definition_.chargeUpDuration / castSpeedMultiplier_;
     charging_ = true;
     return true;
 }
@@ -131,7 +137,8 @@ void IceWandSystem::tick(
         if (chargeRemaining_ <= 0.0) {
             spawnProjectile();
             charging_ = false;
-            cooldownRemaining_ = definition_.cooldown;
+            cooldownRemaining_ =
+                definition_.cooldown / castSpeedMultiplier_;
         }
     }
 

@@ -758,10 +758,46 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         {18.0F, healthY}, 15.0F,
         healthFraction > 0.3 ? Color{176, 225, 179, 255}
                              : Color{240, 116, 98, 255});
+    const bool hasRecoverableArmor =
+        snapshot.playerMaxRecoverableArmor > 0.0;
+    if (hasRecoverableArmor) {
+        std::string armorText =
+            "ARMOR " +
+            std::to_string(static_cast<int>(std::ceil(
+                snapshot.playerRecoverableArmor))) +
+            "/" +
+            std::to_string(static_cast<int>(std::ceil(
+                snapshot.playerMaxRecoverableArmor)));
+        if (snapshot.playerRecoverableArmor <
+                snapshot.playerMaxRecoverableArmor &&
+            snapshot.playerArmorRechargeDelayRemaining > 0.05) {
+            armorText += "  " + std::to_string(
+                static_cast<int>(std::ceil(
+                    snapshot.playerArmorRechargeDelayRemaining))) + "s";
+        }
+        drawUiText(
+            armorText, {154.0F, healthY + 2.0F}, 9.0F,
+            snapshot.playerArmorRechargeDelayRemaining > 0.05
+                ? Color{127, 172, 190, 235}
+                : Color{139, 225, 250, 255});
+    }
+    const Rectangle healthBarBounds{
+        18.0F, healthY + 27.0F, 260.0F, 16.0F};
     ui.drawProgressBar(
-        {18.0F, healthY + 27.0F, 260.0F, 16.0F},
+        healthBarBounds,
         static_cast<float>(healthFraction),
         healthFraction > 0.3 ? UiBarColor::Green : UiBarColor::Red);
+    if (hasRecoverableArmor) {
+        // Armor is a protective coating on the health bar rather than a
+        // second standalone resource bar.
+        ui.drawProgressBar(
+            {healthBarBounds.x, healthBarBounds.y,
+             healthBarBounds.width, 8.0F},
+            static_cast<float>(
+                snapshot.playerRecoverableArmor /
+                snapshot.playerMaxRecoverableArmor),
+            UiBarColor::Blue);
+    }
 
     if (view.showCoreHealth && snapshot.coreMaxHealth > 0.0) {
         drawUiText(

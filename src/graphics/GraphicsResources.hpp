@@ -254,6 +254,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& cannonModel();
     [[nodiscard]] ModelResource& cannonballModel();
     [[nodiscard]] ModelResource& arrowModel();
+    [[nodiscard]] ModelResource& sawBladeModel();
     [[nodiscard]] ModelResource& crossbowModel();
     [[nodiscard]] ModelResource& coreModel();
     [[nodiscard]] ModelResource& axeModel();
@@ -375,6 +376,7 @@ class GraphicsResources {
     ModelResource cannonModel_;
     ModelResource cannonballModel_;
     ModelResource arrowModel_;
+    ModelResource sawBladeModel_;
     ModelResource crossbowModel_;
     ModelResource coreModel_;
     ModelResource axeModel_;

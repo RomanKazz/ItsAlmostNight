@@ -425,6 +425,44 @@ void Renderer::drawCoin(
     rlPopMatrix();
 }
 
+void Renderer::drawSawBladeProjectile(
+    Vector3 position, Vector3 direction,
+    float spinDegrees, float scale, Color tint) {
+    ModelResource& resource = resources_.sawBladeModel();
+    const float horizontalLength = std::sqrt(
+        direction.x * direction.x + direction.z * direction.z);
+    const float headingDegrees = horizontalLength > 0.0001F
+        ? std::atan2(direction.x, direction.z) * RAD2DEG
+        : 0.0F;
+
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    // The authored blade lies in its local XY plane. Keep that plane along
+    // the flight path, then roll it around its axle like a thrown saw.
+    rlRotatef(headingDegrees + 90.0F, 0.0F, 1.0F, 0.0F);
+    rlRotatef(spinDegrees, 0.0F, 0.0F, 1.0F);
+    rlScalef(scale * 1.55F, scale * 1.55F, scale * 1.55F);
+    if (resource.valid()) {
+        Model& model = resource.get();
+        Shader shader{
+            .id = rlGetShaderIdDefault(),
+            .locs = rlGetShaderLocsDefault(),
+        };
+        if (worldShaderActive_ && resources_.worldShader().valid()) {
+            shader = resources_.worldShader().get();
+        }
+        if (model.materials != nullptr) {
+            for (int index = 0; index < model.materialCount; ++index) {
+                model.materials[index].shader = shader;
+            }
+        }
+        drawFittedLootModel(resource, tint);
+    } else {
+        DrawCylinder({}, 0.28F, 0.28F, 0.055F, 16, tint);
+    }
+    rlPopMatrix();
+}
+
 void Renderer::drawHeart(
     Vector3 position, float rotationRadians, float scale) {
     ModelResource& resource = resources_.heartLootModel();

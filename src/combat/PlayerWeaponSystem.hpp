@@ -105,6 +105,7 @@ template <std::size_t Size>
 struct WeaponFireResult {
     std::optional<EntityId> targetId;
     Vec3 hitPosition;
+    double damage{};
     bool killed{};
 };
 

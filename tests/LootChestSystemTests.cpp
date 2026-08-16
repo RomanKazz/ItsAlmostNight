@@ -160,6 +160,20 @@ void runLootChestSystemTests() {
                 ian::ChestOpenResult::InsufficientCoins &&
                 poorCoins == cost - 1,
             "failed chest purchase never spends coins");
+    const auto freeChest = std::ranges::find_if(
+        chests.chests(), [id](const ian::LootChestInstance& chest) {
+            return chest.id != id &&
+                chest.state == ian::LootChestState::Closed &&
+                chest.coinCost > 0;
+        });
+    require(freeChest != chests.chests().end(),
+            "a second paid chest exists for key test");
+    int keyCoins = 3;
+    require(
+        chests.open(freeChest->id, keyCoins, true) ==
+                ian::ChestOpenResult::Opened &&
+            keyCoins == 3,
+        "free key opening does not spend coins");
     int coins = cost + 4;
     require(chests.open(id, coins) == ian::ChestOpenResult::Opened &&
                 coins == 4,

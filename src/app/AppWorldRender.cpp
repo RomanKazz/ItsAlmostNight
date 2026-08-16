@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "game/ChallengeArena.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
 #include <raylib.h>
@@ -16,7 +17,6 @@ using namespace app_detail;
 namespace {
 
 constexpr int ChallengeFencePegCount = 36;
-constexpr float ChallengeFenceRadius = 17.45F;
 constexpr float ChallengeFencePegHeight = 2.25F;
 constexpr float ChallengeFenceRopeHeight = 1.56F;
 constexpr int ChallengeFenceRopeSegments = 5;
@@ -241,9 +241,11 @@ void App::drawChallengeFence(
     for (int index = 0; index < ChallengeFencePegCount; ++index) {
         const float angle = challengeFenceAngle(index);
         const float x = static_cast<float>(column.position.x) +
-            std::cos(angle) * ChallengeFenceRadius;
+            std::cos(angle) *
+                static_cast<float>(challenge_arena::FenceRadius);
         const float z = static_cast<float>(column.position.z) +
-            std::sin(angle) * ChallengeFenceRadius;
+            std::sin(angle) *
+                static_cast<float>(challenge_arena::FenceRadius);
         const float groundY = static_cast<float>(
             simulation_.terrain().getHeight(x, z));
         const float amount = challengeFencePegProgress(
@@ -267,8 +269,8 @@ void App::drawChallengeFence(
     }
 
     if (!drawRopes) return;
-    const Color ropeShadow{83, 50, 29, 255};
-    const Color ropeHighlight{184, 126, 76, 255};
+    const Color ropeShadow{145, 94, 58, 255};
+    const Color ropeHighlight{228, 170, 108, 255};
     for (int index = 0; index < ChallengeFencePegCount; ++index) {
         const int nextIndex = (index + 1) % ChallengeFencePegCount;
         const float visibility = std::min(
@@ -292,11 +294,23 @@ void App::drawChallengeFence(
             point.y -= 0.52F * 4.0F * t * (1.0F - t) * visibility;
             const float outerRadius = 0.192F * visibility;
             const float innerRadius = 0.114F * visibility;
+            const Vector3 segmentDelta = Vector3Subtract(point, previous);
+            const float segmentLength = Vector3Length(segmentDelta);
+            const Vector3 segmentDirection = segmentLength > 0.0001F
+                ? Vector3Scale(segmentDelta, 1.0F / segmentLength)
+                : Vector3{};
+            const float overlap = std::min(
+                outerRadius * 0.82F, segmentLength * 0.18F);
+            const Vector3 joinedStart = Vector3Subtract(
+                previous, Vector3Scale(segmentDirection, overlap));
+            const Vector3 joinedEnd = Vector3Add(
+                point, Vector3Scale(segmentDirection, overlap));
             DrawCylinderEx(
-                previous, point, outerRadius, outerRadius,
+                joinedStart, joinedEnd,
+                outerRadius, outerRadius,
                 6, ropeShadow);
-            Vector3 highlightStart = previous;
-            Vector3 highlightEnd = point;
+            Vector3 highlightStart = joinedStart;
+            Vector3 highlightEnd = joinedEnd;
             highlightStart.y += 0.096F * visibility;
             highlightEnd.y += 0.096F * visibility;
             DrawCylinderEx(
@@ -337,7 +351,8 @@ void App::drawWorldEntities(
     boundaryForestMaterial.bakedAo = 0.72F;
     boundaryForestMaterial.screenAoAmount = 0.0F;
     boundaryForestMaterial.windAmount = 0.18F;
-    boundaryForestMaterial.distantFadeAmount = 0.34F;
+    boundaryForestMaterial.distantFadeAmount = 1.0F;
+    boundaryForestMaterial.vegetationAmount = 1.0F;
     renderer_->setWorldMaterial(boundaryForestMaterial);
     renderer_->drawBoundaryForest();
     WorldMaterialState decorativeRockMaterial{};
@@ -388,6 +403,10 @@ void App::drawWorldEntities(
         material.bakedAo = 0.78F;
         material.windAmount =
             node.type == ResourceType::Wood ? 1.0F : 0.0F;
+        if (node.type == ResourceType::Wood) {
+            material.distantFadeAmount = 1.0F;
+            material.vegetationAmount = 1.0F;
+        }
         material.hitFlashAmount =
             presentation::resourceHitFlash(
                 effects_, node.id);
@@ -469,6 +488,8 @@ void App::drawWorldEntities(
         WorldMaterialState treeMaterial{};
         treeMaterial.bakedAo = 0.78F;
         treeMaterial.windAmount = 1.0F;
+        treeMaterial.distantFadeAmount = 1.0F;
+        treeMaterial.vegetationAmount = 1.0F;
         renderer_->setWorldMaterial(treeMaterial);
         if (!renderer_->drawTreesInstanced(
                 resourceTreeDrawInstances_)) {
@@ -1050,13 +1071,16 @@ void App::drawWorldEntities(
         const float remainingFraction = std::clamp(
             static_cast<float>(effect.remaining / effect.duration),
             0.0F, 1.0F);
-        if (effect.type == PresentationEffectType::Hit) {
+        if (effect.type == PresentationEffectType::EnemyHitImpact) {
+            const float flashStrength = std::clamp(
+                std::pow(remainingFraction, 0.42F) * effect.scale,
+                0.0F, 1.0F);
             auto [entry, inserted] =
                 enemyHitFlashById_.try_emplace(
-                    key, remainingFraction);
+                    key, flashStrength);
             if (!inserted) {
                 entry->second = std::max(
-                    entry->second, remainingFraction);
+                    entry->second, flashStrength);
             }
         } else if (
             effect.type == PresentationEffectType::EnemyBurn) {
@@ -1148,11 +1172,10 @@ void App::drawWorldEntities(
         }
         if (!aimed) {
             if (hitFlash > 0.001F) {
-                const float quantizedFlash =
-                    std::ceil(
-                        std::clamp(hitFlash, 0.0F, 1.0F) *
-                        3.0F) /
-                    3.0F;
+                const float smoothFlash =
+                    std::clamp(hitFlash, 0.0F, 1.0F);
+                const float batchedFlash =
+                    std::ceil(smoothFlash * 4.0F) / 4.0F;
                 modelTint = {
                     static_cast<unsigned char>(
                         std::lround(
@@ -1160,21 +1183,21 @@ void App::drawWorldEntities(
                             (255.0F -
                              static_cast<float>(
                                  modelTint.r)) *
-                                quantizedFlash)),
+                                batchedFlash)),
                     static_cast<unsigned char>(
                         std::lround(
                             static_cast<float>(modelTint.g) +
-                            (176.0F -
+                            (244.0F -
                              static_cast<float>(
                                  modelTint.g)) *
-                                quantizedFlash)),
+                                batchedFlash)),
                     static_cast<unsigned char>(
                         std::lround(
                             static_cast<float>(modelTint.b) +
-                            (145.0F -
+                            (205.0F -
                              static_cast<float>(
                                  modelTint.b)) *
-                                quantizedFlash)),
+                                batchedFlash)),
                     255,
                 };
             }

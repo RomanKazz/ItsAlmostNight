@@ -104,6 +104,8 @@ void Renderer::resolveWorldShaderLocations() {
         .localWindHeight = GetShaderLocation(shader, "localWindHeight"),
         .distantFadeAmount =
             GetShaderLocation(shader, "distantFadeAmount"),
+        .vegetationAmount =
+            GetShaderLocation(shader, "vegetationAmount"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
@@ -355,6 +357,9 @@ void Renderer::uploadPostProcessSettings() {
     SetShaderValueTexture(
         shader, postProcessLocations_.sceneDepth,
         resources_.sceneTarget().depth);
+    SetShaderValueTexture(
+        shader, postProcessLocations_.sceneNormal,
+        resources_.sceneNormalTexture());
     if (ssaoEnabled > 0.5F) {
         const Vector2 ssaoTexelSize{
             1.0F / static_cast<float>(
@@ -364,9 +369,6 @@ void Renderer::uploadPostProcessSettings() {
         };
         SetShaderValue(shader, postProcessLocations_.ssaoTexelSize,
                        &ssaoTexelSize, SHADER_UNIFORM_VEC2);
-        SetShaderValueTexture(
-            shader, postProcessLocations_.sceneNormal,
-            resources_.sceneNormalTexture());
         SetShaderValueTexture(
             shader, postProcessLocations_.ssaoTexture,
             resources_.ssaoTarget().texture);
@@ -470,6 +472,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.localWindHeight, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.distantFadeAmount,
                    &material.distantFadeAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.vegetationAmount,
+                   &material.vegetationAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,

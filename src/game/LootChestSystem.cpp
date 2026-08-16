@@ -400,14 +400,15 @@ std::optional<EntityId> LootChestSystem::raycastLoot(
     return closest;
 }
 
-ChestOpenResult LootChestSystem::open(EntityId id, int& coins) {
+ChestOpenResult LootChestSystem::open(
+    EntityId id, int& coins, bool freeOpening) {
     const auto chest = std::find_if(
         chests_.begin(), chests_.end(),
         [id](const LootChestInstance& value) { return value.id == id; });
     if (chest == chests_.end()) return ChestOpenResult::None;
     if (chest->state != LootChestState::Closed)
         return ChestOpenResult::AlreadyOpen;
-    const int cost = openingCost(*chest);
+    const int cost = freeOpening ? 0 : openingCost(*chest);
     if (coins < cost)
         return ChestOpenResult::InsufficientCoins;
     coins -= cost;
@@ -617,23 +618,24 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Apple: return "+12 maximum health per stack";
     case LootUpgradeEffect::Bread:
         return "After 6s without damage: +0.4 HP/s per stack";
-    case LootUpgradeEffect::IronBar: return "+3% armor";
+    case LootUpgradeEffect::IronBar:
+        return "+12 regenerating armor; recharges after 5s";
     case LootUpgradeEffect::FuelJerrycan:
         return "+8% producer speed per stack (max +40%)";
     case LootUpgradeEffect::Compass:
         return "Points to nearby chests; range grows per stack";
     case LootUpgradeEffect::Nail:
-        return "+8% maximum health for buildings (max +40%)";
+        return "Every 5th hit chains lightning; stacks improve frequency, damage and jumps";
     case LootUpgradeEffect::Key:
-        return "-5% chest cost per stack (max -25%)";
+        return "First paid chest each day is free; extra stacks: -5% chest cost (max -25%)";
     case LootUpgradeEffect::Map:
         return "Reveals chests; boss waves add one per stack";
     case LootUpgradeEffect::Anvil:
         return "New towers: +10% damage and health";
     case LootUpgradeEffect::Saw:
-        return "Destroyed trees launch splinters into nearby resources";
+        return "Destroyed trees launch spinning saw blades into nearby resources";
     case LootUpgradeEffect::Potion:
-        return "Wave start: +20 HP and +10 temporary health";
+        return "Below 35% HP: Berserk with speed and lifesteal; stacks extend duration";
     case LootUpgradeEffect::Blueprint:
         return "First building of each type grants Insight; retroactive";
     case LootUpgradeEffect::Hourglass:
