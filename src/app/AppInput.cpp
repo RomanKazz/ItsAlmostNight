@@ -522,6 +522,18 @@ void App::processInput() {
 
     if (acceptsGameplayInput(simulation_.snapshot().state)) {
         auto currentSnapshot = simulation_.snapshot();
+        // The action-mode UI is authoritative. A building selection can
+        // survive for a frame if a mode-change command missed the fixed-step
+        // boundary; without healing that mismatch the simulation rejects all
+        // melee attacks while the tools hotbar is already visible.
+        if (actionModeUsesEquipment(actionMode_)) {
+            pendingBuildingSelection_.reset();
+            if (currentSnapshot.selectedBuilding) {
+                pendingBuildingCancel_ = true;
+                currentSnapshot.selectedBuilding.reset();
+                currentSnapshot.buildingPreview.reset();
+            }
+        }
         if (currentSnapshot.activeChallengeCenter) {
             foundationBuildMode_ = false;
             pendingBuildingCancel_ = true;
@@ -534,9 +546,52 @@ void App::processInput() {
         currentSnapshot.aimedBuilding =
             preciseBuildingAim(
                 *renderer_, currentSnapshot);
+        // Building mode keeps the previously equipped weapon in the
+        // simulation.  Ranged weapons intentionally suppress resource aim,
+        // so use hands for the aim test while a build hotbar is active.
+        auto resourceAimSnapshot = currentSnapshot;
+        const bool buildingActionMode =
+            actionMode_ == ActionMode::Buildings ||
+            actionMode_ == ActionMode::Modular;
+        if (buildingActionMode) {
+            resourceAimSnapshot.selectedWeapon =
+                PlayerWeapon::BareHands;
+        }
         currentSnapshot.aimedResource =
             preciseResourceAim(
-                *renderer_, currentSnapshot);
+                *renderer_, resourceAimSnapshot);
+
+        // Looking directly at a tree or stone while building should be
+        // enough to return to gathering.  Prefer the matching unlocked tool;
+        // hands remain the universal fallback for a new run.
+        if (buildingActionMode && currentSnapshot.aimedResource) {
+            const auto resource = std::ranges::find_if(
+                currentSnapshot.resourceNodes,
+                [&](const ResourceNode& node) {
+                    return node.id == *currentSnapshot.aimedResource;
+                });
+            if (resource != currentSnapshot.resourceNodes.end() &&
+                resource->active &&
+                isHarvestableResource(resource->type)) {
+                const PlayerWeapon preferredTool =
+                    resource->type == ResourceType::Wood
+                        ? PlayerWeapon::Axe
+                        : PlayerWeapon::Pickaxe;
+                const std::size_t preferredToolIndex =
+                    static_cast<std::size_t>(preferredTool);
+                const PlayerWeapon selectedTool =
+                    currentSnapshot.unlockedWeapons[preferredToolIndex]
+                        ? preferredTool
+                        : PlayerWeapon::BareHands;
+
+                selectActionMode(ActionMode::Tools, currentSnapshot);
+                pendingWeaponSelection_ = selectedTool;
+                lastToolSelection_ = selectedTool;
+                currentSnapshot.selectedWeapon = selectedTool;
+                currentSnapshot.selectedBuilding.reset();
+                currentSnapshot.buildingPreview.reset();
+            }
+        }
         currentSnapshot.aimedModularBuilding =
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
@@ -1565,10 +1620,10 @@ void App::processInput() {
                 if (currentSnapshot.pickaxeCooldownRemaining <=
                     ToolInputBufferSeconds) {
                     toolSwingUsesAxe_ =
-                        displayedToolVisual_ ==
-                            FirstPersonToolVisual::Axe ||
-                        displayedToolVisual_ ==
-                            FirstPersonToolVisual::Club;
+                        currentSnapshot.selectedWeapon ==
+                            PlayerWeapon::Axe ||
+                        currentSnapshot.selectedWeapon ==
+                            PlayerWeapon::Club;
                     if (currentSnapshot.automaticToolSwitch &&
                         currentSnapshot.selectedWeapon !=
                             PlayerWeapon::BareHands &&
@@ -1622,7 +1677,9 @@ void App::processInput() {
                         toolSwingQueued_ = true;
                         toolQueuedSwingHasAttack_ = true;
                         toolQueuedResourceTarget_ =
-                            currentSnapshot.aimedResource;
+                            currentSnapshot.aimedEnemy
+                                ? std::nullopt
+                                : currentSnapshot.aimedResource;
                         toolSwingQueueRemaining_ = 0.75;
                     }
                 }

@@ -1797,11 +1797,15 @@ void runSimulationTests() {
                     ian::PlacementError::SkillRequired,
             "fresh runs lock all three production buildings behind skills");
         producerUnlocks.grantSkillPoints(
-            1, ian::SkillPointSource::Event);
+            2, ian::SkillPointSource::Event);
+        const auto axeSkill =
+            producerUnlocks.skillTree().indexOf("axe");
         const auto lumberSkill =
             producerUnlocks.skillTree().indexOf("lumber_mill");
         require(
-            lumberSkill &&
+            axeSkill && lumberSkill &&
+                producerUnlocks.purchaseSkill(*axeSkill) ==
+                    ian::SkillPurchaseError::None &&
                 producerUnlocks.purchaseSkill(*lumberSkill) ==
                     ian::SkillPurchaseError::None &&
                 producerUnlocks.previewPlacement(
@@ -1862,9 +1866,9 @@ void runSimulationTests() {
                         .foundationBottomHeight,
             "preferred standing level raises terrain building and extends its automatic foundation");
         productionSimulation.grantSkillPoints(
-            6, ian::SkillPointSource::Event);
-        constexpr std::array<const char*, 3> ProducerSkills{{
-            "lumber_mill", "quarry", "crystal_mine",
+            8, ian::SkillPointSource::Event);
+        constexpr std::array<const char*, 5> ProducerSkills{{
+            "axe", "pickaxe", "lumber_mill", "quarry", "crystal_mine",
         }};
         for (const char* id : ProducerSkills) {
             const auto skill =

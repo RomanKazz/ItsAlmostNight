@@ -372,7 +372,17 @@ void drawBuildingContextCard(
                     decimals, suffix,
                 });
             };
-        if (building.type == BuildingType::Turret ||
+        if (building.type == BuildingType::Core) {
+            addOptional(
+                "DEFENSE LIMIT",
+                &BuildingStats::defenseBuildingLimit, 0, "");
+            addOptional(
+                "EACH PRODUCER",
+                &BuildingStats::producerPerTypeLimit, 0, "");
+            addOptional(
+                "EACH STORAGE",
+                &BuildingStats::storagePerTypeLimit, 0, "");
+        } else if (building.type == BuildingType::Turret ||
             building.type == BuildingType::Cannon) {
             addOptional(
                 "DAMAGE", &BuildingStats::attackDamage, 0, "");

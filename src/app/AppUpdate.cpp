@@ -275,9 +275,23 @@ void App::update() {
         pendingPickaxe_ = true;
         toolSwingAttackPending_ = false;
     }
+    if (toolSwingAttackPending_ &&
+        previousToolSwingRemaining > 0.0 &&
+        toolSwingRemaining_ <= 0.0) {
+        // Never lose an attack if tuning or a long frame skips the authored
+        // contact point.
+        pendingPickaxe_ = true;
+        toolSwingAttackPending_ = false;
+    }
     toolSwingQueueRemaining_ = std::max(
         0.0, toolSwingQueueRemaining_ - frameSeconds);
     if (toolSwingQueueRemaining_ <= 0.0) {
+        if (toolSwingQueued_ && toolQueuedSwingHasAttack_) {
+            // A view-model transition must not permanently swallow gameplay
+            // input. The simulation still applies its normal cooldown and
+            // input buffer before accepting this fallback request.
+            pendingPickaxe_ = true;
+        }
         toolSwingQueued_ = false;
         toolQueuedSwingHasAttack_ = false;
         toolQueuedResourceTarget_.reset();

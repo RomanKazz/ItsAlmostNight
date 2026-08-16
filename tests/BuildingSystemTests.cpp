@@ -105,6 +105,41 @@ void runBuildingSystemTests() {
                 .error == ian::UpgradeError::MaxLevel,
         "core stops at extended maximum level");
 
+    ian::BuildingSystem limitedDefense;
+    const auto limitedCore = limitedDefense.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(limitedCore.has_value(),
+            "defense limit fixture creates core");
+    require(
+        limitedDefense.place(
+            ian::BuildingType::Turret, {-4, -4}, 0,
+            25, 15).has_value() &&
+            limitedDefense.place(
+                ian::BuildingType::Turret, {-4, 0}, 0,
+                25, 15).has_value() &&
+            limitedDefense.place(
+                ian::BuildingType::Turret, {-4, 4}, 0,
+                25, 15).has_value(),
+        "core level one allows three defenses");
+    require(
+        limitedDefense.validate(
+            ian::BuildingType::Turret, {0, -4}, 25, 15)
+                .error == ian::PlacementError::LimitReached,
+        "turrets share the core defense limit");
+    require(
+        limitedDefense.upgrade(
+            limitedCore->building.id, 0, 0, 50).valid() &&
+            limitedDefense.place(
+                ian::BuildingType::Cannon, {0, -4}, 0,
+                40, 30, 25).has_value(),
+        "upgrading the core expands the shared defense limit");
+    require(
+        limitedDefense.placementCount(
+            ian::BuildingType::SlowTrap) == 4 &&
+            limitedDefense.placementLimit(
+                ian::BuildingType::SlowTrap) == 5,
+        "all active defense types report the same shared capacity");
+
     ian::BuildingSystem cannonBuildings;
     const auto cannonCore =
         cannonBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
@@ -242,9 +277,14 @@ void runBuildingSystemTests() {
             "third crystals mine placement succeeds");
     require(buildings.place(ian::BuildingType::CrystalMine, {6, 5}, 0, 20, 10).has_value(),
             "fourth crystals mine placement succeeds");
-    require(buildings.validate(ian::BuildingType::CrystalMine, {8, 3}, 20, 10).error ==
+    require(buildings.place(ian::BuildingType::CrystalMine, {8, 3}, 0, 20, 10).has_value() &&
+                buildings.place(ian::BuildingType::CrystalMine, {8, 5}, 0, 20, 10).has_value() &&
+                buildings.place(ian::BuildingType::CrystalMine, {10, 3}, 0, 20, 10).has_value() &&
+                buildings.place(ian::BuildingType::CrystalMine, {10, 5}, 0, 20, 10).has_value(),
+            "maximum core level allows eight mines of each type");
+    require(buildings.validate(ian::BuildingType::CrystalMine, {8, 7}, 20, 10).error ==
                 ian::PlacementError::LimitReached,
-            "crystals mine limit is four");
+            "producer limit follows maximum core level");
 
     const ian::Vec3 player{0.0, 1.7, 6.0};
     const auto closeAim =

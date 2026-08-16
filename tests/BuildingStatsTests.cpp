@@ -4,6 +4,22 @@
 
 void runBuildingStatsTests() {
     ian::CrystalMineSystem producers;
+    const ian::BuildingInstance core{
+        .id = ian::EntityId{9, 0},
+        .type = ian::BuildingType::Core,
+        .gridPosition = {0, 0},
+        .level = 1,
+        .health = 500.0,
+        .maxHealth = 500.0,
+    };
+    const auto coreComparison = ian::compareBuildingStats(
+        core, producers, ian::MaxBuildingLevel);
+    require(
+        coreComparison.current.defenseBuildingLimit == 3.0 &&
+            coreComparison.next->defenseBuildingLimit == 5.0 &&
+            coreComparison.current.producerPerTypeLimit == 1.0 &&
+            coreComparison.next->producerPerTypeLimit == 2.0,
+        "core upgrade preview exposes increased building limits");
     const ian::BuildingInstance turret{
         .id = ian::EntityId{1, 0},
         .type = ian::BuildingType::Turret,

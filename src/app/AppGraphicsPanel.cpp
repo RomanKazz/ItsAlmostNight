@@ -171,13 +171,15 @@ void App::drawGraphicsPanel() {
     } else if (graphicsPanelTab_ == DisplayPage) {
     float y = panelY + ControlStartY;
     if (ui_.drawToggleButton(
-            {contentX, y, contentWidth, ButtonHeight},
+            {contentX, y, columnWidth, ButtonHeight},
             settings.fullscreen
                 ? "FULLSCREEN: ON"
                 : "FULLSCREEN: OFF",
             settings.fullscreen)) {
         settings.fullscreen = !settings.fullscreen;
     }
+    toggleButton(1, y, "PERFORMANCE LOGS",
+                 settings.performanceLogging);
     y += ButtonHeight + Gap;
     toggleButton(0, y, "SHADOWS", settings.shadows);
     toggleButton(1, y, "FOG", settings.fog);

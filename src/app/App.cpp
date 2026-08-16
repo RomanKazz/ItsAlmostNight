@@ -206,8 +206,12 @@ int App::run() {
     ui_.initialize();
     skillTree_.initialize();
     audio_.initialize();
-    static_cast<void>(performanceRecorder_.start(
-        "performance_logs"));
+    performanceLoggingApplied_ =
+        renderer_->settings().performanceLogging;
+    if (performanceLoggingApplied_) {
+        static_cast<void>(performanceRecorder_.start(
+            "performance_logs"));
+    }
 
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
@@ -222,58 +226,73 @@ int App::run() {
             performanceMilliseconds(renderStart));
         performanceStats_.frame.sample(
             performanceMilliseconds(frameStart));
-        const SimulationSnapshot& performanceSnapshot =
-            simulation_.snapshot();
-        const EnemyPerformanceStats& enemyStats =
-            simulation_.enemyPerformanceStats();
-        performanceRecorder_.record({
-            .frame = performanceFrameIndex_++,
-            .sessionSeconds = GetTime(),
-            .runState = static_cast<int>(performanceSnapshot.state),
-            .buildMode = performanceSnapshot.selectedBuilding.has_value(),
-            .modularBuildMode = foundationBuildMode_,
-            .fixedTicks = performanceStats_.fixedTicks,
-            .activeEnemies = performanceSnapshot.activeEnemyCount,
-            .visibleEnemies = performanceStats_.visibleEnemies,
-            .buildings = performanceSnapshot.buildings.size(),
-            .modularPieces =
-                performanceSnapshot.platformFrames.size() +
-                performanceSnapshot.modularWalls.size() +
-                performanceSnapshot.ramps.size(),
-            .frameMs = performanceStats_.frame.lastMilliseconds,
-            .inputMs = performanceStats_.input.lastMilliseconds,
-            .updateMs = performanceStats_.simulation.lastMilliseconds,
-            .simulationTickMs =
-                performanceStats_.simulationTick.lastMilliseconds,
-            .renderMs = performanceStats_.render.lastMilliseconds,
-            .presentMs = performanceStats_.present.lastMilliseconds,
-            .renderPreparationMs =
-                performanceStats_.renderPreparation.lastMilliseconds,
-            .shadowMs = performanceStats_.shadowPass.lastMilliseconds,
-            .selectionMs =
-                performanceStats_.selectionPass.lastMilliseconds,
-            .terrainMs =
-                performanceStats_.terrainRender.lastMilliseconds,
-            .worldObjectsMs =
-                performanceStats_.worldEntitiesRender.lastMilliseconds,
-            .decorationsMs =
-                performanceStats_.decorationsRender.lastMilliseconds,
-            .grassMs =
-                performanceStats_.grassRender.lastMilliseconds,
-            .environmentMs =
-                performanceStats_.environmentRender.lastMilliseconds,
-            .overlaysMs =
-                performanceStats_.overlayRender.lastMilliseconds,
-            .postProcessMs =
-                performanceStats_.postProcess.lastMilliseconds,
-            .uiMs = performanceStats_.uiRender.lastMilliseconds,
-            .enemyAiMs = enemyStats.tick.lastMilliseconds,
-            .enemyCollisionMs = enemyStats.collision.lastMilliseconds,
-            .enemyDrawMs =
-                performanceStats_.enemyRender.lastMilliseconds,
-            .blobShadowsMs =
-                performanceStats_.blobShadows.lastMilliseconds,
-        });
+        const bool performanceLoggingRequested =
+            renderer_->settings().performanceLogging;
+        if (performanceLoggingRequested !=
+            performanceLoggingApplied_) {
+            performanceLoggingApplied_ =
+                performanceLoggingRequested;
+            if (performanceLoggingRequested) {
+                static_cast<void>(performanceRecorder_.start(
+                    "performance_logs"));
+            } else {
+                performanceRecorder_.stop();
+            }
+        }
+        if (performanceRecorder_.active()) {
+            const SimulationSnapshot& performanceSnapshot =
+                simulation_.snapshot();
+            const EnemyPerformanceStats& enemyStats =
+                simulation_.enemyPerformanceStats();
+            performanceRecorder_.record({
+                .frame = performanceFrameIndex_++,
+                .sessionSeconds = GetTime(),
+                .runState = static_cast<int>(performanceSnapshot.state),
+                .buildMode = performanceSnapshot.selectedBuilding.has_value(),
+                .modularBuildMode = foundationBuildMode_,
+                .fixedTicks = performanceStats_.fixedTicks,
+                .activeEnemies = performanceSnapshot.activeEnemyCount,
+                .visibleEnemies = performanceStats_.visibleEnemies,
+                .buildings = performanceSnapshot.buildings.size(),
+                .modularPieces =
+                    performanceSnapshot.platformFrames.size() +
+                    performanceSnapshot.modularWalls.size() +
+                    performanceSnapshot.ramps.size(),
+                .frameMs = performanceStats_.frame.lastMilliseconds,
+                .inputMs = performanceStats_.input.lastMilliseconds,
+                .updateMs = performanceStats_.simulation.lastMilliseconds,
+                .simulationTickMs =
+                    performanceStats_.simulationTick.lastMilliseconds,
+                .renderMs = performanceStats_.render.lastMilliseconds,
+                .presentMs = performanceStats_.present.lastMilliseconds,
+                .renderPreparationMs =
+                    performanceStats_.renderPreparation.lastMilliseconds,
+                .shadowMs = performanceStats_.shadowPass.lastMilliseconds,
+                .selectionMs =
+                    performanceStats_.selectionPass.lastMilliseconds,
+                .terrainMs =
+                    performanceStats_.terrainRender.lastMilliseconds,
+                .worldObjectsMs =
+                    performanceStats_.worldEntitiesRender.lastMilliseconds,
+                .decorationsMs =
+                    performanceStats_.decorationsRender.lastMilliseconds,
+                .grassMs =
+                    performanceStats_.grassRender.lastMilliseconds,
+                .environmentMs =
+                    performanceStats_.environmentRender.lastMilliseconds,
+                .overlaysMs =
+                    performanceStats_.overlayRender.lastMilliseconds,
+                .postProcessMs =
+                    performanceStats_.postProcess.lastMilliseconds,
+                .uiMs = performanceStats_.uiRender.lastMilliseconds,
+                .enemyAiMs = enemyStats.tick.lastMilliseconds,
+                .enemyCollisionMs = enemyStats.collision.lastMilliseconds,
+                .enemyDrawMs =
+                    performanceStats_.enemyRender.lastMilliseconds,
+                .blobShadowsMs =
+                    performanceStats_.blobShadows.lastMilliseconds,
+            });
+        }
         persistUserSettings();
     }
 
@@ -448,7 +467,9 @@ void App::drawPerformanceOverlay(
         performanceStats_.grassRender.averageMilliseconds));
     drawLine(21, performanceRecorder_.active()
         ? "SESSION RECORDING: performance_logs/*.csv"
-        : "SESSION RECORDING: FAILED");
+        : renderer_->settings().performanceLogging
+              ? "SESSION RECORDING: FAILED"
+              : "SESSION RECORDING: OFF");
     drawLine(22, "AVG = LOAD   PEAK = RECENT HITCH");
 }
 

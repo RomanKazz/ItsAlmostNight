@@ -14,6 +14,8 @@ void runSkillTreeTests() {
         "root child starts available");
     require(
         tree.state("efficient_strikes") == ian::SkillNodeState::Hidden &&
+            tree.state("lumber_mill") == ian::SkillNodeState::Hidden &&
+            tree.state("quarry") == ian::SkillNodeState::Hidden &&
             tree.state("power_swing") == ian::SkillNodeState::Hidden,
         "deeper skill nodes begin hidden");
 
@@ -28,9 +30,13 @@ void runSkillTreeTests() {
         tree.purchase(*axe) == ian::SkillPurchaseError::None &&
             tree.hasEffect("unlock.axe") &&
             tree.effectValue("unlock.axe") == 1.0 &&
+            tree.state("lumber_mill") ==
+                ian::SkillNodeState::Available &&
+            tree.state("quarry") ==
+                ian::SkillNodeState::Hidden &&
             tree.state("efficient_strikes") ==
                 ian::SkillNodeState::Locked,
-        "purchase reveals its direct child before every parent is unlocked");
+        "Axe reveals Lumber Mill without revealing the Pickaxe branch");
 
     tree.grantPoints(16);
     const auto pickaxe = tree.indexOf("pickaxe");
@@ -40,6 +46,8 @@ void runSkillTreeTests() {
     require(
         pickaxe && efficient && handsOn && industrialist &&
             tree.purchase(*pickaxe) == ian::SkillPurchaseError::None &&
+            tree.state("quarry") ==
+                ian::SkillNodeState::Available &&
             tree.purchase(*efficient) == ian::SkillPurchaseError::None &&
             tree.purchase(*handsOn) == ian::SkillPurchaseError::None,
         "gathering doctrine prerequisites unlock in order");

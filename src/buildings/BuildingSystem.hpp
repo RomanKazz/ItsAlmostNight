@@ -29,6 +29,13 @@ enum class BuildingType {
     CrystalStorage,
 };
 
+enum class BuildingLimitCategory {
+    None,
+    Defense,
+    Producer,
+    Storage,
+};
+
 enum WallConnection : std::uint8_t {
     WallConnectionNorth = 1U << 0U,
     WallConnectionEast = 1U << 1U,
@@ -208,6 +215,8 @@ class BuildingSystem {
     [[nodiscard]] bool hasCore() const;
     [[nodiscard]] std::optional<BuildingInstance> core() const;
     [[nodiscard]] const std::vector<BuildingInstance>& buildings() const;
+    [[nodiscard]] int placementCount(BuildingType type) const;
+    [[nodiscard]] int placementLimit(BuildingType type) const;
 
   private:
     [[nodiscard]] bool overlaps(BuildingType type, GridPosition position,
@@ -231,6 +240,10 @@ class BuildingSystem {
 [[nodiscard]] ResourceCost buildingRepairCost(const BuildingInstance& building);
 [[nodiscard]] ResourceCost buildingSellRefund(const BuildingInstance& building);
 [[nodiscard]] ResourceCost buildingUpgradeCost(const BuildingInstance& building);
+[[nodiscard]] BuildingLimitCategory buildingLimitCategory(
+    BuildingType type);
+[[nodiscard]] int buildingLimitForCoreLevel(
+    BuildingType type, std::uint8_t coreLevel);
 [[nodiscard]] bool buildingBlocksMovement(BuildingType type);
 [[nodiscard]] bool buildingBlocksMovement(const BuildingInstance& building);
 [[nodiscard]] int buildingStorageCapacityPerLevel(

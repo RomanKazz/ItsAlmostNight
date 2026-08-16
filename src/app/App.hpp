@@ -500,6 +500,7 @@ class App {
     bool objectiveDebugMenuVisible_{};
     AppPerformanceStats performanceStats_{};
     PerformanceRecorder performanceRecorder_{};
+    bool performanceLoggingApplied_{};
     std::uint64_t performanceFrameIndex_{};
     bool buildModePieVisible_{};
     Vector2 buildModePieDirection_{};

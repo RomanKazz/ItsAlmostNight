@@ -110,6 +110,7 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "inkOutlines", settings.inkOutlines);
     readValue(value, "fogBands", settings.fogBands);
     readValue(value, "paperGrain", settings.paperGrain);
+    readValue(value, "performanceLogging", settings.performanceLogging);
     readValue(value, "shadowMapSize", settings.shadowMapSize);
     readValue(value, "frameRateLimit", settings.frameRateLimit);
     readValue(value, "pixelSize", settings.pixelSize);
@@ -231,6 +232,7 @@ Json graphicsJson(const GraphicsSettings& settings) {
         {"inkOutlines", settings.inkOutlines},
         {"fogBands", settings.fogBands},
         {"paperGrain", settings.paperGrain},
+        {"performanceLogging", settings.performanceLogging},
         {"shadowMapSize", settings.shadowMapSize},
         {"frameRateLimit", settings.frameRateLimit},
         {"pixelSize", settings.pixelSize},
@@ -380,7 +382,7 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 4},
+            {"version", 5},
             {"language", std::string(languageCode(settings.language))},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",
@@ -434,6 +436,7 @@ void resetDisplaySettings(GraphicsSettings& settings) {
     settings.blobShadows = defaults.blobShadows;
     settings.bloom = defaults.bloom;
     settings.ssao = defaults.ssao;
+    settings.performanceLogging = defaults.performanceLogging;
     settings.shadowMapSize = defaults.shadowMapSize;
     settings.frameRateLimit = defaults.frameRateLimit;
     settings.pixelSize = defaults.pixelSize;

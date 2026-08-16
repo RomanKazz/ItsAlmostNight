@@ -24,6 +24,7 @@ void settingsRoundTrip() {
     written.graphics.outlineWidth = 3.0F;
     written.graphics.pixelSize = 6;
     written.graphics.frameRateLimit = 144;
+    written.graphics.performanceLogging = true;
     written.graphics.quality = ian::GraphicsQuality::Medium;
     written.audio.masterVolume = 0.31F;
     written.audio.muted = true;
@@ -53,6 +54,8 @@ void settingsRoundTrip() {
             "display setting survives settings round trip");
     require(loaded.graphics.frameRateLimit == 144,
             "frame rate limit survives settings round trip");
+    require(loaded.graphics.performanceLogging,
+            "performance logging toggle survives settings round trip");
     require(loaded.graphics.quality == ian::GraphicsQuality::Medium,
             "graphics quality survives settings round trip");
     requireNear(loaded.audio.masterVolume, 0.31, 1e-6,
@@ -127,6 +130,7 @@ void graphicsPresetsAreCompleteAndDetectable() {
     settings.brightness = 0.31F;
     settings.inkOutlines = true;
     settings.frameRateLimit = 144;
+    settings.performanceLogging = true;
 
     ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Low);
     require(ian::detectGraphicsPreset(settings) ==
@@ -139,6 +143,8 @@ void graphicsPresetsAreCompleteAndDetectable() {
                 "graphics preset preserves color calibration");
     require(settings.inkOutlines && settings.frameRateLimit == 144,
             "graphics preset preserves style and FPS choices");
+    require(settings.performanceLogging,
+            "graphics preset preserves diagnostics choice");
 
     settings.shadows = true;
     require(!ian::detectGraphicsPreset(settings),
@@ -157,12 +163,14 @@ void tabResetsPreserveOtherTabs() {
     settings.shadows = false;
     settings.pixelSize = 8;
     settings.frameRateLimit = 144;
+    settings.performanceLogging = true;
     settings.brightness = 0.4F;
     settings.inkOutlines = true;
 
     ian::resetDisplaySettings(settings);
     require(settings.shadows && settings.pixelSize == 1 &&
-                settings.frameRateLimit == 60,
+                settings.frameRateLimit == 60 &&
+                !settings.performanceLogging,
             "display reset restores display defaults");
     requireNear(settings.brightness, 0.4, 1e-6,
                 "display reset preserves color tab");

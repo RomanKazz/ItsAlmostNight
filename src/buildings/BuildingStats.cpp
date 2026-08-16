@@ -19,7 +19,17 @@ BuildingStats buildingStatsAtLevel(
             baseMaxHealth *
             (1.0 + 0.15 * static_cast<double>(level - 1)),
     };
-    if (building.type == BuildingType::Turret) {
+    if (building.type == BuildingType::Core) {
+        stats.defenseBuildingLimit = static_cast<double>(
+            buildingLimitForCoreLevel(
+                BuildingType::Turret, level));
+        stats.producerPerTypeLimit = static_cast<double>(
+            buildingLimitForCoreLevel(
+                BuildingType::CrystalMine, level));
+        stats.storagePerTypeLimit = static_cast<double>(
+            buildingLimitForCoreLevel(
+                BuildingType::WoodStorage, level));
+    } else if (building.type == BuildingType::Turret) {
         const double towerBonus = building.anvilStacks > 0
             ? 1.0 + 0.10 * building.anvilStacks
             : building.anvilEnhanced ? 1.10 : 1.0;

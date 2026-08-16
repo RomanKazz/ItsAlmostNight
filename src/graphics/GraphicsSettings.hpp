@@ -26,6 +26,7 @@ struct GraphicsSettings {
     bool inkOutlines{false};
     bool fogBands{false};
     bool paperGrain{false};
+    bool performanceLogging{false};
 
     int shadowMapSize{2048};
     int frameRateLimit{60};
