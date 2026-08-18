@@ -414,6 +414,10 @@ ModelResource& GraphicsResources::rockModel(std::size_t variant) {
     return rockModels_[variant % rockModels_.size()];
 }
 
+ModelResource& GraphicsResources::crystalResourceModel() {
+    return crystalResourceModel_;
+}
+
 ModelResource& GraphicsResources::treeModel(std::size_t variant) {
     return treeModels_[variant % treeModels_.size()];
 }

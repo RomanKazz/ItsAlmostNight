@@ -160,15 +160,13 @@ const SimulationSnapshot& Simulation::snapshot() const {
             const auto resource = std::ranges::find(
                 resources_.nodes(), *aimedResource_,
                 &ResourceNode::id);
-            if (playerWeapons_.selectedWeapon() ==
-                PlayerWeapon::BareHands) {
-                return 0.25;
-            }
-            return resource != resources_.nodes().end()
-                ? resourceToolEfficiency(
-                      playerWeapons_.selectedWeapon(),
-                      resource->type)
-                : 1.0;
+            if (resource == resources_.nodes().end()) return 1.0;
+            const PlayerWeapon weapon =
+                playerWeapons_.selectedWeapon();
+            const double handMultiplier =
+                weapon == PlayerWeapon::BareHands ? 0.25 : 1.0;
+            return resourceToolEfficiency(weapon, resource->type) *
+                handMultiplier;
         }(),
         .resourceNodes = std::span<const ResourceNode>{resources_.nodes()},
         .worldLimit = map_.worldLimit,

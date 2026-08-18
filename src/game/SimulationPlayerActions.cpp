@@ -17,8 +17,16 @@ constexpr double LootProximityPickupRadius = 2.0;
 
 int Simulation::resourceCapacity(BuildingType storageType) const {
     const auto core = buildings_.core();
-    const std::uint8_t coreLevel = core ? core->level : 1;
-    const int capacity = coreResourceCapacity(storageType, coreLevel);
+    int capacity = 0;
+    if (core) {
+        capacity = coreResourceCapacity(storageType, core->level);
+    } else if (storageType == BuildingType::WoodStorage) {
+        capacity = 60;
+    } else if (storageType == BuildingType::StoneStorage) {
+        capacity = 30;
+    } else if (storageType == BuildingType::CrystalStorage) {
+        capacity = 10;
+    }
     return static_cast<int>(std::min(
         static_cast<double>(std::numeric_limits<int>::max()),
         static_cast<double>(std::lround(
@@ -89,14 +97,21 @@ bool Simulation::hasStorageSpace(ResourceType resource) const {
         return saturatingAdd(wood_, pending) <
             resourceCapacity(BuildingType::WoodStorage);
     }
-    return saturatingAdd(stone_, pending) <
-        resourceCapacity(BuildingType::StoneStorage);
+    if (resource == ResourceType::Stone) {
+        return saturatingAdd(stone_, pending) <
+            resourceCapacity(BuildingType::StoneStorage);
+    }
+    return saturatingAdd(crystals_, pending) <
+        resourceCapacity(BuildingType::CrystalStorage);
 }
 
 double Simulation::resourceToolEfficiency(
     PlayerWeapon tool, ResourceType resource) const {
     if (isDestructibleProp(resource)) {
         return 1.0;
+    }
+    if (resource == ResourceType::Crystal) {
+        return tool == PlayerWeapon::Pickaxe ? 1.0 : 0.0;
     }
     if (tool == PlayerWeapon::BareHands) {
         // Bare Hands already receives its 25% multiplier in the common melee
@@ -462,6 +477,12 @@ void Simulation::updatePlayerActions(
                 if (targetBeforeHit != resources_.nodes().end() &&
                     isHarvestableResource(targetBeforeHit->type) &&
                     !hasStorageSpace(targetBeforeHit->type)) {
+                    events_.push_back({
+                        .type = GameEventType::ResourceStorageFull,
+                        .entityId = targetBeforeHit->id,
+                        .resourceType = targetBeforeHit->type,
+                        .position = targetBeforeHit->position,
+                    });
                     continue;
                 }
                 Vec3 impactPosition = resourceImpactPosition(
@@ -505,7 +526,7 @@ void Simulation::updatePlayerActions(
                         !introSkillObjectiveCompleted_) {
                         if (hit->type == ResourceType::Wood)
                             bareHandsWoodGathered_ += hit->amount;
-                        else
+                        else if (hit->type == ResourceType::Stone)
                             bareHandsStoneGathered_ += hit->amount;
                         if (bareHandsWoodGathered_ >= 15 && bareHandsStoneGathered_ >= 10) {
                             introSkillObjectiveCompleted_ = true;

@@ -195,6 +195,7 @@ std::optional<ModelColliderType> colliderType(
     }
     if (typeName.empty()) {
         if (upperName.starts_with("COL_BOX") ||
+            upperName.starts_with("BOX_COL") ||
             upperName.starts_with("COLLIDER_BOX") ||
             upperName.starts_with("COLLISION_BOX")) {
             typeName = "BOX";

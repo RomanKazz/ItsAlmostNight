@@ -67,6 +67,26 @@ void runGlbCollisionTests() {
     require(!invalid.valid() && !invalid.errors.empty(),
             "invalid collision JSON must report an error");
 
+    constexpr std::string_view BoxFirstDocument = R"json({
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"name": "BOX_COL_01", "mesh": 0}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "accessors": [{"min": [-1, -1, -1], "max": [1, 1, 1]}]
+    })json";
+    const GlbCollisionAsset boxFirst =
+        parseGlbCollisionJson(BoxFirstDocument);
+    require(boxFirst.valid() && boxFirst.colliders.size() == 1 &&
+                boxFirst.colliders.front().type == ModelColliderType::Box,
+            "BOX_COL naming convention must parse as a box");
+
+    const GlbCollisionAsset crystal = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/environment/crystal.glb");
+    require(crystal.valid() && crystal.colliders.size() == 1 &&
+                crystal.colliders.front().type == ModelColliderType::Box,
+            "shipped crystal must expose its collision box");
+
     const GlbCollisionAsset platform =
         loadGlbCollisionAsset(
             IAN_SOURCE_DIR "/assets/models/construction/platform.glb");

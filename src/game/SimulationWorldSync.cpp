@@ -174,7 +174,7 @@ void Simulation::syncWorldStructures() {
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,
-            stoneCollisionAssets_);
+            stoneCollisionAssets_, crystalCollisionAssets_);
     }
     collisionWorld_.syncBuildings(buildings_.buildings());
     syncBuildingRuntimeSystems();

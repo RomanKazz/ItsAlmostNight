@@ -427,6 +427,7 @@ class App {
         buildingShotRecoilVisuals_;
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
+    double crystalHudBounceRemaining_{};
     double coinHudBounceRemaining_{};
     double displayedInsight_{-1.0};
     double insightPulseRemaining_{};

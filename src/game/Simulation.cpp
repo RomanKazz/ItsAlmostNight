@@ -91,6 +91,9 @@ Simulation::Simulation(
           loadGlbCollisionAsset("assets/models/environment/stone_2.glb"),
           loadGlbCollisionAsset("assets/models/environment/stone_3.glb"),
       }},
+      crystalCollisionAssets_{{
+          loadGlbCollisionAsset("assets/models/environment/crystal.glb"),
+      }},
       modularBuildingCosts_{{
           {
               balance.modularBuildings[0].wood,
@@ -467,7 +470,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,
-            stoneCollisionAssets_);
+            stoneCollisionAssets_, crystalCollisionAssets_);
     }
     if (playerRespawning_) {
         aimedResource_.reset();

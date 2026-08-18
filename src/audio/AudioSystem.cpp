@@ -465,6 +465,7 @@ void AudioSystem::playEvent(
     case GameEventType::ChestOpenRejected:
     case GameEventType::EconomyPurchaseRejected:
     case GameEventType::CrystalStorageFull:
+    case GameEventType::ResourceStorageFull:
         play(uiError_, 0.55F, 1.0F);
         break;
     default:

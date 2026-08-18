@@ -26,6 +26,7 @@ std::vector<ResourceNodeDefinition> defaultDefinitions() {
         {ResourceType::Stone, {3.0, 0.8, 4.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {8.0, 0.8, -1.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {-6.0, 0.8, -5.0}, 0.9, 4.0, 12, 15.0},
+        {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 8, 28.0},
     };
 }
 
@@ -49,6 +50,8 @@ std::pair<double, double> resourceVisualTransform(
         ? 0.80 + scaleRoll * 0.45
         : type == ResourceType::Stone
             ? 0.90 + scaleRoll * 0.20
+            : type == ResourceType::Crystal
+                ? 0.92 + scaleRoll * 0.16
             : (0.88 + scaleRoll * 0.22) * 1.40;
     return {yaw, scale};
 }
@@ -57,9 +60,10 @@ std::size_t resourceVisualVariant(
     EntityId id, ResourceType type,
     std::size_t authoredVariant,
     std::uint32_t respawnGeneration) {
-    if (type != ResourceType::Stone) {
+    if (type == ResourceType::Wood) {
         return authoredVariant % TreeVisualVariantCount;
     }
+    if (type != ResourceType::Stone) return 0U;
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(id.index) << 32U) ^
         (static_cast<std::uint64_t>(id.generation) << 8U) ^

@@ -275,8 +275,10 @@ void Simulation::updatePendingResourceGrants(
         }
         if (grant.type == ResourceType::Wood) {
             addWood(grant.amount);
-        } else {
+        } else if (grant.type == ResourceType::Stone) {
             addStone(grant.amount);
+        } else if (grant.type == ResourceType::Crystal) {
+            addCrystals(grant.amount);
         }
         events_.push_back({
             .type = GameEventType::ResourceGranted,
@@ -313,7 +315,8 @@ void Simulation::launchSawSplinters(
     candidates.reserve(resources_.nodes().size());
     for (const ResourceNode& node : resources_.nodes()) {
         if (!node.active || node.id == sourceId ||
-            !isHarvestableResource(node.type)) {
+            (node.type != ResourceType::Wood &&
+             node.type != ResourceType::Stone)) {
             continue;
         }
         if (std::ranges::any_of(

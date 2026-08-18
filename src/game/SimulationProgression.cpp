@@ -376,6 +376,12 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
              event.type == GameEventType::ResourceCollected) &&
             event.resourceType &&
             isHarvestableResource(*event.resourceType)) {
+            if (*event.resourceType == ResourceType::Crystal) {
+                emitCompletions(objectives_.onCrystalsGathered(
+                    std::max(0, event.amount), elapsedSeconds_,
+                    event.night || nightNow));
+                continue;
+            }
             const double distance = core
                 ? std::hypot(event.position.x - corePosition.x,
                              event.position.z - corePosition.z) : 0.0;

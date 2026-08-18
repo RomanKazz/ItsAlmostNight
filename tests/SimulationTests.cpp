@@ -814,10 +814,10 @@ void runSimulationTests() {
             ian::BuildingType::Core, {0, 0}, 0};
         storageSimulation.tick(1.0 / 60.0, placeCore);
         require(
-            storageSimulation.snapshot().woodCapacity == 60 &&
-                storageSimulation.snapshot().stoneCapacity == 30 &&
-                storageSimulation.snapshot().crystalCapacity == 10,
-            "level-one core owns the initial storage capacity");
+            storageSimulation.snapshot().woodCapacity == 100 &&
+                storageSimulation.snapshot().stoneCapacity == 60 &&
+                storageSimulation.snapshot().crystalCapacity == 60,
+            "level-one core expands the initial inventory capacity");
 
         ian::PlayerCommand placeWoodStorage;
         placeWoodStorage.placeBuilding = ian::PlaceBuildingCommand{
@@ -845,9 +845,9 @@ void runSimulationTests() {
         storageSimulation.tick(1.0 / 60.0, upgradeCore);
         storageSimulation.tick(1.0 / 60.0, godMode);
         require(
-            storageSimulation.snapshot().woodCapacity == 100 &&
-                storageSimulation.snapshot().stoneCapacity == 60 &&
-                storageSimulation.snapshot().crystalCapacity == 25,
+            storageSimulation.snapshot().woodCapacity == 180 &&
+                storageSimulation.snapshot().stoneCapacity == 110 &&
+                storageSimulation.snapshot().crystalCapacity == 120,
             "upgrading the core expands all resource capacities");
     }
     {
@@ -1665,6 +1665,56 @@ void runSimulationTests() {
             bareHandsBalance.gameplay.pickaxeDamage * 0.25,
             1e-12,
             "Bare Hands gathering keeps its reduced damage coefficient");
+    }
+    {
+        auto crystalBalance = ian::GameBalance::defaults();
+        crystalBalance.gameplay.pickaxeDamageVariation = 0.0;
+        crystalBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::MapDefinition crystalMap = ian::MapDefinition::defaults();
+        crystalMap.resources = {{
+            ian::ResourceType::Crystal, {0.0, 0.0, -2.0},
+            0.72, 12.0, 8, 28.0,
+        }};
+        ian::Simulation crystalMining{crystalBalance, crystalMap};
+        crystalMining.startRun();
+        const ian::EntityId crystal =
+            crystalMining.snapshot().resourceNodes.front().id;
+        const double initialHealth =
+            crystalMining.snapshot().resourceNodes.front().health;
+        ian::PlayerCommand handHit;
+        handHit.overrideAimedResource = true;
+        handHit.aimedResourceOverride = crystal;
+        handHit.usePickaxe = true;
+        crystalMining.tick(1.0 / 60.0, handHit);
+        requireNear(
+            crystalMining.snapshot().resourceNodes.front().health,
+            initialHealth, 1e-12,
+            "bare hands cannot damage a crystal deposit");
+
+        crystalMining.tick(crystalBalance.gameplay.pickaxeCooldown);
+        crystalMining.grantSkillPoints(
+            2, ian::SkillPointSource::Event);
+        const auto axe = crystalMining.skillTree().indexOf("axe");
+        const auto pickaxe = crystalMining.skillTree().indexOf("pickaxe");
+        require(axe && pickaxe &&
+                    crystalMining.purchaseSkill(*axe) ==
+                        ian::SkillPurchaseError::None &&
+                    crystalMining.purchaseSkill(*pickaxe) ==
+                        ian::SkillPurchaseError::None,
+                "crystal mining fixture unlocks the pickaxe");
+        ian::PlayerCommand selectPickaxe;
+        selectPickaxe.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::Pickaxe};
+        crystalMining.tick(1.0 / 60.0, selectPickaxe);
+        ian::PlayerCommand pickaxeHit;
+        pickaxeHit.overrideAimedResource = true;
+        pickaxeHit.aimedResourceOverride = crystal;
+        pickaxeHit.usePickaxe = true;
+        crystalMining.tick(1.0 / 60.0, pickaxeHit);
+        require(
+            crystalMining.snapshot().resourceNodes.front().health <
+                initialHealth,
+            "pickaxe damages a crystal deposit");
     }
     {
         ian::Simulation bombUnlock;

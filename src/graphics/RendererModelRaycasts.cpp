@@ -296,18 +296,27 @@ std::optional<double> Renderer::resourceRaycastDistance(
         ? resources_.treeModel(visualVariant)
         : type == ResourceType::Stone
             ? resources_.rockModel(visualVariant)
+            : type == ResourceType::Crystal
+                ? resources_.crystalResourceModel()
             : resources_.destructiblePropModel(propModelIndex(type));
     if (!resource.valid() || maxDistance <= 0.0) {
         return std::nullopt;
     }
     const float modelScale = type == ResourceType::Wood
         ? TreeModelScale * visualScale
-        : type == ResourceType::Stone ? RockModelScale : visualScale;
+        : type == ResourceType::Stone
+            ? RockModelScale
+            : type == ResourceType::Crystal
+                ? static_cast<float>(CrystalVisualModelScale) * visualScale
+                : visualScale;
     position.y += type == ResourceType::Wood
         ? static_cast<float>(TreeVisualGroundOffsets[
               visualVariant % TreeVisualVariantCount] * visualScale)
         : type == ResourceType::Stone
             ? rockGroundOffset(visualVariant)
+            : type == ResourceType::Crystal
+                ? static_cast<float>(CrystalVisualGroundOffset) *
+                      modelScale
             : 0.0F;
     const Matrix rotation = isDestructibleProp(type)
         ? terrainAlignedRotation(position.x, position.z, yawRadians)

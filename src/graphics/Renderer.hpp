@@ -403,6 +403,9 @@ class Renderer {
                                 float scale = 1.0F,
                                 std::size_t visualVariant = 0U,
                                 float yawRadians = 0.0F);
+    [[nodiscard]] bool drawCrystalResource(
+        Vector3 position, Color tint = WHITE,
+        float scale = 1.0F, float yawRadians = 0.0F);
     [[nodiscard]] bool drawRocksInstanced(
         std::span<const RockDrawInstance> instances);
     [[nodiscard]] bool drawTree(Vector3 position,

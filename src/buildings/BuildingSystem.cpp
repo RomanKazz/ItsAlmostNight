@@ -326,11 +326,17 @@ int buildingStorageCapacityPerLevel(BuildingType type) {
 
 int coreResourceCapacity(
     BuildingType storageType, std::uint8_t coreLevel) {
-    constexpr std::array<int, 5> Wood{60, 100, 160, 240, 350};
-    constexpr std::array<int, 5> Stone{30, 60, 100, 160, 240};
-    constexpr std::array<int, 5> Crystal{10, 25, 45, 75, 120};
+    // Each level has enough room to pay for the following Core upgrade.
+    // The player inventory before placing the Core remains deliberately
+    // smaller and is handled by Simulation::resourceCapacity().
+    constexpr std::array<int, MaxBuildingLevel> Wood{
+        100, 180, 300, 450, 650, 900, 1200, 1550};
+    constexpr std::array<int, MaxBuildingLevel> Stone{
+        60, 110, 180, 280, 400, 550, 720, 900};
+    constexpr std::array<int, MaxBuildingLevel> Crystal{
+        60, 120, 180, 240, 320, 380, 440, 520};
     const std::size_t index = static_cast<std::size_t>(
-        std::clamp<int>(coreLevel, 1, 5) - 1);
+        std::clamp<int>(coreLevel, 1, MaxBuildingLevel) - 1);
     if (storageType == BuildingType::WoodStorage) return Wood[index];
     if (storageType == BuildingType::StoneStorage) return Stone[index];
     if (storageType == BuildingType::CrystalStorage) {

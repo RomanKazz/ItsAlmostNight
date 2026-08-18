@@ -92,7 +92,7 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,
-            stoneCollisionAssets_);
+            stoneCollisionAssets_, crystalCollisionAssets_);
     }
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,

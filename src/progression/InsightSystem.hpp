@@ -63,8 +63,8 @@ struct InsightConfig {
     // Splitter, Splitling.
     std::array<double, 9> enemy{{0.75, 1.0, 3.0, 75.0, 2.0, 3.0, 2.5,
                                  4.0, 0.5}};
-    std::array<double, 2> resourcePerUnit{{0.14, 0.22}};
-    std::array<double, 2> resourceDepleted{{1.5, 2.0}};
+    std::array<double, 3> resourcePerUnit{{0.14, 0.22, 0.28}};
+    std::array<double, 3> resourceDepleted{{1.5, 2.0, 3.0}};
     std::array<double, 10> building{{
         4.0, 0.75, 1.5, 1.5, 3.0,
         1.0, 1.0, 1.5, 1.5, 1.25}};

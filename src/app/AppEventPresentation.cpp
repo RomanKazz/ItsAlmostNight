@@ -607,7 +607,7 @@ void App::processPresentationEvents(
                       event.entityId);
             if (event.resourceType) {
                 addEffect(
-                    *event.resourceType != ResourceType::Stone
+                    *event.resourceType == ResourceType::Wood
                         ? PresentationEffectType::ResourceHitWood
                         : PresentationEffectType::ResourceHitStone,
                     event.position, 0.46,
@@ -651,7 +651,7 @@ void App::processPresentationEvents(
                         ? node->position
                         : event.position;
                 const auto type =
-                    *event.resourceType != ResourceType::Stone
+                    *event.resourceType == ResourceType::Wood
                         ? PresentationEffectType::ResourceDestroyedWood
                         : PresentationEffectType::ResourceDestroyedStone;
                 addEffect(type, center, 0.92, 1.0F);
@@ -964,8 +964,10 @@ void App::processPresentationEvents(
                    event.resourceType) {
             if (*event.resourceType == ResourceType::Wood) {
                 woodHudBounceRemaining_ = 0.28;
-            } else {
+            } else if (*event.resourceType == ResourceType::Stone) {
                 stoneHudBounceRemaining_ = 0.28;
+            } else if (*event.resourceType == ResourceType::Crystal) {
+                crystalHudBounceRemaining_ = 0.28;
             }
             if (event.entityId && event.buildingType &&
                 (*event.buildingType ==
@@ -1189,6 +1191,13 @@ void App::processPresentationEvents(
                 : "Lumber mill activated — producing Wood";
         } else if (event.type == GameEventType::CrystalStorageFull) {
             message = "Crystal storage full";
+        } else if (event.type == GameEventType::ResourceStorageFull &&
+                   event.resourceType) {
+            message = *event.resourceType == ResourceType::Wood
+                ? "Wood storage full"
+                : *event.resourceType == ResourceType::Stone
+                    ? "Stone storage full"
+                    : "Crystal storage full";
         } else if (event.type == GameEventType::LootCollected &&
                    event.lootRarity && event.lootUpgradeEffect) {
             message = std::string(lootRarityName(*event.lootRarity)) +

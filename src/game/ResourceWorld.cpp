@@ -98,11 +98,16 @@ std::vector<ResourceNodeDefinition> scatterResources(
             if (found != configured.end()) {
                 return *found;
             }
-            return type == ResourceType::Wood
-                       ? ResourceNodeDefinition{
-                             type, {}, 1.0, 3.0, 15, 12.0}
-                       : ResourceNodeDefinition{
-                             type, {}, 0.9, 4.0, 12, 15.0};
+            if (type == ResourceType::Wood) {
+                return ResourceNodeDefinition{
+                    type, {}, 1.0, 3.0, 15, 12.0};
+            }
+            if (type == ResourceType::Stone) {
+                return ResourceNodeDefinition{
+                    type, {}, 0.9, 4.0, 12, 15.0};
+            }
+            return ResourceNodeDefinition{
+                type, {}, 0.72, 12.0, 8, 28.0};
         };
 
     constexpr std::size_t TreesPerCluster = 5;
@@ -122,6 +127,9 @@ std::vector<ResourceNodeDefinition> scatterResources(
     const std::size_t additionalStoneCount =
         static_cast<std::size_t>(
             std::lround(18.0 * densityScale));
+    const std::size_t additionalCrystalCount =
+        static_cast<std::size_t>(
+            std::lround(5.0 * std::sqrt(densityScale)));
     const std::size_t treeClusterCount =
         std::max<std::size_t>(
             1U, additionalTreeCount / 6U);
@@ -130,7 +138,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
         treeClusterCount * TreesPerCluster);
     result.reserve(
         result.size() + additionalTreeCount +
-        additionalStoneCount);
+        additionalStoneCount + additionalCrystalCount);
 
     const double clusterOuterRadius =
         std::max(innerRadius + 1.0, outerRadius - 5.0);
@@ -223,6 +231,27 @@ std::vector<ResourceNodeDefinition> scatterResources(
         definition.position = {
             std::cos(angle) * radius,
             0.8,
+            std::sin(angle) * radius,
+        };
+        result.push_back(definition);
+    }
+
+    for (std::size_t index = 0;
+         index < additionalCrystalCount; ++index) {
+        ResourceNodeDefinition definition =
+            templateFor(ResourceType::Crystal);
+        const double progress =
+            (static_cast<double>(index) + 0.55) /
+            static_cast<double>(additionalCrystalCount);
+        const double radius = std::sqrt(
+            innerRadius * innerRadius + progress *
+                (outerRadius * outerRadius -
+                 innerRadius * innerRadius));
+        const double angle =
+            static_cast<double>(index) * GoldenAngle + 2.17;
+        definition.position = {
+            std::cos(angle) * radius,
+            CrystalVisualGroundOffset,
             std::sin(angle) * radius,
         };
         result.push_back(definition);

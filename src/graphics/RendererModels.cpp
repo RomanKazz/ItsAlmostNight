@@ -1838,6 +1838,39 @@ bool Renderer::drawRock(Vector3 position, Color tint,
     return true;
 }
 
+bool Renderer::drawCrystalResource(
+    Vector3 position, Color tint, float scale,
+    float yawRadians) {
+    auto& resource = resources_.crystalResourceModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    scale *= worldRevealScaleAt({position.x, position.z});
+    if (scale <= 0.001F) return true;
+    const float modelScale =
+        static_cast<float>(CrystalVisualModelScale) * scale;
+    position.y +=
+        static_cast<float>(CrystalVisualGroundOffset) * modelScale;
+    DrawModelEx(
+        model, position, {0.0F, 1.0F, 0.0F},
+        yawRadians * RAD2DEG,
+        {modelScale, modelScale, modelScale}, tint);
+    return true;
+}
+
 bool Renderer::drawDestructibleProp(
     ResourceType type, Vector3 position, float yawRadians,
     Color tint, float scale) {

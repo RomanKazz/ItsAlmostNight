@@ -302,6 +302,9 @@ void App::drawBlobShadows(
                 // Keep a soft rim visible around that footprint instead of
                 // hiding the entire contact shadow beneath the mesh.
                 radius *= 1.48F;
+            } else if (node.type == ResourceType::Crystal) {
+                radius *= 1.18F *
+                    static_cast<float>(node.visualScale);
             } else if (isDestructibleProp(node.type)) {
                 radius *= 0.92F *
                     static_cast<float>(node.visualScale);
@@ -324,12 +327,16 @@ void App::drawBlobShadows(
                     ? 0.30F
                     : node.type == ResourceType::Stone
                         ? 0.22F
+                        : node.type == ResourceType::Crystal
+                            ? 0.24F
                         : 0.25F;
             const float contactOpacity =
                 node.type == ResourceType::Wood
                     ? 0.48F
                     : node.type == ResourceType::Stone
                         ? 0.38F
+                        : node.type == ResourceType::Crystal
+                            ? 0.42F
                         : 0.40F;
             renderer_->drawBlobShadow(
                 {static_cast<float>(node.position.x),

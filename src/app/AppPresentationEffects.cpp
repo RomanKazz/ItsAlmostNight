@@ -91,7 +91,9 @@ void App::drawResourceGainVisuals(
         const Vector2 target =
             gain.type == ResourceType::Wood
                 ? Vector2{70.0F, 66.0F}
-                : Vector2{260.0F, 66.0F};
+                : gain.type == ResourceType::Crystal
+                    ? Vector2{355.0F, 66.0F}
+                    : Vector2{210.0F, 66.0F};
         constexpr float RiseEnd = 0.3F;
         const float riseProgress =
             std::clamp(progress / RiseEnd, 0.0F, 1.0F);
@@ -137,7 +139,9 @@ void App::drawResourceGainVisuals(
              position.y - iconSize * 0.5F, iconSize, iconSize},
             gain.type == ResourceType::Wood
                 ? UiResourceIcon::Wood
-                : UiResourceIcon::Stone);
+                : gain.type == ResourceType::Crystal
+                    ? UiResourceIcon::Crystal
+                    : UiResourceIcon::Stone);
 
         const float textFade = std::clamp(
             (0.7F - progress) / 0.25F, 0.0F, 1.0F);

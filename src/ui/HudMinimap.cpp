@@ -362,7 +362,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
              radius * 2.0F, radius * 2.0F},
             resource.type == ResourceType::Wood
                 ? Color{91, 143, 75, 125}
-                : Color{143, 149, 145, 135});
+                : resource.type == ResourceType::Crystal
+                    ? Color{183, 92, 226, 180}
+                    : Color{143, 149, 145, 135});
     }
 
     if (snapshot.unlimitedResources) {

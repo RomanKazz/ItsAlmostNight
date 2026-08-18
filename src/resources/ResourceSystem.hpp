@@ -17,6 +17,9 @@ inline constexpr std::size_t TreeVisualVariantCount =
     TreeVisualStyleCount * TreeVisualVariantsPerStyle;
 inline constexpr std::size_t StoneVisualVariantCount = 3U;
 inline constexpr double StoneVisualModelScale = 0.60;
+inline constexpr double CrystalVisualModelScale = 1.55;
+// The authored crystal origin already sits on its bottom surface.
+inline constexpr double CrystalVisualGroundOffset = 0.0;
 inline constexpr std::array<double, StoneVisualVariantCount>
     StoneVisualGroundOffsets{
         0.196310, 0.191065, 0.171163,
@@ -37,13 +40,15 @@ inline constexpr std::array<double, TreeVisualVariantCount>
 enum class ResourceType {
     Wood,
     Stone,
+    Crystal,
     Barrel,
     Crate,
     ItemCrate,
 };
 
 [[nodiscard]] constexpr bool isHarvestableResource(ResourceType type) {
-    return type == ResourceType::Wood || type == ResourceType::Stone;
+    return type == ResourceType::Wood || type == ResourceType::Stone ||
+           type == ResourceType::Crystal;
 }
 
 [[nodiscard]] constexpr bool isDestructibleProp(ResourceType type) {

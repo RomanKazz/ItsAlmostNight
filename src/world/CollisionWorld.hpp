@@ -55,7 +55,8 @@ class CollisionWorld {
     void syncResourceCylinders(
         std::span<const ResourceNode> resources,
         std::span<const GlbCollisionAsset> treeAssets,
-        std::span<const GlbCollisionAsset> stoneAssets = {});
+        std::span<const GlbCollisionAsset> stoneAssets = {},
+        std::span<const GlbCollisionAsset> crystalAssets = {});
     void syncPondLilySurfaces(
         std::span<const PondLilyPlacement> lilies);
     void syncWorldLandmarks(

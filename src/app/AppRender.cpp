@@ -761,14 +761,25 @@ void App::render() {
                                       PI) *
                                   10.0)
                             : 0.0F,
-                    .crystalResourceBounce = 0.0F,
+                    .crystalResourceBounce =
+                        crystalHudBounceRemaining_ > 0.0
+                            ? static_cast<float>(
+                                  std::sin(
+                                      (1.0 -
+                                       crystalHudBounceRemaining_ /
+                                           0.28) *
+                                      PI) *
+                                  10.0)
+                            : 0.0F,
                     .woodResourcePulse =
                         static_cast<float>(
                             woodHudBounceRemaining_ / 0.28),
                     .stoneResourcePulse =
                         static_cast<float>(
                             stoneHudBounceRemaining_ / 0.28),
-                    .crystalResourcePulse = 0.0F,
+                    .crystalResourcePulse =
+                        static_cast<float>(
+                            crystalHudBounceRemaining_ / 0.28),
                     .coinResourceBounce =
                         coinHudBounceRemaining_ > 0.0
                             ? static_cast<float>(

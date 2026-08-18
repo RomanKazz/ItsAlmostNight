@@ -22,6 +22,9 @@ const char* recommendedTool(ResourceType type) {
 
 bool matchingResourceTool(PlayerWeapon weapon, ResourceType type) {
     if (isDestructibleProp(type)) return true;
+    if (type == ResourceType::Crystal) {
+        return weapon == PlayerWeapon::Pickaxe;
+    }
     return weapon == PlayerWeapon::BareHands ||
            (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
            (type == ResourceType::Stone && weapon == PlayerWeapon::Pickaxe);
@@ -318,6 +321,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     ? "Gather Wood"
                     : resource->type == ResourceType::Stone
                         ? "Mine Stone"
+                        : resource->type == ResourceType::Crystal
+                            ? "Mine Crystal"
                         : resource->type == ResourceType::Barrel
                             ? "Break Barrel"
                             : "Break Crate",
@@ -325,11 +330,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .state = warning ? InteractionState::Warning
                                  : InteractionState::Available,
                 .hint = warning
-                    ? std::optional<std::string>{
-                          std::to_string(efficiencyPercent) +
-                          "% efficiency  ·  " +
-                          recommendedTool(resource->type) +
-                          " recommended"}
+                    ? resource->type == ResourceType::Crystal
+                        ? std::optional<std::string>{"Pickaxe required"}
+                        : std::optional<std::string>{
+                              std::to_string(efficiencyPercent) +
+                              "% efficiency  ·  " +
+                              recommendedTool(resource->type) +
+                              " recommended"}
                     : snapshot.selectedWeapon == PlayerWeapon::BareHands
                         ? std::optional<std::string>{
                               std::to_string(efficiencyPercent) +

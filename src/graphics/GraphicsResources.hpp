@@ -298,6 +298,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& spikeTrapModel();
     [[nodiscard]] ModelResource& rockModel(
         std::size_t variant = 0U);
+    [[nodiscard]] ModelResource& crystalResourceModel();
     [[nodiscard]] ModelResource& treeModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& boundaryTreeModel(
         std::size_t variant = 0U);
@@ -423,6 +424,7 @@ class GraphicsResources {
     ModelResource quarryModel_;
     ModelResource spikeTrapModel_;
     std::array<ModelResource, StoneVisualVariantCount> rockModels_;
+    ModelResource crystalResourceModel_;
     std::array<ModelResource, 9> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;

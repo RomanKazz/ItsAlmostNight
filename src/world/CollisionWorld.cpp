@@ -299,7 +299,8 @@ void CollisionWorld::syncWorldLandmarks(
 void CollisionWorld::syncResourceCylinders(
     std::span<const ResourceNode> resources,
     std::span<const GlbCollisionAsset> treeAssets,
-    std::span<const GlbCollisionAsset> stoneAssets) {
+    std::span<const GlbCollisionAsset> stoneAssets,
+    std::span<const GlbCollisionAsset> crystalAssets) {
     resourceCylinders_.clear();
     resourceCylinders_.reserve(resources.size());
     for (const ResourceNode& resource : resources) {
@@ -321,9 +322,12 @@ void CollisionWorld::syncResourceCylinders(
         }
         const bool tree = resource.type == ResourceType::Wood;
         const bool stone = resource.type == ResourceType::Stone;
+        const bool crystal = resource.type == ResourceType::Crystal;
         const std::span<const GlbCollisionAsset> assets =
-            tree ? treeAssets : stone ? stoneAssets
-                                      : std::span<const GlbCollisionAsset>{};
+            tree ? treeAssets
+                 : stone ? stoneAssets
+                         : crystal ? crystalAssets
+                                   : std::span<const GlbCollisionAsset>{};
         if (assets.empty()) {
             continue;
         }
@@ -331,7 +335,9 @@ void CollisionWorld::syncResourceCylinders(
             resource.visualVariant % assets.size();
         const double scale = tree
             ? resource.visualScale
-            : StoneVisualModelScale;
+            : stone
+                ? StoneVisualModelScale
+                : CrystalVisualModelScale * resource.visualScale;
         const double cosine = std::cos(resource.visualYaw);
         const double sine = std::sin(resource.visualYaw);
         const double terrainHeight =
@@ -340,12 +346,15 @@ void CollisionWorld::syncResourceCylinders(
             (tree
                  ? TreeVisualGroundOffsets[
                        variant % TreeVisualVariantCount] * scale
-                 : StoneVisualGroundOffsets[
-                       variant % StoneVisualVariantCount]);
+                 : stone
+                     ? StoneVisualGroundOffsets[
+                           variant % StoneVisualVariantCount]
+                     : CrystalVisualGroundOffset * scale);
         for (const ModelCollider& collider :
              assets[variant].colliders) {
             if (collider.type != ModelColliderType::Cylinder &&
-                collider.type != ModelColliderType::Sphere) {
+                collider.type != ModelColliderType::Sphere &&
+                collider.type != ModelColliderType::Box) {
                 continue;
             }
             const double localX =

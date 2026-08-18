@@ -117,10 +117,22 @@ void runBuildingSystemTests() {
     const auto poorUpgrade = buildings.validateUpgrade(core->building.id, 0, 0, 49);
     require(poorUpgrade.error == ian::UpgradeError::InsufficientResources,
             "core upgrade requires crystals");
+    require(
+        ian::coreResourceCapacity(
+            ian::BuildingType::CrystalStorage,
+            core->building.level) >=
+            buildings.upgradeCost(core->building).crystals,
+        "level-one core can store its next upgrade cost");
     const auto levelTwo = buildings.upgrade(core->building.id, 0, 0, 50);
     require(levelTwo.valid() && levelTwo.building->level == 2,
             "first core upgrade reaches level two");
     require(levelTwo.building->maxHealth == 575.0, "core upgrade increases max health");
+    require(
+        ian::coreResourceCapacity(
+            ian::BuildingType::CrystalStorage,
+            levelTwo.building->level) >=
+            buildings.upgradeCost(*levelTwo.building).crystals,
+        "level-two core can store its next upgrade cost");
     const auto levelThree = buildings.upgrade(core->building.id, 0, 0, 100);
     require(levelThree.valid() && levelThree.building->level == 3,
             "second core upgrade reaches level three");
@@ -134,6 +146,17 @@ void runBuildingSystemTests() {
         require(currentCore.has_value(),
                 "core remains available through progression");
         const auto cost = buildings.upgradeCost(*currentCore);
+        require(
+            ian::coreResourceCapacity(
+                ian::BuildingType::WoodStorage,
+                currentCore->level) >= cost.wood &&
+                ian::coreResourceCapacity(
+                    ian::BuildingType::StoneStorage,
+                    currentCore->level) >= cost.stone &&
+                ian::coreResourceCapacity(
+                    ian::BuildingType::CrystalStorage,
+                    currentCore->level) >= cost.crystals,
+            "every core level can store its next upgrade cost");
         const auto upgraded = buildings.upgrade(
             currentCore->id, cost.wood, cost.stone, cost.crystals);
         require(

@@ -595,6 +595,7 @@ class Simulation {
         treeCollisionAssets_;
     std::array<GlbCollisionAsset, StoneVisualVariantCount>
         stoneCollisionAssets_;
+    std::array<GlbCollisionAsset, 1> crystalCollisionAssets_;
     Vec3 playerPosition_{0.0, 1.7, 6.0};
     Vec3 playerHorizontalVelocity_{};
     double verticalVelocity_{};

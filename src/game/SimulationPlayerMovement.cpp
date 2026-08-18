@@ -442,7 +442,7 @@ void Simulation::updatePlayer(double deltaSeconds,
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,
-            stoneCollisionAssets_);
+            stoneCollisionAssets_, crystalCollisionAssets_);
     }
     const double attackSpeed = battlePotionBerserkRemaining_ > 0.0
         ? 1.35 : 1.0;

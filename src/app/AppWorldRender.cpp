@@ -463,6 +463,12 @@ void App::drawWorldEntities(
                 DrawSphere(
                     nodePosition, 0.9F, {104, 116, 128, 255});
             }
+        } else if (node.type == ResourceType::Crystal) {
+            renderer_->setWorldMaterial(material);
+            static_cast<void>(renderer_->drawCrystalResource(
+                nodePosition, WHITE,
+                hitScale * static_cast<float>(node.visualScale),
+                static_cast<float>(node.visualYaw)));
         } else {
             renderer_->setWorldMaterial(material);
             static_cast<void>(renderer_->drawDestructibleProp(
@@ -689,6 +695,11 @@ void App::drawWorldEntities(
                 renderer_->drawRock(
                     position, WHITE, scale,
                     visual.visualVariant, visual.visualYaw));
+        } else if (visual.type == ResourceType::Crystal) {
+            static_cast<void>(renderer_->drawCrystalResource(
+                position, WHITE,
+                scale * visual.visualScale,
+                visual.visualYaw));
         } else {
             static_cast<void>(renderer_->drawDestructibleProp(
                 visual.type, position, visual.visualYaw, WHITE,

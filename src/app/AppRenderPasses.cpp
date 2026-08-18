@@ -205,6 +205,27 @@ void App::drawShadowPass(
 
         selectResources(
             [](const ResourceNode& node) {
+                return node.type == ResourceType::Crystal;
+            },
+            shadowBudget.rockDistance,
+            std::max<std::size_t>(4U, shadowBudget.rocks / 3U));
+        for (const auto& [distance, index] : shadowCandidateBuffer_) {
+            (void)distance;
+            const ResourceNode& node = snapshot.resourceNodes[index];
+            const Vec3 hitOffset = presentation::resourceHitOffset(
+                effects_, node.id, node.position);
+            static_cast<void>(renderer_->drawCrystalResource(
+                {static_cast<float>(node.position.x + hitOffset.x),
+                 static_cast<float>(node.position.y - node.groundOffset),
+                 static_cast<float>(node.position.z + hitOffset.z)},
+                WHITE,
+                presentation::resourceHitScale(effects_, node.id) *
+                    static_cast<float>(node.visualScale),
+                static_cast<float>(node.visualYaw)));
+        }
+
+        selectResources(
+            [](const ResourceNode& node) {
                 return isDestructibleProp(node.type);
             },
             shadowBudget.propDistance, shadowBudget.props);
@@ -530,15 +551,16 @@ void App::drawSelectionPass(
         // uses the encoded depth to distinguish a lid in front of the item
         // from a lid behind it.
         renderer_->setSelectionMaskColor(BLACK);
-        const bool aimedStone = snapshot.aimedResource &&
+        const bool aimedGroundResource = snapshot.aimedResource &&
             std::ranges::any_of(
                 snapshot.resourceNodes,
                 [&snapshot](const ResourceNode& node) {
                     return node.active &&
                         node.id == *snapshot.aimedResource &&
-                        node.type == ResourceType::Stone;
+                        (node.type == ResourceType::Stone ||
+                         node.type == ResourceType::Crystal);
                 });
-        if (aimedStone || snapshot.aimedBuilding ||
+        if (aimedGroundResource || snapshot.aimedBuilding ||
             snapshot.aimedWorldLandmark ||
             snapshot.aimedModularBuilding) {
             // Seed depth with terrain so the mask contains only geometry
@@ -741,6 +763,16 @@ void App::drawSelectionPass(
                          resourcePosition.y + 2.5F * hitScale,
                          resourcePosition.z + radius},
                     });
+                } else if (resource->type == ResourceType::Crystal) {
+                    const float radius = 0.8F * visualScale;
+                    renderer_->setSelectionOutlineBounds({
+                        {resourcePosition.x - radius,
+                         resourcePosition.y,
+                         resourcePosition.z - radius},
+                        {resourcePosition.x + radius,
+                         resourcePosition.y + 1.65F * visualScale,
+                         resourcePosition.z + radius},
+                    });
                 }
                 if (resource->type == ResourceType::Wood) {
                     renderer_->setSelectionMaskWind(1.0F);
@@ -772,6 +804,10 @@ void App::drawSelectionPass(
                                static_cast<float>(
                                    resource->visualYaw))) {
                     DrawSphere(resourcePosition, 0.9F, WHITE);
+                } else if (resource->type == ResourceType::Crystal) {
+                    static_cast<void>(renderer_->drawCrystalResource(
+                        resourcePosition, WHITE, visualScale,
+                        static_cast<float>(resource->visualYaw)));
                 } else if (isDestructibleProp(resource->type)) {
                     renderer_->setSelectionOutlineBounds(
                         renderer_->destructiblePropWorldBounds(

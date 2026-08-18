@@ -1133,6 +1133,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     rockModels_[0].load("assets/models/environment/stone_1.glb");
     rockModels_[1].load("assets/models/environment/stone_2.glb");
     rockModels_[2].load("assets/models/environment/stone_3.glb");
+    crystalResourceModel_.load(
+        "assets/models/environment/crystal.glb");
     treeModels_[0].load("assets/models/environment/tree_1_a.glb");
     treeModels_[1].load("assets/models/environment/tree_1_b.glb");
     treeModels_[2].load("assets/models/environment/tree_1_c.glb");
@@ -1426,6 +1428,7 @@ void GraphicsResources::shutdown() {
     for (auto& rockModel : rockModels_) {
         rockModel.unload();
     }
+    crystalResourceModel_.unload();
     quarryModel_.unload();
     spikeTrapModel_.unload();
     lumberMillModel_.unload();

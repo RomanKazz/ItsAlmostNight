@@ -19,10 +19,10 @@ void runBuildingStatsTests() {
             coreComparison.next->defenseBuildingLimit == 5.0 &&
             coreComparison.current.producerPerTypeLimit == 1.0 &&
             coreComparison.next->producerPerTypeLimit == 2.0 &&
-            coreComparison.current.woodCapacity == 60.0 &&
-            coreComparison.next->woodCapacity == 100.0 &&
-            coreComparison.next->stoneCapacity == 60.0 &&
-            coreComparison.next->crystalCapacity == 25.0,
+            coreComparison.current.woodCapacity == 100.0 &&
+            coreComparison.next->woodCapacity == 180.0 &&
+            coreComparison.next->stoneCapacity == 110.0 &&
+            coreComparison.next->crystalCapacity == 120.0,
         "core upgrade preview exposes building and storage growth");
     const ian::BuildingInstance turret{
         .id = ian::EntityId{1, 0},

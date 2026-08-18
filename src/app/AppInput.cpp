@@ -289,6 +289,7 @@ void App::processInput() {
         damageIndicators_.clear();
         woodHudBounceRemaining_ = 0.0;
         stoneHudBounceRemaining_ = 0.0;
+        crystalHudBounceRemaining_ = 0.0;
         coinHudBounceRemaining_ = 0.0;
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
@@ -412,6 +413,7 @@ void App::processInput() {
         damageIndicators_.clear();
         woodHudBounceRemaining_ = 0.0;
         stoneHudBounceRemaining_ = 0.0;
+        crystalHudBounceRemaining_ = 0.0;
         coinHudBounceRemaining_ = 0.0;
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
@@ -578,7 +580,7 @@ void App::processInput() {
             preciseResourceAim(
                 *renderer_, resourceAimSnapshot);
 
-        // Looking directly at a tree or stone while building should be
+        // Looking directly at a harvestable resource while building should be
         // enough to return to gathering.  Prefer the matching unlocked tool;
         // hands remain the universal fallback for a new run.
         if (resourceAutoSwitchMode && currentSnapshot.aimedResource) {

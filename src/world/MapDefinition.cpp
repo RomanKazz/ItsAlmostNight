@@ -27,7 +27,11 @@ ResourceType parseResourceType(const std::string& value) {
     if (value == "stone") {
         return ResourceType::Stone;
     }
-    throw std::runtime_error("resource type must be wood or stone");
+    if (value == "crystal") {
+        return ResourceType::Crystal;
+    }
+    throw std::runtime_error(
+        "resource type must be wood, stone, or crystal");
 }
 
 ResourceNodeDefinition parseResource(const Json& value) {
@@ -84,6 +88,7 @@ MapDefinition MapDefinition::defaults() {
             {ResourceType::Stone, {3.0, 0.8, 4.0}, 0.9, 4.0, 12, 15.0},
             {ResourceType::Stone, {8.0, 0.8, -1.0}, 0.9, 4.0, 12, 15.0},
             {ResourceType::Stone, {-6.0, 0.8, -5.0}, 0.9, 4.0, 12, 15.0},
+            {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 8, 28.0},
         },
         .obstacles = {},
     };

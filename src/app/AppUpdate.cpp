@@ -465,6 +465,8 @@ void App::update() {
         std::max(0.0, woodHudBounceRemaining_ - frameSeconds);
     stoneHudBounceRemaining_ =
         std::max(0.0, stoneHudBounceRemaining_ - frameSeconds);
+    crystalHudBounceRemaining_ =
+        std::max(0.0, crystalHudBounceRemaining_ - frameSeconds);
     coinHudBounceRemaining_ =
         std::max(0.0, coinHudBounceRemaining_ - frameSeconds);
     buildingRotationCooldownRemaining_ = std::max(
