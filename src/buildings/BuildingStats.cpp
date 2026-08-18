@@ -1,4 +1,5 @@
 #include "buildings/BuildingStats.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include "combat/CannonSystem.hpp"
 #include "combat/TowerSystem.hpp"
@@ -26,28 +27,44 @@ BuildingStats buildingStatsAtLevel(
         stats.producerPerTypeLimit = static_cast<double>(
             buildingLimitForCoreLevel(
                 BuildingType::CrystalMine, level));
-        stats.storagePerTypeLimit = static_cast<double>(
-            buildingLimitForCoreLevel(
-                BuildingType::WoodStorage, level));
-    } else if (building.type == BuildingType::Turret) {
+        stats.woodCapacity = static_cast<double>(
+            coreResourceCapacity(BuildingType::WoodStorage, level));
+        stats.stoneCapacity = static_cast<double>(
+            coreResourceCapacity(BuildingType::StoneStorage, level));
+        stats.crystalCapacity = static_cast<double>(
+            coreResourceCapacity(BuildingType::CrystalStorage, level));
+    } else if (building.type == BuildingType::Turret ||
+               building.type == BuildingType::GunTurret) {
         const double towerBonus = building.anvilStacks > 0
             ? 1.0 + 0.10 * building.anvilStacks
             : building.anvilEnhanced ? 1.10 : 1.0;
-        stats.attackDamage = TowerSystem::attackDamage(level) *
+        stats.attackDamage = TowerSystem::attackDamage(
+            building.type, level) *
             towerBonus;
-        stats.attackRange = TowerSystem::attackRange(level);
+        stats.attackRange = TowerSystem::attackRange(
+            building.type, level);
+        stats.attackArcDegrees = defenseAttackArcDegrees(level);
         stats.attacksPerSecond =
-            1.0 / TowerSystem::fireInterval(level);
-    } else if (building.type == BuildingType::Cannon) {
+            1.0 / TowerSystem::fireInterval(building.type, level);
+        if (building.type == BuildingType::Turret) {
+            stats.piercingCount = static_cast<double>(
+                TowerSystem::piercingCount(building.type, level));
+        }
+    } else if (building.type == BuildingType::Cannon ||
+               building.type == BuildingType::Catapult) {
         const double towerBonus = building.anvilStacks > 0
             ? 1.0 + 0.10 * building.anvilStacks
             : building.anvilEnhanced ? 1.10 : 1.0;
-        stats.attackDamage = CannonSystem::explosionDamage(level) *
+        stats.attackDamage = CannonSystem::explosionDamage(
+            building.type, level) *
             towerBonus;
-        stats.attackRange = CannonSystem::attackRange(level);
+        stats.attackRange = CannonSystem::attackRange(
+            building.type, level);
+        stats.attackArcDegrees = defenseAttackArcDegrees(level);
         stats.attacksPerSecond =
-            1.0 / CannonSystem::fireInterval(level);
-        stats.effectRadius = CannonSystem::explosionRadius(level);
+            1.0 / CannonSystem::fireInterval(building.type, level);
+        stats.effectRadius = CannonSystem::explosionRadius(
+            building.type, level);
     } else if (
         building.type == BuildingType::CrystalMine ||
         building.type == BuildingType::LumberMill ||

@@ -277,6 +277,10 @@ class Renderer {
         float visualScale = 1.0F,
         float yawRadians = 0.0F);
     [[nodiscard]] std::optional<double>
+    worldLandmarkRaycastDistance(
+        std::size_t variant, Vector3 position,
+        float yawRadians, Ray ray, double maxDistance);
+    [[nodiscard]] std::optional<double>
     platformFrameRaycastDistance(
         Vector3 topCenter, float scale,
         const std::array<float, 4>& supportLengths,
@@ -287,11 +291,32 @@ class Renderer {
                                   float scale = 1.0F);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE);
+    [[nodiscard]] bool drawCatapult(
+        Vector3 position, float yawRadians, float armPitchRadians,
+        bool loaded = true, Color tint = WHITE,
+        float scale = 1.0F);
+    [[nodiscard]] bool drawCatapultBall(Vector3 position,
+                                        Color tint = WHITE);
     [[nodiscard]] bool drawArrow(Vector3 position, Vector3 direction,
                                  Color tint = WHITE);
     [[nodiscard]] bool drawCrossbow(Vector3 position, float yawRadians,
                                     Color tint = WHITE,
-                                    float scale = 1.0F);
+                                    float scale = 1.0F,
+                                    float pitchRadians = 0.0F);
+    [[nodiscard]] bool drawGunTurret(
+        Vector3 position, float baseYawRadians,
+        float barrelYawRadians, Color tint = WHITE,
+        float scale = 1.0F,
+        Vec3 barrelRecoilOffset = {});
+    [[nodiscard]] bool drawTurretBullet(
+        Vector3 position, Vector3 direction,
+        Color tint = WHITE);
+    [[nodiscard]] Vec3 gunTurretMuzzlePosition(
+        Vec3 position, float yawRadians,
+        std::size_t muzzleIndex);
+    [[nodiscard]] Vec3 crossbowMuzzlePosition(
+        Vec3 position, float yawRadians,
+        float pitchRadians) const;
     [[nodiscard]] bool drawCore(Vector3 position, float yawRadians = 0.0F,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
@@ -301,6 +326,13 @@ class Renderer {
     [[nodiscard]] bool drawChallengeArenaPeg(
         Vector3 position, float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawWorldLandmark(
+        std::size_t variant, Vector3 position,
+        float yawRadians = 0.0F, Color tint = WHITE,
+        float scale = 1.0F);
+    [[nodiscard]] BoundingBox worldLandmarkWorldBounds(
+        std::size_t variant, Vector3 position,
+        float yawRadians, float scale = 1.0F);
     [[nodiscard]] bool drawFirstPersonTool(
         FirstPersonToolVisual visual, float swingProgress,
         float movementPhase, float movementAmount,

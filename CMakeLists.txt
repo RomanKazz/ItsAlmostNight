@@ -103,6 +103,7 @@ add_library(ian_simulation
     src/game/SimulationDebug.cpp
     src/game/SimulationDefenses.cpp
     src/game/SimulationLoot.cpp
+    src/game/SimulationLandmarks.cpp
     src/game/SimulationModularPlacement.cpp
     src/game/SimulationPlayerActions.cpp
     src/game/SimulationPlayerLifecycle.cpp

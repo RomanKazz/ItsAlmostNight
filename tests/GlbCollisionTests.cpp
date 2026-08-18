@@ -151,4 +151,68 @@ void runGlbCollisionTests() {
                     ModelColliderType::Sphere,
                 "COL_SPHERE stone collider must parse as a sphere");
     }
+
+    const GlbCollisionAsset turret = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/buildings/gun_turret.glb");
+    require(turret.valid() && turret.colliders.size() == 1U,
+            "gun turret must expose its single authored box collider");
+    require(turret.colliders.front().type == ModelColliderType::Box,
+            "gun turret collider must be a box");
+    require(turret.sockets.size() == 2U,
+            "gun turret must expose both muzzle sockets");
+    require(turret.sockets[0].name == "MUZZLE_01" &&
+                turret.sockets[1].name == "MUZZLE_02",
+            "Blender numeric suffixes must not disturb muzzle order");
+    requireNear(turret.sockets[0].position.z, -0.614021, 1e-4,
+                "muzzle hierarchy transform must be preserved");
+    requireNear(turret.sockets[1].position.x, -0.140388, 1e-4,
+                "second barrel socket must preserve authored position");
+
+    const GlbCollisionAsset crossbow = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/weapons/crossbow.glb");
+    require(crossbow.valid() && crossbow.colliders.size() == 1U,
+            "crossbow must expose its authored box collider");
+    require(crossbow.colliders.front().type == ModelColliderType::Box,
+            "crossbow COL_BOX node must parse as a box");
+    require(crossbow.renderMeshIndices.size() == 1U,
+            "crossbow collision mesh must stay hidden");
+    require(crossbow.sockets.size() == 1U &&
+                crossbow.sockets.front().name == "MUZZLE_01",
+            "crossbow must expose its pitch-pivot muzzle socket");
+    requireNear(crossbow.sockets.front().position.y, 0.746495, 1e-4,
+                "crossbow muzzle hierarchy height must be preserved");
+    requireNear(crossbow.sockets.front().forward.z, -1.0, 1e-4,
+                "crossbow muzzle must preserve authored local -Z forward");
+
+    const GlbCollisionAsset cannon = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/buildings/cannon.glb");
+    require(cannon.valid() && cannon.colliders.size() == 1U,
+            "cannon must expose its authored box collider");
+    require(cannon.colliders.front().type == ModelColliderType::Box,
+            "cannon COL_BOX node must parse as a box");
+    require(cannon.renderMeshIndices.size() == 1U,
+            "cannon collision mesh must stay hidden");
+    require(cannon.sockets.size() == 1U &&
+                cannon.sockets.front().name == "MUZZLE_01",
+            "cannon must expose its pitch-pivot muzzle socket");
+    requireNear(cannon.sockets.front().position.y, 0.700204, 1e-4,
+                "cannon muzzle hierarchy height must be preserved");
+    requireNear(cannon.sockets.front().position.z, -0.578291, 1e-4,
+                "cannon muzzle hierarchy depth must be preserved");
+    requireNear(cannon.sockets.front().forward.z, -1.0, 1e-4,
+                "cannon muzzle must preserve authored local -Z forward");
+
+    const GlbCollisionAsset catapult = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/buildings/catapult.glb");
+    require(catapult.valid() && catapult.colliders.size() == 1U,
+            "catapult must expose its authored box collider");
+    require(catapult.colliders.front().type == ModelColliderType::Box,
+            "catapult COL_BOX node must parse as a box");
+    require(catapult.sockets.size() == 1U &&
+                catapult.sockets.front().name == "MUZZLE_01",
+            "catapult must expose its arm cup as muzzle socket");
+    requireNear(catapult.sockets.front().position.y, 0.876265, 1e-4,
+                "catapult socket hierarchy height must be preserved");
+    requireNear(catapult.sockets.front().position.z, 0.637001, 1e-4,
+                "catapult socket hierarchy depth must be preserved");
 }

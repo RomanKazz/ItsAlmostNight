@@ -253,9 +253,13 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& placeholderModel();
     [[nodiscard]] ModelResource& cannonModel();
     [[nodiscard]] ModelResource& cannonballModel();
+    [[nodiscard]] ModelResource& catapultModel();
+    [[nodiscard]] ModelResource& catapultBallModel();
     [[nodiscard]] ModelResource& arrowModel();
     [[nodiscard]] ModelResource& sawBladeModel();
     [[nodiscard]] ModelResource& crossbowModel();
+    [[nodiscard]] ModelResource& gunTurretModel();
+    [[nodiscard]] ModelResource& turretBulletModel();
     [[nodiscard]] ModelResource& coreModel();
     [[nodiscard]] ModelResource& axeModel();
     [[nodiscard]] ModelResource& pickaxeModel();
@@ -266,6 +270,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& challengeColumnModel();
     [[nodiscard]] ModelResource& challengeArenaPegModel();
+    [[nodiscard]] ModelResource& worldLandmarkModel(
+        std::size_t variant);
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
     [[nodiscard]] ModelResource& destructiblePropModel(
         std::size_t variant);
@@ -375,9 +381,13 @@ class GraphicsResources {
     ModelResource placeholderModel_;
     ModelResource cannonModel_;
     ModelResource cannonballModel_;
+    ModelResource catapultModel_;
+    ModelResource catapultBallModel_;
     ModelResource arrowModel_;
     ModelResource sawBladeModel_;
     ModelResource crossbowModel_;
+    ModelResource gunTurretModel_;
+    ModelResource turretBulletModel_;
     ModelResource coreModel_;
     ModelResource axeModel_;
     ModelResource pickaxeModel_;
@@ -388,6 +398,7 @@ class GraphicsResources {
     ModelResource stoneChestModel_;
     ModelResource challengeColumnModel_;
     ModelResource challengeArenaPegModel_;
+    std::array<ModelResource, 2> worldLandmarkModels_;
     std::array<ModelResource, 3> coinModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
     ModelResource appleLootModel_;

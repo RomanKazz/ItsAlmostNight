@@ -161,9 +161,8 @@ void Simulation::syncBuildingRuntimeSystems() {
     cannons_.syncBuildings(buildings_.buildings());
     traps_.syncBuildings(buildings_.buildings());
     crystalMines_.syncBuildings(buildings_.buildings());
-    // Storage capacity is derived from the live building list. Destruction,
-    // selling, or structural collapse can lower it immediately, so inventory
-    // must be normalized in the same world-sync transaction.
+    // Capacity is derived from the current Core level. Keep inventory valid
+    // after loading or any structural transaction involving the Core.
     clampResourcesToCapacity();
 }
 

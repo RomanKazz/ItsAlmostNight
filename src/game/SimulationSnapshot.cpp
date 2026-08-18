@@ -118,6 +118,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .aimedChallengeColumn = aimedChallengeColumn_,
         .challengeColumns =
             std::span<const ChallengeColumnInstance>{challengeColumns_},
+        .aimedWorldLandmark = aimedWorldLandmark_,
+        .worldLandmarks =
+            std::span<const WorldLandmarkInstance>{worldLandmarks_},
         .activeChallengeCenter = activeChallengeColumn_
             ? std::optional<Vec3>{
                   challengeColumns_[*activeChallengeColumn_].position}
@@ -196,6 +199,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildings_.configuredCost(BuildingType::WoodStorage),
             buildings_.configuredCost(BuildingType::StoneStorage),
             buildings_.configuredCost(BuildingType::CrystalStorage),
+            buildings_.configuredCost(BuildingType::GunTurret),
+            buildings_.configuredCost(BuildingType::Catapult),
         },
         .unlockedBuildings = {
             buildingUnlocked(BuildingType::Core),
@@ -211,6 +216,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::WoodStorage),
             buildingUnlocked(BuildingType::StoneStorage),
             buildingUnlocked(BuildingType::CrystalStorage),
+            buildingUnlocked(BuildingType::GunTurret),
+            buildingUnlocked(BuildingType::Catapult),
         },
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,

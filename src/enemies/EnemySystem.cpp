@@ -36,6 +36,7 @@ constexpr double SeparationWeight = 0.65;
 constexpr double Pi = 3.14159265358979323846;
 constexpr double BuildingGridCellSize = 2.0;
 constexpr double BuildingGridMinimum = -192.0;
+constexpr double SplitWindupDuration = 0.38;
 constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
@@ -417,10 +418,18 @@ void updateEnemySurface(
     EnemyInstance& enemy, const TerrainHeightfield* terrain,
     EnemyNavigationView navigation, double deltaSeconds,
     std::optional<double> lockedSurfaceHeight = std::nullopt) {
-    if (enemy.type == EnemyType::Flying || terrain == nullptr ||
-        navigation.collisionWorld == nullptr) {
+    if (terrain == nullptr) {
         return;
     }
+    if (enemy.type == EnemyType::Flying) {
+        // Flying visuals hover above the terrain. Keep their terrain base in
+        // simulation state so defenses can aim at the same world-space
+        // height that presentation uses.
+        enemy.worldSurfaceHeight = terrain->getHeight(
+            enemy.position.x, enemy.position.z);
+        return;
+    }
+    if (navigation.collisionWorld == nullptr) return;
     const double terrainHeight = terrain->getHeight(
         enemy.position.x, enemy.position.z);
     if (lockedSurfaceHeight) {
@@ -951,6 +960,7 @@ EnemySystem::EnemySystem(
     collisionEnemyLinks_.reserve(MaxEnemies);
     areaTargetBuffer_.resize(SpatialHash::MaxEntries);
     pendingSplitBuffer_.reserve(MaxActiveEnemies);
+    delayedSplitBuffer_.reserve(64);
 }
 
 void EnemySystem::reset() {
@@ -971,6 +981,9 @@ void EnemySystem::reset() {
     eliteSpawnEventBuffer_.clear();
     eliteDeathEventBuffer_.clear();
     pendingSplitBuffer_.clear();
+    delayedSplitBuffer_.clear();
+    previousPlayerPosition_.reset();
+    estimatedPlayerVelocity_ = {};
     structureBuffer_.clear();
     incomingStructureBuffer_.clear();
     structureNextBuffer_.clear();
@@ -989,8 +1002,12 @@ void EnemySystem::reset() {
 }
 
 void EnemySystem::spawnWave(std::span<const Vec3> positions) {
+    delayedSplitBuffer_.clear();
+    previousPlayerPosition_.reset();
+    estimatedPlayerVelocity_ = {};
     for (EnemyInstance& enemy : enemies_) {
         enemy.active = false;
+        enemy.splitAnimationRemaining = 0.0;
     }
     activeCount_ = 0;
     for (const Vec3 position : positions) {
@@ -1001,8 +1018,12 @@ void EnemySystem::spawnWave(std::span<const Vec3> positions) {
 
 void EnemySystem::spawnWave(std::span<const EnemySpawn> spawns) {
     clearProjectiles();
+    delayedSplitBuffer_.clear();
+    previousPlayerPosition_.reset();
+    estimatedPlayerVelocity_ = {};
     for (EnemyInstance& enemy : enemies_) {
         enemy.active = false;
+        enemy.splitAnimationRemaining = 0.0;
     }
     activeCount_ = 0;
     spawnGroup(spawns);
@@ -1075,6 +1096,35 @@ std::span<const EnemyAttack> EnemySystem::tick(
     playerAttackBuffer_.clear();
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
+    if (playerPosition) {
+        if (previousPlayerPosition_ && deltaSeconds > 1e-6) {
+            const double rawX =
+                (playerPosition->x - previousPlayerPosition_->x) /
+                deltaSeconds;
+            const double rawZ =
+                (playerPosition->z - previousPlayerPosition_->z) /
+                deltaSeconds;
+            constexpr double MaximumTrackedPlayerSpeed = 12.0;
+            const double rawSpeed = std::hypot(rawX, rawZ);
+            const double clampScale = rawSpeed > MaximumTrackedPlayerSpeed
+                ? MaximumTrackedPlayerSpeed / rawSpeed
+                : 1.0;
+            const double response = std::clamp(
+                deltaSeconds * 10.0, 0.0, 1.0);
+            estimatedPlayerVelocity_.x +=
+                (rawX * clampScale - estimatedPlayerVelocity_.x) *
+                response;
+            estimatedPlayerVelocity_.z +=
+                (rawZ * clampScale - estimatedPlayerVelocity_.z) *
+                response;
+        } else {
+            estimatedPlayerVelocity_ = {};
+        }
+        previousPlayerPosition_ = *playerPosition;
+    } else {
+        previousPlayerPosition_.reset();
+        estimatedPlayerVelocity_ = {};
+    }
     for (EnemyProjectile& projectile : projectiles_) {
         if (!projectile.active) continue;
         const Vec3 previousPosition = projectile.position;
@@ -1147,6 +1197,10 @@ std::span<const EnemyAttack> EnemySystem::tick(
         });
     if (core == buildings.end() &&
         (!prioritizePlayerTarget || !playerPosition)) {
+        updatePendingSplits(deltaSeconds);
+        if (spatialHashDirty_) {
+            rebuildSpatialIndex();
+        }
         finishTelemetry();
         return attackBuffer_;
     }
@@ -1406,9 +1460,51 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     playerDistance > 1e-9
                         ? playerOffsetZ / playerDistance
                         : 1.0;
+                double approachDirectionX = directionX;
+                double approachDirectionZ = directionZ;
+                if (enemy.type == EnemyType::Basic &&
+                    enemy.approachRole != EnemyApproachRole::Direct &&
+                    playerDistance > PlayerAttackRange + 0.65) {
+                    const double side =
+                        enemy.approachRole == EnemyApproachRole::FlankLeft
+                            ? -1.0
+                            : 1.0;
+                    const double flankWidth = std::clamp(
+                        (playerDistance - PlayerAttackRange) * 0.58,
+                        0.8, 2.5);
+                    const double flankOffsetX =
+                        -directionZ * side * flankWidth;
+                    const double flankOffsetZ =
+                        directionX * side * flankWidth;
+                    const double flankX = playerOffsetX + flankOffsetX;
+                    const double flankZ = playerOffsetZ + flankOffsetZ;
+                    const double flankLength =
+                        std::hypot(flankX, flankZ);
+                    if (flankLength > 1e-9) {
+                        approachDirectionX = flankX / flankLength;
+                        approachDirectionZ = flankZ / flankLength;
+                    }
+                }
+                double aimDirectionX = approachDirectionX;
+                double aimDirectionZ = approachDirectionZ;
+                if (enemy.type == EnemyType::Ranged) {
+                    constexpr double ProjectileSpeed = 7.2;
+                    const double leadSeconds = std::clamp(
+                        playerDistance / ProjectileSpeed,
+                        0.0, 0.72);
+                    const double aimX = playerOffsetX +
+                        estimatedPlayerVelocity_.x * leadSeconds;
+                    const double aimZ = playerOffsetZ +
+                        estimatedPlayerVelocity_.z * leadSeconds;
+                    const double aimLength = std::hypot(aimX, aimZ);
+                    if (aimLength > 1e-9) {
+                        aimDirectionX = aimX / aimLength;
+                        aimDirectionZ = aimZ / aimLength;
+                    }
+                }
                 turnToward(
                     enemy,
-                    std::atan2(directionX, directionZ),
+                    std::atan2(aimDirectionX, aimDirectionZ),
                     aiTurnDeltaSeconds);
                 enemy.target.reset();
                 const double playerRange =
@@ -1427,16 +1523,23 @@ std::span<const EnemyAttack> EnemySystem::tick(
                                 enemy.position.x,
                                 originSurface + 1.02,
                                 enemy.position.z};
+                            constexpr double ProjectileSpeed = 7.2;
+                            const double leadSeconds = std::clamp(
+                                playerDistance / ProjectileSpeed,
+                                0.0, 0.72);
                             const Vec3 target{
-                                playerPosition->x,
+                                playerPosition->x +
+                                    estimatedPlayerVelocity_.x *
+                                        leadSeconds,
                                 playerPosition->y - 0.62,
-                                playerPosition->z};
+                                playerPosition->z +
+                                    estimatedPlayerVelocity_.z *
+                                        leadSeconds};
                             const double dx = target.x - origin.x;
                             const double dy = target.y - origin.y;
                             const double dz = target.z - origin.z;
                             const double length = std::max(
                                 1e-6, std::sqrt(dx * dx + dy * dy + dz * dz));
-                            constexpr double ProjectileSpeed = 7.2;
                             projectiles_.push_back({
                                 .id = {nextProjectileIndex_++, 1U},
                                 .ownerId = enemy.id,
@@ -1460,6 +1563,49 @@ std::span<const EnemyAttack> EnemySystem::tick(
                         enemy.attackCooldownRemaining =
                             attackInterval(enemy.type);
                     }
+                    if (enemy.type == EnemyType::Ranged) {
+                        constexpr double RetreatDistance = 4.5;
+                        constexpr double PreferredDistance = 6.4;
+                        constexpr double ApproachDistance = 7.6;
+                        double moveX = 0.0;
+                        double moveZ = 0.0;
+                        if (playerDistance < RetreatDistance) {
+                            moveX = -directionX;
+                            moveZ = -directionZ;
+                        } else if (playerDistance > ApproachDistance) {
+                            moveX = directionX;
+                            moveZ = directionZ;
+                        } else {
+                            const double strafeSide =
+                                std::sin(enemy.steeringPhase) < 0.0
+                                    ? -1.0
+                                    : 1.0;
+                            moveX = directionZ * strafeSide;
+                            moveZ = -directionX * strafeSide;
+                            const double radialCorrection = std::clamp(
+                                (playerDistance - PreferredDistance) *
+                                    0.38,
+                                -0.45, 0.45);
+                            moveX += directionX * radialCorrection;
+                            moveZ += directionZ * radialCorrection;
+                            const double moveLength =
+                                std::hypot(moveX, moveZ);
+                            if (moveLength > 1e-9) {
+                                moveX /= moveLength;
+                                moveZ /= moveLength;
+                            }
+                        }
+                        moveEnemyHorizontally(
+                            enemy,
+                            {
+                                moveX * movementSpeed *
+                                    deltaSeconds * 0.62,
+                                0.0,
+                                moveZ * movementSpeed *
+                                    deltaSeconds * 0.62,
+                            },
+                            navigation);
+                    }
                 } else {
                     enemy.state = EnemyState::ChasePlayer;
                     const double movement = std::min(
@@ -1468,9 +1614,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
                     moveEnemyHorizontally(
                         enemy,
                         {
-                            std::sin(enemy.yaw) * movement,
+                            approachDirectionX * movement,
                             0.0,
-                            std::cos(enemy.yaw) * movement,
+                            approachDirectionZ * movement,
                         },
                         navigation);
                 }
@@ -1853,6 +1999,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
     }
     performanceStats_.collision.sample(
         performanceMilliseconds(collisionStart));
+    updatePendingSplits(deltaSeconds);
     rebuildSpatialIndex();
     finishTelemetry();
     return attackBuffer_;
@@ -1884,6 +2031,11 @@ void EnemySystem::appendEnemy(
                         return split.parentId == enemy.id;
                     }) &&
                 std::ranges::none_of(
+                    delayedSplitBuffer_,
+                    [&enemy](const PendingSplit& split) {
+                        return split.id == enemy.id;
+                    }) &&
+                std::ranges::none_of(
                     eliteDeathEventBuffer_,
                     [&enemy](const EliteEnemyEvent& event) {
                         return event.id == enemy.id;
@@ -1904,6 +2056,15 @@ void EnemySystem::appendEnemy(
     const double thirdRandom =
         hashUnit(id.index * 0xc2b2ae35U +
                  id.generation * 31U);
+    EnemyApproachRole approachRole = EnemyApproachRole::Direct;
+    if (type == EnemyType::Basic) {
+        const std::uint32_t roleBucket = id.index % 10U;
+        if (roleBucket >= 6U && roleBucket < 8U) {
+            approachRole = EnemyApproachRole::FlankLeft;
+        } else if (roleBucket >= 8U) {
+            approachRole = EnemyApproachRole::FlankRight;
+        }
+    }
     const double baseTurnRate =
         type == EnemyType::Boss
             ? 1.8
@@ -1921,6 +2082,7 @@ void EnemySystem::appendEnemy(
         .hitAnimationRemaining = 0.0,
         .spawnAnimationRemaining =
             type == EnemyType::Splitling ? 0.72 : 0.0,
+        .splitAnimationRemaining = 0.0,
         .ramWindup = stats.ramWindup,
         .ramDamageMultiplier = stats.ramDamageMultiplier,
         .ramCooldown = stats.ramCooldown,
@@ -1936,6 +2098,7 @@ void EnemySystem::appendEnemy(
         .turnRate = baseTurnRate *
                     (0.88 + thirdRandom * 0.24),
         .locomotionRate = 0.94 + secondRandom * 0.12,
+        .approachRole = approachRole,
         .state = EnemyState::Spawn,
         .target = std::nullopt,
         .active = true,
@@ -1954,6 +2117,47 @@ void EnemySystem::appendEnemy(
             .affixes = spawn.eliteAffixes,
         });
     }
+}
+
+void EnemySystem::scheduleSplit(
+    EntityId parentId, Vec3 position,
+    double healthMultiplier, double damageMultiplier) {
+    if (std::ranges::find(
+            delayedSplitBuffer_, parentId,
+            &PendingSplit::id) != delayedSplitBuffer_.end()) {
+        return;
+    }
+    delayedSplitBuffer_.push_back({
+        .id = parentId,
+        .position = position,
+        .healthMultiplier = healthMultiplier,
+        .damageMultiplier = damageMultiplier,
+        .remaining = SplitWindupDuration,
+    });
+    if (EnemyInstance* parent = findEnemy(parentId)) {
+        parent->splitAnimationRemaining = SplitWindupDuration;
+    }
+}
+
+void EnemySystem::updatePendingSplits(double deltaSeconds) {
+    for (PendingSplit& split : delayedSplitBuffer_) {
+        split.remaining = std::max(
+            0.0, split.remaining - deltaSeconds);
+        if (EnemyInstance* parent = findEnemy(split.id)) {
+            parent->splitAnimationRemaining = split.remaining;
+        }
+        if (split.remaining <= 0.0) {
+            spawnSplitlings(
+                split.id, split.position,
+                split.healthMultiplier,
+                split.damageMultiplier);
+        }
+    }
+    std::erase_if(
+        delayedSplitBuffer_,
+        [](const PendingSplit& split) {
+            return split.remaining <= 0.0;
+        });
 }
 
 void EnemySystem::spawnSplitlings(

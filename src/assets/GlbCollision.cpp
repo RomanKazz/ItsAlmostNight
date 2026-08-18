@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <limits>
@@ -72,6 +73,27 @@ Vec3 transformPoint(const Matrix4& matrix, Vec3 point) {
             matrix.values[10] * point.z +
             matrix.values[14],
     };
+}
+
+Vec3 transformDirection(const Matrix4& matrix, Vec3 direction) {
+    return {
+        matrix.values[0] * direction.x +
+            matrix.values[4] * direction.y +
+            matrix.values[8] * direction.z,
+        matrix.values[1] * direction.x +
+            matrix.values[5] * direction.y +
+            matrix.values[9] * direction.z,
+        matrix.values[2] * direction.x +
+            matrix.values[6] * direction.y +
+            matrix.values[10] * direction.z,
+    };
+}
+
+Vec3 normalized(Vec3 value) {
+    const double length = std::sqrt(
+        value.x * value.x + value.y * value.y + value.z * value.z);
+    if (length <= 1e-9) return {};
+    return {value.x / length, value.y / length, value.z / length};
 }
 
 Matrix4 nodeMatrix(const Json& node) {
@@ -410,6 +432,22 @@ parseGlbCollisionJson(std::string_view json) {
             const std::string name =
                 node.value("name", std::string{});
             const std::string upperName = uppercase(name);
+            if (upperName.starts_with("MUZZLE_")) {
+                std::string normalizedName = upperName;
+                if (const std::size_t suffix = normalizedName.find('.');
+                    suffix != std::string::npos) {
+                    normalizedName.resize(suffix);
+                }
+                const Matrix4& transform = worldMatrices[nodeIndex];
+                result.sockets.push_back({
+                    .name = std::move(normalizedName),
+                    .position = transformPoint(transform, {}),
+                    .forward = normalized(transformDirection(
+                        transform, {0.0, 0.0, -1.0})),
+                    .up = normalized(transformDirection(
+                        transform, {0.0, 1.0, 0.0})),
+                });
+            }
             const auto type = colliderType(node, upperName);
             if (!type || !node.contains("mesh")) {
                 continue;
@@ -449,6 +487,10 @@ parseGlbCollisionJson(std::string_view json) {
                 result.renderMeshIndices.begin(),
                 result.renderMeshIndices.end()),
             result.renderMeshIndices.end());
+        std::sort(result.sockets.begin(), result.sockets.end(),
+                  [](const ModelSocket& left, const ModelSocket& right) {
+                      return left.name < right.name;
+                  });
     } catch (const std::exception& error) {
         result.errors.push_back(error.what());
     }

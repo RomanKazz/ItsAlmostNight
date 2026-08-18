@@ -26,10 +26,14 @@ int Simulation::earlyWaveBonus() const {
         phaseTimeRemaining_ <= 0.0) {
         return 0;
     }
-    return static_cast<int>(std::lround(
+    const int reward = static_cast<int>(std::lround(
         static_cast<double>(remainingTimeUnits(phaseTimeRemaining_)) *
         std::max(0.0, 1.0 +
             skillTree_.effectValue("early.base_bonus"))));
+    return std::min(
+        reward,
+        std::max(0,
+            resourceCapacity(BuildingType::CrystalStorage) - crystals_));
 }
 
 int Simulation::earlyWaveCoinBonus() const {
@@ -400,9 +404,11 @@ void Simulation::updateCombat(double deltaSeconds) {
             crystalMines_.syncBuildings(buildings_.buildings());
         }
 
-        updateTowerCombat(deltaSeconds);
-        updateCannonCombat(deltaSeconds);
     }
+    // These runtimes also own smoothed visual orientation, so they must tick
+    // during building phases even when there are no enemies.
+    updateTowerCombat(deltaSeconds);
+    updateCannonCombat(deltaSeconds);
 }
 
 void Simulation::collectEliteEnemyEvents() {

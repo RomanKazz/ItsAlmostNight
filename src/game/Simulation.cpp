@@ -155,6 +155,7 @@ Simulation::Simulation(
         resources_.nodes(), playerPosition_);
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
+    resetWorldLandmarks();
     resetChallengeColumns();
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
 }
@@ -285,6 +286,7 @@ void Simulation::resetRun(GameEventType eventType) {
     lootChests_.reset(
         terrain_.seed(), map_.worldLimit, terrain_,
         resources_.nodes(), playerPosition_);
+    resetWorldLandmarks();
     resetChallengeColumns();
     aimedChest_.reset();
     aimedLoot_.reset();
@@ -360,6 +362,7 @@ void Simulation::resetRun(GameEventType eventType) {
     modularTargetBuffer_.clear();
     collisionWorld_.syncPondLilySurfaces(
         generatePondLilyPlacements(terrain_));
+    syncWorldLandmarkColliders();
     events_.clear();
     events_.push_back({.type = eventType});
 }
@@ -455,6 +458,9 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     updatePlayerActions(
         deltaSeconds,
         playerRespawning_ ? PlayerCommand{} : command);
+    updateWorldLandmarks(
+        deltaSeconds,
+        playerRespawning_ ? PlayerCommand{} : command);
     // Resource damage happens after the regular movement update. Flush a
     // changed node collider before the next frame so a depleted tree/rock
     // cannot remain a physical obstacle until its respawn.
@@ -468,6 +474,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         aimedEnemy_.reset();
         aimedBuilding_.reset();
         aimedModularBuilding_.reset();
+        aimedWorldLandmark_.reset();
     }
     updateRunPhase(
         deltaSeconds,

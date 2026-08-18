@@ -10,8 +10,26 @@
 namespace ian {
 
 bool Simulation::buildingUnlocked(BuildingType type) const {
+    if (type == BuildingType::WoodStorage ||
+        type == BuildingType::StoneStorage ||
+        type == BuildingType::CrystalStorage) {
+        return false;
+    }
     if (unlimitedResources_) return true;
+    const auto core = buildings_.core();
+    const int coreLevel = core ? static_cast<int>(core->level) : 0;
     switch (type) {
+    case BuildingType::Turret:
+        return coreLevel >= 2 &&
+            skillTree_.hasEffect("unlock.crossbow");
+    case BuildingType::Cannon:
+        return coreLevel >= 3 &&
+            skillTree_.hasEffect("unlock.cannon");
+    case BuildingType::Catapult:
+        return coreLevel >= 4 &&
+            skillTree_.hasEffect("unlock.catapult");
+    case BuildingType::GunTurret:
+        return true;
     case BuildingType::LumberMill:
         return skillTree_.hasEffect("unlock.lumber_mill");
     case BuildingType::Quarry:

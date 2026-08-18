@@ -3,6 +3,7 @@
 #include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include <raymath.h>
 
@@ -122,9 +123,15 @@ std::optional<double> Renderer::buildingRaycastDistance(
     }
     case BuildingType::Turret:
         resource = &resources_.crossbowModel();
-        modelScale = 2.5F;
-        yaw = defensiveYaw + PI;
-        groundOffset = 0.13F;
+        modelScale = 1.0F;
+        yaw = defensiveYaw;
+        groundOffset = 0.0F;
+        break;
+    case BuildingType::GunTurret:
+        resource = &resources_.gunTurretModel();
+        modelScale = 1.0F;
+        yaw = static_cast<float>(buildingRotationYaw(
+            building.type, building.rotation));
         break;
     case BuildingType::CrystalMine:
         resource = &resources_.mineModel();
@@ -159,9 +166,13 @@ std::optional<double> Renderer::buildingRaycastDistance(
         break;
     case BuildingType::Cannon:
         resource = &resources_.cannonModel();
-        modelScale = 3.0F;
-        yaw = defensiveYaw + PI;
-        groundOffset = 0.155F;
+        modelScale = 1.0F;
+        yaw = defensiveYaw;
+        break;
+    case BuildingType::Catapult:
+        resource = &resources_.catapultModel();
+        modelScale = 1.0F;
+        yaw = defensiveYaw;
         break;
     case BuildingType::SlowTrap:
     case BuildingType::Gate:
@@ -307,6 +318,28 @@ std::optional<double> Renderer::resourceRaycastDistance(
             MatrixMultiply(
                 MatrixScale(modelScale, modelScale, modelScale),
                 rotation),
+            MatrixTranslate(position.x, position.y, position.z)));
+    return modelColliderRaycastDistance(
+        resource, transform, ray, maxDistance);
+}
+
+std::optional<double> Renderer::worldLandmarkRaycastDistance(
+    std::size_t variant, Vector3 position,
+    float yawRadians, Ray ray, double maxDistance) {
+    ModelResource& resource = resources_.worldLandmarkModel(variant);
+    if (!resource.valid() || maxDistance <= 0.0) return std::nullopt;
+    const BoundingBox bounds = resource.visualBounds();
+    const float authoredHeight = std::max(
+        0.001F, bounds.max.y - bounds.min.y);
+    constexpr float TargetHeight = 6.76F;
+    const float modelScale = TargetHeight / authoredHeight;
+    position.y -= bounds.min.y * modelScale;
+    const Matrix transform = MatrixMultiply(
+        resource.get().transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixRotateY(yawRadians)),
             MatrixTranslate(position.x, position.y, position.z)));
     return modelColliderRaycastDistance(
         resource, transform, ray, maxDistance);

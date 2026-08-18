@@ -11,6 +11,8 @@ namespace ian {
         return 2.08;
     case BuildingType::Turret:
         return 1.52;
+    case BuildingType::GunTurret:
+        return 1.16;
     case BuildingType::CrystalMine:
         return 0.72;
     case BuildingType::LumberMill:
@@ -19,6 +21,8 @@ namespace ian {
         return 0.56;
     case BuildingType::Cannon:
         return 1.76;
+    case BuildingType::Catapult:
+        return 1.82;
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
         return 0.224;

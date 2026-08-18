@@ -92,7 +92,7 @@ BuildingBalanceDefinition parseBuilding(const Json& value) {
     };
     if (definition.wood < 0 || definition.stone < 0 || definition.crystals < 0 ||
         definition.maxHealth <= 0.0 || definition.unlockCoreLevel < 0 ||
-        definition.unlockCoreLevel > 3 || definition.maxCount <= 0 ||
+        definition.unlockCoreLevel > 8 || definition.maxCount <= 0 ||
         definition.maxCount > 256) {
         throw std::runtime_error("invalid building definition");
     }
@@ -401,6 +401,8 @@ GameBalance GameBalance::defaults() {
             {20, 10, 0, 180.0, 1, 8},
             {25, 5, 0, 200.0, 1, 8},
             {30, 25, 0, 160.0, 1, 8},
+            {35, 25, 10, 150.0, 1, 64},
+            {50, 45, 35, 210.0, 4, 64},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -526,6 +528,12 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             buildings.contains("crystalStorage")
                 ? parseBuilding(buildings.at("crystalStorage"))
                 : result.balance.buildings[12],
+            buildings.contains("gunTurret")
+                ? parseBuilding(buildings.at("gunTurret"))
+                : result.balance.buildings[13],
+            buildings.contains("catapult")
+                ? parseBuilding(buildings.at("catapult"))
+                : result.balance.buildings[14],
         }};
         if (parsed[0].maxCount != 1 || parsed[0].unlockCoreLevel != 0) {
             throw std::runtime_error("core must be unique and unlocked");

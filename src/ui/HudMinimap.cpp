@@ -365,6 +365,43 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 : Color{143, 149, 145, 135});
     }
 
+    if (snapshot.unlimitedResources) {
+        for (const WorldLandmarkInstance& landmark :
+             snapshot.worldLandmarks) {
+            const Vector2 point = mapPoint(
+                landmark.position.x, landmark.position.z);
+            const float size = 5.0F * symbolScale;
+            const Color fill = landmark.activated
+                ? Color{96, 220, 137, 255}
+                : landmark.type == WorldLandmarkType::Mine
+                    ? Color{151, 164, 184, 255}
+                    : Color{220, 157, 73, 255};
+            DrawCircleV(point, size + 2.0F, {28, 21, 17, 235});
+            if (landmark.type == WorldLandmarkType::Mine) {
+                DrawPoly(point, 4, size, 45.0F, fill);
+                DrawLineEx(
+                    {point.x - size * 0.48F,
+                     point.y + size * 0.34F},
+                    {point.x + size * 0.48F,
+                     point.y - size * 0.34F},
+                    std::max(1.2F, 1.4F * symbolScale),
+                    {245, 235, 211, 255});
+            } else {
+                DrawCircleV(point, size, fill);
+                DrawRectangleRec(
+                    {point.x - size * 0.19F,
+                     point.y - size * 0.70F,
+                     size * 0.38F, size * 1.40F},
+                    {245, 235, 211, 255});
+                DrawLineEx(
+                    {point.x - size * 0.62F, point.y},
+                    {point.x + size * 0.62F, point.y},
+                    std::max(1.2F, 1.4F * symbolScale),
+                    {245, 235, 211, 255});
+            }
+        }
+    }
+
     const bool mapRevealsChests =
         snapshot.unlimitedResources ||
         snapshot.lootStacks[lootUpgradeIndex(LootUpgradeEffect::Map)] > 0;
@@ -463,7 +500,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 {255, 245, 188, 255});
             break;
         case BuildingType::Turret:
+        case BuildingType::GunTurret:
         case BuildingType::Cannon:
+        case BuildingType::Catapult:
             DrawCircleV(
                 point,
                 (building.type == BuildingType::Cannon ? 3.5F : 3.0F) *

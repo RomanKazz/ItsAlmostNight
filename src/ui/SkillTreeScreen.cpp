@@ -19,7 +19,7 @@ constexpr float RootNodeHalfSize = 48.0F;
 constexpr float LayoutSpacingMultiplier = 1.30F;
 constexpr float NodePositionScale =
     LayoutSpacingMultiplier / 1.5F;
-constexpr float CameraLimitX = 620.0F * LayoutSpacingMultiplier;
+constexpr float CameraLimitX = 820.0F * LayoutSpacingMultiplier;
 constexpr float CameraLimitY = 460.0F * LayoutSpacingMultiplier;
 
 float nodeHalfSize(const SkillNodeDefinition& node) {
@@ -217,6 +217,10 @@ void SkillTreeScreen::setUnlimitedPoints(bool unlimited) {
     unlimitedPoints_ = unlimited;
 }
 
+void SkillTreeScreen::setCoreLevel(int coreLevel) {
+    coreLevel_ = std::max(0, coreLevel);
+}
+
 void SkillTreeScreen::setInsightProgress(double current, double required) {
     currentInsight_ = current;
     requiredInsight_ = std::max(1.0, required);
@@ -273,8 +277,13 @@ std::optional<std::size_t> SkillTreeScreen::update(float deltaSeconds) {
         IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         selected_ = hovered_;
         if (tree_->state(*hovered_) == SkillNodeState::Available) {
-            const int cost = tree_->nodes()[*hovered_].cost;
-            if (!unlimitedPoints_ && tree_->points() < cost) {
+            const auto& node = tree_->nodes()[*hovered_];
+            const int cost = node.cost;
+            if (!unlimitedPoints_ &&
+                coreLevel_ < node.minimumCoreLevel) {
+                confirmation_.reset();
+                rejectShake_[*hovered_] = 1.0F;
+            } else if (!unlimitedPoints_ && tree_->points() < cost) {
                 confirmation_.reset();
                 rejectShake_[*hovered_] = 1.0F;
             } else if (confirmation_ == hovered_) {
@@ -722,12 +731,18 @@ void SkillTreeScreen::drawDetails(const GameUi& ui) const {
         status = "UNLOCKED";
         statusColor = branchColor(node.branch);
     } else if (state == SkillNodeState::Available) {
-        status = confirmation_ == details
-            ? "CLICK AGAIN TO CONFIRM  •  COST " + std::to_string(node.cost)
-            : "CLICK TO BUY  •  COST " + std::to_string(node.cost);
-        if (!unlimitedPoints_ && tree_->points() < node.cost)
-            status += "  •  NOT ENOUGH POINTS";
-        statusColor = {236, 205, 120, 255};
+        if (!unlimitedPoints_ && coreLevel_ < node.minimumCoreLevel) {
+            status = "REQUIRES CORE LEVEL " +
+                std::to_string(node.minimumCoreLevel);
+            statusColor = {214, 111, 101, 255};
+        } else {
+            status = confirmation_ == details
+                ? "CLICK AGAIN TO CONFIRM  •  COST " + std::to_string(node.cost)
+                : "CLICK TO BUY  •  COST " + std::to_string(node.cost);
+            if (!unlimitedPoints_ && tree_->points() < node.cost)
+                status += "  •  NOT ENOUGH POINTS";
+            statusColor = {236, 205, 120, 255};
+        }
     } else if (tree_->isExcluded(*details)) {
         status = "LOCKED  •  MUTUALLY EXCLUSIVE CHOICE";
         statusColor = {214, 111, 101, 255};

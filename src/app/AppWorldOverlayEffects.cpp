@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -14,7 +15,6 @@ namespace ian {
 using namespace app_detail;
 
 void App::drawSoldBuildingVisuals() {
-    constexpr float QuarterTurn = PI * 0.5F;
     BeginBlendMode(BLEND_ALPHA);
     for (const SoldBuildingVisual& visual :
          soldBuildingVisuals_) {
@@ -87,9 +87,9 @@ void App::drawSoldBuildingVisuals() {
         const float baseY =
             static_cast<float>(center.y);
         const float z = static_cast<float>(center.z);
-        const float yaw =
-            static_cast<float>(building.rotation) *
-            QuarterTurn;
+        const float yaw = static_cast<float>(
+            buildingRotationYaw(
+                building.type, building.rotation));
         const auto scaledPosition =
             [x, baseY = static_cast<float>(center.y),
              z, scale, sink](
@@ -170,6 +170,9 @@ void App::drawSoldBuildingVisuals() {
                     0.7F * scale, 8,
                     {176, 128, 60, alpha});
             }
+        } else if (building.type == BuildingType::GunTurret) {
+            static_cast<void>(renderer_->drawGunTurret(
+                {x, baseY - sink, z}, yaw, yaw, tint, scale));
         } else if (
             building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||
@@ -194,6 +197,13 @@ void App::drawSoldBuildingVisuals() {
                     scaledPosition(0.0F, 1.35F, 0.0F),
                     0.48F * scale,
                     {83, 91, 99, alpha});
+            }
+        } else if (building.type == BuildingType::Catapult) {
+            if (!renderer_->drawCatapult(
+                    {x, baseY - sink, z}, yaw, 0.0F,
+                    true, tint, scale)) {
+                drawCube(0.0F, 0.45F, 0.0F, 1.2F,
+                         0.9F, 1.2F, {72, 66, 58, alpha});
             }
         } else if (building.type ==
                    BuildingType::SlowTrap) {
@@ -458,10 +468,16 @@ void App::drawCancelledPlacementPreview(
         static_cast<void>(
             renderer_->drawCrossbow(
                 modelPosition, yaw, WHITE, scale));
+    } else if (preview.type == BuildingType::GunTurret) {
+        static_cast<void>(renderer_->drawGunTurret(
+            modelPosition, yaw, yaw, WHITE, scale));
     } else if (preview.type == BuildingType::Cannon) {
         static_cast<void>(
             renderer_->drawCannon(
                 modelPosition, yaw, 0.0F, WHITE, scale));
+    } else if (preview.type == BuildingType::Catapult) {
+        static_cast<void>(renderer_->drawCatapult(
+            modelPosition, yaw, 0.0F, true, WHITE, scale));
     } else if (
         preview.type == BuildingType::CrystalMine ||
         preview.type == BuildingType::LumberMill ||

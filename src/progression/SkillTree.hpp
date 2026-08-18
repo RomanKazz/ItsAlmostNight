@@ -26,6 +26,7 @@ enum class SkillPurchaseError {
     DependenciesLocked,
     InsufficientPoints,
     MutuallyExclusive,
+    CoreLevelRequired,
 };
 
 struct SkillTreePoint { float x{}; float y{}; };
@@ -51,6 +52,7 @@ struct SkillNodeDefinition {
     std::vector<SkillEffectDefinition> effects;
     std::string exclusiveGroup;
     SkillNodeSize size{SkillNodeSize::Small};
+    int minimumCoreLevel{};
 };
 
 struct SkillTreeRunState {

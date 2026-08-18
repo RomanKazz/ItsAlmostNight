@@ -27,6 +27,8 @@ enum class BuildingType {
     WoodStorage,
     StoneStorage,
     CrystalStorage,
+    GunTurret,
+    Catapult,
 };
 
 enum class BuildingLimitCategory {
@@ -202,6 +204,8 @@ class BuildingSystem {
     std::optional<BuildingInstance> remove(EntityId id);
     std::optional<BuildingDamageResult> damage(EntityId id, double amount);
     std::optional<BuildingInstance> toggleGate(EntityId id);
+    std::optional<BuildingInstance> rotateDirectionalDefense(
+        EntityId id, int steps);
     [[nodiscard]] std::optional<EntityId> raycast(Vec3 origin, Vec3 direction,
                                                   double maxDistance) const;
     [[nodiscard]] RepairResult validateRepair(EntityId id, int wood, int stone, int crystals) const;
@@ -248,6 +252,8 @@ class BuildingSystem {
 [[nodiscard]] bool buildingBlocksMovement(const BuildingInstance& building);
 [[nodiscard]] int buildingStorageCapacityPerLevel(
     BuildingType type);
+[[nodiscard]] int coreResourceCapacity(
+    BuildingType storageType, std::uint8_t coreLevel);
 [[nodiscard]] double buildingFootprintHalfExtent(
     BuildingType type);
 [[nodiscard]] Vec3 buildingWorldPosition(

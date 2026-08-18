@@ -23,6 +23,7 @@ class SkillTreeScreen {
     void open();
     void close();
     void setUnlimitedPoints(bool unlimited);
+    void setCoreLevel(int coreLevel);
     void setInsightProgress(double current, double required);
     [[nodiscard]] bool isOpen() const;
 
@@ -51,6 +52,7 @@ class SkillTreeScreen {
     std::vector<float> rejectShake_;
     bool open_{};
     bool unlimitedPoints_{};
+    int coreLevel_{};
     double currentInsight_{};
     double requiredInsight_{100.0};
     float opening_{};

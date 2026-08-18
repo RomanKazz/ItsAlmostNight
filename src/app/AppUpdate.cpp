@@ -1,5 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingHotbarLayout.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "graphics/WorldTransforms.hpp"
 
 #include "presentation/PresentationTimeline.hpp"
@@ -36,6 +38,7 @@ void App::update() {
     }
     const auto& progressionSnapshot = simulation_.snapshot();
     skillTree_.setUnlimitedPoints(progressionSnapshot.unlimitedResources);
+    skillTree_.setCoreLevel(progressionSnapshot.coreLevel);
     skillTree_.setInsightProgress(progressionSnapshot.currentInsight,
                                   progressionSnapshot.requiredInsight);
     insightPulseRemaining_ = std::max(0.0, insightPulseRemaining_ - frameSeconds);
@@ -170,12 +173,15 @@ void App::update() {
         1.0F - std::exp(
                    -14.0F *
                    static_cast<float>(frameSeconds));
-    float buildingTarget = static_cast<float>(
-        hotbarSnapshot.selectedBuilding
-            ? static_cast<std::size_t>(
-                  *hotbarSnapshot.selectedBuilding)
-            : static_cast<std::size_t>(
-                  lastBuildingSelection_));
+    const BuildingHotbarLayout buildingLayout =
+        makeBuildingHotbarLayout(
+            hotbarSnapshot.unlockedBuildings);
+    const BuildingType highlightedBuilding =
+        hotbarSnapshot.selectedBuilding.value_or(
+            lastBuildingSelection_);
+    const float buildingTarget = static_cast<float>(
+        buildingLayout.indexOf(highlightedBuilding)
+            .value_or(0U));
     buildHotbarSelectionPosition_ +=
         (buildingTarget -
          buildHotbarSelectionPosition_) *
@@ -670,6 +676,8 @@ void App::update() {
                     };
             }
             tickInput.toggleGate = pendingGateToggle_;
+            tickInput.rotatePlacedBuilding =
+                pendingPlacedBuildingRotation_;
             consumedTransientInput = true;
         }
         if (playerSpawnDropActive_) {
@@ -715,6 +723,7 @@ void App::update() {
         pendingSpawnEnemy_ = false;
         pendingChainLightning_ = false;
         pendingGateToggle_.reset();
+        pendingPlacedBuildingRotation_.reset();
     }
     const auto events = simulation_.takeEvents();
     if (std::ranges::any_of(
@@ -953,8 +962,8 @@ void App::update() {
         if (newSelection) {
             placementPreviewCenter_ = targetCenter;
             placementRotationYaw_ =
-                static_cast<double>(preview.rotation) *
-                static_cast<double>(PI * 0.5F);
+                buildingRotationYaw(
+                    preview.type, preview.rotation);
         } else {
             const float blend =
                 1.0F -
@@ -970,14 +979,11 @@ void App::update() {
                  placementPreviewCenter_->y) *
                 blend;
             const double targetYaw =
-                static_cast<double>(preview.rotation) *
-                static_cast<double>(PI * 0.5F);
-            const double deltaYaw = std::atan2(
-                std::sin(targetYaw - placementRotationYaw_),
-                std::cos(targetYaw - placementRotationYaw_));
-            placementRotationYaw_ +=
-                deltaYaw *
-                static_cast<double>(blend);
+                buildingRotationYaw(
+                    preview.type, preview.rotation);
+            placementRotationYaw_ = smoothBuildingAngle(
+                placementRotationYaw_, targetYaw,
+                frameSeconds);
         }
         if (changedCell && preview.placement.valid()) {
             placementSnapPulseRemaining_ = 0.18;
@@ -1054,11 +1060,9 @@ void App::update() {
                  modularPreviewVisualOrigin_->z) *
                 blend;
         }
-        const double deltaYaw = std::atan2(
-            std::sin(targetYaw - placementRotationYaw_),
-            std::cos(targetYaw - placementRotationYaw_));
-        placementRotationYaw_ +=
-            deltaYaw * static_cast<double>(blend);
+        placementRotationYaw_ = smoothBuildingAngle(
+            placementRotationYaw_, targetYaw,
+            frameSeconds);
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();
         placementPreviewType_.reset();

@@ -13,35 +13,12 @@ namespace {
 
 constexpr double LootProximityPickupRadius = 2.0;
 
-constexpr int PreCoreWoodCapacity = 60;
-constexpr int PreCoreStoneCapacity = 30;
-constexpr int PreCoreCrystalCapacity = 10;
-constexpr int CoreWoodCapacity = 100;
-constexpr int CoreStoneCapacity = 75;
-constexpr int CoreCrystalCapacity = 40;
-
 } // namespace
 
 int Simulation::resourceCapacity(BuildingType storageType) const {
-    int capacity = 0;
-    int perLevel = 0;
-    if (storageType == BuildingType::WoodStorage) {
-        capacity = buildings_.hasCore() ? CoreWoodCapacity : PreCoreWoodCapacity;
-        perLevel = buildingStorageCapacityPerLevel(storageType);
-    } else if (storageType == BuildingType::StoneStorage) {
-        capacity = buildings_.hasCore() ? CoreStoneCapacity : PreCoreStoneCapacity;
-        perLevel = buildingStorageCapacityPerLevel(storageType);
-    } else {
-        capacity = buildings_.hasCore() ? CoreCrystalCapacity : PreCoreCrystalCapacity;
-        perLevel = buildingStorageCapacityPerLevel(storageType);
-    }
-    for (const BuildingInstance& building : buildings_.buildings()) {
-        if (building.type == storageType) {
-            capacity = saturatingAdd(
-                capacity,
-                perLevel * static_cast<int>(building.level));
-        }
-    }
+    const auto core = buildings_.core();
+    const std::uint8_t coreLevel = core ? core->level : 1;
+    const int capacity = coreResourceCapacity(storageType, coreLevel);
     return static_cast<int>(std::min(
         static_cast<double>(std::numeric_limits<int>::max()),
         static_cast<double>(std::lround(
@@ -720,7 +697,10 @@ void Simulation::updatePlayerActions(
         playerPosition_, direction, 4.5);
     aimedLoot_ = lootChests_.raycastLoot(
         playerPosition_, direction, 5.0);
-    if (command.interact) {
+    const bool landmarkInteraction =
+        command.overrideAimedWorldLandmark &&
+        command.aimedWorldLandmarkOverride.has_value();
+    if (command.interact && !landmarkInteraction) {
         if (aimedLoot_) {
             if (const auto pickup = lootChests_.collect(*aimedLoot_))
                 applyLootPickup(*pickup);

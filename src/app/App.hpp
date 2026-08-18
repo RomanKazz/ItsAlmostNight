@@ -218,6 +218,7 @@ class App {
     bool pendingStartFromUi_{};
     bool pendingOpenSkillTreeFromUi_{};
     bool pendingResumeFromUi_{};
+    bool pendingRestartFromUi_{};
     bool pendingReturnToMenuFromUi_{};
     bool automaticRunRestartPending_{};
     bool exitRequested_{};
@@ -327,6 +328,8 @@ class App {
     };
     std::optional<PendingLootGrant> pendingLootGrant_;
     std::optional<ToggleGateCommand> pendingGateToggle_;
+    std::optional<RotatePlacedBuildingCommand>
+        pendingPlacedBuildingRotation_;
     std::string statusMessage_;
     double statusMessageRemaining_{};
     double lootDescriptionRemaining_{};

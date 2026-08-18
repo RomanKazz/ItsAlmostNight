@@ -67,10 +67,22 @@ void drawCentered(
 [[nodiscard]] float cannonYaw(
     const SimulationSnapshot& snapshot,
     const BuildingInstance& building);
+[[nodiscard]] float cannonBaseYaw(
+    const SimulationSnapshot& snapshot,
+    const BuildingInstance& building);
 [[nodiscard]] float towerYaw(
     const SimulationSnapshot& snapshot,
     const BuildingInstance& building);
+[[nodiscard]] float towerBaseYaw(
+    const SimulationSnapshot& snapshot,
+    const BuildingInstance& building);
+[[nodiscard]] float towerPitch(
+    const SimulationSnapshot& snapshot,
+    const BuildingInstance& building);
 [[nodiscard]] float cannonPitch(
+    const SimulationSnapshot& snapshot,
+    const BuildingInstance& building);
+[[nodiscard]] bool cannonLoaded(
     const SimulationSnapshot& snapshot,
     const BuildingInstance& building);
 [[nodiscard]] std::optional<EntityId> preciseBuildingAim(
@@ -81,6 +93,10 @@ void drawCentered(
     const SimulationSnapshot& snapshot);
 [[nodiscard]] std::optional<EntityId>
 preciseModularBuildingAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot);
+[[nodiscard]] std::optional<EntityId>
+preciseWorldLandmarkAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot);
 [[nodiscard]] Vector3 colorToVector(Color color);
@@ -97,6 +113,9 @@ void drawBuildGrid(
 void drawPlacementFootprint(
     const BuildingPreview& preview, Vector2 visualCenter,
     float visualYaw);
+void drawTacticalGroundSector(
+    Vector3 center, float radius, float yawRadians,
+    float arcDegrees, Color color, float innerRadius = 0.0F);
 [[nodiscard]] std::optional<PlatformFrameInstance>
 automaticBuildingFoundation(
     BuildingType type, GridPosition position,

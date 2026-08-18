@@ -1,4 +1,5 @@
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 
 #include <algorithm>
@@ -24,7 +25,9 @@ Footprint footprint(BuildingType type) {
     switch (type) {
     case BuildingType::Core:
     case BuildingType::Turret:
+    case BuildingType::GunTurret:
     case BuildingType::Cannon:
+    case BuildingType::Catapult:
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
@@ -49,6 +52,8 @@ SelectionBounds selectionBounds(BuildingType type) {
         return {0.42, 0.42, 0.0, 2.05};
     case BuildingType::Turret:
         return {0.76, 0.76, 0.0, 2.15};
+    case BuildingType::GunTurret:
+        return {0.56, 0.56, 0.0, 1.12};
     case BuildingType::CrystalMine:
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
@@ -59,6 +64,8 @@ SelectionBounds selectionBounds(BuildingType type) {
         return {0.9, 0.9, 0.0, 1.8};
     case BuildingType::Cannon:
         return {0.82, 0.82, 0.0, 2.05};
+    case BuildingType::Catapult:
+        return {0.82, 0.82, 0.0, 2.15};
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
         return {0.44, 0.44, 0.0, 0.45};
@@ -121,7 +128,9 @@ std::size_t buildingTypeIndex(BuildingType type) {
 
 bool isTowerType(BuildingType type) {
     return type == BuildingType::Turret ||
-           type == BuildingType::Cannon;
+           type == BuildingType::GunTurret ||
+           type == BuildingType::Cannon ||
+           type == BuildingType::Catapult;
 }
 
 const auto& defaultBuildingDefinitions() {
@@ -232,7 +241,9 @@ BuildingLimitCategory buildingLimitCategory(
     BuildingType type) {
     switch (type) {
     case BuildingType::Turret:
+    case BuildingType::GunTurret:
     case BuildingType::Cannon:
+    case BuildingType::Catapult:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
         return BuildingLimitCategory::Defense;
@@ -311,6 +322,21 @@ int buildingStorageCapacityPerLevel(BuildingType type) {
     default:
         return 0;
     }
+}
+
+int coreResourceCapacity(
+    BuildingType storageType, std::uint8_t coreLevel) {
+    constexpr std::array<int, 5> Wood{60, 100, 160, 240, 350};
+    constexpr std::array<int, 5> Stone{30, 60, 100, 160, 240};
+    constexpr std::array<int, 5> Crystal{10, 25, 45, 75, 120};
+    const std::size_t index = static_cast<std::size_t>(
+        std::clamp<int>(coreLevel, 1, 5) - 1);
+    if (storageType == BuildingType::WoodStorage) return Wood[index];
+    if (storageType == BuildingType::StoneStorage) return Stone[index];
+    if (storageType == BuildingType::CrystalStorage) {
+        return Crystal[index];
+    }
+    return 0;
 }
 
 double buildingFootprintHalfExtent(BuildingType type) {
@@ -644,7 +670,8 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         .id = {nextIndex_++, 1},
         .type = type,
         .gridPosition = position,
-        .rotation = static_cast<std::uint8_t>(rotation % 4),
+        .rotation = static_cast<std::uint8_t>(
+            rotation % buildingRotationStepCount(type)),
         .level = 1,
         .health = health,
         .maxHealth = health,
@@ -682,6 +709,29 @@ std::optional<BuildingDamageResult> BuildingSystem::damage(EntityId id, double a
         buildings_.erase(iterator);
     }
     return result;
+}
+
+std::optional<BuildingInstance>
+BuildingSystem::rotateDirectionalDefense(
+    EntityId id, int steps) {
+    const auto iterator = std::find_if(
+        buildings_.begin(), buildings_.end(),
+        [id](const BuildingInstance& building) {
+            return building.id == id;
+        });
+    if (iterator == buildings_.end() ||
+        !isDirectionalDefense(iterator->type) || steps == 0) {
+        return std::nullopt;
+    }
+
+    const int rotation =
+        static_cast<int>(iterator->rotation) + steps;
+    const int rotationSteps = static_cast<int>(
+        buildingRotationStepCount(iterator->type));
+    iterator->rotation = static_cast<std::uint8_t>(
+        (rotation % rotationSteps + rotationSteps) %
+        rotationSteps);
+    return *iterator;
 }
 
 std::optional<BuildingInstance>

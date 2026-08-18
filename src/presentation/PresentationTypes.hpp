@@ -82,8 +82,10 @@ struct DamageIndicator {
 struct ArrowVisual {
     Vec3 origin;
     Vec3 target;
+    Vec3 direction;
     double remaining;
     double duration;
+    bool turretBullet{};
 };
 
 struct FloatingDamageNumber {

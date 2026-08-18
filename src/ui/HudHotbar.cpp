@@ -1,5 +1,6 @@
 #include "ui/HudHotbar.hpp"
 
+#include "buildings/BuildingHotbarLayout.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
@@ -203,27 +204,19 @@ void drawBuildHotbar(
         drawFoundationHotbar(ui, snapshot, view);
         return;
     }
-    constexpr std::array<BuildingType, 13> Types{
-        BuildingType::Core,     BuildingType::Wall,
-        BuildingType::Turret,   BuildingType::CrystalMine,
-        BuildingType::Cannon,   BuildingType::SlowTrap,
-        BuildingType::Gate,     BuildingType::LumberMill,
-        BuildingType::Quarry,
-        BuildingType::SpikeTrap,
-        BuildingType::WoodStorage,
-        BuildingType::StoneStorage,
-        BuildingType::CrystalStorage,
-    };
-    constexpr std::array<const char*, 13> Keys{
+    constexpr std::array<const char*, 14> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-        "SHIFT 1", "SHIFT 2", "SHIFT 3",
+        "SHIFT 1", "SHIFT 2", "SHIFT 3", "SHIFT 4",
     };
-    std::array<HotbarSlot, 13> slots{};
-    for (std::size_t index = 0; index < Types.size();
-         ++index) {
-        const BuildingType type = Types[index];
+    const BuildingHotbarLayout layout =
+        makeBuildingHotbarLayout(snapshot.unlockedBuildings);
+    std::vector<HotbarSlot> slots;
+    slots.reserve(layout.count);
+    for (std::size_t index = 0; index < layout.count; ++index) {
+        const BuildingType type = layout.types[index];
+        const std::size_t typeIndex = static_cast<std::size_t>(type);
         const ResourceCost cost =
-            snapshot.buildingCosts[index];
+            snapshot.buildingCosts[typeIndex];
         const bool selected =
             snapshot.selectedBuilding &&
             *snapshot.selectedBuilding == type;
@@ -231,9 +224,7 @@ void drawBuildHotbar(
             type == BuildingType::Core
                 ? snapshot.coreMaxHealth <= 0.0
                 : snapshot.coreMaxHealth > 0.0;
-        unlocked = unlocked && snapshot.unlockedBuildings[index];
-        if (type == BuildingType::Cannon ||
-            type == BuildingType::SlowTrap ||
+        if (type == BuildingType::SlowTrap ||
             type == BuildingType::SpikeTrap ||
             type == BuildingType::LumberMill ||
             type == BuildingType::Quarry) {
@@ -245,32 +236,40 @@ void drawBuildHotbar(
                 cost, snapshot.wood,
                 snapshot.stone, snapshot.crystals);
         const bool available = unlocked && affordable;
-        slots[index] = {
+        slots.push_back({
             .key = Keys[index],
             .label = buildingDisplayName(type),
             .cost = cost,
             .selected = selected,
             .available = available,
-        };
+        });
     }
-    const std::span<const HotbarSlot> buildingSlots{
-        slots.data(), 10U};
-    const std::span<const HotbarSlot> storageSlots{
-        slots.data() + 10U, 3U};
-    const bool storageSelected =
-        snapshot.selectedBuilding &&
-        static_cast<std::size_t>(*snapshot.selectedBuilding) >= 10U;
+    const std::size_t primaryCount =
+        std::min<std::size_t>(10U, slots.size());
+    const std::span<const HotbarSlot> primarySlots{
+        slots.data(), primaryCount};
+    const std::span<const HotbarSlot> secondarySlots{
+        slots.data() + primaryCount,
+        slots.size() - primaryCount};
+    const auto selectedIndex = snapshot.selectedBuilding
+        ? layout.indexOf(*snapshot.selectedBuilding)
+        : std::nullopt;
+    const bool secondarySelected =
+        selectedIndex && *selectedIndex >= primaryCount;
     drawHotbarSlots(
-        ui, buildingSlots,
+        ui, primarySlots,
         view.buildHotbarSelectionPosition,
-        storageSelected ? 0.0F : view.buildHotbarSelectionAlpha,
-        false, !storageSelected, {},
+        secondarySelected ? 0.0F : view.buildHotbarSelectionAlpha,
+        false, !secondarySelected, {},
         -66.0F);
-    drawHotbarSlots(
-        ui, storageSlots,
-        view.buildHotbarSelectionPosition - 10.0F,
-        storageSelected ? view.buildHotbarSelectionAlpha : 0.0F,
-        false, storageSelected, {}, 0.0F, -66.0F);
+    if (!secondarySlots.empty()) {
+        drawHotbarSlots(
+            ui, secondarySlots,
+            view.buildHotbarSelectionPosition -
+                static_cast<float>(primaryCount),
+            secondarySelected ? view.buildHotbarSelectionAlpha : 0.0F,
+            false, secondarySelected, {}, 0.0F, -66.0F);
+    }
 }
 
 void drawLootInventory(

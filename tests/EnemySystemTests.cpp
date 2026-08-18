@@ -148,6 +148,25 @@ void runEnemySystemTests() {
     }};
     groupedEnemies.spawnGroup(Reinforcement);
     require(groupedEnemies.activeCount() == 2, "spawn group appends reinforcements");
+
+    ian::EnemySystem roleEnemies;
+    std::array<ian::EnemySpawn, 10> roleSpawns{};
+    for (ian::EnemySpawn& spawn : roleSpawns) {
+        spawn = {ian::EnemyType::Basic, {0.0, 0.8, -8.0}};
+    }
+    roleEnemies.spawnWave(roleSpawns);
+    const auto countRole = [&roleEnemies](ian::EnemyApproachRole role) {
+        return std::ranges::count_if(
+            roleEnemies.enemies(),
+            [role](const ian::EnemyInstance& enemy) {
+                return enemy.active && enemy.approachRole == role;
+            });
+    };
+    require(
+        countRole(ian::EnemyApproachRole::Direct) == 6 &&
+            countRole(ian::EnemyApproachRole::FlankLeft) == 2 &&
+            countRole(ian::EnemyApproachRole::FlankRight) == 2,
+        "basic melee roles use a deterministic 60/20/20 distribution");
     ian::FlowField flowField;
     flowField.rebuild({0, 0}, buildings.buildings());
 
@@ -659,8 +678,14 @@ void runEnemySystemTests() {
         splitterEnemies.damage(splitterId, 1000.0);
     require(
         splitterDeath && splitterDeath->killed &&
-            splitterEnemies.activeCount() == 3,
-        "splitter death atomically creates three living children");
+            splitterEnemies.activeCount() == 0 &&
+            splitterEnemies.enemies().front().splitAnimationRemaining > 0.0,
+        "splitter death starts a readable split windup");
+    require(
+        splitterEnemies.takeSplitEvents().empty(),
+        "split event waits until the windup finishes");
+    splitterEnemies.tick(
+        0.4, buildings.buildings(), flowField);
     const auto splitEvents = splitterEnemies.takeSplitEvents();
     require(
         splitEvents.size() == 1U &&
@@ -696,7 +721,11 @@ void runEnemySystemTests() {
     const ian::EntityId crowdedSplitterId =
         crowdedSplitters.enemies().front().id;
     require(
-        crowdedSplitters.damage(crowdedSplitterId, 1000.0)->killed &&
+        crowdedSplitters.damage(crowdedSplitterId, 1000.0)->killed,
+        "crowded splitter enters its split windup");
+    crowdedSplitters.tick(
+        0.4, buildings.buildings(), flowField);
+    require(
             crowdedSplitters.activeCount() ==
                 ian::EnemySystem::MaxActiveEnemies + 2U,
         "splitter always creates all three children at the active cap");
@@ -902,6 +931,27 @@ void runEnemySystemTests() {
     }
     require(projectileHit,
             "ranged projectile damages player only after travel time");
+
+    ian::EnemySystem predictiveRanged;
+    predictiveRanged.spawnWave(ProjectileSpawn);
+    predictiveRanged.tick(
+        0.01, projectileBuildings.buildings(), projectileFlow,
+        ian::Vec3{0.0, 1.7, 0.0});
+    predictiveRanged.clearProjectiles();
+    const double initialRangedX =
+        predictiveRanged.enemies().front().position.x;
+    predictiveRanged.tick(
+        1.5, projectileBuildings.buildings(), projectileFlow,
+        ian::Vec3{3.0, 1.7, 0.0});
+    require(
+        !predictiveRanged.projectiles().empty() &&
+            predictiveRanged.projectiles().back().targetPosition.x > 3.5,
+        "ranged enemy leads a moving player instead of firing at old position");
+    require(
+        std::abs(
+            predictiveRanged.enemies().front().position.x -
+            initialRangedX) > 0.05,
+        "ranged enemy repositions while maintaining firing distance");
 
     projectileEnemy.tick(
         1.5, projectileBuildings.buildings(), projectileFlow,

@@ -159,8 +159,11 @@ void runSkillTreeTests() {
     const auto dash = definitionById("dash");
     const auto longerDays = definitionById("longer_days");
     const auto contract = definitionById("mercenary_contract");
+    const auto crossbow = definitionById("crossbow_unlock");
+    const auto cannon = definitionById("cannon_unlock");
+    const auto catapult = definitionById("catapult_unlock");
     require(
-        definitions.size() == 55 &&
+        definitions.size() == 58 &&
             definitionById("auto_switch_tools") == definitions.end() &&
             definitionById("hold_to_gather") == definitions.end() &&
             thermal != definitions.end() &&
@@ -177,6 +180,15 @@ void runSkillTreeTests() {
                 "day.duration_seconds" &&
             contract != definitions.end() &&
             contract->exclusiveGroup == "early_contract" &&
+            crossbow != definitions.end() &&
+            crossbow->minimumCoreLevel == 2 &&
+            crossbow->effects.front().key == "unlock.crossbow" &&
+            cannon != definitions.end() &&
+            cannon->minimumCoreLevel == 3 &&
+            cannon->effects.front().key == "unlock.cannon" &&
+            catapult != definitions.end() &&
+            catapult->minimumCoreLevel == 4 &&
+            catapult->effects.front().key == "unlock.catapult" &&
             definitionById("lumber_mill") != definitions.end() &&
             definitionById("quarry") != definitions.end() &&
             definitionById("crystal_mine") != definitions.end() &&

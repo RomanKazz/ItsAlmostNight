@@ -1,4 +1,5 @@
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include "ui/UiText.hpp"
 
@@ -17,6 +18,39 @@ namespace ian::app_detail {
 namespace {
 
 constexpr float LootVisualScaleMultiplier = 1.20F;
+
+struct GroundSectorVertex {
+    Vector3 position{};
+    unsigned char opacity{};
+};
+
+struct GroundSectorCacheEntry {
+    Vector3 center{};
+    float radius{};
+    float innerRadius{};
+    float yawRadians{};
+    float arcDegrees{};
+    bool valid{};
+    std::vector<GroundSectorVertex> triangles;
+};
+
+[[nodiscard]] bool nearlyEqual(float left, float right) {
+    return std::abs(left - right) <= 0.0005F;
+}
+
+[[nodiscard]] bool matchesGroundSector(
+    const GroundSectorCacheEntry& entry, Vector3 center,
+    float radius, float yawRadians, float arcDegrees,
+    float innerRadius) {
+    return entry.valid &&
+        nearlyEqual(entry.center.x, center.x) &&
+        nearlyEqual(entry.center.y, center.y) &&
+        nearlyEqual(entry.center.z, center.z) &&
+        nearlyEqual(entry.radius, radius) &&
+        nearlyEqual(entry.innerRadius, innerRadius) &&
+        nearlyEqual(entry.yawRadians, yawRadians) &&
+        nearlyEqual(entry.arcDegrees, arcDegrees);
+}
 
 } // namespace
 
@@ -195,6 +229,20 @@ float enemyHitScale(const EnemyInstance& enemy) {
         0.0F, 1.0F);
     const float pulse = std::sin(progress * Pi);
     const float hitScale = 1.0F - BounceAmplitude * pulse;
+    if (enemy.type == EnemyType::Splitter &&
+        enemy.splitAnimationRemaining > 0.0) {
+        constexpr double SplitDuration = 0.38;
+        const float splitProgress = std::clamp(
+            static_cast<float>(
+                1.0 - enemy.splitAnimationRemaining / SplitDuration),
+            0.0F, 1.0F);
+        const float eased = splitProgress * splitProgress *
+            (3.0F - 2.0F * splitProgress);
+        const float anticipation =
+            std::sin(splitProgress * Pi * 3.0F) *
+            (1.0F - splitProgress) * 0.035F;
+        return 1.0F + eased * 0.34F + anticipation;
+    }
     if (enemy.type != EnemyType::Splitling ||
         enemy.spawnAnimationRemaining <= 0.0) {
         return hitScale;
@@ -390,8 +438,22 @@ float cannonYaw(const SimulationSnapshot& snapshot,
     if (runtime != snapshot.cannons.end()) {
         return static_cast<float>(runtime->yaw);
     }
-    constexpr float QuarterTurn = PI * 0.5F;
-    return static_cast<float>(building.rotation) * QuarterTurn;
+    return static_cast<float>(buildingRotationYaw(
+        building.type, building.rotation));
+}
+
+float cannonBaseYaw(const SimulationSnapshot& snapshot,
+                    const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.cannons.begin(), snapshot.cannons.end(),
+        [&building](const CannonRuntime& cannon) {
+            return cannon.buildingId == building.id;
+        });
+    if (runtime != snapshot.cannons.end()) {
+        return static_cast<float>(runtime->baseYaw);
+    }
+    return static_cast<float>(buildingRotationYaw(
+        building.type, building.rotation));
 }
 
 float towerYaw(const SimulationSnapshot& snapshot,
@@ -404,8 +466,33 @@ float towerYaw(const SimulationSnapshot& snapshot,
     if (runtime != snapshot.towers.end()) {
         return static_cast<float>(runtime->yaw);
     }
-    constexpr float QuarterTurn = PI * 0.5F;
-    return static_cast<float>(building.rotation) * QuarterTurn;
+    return static_cast<float>(buildingRotationYaw(
+        building.type, building.rotation));
+}
+
+float towerBaseYaw(const SimulationSnapshot& snapshot,
+                   const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.towers.begin(), snapshot.towers.end(),
+        [&building](const TowerRuntime& tower) {
+            return tower.buildingId == building.id;
+        });
+    if (runtime != snapshot.towers.end()) {
+        return static_cast<float>(runtime->baseYaw);
+    }
+    return static_cast<float>(buildingRotationYaw(
+        building.type, building.rotation));
+}
+
+float towerPitch(const SimulationSnapshot& snapshot,
+                 const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.towers.begin(), snapshot.towers.end(),
+        [&building](const TowerRuntime& tower) {
+            return tower.buildingId == building.id;
+        });
+    return runtime != snapshot.towers.end()
+        ? static_cast<float>(runtime->pitch) : 0.0F;
 }
 
 float cannonPitch(const SimulationSnapshot& snapshot,
@@ -418,6 +505,16 @@ float cannonPitch(const SimulationSnapshot& snapshot,
     return runtime != snapshot.cannons.end()
                ? static_cast<float>(runtime->pitch)
                : 0.0F;
+}
+
+bool cannonLoaded(const SimulationSnapshot& snapshot,
+                  const BuildingInstance& building) {
+    const auto runtime = std::find_if(
+        snapshot.cannons.begin(), snapshot.cannons.end(),
+        [&building](const CannonRuntime& cannon) {
+            return cannon.buildingId == building.id;
+        });
+    return runtime == snapshot.cannons.end() || runtime->loaded;
 }
 
 std::optional<EntityId> preciseBuildingAim(
@@ -456,10 +553,12 @@ std::optional<EntityId> preciseBuildingAim(
             static_cast<float>(building.rotation) *
             PI * 0.5F;
         float pitch = 0.0F;
-        if (building.type == BuildingType::Turret) {
+        if (building.type == BuildingType::Turret ||
+            building.type == BuildingType::GunTurret) {
             yaw = towerYaw(snapshot, building);
         } else if (
-            building.type == BuildingType::Cannon) {
+            building.type == BuildingType::Cannon ||
+            building.type == BuildingType::Catapult) {
             yaw = cannonYaw(snapshot, building);
             pitch = cannonPitch(snapshot, building);
         }
@@ -524,6 +623,40 @@ std::optional<EntityId> preciseResourceAim(
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
             result = node.id;
+        }
+    }
+    return result;
+}
+
+std::optional<EntityId> preciseWorldLandmarkAim(
+    Renderer& renderer,
+    const SimulationSnapshot& snapshot) {
+    constexpr double MaximumDistance = 8.0;
+    const double horizontal = std::cos(snapshot.playerPitch);
+    const Ray ray{
+        {static_cast<float>(snapshot.playerPosition.x),
+         static_cast<float>(snapshot.playerPosition.y),
+         static_cast<float>(snapshot.playerPosition.z)},
+        {static_cast<float>(std::sin(snapshot.playerYaw) * horizontal),
+         static_cast<float>(std::sin(snapshot.playerPitch)),
+         static_cast<float>(-std::cos(snapshot.playerYaw) * horizontal)},
+    };
+    std::optional<EntityId> result;
+    double closestDistance = MaximumDistance;
+    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        const double dx = landmark.position.x - snapshot.playerPosition.x;
+        const double dz = landmark.position.z - snapshot.playerPosition.z;
+        constexpr double BroadPhaseRadius = MaximumDistance + 7.0;
+        if (dx * dx + dz * dz > BroadPhaseRadius * BroadPhaseRadius) continue;
+        const auto distance = renderer.worldLandmarkRaycastDistance(
+            static_cast<std::size_t>(landmark.type),
+            {static_cast<float>(landmark.position.x),
+             static_cast<float>(landmark.position.y),
+             static_cast<float>(landmark.position.z)},
+            static_cast<float>(landmark.yaw), ray, MaximumDistance);
+        if (distance && *distance < closestDistance) {
+            closestDistance = *distance;
+            result = landmark.id;
         }
     }
     return result;
@@ -778,7 +911,7 @@ bool placementPreviewObstructed(PlacementError error) {
 
 void drawPlacementFootprint(
     const BuildingPreview& preview,
-    Vector2 visualCenter, float visualYaw) {
+    Vector2 visualCenter, float /*visualYaw*/) {
     const float x = visualCenter.x;
     const float z = visualCenter.y;
     const float halfExtent = static_cast<float>(
@@ -812,31 +945,6 @@ void drawPlacementFootprint(
                    {x + halfExtent, height, z}, border);
     }
 
-    const bool directional =
-        preview.type == BuildingType::Turret ||
-        preview.type == BuildingType::Cannon ||
-        preview.type == BuildingType::Gate;
-    if (!directional) {
-        return;
-    }
-    const Vector2 direction{
-        -std::sin(visualYaw), -std::cos(visualYaw)};
-    const Vector3 arrowStart{x, height + 0.04F, z};
-    const Vector3 arrowEnd{
-        x + direction.x * (halfExtent + 0.7F),
-        height + 0.04F,
-        z + direction.y * (halfExtent + 0.7F),
-    };
-    const Vector3 arrowBase{
-        arrowEnd.x - direction.x * 0.24F,
-        arrowEnd.y,
-        arrowEnd.z - direction.y * 0.24F,
-    };
-    DrawCylinderEx(
-        arrowStart, arrowBase, 0.045F, 0.045F, 10,
-        border);
-    DrawCylinderEx(
-        arrowBase, arrowEnd, 0.15F, 0.0F, 12, border);
 }
 
 std::optional<PlatformFrameInstance>
@@ -957,6 +1065,152 @@ void drawTacticalGroundCircle(
     }
 }
 
+void drawTacticalGroundSector(
+    Vector3 center, float radius, float yawRadians,
+    float arcDegrees, Color color, float innerRadius) {
+    if (radius <= 0.0F || arcDegrees <= 0.0F) return;
+    arcDegrees = std::clamp(arcDegrees, 2.0F, 360.0F);
+    innerRadius = std::clamp(innerRadius, 0.0F, radius - 0.05F);
+
+    // Aiming at the same cell is the overwhelmingly common case. Cache this
+    // flat mesh so trigonometry and gradient work only run when placement,
+    // rotation, range or level changes.
+    static std::array<GroundSectorCacheEntry, 8> cache{};
+    static std::size_t nextCacheEntry{};
+    GroundSectorCacheEntry* cached = nullptr;
+    for (GroundSectorCacheEntry& candidate : cache) {
+        if (matchesGroundSector(
+                candidate, center, radius, yawRadians,
+                arcDegrees, innerRadius)) {
+            cached = &candidate;
+            break;
+        }
+    }
+
+    if (cached == nullptr) {
+        cached = &cache[nextCacheEntry];
+        nextCacheEntry = (nextCacheEntry + 1U) % cache.size();
+        cached->center = center;
+        cached->radius = radius;
+        cached->innerRadius = innerRadius;
+        cached->yawRadians = yawRadians;
+        cached->arcDegrees = arcDegrees;
+        cached->valid = true;
+        cached->triangles.clear();
+
+        const float halfAngle = std::clamp(
+            arcDegrees * DEG2RAD * 0.5F, 0.02F, PI);
+        const int segments = std::clamp(
+            static_cast<int>(std::ceil(
+                radius * 3.2F * arcDegrees / 90.0F)),
+            24, 72);
+        constexpr std::array<float, 7> RadialScales{
+            0.0F, 0.08F, 0.24F, 0.52F,
+            0.76F, 0.90F, 1.0F};
+
+        const auto pointAt =
+            [center, radius, yawRadians](
+                float offset, float scale) {
+                const float angle = yawRadians + offset;
+                return Vector3{
+                    center.x - std::sin(angle) * radius * scale,
+                    center.y,
+                    center.z - std::cos(angle) * radius * scale,
+                };
+            };
+        const auto opacityAt = [innerRadius](float angleT, float radiusT) {
+            if (innerRadius <= 0.001F && radiusT <= 0.001F) {
+                return 0.82F;
+            }
+            const float angularDistance =
+                std::min(angleT, 1.0F - angleT) * 2.0F;
+            // The boundary is the visual focus: a crisp white outer arc and
+            // two white rays feather inward into an almost clear center.
+            const float sideEdge = 1.0F - smoothstep(
+                0.0F, 0.20F, angularDistance);
+            const float outerEdge = smoothstep(
+                0.70F, 1.0F, radiusT);
+            const float innerEdge = innerRadius > 0.001F
+                ? 1.0F - smoothstep(0.0F, 0.24F, radiusT)
+                : 0.0F;
+            constexpr float ClearInterior = 0.025F;
+            const float edge = std::max(
+                sideEdge, std::max(outerEdge, innerEdge));
+            return ClearInterior + edge * (1.0F - ClearInterior);
+        };
+        const auto vertexAt = [&](float angleT, float radiusT) {
+            const float angle =
+                -halfAngle + angleT * halfAngle * 2.0F;
+            const float radiusScale =
+                (innerRadius / radius) + radiusT *
+                (1.0F - innerRadius / radius);
+            return GroundSectorVertex{
+                .position = radiusScale <= 0.001F
+                    ? center
+                    : pointAt(angle, radiusScale),
+                .opacity = static_cast<unsigned char>(std::lround(
+                    opacityAt(angleT, radiusT) * 255.0F)),
+            };
+        };
+        const auto appendTriangle =
+            [&cached](GroundSectorVertex first,
+                      GroundSectorVertex second,
+                      GroundSectorVertex third) {
+                cached->triangles.push_back(first);
+                cached->triangles.push_back(second);
+                cached->triangles.push_back(third);
+            };
+
+        cached->triangles.reserve(
+            static_cast<std::size_t>(segments) *
+            (RadialScales.size() - 1U) * 6U);
+        for (int index = 0; index < segments; ++index) {
+            const float angleT0 = static_cast<float>(index) /
+                static_cast<float>(segments);
+            const float angleT1 = static_cast<float>(index + 1) /
+                static_cast<float>(segments);
+            for (std::size_t band = 0;
+                 band + 1U < RadialScales.size(); ++band) {
+                const float radiusT0 = RadialScales[band];
+                const float radiusT1 = RadialScales[band + 1U];
+                const GroundSectorVertex p00 =
+                    vertexAt(angleT0, radiusT0);
+                const GroundSectorVertex p01 =
+                    vertexAt(angleT1, radiusT0);
+                const GroundSectorVertex p10 =
+                    vertexAt(angleT0, radiusT1);
+                const GroundSectorVertex p11 =
+                    vertexAt(angleT1, radiusT1);
+                appendTriangle(p00, p11, p10);
+                if (innerRadius > 0.001F || band > 0U) {
+                    appendTriangle(p00, p01, p11);
+                }
+            }
+        }
+    }
+
+    rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    for (const GroundSectorVertex& vertex : cached->triangles) {
+        const auto alpha = static_cast<unsigned char>(std::lround(
+            static_cast<float>(color.a) *
+            static_cast<float>(vertex.opacity) / 255.0F));
+        rlColor4ub(color.r, color.g, color.b, alpha);
+        rlVertex3f(
+            vertex.position.x, vertex.position.y,
+            vertex.position.z);
+    }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    EndBlendMode();
+}
+
 void drawTacticalTargetLink(
     Vector3 start, Vector3 end, Color color) {
     const Vector3 delta = Vector3Subtract(end, start);
@@ -985,7 +1239,7 @@ void drawTacticalTargetLink(
 
 void drawBuildingTacticalOverlay(
     const SimulationSnapshot& snapshot) {
-    if (!snapshot.aimedBuilding) {
+    if (snapshot.selectedBuilding || !snapshot.aimedBuilding) {
         return;
     }
     const auto building = std::find_if(
@@ -999,14 +1253,19 @@ void drawBuildingTacticalOverlay(
 
     Vec3 center = buildingWorldPosition(*building);
     std::optional<EntityId> targetId;
-    if (building->type == BuildingType::Turret) {
-        drawTacticalGroundCircle(
+    if (building->type == BuildingType::Turret ||
+        building->type == BuildingType::GunTurret) {
+        drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
-                TowerSystem::attackRange(building->level)),
-            {255, 226, 135, 165});
+                TowerSystem::attackRange(
+                    building->type, building->level)),
+            towerBaseYaw(snapshot, *building),
+            static_cast<float>(defenseAttackArcDegrees(
+                building->level)),
+            {255, 252, 244, 190});
         const auto runtime = std::find_if(
             snapshot.towers.begin(), snapshot.towers.end(),
             [&building](const TowerRuntime& tower) {
@@ -1015,15 +1274,23 @@ void drawBuildingTacticalOverlay(
         if (runtime != snapshot.towers.end()) {
             targetId = runtime->targetId;
         }
-        center.y += 1.42;
-    } else if (building->type == BuildingType::Cannon) {
-        drawTacticalGroundCircle(
+        center.y += building->type == BuildingType::GunTurret
+            ? 0.69 : 1.42;
+    } else if (building->type == BuildingType::Cannon ||
+               building->type == BuildingType::Catapult) {
+        drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
-                CannonSystem::attackRange(building->level)),
-            {255, 226, 135, 165});
+                CannonSystem::attackRange(
+                    building->type, building->level)),
+            cannonBaseYaw(snapshot, *building),
+            static_cast<float>(defenseAttackArcDegrees(
+                building->level)),
+            {255, 252, 244, 190},
+            static_cast<float>(CannonSystem::minimumRange(
+                building->type, building->level)));
         const auto runtime = std::find_if(
             snapshot.cannons.begin(), snapshot.cannons.end(),
             [&building](const CannonRuntime& cannon) {

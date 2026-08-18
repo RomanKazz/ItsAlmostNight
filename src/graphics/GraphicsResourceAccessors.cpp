@@ -243,6 +243,14 @@ ModelResource& GraphicsResources::cannonballModel() {
     return cannonballModel_;
 }
 
+ModelResource& GraphicsResources::catapultModel() {
+    return catapultModel_;
+}
+
+ModelResource& GraphicsResources::catapultBallModel() {
+    return catapultBallModel_;
+}
+
 ModelResource& GraphicsResources::arrowModel() {
     return arrowModel_;
 }
@@ -253,6 +261,14 @@ ModelResource& GraphicsResources::sawBladeModel() {
 
 ModelResource& GraphicsResources::crossbowModel() {
     return crossbowModel_;
+}
+
+ModelResource& GraphicsResources::gunTurretModel() {
+    return gunTurretModel_;
+}
+
+ModelResource& GraphicsResources::turretBulletModel() {
+    return turretBulletModel_;
 }
 
 ModelResource& GraphicsResources::coreModel() {
@@ -293,6 +309,12 @@ ModelResource& GraphicsResources::challengeColumnModel() {
 
 ModelResource& GraphicsResources::challengeArenaPegModel() {
     return challengeArenaPegModel_;
+}
+
+ModelResource& GraphicsResources::worldLandmarkModel(
+    std::size_t variant) {
+    return worldLandmarkModels_[
+        variant % worldLandmarkModels_.size()];
 }
 
 ModelResource& GraphicsResources::coinModel(std::size_t variant) {

@@ -12,11 +12,15 @@ std::string_view buildingDisplayName(BuildingType type) {
     case BuildingType::Wall:
         return "Wall";
     case BuildingType::Turret:
+        return "Crossbow";
+    case BuildingType::GunTurret:
         return "Turret";
     case BuildingType::CrystalMine:
         return "Crystal Mine";
     case BuildingType::Cannon:
         return "Cannon";
+    case BuildingType::Catapult:
+        return "Catapult";
     case BuildingType::SlowTrap:
         return "Slow Trap";
     case BuildingType::Gate:

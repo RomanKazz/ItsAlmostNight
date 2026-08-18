@@ -45,6 +45,12 @@ enum class EnemyState {
     Dead,
 };
 
+enum class EnemyApproachRole : std::uint8_t {
+    Direct,
+    FlankLeft,
+    FlankRight,
+};
+
 enum class EliteAffix : std::uint8_t {
     None = 0,
     Berserker = 1U << 0U,
@@ -99,6 +105,7 @@ struct EnemyInstance {
     double attackCooldownRemaining;
     double hitAnimationRemaining;
     double spawnAnimationRemaining;
+    double splitAnimationRemaining;
     double ramWindup;
     double ramDamageMultiplier;
     double ramCooldown;
@@ -113,6 +120,7 @@ struct EnemyInstance {
     double steeringFrequency;
     double turnRate;
     double locomotionRate;
+    EnemyApproachRole approachRole;
     EnemyState state;
     std::optional<EntityId> target;
     bool active;
@@ -250,8 +258,15 @@ class EnemySystem {
         const TerrainHeightfield* terrain = nullptr) const;
     std::optional<EnemyDamageResult> damage(EntityId id, double amount);
     [[nodiscard]] std::optional<EntityId> nearestEnemy(Vec3 position, double radius) const;
+    [[nodiscard]] std::optional<EntityId> nearestEnemyInArc(
+        Vec3 position, double radius, double yaw,
+        double halfAngle, bool includeFlying = true) const;
     [[nodiscard]] std::optional<EntityId> densestEnemy(Vec3 position, double radius,
                                                        double clusterRadius) const;
+    [[nodiscard]] std::optional<EntityId> densestEnemyInArc(
+        Vec3 position, double radius, double clusterRadius,
+        double yaw, double halfAngle,
+        double minimumRadius = 0.0) const;
     [[nodiscard]] std::optional<EnemyInstance> enemy(EntityId id) const;
     std::span<const EnemyDamageResult> damageInRadius(
         Vec3 position, double radius, double amount,
@@ -294,6 +309,7 @@ class EnemySystem {
         Vec3 position;
         double healthMultiplier;
         double damageMultiplier;
+        double remaining{};
     };
 
     void appendEnemy(const EnemySpawn& spawn,
@@ -301,6 +317,10 @@ class EnemySystem {
     void spawnSplitlings(
         EntityId parentId, Vec3 position,
         double healthMultiplier, double damageMultiplier);
+    void scheduleSplit(
+        EntityId parentId, Vec3 position,
+        double healthMultiplier, double damageMultiplier);
+    void updatePendingSplits(double deltaSeconds);
     void markEnemyDead(EnemyInstance& enemy);
     [[nodiscard]] double incomingDamageMultiplier(
         const EnemyInstance& enemy) const;
@@ -324,9 +344,12 @@ class EnemySystem {
     std::vector<int> collisionEnemyLinks_;
     std::vector<EntityId> areaTargetBuffer_;
     std::vector<PendingSplit> pendingSplitBuffer_;
+    std::vector<PendingSplit> delayedSplitBuffer_;
     std::size_t activeCount_{};
     std::uint32_t nextIndex_{FirstEnemyIndex};
     std::uint32_t nextProjectileIndex_{1U};
+    std::optional<Vec3> previousPlayerPosition_;
+    Vec3 estimatedPlayerVelocity_{};
     SpatialHash spatialHash_;
     std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions_;
     EnemyPerformanceStats performanceStats_{};

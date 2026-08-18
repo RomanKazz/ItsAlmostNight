@@ -597,7 +597,8 @@ void App::drawGraphicsPanel() {
             {199, 174, 142, 255});
         y += compact ? 22.0F : 30.0F;
 
-        constexpr std::array<ControlAction, ControlActionCount>
+        constexpr std::array<
+            ControlAction, ControlActionCount - 2U>
             Actions{
                 ControlAction::MoveForward,
                 ControlAction::MoveLeft,
@@ -620,7 +621,6 @@ void App::drawGraphicsPanel() {
                 ControlAction::Skills,
                 ControlAction::Map,
                 ControlAction::StartWave,
-                ControlAction::Restart,
             };
         const std::size_t rowsPerColumn =
             (Actions.size() + 2U) / 3U;

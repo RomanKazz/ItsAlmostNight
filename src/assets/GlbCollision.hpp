@@ -24,8 +24,16 @@ struct ModelCollider {
     Vec3 maximum;
 };
 
+struct ModelSocket {
+    std::string name;
+    Vec3 position;
+    Vec3 forward;
+    Vec3 up;
+};
+
 struct GlbCollisionAsset {
     std::vector<ModelCollider> colliders;
+    std::vector<ModelSocket> sockets;
     std::vector<std::size_t> renderMeshIndices;
     std::vector<std::string> errors;
 

@@ -23,6 +23,7 @@ enum class InteractionPromptTargetKind : std::uint8_t {
     ModularBuilding,
     Enemy,
     Challenge,
+    Landmark,
 };
 
 enum class InteractionState : std::uint8_t {

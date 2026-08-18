@@ -74,6 +74,10 @@ struct CastChainLightningCommand {
 struct ToggleGateCommand {
     EntityId gateId;
 };
+struct RotatePlacedBuildingCommand {
+    EntityId buildingId;
+    int steps{1};
+};
 struct RemoveModularBuildingCommand {
     EntityId buildingId;
 };
@@ -89,6 +93,8 @@ struct PlayerCommand {
     std::optional<EntityId> aimedResourceOverride;
     bool overrideAimedModularBuilding{};
     std::optional<EntityId> aimedModularBuildingOverride;
+    bool overrideAimedWorldLandmark{};
+    std::optional<EntityId> aimedWorldLandmarkOverride;
     bool jump{};
     bool sprint{};
     bool dash{};
@@ -121,6 +127,8 @@ struct PlayerCommand {
     std::optional<SpawnEnemyCommand> spawnEnemy;
     std::optional<CastChainLightningCommand> castChainLightning;
     std::optional<ToggleGateCommand> toggleGate;
+    std::optional<RotatePlacedBuildingCommand>
+        rotatePlacedBuilding;
     std::optional<RemoveModularBuildingCommand>
         removeModularBuilding;
 };
@@ -150,6 +158,22 @@ struct ChallengeColumnInstance {
     double completionProgress{};
     double fenceProgress{};
     int enemyBudget{};
+};
+
+enum class WorldLandmarkType {
+    Mine,
+    LumberMill,
+};
+
+struct WorldLandmarkInstance {
+    EntityId id;
+    WorldLandmarkType type{WorldLandmarkType::Mine};
+    Vec3 position;
+    double yaw{};
+    double collisionRadius{};
+    int activationCoinCost{};
+    bool activated{};
+    double productionProgress{};
 };
 
 enum class TutorialObjective {
@@ -207,6 +231,8 @@ struct SimulationSnapshot {
     std::span<const LootChestInstance> lootChests;
     std::optional<EntityId> aimedChallengeColumn;
     std::span<const ChallengeColumnInstance> challengeColumns;
+    std::optional<EntityId> aimedWorldLandmark;
+    std::span<const WorldLandmarkInstance> worldLandmarks;
     std::optional<Vec3> activeChallengeCenter;
     double activeChallengeRadius{};
     std::optional<Vec3> nearestChestPosition;
@@ -510,6 +536,10 @@ class Simulation {
     void updateLootEffects(double deltaSeconds,
                            std::size_t firstGameplayEvent);
     void resetChallengeColumns();
+    void resetWorldLandmarks();
+    void syncWorldLandmarkColliders();
+    void updateWorldLandmarks(
+        double deltaSeconds, const PlayerCommand& command);
     void updateChallengeColumns(
         double deltaSeconds, const PlayerCommand& command);
     void activateChallengeColumn(EntityId id);
@@ -626,6 +656,8 @@ class Simulation {
     std::optional<EntityId> aimedLoot_;
     LootChestSystem lootChests_;
     std::vector<ChallengeColumnInstance> challengeColumns_;
+    std::vector<WorldLandmarkInstance> worldLandmarks_;
+    std::optional<EntityId> aimedWorldLandmark_;
     std::optional<EntityId> aimedChallengeColumn_;
     std::optional<std::size_t> activeChallengeColumn_;
     std::uint32_t challengeRunGeneration_{};

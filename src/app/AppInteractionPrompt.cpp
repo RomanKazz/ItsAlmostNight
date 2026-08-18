@@ -135,6 +135,52 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         }
     }
 
+    if (snapshot.aimedWorldLandmark) {
+        const auto landmark = std::find_if(
+            snapshot.worldLandmarks.begin(),
+            snapshot.worldLandmarks.end(),
+            [&snapshot](const WorldLandmarkInstance& value) {
+                return value.id == *snapshot.aimedWorldLandmark &&
+                       !value.activated;
+            });
+        if (landmark != snapshot.worldLandmarks.end()) {
+            const bool mine =
+                landmark->type == WorldLandmarkType::Mine;
+            const bool affordable = snapshot.unlimitedResources ||
+                snapshot.coins >= landmark->activationCoinCost;
+            ResourceCost cost{};
+            cost.crystals = landmark->activationCoinCost;
+            return finalize(InteractionPrompt{
+                .targetKind = InteractionPromptTargetKind::Landmark,
+                .targetId = landmark->id,
+                .worldAnchor = {
+                    static_cast<float>(landmark->position.x),
+                    static_cast<float>(landmark->position.y + 6.7),
+                    static_cast<float>(landmark->position.z),
+                },
+                .objectName = mine ? "Abandoned Mine"
+                                   : "Abandoned Lumber Mill",
+                .actionText = "Restore",
+                .input = ControlAction::Interact,
+                .state = affordable ? InteractionState::Available
+                                    : InteractionState::Warning,
+                .cost = cost,
+                .availableCurrency = snapshot.unlimitedResources
+                    ? std::nullopt
+                    : std::optional<int>{snapshot.coins},
+                .hint = affordable
+                    ? std::optional<std::string>{
+                          mine ? "PRODUCES 4 STONE EVERY 10s"
+                               : "PRODUCES 6 WOOD EVERY 8s"}
+                    : std::nullopt,
+                .recentFailure = invalidActionRemaining_ > 0.0,
+                .accentColor = affordable
+                    ? Color{224, 184, 92, 255}
+                    : Color{214, 108, 96, 255},
+            });
+        }
+    }
+
     if (snapshot.aimedLoot) {
         const auto loot = std::find_if(
             snapshot.lootChests.begin(), snapshot.lootChests.end(),

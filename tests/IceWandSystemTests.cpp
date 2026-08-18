@@ -149,8 +149,14 @@ void runIceWandSystemTests() {
         "splitter fixture accepts a lethal wand charge");
     splitterWand.tick(0.12, splitterEnemies, nullptr, {});
     require(
+        splitterEnemies.activeCount() == 0,
+        "lethal ice impact starts the splitter windup without hitting children");
+    const std::vector<ian::BuildingInstance> noBuildings;
+    const ian::FlowField noFlowField;
+    splitterEnemies.tick(0.4, noBuildings, noFlowField);
+    require(
         splitterEnemies.activeCount() == 3,
-        "one ice impact cannot kill a splitter and its newborn children");
+        "splitlings appear after the readable windup");
     for (const ian::EnemyInstance& enemy : splitterEnemies.enemies()) {
         if (!enemy.active) {
             continue;

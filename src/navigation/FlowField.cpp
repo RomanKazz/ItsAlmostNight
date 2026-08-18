@@ -76,14 +76,16 @@ void FlowField::rebuild(GridPosition target, const std::vector<BuildingInstance>
                 cell.buildingId = building.id;
                 if (building.type == BuildingType::Wall) {
                     cell.terrainCost = WallTraversalCost;
-                } else if (building.type == BuildingType::Turret) {
+                } else if (building.type == BuildingType::Turret ||
+                           building.type == BuildingType::GunTurret) {
                     cell.terrainCost = 8.0;
                 } else if (
                     building.type == BuildingType::CrystalMine ||
                     building.type == BuildingType::LumberMill ||
                     building.type == BuildingType::Quarry) {
                     cell.terrainCost = 8.0;
-                } else if (building.type == BuildingType::Cannon) {
+                } else if (building.type == BuildingType::Cannon ||
+                           building.type == BuildingType::Catapult) {
                     cell.terrainCost = 10.0;
                 } else if (building.type == BuildingType::SlowTrap) {
                     cell.terrainCost = 4.0;

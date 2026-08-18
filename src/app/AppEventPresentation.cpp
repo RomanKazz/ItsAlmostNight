@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
@@ -43,8 +44,19 @@ void App::processPresentationEvents(
                 [buildingId](const BuildingInstance& candidate) {
                     return candidate.id == buildingId;
                 });
-            if (building == eventSnapshot.buildings.end()) {
-                return;
+            Vec3 position{};
+            if (building != eventSnapshot.buildings.end()) {
+                position = buildingProductionVisualWorldAnchor(*building);
+            } else {
+                const auto landmark = std::find_if(
+                    eventSnapshot.worldLandmarks.begin(),
+                    eventSnapshot.worldLandmarks.end(),
+                    [buildingId](const WorldLandmarkInstance& candidate) {
+                        return candidate.id == buildingId;
+                    });
+                if (landmark == eventSnapshot.worldLandmarks.end()) return;
+                position = landmark->position;
+                position.y += 5.2;
             }
             constexpr std::size_t MaximumVisuals = 12;
             if (productionVisuals_.size() >= MaximumVisuals) {
@@ -52,8 +64,6 @@ void App::processPresentationEvents(
                     productionVisuals_.begin());
             }
             constexpr double Duration = 0.95;
-            const Vec3 position =
-                buildingProductionVisualWorldAnchor(*building);
             productionVisuals_.push_back({
                 .buildingId = buildingId,
                 .icon = icon,
@@ -152,19 +162,37 @@ void App::processPresentationEvents(
             };
         };
     for (const auto& event : events) {
+        const bool towerHit =
+            event.type == GameEventType::ProjectileHit &&
+            event.sourceId && event.buildingType &&
+            (*event.buildingType == BuildingType::Turret ||
+             *event.buildingType == BuildingType::GunTurret);
         const bool enemyHit =
             (event.type == GameEventType::ProjectileHit &&
              !event.sourceId) ||
+            towerHit ||
+            event.type == GameEventType::TrapHit ||
+            event.type == GameEventType::CannonHit ||
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit ||
             event.type == GameEventType::ChainLightningHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
-            const Vec3 sourcePosition =
-                event.type == GameEventType::ChainLightningHit
-                    ? event.position
-                    : eventSnapshot.playerPosition;
+            Vec3 sourcePosition = eventSnapshot.playerPosition;
+            if (event.type == GameEventType::ChainLightningHit) {
+                sourcePosition = event.position;
+            } else if (event.sourceId) {
+                const auto source = std::find_if(
+                    eventSnapshot.buildings.begin(),
+                    eventSnapshot.buildings.end(),
+                    [&event](const BuildingInstance& building) {
+                        return building.id == *event.sourceId;
+                    });
+                if (source != eventSnapshot.buildings.end()) {
+                    sourcePosition = buildingWorldPosition(*source);
+                }
+            }
             const Vec3 impactPosition = enemySurfaceImpactAnchor(
                 *event.entityId,
                 event.targetPosition.value_or(event.position),
@@ -182,7 +210,8 @@ void App::processPresentationEvents(
                 variant = 2;
             } else if (event.type == GameEventType::ChainLightningHit) {
                 variant = 3;
-            } else if (event.type == GameEventType::ProjectileHit) {
+            } else if (event.type == GameEventType::ProjectileHit ||
+                       event.type == GameEventType::CannonHit) {
                 variant = 4;
             }
             if (event.critical) {
@@ -274,7 +303,8 @@ void App::processPresentationEvents(
             addCameraImpulse({0.0, 0.002, -0.032});
             addCameraShake(0.08, 0.009);
         } else if (event.type == GameEventType::CannonFired &&
-            event.sourceId) {
+            event.sourceId &&
+            event.buildingType != BuildingType::Catapult) {
             addBuildingShotRecoil(
                 *event.sourceId, 0.18, 0.13F);
         } else if (
@@ -485,34 +515,89 @@ void App::processPresentationEvents(
             event.type ==
                 GameEventType::GateToggleRejected ||
             event.type ==
+                GameEventType::EconomyPurchaseRejected ||
+            event.type ==
                 GameEventType::ChestOpenRejected) {
             invalidActionRemaining_ = 0.22;
         }
         if (event.type == GameEventType::ProjectileHit &&
-            event.sourceId) {
+            event.sourceId && !event.secondaryImpact) {
             const auto source = std::find_if(
                 eventSnapshot.buildings.begin(),
                 eventSnapshot.buildings.end(),
                 [&event](const BuildingInstance& building) {
                     return building.id == *event.sourceId &&
-                           building.type == BuildingType::Turret;
+                           (building.type == BuildingType::Turret ||
+                            building.type == BuildingType::GunTurret);
                 });
             if (source != eventSnapshot.buildings.end()) {
                 Vec3 origin = buildingWorldPosition(*source);
-                origin.y = 1.4;
-                const double deltaX = event.position.x - origin.x;
-                const double deltaY = event.position.y - origin.y;
-                const double deltaZ = event.position.z - origin.z;
+                Vec3 projectileTarget = event.position;
+                std::optional<Vec3> authoredDirection;
+                const bool gunTurret =
+                    source->type == BuildingType::GunTurret;
+                if (gunTurret) {
+                    const auto runtime = std::find_if(
+                        eventSnapshot.towers.begin(),
+                        eventSnapshot.towers.end(),
+                        [&source](const TowerRuntime& tower) {
+                            return tower.buildingId == source->id;
+                        });
+                    const float yaw = runtime != eventSnapshot.towers.end()
+                        ? static_cast<float>(runtime->yaw)
+                        : static_cast<float>(buildingRotationYaw(
+                              source->type, source->rotation));
+                    origin = renderer_->gunTurretMuzzlePosition(
+                        origin, yaw,
+                        static_cast<std::size_t>(std::max(0, event.amount)));
+                    if (event.entityId) {
+                        if (const auto bounds = enemyBounds(*event.entityId)) {
+                            projectileTarget.y =
+                                (static_cast<double>(bounds->min.y) +
+                                 static_cast<double>(bounds->max.y)) * 0.5;
+                        }
+                    }
+                } else {
+                    const auto runtime = std::find_if(
+                        eventSnapshot.towers.begin(),
+                        eventSnapshot.towers.end(),
+                        [&source](const TowerRuntime& tower) {
+                            return tower.buildingId == source->id;
+                        });
+                    const float yaw = runtime != eventSnapshot.towers.end()
+                        ? static_cast<float>(runtime->yaw)
+                        : static_cast<float>(buildingRotationYaw(
+                              source->type, source->rotation));
+                    const float pitch = runtime != eventSnapshot.towers.end()
+                        ? static_cast<float>(runtime->pitch) : 0.0F;
+                    origin = renderer_->crossbowMuzzlePosition(
+                        origin, yaw, pitch);
+                    const double horizontal = std::cos(
+                        static_cast<double>(pitch));
+                    authoredDirection = Vec3{
+                        -std::sin(static_cast<double>(yaw)) * horizontal,
+                        std::sin(static_cast<double>(pitch)),
+                        -std::cos(static_cast<double>(yaw)) * horizontal,
+                    };
+                }
+                const double deltaX = projectileTarget.x - origin.x;
+                const double deltaY = projectileTarget.y - origin.y;
+                const double deltaZ = projectileTarget.z - origin.z;
                 const double distance = std::sqrt(
                     deltaX * deltaX + deltaY * deltaY +
                     deltaZ * deltaZ);
                 const double duration =
-                    std::clamp(distance / 18.0, 0.08, 0.35);
+                    std::clamp(distance / (gunTurret ? 45.0 : 18.0),
+                               gunTurret ? 0.03 : 0.08,
+                               gunTurret ? 0.16 : 0.35);
                 arrowVisuals_.push_back({
                     .origin = origin,
-                    .target = event.position,
+                    .target = projectileTarget,
+                    .direction = authoredDirection.value_or(Vec3{
+                        deltaX, deltaY, deltaZ}),
                     .remaining = duration,
                     .duration = duration,
+                    .turretBullet = gunTurret,
                 });
             }
         }
@@ -808,6 +893,13 @@ void App::processPresentationEvents(
             addEffect(PresentationEffectType::BuildingUpgrade,
                       event.position, 0.85, effectScale);
         } else if (event.type ==
+                   GameEventType::WorldLandmarkActivated) {
+            addEffect(
+                PresentationEffectType::BuildingUpgrade,
+                event.position, 1.05, 1.8F,
+                event.entityId);
+            addCameraImpulse({0.0, 0.025, -0.012});
+        } else if (event.type ==
                        GameEventType::BuildingRepaired &&
                    event.entityId && event.buildingType) {
             addEffect(
@@ -1090,6 +1182,11 @@ void App::processPresentationEvents(
                 std::to_string(event.amount) + " Coins";
         } else if (event.type == GameEventType::EconomyPurchaseRejected) {
             message = "Not enough Coins";
+        } else if (event.type ==
+                   GameEventType::WorldLandmarkActivated) {
+            message = event.resourceType == ResourceType::Stone
+                ? "Mine activated — producing Stone"
+                : "Lumber mill activated — producing Wood";
         } else if (event.type == GameEventType::CrystalStorageFull) {
             message = "Crystal storage full";
         } else if (event.type == GameEventType::LootCollected &&

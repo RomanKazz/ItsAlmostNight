@@ -67,7 +67,8 @@ void App::render() {
                 structuralRiskRoots.push_back(support);
             }
         };
-    if (!foundationBuildMode_ &&
+    if (removalDragActive_ &&
+        !foundationBuildMode_ &&
         !snapshot.selectedBuilding &&
         snapshot.aimedModularBuilding &&
         std::ranges::any_of(
@@ -113,6 +114,10 @@ void App::render() {
         hoveredBuildingUpgradeCost_;
     presentationSnapshot.aimedBuildingStats =
         hoveredBuildingStats_;
+    if (snapshot.selectedBuilding || foundationBuildMode_) {
+        presentationSnapshot.aimedBuilding.reset();
+        presentationSnapshot.aimedModularBuilding.reset();
+    }
     if (presentationSnapshot.aimedEnemy) {
         presentationSnapshot.aimedResource.reset();
         presentationSnapshot.aimedBuilding.reset();
@@ -127,6 +132,10 @@ void App::render() {
         snapshot.aimedBuildingUpgradeCost;
     feedbackSnapshot.aimedBuildingStats =
         snapshot.aimedBuildingStats;
+    if (snapshot.selectedBuilding || foundationBuildMode_) {
+        feedbackSnapshot.aimedBuilding.reset();
+        feedbackSnapshot.aimedModularBuilding.reset();
+    }
     if (feedbackSnapshot.aimedEnemy) {
         feedbackSnapshot.aimedResource.reset();
         feedbackSnapshot.aimedBuilding.reset();
@@ -940,7 +949,7 @@ void App::render() {
                     ModularBuildPiece::Wall ||
                 modularBuildPiece_ ==
                     ModularBuildPiece::Ramp) {
-                foundationHint += "   WHEEL ROTATE";
+                foundationHint += "   R / WHEEL ROTATE";
             }
             foundationHint += "   RMB CANCEL";
             const Color messageColor =
@@ -1050,7 +1059,8 @@ void App::render() {
                     GetScreenHeight() / 2 + 76),
                 20.0F, {255, 104, 91, 255});
         }
-        if (!structuralRiskIds_.empty()) {
+        if (removalDragActive_ &&
+            !structuralRiskIds_.empty()) {
             drawCenteredUiText(
                 "COLLAPSE RISK: " +
                     std::to_string(
@@ -1094,6 +1104,13 @@ void App::render() {
                     "SETTINGS")) {
                 renderer_->setGraphicsPanelVisible(true);
             }
+            menuY += 70.0F;
+            pendingRestartFromUi_ =
+                ui_.drawButton(
+                    {centerX - 190.0F, menuY,
+                     380.0F, 58.0F},
+                    "RESTART RUN") ||
+                pendingRestartFromUi_;
             menuY += 70.0F;
             pendingReturnToMenuFromUi_ =
                 ui_.drawButton(

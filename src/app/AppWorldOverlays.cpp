@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -452,14 +453,43 @@ void App::drawWorldOverlays(
                     cellPreview,
                     {static_cast<float>(center.x),
                      static_cast<float>(center.z)},
-                    static_cast<float>(
-                        cellPreview.rotation) *
-                        PI * 0.5F);
+                    static_cast<float>(buildingRotationYaw(
+                        cellPreview.type,
+                        cellPreview.rotation)));
             }
         } else {
             drawPlacementFootprint(
                 *snapshot.buildingPreview, visualCenter,
                 static_cast<float>(placementRotationYaw_));
+        }
+        if (!wallDragStart_ &&
+            !placementPreviewObstructed(
+                snapshot.buildingPreview->placement.error) &&
+            isDirectionalDefense(
+                snapshot.buildingPreview->type)) {
+            const BuildingType type =
+                snapshot.buildingPreview->type;
+            const bool artillery =
+                type == BuildingType::Cannon ||
+                type == BuildingType::Catapult;
+            const float range = artillery
+                ? static_cast<float>(
+                      CannonSystem::attackRange(type, 1))
+                : static_cast<float>(
+                      TowerSystem::attackRange(type, 1));
+            drawTacticalGroundSector(
+                {visualCenter.x,
+                 static_cast<float>(
+                     snapshot.buildingPreview->baseHeight) + 0.085F,
+                 visualCenter.y},
+                range,
+                static_cast<float>(placementRotationYaw_),
+                static_cast<float>(defenseAttackArcDegrees(1)),
+                {255, 252, 244, 190},
+                artillery
+                    ? static_cast<float>(
+                          CannonSystem::minimumRange(type, 1))
+                    : 0.0F);
         }
         if (!wallDragStart_ &&
             snapshot.buildingPreview->placement.valid() &&
@@ -721,35 +751,6 @@ void App::drawWorldOverlays(
             static_cast<float>(
                 visualPreview.baseHeight),
             0.0F);
-        const float targetYaw =
-            static_cast<float>(preview.rotation) * PI * 0.5F;
-        const float yawDifference = std::abs(
-            std::atan2(
-                std::sin(targetYaw - yaw),
-                std::cos(targetYaw - yaw)));
-        if (yawDifference > 0.06F &&
-            (preview.type == BuildingType::Turret ||
-             preview.type == BuildingType::Cannon)) {
-            WorldMaterialState ghostMaterial =
-                previewMaterial;
-            ghostMaterial.baseColor.w = 0.12F;
-            renderer_->setWorldMaterial(ghostMaterial);
-            rlDrawRenderBatchActive();
-            rlDisableDepthMask();
-            if (preview.type == BuildingType::Turret) {
-                static_cast<void>(
-                    renderer_->drawCrossbow(
-                        {x, 0.0F, z}, targetYaw,
-                        {255, 255, 255, 70}));
-            } else {
-                static_cast<void>(
-                    renderer_->drawCannon(
-                        {x, 0.0F, z}, targetYaw, 0.0F,
-                        {255, 255, 255, 70}));
-            }
-            rlDrawRenderBatchActive();
-            rlEnableDepthMask();
-        }
         renderer_->setWorldMaterial(previewMaterial);
 
         if (wallDragStart_ && wallDragEnd_ &&
@@ -810,11 +811,18 @@ void App::drawWorldOverlays(
                     static_cast<void>(
                         renderer_->drawCrossbow(
                             position, yaw));
+                } else if (preview.type == BuildingType::GunTurret) {
+                    static_cast<void>(renderer_->drawGunTurret(
+                        position, yaw, yaw));
                 } else if (
                     preview.type == BuildingType::Cannon) {
                     static_cast<void>(
                         renderer_->drawCannon(
                             position, yaw, 0.0F));
+                } else if (
+                    preview.type == BuildingType::Catapult) {
+                    static_cast<void>(renderer_->drawCatapult(
+                        position, yaw, 0.0F));
                 } else if (
                     preview.type == BuildingType::CrystalMine ||
                     preview.type == BuildingType::LumberMill ||
@@ -883,6 +891,12 @@ void App::drawWorldOverlays(
                 DrawCube({x, 1.55F, z - 0.55F}, 0.18F,
                          0.18F, 1.0F, WHITE);
             }
+        } else if (preview.type == BuildingType::GunTurret) {
+            if (!renderer_->drawGunTurret(
+                    {x, 0.0F, z}, yaw, yaw)) {
+                DrawCube({x, 0.55F, z}, 1.1F, 1.1F, 1.1F,
+                         WHITE);
+            }
         } else if (preview.type == BuildingType::Cannon) {
             if (!renderer_->drawCannon({x, 0.0F, z}, yaw, 0.0F)) {
                 DrawCube({x, 0.6F, z}, 1.0F, 1.2F, 1.0F,
@@ -890,6 +904,12 @@ void App::drawWorldOverlays(
                 DrawSphere({x, 1.35F, z}, 0.48F, WHITE);
                 DrawCube({x, 1.45F, z - 0.75F}, 0.28F,
                          0.28F, 1.4F, WHITE);
+            }
+        } else if (preview.type == BuildingType::Catapult) {
+            if (!renderer_->drawCatapult(
+                    {x, 0.0F, z}, yaw, 0.0F)) {
+                DrawCube({x, 0.45F, z}, 1.2F, 0.9F,
+                         1.2F, WHITE);
             }
         } else if (
             preview.type == BuildingType::CrystalMine ||

@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "game/Simulation.hpp"
 
 #include <algorithm>
@@ -22,6 +23,81 @@ void unlockHammer(ian::Simulation& simulation) {
 }
 
 void runSimulationTests() {
+    {
+        ian::Simulation defenseProgression;
+        defenseProgression.startRun();
+        const auto initial = defenseProgression.snapshot();
+        require(
+            initial.unlockedBuildings[static_cast<std::size_t>(
+                ian::BuildingType::GunTurret)] &&
+                !initial.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Turret)] &&
+                !initial.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Cannon)],
+            "only the starter turret is exposed before defense research");
+        defenseProgression.grantSkillPoints(
+            3, ian::SkillPointSource::Event);
+        const auto hammer =
+            defenseProgression.skillTree().indexOf("hammer");
+        const auto engineering =
+            defenseProgression.skillTree().indexOf("defense_engineering");
+        const auto crossbow =
+            defenseProgression.skillTree().indexOf("crossbow_unlock");
+        require(
+            hammer && engineering && crossbow &&
+                defenseProgression.purchaseSkill(*hammer) ==
+                    ian::SkillPurchaseError::None &&
+                defenseProgression.purchaseSkill(*engineering) ==
+                    ian::SkillPurchaseError::None &&
+                defenseProgression.purchaseSkill(*crossbow) ==
+                    ian::SkillPurchaseError::CoreLevelRequired,
+            "crossbow research cannot bypass its core level requirement");
+    }
+    {
+        ian::Simulation rotationSimulation;
+        rotationSimulation.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        rotationSimulation.tick(1.0 / 60.0, unlimited);
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+        };
+        rotationSimulation.tick(1.0 / 60.0, placeCore);
+        ian::PlayerCommand placeTurret;
+        placeTurret.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Turret,
+            .gridPosition = {0, -4},
+        };
+        rotationSimulation.tick(1.0 / 60.0, placeTurret);
+        const auto placed = rotationSimulation.snapshot();
+        const auto turret = std::ranges::find(
+            placed.buildings, ian::BuildingType::Turret,
+            &ian::BuildingInstance::type);
+        require(turret != placed.buildings.end(),
+                "rotation fixture places directional defense");
+
+        ian::PlayerCommand rotate;
+        rotate.rotatePlacedBuilding =
+            ian::RotatePlacedBuildingCommand{
+                .buildingId = turret->id,
+                .steps = 1,
+            };
+        rotationSimulation.tick(1.0 / 60.0, rotate);
+        const auto rotated = rotationSimulation.snapshot();
+        require(rotated.towers.size() == 1,
+                "rotation fixture keeps tower runtime");
+        require(rotated.towers.front().yaw > 0.0 &&
+                    rotated.towers.front().yaw <
+                        ian::PiRadians * 0.25,
+                "daytime placed defense visibly eases after rotation");
+        requireNear(rotated.towers.front().baseYaw,
+                    rotated.towers.front().yaw, 1e-9,
+                    "sector and daytime tower share smoothed rotation");
+    }
     {
         ian::Simulation wallDragFoundations;
         wallDragFoundations.startRun();
@@ -196,6 +272,61 @@ void runSimulationTests() {
                                    ian::ChallengeColumnState::Dormant;
                     }),
             "a new run scatters five dormant skull trials on valid terrain");
+        require(
+            objectiveSnapshot.worldLandmarks.size() == 2U &&
+                objectiveSnapshot.worldLandmarks[0].type !=
+                    objectiveSnapshot.worldLandmarks[1].type &&
+                std::hypot(
+                    objectiveSnapshot.worldLandmarks[0].position.x -
+                        objectiveSnapshot.worldLandmarks[1].position.x,
+                    objectiveSnapshot.worldLandmarks[0].position.z -
+                        objectiveSnapshot.worldLandmarks[1].position.z) >=
+                    54.0,
+            "mine and lumber mill spawn as separated world landmarks");
+        ian::Simulation landmarkProductionSimulation;
+        landmarkProductionSimulation.startRun();
+        ian::PlayerCommand landmarkGodMode;
+        landmarkGodMode.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        landmarkProductionSimulation.tick(
+            1.0 / 60.0, landmarkGodMode);
+        const auto landmarkSnapshot =
+            landmarkProductionSimulation.snapshot();
+        require(
+            landmarkSnapshot.worldLandmarks.size() == 2U &&
+                std::ranges::all_of(
+                    landmarkSnapshot.worldLandmarks,
+                    [](const ian::WorldLandmarkInstance& landmark) {
+                        return !landmark.activated &&
+                               landmark.activationCoinCost > 0;
+                    }),
+            "large resource landmarks begin locked behind a coin cost");
+        for (const ian::WorldLandmarkInstance& landmark :
+             landmarkSnapshot.worldLandmarks) {
+            ian::PlayerCommand restore;
+            restore.overrideAimedWorldLandmark = true;
+            restore.aimedWorldLandmarkOverride = landmark.id;
+            restore.interact = ian::InteractCommand{};
+            landmarkProductionSimulation.tick(1.0 / 60.0, restore);
+        }
+        landmarkProductionSimulation.tick(
+            1.0 / 60.0, landmarkGodMode);
+        const int landmarkWoodBefore =
+            landmarkProductionSimulation.snapshot().wood;
+        const int landmarkStoneBefore =
+            landmarkProductionSimulation.snapshot().stone;
+        landmarkProductionSimulation.tick(10.0);
+        require(
+            landmarkProductionSimulation.snapshot().wood ==
+                    landmarkWoodBefore + 6 &&
+                landmarkProductionSimulation.snapshot().stone ==
+                    landmarkStoneBefore + 4 &&
+                std::ranges::all_of(
+                    landmarkProductionSimulation.snapshot().worldLandmarks,
+                    [](const ian::WorldLandmarkInstance& landmark) {
+                        return landmark.activated;
+                    }),
+            "restored world landmarks produce wood and stone using passive production timing");
         require(
             objectiveSnapshot.platformFrames.size() == 1U &&
                 objectiveSnapshot.platformFrames.front().anchor.x == -1 &&
@@ -664,12 +795,6 @@ void runSimulationTests() {
         ian::GameBalance storageBalance =
             ian::GameBalance::defaults();
         storageBalance.economy.sellRefundFraction = 1.0;
-        auto& woodStorageDefinition =
-            storageBalance.buildings[static_cast<std::size_t>(
-                ian::BuildingType::WoodStorage)];
-        woodStorageDefinition.wood = 200;
-        woodStorageDefinition.stone = 0;
-        woodStorageDefinition.crystals = 0;
         ian::Simulation storageSimulation{
             storageBalance, storageMap,
             storageWorld};
@@ -689,38 +814,41 @@ void runSimulationTests() {
             ian::BuildingType::Core, {0, 0}, 0};
         storageSimulation.tick(1.0 / 60.0, placeCore);
         require(
-            storageSimulation.snapshot().woodCapacity == 100 &&
-                storageSimulation.snapshot().stoneCapacity == 75 &&
-                storageSimulation.snapshot().crystalCapacity == 40,
-            "core unlocks the base storage capacity");
+            storageSimulation.snapshot().woodCapacity == 60 &&
+                storageSimulation.snapshot().stoneCapacity == 30 &&
+                storageSimulation.snapshot().crystalCapacity == 10,
+            "level-one core owns the initial storage capacity");
 
         ian::PlayerCommand placeWoodStorage;
         placeWoodStorage.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::WoodStorage, {4, 0}, 0};
         storageSimulation.tick(1.0 / 60.0, placeWoodStorage);
         require(
-            storageSimulation.snapshot().woodCapacity == 250 &&
-                storageSimulation.snapshot().stoneCapacity == 75 &&
-                storageSimulation.snapshot().crystalCapacity == 40,
-            "specialized storage expands only its matching resource");
+            std::ranges::none_of(
+                storageSimulation.snapshot().buildings,
+                [](const ian::BuildingInstance& building) {
+                    return building.type ==
+                        ian::BuildingType::WoodStorage;
+                }),
+            "specialized storage buildings can no longer be placed");
 
-        const auto woodStorage = std::ranges::find(
+        const auto coreBuilding = std::ranges::find(
             storageSimulation.snapshot().buildings,
-            ian::BuildingType::WoodStorage,
+            ian::BuildingType::Core,
             &ian::BuildingInstance::type);
-        require(
-            woodStorage != storageSimulation.snapshot().buildings.end(),
-            "storage clamp fixture finds placed wood storage");
-        const ian::EntityId woodStorageId = woodStorage->id;
+        require(coreBuilding != storageSimulation.snapshot().buildings.end(),
+                "storage progression fixture finds core");
+        const ian::EntityId coreId = coreBuilding->id;
+        ian::PlayerCommand upgradeCore;
+        upgradeCore.upgradeBuilding =
+            ian::UpgradeBuildingCommand{coreId};
+        storageSimulation.tick(1.0 / 60.0, upgradeCore);
         storageSimulation.tick(1.0 / 60.0, godMode);
-        ian::PlayerCommand sellWoodStorage;
-        sellWoodStorage.sellBuilding =
-            ian::SellBuildingCommand{woodStorageId};
-        storageSimulation.tick(1.0 / 60.0, sellWoodStorage);
         require(
-            storageSimulation.snapshot().wood == 100 &&
-                storageSimulation.snapshot().woodCapacity == 100,
-            "removing storage clamps inventory to reduced capacity");
+            storageSimulation.snapshot().woodCapacity == 100 &&
+                storageSimulation.snapshot().stoneCapacity == 60 &&
+                storageSimulation.snapshot().crystalCapacity == 25,
+            "upgrading the core expands all resource capacities");
     }
     {
         ian::MapDefinition movementMap =
@@ -1589,7 +1717,7 @@ void runSimulationTests() {
         auto& turretDefinition =
             transactionBalance.buildings[
                 static_cast<std::size_t>(
-                    ian::BuildingType::Turret)];
+                    ian::BuildingType::Wall)];
         turretDefinition.wood = 4;
         turretDefinition.stone = 0;
         turretDefinition.crystals = 0;
@@ -1655,12 +1783,12 @@ void runSimulationTests() {
         const ian::GridPosition turretPosition{1, 5};
         const auto turretSurface =
             transactions.previewPlacementSurface(
-                ian::BuildingType::Turret,
+                ian::BuildingType::Wall,
                 turretPosition);
         ian::PlayerCommand placeRaisedTurret;
         placeRaisedTurret.placeBuilding =
             ian::PlaceBuildingCommand{
-                .type = ian::BuildingType::Turret,
+                .type = ian::BuildingType::Wall,
                 .gridPosition = turretPosition,
                 .rotation = 0,
                 .baseHeight = turretSurface.height + 1.0,
@@ -1673,7 +1801,7 @@ void runSimulationTests() {
             transactions.snapshot().buildings.begin(),
             transactions.snapshot().buildings.end(),
             [](const ian::BuildingInstance& building) {
-                return building.type == ian::BuildingType::Turret;
+                return building.type == ian::BuildingType::Wall;
             });
         require(
             turret != transactions.snapshot().buildings.end() &&

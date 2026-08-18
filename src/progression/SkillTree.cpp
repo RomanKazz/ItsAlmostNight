@@ -29,14 +29,16 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         int cost, std::vector<std::string> dependencies,
         std::vector<SkillEffectDefinition> effects = {},
         std::string exclusiveGroup = {},
-        SkillNodeSize size = SkillNodeSize::Small) {
+        SkillNodeSize size = SkillNodeSize::Small,
+        int minimumCoreLevel = 0) {
         return SkillNodeDefinition{
             .id = std::move(id), .title = std::move(title),
             .description = std::move(description), .icon = std::move(icon),
             .branch = branch, .position = position, .cost = cost,
             .prerequisites = std::move(dependencies),
             .effects = std::move(effects),
-            .exclusiveGroup = std::move(exclusiveGroup), .size = size};
+            .exclusiveGroup = std::move(exclusiveGroup), .size = size,
+            .minimumCoreLevel = minimumCoreLevel};
     };
     using E = SkillEffectDefinition;
     return {
@@ -76,12 +78,15 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("reinforced_frames", "REINFORCED FRAMES", "All structures gain 20% maximum health.", "reinforced_frames", SkillBranch::Construction, {380, 0}, 1, {"hammer"}, {E{"building.health", 0.20}}),
         make("field_repairs", "FIELD REPAIRS", "Surviving structures recover 18% health after every night.", "field_repairs", SkillBranch::Construction, {570, 0}, 2, {"reinforced_frames"}, {E{"wave.repair_fraction", 0.18}}, {}, SkillNodeSize::Large),
         make("defense_engineering", "DEFENSE ENGINEERING", "Turrets, cannons and spike traps deal 12% more damage.", "defense_engineering", SkillBranch::Construction, {380, 190}, 1, {"hammer"}, {E{"defense.damage", 0.12}}),
-        make("turret_calibration", "TURRET CALIBRATION", "Turrets gain 20% range and damage.", "turret_calibration", SkillBranch::Construction, {570, 190}, 1, {"defense_engineering"}, {E{"tower.range", 0.20}, E{"tower.damage", 0.20}}),
-        make("rapid_battery", "RAPID BATTERY", "Turrets fire 45% faster but lose 20% range.", "rapid_battery", SkillBranch::Construction, {760, 190}, 3, {"turret_calibration"}, {E{"tower.fire_rate", 0.45}, E{"tower.range", -0.20}}, "turret_doctrine", SkillNodeSize::Large),
-        make("long_watch", "LONG WATCH", "Turrets gain 45% range and 30% damage, but fire slower.", "long_watch", SkillBranch::Construction, {760, 380}, 3, {"turret_calibration"}, {E{"tower.range", 0.45}, E{"tower.damage", 0.30}, E{"tower.fire_rate", -0.25}}, "turret_doctrine", SkillNodeSize::Large),
-        make("artillery_corps", "ARTILLERY CORPS", "Cannons gain 30% blast radius and damage.", "artillery_corps", SkillBranch::Construction, {570, 380}, 2, {"defense_engineering"}, {E{"cannon.radius", 0.30}, E{"cannon.damage", 0.30}}),
+        make("crossbow_unlock", "CROSSBOW", "Unlock the Crossbow defense. Requires Core Level 2.", "turret_calibration", SkillBranch::Construction, {570, 190}, 1, {"defense_engineering"}, {E{"unlock.crossbow"}}, {}, SkillNodeSize::Small, 2),
+        make("turret_calibration", "TURRET CALIBRATION", "Crossbows and turrets gain 20% range and damage.", "turret_calibration", SkillBranch::Construction, {760, 190}, 1, {"crossbow_unlock"}, {E{"tower.range", 0.20}, E{"tower.damage", 0.20}}),
+        make("rapid_battery", "RAPID BATTERY", "Turrets fire 45% faster but lose 20% range.", "rapid_battery", SkillBranch::Construction, {950, 190}, 3, {"turret_calibration"}, {E{"tower.fire_rate", 0.45}, E{"tower.range", -0.20}}, "turret_doctrine", SkillNodeSize::Large),
+        make("long_watch", "LONG WATCH", "Turrets gain 45% range and 30% damage, but fire slower.", "long_watch", SkillBranch::Construction, {950, 380}, 3, {"turret_calibration"}, {E{"tower.range", 0.45}, E{"tower.damage", 0.30}, E{"tower.fire_rate", -0.25}}, "turret_doctrine", SkillNodeSize::Large),
+        make("cannon_unlock", "CANNON", "Unlock the Cannon defense. Requires Core Level 3.", "artillery_corps", SkillBranch::Construction, {570, 380}, 1, {"defense_engineering"}, {E{"unlock.cannon"}}, {}, SkillNodeSize::Small, 3),
+        make("catapult_unlock", "CATAPULT", "Unlock the Catapult defense. Requires Core Level 4.", "artillery_corps", SkillBranch::Construction, {570, 570}, 1, {"defense_engineering"}, {E{"unlock.catapult"}}, {}, SkillNodeSize::Small, 4),
+        make("artillery_corps", "ARTILLERY CORPS", "Cannons gain 30% blast radius and damage.", "artillery_corps", SkillBranch::Construction, {760, 380}, 2, {"cannon_unlock"}, {E{"cannon.radius", 0.30}, E{"cannon.damage", 0.30}}),
         make("trap_engineer", "TRAP ENGINEER", "Traps gain radius, damage and faster recovery.", "trap_engineer", SkillBranch::Construction, {380, 380}, 2, {"defense_engineering"}, {E{"trap.radius", 0.25}, E{"trap.damage", 0.30}, E{"trap.fire_rate", 0.25}}),
-        make("high_ground", "HIGH GROUND", "Defenses built above terrain deal 35% more damage.", "high_ground", SkillBranch::Construction, {570, 570}, 3, {"artillery_corps", "trap_engineer"}, {E{"defense.high_ground_damage", 0.35}}, {}, SkillNodeSize::Large),
+        make("high_ground", "HIGH GROUND", "Defenses built above terrain deal 35% more damage.", "high_ground", SkillBranch::Construction, {760, 570}, 3, {"artillery_corps", "trap_engineer"}, {E{"defense.high_ground_damage", 0.35}}, {}, SkillNodeSize::Large),
 
         make("light_footwork", "LIGHT FOOTWORK", "Accelerate, stop and turn 55% faster.", "light_footwork", SkillBranch::Movement, {190, -190}, 1, {"bare_hands"}, {E{"player.acceleration", 0.55}}),
         make("sprinter", "SPRINTER", "Move 10% faster at all times.", "sprinter", SkillBranch::Movement, {380, -190}, 1, {"light_footwork"}, {E{"player.move_speed", 0.10}}),
@@ -97,7 +102,7 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("early_planning", "EARLY PLANNING", "Early wave starts grant Crystals, Coins and Insight; all early rewards increase 25%.", "early_planning", SkillBranch::Economy, {0, 570}, 1, {"safe_delivery"}, {E{"early.base_bonus", 0.25}}),
         make("mercenary_contract", "MERCENARY CONTRACT", "Early starts grant many more Coins, but no bonus Insight.", "mercenary_contract", SkillBranch::Economy, {-190, 760}, 3, {"early_planning"}, {E{"early.coins", 1.0}, E{"early.insight", -1.0}}, "early_contract", SkillNodeSize::Large),
         make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more Insight, but no bonus Coins.", "scholar_contract", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.coins", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
-        make("expanded_storage", "EXPANDED STORAGE", "Every storage building holds 40% more resources.", "expanded_storage", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
+        make("expanded_storage", "EXPANDED STORAGE", "The Core holds 40% more of every resource.", "expanded_storage", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
         make("scavenger", "SCAVENGER", "Destructible world props drop 50% more coins.", "scavenger", SkillBranch::Economy, {-380, 570}, 2, {"safe_delivery"}, {E{"prop.coins", 0.50}}),
         make("longer_days", "LONGER DAYS", "Each daytime build phase lasts 15 seconds longer.", "placeholder_hourglass", SkillBranch::Economy, {380, 760}, 2, {"expanded_storage"}, {E{"day.duration_seconds", 15.0}}),
     };
@@ -345,7 +350,9 @@ std::vector<SkillNodeDefinition> loadSkillTreeDefinitions(const std::filesystem:
             node.size = value.value("size", "small") == "large"
                 ? SkillNodeSize::Large
                 : SkillNodeSize::Small;
+            node.minimumCoreLevel = value.value("minimumCoreLevel", 0);
             if (node.id.empty() || node.cost < 0 ||
+                node.minimumCoreLevel < 0 ||
                 !std::isfinite(node.position.x) ||
                 !std::isfinite(node.position.y) ||
                 !ids.insert(node.id).second) {

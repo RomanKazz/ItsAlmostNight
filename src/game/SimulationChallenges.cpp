@@ -135,6 +135,14 @@ void Simulation::resetChallengeColumns() {
                     return geometry::distanceSquared(
                         position, column.position) <
                         ColumnSeparation * ColumnSeparation;
+                }) ||
+            std::any_of(
+                worldLandmarks_.begin(), worldLandmarks_.end(),
+                [position](const WorldLandmarkInstance& landmark) {
+                    constexpr double LandmarkClearance = 11.0;
+                    return geometry::distanceSquared(
+                               position, landmark.position) <
+                        LandmarkClearance * LandmarkClearance;
                 })) {
             continue;
         }

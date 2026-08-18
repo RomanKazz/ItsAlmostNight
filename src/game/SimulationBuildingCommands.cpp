@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "buildings/BuildingOrientation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,9 +23,21 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
     if (command.cancelBuilding) {
         selectedBuilding_.reset();
     }
-    if (selectedBuilding_ && command.rotateBuilding != 0) {
+    if (!selectedBuilding_ && command.rotatePlacedBuilding) {
+        if (buildings_.rotateDirectionalDefense(
+                command.rotatePlacedBuilding->buildingId,
+                command.rotatePlacedBuilding->steps)) {
+            syncBuildingRuntimeSystems();
+        }
+    }
+    if (selectedBuilding_ &&
+        supportsManualBuildingRotation(*selectedBuilding_) &&
+        command.rotateBuilding != 0) {
         const int rotation = static_cast<int>(buildingRotation_) + command.rotateBuilding;
-        buildingRotation_ = static_cast<std::uint8_t>((rotation % 4 + 4) % 4);
+        const int steps = static_cast<int>(
+            buildingRotationStepCount(*selectedBuilding_));
+        buildingRotation_ = static_cast<std::uint8_t>(
+            (rotation % steps + steps) % steps);
     }
 
     if (selectedBuilding_) {

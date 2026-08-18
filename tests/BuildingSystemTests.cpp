@@ -1,10 +1,39 @@
 #include "TestHarness.hpp"
+#include "buildings/BuildingHotbarLayout.hpp"
 #include "buildings/BuildingSystem.hpp"
 
 #include <numbers>
 #include <ranges>
 
 void runBuildingSystemTests() {
+    std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
+    unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
+    unlocked[static_cast<std::size_t>(ian::BuildingType::Wall)] = true;
+    unlocked[static_cast<std::size_t>(ian::BuildingType::GunTurret)] = true;
+    auto hotbar = ian::makeBuildingHotbarLayout(unlocked);
+    require(
+        hotbar.count == 3U &&
+            hotbar.types[0] == ian::BuildingType::Core &&
+            hotbar.types[1] == ian::BuildingType::Wall &&
+            hotbar.types[2] == ian::BuildingType::GunTurret,
+        "starter turret occupies the third visible number slot");
+    unlocked[static_cast<std::size_t>(ian::BuildingType::Turret)] = true;
+    hotbar = ian::makeBuildingHotbarLayout(unlocked);
+    require(
+        hotbar.count == 4U &&
+            hotbar.types[3] == ian::BuildingType::Turret,
+        "newly unlocked crossbow receives the next visible number slot");
+
+    ian::BuildingSystem starterDefense;
+    const auto starterCore = starterDefense.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(
+        starterCore.has_value() &&
+            starterDefense.validate(
+                ian::BuildingType::GunTurret, {4, 0},
+                35, 25, 10).valid(),
+        "starter turret is buildable with a level-one core");
+
     ian::BuildingSystem buildings;
 
     const auto poorCore = buildings.validate(ian::BuildingType::Core, {0, 0}, 29, 0);
@@ -69,8 +98,21 @@ void runBuildingSystemTests() {
     const auto turretCost = ian::buildingCost(ian::BuildingType::Turret);
     require(turretCost.wood == 25 && turretCost.stone == 15,
             "turret has configured mixed resource cost");
-    require(buildings.place(ian::BuildingType::Turret, {4, 1}, 0, 25, 15).has_value(),
+    const auto turret = buildings.place(
+        ian::BuildingType::Turret, {4, 1}, 0, 25, 15);
+    require(turret.has_value(),
             "turret follows normal core-area placement rules");
+    const auto rotatedTurret =
+        buildings.rotateDirectionalDefense(
+            turret->building.id, -1);
+    require(
+        rotatedTurret.has_value() &&
+            rotatedTurret->rotation == 7,
+        "directional defenses rotate and wrap across eight steps");
+    require(
+        !buildings.rotateDirectionalDefense(
+            core->building.id, 1),
+        "non-directional buildings reject post-placement rotation");
 
     const auto poorUpgrade = buildings.validateUpgrade(core->building.id, 0, 0, 49);
     require(poorUpgrade.error == ian::UpgradeError::InsufficientResources,

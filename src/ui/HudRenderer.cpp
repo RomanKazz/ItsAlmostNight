@@ -1,6 +1,7 @@
 #include "ui/HudRenderer.hpp"
 
 #include "app/UserSettings.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
@@ -21,10 +22,13 @@
 namespace ian {
 namespace {
 
-const char* placementMessage(PlacementError error) {
+const char* placementMessage(
+    PlacementError error, BuildingType type) {
     switch (error) {
     case PlacementError::None:
-        return "LMB place/drag   RMB cancel   Wheel rotate";
+        return supportsManualBuildingRotation(type)
+            ? "LMB place/drag   RMB cancel   R/Wheel rotate"
+            : "LMB place/drag   RMB cancel";
     case PlacementError::CoreAlreadyPlaced:
         return "Core already placed";
     case PlacementError::CoreRequired:
@@ -335,7 +339,7 @@ void drawBuildingContextCard(
         const char* suffix;
     };
     std::vector<StatRow> rows;
-    rows.reserve(5);
+    rows.reserve(6);
     if (snapshot.aimedBuildingStats) {
         const BuildingStatComparison& comparison =
             *snapshot.aimedBuildingStats;
@@ -380,18 +384,34 @@ void drawBuildingContextCard(
                 "EACH PRODUCER",
                 &BuildingStats::producerPerTypeLimit, 0, "");
             addOptional(
-                "EACH STORAGE",
-                &BuildingStats::storagePerTypeLimit, 0, "");
+                "WOOD CAPACITY",
+                &BuildingStats::woodCapacity, 0, "");
+            addOptional(
+                "STONE CAPACITY",
+                &BuildingStats::stoneCapacity, 0, "");
+            addOptional(
+                "CRYSTAL CAPACITY",
+                &BuildingStats::crystalCapacity, 0, "");
         } else if (building.type == BuildingType::Turret ||
-            building.type == BuildingType::Cannon) {
+            building.type == BuildingType::GunTurret ||
+            building.type == BuildingType::Cannon ||
+            building.type == BuildingType::Catapult) {
             addOptional(
                 "DAMAGE", &BuildingStats::attackDamage, 0, "");
             addOptional(
                 "RANGE", &BuildingStats::attackRange, 1, "m");
             addOptional(
+                "ARC", &BuildingStats::attackArcDegrees, 0, " deg");
+            addOptional(
                 "ATTACK RATE",
                 &BuildingStats::attacksPerSecond, 2, "/s");
-            if (building.type == BuildingType::Cannon) {
+            if (building.type == BuildingType::Turret) {
+                addOptional(
+                    "PIERCING",
+                    &BuildingStats::piercingCount, 0, "");
+            }
+            if (building.type == BuildingType::Cannon ||
+                building.type == BuildingType::Catapult) {
                 addOptional(
                     "BLAST RADIUS",
                     &BuildingStats::effectRadius, 1, "m");
@@ -479,10 +499,10 @@ void drawBuildingContextCard(
             return std::string(buffer);
         };
     for (std::size_t index = 0;
-         index < rows.size() && index < 5; ++index) {
+         index < rows.size() && index < 6; ++index) {
         const StatRow& row = rows[index];
         const float rowY =
-            y + 141.0F + static_cast<float>(index) * 37.0F;
+            y + 141.0F + static_cast<float>(index) * 31.0F;
         drawUiText(
             row.label, {x + 24.0F, rowY}, 15.0F,
             {205, 197, 184, 255});
@@ -1470,7 +1490,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         constexpr float BuildFontSize = 18.0F;
         constexpr float MessageFontSize = 16.0F;
         const std::string placementText = placementMessage(
-            preview.placement.error);
+            preview.placement.error, preview.type);
         const float PanelWidth = std::clamp(
             std::max(measureUiText(buildText, BuildFontSize).x,
                      measureUiText(placementText, MessageFontSize).x) +

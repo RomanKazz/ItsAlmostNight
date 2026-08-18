@@ -68,6 +68,7 @@ enum class GameEventType {
     ChainLightningHit,
     TrapActivated,
     TrapHit,
+    CannonHit,
     WeaponFired,
     CannonFired,
     WeaponUpgraded,
@@ -93,6 +94,7 @@ enum class GameEventType {
     BombPurchased,
     AllBuildingsRepaired,
     EconomyPurchaseRejected,
+    WorldLandmarkActivated,
     CrystalStorageFull,
     LootCollected,
 };
@@ -121,6 +123,7 @@ struct GameEvent {
     bool bareHands{};
     bool largeDeposit{};
     bool night{};
+    bool secondaryImpact{};
     std::optional<std::string> objectiveId;
     std::optional<InsightSource> insightSource;
     double insightAmount{};

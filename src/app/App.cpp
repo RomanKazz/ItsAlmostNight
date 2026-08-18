@@ -54,6 +54,12 @@ std::uint64_t decorationFingerprint(
         hash = mixDecorationFingerprint(
             hash, std::bit_cast<std::uint64_t>(column.position.z));
     }
+    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(landmark.position.x));
+        hash = mixDecorationFingerprint(
+            hash, std::bit_cast<std::uint64_t>(landmark.position.z));
+    }
     return hash;
 }
 
@@ -62,7 +68,8 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
     std::vector<DecorationExclusion> exclusions;
     exclusions.reserve(
         snapshot.resourceNodes.size() + snapshot.lootChests.size() +
-        snapshot.mapObstacles.size() + snapshot.challengeColumns.size());
+        snapshot.mapObstacles.size() + snapshot.challengeColumns.size() +
+        snapshot.worldLandmarks.size());
     for (const ResourceNode& resource : snapshot.resourceNodes) {
         // Include inactive nodes: their current position remains reserved
         // until the resource actually relocates on respawn.
@@ -88,6 +95,14 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
             .centerX = column.position.x,
             .centerZ = column.position.z,
             .radius = 2.2,
+        });
+    }
+    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        exclusions.push_back({
+            .shape = DecorationExclusionShape::Circle,
+            .centerX = landmark.position.x,
+            .centerZ = landmark.position.z,
+            .radius = landmark.collisionRadius + 1.5,
         });
     }
     for (const MapObstacle& obstacle : snapshot.mapObstacles) {

@@ -98,7 +98,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
         .killed = killed,
     };
     if (killed && killedType == EnemyType::Splitter) {
-        spawnSplitlings(
+        scheduleSplit(
             id, killedPosition,
             healthMultiplier, damageMultiplier);
     }
@@ -144,6 +144,42 @@ std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) 
     return nearest;
 }
 
+std::optional<EntityId> EnemySystem::nearestEnemyInArc(
+    Vec3 position, double radius, double yaw,
+    double halfAngle, bool includeFlying) const {
+    const double forwardX = -std::sin(yaw);
+    const double forwardZ = -std::cos(yaw);
+    const double minimumDot = std::cos(halfAngle);
+    std::optional<EntityId> nearest;
+    double nearestDistanceSquared = radius * radius;
+    spatialHash_.forEachNearby(
+        position, radius, [&](const SpatialEntry& entry) {
+            const EnemyInstance* enemy = findEnemy(entry.id);
+            if (enemy == nullptr || !enemy->active ||
+                (!includeFlying && enemy->type == EnemyType::Flying)) {
+                return;
+            }
+            const double deltaX = entry.position.x - position.x;
+            const double deltaZ = entry.position.z - position.z;
+            const double distanceSquared =
+                deltaX * deltaX + deltaZ * deltaZ;
+            if (distanceSquared <= 1e-10) return;
+            const double inverseDistance =
+                1.0 / std::sqrt(distanceSquared);
+            const double directionDot =
+                (deltaX * forwardX + deltaZ * forwardZ) *
+                inverseDistance;
+            if (directionDot + 1e-9 < minimumDot) return;
+            if (distanceSquared < nearestDistanceSquared ||
+                (distanceSquared == nearestDistanceSquared &&
+                 (!nearest || entry.id.index < nearest->index))) {
+                nearest = entry.id;
+                nearestDistanceSquared = distanceSquared;
+            }
+        });
+    return nearest;
+}
+
 std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
                                                   double clusterRadius) const {
     std::optional<EntityId> best;
@@ -175,6 +211,54 @@ std::optional<EntityId> EnemySystem::densestEnemy(Vec3 position, double radius,
             bestDistanceSquared = distanceSquared;
         }
     });
+    return best;
+}
+
+std::optional<EntityId> EnemySystem::densestEnemyInArc(
+    Vec3 position, double radius, double clusterRadius,
+    double yaw, double halfAngle, double minimumRadius) const {
+    const double forwardX = -std::sin(yaw);
+    const double forwardZ = -std::cos(yaw);
+    const double minimumDot = std::cos(halfAngle);
+    std::optional<EntityId> best;
+    std::size_t bestCount = 0;
+    double bestDistanceSquared = radius * radius;
+    const double minimumDistanceSquared =
+        minimumRadius * minimumRadius;
+    spatialHash_.forEachNearby(
+        position, radius, [&](const SpatialEntry& candidate) {
+            const EnemyInstance* enemy = findEnemy(candidate.id);
+            if (enemy == nullptr || !enemy->active) return;
+            const double deltaX = candidate.position.x - position.x;
+            const double deltaZ = candidate.position.z - position.z;
+            const double distanceSquared =
+                deltaX * deltaX + deltaZ * deltaZ;
+            if (distanceSquared <= std::max(1e-10, minimumDistanceSquared)) {
+                return;
+            }
+            const double inverseDistance =
+                1.0 / std::sqrt(distanceSquared);
+            const double directionDot =
+                (deltaX * forwardX + deltaZ * forwardZ) *
+                inverseDistance;
+            if (directionDot + 1e-9 < minimumDot) return;
+            std::size_t count = 0;
+            spatialHash_.forEachNearby(
+                candidate.position, clusterRadius,
+                [this, &count](const SpatialEntry& entry) {
+                    const EnemyInstance* nearby = findEnemy(entry.id);
+                    if (nearby != nullptr && nearby->active) ++count;
+                });
+            if (count > bestCount ||
+                (count == bestCount &&
+                 (distanceSquared < bestDistanceSquared ||
+                  (distanceSquared == bestDistanceSquared &&
+                   (!best || candidate.id.index < best->index))))) {
+                best = candidate.id;
+                bestCount = count;
+                bestDistanceSquared = distanceSquared;
+            }
+        });
     return best;
 }
 
@@ -302,17 +386,10 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         enemy->knockbackVelocity.z +=
             (offsetZ / directionDistance) * impulse;
     }
-    // Spawn only after resolving the original area target set. Children are
-    // never damaged by the same explosion that created them.
+    // Schedule only after resolving the original area target set. Children
+    // are therefore never damaged by the explosion that created them.
     for (const PendingSplit& split : pendingSplitBuffer_) {
-        splitEventBuffer_.push_back({
-            .parentId = split.id,
-            .position = split.position,
-            .childCount = 0,
-        });
-    }
-    for (const PendingSplit& split : pendingSplitBuffer_) {
-        spawnSplitlings(
+        scheduleSplit(
             split.id, split.position,
             split.healthMultiplier,
             split.damageMultiplier);
@@ -439,6 +516,10 @@ std::size_t EnemySystem::defeatAll() {
         enemy.health = 0.0;
         markEnemyDead(enemy);
         ++defeated;
+    }
+    delayedSplitBuffer_.clear();
+    for (EnemyInstance& enemy : enemies_) {
+        enemy.splitAnimationRemaining = 0.0;
     }
     rebuildSpatialIndex();
     return defeated;

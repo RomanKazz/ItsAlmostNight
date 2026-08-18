@@ -40,6 +40,16 @@ std::uint64_t Simulation::structuralRevision() const {
 
 SkillPurchaseError Simulation::purchaseSkill(std::size_t index) {
     invalidateSnapshotCache();
+    if (index >= skillTree_.nodes().size()) {
+        return SkillPurchaseError::InvalidNode;
+    }
+    const auto core = buildings_.core();
+    const int coreLevel = core ? static_cast<int>(core->level) : 0;
+    if (!unlimitedResources_ &&
+        skillTree_.state(index) == SkillNodeState::Available &&
+        coreLevel < skillTree_.nodes()[index].minimumCoreLevel) {
+        return SkillPurchaseError::CoreLevelRequired;
+    }
     const double previousDayExtension =
         skillTree_.effectValue("day.duration_seconds");
     const SkillPurchaseError result = skillTree_.purchase(
@@ -431,7 +441,9 @@ void Simulation::processObjectiveEvents(std::size_t firstEvent) {
                 recordGameplayObjective(ObjectiveMetric::TrapHits);
                 break;
             case GameEventType::CannonFired:
-                recordGameplayObjective(ObjectiveMetric::CannonShots);
+                if (event.buildingType == BuildingType::Cannon) {
+                    recordGameplayObjective(ObjectiveMetric::CannonShots);
+                }
                 break;
             case GameEventType::ConsumableUsed:
                 recordGameplayObjective(ObjectiveMetric::BombsThrown);

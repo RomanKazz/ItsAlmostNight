@@ -44,8 +44,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
 }
 
 void Simulation::updateTowerCombat(double deltaSeconds) {
-    if (state_ == RunState::Defeat ||
-        enemies_.activeCount() == 0) {
+    if (state_ == RunState::Defeat) {
         return;
     }
     const auto shots =
@@ -56,7 +55,11 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .type = GameEventType::ProjectileHit,
             .entityId = shot.targetId,
             .sourceId = shot.towerId,
+            .buildingType = shot.type,
             .position = shot.hitPosition,
+            .amount = static_cast<int>(shot.muzzleIndex),
+            .damage = shot.damage,
+            .secondaryImpact = shot.secondaryImpact,
         });
         if (shot.killed) {
             events_.push_back({
@@ -69,9 +72,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
 }
 
 void Simulation::updateCannonCombat(double deltaSeconds) {
-    if (state_ == RunState::Defeat ||
-        (state_ != RunState::Wave &&
-         enemies_.activeCount() == 0)) {
+    if (state_ == RunState::Defeat) {
         return;
     }
     const auto explosions =
@@ -82,6 +83,7 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .type = GameEventType::CannonFired,
             .entityId = shot.projectileId,
             .sourceId = shot.cannonId,
+            .buildingType = shot.type,
             .position = shot.position,
         });
     }
@@ -92,6 +94,16 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .position = explosion.position,
             .amount = explosion.killedCount,
             .intensity = explosion.radius,
+        });
+    }
+    for (const CannonHit& hit : cannons_.hits()) {
+        events_.push_back({
+            .type = GameEventType::CannonHit,
+            .entityId = hit.result.id,
+            .sourceId = hit.cannonId,
+            .buildingType = hit.type,
+            .position = hit.result.position,
+            .damage = hit.result.damage,
         });
     }
     if (state_ == RunState::Wave &&

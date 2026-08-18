@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "game/ChallengeArena.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
@@ -526,6 +527,20 @@ void App::drawWorldEntities(
              static_cast<float>(column.position.z)},
             static_cast<float>(column.yaw), tint, scale));
     }
+    WorldMaterialState landmarkMaterial{};
+    landmarkMaterial.bakedAo = 0.82F;
+    renderer_->setWorldMaterial(landmarkMaterial);
+    for (const WorldLandmarkInstance& landmark : snapshot.worldLandmarks) {
+        const Color tint = landmark.activated
+            ? WHITE
+            : Color{218, 218, 210, 255};
+        static_cast<void>(renderer_->drawWorldLandmark(
+            static_cast<std::size_t>(landmark.type),
+            {static_cast<float>(landmark.position.x),
+             static_cast<float>(landmark.position.y),
+             static_cast<float>(landmark.position.z)},
+            static_cast<float>(landmark.yaw), tint));
+    }
     WorldMaterialState chestMaterial{};
     chestMaterial.bakedAo = 0.78F;
     renderer_->setWorldMaterial(chestMaterial);
@@ -706,20 +721,26 @@ void App::drawWorldEntities(
         const Vec3 impact =
             buildingImpactOffsetAt(building.id);
         float defensiveYaw = 0.0F;
-        if (building.type == BuildingType::Turret) {
+        if (building.type == BuildingType::Turret ||
+            building.type == BuildingType::GunTurret) {
             defensiveYaw = towerYaw(snapshot, building);
-        } else if (building.type == BuildingType::Cannon) {
+        } else if (building.type == BuildingType::Cannon ||
+                   building.type == BuildingType::Catapult) {
             defensiveYaw = cannonYaw(snapshot, building);
         }
         const Vec3 shotRecoil =
             buildingShotRecoilOffsetAt(
                 building.id, defensiveYaw);
+        const bool pivotOnlyRecoil =
+            building.type == BuildingType::GunTurret;
         const float x =
             static_cast<float>(
-                center.x + impact.x + shotRecoil.x);
+                center.x + impact.x +
+                (pivotOnlyRecoil ? 0.0 : shotRecoil.x));
         const float z =
             static_cast<float>(
-                center.z + impact.z + shotRecoil.z);
+                center.z + impact.z +
+                (pivotOnlyRecoil ? 0.0 : shotRecoil.z));
         const float groundY =
             static_cast<float>(center.y);
         const float spawnScale =
@@ -817,7 +838,8 @@ void App::drawWorldEntities(
             if (!renderer_->drawCrossbow(
                     {x, groundY, z},
                     defensiveYaw, WHITE,
-                    spawnScale)) {
+                    spawnScale,
+                    towerPitch(snapshot, building))) {
                 drawScaledCube(0.0F, 0.6F, 0.0F, 1.0F,
                                1.2F, 1.0F,
                                {68, 83, 96, 255});
@@ -830,6 +852,16 @@ void App::drawWorldEntities(
                 drawScaledCube(
                     0.0F, 1.55F, -0.55F, 0.18F, 0.18F,
                     1.0F, {50, 58, 67, 255});
+            }
+        } else if (building.type == BuildingType::GunTurret) {
+            if (!renderer_->drawGunTurret(
+                    {x, groundY, z},
+                    towerBaseYaw(snapshot, building),
+                    defensiveYaw, WHITE, spawnScale,
+                    shotRecoil)) {
+                drawScaledCube(0.0F, 0.55F, 0.0F, 1.1F,
+                               1.1F, 1.1F,
+                               {81, 92, 101, 255});
             }
         } else if (
             building.type == BuildingType::CrystalMine ||
@@ -863,6 +895,15 @@ void App::drawWorldEntities(
                 drawScaledCube(
                     0.0F, 1.45F, -0.75F, 0.28F, 0.28F,
                     1.4F, {42, 48, 54, 255});
+            }
+        } else if (building.type == BuildingType::Catapult) {
+            if (!renderer_->drawCatapult(
+                    {x, groundY, z}, defensiveYaw,
+                    cannonPitch(snapshot, building),
+                    cannonLoaded(snapshot, building), WHITE,
+                    spawnScale)) {
+                drawScaledCube(0.0F, 0.45F, 0.0F, 1.2F,
+                               0.9F, 1.2F, {72, 66, 58, 255});
             }
         } else if (building.type == BuildingType::SlowTrap) {
             drawScaledCube(0.0F, 0.08F, 0.0F, 1.0F, 0.16F,
@@ -943,7 +984,10 @@ void App::drawWorldEntities(
                 static_cast<float>(projectile.position.y),
                 static_cast<float>(projectile.position.z),
             };
-            if (!renderer_->drawCannonball(projectilePosition)) {
+            const bool drawn = projectile.type == BuildingType::Catapult
+                ? renderer_->drawCatapultBall(projectilePosition)
+                : renderer_->drawCannonball(projectilePosition);
+            if (!drawn) {
                 DrawSphere(projectilePosition, 0.2F,
                            {36, 39, 43, 255});
             }
@@ -960,13 +1004,21 @@ void App::drawWorldEntities(
             arrow.origin.z +
                 (arrow.target.z - arrow.origin.z) * progress,
         };
-        (void)renderer_->drawArrow(
-            {static_cast<float>(arrowPosition.x),
-             static_cast<float>(arrowPosition.y),
-             static_cast<float>(arrowPosition.z)},
-            {static_cast<float>(arrow.target.x - arrow.origin.x),
-             static_cast<float>(arrow.target.y - arrow.origin.y),
-             static_cast<float>(arrow.target.z - arrow.origin.z)});
+        const Vector3 projectilePosition{
+            static_cast<float>(arrowPosition.x),
+            static_cast<float>(arrowPosition.y),
+            static_cast<float>(arrowPosition.z)};
+        const Vector3 projectileDirection{
+            static_cast<float>(arrow.direction.x),
+            static_cast<float>(arrow.direction.y),
+            static_cast<float>(arrow.direction.z)};
+        if (arrow.turretBullet) {
+            (void)renderer_->drawTurretBullet(
+                projectilePosition, projectileDirection);
+        } else {
+            (void)renderer_->drawArrow(
+                projectilePosition, projectileDirection);
+        }
     }
     for (const auto& projectile : snapshot.bombProjectiles) {
         if (projectile.active) {
@@ -1073,7 +1125,7 @@ void App::drawWorldEntities(
             0.0F, 1.0F);
         if (effect.type == PresentationEffectType::EnemyHitImpact) {
             const float flashStrength = std::clamp(
-                std::pow(remainingFraction, 0.42F) * effect.scale,
+                std::pow(remainingFraction, 0.42F) * effect.scale * 0.48F,
                 0.0F, 1.0F);
             auto [entry, inserted] =
                 enemyHitFlashById_.try_emplace(
@@ -1094,7 +1146,10 @@ void App::drawWorldEntities(
         }
     }
     for (const auto& enemy : snapshot.enemies) {
-        if (!enemy.active) {
+        const bool splitting =
+            enemy.type == EnemyType::Splitter &&
+            enemy.splitAnimationRemaining > 0.0;
+        if (!enemy.active && !splitting) {
             continue;
         }
         const Vector3 cullPosition = enemyRenderPosition(enemy);
@@ -1144,7 +1199,20 @@ void App::drawWorldEntities(
         const bool burning = enemyBurnAmountById_.contains(
             effectKey(enemy.id));
         Color modelTint = WHITE;
-        if (frozen) {
+        if (splitting) {
+            const float progress = std::clamp(
+                static_cast<float>(
+                    1.0 - enemy.splitAnimationRemaining / 0.38),
+                0.0F, 1.0F);
+            modelTint = {
+                255,
+                static_cast<unsigned char>(
+                    std::lround(238.0F - progress * 72.0F)),
+                static_cast<unsigned char>(
+                    std::lround(184.0F - progress * 86.0F)),
+                255,
+            };
+        } else if (frozen) {
             modelTint = {151, 224, 255, 255};
         } else if (burning) {
             modelTint = {255, 118, 42, 255};
@@ -1214,7 +1282,8 @@ void App::drawWorldEntities(
             enemyDrawInstances_.push_back({
                 .modelVisual = enemyModelVisual(enemy.type),
                 .animationVisual =
-                    frozen ? EnemyAnimationVisual::Idle
+                    frozen || splitting
+                        ? EnemyAnimationVisual::Idle
                            : enemyAnimationVisual(enemy),
                 .animationSeconds = animationTime,
                 .position = enemyPosition,
@@ -1281,7 +1350,8 @@ void App::drawWorldEntities(
         }
         if (!renderer_->drawEnemy(
                 enemyModelVisual(enemy.type),
-                frozen ? EnemyAnimationVisual::Idle
+                frozen || splitting
+                    ? EnemyAnimationVisual::Idle
                        : enemyAnimationVisual(enemy),
                 frozen ? 0.0F : enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),

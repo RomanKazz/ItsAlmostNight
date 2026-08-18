@@ -29,8 +29,10 @@ bool buildingBlocksPlayer(
     case BuildingType::Gate:
         return !building.open;
     case BuildingType::Turret:
+    case BuildingType::GunTurret:
     case BuildingType::CrystalMine:
     case BuildingType::Cannon:
+    case BuildingType::Catapult:
     case BuildingType::SlowTrap:
     case BuildingType::SpikeTrap:
     case BuildingType::LumberMill:
@@ -279,10 +281,18 @@ CollisionWorld::CollisionWorld(double worldLimit, std::vector<CollisionBox> stat
 void CollisionWorld::reset() {
     buildingColliders_.clear();
     modularColliders_.clear();
+    worldLandmarkColliders_.clear();
     rampPlacementColliders_.clear();
     resourceCylinders_.clear();
     buildingSurfaces_.clear();
     modularSurfaces_.clear();
+    rebuildColliders();
+}
+
+void CollisionWorld::syncWorldLandmarks(
+    std::span<const CollisionBox> landmarks) {
+    worldLandmarkColliders_.assign(
+        landmarks.begin(), landmarks.end());
     rebuildColliders();
 }
 
@@ -594,7 +604,8 @@ void CollisionWorld::rebuildColliders() {
     colliders_.reserve(
         staticColliders_.size() +
         buildingColliders_.size() +
-        modularColliders_.size());
+        modularColliders_.size() +
+        worldLandmarkColliders_.size());
     colliders_.insert(
         colliders_.end(),
         staticColliders_.begin(), staticColliders_.end());
@@ -606,6 +617,10 @@ void CollisionWorld::rebuildColliders() {
         colliders_.end(),
         modularColliders_.begin(),
         modularColliders_.end());
+    colliders_.insert(
+        colliders_.end(),
+        worldLandmarkColliders_.begin(),
+        worldLandmarkColliders_.end());
     colliderBroadphase_.reset(worldLimit_);
     for (std::size_t index = 0; index < colliders_.size(); ++index) {
         const CollisionBox& box = colliders_[index];

@@ -1060,9 +1060,13 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     }
     cannonModel_.load("assets/models/buildings/cannon.glb");
     cannonballModel_.load("assets/models/projectiles/cannonball.glb");
+    catapultModel_.load("assets/models/buildings/catapult.glb");
+    catapultBallModel_.load("assets/models/projectiles/catapult_ball.glb");
     arrowModel_.load("assets/models/projectiles/arrow.glb");
     sawBladeModel_.load("assets/models/projectiles/saw_blade.glb");
     crossbowModel_.load("assets/models/weapons/crossbow.glb");
+    gunTurretModel_.load("assets/models/buildings/gun_turret.glb");
+    turretBulletModel_.load("assets/models/projectiles/turret_bullet.glb");
     coreModel_.load("assets/models/buildings/core.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
@@ -1077,6 +1081,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/challenges/skull_column.glb");
     challengeArenaPegModel_.load(
         "assets/models/challenges/arena_peg.glb");
+    worldLandmarkModels_[0].load(
+        "assets/models/world_landmarks/abandoned_mine.glb");
+    worldLandmarkModels_[1].load(
+        "assets/models/world_landmarks/abandoned_lumbermill.glb");
     coinModels_[0].load("assets/models/coins/coin-bronze.glb");
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
     coinModels_[2].load("assets/models/coins/coin-high-value.glb");
@@ -1430,6 +1438,7 @@ void GraphicsResources::shutdown() {
     stoneChestModel_.unload();
     challengeColumnModel_.unload();
     challengeArenaPegModel_.unload();
+    for (auto& model : worldLandmarkModels_) model.unload();
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();
@@ -1452,10 +1461,14 @@ void GraphicsResources::shutdown() {
     axeModel_.unload();
     coreModel_.unload();
     crossbowModel_.unload();
+    gunTurretModel_.unload();
+    turretBulletModel_.unload();
     sawBladeModel_.unload();
     arrowModel_.unload();
     cannonballModel_.unload();
     cannonModel_.unload();
+    catapultBallModel_.unload();
+    catapultModel_.unload();
     placeholderModel_.unload();
     terrainTexture_.unload();
     for (auto& texture : skyboxTextures_) texture.unload();

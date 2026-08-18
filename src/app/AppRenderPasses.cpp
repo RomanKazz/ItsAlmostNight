@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
 #include <raylib.h>
@@ -292,6 +293,15 @@ void App::drawShadowPass(
                  static_cast<float>(column.position.z)},
                 static_cast<float>(column.yaw), WHITE, scale));
         }
+        for (const WorldLandmarkInstance& landmark :
+             snapshot.worldLandmarks) {
+            static_cast<void>(renderer_->drawWorldLandmark(
+                static_cast<std::size_t>(landmark.type),
+                {static_cast<float>(landmark.position.x),
+                 static_cast<float>(landmark.position.y),
+                 static_cast<float>(landmark.position.z)},
+                static_cast<float>(landmark.yaw), WHITE));
+        }
 
         const double modularCellSize =
             simulation_.terrain().config().cellSize;
@@ -382,7 +392,8 @@ void App::drawShadowPass(
                 if (!renderer_->drawCrossbow(
                         {x, groundY, z},
                         towerYaw(snapshot, building), WHITE,
-                        spawnScale)) {
+                        spawnScale,
+                        towerPitch(snapshot, building))) {
                     DrawCube({x, groundY + 0.6F, z},
                              1.0F, 1.2F, 1.0F,
                              WHITE);
@@ -393,6 +404,11 @@ void App::drawShadowPass(
                               z - 0.55F}, 0.18F,
                              0.18F, 1.0F, WHITE);
                 }
+            } else if (building.type == BuildingType::GunTurret) {
+                static_cast<void>(renderer_->drawGunTurret(
+                    {x, groundY, z},
+                    towerBaseYaw(snapshot, building),
+                    towerYaw(snapshot, building), WHITE, spawnScale));
             } else if (
                 building.type == BuildingType::CrystalMine ||
                 building.type == BuildingType::LumberMill ||
@@ -423,6 +439,15 @@ void App::drawShadowPass(
                     DrawCube({x, groundY + 1.45F,
                               z - 0.75F}, 0.28F,
                              0.28F, 1.4F, WHITE);
+                }
+            } else if (building.type == BuildingType::Catapult) {
+                if (!renderer_->drawCatapult(
+                        {x, groundY, z}, cannonYaw(snapshot, building),
+                        cannonPitch(snapshot, building),
+                        cannonLoaded(snapshot, building), WHITE,
+                        spawnScale)) {
+                    DrawCube({x, groundY + 0.45F, z},
+                             1.2F, 0.9F, 1.2F, WHITE);
                 }
             } else if (building.type == BuildingType::SlowTrap) {
                 DrawCube({x, groundY + 0.08F, z},
@@ -495,6 +520,7 @@ void App::drawSelectionPass(
         (hasVisibleLoot || hasEliteEnemies ||
          snapshot.aimedChest || snapshot.aimedResource ||
          snapshot.aimedChallengeColumn ||
+         snapshot.aimedWorldLandmark ||
          snapshot.aimedBuilding || snapshot.aimedEnemy ||
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
@@ -512,9 +538,12 @@ void App::drawSelectionPass(
                         node.id == *snapshot.aimedResource &&
                         node.type == ResourceType::Stone;
                 });
-        if (aimedStone) {
-            // Seed depth with terrain so the mask contains only the part of
-            // an embedded stone that is actually visible above the ground.
+        if (aimedStone || snapshot.aimedBuilding ||
+            snapshot.aimedWorldLandmark ||
+            snapshot.aimedModularBuilding) {
+            // Seed depth with terrain so the mask contains only geometry
+            // that is actually visible above the ground. This clips buried
+            // rock and automatic-building-foundation geometry from outlines.
             renderer_->drawTerrain(BLACK, camera.position);
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
@@ -643,6 +672,27 @@ void App::drawSelectionPass(
                      static_cast<float>(column->position.z)},
                     static_cast<float>(column->yaw), WHITE));
             }
+        } else if (snapshot.aimedWorldLandmark) {
+            const auto landmark = std::find_if(
+                snapshot.worldLandmarks.begin(),
+                snapshot.worldLandmarks.end(),
+                [&snapshot](const WorldLandmarkInstance& value) {
+                    return value.id == *snapshot.aimedWorldLandmark;
+                });
+            if (landmark != snapshot.worldLandmarks.end()) {
+                const Vector3 position{
+                    static_cast<float>(landmark->position.x),
+                    static_cast<float>(landmark->position.y),
+                    static_cast<float>(landmark->position.z),
+                };
+                renderer_->setSelectionOutlineBounds(
+                    renderer_->worldLandmarkWorldBounds(
+                        static_cast<std::size_t>(landmark->type),
+                        position, static_cast<float>(landmark->yaw)));
+                static_cast<void>(renderer_->drawWorldLandmark(
+                    static_cast<std::size_t>(landmark->type),
+                    position, static_cast<float>(landmark->yaw), WHITE));
+            }
         } else if (snapshot.aimedResource) {
             const auto resource = std::find_if(
                 snapshot.resourceNodes.begin(),
@@ -747,23 +797,29 @@ void App::drawSelectionPass(
                 const Vec3 impact =
                     buildingImpactOffsetAt(building->id);
                 float defensiveYaw = 0.0F;
-                if (building->type == BuildingType::Turret) {
+                if (building->type == BuildingType::Turret ||
+                    building->type == BuildingType::GunTurret) {
                     defensiveYaw =
                         towerYaw(snapshot, *building);
                 } else if (
-                    building->type == BuildingType::Cannon) {
+                    building->type == BuildingType::Cannon ||
+                    building->type == BuildingType::Catapult) {
                     defensiveYaw =
                         cannonYaw(snapshot, *building);
                 }
                 const Vec3 shotRecoil =
                     buildingShotRecoilOffsetAt(
                         building->id, defensiveYaw);
+                const bool pivotOnlyRecoil =
+                    building->type == BuildingType::GunTurret;
                 const float x =
                     static_cast<float>(
-                        center.x + impact.x + shotRecoil.x);
+                        center.x + impact.x +
+                        (pivotOnlyRecoil ? 0.0 : shotRecoil.x));
                 const float z =
                     static_cast<float>(
-                        center.z + impact.z + shotRecoil.z);
+                        center.z + impact.z +
+                        (pivotOnlyRecoil ? 0.0 : shotRecoil.z));
                 const float groundY =
                     static_cast<float>(center.y);
                 const float spawnScale =
@@ -813,7 +869,8 @@ void App::drawSelectionPass(
                     if (!renderer_->drawCrossbow(
                             {x, groundY, z},
                             defensiveYaw,
-                            WHITE, spawnScale)) {
+                            WHITE, spawnScale,
+                            towerPitch(snapshot, *building))) {
                         DrawCube({x, groundY + 0.6F, z},
                                  1.0F, 1.2F,
                                  1.0F, WHITE);
@@ -826,6 +883,12 @@ void App::drawSelectionPass(
                              z - 0.55F}, 0.18F,
                             0.18F, 1.0F, WHITE);
                     }
+                } else if (building->type == BuildingType::GunTurret) {
+                    static_cast<void>(renderer_->drawGunTurret(
+                        {x, groundY, z},
+                        towerBaseYaw(snapshot, *building),
+                        defensiveYaw, WHITE, spawnScale,
+                        shotRecoil));
                 } else if (
                     building->type ==
                         BuildingType::CrystalMine ||
@@ -865,6 +928,16 @@ void App::drawSelectionPass(
                             {x, groundY + 1.45F,
                              z - 0.75F}, 0.28F,
                             0.28F, 1.4F, WHITE);
+                    }
+                } else if (building->type ==
+                           BuildingType::Catapult) {
+                    if (!renderer_->drawCatapult(
+                            {x, groundY, z}, defensiveYaw,
+                            cannonPitch(snapshot, *building),
+                            cannonLoaded(snapshot, *building), WHITE,
+                            spawnScale)) {
+                        DrawCube({x, groundY + 0.45F, z},
+                                 1.2F, 0.9F, 1.2F, WHITE);
                     }
                 } else if (building->type ==
                            BuildingType::SlowTrap) {

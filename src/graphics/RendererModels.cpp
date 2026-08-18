@@ -1,4 +1,6 @@
 #include "graphics/Renderer.hpp"
+#include "buildings/CannonRig.hpp"
+#include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
@@ -987,33 +989,31 @@ bool Renderer::drawCannon(Vector3 position, float yawRadians,
         }
     }
 
-    constexpr float ModelScale = 3.0F;
-    constexpr float GroundOffset = 0.155F;
-    constexpr float ModelForwardOffset = PI;
-    position.y += GroundOffset;
-
     if (model.meshCount < 2) {
         DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                    (yawRadians + ModelForwardOffset) * RAD2DEG,
-                    {ModelScale * scaleFactor,
-                     ModelScale * scaleFactor,
-                     ModelScale * scaleFactor},
+                    yawRadians * RAD2DEG,
+                    {scaleFactor, scaleFactor, scaleFactor},
                     tint);
         return true;
     }
 
-    const Matrix scale = MatrixScale(
-        ModelScale * scaleFactor, ModelScale * scaleFactor,
-        ModelScale * scaleFactor);
-    const Matrix yaw =
-        MatrixRotateY(yawRadians + ModelForwardOffset);
-    const Matrix pitch = MatrixRotateX(pitchRadians);
+    const Matrix scale =
+        MatrixScale(scaleFactor, scaleFactor, scaleFactor);
+    const Matrix yaw = MatrixRotateY(yawRadians);
+    const Matrix localPitch = MatrixMultiply(
+        MatrixMultiply(
+            MatrixTranslate(
+                0.0F, -static_cast<float>(CannonPitchPivotY), 0.0F),
+            MatrixRotateX(pitchRadians)),
+        MatrixTranslate(
+            0.0F, static_cast<float>(CannonPitchPivotY), 0.0F));
     const Matrix translation =
         MatrixTranslate(position.x, position.y, position.z);
     const Matrix baseTransform =
         MatrixMultiply(MatrixMultiply(scale, yaw), translation);
     const Matrix barrelTransform = MatrixMultiply(
-        MatrixMultiply(MatrixMultiply(scale, pitch), yaw), translation);
+        MatrixMultiply(MatrixMultiply(scale, localPitch), yaw),
+        translation);
 
     const auto drawMesh = [&model, tint](int meshIndex,
                                          Matrix transform) {
@@ -1028,7 +1028,8 @@ bool Renderer::drawCannon(Vector3 position, float yawRadians,
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
 
-    // glTF order: barrel.002 (0), weapon-cannon/base (1).
+    // The authored collider is stripped, leaving the pitch-pivot barrel
+    // first and the yaw-only body second.
     drawMesh(1, baseTransform);
     drawMesh(0, barrelTransform);
     for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
@@ -1062,7 +1063,109 @@ bool Renderer::drawCannonball(Vector3 position, Color tint) {
         }
     }
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {1.5F, 1.5F, 1.5F}, tint);
+                {1.0F, 1.0F, 1.0F}, tint);
+    return true;
+}
+
+bool Renderer::drawCatapult(
+    Vector3 position, float yawRadians, float armPitchRadians,
+    bool loaded, Color tint, float scaleFactor) {
+    auto& resource = resources_.catapultModel();
+    if (!resource.valid()) return false;
+
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+
+    if (model.meshCount < 2) {
+        DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
+                    yawRadians * RAD2DEG,
+                    {scaleFactor, scaleFactor, scaleFactor}, tint);
+    } else {
+        const Matrix scale =
+            MatrixScale(scaleFactor, scaleFactor, scaleFactor);
+        const Matrix yaw = MatrixRotateY(yawRadians);
+        const Matrix localPitch = MatrixMultiply(
+            MatrixMultiply(
+                MatrixTranslate(
+                    0.0F, -static_cast<float>(CatapultPitchPivotY), 0.0F),
+                MatrixRotateX(armPitchRadians)),
+            MatrixTranslate(
+                0.0F, static_cast<float>(CatapultPitchPivotY), 0.0F));
+        const Matrix translation =
+            MatrixTranslate(position.x, position.y, position.z);
+        const Matrix bodyTransform =
+            MatrixMultiply(MatrixMultiply(scale, yaw), translation);
+        const Matrix armTransform = MatrixMultiply(
+            MatrixMultiply(MatrixMultiply(scale, localPitch), yaw),
+            translation);
+        const auto drawMesh = [&model, tint](int meshIndex,
+                                             Matrix transform) {
+            const int materialIndex = model.meshMaterial[meshIndex];
+            Material& material = model.materials[materialIndex];
+            const Color original =
+                material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color =
+                ColorTint(original, tint);
+            DrawMesh(model.meshes[meshIndex], material,
+                     MatrixMultiply(model.transform, transform));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        };
+        // The collision mesh is stripped at import: the throwing arm is
+        // first, while the remaining body only follows yaw.
+        drawMesh(0, armTransform);
+        drawMesh(1, bodyTransform);
+        for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
+            drawMesh(meshIndex, bodyTransform);
+        }
+    }
+
+    if (loaded) {
+        const Vec3 base{position.x, position.y, position.z};
+        Vec3 socket = catapultMuzzleWorldPosition(
+            base, yawRadians, armPitchRadians);
+        socket.x = base.x + (socket.x - base.x) * scaleFactor;
+        socket.y = base.y + (socket.y - base.y) * scaleFactor;
+        socket.z = base.z + (socket.z - base.z) * scaleFactor;
+        static_cast<void>(drawCatapultBall(
+            {static_cast<float>(socket.x), static_cast<float>(socket.y),
+             static_cast<float>(socket.z)}, tint));
+    }
+    return true;
+}
+
+bool Renderer::drawCatapultBall(Vector3 position, Color tint) {
+    auto& resource = resources_.catapultBallModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
+                {1.0F, 1.0F, 1.0F}, tint);
     return true;
 }
 
@@ -1089,28 +1192,17 @@ bool Renderer::drawArrow(Vector3 position, Vector3 direction, Color tint) {
     }
 
     const Vector3 forward = Vector3Normalize(direction);
-    const Vector3 referenceUp =
-        std::abs(Vector3DotProduct(forward, {0.0F, 1.0F, 0.0F})) > 0.98F
-            ? Vector3{1.0F, 0.0F, 0.0F}
-            : Vector3{0.0F, 1.0F, 0.0F};
-    const Vector3 right =
-        Vector3Normalize(Vector3CrossProduct(referenceUp, forward));
-    const Vector3 up = Vector3CrossProduct(forward, right);
-    Matrix rotation = MatrixIdentity();
-    rotation.m0 = right.x;
-    rotation.m1 = right.y;
-    rotation.m2 = right.z;
-    rotation.m4 = up.x;
-    rotation.m5 = up.y;
-    rotation.m6 = up.z;
-    rotation.m8 = forward.x;
-    rotation.m9 = forward.y;
-    rotation.m10 = forward.z;
+    const float yaw = std::atan2(-forward.x, -forward.z);
+    const float horizontal = std::hypot(forward.x, forward.z);
+    const float pitch = std::atan2(forward.y, horizontal);
 
-    constexpr float ArrowScale = 1.2F;
+    constexpr float ArrowScale = 1.0F;
     const Matrix transform = MatrixMultiply(
         MatrixMultiply(
-            MatrixScale(ArrowScale, ArrowScale, ArrowScale), rotation),
+            MatrixMultiply(
+                MatrixScale(ArrowScale, ArrowScale, ArrowScale),
+                MatrixRotateX(pitch)),
+            MatrixRotateY(yaw)),
         MatrixTranslate(position.x, position.y, position.z));
     for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
         const int materialIndex = model.meshMaterial[meshIndex];
@@ -1127,7 +1219,8 @@ bool Renderer::drawArrow(Vector3 position, Vector3 direction, Color tint) {
 }
 
 bool Renderer::drawCrossbow(Vector3 position, float yawRadians,
-                            Color tint, float scale) {
+                            Color tint, float scale,
+                            float pitchRadians) {
     auto& resource = resources_.crossbowModel();
     if (!resource.valid()) {
         return false;
@@ -1147,15 +1240,171 @@ bool Renderer::drawCrossbow(Vector3 position, float yawRadians,
             model.materials[index].shader = *shader;
         }
     }
-    constexpr float ModelScale = 2.5F;
-    constexpr float GroundOffset = 0.13F;
-    constexpr float ModelForwardOffset = PI;
-    position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                (yawRadians + ModelForwardOffset) * RAD2DEG,
-                {ModelScale * scale, ModelScale * scale,
-                 ModelScale * scale},
-                tint);
+    constexpr float PitchPivotY = 0.14931101F;
+    const Matrix localPitch = MatrixMultiply(
+        MatrixMultiply(
+            MatrixTranslate(0.0F, -PitchPivotY, 0.0F),
+            MatrixRotateX(pitchRadians)),
+        MatrixTranslate(0.0F, PitchPivotY, 0.0F));
+    const Matrix yawTransform = MatrixMultiply(
+        MatrixMultiply(
+            MatrixScale(scale, scale, scale),
+            MatrixRotateY(yawRadians)),
+        MatrixTranslate(position.x, position.y, position.z));
+    const Matrix pitchedTransform = MatrixMultiply(
+        MatrixMultiply(
+            MatrixMultiply(MatrixScale(scale, scale, scale), localPitch),
+            MatrixRotateY(yawRadians)),
+        MatrixTranslate(position.x, position.y, position.z));
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        // After the authored collider is stripped, mesh 0 is the complete
+        // upper assembly named "arrow" under pitch_pivot. Mesh 1 is the
+        // yaw-only lower weapon body.
+        DrawMesh(model.meshes[meshIndex], material,
+                 MatrixMultiply(model.transform,
+                     meshIndex == 0 ? pitchedTransform : yawTransform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    return true;
+}
+
+Vec3 Renderer::crossbowMuzzlePosition(
+    Vec3 position, float yawRadians, float pitchRadians) const {
+    constexpr double PivotY = 0.14931100606918335;
+    constexpr Vec3 AuthoredMuzzle{
+        0.0, 0.7464950680732727, -0.1994807869195938};
+    const double relativeY = AuthoredMuzzle.y - PivotY;
+    const double cosinePitch = std::cos(static_cast<double>(pitchRadians));
+    const double sinePitch = std::sin(static_cast<double>(pitchRadians));
+    const double pitchedY =
+        PivotY + relativeY * cosinePitch - AuthoredMuzzle.z * sinePitch;
+    const double pitchedZ =
+        relativeY * sinePitch + AuthoredMuzzle.z * cosinePitch;
+    const double cosineYaw = std::cos(static_cast<double>(yawRadians));
+    const double sineYaw = std::sin(static_cast<double>(yawRadians));
+    return {
+        position.x + pitchedZ * sineYaw,
+        position.y + pitchedY,
+        position.z + pitchedZ * cosineYaw,
+    };
+}
+
+bool Renderer::drawGunTurret(Vector3 position, float baseYawRadians,
+                             float barrelYawRadians, Color tint,
+                             float scale, Vec3 barrelRecoilOffset) {
+    auto& resource = resources_.gunTurretModel();
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    if (model.meshCount <= 0 || model.meshes == nullptr ||
+        model.meshMaterial == nullptr || model.materials == nullptr) {
+        return false;
+    }
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    const auto transformFor = [position, scale](float yaw, Vec3 offset) {
+        return MatrixMultiply(
+            MatrixMultiply(MatrixScale(scale, scale, scale),
+                           MatrixRotateY(yaw)),
+            MatrixTranslate(
+                position.x + static_cast<float>(offset.x),
+                position.y + static_cast<float>(offset.y),
+                position.z + static_cast<float>(offset.z)));
+    };
+    const Matrix baseTransform = transformFor(baseYawRadians, {});
+    const Matrix barrelTransform = transformFor(
+        barrelYawRadians, barrelRecoilOffset);
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint(original, tint);
+        // Collider is stripped while loading. Visible GLB order is base,
+        // then the barrel under yaw_pivot.
+        DrawMesh(model.meshes[meshIndex], material,
+                 MatrixMultiply(model.transform,
+                     meshIndex == 1 ? barrelTransform : baseTransform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    return true;
+}
+
+Vec3 Renderer::gunTurretMuzzlePosition(
+    Vec3 position, float yawRadians, std::size_t muzzleIndex) {
+    const auto& sockets =
+        resources_.gunTurretModel().collisionAsset().sockets;
+    if (sockets.empty()) {
+        return {position.x, position.y + 0.7, position.z};
+    }
+    const Vec3 local = sockets[muzzleIndex % sockets.size()].position;
+    const double cosine = std::cos(static_cast<double>(yawRadians));
+    const double sine = std::sin(static_cast<double>(yawRadians));
+    return {
+        position.x + local.x * cosine + local.z * sine,
+        position.y + local.y,
+        position.z - local.x * sine + local.z * cosine,
+    };
+}
+
+bool Renderer::drawTurretBullet(Vector3 position, Vector3 direction,
+                                Color tint) {
+    auto& resource = resources_.turretBulletModel();
+    if (!resource.valid() ||
+        Vector3LengthSqr(direction) <= 0.000001F) return false;
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    const Vector3 forward = Vector3Normalize(direction);
+    const float yaw = std::atan2(-forward.x, -forward.z);
+    const float horizontal = std::sqrt(
+        forward.x * forward.x + forward.z * forward.z);
+    const float pitch = std::atan2(forward.y, horizontal);
+    const Matrix transform = MatrixMultiply(
+        MatrixMultiply(MatrixRotateX(pitch), MatrixRotateY(yaw)),
+        MatrixTranslate(position.x, position.y, position.z));
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        const int materialIndex = model.meshMaterial[meshIndex];
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        const Texture2D originalTexture =
+            material.maps[MATERIAL_MAP_DIFFUSE].texture;
+        if (resources_.fallbackTexture().valid()) {
+            material.maps[MATERIAL_MAP_DIFFUSE].texture =
+                resources_.fallbackTexture().get();
+        }
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint({255, 190, 86, 255}, tint);
+        DrawMesh(model.meshes[meshIndex], material,
+                 MatrixMultiply(model.transform, transform));
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        material.maps[MATERIAL_MAP_DIFFUSE].texture = originalTexture;
+    }
     return true;
 }
 
@@ -1249,6 +1498,68 @@ bool Renderer::drawChallengeArenaPeg(
         model, position, {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
         {modelScale * scale, modelScale * scale, modelScale * scale}, tint);
     return true;
+}
+
+bool Renderer::drawWorldLandmark(
+    std::size_t variant, Vector3 position,
+    float yawRadians, Color tint, float scale) {
+    auto& resource = resources_.worldLandmarkModel(variant);
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    if (shader != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    const BoundingBox bounds = resource.visualBounds();
+    const float authoredHeight = std::max(
+        0.001F, bounds.max.y - bounds.min.y);
+    constexpr float TargetHeight = 6.76F;
+    const float modelScale = TargetHeight / authoredHeight;
+    position.y -= bounds.min.y * modelScale * scale;
+    DrawModelEx(
+        model, position, {0.0F, 1.0F, 0.0F},
+        yawRadians * RAD2DEG,
+        {modelScale * scale, modelScale * scale,
+         modelScale * scale},
+        tint);
+    return true;
+}
+
+BoundingBox Renderer::worldLandmarkWorldBounds(
+    std::size_t variant, Vector3 position,
+    float yawRadians, float scale) {
+    ModelResource& resource = resources_.worldLandmarkModel(variant);
+    if (!resource.valid() || !world_transforms::finite(position) ||
+        !std::isfinite(yawRadians) || !std::isfinite(scale) ||
+        scale <= 0.0F) {
+        return {};
+    }
+    const BoundingBox localBounds = resource.visualBounds();
+    const float authoredHeight = std::max(
+        0.001F, localBounds.max.y - localBounds.min.y);
+    constexpr float TargetHeight = 6.76F;
+    const float modelScale = TargetHeight / authoredHeight * scale;
+    position.y -= localBounds.min.y * modelScale;
+    const Matrix transform = MatrixMultiply(
+        resource.get().transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(position.x, position.y, position.z)));
+    return world_transforms::transformBounds(localBounds, transform);
 }
 
 bool Renderer::drawMine(Vector3 position, float yawRadians,

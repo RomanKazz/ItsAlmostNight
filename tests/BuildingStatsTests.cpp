@@ -18,8 +18,12 @@ void runBuildingStatsTests() {
         coreComparison.current.defenseBuildingLimit == 3.0 &&
             coreComparison.next->defenseBuildingLimit == 5.0 &&
             coreComparison.current.producerPerTypeLimit == 1.0 &&
-            coreComparison.next->producerPerTypeLimit == 2.0,
-        "core upgrade preview exposes increased building limits");
+            coreComparison.next->producerPerTypeLimit == 2.0 &&
+            coreComparison.current.woodCapacity == 60.0 &&
+            coreComparison.next->woodCapacity == 100.0 &&
+            coreComparison.next->stoneCapacity == 60.0 &&
+            coreComparison.next->crystalCapacity == 25.0,
+        "core upgrade preview exposes building and storage growth");
     const ian::BuildingInstance turret{
         .id = ian::EntityId{1, 0},
         .type = ian::BuildingType::Turret,
@@ -37,8 +41,12 @@ void runBuildingStatsTests() {
     require(
         comparison.current.attackDamage.has_value() &&
             comparison.current.attackRange.has_value() &&
-            comparison.current.attacksPerSecond.has_value(),
-        "turret stats expose combat values");
+            comparison.current.attackArcDegrees == 100.0 &&
+            comparison.next->attackArcDegrees == 110.0 &&
+            comparison.current.attacksPerSecond.has_value() &&
+            comparison.current.piercingCount == 2.0 &&
+            comparison.next->piercingCount == 3.0,
+        "turret stats expose combat values and upgradeable firing arc");
     requireNear(
         comparison.previous->maxHealth, 100.0, 1e-9,
         "building stats recover base level health");

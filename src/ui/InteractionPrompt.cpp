@@ -355,7 +355,8 @@ void InteractionPromptRenderer::drawPrompt(
         prompt.actionText, {textX, textY}, mainFontSize,
         {246, 239, 224, 255}, opacity);
     const UiResourceIcon costIcon =
-        prompt.targetKind == InteractionPromptTargetKind::Chest
+        (prompt.targetKind == InteractionPromptTargetKind::Chest ||
+         prompt.targetKind == InteractionPromptTargetKind::Landmark)
             ? UiResourceIcon::Coin
             : UiResourceIcon::Crystal;
 

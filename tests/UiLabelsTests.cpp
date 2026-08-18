@@ -20,6 +20,7 @@ void runUiLabelsTests() {
         ian::BuildingType::WoodStorage,
         ian::BuildingType::StoneStorage,
         ian::BuildingType::CrystalStorage,
+        ian::BuildingType::GunTurret,
     };
     for (const ian::BuildingType type : BuildingTypes) {
         require(

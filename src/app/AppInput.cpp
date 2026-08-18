@@ -1,7 +1,9 @@
 #include "app/App.hpp"
 #include "app/ActionModeEquipment.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingHotbarLayout.hpp"
 
+#include "buildings/BuildingOrientation.hpp"
 #include "buildings/RampPlacementDirection.hpp"
 #include "ui/UiText.hpp"
 
@@ -151,6 +153,11 @@ void App::processInput() {
             DisableCursor();
             audio_.playUiConfirm();
         }
+    }
+    if (pendingRestartFromUi_) {
+        pendingRestartFromUi_ = false;
+        automaticRunRestartPending_ = true;
+        audio_.playUiConfirm();
     }
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
@@ -353,7 +360,10 @@ void App::processInput() {
     }
     if (snapshot.state != RunState::MainMenu &&
         (automaticRunRestartPending_ ||
-         keyPressed(userSettings_.controls, ControlAction::Restart))) {
+         (snapshot.state == RunState::Defeat &&
+          keyPressed(
+              userSettings_.controls,
+              ControlAction::Restart)))) {
         automaticRunRestartPending_ = false;
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
@@ -454,6 +464,7 @@ void App::processInput() {
         lastToolSelection_ = PlayerWeapon::BareHands;
         lastWeaponSelection_ = PlayerWeapon::Club;
         foundationBuildMode_ = false;
+        DisableCursor();
     }
     if (snapshot.state != RunState::MainMenu) {
         if (shiftDown &&
@@ -546,14 +557,20 @@ void App::processInput() {
         currentSnapshot.aimedBuilding =
             preciseBuildingAim(
                 *renderer_, currentSnapshot);
+        if (foundationBuildMode_ ||
+            currentSnapshot.selectedBuilding) {
+            currentSnapshot.aimedBuilding.reset();
+        }
         // Building mode keeps the previously equipped weapon in the
-        // simulation.  Ranged weapons intentionally suppress resource aim,
-        // so use hands for the aim test while a build hotbar is active.
+        // simulation, while ranged weapons intentionally suppress resource
+        // aim. Use hands for this aim test in every mode that can switch back
+        // to gathering from resource hover.
         auto resourceAimSnapshot = currentSnapshot;
-        const bool buildingActionMode =
+        const bool resourceAutoSwitchMode =
             actionMode_ == ActionMode::Buildings ||
-            actionMode_ == ActionMode::Modular;
-        if (buildingActionMode) {
+            actionMode_ == ActionMode::Modular ||
+            actionMode_ == ActionMode::Weapons;
+        if (resourceAutoSwitchMode) {
             resourceAimSnapshot.selectedWeapon =
                 PlayerWeapon::BareHands;
         }
@@ -564,7 +581,7 @@ void App::processInput() {
         // Looking directly at a tree or stone while building should be
         // enough to return to gathering.  Prefer the matching unlocked tool;
         // hands remain the universal fallback for a new run.
-        if (buildingActionMode && currentSnapshot.aimedResource) {
+        if (resourceAutoSwitchMode && currentSnapshot.aimedResource) {
             const auto resource = std::ranges::find_if(
                 currentSnapshot.resourceNodes,
                 [&](const ResourceNode& node) {
@@ -595,6 +612,12 @@ void App::processInput() {
         currentSnapshot.aimedModularBuilding =
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
+        currentSnapshot.aimedWorldLandmark =
+            preciseWorldLandmarkAim(
+                *renderer_, currentSnapshot);
+        if (currentSnapshot.selectedBuilding) {
+            currentSnapshot.aimedModularBuilding.reset();
+        }
         interactionResourceAim_ = currentSnapshot.aimedResource;
         input_.overrideAimedBuilding = true;
         input_.aimedBuildingOverride =
@@ -605,6 +628,9 @@ void App::processInput() {
         input_.overrideAimedModularBuilding = true;
         input_.aimedModularBuildingOverride =
             currentSnapshot.aimedModularBuilding;
+        input_.overrideAimedWorldLandmark = true;
+        input_.aimedWorldLandmarkOverride =
+            currentSnapshot.aimedWorldLandmark;
         const std::optional<EntityId> actionBuilding =
             buildingContextCardTarget_
                 ? buildingContextCardTarget_
@@ -649,6 +675,19 @@ void App::processInput() {
             };
         const Vector2 mouseDelta = GetMouseDelta();
         const float wheel = GetMouseWheelMove();
+        std::optional<EntityId> aimedDirectionalDefense;
+        if (!foundationBuildMode_ &&
+            !currentSnapshot.selectedBuilding &&
+            currentSnapshot.aimedBuilding) {
+            const auto aimed = std::ranges::find(
+                currentSnapshot.buildings,
+                *currentSnapshot.aimedBuilding,
+                &BuildingInstance::id);
+            if (aimed != currentSnapshot.buildings.end() &&
+                isDirectionalDefense(aimed->type)) {
+                aimedDirectionalDefense = aimed->id;
+            }
+        }
         if (wallDragStart_) {
             placementDragLookMovement_ +=
                 static_cast<double>(Vector2Length(mouseDelta));
@@ -780,46 +819,24 @@ void App::processInput() {
             const bool shiftHeld =
                 IsKeyDown(KEY_LEFT_SHIFT) ||
                 IsKeyDown(KEY_RIGHT_SHIFT);
-            if (shiftHeld) {
-                if (IsKeyPressed(KEY_ONE)) {
-                    selectBuildingMode(BuildingType::WoodStorage);
-                }
-                if (IsKeyPressed(KEY_TWO)) {
-                    selectBuildingMode(BuildingType::StoneStorage);
-                }
-                if (IsKeyPressed(KEY_THREE)) {
-                    selectBuildingMode(BuildingType::CrystalStorage);
-                }
-            } else {
-                if (IsKeyPressed(KEY_ONE)) {
-                    selectBuildingMode(BuildingType::Core);
-                }
-                if (IsKeyPressed(KEY_TWO)) {
-                    selectBuildingMode(BuildingType::Wall);
-                }
-                if (IsKeyPressed(KEY_THREE)) {
-                    selectBuildingMode(BuildingType::Turret);
-                }
-                if (IsKeyPressed(KEY_FOUR)) {
-                    selectBuildingMode(BuildingType::CrystalMine);
-                }
-                if (IsKeyPressed(KEY_FIVE)) {
-                    selectBuildingMode(BuildingType::Cannon);
-                }
-                if (IsKeyPressed(KEY_SIX)) {
-                    selectBuildingMode(BuildingType::SlowTrap);
-                }
-                if (IsKeyPressed(KEY_SEVEN)) {
-                    selectBuildingMode(BuildingType::Gate);
-                }
-                if (IsKeyPressed(KEY_EIGHT)) {
-                    selectBuildingMode(BuildingType::LumberMill);
-                }
-                if (IsKeyPressed(KEY_NINE)) {
-                    selectBuildingMode(BuildingType::Quarry);
-                }
-                if (IsKeyPressed(KEY_ZERO)) {
-                    selectBuildingMode(BuildingType::SpikeTrap);
+            constexpr std::array<int, 10> BuildingKeys{
+                KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
+                KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO,
+            };
+            const BuildingHotbarLayout layout =
+                makeBuildingHotbarLayout(
+                    currentSnapshot.unlockedBuildings);
+            const std::size_t keyOffset = shiftHeld ? 10U : 0U;
+            const std::size_t keyCount = std::min(
+                BuildingKeys.size(),
+                layout.count > keyOffset
+                    ? layout.count - keyOffset
+                    : 0U);
+            for (std::size_t keyIndex = 0;
+                 keyIndex < keyCount; ++keyIndex) {
+                if (IsKeyPressed(BuildingKeys[keyIndex])) {
+                    selectBuildingMode(
+                        layout.types[keyOffset + keyIndex]);
                 }
             }
         } else {
@@ -846,7 +863,8 @@ void App::processInput() {
                 ++visibleSlot;
             }
             const float hotbarWheel = wheel;
-            if (std::abs(hotbarWheel) > 0.01F) {
+            if (std::abs(hotbarWheel) > 0.01F &&
+                !aimedDirectionalDefense) {
                 // Wheel up moves left, wheel down moves right, matching the
                 // visible slot order in the current tools/weapons hotbar.
                 selectNextActionModeItem(
@@ -1194,7 +1212,8 @@ void App::processInput() {
                        ControlAction::Interact)) {
             if (currentSnapshot.aimedChest ||
                 currentSnapshot.aimedLoot ||
-                currentSnapshot.aimedChallengeColumn) {
+                currentSnapshot.aimedChallengeColumn ||
+                currentSnapshot.aimedWorldLandmark) {
                 pendingInteract_ = true;
             } else if (!currentSnapshot.selectedBuilding &&
                        actionBuilding) {
@@ -1202,16 +1221,25 @@ void App::processInput() {
                     ToggleGateCommand{*actionBuilding};
             }
         }
+        const bool rotateKeyPressed = IsKeyPressed(KEY_R);
+        const bool reverseRotateKey =
+            rotateKeyPressed &&
+            (IsKeyDown(KEY_LEFT_SHIFT) ||
+             IsKeyDown(KEY_RIGHT_SHIFT));
         if (foundationBuildMode_ ||
-            currentSnapshot.selectedBuilding) {
+            currentSnapshot.selectedBuilding ||
+            aimedDirectionalDefense) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
                     static_cast<double>(wheel),
                 -1.0, 1.0);
-            if (buildingRotationCooldownRemaining_ <= 0.0 &&
-                std::abs(buildingRotationWheelAccumulator_) >= 1.0) {
-                const int direction =
-                    buildingRotationWheelAccumulator_ > 0.0
+            const bool wheelRotationReady =
+                buildingRotationCooldownRemaining_ <= 0.0 &&
+                std::abs(buildingRotationWheelAccumulator_) >= 1.0;
+            if (rotateKeyPressed || wheelRotationReady) {
+                const int direction = rotateKeyPressed
+                    ? (reverseRotateKey ? -1 : 1)
+                    : buildingRotationWheelAccumulator_ > 0.0
                         ? 1
                         : -1;
                 if (foundationBuildMode_) {
@@ -1240,12 +1268,20 @@ void App::processInput() {
                                 rampSocketLostGraceRemaining_,
                                 RampSocketLostGraceSeconds);
                     }
-                } else {
+                } else if (
+                    currentSnapshot.selectedBuilding &&
+                    supportsManualBuildingRotation(
+                        *currentSnapshot.selectedBuilding)) {
                     pendingBuildingRotation_ +=
                         direction;
+                } else if (aimedDirectionalDefense) {
+                    pendingPlacedBuildingRotation_ =
+                        RotatePlacedBuildingCommand{
+                            *aimedDirectionalDefense,
+                            direction};
                 }
                 buildingRotationWheelAccumulator_ = 0.0;
-                buildingRotationCooldownRemaining_ = 0.2;
+                buildingRotationCooldownRemaining_ = 0.16;
             }
         } else {
             buildingRotationWheelAccumulator_ = 0.0;
