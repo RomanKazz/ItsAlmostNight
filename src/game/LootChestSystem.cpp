@@ -621,17 +621,17 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::IronBar:
         return "+12 regenerating armor; recharges after 5s";
     case LootUpgradeEffect::FuelJerrycan:
-        return "+8% producer speed per stack (max +40%)";
+        return "Player attacks ignite enemies; stacks increase burn damage";
     case LootUpgradeEffect::Compass:
         return "Points to nearby chests; range grows per stack";
     case LootUpgradeEffect::Nail:
         return "Every 5th hit chains lightning; stacks improve frequency, damage and jumps";
     case LootUpgradeEffect::Key:
-        return "First paid chest each day is free; extra stacks: -5% chest cost (max -25%)";
+        return "First chest each day is free; extra stacks grant one free daily reroll";
     case LootUpgradeEffect::Map:
         return "Reveals chests; boss waves add one per stack";
     case LootUpgradeEffect::Anvil:
-        return "New towers: +10% damage and health";
+        return "Fully repairing a structure releases a knockback shockwave";
     case LootUpgradeEffect::Saw:
         return "Destroyed trees launch spinning saw blades into nearby resources";
     case LootUpgradeEffect::Potion:

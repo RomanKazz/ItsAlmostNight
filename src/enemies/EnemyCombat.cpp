@@ -413,6 +413,41 @@ std::span<const EntityId> EnemySystem::applySlowInRadius(Vec3 position, double r
     return statusTargetBuffer_;
 }
 
+std::span<const EntityId> EnemySystem::knockbackInRadius(
+    Vec3 position, double radius, double strength) {
+    statusTargetBuffer_.clear();
+    if (radius <= 0.0 || strength <= 0.0) {
+        return statusTargetBuffer_;
+    }
+    rebuildSpatialIndex();
+    const double queryRadius =
+        radius + enemyCapsule(EnemyType::Boss).radius;
+    spatialHash_.forEachNearby(
+        position, queryRadius, [&](const SpatialEntry& entry) {
+            EnemyInstance* enemy = findEnemy(entry.id);
+            if (enemy == nullptr || !enemy->active) return;
+            double offsetX = enemy->position.x - position.x;
+            double offsetZ = enemy->position.z - position.z;
+            double distance = std::hypot(offsetX, offsetZ);
+            const double surfaceDistance = std::max(
+                0.0, distance - enemyCapsule(enemy->type).radius);
+            if (surfaceDistance > radius) return;
+            if (distance <= 1e-9) {
+                offsetX = (enemy->id.index % 2U) == 0U ? -1.0 : 1.0;
+                offsetZ = 0.0;
+                distance = 1.0;
+            }
+            const double falloff = std::max(
+                0.18, 1.0 - surfaceDistance / radius);
+            const double impulse = strength * falloff *
+                knockbackMultiplier(enemy->type);
+            enemy->knockbackVelocity.x += offsetX / distance * impulse;
+            enemy->knockbackVelocity.z += offsetZ / distance * impulse;
+            statusTargetBuffer_.push_back(enemy->id);
+        });
+    return statusTargetBuffer_;
+}
+
 bool EnemySystem::applyStatus(
     EntityId id, StatusEffectType requestedType,
     std::optional<EntityId> source, double duration,

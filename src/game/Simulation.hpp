@@ -250,6 +250,7 @@ struct SimulationSnapshot {
     double battlePotionBerserkDuration{};
     double chestOpeningCostMultiplier;
     bool freeChestOpeningAvailable{};
+    int freeChestRerollsRemaining{};
     int chestOpeningCostSurcharge;
     double pickaxeCooldownRemaining;
     std::optional<EntityId> aimedResource;
@@ -305,6 +306,7 @@ struct SimulationSnapshot {
         upcomingEnemyCounts;
     bool upcomingWaveHasBoss;
     std::optional<AttackDirection> upcomingAttackDirection;
+    std::array<bool, 4> upcomingAttackDirections{};
     double phaseTimeRemaining;
     double phaseDuration;
     int earlyWaveBonus;
@@ -460,6 +462,7 @@ class Simulation {
         double directHitDamage);
     void processBuildingCommands(const PlayerCommand& command);
     void processBuildingActions(const PlayerCommand& command);
+    void triggerAnvilShockwave(EntityId sourceId, Vec3 position);
     void updatePlayerActions(double deltaSeconds,
                              const PlayerCommand& command);
     void updatePendingResourceGrants(double deltaSeconds);
@@ -699,6 +702,7 @@ class Simulation {
     double waveSpawnInterval_{1.0};
     double waveSpawnTimeRemaining_{};
     std::optional<AttackDirection> upcomingAttackDirection_;
+    std::array<bool, 4> upcomingAttackDirections_{};
     bool currentWaveHasBoss_{};
     double playerDamageMultiplier_{1.0};
     double playerMoveSpeedMultiplier_{1.0};
@@ -718,6 +722,7 @@ class Simulation {
     double battlePotionBerserkDuration_{};
     double battlePotionLifestealRemaining_{};
     bool freeChestOpeningAvailable_{};
+    int freeChestRerollsRemaining_{};
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     int bareHandsWoodGathered_{};
     int bareHandsStoneGathered_{};

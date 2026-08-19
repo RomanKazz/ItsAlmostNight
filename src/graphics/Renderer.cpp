@@ -252,6 +252,19 @@ void Renderer::initialize() {
         upgradeEffectTimeLocation_ =
             GetShaderLocation(shader, "timeSeconds");
     }
+    if (resources_.shockwaveShader().valid()) {
+        Shader& shader = resources_.shockwaveShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        shockwaveCameraLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        shockwaveProgressLocation_ =
+            GetShaderLocation(shader, "progress");
+        shockwaveTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+    }
 }
 
 void Renderer::shutdown() {
@@ -490,6 +503,41 @@ void Renderer::drawUpgradeEffect(Vector3 position, float progress,
             {center.x, center.y - starSize, center.z},
             {center.x, center.y + starSize, center.z},
             {255, 242, 190, alpha});
+    }
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
+    EndBlendMode();
+}
+
+void Renderer::drawRepairShockwave(
+    Vector3 position, Vector3 cameraPosition,
+    float progress, float radius) {
+    progress = std::clamp(progress, 0.0F, 1.0F);
+    radius = std::max(radius, 0.1F);
+    const float eased = 1.0F - std::pow(1.0F - progress, 3.0F);
+    const float sphereRadius = radius * (0.08F + 0.92F * eased);
+    position.y += 0.7F;
+    rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableDepthMask();
+    if (resources_.shockwaveShader().valid()) {
+        Shader& shader = resources_.shockwaveShader().get();
+        const float timeSeconds = static_cast<float>(GetTime());
+        SetShaderValue(shader, shockwaveCameraLocation_, &cameraPosition,
+                       SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, shockwaveProgressLocation_, &progress,
+                       SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, shockwaveTimeLocation_, &timeSeconds,
+                       SHADER_UNIFORM_FLOAT);
+        BeginShaderMode(shader);
+        DrawSphereEx(position, sphereRadius, 28, 28, WHITE);
+        EndShaderMode();
+    } else {
+        const float fade = 1.0F - progress;
+        DrawSphereWires(
+            position, sphereRadius, 20, 20,
+            {158, 232, 255,
+             static_cast<unsigned char>(fade * 190.0F)});
     }
     rlDrawRenderBatchActive();
     rlEnableDepthMask();

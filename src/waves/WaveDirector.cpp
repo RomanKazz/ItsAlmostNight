@@ -101,6 +101,11 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     const double damageMultiplier =
         1.0 + waveIndex * 0.06;
     firstAnchorIndex_ = firstAnchorIndex % spawnAnchors_.size();
+    attackFrontCount_ = std::min(
+        spawnAnchors_.size(),
+        static_cast<std::size_t>(normalizedWave == 1 ? 1 :
+                                 normalizedWave == 2 ? 2 :
+                                                       spawnAnchors_.size()));
     spawnBuffer_.clear();
     spawnLimit_ = MaximumWaveEnemies -
         static_cast<std::size_t>(composition.boss);
@@ -246,9 +251,10 @@ void WaveDirector::append(EnemyType type, int count, GridPosition corePosition,
         const std::size_t groupIndex = globalIndex / configuredGroupSize;
         const std::size_t indexInGroup = globalIndex % configuredGroupSize;
         const std::size_t anchorIndex =
-            (firstAnchorIndex_ + groupIndex) % spawnAnchors_.size();
+            (firstAnchorIndex_ + groupIndex % attackFrontCount_) %
+            spawnAnchors_.size();
         const int laneIndex = static_cast<int>(indexInGroup) - groupSize / 2;
-        const int row = static_cast<int>(groupIndex / spawnAnchors_.size());
+        const int row = static_cast<int>(groupIndex / attackFrontCount_);
         const double lane = static_cast<double>(laneIndex) * 1.1;
         const double depth = static_cast<double>(row) * 1.2;
         double height = 0.8;

@@ -54,6 +54,7 @@ enum class GameEventType {
     BuildingUpgradeRejected,
     BuildingRepaired,
     ModularBuildingRepaired,
+    AnvilRepairShockwave,
     BuildingRepairRejected,
     BuildingSold,
     BuildingSellRejected,

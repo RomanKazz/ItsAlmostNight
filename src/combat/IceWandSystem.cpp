@@ -532,9 +532,7 @@ void IceWandSystem::updateBurning(
         }
         while (burning.active && burning.tickRemaining <= 1e-9 &&
                activeDelta > 0.0) {
-            const double damage =
-                fireDefinition_.burnDamagePerSecond *
-                burnDamageMultiplier_ *
+            const double damage = burning.damagePerSecond *
                 fireDefinition_.burnTickInterval;
             const auto result = enemies.damage(burning.enemyId, damage);
             if (!result) {
@@ -568,6 +566,20 @@ void IceWandSystem::updateBurning(
 void IceWandSystem::applyBurn(
     EntityId enemyId, EntityId sourceProjectileId,
     const EnemySystem& enemies) {
+    ignite(
+        enemyId, sourceProjectileId, enemies,
+        fireDefinition_.burnDuration * statusDurationMultiplier_,
+        fireDefinition_.burnDamagePerSecond * burnDamageMultiplier_);
+}
+
+void IceWandSystem::ignite(
+    EntityId enemyId, EntityId sourceId,
+    const EnemySystem& enemies, double duration,
+    double damagePerSecond) {
+    if (element_ != WandElement::Fire || duration <= 0.0 ||
+        damagePerSecond <= 0.0) {
+        return;
+    }
     const auto enemy = enemies.enemy(enemyId);
     if (!enemy || !enemy->active) {
         return;
@@ -587,9 +599,11 @@ void IceWandSystem::applyBurn(
     }
     const bool newlyBurning = !available->active;
     available->enemyId = enemyId;
-    available->sourceProjectileId = sourceProjectileId;
-    available->remaining = fireDefinition_.burnDuration *
-        statusDurationMultiplier_;
+    available->sourceProjectileId = sourceId;
+    available->remaining = std::max(available->remaining, duration);
+    available->damagePerSecond = newlyBurning
+        ? damagePerSecond
+        : std::max(available->damagePerSecond, damagePerSecond);
     available->tickRemaining = newlyBurning
         ? fireDefinition_.burnTickInterval
         : std::min(

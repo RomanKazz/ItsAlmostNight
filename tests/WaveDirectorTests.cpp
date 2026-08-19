@@ -164,8 +164,13 @@ void runWaveDirectorTests() {
     const auto groupedWave = director.buildWave(1, {0, 0});
     requireNear(groupedWave.spawns[0].position.z, -24.0, 1e-12,
                 "first group uses first attack direction");
-    requireNear(groupedWave.spawns[5].position.x, 24.0, 1e-12,
-                "second group rotates attack direction");
+    require(groupedWave.spawns[5].position.z < -20.0,
+            "first wave keeps every group on one attack front");
+
+    const auto twoFrontWave = director.buildWave(2, {0, 0});
+    require(twoFrontWave.spawns[0].position.z < -20.0 &&
+                twoFrontWave.spawns[6].position.x > 20.0,
+            "second wave introduces exactly a second attack front");
 
     constexpr std::array<ian::Vec3, 3> Anchors{{
         {0.0, 0.0, -20.0},

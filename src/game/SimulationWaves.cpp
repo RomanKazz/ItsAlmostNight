@@ -19,6 +19,10 @@ AttackDirection attackDirection(Vec3 anchor, GridPosition corePosition) {
                          : AttackDirection::North;
 }
 
+std::size_t attackDirectionIndex(AttackDirection direction) {
+    return static_cast<std::size_t>(direction);
+}
+
 } // namespace
 
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
@@ -30,6 +34,12 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     waveSpawnTimeRemaining_ = waveSpawnInterval_;
     upcomingAttackDirection_ =
         attackDirection(map_.enemySpawnAnchors[firstAnchorIndex], corePosition);
+    upcomingAttackDirections_.fill(false);
+    for (const EnemySpawn& spawn : plan.spawns) {
+        const AttackDirection direction =
+            attackDirection(spawn.position, corePosition);
+        upcomingAttackDirections_[attackDirectionIndex(direction)] = true;
+    }
     currentWaveHasBoss_ = std::ranges::any_of(
         plan.spawns, [](const EnemySpawn& spawn) { return spawn.type == EnemyType::Boss; });
 }
@@ -87,6 +97,7 @@ void Simulation::completeWave() {
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
     upcomingAttackDirection_.reset();
+    upcomingAttackDirections_.fill(false);
     int nightlyChests = static_cast<int>(std::lround(
         skillTree_.effectValue("loot.nightly_chests")));
     if (nightlyChests <= 0 &&

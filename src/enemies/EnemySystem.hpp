@@ -287,6 +287,8 @@ class EnemySystem {
         StatusEffectRules rules = {});
     std::span<const EntityId> applySlowInRadius(Vec3 position, double radius, double multiplier,
                                                double duration);
+    std::span<const EntityId> knockbackInRadius(
+        Vec3 position, double radius, double strength);
     std::size_t defeatAll();
     [[nodiscard]] std::vector<EnemySplitResult> takeSplitEvents();
     [[nodiscard]] std::vector<EliteEnemyEvent> takeEliteSpawnEvents();

@@ -900,6 +900,14 @@ void App::processPresentationEvents(
                 event.entityId);
             addCameraImpulse({0.0, 0.025, -0.012});
         } else if (event.type ==
+                   GameEventType::AnvilRepairShockwave) {
+            addEffect(
+                PresentationEffectType::RepairShockwave,
+                event.position, 0.72,
+                static_cast<float>(event.intensity),
+                event.entityId);
+            addCameraImpulse({0.0, 0.018, -0.01});
+        } else if (event.type ==
                        GameEventType::BuildingRepaired &&
                    event.entityId && event.buildingType) {
             addEffect(
@@ -1164,8 +1172,10 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::ChestOpenRejected) {
             message = "Not enough Coins";
         } else if (event.type == GameEventType::ChestRerolled) {
-            message = "Chest reward rerolled: -" +
-                std::to_string(event.amount) + " Coins";
+            message = event.amount == 0
+                ? "Chest Key: free reroll used"
+                : "Chest reward rerolled: -" +
+                      std::to_string(event.amount) + " Coins";
         } else if (
             event.type == GameEventType::ChestRerollAlreadyUsed) {
             message = "Reroll already used";

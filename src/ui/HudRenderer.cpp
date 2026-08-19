@@ -97,6 +97,27 @@ const char* attackDirectionName(AttackDirection direction) {
     return "";
 }
 
+bool hasAttackDirections(const SimulationSnapshot& snapshot) {
+    return std::ranges::any_of(
+        snapshot.upcomingAttackDirections,
+        [](bool active) { return active; });
+}
+
+std::string attackDirectionNames(const SimulationSnapshot& snapshot) {
+    std::string names;
+    for (std::size_t index = 0;
+         index < snapshot.upcomingAttackDirections.size(); ++index) {
+        if (!snapshot.upcomingAttackDirections[index]) {
+            continue;
+        }
+        if (!names.empty()) {
+            names += " + ";
+        }
+        names += attackDirectionName(static_cast<AttackDirection>(index));
+    }
+    return names;
+}
+
 std::string compactAmount(int amount) {
     if (amount < 1000) {
         return std::to_string(amount);
@@ -1210,7 +1231,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
 
     if (snapshot.state == RunState::Sunset &&
-        snapshot.upcomingAttackDirection &&
+        hasAttackDirections(snapshot) &&
         snapshot.phaseDuration > 0.0) {
         const double elapsed =
             snapshot.phaseDuration - snapshot.phaseTimeRemaining;
@@ -1219,8 +1240,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 static_cast<float>((3.2 - elapsed) / 0.65),
                 0.0F, 1.0F);
             const std::string warning =
-                "ATTACK FROM " + std::string(attackDirectionName(
-                    *snapshot.upcomingAttackDirection));
+                "ATTACK FROM " + attackDirectionNames(snapshot);
             const float warningWidth =
                 measureUiText(warning, 32.0F).x;
             DrawRectangleRounded(
@@ -1243,7 +1263,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     if (!objective.empty()) {
         const bool attackWarningVisible =
             snapshot.state == RunState::Sunset &&
-            snapshot.upcomingAttackDirection &&
+            hasAttackDirections(snapshot) &&
             snapshot.phaseDuration > 0.0 &&
             snapshot.phaseDuration - snapshot.phaseTimeRemaining < 3.2;
         constexpr float ObjectiveFontSize = 18.0F;

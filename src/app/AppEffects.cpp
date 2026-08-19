@@ -459,7 +459,7 @@ void App::drawChestLootGlow(
     EndBlendMode();
 }
 
-void App::drawPresentationEffects() {
+void App::drawPresentationEffects(const Camera3D& camera) {
     for (const auto& effect : effects_) {
         if (effect.startDelayRemaining > 0.0) {
             continue;
@@ -472,6 +472,11 @@ void App::drawPresentationEffects() {
             static_cast<float>(effect.position.y),
             static_cast<float>(effect.position.z),
         };
+        if (effect.type == PresentationEffectType::RepairShockwave) {
+            renderer_->drawRepairShockwave(
+                origin, camera.position, progress, effect.scale);
+            continue;
+        }
         if (effect.type == PresentationEffectType::EliteSpawn ||
             effect.type == PresentationEffectType::VolatileCharge) {
             const bool volatileCharge = effect.type ==

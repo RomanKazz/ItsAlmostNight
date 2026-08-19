@@ -169,6 +169,9 @@ void Simulation::updateRunPhase(
             freeChestOpeningAvailable_ =
                 lootStacks_[lootUpgradeIndex(
                     LootUpgradeEffect::Key)] > 0;
+            freeChestRerollsRemaining_ = std::max(
+                0, lootStacks_[lootUpgradeIndex(
+                       LootUpgradeEffect::Key)] - 1);
             phaseTimeRemaining_ =
                 gameplay_.betweenWaveSeconds +
                 std::max(

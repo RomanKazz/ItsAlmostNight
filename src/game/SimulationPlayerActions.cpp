@@ -769,13 +769,21 @@ void Simulation::updatePlayerActions(
             : std::min<std::size_t>(
                   rerollChest->rerollCount,
                   economy_.chestRerollCoinCosts.size() - 1U);
-        const int rerollCost = economy_.chestRerollCoinCosts[rerollIndex];
+        const bool useFreeReroll =
+            !unlimitedResources_ && freeChestRerollsRemaining_ > 0;
+        const int rerollCost = useFreeReroll
+            ? 0
+            : economy_.chestRerollCoinCosts[rerollIndex];
         int availableCoins = unlimitedResources_
             ? std::numeric_limits<int>::max()
             : coins_;
         const ChestRerollResult result = lootChests_.reroll(
             command.rerollChest->chestId, availableCoins,
             rerollCost);
+        if (result == ChestRerollResult::Rerolled &&
+            useFreeReroll) {
+            --freeChestRerollsRemaining_;
+        }
         if (!unlimitedResources_) coins_ = availableCoins;
         const GameEventType eventType =
             result == ChestRerollResult::Rerolled

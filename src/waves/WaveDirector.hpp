@@ -44,6 +44,7 @@ class WaveDirector {
     std::vector<EnemySpawn> spawnBuffer_;
     std::vector<Vec3> spawnAnchors_;
     std::size_t firstAnchorIndex_{};
+    std::size_t attackFrontCount_{1};
     std::size_t spawnLimit_{MaximumWaveEnemies};
     std::array<WaveDefinition, GameBalance::WaveCount> definitions_;
 };

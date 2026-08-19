@@ -8,6 +8,65 @@
 namespace ian {
 using namespace app_detail;
 
+void App::resetRunInputState() {
+    input_ = {};
+    pendingYaw_ = 0.0;
+    pendingPitch_ = 0.0;
+    pendingJump_ = false;
+    pendingDash_ = false;
+    pendingPickaxe_ = false;
+    pendingRifleShot_ = false;
+    pendingIceWandShot_ = false;
+    pendingFireWandShot_ = false;
+    pendingBuildingSelection_.reset();
+    pendingBuildingCancel_ = false;
+    pendingBuildingPlacement_.reset();
+    pendingBuildingRotation_ = 0;
+    pendingStartWave_ = false;
+    pendingUnlimitedResources_ = false;
+    pendingBuildingUpgrade_.reset();
+    pendingBuildingRepair_.reset();
+    pendingRepairAllBuildings_ = false;
+    pendingPurchaseBombBundle_ = false;
+    pendingBuildingSale_.reset();
+    pendingModularBuildingRemoval_.reset();
+    pendingWeaponSelection_.reset();
+    pendingWeaponUpgrade_ = false;
+    pendingBombThrow_ = false;
+    pendingInteract_ = false;
+    pendingChestReroll_.reset();
+    pendingRevealChest_ = false;
+    pendingDefeatAllEnemies_ = false;
+    pendingToggleInvulnerability_ = false;
+    pendingDamageCore_ = false;
+    pendingSpawnEnemy_ = false;
+    pendingChainLightning_ = false;
+    pendingGateToggle_.reset();
+    pendingPlacedBuildingRotation_.reset();
+
+    primaryAttackHoldSeconds_ = 0.0;
+    toolSwingUsesAxe_ = false;
+    toolSwingQueued_ = false;
+    toolQueuedSwingHasAttack_ = false;
+    toolQueuedResourceTarget_.reset();
+    toolSwingAttackPending_ = false;
+    toolSwingQueueRemaining_ = 0.0;
+    toolSwingRemaining_ = 0.0;
+    toolContactHoldRemaining_ = 0.0;
+    displayedToolVisual_ = FirstPersonToolVisual::None;
+    toolSwapCandidateVisual_ = FirstPersonToolVisual::None;
+    toolSwapDestinationVisual_ = FirstPersonToolVisual::None;
+    toolViewModelInitialized_ = false;
+    toolSwapCandidateSeconds_ = 0.0;
+    toolSwapRemaining_ = 0.0;
+
+    interactionResourceAim_.reset();
+    hoveredResource_.reset();
+    hoveredBuilding_.reset();
+    hoveredEnemy_.reset();
+    hoverGraceRemaining_ = 0.0;
+}
+
 void App::selectActionMode(
     ActionMode mode,
     const SimulationSnapshot& snapshot) {

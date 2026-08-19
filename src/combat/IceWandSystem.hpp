@@ -77,6 +77,9 @@ class IceWandSystem {
               std::span<const BuildingInstance> buildings,
               std::span<const MapObstacle> obstacles = {});
     void clearProjectiles();
+    void ignite(EntityId enemyId, EntityId sourceId,
+                const EnemySystem& enemies, double duration,
+                double damagePerSecond);
 
     [[nodiscard]] std::span<const IceWandProjectile> projectiles() const;
     [[nodiscard]] std::span<const IceWandLaunch> launches() const;
@@ -101,6 +104,7 @@ class IceWandSystem {
         EntityId sourceProjectileId{};
         double remaining{};
         double tickRemaining{};
+        double damagePerSecond{};
         bool active{};
     };
 

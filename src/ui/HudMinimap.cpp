@@ -698,13 +698,18 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
-    if (snapshot.upcomingAttackDirection) {
+    for (std::size_t directionIndex = 0;
+         directionIndex < snapshot.upcomingAttackDirections.size();
+         ++directionIndex) {
+        if (!snapshot.upcomingAttackDirections[directionIndex]) {
+            continue;
+        }
         Vector2 marker{
             mapBounds.x + mapBounds.width * 0.5F,
             mapBounds.y + mapBounds.height * 0.5F,
         };
         Vector2 inward{};
-        switch (*snapshot.upcomingAttackDirection) {
+        switch (static_cast<AttackDirection>(directionIndex)) {
         case AttackDirection::North:
             marker.y = mapBounds.y + 5.0F;
             inward.y = 1.0F;

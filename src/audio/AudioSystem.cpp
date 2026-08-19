@@ -314,6 +314,11 @@ void AudioSystem::playEvent(
             explosion_, event.position, snapshot, 0.92F,
             variedPitch(0.035F), 55.0F);
         break;
+    case GameEventType::AnvilRepairShockwave:
+        playAt(
+            explosion_, event.position, snapshot, 0.46F,
+            0.72F * variedPitch(0.025F), 48.0F);
+        break;
     case GameEventType::EnemySplit:
         // Layer a soft body impact with a bright transient. This reads as a
         // juicy pop without introducing a new external audio dependency.

@@ -421,7 +421,7 @@ void App::render() {
         const auto overlayStart = PerformanceClock::now();
         drawBlobShadows(snapshot, camera);
         drawWorldOverlays(presentationSnapshot, lighting);
-        drawPresentationEffects();
+        drawPresentationEffects(camera);
         EndMode3D();
         renderer_->drawSelectionOutline();
         performanceStats_.overlayRender.sample(

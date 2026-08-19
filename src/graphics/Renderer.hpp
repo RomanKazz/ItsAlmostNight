@@ -448,6 +448,8 @@ class Renderer {
         Vector2 position) const;
     void drawUpgradeEffect(Vector3 position, float progress,
                            float scale = 1.0F);
+    void drawRepairShockwave(Vector3 position, Vector3 cameraPosition,
+                             float progress, float radius);
     [[nodiscard]] bool beginBlobShadowBatch(Vector3 cameraPosition);
     void drawBlobShadow(Vector3 groundPosition, float radiusX, float radiusZ,
                         float opacity, int segmentCountOverride = 0);
@@ -724,6 +726,9 @@ class Renderer {
     int upgradeEffectHeightLocation_{-1};
     int upgradeEffectProgressLocation_{-1};
     int upgradeEffectTimeLocation_{-1};
+    int shockwaveCameraLocation_{-1};
+    int shockwaveProgressLocation_{-1};
+    int shockwaveTimeLocation_{-1};
     int iceMagicTimeLocation_{-1};
     int iceMagicTintLocation_{-1};
     int iceMagicIntensityLocation_{-1};

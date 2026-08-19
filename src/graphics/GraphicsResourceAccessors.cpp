@@ -186,6 +186,14 @@ const ShaderResource& GraphicsResources::upgradeEffectShader() const {
     return upgradeEffectShader_;
 }
 
+ShaderResource& GraphicsResources::shockwaveShader() {
+    return shockwaveShader_;
+}
+
+const ShaderResource& GraphicsResources::shockwaveShader() const {
+    return shockwaveShader_;
+}
+
 ShaderResource& GraphicsResources::iceMagicShader() {
     return iceMagicShader_;
 }

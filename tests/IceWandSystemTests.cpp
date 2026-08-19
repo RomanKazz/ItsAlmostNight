@@ -86,6 +86,21 @@ void runIceWandSystemTests() {
         expectedBurnDamage, 1e-9,
         "fire wand burn deals configured total damage over its duration");
 
+    ian::EnemySystem fuelEnemies;
+    fuelEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
+        {ian::EnemyType::Heavy, {0.0, 1.0, -2.0}},
+    }});
+    ian::IceWandSystem fuelFire{fireBalance};
+    const auto fuelTarget = fuelEnemies.enemies().front().id;
+    const double fuelHealth = fuelEnemies.enemies().front().health;
+    fuelFire.ignite(
+        fuelTarget, {}, fuelEnemies, 0.5, 6.0);
+    fuelFire.tick(0.5, fuelEnemies, nullptr, {});
+    requireNear(
+        fuelHealth - fuelEnemies.enemies().front().health,
+        3.0, 1e-9,
+        "external attack ignition uses the shared burn scheduler and configured DPS");
+
     ian::EnemySystem thermalEnemies;
     thermalEnemies.spawnGroup(std::array<ian::EnemySpawn, 1>{{
         {ian::EnemyType::Heavy, {0.0, 1.0, -2.0}},

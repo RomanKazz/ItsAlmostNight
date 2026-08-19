@@ -19,6 +19,9 @@ constexpr double BerserkDurationPerExtraStack = 2.0;
 constexpr double BerserkMaximumDuration = 12.0;
 constexpr double BerserkAttackSpeedMultiplier = 1.35;
 constexpr double BerserkLifestealFraction = 0.10;
+constexpr double FuelBurnDuration = 4.0;
+constexpr double FuelBurnDamagePerStack = 1.75;
+constexpr double FuelMaximumBurnDamagePerSecond = 14.0;
 }
 
 void Simulation::applyLootPickup(const LootPickup& pickup) {
@@ -57,10 +60,6 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     }
     case LootUpgradeEffect::FuelJerrycan:
-        productionSpeedMultiplier_ = std::min(
-            1.40, productionSpeedMultiplier_ + 0.08);
-        crystalMines_.setProductionSpeedMultiplier(
-            productionSpeedMultiplier_);
         break;
     case LootUpgradeEffect::Compass:
         break;
@@ -71,20 +70,14 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
             lootUpgradeIndex(LootUpgradeEffect::Key)];
         if (previousStacks == 0) {
             freeChestOpeningAvailable_ = true;
+        } else {
+            ++freeChestRerollsRemaining_;
         }
-        const int discountStacks = std::max(0, previousStacks);
-        chestOpeningCostMultiplier_ = std::max(
-            0.75, 1.0 - 0.05 * static_cast<double>(discountStacks));
-        lootChests_.setCoinCostMultiplier(
-            chestOpeningCostMultiplier_);
         break;
     }
     case LootUpgradeEffect::Map:
         break;
     case LootUpgradeEffect::Anvil:
-        buildings_.setNewTowerBonusStacks(
-            lootStacks_[lootUpgradeIndex(
-                LootUpgradeEffect::Anvil)] + 1);
         break;
     case LootUpgradeEffect::Saw:
         break;
@@ -158,6 +151,33 @@ void Simulation::updateLootEffects(
         iceWand_.setCastSpeedMultiplier(1.0);
         fireWand_.setCastSpeedMultiplier(1.0);
         return;
+    }
+
+    const int fuelStacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::FuelJerrycan)];
+    if (fuelStacks > 0) {
+        const double burnDamagePerSecond = std::min(
+            FuelMaximumBurnDamagePerSecond,
+            FuelBurnDamagePerStack * static_cast<double>(fuelStacks));
+        const std::size_t lastAttackEvent = events_.size();
+        for (std::size_t index = firstGameplayEvent;
+             index < lastAttackEvent; ++index) {
+            const GameEvent& event = events_[index];
+            const bool ignitingPlayerHit =
+                event.type == GameEventType::PickaxeHit ||
+                event.type == GameEventType::IceWandHit ||
+                event.type == GameEventType::ChainLightningHit ||
+                (event.type == GameEventType::ProjectileHit &&
+                 !event.sourceId.has_value());
+            if (!ignitingPlayerHit || !event.entityId ||
+                event.damage <= 0.0) {
+                continue;
+            }
+            fireWand_.ignite(
+                *event.entityId,
+                event.sourceId.value_or(EntityId{}), enemies_,
+                FuelBurnDuration, burnDamagePerSecond);
+        }
     }
 
     const int potionStacks = lootStacks_[

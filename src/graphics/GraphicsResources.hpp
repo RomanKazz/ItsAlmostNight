@@ -238,6 +238,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& grassShader() const;
     [[nodiscard]] ShaderResource& upgradeEffectShader();
     [[nodiscard]] const ShaderResource& upgradeEffectShader() const;
+    [[nodiscard]] ShaderResource& shockwaveShader();
+    [[nodiscard]] const ShaderResource& shockwaveShader() const;
     [[nodiscard]] ShaderResource& iceMagicShader();
     [[nodiscard]] const ShaderResource& iceMagicShader() const;
     [[nodiscard]] ShaderResource& coinOutlineShader();
@@ -373,6 +375,7 @@ class GraphicsResources {
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
+    ShaderResource shockwaveShader_;
     ShaderResource iceMagicShader_;
     ShaderResource coinOutlineShader_;
     ShaderResource heartOutlineShader_;

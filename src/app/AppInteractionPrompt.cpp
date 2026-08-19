@@ -215,10 +215,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                              : keyboardKeyName(controlKey(
                                    userSettings_.controls,
                                    ControlAction::Upgrade)) +
-                                   " REROLL · " +
-                                   std::to_string(
-                                       snapshot.chestRerollCoinCost) +
-                                   " COINS"),
+                                   (snapshot.freeChestRerollsRemaining > 0
+                                        ? " FREE REROLL · " +
+                                              std::to_string(snapshot.freeChestRerollsRemaining) +
+                                              " LEFT"
+                                        : " REROLL · " +
+                                              std::to_string(snapshot.chestRerollCoinCost) +
+                                              " COINS")),
                 .accentColor = loot->loot.rarity == LootRarity::Legendary
                     ? Color{255, 126, 38, 255}
                     : loot->loot.rarity == LootRarity::Rare

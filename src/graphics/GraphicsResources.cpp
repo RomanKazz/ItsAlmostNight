@@ -1030,6 +1030,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                       "assets/shaders/grass_instanced.fs");
     upgradeEffectShader_.load("assets/shaders/upgrade_effect.vs",
                               "assets/shaders/upgrade_effect.fs");
+    shockwaveShader_.load("assets/shaders/shockwave.vs",
+                          "assets/shaders/shockwave.fs");
     iceMagicShader_.load(nullptr, "assets/shaders/ice_magic.fs");
     coinOutlineShader_.load(
         "assets/shaders/coin_outline.vs",
@@ -1477,6 +1479,7 @@ void GraphicsResources::shutdown() {
     for (auto& texture : skyboxTextures_) texture.unload();
     fallbackTexture_.unload();
     upgradeEffectShader_.unload();
+    shockwaveShader_.unload();
     iceMagicShader_.unload();
     coinOutlineShader_.unload();
     heartOutlineShader_.unload();

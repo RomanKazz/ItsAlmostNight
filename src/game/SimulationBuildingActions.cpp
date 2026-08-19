@@ -62,6 +62,40 @@ void Simulation::processBuildingActions(
                 .buildingActionError = BuildingActionError::FullHealth,
             });
         } else if (unlimitedResources_ || coins_ >= cost) {
+            struct RepairedTarget {
+                EntityId id;
+                Vec3 position;
+            };
+            std::vector<RepairedTarget> repairedTargets;
+            repairedTargets.reserve(
+                buildings_.buildings().size() +
+                foundations_.platformFrames().size() +
+                foundations_.walls().size() +
+                foundations_.ramps().size());
+            for (const auto& building : buildings_.buildings()) {
+                if (building.health < building.maxHealth) {
+                    repairedTargets.push_back({
+                        building.id, buildingWorldPosition(building)});
+                }
+            }
+            for (const auto& frame : foundations_.platformFrames()) {
+                if (frame.health < frame.maxHealth) {
+                    repairedTargets.push_back({
+                        frame.id, modularBaseCenter(frame, worldConfig_)});
+                }
+            }
+            for (const auto& wall : foundations_.walls()) {
+                if (wall.health < wall.maxHealth) {
+                    repairedTargets.push_back({
+                        wall.id, modularBaseCenter(wall, worldConfig_)});
+                }
+            }
+            for (const auto& ramp : foundations_.ramps()) {
+                if (ramp.health < ramp.maxHealth) {
+                    repairedTargets.push_back({
+                        ramp.id, modularBaseCenter(ramp, worldConfig_)});
+                }
+            }
             if (!unlimitedResources_) coins_ -= cost;
             const double restored =
                 buildings_.restoreHealthFraction(1.0) +
@@ -71,6 +105,9 @@ void Simulation::processBuildingActions(
                 .amount = cost,
                 .intensity = restored,
             });
+            for (const RepairedTarget& target : repairedTargets) {
+                triggerAnvilShockwave(target.id, target.position);
+            }
         } else {
             events_.push_back({
                 .type = GameEventType::EconomyPurchaseRejected,
@@ -180,6 +217,9 @@ void Simulation::processBuildingActions(
                     buildingWorldPosition(*result.building),
                 .amount = static_cast<int>(result.repairedHealth),
             });
+            triggerAnvilShockwave(
+                result.building->id,
+                buildingWorldPosition(*result.building));
             startRepairCooldown(result.building->id);
         } else if (
             result.error == BuildingActionError::NotFound) {
@@ -207,6 +247,9 @@ void Simulation::processBuildingActions(
                     .amount = static_cast<int>(
                         modularResult.repairedHealth),
                 });
+                triggerAnvilShockwave(
+                    modularResult.id,
+                    modularBaseCenter(modularResult, worldConfig_));
                 startRepairCooldown(modularResult.id);
             } else {
                 events_.push_back({
@@ -315,6 +358,26 @@ void Simulation::processBuildingActions(
             }
         }
     }
+}
+
+void Simulation::triggerAnvilShockwave(
+    EntityId sourceId, Vec3 position) {
+    const int stacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Anvil)];
+    if (stacks <= 0) return;
+    const double radius = std::min(
+        9.0, 4.8 + static_cast<double>(stacks - 1) * 0.7);
+    const double strength = std::min(
+        15.0, 8.0 + static_cast<double>(stacks - 1) * 1.25);
+    const auto affected = enemies_.knockbackInRadius(
+        position, radius, strength);
+    events_.push_back({
+        .type = GameEventType::AnvilRepairShockwave,
+        .entityId = sourceId,
+        .position = position,
+        .amount = static_cast<int>(affected.size()),
+        .intensity = radius,
+    });
 }
 
 } // namespace ian

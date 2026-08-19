@@ -150,6 +150,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             chestOpeningCostMultiplier_,
         .freeChestOpeningAvailable =
             freeChestOpeningAvailable_,
+        .freeChestRerollsRemaining =
+            freeChestRerollsRemaining_,
         .chestOpeningCostSurcharge =
             saturatingMultiplyNonNegative(
                 economy_.chestOpeningCoinCostPerWave, wave_),
@@ -267,6 +269,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         },
         .upcomingWaveHasBoss = upcomingComposition.boss,
         .upcomingAttackDirection = upcomingAttackDirection_,
+        .upcomingAttackDirections = upcomingAttackDirections_,
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .earlyWaveBonus = earlyWaveBonus(),

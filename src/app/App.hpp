@@ -129,7 +129,7 @@ class App {
                            const WorldLighting& lighting);
     void drawPerformanceOverlay(
         const SimulationSnapshot& snapshot) const;
-    void drawPresentationEffects();
+    void drawPresentationEffects(const Camera3D& camera);
     void drawAtmosphereParticles(
         const Camera3D& camera, float nightAmount);
     void drawChestLootGlow(
@@ -186,6 +186,7 @@ class App {
     void selectNextActionModeItem(
         const SimulationSnapshot& snapshot,
         int direction = 1);
+    void resetRunInputState();
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
                    std::optional<EntityId> entityId =

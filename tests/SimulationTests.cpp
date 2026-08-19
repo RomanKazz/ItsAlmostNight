@@ -1019,10 +1019,12 @@ void runSimulationTests() {
             "first Chest Key grants a free daily opening without a passive discount");
         lootEffects.grantLootUpgrade(
             ian::LootUpgradeEffect::Key);
-        requireNear(
-            lootEffects.snapshot().chestOpeningCostMultiplier,
-            0.95, 1e-9,
-            "additional Chest Key stacks reduce paid chest cost");
+        require(
+            lootEffects.snapshot().freeChestRerollsRemaining == 1 &&
+                std::abs(
+                    lootEffects.snapshot().chestOpeningCostMultiplier -
+                    1.0) < 1e-9,
+            "additional Chest Key stacks grant free rerolls without changing chest prices");
 
         lootEffects.restartRun();
         require(
@@ -3367,6 +3369,12 @@ void runSimulationTests() {
     require(simulation.snapshot().upcomingAttackDirection ==
                 ian::AttackDirection::South,
             "early wave uses least-visible attack direction");
+    require(simulation.snapshot().upcomingAttackDirections[
+                static_cast<std::size_t>(ian::AttackDirection::South)] &&
+                std::count(simulation.snapshot().upcomingAttackDirections.begin(),
+                           simulation.snapshot().upcomingAttackDirections.end(),
+                           true) == 1,
+            "first wave advertises its single attack front");
     require(simulation.snapshot().activeEnemyCount == 5 &&
                 simulation.snapshot().pendingEnemyCount == 10,
             "early wave immediately spawns first enemy group");

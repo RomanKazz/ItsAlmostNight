@@ -311,6 +311,7 @@ void Simulation::resetRun(GameEventType eventType) {
     battlePotionBerserkDuration_ = 0.0;
     battlePotionLifestealRemaining_ = 0.0;
     freeChestOpeningAvailable_ = false;
+    freeChestRerollsRemaining_ = 0;
     lootStacks_.fill(0);
     selectedBuilding_.reset();
     buildingRotation_ = 0;
@@ -361,6 +362,7 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
     upcomingAttackDirection_.reset();
+    upcomingAttackDirections_.fill(false);
     currentWaveHasBoss_ = false;
     modularTargetBuffer_.clear();
     collisionWorld_.syncPondLilySurfaces(

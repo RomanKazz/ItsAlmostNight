@@ -337,6 +337,7 @@ void App::processInput() {
         buildModePieVisible_ = false;
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
+        resetRunInputState();
         actionMode_ = ActionMode::Tools;
         previousActionMode_ = ActionMode::Weapons;
         lastToolSelection_ = PlayerWeapon::BareHands;
@@ -461,6 +462,7 @@ void App::processInput() {
         buildModePieVisible_ = false;
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
+        resetRunInputState();
         actionMode_ = ActionMode::Tools;
         previousActionMode_ = ActionMode::Weapons;
         lastToolSelection_ = PlayerWeapon::BareHands;
