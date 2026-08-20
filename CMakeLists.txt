@@ -218,6 +218,7 @@ add_executable(its_almost_night
     src/app/AppObjectiveDebugMenu.cpp
     src/app/AppPresentationState.cpp
     src/app/AppPresentationEffects.cpp
+    src/app/AppRunUpgradeOverlay.cpp
     src/app/AppRenderPasses.cpp
     src/app/AppRender.cpp
     src/app/AppRenderSupport.cpp

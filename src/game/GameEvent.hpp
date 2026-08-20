@@ -34,6 +34,8 @@ enum class GameEventType {
     PlayerDamaged,
     RopeFallSaved,
     BattlePotionActivated,
+    BloodHarvestTriggered,
+    OverkillHit,
     PlayerDied,
     PlayerRespawned,
     EnemyKilled,

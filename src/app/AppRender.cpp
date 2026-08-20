@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "app/AppRunUpgradeOverlay.hpp"
 #include "graphics/WorldTransforms.hpp"
 #include "localization/Localization.hpp"
 #include "ui/UiText.hpp"
@@ -1091,6 +1092,7 @@ void App::render() {
                 : minimapExpansion_);
 
         drawRunStateOverlay(snapshot);
+        drawRunUpgradeOverlay(snapshot);
         if (snapshot.state == RunState::Paused &&
             !renderer_->graphicsPanelVisible() &&
             !skillTree_.isOpen()) {

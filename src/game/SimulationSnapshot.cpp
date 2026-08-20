@@ -70,7 +70,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
     case PlayerWeapon::Axe:
     case PlayerWeapon::Pickaxe: break;
     }
-    heldDamage *= playerDamageMultiplier_;
+    heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_;
     std::array<int, 3> recommendedObjectives{-1, -1, -1};
     const auto recommended = objectives_.recommended(recommendedObjectives.size());
     for (std::size_t index = 0; index < recommended.size(); ++index)
@@ -133,8 +133,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
             ? nearestChestDistance
             : 0.0,
         .lootStacks = lootStacks_,
-        .playerDamageMultiplier = playerDamageMultiplier_,
-        .playerMoveSpeedMultiplier = playerMoveSpeedMultiplier_,
+        .playerDamageMultiplier =
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_,
+        .playerMoveSpeedMultiplier =
+            playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_,
         .playerArmorMultiplier = playerArmorMultiplier_,
         .playerTemporaryHealth = playerTemporaryHealth_,
         .playerRecoverableArmor = playerRecoverableArmor_,
@@ -359,6 +361,15 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .bareHandsWoodGathered = std::min(bareHandsWoodGathered_, 15),
         .bareHandsStoneGathered = std::min(bareHandsStoneGathered_, 10),
         .introSkillObjectiveCompleted = introSkillObjectiveCompleted_,
+        .runUpgradeChoicePending = runUpgradeChoicePending_,
+        .runUpgradeChoiceCount = runUpgradeChoiceCount_,
+        .runUpgradeChoices = runUpgradeChoices_,
+        .runUpgradeStacks = runUpgradeStacks_,
+        .runUpgradeSelectionsRemaining =
+            runUpgradeSelectionsRemaining_,
+        .runUpgradeRerollTokens = runUpgradeRerollTokens_,
+        .runUpgradeLockUnlocked = runUpgradeLockUnlocked_,
+        .lockedRunUpgrade = lockedRunUpgrade_,
     };
     return *snapshotCache_;
 }

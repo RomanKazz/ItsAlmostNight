@@ -20,6 +20,7 @@
 #include "progression/SkillTree.hpp"
 #include "progression/InsightSystem.hpp"
 #include "progression/ObjectiveSystem.hpp"
+#include "progression/RunUpgrade.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -352,6 +353,15 @@ struct SimulationSnapshot {
     int bareHandsWoodGathered;
     int bareHandsStoneGathered;
     bool introSkillObjectiveCompleted;
+    bool runUpgradeChoicePending{};
+    std::size_t runUpgradeChoiceCount{};
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+        runUpgradeChoices{};
+    std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
+    int runUpgradeSelectionsRemaining{};
+    int runUpgradeRerollTokens{};
+    bool runUpgradeLockUnlocked{};
+    std::optional<RunUpgradeEffect> lockedRunUpgrade;
 };
 
 struct ProgressionRunState {
@@ -438,6 +448,9 @@ class Simulation {
     [[nodiscard]] const SkillTree& skillTree() const;
     [[nodiscard]] SkillPurchaseError purchaseSkill(std::size_t index);
     void grantSkillPoints(int amount, SkillPointSource source);
+    [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
+    [[nodiscard]] bool rerollRunUpgrades();
+    [[nodiscard]] bool lockRunUpgrade(std::size_t choiceIndex);
     void grantLootUpgrade(
         LootUpgradeEffect effect,
         LootRarity rarity = LootRarity::Common);
@@ -579,6 +592,13 @@ class Simulation {
     void grantBlueprintInsightForExistingBuildings(
         int blueprintStackOrdinal);
     void refreshSkillRuntimeEffects();
+    void prepareRunUpgradeChoices();
+    void generateRunUpgradeChoices();
+    void processRunUpgradeCombatEffects(std::size_t firstGameplayEvent);
+    void salvageDestroyedBuilding(BuildingType type, Vec3 position);
+    void salvageDestroyedModularBuilding(
+        const ModularBuildingDamageResult& result, Vec3 position);
+    void salvageDestroyedCost(ResourceCost cost, Vec3 position);
     [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};
@@ -705,11 +725,18 @@ class Simulation {
     std::array<bool, 4> upcomingAttackDirections_{};
     bool currentWaveHasBoss_{};
     double playerDamageMultiplier_{1.0};
+    double runPlayerDamageMultiplier_{1.0};
+    double playerAttackSpeedMultiplier_{1.0};
     double playerMoveSpeedMultiplier_{1.0};
+    double runPlayerMoveSpeedMultiplier_{1.0};
     double playerArmorMultiplier_{1.0};
     double playerMaxHealthMultiplier_{1.0};
     double buildingMaxHealthMultiplier_{1.0};
+    double runBuildingMaxHealthMultiplier_{1.0};
     double productionSpeedMultiplier_{1.0};
+    double runProductionSpeedMultiplier_{1.0};
+    double defenseDamageMultiplier_{1.0};
+    double defenseFireRateMultiplier_{1.0};
     double woodYieldMultiplier_{1.0};
     double chestOpeningCostMultiplier_{1.0};
     double playerBonusMaxHealth_{};
@@ -724,6 +751,21 @@ class Simulation {
     bool freeChestOpeningAvailable_{};
     int freeChestRerollsRemaining_{};
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
+    bool runUpgradeChoicePending_{};
+    std::size_t runUpgradeChoiceCount_{};
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+        runUpgradeChoices_{};
+    std::array<int, RunUpgradeEffectCount> runUpgradeStacks_{};
+    int runNightlyBombBonus_{};
+    int runUpgradeSelectionsRemaining_{};
+    int runUpgradeRerollTokens_{};
+    bool runUpgradeLockUnlocked_{};
+    std::optional<RunUpgradeEffect> lockedRunUpgrade_;
+    int bonusSelectionsNextReward_{};
+    int riskyInvestmentPending_{};
+    int riskyInvestmentActive_{};
+    int bloodHarvestKillProgress_{};
+    std::uint32_t runUpgradeOfferGeneration_{};
     int bareHandsWoodGathered_{};
     int bareHandsStoneGathered_{};
     bool introSkillObjectiveCompleted_{};

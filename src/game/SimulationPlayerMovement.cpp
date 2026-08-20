@@ -77,7 +77,7 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
         (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
-        playerMoveSpeedMultiplier_ *
+        playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ *
         (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) * std::max(
             0.05, 1.0 + skillTree_.effectValue("player.move_speed")) *
         terrain_.waterMovementMultiplier(

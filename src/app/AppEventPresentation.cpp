@@ -176,7 +176,8 @@ void App::processPresentationEvents(
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit ||
-            event.type == GameEventType::ChainLightningHit;
+            event.type == GameEventType::ChainLightningHit ||
+            event.type == GameEventType::OverkillHit;
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
             Vec3 sourcePosition = eventSnapshot.playerPosition;
@@ -415,6 +416,14 @@ void App::processPresentationEvents(
                         event.entityId);
                 }
             }
+        } else if (event.type == GameEventType::OverkillHit) {
+            const Vec3 numberPosition = event.entityId
+                ? enemyDamageAnchor(*event.entityId, event.position)
+                : event.position;
+            addFloatingDamageNumber(numberPosition, event.damage, false);
+            addEffect(PresentationEffectType::Hit,
+                      event.position, 0.24, 1.05F,
+                      event.entityId);
         } else if (
             event.type == GameEventType::PickaxeHit ||
             (!event.sourceId &&
@@ -1135,6 +1144,9 @@ void App::processPresentationEvents(
             message = "Safety Rope saved you from a fatal fall";
         } else if (event.type == GameEventType::BattlePotionActivated) {
             message = "BERSERK: attack speed, movement speed and lifesteal";
+        } else if (event.type == GameEventType::BloodHarvestTriggered) {
+            message = "BLOOD HARVEST: +" +
+                std::to_string(event.amount) + " health";
         } else if (event.type == GameEventType::ChestOpened &&
                    event.critical) {
             message = "Chest Key: opened free";

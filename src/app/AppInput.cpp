@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/ActionModeEquipment.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "app/AppRunUpgradeOverlay.hpp"
 #include "buildings/BuildingHotbarLayout.hpp"
 
 #include "buildings/BuildingOrientation.hpp"
@@ -91,6 +92,64 @@ void App::processInput() {
         pendingIceWandShot_ = false;
         pendingFireWandShot_ = false;
         return;
+    }
+    if (snapshot.runUpgradeChoicePending) {
+        if (!runUpgradeChoiceWasVisible_) {
+            renderer_->setGraphicsPanelVisible(false);
+            enemySpawnMenuVisible_ = false;
+            itemGrantMenuVisible_ = false;
+            EnableCursor();
+            runUpgradeChoiceWasVisible_ = true;
+        }
+        std::optional<std::size_t> choice;
+        if (IsKeyPressed(KEY_R) && simulation_.rerollRunUpgrades()) {
+            audio_.playUiConfirm();
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+            const auto hovered = hoveredRunUpgradeChoice(
+                snapshot, GetMousePosition());
+            if (hovered && simulation_.lockRunUpgrade(*hovered)) {
+                audio_.playUiConfirm();
+            }
+        }
+        for (std::size_t index = 0;
+             index < snapshot.runUpgradeChoiceCount; ++index) {
+            if (IsKeyPressed(static_cast<int>(KEY_ONE) +
+                             static_cast<int>(index))) {
+                choice = index;
+                break;
+            }
+        }
+        if (!choice && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            choice = hoveredRunUpgradeChoice(
+                snapshot, GetMousePosition());
+        }
+        if (choice && simulation_.selectRunUpgrade(*choice)) {
+            audio_.playUiConfirm();
+            if (!simulation_.snapshot().runUpgradeChoicePending) {
+                runUpgradeChoiceWasVisible_ = false;
+                DisableCursor();
+            }
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingDash_ = false;
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
+        return;
+    }
+    if (runUpgradeChoiceWasVisible_) {
+        runUpgradeChoiceWasVisible_ = false;
+        if (snapshot.state != RunState::Paused &&
+            snapshot.state != RunState::MainMenu) {
+            DisableCursor();
+        }
     }
     if (graphicsPanelVisible != graphicsPanelWasVisible_) {
         if (graphicsPanelVisible) {

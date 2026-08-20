@@ -494,9 +494,14 @@ void App::update() {
     presentation::advanceTimeline(
         destroyedResourceVisuals_,
         resourceAnimationSeconds);
+    // Enemy death is a presentation animation, not gameplay state. It must
+    // finish during the post-night upgrade overlay and dawn instead of
+    // leaving the final enemy frozen on screen.
+    const double enemyDeathAnimationSeconds =
+        frameState == RunState::Paused ? 0.0 : frameSeconds;
     presentation::advanceTimeline(
         destroyedEnemyVisuals_,
-        resourceAnimationSeconds);
+        enemyDeathAnimationSeconds);
     presentation::advanceTimeline(
         soldBuildingVisuals_, resourceAnimationSeconds);
     presentation::advanceTimeline(

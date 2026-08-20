@@ -278,7 +278,7 @@ void Simulation::updatePlayerActions(
     if (command.fireRifle && !selectedBuilding_) {
         const auto fire = playerWeapons_.fireRifle(
             playerPosition_, direction, enemies_,
-            playerDamageMultiplier_ * std::max(
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_ * std::max(
                 0.05, 1.0 + skillTree_.effectValue(
                     "player.damage")));
         if (fire) {
@@ -336,7 +336,8 @@ void Simulation::updatePlayerActions(
         meleeTool &&
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
         pickaxeInputBufferRemaining_ = 0.0;
-        pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown;
+        pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown /
+            std::max(0.05, playerAttackSpeedMultiplier_);
         const std::uint64_t attackSeed = mixBits64(
             tick_ ^ (pickaxeAttackSequence_++ *
                      0x9e3779b97f4a7c15ULL));
@@ -359,6 +360,7 @@ void Simulation::updatePlayerActions(
                 0.05, 1.0 + skillTree_.effectValue("club.damage"));
         }
         const double damage = playerDamageMultiplier_ *
+            runPlayerDamageMultiplier_ *
             skillDamageMultiplier * toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);

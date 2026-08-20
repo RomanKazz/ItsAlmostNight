@@ -225,6 +225,7 @@ class App {
     bool exitRequested_{};
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
+    bool runUpgradeChoiceWasVisible_{};
     bool fullscreenApplied_{};
     int graphicsPanelTab_{};
     std::optional<ControlAction> pendingControlRebind_;

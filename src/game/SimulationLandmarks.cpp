@@ -290,7 +290,8 @@ void Simulation::updateWorldLandmarks(
                   skillTree_.effectValue("production.night_speed"),
                   0.0, 1.0);
     }
-    productionDeltaSeconds *= productionSpeedMultiplier_ * std::max(
+    productionDeltaSeconds *= productionSpeedMultiplier_ *
+        runProductionSpeedMultiplier_ * std::max(
         0.05, 1.0 + skillTree_.effectValue("production.speed"));
     if (!std::isfinite(productionDeltaSeconds) ||
         productionDeltaSeconds <= 0.0) {

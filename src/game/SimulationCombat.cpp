@@ -163,6 +163,9 @@ void Simulation::updateRunPhase(
             }
         }
     } else if (state_ == RunState::WaveComplete) {
+        if (runUpgradeChoicePending_) {
+            return;
+        }
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0) {
             state_ = RunState::BuildPhase;
@@ -314,6 +317,8 @@ void Simulation::updateCombat(double deltaSeconds) {
                     });
                 }
                 if (modularDamage->destroyed) {
+                    salvageDestroyedModularBuilding(
+                        *modularDamage, effectCenter);
                     events_.push_back({
                         .type =
                             GameEventType::
@@ -381,6 +386,8 @@ void Simulation::updateCombat(double deltaSeconds) {
                 });
             }
             if (damage->destroyed) {
+                salvageDestroyedBuilding(
+                    damage->type, buildingWorldPosition(*damage));
                 events_.push_back({
                     .type = GameEventType::BuildingDestroyed,
                     .entityId = damage->id,
@@ -529,6 +536,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
                 });
             }
             if (result->destroyed) {
+                salvageDestroyedBuilding(result->type, center);
                 events_.push_back({
                     .type = GameEventType::BuildingDestroyed,
                     .entityId = result->id,
@@ -581,6 +589,7 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
                 .amount = static_cast<int>(BuildingDamage),
             });
             if (result->destroyed) {
+                salvageDestroyedModularBuilding(*result, effectCenter);
                 events_.push_back({
                     .type = GameEventType::ModularBuildingDestroyed,
                     .entityId = result->id,

@@ -22,6 +22,9 @@ constexpr double BerserkLifestealFraction = 0.10;
 constexpr double FuelBurnDuration = 4.0;
 constexpr double FuelBurnDamagePerStack = 1.75;
 constexpr double FuelMaximumBurnDamagePerSecond = 14.0;
+constexpr int BloodHarvestKillsRequired = 10;
+constexpr double BloodHarvestHealingPerStack = 8.0;
+constexpr double OverkillSearchRadius = 7.0;
 }
 
 void Simulation::applyLootPickup(const LootPickup& pickup) {
@@ -152,6 +155,8 @@ void Simulation::updateLootEffects(
         fireWand_.setCastSpeedMultiplier(1.0);
         return;
     }
+
+    processRunUpgradeCombatEffects(firstGameplayEvent);
 
     const int fuelStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::FuelJerrycan)];
@@ -284,6 +289,136 @@ void Simulation::updateLootEffects(
         maximumHealth,
         playerHealth_ + regeneratingSeconds * 0.4 *
             static_cast<double>(breadStacks));
+}
+
+void Simulation::processRunUpgradeCombatEffects(
+    std::size_t firstGameplayEvent) {
+    struct RecentPlayerHit {
+        EntityId target;
+        double damage{};
+    };
+    std::vector<RecentPlayerHit> playerHits;
+    const std::size_t eventLimit = events_.size();
+    playerHits.reserve(eventLimit - std::min(firstGameplayEvent, eventLimit));
+
+    const auto isPlayerHit = [](const GameEvent& event) {
+        return event.type == GameEventType::PickaxeHit ||
+            event.type == GameEventType::IceWandHit ||
+            event.type == GameEventType::FireWandHit ||
+            event.type == GameEventType::ChainLightningHit ||
+            (event.type == GameEventType::ProjectileHit &&
+             !event.sourceId.has_value());
+    };
+    for (std::size_t index = firstGameplayEvent;
+         index < eventLimit; ++index) {
+        const GameEvent& event = events_[index];
+        if (isPlayerHit(event) && event.entityId && event.damage > 0.0) {
+            const auto existing = std::ranges::find_if(
+                playerHits, [&](const RecentPlayerHit& hit) {
+                    return hit.target == *event.entityId;
+                });
+            if (existing == playerHits.end()) {
+                playerHits.push_back({*event.entityId, event.damage});
+            } else {
+                existing->damage = event.damage;
+            }
+        }
+    }
+
+    const int harvestStacks = runUpgradeStacks_[runUpgradeIndex(
+        RunUpgradeEffect::BloodHarvest)];
+    const int overkillStacks = runUpgradeStacks_[runUpgradeIndex(
+        RunUpgradeEffect::Overkill)];
+    for (std::size_t index = firstGameplayEvent;
+         index < eventLimit; ++index) {
+        const GameEvent killedEvent = events_[index];
+        if (killedEvent.type != GameEventType::EnemyKilled ||
+            !killedEvent.entityId) {
+            continue;
+        }
+        if (harvestStacks > 0) {
+            ++bloodHarvestKillProgress_;
+            while (bloodHarvestKillProgress_ >= BloodHarvestKillsRequired) {
+                bloodHarvestKillProgress_ -= BloodHarvestKillsRequired;
+                const double maximumHealth =
+                    playerPermanentMaxHealth() + playerTemporaryHealth_;
+                const double healing = std::min(
+                    BloodHarvestHealingPerStack * harvestStacks,
+                    std::max(0.0, maximumHealth - playerHealth_));
+                playerHealth_ += healing;
+                if (healing > 0.0) {
+                    events_.push_back({
+                        .type = GameEventType::BloodHarvestTriggered,
+                        .position = playerPosition_,
+                        .amount = static_cast<int>(std::lround(healing)),
+                        .intensity = healing,
+                    });
+                }
+            }
+        }
+        if (overkillStacks <= 0) continue;
+        const auto hit = std::ranges::find_if(
+            playerHits, [&](const RecentPlayerHit& candidate) {
+                return candidate.target == *killedEvent.entityId;
+            });
+        if (hit == playerHits.end()) continue;
+
+        const EnemyInstance* nearest = nullptr;
+        double nearestDistance = OverkillSearchRadius;
+        for (const EnemyInstance& enemy : enemies_.enemies()) {
+            if (!enemy.active || enemy.id == *killedEvent.entityId) continue;
+            const double distance = std::hypot(
+                enemy.position.x - killedEvent.position.x,
+                enemy.position.z - killedEvent.position.z);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = &enemy;
+            }
+        }
+        if (!nearest) continue;
+        const double fraction = std::min(
+            0.75, 0.35 + 0.10 * static_cast<double>(overkillStacks - 1));
+        const auto result = enemies_.damage(
+            nearest->id, hit->damage * fraction);
+        if (!result) continue;
+        events_.push_back({
+            .type = GameEventType::OverkillHit,
+            .entityId = result->id,
+            .position = result->position,
+            .damage = result->damage,
+            .intensity = fraction,
+        });
+        if (result->killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = result->id,
+                .position = result->position,
+            });
+            if (harvestStacks > 0) {
+                ++bloodHarvestKillProgress_;
+                if (bloodHarvestKillProgress_ >=
+                    BloodHarvestKillsRequired) {
+                    bloodHarvestKillProgress_ -=
+                        BloodHarvestKillsRequired;
+                    const double maximumHealth =
+                        playerPermanentMaxHealth() +
+                        playerTemporaryHealth_;
+                    const double healing = std::min(
+                        BloodHarvestHealingPerStack * harvestStacks,
+                        std::max(0.0, maximumHealth - playerHealth_));
+                    playerHealth_ += healing;
+                    if (healing > 0.0) {
+                        events_.push_back({
+                            .type = GameEventType::BloodHarvestTriggered,
+                            .position = playerPosition_,
+                            .amount = static_cast<int>(std::lround(healing)),
+                            .intensity = healing,
+                        });
+                    }
+                }
+            }
+        }
+    }
 }
 
 void Simulation::updatePendingResourceGrants(

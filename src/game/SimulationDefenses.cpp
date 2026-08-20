@@ -1,5 +1,9 @@
 #include "game/Simulation.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
 namespace ian {
 
 void Simulation::updateTrapCombat(double deltaSeconds) {
@@ -50,6 +54,9 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
     const auto shots =
         towers_.tick(
             deltaSeconds, buildings_.buildings(), enemies_);
+    std::vector<EntityId> ricochetedTowers;
+    const int ricochetStacks = runUpgradeStacks_[runUpgradeIndex(
+        RunUpgradeEffect::Ricochet)];
     for (const auto& shot : shots) {
         events_.push_back({
             .type = GameEventType::ProjectileHit,
@@ -66,6 +73,48 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
                 .type = GameEventType::EnemyKilled,
                 .entityId = shot.targetId,
                 .position = shot.hitPosition,
+            });
+        }
+        if (ricochetStacks <= 0 ||
+            std::ranges::find(ricochetedTowers, shot.towerId) !=
+                ricochetedTowers.end()) {
+            continue;
+        }
+        ricochetedTowers.push_back(shot.towerId);
+        const EnemyInstance* nearest = nullptr;
+        double nearestDistance = 6.0;
+        for (const EnemyInstance& enemy : enemies_.enemies()) {
+            if (!enemy.active || enemy.id == shot.targetId) continue;
+            const double distance = std::hypot(
+                enemy.position.x - shot.hitPosition.x,
+                enemy.position.z - shot.hitPosition.z);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = &enemy;
+            }
+        }
+        if (!nearest) continue;
+        const double fraction = std::min(
+            0.80, 0.45 + 0.10 * static_cast<double>(ricochetStacks - 1));
+        const auto result = enemies_.damage(
+            nearest->id, shot.damage * fraction);
+        if (!result) continue;
+        events_.push_back({
+            .type = GameEventType::ProjectileHit,
+            .entityId = result->id,
+            .sourceId = shot.towerId,
+            .buildingType = shot.type,
+            .position = result->position,
+            .damage = result->damage,
+            .intensity = fraction,
+            .secondaryImpact = true,
+        });
+        if (result->killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = result->id,
+                .sourceId = shot.towerId,
+                .position = result->position,
             });
         }
     }

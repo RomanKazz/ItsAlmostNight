@@ -3422,6 +3422,9 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, defeatWave);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "cleared non-final wave enters dawn state");
+    require(simulation.snapshot().runUpgradeChoicePending &&
+                simulation.snapshot().runUpgradeChoiceCount == 3U,
+            "survived night offers three run upgrades");
     require(
         !simulation.snapshot().coinPickups.empty() &&
             simulation.snapshot().coins == 0,
@@ -3469,6 +3472,19 @@ void runSimulationTests() {
             "wave completion emits exactly one completion event");
     require(rewardEventFound, "wave completion emits reward event");
 
+    simulation.tick(0.5);
+    requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
+                "post-night choice pauses the dawn timer");
+    const ian::RunUpgradeEffect firstRunUpgrade =
+        simulation.snapshot().runUpgradeChoices[0];
+    do {
+        require(simulation.selectRunUpgrade(0U),
+                "player can select every earned post-night run upgrade");
+    } while (simulation.snapshot().runUpgradeChoicePending);
+    require(!simulation.snapshot().runUpgradeChoicePending &&
+                simulation.snapshot().runUpgradeStacks[
+                    ian::runUpgradeIndex(firstRunUpgrade)] >= 1,
+            "selected run upgrades are applied and close the choice");
     simulation.tick(dawnDuration - 1.0);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "dawn remains active before timer expires");
@@ -3499,6 +3515,10 @@ void runSimulationTests() {
                 crystalsBeforeReward + 10 + 5 * expectedWave,
             "endless wave reward follows the balanced base plus wave curve");
         if (expectedWave < 7) {
+            do {
+                require(simulation.selectRunUpgrade(0U),
+                        "each survived night accepts every earned run-upgrade choice");
+            } while (simulation.snapshot().runUpgradeChoicePending);
             simulation.tick(
                 simulation.snapshot().phaseDuration);
             require(

@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "core/DeterministicRandom.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -134,31 +136,38 @@ void Simulation::refreshSkillRuntimeEffects() {
         return std::max(0.05, 1.0 + skillTree_.effectValue(key));
     };
     crystalMines_.setProductionSpeedMultiplier(
-        productionSpeedMultiplier_ * multiplier("production.speed"));
+        productionSpeedMultiplier_ * runProductionSpeedMultiplier_ *
+        multiplier("production.speed"));
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_ * multiplier("loot.chest_cost"));
     buildings_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * multiplier("building.health"));
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ *
+        multiplier("building.health"));
     foundations_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * multiplier("building.health"));
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ *
+        multiplier("building.health"));
 
-    const double defenseDamage = multiplier("defense.damage");
+    const double defenseDamage = defenseDamageMultiplier_ *
+        multiplier("defense.damage");
     const double highGround = multiplier("defense.high_ground_damage");
     towers_.setSkillModifiers(
         defenseDamage * multiplier("tower.damage"),
-        multiplier("tower.range"), multiplier("tower.fire_rate"),
+        multiplier("tower.range"), defenseFireRateMultiplier_ *
+            multiplier("tower.fire_rate"),
         highGround);
     cannons_.setSkillModifiers(
         defenseDamage * multiplier("cannon.damage"),
-        multiplier("cannon.radius"), multiplier("cannon.fire_rate"),
+        multiplier("cannon.radius"), defenseFireRateMultiplier_ *
+            multiplier("cannon.fire_rate"),
         highGround);
     traps_.setSkillModifiers(
         defenseDamage * multiplier("trap.damage"),
-        multiplier("trap.radius"), multiplier("trap.fire_rate"),
+        multiplier("trap.radius"), defenseFireRateMultiplier_ *
+            multiplier("trap.fire_rate"),
         highGround);
     playerWeapons_.setRifleSkillModifiers(
         multiplier("rifle.damage"), multiplier("rifle.range"),
-        multiplier("rifle.fire_rate"),
+        playerAttackSpeedMultiplier_ * multiplier("rifle.fire_rate"),
         static_cast<int>(std::lround(
             skillTree_.effectValue("rifle.magazine"))));
     const double playerDamage = multiplier("player.damage");
@@ -170,6 +179,229 @@ void Simulation::refreshSkillRuntimeEffects() {
         multiplier("fire.burn_duration"),
         multiplier("fire.burn_damage"),
         skillTree_.effectValue("element.thermal_shock"));
+}
+
+void Simulation::prepareRunUpgradeChoices() {
+    runUpgradeSelectionsRemaining_ = 1 + bonusSelectionsNextReward_ +
+        riskyInvestmentActive_;
+    bonusSelectionsNextReward_ = 0;
+    riskyInvestmentActive_ = 0;
+    generateRunUpgradeChoices();
+    runUpgradeChoicePending_ = true;
+    invalidateSnapshotCache();
+}
+
+void Simulation::generateRunUpgradeChoices() {
+    const std::size_t extraChoices = std::min<std::size_t>(
+        MaximumRunUpgradeChoices - MinimumRunUpgradeChoices,
+        static_cast<std::size_t>(std::max(
+            0, runUpgradeStacks_[runUpgradeIndex(
+                   RunUpgradeEffect::WiderChoice)])));
+    runUpgradeChoiceCount_ = MinimumRunUpgradeChoices + extraChoices;
+
+    if (lockedRunUpgrade_ == RunUpgradeEffect::WiderChoice &&
+        runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) {
+        lockedRunUpgrade_.reset();
+    }
+    std::array<RunUpgradeEffect, RunUpgradeEffectCount> pool{};
+    std::size_t poolSize = 0U;
+    for (const RunUpgradeDefinition& definition :
+         RunUpgradeDefinitions) {
+        if (definition.effect == RunUpgradeEffect::WiderChoice &&
+            runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) {
+            continue;
+        }
+        if (definition.effect == RunUpgradeEffect::LockChoice &&
+            runUpgradeLockUnlocked_) {
+            continue;
+        }
+        if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) {
+            continue;
+        }
+        pool[poolSize++] = definition.effect;
+    }
+    std::uint64_t randomState = mixBits64(
+        static_cast<std::uint64_t>(terrain_.seed()) ^
+        (static_cast<std::uint64_t>(wave_) *
+         0x9e3779b97f4a7c15ULL) ^
+        (static_cast<std::uint64_t>(++runUpgradeOfferGeneration_) *
+         0xd1b54a32d192ed03ULL));
+    std::size_t firstRandomIndex = 0U;
+    if (lockedRunUpgrade_) {
+        runUpgradeChoices_[0] = *lockedRunUpgrade_;
+        firstRandomIndex = 1U;
+    }
+    for (std::size_t index = firstRandomIndex;
+         index < runUpgradeChoiceCount_;
+         ++index) {
+        randomState = mixBits64(
+            randomState + 0x9e3779b97f4a7c15ULL);
+        const std::size_t poolIndex = index - firstRandomIndex;
+        const std::size_t selected = poolIndex +
+            static_cast<std::size_t>(
+                randomState % (poolSize - poolIndex));
+        std::swap(pool[poolIndex], pool[selected]);
+        runUpgradeChoices_[index] = pool[poolIndex];
+    }
+}
+
+bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
+    if (!runUpgradeChoicePending_ ||
+        choiceIndex >= runUpgradeChoiceCount_) {
+        return false;
+    }
+    invalidateSnapshotCache();
+    const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
+    if (lockedRunUpgrade_ == effect) lockedRunUpgrade_.reset();
+    ++runUpgradeStacks_[runUpgradeIndex(effect)];
+    switch (effect) {
+    case RunUpgradeEffect::Damage:
+        runPlayerDamageMultiplier_ += 0.10;
+        break;
+    case RunUpgradeEffect::AttackSpeed:
+        playerAttackSpeedMultiplier_ += 0.08;
+        break;
+    case RunUpgradeEffect::MoveSpeed:
+        runPlayerMoveSpeedMultiplier_ += 0.07;
+        break;
+    case RunUpgradeEffect::MaximumHealth:
+        playerBonusMaxHealth_ += 12.0;
+        playerHealth_ = std::min(
+            playerPermanentMaxHealth() + playerTemporaryHealth_,
+            playerHealth_ + 12.0);
+        break;
+    case RunUpgradeEffect::RecoverableArmor:
+        playerMaxRecoverableArmor_ += 8.0;
+        playerRecoverableArmor_ += 8.0;
+        break;
+    case RunUpgradeEffect::BuildingHealth:
+        runBuildingMaxHealthMultiplier_ += 0.12;
+        break;
+    case RunUpgradeEffect::DefenseDamage:
+        defenseDamageMultiplier_ += 0.12;
+        break;
+    case RunUpgradeEffect::DefenseFireRate:
+        defenseFireRateMultiplier_ += 0.10;
+        break;
+    case RunUpgradeEffect::ProductionSpeed:
+        runProductionSpeedMultiplier_ += 0.15;
+        break;
+    case RunUpgradeEffect::NightlyBomb:
+        ++runNightlyBombBonus_;
+        break;
+    case RunUpgradeEffect::WiderChoice:
+        break;
+    case RunUpgradeEffect::BloodHarvest:
+    case RunUpgradeEffect::Overkill:
+    case RunUpgradeEffect::Ricochet:
+    case RunUpgradeEffect::Salvager:
+        break;
+    case RunUpgradeEffect::DoubleDown:
+        ++bonusSelectionsNextReward_;
+        break;
+    case RunUpgradeEffect::LockChoice:
+        runUpgradeLockUnlocked_ = true;
+        break;
+    case RunUpgradeEffect::RerollToken:
+        ++runUpgradeRerollTokens_;
+        break;
+    case RunUpgradeEffect::RiskyInvestment:
+        ++riskyInvestmentPending_;
+        break;
+    }
+    --runUpgradeSelectionsRemaining_;
+    if (runUpgradeSelectionsRemaining_ > 0) {
+        generateRunUpgradeChoices();
+    } else {
+        runUpgradeChoicePending_ = false;
+    }
+    refreshSkillRuntimeEffects();
+    return true;
+}
+
+bool Simulation::rerollRunUpgrades() {
+    if (!runUpgradeChoicePending_ || runUpgradeRerollTokens_ <= 0) {
+        return false;
+    }
+    --runUpgradeRerollTokens_;
+    generateRunUpgradeChoices();
+    invalidateSnapshotCache();
+    return true;
+}
+
+bool Simulation::lockRunUpgrade(std::size_t choiceIndex) {
+    if (!runUpgradeChoicePending_ || !runUpgradeLockUnlocked_ ||
+        choiceIndex >= runUpgradeChoiceCount_) {
+        return false;
+    }
+    const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
+    if (lockedRunUpgrade_ == effect) {
+        lockedRunUpgrade_.reset();
+    } else {
+        lockedRunUpgrade_ = effect;
+    }
+    invalidateSnapshotCache();
+    return true;
+}
+
+void Simulation::salvageDestroyedBuilding(
+    BuildingType type, Vec3 position) {
+    if (type == BuildingType::Core) return;
+    salvageDestroyedCost(buildings_.configuredCost(type), position);
+}
+
+void Simulation::salvageDestroyedModularBuilding(
+    const ModularBuildingDamageResult& result, Vec3 position) {
+    ModularBuildPiece piece = ModularBuildPiece::Foundation;
+    if (result.wall) {
+        piece = ModularBuildPiece::Wall;
+    } else if (result.ramp) {
+        piece = ModularBuildPiece::Ramp;
+    } else if (result.platformFrame && result.platformFrame->storey > 0) {
+        piece = ModularBuildPiece::FloorPlatform;
+    }
+    salvageDestroyedCost(
+        modularBuildingCosts_[static_cast<std::size_t>(piece)], position);
+}
+
+void Simulation::salvageDestroyedCost(
+    ResourceCost cost, Vec3 position) {
+    const int stacks = runUpgradeStacks_[runUpgradeIndex(
+        RunUpgradeEffect::Salvager)];
+    if (stacks <= 0) return;
+    const double fraction = std::min(
+        0.90, 0.30 * static_cast<double>(stacks));
+    const auto grant = [&](ResourceType resource, int amount) {
+        if (amount <= 0) return;
+        int before = 0;
+        if (resource == ResourceType::Wood) {
+            before = wood_;
+            addWood(amount);
+            amount = wood_ - before;
+        } else if (resource == ResourceType::Stone) {
+            before = stone_;
+            addStone(amount);
+            amount = stone_ - before;
+        } else if (resource == ResourceType::Crystal) {
+            before = crystals_;
+            addCrystals(amount);
+            amount = crystals_ - before;
+        }
+        if (amount > 0) {
+            events_.push_back({
+                .type = GameEventType::ResourceGranted,
+                .resourceType = resource,
+                .position = position,
+                .amount = amount,
+            });
+        }
+    };
+    grant(ResourceType::Wood,
+          static_cast<int>(std::lround(cost.wood * fraction)));
+    grant(ResourceType::Stone,
+          static_cast<int>(std::lround(cost.stone * fraction)));
+    grant(ResourceType::Crystal,
+          static_cast<int>(std::lround(cost.crystals * fraction)));
 }
 
 void Simulation::grantConfiguredInsight(

@@ -28,6 +28,18 @@ std::size_t attackDirectionIndex(AttackDirection direction) {
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
                              std::size_t firstAnchorIndex) {
     waveSpawnQueue_.assign(plan.spawns.begin(), plan.spawns.end());
+    riskyInvestmentActive_ = riskyInvestmentPending_;
+    riskyInvestmentPending_ = 0;
+    if (riskyInvestmentActive_ > 0) {
+        const double healthMultiplier =
+            1.0 + 0.25 * static_cast<double>(riskyInvestmentActive_);
+        const double damageMultiplier =
+            1.0 + 0.15 * static_cast<double>(riskyInvestmentActive_);
+        for (EnemySpawn& spawn : waveSpawnQueue_) {
+            spawn.healthMultiplier *= healthMultiplier;
+            spawn.damageMultiplier *= damageMultiplier;
+        }
+    }
     waveSpawnGroupSize_ = plan.groupSize;
     waveSpawnInterval_ = plan.groupInterval;
     nextWaveSpawnIndex_ = 0;
@@ -47,7 +59,7 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
 void Simulation::beginPreparedWave() {
     bestWave_ = std::max(bestWave_, wave_);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.bombs")) {
-        bombs_.addBombs(2 + std::max(
+        bombs_.addBombs(2 + runNightlyBombBonus_ + std::max(
             0, static_cast<int>(std::lround(
                 skillTree_.effectValue("bomb.nightly_bonus")))));
     }
@@ -164,6 +176,7 @@ void Simulation::completeWave() {
     state_ = RunState::WaveComplete;
     phaseTimeRemaining_ = gameplay_.dawnSeconds;
     phaseDuration_ = phaseTimeRemaining_;
+    prepareRunUpgradeChoices();
 }
 
 } // namespace ian
