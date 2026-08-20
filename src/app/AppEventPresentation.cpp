@@ -363,9 +363,6 @@ void App::processPresentationEvents(
                 addCameraShake(0.10, 0.018 *
                     (1.0 - std::min(distance / 9.0, 1.0)));
             }
-            if (event.amount > 0) {
-                hitStopRemaining_ = std::max(hitStopRemaining_, 0.025);
-            }
         } else if (event.type == GameEventType::IceWandHit) {
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position)
@@ -388,9 +385,6 @@ void App::processPresentationEvents(
                 addCameraShake(
                     0.11, 0.022 *
                         (1.0 - std::min(distance / 9.0, 1.0)));
-            }
-            if (event.amount > 0) {
-                hitStopRemaining_ = std::max(hitStopRemaining_, 0.025);
             }
         } else if (event.type == GameEventType::FireWandHit) {
             const Vec3 numberPosition = event.entityId
@@ -434,13 +428,6 @@ void App::processPresentationEvents(
             weaponRecoilStrength_ =
                 event.critical ? 0.035F : 0.024F;
             addCameraImpulse({0.0, -0.006, 0.008});
-        }
-        const bool resourceImpact =
-            event.type == GameEventType::ResourceHit ||
-            event.type == GameEventType::ResourceCollected;
-        if (event.critical && !resourceImpact) {
-            hitStopRemaining_ =
-                std::max(hitStopRemaining_, 0.045);
         }
         if (event.type == GameEventType::SawSplinterLaunched &&
             event.targetPosition) {

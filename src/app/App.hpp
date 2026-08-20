@@ -469,7 +469,6 @@ class App {
     double iceImpactFlashRemaining_{};
     double iceWandRecoilRemaining_{};
     double iceWandRecoilDuration_{0.20};
-    double hitStopRemaining_{};
     double crosshairHitRemaining_{};
     double crosshairHitDuration_{0.18};
     bool crosshairHitCritical_{};

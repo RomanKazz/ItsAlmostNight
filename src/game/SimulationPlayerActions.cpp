@@ -13,6 +13,15 @@ namespace {
 
 constexpr double LootProximityPickupRadius = 2.0;
 
+[[nodiscard]] constexpr bool isMeleeAttackWeapon(
+    PlayerWeapon weapon) {
+    return weapon == PlayerWeapon::BareHands ||
+           weapon == PlayerWeapon::Axe ||
+           weapon == PlayerWeapon::Pickaxe ||
+           weapon == PlayerWeapon::Club ||
+           weapon == PlayerWeapon::Hammer;
+}
+
 } // namespace
 
 int Simulation::resourceCapacity(BuildingType storageType) const {
@@ -267,6 +276,18 @@ void Simulation::updatePlayerActions(
                 : gameplay_.pickaxeRange;
     aimedEnemy_ = enemies_.raycast(
         playerPosition_, direction, enemyAimRange, &terrain_);
+    if (!aimedEnemy_ && isMeleeAttackWeapon(heldTool)) {
+        // A first-person ray is too brittle for close combat: animation,
+        // uneven arena ground and short enemies can move the capsule just
+        // outside the crosshair between input and the damage frame. Keep
+        // ranged weapons precise, but give melee a narrow horizontal sweep
+        // matching the visible weapon arc.
+        constexpr double MeleeAimAssistHalfAngle = 0.36;
+        aimedEnemy_ = enemies_.nearestEnemyInArc(
+            playerPosition_, gameplay_.pickaxeRange,
+            playerYaw_, MeleeAimAssistHalfAngle,
+            false);
+    }
     if (command.useConsumable && heldTool == PlayerWeapon::Bomb &&
         bombs_.throwBomb(
             playerPosition_, direction, !unlimitedResources_)) {
@@ -322,9 +343,7 @@ void Simulation::updatePlayerActions(
         });
     }
     constexpr double PickaxeInputBufferSeconds = 0.14;
-    const bool meleeTool = heldTool != PlayerWeapon::Rifle &&
-                           heldTool != PlayerWeapon::IceWand &&
-                           heldTool != PlayerWeapon::FireWand;
+    const bool meleeTool = isMeleeAttackWeapon(heldTool);
     if (command.usePickaxe && meleeTool && !selectedBuilding_) {
         pickaxeInputBufferRemaining_ = PickaxeInputBufferSeconds;
     } else {

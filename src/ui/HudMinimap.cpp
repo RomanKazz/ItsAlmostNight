@@ -16,6 +16,30 @@
 namespace ian {
 namespace {
 
+Vector2 rotateMinimapOffset(
+    double worldX, double worldZ, double playerYaw) {
+    const double sine = std::sin(playerYaw);
+    const double cosine = std::cos(playerYaw);
+    return {
+        static_cast<float>(worldX * cosine + worldZ * sine),
+        static_cast<float>(-worldX * sine + worldZ * cosine),
+    };
+}
+
+Vector2 minimapPoint(
+    Rectangle bounds, float scale, double playerYaw,
+    double centerWorldX, double centerWorldZ,
+    double worldX, double worldZ) {
+    const Vector2 offset = rotateMinimapOffset(
+        worldX - centerWorldX,
+        worldZ - centerWorldZ,
+        playerYaw);
+    return {
+        bounds.x + bounds.width * 0.5F + offset.x * scale,
+        bounds.y + bounds.height * 0.5F + offset.y * scale,
+    };
+}
+
 double minimapTerrainHeight(
     const SimulationSnapshot& snapshot,
     double worldX, double worldZ) {
@@ -80,12 +104,10 @@ Color minimapHeightColor(double height) {
 
 void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float expanded) {
+    Rectangle mapBounds, float mapScale,
+    double viewRadius, float expanded) {
     const int cells = expanded > 0.55F ? 64 : 40;
-    const float cellPixels =
-        mapBounds.width / static_cast<float>(cells);
-    const double worldLimit = std::max(snapshot.worldLimit, 1.0);
-    const double cellWorld = worldLimit * 2.0 /
+    const double cellWorld = viewRadius * 2.0 /
         static_cast<double>(cells);
     const int verticesPerAxis = cells + 1;
     std::vector<Color> colors(
@@ -93,9 +115,9 @@ void drawMinimapTerrain(
         static_cast<std::size_t>(verticesPerAxis));
     for (int z = 0; z <= cells; ++z) {
         for (int x = 0; x <= cells; ++x) {
-            const double worldX = -worldLimit +
+            const double worldX = snapshot.playerPosition.x - viewRadius +
                 static_cast<double>(x) * cellWorld;
-            const double worldZ = -worldLimit +
+            const double worldZ = snapshot.playerPosition.z - viewRadius +
                 static_cast<double>(z) * cellWorld;
             colors[static_cast<std::size_t>(z) *
                        static_cast<std::size_t>(verticesPerAxis) +
@@ -110,9 +132,16 @@ void drawMinimapTerrain(
                 static_cast<std::size_t>(verticesPerAxis) +
             static_cast<std::size_t>(x)];
         rlColor4ub(color.r, color.g, color.b, color.a);
-        rlVertex2f(
-            mapBounds.x + static_cast<float>(x) * cellPixels,
-            mapBounds.y + static_cast<float>(z) * cellPixels);
+        const double worldX = snapshot.playerPosition.x - viewRadius +
+            static_cast<double>(x) * cellWorld;
+        const double worldZ = snapshot.playerPosition.z - viewRadius +
+            static_cast<double>(z) * cellWorld;
+        const Vector2 point = minimapPoint(
+            mapBounds, mapScale, snapshot.playerYaw,
+            snapshot.playerPosition.x,
+            snapshot.playerPosition.z,
+            worldX, worldZ);
+        rlVertex2f(point.x, point.y);
     };
     rlBegin(RL_TRIANGLES);
     for (int z = 0; z < cells; ++z) {
@@ -132,13 +161,12 @@ void drawMinimapTerrain(
 void drawMinimapPonds(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale, float expanded) {
-    const auto mapPoint = [mapBounds, mapScale](double x, double z) {
-        return Vector2{
-            mapBounds.x + mapBounds.width * 0.5F +
-                static_cast<float>(x) * mapScale,
-            mapBounds.y + mapBounds.height * 0.5F +
-                static_cast<float>(z) * mapScale,
-        };
+    const auto mapPoint = [&snapshot, mapBounds, mapScale](
+                              double x, double z) {
+        return minimapPoint(
+            mapBounds, mapScale, snapshot.playerYaw,
+            snapshot.playerPosition.x,
+            snapshot.playerPosition.z, x, z);
     };
     constexpr int Segments = 40;
     const Color water{53, 158, 181, 225};
@@ -168,8 +196,8 @@ void drawMinimapPonds(
             const int next = (segment + 1) % Segments;
             DrawTriangle(
                 center,
-                points[static_cast<std::size_t>(segment)],
-                points[static_cast<std::size_t>(next)], water);
+                points[static_cast<std::size_t>(next)],
+                points[static_cast<std::size_t>(segment)], water);
             DrawLineEx(
                 points[static_cast<std::size_t>(segment)],
                 points[static_cast<std::size_t>(next)],
@@ -215,13 +243,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         std::min(
             static_cast<float>(GetScreenWidth()) * 0.68F,
             static_cast<float>(GetScreenHeight()) * 0.70F));
-    const float mapSize = std::lerp(
+    const float displayMapSize = std::lerp(
         collapsedMapSize, expandedMapSize, expanded);
     const float panelPadding = std::lerp(6.0F, 20.0F, expanded);
     const float headerHeight = std::lerp(0.0F, 42.0F, expanded);
-    const float panelWidth = mapSize + panelPadding * 2.0F;
-    const float panelHeight =
-        mapSize + headerHeight + panelPadding * 2.0F;
+    const float panelWidth = displayMapSize + panelPadding * 2.0F;
     const float collapsedPanelWidth =
         collapsedMapSize + 6.0F * 2.0F;
     const float collapsedPanelX =
@@ -231,18 +257,23 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         (static_cast<float>(GetScreenWidth()) - panelWidth) * 0.5F;
     const float expandedPanelY =
         static_cast<float>(GetScreenHeight()) * 0.5F -
-        mapSize * 0.5F - panelPadding - headerHeight;
+        displayMapSize * 0.5F - panelPadding - headerHeight;
     const float panelX = std::lerp(
         collapsedPanelX, expandedPanelX, expanded);
     const float panelY = std::lerp(12.0F, expandedPanelY, expanded);
-    const Rectangle mapBounds{
+    const Rectangle displayMapBounds{
         panelX + panelPadding,
         panelY + panelPadding + headerHeight,
-        mapSize, mapSize,
+        displayMapSize, displayMapSize,
     };
     const float worldLimit = std::max(
         static_cast<float>(snapshot.worldLimit), 1.0F);
-    const float mapScale = mapSize * 0.5F / worldLimit;
+    const double collapsedViewRadius = std::min(
+        static_cast<double>(worldLimit), 58.0);
+    const double viewRadius = std::lerp(
+        collapsedViewRadius,
+        static_cast<double>(worldLimit),
+        static_cast<double>(expanded));
 
     if (expanded > 0.001F) {
         DrawRectangle(
@@ -251,9 +282,6 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
              static_cast<unsigned char>(
                  std::lround(168.0F * expanded))});
     }
-    ui.drawPanel(
-        {panelX, panelY, panelWidth, panelHeight},
-        static_cast<unsigned char>(178.0F + expanded * 52.0F));
     if (expanded > 0.35F) {
         drawUiText(
             "TACTICAL MAP",
@@ -262,40 +290,49 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             18.0F, {224, 205, 171, 255});
     }
 
-    DrawRectangleRec(mapBounds, {29, 43, 35, 238});
-    drawMinimapTerrain(snapshot, mapBounds, expanded);
+    if (!ui.beginMinimapTarget()) {
+        return;
+    }
+    const float mapSize = static_cast<float>(ui.minimapTargetSize());
+    const Rectangle mapBounds{0.0F, 0.0F, mapSize, mapSize};
+    const float mapScale = mapSize * 0.5F /
+        static_cast<float>(std::max(viewRadius, 1.0));
+    const float renderScale = mapSize /
+        std::max(displayMapSize, 1.0F);
+
+    DrawRectangleRec(mapBounds, {29, 43, 35, 255});
+    drawMinimapTerrain(
+        snapshot, mapBounds, mapScale,
+        viewRadius, expanded);
     drawMinimapPonds(snapshot, mapBounds, mapScale, expanded);
-    DrawRectangleLinesEx(
-        mapBounds, std::lerp(2.0F, 5.0F, expanded),
-        {61, 76, 58, 245});
-    const Rectangle playableBounds{
-        mapBounds.x + mapSize * 0.075F,
-        mapBounds.y + mapSize * 0.075F,
-        mapSize * 0.85F,
-        mapSize * 0.85F,
+    const Vector2 mapCenter{
+        mapBounds.x + mapSize * 0.5F,
+        mapBounds.y + mapSize * 0.5F,
     };
-    DrawRectangleLinesEx(
-        playableBounds, 1.0F, {116, 135, 91, 95});
+    DrawCircleLinesV(
+        mapCenter, mapSize * 0.425F,
+        {116, 135, 91, 95});
     DrawLineEx(
         {mapBounds.x + mapSize * 0.5F, mapBounds.y},
         {mapBounds.x + mapSize * 0.5F,
          mapBounds.y + mapSize},
-        1.0F, {214, 205, 169, 24});
+        renderScale, {214, 205, 169, 24});
     DrawLineEx(
         {mapBounds.x, mapBounds.y + mapSize * 0.5F},
         {mapBounds.x + mapSize,
          mapBounds.y + mapSize * 0.5F},
-        1.0F, {214, 205, 169, 24});
+        renderScale, {214, 205, 169, 24});
 
-    const float symbolScale = std::lerp(1.0F, 1.55F, expanded);
+    const float symbolScale =
+        std::lerp(1.0F, 1.55F, expanded) * renderScale;
     const auto mapPoint =
-        [mapBounds, mapScale](double worldX, double worldZ) {
-            return Vector2{
-                mapBounds.x + mapBounds.width * 0.5F +
-                    static_cast<float>(worldX) * mapScale,
-                mapBounds.y + mapBounds.height * 0.5F +
-                    static_cast<float>(worldZ) * mapScale,
-            };
+        [&snapshot, mapBounds, mapScale](
+            double worldX, double worldZ) {
+            return minimapPoint(
+                mapBounds, mapScale, snapshot.playerYaw,
+                snapshot.playerPosition.x,
+                snapshot.playerPosition.z,
+                worldX, worldZ);
         };
 
     BeginScissorMode(
@@ -597,10 +634,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     const Vector2 player = mapPoint(
         snapshot.playerPosition.x, snapshot.playerPosition.z);
-    const Vector2 direction{
-        static_cast<float>(std::sin(snapshot.playerYaw)),
-        static_cast<float>(-std::cos(snapshot.playerYaw)),
-    };
+    // The map rotates with the camera, so the player's heading remains up.
+    const Vector2 direction{0.0F, -1.0F};
     const Vector2 side{-direction.y, direction.x};
     const Color playerColor = snapshot.playerRespawning
         ? Color{174, 181, 181, 240}
@@ -665,18 +700,23 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const Vector2 directionToChest{
                 delta.x / distance, delta.y / distance};
             const float edgeMargin = 8.0F * symbolScale;
-            const Rectangle targetBounds{
-                mapBounds.x + edgeMargin,
-                mapBounds.y + edgeMargin,
-                mapBounds.width - edgeMargin * 2.0F,
-                mapBounds.height - edgeMargin * 2.0F};
+            const float maximumMarkerDistance =
+                mapSize * 0.5F - edgeMargin;
+            const float playerToChestDistance = std::sqrt(
+                (chestPoint.x - mapCenter.x) *
+                    (chestPoint.x - mapCenter.x) +
+                (chestPoint.y - mapCenter.y) *
+                    (chestPoint.y - mapCenter.y));
+            const float markerScale = playerToChestDistance >
+                    maximumMarkerDistance
+                ? maximumMarkerDistance / playerToChestDistance
+                : 1.0F;
             const Vector2 marker{
-                std::clamp(chestPoint.x,
-                           targetBounds.x,
-                           targetBounds.x + targetBounds.width),
-                std::clamp(chestPoint.y,
-                           targetBounds.y,
-                           targetBounds.y + targetBounds.height)};
+                mapCenter.x +
+                    (chestPoint.x - mapCenter.x) * markerScale,
+                mapCenter.y +
+                    (chestPoint.y - mapCenter.y) * markerScale,
+            };
             DrawLineEx(
                 player, marker,
                 std::max(1.4F, symbolScale * 1.6F),
@@ -684,16 +724,16 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const Vector2 perpendicular{
                 -directionToChest.y, directionToChest.x};
             DrawTriangle(
-                {marker.x + directionToChest.x * 7.0F,
-                 marker.y + directionToChest.y * 7.0F},
-                {marker.x - directionToChest.x * 3.0F +
-                     perpendicular.x * 4.0F,
-                 marker.y - directionToChest.y * 3.0F +
-                     perpendicular.y * 4.0F},
-                {marker.x - directionToChest.x * 3.0F -
-                     perpendicular.x * 4.0F,
-                 marker.y - directionToChest.y * 3.0F -
-                     perpendicular.y * 4.0F},
+                {marker.x + directionToChest.x * 7.0F * symbolScale,
+                 marker.y + directionToChest.y * 7.0F * symbolScale},
+                {marker.x - directionToChest.x * 3.0F * symbolScale +
+                     perpendicular.x * 4.0F * symbolScale,
+                 marker.y - directionToChest.y * 3.0F * symbolScale +
+                     perpendicular.y * 4.0F * symbolScale},
+                {marker.x - directionToChest.x * 3.0F * symbolScale -
+                     perpendicular.x * 4.0F * symbolScale,
+                 marker.y - directionToChest.y * 3.0F * symbolScale -
+                     perpendicular.y * 4.0F * symbolScale},
                 {255, 220, 105, 255});
         }
     }
@@ -704,45 +744,69 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         if (!snapshot.upcomingAttackDirections[directionIndex]) {
             continue;
         }
-        Vector2 marker{
-            mapBounds.x + mapBounds.width * 0.5F,
-            mapBounds.y + mapBounds.height * 0.5F,
-        };
-        Vector2 inward{};
+        Vector2 worldDirection{};
         switch (static_cast<AttackDirection>(directionIndex)) {
         case AttackDirection::North:
-            marker.y = mapBounds.y + 5.0F;
-            inward.y = 1.0F;
+            worldDirection = {0.0F, -1.0F};
             break;
         case AttackDirection::East:
-            marker.x = mapBounds.x + mapBounds.width - 5.0F;
-            inward.x = -1.0F;
+            worldDirection = {1.0F, 0.0F};
             break;
         case AttackDirection::South:
-            marker.y = mapBounds.y + mapBounds.height - 5.0F;
-            inward.y = -1.0F;
+            worldDirection = {0.0F, 1.0F};
             break;
         case AttackDirection::West:
-            marker.x = mapBounds.x + 5.0F;
-            inward.x = 1.0F;
+            worldDirection = {-1.0F, 0.0F};
             break;
         }
+        const Vector2 outward = rotateMinimapOffset(
+            worldDirection.x, worldDirection.y,
+            snapshot.playerYaw);
+        const Vector2 inward{-outward.x, -outward.y};
+        // Keep warnings in their own inner ring so compass letters remain
+        // readable on the rotating rim.
+        const float markerRadius =
+            mapSize * 0.5F - 28.0F * renderScale;
+        const Vector2 marker{
+            mapCenter.x + outward.x * markerRadius,
+            mapCenter.y + outward.y * markerRadius,
+        };
         const Vector2 perpendicular{-inward.y, inward.x};
         DrawTriangle(
-            {marker.x + inward.x * 7.0F,
-             marker.y + inward.y * 7.0F},
-            {marker.x - inward.x * 3.0F + perpendicular.x * 4.5F,
-             marker.y - inward.y * 3.0F + perpendicular.y * 4.5F},
-            {marker.x - inward.x * 3.0F - perpendicular.x * 4.5F,
-             marker.y - inward.y * 3.0F - perpendicular.y * 4.5F},
+            {marker.x + inward.x * 7.0F * renderScale,
+             marker.y + inward.y * 7.0F * renderScale},
+            {marker.x - inward.x * 3.0F * renderScale +
+                 perpendicular.x * 4.5F * renderScale,
+             marker.y - inward.y * 3.0F * renderScale +
+                 perpendicular.y * 4.5F * renderScale},
+            {marker.x - inward.x * 3.0F * renderScale -
+                 perpendicular.x * 4.5F * renderScale,
+             marker.y - inward.y * 3.0F * renderScale -
+                 perpendicular.y * 4.5F * renderScale},
             {255, 103, 64, 245});
     }
 
     EndScissorMode();
-    DrawRectangleLinesEx(mapBounds, 2.0F, {196, 172, 126, 230});
+    ui.endMinimapTarget();
+
+    const Vector2 displayMapCenter{
+        displayMapBounds.x + displayMapSize * 0.5F,
+        displayMapBounds.y + displayMapSize * 0.5F,
+    };
+    DrawCircleV(
+        displayMapCenter, displayMapSize * 0.5F + 5.0F,
+        {43, 34, 27, 245});
+    ui.drawMinimapTarget(displayMapBounds);
+    const float borderThickness = std::lerp(2.0F, 5.0F, expanded);
+    DrawRing(
+        displayMapCenter,
+        displayMapSize * 0.5F - borderThickness,
+        displayMapSize * 0.5F, 0.0F, 360.0F, 96,
+        {196, 172, 126, 230});
     const float compassFontSize =
         std::lerp(15.0F, 24.0F, expanded);
-    const float compassInset = compassFontSize * 0.72F;
+    const float compassRadius =
+        displayMapSize * 0.5F - compassFontSize * 0.78F;
     const auto drawCompassLabel =
         [compassFontSize](std::string_view label, Vector2 center) {
             const Vector2 size = measureUiText(label, compassFontSize);
@@ -757,18 +821,22 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 label, position, compassFontSize,
                 {248, 235, 201, 255});
         };
-    drawCompassLabel(
-        "N", {mapBounds.x + mapBounds.width * 0.5F,
-              mapBounds.y + compassInset});
-    drawCompassLabel(
-        "E", {mapBounds.x + mapBounds.width - compassInset,
-              mapBounds.y + mapBounds.height * 0.5F});
-    drawCompassLabel(
-        "S", {mapBounds.x + mapBounds.width * 0.5F,
-              mapBounds.y + mapBounds.height - compassInset});
-    drawCompassLabel(
-        "W", {mapBounds.x + compassInset,
-              mapBounds.y + mapBounds.height * 0.5F});
+    constexpr std::array<std::string_view, 4> CompassLabels{{
+        "N", "E", "S", "W"}};
+    constexpr std::array<Vector2, 4> CompassDirections{{
+        {0.0F, -1.0F}, {1.0F, 0.0F},
+        {0.0F, 1.0F}, {-1.0F, 0.0F},
+    }};
+    for (std::size_t index = 0; index < CompassLabels.size(); ++index) {
+        const Vector2 offset = rotateMinimapOffset(
+            CompassDirections[index].x,
+            CompassDirections[index].y,
+            snapshot.playerYaw);
+        drawCompassLabel(
+            CompassLabels[index],
+            {displayMapCenter.x + offset.x * compassRadius,
+             displayMapCenter.y + offset.y * compassRadius});
+    }
 }
 
 } // namespace ian

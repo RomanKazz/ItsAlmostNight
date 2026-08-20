@@ -242,9 +242,6 @@ void App::update() {
     if (!minimapHeld && minimapExpansion_ < 0.001F) {
         minimapExpansion_ = 0.0F;
     }
-    const bool hitStopActive = hitStopRemaining_ > 0.0;
-    hitStopRemaining_ =
-        std::max(0.0, hitStopRemaining_ - frameSeconds);
     const bool toolContactHoldActive =
         toolContactHoldRemaining_ > 0.0;
     toolContactHoldRemaining_ = std::max(
@@ -267,7 +264,7 @@ void App::update() {
     toolSwingRemaining_ = std::max(
         0.0,
         toolSwingRemaining_ -
-            (hitStopActive || toolContactHoldActive
+            (toolContactHoldActive
                  ? 0.0
                  : frameSeconds));
     const double toolContactProgress = std::clamp(
@@ -443,7 +440,7 @@ void App::update() {
     }
     const RunState frameState = simulation_.snapshot().state;
     const double resourceAnimationSeconds =
-        acceptsGameplayInput(frameState) && !hitStopActive
+        acceptsGameplayInput(frameState)
             ? (slowMotion_ ? frameSeconds * 0.2 : frameSeconds)
             : 0.0;
     statusMessageRemaining_ =
@@ -601,10 +598,7 @@ void App::update() {
     }
     bool consumedTransientInput = false;
     const double simulationFrameSeconds =
-        hitStopActive
-            ? 0.0
-            : slowMotion_ ? frameSeconds * 0.2
-                          : frameSeconds;
+        slowMotion_ ? frameSeconds * 0.2 : frameSeconds;
     const auto simulationStart = PerformanceClock::now();
     performanceStats_.fixedTicks = fixedStep_.advance(
         simulationFrameSeconds,

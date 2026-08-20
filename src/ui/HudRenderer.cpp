@@ -1230,45 +1230,35 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             phaseText, 20.0F, PhaseFontSize, phaseColor);
     }
 
-    if (snapshot.state == RunState::Sunset &&
-        hasAttackDirections(snapshot) &&
-        snapshot.phaseDuration > 0.0) {
-        const double elapsed =
-            snapshot.phaseDuration - snapshot.phaseTimeRemaining;
-        if (elapsed < 3.2) {
-            const float fade = std::clamp(
-                static_cast<float>((3.2 - elapsed) / 0.65),
-                0.0F, 1.0F);
-            const std::string warning =
-                "ATTACK FROM " + attackDirectionNames(snapshot);
-            const float warningWidth =
-                measureUiText(warning, 32.0F).x;
-            DrawRectangleRounded(
-                {static_cast<float>(GetScreenWidth()) * 0.5F -
-                     warningWidth * 0.5F - 28.0F,
-                 104.0F, warningWidth + 56.0F, 66.0F},
-                0.22F, 8,
-                {32, 10, 9,
-                 static_cast<unsigned char>(fade * 190.0F)});
-            drawCenteredUiText(
-                warning, 113.0F, 32.0F,
-                {255, 134, 88,
-                 static_cast<unsigned char>(fade * 255.0F)});
-        }
+    const bool attackWarningVisible =
+        snapshot.state == RunState::Sunset &&
+        hasAttackDirections(snapshot);
+    float nextCenterHudY = chestCompassVisible ? 121.0F : 64.0F;
+    if (attackWarningVisible) {
+        const std::string warning =
+            "ATTACK FROM " + attackDirectionNames(snapshot);
+        constexpr float WarningFontSize = 24.0F;
+        const float warningWidth =
+            measureUiText(warning, WarningFontSize).x;
+        const float centerX =
+            static_cast<float>(GetScreenWidth()) * 0.5F;
+        DrawRectangleRounded(
+            {centerX - warningWidth * 0.5F - 22.0F,
+             nextCenterHudY, warningWidth + 44.0F, 48.0F},
+            0.24F, 8, {32, 10, 9, 205});
+        drawCenteredUiText(
+            warning, nextCenterHudY + 8.0F,
+            WarningFontSize, {255, 134, 88, 255});
+        nextCenterHudY += 58.0F;
     }
 
     const std::string objective = view.mapOverlayOpen
         ? std::string{}
         : tutorialText(snapshot);
     if (!objective.empty()) {
-        const bool attackWarningVisible =
-            snapshot.state == RunState::Sunset &&
-            hasAttackDirections(snapshot) &&
-            snapshot.phaseDuration > 0.0 &&
-            snapshot.phaseDuration - snapshot.phaseTimeRemaining < 3.2;
         constexpr float ObjectiveFontSize = 18.0F;
         const float objectiveY = attackWarningVisible
-            ? 184.0F
+            ? nextCenterHudY
             : chestCompassVisible ? 125.0F : 91.0F;
         const float objectiveWidth = measureUiText(
             objective, ObjectiveFontSize).x;

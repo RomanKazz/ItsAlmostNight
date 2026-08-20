@@ -32,6 +32,7 @@ constexpr NPatchInfo InsetPatch{
 };
 
 constexpr float UiTextScale = 1.68F;
+constexpr int MinimapTargetSize = 768;
 
 std::string localizedCopy(std::string_view text) {
     return currentLanguage() == Language::English
@@ -158,6 +159,14 @@ void GameUi::initialize() {
     resourceStone_ = loadTexture("assets/ui/resource_stone.png");
     resourceCrystal_ =
         loadTexture("assets/ui/resource_crystal.png");
+    minimapTarget_ = LoadRenderTexture(
+        MinimapTargetSize, MinimapTargetSize);
+    if (IsTextureValid(minimapTarget_.texture)) {
+        SetTextureFilter(
+            minimapTarget_.texture, TEXTURE_FILTER_BILINEAR);
+    }
+    minimapCircleShader_ = LoadShader(
+        nullptr, "assets/shaders/minimap_circle.fs");
     resourceCoin_ = loadTexture("assets/ui/resource_coin.png");
     initializeUiText();
     initialized_ = true;
@@ -184,6 +193,14 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
+    if (IsShaderValid(minimapCircleShader_)) {
+        UnloadShader(minimapCircleShader_);
+    }
+    minimapCircleShader_ = {};
+    if (IsRenderTextureValid(minimapTarget_)) {
+        UnloadRenderTexture(minimapTarget_);
+    }
+    minimapTarget_ = {};
     unloadTexture(resourceCrystal_);
     unloadTexture(resourceCoin_);
     unloadTexture(resourceStone_);
@@ -217,6 +234,43 @@ void GameUi::shutdown() {
     unloadTexture(panel_);
     shutdownUiText();
     initialized_ = false;
+}
+
+bool GameUi::beginMinimapTarget() const {
+    if (!IsRenderTextureValid(minimapTarget_)) {
+        return false;
+    }
+    BeginTextureMode(minimapTarget_);
+    ClearBackground(BLANK);
+    return true;
+}
+
+void GameUi::endMinimapTarget() const {
+    EndTextureMode();
+}
+
+void GameUi::drawMinimapTarget(Rectangle bounds) const {
+    if (!IsRenderTextureValid(minimapTarget_)) {
+        return;
+    }
+    if (IsShaderValid(minimapCircleShader_)) {
+        BeginShaderMode(minimapCircleShader_);
+    }
+    DrawTexturePro(
+        minimapTarget_.texture,
+        {0.0F, 0.0F,
+         static_cast<float>(minimapTarget_.texture.width),
+         -static_cast<float>(minimapTarget_.texture.height)},
+        bounds, {0.0F, 0.0F}, 0.0F, WHITE);
+    if (IsShaderValid(minimapCircleShader_)) {
+        EndShaderMode();
+    }
+}
+
+int GameUi::minimapTargetSize() const {
+    return IsRenderTextureValid(minimapTarget_)
+        ? minimapTarget_.texture.width
+        : 0;
 }
 
 void GameUi::drawPanel(Rectangle bounds, unsigned char alpha) const {

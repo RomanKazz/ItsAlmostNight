@@ -353,7 +353,6 @@ void App::processInput() {
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
-        hitStopRemaining_ = 0.0;
         toolContactHoldRemaining_ = 0.0;
         crosshairHitRemaining_ = 0.0;
         invalidActionRemaining_ = 0.0;
@@ -478,7 +477,6 @@ void App::processInput() {
         playerDamageFlashRemaining_ = 0.0;
         recentlyDamagedBuilding_.reset();
         damagedBuildingHealthBarRemaining_ = 0.0;
-        hitStopRemaining_ = 0.0;
         toolContactHoldRemaining_ = 0.0;
         crosshairHitRemaining_ = 0.0;
         invalidActionRemaining_ = 0.0;
@@ -568,10 +566,10 @@ void App::processInput() {
         if (controlDown && IsKeyPressed(KEY_F10)) {
             pendingChainLightning_ = true;
         }
-        if (IsKeyPressed(KEY_H)) {
+        if (controlDown && IsKeyPressed(KEY_H)) {
             showFlowField_ = !showFlowField_;
         }
-        if (IsKeyPressed(KEY_L)) {
+        if (controlDown && IsKeyPressed(KEY_L)) {
             showSpatialHash_ = !showSpatialHash_;
         }
         if (IsKeyPressed(KEY_J)) {

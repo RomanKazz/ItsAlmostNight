@@ -14,6 +14,7 @@ constexpr double MinimumSpawnRadius = 20.0;
 constexpr double MaximumSpawnRadius = 30.0;
 constexpr double Pi = 3.14159265358979323846;
 constexpr int MaximumQuantityGrowthSteps = 90;
+constexpr double MainWaveDifficultyScale = 0.85;
 
 std::vector<Vec3> defaultSpawnAnchors() {
     return {
@@ -97,9 +98,9 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     const double waveIndex =
         static_cast<double>(normalizedWave - 1);
     const double healthMultiplier =
-        1.0 + waveIndex * 0.10;
+        MainWaveDifficultyScale * (1.0 + waveIndex * 0.10);
     const double damageMultiplier =
-        1.0 + waveIndex * 0.06;
+        MainWaveDifficultyScale * (1.0 + waveIndex * 0.06);
     firstAnchorIndex_ = firstAnchorIndex % spawnAnchors_.size();
     attackFrontCount_ = std::min(
         spawnAnchors_.size(),

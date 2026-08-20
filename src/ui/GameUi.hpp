@@ -52,6 +52,10 @@ class GameUi {
                     unsigned char alpha = 255) const;
     [[nodiscard]] Texture2D keyCapTexture(
         bool pressed = false) const;
+    [[nodiscard]] bool beginMinimapTarget() const;
+    void endMinimapTarget() const;
+    void drawMinimapTarget(Rectangle bounds) const;
+    [[nodiscard]] int minimapTargetSize() const;
     float drawSliderBar(Rectangle bounds, float value,
                         float minimum, float maximum) const;
     void drawCursor() const;
@@ -91,6 +95,8 @@ class GameUi {
     Texture2D resourceStone_{};
     Texture2D resourceCrystal_{};
     Texture2D resourceCoin_{};
+    RenderTexture2D minimapTarget_{};
+    Shader minimapCircleShader_{};
     bool initialized_{};
 };
 
