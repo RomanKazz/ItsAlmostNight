@@ -34,6 +34,7 @@ struct HudViewState {
     bool mapOverlayOpen{};
     bool minimapHidden{};
     bool showCoreHealth{};
+    bool coreRecentlyDamaged{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
     float woodResourceBounce{};

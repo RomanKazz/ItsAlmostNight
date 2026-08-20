@@ -33,7 +33,13 @@ void runTowerSystemTests() {
     require(core.has_value(), "tower fixture finds core");
     require(buildings.upgrade(core->id, 0, 0, 50).valid(),
             "tower fixture upgrades core");
-    require(buildings.upgrade(turret->building.id, 13, 8, 10).valid(),
+    const ian::ResourceCost turretBlueprintCost =
+        buildings.blueprintUpgradeCost(ian::BuildingType::Turret);
+    require(buildings.upgradeBlueprint(
+                ian::BuildingType::Turret,
+                turretBlueprintCost.wood,
+                turretBlueprintCost.stone,
+                turretBlueprintCost.crystals).valid(),
             "tower fixture upgrades turret");
 
     ian::FlowField flow;
@@ -176,6 +182,35 @@ void runTowerSystemTests() {
     require(flyingShots == 0 &&
                 !antiAirRestrictedGun.towers().front().targetId,
             "gun turret must ignore flying enemies");
+
+    ian::BuildingSystem elevatedGunBuildings;
+    const auto elevatedGunCore = elevatedGunBuildings.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(elevatedGunCore.has_value(),
+            "elevated gun turret fixture creates core");
+    require(elevatedGunBuildings.upgrade(
+                elevatedGunCore->building.id, 0, 0, 50).valid(),
+            "elevated gun turret fixture reaches required core level");
+    require(elevatedGunBuildings.place(
+                ian::BuildingType::GunTurret, {0, -4}, 0,
+                35, 25, 10, 4.0, 1).has_value(),
+            "gun turret can be mounted on an upper storey");
+    ian::EnemySystem lowGroundEnemies;
+    lowGroundEnemies.spawnWave(Spawn);
+    ian::TowerSystem elevatedGunTowers;
+    elevatedGunTowers.syncBuildings(
+        elevatedGunBuildings.buildings());
+    int downwardShots = 0;
+    for (int tick = 0; tick < 120; ++tick) {
+        downwardShots += static_cast<int>(
+            elevatedGunTowers.tick(
+                1.0 / 60.0,
+                elevatedGunBuildings.buildings(),
+                lowGroundEnemies).size());
+    }
+    require(downwardShots == 0 &&
+                !elevatedGunTowers.towers().front().targetId,
+            "gun turret cannot target enemies on a lower storey");
 
     const double yawBeforeRotation =
         gunTowers.towers().front().yaw;

@@ -223,6 +223,10 @@ void App::drawMainMenuWorld(
         Vector3CrossProduct(forward, {0.0F, 1.0F, 0.0F}));
     const Vector3 cameraUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, forward));
+    // The live landscape is the deliberately soft backdrop. The hero prop
+    // is rendered in a separate transparent foreground pass below, so it
+    // can never disappear behind random world generation.
+    renderer_->setMenuDepthOfField(true, 0.1F, 0.1F, 3.5F);
     const WorldLighting lighting{
         .cameraPosition = camera.position,
         .sunDirection = Vector3Scale(
@@ -287,20 +291,70 @@ void App::drawMainMenuWorld(
     drawBlobShadows(snapshot, camera);
     EndMode3D();
     renderer_->endWorldPass();
+    renderer_->setMenuDepthOfField(false);
 
-    // Cool veil separates the UI hierarchy while leaving the live world
-    // recognizable. Extra edge shading imitates shallow depth-of-field
-    // composition without adding a costly blur pass to the menu.
+    // A restrained cool grade keeps the warm focused prop readable while
+    // preserving the live world behind the menu.
     DrawRectangle(
         0, 0, GetScreenWidth(), GetScreenHeight(),
-        {9, 55, 68, 92});
+        {8, 43, 52, 46});
     DrawRectangleGradientH(
         0, 0, GetScreenWidth() / 3, GetScreenHeight(),
-        {8, 17, 20, 104}, {8, 17, 20, 0});
+        {8, 17, 20, 82}, {8, 17, 20, 0});
     DrawRectangleGradientH(
         GetScreenWidth() * 2 / 3, 0,
         GetScreenWidth() / 3 + 1, GetScreenHeight(),
-        {8, 17, 20, 0}, {8, 17, 20, 104});
+        {8, 17, 20, 0}, {8, 17, 20, 82});
+
+    // Crisp foreground showcase, analogous to Megabonk's microwave. It is
+    // composited after background post-processing and owns an independent
+    // depth buffer, producing stable framing for every generated world.
+    if (renderer_->beginFirstPersonToolPass()) {
+        const Camera3D showcaseCamera{
+            .position = {5.0F, 4.0F, 8.0F},
+            .target = {1.8F, 2.6F, 0.0F},
+            .up = {0.0F, 1.0F, 0.0F},
+            .fovy = 31.0F,
+            .projection = CAMERA_PERSPECTIVE,
+        };
+        WorldLighting showcaseLighting = lighting;
+        showcaseLighting.cameraPosition = showcaseCamera.position;
+        showcaseLighting.fogStart = 1000.0F;
+        showcaseLighting.fogEnd = 1001.0F;
+        BeginMode3D(showcaseCamera);
+        if (renderer_->beginBlobShadowBatch(
+                showcaseCamera.position)) {
+            renderer_->drawBlobShadow(
+                {0.0F, 0.025F, 0.0F},
+                1.95F, 1.65F, 0.38F, 24);
+            renderer_->endBlobShadowBatch();
+        }
+        renderer_->beginWorldShader(showcaseLighting);
+        WorldMaterialState showcaseMaterial{};
+        showcaseMaterial.bakedAo = 0.84F;
+        showcaseMaterial.screenAoAmount = 0.0F;
+        renderer_->setWorldMaterial(showcaseMaterial);
+        static_cast<void>(renderer_->drawPlatformFrameModel(
+            {0.0F, 0.0F, 0.0F}, WHITE, 1.35F,
+            {0.52F, 0.52F, 0.52F, 0.52F}));
+        constexpr float ShowcaseYaw = 2.56F;
+        const float turretSweep = static_cast<float>(
+            std::sin(GetTime() * 0.42) * 0.11);
+        static_cast<void>(renderer_->drawGunTurret(
+            {0.0F, 0.08F, 0.0F},
+            ShowcaseYaw, ShowcaseYaw + turretSweep,
+            WHITE, 1.58F));
+        renderer_->endWorldShader();
+        EndMode3D();
+        FirstPersonToolTuning showcaseComposite{};
+        showcaseComposite.outlineEnabled = true;
+        showcaseComposite.outlineWidth = 2.2F;
+        showcaseComposite.outlineStrength = 0.34F;
+        showcaseComposite.rimStrength = 0.18F;
+        showcaseComposite.brightness = 1.04F;
+        showcaseComposite.saturation = 1.0F;
+        renderer_->endFirstPersonToolPass(showcaseComposite);
+    }
 }
 
 void App::drawMainMenu(const SimulationSnapshot& snapshot) {
@@ -310,10 +364,10 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
     const MenuLayout layout = menuLayout();
 
     drawOutlinedTitle(
-        "IT'S ALMOST NIGHT", layout,
+        "FORTBONK", layout,
         960.0F, 76.0F, 58.0F, 720.0F);
     drawUiText(
-        "BUILD BY DAY. SURVIVE THE NIGHT.",
+        "BUILD. DEFEND. BONK.",
         layout.point(782.0F, 190.0F),
         14.0F * layout.scale, {231, 210, 157, 235});
 

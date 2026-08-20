@@ -46,6 +46,18 @@ void Renderer::setLowHealthEffect(
     lowHealthPulse_ = reduceFlashes ? 0.0F : 1.0F;
 }
 
+void Renderer::setMenuDepthOfField(
+    bool enabled, float focusDistance, float focusRange,
+    float maximumBlurPixels) {
+    menuDepthOfFieldEnabled_ = enabled;
+    menuDepthOfFieldFocusDistance_ =
+        std::max(focusDistance, 0.1F);
+    menuDepthOfFieldFocusRange_ =
+        std::max(focusRange, 0.1F);
+    menuDepthOfFieldMaximumBlurPixels_ =
+        std::clamp(maximumBlurPixels, 0.0F, 12.0F);
+}
+
 void Renderer::resolveWorldShaderLocations() {
     if (!resources_.worldShader().valid()) {
         return;
@@ -245,6 +257,14 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "paperGrainEnabled"),
         .paperGrainStrength = GetShaderLocation(
             shader, "paperGrainStrength"),
+        .menuDofEnabled =
+            GetShaderLocation(shader, "menuDofEnabled"),
+        .menuDofFocusDistance =
+            GetShaderLocation(shader, "menuDofFocusDistance"),
+        .menuDofFocusRange =
+            GetShaderLocation(shader, "menuDofFocusRange"),
+        .menuDofMaximumBlurPixels = GetShaderLocation(
+            shader, "menuDofMaximumBlurPixels"),
         .sceneDepth = GetShaderLocation(shader, "sceneDepth"),
         .sceneNormal = GetShaderLocation(shader, "sceneNormal"),
         .ssaoTexture = GetShaderLocation(shader, "ssaoTexture"),
@@ -344,6 +364,14 @@ void Renderer::uploadPostProcessSettings() {
            settings_.paperGrain ? 1.0F : 0.0F);
     upload(postProcessLocations_.paperGrainStrength,
            settings_.paperGrainStrength);
+    upload(postProcessLocations_.menuDofEnabled,
+           menuDepthOfFieldEnabled_ ? 1.0F : 0.0F);
+    upload(postProcessLocations_.menuDofFocusDistance,
+           menuDepthOfFieldFocusDistance_);
+    upload(postProcessLocations_.menuDofFocusRange,
+           menuDepthOfFieldFocusRange_);
+    upload(postProcessLocations_.menuDofMaximumBlurPixels,
+           menuDepthOfFieldMaximumBlurPixels_);
     const float ssaoEnabled =
         ssaoFrameReady_ && resources_.ssaoTargetValid() ? 1.0F : 0.0F;
     const float ssaoStrength = settings_.aoStrength*1.15F;

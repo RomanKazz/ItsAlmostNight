@@ -14,9 +14,10 @@ constexpr double ResourcePlacementClearance = 0.08;
 constexpr double PropPlacementClearance = 0.80;
 
 std::size_t clusteredTreeVariant(
-    std::size_t cluster, std::size_t member) {
+    std::size_t cluster, std::size_t member,
+    std::uint64_t worldSeed) {
     const std::uint64_t clusterSeed = mixBits64(
-        0x8f3f73b5cf1c9adeULL +
+        0x8f3f73b5cf1c9adeULL + worldSeed +
         static_cast<std::uint64_t>(cluster) *
             0x9e3779b97f4a7c15ULL);
     const std::size_t style = static_cast<std::size_t>(
@@ -64,7 +65,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
     const std::vector<ResourceNodeDefinition>& configured,
     double worldLimit,
     const TerrainHeightfield& terrain,
-    std::span<const MapObstacle> obstacles) {
+    std::span<const MapObstacle> obstacles,
+    std::uint32_t layoutSeed) {
     std::vector<ResourceNodeDefinition> result = configured;
     const auto placeOnDryTerrain = [&terrain](
         std::vector<ResourceNodeDefinition>& definitions) {
@@ -85,6 +87,40 @@ std::vector<ResourceNodeDefinition> scatterResources(
     if (configured.size() < 7U || worldLimit < 16.0) {
         placeOnDryTerrain(result);
         return result;
+    }
+
+    const std::uint64_t worldSeed = layoutSeed == 0U
+        ? 0ULL
+        : mixBits64(
+              static_cast<std::uint64_t>(layoutSeed) ^
+              0x6a09e667f3bcc909ULL);
+    constexpr double Tau = 6.28318530717958647692;
+    // A zero layout seed is the authored first-run layout. Keep it bit-for-bit
+    // compatible with the original placement so tutorials and deterministic
+    // fixtures do not move; restarted runs receive a seeded rotation.
+    const double worldRotation = layoutSeed == 0U
+        ? 0.0
+        : unitRandom(worldSeed) * Tau;
+    const double worldCosine = std::cos(worldRotation);
+    const double worldSine = std::sin(worldRotation);
+    // Authored entries are useful as a balanced starter ring, but their
+    // absolute coordinates must not survive a restart. Rotating the whole
+    // ring preserves its distances from the spawn while producing a new
+    // layout for every run seed.
+    for (ResourceNodeDefinition& definition : result) {
+        const double x = definition.position.x;
+        const double z = definition.position.z;
+        definition.position.x = x * worldCosine - z * worldSine;
+        definition.position.z = x * worldSine + z * worldCosine;
+        const double coordinateLimit = std::max(1.0, worldLimit - 3.0);
+        const double maximumCoordinate = std::max(
+            std::abs(definition.position.x),
+            std::abs(definition.position.z));
+        if (maximumCoordinate > coordinateLimit) {
+            const double fit = coordinateLimit / maximumCoordinate;
+            definition.position.x *= fit;
+            definition.position.z *= fit;
+        }
     }
 
     const auto templateFor =
@@ -151,7 +187,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
                 index - clusteredTreeCount;
             definition.visualVariant = clusteredTreeVariant(
                 singleIndex / TreesPerCluster,
-                singleIndex % TreesPerCluster);
+                singleIndex % TreesPerCluster, worldSeed);
             const double progress =
                 (static_cast<double>(singleIndex) + 0.5) /
                 static_cast<double>(
@@ -163,7 +199,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
                      innerRadius * innerRadius));
             const double angle =
                 static_cast<double>(singleIndex) * GoldenAngle +
-                1.73;
+                1.73 + worldRotation;
             definition.position = {
                 std::cos(angle) * radius,
                 1.0,
@@ -175,7 +211,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
         const std::size_t cluster = index % treeClusterCount;
         const std::size_t member = index / treeClusterCount;
         definition.visualVariant = clusteredTreeVariant(
-            cluster, member);
+            cluster, member, worldSeed);
         const double clusterProgress =
             (static_cast<double>(cluster) + 0.65) /
             static_cast<double>(treeClusterCount);
@@ -185,9 +221,10 @@ std::vector<ResourceNodeDefinition> scatterResources(
                 (clusterOuterRadius * clusterOuterRadius -
                  innerRadius * innerRadius));
         const double clusterAngle =
-            static_cast<double>(cluster) * GoldenAngle + 0.31;
+            static_cast<double>(cluster) * GoldenAngle + 0.31 +
+            worldRotation;
         const std::uint64_t seed =
-            0x51f15e5dULL +
+            0x51f15e5dULL + worldSeed +
             static_cast<std::uint64_t>(cluster) * 131U +
             static_cast<std::uint64_t>(member) * 977U;
         const double localRadius = member == 0U
@@ -223,8 +260,9 @@ std::vector<ResourceNodeDefinition> scatterResources(
                  innerRadius * innerRadius));
         const double angle =
             static_cast<double>(index) * GoldenAngle + 0.87 +
+            worldRotation +
             (unitRandom(
-                 0x8f3f73b5ULL +
+                 0x8f3f73b5ULL + worldSeed +
                  static_cast<std::uint64_t>(index)) -
              0.5) *
                 0.42;
@@ -248,7 +286,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
                 (outerRadius * outerRadius -
                  innerRadius * innerRadius));
         const double angle =
-            static_cast<double>(index) * GoldenAngle + 2.17;
+            static_cast<double>(index) * GoldenAngle + 2.17 +
+            worldRotation;
         definition.position = {
             std::cos(angle) * radius,
             CrystalVisualGroundOffset,
@@ -272,7 +311,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
     }
     for (std::size_t index = 0; index < propCount; ++index) {
         const std::uint64_t seed =
-            0xa0761d6478bd642fULL + index * 0xe7037ed1a0b428dbULL;
+            0xa0761d6478bd642fULL + worldSeed +
+            index * 0xe7037ed1a0b428dbULL;
         const double progress =
             (static_cast<double>(index) + 0.6) /
             static_cast<double>(propCount);
@@ -301,7 +341,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
                 innerRadius + 2.0, outerRadius);
             const double angle =
                 static_cast<double>(index) * GoldenAngle +
-                unitRandom(seed) * 0.9 +
+                worldRotation + unitRandom(seed) * 0.9 +
                 static_cast<double>(attempt) * GoldenAngle * 0.41;
             definition.position = {
                 std::cos(angle) * candidateRadius,

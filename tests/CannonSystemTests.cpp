@@ -12,7 +12,13 @@ void runCannonSystemTests() {
     buildings.upgrade(core->building.id, 0, 0, 50);
     const auto cannon = buildings.place(ian::BuildingType::Cannon, {0, -4}, 0, 40, 30, 25);
     require(cannon.has_value(), "cannon fixture creates cannon");
-    require(buildings.upgrade(cannon->building.id, 20, 15, 23).valid(),
+    const ian::ResourceCost cannonBlueprintCost =
+        buildings.blueprintUpgradeCost(ian::BuildingType::Cannon);
+    require(buildings.upgradeBlueprint(
+                ian::BuildingType::Cannon,
+                cannonBlueprintCost.wood,
+                cannonBlueprintCost.stone,
+                cannonBlueprintCost.crystals).valid(),
             "cannon fixture upgrades cannon");
 
     ian::EnemySystem enemies;

@@ -1779,7 +1779,13 @@ void runSimulationTests() {
             .crystals = 0,
         };
 
-        ian::Simulation transactions{transactionBalance};
+        auto transactionMap = ian::MapDefinition::defaults();
+        // Transaction semantics do not depend on procedural run layout.
+        // Keep the authored tutorial tree in front of the player so this
+        // fixture remains focused on atomic resource spending.
+        transactionMap.resources.resize(1U);
+        ian::Simulation transactions{
+            transactionBalance, std::move(transactionMap)};
         transactions.startRun();
         static_cast<void>(transactions.takeEvents());
         unlockAxe(transactions);
@@ -2988,6 +2994,21 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0);
     require(simulation.snapshot().tick == tickBeforePause, "paused simulation does not advance");
 
+    std::vector<ian::Vec3> resourcePositionsBeforeRestart;
+    resourcePositionsBeforeRestart.reserve(
+        simulation.snapshot().resourceNodes.size());
+    for (const auto& resource : simulation.snapshot().resourceNodes) {
+        resourcePositionsBeforeRestart.push_back(resource.position);
+    }
+    std::vector<std::pair<ian::Vec3, ian::LootUpgradeEffect>>
+        chestLayoutBeforeRestart;
+    chestLayoutBeforeRestart.reserve(
+        simulation.snapshot().lootChests.size());
+    for (const auto& chest : simulation.snapshot().lootChests) {
+        chestLayoutBeforeRestart.emplace_back(
+            chest.position, chest.loot.effect);
+    }
+
     simulation.restartRun();
     require(simulation.snapshot().state == ian::RunState::BuildPhase,
             "restart immediately starts the first preparation timer");
@@ -2998,6 +3019,35 @@ void runSimulationTests() {
     require(simulation.snapshot().tick == 0, "restart resets tick counter");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "restart restores player health");
+    const bool resourceLayoutChanged = std::ranges::any_of(
+        simulation.snapshot().resourceNodes,
+        [&](const ian::ResourceNode& resource) {
+            const std::size_t index = static_cast<std::size_t>(
+                &resource - simulation.snapshot().resourceNodes.data());
+            if (index >= resourcePositionsBeforeRestart.size()) return true;
+            const auto& previous = resourcePositionsBeforeRestart[index];
+            return std::abs(resource.position.x - previous.x) > 1e-6 ||
+                std::abs(resource.position.z - previous.z) > 1e-6;
+        });
+    require(resourceLayoutChanged,
+            "restart regenerates resource and prop placement");
+    const bool chestLayoutOrLootChanged =
+        simulation.snapshot().lootChests.size() !=
+            chestLayoutBeforeRestart.size() ||
+        std::ranges::any_of(
+            simulation.snapshot().lootChests,
+            [&](const ian::LootChestInstance& chest) {
+                const std::size_t index = static_cast<std::size_t>(
+                    &chest - simulation.snapshot().lootChests.data());
+                if (index >= chestLayoutBeforeRestart.size()) return true;
+                const auto& [position, effect] =
+                    chestLayoutBeforeRestart[index];
+                return std::abs(chest.position.x - position.x) > 1e-6 ||
+                    std::abs(chest.position.z - position.z) > 1e-6 ||
+                    chest.loot.effect != effect;
+            });
+    require(chestLayoutOrLootChanged,
+            "restart regenerates chest placement or contents");
     const auto restartEvents = simulation.takeEvents();
     require(
         restartEvents.size() == 1U &&
@@ -3006,7 +3056,17 @@ void runSimulationTests() {
         "restart discards stale events from previous run");
     unlockAxe(simulation);
 
+    const auto restartTree = std::ranges::find_if(
+        simulation.snapshot().resourceNodes,
+        [](const ian::ResourceNode& resource) {
+            return resource.active &&
+                resource.type == ian::ResourceType::Wood;
+        });
+    require(restartTree != simulation.snapshot().resourceNodes.end(),
+            "restarted run contains a tree for gathering tests");
     ian::PlayerCommand attack;
+    attack.overrideAimedResource = true;
+    attack.aimedResourceOverride = restartTree->id;
     attack.usePickaxe = true;
     simulation.tick(1.0 / 60.0, attack);
     require(simulation.snapshot().wood == 0,
@@ -3037,7 +3097,7 @@ void runSimulationTests() {
             grantedWood += event.amount;
         }
         if (event.type == ian::GameEventType::ResourceCollected &&
-            event.amount == 5) {
+            event.resourceType == ian::ResourceType::Wood) {
             collectedEventFound = true;
         }
     }
@@ -3046,6 +3106,8 @@ void runSimulationTests() {
     require(grantedWood == 15,
             "delayed grant events deliver exact tree capacity");
     require(collectedEventFound, "collection emits ResourceCollected event");
+    require(simulation.snapshot().runStatistics.woodAcquired == 15,
+            "run statistics record resources after events are drained");
 
     const auto deathPosition =
         simulation.snapshot().playerPosition;
@@ -3229,18 +3291,31 @@ void runSimulationTests() {
                 coreHealthBeforeDebugDamage, 1e-12,
                 "god mode prevents core damage");
 
+    std::optional<ian::GridPosition> wallGrid;
+    for (int z = 2; z <= 6 && !wallGrid; ++z) {
+        for (int x = -4; x <= 4; ++x) {
+            const ian::GridPosition candidate{x, z};
+            if (simulation.previewPlacement(
+                    ian::BuildingType::Wall, candidate).valid()) {
+                wallGrid = candidate;
+                break;
+            }
+        }
+    }
+    require(wallGrid.has_value(),
+            "debug fixture finds an unoccupied wall cell");
     ian::PlayerCommand placeWall;
     placeWall.placeBuilding =
-        ian::PlaceBuildingCommand{ian::BuildingType::Wall, {0, 4}, 0};
+        ian::PlaceBuildingCommand{
+            ian::BuildingType::Wall, *wallGrid, 0};
     simulation.tick(1.0 / 60.0, placeWall);
     const auto wallSnapshot = simulation.snapshot();
     const auto wallBuilding = std::find_if(
         wallSnapshot.buildings.begin(),
         wallSnapshot.buildings.end(),
-        [](const ian::BuildingInstance& building) {
+        [&wallGrid](const ian::BuildingInstance& building) {
             return building.type == ian::BuildingType::Wall &&
-                   building.gridPosition ==
-                       ian::GridPosition{0, 4};
+                   building.gridPosition == *wallGrid;
         });
     require(
         wallBuilding != wallSnapshot.buildings.end(),

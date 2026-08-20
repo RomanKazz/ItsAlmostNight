@@ -110,6 +110,8 @@ struct PlayerCommand {
     std::optional<StartWaveEarlyCommand> startWaveEarly;
     std::optional<EnableUnlimitedResourcesCommand> enableUnlimitedResources;
     std::optional<UpgradeBuildingCommand> upgradeBuilding;
+    std::optional<UpgradeBuildingBlueprintCommand>
+        upgradeBuildingBlueprint;
     std::optional<RepairBuildingCommand> repairBuilding;
     std::optional<SellBuildingCommand> sellBuilding;
     std::optional<ToggleWeaponCommand> toggleWeapon;
@@ -132,6 +134,18 @@ struct PlayerCommand {
         rotatePlacedBuilding;
     std::optional<RemoveModularBuildingCommand>
         removeModularBuilding;
+};
+
+inline constexpr std::size_t DefenseBlueprintCount = 4;
+
+struct DefenseBlueprintStatus {
+    BuildingType type{BuildingType::GunTurret};
+    std::uint8_t level{1};
+    int existingBuildingCount{};
+    bool unlocked{};
+    UpgradeError upgradeError{UpgradeError::Unsupported};
+    ResourceCost upgradeCost;
+    BuildingStatComparison stats;
 };
 
 enum class RunState {
@@ -194,6 +208,19 @@ enum class AttackDirection {
     East,
     South,
     West,
+};
+
+struct RunCombatStatistics {
+    int wavesSurvived{};
+    int enemiesDefeated{};
+    double playerDamageDealt{};
+    double defenseDamageDealt{};
+    int woodAcquired{};
+    int stoneAcquired{};
+    int crystalsAcquired{};
+    int coinsCollected{};
+    int structuresBuilt{};
+    int structuresLost{};
 };
 
 struct SimulationSnapshot {
@@ -286,6 +313,8 @@ struct SimulationSnapshot {
     std::optional<EntityId> aimedBuilding;
     std::optional<ResourceCost> aimedBuildingUpgradeCost;
     std::optional<BuildingStatComparison> aimedBuildingStats;
+    std::array<DefenseBlueprintStatus, DefenseBlueprintCount>
+        defenseBlueprints;
     std::span<const EnemyInstance> enemies;
     std::span<const EnemyProjectile> enemyProjectiles;
     std::span<const TowerRuntime> towers;
@@ -315,6 +344,7 @@ struct SimulationSnapshot {
     int earlyWaveInsightBonus;
     int wave;
     int bestWave;
+    RunCombatStatistics runStatistics;
     double coreHealth;
     double coreMaxHealth;
     std::optional<EntityId> coreId;
@@ -465,6 +495,7 @@ class Simulation {
     [[nodiscard]] static Vec3 lookDirection(double yaw,
                                             double pitch);
     void resetRun(GameEventType eventType);
+    void recordRunStatistics(std::span<const GameEvent> events);
     void updatePlayer(double deltaSeconds,
                       const PlayerCommand& command);
     void processDebugCommands(const PlayerCommand& command);
@@ -781,6 +812,7 @@ class Simulation {
     };
     std::vector<PendingEliteExplosion> pendingEliteExplosions_;
     std::vector<GameEvent> events_;
+    RunCombatStatistics runStatistics_;
     mutable std::optional<SimulationSnapshot> snapshotCache_;
     std::uint64_t structuralRevision_{};
 };

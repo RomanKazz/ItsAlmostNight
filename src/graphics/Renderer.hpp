@@ -217,6 +217,10 @@ class Renderer {
     void adjustPixelSize(int direction);
     void setLowHealthEffect(float amount,
                             bool reduceFlashes);
+    void setMenuDepthOfField(bool enabled,
+                             float focusDistance = 18.0F,
+                             float focusRange = 3.0F,
+                             float maximumBlurPixels = 7.0F);
 
     void beginWorldPass(Color clearColor, const Camera3D& camera);
     void drawSky(const SkyState& sky);
@@ -405,7 +409,8 @@ class Renderer {
                                 float yawRadians = 0.0F);
     [[nodiscard]] bool drawCrystalResource(
         Vector3 position, Color tint = WHITE,
-        float scale = 1.0F, float yawRadians = 0.0F);
+        float scale = 1.0F, float yawRadians = 0.0F,
+        Vector3 surfaceNormal = {0.0F, 1.0F, 0.0F});
     [[nodiscard]] bool drawRocksInstanced(
         std::span<const RockDrawInstance> instances);
     [[nodiscard]] bool drawTree(Vector3 position,
@@ -610,6 +615,10 @@ class Renderer {
         int outlineWidth{-1};
         int paperGrainEnabled{-1};
         int paperGrainStrength{-1};
+        int menuDofEnabled{-1};
+        int menuDofFocusDistance{-1};
+        int menuDofFocusRange{-1};
+        int menuDofMaximumBlurPixels{-1};
         int sceneDepth{-1};
         int sceneNormal{-1};
         int ssaoTexture{-1};
@@ -658,6 +667,10 @@ class Renderer {
     GraphicsSettings settings_;
     float lowHealthEffect_{};
     float lowHealthPulse_{1.0F};
+    bool menuDepthOfFieldEnabled_{};
+    float menuDepthOfFieldFocusDistance_{18.0F};
+    float menuDepthOfFieldFocusRange_{3.0F};
+    float menuDepthOfFieldMaximumBlurPixels_{7.0F};
     GraphicsResources resources_;
     TerrainRenderer terrainRenderer_;
     DecorationExclusionMap decorationExclusionMap_;

@@ -587,10 +587,13 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         grassCacheRevealOrigin_.y == worldRevealOrigin_.y;
     std::array<std::size_t, VariantCount> counts{};
 
-    const auto hashCell = [](int x, int z) {
+    const std::uint32_t grassSeed = terrainHeightfield_ != nullptr
+        ? terrainHeightfield_->seed() : 0U;
+    const auto hashCell = [grassSeed](int x, int z) {
         std::uint32_t value =
             static_cast<std::uint32_t>(x) * 0x8da6b343U ^
-            static_cast<std::uint32_t>(z) * 0xd8163841U;
+            static_cast<std::uint32_t>(z) * 0xd8163841U ^
+            grassSeed;
         value ^= value >> 16U;
         value *= 0x7feb352dU;
         value ^= value >> 15U;

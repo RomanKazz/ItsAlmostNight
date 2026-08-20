@@ -468,7 +468,15 @@ void App::drawWorldEntities(
             static_cast<void>(renderer_->drawCrystalResource(
                 nodePosition, WHITE,
                 hitScale * static_cast<float>(node.visualScale),
-                static_cast<float>(node.visualYaw)));
+                static_cast<float>(node.visualYaw),
+                [&]() {
+                    const Vec3 normal = simulation_.terrain().getNormal(
+                        node.position.x, node.position.z);
+                    return Vector3{
+                        static_cast<float>(normal.x),
+                        static_cast<float>(normal.y),
+                        static_cast<float>(normal.z)};
+                }()));
         } else {
             renderer_->setWorldMaterial(material);
             static_cast<void>(renderer_->drawDestructibleProp(
@@ -699,7 +707,15 @@ void App::drawWorldEntities(
             static_cast<void>(renderer_->drawCrystalResource(
                 position, WHITE,
                 scale * visual.visualScale,
-                visual.visualYaw));
+                visual.visualYaw,
+                [&]() {
+                    const Vec3 normal = simulation_.terrain().getNormal(
+                        visual.position.x, visual.position.z);
+                    return Vector3{
+                        static_cast<float>(normal.x),
+                        static_cast<float>(normal.y),
+                        static_cast<float>(normal.z)};
+                }()));
         } else {
             static_cast<void>(renderer_->drawDestructibleProp(
                 visual.type, position, visual.visualYaw, WHITE,

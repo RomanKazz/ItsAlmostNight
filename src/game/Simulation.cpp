@@ -226,7 +226,9 @@ void Simulation::resetRun(GameEventType eventType) {
     terrain_.generate(nextRunTerrainSeed());
     resources_ = ResourceSystem(
         scatterResources(
-            map_.resources, map_.worldLimit, terrain_, map_.obstacles),
+            map_.resources, map_.worldLimit, terrain_, map_.obstacles,
+            eventType == GameEventType::RunRestarted
+                ? terrain_.seed() : 0U),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },
@@ -237,6 +239,7 @@ void Simulation::resetRun(GameEventType eventType) {
     stateBeforePause_ = RunState::BuildPhase;
     tick_ = 0;
     elapsedSeconds_ = 0.0;
+    runStatistics_ = {};
     playerPosition_ = {
         map_.playerSpawn.x,
         terrain_.getHeight(
@@ -579,7 +582,82 @@ void Simulation::startRepairCooldown(EntityId id) {
 }
 
 std::vector<GameEvent> Simulation::takeEvents() {
+    if (!events_.empty()) {
+        recordRunStatistics(events_);
+        invalidateSnapshotCache();
+    }
     return std::exchange(events_, {});
+}
+
+void Simulation::recordRunStatistics(
+    std::span<const GameEvent> events) {
+    for (const GameEvent& event : events) {
+        switch (event.type) {
+        case GameEventType::EnemyKilled:
+            ++runStatistics_.enemiesDefeated;
+            break;
+        case GameEventType::WaveCompleted:
+            runStatistics_.wavesSurvived = std::max(
+                runStatistics_.wavesSurvived, event.amount);
+            break;
+        case GameEventType::PickaxeHit:
+        case GameEventType::IceWandHit:
+        case GameEventType::FireWandHit:
+        case GameEventType::ChainLightningHit:
+            runStatistics_.playerDamageDealt +=
+                std::max(0.0, event.damage);
+            break;
+        case GameEventType::TrapHit:
+        case GameEventType::CannonHit:
+            runStatistics_.defenseDamageDealt +=
+                std::max(0.0, event.damage);
+            break;
+        case GameEventType::ProjectileHit:
+            // Tower projectiles identify their source building. Player rifle
+            // and dash hits do not. Enemy-on-enemy volatile explosions carry
+            // a source id without a building type and are intentionally not
+            // credited to the player.
+            if (event.buildingType) {
+                runStatistics_.defenseDamageDealt +=
+                    std::max(0.0, event.damage);
+            } else if (!event.sourceId) {
+                runStatistics_.playerDamageDealt +=
+                    std::max(0.0, event.damage);
+            }
+            break;
+        case GameEventType::ResourceGranted:
+            if (!event.resourceType || event.amount <= 0) break;
+            switch (*event.resourceType) {
+            case ResourceType::Wood:
+                runStatistics_.woodAcquired += event.amount;
+                break;
+            case ResourceType::Stone:
+                runStatistics_.stoneAcquired += event.amount;
+                break;
+            case ResourceType::Crystal:
+                runStatistics_.crystalsAcquired += event.amount;
+                break;
+            case ResourceType::Barrel:
+            case ResourceType::Crate:
+            case ResourceType::ItemCrate:
+                break;
+            }
+            break;
+        case GameEventType::CoinCollected:
+            runStatistics_.coinsCollected += std::max(0, event.amount);
+            break;
+        case GameEventType::BuildingPlaced:
+        case GameEventType::ModularBuildingPlaced:
+            ++runStatistics_.structuresBuilt;
+            break;
+        case GameEventType::BuildingDestroyed:
+        case GameEventType::ModularBuildingDestroyed:
+            ++runStatistics_.structuresLost;
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 } // namespace ian

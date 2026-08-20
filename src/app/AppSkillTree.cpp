@@ -20,6 +20,7 @@ void App::setSkillTreeVisible(bool visible) {
         }
         enemySpawnMenuVisible_ = false;
         itemGrantMenuVisible_ = false;
+        coreDefenseMenuVisible_ = false;
         skillTree_.open();
         EnableCursor();
         return;

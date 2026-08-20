@@ -146,7 +146,8 @@ std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) 
 
 std::optional<EntityId> EnemySystem::nearestEnemyInArc(
     Vec3 position, double radius, double yaw,
-    double halfAngle, bool includeFlying) const {
+    double halfAngle, bool includeFlying,
+    double maximumSurfaceHeightDifference) const {
     const double forwardX = -std::sin(yaw);
     const double forwardZ = -std::cos(yaw);
     const double minimumDot = std::cos(halfAngle);
@@ -156,7 +157,9 @@ std::optional<EntityId> EnemySystem::nearestEnemyInArc(
         position, radius, [&](const SpatialEntry& entry) {
             const EnemyInstance* enemy = findEnemy(entry.id);
             if (enemy == nullptr || !enemy->active ||
-                (!includeFlying && enemy->type == EnemyType::Flying)) {
+                (!includeFlying && enemy->type == EnemyType::Flying) ||
+                std::abs(enemy->worldSurfaceHeight - position.y) >
+                    maximumSurfaceHeightDifference) {
                 return;
             }
             const double deltaX = entry.position.x - position.x;

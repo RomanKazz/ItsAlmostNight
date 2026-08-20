@@ -81,7 +81,7 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     resources_ = ResourceSystem(
         scatterResources(
             map_.resources, map_.worldLimit,
-            terrain_, map_.obstacles),
+            terrain_, map_.obstacles, terrain_.seed()),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },

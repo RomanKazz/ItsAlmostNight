@@ -727,7 +727,7 @@ void App::render() {
                         minimapExpansion_,
                     .mapOverlayOpen =
                         minimapExpansion_ > 0.01F,
-                    .minimapHidden = minimapHidden_,
+                    .minimapHidden = false,
                     .showCoreHealth =
                         presentationSnapshot.state == RunState::Wave ||
                         presentationSnapshot.state == RunState::Sunset ||
@@ -738,6 +738,11 @@ void App::render() {
                          recentlyDamagedBuilding_ ==
                              presentationSnapshot.coreId &&
                          damagedBuildingHealthBarRemaining_ > 0.0),
+                    .coreRecentlyDamaged =
+                        presentationSnapshot.coreId &&
+                        recentlyDamagedBuilding_ ==
+                            presentationSnapshot.coreId &&
+                        damagedBuildingHealthBarRemaining_ > 0.0,
                     .showBuildingContextCard =
                         showBuildingContextCard,
                     .repairSweepActive =
@@ -1087,9 +1092,7 @@ void App::render() {
 
         drawMinimapHud(
             ui_, presentationSnapshot,
-            minimapHidden_ && minimapExpansion_ < 0.01F
-                ? -1.0F
-                : minimapExpansion_);
+            minimapExpansion_);
 
         drawRunStateOverlay(snapshot);
         drawRunUpgradeOverlay(snapshot);
@@ -1150,6 +1153,7 @@ void App::render() {
         }
         drawEnemySpawnMenu();
         drawItemGrantMenu();
+        drawCoreDefenseMenu();
     }
     drawObjectiveDebugMenu(snapshot);
     if (performanceOverlayVisible_) {
@@ -1160,7 +1164,7 @@ void App::render() {
         snapshot.state == RunState::Paused ||
         renderer_->graphicsPanelVisible() ||
         skillTree_.isOpen() || enemySpawnMenuVisible_ ||
-        itemGrantMenuVisible_;
+        itemGrantMenuVisible_ || coreDefenseMenuVisible_;
     if (uiCursorVisible) {
         HideCursor();
         ui_.drawCursor();

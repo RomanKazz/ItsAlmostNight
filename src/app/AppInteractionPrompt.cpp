@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 
 #include "app/AppRenderSupport.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "graphics/WorldTransforms.hpp"
 #include "ui/InputKeycap.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
@@ -358,6 +359,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     }
 
     if (snapshot.aimedBuilding) {
+        const bool hammerManagementActive =
+            snapshot.unlockedWeapons[
+                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+            !snapshot.selectedBuilding;
         const auto building = std::find_if(
             snapshot.buildings.begin(), snapshot.buildings.end(),
             [&snapshot](const BuildingInstance& value) {
@@ -365,6 +370,28 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             });
         if (building != snapshot.buildings.end()) {
             const bool gate = building->type == BuildingType::Gate;
+            const bool core = building->type == BuildingType::Core;
+            std::optional<std::string> managementHint;
+            if (hammerManagementActive) {
+                const auto keyName = [this](ControlAction action) {
+                    return keyboardKeyName(controlKey(
+                        userSettings_.controls, action));
+                };
+                managementHint = core
+                    ? keyName(ControlAction::Attack) + " REPAIR · " +
+                          keyName(ControlAction::Repair) + " REPAIR ALL · " +
+                          keyName(ControlAction::Upgrade) + " UPGRADE"
+                    : keyName(ControlAction::Copy) + " COPY · " +
+                          keyName(ControlAction::Upgrade) + " UPGRADE · " +
+                          keyName(ControlAction::Sell) + " SELL";
+                if (isDirectionalDefense(building->type)) {
+                    *managementHint += " · R ROTATE";
+                }
+                if (gate) {
+                    *managementHint += " · " +
+                        keyName(ControlAction::Interact) + " TOGGLE";
+                }
+            }
             const Vec3 anchor = buildingHealthBarWorldAnchor(*building);
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Building,
@@ -374,14 +401,29 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(anchor.y + 0.42),
                     static_cast<float>(anchor.z),
                 },
-                .actionText = gate
+                .actionText = gate && !hammerManagementActive
                     ? "Toggle Gate"
-                    : std::string("Select ") +
-                          std::string(buildingDisplayName(
-                              building->type)),
-                .input = gate ? ControlAction::Interact
-                              : ControlAction::Attack,
-                .state = InteractionState::Available,
+                    : hammerManagementActive
+                        ? core
+                            ? "Manage Defenses"
+                            : std::string("Repair ") +
+                                  std::string(buildingDisplayName(
+                                      building->type))
+                        : "Hammer Required",
+                .input = gate && !hammerManagementActive
+                    ? ControlAction::Interact
+                    : core && hammerManagementActive
+                        ? ControlAction::Interact
+                        : ControlAction::Attack,
+                .state = (gate || hammerManagementActive)
+                    ? InteractionState::Available
+                    : InteractionState::Unavailable,
+                .hint = managementHint
+                    ? managementHint
+                    : !hammerManagementActive && !gate
+                    ? std::optional<std::string>{
+                          "HAMMER REQUIRED TO MANAGE"}
+                    : std::nullopt,
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -389,6 +431,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     }
 
     if (snapshot.aimedModularBuilding) {
+        const bool hammerManagementActive =
+            snapshot.unlockedWeapons[
+                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+            !snapshot.selectedBuilding;
         const EntityId target = *snapshot.aimedModularBuilding;
         if (const auto frame = std::find_if(
                 snapshot.platformFrames.begin(),
@@ -408,11 +454,21 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         (frame->anchor.z + PlatformFrameWidthCells * 0.5) *
                         snapshot.worldCellSize),
                 },
-                .actionText = frame->storey == 0
-                    ? "Select Foundation"
-                    : "Select Floor",
+                .actionText = hammerManagementActive
+                    ? frame->storey == 0
+                        ? "Repair Foundation"
+                        : "Repair Floor"
+                    : "Hammer Required",
                 .input = ControlAction::Attack,
-                .state = InteractionState::Available,
+                .state = hammerManagementActive
+                    ? InteractionState::Available
+                    : InteractionState::Unavailable,
+                .hint = hammerManagementActive
+                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    : !hammerManagementActive
+                    ? std::optional<std::string>{
+                          "HAMMER REQUIRED TO MANAGE"}
+                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }
@@ -431,9 +487,18 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(
                         (wall->anchor.z + 0.5) * snapshot.worldCellSize),
                 },
-                .actionText = "Select Wall",
+                .actionText = hammerManagementActive
+                    ? "Repair Wall" : "Hammer Required",
                 .input = ControlAction::Attack,
-                .state = InteractionState::Available,
+                .state = hammerManagementActive
+                    ? InteractionState::Available
+                    : InteractionState::Unavailable,
+                .hint = hammerManagementActive
+                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    : !hammerManagementActive
+                    ? std::optional<std::string>{
+                          "HAMMER REQUIRED TO MANAGE"}
+                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }
@@ -460,9 +525,18 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         (ramp->anchor.z + depthCells * 0.5) *
                         snapshot.worldCellSize),
                 },
-                .actionText = "Select Ramp",
+                .actionText = hammerManagementActive
+                    ? "Repair Ramp" : "Hammer Required",
                 .input = ControlAction::Attack,
-                .state = InteractionState::Available,
+                .state = hammerManagementActive
+                    ? InteractionState::Available
+                    : InteractionState::Unavailable,
+                .hint = hammerManagementActive
+                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    : !hammerManagementActive
+                    ? std::optional<std::string>{
+                          "HAMMER REQUIRED TO MANAGE"}
+                    : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
         }

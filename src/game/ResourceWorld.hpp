@@ -20,7 +20,8 @@ struct MapObstacle;
     const std::vector<ResourceNodeDefinition>& configured,
     double worldLimit,
     const TerrainHeightfield& terrain,
-    std::span<const MapObstacle> obstacles = {});
+    std::span<const MapObstacle> obstacles = {},
+    std::uint32_t layoutSeed = 0U);
 
 [[nodiscard]] Vec3 resourceImpactPosition(
     std::span<const ResourceNode> nodes, EntityId id,

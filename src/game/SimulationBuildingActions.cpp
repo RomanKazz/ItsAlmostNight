@@ -116,6 +116,67 @@ void Simulation::processBuildingActions(
         }
     }
 
+    if (!selectedBuilding_ && command.upgradeBuildingBlueprint) {
+        const BuildingType type =
+            command.upgradeBuildingBlueprint->type;
+        const int availableWood = unlimitedResources_
+            ? std::numeric_limits<int>::max() : wood_;
+        const int availableStone = unlimitedResources_
+            ? std::numeric_limits<int>::max() : stone_;
+        const int availableCrystals = unlimitedResources_
+            ? std::numeric_limits<int>::max() : crystals_;
+        std::vector<BuildingInstance> previousBuildings;
+        for (const BuildingInstance& building : buildings_.buildings()) {
+            if (building.type == type) previousBuildings.push_back(building);
+        }
+
+        BlueprintUpgradeResult result;
+        if (state_ == RunState::Wave || !buildingUnlocked(type)) {
+            result = {
+                .error = UpgradeError::Unsupported,
+                .type = type,
+                .previousLevel = buildings_.blueprintLevel(type),
+                .level = buildings_.blueprintLevel(type),
+            };
+        } else {
+            result = buildings_.upgradeBlueprint(
+                type, availableWood, availableStone,
+                availableCrystals);
+        }
+        if (result.valid()) {
+            if (!unlimitedResources_) {
+                wood_ -= result.cost.wood;
+                stone_ -= result.cost.stone;
+                crystals_ -= result.cost.crystals;
+            }
+            syncBuildingRuntimeSystems();
+            if (previousBuildings.empty()) {
+                events_.push_back({
+                    .type = GameEventType::BuildingUpgraded,
+                    .buildingType = type,
+                    .position = buildings_.core()
+                        ? buildingWorldPosition(*buildings_.core())
+                        : Vec3{},
+                });
+            } else {
+                for (const BuildingInstance& building : previousBuildings) {
+                    events_.push_back({
+                        .type = GameEventType::BuildingUpgraded,
+                        .entityId = building.id,
+                        .buildingType = type,
+                        .position = buildingWorldPosition(building),
+                    });
+                }
+            }
+        } else {
+            events_.push_back({
+                .type = GameEventType::BuildingUpgradeRejected,
+                .buildingType = type,
+                .upgradeError = result.error,
+            });
+        }
+    }
+
     if (!selectedBuilding_ && command.upgradeBuilding) {
         const int availableWood =
             unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;

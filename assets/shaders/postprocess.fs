@@ -39,6 +39,10 @@ uniform float outlineStrength;
 uniform float outlineWidth;
 uniform float paperGrainEnabled;
 uniform float paperGrainStrength;
+uniform float menuDofEnabled;
+uniform float menuDofFocusDistance;
+uniform float menuDofFocusRange;
+uniform float menuDofMaximumBlurPixels;
 
 out vec4 finalColor;
 
@@ -214,6 +218,65 @@ vec3 bloomSample(vec2 uv, vec2 texel)
     return bloom/max(weight, 0.001);
 }
 
+float menuDepthOfFieldAmount(vec2 uv)
+{
+    if (menuDofEnabled < 0.5)
+    {
+        return 0.0;
+    }
+    float depth = texture(sceneDepth, uv).r;
+    float viewDistance = depth < 0.999999
+        ? length(reconstructViewPosition(uv, depth))
+        : menuDofFocusDistance + menuDofFocusRange*4.0;
+    float distanceFromFocus =
+        abs(viewDistance - menuDofFocusDistance);
+    return smoothstep(
+        menuDofFocusRange*0.18,
+        menuDofFocusRange,
+        distanceFromFocus);
+}
+
+vec3 menuDepthOfFieldSample(vec2 uv, vec2 texel, float amount)
+{
+    if (amount <= 0.001)
+    {
+        return texture(texture0, uv).rgb;
+    }
+    vec2 radius = texel*menuDofMaximumBlurPixels*amount;
+    vec3 result = texture(texture0, uv).rgb*0.262;
+    result += texture(texture0, clamp(
+        uv + vec2( 0.000,  1.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2( 0.707,  0.707)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2( 1.000,  0.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2( 0.707, -0.707)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2( 0.000, -1.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2(-0.707, -0.707)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2(-1.000,  0.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2(-0.707,  0.707)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.082;
+    result += texture(texture0, clamp(
+        uv + vec2( 0.360,  0.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.041;
+    result += texture(texture0, clamp(
+        uv + vec2(-0.360,  0.000)*radius,
+        vec2(0.0), vec2(1.0))).rgb*0.041;
+    return result;
+}
+
 vec3 rotateHue(vec3 color, float angle)
 {
     float cosine = cos(angle);
@@ -259,6 +322,9 @@ void main()
     vec4 source =
         texelFetch(texture0, sourceCoordinate, 0)*fragColor;
     vec2 texel = 1.0/vec2(sourceSize);
+    float menuDofAmount = menuDepthOfFieldAmount(pixelUv);
+    source.rgb = menuDepthOfFieldSample(
+        pixelUv, texel, menuDofAmount)*fragColor.rgb;
     if (lowHealthAmount > 0.001)
     {
         vec2 chromaticOffset = healthDirection*texel*2.2*
@@ -284,7 +350,8 @@ void main()
              texture(texture0, pixelUv - vec2(texel.x, 0.0)).rgb +
              texture(texture0, pixelUv + vec2(0.0, texel.y)).rgb +
              texture(texture0, pixelUv - vec2(0.0, texel.y)).rgb)*0.25;
-        color += (source.rgb - neighborhood)*sharpness*0.72;
+        color += (source.rgb - neighborhood)*sharpness*0.72*
+            (1.0 - menuDofAmount);
     }
     if (bloomEnabled > 0.5)
     {
@@ -343,6 +410,7 @@ void main()
         // middle ground, and no black tracing over distant forests/mountains.
         float outlineDistance =
             1.0 - smoothstep(30.0, 86.0, viewDistance);
+        outlineDistance *= 1.0 - menuDofAmount;
         // The auxiliary normal/AO target marks trees and sizeable plants.
         // Their ink disappears earlier than prop/enemy ink, including the
         // terrain-side half of an edge, so distant foliage becomes a clean

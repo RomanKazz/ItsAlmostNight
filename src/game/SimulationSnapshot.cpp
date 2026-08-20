@@ -23,6 +23,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
                              return building.id == *aimedBuilding_;
                          });
         if (aimed != buildings_.buildings().end() &&
+            !BuildingSystem::usesGlobalBlueprint(aimed->type) &&
             aimed->level < MaxBuildingLevel) {
             aimedUpgradeCost = buildings_.upgradeCost(*aimed);
         }
@@ -30,6 +31,41 @@ const SimulationSnapshot& Simulation::snapshot() const {
             aimedStats = compareBuildingStats(
                 *aimed, crystalMines_, MaxBuildingLevel);
         }
+    }
+    constexpr std::array DefenseTypes{
+        BuildingType::GunTurret,
+        BuildingType::Turret,
+        BuildingType::Cannon,
+        BuildingType::Catapult,
+    };
+    std::array<DefenseBlueprintStatus, DefenseBlueprintCount>
+        defenseBlueprints{};
+    for (std::size_t index = 0; index < DefenseTypes.size(); ++index) {
+        const BuildingType type = DefenseTypes[index];
+        const bool unlocked = buildingUnlocked(type);
+        const int availableWood = unlimitedResources_
+            ? std::numeric_limits<int>::max() : wood_;
+        const int availableStone = unlimitedResources_
+            ? std::numeric_limits<int>::max() : stone_;
+        const int availableCrystals = unlimitedResources_
+            ? std::numeric_limits<int>::max() : crystals_;
+        UpgradeResult validation = buildings_.validateBlueprintUpgrade(
+            type, availableWood, availableStone, availableCrystals);
+        if (!unlocked || state_ == RunState::Wave) {
+            validation.error = UpgradeError::Unsupported;
+        }
+        const BuildingInstance preview = buildings_.blueprintPreview(type);
+        defenseBlueprints[index] = {
+            .type = type,
+            .level = preview.level,
+            .existingBuildingCount =
+                buildings_.blueprintBuildingCount(type),
+            .unlocked = unlocked,
+            .upgradeError = validation.error,
+            .upgradeCost = buildings_.blueprintUpgradeCost(type),
+            .stats = compareBuildingStats(
+                preview, crystalMines_, MaxBuildingLevel),
+        };
     }
     const WaveDefinition upcomingComposition =
         waveDirector_.composition(saturatingAdd(wave_, 1));
@@ -241,6 +277,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .aimedBuilding = aimedBuilding_,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
         .aimedBuildingStats = aimedStats,
+        .defenseBlueprints = defenseBlueprints,
         .enemies = std::span<const EnemyInstance>{enemies_.enemies()},
         .enemyProjectiles = enemies_.projectiles(),
         .towers = std::span<const TowerRuntime>{towers_.towers()},
@@ -279,6 +316,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .earlyWaveInsightBonus = earlyWaveInsightBonus(),
         .wave = wave_,
         .bestWave = bestWave_,
+        .runStatistics = runStatistics_,
         .coreHealth = core ? core->health : 0.0,
         .coreMaxHealth = core ? core->maxHealth : 0.0,
         .coreId = core ? std::optional<EntityId>{core->id} : std::nullopt,

@@ -1840,7 +1840,7 @@ bool Renderer::drawRock(Vector3 position, Color tint,
 
 bool Renderer::drawCrystalResource(
     Vector3 position, Color tint, float scale,
-    float yawRadians) {
+    float yawRadians, Vector3 surfaceNormal) {
     auto& resource = resources_.crystalResourceModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
@@ -1864,9 +1864,24 @@ bool Renderer::drawCrystalResource(
         static_cast<float>(CrystalVisualModelScale) * scale;
     position.y +=
         static_cast<float>(CrystalVisualGroundOffset) * modelScale;
+    surfaceNormal = Vector3Normalize(surfaceNormal);
+    if (Vector3LengthSqr(surfaceNormal) < 0.5F) {
+        surfaceNormal = {0.0F, 1.0F, 0.0F};
+    }
+    const Quaternion groundAlignment =
+        QuaternionFromVector3ToVector3(
+            {0.0F, 1.0F, 0.0F}, surfaceNormal);
+    const Quaternion surfaceYaw = QuaternionFromAxisAngle(
+        surfaceNormal, yawRadians);
+    const Quaternion rotation = QuaternionMultiply(
+        surfaceYaw, groundAlignment);
+    Vector3 rotationAxis{0.0F, 1.0F, 0.0F};
+    float rotationAngle = 0.0F;
+    QuaternionToAxisAngle(
+        rotation, &rotationAxis, &rotationAngle);
     DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F},
-        yawRadians * RAD2DEG,
+        model, position, rotationAxis,
+        rotationAngle * RAD2DEG,
         {modelScale, modelScale, modelScale}, tint);
     return true;
 }

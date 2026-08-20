@@ -5,6 +5,7 @@
 #include "game/GameBalance.hpp"
 
 #include <cstdint>
+#include <array>
 #include <optional>
 #include <span>
 #include <vector>
@@ -118,6 +119,10 @@ struct UpgradeBuildingCommand {
     EntityId buildingId;
 };
 
+struct UpgradeBuildingBlueprintCommand {
+    BuildingType type{BuildingType::GunTurret};
+};
+
 struct RepairBuildingCommand {
     EntityId buildingId;
 };
@@ -132,6 +137,19 @@ struct UpgradeResult {
     ResourceCost cost;
 
     [[nodiscard]] bool valid() const { return error == UpgradeError::None; }
+};
+
+struct BlueprintUpgradeResult {
+    UpgradeError error{UpgradeError::None};
+    BuildingType type{BuildingType::GunTurret};
+    std::uint8_t previousLevel{1};
+    std::uint8_t level{1};
+    int upgradedBuildingCount{};
+    ResourceCost cost;
+
+    [[nodiscard]] bool valid() const {
+        return error == UpgradeError::None;
+    }
 };
 
 enum class BuildingActionError {
@@ -215,6 +233,15 @@ class BuildingSystem {
     [[nodiscard]] ResourceCost upgradeCost(const BuildingInstance& building) const;
     [[nodiscard]] UpgradeResult validateUpgrade(EntityId id, int wood, int stone, int crystals) const;
     UpgradeResult upgrade(EntityId id, int wood, int stone, int crystals);
+    [[nodiscard]] static bool usesGlobalBlueprint(BuildingType type);
+    [[nodiscard]] std::uint8_t blueprintLevel(BuildingType type) const;
+    [[nodiscard]] int blueprintBuildingCount(BuildingType type) const;
+    [[nodiscard]] ResourceCost blueprintUpgradeCost(BuildingType type) const;
+    [[nodiscard]] UpgradeResult validateBlueprintUpgrade(
+        BuildingType type, int wood, int stone, int crystals) const;
+    BlueprintUpgradeResult upgradeBlueprint(
+        BuildingType type, int wood, int stone, int crystals);
+    [[nodiscard]] BuildingInstance blueprintPreview(BuildingType type) const;
 
     [[nodiscard]] bool hasCore() const;
     [[nodiscard]] std::optional<BuildingInstance> core() const;
@@ -238,6 +265,8 @@ class BuildingSystem {
     double maxHealthMultiplier_{1.0};
     bool newTowerBonusEnabled_{};
     std::uint8_t newTowerBonusStacks_{};
+    std::array<std::uint8_t, GameBalance::BuildingTypeCount>
+        blueprintLevels_{};
 };
 
 [[nodiscard]] ResourceCost buildingCost(BuildingType type);

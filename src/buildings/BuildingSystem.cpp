@@ -230,6 +230,19 @@ ResourceCost sellRefundFor(
     };
 }
 
+int scaledCostComponent(int value, double multiplier) {
+    if (value <= 0) return 0;
+    return static_cast<int>(std::min<double>(
+        static_cast<double>(std::numeric_limits<int>::max()),
+        std::ceil(static_cast<double>(value) * multiplier)));
+}
+
+int addCostComponents(int left, int right) {
+    return static_cast<int>(std::min<long long>(
+        std::numeric_limits<int>::max(),
+        static_cast<long long>(left) + right));
+}
+
 } // namespace
 
 ResourceCost buildingCost(BuildingType type) {
@@ -499,7 +512,9 @@ GridPosition aimedBuildingGridPosition(
 BuildingSystem::BuildingSystem(
     std::array<BuildingBalanceDefinition, GameBalance::BuildingTypeCount> definitions,
     EconomyBalanceDefinition economy, int coreBuildRadius)
-    : definitions_(definitions), economy_(economy), coreBuildRadius_(coreBuildRadius) {}
+    : definitions_(definitions), economy_(economy), coreBuildRadius_(coreBuildRadius) {
+    blueprintLevels_.fill(1);
+}
 
 const BuildingBalanceDefinition& BuildingSystem::definition(BuildingType type) const {
     return definitions_[buildingTypeIndex(type)];
@@ -511,7 +526,15 @@ ResourceCost BuildingSystem::cost(BuildingType type) const {
 }
 
 ResourceCost BuildingSystem::configuredCost(BuildingType type) const {
-    return cost(type);
+    const ResourceCost base = cost(type);
+    if (!usesGlobalBlueprint(type)) return base;
+    const double multiplier = 1.0 +
+        0.12 * static_cast<double>(blueprintLevel(type) - 1);
+    return {
+        scaledCostComponent(base.wood, multiplier),
+        scaledCostComponent(base.stone, multiplier),
+        scaledCostComponent(base.crystals, multiplier),
+    };
 }
 
 ResourceCost BuildingSystem::repairCost(const BuildingInstance& building) const {
@@ -530,6 +553,7 @@ ResourceCost BuildingSystem::upgradeCost(const BuildingInstance& building) const
 
 void BuildingSystem::reset() {
     buildings_.clear();
+    blueprintLevels_.fill(1);
 }
 
 void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
@@ -579,7 +603,7 @@ void BuildingSystem::setNewTowerBonusStacks(int stacks) {
 PlacementResult BuildingSystem::validate(BuildingType type, GridPosition position, int wood,
                                          int stone, int crystals,
                                          double baseHeight) const {
-    const ResourceCost requiredCost = cost(type);
+    const ResourceCost requiredCost = configuredCost(type);
     if (type == BuildingType::Core && hasCore()) {
         return {PlacementError::CoreAlreadyPlaced, requiredCost};
     }
@@ -667,7 +691,9 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         newTowerBonusEnabled_ && isTowerType(type);
     const std::uint8_t anvilStacks = anvilEnhanced
         ? newTowerBonusStacks_ : 0U;
+    const std::uint8_t level = blueprintLevel(type);
     const double health = definition(type).maxHealth *
+        (1.0 + 0.15 * static_cast<double>(level - 1)) *
         maxHealthMultiplier_ *
         (anvilStacks > 0
              ? 1.0 + 0.10 * anvilStacks
@@ -678,7 +704,7 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         .gridPosition = position,
         .rotation = static_cast<std::uint8_t>(
             rotation % buildingRotationStepCount(type)),
-        .level = 1,
+        .level = level,
         .health = health,
         .maxHealth = health,
         .open = false,
@@ -862,6 +888,12 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
     if (iterator == buildings_.end()) {
         return {.error = UpgradeError::NotFound};
     }
+    if (usesGlobalBlueprint(iterator->type)) {
+        return {
+            .error = UpgradeError::Unsupported,
+            .building = *iterator,
+        };
+    }
     if (iterator->level >= MaxBuildingLevel) {
         return {.error = UpgradeError::MaxLevel, .building = *iterator};
     }
@@ -911,6 +943,143 @@ UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int crys
     return {
         .error = UpgradeError::None,
         .building = *iterator,
+        .cost = validation.cost,
+    };
+}
+
+bool BuildingSystem::usesGlobalBlueprint(BuildingType type) {
+    return type == BuildingType::GunTurret ||
+           type == BuildingType::Turret ||
+           type == BuildingType::Cannon ||
+           type == BuildingType::Catapult;
+}
+
+std::uint8_t BuildingSystem::blueprintLevel(BuildingType type) const {
+    return usesGlobalBlueprint(type)
+        ? blueprintLevels_[buildingTypeIndex(type)]
+        : 1;
+}
+
+int BuildingSystem::blueprintBuildingCount(BuildingType type) const {
+    return static_cast<int>(std::count_if(
+        buildings_.begin(), buildings_.end(),
+        [type](const BuildingInstance& building) {
+            return building.type == type;
+        }));
+}
+
+BuildingInstance BuildingSystem::blueprintPreview(BuildingType type) const {
+    const std::uint8_t level = blueprintLevel(type);
+    const double health = definition(type).maxHealth *
+        (1.0 + 0.15 * static_cast<double>(level - 1)) *
+        maxHealthMultiplier_;
+    return {
+        .id = {},
+        .type = type,
+        .gridPosition = {},
+        .rotation = 0,
+        .level = level,
+        .health = health,
+        .maxHealth = health,
+    };
+}
+
+ResourceCost BuildingSystem::blueprintUpgradeCost(BuildingType type) const {
+    if (!usesGlobalBlueprint(type)) return {};
+    const BuildingInstance preview = blueprintPreview(type);
+    if (preview.level >= MaxBuildingLevel) return {};
+    const ResourceCost research = upgradeCostFor(
+        preview, cost(type), economy_);
+    const int count = blueprintBuildingCount(type);
+    const auto total = [count](int amount) {
+        const int retrofitPerBuilding = scaledCostComponent(amount, 0.5);
+        const long long retrofit =
+            static_cast<long long>(retrofitPerBuilding) * count;
+        return addCostComponents(
+            amount,
+            static_cast<int>(std::min<long long>(
+                retrofit, std::numeric_limits<int>::max())));
+    };
+    return {
+        total(research.wood),
+        total(research.stone),
+        total(research.crystals),
+    };
+}
+
+UpgradeResult BuildingSystem::validateBlueprintUpgrade(
+    BuildingType type, int wood, int stone, int crystals) const {
+    if (!usesGlobalBlueprint(type)) {
+        return {.error = UpgradeError::Unsupported};
+    }
+    const BuildingInstance preview = blueprintPreview(type);
+    if (preview.level >= MaxBuildingLevel) {
+        return {
+            .error = UpgradeError::MaxLevel,
+            .building = preview,
+        };
+    }
+    const auto coreBuilding = core();
+    if (!coreBuilding || coreBuilding->level <= preview.level) {
+        return {
+            .error = UpgradeError::CoreLevelRequired,
+            .building = preview,
+        };
+    }
+    const ResourceCost required = blueprintUpgradeCost(type);
+    if (wood < required.wood || stone < required.stone ||
+        crystals < required.crystals) {
+        return {
+            .error = UpgradeError::InsufficientResources,
+            .building = preview,
+            .cost = required,
+        };
+    }
+    return {
+        .error = UpgradeError::None,
+        .building = preview,
+        .cost = required,
+    };
+}
+
+BlueprintUpgradeResult BuildingSystem::upgradeBlueprint(
+    BuildingType type, int wood, int stone, int crystals) {
+    const UpgradeResult validation = validateBlueprintUpgrade(
+        type, wood, stone, crystals);
+    const std::uint8_t previous = blueprintLevel(type);
+    if (!validation.valid()) {
+        return {
+            .error = validation.error,
+            .type = type,
+            .previousLevel = previous,
+            .level = previous,
+            .cost = validation.cost,
+        };
+    }
+
+    const std::uint8_t next = static_cast<std::uint8_t>(previous + 1);
+    blueprintLevels_[buildingTypeIndex(type)] = next;
+    int upgradedCount = 0;
+    for (BuildingInstance& building : buildings_) {
+        if (building.type != type || building.level >= next) continue;
+        const double previousMaxHealth = building.maxHealth;
+        building.level = next;
+        building.maxHealth =
+            definition(type).maxHealth *
+            (1.0 + 0.15 * static_cast<double>(next - 1)) *
+            maxHealthMultiplier_ *
+            (building.anvilStacks > 0
+                 ? 1.0 + 0.10 * building.anvilStacks
+                 : building.anvilEnhanced ? 1.10 : 1.0);
+        building.health += building.maxHealth - previousMaxHealth;
+        ++upgradedCount;
+    }
+    return {
+        .error = UpgradeError::None,
+        .type = type,
+        .previousLevel = previous,
+        .level = next,
+        .upgradedBuildingCount = upgradedCount,
         .cost = validation.cost,
     };
 }

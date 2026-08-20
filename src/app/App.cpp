@@ -209,7 +209,7 @@ App::App()
 int App::run() {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
-               "It's Almost Night");
+               "FORTBONK");
     SetExitKey(KEY_NULL);
     applyFullscreenSetting(userSettings_.graphics.fullscreen);
     renderer_.emplace();

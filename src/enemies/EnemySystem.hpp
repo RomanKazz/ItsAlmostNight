@@ -260,7 +260,9 @@ class EnemySystem {
     [[nodiscard]] std::optional<EntityId> nearestEnemy(Vec3 position, double radius) const;
     [[nodiscard]] std::optional<EntityId> nearestEnemyInArc(
         Vec3 position, double radius, double yaw,
-        double halfAngle, bool includeFlying = true) const;
+        double halfAngle, bool includeFlying = true,
+        double maximumSurfaceHeightDifference =
+            std::numeric_limits<double>::infinity()) const;
     [[nodiscard]] std::optional<EntityId> densestEnemy(Vec3 position, double radius,
                                                        double clusterRadius) const;
     [[nodiscard]] std::optional<EntityId> densestEnemyInArc(

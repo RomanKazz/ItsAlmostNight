@@ -206,6 +206,7 @@ add_executable(its_almost_night
     src/core/PerformanceRecorder.cpp
     src/app/App.cpp
     src/app/AppActionModes.cpp
+    src/app/AppCoreDefenseMenu.cpp
     src/app/AppEffects.cpp
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppEventPresentation.cpp

@@ -112,11 +112,13 @@ void Renderer::drawDecorativeRocks(
     const int cameraCellZ = static_cast<int>(std::floor(
         (cameraPosition.z + CacheCellOffsetZ) / CacheCellSize));
     const bool revealAnimating = worldRevealElapsed_ < 1.7F;
-    const auto hashCell = [](int x, int z) {
+    const std::uint32_t decorationSeed = terrainHeightfield_ != nullptr
+        ? terrainHeightfield_->seed() : 0U;
+    const auto hashCell = [decorationSeed](int x, int z) {
         std::uint32_t value =
             static_cast<std::uint32_t>(x) * 0x8da6b343U ^
             static_cast<std::uint32_t>(z) * 0xd8163841U ^
-            0x6c8e9cf5U;
+            0x6c8e9cf5U ^ decorationSeed;
         value ^= value >> 16U;
         value *= 0x7feb352dU;
         value ^= value >> 15U;
@@ -712,11 +714,13 @@ void Renderer::drawDecorativeRockAo(
         std::floor((cameraPosition.z - DrawRadius) / Spacing));
     const int maximumZ = static_cast<int>(
         std::ceil((cameraPosition.z + DrawRadius) / Spacing));
-    const auto hashCell = [](int x, int z) {
+    const std::uint32_t decorationSeed = terrainHeightfield_ != nullptr
+        ? terrainHeightfield_->seed() : 0U;
+    const auto hashCell = [decorationSeed](int x, int z) {
         std::uint32_t value =
             static_cast<std::uint32_t>(x) * 0x8da6b343U ^
             static_cast<std::uint32_t>(z) * 0xd8163841U ^
-            0x6c8e9cf5U;
+            0x6c8e9cf5U ^ decorationSeed;
         value ^= value >> 16U;
         value *= 0x7feb352dU;
         value ^= value >> 15U;
@@ -917,11 +921,12 @@ void Renderer::drawBoundaryForest() {
         -terrainLimit / Spacing));
     const int maximumZ = static_cast<int>(std::ceil(
         terrainLimit / Spacing));
-    const auto hashCell = [](int x, int z) {
+    const std::uint32_t decorationSeed = terrain.seed();
+    const auto hashCell = [decorationSeed](int x, int z) {
         std::uint32_t value =
             static_cast<std::uint32_t>(x) * 0x8da6b343U ^
             static_cast<std::uint32_t>(z) * 0xd8163841U ^
-            0xa511e9b3U;
+            0xa511e9b3U ^ decorationSeed;
         value ^= value >> 16U;
         value *= 0x7feb352dU;
         value ^= value >> 15U;

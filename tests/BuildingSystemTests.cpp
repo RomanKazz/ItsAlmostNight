@@ -220,22 +220,61 @@ void runBuildingSystemTests() {
         cannonBuildings.upgradeCost(cannon->building) ==
             ian::buildingUpgradeCost(cannon->building),
         "default upgrade helpers share one pricing formula");
-    const auto cannonLevelTwo =
-        cannonBuildings.upgrade(cannon->building.id, 20, 15, 23);
-    require(cannonLevelTwo.valid() && cannonLevelTwo.building->level == 2,
-            "building upgrade raises level and max health");
-    requireNear(cannonLevelTwo.building->maxHealth, 207.0, 1e-9,
-                "building upgrade gives gradual health increase");
-    require(cannonBuildings.validateUpgrade(cannon->building.id, 40, 30, 50).error ==
+    require(
+        cannonBuildings.validateUpgrade(
+            cannon->building.id, 1000, 1000, 1000).error ==
+            ian::UpgradeError::Unsupported,
+        "directional defenses cannot be upgraded individually");
+    const ian::ResourceCost levelTwoCost =
+        cannonBuildings.blueprintUpgradeCost(
+            ian::BuildingType::Cannon);
+    const auto cannonLevelTwo = cannonBuildings.upgradeBlueprint(
+        ian::BuildingType::Cannon,
+        levelTwoCost.wood, levelTwoCost.stone,
+        levelTwoCost.crystals);
+    require(cannonLevelTwo.valid() && cannonLevelTwo.level == 2 &&
+                cannonLevelTwo.upgradedBuildingCount == 1,
+            "blueprint upgrade raises all existing defenses");
+    const auto upgradedCannon = std::find_if(
+        cannonBuildings.buildings().begin(),
+        cannonBuildings.buildings().end(),
+        [&cannon](const ian::BuildingInstance& building) {
+            return building.id == cannon->building.id;
+        });
+    require(upgradedCannon != cannonBuildings.buildings().end(),
+            "upgraded cannon remains in the world");
+    requireNear(upgradedCannon->maxHealth, 207.0, 1e-9,
+                "blueprint upgrade gives gradual health increase");
+    require(cannonBuildings.validateBlueprintUpgrade(
+                ian::BuildingType::Cannon, 1000, 1000, 1000).error ==
                 ian::UpgradeError::CoreLevelRequired,
-            "building level cannot exceed core level");
+            "blueprint level cannot exceed core level");
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 100);
-    const auto cannonLevelThree =
-        cannonBuildings.upgrade(cannon->building.id, 40, 30, 50);
-    require(cannonLevelThree.valid() && cannonLevelThree.building->level == 3,
+    const ian::ResourceCost levelThreeCost =
+        cannonBuildings.blueprintUpgradeCost(
+            ian::BuildingType::Cannon);
+    const auto cannonLevelThree = cannonBuildings.upgradeBlueprint(
+        ian::BuildingType::Cannon,
+        levelThreeCost.wood, levelThreeCost.stone,
+        levelThreeCost.crystals);
+    require(cannonLevelThree.valid() && cannonLevelThree.level == 3,
             "core level three unlocks next building upgrade");
-    requireNear(cannonLevelThree.building->maxHealth, 234.0, 1e-9,
+    const auto levelThreeCannon = std::find_if(
+        cannonBuildings.buildings().begin(),
+        cannonBuildings.buildings().end(),
+        [&cannon](const ian::BuildingInstance& building) {
+            return building.id == cannon->building.id;
+        });
+    requireNear(levelThreeCannon->maxHealth, 234.0, 1e-9,
                 "next building level keeps gradual health curve");
+    require(
+        cannonBuildings.configuredCost(ian::BuildingType::Cannon).wood >
+            ian::buildingCost(ian::BuildingType::Cannon).wood,
+        "higher blueprint levels increase future construction cost");
+    const auto secondCannon = cannonBuildings.place(
+        ian::BuildingType::Cannon, {4, -2}, 0, 1000, 1000, 1000);
+    require(secondCannon && secondCannon->building.level == 3,
+            "new defenses inherit the current blueprint level");
     require(cannonBuildings.place(ian::BuildingType::SlowTrap, {4, 2}, 0, 15, 20, 10).has_value(),
             "core level two unlocks slow trap");
     require(!ian::buildingBlocksMovement(ian::BuildingType::SlowTrap),

@@ -64,6 +64,7 @@ void App::processInput() {
         !graphicsPanelVisible &&
         !enemySpawnMenuVisible_ &&
         !itemGrantMenuVisible_ &&
+        !coreDefenseMenuVisible_ &&
         !pendingControlRebind_) {
         primaryAttackHoldSeconds_ +=
             static_cast<double>(GetFrameTime());
@@ -98,6 +99,7 @@ void App::processInput() {
             renderer_->setGraphicsPanelVisible(false);
             enemySpawnMenuVisible_ = false;
             itemGrantMenuVisible_ = false;
+            coreDefenseMenuVisible_ = false;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
         }
@@ -179,7 +181,7 @@ void App::processInput() {
         pendingFireWandShot_ = false;
         return;
     }
-    if (!graphicsPanelVisible &&
+    if (!graphicsPanelVisible && !coreDefenseMenuVisible_ &&
         (keyPressed(userSettings_.controls, ControlAction::Skills) ||
          pendingOpenSkillTreeFromUi_)) {
         pendingOpenSkillTreeFromUi_ = false;
@@ -233,11 +235,28 @@ void App::processInput() {
         itemGrantMenuVisible_ = !itemGrantMenuVisible_;
         if (itemGrantMenuVisible_) {
             enemySpawnMenuVisible_ = false;
+            coreDefenseMenuVisible_ = false;
             EnableCursor();
         } else if (snapshot.state != RunState::Paused) {
             DisableCursor();
         }
         audio_.playUiConfirm();
+    }
+    if (coreDefenseMenuVisible_) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            coreDefenseMenuVisible_ = false;
+            if (snapshot.state != RunState::Paused) DisableCursor();
+            audio_.playUiConfirm();
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingDash_ = false;
+        pendingPickaxe_ = false;
+        return;
     }
     if (itemGrantMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -259,6 +278,7 @@ void App::processInput() {
         enemySpawnMenuVisible_ = !enemySpawnMenuVisible_;
         if (enemySpawnMenuVisible_) {
             itemGrantMenuVisible_ = false;
+            coreDefenseMenuVisible_ = false;
             EnableCursor();
         } else if (snapshot.state != RunState::Paused) {
             DisableCursor();
@@ -412,11 +432,6 @@ void App::processInput() {
         } else if (simulation_.snapshot().state != RunState::MainMenu) {
             DisableCursor();
         }
-    }
-    if (snapshot.state != RunState::MainMenu &&
-        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
-        keyPressed(userSettings_.controls, ControlAction::Map)) {
-        minimapHidden_ = !minimapHidden_;
     }
     if (snapshot.state != RunState::MainMenu &&
         (automaticRunRestartPending_ ||
@@ -692,6 +707,16 @@ void App::processInput() {
         input_.overrideAimedWorldLandmark = true;
         input_.aimedWorldLandmarkOverride =
             currentSnapshot.aimedWorldLandmark;
+        const bool hammerManagementActive =
+            currentSnapshot.unlockedWeapons[
+                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+            !foundationBuildMode_ &&
+            !currentSnapshot.selectedBuilding;
+        if (!hammerManagementActive && buildingContextCardTarget_) {
+            buildingContextCardTarget_.reset();
+            buildingContextCardUpgradeCost_.reset();
+            buildingContextCardStats_.reset();
+        }
         const std::optional<EntityId> actionBuilding =
             buildingContextCardTarget_
                 ? buildingContextCardTarget_
@@ -737,7 +762,7 @@ void App::processInput() {
         const Vector2 mouseDelta = GetMouseDelta();
         const float wheel = GetMouseWheelMove();
         std::optional<EntityId> aimedDirectionalDefense;
-        if (!foundationBuildMode_ &&
+        if (hammerManagementActive &&
             !currentSnapshot.selectedBuilding &&
             currentSnapshot.aimedBuilding) {
             const auto aimed = std::ranges::find(
@@ -1001,7 +1026,8 @@ void App::processInput() {
                 ControlAction::ToggleTool)) {
             selectNextActionModeItem(currentSnapshot);
         }
-        if (keyPressed(userSettings_.controls, ControlAction::Copy)) {
+        if (hammerManagementActive &&
+            keyPressed(userSettings_.controls, ControlAction::Copy)) {
             bool copiedPlacement = false;
             if (actionBuilding) {
                 const auto copied = std::find_if(
@@ -1076,8 +1102,8 @@ void App::processInput() {
             }
         }
         const bool aimingCore =
-            currentSnapshot.aimedBuilding && currentSnapshot.coreId &&
-            currentSnapshot.aimedBuilding == currentSnapshot.coreId;
+            actionBuilding && currentSnapshot.coreId &&
+            actionBuilding == currentSnapshot.coreId;
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
             (!aimingCore && actionMode_ == ActionMode::Weapons &&
@@ -1128,16 +1154,21 @@ void App::processInput() {
             if (currentSnapshot.aimedLoot) {
                 pendingChestReroll_ = RerollChestCommand{
                     *currentSnapshot.aimedLoot};
-            } else if (!currentSnapshot.selectedBuilding &&
-                       actionBuilding) {
-                pendingBuildingUpgrade_ =
-                    UpgradeBuildingCommand{*actionBuilding};
-            } else if (!currentSnapshot.selectedBuilding &&
-                       currentSnapshot.coreId) {
-                pendingBuildingUpgrade_ = UpgradeBuildingCommand{*currentSnapshot.coreId};
+            } else if (hammerManagementActive && actionBuilding) {
+                const auto building = std::find_if(
+                    currentSnapshot.buildings.begin(),
+                    currentSnapshot.buildings.end(),
+                    [actionBuilding](const BuildingInstance& value) {
+                        return value.id == *actionBuilding;
+                    });
+                if (building != currentSnapshot.buildings.end() &&
+                    !BuildingSystem::usesGlobalBlueprint(building->type)) {
+                    pendingBuildingUpgrade_ =
+                        UpgradeBuildingCommand{*actionBuilding};
+                }
             }
         }
-        if (aimingCore &&
+        if (hammerManagementActive && aimingCore &&
             keyPressed(userSettings_.controls, ControlAction::Repair)) {
             pendingRepairAllBuildings_ = true;
         }
@@ -1148,7 +1179,7 @@ void App::processInput() {
             pendingPurchaseBombBundle_ = true;
         }
         repairSweepActive_ =
-            !currentSnapshot.selectedBuilding &&
+            hammerManagementActive &&
             !aimingCore &&
             keyDown(userSettings_.controls, ControlAction::Repair);
         if (repairSweepActive_) {
@@ -1209,8 +1240,7 @@ void App::processInput() {
             repairSweepTarget_.reset();
         }
         const bool canSweepRemove =
-            !foundationBuildMode_ &&
-            !currentSnapshot.selectedBuilding;
+            hammerManagementActive;
         const auto aimedRemovalTarget =
             [&]() -> std::optional<EntityId> {
                 if (currentSnapshot.aimedBuilding) {
@@ -1276,10 +1306,22 @@ void App::processInput() {
                 currentSnapshot.aimedChallengeColumn ||
                 currentSnapshot.aimedWorldLandmark) {
                 pendingInteract_ = true;
+            } else if (hammerManagementActive && aimingCore) {
+                coreDefenseMenuVisible_ = true;
+                enemySpawnMenuVisible_ = false;
+                itemGrantMenuVisible_ = false;
+                EnableCursor();
+                audio_.playUiConfirm();
             } else if (!currentSnapshot.selectedBuilding &&
                        actionBuilding) {
-                pendingGateToggle_ =
-                    ToggleGateCommand{*actionBuilding};
+                const auto gate = std::ranges::find(
+                    currentSnapshot.buildings, *actionBuilding,
+                    &BuildingInstance::id);
+                if (gate != currentSnapshot.buildings.end() &&
+                    gate->type == BuildingType::Gate) {
+                    pendingGateToggle_ =
+                        ToggleGateCommand{*actionBuilding};
+                }
             }
         }
         const bool rotateKeyPressed = IsKeyPressed(KEY_R);
@@ -1289,7 +1331,7 @@ void App::processInput() {
              IsKeyDown(KEY_RIGHT_SHIFT));
         if (foundationBuildMode_ ||
             currentSnapshot.selectedBuilding ||
-            aimedDirectionalDefense) {
+            (hammerManagementActive && aimedDirectionalDefense)) {
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
                     static_cast<double>(wheel),
@@ -1335,7 +1377,8 @@ void App::processInput() {
                         *currentSnapshot.selectedBuilding)) {
                     pendingBuildingRotation_ +=
                         direction;
-                } else if (aimedDirectionalDefense) {
+                } else if (hammerManagementActive &&
+                           aimedDirectionalDefense) {
                     pendingPlacedBuildingRotation_ =
                         RotatePlacedBuildingCommand{
                             *aimedDirectionalDefense,
@@ -1630,10 +1673,8 @@ void App::processInput() {
                 };
             } else if (
                 mousePrimaryPressed &&
-                actionModeUsesEquipment(actionMode_) &&
+                hammerManagementActive &&
                 !pendingBuildingSelection_ &&
-                currentSnapshot.selectedWeapon ==
-                    PlayerWeapon::Hammer &&
                 (currentSnapshot.aimedBuilding ||
                  currentSnapshot.aimedModularBuilding)) {
                 const EntityId target =
@@ -1643,7 +1684,9 @@ void App::processInput() {
                                .aimedModularBuilding;
                 pendingBuildingRepair_ =
                     RepairBuildingCommand{target};
-                if (toolSwapRemaining_ <= 0.0 &&
+                if (currentSnapshot.selectedWeapon ==
+                        PlayerWeapon::Hammer &&
+                    toolSwapRemaining_ <= 0.0 &&
                     toolSwingRemaining_ <= 0.0) {
                     toolSwingDuration_ =
                         activeToolTuning().swingDuration;
@@ -1654,24 +1697,6 @@ void App::processInput() {
                 buildingContextCardTarget_.reset();
                 buildingContextCardUpgradeCost_.reset();
                 buildingContextCardStats_.reset();
-            } else if (mousePrimaryPressed &&
-                !pendingBuildingSelection_ &&
-                !currentSnapshot.aimedEnemy &&
-                currentSnapshot.aimedBuilding) {
-                if (buildingContextCardTarget_ ==
-                    currentSnapshot.aimedBuilding) {
-                    buildingContextCardTarget_.reset();
-                    buildingContextCardUpgradeCost_.reset();
-                    buildingContextCardStats_.reset();
-                } else {
-                    buildingContextCardTarget_ =
-                        currentSnapshot.aimedBuilding;
-                    buildingContextCardUpgradeCost_ =
-                        currentSnapshot
-                            .aimedBuildingUpgradeCost;
-                    buildingContextCardStats_ =
-                        currentSnapshot.aimedBuildingStats;
-                }
             } else if (actionModeUsesEquipment(actionMode_) &&
                        !pendingBuildingSelection_ &&
                        currentSnapshot.selectedWeapon == PlayerWeapon::Bomb) {

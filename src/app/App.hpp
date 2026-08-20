@@ -170,6 +170,7 @@ class App {
     void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
     void drawItemGrantMenu();
+    void drawCoreDefenseMenu();
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
     [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
     [[nodiscard]] const FirstPersonToolTuning& activeToolTuning() const;
@@ -284,6 +285,8 @@ class App {
     bool pendingStartWave_{};
     bool pendingUnlimitedResources_{};
     std::optional<UpgradeBuildingCommand> pendingBuildingUpgrade_;
+    std::optional<UpgradeBuildingBlueprintCommand>
+        pendingBuildingBlueprintUpgrade_;
     std::optional<RepairBuildingCommand> pendingBuildingRepair_;
     bool pendingRepairAllBuildings_{};
     bool pendingPurchaseBombBundle_{};
@@ -318,6 +321,8 @@ class App {
     bool pendingChainLightning_{};
     bool enemySpawnMenuVisible_{};
     bool itemGrantMenuVisible_{};
+    bool coreDefenseMenuVisible_{};
+    std::size_t selectedDefenseBlueprint_{};
     int debugSpawnCount_{50};
     LootUpgradeEffect debugGrantLootEffect_{
         LootUpgradeEffect::Apple};
@@ -524,7 +529,6 @@ class App {
     float weaponHotbarSelectionPosition_{};
     float weaponHotbarSelectionAlpha_{1.0F};
     float minimapExpansion_{};
-    bool minimapHidden_{};
     bool foundationBuildMode_{};
     ModularBuildPiece modularBuildPiece_{
         ModularBuildPiece::Foundation};

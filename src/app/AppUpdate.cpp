@@ -624,6 +624,8 @@ void App::update() {
                 tickInput.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
             }
             tickInput.upgradeBuilding = pendingBuildingUpgrade_;
+            tickInput.upgradeBuildingBlueprint =
+                pendingBuildingBlueprintUpgrade_;
             tickInput.repairBuilding = pendingBuildingRepair_;
             if (pendingRepairAllBuildings_) {
                 tickInput.repairAllBuildings = RepairAllBuildingsCommand{};
@@ -707,6 +709,7 @@ void App::update() {
         pendingStartWave_ = false;
         pendingUnlimitedResources_ = false;
         pendingBuildingUpgrade_.reset();
+        pendingBuildingBlueprintUpgrade_.reset();
         pendingBuildingRepair_.reset();
         pendingRepairAllBuildings_ = false;
         pendingPurchaseBombBundle_ = false;
@@ -727,12 +730,6 @@ void App::update() {
         pendingPlacedBuildingRotation_.reset();
     }
     const auto events = simulation_.takeEvents();
-    if (std::ranges::any_of(
-            events, [](const GameEvent& event) {
-                return event.type == GameEventType::RunEnded;
-            })) {
-        automaticRunRestartPending_ = true;
-    }
     const auto& eventSnapshot = simulation_.snapshot();
     refreshDecorationExclusions(eventSnapshot);
     if (!groundCameraSmoothingInitialized_ ||

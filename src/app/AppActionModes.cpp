@@ -25,6 +25,7 @@ void App::resetRunInputState() {
     pendingStartWave_ = false;
     pendingUnlimitedResources_ = false;
     pendingBuildingUpgrade_.reset();
+    pendingBuildingBlueprintUpgrade_.reset();
     pendingBuildingRepair_.reset();
     pendingRepairAllBuildings_ = false;
     pendingPurchaseBombBundle_ = false;
@@ -43,6 +44,7 @@ void App::resetRunInputState() {
     pendingChainLightning_ = false;
     pendingGateToggle_.reset();
     pendingPlacedBuildingRotation_.reset();
+    coreDefenseMenuVisible_ = false;
 
     primaryAttackHoldSeconds_ = 0.0;
     toolSwingUsesAxe_ = false;

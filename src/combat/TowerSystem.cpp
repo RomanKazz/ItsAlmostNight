@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 namespace ian {
 namespace {
@@ -16,6 +17,10 @@ constexpr double TurnSpeed = 12.0;
 constexpr double PitchSpeed = 8.0;
 constexpr double AimTolerance = 0.08726646259971647;
 constexpr double CrossbowPiercingRadius = 0.72;
+// The gun turret has no pitch pivot. A small tolerance keeps it useful on
+// rolling terrain, while preventing a turret on a modular floor from firing
+// down through an entire storey.
+constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
 constexpr std::size_t MaximumCrossbowTargets = 6;
 
 struct PiercingCandidate {
@@ -85,9 +90,14 @@ Vec3 enemyAimPosition(const EnemyInstance& enemy) {
 }
 
 bool towerCanTarget(BuildingType towerType,
-                    const EnemyInstance& enemy) {
-    return towerType != BuildingType::GunTurret ||
-           enemy.type != EnemyType::Flying;
+                    const EnemyInstance& enemy,
+                    double towerSurfaceHeight) {
+    if (towerType != BuildingType::GunTurret) {
+        return true;
+    }
+    return enemy.type != EnemyType::Flying &&
+           std::abs(enemy.worldSurfaceHeight - towerSurfaceHeight) <=
+               GunTurretMaximumSurfaceHeightDifference;
 }
 
 bool withinRange(Vec3 origin, Vec3 target, double range) {
@@ -120,7 +130,7 @@ std::size_t crossbowTargets(
     std::size_t count = 0;
     for (const EnemyInstance& enemy : enemies.enemies()) {
         if (!enemy.active || !towerCanTarget(
-                BuildingType::Turret, enemy)) {
+                BuildingType::Turret, enemy, origin.y)) {
             continue;
         }
         const Vec3 candidatePosition = enemyAimPosition(enemy);
@@ -298,7 +308,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
 
         if (tower.targetId) {
             const auto target = enemies.enemy(*tower.targetId);
-            if (!target || !towerCanTarget(building->type, *target) ||
+            if (!target || !towerCanTarget(
+                    building->type, *target, building->baseHeight) ||
                 !withinRange(origin, target->position, range) ||
                 !directionInsideDefenseArc(
                     origin, target->position, tower.restYaw,
@@ -308,10 +319,15 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         }
 
         if (!tower.targetId && tower.targetSearchCooldownRemaining <= 0.0) {
+            Vec3 searchOrigin = origin;
+            searchOrigin.y = building->baseHeight;
             tower.targetId = enemies.nearestEnemyInArc(
-                origin, range, tower.restYaw,
+                searchOrigin, range, tower.restYaw,
                 defenseAttackHalfAngleRadians(building->level),
-                building->type != BuildingType::GunTurret);
+                building->type != BuildingType::GunTurret,
+                building->type == BuildingType::GunTurret
+                    ? GunTurretMaximumSurfaceHeightDifference
+                    : std::numeric_limits<double>::infinity());
             tower.targetSearchCooldownRemaining = SearchInterval;
         }
         if (!tower.targetId) {

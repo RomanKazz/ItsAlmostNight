@@ -221,7 +221,15 @@ void App::drawShadowPass(
                 WHITE,
                 presentation::resourceHitScale(effects_, node.id) *
                     static_cast<float>(node.visualScale),
-                static_cast<float>(node.visualYaw)));
+                static_cast<float>(node.visualYaw),
+                [&]() {
+                    const Vec3 normal = simulation_.terrain().getNormal(
+                        node.position.x, node.position.z);
+                    return Vector3{
+                        static_cast<float>(normal.x),
+                        static_cast<float>(normal.y),
+                        static_cast<float>(normal.z)};
+                }()));
         }
 
         selectResources(
@@ -807,7 +815,17 @@ void App::drawSelectionPass(
                 } else if (resource->type == ResourceType::Crystal) {
                     static_cast<void>(renderer_->drawCrystalResource(
                         resourcePosition, WHITE, visualScale,
-                        static_cast<float>(resource->visualYaw)));
+                        static_cast<float>(resource->visualYaw),
+                        [&]() {
+                            const Vec3 normal =
+                                simulation_.terrain().getNormal(
+                                    resource->position.x,
+                                    resource->position.z);
+                            return Vector3{
+                                static_cast<float>(normal.x),
+                                static_cast<float>(normal.y),
+                                static_cast<float>(normal.z)};
+                        }()));
                 } else if (isDestructibleProp(resource->type)) {
                     renderer_->setSelectionOutlineBounds(
                         renderer_->destructiblePropWorldBounds(
