@@ -42,7 +42,16 @@ enum class EnemyState {
     AttackCore,
     AttackPlayer,
     BossRamWindup,
+    BossPhaseTransition,
+    BossSlamWindup,
+    BossWarCryWindup,
     Dead,
+};
+
+enum class BossActionType {
+    PhaseChanged,
+    GroundSlam,
+    WarCry,
 };
 
 enum class EnemyApproachRole : std::uint8_t {
@@ -111,6 +120,10 @@ struct EnemyInstance {
     double ramCooldown;
     double ramWindupRemaining;
     double ramCooldownRemaining;
+    int bossPhase;
+    double bossAbilityWindupRemaining;
+    double bossAbilityCooldownRemaining;
+    bool bossWarCryNext;
     double slowRemaining;
     double movementMultiplier;
     Vec3 knockbackVelocity;
@@ -201,6 +214,15 @@ struct EnemyDamageResult {
 struct EnemyPlayerAttack {
     EntityId enemyId;
     double damage;
+};
+
+struct BossActionEvent {
+    BossActionType type;
+    EntityId bossId;
+    Vec3 position;
+    int phase{};
+    double radius{};
+    double damage{};
 };
 
 struct EnemyProjectile {
@@ -295,6 +317,7 @@ class EnemySystem {
     [[nodiscard]] std::vector<EnemySplitResult> takeSplitEvents();
     [[nodiscard]] std::vector<EliteEnemyEvent> takeEliteSpawnEvents();
     [[nodiscard]] std::vector<EliteEnemyEvent> takeEliteDeathEvents();
+    [[nodiscard]] std::vector<BossActionEvent> takeBossActionEvents();
 
     [[nodiscard]] std::size_t activeCount() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
@@ -341,6 +364,7 @@ class EnemySystem {
     std::vector<EnemySplitResult> splitEventBuffer_;
     std::vector<EliteEnemyEvent> eliteSpawnEventBuffer_;
     std::vector<EliteEnemyEvent> eliteDeathEventBuffer_;
+    std::vector<BossActionEvent> bossActionEventBuffer_;
     std::vector<EnemyStructureTarget> structureBuffer_;
     std::vector<EnemyStructureTarget> incomingStructureBuffer_;
     std::vector<int> structureNextBuffer_;

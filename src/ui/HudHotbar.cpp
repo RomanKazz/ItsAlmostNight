@@ -535,25 +535,24 @@ const char* weaponLabel(PlayerWeapon weapon) {
 
 void drawCompactInsight(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view, bool buildModeActive) {
-    const float width = std::clamp(
-        static_cast<float>(GetScreenWidth()) * 0.30F,
-        320.0F, 470.0F);
-    const float centerX = static_cast<float>(GetScreenWidth()) * 0.5F;
+    const HudViewState& view, bool raised) {
+    const float pulse = std::clamp(
+        static_cast<float>(view.insightPulse), 0.0F, 1.0F);
+    const float pointPulse = std::clamp(
+        static_cast<float>(view.treePointPulse), 0.0F, 1.0F);
+
+    constexpr float width = 244.0F;
+    constexpr float x = 18.0F;
     const float y = static_cast<float>(GetScreenHeight()) -
-        (buildModeActive ? 232.0F : 138.0F);
+        (raised ? 282.0F : 226.0F);
     const float requirement = std::max(
         1.0F, static_cast<float>(snapshot.requiredInsight));
     const float fraction = std::clamp(
         static_cast<float>(view.displayedInsight) / requirement,
         0.0F, 1.0F);
-    const float pulse = std::clamp(
-        static_cast<float>(view.insightPulse), 0.0F, 1.0F);
-    const float pointPulse = std::clamp(
-        static_cast<float>(view.treePointPulse), 0.0F, 1.0F);
     if (pulse > 0.01F || pointPulse > 0.01F) {
         DrawRectangleRounded(
-            {centerX - width * 0.5F - 5.0F - pointPulse * 4.0F,
+            {x - 5.0F - pointPulse * 4.0F,
              y - 5.0F - pointPulse * 4.0F,
              width + 10.0F + pointPulse * 8.0F,
              30.0F + pointPulse * 8.0F},
@@ -563,19 +562,19 @@ void drawCompactInsight(
                  95.0F * std::max(pulse, pointPulse))});
     }
     ui.drawProgressBar(
-        {centerX - width * 0.5F, y, width, 18.0F},
+        {x, y, width, 12.0F},
         fraction, UiBarColor::Purple);
     const std::string value = std::to_string(static_cast<int>(
         std::floor(std::max(0.0, view.displayedInsight)))) +
         " / " + std::to_string(static_cast<int>(
             std::ceil(snapshot.requiredInsight)));
-    const float valueWidth = measureUiText(value, 13.0F).x;
+    const float valueWidth = measureUiText(value, 11.0F).x;
     drawUiText(
-        value, {centerX + width * 0.5F - valueWidth, y - 24.0F},
-        13.0F, {224, 211, 251, 245});
-    drawUiText("INSIGHT", {centerX - width * 0.5F, y - 26.0F}, 14.0F,
+        value, {x + width - valueWidth, y - 21.0F},
+        11.0F, {224, 211, 251, 245});
+    drawUiText("INSIGHT", {x, y - 22.0F}, 11.0F,
                {208, 187, 245, 245});
-    const float pointCenterX = centerX - width * 0.5F + 111.0F;
+    const float pointCenterX = x + 78.0F;
     DrawPoly({pointCenterX, y - 17.0F - pointPulse * 2.0F}, 4,
              6.0F + pointPulse * 1.5F, 45.0F,
              {208, 177, 255, 255});
@@ -584,24 +583,6 @@ void drawCompactInsight(
         points,
         {pointCenterX + 11.0F, y - 26.0F - pointPulse * 2.0F},
         15.0F + pointPulse * 2.0F, {208, 177, 255, 255});
-    if (view.insightGainRemaining > 0.0 &&
-        view.insightGainAmount > 0.0) {
-        const float gainProgress = static_cast<float>(std::clamp(
-            1.0 - view.insightGainRemaining /
-                      std::max(0.001, view.insightGainDuration),
-            0.0, 1.0));
-        const std::string gain = "+" + std::to_string(
-            static_cast<int>(std::lround(view.insightGainAmount))) +
-            " INSIGHT";
-        const float gainWidth = measureUiText(gain, 13.0F).x;
-        drawUiText(
-            gain,
-            {centerX - gainWidth * 0.5F,
-             y - 48.0F - gainProgress * 7.0F},
-            13.0F,
-            {218, 193, 255,
-             static_cast<unsigned char>((1.0F - gainProgress) * 255.0F)});
-    }
 }
 
 void drawWeaponHotbar(
@@ -645,7 +626,7 @@ void drawWeaponHotbar(
         ui, std::span<const HotbarSlot>{slots.data(), visibleCount},
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
-        true, false, actionModeLabel(view.actionMode));
+        true, false);
 }
 
 

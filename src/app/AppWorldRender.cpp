@@ -1248,6 +1248,12 @@ void App::drawWorldEntities(
         } else if (
             enemy.state == EnemyState::BossRamWindup) {
             modelTint = {255, 178, 150, 255};
+        } else if (enemy.state == EnemyState::BossSlamWindup) {
+            modelTint = {255, 112, 64, 255};
+        } else if (enemy.state == EnemyState::BossWarCryWindup) {
+            modelTint = {197, 103, 255, 255};
+        } else if (enemy.state == EnemyState::BossPhaseTransition) {
+            modelTint = {255, 220, 116, 255};
         } else if (hasEliteAffix(
                        enemy.eliteAffixes,
                        EliteAffix::Berserker)) {
@@ -1302,7 +1308,10 @@ void App::drawWorldEntities(
             if (enemyDistanceSquared > 625.0F &&
                 enemy.hitAnimationRemaining <= 0.0 &&
                 enemy.state !=
-                    EnemyState::BossRamWindup) {
+                    EnemyState::BossRamWindup &&
+                enemy.state != EnemyState::BossSlamWindup &&
+                enemy.state != EnemyState::BossWarCryWindup &&
+                enemy.state != EnemyState::BossPhaseTransition) {
                 animationTime = static_cast<float>(
                     snapshot.elapsedSeconds);
             }
@@ -1374,6 +1383,12 @@ void App::drawWorldEntities(
             body = {70, 128, 170, 255};
         } else if (enemy.state == EnemyState::BossRamWindup) {
             body = {235, 64, 45, 255};
+        } else if (enemy.state == EnemyState::BossSlamWindup) {
+            body = {245, 91, 38, 255};
+        } else if (enemy.state == EnemyState::BossWarCryWindup) {
+            body = {154, 62, 211, 255};
+        } else if (enemy.state == EnemyState::BossPhaseTransition) {
+            body = {238, 174, 55, 255};
         }
         if (!renderer_->drawEnemy(
                 enemyModelVisual(enemy.type),

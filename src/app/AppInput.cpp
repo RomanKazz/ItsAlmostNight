@@ -223,6 +223,7 @@ void App::processInput() {
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
         simulation_.returnToMainMenu();
+        classSelectionVisible_ = false;
         fixedStep_.reset();
         EnableCursor();
         audio_.playUiConfirm();
@@ -318,9 +319,51 @@ void App::processInput() {
         return;
     }
     if (snapshot.state == RunState::MainMenu &&
+        classSelectionVisible_) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            classSelectionVisible_ = false;
+            pendingStartFromUi_ = false;
+            audio_.playUiConfirm();
+            return;
+        }
+        const int direction =
+            IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)
+                ? -1
+                : IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)
+                    ? 1
+                    : 0;
+        if (direction != 0) {
+            const auto current = std::ranges::find(
+                PlayerClassDefinitions,
+                selectedPlayerClass_,
+                &PlayerClassDefinition::type);
+            const std::size_t currentIndex =
+                current == PlayerClassDefinitions.end()
+                    ? 0U
+                    : static_cast<std::size_t>(
+                          std::distance(
+                              PlayerClassDefinitions.begin(),
+                              current));
+            const std::size_t nextIndex = static_cast<std::size_t>(
+                (static_cast<int>(currentIndex) + direction +
+                 static_cast<int>(PlayerClassDefinitions.size())) %
+                static_cast<int>(PlayerClassDefinitions.size()));
+            selectedPlayerClass_ =
+                PlayerClassDefinitions[nextIndex].type;
+            audio_.playUiConfirm();
+        }
+    }
+    if (snapshot.state == RunState::MainMenu &&
         (IsKeyPressed(KEY_ENTER) || pendingStartFromUi_)) {
+        if (!classSelectionVisible_) {
+            pendingStartFromUi_ = false;
+            classSelectionVisible_ = true;
+            audio_.playUiConfirm();
+            return;
+        }
         pendingStartFromUi_ = false;
-        simulation_.startRun();
+        classSelectionVisible_ = false;
+        simulation_.startRun(selectedPlayerClass_);
         const auto startedSnapshot = simulation_.snapshot();
         rebuildTerrainGraphics();
         worldRevealOrigin_ = {

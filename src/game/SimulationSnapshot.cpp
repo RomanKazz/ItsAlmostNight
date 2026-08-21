@@ -113,6 +113,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         recommendedObjectives[index] = static_cast<int>(recommended[index]);
     snapshotCache_ = SimulationSnapshot{
         .state = state_,
+        .playerClass = playerClass_,
         .tick = tick_,
         .elapsedSeconds = elapsedSeconds_,
         .playerPosition = playerPosition_,

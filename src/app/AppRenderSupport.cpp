@@ -180,6 +180,9 @@ EnemyAnimationVisual enemyAnimationVisual(
     case EnemyState::AttackCore:
     case EnemyState::AttackPlayer:
     case EnemyState::BossRamWindup:
+    case EnemyState::BossSlamWindup:
+    case EnemyState::BossWarCryWindup:
+    case EnemyState::BossPhaseTransition:
         if (enemy.type == EnemyType::Ranged) {
             return EnemyAnimationVisual::RangedAttack;
         }
@@ -281,6 +284,12 @@ float enemyAnimationSeconds(
                 0.0,
                 enemy.ramWindup -
                     enemy.ramWindupRemaining));
+    }
+    if (enemy.state == EnemyState::BossSlamWindup ||
+        enemy.state == EnemyState::BossWarCryWindup ||
+        enemy.state == EnemyState::BossPhaseTransition) {
+        return static_cast<float>(std::max(
+            0.0, 1.5 - enemy.bossAbilityWindupRemaining));
     }
     if (enemy.state == EnemyState::AttackBuilding ||
         enemy.state == EnemyState::AttackCore ||

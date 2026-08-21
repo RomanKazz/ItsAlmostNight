@@ -163,10 +163,11 @@ Simulation::Simulation(
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
 }
 
-void Simulation::startRun() {
+void Simulation::startRun(PlayerClass playerClass) {
     if (state_ != RunState::MainMenu) {
         return;
     }
+    playerClass_ = playerClass;
     resetRun(GameEventType::RunStarted);
 }
 
@@ -376,6 +377,22 @@ void Simulation::resetRun(GameEventType eventType) {
     crystalMines_.setWoodYieldMultiplier(1.0);
     lootChests_.setCoinCostMultiplier(1.0);
     lootChests_.setOpeningCostSurcharge(0);
+    if (const PlayerClassDefinition* playerClass =
+            playerClassDefinition(playerClass_)) {
+        playerDamageMultiplier_ *= playerClass->damageMultiplier;
+        playerAttackSpeedMultiplier_ *=
+            playerClass->attackSpeedMultiplier;
+        runPlayerMoveSpeedMultiplier_ *=
+            playerClass->moveSpeedMultiplier;
+        playerMaxHealthMultiplier_ *=
+            playerClass->maxHealthMultiplier;
+        playerArmorMultiplier_ *= playerClass->armorMultiplier;
+        runBuildingMaxHealthMultiplier_ *=
+            playerClass->buildingHealthMultiplier;
+        defenseDamageMultiplier_ *=
+            playerClass->defenseDamageMultiplier;
+        playerHealth_ = playerPermanentMaxHealth();
+    }
     refreshSkillRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;

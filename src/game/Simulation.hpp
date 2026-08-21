@@ -15,6 +15,7 @@
 #include "enemies/EnemySystem.hpp"
 #include "game/GameEvent.hpp"
 #include "game/GameBalance.hpp"
+#include "game/PlayerClass.hpp"
 #include "game/LootChestSystem.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "progression/SkillTree.hpp"
@@ -225,6 +226,7 @@ struct RunCombatStatistics {
 
 struct SimulationSnapshot {
     RunState state;
+    PlayerClass playerClass{PlayerClass::None};
     std::uint64_t tick;
     double elapsedSeconds;
     Vec3 playerPosition;
@@ -416,7 +418,7 @@ class Simulation {
                         std::vector<ObjectiveDefinition> objectives =
                             ObjectiveSystem::defaultDefinitions());
 
-    void startRun();
+    void startRun(PlayerClass playerClass = PlayerClass::None);
     void restartRun();
     void returnToMainMenu();
     void togglePause();
@@ -633,6 +635,7 @@ class Simulation {
     [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};
+    PlayerClass playerClass_{PlayerClass::None};
     RunState stateBeforePause_{RunState::Gathering};
     std::uint64_t tick_{};
     double elapsedSeconds_{};

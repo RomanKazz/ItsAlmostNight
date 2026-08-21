@@ -6,6 +6,7 @@
 #include "game/ModularCombat.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -215,7 +216,90 @@ void Simulation::updateCombat(double deltaSeconds) {
             enemies_.constrainToArena(
                 challengeColumns_[*activeChallengeColumn_].position,
                 challenge_arena::FenceRadius -
-                    challenge_arena::FenceHalfThickness);
+                challenge_arena::FenceHalfThickness);
+        }
+        for (const BossActionEvent& action :
+             enemies_.takeBossActionEvents()) {
+            if (action.type == BossActionType::PhaseChanged) {
+                events_.push_back({
+                    .type = GameEventType::BossPhaseChanged,
+                    .entityId = action.bossId,
+                    .position = action.position,
+                    .amount = action.phase,
+                    .intensity = 1.05,
+                    .critical = true,
+                });
+                continue;
+            }
+            if (action.type == BossActionType::WarCry) {
+                events_.push_back({
+                    .type = GameEventType::BossWarCry,
+                    .entityId = action.bossId,
+                    .position = action.position,
+                    .amount = action.phase,
+                    .intensity = action.radius,
+                    .critical = true,
+                });
+                constexpr std::array<Vec3, 5> ReinforcementOffsets{{
+                    {2.4, 0.0, 0.0},
+                    {-2.4, 0.0, 0.0},
+                    {0.75, 0.0, 2.3},
+                    {-0.75, 0.0, -2.3},
+                    {2.0, 0.0, -1.65},
+                }};
+                std::array<EnemySpawn, ReinforcementOffsets.size()>
+                    reinforcements{};
+                for (std::size_t index = 0;
+                     index < reinforcements.size(); ++index) {
+                    Vec3 position{
+                        action.position.x +
+                            ReinforcementOffsets[index].x,
+                        0.8,
+                        action.position.z +
+                            ReinforcementOffsets[index].z,
+                    };
+                    reinforcements[index] = {
+                        .type = index < 2
+                            ? EnemyType::Fast
+                            : EnemyType::Basic,
+                        .position = position,
+                        .healthMultiplier = 1.35,
+                        .damageMultiplier = 1.15,
+                    };
+                }
+                enemies_.spawnGroup(reinforcements);
+                continue;
+            }
+
+            events_.push_back({
+                .type = GameEventType::BossGroundSlam,
+                .entityId = action.bossId,
+                .position = action.position,
+                .amount = static_cast<int>(action.damage),
+                .intensity = action.radius,
+                .critical = true,
+            });
+            const double offsetX =
+                playerPosition_.x - action.position.x;
+            const double offsetZ =
+                playerPosition_.z - action.position.z;
+            const double distance = std::hypot(offsetX, offsetZ);
+            if (!playerRespawning_ && distance <= action.radius) {
+                damagePlayer(
+                    action.damage, action.bossId,
+                    action.position);
+                if (!playerRespawning_) {
+                    const double inverseDistance =
+                        distance > 1e-6 ? 1.0 / distance : 0.0;
+                    playerHorizontalVelocity_.x +=
+                        offsetX * inverseDistance * 7.5;
+                    playerHorizontalVelocity_.z +=
+                        offsetZ * inverseDistance * 7.5;
+                    verticalVelocity_ = std::max(
+                        verticalVelocity_, 2.8);
+                    playerGrounded_ = false;
+                }
+            }
         }
         for (const auto& attack : enemies_.playerAttacks()) {
             const auto attacker = enemies_.enemy(attack.enemyId);

@@ -2926,6 +2926,56 @@ void runSimulationTests() {
     simulationBalance.gameplay.pickaxeDamageVariation = 0.0;
     simulationBalance.gameplay.pickaxeCriticalChance = 0.0;
     simulationBalance.gameplay.playerRespawnSeconds = 1.0;
+
+    ian::Simulation rangerClass{simulationBalance};
+    rangerClass.startRun(ian::PlayerClass::Ranger);
+    require(
+        rangerClass.snapshot().playerClass ==
+                ian::PlayerClass::Ranger,
+        "ranger class selection is exposed in the snapshot");
+    requireNear(
+        rangerClass.snapshot().playerMaxHealth, 80.0, 1e-12,
+        "ranger class reduces maximum health");
+    requireNear(
+        rangerClass.snapshot().playerHealth, 80.0, 1e-12,
+        "ranger class starts at full adjusted health");
+    requireNear(
+        rangerClass.snapshot().playerDamageMultiplier, 1.25, 1e-12,
+        "ranger class increases damage");
+    requireNear(
+        rangerClass.snapshot().playerMoveSpeedMultiplier, 1.12, 1e-12,
+        "ranger class applies its glass-cannon run modifiers");
+    rangerClass.restartRun();
+    require(
+        rangerClass.snapshot().playerClass ==
+                ian::PlayerClass::Ranger,
+        "run restart preserves the selected player class");
+    requireNear(
+        rangerClass.snapshot().playerMaxHealth, 80.0, 1e-12,
+        "restarted class reapplies its modifiers once");
+
+    ian::Simulation vanguardClass{simulationBalance};
+    vanguardClass.startRun(ian::PlayerClass::Vanguard);
+    requireNear(
+        vanguardClass.snapshot().playerMaxHealth, 135.0, 1e-12,
+        "vanguard class increases maximum health");
+    requireNear(
+        vanguardClass.snapshot().playerArmorMultiplier, 1.25, 1e-12,
+        "vanguard class adds damage resistance");
+    requireNear(
+        vanguardClass.snapshot().playerDamageMultiplier, 0.90, 1e-12,
+        "vanguard class trades damage for health and resistance");
+
+    ian::Simulation engineerClass{simulationBalance};
+    engineerClass.startRun(ian::PlayerClass::Engineer);
+    require(
+        engineerClass.snapshot().playerClass ==
+                ian::PlayerClass::Engineer,
+        "engineer class selection is exposed in the snapshot");
+    requireNear(
+        engineerClass.snapshot().playerDamageMultiplier, 0.90, 1e-12,
+        "engineer class applies its personal damage tradeoff");
+
     ian::Simulation simulation{simulationBalance};
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
 

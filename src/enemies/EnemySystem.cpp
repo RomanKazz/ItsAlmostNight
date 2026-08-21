@@ -37,6 +37,12 @@ constexpr double Pi = 3.14159265358979323846;
 constexpr double BuildingGridCellSize = 2.0;
 constexpr double BuildingGridMinimum = -192.0;
 constexpr double SplitWindupDuration = 0.38;
+constexpr double BossPhaseTransitionDuration = 1.05;
+constexpr double BossSlamWindupDuration = 1.25;
+constexpr double BossWarCryWindupDuration = 1.35;
+constexpr double BossSlamRadius = 5.25;
+constexpr double BossPhaseTwoSlamDamage = 28.0;
+constexpr double BossPhaseThreeSlamDamage = 36.0;
 constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
@@ -953,6 +959,7 @@ EnemySystem::EnemySystem(
     statusTargetBuffer_.reserve(MaxEnemies);
     eliteSpawnEventBuffer_.reserve(64);
     eliteDeathEventBuffer_.reserve(64);
+    bossActionEventBuffer_.reserve(16);
     structureBuffer_.reserve(256);
     incomingStructureBuffer_.reserve(256);
     structureNextBuffer_.reserve(256);
@@ -980,6 +987,7 @@ void EnemySystem::reset() {
     splitEventBuffer_.clear();
     eliteSpawnEventBuffer_.clear();
     eliteDeathEventBuffer_.clear();
+    bossActionEventBuffer_.clear();
     pendingSplitBuffer_.clear();
     delayedSplitBuffer_.clear();
     previousPlayerPosition_.reset();
@@ -1303,6 +1311,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
             enemy.spawnAnimationRemaining - deltaSeconds);
         enemy.ramCooldownRemaining =
             std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
+        enemy.bossAbilityCooldownRemaining = std::max(
+            0.0,
+            enemy.bossAbilityCooldownRemaining - deltaSeconds);
         enemy.aiUpdateRemaining = std::max(
             0.0, enemy.aiUpdateRemaining - deltaSeconds);
         enemy.slowRemaining = std::max(0.0, enemy.slowRemaining - deltaSeconds);
@@ -1334,9 +1345,118 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 ? terrain->waterMovementMultiplier(
                       enemy.position.x, enemy.position.z)
                 : 1.0;
+        const double bossPhaseSpeed =
+            enemy.type == EnemyType::Boss && enemy.bossPhase >= 3
+                ? 1.22
+                : 1.0;
         const double movementSpeed =
             enemy.speed * enemy.movementMultiplier * waterMultiplier *
-            (berserkerActive(enemy) ? 1.28 : 1.0);
+            (berserkerActive(enemy) ? 1.28 : 1.0) *
+            bossPhaseSpeed;
+
+        if (enemy.type == EnemyType::Boss) {
+            const double healthRatio = enemy.maxHealth > 0.0
+                ? enemy.health / enemy.maxHealth
+                : 0.0;
+            const int desiredPhase = healthRatio <= 1.0 / 3.0
+                ? 3
+                : healthRatio <= 2.0 / 3.0 ? 2 : 1;
+            if (desiredPhase > enemy.bossPhase &&
+                enemy.state != EnemyState::BossPhaseTransition) {
+                enemy.bossPhase = desiredPhase;
+                enemy.state = EnemyState::BossPhaseTransition;
+                enemy.target.reset();
+                enemy.ramWindupRemaining = 0.0;
+                enemy.bossAbilityWindupRemaining =
+                    BossPhaseTransitionDuration;
+                enemy.bossAbilityCooldownRemaining = 0.0;
+                enemy.bossWarCryNext = desiredPhase >= 3;
+                bossActionEventBuffer_.push_back({
+                    .type = BossActionType::PhaseChanged,
+                    .bossId = enemy.id,
+                    .position = enemy.position,
+                    .phase = desiredPhase,
+                });
+            }
+
+            if (enemy.state == EnemyState::BossPhaseTransition) {
+                enemy.bossAbilityWindupRemaining = std::max(
+                    0.0,
+                    enemy.bossAbilityWindupRemaining - deltaSeconds);
+                if (enemy.bossAbilityWindupRemaining <= 0.0) {
+                    if (enemy.bossPhase >= 3) {
+                        enemy.state = EnemyState::BossWarCryWindup;
+                        enemy.bossAbilityWindupRemaining =
+                            BossWarCryWindupDuration;
+                    } else {
+                        enemy.state = EnemyState::MoveToCore;
+                    }
+                }
+                continue;
+            }
+            if (enemy.state == EnemyState::BossSlamWindup) {
+                enemy.bossAbilityWindupRemaining = std::max(
+                    0.0,
+                    enemy.bossAbilityWindupRemaining - deltaSeconds);
+                if (enemy.bossAbilityWindupRemaining <= 0.0) {
+                    bossActionEventBuffer_.push_back({
+                        .type = BossActionType::GroundSlam,
+                        .bossId = enemy.id,
+                        .position = enemy.position,
+                        .phase = enemy.bossPhase,
+                        .radius = BossSlamRadius,
+                        .damage = enemy.bossPhase >= 3
+                            ? BossPhaseThreeSlamDamage
+                            : BossPhaseTwoSlamDamage,
+                    });
+                    enemy.state = EnemyState::MoveToCore;
+                    enemy.bossAbilityCooldownRemaining =
+                        enemy.bossPhase >= 3 ? 6.5 : 8.0;
+                    enemy.bossWarCryNext = enemy.bossPhase >= 3;
+                }
+                continue;
+            }
+            if (enemy.state == EnemyState::BossWarCryWindup) {
+                enemy.bossAbilityWindupRemaining = std::max(
+                    0.0,
+                    enemy.bossAbilityWindupRemaining - deltaSeconds);
+                if (enemy.bossAbilityWindupRemaining <= 0.0) {
+                    bossActionEventBuffer_.push_back({
+                        .type = BossActionType::WarCry,
+                        .bossId = enemy.id,
+                        .position = enemy.position,
+                        .phase = enemy.bossPhase,
+                        .radius = 3.5,
+                    });
+                    enemy.state = EnemyState::MoveToCore;
+                    enemy.bossAbilityCooldownRemaining = 9.5;
+                    enemy.bossWarCryNext = false;
+                }
+                continue;
+            }
+
+            if (enemy.bossPhase >= 2 &&
+                enemy.bossAbilityCooldownRemaining <= 0.0) {
+                const double playerDistance = playerPosition
+                    ? std::hypot(
+                          playerPosition->x - enemy.position.x,
+                          playerPosition->z - enemy.position.z)
+                    : std::numeric_limits<double>::infinity();
+                if (enemy.bossPhase >= 3 &&
+                    enemy.bossWarCryNext) {
+                    enemy.state = EnemyState::BossWarCryWindup;
+                    enemy.bossAbilityWindupRemaining =
+                        BossWarCryWindupDuration;
+                    continue;
+                }
+                if (playerDistance <= BossSlamRadius + 1.25) {
+                    enemy.state = EnemyState::BossSlamWindup;
+                    enemy.bossAbilityWindupRemaining =
+                        BossSlamWindupDuration;
+                    continue;
+                }
+            }
+        }
         const double knockbackSpeed = std::hypot(
             enemy.knockbackVelocity.x,
             enemy.knockbackVelocity.z);
@@ -1419,7 +1539,12 @@ std::span<const EnemyAttack> EnemySystem::tick(
                                   ? EnemyState::AttackCore
                                   : EnemyState::AttackBuilding;
                 enemy.attackCooldownRemaining = AttackInterval;
-                enemy.ramCooldownRemaining = enemy.ramCooldown;
+                const double phaseCooldownMultiplier =
+                    enemy.bossPhase >= 3
+                        ? 0.55
+                        : enemy.bossPhase >= 2 ? 0.8 : 1.0;
+                enemy.ramCooldownRemaining =
+                    enemy.ramCooldown * phaseCooldownMultiplier;
             }
             continue;
         }
@@ -1924,7 +2049,12 @@ std::span<const EnemyAttack> EnemySystem::tick(
             aiTurnDeltaSeconds);
         if (enemy.type == EnemyType::Boss && enemy.ramCooldownRemaining <= 0.0) {
             enemy.state = EnemyState::BossRamWindup;
-            enemy.ramWindupRemaining = enemy.ramWindup;
+            const double phaseWindupMultiplier =
+                enemy.bossPhase >= 3
+                    ? 0.72
+                    : enemy.bossPhase >= 2 ? 0.86 : 1.0;
+            enemy.ramWindupRemaining =
+                enemy.ramWindup * phaseWindupMultiplier;
             continue;
         }
         enemy.state =
@@ -2088,6 +2218,10 @@ void EnemySystem::appendEnemy(
         .ramCooldown = stats.ramCooldown,
         .ramWindupRemaining = 0.0,
         .ramCooldownRemaining = 0.0,
+        .bossPhase = 1,
+        .bossAbilityWindupRemaining = 0.0,
+        .bossAbilityCooldownRemaining = 0.0,
+        .bossWarCryNext = false,
         .slowRemaining = 0.0,
         .movementMultiplier = 1.0,
         .knockbackVelocity = spawn.initialKnockbackVelocity,

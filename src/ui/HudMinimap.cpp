@@ -237,7 +237,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float screenMinimum = static_cast<float>(
         std::min(GetScreenWidth(), GetScreenHeight()));
     const float collapsedMapSize = std::clamp(
-        screenMinimum * 0.18F, 132.0F, 176.0F);
+        screenMinimum * 0.16F, 120.0F, 156.0F);
     const float expandedMapSize = std::max(
         collapsedMapSize,
         std::min(
@@ -245,11 +245,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             static_cast<float>(GetScreenHeight()) * 0.70F));
     const float displayMapSize = std::lerp(
         collapsedMapSize, expandedMapSize, expanded);
-    const float panelPadding = std::lerp(6.0F, 20.0F, expanded);
+    const float panelPadding = std::lerp(4.0F, 20.0F, expanded);
     const float headerHeight = std::lerp(0.0F, 42.0F, expanded);
     const float panelWidth = displayMapSize + panelPadding * 2.0F;
     const float collapsedPanelWidth =
-        collapsedMapSize + 6.0F * 2.0F;
+        collapsedMapSize + 4.0F * 2.0F;
     const float collapsedPanelX =
         static_cast<float>(GetScreenWidth()) -
         collapsedPanelWidth - 12.0F;
@@ -794,10 +794,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         displayMapBounds.y + displayMapSize * 0.5F,
     };
     DrawCircleV(
-        displayMapCenter, displayMapSize * 0.5F + 5.0F,
-        {43, 34, 27, 245});
+        displayMapCenter, displayMapSize * 0.5F + 3.0F,
+        {43, 34, 27, 225});
     ui.drawMinimapTarget(displayMapBounds);
-    const float borderThickness = std::lerp(2.0F, 5.0F, expanded);
+    const float borderThickness = std::lerp(1.25F, 5.0F, expanded);
     DrawRing(
         displayMapCenter,
         displayMapSize * 0.5F - borderThickness,

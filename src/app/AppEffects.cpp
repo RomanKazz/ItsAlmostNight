@@ -1526,15 +1526,16 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             EndBlendMode();
         } else if (effect.type == PresentationEffectType::RamImpact) {
             const float fade = 1.0F - smoothstep(0.35F, 1.0F, progress);
+            const float impactScale = std::max(0.1F, effect.scale);
             const Vector3 ground{
                 origin.x, origin.y + 0.035F, origin.z};
             DrawCircle3D(
-                ground, 0.35F + progress * 3.0F,
+                ground, (0.35F + progress * 3.0F) * impactScale,
                 {1.0F, 0.0F, 0.0F}, 90.0F,
                 {255, 72, 45, atmosphereAlpha(fade * 0.88F)});
             DrawCircle3D(
                 {ground.x, ground.y + 0.008F, ground.z},
-                0.18F + progress * 1.85F,
+                (0.18F + progress * 1.85F) * impactScale,
                 {1.0F, 0.0F, 0.0F}, 90.0F,
                 {255, 177, 56, atmosphereAlpha(fade)});
             constexpr int RayCount = 10;
@@ -1542,9 +1543,12 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                 const float angle =
                     static_cast<float>(ray) * 2.0F * PI /
                     static_cast<float>(RayCount);
-                const float inner = 0.28F + progress * 0.55F;
-                const float outer = 0.55F + progress *
-                    (1.65F + effectUnit(ray, 141) * 1.1F);
+                const float inner =
+                    (0.28F + progress * 0.55F) * impactScale;
+                const float outer =
+                    (0.55F + progress *
+                        (1.65F + effectUnit(ray, 141) * 1.1F)) *
+                    impactScale;
                 DrawLine3D(
                     {ground.x + std::cos(angle) * inner,
                      ground.y,

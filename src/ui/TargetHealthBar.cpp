@@ -266,9 +266,12 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
     for (const EnemyInstance& enemy : snapshot.enemies) {
         const auto visibility = enemyHealthVisibility_.find(
             entityKey(enemy.id));
+        const bool alwaysVisibleBoss =
+            enemy.type == EnemyType::Boss;
         if (!enemy.active ||
-            visibility == enemyHealthVisibility_.end() ||
-            visibility->second.remaining <= 0.0 ||
+            (!alwaysVisibleBoss &&
+             (visibility == enemyHealthVisibility_.end() ||
+              visibility->second.remaining <= 0.0)) ||
             (aimedEnemyIsPrimaryTarget &&
              enemy.id == *snapshot.aimedEnemy)) {
             continue;
@@ -279,9 +282,12 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             EnemyHealthBarRange * EnemyHealthBarRange) {
             continue;
         }
-        const float opacity = static_cast<float>(std::clamp(
-            visibility->second.remaining / EnemyHealthBarFadeSeconds,
-            0.0, 1.0));
+        const float opacity = alwaysVisibleBoss
+            ? 1.0F
+            : static_cast<float>(std::clamp(
+                  visibility->second.remaining /
+                      EnemyHealthBarFadeSeconds,
+                  0.0, 1.0));
         drawEnemyBar(enemy, opacity);
         if (++woundedEnemyBars >= MaximumWoundedEnemyBars) {
             break;

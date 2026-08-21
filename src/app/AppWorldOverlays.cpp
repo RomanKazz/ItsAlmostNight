@@ -573,6 +573,62 @@ void App::drawWorldOverlays(
                 outerRadius * (0.38F + 0.5F * (1.0F - progress)),
                 {1.0F, 0.0F, 0.0F}, 90.0F,
                 {255, 196, 72, 225});
+        } else if (enemy.state == EnemyState::BossSlamWindup) {
+            constexpr float SlamWindup = 1.25F;
+            constexpr float SlamRadius = 5.25F;
+            const float progress = std::clamp(
+                1.0F - static_cast<float>(
+                    enemy.bossAbilityWindupRemaining) / SlamWindup,
+                0.0F, 1.0F);
+            const float groundY = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy.position.x, enemy.position.z));
+            const Vector3 center{
+                enemyPosition.x, groundY + 0.045F,
+                enemyPosition.z};
+            DrawCircle3D(
+                center, SlamRadius,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 70, 36, 220});
+            DrawCircle3D(
+                {center.x, center.y + 0.008F, center.z},
+                SlamRadius * (1.0F - progress),
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 211, 84, 245});
+        } else if (enemy.state == EnemyState::BossWarCryWindup) {
+            constexpr float WarCryWindup = 1.35F;
+            const float progress = std::clamp(
+                1.0F - static_cast<float>(
+                    enemy.bossAbilityWindupRemaining) / WarCryWindup,
+                0.0F, 1.0F);
+            const float groundY = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy.position.x, enemy.position.z));
+            const Vector3 center{
+                enemyPosition.x, groundY + 0.05F,
+                enemyPosition.z};
+            DrawCircle3D(
+                center, 1.2F + progress * 2.3F,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {190, 91, 255, 230});
+            DrawCircle3D(
+                {center.x, center.y + 0.01F, center.z},
+                3.5F - progress * 1.6F,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 147, 245, 205});
+        } else if (enemy.state == EnemyState::BossPhaseTransition) {
+            const float pulse = 2.3F + 0.35F *
+                static_cast<float>(
+                    std::sin(snapshot.elapsedSeconds * 15.0));
+            const float groundY = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    enemy.position.x, enemy.position.z));
+            DrawCircle3D(
+                {enemyPosition.x, groundY + 0.05F,
+                 enemyPosition.z},
+                pulse,
+                {1.0F, 0.0F, 0.0F}, 90.0F,
+                {255, 206, 74, 235});
         }
     }
     if (snapshot.buildingPreview) {

@@ -406,11 +406,122 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
             *featured[index], index);
     }
 
+    if (classSelectionVisible_) {
+        DrawRectangle(
+            0, 0, GetScreenWidth(), GetScreenHeight(),
+            {6, 9, 13, 224});
+        const Rectangle panel =
+            layout.rect(238.0F, 218.0F, 1444.0F, 664.0F);
+        ui_.drawPanel(panel, 250);
+        drawOutlinedTitle(
+            "CHOOSE YOUR CLASS", layout,
+            960.0F, 246.0F, 34.0F, 900.0F);
+        drawUiText(
+            "EACH CLASS CHANGES THE WHOLE RUN",
+            layout.point(744.0F, 326.0F),
+            12.0F * layout.scale,
+            {218, 204, 174, 235});
+
+        constexpr std::array<Color, 3> ClassColors{{
+            {86, 174, 225, 255},
+            {231, 117, 66, 255},
+            {238, 191, 64, 255},
+        }};
+        for (std::size_t index = 0;
+             index < PlayerClassDefinitions.size(); ++index) {
+            const PlayerClassDefinition& definition =
+                PlayerClassDefinitions[index];
+            const Rectangle card = layout.rect(
+                316.0F + static_cast<float>(index) * 438.0F,
+                378.0F, 412.0F, 350.0F);
+            const bool selected =
+                selectedPlayerClass_ == definition.type;
+            const bool hovered = CheckCollisionPointRec(
+                GetMousePosition(), card);
+            if (hovered &&
+                IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                selectedPlayerClass_ = definition.type;
+                audio_.playUiConfirm();
+            }
+            DrawRectangleRounded(
+                card, 0.09F, 8,
+                selected
+                    ? Color{46, 43, 35, 252}
+                    : hovered
+                        ? Color{35, 38, 42, 248}
+                        : Color{25, 28, 32, 245});
+            DrawRectangleRoundedLinesEx(
+                card, 0.09F, 8,
+                (selected ? 4.0F : 2.0F) * layout.scale,
+                selected
+                    ? ClassColors[index]
+                    : Color{106, 103, 91, 220});
+            const Vector2 emblem{
+                card.x + card.width * 0.5F,
+                card.y + 62.0F * layout.scale};
+            DrawCircleV(
+                emblem, 34.0F * layout.scale,
+                ColorAlpha(ClassColors[index], 0.24F));
+            DrawCircleLinesV(
+                emblem, 34.0F * layout.scale,
+                ClassColors[index]);
+            const std::string initial{
+                definition.name.substr(0, 1)};
+            const float initialSize = 28.0F * layout.scale;
+            const Vector2 initialBounds =
+                measureUiText(initial, initialSize);
+            drawUiText(
+                initial,
+                {emblem.x - initialBounds.x * 0.5F,
+                 emblem.y - initialBounds.y * 0.5F},
+                initialSize, ClassColors[index]);
+            const float nameSize = 22.0F * layout.scale;
+            const Vector2 nameBounds = measureUiText(
+                definition.name, nameSize);
+            drawUiText(
+                definition.name,
+                {card.x + (card.width - nameBounds.x) * 0.5F,
+                 card.y + 112.0F * layout.scale},
+                nameSize, {250, 239, 207, 255});
+            const float roleSize = 11.0F * layout.scale;
+            const Vector2 roleBounds = measureUiText(
+                definition.role, roleSize);
+            drawUiText(
+                definition.role,
+                {card.x + (card.width - roleBounds.x) * 0.5F,
+                 card.y + 153.0F * layout.scale},
+                roleSize, {190, 188, 177, 235});
+            for (std::size_t trait = 0;
+                 trait < definition.traits.size(); ++trait) {
+                const std::string_view text = definition.traits[trait];
+                drawUiText(
+                    text,
+                    {card.x + 35.0F * layout.scale,
+                     card.y +
+                         (210.0F + static_cast<float>(trait) * 42.0F) *
+                             layout.scale},
+                    12.0F * layout.scale,
+                    text.starts_with('-')
+                        ? Color{242, 112, 91, 255}
+                        : Color{116, 220, 132, 255});
+            }
+        }
+        pendingStartFromUi_ = ui_.drawButton(
+            layout.rect(690.0F, 766.0F, 540.0F, 72.0F),
+            "START AS SELECTED CLASS") || pendingStartFromUi_;
+        drawUiText(
+            "ESC  BACK     LEFT / RIGHT  SELECT     ENTER  START",
+            layout.point(692.0F, 850.0F),
+            10.0F * layout.scale, {201, 195, 174, 220});
+        return;
+    }
+
     const Rectangle playButton =
         layout.rect(775.0F, 360.0F, 370.0F, 78.0F);
-    pendingStartFromUi_ =
-        ui_.drawButton(playButton, "START RUN") ||
-        pendingStartFromUi_;
+    if (ui_.drawButton(playButton, "START RUN")) {
+        classSelectionVisible_ = true;
+        audio_.playUiConfirm();
+    }
     const Rectangle treeButton =
         layout.rect(775.0F, 458.0F, 370.0F, 70.0F);
     pendingOpenSkillTreeFromUi_ =

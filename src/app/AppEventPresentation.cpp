@@ -235,8 +235,6 @@ void App::processPresentationEvents(
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
             displayedInsight_ = 0.0;
-            insightGainAmount_ = 0.0;
-            insightGainRemaining_ = 0.0;
             insightPointSequenceRemaining_ = 0.0;
             pendingInsightPointNotification_ = 0;
             lootDescriptionRemaining_ = 0.0;
@@ -246,10 +244,6 @@ void App::processPresentationEvents(
         }
         if (event.type == GameEventType::InsightGranted) {
             const InsightConfig& insightConfig = simulation_.insightSystem().config();
-            if (insightGainRemaining_ <= 0.0) insightGainAmount_ = 0.0;
-            insightGainAmount_ += event.insightAmount;
-            insightGainDuration_ = std::max(0.01, insightConfig.hudAggregationWindowSeconds);
-            insightGainRemaining_ = insightGainDuration_;
             insightPulseDuration_ = std::max(0.01,
                 event.insightAmount >= insightConfig.hudLargeRewardThreshold
                     ? insightConfig.hudLargePulseSeconds
@@ -265,13 +259,6 @@ void App::processPresentationEvents(
                 insightAnimationPoints_ = event.treePointsGranted;
                 pendingInsightPointNotification_ +=
                     event.treePointsGranted;
-            } else if (event.insightAmount >= insightConfig.hudLargeRewardThreshold &&
-                       event.insightSource &&
-                       *event.insightSource != InsightSource::Objective) {
-                setStatusMessage("+" + std::to_string(
-                    static_cast<int>(std::lround(event.insightAmount))) +
-                    " INSIGHT — " + std::string(insightSourceName(*event.insightSource)),
-                    1.8);
             }
         }
         if (event.type == GameEventType::ObjectiveCompleted && event.objectiveId) {
@@ -452,6 +439,31 @@ void App::processPresentationEvents(
                 PresentationEffectType::EliteSpawn,
                 event.position, 0.72, 1.0F,
                 event.entityId);
+        } else if (event.type == GameEventType::BossPhaseChanged) {
+            addEffect(
+                PresentationEffectType::VolatileCharge,
+                event.position, 1.05, 1.7F,
+                event.entityId);
+            addCameraShake(0.7, 0.1);
+            setStatusMessage(
+                event.amount >= 3
+                    ? "BOSS PHASE 3: WARLORD"
+                    : "BOSS PHASE 2: EARTHBREAKER",
+                2.2);
+        } else if (event.type == GameEventType::BossGroundSlam) {
+            addEffect(
+                PresentationEffectType::RamImpact,
+                event.position, 0.85, 1.65F,
+                event.entityId);
+            addCameraShake(0.55, 0.28);
+            setStatusMessage("GROUND SLAM", 1.0);
+        } else if (event.type == GameEventType::BossWarCry) {
+            addEffect(
+                PresentationEffectType::EliteSpawn,
+                event.position, 1.0, 1.8F,
+                event.entityId);
+            addCameraShake(0.45, 0.12);
+            setStatusMessage("WAR CRY: REINFORCEMENTS", 1.6);
         } else if (
             event.type == GameEventType::EliteVolatilePrimed) {
             addEffect(

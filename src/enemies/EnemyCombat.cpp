@@ -599,6 +599,10 @@ std::vector<EliteEnemyEvent> EnemySystem::takeEliteDeathEvents() {
     return std::exchange(eliteDeathEventBuffer_, {});
 }
 
+std::vector<BossActionEvent> EnemySystem::takeBossActionEvents() {
+    return std::exchange(bossActionEventBuffer_, {});
+}
+
 const EnemyStatusEffect& enemyStatusEffect(
     const EnemyInstance& enemy, StatusEffectType type) {
     return enemy.statusEffects[statusEffectIndex(type)];

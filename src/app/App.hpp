@@ -218,6 +218,8 @@ class App {
     GameUi ui_;
     SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
+    bool classSelectionVisible_{};
+    PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
     bool pendingOpenSkillTreeFromUi_{};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};
@@ -439,9 +441,6 @@ class App {
     double displayedInsight_{-1.0};
     double insightPulseRemaining_{};
     double insightPulseDuration_{0.55};
-    double insightGainAmount_{};
-    double insightGainRemaining_{};
-    double insightGainDuration_{0.8};
     double insightPointSequenceRemaining_{};
     double insightPointSequenceDuration_{0.48};
     double insightAnimationBefore_{};

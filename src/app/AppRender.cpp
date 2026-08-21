@@ -802,9 +802,6 @@ void App::render() {
                     .displayedInsight = displayedInsight_,
                     .insightPulse = insightPulseRemaining_ > 0.0
                         ? insightPulseRemaining_ / insightPulseDuration_ : 0.0,
-                    .insightGainAmount = insightGainAmount_,
-                    .insightGainRemaining = insightGainRemaining_,
-                    .insightGainDuration = insightGainDuration_,
                     .treePointPulse = insightPointSequenceRemaining_ > 0.0
                         ? std::sin((1.0 - insightPointSequenceRemaining_ /
                             insightPointSequenceDuration_) * PI) : 0.0,

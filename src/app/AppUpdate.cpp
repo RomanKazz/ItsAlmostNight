@@ -42,7 +42,6 @@ void App::update() {
     skillTree_.setInsightProgress(progressionSnapshot.currentInsight,
                                   progressionSnapshot.requiredInsight);
     insightPulseRemaining_ = std::max(0.0, insightPulseRemaining_ - frameSeconds);
-    insightGainRemaining_ = std::max(0.0, insightGainRemaining_ - frameSeconds);
     insightPointSequenceRemaining_ = std::max(
         0.0, insightPointSequenceRemaining_ - frameSeconds);
     objectivePulseRemaining_ = std::max(

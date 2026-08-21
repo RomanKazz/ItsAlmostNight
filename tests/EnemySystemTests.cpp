@@ -858,6 +858,71 @@ void runEnemySystemTests() {
                 cooldownAttack[0].damage == 50.0,
             "boss uses regular attack while ram is on cooldown");
 
+    const auto phaseTwoDamage = ramBoss.damage(
+        ramBoss.enemies()[0].id, 25.0);
+    require(phaseTwoDamage && phaseTwoDamage->remainingHealth == 45.0,
+            "boss phase fixture crosses phase two threshold");
+    ramBoss.tick(
+        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    auto bossActions = ramBoss.takeBossActionEvents();
+    require(
+        bossActions.size() == 1 &&
+            bossActions[0].type == ian::BossActionType::PhaseChanged &&
+            bossActions[0].phase == 2 &&
+            ramBoss.enemies()[0].state ==
+                ian::EnemyState::BossPhaseTransition,
+        "boss visibly enters phase two at two thirds health");
+    ramBoss.tick(
+        1.05, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    ramBoss.tick(
+        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    require(
+        ramBoss.enemies()[0].state ==
+            ian::EnemyState::BossSlamWindup,
+        "phase two boss telegraphs an anti-player ground slam");
+    ramBoss.tick(
+        1.25, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    bossActions = ramBoss.takeBossActionEvents();
+    require(
+        bossActions.size() == 1 &&
+            bossActions[0].type == ian::BossActionType::GroundSlam &&
+            bossActions[0].radius == 5.25 &&
+            bossActions[0].damage == 28.0,
+        "phase two slam reports its telegraphed radius and damage");
+
+    const auto phaseThreeDamage = ramBoss.damage(
+        ramBoss.enemies()[0].id, 25.0);
+    require(phaseThreeDamage && phaseThreeDamage->remainingHealth == 20.0,
+            "boss phase fixture crosses phase three threshold");
+    ramBoss.tick(
+        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    bossActions = ramBoss.takeBossActionEvents();
+    require(
+        bossActions.size() == 1 &&
+            bossActions[0].type == ian::BossActionType::PhaseChanged &&
+            bossActions[0].phase == 3,
+        "boss visibly enters phase three at one third health");
+    ramBoss.tick(
+        1.05, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    require(
+        ramBoss.enemies()[0].state ==
+            ian::EnemyState::BossWarCryWindup,
+        "phase three transition chains into a war cry telegraph");
+    ramBoss.tick(
+        1.35, ramBuildings.buildings(), ramFlowField,
+        ian::Vec3{0.0, 1.7, -3.0});
+    bossActions = ramBoss.takeBossActionEvents();
+    require(
+        bossActions.size() == 1 &&
+            bossActions[0].type == ian::BossActionType::WarCry,
+        "phase three boss calls reinforcements after the telegraph");
+
     ian::EnemySystem contactEnemies;
     constexpr std::array<ian::Vec3, 1> ContactSpawn{{{4.0, 0.8, 4.0}}};
     contactEnemies.spawnWave(ContactSpawn);

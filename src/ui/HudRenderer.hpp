@@ -47,9 +47,6 @@ struct HudViewState {
     float coinResourcePulse{};
     double displayedInsight{};
     double insightPulse{};
-    double insightGainAmount{};
-    double insightGainRemaining{};
-    double insightGainDuration{0.8};
     double treePointPulse{};
     std::string_view objectivePulseId;
     double objectivePulse{};

@@ -396,6 +396,20 @@ void AudioSystem::playEvent(
     case GameEventType::BossRamImpact:
         play(playerHit_, 0.72F, variedPitch(0.06F));
         break;
+    case GameEventType::BossGroundSlam:
+        playAt(
+            structureHit_, event.position, snapshot, 0.92F,
+            0.78F, 45.0F);
+        break;
+    case GameEventType::BossPhaseChanged:
+    case GameEventType::BossWarCry:
+        playAt(
+            upgrade_, event.position, snapshot, 0.78F,
+            event.type == GameEventType::BossWarCry
+                ? 0.68F
+                : 0.82F,
+            45.0F);
+        break;
     case GameEventType::PlayerLanded: {
         sequence_ = sequence_ * 1664525U + 1013904223U;
         const std::size_t index =
