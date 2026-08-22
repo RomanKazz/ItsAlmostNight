@@ -1084,6 +1084,20 @@ void App::processPresentationEvents(
                 event.position, LootRarity::Rare,
                 LootUpgradeEffect::Potion, std::nullopt);
             addCameraImpulse({0.0, 0.025, -0.018});
+        } else if (event.type == GameEventType::AppleConsumed) {
+            addLootPickupEffect(
+                event.position, LootRarity::Common,
+                LootUpgradeEffect::Apple, std::nullopt);
+        } else if (event.type == GameEventType::BreadWellFed) {
+            addLootPickupEffect(
+                event.position, LootRarity::Common,
+                LootUpgradeEffect::Bread, std::nullopt);
+        } else if (event.type == GameEventType::IronArmorBroken) {
+            addEffect(
+                PresentationEffectType::RepairShockwave,
+                event.position, 0.72,
+                static_cast<float>(event.intensity));
+            addCameraImpulse({0.0, 0.018, -0.01});
         }
 
         std::string message;
@@ -1146,6 +1160,12 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::BloodHarvestTriggered) {
             message = "BLOOD HARVEST: +" +
                 std::to_string(event.amount) + " health";
+        } else if (event.type == GameEventType::AppleConsumed) {
+            message = "Apple restored health";
+        } else if (event.type == GameEventType::BreadWellFed) {
+            message = "WELL FED: attack speed increased until hit";
+        } else if (event.type == GameEventType::IronArmorBroken) {
+            message = "IRON BAR: armor-break shockwave";
         } else if (event.type == GameEventType::ChestOpened &&
                    event.critical) {
             message = "Chest Key: opened free";

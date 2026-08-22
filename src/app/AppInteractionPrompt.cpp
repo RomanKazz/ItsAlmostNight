@@ -96,6 +96,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     const Camera3D& camera) const {
     if (snapshot.state == RunState::MainMenu ||
         snapshot.state == RunState::Paused ||
+        snapshot.state == RunState::StageClear ||
+        snapshot.state == RunState::Victory ||
         snapshot.state == RunState::Defeat ||
         snapshot.playerRespawning ||
         snapshot.selectedBuilding || foundationBuildMode_) {

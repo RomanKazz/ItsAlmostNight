@@ -106,7 +106,12 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
     const CoinCollection collected = coinPickups_.tick(
         deltaSeconds, playerPosition_, terrain_, collisionWorld_,
         playerPermanentMaxHealth() + playerTemporaryHealth_ -
-            playerHealth_);
+            playerHealth_,
+        std::min(
+            20.0,
+            CoinPickupSystem::AttractionRadius +
+                6.0 * static_cast<double>(lootStacks_[
+                    lootUpgradeIndex(LootUpgradeEffect::Magnet)])));
     if (collected.healing > 0.0) {
         playerHealth_ = std::min(
             playerPermanentMaxHealth() + playerTemporaryHealth_,

@@ -27,6 +27,20 @@ void runCoinPickupSystemTests() {
     }
     require(collected == 0 && coins.pickups().size() == 3,
             "coins wait in the world outside attraction radius");
+
+    coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 1, 43U, terrain, 0.0);
+    int longRangeCollected = 0;
+    for (int frame = 0; frame < 240 && !coins.pickups().empty(); ++frame) {
+        longRangeCollected += coins.tick(
+            1.0 / 60.0, {10.0, 1.7, 0.0}, terrain,
+            collision, 0.0, 11.0).value;
+    }
+    require(longRangeCollected == 1 && coins.pickups().empty(),
+            "upgraded attraction radius pulls distant pickups");
+
+    coins.reset();
+    coins.spawn({0.0, 0.0, 0.0}, 3, 42U, terrain);
     for (const ian::CoinPickup& coin : coins.pickups()) {
         require(
             std::isfinite(coin.position.x) &&

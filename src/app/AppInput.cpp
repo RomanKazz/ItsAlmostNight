@@ -94,6 +94,29 @@ void App::processInput() {
         pendingFireWandShot_ = false;
         return;
     }
+    if (snapshot.state == RunState::StageClear) {
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
+            if (simulation_.enterFinalNight()) {
+                audio_.playUiConfirm();
+            }
+        } else if (IsKeyPressed(KEY_B)) {
+            if (simulation_.bankStageClear()) {
+                audio_.playUiConfirm();
+            }
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingDash_ = false;
+        pendingPickaxe_ = false;
+        pendingRifleShot_ = false;
+        pendingIceWandShot_ = false;
+        pendingFireWandShot_ = false;
+        return;
+    }
     if (snapshot.runUpgradeChoicePending) {
         if (!runUpgradeChoiceWasVisible_) {
             renderer_->setGraphicsPanelVisible(false);
@@ -322,6 +345,7 @@ void App::processInput() {
         classSelectionVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             classSelectionVisible_ = false;
+            classCollectionOnly_ = false;
             pendingStartFromUi_ = false;
             audio_.playUiConfirm();
             return;
@@ -344,12 +368,16 @@ void App::processInput() {
                           std::distance(
                               PlayerClassDefinitions.begin(),
                               current));
-            const std::size_t nextIndex = static_cast<std::size_t>(
-                (static_cast<int>(currentIndex) + direction +
-                 static_cast<int>(PlayerClassDefinitions.size())) %
-                static_cast<int>(PlayerClassDefinitions.size()));
-            selectedPlayerClass_ =
-                PlayerClassDefinitions[nextIndex].type;
+            std::size_t nextIndex = currentIndex;
+            do {
+                nextIndex = static_cast<std::size_t>(
+                    (static_cast<int>(nextIndex) + direction +
+                     static_cast<int>(PlayerClassDefinitions.size())) %
+                    static_cast<int>(PlayerClassDefinitions.size()));
+            } while (!isPlayerClassUnlocked(
+                PlayerClassDefinitions[nextIndex].type,
+                metaProgression_));
+            selectedPlayerClass_ = PlayerClassDefinitions[nextIndex].type;
             audio_.playUiConfirm();
         }
     }
@@ -358,11 +386,19 @@ void App::processInput() {
         if (!classSelectionVisible_) {
             pendingStartFromUi_ = false;
             classSelectionVisible_ = true;
+            classCollectionOnly_ = false;
             audio_.playUiConfirm();
+            return;
+        }
+        if (classCollectionOnly_ || !isPlayerClassUnlocked(
+                selectedPlayerClass_, metaProgression_)) {
+            pendingStartFromUi_ = false;
+            audio_.playUiError();
             return;
         }
         pendingStartFromUi_ = false;
         classSelectionVisible_ = false;
+        classCollectionOnly_ = false;
         simulation_.startRun(selectedPlayerClass_);
         const auto startedSnapshot = simulation_.snapshot();
         rebuildTerrainGraphics();
@@ -466,8 +502,10 @@ void App::processInput() {
         foundationBuildMode_ = false;
         DisableCursor();
     }
-    if (keyPressed(userSettings_.controls, ControlAction::Pause) ||
-        IsKeyPressed(KEY_ESCAPE)) {
+    if (snapshot.state != RunState::Defeat &&
+        snapshot.state != RunState::Victory &&
+        (keyPressed(userSettings_.controls, ControlAction::Pause) ||
+         IsKeyPressed(KEY_ESCAPE))) {
         simulation_.togglePause();
         fixedStep_.reset();
         if (simulation_.snapshot().state == RunState::Paused) {
@@ -478,7 +516,8 @@ void App::processInput() {
     }
     if (snapshot.state != RunState::MainMenu &&
         (automaticRunRestartPending_ ||
-         (snapshot.state == RunState::Defeat &&
+         ((snapshot.state == RunState::Defeat ||
+           snapshot.state == RunState::Victory) &&
           keyPressed(
               userSettings_.controls,
               ControlAction::Restart)))) {
@@ -585,6 +624,16 @@ void App::processInput() {
         foundationBuildMode_ = false;
         DisableCursor();
     }
+    if ((snapshot.state == RunState::Defeat ||
+         snapshot.state == RunState::Victory) &&
+        IsKeyPressed(KEY_ESCAPE)) {
+        simulation_.returnToMainMenu();
+        classSelectionVisible_ = false;
+        fixedStep_.reset();
+        EnableCursor();
+        audio_.playUiConfirm();
+        return;
+    }
     if (snapshot.state != RunState::MainMenu) {
         if (shiftDown &&
             IsKeyPressed(KEY_F10)) {
@@ -629,9 +678,6 @@ void App::processInput() {
         }
         if (controlDown && IsKeyPressed(KEY_L)) {
             showSpatialHash_ = !showSpatialHash_;
-        }
-        if (IsKeyPressed(KEY_J)) {
-            hideBottomHud_ = !hideBottomHud_;
         }
         if (IsKeyPressed(KEY_Y)) {
             environment_.toggleFrozen();
@@ -974,14 +1020,15 @@ void App::processInput() {
                 KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
             };
             const auto order = equipmentOrder(actionMode_);
-            std::size_t visibleSlot = 0;
-            for (const PlayerWeapon weapon : order) {
+            for (std::size_t slotIndex = 0;
+                 slotIndex < order.size(); ++slotIndex) {
+                const PlayerWeapon weapon = order[slotIndex];
                 const std::size_t weaponIndex =
                     static_cast<std::size_t>(weapon);
                 if (!currentSnapshot.unlockedWeapons[weaponIndex]) {
                     continue;
                 }
-                if (IsKeyPressed(EquipmentKeys[visibleSlot])) {
+                if (IsKeyPressed(EquipmentKeys[slotIndex])) {
                     pendingWeaponSelection_ = weapon;
                     if (actionMode_ == ActionMode::Tools) {
                         lastToolSelection_ = weapon;
@@ -989,7 +1036,6 @@ void App::processInput() {
                         lastWeaponSelection_ = weapon;
                     }
                 }
-                ++visibleSlot;
             }
             const float hotbarWheel = wheel;
             if (std::abs(hotbarWheel) > 0.01F &&

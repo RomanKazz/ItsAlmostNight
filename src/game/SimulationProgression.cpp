@@ -10,6 +10,7 @@ namespace ian {
 namespace {
 
 constexpr std::uint64_t InsightHashSeed = 0x9e3779b97f4a7c15ULL;
+constexpr double BattlePotionAttackSpeedMultiplier = 1.35;
 
 std::uint64_t insightEntityEvent(std::uint64_t tag, EntityId id) {
     std::uint64_t value = (static_cast<std::uint64_t>(id.generation) << 32U) |
@@ -99,12 +100,15 @@ void Simulation::grantSkillPoints(int amount, SkillPointSource source) {
                        .intensity = static_cast<double>(source)});
 }
 
-SkillTreeRunState Simulation::saveSkillTreeState() const { return skillTree_.saveState(); }
+SkillTreeRunState Simulation::saveSkillTreeState() const {
+    return skillTree_.saveState();
+}
 
 bool Simulation::loadSkillTreeState(const SkillTreeRunState& state) {
     if (!skillTree_.loadState(state)) return false;
     invalidateSnapshotCache();
     playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+    grantPlayerClassStartingNodes();
     refreshSkillRuntimeEffects();
     return true;
 }
@@ -127,6 +131,7 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
     insightRewardedEnemyIds_.clear();
     invalidateSnapshotCache();
     playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+    grantPlayerClassStartingNodes();
     refreshSkillRuntimeEffects();
     return true;
 }
@@ -167,7 +172,9 @@ void Simulation::refreshSkillRuntimeEffects() {
         highGround);
     playerWeapons_.setRifleSkillModifiers(
         multiplier("rifle.damage"), multiplier("rifle.range"),
-        playerAttackSpeedMultiplier_ * multiplier("rifle.fire_rate"),
+        playerAttackSpeedMultiplier_ *
+            temporaryAttackSpeedMultiplier() *
+            multiplier("rifle.fire_rate"),
         static_cast<int>(std::lround(
             skillTree_.effectValue("rifle.magazine"))));
     const double playerDamage = multiplier("player.damage");
@@ -179,6 +186,12 @@ void Simulation::refreshSkillRuntimeEffects() {
         multiplier("fire.burn_duration"),
         multiplier("fire.burn_damage"),
         skillTree_.effectValue("element.thermal_shock"));
+    const double castSpeed = temporaryAttackSpeedMultiplier() *
+        (battlePotionBerserkRemaining_ > 0.0
+             ? BattlePotionAttackSpeedMultiplier
+             : 1.0);
+    iceWand_.setCastSpeedMultiplier(castSpeed);
+    fireWand_.setCastSpeedMultiplier(castSpeed);
 }
 
 void Simulation::prepareRunUpgradeChoices() {

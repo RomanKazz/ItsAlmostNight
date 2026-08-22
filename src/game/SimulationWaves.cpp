@@ -26,8 +26,16 @@ std::size_t attackDirectionIndex(AttackDirection direction) {
 } // namespace
 
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
-                             std::size_t firstAnchorIndex) {
+                             std::size_t firstAnchorIndex,
+                             double healthScale,
+                             double damageScale) {
     waveSpawnQueue_.assign(plan.spawns.begin(), plan.spawns.end());
+    healthScale = std::max(0.05, healthScale);
+    damageScale = std::max(0.05, damageScale);
+    for (EnemySpawn& spawn : waveSpawnQueue_) {
+        spawn.healthMultiplier *= healthScale;
+        spawn.damageMultiplier *= damageScale;
+    }
     riskyInvestmentActive_ = riskyInvestmentPending_;
     riskyInvestmentPending_ = 0;
     if (riskyInvestmentActive_ > 0) {
@@ -101,6 +109,7 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
 }
 
 void Simulation::completeWave() {
+    const bool completedBossWave = currentWaveHasBoss_;
     enemies_.clearProjectiles();
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
@@ -161,7 +170,7 @@ void Simulation::completeWave() {
     events_.push_back({
         .type = GameEventType::WaveCompleted,
         .amount = wave_,
-        .critical = currentWaveHasBoss_,
+        .critical = completedBossWave,
     });
     currentWaveHasBoss_ = false;
     const int reward = saturatingAdd(
@@ -173,10 +182,87 @@ void Simulation::completeWave() {
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,
     });
+    if (!stageCleared_ && completedBossWave &&
+        wave_ == StageClearWave) {
+        stageCleared_ = true;
+        state_ = RunState::StageClear;
+        phaseTimeRemaining_ = 0.0;
+        phaseDuration_ = 0.0;
+        events_.push_back({
+            .type = GameEventType::StageCleared,
+            .amount = wave_,
+            .critical = true,
+        });
+        return;
+    }
+    if (finalNight_) {
+        static_cast<void>(beginNextFinalNightWave());
+        return;
+    }
     state_ = RunState::WaveComplete;
     phaseTimeRemaining_ = gameplay_.dawnSeconds;
     phaseDuration_ = phaseTimeRemaining_;
     prepareRunUpgradeChoices();
+}
+
+bool Simulation::beginNextFinalNightWave() {
+    const auto core = buildings_.core();
+    if (!core) return false;
+    const int nextWave = saturatingAdd(wave_, 1);
+    const Vec3 horizontalView = lookDirection(playerYaw_, 0.0);
+    const std::size_t firstAnchor = leastVisibleSpawnAnchor(
+        map_.enemySpawnAnchors, playerPosition_, horizontalView);
+    const WavePlan plan = waveDirector_.buildWave(
+        nextWave, core->gridPosition, firstAnchor);
+    const int finalNightDepth = std::max(
+        1, nextWave - StageClearWave);
+    const double healthScale =
+        1.0 + 0.20 * static_cast<double>(finalNightDepth);
+    const double damageScale =
+        1.0 + 0.13 * static_cast<double>(finalNightDepth);
+    prepareWave(
+        plan, core->gridPosition, firstAnchor,
+        healthScale, damageScale);
+    wave_ = nextWave;
+    applyPotionWaveStart();
+    beginPreparedWave();
+    state_ = RunState::Wave;
+    phaseTimeRemaining_ = 0.0;
+    phaseDuration_ = 0.0;
+    events_.push_back({
+        .type = GameEventType::WaveStarted,
+        .amount = wave_,
+        .critical = true,
+    });
+    return true;
+}
+
+bool Simulation::enterFinalNight() {
+    if (state_ != RunState::StageClear || !stageCleared_) {
+        return false;
+    }
+    invalidateSnapshotCache();
+    finalNight_ = true;
+    events_.push_back({
+        .type = GameEventType::FinalNightStarted,
+        .amount = wave_,
+        .critical = true,
+    });
+    return beginNextFinalNightWave();
+}
+
+bool Simulation::bankStageClear() {
+    if (state_ != RunState::StageClear || !stageCleared_) {
+        return false;
+    }
+    invalidateSnapshotCache();
+    state_ = RunState::Victory;
+    events_.push_back({
+        .type = GameEventType::RunEnded,
+        .amount = wave_,
+        .critical = true,
+    });
+    return true;
 }
 
 } // namespace ian

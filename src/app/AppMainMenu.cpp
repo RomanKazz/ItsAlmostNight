@@ -411,63 +411,74 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
             0, 0, GetScreenWidth(), GetScreenHeight(),
             {6, 9, 13, 224});
         const Rectangle panel =
-            layout.rect(238.0F, 218.0F, 1444.0F, 664.0F);
+            layout.rect(100.0F, 110.0F, 1720.0F, 850.0F);
         ui_.drawPanel(panel, 250);
         drawOutlinedTitle(
-            "CHOOSE YOUR CLASS", layout,
-            960.0F, 246.0F, 34.0F, 900.0F);
+            classCollectionOnly_ ? "CLASS COLLECTION" : "CHOOSE YOUR CLASS",
+            layout, 960.0F, 142.0F, 34.0F, 900.0F);
         drawUiText(
-            "EACH CLASS CHANGES THE WHOLE RUN",
-            layout.point(744.0F, 326.0F),
+            classCollectionOnly_
+                ? "COMPLETE CHALLENGES TO UNLOCK NEW PLAYSTYLES"
+                : "EACH CLASS CHANGES THE WHOLE RUN",
+            layout.point(classCollectionOnly_ ? 678.0F : 744.0F, 222.0F),
             12.0F * layout.scale,
             {218, 204, 174, 235});
 
-        constexpr std::array<Color, 3> ClassColors{{
+        constexpr std::array<Color, 8> ClassColors{{
             {86, 174, 225, 255},
             {231, 117, 66, 255},
             {238, 191, 64, 255},
+            {104, 199, 112, 255},
+            {222, 75, 61, 255},
+            {173, 75, 202, 255},
+            {76, 201, 168, 255},
+            {103, 151, 238, 255},
         }};
         for (std::size_t index = 0;
              index < PlayerClassDefinitions.size(); ++index) {
             const PlayerClassDefinition& definition =
                 PlayerClassDefinitions[index];
+            const bool unlocked = isPlayerClassUnlocked(
+                definition.type, metaProgression_);
+            const float column = static_cast<float>(index % 4U);
+            const float row = static_cast<float>(index / 4U);
             const Rectangle card = layout.rect(
-                316.0F + static_cast<float>(index) * 438.0F,
-                378.0F, 412.0F, 350.0F);
+                150.0F + column * 405.0F,
+                270.0F + row * 238.0F, 375.0F, 214.0F);
             const bool selected =
                 selectedPlayerClass_ == definition.type;
             const bool hovered = CheckCollisionPointRec(
                 GetMousePosition(), card);
-            if (hovered &&
+            if (unlocked && hovered &&
                 IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 selectedPlayerClass_ = definition.type;
                 audio_.playUiConfirm();
             }
             DrawRectangleRounded(
                 card, 0.09F, 8,
-                selected
+                selected && unlocked
                     ? Color{46, 43, 35, 252}
                     : hovered
                         ? Color{35, 38, 42, 248}
                         : Color{25, 28, 32, 245});
             DrawRectangleRoundedLinesEx(
                 card, 0.09F, 8,
-                (selected ? 4.0F : 2.0F) * layout.scale,
-                selected
+                (selected && unlocked ? 4.0F : 2.0F) * layout.scale,
+                selected && unlocked
                     ? ClassColors[index]
                     : Color{106, 103, 91, 220});
             const Vector2 emblem{
                 card.x + card.width * 0.5F,
-                card.y + 62.0F * layout.scale};
+                card.y + 39.0F * layout.scale};
             DrawCircleV(
-                emblem, 34.0F * layout.scale,
+                emblem, 23.0F * layout.scale,
                 ColorAlpha(ClassColors[index], 0.24F));
             DrawCircleLinesV(
-                emblem, 34.0F * layout.scale,
+                emblem, 23.0F * layout.scale,
                 ClassColors[index]);
             const std::string initial{
                 definition.name.substr(0, 1)};
-            const float initialSize = 28.0F * layout.scale;
+            const float initialSize = 18.0F * layout.scale;
             const Vector2 initialBounds =
                 measureUiText(initial, initialSize);
             drawUiText(
@@ -475,21 +486,25 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
                 {emblem.x - initialBounds.x * 0.5F,
                  emblem.y - initialBounds.y * 0.5F},
                 initialSize, ClassColors[index]);
-            const float nameSize = 22.0F * layout.scale;
+            const float nameSize = 16.0F * layout.scale;
+            const std::string localizedName =
+                localizeText(definition.name);
             const Vector2 nameBounds = measureUiText(
-                definition.name, nameSize);
+                localizedName, nameSize);
             drawUiText(
-                definition.name,
+                localizedName,
                 {card.x + (card.width - nameBounds.x) * 0.5F,
-                 card.y + 112.0F * layout.scale},
+                 card.y + 69.0F * layout.scale},
                 nameSize, {250, 239, 207, 255});
-            const float roleSize = 11.0F * layout.scale;
+            const float roleSize = 9.0F * layout.scale;
+            const std::string localizedRole =
+                localizeText(definition.role);
             const Vector2 roleBounds = measureUiText(
-                definition.role, roleSize);
+                localizedRole, roleSize);
             drawUiText(
-                definition.role,
+                localizedRole,
                 {card.x + (card.width - roleBounds.x) * 0.5F,
-                 card.y + 153.0F * layout.scale},
+                 card.y + 96.0F * layout.scale},
                 roleSize, {190, 188, 177, 235});
             for (std::size_t trait = 0;
                  trait < definition.traits.size(); ++trait) {
@@ -498,20 +513,62 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
                     text,
                     {card.x + 35.0F * layout.scale,
                      card.y +
-                         (210.0F + static_cast<float>(trait) * 42.0F) *
+                         (121.0F + static_cast<float>(trait) * 22.0F) *
                              layout.scale},
-                    12.0F * layout.scale,
+                    8.5F * layout.scale,
                     text.starts_with('-')
                         ? Color{242, 112, 91, 255}
                         : Color{116, 220, 132, 255});
             }
+            const std::string localizedNodes =
+                localizeText(definition.startingNodesLabel);
+            const float nodesSize = fitUiTextSize(
+                localizedNodes,
+                7.5F * layout.scale,
+                6.0F * layout.scale,
+                card.width - 70.0F * layout.scale);
+            drawUiText(
+                localizedNodes,
+                {card.x + 35.0F * layout.scale,
+                 card.y + 191.0F * layout.scale},
+                nodesSize, ClassColors[index]);
+            if (!unlocked) {
+                DrawRectangleRounded(
+                    card, 0.09F, 8, {7, 9, 12, 218});
+                drawUiText(
+                    "LOCKED",
+                    {card.x + 145.0F * layout.scale,
+                     card.y + 76.0F * layout.scale},
+                    16.0F * layout.scale, {194, 190, 178, 255});
+                const std::string requirement = localizeText(
+                    playerClassUnlockRequirement(definition.type));
+                const Vector2 requirementSize = measureUiText(
+                    requirement, 9.0F * layout.scale);
+                drawUiText(
+                    requirement,
+                    {card.x + (card.width - requirementSize.x) * 0.5F,
+                     card.y + 119.0F * layout.scale},
+                    9.0F * layout.scale, {238, 190, 83, 255});
+                ui_.drawProgressBar(
+                    {card.x + 48.0F * layout.scale,
+                     card.y + 158.0F * layout.scale,
+                     card.width - 96.0F * layout.scale,
+                     11.0F * layout.scale},
+                    playerClassUnlockProgress(
+                        definition.type, metaProgression_),
+                    UiBarColor::Yellow);
+            }
         }
-        pendingStartFromUi_ = ui_.drawButton(
-            layout.rect(690.0F, 766.0F, 540.0F, 72.0F),
-            "START AS SELECTED CLASS") || pendingStartFromUi_;
+        if (!classCollectionOnly_) {
+            pendingStartFromUi_ = ui_.drawButton(
+                layout.rect(690.0F, 776.0F, 540.0F, 72.0F),
+                "START AS SELECTED CLASS") || pendingStartFromUi_;
+        }
         drawUiText(
-            "ESC  BACK     LEFT / RIGHT  SELECT     ENTER  START",
-            layout.point(692.0F, 850.0F),
+            classCollectionOnly_
+                ? "ESC  BACK"
+                : "ESC  BACK     LEFT / RIGHT  SELECT     ENTER  START",
+            layout.point(classCollectionOnly_ ? 915.0F : 692.0F, 873.0F),
             10.0F * layout.scale, {201, 195, 174, 220});
         return;
     }
@@ -520,6 +577,7 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         layout.rect(775.0F, 360.0F, 370.0F, 78.0F);
     if (ui_.drawButton(playButton, "START RUN")) {
         classSelectionVisible_ = true;
+        classCollectionOnly_ = false;
         audio_.playUiConfirm();
     }
     const Rectangle treeButton =
@@ -530,6 +588,13 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
     drawMenuBadge(layout, treeButton, snapshot.skillPoints);
     if (ui_.drawButton(
             layout.rect(775.0F, 548.0F, 370.0F, 70.0F),
+            "COLLECTION")) {
+        classSelectionVisible_ = true;
+        classCollectionOnly_ = true;
+        audio_.playUiConfirm();
+    }
+    if (ui_.drawButton(
+            layout.rect(775.0F, 638.0F, 370.0F, 70.0F),
             "SETTINGS")) {
         renderer_->setGraphicsPanelVisible(true);
     }
@@ -561,29 +626,21 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         layout.point(1540.0F, 420.0F),
         layout.point(1865.0F, 420.0F),
         2.0F * layout.scale, {170, 146, 105, 210});
-    const int completedObjectives = static_cast<int>(
-        std::ranges::count_if(
-            snapshot.objectives,
-            [](const ObjectiveStatus& objective) {
-                return objective.completed;
-            }));
     drawStatRow(
         layout, 1540.0F, 444.0F, 325.0F,
-        "BEST WAVE", std::to_string(snapshot.bestWave),
+        "BEST WAVE", std::to_string(metaProgression_.bestWave),
         {250, 206, 71, 255});
     drawStatRow(
         layout, 1540.0F, 500.0F, 325.0F,
-        "SKILL POINTS", std::to_string(snapshot.skillPoints),
+        "STAGE CLEARS", std::to_string(metaProgression_.stageClears),
         {188, 150, 255, 255});
     drawStatRow(
         layout, 1540.0F, 556.0F, 325.0F,
-        "OBJECTIVES", std::to_string(completedObjectives),
+        "ENEMIES DEFEATED", std::to_string(metaProgression_.enemiesDefeated),
         {121, 213, 124, 255});
     drawStatRow(
         layout, 1540.0F, 612.0F, 325.0F,
-        "TOTAL INSIGHT",
-        std::to_string(static_cast<int>(
-            std::lround(snapshot.totalInsightEarned))),
+        "ITEMS COLLECTED", std::to_string(metaProgression_.lootCollected),
         {136, 204, 245, 255});
     drawUiText(
         "YOUR PROGRESS IS SAVED BETWEEN RUNS",

@@ -94,6 +94,10 @@ ModelResource* lootItemModelFor(
         return &resources.hourglassLootModel();
     case LootUpgradeEffect::Rope:
         return &resources.ropeLootModel();
+    case LootUpgradeEffect::Magnet:
+        return &resources.magnetLootModel();
+    case LootUpgradeEffect::HealthAid:
+        return &resources.healthAidLootModel();
     case LootUpgradeEffect::Damage:
     case LootUpgradeEffect::MoveSpeed:
     case LootUpgradeEffect::MaximumHealth:

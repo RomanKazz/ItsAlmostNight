@@ -156,6 +156,8 @@ enum class RunState {
     Sunset,
     Wave,
     WaveComplete,
+    StageClear,
+    Victory,
     Defeat,
     Paused,
 };
@@ -278,6 +280,10 @@ struct SimulationSnapshot {
     bool battlePotionAvailable{};
     double battlePotionBerserkRemaining{};
     double battlePotionBerserkDuration{};
+    bool appleAvailable{};
+    bool breadWellFed{};
+    bool stageCleared{};
+    bool finalNight{};
     double chestOpeningCostMultiplier;
     bool freeChestOpeningAvailable{};
     int freeChestRerollsRemaining{};
@@ -406,6 +412,7 @@ class Simulation {
   public:
     static constexpr std::size_t MaximumActiveEnemies =
         EnemySystem::MaxActiveEnemies;
+    static constexpr int StageClearWave = 12;
 
     explicit Simulation(GameBalance balance = GameBalance::defaults(),
                         MapDefinition map = MapDefinition::defaults(),
@@ -422,6 +429,8 @@ class Simulation {
     void restartRun();
     void returnToMainMenu();
     void togglePause();
+    [[nodiscard]] bool enterFinalNight();
+    [[nodiscard]] bool bankStageClear();
     void tick(double deltaSeconds, const PlayerCommand& command = {});
 
     // Reference remains valid until Simulation is mutated.
@@ -574,14 +583,22 @@ class Simulation {
     void updatePlayerRespawn(double deltaSeconds);
     void respawnPlayer();
     void prepareWave(const WavePlan& plan, GridPosition corePosition,
-                     std::size_t firstAnchorIndex);
+                     std::size_t firstAnchorIndex,
+                     double healthScale = 1.0,
+                     double damageScale = 1.0);
     void beginPreparedWave();
+    [[nodiscard]] bool beginNextFinalNightWave();
     void tickWaveSpawning(double deltaSeconds);
     void completeWave();
     void cycleUnlockedTool();
     void updateFortifications(double deltaSeconds);
     void applyLootPickup(const LootPickup& pickup);
     void applyPotionWaveStart();
+    void tryConsumeApple();
+    [[nodiscard]] double temporaryAttackSpeedMultiplier() const;
+    [[nodiscard]] double playerClassDamageMultiplier() const;
+    void updatePlayerClassEffects(
+        std::size_t firstGameplayEvent, bool suppressKillEffects);
     void updateLootEffects(double deltaSeconds,
                            std::size_t firstGameplayEvent);
     void resetChallengeColumns();
@@ -625,6 +642,7 @@ class Simulation {
     void grantBlueprintInsightForExistingBuildings(
         int blueprintStackOrdinal);
     void refreshSkillRuntimeEffects();
+    void grantPlayerClassStartingNodes();
     void prepareRunUpgradeChoices();
     void generateRunUpgradeChoices();
     void processRunUpgradeCombatEffects(std::size_t firstGameplayEvent);
@@ -758,6 +776,8 @@ class Simulation {
     std::optional<AttackDirection> upcomingAttackDirection_;
     std::array<bool, 4> upcomingAttackDirections_{};
     bool currentWaveHasBoss_{};
+    bool stageCleared_{};
+    bool finalNight_{};
     double playerDamageMultiplier_{1.0};
     double runPlayerDamageMultiplier_{1.0};
     double playerAttackSpeedMultiplier_{1.0};
@@ -778,6 +798,8 @@ class Simulation {
     double playerRecoverableArmor_{};
     double playerMaxRecoverableArmor_{};
     double secondsSincePlayerDamage_{};
+    bool appleAvailable_{};
+    bool breadWellFed_{};
     bool battlePotionAvailable_{};
     double battlePotionBerserkRemaining_{};
     double battlePotionBerserkDuration_{};

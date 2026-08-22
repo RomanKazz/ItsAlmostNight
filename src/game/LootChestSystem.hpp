@@ -34,8 +34,10 @@ enum class LootUpgradeEffect {
     Blueprint,
     Hourglass,
     Rope,
+    Magnet,
+    HealthAid,
 };
-constexpr std::size_t LootUpgradeEffectCount = 17U;
+constexpr std::size_t LootUpgradeEffectCount = 19U;
 
 [[nodiscard]] constexpr std::size_t lootUpgradeIndex(
     LootUpgradeEffect effect) {

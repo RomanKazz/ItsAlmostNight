@@ -390,6 +390,14 @@ ModelResource& GraphicsResources::ropeLootModel() {
     return ropeLootModel_;
 }
 
+ModelResource& GraphicsResources::magnetLootModel() {
+    return magnetLootModel_;
+}
+
+ModelResource& GraphicsResources::healthAidLootModel() {
+    return healthAidLootModel_;
+}
+
 ModelResource& GraphicsResources::heartLootModel() {
     return heartLootModel_;
 }

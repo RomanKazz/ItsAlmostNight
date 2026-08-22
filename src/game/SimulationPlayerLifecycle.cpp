@@ -76,6 +76,7 @@ void Simulation::damagePlayer(
             ? damage
             : damage /
                   std::max(playerArmorMultiplier_, 1.0);
+    const double armorBeforeHit = playerRecoverableArmor_;
     const double absorbedByArmor = ignoreArmor
         ? 0.0
         : std::min(playerRecoverableArmor_, mitigatedDamage);
@@ -88,6 +89,34 @@ void Simulation::damagePlayer(
         0.0, playerTemporaryHealth_ - temporaryDamage);
     playerHealth_ = std::max(
         0.0, playerHealth_ - healthDamage);
+    if (breadWellFed_) {
+        breadWellFed_ = false;
+        refreshSkillRuntimeEffects();
+    }
+    if (!ignoreArmor && armorBeforeHit > 0.0 &&
+        playerRecoverableArmor_ <= 0.0 &&
+        lootStacks_[lootUpgradeIndex(
+            LootUpgradeEffect::IronBar)] > 0) {
+        const int stacks = lootStacks_[lootUpgradeIndex(
+            LootUpgradeEffect::IronBar)];
+        const double radius = std::min(
+            8.0, 4.5 + 0.7 * static_cast<double>(stacks - 1));
+        const double strength = std::min(
+            14.0, 8.0 + 1.2 * static_cast<double>(stacks - 1));
+        const auto knockedBack = enemies_.knockbackInRadius(
+            playerPosition_, radius, strength);
+        const std::size_t knockedBackCount = knockedBack.size();
+        const auto slowed = enemies_.applySlowInRadius(
+            playerPosition_, radius, 0.15, 0.65);
+        events_.push_back({
+            .type = GameEventType::IronArmorBroken,
+            .position = playerPosition_,
+            .amount = static_cast<int>(std::max(
+                knockedBackCount, slowed.size())),
+            .intensity = radius,
+        });
+    }
+    tryConsumeApple();
     secondsSincePlayerDamage_ = 0.0;
     events_.push_back({
         .type = GameEventType::PlayerDamaged,

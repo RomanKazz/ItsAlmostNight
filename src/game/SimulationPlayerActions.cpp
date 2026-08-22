@@ -240,9 +240,9 @@ void Simulation::updatePlayerActions(
         aimedResource_ = command.aimedResourceOverride;
     }
     constexpr bool automaticToolSwitch = true;
-    // Smart Tools chooses between already-held real tools. Bare Hands is an
-    // intentional gathering mode: keep it selected so its 25% coefficients,
-    // animation and VFX remain the ones used for the hit.
+    // Smart Tools chooses the matching unlocked tool. When the player holds
+    // another tool but has not unlocked the match yet, hands are the safe
+    // universal fallback. Explicit Bare Hands stays intentional.
     if (automaticToolSwitch && !selectedBuilding_ && aimedResource_ &&
         heldTool != PlayerWeapon::BareHands) {
         const auto node = std::ranges::find(
@@ -258,9 +258,11 @@ void Simulation::updatePlayerActions(
                 skillTree_.hasEffect(
                     desiredTool == PlayerWeapon::Axe
                         ? "unlock.axe" : "unlock.pickaxe");
-            if (heldTool != desiredTool && desiredToolUnlocked) {
-                playerWeapons_.selectWeapon(desiredTool);
-                heldTool = desiredTool;
+            const PlayerWeapon smartTool = desiredToolUnlocked
+                ? desiredTool : PlayerWeapon::BareHands;
+            if (heldTool != smartTool) {
+                playerWeapons_.selectWeapon(smartTool);
+                heldTool = smartTool;
                 selectedBuilding_.reset();
                 buildingPreview_.reset();
             }
@@ -299,7 +301,8 @@ void Simulation::updatePlayerActions(
     if (command.fireRifle && !selectedBuilding_) {
         const auto fire = playerWeapons_.fireRifle(
             playerPosition_, direction, enemies_,
-            playerDamageMultiplier_ * runPlayerDamageMultiplier_ * std::max(
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+                playerClassDamageMultiplier() * std::max(
                 0.05, 1.0 + skillTree_.effectValue(
                     "player.damage")));
         if (fire) {
@@ -356,7 +359,9 @@ void Simulation::updatePlayerActions(
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
         pickaxeInputBufferRemaining_ = 0.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown /
-            std::max(0.05, playerAttackSpeedMultiplier_);
+            std::max(
+                0.05, playerAttackSpeedMultiplier_ *
+                    temporaryAttackSpeedMultiplier());
         const std::uint64_t attackSeed = mixBits64(
             tick_ ^ (pickaxeAttackSequence_++ *
                      0x9e3779b97f4a7c15ULL));
@@ -380,6 +385,7 @@ void Simulation::updatePlayerActions(
         }
         const double damage = playerDamageMultiplier_ *
             runPlayerDamageMultiplier_ *
+            playerClassDamageMultiplier() *
             skillDamageMultiplier * toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
@@ -756,6 +762,9 @@ void Simulation::updatePlayerActions(
             const bool paidChest =
                 chest != lootChests_.chests().end() &&
                 lootChests_.openingCost(*chest) > 0;
+            const bool explorationChest =
+                chest != lootChests_.chests().end() &&
+                chest->purpose == LootChestPurpose::Exploration;
             const bool useFreeKey =
                 !unlimitedResources_ && paidChest &&
                 freeChestOpeningAvailable_ &&
@@ -769,6 +778,12 @@ void Simulation::updatePlayerActions(
             }
             if (result == ChestOpenResult::Opened && useFreeKey) {
                 freeChestOpeningAvailable_ = false;
+            }
+            if (result == ChestOpenResult::Opened && explorationChest &&
+                lootStacks_[lootUpgradeIndex(
+                    LootUpgradeEffect::Compass)] > 0) {
+                freeChestRerollsRemaining_ = saturatingAdd(
+                    freeChestRerollsRemaining_, 1);
             }
             events_.push_back({
                 .type = result == ChestOpenResult::Opened

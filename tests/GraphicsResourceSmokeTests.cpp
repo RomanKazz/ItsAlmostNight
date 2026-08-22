@@ -304,6 +304,14 @@ int main() {
             {0.45F, 1.2F, 0.0F},
             ian::LootUpgradeEffect::Bread,
             ian::LootRarity::Common, -0.5F);
+        renderer.drawLootItem(
+            {-0.45F, 1.7F, 0.0F},
+            ian::LootUpgradeEffect::Magnet,
+            ian::LootRarity::Common, 0.2F);
+        renderer.drawLootItem(
+            {0.45F, 1.7F, 0.0F},
+            ian::LootUpgradeEffect::HealthAid,
+            ian::LootRarity::Common, -0.2F);
         renderer.drawCoin(
             ian::CoinType::HighValue, {0.0F, 0.55F, 0.0F}, 0.7F, 1.0F);
         renderer.drawHeart({0.55F, 0.55F, 0.0F}, 0.7F, 1.0F);

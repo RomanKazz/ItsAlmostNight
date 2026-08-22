@@ -291,6 +291,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& blueprintLootModel();
     [[nodiscard]] ModelResource& hourglassLootModel();
     [[nodiscard]] ModelResource& ropeLootModel();
+    [[nodiscard]] ModelResource& magnetLootModel();
+    [[nodiscard]] ModelResource& healthAidLootModel();
     [[nodiscard]] ModelResource& heartLootModel();
     [[nodiscard]] ModelResource& platformModel();
     [[nodiscard]] ModelResource& rampModel();
@@ -419,6 +421,8 @@ class GraphicsResources {
     ModelResource blueprintLootModel_;
     ModelResource hourglassLootModel_;
     ModelResource ropeLootModel_;
+    ModelResource magnetLootModel_;
+    ModelResource healthAidLootModel_;
     ModelResource heartLootModel_;
     ModelResource platformModel_;
     ModelResource rampModel_;

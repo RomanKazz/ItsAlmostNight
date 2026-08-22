@@ -189,16 +189,15 @@ void App::update() {
         (static_cast<float>(modularBuildPiece_) -
          foundationHotbarSelectionPosition_) *
         hotbarBlend;
-    const float weaponTarget = static_cast<float>(
-        actionMode_ == ActionMode::Tools
-            ? playerWeaponVisibleHotbarIndex(
-                  hotbarSnapshot.selectedWeapon,
-                  hotbarSnapshot.unlockedWeapons,
-                  PlayerToolHotbarOrder)
-            : playerWeaponVisibleHotbarIndex(
-                  hotbarSnapshot.selectedWeapon,
-                  hotbarSnapshot.unlockedWeapons,
-                  PlayerCombatHotbarOrder));
+    const auto equipmentOrder = actionMode_ == ActionMode::Tools
+        ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
+        : std::span<const PlayerWeapon>{PlayerCombatHotbarOrder};
+    const auto selectedEquipment = std::ranges::find(
+        equipmentOrder, hotbarSnapshot.selectedWeapon);
+    const float weaponTarget = selectedEquipment == equipmentOrder.end()
+        ? 0.0F
+        : static_cast<float>(std::distance(
+              equipmentOrder.begin(), selectedEquipment));
     weaponHotbarSelectionPosition_ +=
         (weaponTarget - weaponHotbarSelectionPosition_) *
         hotbarBlend;
@@ -729,6 +728,7 @@ void App::update() {
         pendingPlacedBuildingRotation_.reset();
     }
     const auto events = simulation_.takeEvents();
+    recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
     refreshDecorationExclusions(eventSnapshot);
     if (!groundCameraSmoothingInitialized_ ||

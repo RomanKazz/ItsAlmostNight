@@ -754,93 +754,6 @@ std::string phaseClock(double seconds) {
     return buffer;
 }
 
-void drawCoreLocator(
-    const SimulationSnapshot& snapshot, const Camera3D& camera,
-    bool recentlyDamaged) {
-    if (!snapshot.coreId || snapshot.state == RunState::MainMenu ||
-        snapshot.state == RunState::Defeat) {
-        return;
-    }
-    const auto core = std::ranges::find(
-        snapshot.buildings, *snapshot.coreId,
-        &BuildingInstance::id);
-    if (core == snapshot.buildings.end()) return;
-
-    const Vec3 center = buildingWorldPosition(*core);
-    const Vector3 world{
-        static_cast<float>(center.x),
-        static_cast<float>(center.y + 2.7),
-        static_cast<float>(center.z)};
-    const float dx = world.x - camera.position.x;
-    const float dy = world.y - camera.position.y;
-    const float dz = world.z - camera.position.z;
-    const Vector3 forward = Vector3Normalize(
-        Vector3Subtract(camera.target, camera.position));
-    const bool inFront = dx * forward.x + dy * forward.y +
-        dz * forward.z > 0.0F;
-    const Vector2 projected = GetWorldToScreen(world, camera);
-    constexpr float Margin = 66.0F;
-    constexpr float TopMargin = 126.0F;
-    constexpr float BottomMargin = 112.0F;
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    const bool onScreen = inFront &&
-        projected.x >= Margin && projected.x <= screenWidth - Margin &&
-        projected.y >= TopMargin &&
-        projected.y <= screenHeight - BottomMargin;
-
-    const float distance = static_cast<float>(std::hypot(
-        center.x - snapshot.playerPosition.x,
-        center.z - snapshot.playerPosition.z));
-    // The minimap is enough while the core is nearby. The edge locator is a
-    // recovery aid, not a permanently competing HUD element.
-    if (onScreen || (distance < 22.0F && !recentlyDamaged)) return;
-
-    Vector2 marker = projected;
-    Vector2 direction{};
-    const double relative = std::atan2(
-        center.x - snapshot.playerPosition.x,
-        -(center.z - snapshot.playerPosition.z)) -
-        snapshot.playerYaw;
-    direction = {
-        static_cast<float>(std::sin(relative)),
-        static_cast<float>(-std::cos(relative))};
-    const Vector2 screenCenter{screenWidth * 0.5F,
-                               screenHeight * 0.5F};
-    const float halfWidth = screenWidth * 0.5F - Margin;
-    const float halfHeight = screenHeight * 0.5F - BottomMargin;
-    const float scaleX = std::abs(direction.x) > 0.001F
-        ? halfWidth / std::abs(direction.x) : 100000.0F;
-    const float scaleY = std::abs(direction.y) > 0.001F
-        ? halfHeight / std::abs(direction.y) : 100000.0F;
-    marker = Vector2Add(
-        screenCenter,
-        Vector2Scale(direction, std::min(scaleX, scaleY)));
-    marker.y = std::clamp(
-        marker.y, TopMargin, screenHeight - BottomMargin);
-
-    const float rotation = std::atan2(direction.y, direction.x) *
-        RAD2DEG + 90.0F;
-    const float pulse = recentlyDamaged
-        ? 0.5F + 0.5F * std::sin(static_cast<float>(GetTime()) * 8.0F)
-        : 0.0F;
-    const float radius = recentlyDamaged ? 12.0F + pulse * 2.0F : 10.0F;
-    const Color fill = recentlyDamaged
-        ? Color{255, 139, 62, static_cast<unsigned char>(215 + pulse * 40.0F)}
-        : Color{255, 188, 62, 175};
-    // A compact dark backing keeps the locator readable over bright grass,
-    // snow and UI without bringing back a large label.
-    DrawPoly(
-        marker, 3, radius + 3.0F, rotation,
-        recentlyDamaged ? Color{58, 27, 18, 210}
-                        : Color{24, 23, 21, 155});
-    DrawPoly(marker, 3, radius, rotation, fill);
-    DrawPolyLinesEx(
-        marker, 3, radius, rotation, recentlyDamaged ? 2.0F : 1.5F,
-        recentlyDamaged ? Color{86, 43, 24, 235}
-                        : Color{255, 224, 153, 190});
-}
-
 } // namespace
 
 using namespace hud_detail;
@@ -1323,8 +1236,6 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             view.showCoreHealth);
     }
 
-    drawCoreLocator(snapshot, camera, view.coreRecentlyDamaged);
-
     bool chestCompassVisible = false;
     if (snapshot.nearestChestPosition &&
         snapshot.nearestChestDistance > 0.0) {
@@ -1391,7 +1302,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         phaseSubtext = "FINAL BUILD / REPAIR";
         phaseColor = {255, 146, 79, 255};
     } else if (snapshot.state == RunState::Wave) {
-        phaseText = "WAVE " + std::to_string(snapshot.wave) +
+        phaseText = (snapshot.finalNight ? "FINAL NIGHT  •  WAVE " : "WAVE ") +
+            std::to_string(snapshot.wave) +
             "  •  " +
             std::to_string(snapshot.activeEnemyCount +
                            snapshot.pendingEnemyCount) +
@@ -1472,9 +1384,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     drawCompactInsight(
         ui, snapshot, view,
         buildModeActive || view.showCoreHealth);
-    if (!view.hideBottomHints && buildModeActive) {
+    if (buildModeActive) {
         drawBuildHotbar(ui, snapshot, view);
-    } else if (!view.hideBottomHints) {
+    } else {
         drawWeaponHotbar(ui, snapshot, view);
     }
 
@@ -1748,7 +1660,43 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
         drawCenteredUiText(
             "PAUSED", static_cast<float>(GetScreenHeight() / 2 - 24),
             48.0F, RAYWHITE);
-    } else if (snapshot.state == RunState::Defeat) {
+    } else if (snapshot.state == RunState::StageClear) {
+        DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
+                      {4, 7, 10, 218});
+        const float centerX =
+            static_cast<float>(GetScreenWidth()) * 0.5F;
+        const float centerY =
+            static_cast<float>(GetScreenHeight()) * 0.5F;
+        const float panelWidth = std::min(
+            760.0F, static_cast<float>(GetScreenWidth()) - 40.0F);
+        const float x = centerX - panelWidth * 0.5F;
+        DrawRectangleRounded(
+            {x, centerY - 190.0F, panelWidth, 380.0F},
+            0.06F, 10, {24, 25, 28, 248});
+        DrawRectangleRoundedLinesEx(
+            {x, centerY - 190.0F, panelWidth, 380.0F},
+            0.06F, 10, 3.0F, {232, 178, 74, 255});
+        drawCenteredUiText(
+            "FORT DEFENDED", centerY - 145.0F,
+            46.0F, {255, 205, 92, 255});
+        drawCenteredUiText(
+            "STAGE CLEARED  •  WAVE 12 BOSS DEFEATED",
+            centerY - 78.0F, 19.0F, {229, 219, 190, 255});
+        drawCenteredUiText(
+            "Your rewards are secured. Bank the run, or test the build",
+            centerY - 25.0F, 16.0F, {184, 186, 179, 255});
+        drawCenteredUiText(
+            "against an endless night that grows stronger every wave.",
+            centerY + 3.0F, 16.0F, {184, 186, 179, 255});
+        drawCenteredUiText(
+            "ENTER / F   FACE THE FINAL NIGHT",
+            centerY + 72.0F, 21.0F, {242, 108, 82, 255});
+        drawCenteredUiText(
+            "B   BANK REWARDS AND END RUN",
+            centerY + 118.0F, 18.0F, {142, 207, 147, 255});
+    } else if (snapshot.state == RunState::Defeat ||
+               snapshot.state == RunState::Victory) {
+        const bool successfulRun = snapshot.stageCleared;
         DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                       {4, 7, 10, 210});
         const float screenWidth = static_cast<float>(GetScreenWidth());
@@ -1762,11 +1710,14 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             {24, 25, 28, 246});
         DrawRectangleRoundedLinesEx(
             {x, y, panelWidth, panelHeight}, 0.055F, 10, 3.0F,
-            {142, 96, 65, 255});
+            successfulRun ? Color{188, 145, 65, 255}
+                          : Color{142, 96, 65, 255});
 
         drawCenteredUiText(
-            "CORE DESTROYED", y + 24.0F, 43.0F,
-            {242, 91, 73, 255});
+            successfulRun ? "FORT DEFENDED" : "CORE DESTROYED",
+            y + 24.0F, 43.0F,
+            successfulRun ? Color{255, 205, 92, 255}
+                          : Color{242, 91, 73, 255});
         char survival[96]{};
         const int elapsed = std::max(
             0, static_cast<int>(snapshot.elapsedSeconds));

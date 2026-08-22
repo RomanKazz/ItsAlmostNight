@@ -139,6 +139,8 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
     updateMusic();
     const bool activeRun =
         snapshot.state != RunState::MainMenu &&
+        snapshot.state != RunState::StageClear &&
+        snapshot.state != RunState::Victory &&
         snapshot.state != RunState::Defeat &&
         !snapshot.playerRespawning &&
         snapshot.playerHealth > 0.0 &&
@@ -159,6 +161,8 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
+        snapshot.state != RunState::StageClear &&
+        snapshot.state != RunState::Victory &&
         snapshot.state != RunState::Defeat &&
         snapshot.playerGrounded;
     if (!movementAudible || !previousPlayerPosition_) {
@@ -315,6 +319,7 @@ void AudioSystem::playEvent(
             variedPitch(0.035F), 55.0F);
         break;
     case GameEventType::AnvilRepairShockwave:
+    case GameEventType::IronArmorBroken:
         playAt(
             explosion_, event.position, snapshot, 0.46F,
             0.72F * variedPitch(0.025F), 48.0F);
@@ -458,6 +463,13 @@ void AudioSystem::playEvent(
     case GameEventType::WaveCompleted:
         play(uiConfirm_, 0.52F, 0.94F);
         break;
+    case GameEventType::StageCleared:
+        play(upgrade_, 0.92F, 0.88F);
+        play(uiConfirm_, 0.68F, 1.08F);
+        break;
+    case GameEventType::FinalNightStarted:
+        play(waveWarning_, 0.92F, 0.72F);
+        break;
     case GameEventType::InsightGranted:
         break;
     case GameEventType::ChestOpened:
@@ -473,6 +485,8 @@ void AudioSystem::playEvent(
         play(upgrade_, 0.78F, 1.08F);
         break;
     case GameEventType::BattlePotionActivated:
+    case GameEventType::AppleConsumed:
+    case GameEventType::BreadWellFed:
         play(upgrade_, 0.86F, 0.82F);
         break;
     case GameEventType::BuildingRejected:

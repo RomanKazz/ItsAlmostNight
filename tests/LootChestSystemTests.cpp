@@ -26,7 +26,7 @@ void runLootChestSystemTests() {
     const ian::Vec3 spawn{
         0.0, terrain.getHeight(0.0, 0.0) + 1.7, 0.0};
     chests.reset(terrain.seed(), 120.0, terrain, {}, spawn);
-    require(chests.chests().size() == 10,
+    require(chests.chests().size() == 14,
             "loot chests deterministically populate terrain");
     bool hasWooden = false;
     bool hasStone = false;
@@ -66,7 +66,9 @@ void runLootChestSystemTests() {
              chest.loot.effect == ian::LootUpgradeEffect::FuelJerrycan ||
              chest.loot.effect == ian::LootUpgradeEffect::Compass ||
              chest.loot.effect == ian::LootUpgradeEffect::Nail ||
-             chest.loot.effect == ian::LootUpgradeEffect::Key);
+             chest.loot.effect == ian::LootUpgradeEffect::Key ||
+             chest.loot.effect == ian::LootUpgradeEffect::Magnet ||
+             chest.loot.effect == ian::LootUpgradeEffect::HealthAid);
         const bool rare =
             chest.loot.rarity == ian::LootRarity::Rare &&
             (chest.loot.effect == ian::LootUpgradeEffect::Map ||

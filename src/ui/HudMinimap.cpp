@@ -531,13 +531,54 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         const Vec3 position = buildingWorldPosition(building);
         const Vector2 point = mapPoint(position.x, position.z);
         switch (building.type) {
-        case BuildingType::Core:
-            DrawPoly(point, 4, 5.5F * symbolScale, 45.0F,
-                     {255, 210, 83, 255});
+        case BuildingType::Core: {
+            const Vector2 delta{
+                point.x - mapCenter.x,
+                point.y - mapCenter.y};
+            const float distance = std::hypot(delta.x, delta.y);
+            if (distance <= 0.001F) {
+                DrawPoly(
+                    mapCenter, 4, 6.0F * symbolScale,
+                    45.0F, {255, 210, 83, 255});
+                break;
+            }
+            const Vector2 direction{
+                delta.x / distance, delta.y / distance};
+            const Vector2 perpendicular{
+                -direction.y, direction.x};
+            const float maximumDistance =
+                mapSize * 0.5F - 18.0F * renderScale;
+            const float markerDistance = std::min(
+                distance, maximumDistance);
+            const Vector2 marker{
+                mapCenter.x + direction.x * markerDistance,
+                mapCenter.y + direction.y * markerDistance};
+            const float pulse = 1.0F + 0.08F *
+                std::sin(static_cast<float>(GetTime()) * 5.5F);
+            const float arrowLength =
+                9.0F * symbolScale * pulse;
+            const float arrowWidth =
+                6.0F * symbolScale * pulse;
             DrawCircleV(
-                point, 1.7F * symbolScale,
-                {255, 245, 188, 255});
+                marker, 8.5F * symbolScale,
+                {33, 27, 19, 225});
+            DrawTriangle(
+                {marker.x + direction.x * arrowLength,
+                 marker.y + direction.y * arrowLength},
+                {marker.x - direction.x * arrowLength * 0.55F +
+                     perpendicular.x * arrowWidth,
+                 marker.y - direction.y * arrowLength * 0.55F +
+                     perpendicular.y * arrowWidth},
+                {marker.x - direction.x * arrowLength * 0.55F -
+                     perpendicular.x * arrowWidth,
+                 marker.y - direction.y * arrowLength * 0.55F -
+                     perpendicular.y * arrowWidth},
+                {255, 207, 72, 255});
+            DrawCircleV(
+                marker, 2.0F * symbolScale,
+                {255, 247, 195, 255});
             break;
+        }
         case BuildingType::Turret:
         case BuildingType::GunTurret:
         case BuildingType::Cannon:

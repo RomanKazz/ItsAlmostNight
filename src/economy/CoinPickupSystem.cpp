@@ -129,7 +129,7 @@ CoinCollection CoinPickupSystem::tick(
     double deltaSeconds, Vec3 playerPosition,
     const TerrainHeightfield& terrain,
     const CollisionWorld& collisionWorld,
-    double missingHealth) {
+    double missingHealth, double attractionRadius) {
     CoinCollection collected{};
     if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0) {
         return collected;
@@ -140,7 +140,8 @@ CoinCollection CoinPickupSystem::tick(
         playerPosition.y - 0.72,
         playerPosition.z,
     };
-    const double attractionSquared = AttractionRadius * AttractionRadius;
+    attractionRadius = std::max(0.0, attractionRadius);
+    const double attractionSquared = attractionRadius * attractionRadius;
     const double collectionSquared = CollectionRadius * CollectionRadius;
     missingHealth = std::max(0.0, missingHealth);
 
@@ -173,7 +174,7 @@ CoinCollection CoinPickupSystem::tick(
                 coin.magnetTime / 0.24, 0.0, 1.0);
             const double speed =
                 7.0 + accelerationEase * 18.0 +
-                std::max(0.0, AttractionRadius - distance) * 1.1;
+                std::max(0.0, attractionRadius - distance) * 1.1;
             const double swirl =
                 std::sin(coin.spinPhase + coin.age * 13.0) *
                 (1.0 - accelerationEase) * 1.4;

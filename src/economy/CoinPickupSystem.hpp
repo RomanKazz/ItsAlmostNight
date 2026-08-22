@@ -63,7 +63,8 @@ class CoinPickupSystem {
         double deltaSeconds, Vec3 playerPosition,
         const TerrainHeightfield& terrain,
         const CollisionWorld& collisionWorld,
-        double missingHealth = 0.0);
+        double missingHealth = 0.0,
+        double attractionRadius = AttractionRadius);
     [[nodiscard]] std::span<const CoinPickup> pickups() const;
 
   private:

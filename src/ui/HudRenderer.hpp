@@ -20,7 +20,6 @@ struct HudViewState {
     std::span<const DamageIndicator> damageIndicators;
     std::string_view statusMessage;
     double statusMessageRemaining{};
-    bool hideBottomHints{};
     ActionMode actionMode{ActionMode::Tools};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
@@ -34,7 +33,6 @@ struct HudViewState {
     bool mapOverlayOpen{};
     bool minimapHidden{};
     bool showCoreHealth{};
-    bool coreRecentlyDamaged{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};
     float woodResourceBounce{};

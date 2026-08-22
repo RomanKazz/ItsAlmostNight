@@ -10,6 +10,7 @@
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "presentation/PresentationTypes.hpp"
+#include "progression/MetaProgression.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
@@ -167,6 +168,8 @@ class App {
     void drawMainMenu(const SimulationSnapshot& snapshot);
     void drawMainMenuWorld(const SimulationSnapshot& snapshot);
     void persistUserSettings(bool force = false);
+    void persistMetaProgression();
+    void recordMetaProgression(std::span<const GameEvent> events);
     void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
     void drawItemGrantMenu();
@@ -213,12 +216,15 @@ class App {
     AudioSystem audio_;
     UserSettings userSettings_;
     UserSettings persistedUserSettings_;
+    MetaProgression metaProgression_;
+    MetaProgression persistedMetaProgression_;
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
     GameUi ui_;
     SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
     bool classSelectionVisible_{};
+    bool classCollectionOnly_{};
     PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
     bool pendingOpenSkillTreeFromUi_{};
     bool pendingResumeFromUi_{};
@@ -571,7 +577,6 @@ class App {
         modularWallDragPreviews_;
     std::vector<RampPlacement>
         modularRampDragPreviews_;
-    bool hideBottomHud_{};
 };
 
 } // namespace ian

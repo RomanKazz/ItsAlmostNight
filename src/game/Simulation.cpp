@@ -175,6 +175,21 @@ void Simulation::restartRun() {
     resetRun(GameEventType::RunRestarted);
 }
 
+void Simulation::grantPlayerClassStartingNodes() {
+    const PlayerClassDefinition* playerClass =
+        playerClassDefinition(playerClass_);
+    if (playerClass == nullptr) return;
+    for (const std::string_view nodeId :
+         playerClass->startingNodeIds) {
+        if (nodeId.empty()) continue;
+        const auto nodeIndex = skillTree_.indexOf(nodeId);
+        if (nodeIndex) {
+            static_cast<void>(
+                skillTree_.purchase(*nodeIndex, false));
+        }
+    }
+}
+
 std::uint32_t Simulation::nextRunTerrainSeed() {
     runSeedState_ += 0x9e3779b97f4a7c15ULL;
     std::uint32_t seed = static_cast<std::uint32_t>(
@@ -317,6 +332,8 @@ void Simulation::resetRun(GameEventType eventType) {
     playerRecoverableArmor_ = 0.0;
     playerMaxRecoverableArmor_ = 0.0;
     secondsSincePlayerDamage_ = 0.0;
+    appleAvailable_ = false;
+    breadWellFed_ = false;
     battlePotionAvailable_ = false;
     battlePotionBerserkRemaining_ = 0.0;
     battlePotionBerserkDuration_ = 0.0;
@@ -391,6 +408,49 @@ void Simulation::resetRun(GameEventType eventType) {
             playerClass->buildingHealthMultiplier;
         defenseDamageMultiplier_ *=
             playerClass->defenseDamageMultiplier;
+        productionSpeedMultiplier_ *=
+            playerClass->productionSpeedMultiplier;
+        grantPlayerClassStartingNodes();
+        switch (playerClass_) {
+        case PlayerClass::Vanguard:
+            if (skillTree_.hasEffect("unlock.club"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            break;
+        case PlayerClass::Ranger:
+            if (skillTree_.hasEffect("unlock.rifle"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            break;
+        case PlayerClass::Engineer:
+            if (skillTree_.hasEffect("unlock.hammer"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Hammer);
+            break;
+        case PlayerClass::Prospector:
+            if (skillTree_.hasEffect("unlock.pickaxe"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
+            break;
+        case PlayerClass::Berserker:
+            if (skillTree_.hasEffect("unlock.club"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            break;
+        case PlayerClass::Vampire:
+            if (skillTree_.hasEffect("unlock.rifle"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            break;
+        case PlayerClass::Alchemist:
+            if (skillTree_.hasEffect("unlock.club"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            grantLootUpgrade(LootUpgradeEffect::Apple);
+            grantLootUpgrade(LootUpgradeEffect::Potion);
+            break;
+        case PlayerClass::Chronomancer:
+            if (skillTree_.hasEffect("unlock.rifle"))
+                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            grantLootUpgrade(LootUpgradeEffect::Hourglass);
+            grantLootUpgrade(LootUpgradeEffect::Rope);
+            break;
+        case PlayerClass::None:
+            break;
+        }
         playerHealth_ = playerPermanentMaxHealth();
     }
     refreshSkillRuntimeEffects();
@@ -405,6 +465,8 @@ void Simulation::resetRun(GameEventType eventType) {
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
     currentWaveHasBoss_ = false;
+    stageCleared_ = false;
+    finalNight_ = false;
     modularTargetBuffer_.clear();
     collisionWorld_.syncPondLilySurfaces(
         generatePondLilyPlacements(terrain_));
@@ -430,6 +492,7 @@ void Simulation::togglePause() {
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
     if (state_ == RunState::MainMenu || state_ == RunState::Paused ||
+        state_ == RunState::StageClear || state_ == RunState::Victory ||
         state_ == RunState::Defeat || !std::isfinite(deltaSeconds) ||
         deltaSeconds < 0.0) {
         return;
@@ -547,6 +610,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             .intensity = 1.0,
         });
     }
+    updatePlayerClassEffects(
+        firstInsightEvent, command.defeatAllEnemies.has_value());
     updateLootEffects(deltaSeconds, firstInsightEvent);
     updateCoinPickups(deltaSeconds);
     processObjectiveEvents(firstInsightEvent);

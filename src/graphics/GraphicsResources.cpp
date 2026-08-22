@@ -1122,6 +1122,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/items/hourglass.glb");
     ropeLootModel_.load(
         "assets/models/items/rope.glb");
+    magnetLootModel_.load(
+        "assets/models/items/magnet.glb");
+    healthAidLootModel_.load(
+        "assets/models/items/health_aid.glb");
     heartLootModel_.load(
         "assets/models/items/heart.glb");
     platformModel_.load("assets/models/construction/platform.glb");
@@ -1448,6 +1452,8 @@ void GraphicsResources::shutdown() {
     for (auto& model : coinModels_) model.unload();
     woodenChestModel_.unload();
     heartLootModel_.unload();
+    healthAidLootModel_.unload();
+    magnetLootModel_.unload();
     ropeLootModel_.unload();
     hourglassLootModel_.unload();
     blueprintLootModel_.unload();

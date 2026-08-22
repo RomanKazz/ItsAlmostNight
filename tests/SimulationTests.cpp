@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <memory>
 
 namespace {
 void unlockAxe(ian::Simulation& simulation) {
@@ -941,21 +942,27 @@ void runSimulationTests() {
         lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Apple);
         requireNear(
             lootEffects.snapshot().playerMaxHealth,
-            baseMaximum + 12.0, 1e-9,
-            "apple adds exactly twelve maximum health per stack");
+            baseMaximum, 1e-9,
+            "apple no longer acts as a passive maximum-health stat item");
         requireNear(
             lootEffects.snapshot().playerHealth,
-            baseMaximum + 12.0, 1e-9,
-            "apple also fills the newly added maximum health");
+            baseMaximum, 1e-9,
+            "apple waits for its low-health trigger");
         require(
             lootEffects.snapshot().lootStacks[
                 ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 1,
             "snapshot exposes collected apple stack");
 
         ian::PlayerCommand damage;
-        damage.damagePlayer = ian::DamagePlayerCommand{20.0};
+        damage.damagePlayer = ian::DamagePlayerCommand{70.0};
         lootEffects.tick(0.0, damage);
         const double damagedHealth = lootEffects.snapshot().playerHealth;
+        requireNear(
+            damagedHealth, 50.0, 1e-9,
+            "apple automatically heals once after crossing its health threshold");
+        require(
+            !lootEffects.snapshot().appleAvailable,
+            "apple becomes unavailable until the next night");
         lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Bread);
         lootEffects.grantLootUpgrade(ian::LootUpgradeEffect::Bread);
         lootEffects.tick(5.9);
@@ -966,7 +973,7 @@ void runSimulationTests() {
         lootEffects.tick(0.2);
         requireNear(
             lootEffects.snapshot().playerHealth,
-            damagedHealth + 0.08, 1e-9,
+            damagedHealth + 0.13, 1e-9,
             "bread regeneration starts after delay and stacks linearly");
         require(
             lootEffects.snapshot().lootStacks[
@@ -998,6 +1005,14 @@ void runSimulationTests() {
             lootEffects.snapshot().playerHealth,
             healthBeforeArmorHits - 5.0, 1e-9,
             "damage beyond remaining armor reaches health");
+        require(
+            std::ranges::any_of(
+                lootEffects.takeEvents(),
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                        ian::GameEventType::IronArmorBroken;
+                }),
+            "breaking Iron Bar armor emits its defensive shockwave");
         lootEffects.tick(4.9);
         requireNear(
             lootEffects.snapshot().playerRecoverableArmor,
@@ -1034,6 +1049,74 @@ void runSimulationTests() {
                 ian::lootUpgradeIndex(ian::LootUpgradeEffect::Bread)] == 0 &&
             lootEffects.snapshot().playerMaxRecoverableArmor == 0.0,
             "run restart clears collected item stacks");
+    }
+    {
+        ian::Simulation breadSimulation;
+        breadSimulation.startRun();
+        breadSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::Bread);
+        breadSimulation.tick(6.1);
+        require(
+            breadSimulation.snapshot().breadWellFed,
+            "Bread grants Well Fed attack speed at full health");
+        ian::PlayerCommand damage;
+        damage.damagePlayer = ian::DamagePlayerCommand{1.0};
+        breadSimulation.tick(0.0, damage);
+        require(
+            !breadSimulation.snapshot().breadWellFed,
+            "taking a hit removes the Well Fed attack-speed state");
+    }
+    {
+        auto healthAidBalance = ian::GameBalance::defaults();
+        healthAidBalance.gameplay.pickaxeDamage = 10000.0;
+        healthAidBalance.gameplay.pickaxeDamageVariation = 0.0;
+        healthAidBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::Simulation healthAidSimulation{healthAidBalance};
+        healthAidSimulation.startRun();
+        healthAidSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::HealthAid);
+        healthAidSimulation.grantLootUpgrade(
+            ian::LootUpgradeEffect::HealthAid);
+        ian::PlayerCommand damage;
+        damage.damagePlayer = ian::DamagePlayerCommand{30.0};
+        healthAidSimulation.tick(0.0, damage);
+        const double damagedHealth =
+            healthAidSimulation.snapshot().playerHealth;
+        const auto tree = std::ranges::find_if(
+            healthAidSimulation.snapshot().resourceNodes,
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Wood;
+            });
+        require(tree != healthAidSimulation.snapshot().resourceNodes.end(),
+                "Field Medkit fixture has a tree to destroy");
+        ian::PlayerCommand destroyTree;
+        destroyTree.overrideAimedResource = true;
+        destroyTree.aimedResourceOverride = tree->id;
+        destroyTree.usePickaxe = true;
+        healthAidSimulation.tick(1.0 / 60.0, destroyTree);
+        requireNear(
+            healthAidSimulation.snapshot().playerHealth,
+            damagedHealth + 8.0, 1e-9,
+            "Field Medkit heals once per destroyed tree and stacks linearly");
+        healthAidSimulation.tick(1.0);
+        const auto stone = std::ranges::find_if(
+            healthAidSimulation.snapshot().resourceNodes,
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Stone;
+            });
+        require(stone != healthAidSimulation.snapshot().resourceNodes.end(),
+                "Field Medkit fixture has a stone to destroy");
+        ian::PlayerCommand destroyStone;
+        destroyStone.overrideAimedResource = true;
+        destroyStone.aimedResourceOverride = stone->id;
+        destroyStone.usePickaxe = true;
+        healthAidSimulation.tick(1.0 / 60.0, destroyStone);
+        requireNear(
+            healthAidSimulation.snapshot().playerHealth,
+            damagedHealth + 16.0, 1e-9,
+            "Field Medkit also heals after destroying stone");
     }
     {
         ian::GameBalance potionBalance =
@@ -2945,6 +3028,13 @@ void runSimulationTests() {
     requireNear(
         rangerClass.snapshot().playerMoveSpeedMultiplier, 1.12, 1e-12,
         "ranger class applies its glass-cannon run modifiers");
+    require(
+        rangerClass.skillTree().isUnlocked("combat_training") &&
+            rangerClass.skillTree().isUnlocked("rifle") &&
+            rangerClass.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Rifle &&
+            rangerClass.skillTree().points() == 0,
+        "ranger starts with its rifle path unlocked for free");
     rangerClass.restartRun();
     require(
         rangerClass.snapshot().playerClass ==
@@ -2965,6 +3055,12 @@ void runSimulationTests() {
     requireNear(
         vanguardClass.snapshot().playerDamageMultiplier, 0.90, 1e-12,
         "vanguard class trades damage for health and resistance");
+    require(
+        vanguardClass.skillTree().isUnlocked("combat_training") &&
+            vanguardClass.skillTree().isUnlocked("club") &&
+            vanguardClass.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Club,
+        "vanguard starts with combat training and club nodes");
 
     ian::Simulation engineerClass{simulationBalance};
     engineerClass.startRun(ian::PlayerClass::Engineer);
@@ -2975,6 +3071,121 @@ void runSimulationTests() {
     requireNear(
         engineerClass.snapshot().playerDamageMultiplier, 0.90, 1e-12,
         "engineer class applies its personal damage tradeoff");
+    require(
+        engineerClass.skillTree().isUnlocked("hammer") &&
+            engineerClass.skillTree().isUnlocked(
+                "defense_engineering") &&
+            engineerClass.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Hammer,
+        "engineer starts with hammer and defense nodes");
+    const auto engineerStone = std::ranges::find_if(
+        engineerClass.snapshot().resourceNodes,
+        [](const ian::ResourceNode& node) {
+            return node.active &&
+                node.type == ian::ResourceType::Stone;
+        });
+    require(engineerStone != engineerClass.snapshot().resourceNodes.end(),
+            "engineer Smart Tools fixture has stone");
+    ian::PlayerCommand engineerAimStone;
+    engineerAimStone.overrideAimedResource = true;
+    engineerAimStone.aimedResourceOverride = engineerStone->id;
+    engineerClass.tick(1.0 / 60.0, engineerAimStone);
+    require(
+        engineerClass.snapshot().selectedWeapon ==
+            ian::PlayerWeapon::BareHands,
+        "Smart Tools falls back from hammer to hands when pickaxe is locked");
+
+    ian::Simulation prospectorClass{simulationBalance};
+    prospectorClass.startRun(ian::PlayerClass::Prospector);
+    require(
+        prospectorClass.snapshot().playerClass ==
+                ian::PlayerClass::Prospector &&
+            prospectorClass.skillTree().isUnlocked("axe") &&
+            prospectorClass.skillTree().isUnlocked("pickaxe") &&
+            prospectorClass.skillTree().isUnlocked(
+                "efficient_strikes") &&
+            prospectorClass.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Pickaxe &&
+            prospectorClass.skillTree().points() == 0,
+        "prospector starts with free resource gathering nodes");
+    requireNear(
+        prospectorClass.snapshot().playerDamageMultiplier,
+        0.85, 1e-12,
+        "prospector trades combat damage for economy");
+
+    auto berserkerClass =
+        std::make_unique<ian::Simulation>(simulationBalance);
+    berserkerClass->startRun(ian::PlayerClass::Berserker);
+    require(
+        berserkerClass->skillTree().isUnlocked("club") &&
+            berserkerClass->skillTree().isUnlocked("dash") &&
+            berserkerClass->snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Club,
+        "berserker starts with club and dash paths");
+    ian::PlayerCommand woundBerserker;
+    woundBerserker.damagePlayer = ian::DamagePlayerCommand{42.5};
+    berserkerClass->tick(0.0, woundBerserker);
+    requireNear(
+        berserkerClass->snapshot().playerDamageMultiplier,
+        1.375, 1e-12,
+        "berserker gains damage from missing half of maximum health");
+
+    auto vampireBalance = simulationBalance;
+    vampireBalance.buildings[static_cast<std::size_t>(
+        ian::BuildingType::Core)].wood = 0;
+    auto vampireClass =
+        std::make_unique<ian::Simulation>(vampireBalance);
+    vampireClass->startRun(ian::PlayerClass::Vampire);
+    ian::PlayerCommand woundVampire;
+    woundVampire.damagePlayer = ian::DamagePlayerCommand{55.0};
+    vampireClass->tick(0.0, woundVampire);
+    const double vampireHealthBeforeKill =
+        vampireClass->snapshot().playerHealth;
+    ian::PlayerCommand placeVampireCore;
+    placeVampireCore.placeBuilding = ian::PlaceBuildingCommand{
+        ian::BuildingType::Core, {0, 0}, 0};
+    vampireClass->tick(0.0, placeVampireCore);
+    ian::PlayerCommand spawnVampireTarget;
+    spawnVampireTarget.spawnEnemy = ian::SpawnEnemyCommand{
+        .type = ian::EnemyType::Basic,
+        .count = 1,
+    };
+    vampireClass->tick(0.0, spawnVampireTarget);
+    require(!vampireClass->snapshot().enemies.empty(),
+            "vampire fixture spawns a target");
+    const ian::EntityId vampireTarget =
+        vampireClass->snapshot().enemies.front().id;
+    ian::PlayerCommand vampireKill;
+    vampireKill.castChainLightning = ian::CastChainLightningCommand{
+        .firstTarget = vampireTarget,
+        .damage = 10000.0,
+        .maximumTargets = 1,
+    };
+    vampireClass->tick(0.0, vampireKill);
+    requireNear(
+        vampireClass->snapshot().playerHealth,
+        vampireHealthBeforeKill + 2.0, 1e-12,
+        "vampire restores health after an enemy kill");
+
+    auto alchemistClass =
+        std::make_unique<ian::Simulation>(simulationBalance);
+    alchemistClass->startRun(ian::PlayerClass::Alchemist);
+    require(
+        alchemistClass->snapshot().lootStacks[
+            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 1 &&
+        alchemistClass->snapshot().lootStacks[
+            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Potion)] == 1,
+        "alchemist starts with Apple and Potion items");
+
+    auto chronomancerClass =
+        std::make_unique<ian::Simulation>(simulationBalance);
+    chronomancerClass->startRun(ian::PlayerClass::Chronomancer);
+    require(
+        chronomancerClass->snapshot().lootStacks[
+            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Hourglass)] == 1 &&
+        chronomancerClass->snapshot().lootStacks[
+            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Rope)] == 1,
+        "chronomancer starts with Hourglass and Rope items");
 
     ian::Simulation simulation{simulationBalance};
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
@@ -3620,7 +3831,7 @@ void runSimulationTests() {
                 simulation.snapshot().phaseDuration, 1e-12,
                 "new day receives full preparation timer");
 
-    for (int expectedWave = 2; expectedWave <= 7;
+    for (int expectedWave = 2; expectedWave < ian::Simulation::StageClearWave;
          ++expectedWave) {
         simulation.tick(1.0 / 60.0, startWaveEarly);
         require(
@@ -3639,7 +3850,7 @@ void runSimulationTests() {
             simulation.snapshot().crystals ==
                 crystalsBeforeReward + 10 + 5 * expectedWave,
             "endless wave reward follows the balanced base plus wave curve");
-        if (expectedWave < 7) {
+        if (expectedWave < ian::Simulation::StageClearWave - 1) {
             do {
                 require(simulation.selectRunUpgrade(0U),
                         "each survived night accepts every earned run-upgrade choice");
@@ -3653,15 +3864,48 @@ void runSimulationTests() {
         }
     }
     require(
-        simulation.snapshot().wave == 7 &&
-            simulation.snapshot().bestWave == 7,
+        simulation.snapshot().wave == ian::Simulation::StageClearWave - 1 &&
+            simulation.snapshot().bestWave ==
+                ian::Simulation::StageClearWave - 1,
         "snapshot exposes current wave and best reached record");
+
+    do {
+        require(simulation.selectRunUpgrade(0U),
+                "last pre-clear night accepts earned run upgrades");
+    } while (simulation.snapshot().runUpgradeChoicePending);
+    simulation.tick(simulation.snapshot().phaseDuration);
+    simulation.tick(1.0 / 60.0, startWaveEarly);
+    require(
+        simulation.snapshot().state == ian::RunState::Wave &&
+            simulation.snapshot().wave == ian::Simulation::StageClearWave,
+        "stage boss starts on configured clear wave");
+    simulation.tick(1.0 / 60.0, defeatWave);
+    require(
+        simulation.snapshot().state == ian::RunState::StageClear &&
+            simulation.snapshot().stageCleared &&
+            !simulation.snapshot().finalNight &&
+            !simulation.snapshot().runUpgradeChoicePending,
+        "stage boss opens bank-or-final-night choice without dawn upgrade");
+    require(simulation.enterFinalNight(),
+            "cleared stage can continue into final night");
+    require(
+        simulation.snapshot().state == ian::RunState::Wave &&
+            simulation.snapshot().wave == ian::Simulation::StageClearWave + 1 &&
+            simulation.snapshot().finalNight,
+        "final night immediately starts next numbered wave");
+    simulation.tick(1.0 / 60.0, defeatWave);
+    require(
+        simulation.snapshot().state == ian::RunState::Wave &&
+            simulation.snapshot().wave == ian::Simulation::StageClearWave + 2 &&
+            !simulation.snapshot().runUpgradeChoicePending,
+        "final night chains waves without dawn or upgrade pauses");
     const std::uint32_t completedRunSeed =
         simulation.snapshot().terrainSeed;
     simulation.restartRun();
     require(
         simulation.snapshot().wave == 0 &&
-            simulation.snapshot().bestWave == 7,
+            simulation.snapshot().bestWave ==
+                ian::Simulation::StageClearWave + 2,
         "run restart preserves session wave record");
     require(!simulation.snapshot().unlimitedResources,
             "run restart disables unlimited resources");

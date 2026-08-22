@@ -281,9 +281,11 @@ void App::render() {
             const float progress = static_cast<float>(
                 1.0 - snapshot.phaseTimeRemaining / duration);
             automaticTime = 0.25F + std::clamp(progress, 0.0F, 1.0F) * 0.5F;
-        } else if (snapshot.state == RunState::Wave) {
+        } else if (snapshot.state == RunState::Wave ||
+                   snapshot.state == RunState::StageClear) {
             automaticTime = 0.75F;
-        } else if (snapshot.state == RunState::WaveComplete) {
+        } else if (snapshot.state == RunState::WaveComplete ||
+                   snapshot.state == RunState::Victory) {
             const double duration = std::max(snapshot.phaseDuration, 0.001);
             const float progress = static_cast<float>(
                 1.0 - snapshot.phaseTimeRemaining / duration);
@@ -704,7 +706,6 @@ void App::render() {
                     .damageIndicators = damageIndicators_,
                     .statusMessage = statusMessage_,
                     .statusMessageRemaining = statusMessageRemaining_,
-                    .hideBottomHints = hideBottomHud_,
                     .actionMode = actionMode_,
                     .foundationBuildMode =
                         foundationBuildMode_,
@@ -738,11 +739,6 @@ void App::render() {
                          recentlyDamagedBuilding_ ==
                              presentationSnapshot.coreId &&
                          damagedBuildingHealthBarRemaining_ > 0.0),
-                    .coreRecentlyDamaged =
-                        presentationSnapshot.coreId &&
-                        recentlyDamagedBuilding_ ==
-                            presentationSnapshot.coreId &&
-                        damagedBuildingHealthBarRemaining_ > 0.0,
                     .showBuildingContextCard =
                         showBuildingContextCard,
                     .repairSweepActive =
@@ -1159,6 +1155,8 @@ void App::render() {
     const bool uiCursorVisible =
         snapshot.state == RunState::MainMenu ||
         snapshot.state == RunState::Paused ||
+        snapshot.state == RunState::StageClear ||
+        snapshot.state == RunState::Victory ||
         renderer_->graphicsPanelVisible() ||
         skillTree_.isOpen() || enemySpawnMenuVisible_ ||
         itemGrantMenuVisible_ || coreDefenseMenuVisible_;

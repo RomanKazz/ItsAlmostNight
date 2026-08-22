@@ -106,7 +106,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
     case PlayerWeapon::Axe:
     case PlayerWeapon::Pickaxe: break;
     }
-    heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_;
+    heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+        playerClassDamageMultiplier();
     std::array<int, 3> recommendedObjectives{-1, -1, -1};
     const auto recommended = objectives_.recommended(recommendedObjectives.size());
     for (std::size_t index = 0; index < recommended.size(); ++index)
@@ -171,7 +172,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             : 0.0,
         .lootStacks = lootStacks_,
         .playerDamageMultiplier =
-            playerDamageMultiplier_ * runPlayerDamageMultiplier_,
+            playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
+                playerClassDamageMultiplier(),
         .playerMoveSpeedMultiplier =
             playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_,
         .playerArmorMultiplier = playerArmorMultiplier_,
@@ -185,6 +187,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
             battlePotionBerserkRemaining_,
         .battlePotionBerserkDuration =
             battlePotionBerserkDuration_,
+        .appleAvailable = appleAvailable_,
+        .breadWellFed = breadWellFed_,
+        .stageCleared = stageCleared_,
+        .finalNight = finalNight_,
         .chestOpeningCostMultiplier =
             chestOpeningCostMultiplier_,
         .freeChestOpeningAvailable =

@@ -101,7 +101,9 @@ void drawHotbarSlots(
             slotY + slotSize * (showSlotLabels ? 0.10F : 0.28F),
             showSlotLabels ? 10.5F : 16.0F,
             slotSize - 8.0F,
-            slot.selected
+            !slot.available
+                ? Color{126, 121, 111, 205}
+                : slot.selected
                 ? Color{255, 239, 190, 255}
                 : Color{245, 238, 220, 255});
         if (showSlotLabels) {
@@ -109,7 +111,9 @@ void drawHotbarSlots(
                 slot.label, x + slotSize * 0.5F,
                 slotY + slotSize * 0.52F, 11.0F,
                 slotSize - 8.0F,
-                slot.selected
+                !slot.available
+                    ? Color{112, 108, 101, 190}
+                    : slot.selected
                     ? Color{255, 239, 197, 255}
                     : Color{224, 215, 195, 235});
         }
@@ -293,6 +297,8 @@ void drawLootInventory(
         LootUpgradeEffect::Blueprint,
         LootUpgradeEffect::Hourglass,
         LootUpgradeEffect::Rope,
+        LootUpgradeEffect::Magnet,
+        LootUpgradeEffect::HealthAid,
     };
     int activeCount = 0;
     for (const LootUpgradeEffect effect : Effects) {
@@ -595,11 +601,12 @@ void drawWeaponHotbar(
         view.actionMode == ActionMode::Tools
             ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
             : std::span<const PlayerWeapon>{PlayerCombatHotbarOrder};
-    std::size_t visibleCount = 0;
+    std::size_t slotCount = 0;
     for (const PlayerWeapon weapon : order) {
-        if (snapshot.unlockedWeapons[static_cast<std::size_t>(weapon)]) {
-            keys[visibleCount] = std::to_string(visibleCount + 1U);
-            labels[visibleCount] = weapon == PlayerWeapon::Bomb
+        const bool unlocked = snapshot.unlockedWeapons[
+            static_cast<std::size_t>(weapon)];
+        keys[slotCount] = std::to_string(slotCount + 1U);
+        labels[slotCount] = weapon == PlayerWeapon::Bomb && unlocked
                 ? std::string("BOMBS x") +
                     (snapshot.unlimitedResources
                         ? "INF"
@@ -612,18 +619,17 @@ void drawWeaponHotbar(
                          : "")
                 : weapon == PlayerWeapon::BareHands
                     ? "HANDS" : weaponLabel(weapon);
-            slots[visibleCount] = {
-                .key = keys[visibleCount],
-                .label = labels[visibleCount],
-                .cost = {},
-                .selected = snapshot.selectedWeapon == weapon,
-                .available = true,
-            };
-            ++visibleCount;
-        }
+        slots[slotCount] = {
+            .key = keys[slotCount],
+            .label = labels[slotCount],
+            .cost = {},
+            .selected = snapshot.selectedWeapon == weapon,
+            .available = unlocked,
+        };
+        ++slotCount;
     }
     drawHotbarSlots(
-        ui, std::span<const HotbarSlot>{slots.data(), visibleCount},
+        ui, std::span<const HotbarSlot>{slots.data(), slotCount},
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
         true, false);

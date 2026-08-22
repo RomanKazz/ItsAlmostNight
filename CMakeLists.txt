@@ -65,6 +65,7 @@ target_link_libraries(ian_assets PRIVATE
 
 add_library(ian_progression
     src/progression/InsightSystem.cpp
+    src/progression/MetaProgression.cpp
     src/progression/ObjectiveSystem.cpp
     src/progression/SkillTree.cpp
 )

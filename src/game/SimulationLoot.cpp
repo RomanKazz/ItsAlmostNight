@@ -17,14 +17,22 @@ constexpr double BerserkHealthThreshold = 0.35;
 constexpr double BerserkBaseDuration = 6.0;
 constexpr double BerserkDurationPerExtraStack = 2.0;
 constexpr double BerserkMaximumDuration = 12.0;
-constexpr double BerserkAttackSpeedMultiplier = 1.35;
 constexpr double BerserkLifestealFraction = 0.10;
+constexpr double AppleTriggerHealthFraction = 0.35;
+constexpr double AppleBaseHealing = 20.0;
+constexpr double AppleHealingPerExtraStack = 8.0;
+constexpr double AppleMaximumHealing = 48.0;
+constexpr double BreadRegenerationPerSecond = 0.65;
+constexpr double BreadAttackSpeedPerStack = 0.10;
+constexpr double BreadMaximumAttackSpeedBonus = 0.30;
 constexpr double FuelBurnDuration = 4.0;
 constexpr double FuelBurnDamagePerStack = 1.75;
 constexpr double FuelMaximumBurnDamagePerSecond = 14.0;
 constexpr int BloodHarvestKillsRequired = 10;
 constexpr double BloodHarvestHealingPerStack = 8.0;
 constexpr double OverkillSearchRadius = 7.0;
+constexpr double HealthAidHealingPerStack = 4.0;
+constexpr double HealthAidMaximumHealing = 16.0;
 }
 
 void Simulation::applyLootPickup(const LootPickup& pickup) {
@@ -51,8 +59,7 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     }
     case LootUpgradeEffect::Apple:
-        playerBonusMaxHealth_ += 12.0;
-        playerHealth_ += 12.0;
+        appleAvailable_ = true;
         break;
     case LootUpgradeEffect::Bread:
         break;
@@ -97,9 +104,14 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         break;
     case LootUpgradeEffect::Hourglass:
     case LootUpgradeEffect::Rope:
+    case LootUpgradeEffect::Magnet:
+    case LootUpgradeEffect::HealthAid:
         break;
     }
     ++lootStacks_[lootUpgradeIndex(pickup.effect)];
+    if (pickup.effect == LootUpgradeEffect::Apple) {
+        tryConsumeApple();
+    }
     refreshSkillRuntimeEffects();
     events_.push_back({
         .type = GameEventType::LootCollected,
@@ -109,6 +121,68 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
         .lootUpgradeEffect = pickup.effect,
     });
     aimedLoot_.reset();
+}
+
+void Simulation::tryConsumeApple() {
+    const int stacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Apple)];
+    if (!appleAvailable_ || stacks <= 0 || playerHealth_ <= 0.0) {
+        return;
+    }
+    const double maximumHealth =
+        playerPermanentMaxHealth() + playerTemporaryHealth_;
+    if (maximumHealth <= 0.0 ||
+        playerHealth_ / maximumHealth > AppleTriggerHealthFraction) {
+        return;
+    }
+    const double healing = std::min({
+        AppleMaximumHealing,
+        AppleBaseHealing + AppleHealingPerExtraStack *
+            static_cast<double>(stacks - 1),
+        maximumHealth - playerHealth_,
+    });
+    appleAvailable_ = false;
+    playerHealth_ += std::max(0.0, healing);
+    events_.push_back({
+        .type = GameEventType::AppleConsumed,
+        .position = playerPosition_,
+        .amount = static_cast<int>(std::lround(healing)),
+        .intensity = healing,
+    });
+}
+
+double Simulation::temporaryAttackSpeedMultiplier() const {
+    if (!breadWellFed_) return 1.0;
+    const int stacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Bread)];
+    return 1.0 + std::min(
+        BreadMaximumAttackSpeedBonus,
+        BreadAttackSpeedPerStack * static_cast<double>(stacks));
+}
+
+double Simulation::playerClassDamageMultiplier() const {
+    if (playerClass_ != PlayerClass::Berserker) return 1.0;
+    const double maximumHealth = std::max(1.0, playerPermanentMaxHealth());
+    const double missingHealthFraction = std::clamp(
+        1.0 - playerHealth_ / maximumHealth, 0.0, 1.0);
+    return 1.0 + 0.75 * missingHealthFraction;
+}
+
+void Simulation::updatePlayerClassEffects(
+    std::size_t firstGameplayEvent, bool suppressKillEffects) {
+    if (playerClass_ != PlayerClass::Vampire || suppressKillEffects ||
+        playerHealth_ <= 0.0) {
+        return;
+    }
+    int kills = 0;
+    for (std::size_t index = firstGameplayEvent;
+         index < events_.size(); ++index) {
+        if (events_[index].type == GameEventType::EnemyKilled) ++kills;
+    }
+    if (kills <= 0) return;
+    playerHealth_ = std::min(
+        playerPermanentMaxHealth() + playerTemporaryHealth_,
+        playerHealth_ + static_cast<double>(kills * 2));
 }
 
 double Simulation::playerPermanentMaxHealth() const {
@@ -125,11 +199,12 @@ void Simulation::applyPotionWaveStart() {
             playerHealth_, playerPermanentMaxHealth());
     }
     battlePotionAvailable_ = stacks > 0;
+    appleAvailable_ = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::Apple)] > 0;
     battlePotionBerserkRemaining_ = 0.0;
     battlePotionBerserkDuration_ = 0.0;
     battlePotionLifestealRemaining_ = 0.0;
-    iceWand_.setCastSpeedMultiplier(1.0);
-    fireWand_.setCastSpeedMultiplier(1.0);
+    refreshSkillRuntimeEffects();
 }
 
 void Simulation::grantLootUpgrade(
@@ -146,17 +221,47 @@ void Simulation::grantLootUpgrade(
 void Simulation::updateLootEffects(
     double deltaSeconds, std::size_t firstGameplayEvent) {
     if (playerRespawning_) {
+        const bool hadBreadBuff = breadWellFed_;
+        breadWellFed_ = false;
         secondsSincePlayerDamage_ = 0.0;
         battlePotionAvailable_ = false;
         battlePotionBerserkRemaining_ = 0.0;
         battlePotionBerserkDuration_ = 0.0;
         battlePotionLifestealRemaining_ = 0.0;
-        iceWand_.setCastSpeedMultiplier(1.0);
-        fireWand_.setCastSpeedMultiplier(1.0);
+        if (hadBreadBuff) refreshSkillRuntimeEffects();
         return;
     }
 
     processRunUpgradeCombatEffects(firstGameplayEvent);
+
+    const int healthAidStacks = lootStacks_[
+        lootUpgradeIndex(LootUpgradeEffect::HealthAid)];
+    if (healthAidStacks > 0) {
+        int depletedResources = 0;
+        const std::size_t eventLimit = events_.size();
+        for (std::size_t index = firstGameplayEvent;
+             index < eventLimit; ++index) {
+            const GameEvent& event = events_[index];
+            if (event.type == GameEventType::ResourceCollected &&
+                event.resourceType &&
+                (*event.resourceType == ResourceType::Wood ||
+                 *event.resourceType == ResourceType::Stone)) {
+                ++depletedResources;
+            }
+        }
+        if (depletedResources > 0) {
+            const double maximumHealth =
+                playerPermanentMaxHealth() + playerTemporaryHealth_;
+            const double healingPerResource = std::min(
+                HealthAidMaximumHealing,
+                HealthAidHealingPerStack *
+                    static_cast<double>(healthAidStacks));
+            playerHealth_ = std::min(
+                maximumHealth,
+                playerHealth_ + healingPerResource *
+                    static_cast<double>(depletedResources));
+        }
+    }
 
     const int fuelStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::FuelJerrycan)];
@@ -204,10 +309,7 @@ void Simulation::updateLootEffects(
             battlePotionLifestealRemaining_ = std::min(
                 40.0, 20.0 + 5.0 *
                     static_cast<double>(potionStacks - 1));
-            iceWand_.setCastSpeedMultiplier(
-                BerserkAttackSpeedMultiplier);
-            fireWand_.setCastSpeedMultiplier(
-                BerserkAttackSpeedMultiplier);
+            refreshSkillRuntimeEffects();
             events_.push_back({
                 .type = GameEventType::BattlePotionActivated,
                 .position = playerPosition_,
@@ -255,8 +357,7 @@ void Simulation::updateLootEffects(
             playerTemporaryHealth_ += temporaryHealth;
             playerHealth_ += temporaryHealth;
             battlePotionLifestealRemaining_ = 0.0;
-            iceWand_.setCastSpeedMultiplier(1.0);
-            fireWand_.setCastSpeedMultiplier(1.0);
+            refreshSkillRuntimeEffects();
         }
     }
     const double previousSeconds = secondsSincePlayerDamage_;
@@ -287,8 +388,18 @@ void Simulation::updateLootEffects(
             std::max(previousSeconds, 6.0));
     playerHealth_ = std::min(
         maximumHealth,
-        playerHealth_ + regeneratingSeconds * 0.4 *
+        playerHealth_ + regeneratingSeconds * BreadRegenerationPerSecond *
             static_cast<double>(breadStacks));
+    if (!breadWellFed_ && playerHealth_ >= maximumHealth - 1e-9) {
+        breadWellFed_ = true;
+        refreshSkillRuntimeEffects();
+        events_.push_back({
+            .type = GameEventType::BreadWellFed,
+            .position = playerPosition_,
+            .amount = breadStacks,
+            .intensity = temporaryAttackSpeedMultiplier(),
+        });
+    }
 }
 
 void Simulation::processRunUpgradeCombatEffects(

@@ -13,7 +13,9 @@ void App::setSkillTreeVisible(bool visible) {
         skillTreePausedSimulation_ =
             state != RunState::MainMenu &&
             state != RunState::Paused &&
-            state != RunState::Defeat;
+            state != RunState::Defeat &&
+            state != RunState::StageClear &&
+            state != RunState::Victory;
         if (skillTreePausedSimulation_) {
             simulation_.togglePause();
             fixedStep_.reset();

@@ -12,6 +12,7 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -22,6 +23,8 @@ constexpr int InitialWindowWidth = 1280;
 constexpr int InitialWindowHeight = 720;
 constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
+constexpr std::string_view MetaProgressionPath =
+    "user_settings/meta_progression.json";
 
 std::uint64_t mixDecorationFingerprint(
     std::uint64_t hash, std::uint64_t value) {
@@ -180,7 +183,10 @@ App::App()
       skillTree_(simulation_.skillTree()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
+    static_cast<void>(loadMetaProgression(
+        MetaProgressionPath, metaProgression_));
     persistedUserSettings_ = userSettings_;
+    persistedMetaProgression_ = metaProgression_;
     initializeLocalization();
     setLanguage(userSettings_.language);
     audio_.settings() = userSettings_.audio;
@@ -313,6 +319,7 @@ int App::run() {
 
     performanceRecorder_.stop();
     persistUserSettings(true);
+    persistMetaProgression();
     for (int visual = static_cast<int>(FirstPersonToolVisual::Axe);
          visual <= static_cast<int>(FirstPersonToolVisual::Bomb);
          ++visual) {
@@ -395,6 +402,74 @@ void App::persistUserSettings(bool force) {
         userSettings_ = current;
         persistedUserSettings_ = current;
     }
+}
+
+void App::persistMetaProgression() {
+    if (metaProgression_ == persistedMetaProgression_) return;
+    if (saveMetaProgression(MetaProgressionPath, metaProgression_)) {
+        persistedMetaProgression_ = metaProgression_;
+    }
+}
+
+void App::recordMetaProgression(std::span<const GameEvent> events) {
+    std::array<bool, PlayerClassDefinitions.size()> unlockedBefore{};
+    for (std::size_t index = 0;
+         index < PlayerClassDefinitions.size(); ++index) {
+        unlockedBefore[index] = isPlayerClassUnlocked(
+            PlayerClassDefinitions[index].type, metaProgression_);
+    }
+    const auto add = [](int& value, int amount = 1) {
+        if (amount <= 0) return;
+        value = value > std::numeric_limits<int>::max() - amount
+            ? std::numeric_limits<int>::max()
+            : value + amount;
+    };
+    bool saveNow = false;
+    for (const GameEvent& event : events) {
+        switch (event.type) {
+        case GameEventType::RunStarted:
+        case GameEventType::RunRestarted:
+            add(metaProgression_.runsPlayed);
+            break;
+        case GameEventType::EnemyKilled:
+            add(metaProgression_.enemiesDefeated);
+            break;
+        case GameEventType::LootCollected:
+            add(metaProgression_.lootCollected);
+            break;
+        case GameEventType::ResourceGranted:
+            add(metaProgression_.resourcesGathered, event.amount);
+            break;
+        case GameEventType::WaveStarted:
+        case GameEventType::WaveCompleted:
+            metaProgression_.bestWave = std::max(
+                metaProgression_.bestWave, event.amount);
+            break;
+        case GameEventType::StageCleared:
+            add(metaProgression_.stageClears);
+            saveNow = true;
+            break;
+        case GameEventType::RunEnded:
+            saveNow = true;
+            break;
+        default:
+            break;
+        }
+    }
+    for (std::size_t index = 0;
+         index < PlayerClassDefinitions.size(); ++index) {
+        if (unlockedBefore[index] || !isPlayerClassUnlocked(
+                PlayerClassDefinitions[index].type,
+                metaProgression_)) {
+            continue;
+        }
+        statusMessage_ = localizeText("CLASS UNLOCKED: ") +
+            localizeText(PlayerClassDefinitions[index].name);
+        statusMessageRemaining_ = 4.5;
+        audio_.playUiConfirm();
+        saveNow = true;
+    }
+    if (saveNow) persistMetaProgression();
 }
 
 void App::drawPerformanceOverlay(

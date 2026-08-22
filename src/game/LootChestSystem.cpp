@@ -14,7 +14,7 @@
 namespace ian {
 namespace {
 
-constexpr std::size_t ChestCount = 10;
+constexpr std::size_t ChestCount = 14;
 constexpr double ExplorationMinimumRadius = 48.0;
 constexpr double ExplorationMaximumRadius = 120.0;
 constexpr double OpeningDuration = 1.05;
@@ -44,7 +44,7 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position,
     const std::uint64_t roll =
         mixBits64(seed ^ 0xe7037ed1a0b428dbULL ^
                   mixBits64(reroll + 0x9e3779b97f4a7c15ULL));
-    constexpr std::array<LootUpgradeEffect, 7> CommonLoot{{
+    constexpr std::array<LootUpgradeEffect, 9> CommonLoot{{
         LootUpgradeEffect::Apple,
         LootUpgradeEffect::Bread,
         LootUpgradeEffect::IronBar,
@@ -52,6 +52,8 @@ ChestLoot makeLoot(EntityId chestId, Vec3 position,
         LootUpgradeEffect::Compass,
         LootUpgradeEffect::Nail,
         LootUpgradeEffect::Key,
+        LootUpgradeEffect::Magnet,
+        LootUpgradeEffect::HealthAid,
     }};
     constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
         LootUpgradeEffect::Map,
@@ -520,11 +522,13 @@ std::optional<LootPickup> LootChestSystem::collectNearby(
 
 void LootChestSystem::spawnLooseLoot(
     Vec3 position, LootRarity rarity, std::uint64_t seed) {
-    constexpr std::array<LootUpgradeEffect, 7> CommonLoot{{
+    constexpr std::array<LootUpgradeEffect, 9> CommonLoot{{
         LootUpgradeEffect::Apple, LootUpgradeEffect::Bread,
         LootUpgradeEffect::IronBar, LootUpgradeEffect::FuelJerrycan,
         LootUpgradeEffect::Compass, LootUpgradeEffect::Nail,
         LootUpgradeEffect::Key,
+        LootUpgradeEffect::Magnet,
+        LootUpgradeEffect::HealthAid,
     }};
     constexpr std::array<LootUpgradeEffect, 7> RareLoot{{
         LootUpgradeEffect::Map, LootUpgradeEffect::Anvil,
@@ -606,6 +610,8 @@ const char* lootUpgradeName(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Blueprint: return "Blueprint";
     case LootUpgradeEffect::Hourglass: return "Hourglass";
     case LootUpgradeEffect::Rope: return "Safety Rope";
+    case LootUpgradeEffect::Magnet: return "Pickup Magnet";
+    case LootUpgradeEffect::HealthAid: return "Field Medkit";
     }
     return "Unknown Item";
 }
@@ -615,15 +621,16 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Damage: return "+12% damage (max +60%)";
     case LootUpgradeEffect::MoveSpeed: return "+7% movement speed (max +35%)";
     case LootUpgradeEffect::MaximumHealth: return "+15% maximum health";
-    case LootUpgradeEffect::Apple: return "+12 maximum health per stack";
+    case LootUpgradeEffect::Apple:
+        return "Below 35% HP: automatically restores health once per night";
     case LootUpgradeEffect::Bread:
-        return "After 6s without damage: +0.4 HP/s per stack";
+        return "Regenerates after 6s safe; full health grants attack speed until hit";
     case LootUpgradeEffect::IronBar:
-        return "+12 regenerating armor; recharges after 5s";
+        return "+12 regenerating armor; breaking it knocks back and briefly stuns enemies";
     case LootUpgradeEffect::FuelJerrycan:
         return "Player attacks ignite enemies; stacks increase burn damage";
     case LootUpgradeEffect::Compass:
-        return "Points to nearby chests; range grows per stack";
+        return "Points to nearby chests; range grows per stack; exploration chests grant a free reroll";
     case LootUpgradeEffect::Nail:
         return "Every 5th hit chains lightning; stacks improve frequency, damage and jumps";
     case LootUpgradeEffect::Key:
@@ -642,6 +649,10 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
         return "Early night converts remaining time into Coins and Insight";
     case LootUpgradeEffect::Rope:
         return "Reduces fall damage; consumes one to prevent a fatal fall";
+    case LootUpgradeEffect::Magnet:
+        return "Coins and hearts attract from 6m farther per stack (max 20m)";
+    case LootUpgradeEffect::HealthAid:
+        return "Destroying a tree or stone restores 4 health per stack (max 16)";
     }
     return "";
 }

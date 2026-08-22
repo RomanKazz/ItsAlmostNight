@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "app/UserSettings.hpp"
 #include "localization/Localization.hpp"
+#include "progression/MetaProgression.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -78,6 +79,47 @@ void settingsRoundTrip() {
             "accessibility settings survive round trip");
     require(loaded.language == ian::Language::Russian,
             "language survives settings round trip");
+    std::filesystem::remove(path, error);
+}
+
+void metaProgressionRoundTripAndUnlocks() {
+    const auto path = std::filesystem::temp_directory_path() /
+        "ian_meta_progression_test.json";
+    std::error_code error;
+    std::filesystem::remove(path, error);
+
+    ian::MetaProgression written{
+        .runsPlayed = 7,
+        .stageClears = 1,
+        .bestWave = 8,
+        .enemiesDefeated = 251,
+        .lootCollected = 22,
+        .resourcesGathered = 900,
+    };
+    require(ian::saveMetaProgression(path.string(), written),
+            "meta progression save succeeds");
+    ian::MetaProgression loaded;
+    require(ian::loadMetaProgression(path.string(), loaded) &&
+                loaded == written,
+            "meta progression survives a JSON round trip");
+    require(
+        ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Berserker, loaded) &&
+        ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Vampire, loaded) &&
+        ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Alchemist, loaded) &&
+        ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Chronomancer, loaded),
+        "meta milestones unlock all challenge classes");
+
+    const ian::MetaProgression fresh;
+    require(
+        !ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Berserker, fresh) &&
+        ian::isPlayerClassUnlocked(
+            ian::PlayerClass::Prospector, fresh),
+        "new profile locks challenge classes but keeps launch classes");
     std::filesystem::remove(path, error);
 }
 
@@ -228,6 +270,7 @@ void localizationCatalogTranslatesFixedAndDynamicText() {
 
 void runUserSettingsTests() {
     settingsRoundTrip();
+    metaProgressionRoundTripAndUnlocks();
     loadedValuesAreValidated();
     tabResetsPreserveOtherTabs();
     graphicsPresetsAreCompleteAndDetectable();
