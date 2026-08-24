@@ -40,17 +40,17 @@ class TerrainRenderer {
     [[nodiscard]] Model buildMountainBackdrop() const;
     [[nodiscard]] Model buildWaterModel() const;
     void buildPathMask();
-    void updateVisibleChunks(Vector3 focusPosition);
+    void buildChunks();
 
     const TerrainHeightfield* terrain_{};
     std::vector<TerrainChunk> chunks_;
-    // Direct build markers avoid scanning the growing chunk vector for every
-    // coordinate on every frame (the map currently contains 64x64 chunks).
-    std::vector<unsigned char> chunkBuilt_;
-    int chunkGridCount_{};
     Model mountainBackdropModel_{};
     Model waterModel_{};
     Texture2D pathMaskTexture_{};
+    unsigned int pathMaskShaderId_{};
+    int pathMaskLocation_{-1};
+    int pathMaskEnabledLocation_{-1};
+    bool pathMaskLocationsResolved_{};
     bool ready_{};
 };
 

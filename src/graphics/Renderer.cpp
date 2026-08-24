@@ -17,15 +17,6 @@
 namespace ian {
 namespace {
 
-void configureSkinningLocations(Shader& shader) {
-    shader.locs[SHADER_LOC_VERTEX_BONEIDS] =
-        GetShaderLocationAttrib(shader, "vertexBoneIndices");
-    shader.locs[SHADER_LOC_VERTEX_BONEWEIGHTS] =
-        GetShaderLocationAttrib(shader, "vertexBoneWeights");
-    shader.locs[SHADER_LOC_MATRIX_BONETRANSFORMS] =
-        GetShaderLocation(shader, "boneMatrices");
-}
-
 const std::array<std::array<Vector2, 25>, 3>& blobShadowUnitCircles() {
     static const auto circles = [] {
         std::array<std::array<Vector2, 25>, 3> result{};
@@ -50,35 +41,7 @@ const std::array<std::array<Vector2, 25>, 3>& blobShadowUnitCircles() {
 } // namespace
 
 void Renderer::initialize() {
-    shadowPassOpen_ = false;
-    shadowFrameValid_ = false;
-    shadowCacheInitialized_ = false;
-    shadowLastUpdateTime_ = -1.0;
-    shadowLastMapSize_ = -1;
-    grassInstanceCacheValid_ = false;
-    decorativeInstanceCacheValid_ = false;
-    for (auto& candidates : grassInstanceCandidates_) {
-        candidates.clear();
-    }
-    for (auto& transforms : grassInstanceTransforms_) {
-        transforms.clear();
-    }
-    for (auto& candidates : decorativeRockCandidates_) {
-        candidates.clear();
-    }
-    for (auto& candidates : decorativeBushCandidates_) {
-        candidates.clear();
-    }
-    for (auto& modelMappings : enemyBoneMappings_) {
-        for (auto& mapping : modelMappings) {
-            mapping.clear();
-        }
-    }
-    enemyBonePoseCache_.clear();
-    activeEnemyBatches_.clear();
-    if (IsModelValid(enemyCrowdLodModel_)) {
-        UnloadModel(enemyCrowdLodModel_);
-    }
+    shutdown();
     enemyCrowdLodModel_ = LoadModelFromMesh(
         GenMeshSphere(0.5F, 6, 4));
     resources_.initialize(settings_);
@@ -86,189 +49,23 @@ void Renderer::initialize() {
     resolveSkyShaderLocations();
     resolvePostProcessLocations();
     resolveSsaoLocations();
-    if (resources_.iceMagicShader().valid()) {
-        Shader& shader = resources_.iceMagicShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MVP] =
-            GetShaderLocation(shader, "mvp");
-        iceMagicTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-        iceMagicTintLocation_ =
-            GetShaderLocation(shader, "tint");
-        iceMagicIntensityLocation_ =
-            GetShaderLocation(shader, "intensity");
-    }
-    if (resources_.viewModelCompositeShader().valid()) {
-        const Shader& shader =
-            resources_.viewModelCompositeShader().get();
-        viewModelTexelSizeLocation_ =
-            GetShaderLocation(shader, "texelSize");
-        viewModelOutlineEnabledLocation_ =
-            GetShaderLocation(shader, "outlineEnabled");
-        viewModelOutlineWidthLocation_ =
-            GetShaderLocation(shader, "outlineWidth");
-        viewModelOutlineStrengthLocation_ =
-            GetShaderLocation(shader, "outlineStrength");
-        viewModelRimStrengthLocation_ =
-            GetShaderLocation(shader, "rimStrength");
-        viewModelBrightnessLocation_ =
-            GetShaderLocation(shader, "brightness");
-        viewModelSaturationLocation_ =
-            GetShaderLocation(shader, "saturation");
-    }
-    if (resources_.cloudShader().valid()) {
-        Shader& shader = resources_.cloudShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MVP] =
-            GetShaderLocation(shader, "mvp");
-        shader.locs[SHADER_LOC_MATRIX_MODEL] =
-            GetShaderLocation(shader, "matModel");
-        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
-            GetShaderLocation(shader, "matNormal");
-        cloudCameraPositionLocation_ =
-            GetShaderLocation(shader, "cameraPosition");
-        cloudSunDirectionLocation_ =
-            GetShaderLocation(shader, "sunDirection");
-        cloudSunColorLocation_ =
-            GetShaderLocation(shader, "sunColor");
-        cloudSunIntensityLocation_ =
-            GetShaderLocation(shader, "sunIntensity");
-        cloudAmbientColorLocation_ =
-            GetShaderLocation(shader, "ambientColor");
-        cloudVisibilityLocation_ =
-            GetShaderLocation(shader, "visibility");
-    }
-    if (resources_.waterShader().valid()) {
-        Shader& shader = resources_.waterShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MVP] =
-            GetShaderLocation(shader, "mvp");
-        waterCameraPositionLocation_ =
-            GetShaderLocation(shader, "cameraPosition");
-        waterShallowColorLocation_ =
-            GetShaderLocation(shader, "shallowColor");
-        waterDeepColorLocation_ =
-            GetShaderLocation(shader, "deepColor");
-        waterSkyColorLocation_ =
-            GetShaderLocation(shader, "skyColor");
-        waterSunDirectionLocation_ =
-            GetShaderLocation(shader, "sunDirection");
-        waterSunColorLocation_ =
-            GetShaderLocation(shader, "sunColor");
-        waterFogColorLocation_ =
-            GetShaderLocation(shader, "fogColor");
-        waterDayNightTintLocation_ =
-            GetShaderLocation(shader, "dayNightTint");
-        waterFogStartLocation_ =
-            GetShaderLocation(shader, "fogStart");
-        waterFogEndLocation_ =
-            GetShaderLocation(shader, "fogEnd");
-        waterExposureLocation_ =
-            GetShaderLocation(shader, "exposure");
-        waterTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-        waterWaveSpeedLocation_ =
-            GetShaderLocation(shader, "waveSpeed");
-    }
-    if (resources_.selectionOutlineShader().valid()) {
-        selectionOutlineTexelSizeLocation_ = GetShaderLocation(
-            resources_.selectionOutlineShader().get(), "texelSize");
-        selectionOutlineRadiusLocation_ = GetShaderLocation(
-            resources_.selectionOutlineShader().get(),
-            "outlineRadius");
-    }
-    if (resources_.selectionMaskShader().valid()) {
-        Shader& shader = resources_.selectionMaskShader().get();
-        configureSkinningLocations(shader);
-        shader.locs[SHADER_LOC_MATRIX_MODEL] =
-            GetShaderLocation(shader, "matModel");
-        selectionMaskTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-        selectionMaskWindLocation_ =
-            GetShaderLocation(shader, "windAmount");
-        selectionMaskColorLocation_ =
-            GetShaderLocation(shader, "maskColor");
-        selectionMaskSkinningEnabledLocation_ =
-            GetShaderLocation(shader, "skinningEnabled");
-    }
-    if (resources_.shadowShader().valid()) {
-        Shader& shader = resources_.shadowShader().get();
-        configureSkinningLocations(shader);
-        shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
-            GetShaderLocationAttrib(shader, "instanceTransform");
-        shadowSkinningEnabledLocation_ =
-            GetShaderLocation(shader, "skinningEnabled");
-        shadowInstancingEnabledLocation_ =
-            GetShaderLocation(shader, "instancingEnabled");
-    }
-    if (resources_.grassShader().valid()) {
-        Shader& shader = resources_.grassShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MVP] =
-            GetShaderLocation(shader, "mvp");
-        grassTintLocation_ =
-            GetShaderLocation(shader, "grassTint");
-        grassTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-        grassCameraPositionLocation_ =
-            GetShaderLocation(shader, "cameraPosition");
-        grassSunDirectionLocation_ =
-            GetShaderLocation(shader, "sunDirection");
-        grassSunColorLocation_ =
-            GetShaderLocation(shader, "sunColor");
-        grassSunIntensityLocation_ =
-            GetShaderLocation(shader, "sunIntensity");
-        grassSkyAmbientColorLocation_ =
-            GetShaderLocation(shader, "skyAmbientColor");
-        grassGroundAmbientColorLocation_ =
-            GetShaderLocation(shader, "groundAmbientColor");
-        grassAmbientIntensityLocation_ =
-            GetShaderLocation(shader, "ambientIntensity");
-        grassFogColorLocation_ =
-            GetShaderLocation(shader, "fogColor");
-        grassFogStartLocation_ =
-            GetShaderLocation(shader, "fogStart");
-        grassFogEndLocation_ =
-            GetShaderLocation(shader, "fogEnd");
-        grassFogBandsEnabledLocation_ =
-            GetShaderLocation(shader, "fogBandsEnabled");
-        grassFogBandCountLocation_ =
-            GetShaderLocation(shader, "fogBandCount");
-        grassDayNightTintLocation_ =
-            GetShaderLocation(shader, "dayNightTint");
-        grassExposureLocation_ =
-            GetShaderLocation(shader, "exposure");
-        grassSaturationLocation_ =
-            GetShaderLocation(shader, "saturation");
-    }
-    if (resources_.upgradeEffectShader().valid()) {
-        Shader& shader = resources_.upgradeEffectShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MODEL] =
-            GetShaderLocation(shader, "matModel");
-        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
-            GetShaderLocation(shader, "matNormal");
-        upgradeEffectOriginLocation_ =
-            GetShaderLocation(shader, "effectOrigin");
-        upgradeEffectHeightLocation_ =
-            GetShaderLocation(shader, "effectHeight");
-        upgradeEffectProgressLocation_ =
-            GetShaderLocation(shader, "progress");
-        upgradeEffectTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-    }
-    if (resources_.shockwaveShader().valid()) {
-        Shader& shader = resources_.shockwaveShader().get();
-        shader.locs[SHADER_LOC_MATRIX_MODEL] =
-            GetShaderLocation(shader, "matModel");
-        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
-            GetShaderLocation(shader, "matNormal");
-        shockwaveCameraLocation_ =
-            GetShaderLocation(shader, "cameraPosition");
-        shockwaveProgressLocation_ =
-            GetShaderLocation(shader, "progress");
-        shockwaveTimeLocation_ =
-            GetShaderLocation(shader, "timeSeconds");
-    }
+    resolveAuxiliaryShaderLocations();
+}
+
+void Renderer::beginFrame() {
+    instanceBuffers_.beginFrame();
 }
 
 void Renderer::shutdown() {
+    frameOpen_ = false;
+    worldPassOpen_ = false;
+    worldShaderActive_ = false;
     shadowPassOpen_ = false;
+    selectionMaskPassOpen_ = false;
+    selectionMaskReady_ = false;
+    blobShadowBatchOpen_ = false;
+    usingOffscreenTarget_ = false;
+    ssaoFrameReady_ = false;
     shadowFrameValid_ = false;
     shadowCacheInitialized_ = false;
     shadowLastUpdateTime_ = -1.0;
@@ -280,7 +77,10 @@ void Renderer::shutdown() {
     }
     enemyBatches_.clear();
     activeEnemyBatches_.clear();
+    enemyBatchFrame_ = 0U;
     enemyBonePoseCache_.clear();
+    performanceStats_ = {};
+    instancedEnemyMillisecondsThisFrame_ = 0.0;
     grassClearAreaCells_.clear();
     indexedGrassClearAreaData_ = nullptr;
     indexedGrassClearAreaCount_ = 0U;
@@ -300,10 +100,50 @@ void Renderer::shutdown() {
     for (auto& candidates : decorativeBushCandidates_) {
         candidates.clear();
     }
+    for (auto& transforms : boundaryForestTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : boundaryForestRevealTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : boundaryForestVisibleTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : resourceTreeTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : resourceRockTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : decorativeRockTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : decorativeBushTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : pondDecorTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : visiblePondDecorTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : pondShoreRockTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : visiblePondShoreRockTransforms_) {
+        transforms.clear();
+    }
+    boundaryForestCached_ = false;
+    terrainHeightfield_ = nullptr;
+    decorationExclusionMap_ = {};
+    selectionOutlineBounds_.reset();
+    ghostPreviewRestoreMaterial_.reset();
+    worldMaterial_ = {};
     if (IsModelValid(enemyCrowdLodModel_)) {
         UnloadModel(enemyCrowdLodModel_);
     }
     enemyCrowdLodModel_ = {};
+    instanceBuffers_.shutdown();
     terrainRenderer_.shutdown();
     resources_.shutdown();
 }

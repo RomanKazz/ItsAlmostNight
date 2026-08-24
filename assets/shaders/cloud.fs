@@ -52,11 +52,13 @@ void main()
     float distance = length(
         cameraPosition.xz - fragWorldPosition.xz);
     float distanceBlend = smoothstep(95.0, 215.0, distance);
+    float distanceVisibility =
+        1.0 - smoothstep(168.0, 218.0, distance);
     color = mix(color, ambientColor*0.78, distanceBlend*0.34);
     float facing = abs(dot(normal, viewDirection));
     float softEdge = mix(
         0.42, 0.84, smoothstep(0.08, 0.66, facing));
-    float alpha = visibility*softEdge*
+    float alpha = visibility*distanceVisibility*softEdge*
         mix(0.86, 0.62, distanceBlend);
 
     finalColor = vec4(color, clamp(alpha, 0.0, 0.82));

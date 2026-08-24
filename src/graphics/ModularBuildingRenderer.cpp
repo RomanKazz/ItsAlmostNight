@@ -301,6 +301,31 @@ float animationScale(
                : scale->scale;
 }
 
+bool worldObjectVisible(
+    const ModularBuildingView& view,
+    Vec3 position, double radius) {
+    if (!view.cameraPosition || view.maximumDrawDistance <= 0.0) {
+        return true;
+    }
+    const double offsetX = position.x - view.cameraPosition->x;
+    const double offsetZ = position.z - view.cameraPosition->z;
+    const double maximumDistance = view.maximumDrawDistance + radius;
+    if (offsetX * offsetX + offsetZ * offsetZ >
+        maximumDistance * maximumDistance) {
+        return false;
+    }
+    const double forwardLength = std::hypot(
+        view.cameraForward.x, view.cameraForward.z);
+    if (forwardLength <= 1e-9) {
+        return true;
+    }
+    const double forwardDot =
+        (offsetX * view.cameraForward.x +
+         offsetZ * view.cameraForward.z) /
+        forwardLength;
+    return forwardDot >= -radius;
+}
+
 template <typename Draw>
 void drawScaled(
     Vec3 origin, float scale, Draw&& draw) {
@@ -347,6 +372,10 @@ void ModularBuildingRenderer::drawWorld(
             (frame.anchor.z + 1.0) *
                 buildings.cellSize,
         };
+        if (!worldObjectVisible(
+                buildings, origin, buildings.cellSize * 1.5)) {
+            continue;
+        }
         drawScaled(
             origin,
             animationScale(
@@ -373,6 +402,10 @@ void ModularBuildingRenderer::drawWorld(
             (wall.anchor.z + 0.5) *
                 buildings.cellSize,
         };
+        if (!worldObjectVisible(
+                buildings, origin, buildings.cellSize)) {
+            continue;
+        }
         drawScaled(
             origin,
             animationScale(
@@ -407,6 +440,12 @@ void ModularBuildingRenderer::drawWorld(
             (ramp.anchor.z + depthCells * 0.5) *
                 buildings.cellSize,
         };
+        if (!worldObjectVisible(
+                buildings, origin,
+                buildings.cellSize * 0.5 *
+                    std::hypot(widthCells, depthCells))) {
+            continue;
+        }
         drawScaled(
             origin,
             animationScale(
@@ -666,14 +705,21 @@ void ModularBuildingRenderer::drawShadow(
             frame.supports[2].bottom.y,
             frame.supports[3].bottom.y,
         });
+        const Vec3 origin{
+            (frame.anchor.x + 1.0) * buildings.cellSize,
+            bottom,
+            (frame.anchor.z + 1.0) * buildings.cellSize,
+        };
+        if (renderer_ != nullptr &&
+            !renderer_->shadowCasterVisible(
+                {static_cast<float>(origin.x),
+                 static_cast<float>(origin.y),
+                 static_cast<float>(origin.z)},
+                static_cast<float>(buildings.cellSize * 1.5))) {
+            continue;
+        }
         drawScaled(
-            {
-                (frame.anchor.x + 1.0) *
-                    buildings.cellSize,
-                bottom,
-                (frame.anchor.z + 1.0) *
-                    buildings.cellSize,
-            },
+            origin,
             animationScale(
                 frame.id, buildings.animationScales),
             [&] {
@@ -684,14 +730,21 @@ void ModularBuildingRenderer::drawShadow(
             });
     }
     for (const WallInstance& wall : buildings.walls) {
+        const Vec3 origin{
+            (wall.anchor.x + 0.5) * buildings.cellSize,
+            wall.bottomHeight,
+            (wall.anchor.z + 0.5) * buildings.cellSize,
+        };
+        if (renderer_ != nullptr &&
+            !renderer_->shadowCasterVisible(
+                {static_cast<float>(origin.x),
+                 static_cast<float>(origin.y),
+                 static_cast<float>(origin.z)},
+                static_cast<float>(buildings.cellSize))) {
+            continue;
+        }
         drawScaled(
-            {
-                (wall.anchor.x + 0.5) *
-                    buildings.cellSize,
-                wall.bottomHeight,
-                (wall.anchor.z + 0.5) *
-                    buildings.cellSize,
-            },
+            origin,
             animationScale(
                 wall.id, buildings.animationScales),
             [&] {
@@ -711,14 +764,26 @@ void ModularBuildingRenderer::drawShadow(
         const int depthCells =
             alongZ ? ModularRampRunCells
                    : ModularRampWidthCells;
+        const Vec3 origin{
+            (ramp.anchor.x + widthCells * 0.5) *
+                buildings.cellSize,
+            ramp.bottomHeight,
+            (ramp.anchor.z + depthCells * 0.5) *
+                buildings.cellSize,
+        };
+        const float radius = static_cast<float>(
+            buildings.cellSize * 0.5 *
+            std::hypot(widthCells, depthCells));
+        if (renderer_ != nullptr &&
+            !renderer_->shadowCasterVisible(
+                {static_cast<float>(origin.x),
+                 static_cast<float>(origin.y),
+                 static_cast<float>(origin.z)},
+                radius)) {
+            continue;
+        }
         drawScaled(
-            {
-                (ramp.anchor.x + widthCells * 0.5) *
-                    buildings.cellSize,
-                ramp.bottomHeight,
-                (ramp.anchor.z + depthCells * 0.5) *
-                    buildings.cellSize,
-            },
+            origin,
             animationScale(
                 ramp.id, buildings.animationScales),
             [&] {

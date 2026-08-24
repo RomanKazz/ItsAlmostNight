@@ -41,6 +41,8 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
                 .type = GameEventType::EnemyKilled,
                 .entityId = hit.result.id,
                 .sourceId = hit.trapId,
+                .enemyType = hit.result.type,
+                .enemyEliteAffixes = hit.result.eliteAffixes,
                 .position = hit.result.position,
             });
         }
@@ -54,7 +56,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
     const auto shots =
         towers_.tick(
             deltaSeconds, buildings_.buildings(), enemies_);
-    std::vector<EntityId> ricochetedTowers;
+    ricochetedTowerBuffer_.clear();
     const int ricochetStacks = runUpgradeStacks_[runUpgradeIndex(
         RunUpgradeEffect::Ricochet)];
     for (const auto& shot : shots) {
@@ -72,15 +74,17 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             events_.push_back({
                 .type = GameEventType::EnemyKilled,
                 .entityId = shot.targetId,
+                .enemyType = shot.targetType,
+                .enemyEliteAffixes = shot.targetEliteAffixes,
                 .position = shot.hitPosition,
             });
         }
         if (ricochetStacks <= 0 ||
-            std::ranges::find(ricochetedTowers, shot.towerId) !=
-                ricochetedTowers.end()) {
+            std::ranges::find(ricochetedTowerBuffer_, shot.towerId) !=
+                ricochetedTowerBuffer_.end()) {
             continue;
         }
-        ricochetedTowers.push_back(shot.towerId);
+        ricochetedTowerBuffer_.push_back(shot.towerId);
         const EnemyInstance* nearest = nullptr;
         double nearestDistance = 6.0;
         for (const EnemyInstance& enemy : enemies_.enemies()) {
@@ -114,6 +118,8 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
                 .type = GameEventType::EnemyKilled,
                 .entityId = result->id,
                 .sourceId = shot.towerId,
+                .enemyType = result->type,
+                .enemyEliteAffixes = result->eliteAffixes,
                 .position = result->position,
             });
         }
@@ -154,6 +160,16 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .position = hit.result.position,
             .damage = hit.result.damage,
         });
+        if (hit.result.killed) {
+            events_.push_back({
+                .type = GameEventType::EnemyKilled,
+                .entityId = hit.result.id,
+                .sourceId = hit.cannonId,
+                .enemyType = hit.result.type,
+                .enemyEliteAffixes = hit.result.eliteAffixes,
+                .position = hit.result.position,
+            });
+        }
     }
     if (state_ == RunState::Wave &&
         enemies_.activeCount() == 0 &&

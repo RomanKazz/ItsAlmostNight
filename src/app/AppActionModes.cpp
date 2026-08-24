@@ -45,6 +45,9 @@ void App::resetRunInputState() {
     pendingGateToggle_.reset();
     pendingPlacedBuildingRotation_.reset();
     coreDefenseMenuVisible_ = false;
+    runUpgradeChoiceWasVisible_ = false;
+    runUpgradeChoiceInputDelayRemaining_ = 0.0;
+    runUpgradeChoiceInputArmed_ = false;
 
     primaryAttackHoldSeconds_ = 0.0;
     toolSwingUsesAxe_ = false;

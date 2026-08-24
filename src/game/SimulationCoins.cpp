@@ -59,20 +59,26 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             !event.entityId) {
             continue;
         }
-        const std::uint64_t key = coinSeed(*event.entityId, 0U);
-        if (!rewardedEnemyCoins_.insert(key).second) {
+        if (!markEnemyRewarded(
+                rewardedEnemyCoins_, *event.entityId)) {
             continue;
         }
-        const auto enemy = std::find_if(
-            enemies_.enemies().begin(), enemies_.enemies().end(),
-            [&event](const EnemyInstance& candidate) {
-                return candidate.id == *event.entityId;
-            });
-        const EnemyType type = enemy != enemies_.enemies().end()
-            ? enemy->type
-            : EnemyType::Basic;
-        const bool elite = enemy != enemies_.enemies().end() &&
-            enemy->eliteAffixes != 0U;
+        auto enemy = enemies_.enemies().end();
+        if (!event.enemyType) {
+            enemy = std::find_if(
+                enemies_.enemies().begin(), enemies_.enemies().end(),
+                [&event](const EnemyInstance& candidate) {
+                    return candidate.id == *event.entityId;
+                });
+        }
+        const EnemyType type = event.enemyType.value_or(
+            enemy != enemies_.enemies().end()
+                ? enemy->type
+                : EnemyType::Basic);
+        const bool elite = event.enemyType
+            ? event.enemyEliteAffixes != 0U
+            : enemy != enemies_.enemies().end() &&
+                enemy->eliteAffixes != 0U;
         const int baseCoins = coinDropAmount(type);
         coinPickups_.spawnValue(
             event.position,
@@ -88,8 +94,8 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
         if (enemy.active || enemy.state != EnemyState::Dead) {
             continue;
         }
-        const std::uint64_t key = coinSeed(enemy.id, 0U);
-        if (!rewardedEnemyCoins_.insert(key).second) {
+        if (!markEnemyRewarded(
+                rewardedEnemyCoins_, enemy.id)) {
             continue;
         }
         const int baseCoins = coinDropAmount(enemy.type);

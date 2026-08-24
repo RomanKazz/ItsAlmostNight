@@ -32,7 +32,8 @@ constexpr NPatchInfo InsetPatch{
 };
 
 constexpr float UiTextScale = 1.68F;
-constexpr int MinimapTargetSize = 768;
+constexpr int MinimapTargetSize = 256;
+constexpr int MaximumMinimapTargetSize = 768;
 
 std::string localizedCopy(std::string_view text) {
     return currentLanguage() == Language::English
@@ -264,6 +265,24 @@ void GameUi::drawMinimapTarget(Rectangle bounds) const {
         bounds, {0.0F, 0.0F}, 0.0F, WHITE);
     if (IsShaderValid(minimapCircleShader_)) {
         EndShaderMode();
+    }
+}
+
+void GameUi::updateMinimapTarget(int desiredSize) {
+    desiredSize = std::clamp(
+        desiredSize, MinimapTargetSize, MaximumMinimapTargetSize);
+    if (IsRenderTextureValid(minimapTarget_) &&
+        minimapTarget_.texture.width == desiredSize &&
+        minimapTarget_.texture.height == desiredSize) {
+        return;
+    }
+    if (IsRenderTextureValid(minimapTarget_)) {
+        UnloadRenderTexture(minimapTarget_);
+    }
+    minimapTarget_ = LoadRenderTexture(desiredSize, desiredSize);
+    if (IsTextureValid(minimapTarget_.texture)) {
+        SetTextureFilter(
+            minimapTarget_.texture, TEXTURE_FILTER_BILINEAR);
     }
 }
 

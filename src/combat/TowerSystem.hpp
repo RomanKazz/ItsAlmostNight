@@ -26,6 +26,8 @@ struct TowerRuntime {
 struct TowerShot {
     EntityId towerId;
     EntityId targetId;
+    EnemyType targetType{EnemyType::Basic};
+    std::uint8_t targetEliteAffixes{};
     Vec3 origin;
     Vec3 hitPosition;
     BuildingType type{BuildingType::Turret};

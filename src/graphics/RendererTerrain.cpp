@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CameraCulling.hpp"
 #include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
@@ -32,6 +33,16 @@ float pondDecorUnit(std::uint32_t value) {
         static_cast<float>(0x01000000U);
 }
 
+bool pondTransformVisible(
+    const Matrix& transform, const Camera3D& camera,
+    const camera_culling::HorizontalView& view,
+    float maximumDistance, float objectRadius) {
+    const float offsetX = transform.m12 - camera.position.x;
+    const float offsetZ = transform.m14 - camera.position.z;
+    return camera_culling::visibleInHorizontalRange(
+        offsetX, offsetZ, view, maximumDistance, objectRadius);
+}
+
 } // namespace
 
 void Renderer::rebuildTerrain(
@@ -63,6 +74,9 @@ void Renderer::rebuildTerrain(
     }
     for (auto& transforms :
          boundaryForestRevealTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : boundaryForestVisibleTransforms_) {
         transforms.clear();
     }
     decorationExclusionMap_.rebuild(
@@ -118,7 +132,13 @@ void Renderer::rebuildPondDecorInstances() {
     for (auto& transforms : pondDecorTransforms_) {
         transforms.clear();
     }
+    for (auto& transforms : visiblePondDecorTransforms_) {
+        transforms.clear();
+    }
     for (auto& transforms : pondShoreRockTransforms_) {
+        transforms.clear();
+    }
+    for (auto& transforms : visiblePondShoreRockTransforms_) {
         transforms.clear();
     }
     if (terrainHeightfield_ == nullptr) {
@@ -404,23 +424,30 @@ void Renderer::drawTerrain(
     }
 }
 
-void Renderer::drawPondDecor() {
-    drawPondDecorInstances(2U, pondDecorTransforms_.size());
+void Renderer::drawPondDecor(const Camera3D& camera) {
+    drawPondDecorInstances(
+        camera, 2U, pondDecorTransforms_.size());
 }
 
-void Renderer::drawPondShoreRocks() {
-    drawPondShoreRockInstances();
+void Renderer::drawPondShoreRocks(const Camera3D& camera) {
+    drawPondShoreRockInstances(camera);
 }
 
-void Renderer::drawPondSurfaceDecor() {
-    drawPondDecorInstances(0U, 2U);
+void Renderer::drawPondSurfaceDecor(const Camera3D& camera) {
+    drawPondDecorInstances(camera, 0U, 2U);
 }
 
 void Renderer::drawPondDecorInstances(
-    std::size_t beginVariant, std::size_t endVariant) {
+    const Camera3D& camera, std::size_t beginVariant,
+    std::size_t endVariant) {
     if (!worldShaderActive_ || !resources_.worldShader().valid()) {
         return;
     }
+    const auto view = camera_culling::horizontalView(camera);
+    const float maximumDistance = terrainHeightfield_ != nullptr
+        ? static_cast<float>(
+              terrainHeightfield_->config().terrainRenderDistance + 18.0)
+        : 174.0F;
     Shader& shader = resources_.worldShader().get();
     const int enabled = 1;
     rlDrawRenderBatchActive();
@@ -430,22 +457,24 @@ void Renderer::drawPondDecorInstances(
     endVariant = std::min(endVariant, pondDecorTransforms_.size());
     for (std::size_t variant = beginVariant;
          variant < endVariant; ++variant) {
-        const auto& transforms = pondDecorTransforms_[variant];
+        const auto& sourceTransforms = pondDecorTransforms_[variant];
+        auto& transforms = visiblePondDecorTransforms_[variant];
+        transforms.clear();
+        transforms.reserve(sourceTransforms.size());
+        for (const Matrix& transform : sourceTransforms) {
+            if (pondTransformVisible(
+                    transform, camera, view,
+                    maximumDistance, 5.0F)) {
+                transforms.push_back(transform);
+            }
+        }
         ModelResource& resource = resources_.pondDecorModel(variant);
         if (transforms.empty() || !resource.valid()) {
             continue;
         }
         Model& model = resource.get();
-        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-            Material material =
-                model.materials[model.meshMaterial[meshIndex]];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                transforms.data(),
-                static_cast<int>(transforms.size()));
-        }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, transforms));
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();
@@ -453,10 +482,15 @@ void Renderer::drawPondDecorInstances(
                    &disabled, SHADER_UNIFORM_INT);
 }
 
-void Renderer::drawPondShoreRockInstances() {
+void Renderer::drawPondShoreRockInstances(const Camera3D& camera) {
     if (!worldShaderActive_ || !resources_.worldShader().valid()) {
         return;
     }
+    const auto view = camera_culling::horizontalView(camera);
+    const float maximumDistance = terrainHeightfield_ != nullptr
+        ? static_cast<float>(
+              terrainHeightfield_->config().terrainRenderDistance + 18.0)
+        : 174.0F;
     Shader& shader = resources_.worldShader().get();
     const int enabled = 1;
     rlDrawRenderBatchActive();
@@ -465,23 +499,26 @@ void Renderer::drawPondShoreRockInstances() {
     setSkinningEnabled(shader, false);
     for (std::size_t variant = 0;
          variant < pondShoreRockTransforms_.size(); ++variant) {
-        const auto& transforms = pondShoreRockTransforms_[variant];
+        const auto& sourceTransforms =
+            pondShoreRockTransforms_[variant];
+        auto& transforms = visiblePondShoreRockTransforms_[variant];
+        transforms.clear();
+        transforms.reserve(sourceTransforms.size());
+        for (const Matrix& transform : sourceTransforms) {
+            if (pondTransformVisible(
+                    transform, camera, view,
+                    maximumDistance, 4.0F)) {
+                transforms.push_back(transform);
+            }
+        }
         ModelResource& resource =
             resources_.decorativeRockModel(variant);
         if (transforms.empty() || !resource.valid()) {
             continue;
         }
         Model& model = resource.get();
-        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
-            Material material =
-                model.materials[model.meshMaterial[meshIndex]];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                transforms.data(),
-                static_cast<int>(transforms.size()));
-        }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, transforms));
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();
@@ -510,6 +547,9 @@ void Renderer::drawWater(
     const float timeSeconds = static_cast<float>(GetTime());
     const float waveSpeed =
         static_cast<float>(config.pondWaveSpeed);
+    const int qualityLevel = settings_.quality == GraphicsQuality::Low
+        ? 0
+        : settings_.quality == GraphicsQuality::Medium ? 1 : 2;
     const float fogStart =
         settings_.fog ? lighting.fogStart : 1000000.0F;
     const float fogEnd =
@@ -540,6 +580,8 @@ void Renderer::drawWater(
                    &timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, waterWaveSpeedLocation_,
                    &waveSpeed, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterQualityLocation_,
+                   &qualityLevel, SHADER_UNIFORM_INT);
     terrainRenderer_.drawWater(shader);
 }
 
@@ -882,21 +924,27 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             continue;
         }
         Model& model = resource.get();
+        const std::span<const Matrix> transforms{
+            grassInstanceTransforms_[variant].data(),
+            counts[variant]};
+        if (resources_.grassShader().valid()) {
+            static_cast<void>(instanceBuffers_.drawModel(
+                model, resources_.grassShader().get(), transforms));
+            continue;
+        }
         for (int meshIndex = 0; meshIndex < model.meshCount;
              ++meshIndex) {
             const int materialIndex =
                 model.meshMaterial[meshIndex];
             Material material = model.materials[materialIndex];
-            if (resources_.grassShader().valid()) {
-                material.shader = resources_.grassShader().get();
-                material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            } else {
-                material.maps[MATERIAL_MAP_DIFFUSE].color = tint;
-            }
+            const Color original =
+                material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = tint;
             DrawMeshInstanced(
                 model.meshes[meshIndex], material,
-                grassInstanceTransforms_[variant].data(),
+                transforms.data(),
                 static_cast<int>(counts[variant]));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
         }
     }
     EndBlendMode();

@@ -73,7 +73,7 @@ MapDefinition MapDefinition::defaults() {
     return {
         .playerSpawn = {0.0, 0.0, 6.0},
         .worldLimit = 192.0,
-        .coreBuildRadius = 12,
+        .coreBuildRadius = 9,
         .enemySpawnAnchors = {
             {0.0, 0.0, -24.0},
             {24.0, 0.0, 0.0},

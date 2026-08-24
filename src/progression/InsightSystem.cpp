@@ -152,20 +152,38 @@ InsightRunState InsightSystem::saveState() const {
 }
 
 bool InsightSystem::loadState(const InsightRunState& state) {
+    constexpr std::size_t MaximumConsumedEventIds = 100'000U;
+    const double expectedRequirement =
+        requirementFor(state.progress.totalTreePointsEarned);
     if (!validNonNegative(state.progress.currentInsight) ||
         !std::isfinite(state.progress.requiredInsight) || state.progress.requiredInsight <= 0.0 ||
         state.progress.currentInsight >= state.progress.requiredInsight + 1e-9 ||
         state.progress.totalTreePointsEarned < 0 ||
-        !validNonNegative(state.progress.totalInsightEarned)) return false;
+        !validNonNegative(state.progress.totalInsightEarned) ||
+        state.progress.totalInsightEarned + 1e-9 <
+            state.progress.currentInsight ||
+        !std::isfinite(expectedRequirement) ||
+        std::abs(state.progress.requiredInsight - expectedRequirement) >
+            1e-9 * std::max(1.0, expectedRequirement) ||
+        state.consumedEventIds.size() > MaximumConsumedEventIds) {
+        return false;
+    }
     for (double value : state.cycleBaseEarned) if (!validNonNegative(value)) return false;
     for (double value : state.earnedByCategory) if (!validNonNegative(value)) return false;
     for (double value : state.earnedBySource) if (!validNonNegative(value)) return false;
+
+    std::unordered_set<std::uint64_t> consumedEventIds;
+    consumedEventIds.reserve(state.consumedEventIds.size());
+    for (const std::uint64_t eventId : state.consumedEventIds) {
+        if (eventId == 0U || !consumedEventIds.insert(eventId).second) {
+            return false;
+        }
+    }
     progress_ = state.progress;
     cycleBaseEarned_ = state.cycleBaseEarned;
     earnedByCategory_ = state.earnedByCategory;
     earnedBySource_ = state.earnedBySource;
-    consumedEventIds_.clear();
-    consumedEventIds_.insert(state.consumedEventIds.begin(), state.consumedEventIds.end());
+    consumedEventIds_ = std::move(consumedEventIds);
     blockedDuplicateEvents_ = state.blockedDuplicateEvents;
     lastGrant_ = {};
     return true;

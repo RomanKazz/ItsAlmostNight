@@ -1243,17 +1243,28 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     enemyBossAnimations_.load(
         "assets/models/enemies/ultimate/boss.gltf");
     updateFramebuffer(settings);
-    updateViewModelTarget();
+    updateViewModelTarget(settings);
     updateSelectionMask(settings);
     updateShadowMap(settings);
 }
 
-void GraphicsResources::updateViewModelTarget() {
+void GraphicsResources::updateViewModelTarget(
+    const GraphicsSettings& settings) {
     if (!initialized_) {
         return;
     }
-    const int width = GetRenderWidth();
-    const int height = GetRenderHeight();
+    float resolutionScale = 1.0F;
+    if (settings.quality == GraphicsQuality::Low) {
+        resolutionScale = 0.60F;
+    } else if (settings.quality == GraphicsQuality::Medium) {
+        resolutionScale = 0.75F;
+    }
+    const int width = std::max(
+        1, static_cast<int>(std::lround(
+               static_cast<float>(GetRenderWidth()) * resolutionScale)));
+    const int height = std::max(
+        1, static_cast<int>(std::lround(
+               static_cast<float>(GetRenderHeight()) * resolutionScale)));
     if (width <= 0 || height <= 0 ||
         (width == requestedViewModelWidth_ &&
          height == requestedViewModelHeight_)) {
@@ -1291,10 +1302,22 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
     }
 
     const int pixelSize = std::clamp(settings.pixelSize, 1, 8);
-    const int desiredWidth =
+    float qualityScale = 1.0F;
+    if (settings.quality == GraphicsQuality::Low) {
+        qualityScale = 0.75F;
+    } else if (settings.quality == GraphicsQuality::Medium) {
+        qualityScale = 0.90F;
+    }
+    const int pixelWidth =
         std::max(1, (framebufferWidth + pixelSize - 1) / pixelSize);
-    const int desiredHeight =
+    const int pixelHeight =
         std::max(1, (framebufferHeight + pixelSize - 1) / pixelSize);
+    const int desiredWidth =
+        std::max(1, static_cast<int>(std::lround(
+               static_cast<float>(pixelWidth) * qualityScale)));
+    const int desiredHeight =
+        std::max(1, static_cast<int>(std::lround(
+               static_cast<float>(pixelHeight) * qualityScale)));
     const bool needsScreenSpaceBuffers = settings.ssao;
     if (desiredWidth != requestedSceneWidth_ ||
         desiredHeight != requestedSceneHeight_ ||

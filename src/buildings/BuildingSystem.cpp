@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 
 namespace ian {
 namespace {
@@ -393,6 +394,9 @@ Vec3 buildingWorldPosition(
 std::uint8_t wallConnectionMask(std::span<const BuildingInstance> buildings,
                                 GridPosition position,
                                 double baseHeight) {
+    constexpr std::uint8_t AllConnections =
+        WallConnectionNorth | WallConnectionEast |
+        WallConnectionSouth | WallConnectionWest;
     std::uint8_t mask = 0;
     for (const auto& building : buildings) {
         if (building.type != BuildingType::Wall && building.type != BuildingType::Gate) {
@@ -420,6 +424,9 @@ std::uint8_t wallConnectionMask(std::span<const BuildingInstance> buildings,
             mask |= WallConnectionSouth;
         } else if (deltaX == -1 && deltaZ == 0) {
             mask |= WallConnectionWest;
+        }
+        if (mask == AllConnections) {
+            break;
         }
     }
     return mask;
@@ -514,6 +521,63 @@ BuildingSystem::BuildingSystem(
     EconomyBalanceDefinition economy, int coreBuildRadius)
     : definitions_(definitions), economy_(economy), coreBuildRadius_(coreBuildRadius) {
     blueprintLevels_.fill(1);
+}
+
+void BuildingSystem::setCoreBuildRadius(int radius) {
+    coreBuildRadius_ = std::max(1, radius);
+}
+
+int BuildingSystem::coreBuildRadius() const {
+    return coreBuildRadius_;
+}
+
+bool BuildingSystem::restoreBuildings(
+    std::span<const BuildingInstance> buildings,
+    std::span<const std::uint8_t> blueprintLevels,
+    int coreBuildRadius) {
+    constexpr std::uint32_t FirstBuildingId = 1000U;
+    constexpr std::uint32_t ReservedIdHeadroom = 4096U;
+    std::unordered_set<std::uint64_t> ids;
+    ids.reserve(buildings.size());
+    std::uint32_t nextIndex = FirstBuildingId;
+    for (const BuildingInstance& building : buildings) {
+        const std::uint64_t key =
+            (static_cast<std::uint64_t>(building.id.generation) << 32U) |
+            static_cast<std::uint64_t>(building.id.index);
+        if (building.id.index < FirstBuildingId ||
+            building.id.index >=
+                std::numeric_limits<std::uint32_t>::max() -
+                    ReservedIdHeadroom ||
+            building.id.generation == 0U ||
+            !ids.insert(key).second) {
+            return false;
+        }
+        nextIndex = std::max(nextIndex, building.id.index + 1U);
+    }
+    if (std::ranges::any_of(
+            blueprintLevels,
+            [](std::uint8_t level) {
+                return level == 0U || level > MaxBuildingLevel;
+            })) {
+        return false;
+    }
+
+    buildings_.assign(buildings.begin(), buildings.end());
+    nextIndex_ = nextIndex;
+    blueprintLevels_.fill(1U);
+    const std::size_t count = std::min(
+        blueprintLevels_.size(), blueprintLevels.size());
+    for (std::size_t index = 0; index < count; ++index) {
+        blueprintLevels_[index] = std::max<std::uint8_t>(
+            1U, blueprintLevels[index]);
+    }
+    setCoreBuildRadius(coreBuildRadius);
+    return true;
+}
+
+const std::array<std::uint8_t, GameBalance::BuildingTypeCount>&
+BuildingSystem::blueprintLevels() const {
+    return blueprintLevels_;
 }
 
 const BuildingBalanceDefinition& BuildingSystem::definition(BuildingType type) const {

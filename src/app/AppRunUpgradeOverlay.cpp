@@ -24,6 +24,7 @@ Color upgradeColor(RunUpgradeEffect effect) {
     case RunUpgradeEffect::RecoverableArmor:
         return {73, 176, 198, 255};
     case RunUpgradeEffect::BuildingHealth:
+    case RunUpgradeEffect::BuildRadius:
     case RunUpgradeEffect::DefenseDamage:
     case RunUpgradeEffect::DefenseFireRate:
         return {224, 157, 56, 255};
@@ -55,6 +56,7 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::MaximumHealth: return "HP";
     case RunUpgradeEffect::RecoverableArmor: return "ARM";
     case RunUpgradeEffect::BuildingHealth: return "BASE";
+    case RunUpgradeEffect::BuildRadius: return "AREA";
     case RunUpgradeEffect::DefenseDamage: return "DEF";
     case RunUpgradeEffect::DefenseFireRate: return "RATE";
     case RunUpgradeEffect::ProductionSpeed: return "PROD";

@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "graphics/CameraCulling.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -278,18 +279,26 @@ void App::drawBlobShadows(
     if (renderer_->beginBlobShadowBatch(camera.position)) {
         const float maximumAoDistance =
             renderer_->settings().shadowDistance + 24.0F;
-        const float maximumAoDistanceSquared =
-            maximumAoDistance * maximumAoDistance;
+        const auto horizontalView =
+            camera_culling::horizontalView(camera);
+        const auto withinAoDistance =
+            [camera, horizontalView,
+             maximumAoDistance](double x, double z) {
+                const float offsetX =
+                    static_cast<float>(x) - camera.position.x;
+                const float offsetZ =
+                    static_cast<float>(z) - camera.position.z;
+                constexpr float ObjectMargin = 3.0F;
+                return camera_culling::visibleInHorizontalRange(
+                    offsetX, offsetZ, horizontalView,
+                    maximumAoDistance, ObjectMargin, 3.0F);
+            };
         for (const auto& node : snapshot.resourceNodes) {
             if (!node.active) {
                 continue;
             }
-            const float offsetX =
-                static_cast<float>(node.position.x) - camera.position.x;
-            const float offsetZ =
-                static_cast<float>(node.position.z) - camera.position.z;
-            if (offsetX * offsetX + offsetZ * offsetZ >
-                maximumAoDistanceSquared) {
+            if (!withinAoDistance(
+                    node.position.x, node.position.z)) {
                 continue;
             }
             float radius =
@@ -355,7 +364,9 @@ void App::drawBlobShadows(
                 contactOpacity);
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
-            if (chest.looseLoot) {
+            if (chest.looseLoot ||
+                !withinAoDistance(
+                    chest.position.x, chest.position.z)) {
                 continue;
             }
             const float visible = 1.0F - smoothstep(
@@ -385,12 +396,14 @@ void App::drawBlobShadows(
             const auto clearAreas =
                 activeDecorationClearAreas(snapshot);
             renderer_->drawDecorativeRockAo(
-                camera.position,
+                camera,
                 static_cast<float>(snapshot.worldLimit),
                 clearAreas);
         }
         for (const SharedSupport& support : snapshot.sharedSupports) {
-            if (!support.active || support.length <= 0.05) {
+            if (!support.active || support.length <= 0.05 ||
+                !withinAoDistance(
+                    support.bottom.x, support.bottom.z)) {
                 continue;
             }
             renderer_->drawBlobShadow(
@@ -402,6 +415,9 @@ void App::drawBlobShadows(
         for (const auto& building : snapshot.buildings) {
             const Vec3 center =
                 buildingWorldPosition(building);
+            if (!withinAoDistance(center.x, center.z)) {
+                continue;
+            }
             const Vec3 impact =
                 buildingImpactOffsetAt(building.id);
             const float x =

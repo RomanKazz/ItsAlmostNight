@@ -15,6 +15,26 @@ struct ModularAnimationScale {
 };
 
 struct ModularBuildingView {
+    ModularBuildingView(
+        std::span<const PlatformFrameInstance> platformFramesValue = {},
+        std::span<const WallInstance> wallsValue = {},
+        std::span<const RampInstance> rampsValue = {},
+        std::span<const SharedSupport> sharedSupportsValue = {},
+        double cellSizeValue = 1.0,
+        std::optional<EntityId> selectedValue = std::nullopt,
+        std::span<const ModularAnimationScale> animationScalesValue = {},
+        float alphaValue = 1.0F,
+        std::optional<Vec3> cameraPositionValue = std::nullopt,
+        Vec3 cameraForwardValue = {},
+        double maximumDrawDistanceValue = 0.0)
+        : platformFrames(platformFramesValue), walls(wallsValue),
+          ramps(rampsValue), sharedSupports(sharedSupportsValue),
+          cellSize(cellSizeValue), selected(selectedValue),
+          animationScales(animationScalesValue), alpha(alphaValue),
+          cameraPosition(cameraPositionValue),
+          cameraForward(cameraForwardValue),
+          maximumDrawDistance(maximumDrawDistanceValue) {}
+
     std::span<const PlatformFrameInstance> platformFrames;
     std::span<const WallInstance> walls;
     std::span<const RampInstance> ramps;
@@ -24,6 +44,9 @@ struct ModularBuildingView {
     std::span<const ModularAnimationScale>
         animationScales;
     float alpha{1.0F};
+    std::optional<Vec3> cameraPosition;
+    Vec3 cameraForward{};
+    double maximumDrawDistance{};
 };
 
 struct ModularBuildingPreviewView {

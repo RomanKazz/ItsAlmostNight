@@ -115,6 +115,10 @@ class FoundationSystem {
         WorldConfig config = WorldConfig::defaults());
 
     void reset();
+    [[nodiscard]] bool restoreStructures(
+        std::span<const PlatformFrameInstance> platformFrames,
+        std::span<const WallInstance> walls,
+        std::span<const RampInstance> ramps);
     void setMaxHealthMultiplier(double multiplier);
     double restoreHealthFraction(double fraction);
     [[nodiscard]] PlatformFramePlacement

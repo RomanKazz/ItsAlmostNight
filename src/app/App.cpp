@@ -16,6 +16,10 @@
 #include <string>
 #include <utility>
 
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#endif
+
 namespace ian {
 namespace {
 
@@ -25,6 +29,64 @@ constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
 constexpr std::string_view MetaProgressionPath =
     "user_settings/meta_progression.json";
+
+#if defined(__APPLE__)
+class MacFramePacer {
+  public:
+    MacFramePacer() {
+        mach_timebase_info(&timebase_);
+    }
+
+    void beginFrame(int framesPerSecond) {
+        if (framesPerSecond <= 0) {
+            framesPerSecond_ = 0;
+            deadline_ = 0U;
+            return;
+        }
+        if (framesPerSecond_ != framesPerSecond || deadline_ == 0U) {
+            framesPerSecond_ = framesPerSecond;
+            deadline_ = mach_absolute_time();
+        }
+    }
+
+    void endFrame(int framesPerSecond) {
+        if (framesPerSecond <= 0) {
+            framesPerSecond_ = 0;
+            deadline_ = 0U;
+            return;
+        }
+        if (framesPerSecond_ != framesPerSecond || deadline_ == 0U) {
+            framesPerSecond_ = framesPerSecond;
+            deadline_ = mach_absolute_time();
+        }
+        const std::uint64_t period = nanosecondsToTicks(
+            1'000'000'000ULL /
+            static_cast<std::uint64_t>(framesPerSecond_));
+        const std::uint64_t target = deadline_ + period;
+        const std::uint64_t now = mach_absolute_time();
+        if (now >= target) {
+            // Never accumulate catch-up debt after a slow render or focus
+            // change. Next frame starts a fresh cadence.
+            deadline_ = now;
+            return;
+        }
+        // mach_wait_until uses the same absolute clock as our deadline and
+        // avoids burning a CPU core for the tail of every capped frame.
+        static_cast<void>(mach_wait_until(target));
+        deadline_ = target;
+    }
+
+  private:
+    [[nodiscard]] std::uint64_t nanosecondsToTicks(
+        std::uint64_t nanoseconds) const {
+        return nanoseconds * timebase_.denom / timebase_.numer;
+    }
+
+    mach_timebase_info_data_t timebase_{};
+    int framesPerSecond_{};
+    std::uint64_t deadline_{};
+};
+#endif
 
 std::uint64_t mixDecorationFingerprint(
     std::uint64_t hash, std::uint64_t value) {
@@ -203,6 +265,7 @@ App::App()
             toolTunings_[static_cast<std::size_t>(visual)]));
     }
     effects_.reserve(128);
+    gameEventBuffer_.reserve(256);
     arrowVisuals_.reserve(64);
     damageIndicators_.reserve(12);
     floatingDamageNumbers_.reserve(32);
@@ -213,7 +276,20 @@ App::App()
 }
 
 int App::run() {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
+    // Prepare a suspended run's terrain before the window appears. Continue
+    // can then reuse the already uploaded terrain instead of freezing input.
+    if (const auto seed = suspendedRunTerrainSeed()) {
+        simulation_.regenerateTerrain(*seed);
+    }
+    unsigned int windowFlags = FLAG_WINDOW_RESIZABLE;
+    // The world already receives a dedicated FXAA pass. Keep costly 4x
+    // default-framebuffer MSAA only for the High preset, where it still
+    // improves UI geometry; on Low/Medium it needlessly resolves the whole
+    // window again during presentation.
+    if (userSettings_.graphics.quality == GraphicsQuality::High) {
+        windowFlags |= FLAG_MSAA_4X_HINT;
+    }
+    SetConfigFlags(windowFlags);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "FORTBONK");
     SetExitKey(KEY_NULL);
@@ -234,7 +310,14 @@ int App::run() {
             "performance_logs"));
     }
 
+#if defined(__APPLE__)
+    MacFramePacer framePacer;
+#endif
+
     while (!WindowShouldClose() && !exitRequested_) {
+#if defined(__APPLE__)
+        framePacer.beginFrame(renderer_->settings().frameRateLimit);
+#endif
         const auto frameStart = PerformanceClock::now();
         const auto inputStart = PerformanceClock::now();
         processInput();
@@ -245,6 +328,9 @@ int App::run() {
         render();
         performanceStats_.render.sample(
             performanceMilliseconds(renderStart));
+#if defined(__APPLE__)
+        framePacer.endFrame(renderer_->settings().frameRateLimit);
+#endif
         performanceStats_.frame.sample(
             performanceMilliseconds(frameStart));
         const bool performanceLoggingRequested =
@@ -301,6 +387,14 @@ int App::run() {
                     performanceStats_.grassRender.lastMilliseconds,
                 .environmentMs =
                     performanceStats_.environmentRender.lastMilliseconds,
+                .pondDecorMs =
+                    performanceStats_.pondDecorRender.lastMilliseconds,
+                .waterMs =
+                    performanceStats_.waterRender.lastMilliseconds,
+                .cloudMs =
+                    performanceStats_.cloudRender.lastMilliseconds,
+                .atmosphereMs =
+                    performanceStats_.atmosphereRender.lastMilliseconds,
                 .overlaysMs =
                     performanceStats_.overlayRender.lastMilliseconds,
                 .postProcessMs =
@@ -318,6 +412,7 @@ int App::run() {
     }
 
     performanceRecorder_.stop();
+    static_cast<void>(saveSuspendedRun());
     persistUserSettings(true);
     persistMetaProgression();
     for (int visual = static_cast<int>(FirstPersonToolVisual::Axe);

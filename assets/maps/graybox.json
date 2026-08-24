@@ -1,7 +1,7 @@
 {
   "playerSpawn": {"x": 0.0, "y": 0.0, "z": 6.0},
   "worldLimit": 192.0,
-  "coreBuildRadius": 12,
+  "coreBuildRadius": 9,
   "enemySpawnAnchors": [
     {"x": 0.0, "y": 0.0, "z": -24.0},
     {"x": 24.0, "y": 0.0, "z": 0.0},

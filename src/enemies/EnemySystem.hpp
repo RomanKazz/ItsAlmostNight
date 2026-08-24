@@ -22,7 +22,7 @@ namespace ian {
 class TerrainHeightfield;
 class CollisionWorld;
 
-enum class EnemyType {
+enum class EnemyType : std::uint8_t {
     Basic,
     Fast,
     Heavy,
@@ -205,6 +205,8 @@ struct EnemyNavigationView {
 
 struct EnemyDamageResult {
     EntityId id;
+    EnemyType type;
+    std::uint8_t eliteAffixes{};
     Vec3 position;
     double damage;
     double remainingHealth;
@@ -255,6 +257,19 @@ class EnemySystem {
   public:
     static constexpr std::size_t MaxEnemies = 2048;
     static constexpr std::size_t MaxActiveEnemies = 512;
+    static constexpr std::uint32_t FirstEnemyIndex = 2000;
+
+    [[nodiscard]] constexpr std::optional<std::size_t>
+    slotIndex(EntityId id) const {
+        if (id.index < firstIndex_) {
+            return std::nullopt;
+        }
+        const std::size_t slot = static_cast<std::size_t>(
+            id.index - firstIndex_);
+        return slot < enemies_.size()
+            ? std::optional<std::size_t>{slot}
+            : std::nullopt;
+    }
 
     explicit EnemySystem(
         std::array<EnemyDefinition, GameBalance::EnemyTypeCount> definitions =
@@ -329,8 +344,6 @@ class EnemySystem {
     [[nodiscard]] const EnemyPerformanceStats& performanceStats() const;
 
   private:
-    static constexpr std::uint32_t FirstEnemyIndex = 2000;
-
     struct PendingSplit {
         EntityId id;
         Vec3 position;
@@ -374,6 +387,7 @@ class EnemySystem {
     std::vector<PendingSplit> pendingSplitBuffer_;
     std::vector<PendingSplit> delayedSplitBuffer_;
     std::size_t activeCount_{};
+    std::uint32_t firstIndex_{FirstEnemyIndex};
     std::uint32_t nextIndex_{FirstEnemyIndex};
     std::uint32_t nextProjectileIndex_{1U};
     std::optional<Vec3> previousPlayerPosition_;

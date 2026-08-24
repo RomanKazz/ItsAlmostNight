@@ -208,9 +208,9 @@ void drawBuildHotbar(
         drawFoundationHotbar(ui, snapshot, view);
         return;
     }
-    constexpr std::array<const char*, 14> Keys{
+    constexpr std::array<const char*, 15> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-        "SHIFT 1", "SHIFT 2", "SHIFT 3", "SHIFT 4",
+        "SHIFT 1", "SHIFT 2", "SHIFT 3", "SHIFT 4", "SHIFT 5",
     };
     const BuildingHotbarLayout layout =
         makeBuildingHotbarLayout(snapshot.unlockedBuildings);
@@ -224,10 +224,10 @@ void drawBuildHotbar(
         const bool selected =
             snapshot.selectedBuilding &&
             *snapshot.selectedBuilding == type;
-        bool unlocked =
-            type == BuildingType::Core
+        bool unlocked = snapshot.unlockedBuildings[typeIndex] &&
+            (type == BuildingType::Core
                 ? snapshot.coreMaxHealth <= 0.0
-                : snapshot.coreMaxHealth > 0.0;
+                : snapshot.coreMaxHealth > 0.0);
         if (type == BuildingType::SlowTrap ||
             type == BuildingType::SpikeTrap ||
             type == BuildingType::LumberMill ||

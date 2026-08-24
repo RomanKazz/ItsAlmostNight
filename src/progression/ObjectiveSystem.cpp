@@ -381,23 +381,53 @@ ObjectiveRunState ObjectiveSystem::saveState() const {
 }
 
 bool ObjectiveSystem::loadState(const ObjectiveRunState& state) {
+    constexpr std::size_t MaximumRecentGatheringEntries = 100'000U;
     if (state.challengeCycle < 0 || state.totalTreesDestroyed < 0 ||
         state.totalStonesDestroyed < 0 || state.totalCrystalsGathered < 0 ||
         state.totalResourcesGathered < 0 || state.dayWoodGathered < 0 ||
         state.dayStoneGathered < 0 || state.dayCrystalsGathered < 0 ||
         state.consecutiveDepletions < 0 || state.largeDepositsDepleted < 0 ||
         state.bareHandsDepletions < 0 || state.nightResourcesGathered < 0 ||
-        state.farResourcesGathered < 0) return false;
+        state.farResourcesGathered < 0 ||
+        state.statuses.size() > definitions_.size() ||
+        state.recentGathering.size() > MaximumRecentGatheringEntries) {
+        return false;
+    }
     if (state.eventMetricProgress.size() > eventMetricProgress_.size() ||
         std::ranges::any_of(
             state.eventMetricProgress,
             [](int progress) { return progress < 0; })) {
         return false;
     }
+    std::unordered_map<std::string, const ObjectiveDefinition*> definitions;
+    definitions.reserve(definitions_.size());
+    for (const ObjectiveDefinition& definition : definitions_) {
+        definitions.emplace(definition.id, &definition);
+    }
     std::unordered_map<std::string, ObjectiveSavedStatus> saved;
+    saved.reserve(state.statuses.size());
     for (const auto& status : state.statuses) {
+        const auto definition = definitions.find(status.id);
         if (!std::isfinite(status.progress) || status.progress < 0.0 ||
-            !saved.emplace(status.id, status).second) return false;
+            status.cycle < 0 || status.cycle > state.challengeCycle ||
+            definition == definitions.end() ||
+            status.progress > definition->second->target + 1e-9 ||
+            !saved.emplace(status.id, status).second) {
+            return false;
+        }
+    }
+    double previousGatheringTime = -1.0;
+    std::int64_t recentGatheringTotal = 0;
+    for (const auto& [time, amount] : state.recentGathering) {
+        if (!std::isfinite(time) || time < 0.0 ||
+            time < previousGatheringTime || amount <= 0) {
+            return false;
+        }
+        previousGatheringTime = time;
+        recentGatheringTotal += amount;
+        if (recentGatheringTotal > std::numeric_limits<int>::max()) {
+            return false;
+        }
     }
     ObjectiveSystem loaded{definitions_};
     loaded.challengeCycle_ = state.challengeCycle;

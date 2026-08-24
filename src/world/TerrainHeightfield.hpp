@@ -25,6 +25,11 @@ struct PondDefinition {
     double islandX{};
     double islandZ{};
     double islandRadius{};
+
+    // Negative values are inside this pond's water shape, positive values
+    // are outside, and islands remain positive.
+    [[nodiscard]] double signedDistance(
+        double worldX, double worldZ) const;
 };
 
 struct TerrainPathDefinition {
@@ -85,11 +90,29 @@ class TerrainHeightfield {
         double worldX, double worldZ) const;
 
   private:
+    struct CachedPathSegment {
+        double fromX{};
+        double fromZ{};
+        double deltaX{};
+        double deltaZ{};
+        double lengthSquared{};
+    };
+
+    struct CachedPathBounds {
+        double minimumX{};
+        double maximumX{};
+        double minimumZ{};
+        double maximumZ{};
+    };
+
     [[nodiscard]] std::size_t sampleIndex(
         int x, int z) const;
     [[nodiscard]] double sampleCachedField(
         std::span<const float> field,
         double worldX, double worldZ) const;
+    [[nodiscard]] double calculatePathAmount(
+        double worldX, double worldZ) const;
+    void rebuildPathSegmentCache();
     void rebuildSurfaceFieldCaches();
 
     WorldConfig config_;
@@ -100,6 +123,8 @@ class TerrainHeightfield {
     std::vector<float> pathAmountCache_;
     std::vector<PondDefinition> ponds_;
     std::vector<TerrainPathDefinition> paths_;
+    std::vector<CachedPathSegment> pathSegments_;
+    std::vector<CachedPathBounds> pathBounds_;
     double minimumHeight_{};
     double maximumHeight_{};
 };

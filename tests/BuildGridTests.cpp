@@ -89,6 +89,23 @@ void runBuildGridTests() {
         grid.occupiedCellCount() == 0,
         "releasing all owners clears occupancy");
 
+    require(
+        grid.occupy(
+            first, {-4, 0, -4},
+            ian::Footprint::TwoByTwo, 1,
+            ian::OccupancyLayer::Floor) &&
+        grid.occupy(
+            first, {6, 0, 6},
+            ian::Footprint::OneByOne, 1,
+            ian::OccupancyLayer::Floor) &&
+        grid.canOccupy(
+            {-4, 0, -4}, ian::Footprint::TwoByTwo, 1,
+            ian::OccupancyLayer::Floor) &&
+        grid.isOccupied({6, 0, 6}, ian::OccupancyLayer::Floor) &&
+        grid.occupiedCellCount() == 1U,
+        "moving one owner releases its indexed old footprint");
+    grid.release(first);
+
     const ian::EntityId rampOwner{8U, 1U};
     require(
         grid.occupyRectangle(

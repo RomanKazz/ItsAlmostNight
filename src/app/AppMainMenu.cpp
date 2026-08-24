@@ -282,12 +282,12 @@ void App::drawMainMenuWorld(
     pondMaterial.bakedAo = 0.8F;
     pondMaterial.screenAoAmount = 0.0F;
     renderer_->setWorldMaterial(pondMaterial);
-    renderer_->drawPondShoreRocks();
-    renderer_->drawPondDecor();
+    renderer_->drawPondShoreRocks(camera);
+    renderer_->drawPondDecor(camera);
     renderer_->endWorldShader();
     renderer_->drawWater(camera.position, lighting);
     renderer_->drawClouds(
-        camera.position, environment.nightFactor, lighting);
+        camera, environment.nightFactor, lighting);
     drawBlobShadows(snapshot, camera);
     EndMode3D();
     renderer_->endWorldPass();
@@ -573,28 +573,37 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         return;
     }
 
+    const bool canContinue = suspendedRunAvailable();
+    float menuButtonY = canContinue ? 286.0F : 360.0F;
+    if (canContinue) {
+        pendingContinueFromUi_ = ui_.drawButton(
+            layout.rect(775.0F, menuButtonY, 370.0F, 70.0F),
+            "CONTINUE RUN") || pendingContinueFromUi_;
+        menuButtonY += 84.0F;
+    }
     const Rectangle playButton =
-        layout.rect(775.0F, 360.0F, 370.0F, 78.0F);
+        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
     if (ui_.drawButton(playButton, "START RUN")) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
         audio_.playUiConfirm();
     }
+    menuButtonY += 84.0F;
     const Rectangle treeButton =
-        layout.rect(775.0F, 458.0F, 370.0F, 70.0F);
+        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
     pendingOpenSkillTreeFromUi_ =
         ui_.drawButton(treeButton, "TREE OF KNOWLEDGE") ||
         pendingOpenSkillTreeFromUi_;
     drawMenuBadge(layout, treeButton, snapshot.skillPoints);
     if (ui_.drawButton(
-            layout.rect(775.0F, 548.0F, 370.0F, 70.0F),
+            layout.rect(775.0F, menuButtonY + 84.0F, 370.0F, 70.0F),
             "COLLECTION")) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = true;
         audio_.playUiConfirm();
     }
     if (ui_.drawButton(
-            layout.rect(775.0F, 638.0F, 370.0F, 70.0F),
+            layout.rect(775.0F, menuButtonY + 168.0F, 370.0F, 70.0F),
             "SETTINGS")) {
         renderer_->setGraphicsPanelVisible(true);
     }

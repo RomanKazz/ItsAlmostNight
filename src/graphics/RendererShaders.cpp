@@ -40,6 +40,192 @@ const RendererPerformanceStats& Renderer::performanceStats() const {
     return performanceStats_;
 }
 
+void Renderer::resolveAuxiliaryShaderLocations() {
+    if (resources_.iceMagicShader().valid()) {
+        Shader& shader = resources_.iceMagicShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        iceMagicTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        iceMagicTintLocation_ =
+            GetShaderLocation(shader, "tint");
+        iceMagicIntensityLocation_ =
+            GetShaderLocation(shader, "intensity");
+    }
+    if (resources_.viewModelCompositeShader().valid()) {
+        const Shader& shader =
+            resources_.viewModelCompositeShader().get();
+        viewModelTexelSizeLocation_ =
+            GetShaderLocation(shader, "texelSize");
+        viewModelOutlineEnabledLocation_ =
+            GetShaderLocation(shader, "outlineEnabled");
+        viewModelOutlineWidthLocation_ =
+            GetShaderLocation(shader, "outlineWidth");
+        viewModelOutlineStrengthLocation_ =
+            GetShaderLocation(shader, "outlineStrength");
+        viewModelRimStrengthLocation_ =
+            GetShaderLocation(shader, "rimStrength");
+        viewModelBrightnessLocation_ =
+            GetShaderLocation(shader, "brightness");
+        viewModelSaturationLocation_ =
+            GetShaderLocation(shader, "saturation");
+    }
+    if (resources_.cloudShader().valid()) {
+        Shader& shader = resources_.cloudShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
+            GetShaderLocationAttrib(shader, "instanceTransform");
+        cloudCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        cloudSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        cloudSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        cloudSunIntensityLocation_ =
+            GetShaderLocation(shader, "sunIntensity");
+        cloudAmbientColorLocation_ =
+            GetShaderLocation(shader, "ambientColor");
+        cloudVisibilityLocation_ =
+            GetShaderLocation(shader, "visibility");
+    }
+    if (resources_.waterShader().valid()) {
+        Shader& shader = resources_.waterShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        waterCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        waterShallowColorLocation_ =
+            GetShaderLocation(shader, "shallowColor");
+        waterDeepColorLocation_ =
+            GetShaderLocation(shader, "deepColor");
+        waterSkyColorLocation_ =
+            GetShaderLocation(shader, "skyColor");
+        waterSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        waterSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        waterFogColorLocation_ =
+            GetShaderLocation(shader, "fogColor");
+        waterDayNightTintLocation_ =
+            GetShaderLocation(shader, "dayNightTint");
+        waterFogStartLocation_ =
+            GetShaderLocation(shader, "fogStart");
+        waterFogEndLocation_ =
+            GetShaderLocation(shader, "fogEnd");
+        waterExposureLocation_ =
+            GetShaderLocation(shader, "exposure");
+        waterTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        waterWaveSpeedLocation_ =
+            GetShaderLocation(shader, "waveSpeed");
+        waterQualityLocation_ =
+            GetShaderLocation(shader, "qualityLevel");
+    }
+    if (resources_.selectionOutlineShader().valid()) {
+        selectionOutlineTexelSizeLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "texelSize");
+        selectionOutlineRadiusLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(),
+            "outlineRadius");
+    }
+    if (resources_.selectionMaskShader().valid()) {
+        Shader& shader = resources_.selectionMaskShader().get();
+        configureSkinningLocations(shader);
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        selectionMaskTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        selectionMaskWindLocation_ =
+            GetShaderLocation(shader, "windAmount");
+        selectionMaskColorLocation_ =
+            GetShaderLocation(shader, "maskColor");
+        selectionMaskSkinningEnabledLocation_ =
+            GetShaderLocation(shader, "skinningEnabled");
+    }
+    if (resources_.shadowShader().valid()) {
+        Shader& shader = resources_.shadowShader().get();
+        configureSkinningLocations(shader);
+        shader.locs[SHADER_LOC_VERTEX_INSTANCETRANSFORM] =
+            GetShaderLocationAttrib(shader, "instanceTransform");
+        shadowSkinningEnabledLocation_ =
+            GetShaderLocation(shader, "skinningEnabled");
+        shadowInstancingEnabledLocation_ =
+            GetShaderLocation(shader, "instancingEnabled");
+    }
+    if (resources_.grassShader().valid()) {
+        Shader& shader = resources_.grassShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        grassTintLocation_ =
+            GetShaderLocation(shader, "grassTint");
+        grassTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+        grassCameraPositionLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        grassSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        grassSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        grassSunIntensityLocation_ =
+            GetShaderLocation(shader, "sunIntensity");
+        grassSkyAmbientColorLocation_ =
+            GetShaderLocation(shader, "skyAmbientColor");
+        grassGroundAmbientColorLocation_ =
+            GetShaderLocation(shader, "groundAmbientColor");
+        grassAmbientIntensityLocation_ =
+            GetShaderLocation(shader, "ambientIntensity");
+        grassFogColorLocation_ =
+            GetShaderLocation(shader, "fogColor");
+        grassFogStartLocation_ =
+            GetShaderLocation(shader, "fogStart");
+        grassFogEndLocation_ =
+            GetShaderLocation(shader, "fogEnd");
+        grassFogBandsEnabledLocation_ =
+            GetShaderLocation(shader, "fogBandsEnabled");
+        grassFogBandCountLocation_ =
+            GetShaderLocation(shader, "fogBandCount");
+        grassDayNightTintLocation_ =
+            GetShaderLocation(shader, "dayNightTint");
+        grassExposureLocation_ =
+            GetShaderLocation(shader, "exposure");
+        grassSaturationLocation_ =
+            GetShaderLocation(shader, "saturation");
+    }
+    if (resources_.upgradeEffectShader().valid()) {
+        Shader& shader = resources_.upgradeEffectShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        upgradeEffectOriginLocation_ =
+            GetShaderLocation(shader, "effectOrigin");
+        upgradeEffectHeightLocation_ =
+            GetShaderLocation(shader, "effectHeight");
+        upgradeEffectProgressLocation_ =
+            GetShaderLocation(shader, "progress");
+        upgradeEffectTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+    }
+    if (resources_.shockwaveShader().valid()) {
+        Shader& shader = resources_.shockwaveShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        shockwaveCameraLocation_ =
+            GetShaderLocation(shader, "cameraPosition");
+        shockwaveProgressLocation_ =
+            GetShaderLocation(shader, "progress");
+        shockwaveTimeLocation_ =
+            GetShaderLocation(shader, "timeSeconds");
+    }
+}
+
 void Renderer::setLowHealthEffect(
     float amount, bool reduceFlashes) {
     lowHealthEffect_ = std::clamp(amount, 0.0F, 1.0F);
@@ -132,6 +318,8 @@ void Renderer::resolveWorldShaderLocations() {
         .shadowStrength = GetShaderLocation(shader, "shadowStrength"),
         .shadowMapTexelSize =
             GetShaderLocation(shader, "shadowMapTexelSize"),
+        .shadowSampleCount =
+            GetShaderLocation(shader, "shadowSampleCount"),
         .instancingEnabled = worldInstancingEnabledLocation_,
         .inkOutlineEligible = GetShaderLocation(
             shader, "inkOutlineEligible"),
@@ -416,6 +604,10 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
         resources_.shadowMap().valid()
             ? 1.0F / static_cast<float>(resources_.shadowMap().size())
             : 0.0F;
+    const int shadowSampleCount =
+        settings_.quality == GraphicsQuality::High
+            ? 9
+            : (settings_.quality == GraphicsQuality::Medium ? 5 : 1);
 
     SetShaderValue(shader, worldShaderLocations_.cameraPosition,
                    &lighting.cameraPosition, SHADER_UNIFORM_VEC3);
@@ -474,6 +666,8 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
                    &settings_.shadowStrength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.shadowMapTexelSize,
                    &shadowMapTexelSize, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.shadowSampleCount,
+                   &shadowSampleCount, SHADER_UNIFORM_INT);
     SetShaderValueMatrix(shader, worldShaderLocations_.lightViewProjection,
                          lightViewProjection_);
 }

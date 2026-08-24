@@ -104,6 +104,8 @@ template <std::size_t Size>
 
 struct WeaponFireResult {
     std::optional<EntityId> targetId;
+    std::optional<EnemyType> targetType;
+    std::uint8_t targetEliteAffixes{};
     Vec3 hitPosition;
     double damage{};
     bool killed{};
@@ -133,6 +135,7 @@ class PlayerWeaponSystem {
     void setRifleSkillModifiers(double damage, double range,
                                 double fireRate, int magazineBonus);
     void selectWeapon(PlayerWeapon weapon);
+    void restoreState(PlayerWeapon selectedWeapon, int rifleLevel);
     void tick(double deltaSeconds);
     std::optional<WeaponFireResult> fireRifle(
         Vec3 origin, Vec3 direction, EnemySystem& enemies,

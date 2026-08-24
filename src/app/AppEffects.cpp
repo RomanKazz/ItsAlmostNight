@@ -135,6 +135,23 @@ void App::drawAtmosphereParticles(
     const float time = static_cast<float>(GetTime());
     const float daylight =
         1.0F - std::clamp(nightAmount, 0.0F, 1.0F) * 0.72F;
+    Vector3 cameraForward = Vector3Subtract(
+        camera.target, camera.position);
+    cameraForward = Vector3LengthSqr(cameraForward) > 0.000001F
+        ? Vector3Normalize(cameraForward)
+        : Vector3{0.0F, 0.0F, -1.0F};
+    Vector3 cameraRight = Vector3CrossProduct(
+        cameraForward, camera.up);
+    cameraRight = Vector3LengthSqr(cameraRight) > 0.000001F
+        ? Vector3Normalize(cameraRight)
+        : Vector3{1.0F, 0.0F, 0.0F};
+    const Vector3 billboardUp = Vector3Normalize(
+        Vector3CrossProduct(cameraRight, cameraForward));
+    Vector3 horizontalView = cameraForward;
+    horizontalView.y = 0.0F;
+    horizontalView = Vector3LengthSqr(horizontalView) > 0.000001F
+        ? Vector3Normalize(horizontalView)
+        : Vector3{0.0F, 0.0F, -1.0F};
 
     // Rare low-poly leaves. Positions loop around the camera, so the effect
     // has fixed cost and never allocates or fills the world with entities.
@@ -159,6 +176,17 @@ void App::drawAtmosphereParticles(
             0.55F;
         z += std::cos(time * 1.08F + atmosphereUnit(seed + 5U) * 19.0F) *
             0.35F;
+
+        const float viewOffsetX = x - camera.position.x;
+        const float viewOffsetZ = z - camera.position.z;
+        const float viewDistanceSquared =
+            viewOffsetX * viewOffsetX + viewOffsetZ * viewOffsetZ;
+        if (viewDistanceSquared > 16.0F &&
+            viewOffsetX * horizontalView.x +
+                    viewOffsetZ * horizontalView.z <
+                -1.0F) {
+            continue;
+        }
 
         const float cycle = std::fmod(
             atmosphereUnit(seed + 6U) +
@@ -225,6 +253,16 @@ void App::drawAtmosphereParticles(
                     PollenHalfExtent +
                 time * 0.12F,
             camera.position.z, PollenHalfExtent);
+        const float viewOffsetX = x - camera.position.x;
+        const float viewOffsetZ = z - camera.position.z;
+        const float viewDistanceSquared =
+            viewOffsetX * viewOffsetX + viewOffsetZ * viewOffsetZ;
+        if (viewDistanceSquared > 9.0F &&
+            viewOffsetX * horizontalView.x +
+                    viewOffsetZ * horizontalView.z <
+                -0.5F) {
+            continue;
+        }
         const float rise = std::fmod(
             atmosphereUnit(seed + 4U) +
                 time * (0.022F + atmosphereUnit(seed + 5U) * 0.018F),
@@ -247,9 +285,10 @@ void App::drawAtmosphereParticles(
         }
         const float radius =
             0.025F + atmosphereUnit(seed + 8U) * 0.025F;
-        DrawSphereEx(
-            {x, y, z}, radius, 4, 4,
-            {255, 239, 170, atmosphereAlpha(alpha)});
+        drawWorldBillboardQuad(
+            {x, y, z}, radius * 2.0F, radius * 2.0F,
+            {255, 239, 170, atmosphereAlpha(alpha)},
+            cameraRight, billboardUp);
     }
     EndBlendMode();
 
@@ -307,6 +346,14 @@ void App::drawAtmosphereParticles(
             }
             const float colonyDistance = Vector2Distance(
                 center, {camera.position.x, camera.position.z});
+            const float colonyOffsetX = center.x - camera.position.x;
+            const float colonyOffsetZ = center.y - camera.position.z;
+            if (colonyDistance > 4.0F &&
+                colonyOffsetX * horizontalView.x +
+                        colonyOffsetZ * horizontalView.z <
+                    -2.0F) {
+                continue;
+            }
             const float distanceFade = 1.0F -
                 smoothstep(24.0F, 38.0F, colonyDistance);
             if (distanceFade <= 0.01F) {
@@ -346,8 +393,12 @@ void App::drawAtmosphereParticles(
                 const Color core = fly % 4 == 0
                     ? Color{255, 248, 177, atmosphereAlpha(alpha * 0.95F)}
                     : Color{225, 255, 157, atmosphereAlpha(alpha * 0.92F)};
-                DrawSphereEx({x, y, z}, 0.11F, 5, 5, glow);
-                DrawSphereEx({x, y, z}, 0.025F, 4, 4, core);
+                drawWorldBillboardQuad(
+                    {x, y, z}, 0.22F, 0.22F, glow,
+                    cameraRight, billboardUp);
+                drawWorldBillboardQuad(
+                    {x, y, z}, 0.05F, 0.05F, core,
+                    cameraRight, billboardUp);
             }
         }
         ++pondIndex;
@@ -366,6 +417,16 @@ void App::drawChestLootGlow(
             Vector3Normalize(Vector3Subtract(camera.target, camera.position)),
             camera.up));
     const Vector3 cameraUp = Vector3Normalize(camera.up);
+    Vector3 horizontalView = Vector3Subtract(
+        camera.target, camera.position);
+    horizontalView.y = 0.0F;
+    horizontalView = Vector3LengthSqr(horizontalView) > 1e-6F
+        ? Vector3Normalize(horizontalView)
+        : Vector3{0.0F, 0.0F, -1.0F};
+    const float maximumDistance = static_cast<float>(
+        simulation_.terrain().config().terrainRenderDistance + 22.0);
+    const float maximumDistanceSquared =
+        maximumDistance * maximumDistance;
     const float time = static_cast<float>(snapshot.elapsedSeconds);
 
     rlDrawRenderBatchActive();
@@ -376,6 +437,19 @@ void App::drawChestLootGlow(
     rlDisableDepthMask();
     rlBegin(RL_TRIANGLES);
     for (const LootChestInstance& chest : snapshot.lootChests) {
+        const float offsetX =
+            static_cast<float>(chest.position.x) - camera.position.x;
+        const float offsetZ =
+            static_cast<float>(chest.position.z) - camera.position.z;
+        const float distanceSquared =
+            offsetX * offsetX + offsetZ * offsetZ;
+        if (distanceSquared > maximumDistanceSquared ||
+            (distanceSquared > 16.0F &&
+             offsetX * horizontalView.x +
+                     offsetZ * horizontalView.z <
+                 -2.0F)) {
+            continue;
+        }
         const float progress = std::clamp(
             static_cast<float>(chest.openingProgress), 0.0F, 1.0F);
         if (chest.state == LootChestState::Closed ||

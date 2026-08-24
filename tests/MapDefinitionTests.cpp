@@ -12,6 +12,7 @@
 void runMapDefinitionTests() {
     const auto asset = ian::loadMapDefinition("assets/maps/graybox.json");
     require(asset.valid() && asset.map.worldLimit == 192.0 &&
+                asset.map.coreBuildRadius == 9 &&
                 asset.map.resources.size() == 8 &&
                 asset.map.enemySpawnAnchors.size() == 4,
             "large graybox map loads");

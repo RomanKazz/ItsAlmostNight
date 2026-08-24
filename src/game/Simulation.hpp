@@ -28,10 +28,11 @@
 #include "world/WorldConfig.hpp"
 #include "waves/WaveDirector.hpp"
 
+#include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
-#include <unordered_set>
 #include <vector>
 
 namespace ian {
@@ -307,6 +308,7 @@ struct SimulationSnapshot {
         buildingCosts;
     std::array<bool, GameBalance::BuildingTypeCount>
         unlockedBuildings;
+    int coreBuildRadius{};
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts;
     std::optional<BuildingPreview> buildingPreview;
@@ -408,6 +410,90 @@ struct ProgressionRunState {
     ObjectiveRunState objectives;
 };
 
+// Fast, safe resume checkpoint. Transient combat state is intentionally not
+// included; loading resumes at the start of a build phase.
+struct SuspendedRunState {
+    PlayerClass playerClass{PlayerClass::None};
+    std::uint32_t terrainSeed{};
+    RunState resumeState{RunState::BuildPhase};
+    std::uint64_t tick{};
+    double elapsedSeconds{};
+    double phaseTimeRemaining{};
+    double phaseDuration{};
+    int wave{};
+    int bestWave{};
+    Vec3 playerPosition{};
+    double playerYaw{};
+    double playerPitch{};
+    double playerHealth{};
+    int wood{};
+    int stone{};
+    int crystals{};
+    int coins{};
+    int bombs{};
+    PlayerWeapon selectedWeapon{PlayerWeapon::BareHands};
+    int rifleLevel{1};
+    SkillTreeRunState skillTree;
+    std::array<int, LootUpgradeEffectCount> lootStacks{};
+    std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
+    std::vector<BuildingInstance> buildings;
+    std::vector<PlatformFrameInstance> platformFrames;
+    std::vector<WallInstance> modularWalls;
+    std::vector<RampInstance> ramps;
+    std::vector<ResourceNode> resourceNodes;
+    std::vector<LootChestInstance> lootChests;
+    std::vector<ChallengeColumnInstance> challengeColumns;
+    std::vector<WorldLandmarkInstance> worldLandmarks;
+    std::array<std::uint8_t, GameBalance::BuildingTypeCount>
+        buildingBlueprintLevels{};
+    int coreBuildRadius{};
+    double playerDamageMultiplier{1.0};
+    double runPlayerDamageMultiplier{1.0};
+    double playerAttackSpeedMultiplier{1.0};
+    double playerMoveSpeedMultiplier{1.0};
+    double runPlayerMoveSpeedMultiplier{1.0};
+    double playerArmorMultiplier{1.0};
+    double playerMaxHealthMultiplier{1.0};
+    double buildingMaxHealthMultiplier{1.0};
+    double runBuildingMaxHealthMultiplier{1.0};
+    double productionSpeedMultiplier{1.0};
+    double runProductionSpeedMultiplier{1.0};
+    double defenseDamageMultiplier{1.0};
+    double defenseFireRateMultiplier{1.0};
+    double woodYieldMultiplier{1.0};
+    double chestOpeningCostMultiplier{1.0};
+    double playerBonusMaxHealth{};
+    double playerTemporaryHealth{};
+    double playerRecoverableArmor{};
+    double playerMaxRecoverableArmor{};
+    bool appleAvailable{};
+    bool breadWellFed{};
+    bool battlePotionAvailable{};
+    bool freeChestOpeningAvailable{};
+    int freeChestRerollsRemaining{};
+    int runNightlyBombBonus{};
+    int runUpgradeRerollTokens{};
+    bool runUpgradeLockUnlocked{};
+    std::optional<RunUpgradeEffect> lockedRunUpgrade;
+    int bonusSelectionsNextReward{};
+    int riskyInvestmentPending{};
+    int bloodHarvestKillProgress{};
+    InsightRunState insight;
+    ObjectiveRunState objectives;
+    bool runUpgradeChoicePending{};
+    std::size_t runUpgradeChoiceCount{};
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+        runUpgradeChoices{};
+    int runUpgradeSelectionsRemaining{};
+    std::uint32_t runUpgradeOfferGeneration{};
+    bool stageCleared{};
+    bool finalNight{};
+    int bareHandsWoodGathered{};
+    int bareHandsStoneGathered{};
+    bool introSkillObjectiveCompleted{};
+    RunCombatStatistics runStatistics;
+};
+
 class Simulation {
   public:
     static constexpr std::size_t MaximumActiveEnemies =
@@ -426,6 +512,7 @@ class Simulation {
                             ObjectiveSystem::defaultDefinitions());
 
     void startRun(PlayerClass playerClass = PlayerClass::None);
+    void startRunFromSeed(PlayerClass playerClass, std::uint32_t terrainSeed);
     void restartRun();
     void returnToMainMenu();
     void togglePause();
@@ -485,6 +572,7 @@ class Simulation {
         std::span<const EntityId> supports) const;
     [[nodiscard]] std::uint64_t structuralRevision() const;
     [[nodiscard]] std::size_t clearModularBuildings();
+    void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
     [[nodiscard]] const SkillTree& skillTree() const;
     [[nodiscard]] SkillPurchaseError purchaseSkill(std::size_t index);
@@ -501,10 +589,16 @@ class Simulation {
     [[nodiscard]] bool loadProgressionState(const ProgressionRunState& state);
     [[nodiscard]] const InsightSystem& insightSystem() const;
     [[nodiscard]] const ObjectiveSystem& objectiveSystem() const;
+    [[nodiscard]] SuspendedRunState saveSuspendedRunState() const;
+    [[nodiscard]] bool loadSuspendedRunState(
+        const SuspendedRunState& state);
 
   private:
     [[nodiscard]] static Vec3 lookDirection(double yaw,
                                             double pitch);
+    [[nodiscard]] bool markEnemyRewarded(
+        std::vector<EntityId>& rewarded,
+        EntityId id) const;
     void resetRun(GameEventType eventType);
     void recordRunStatistics(std::span<const GameEvent> events);
     void updatePlayer(double deltaSeconds,
@@ -661,6 +755,7 @@ class Simulation {
     WorldConfig worldConfig_;
     TerrainHeightfield terrain_;
     std::uint64_t runSeedState_{};
+    std::optional<std::uint32_t> forcedRunTerrainSeed_;
     FoundationSystem foundations_;
     int modularPlacementBatchDepth_{};
     bool modularStructuresDirty_{};
@@ -698,7 +793,7 @@ class Simulation {
     bool crystalStorageFullNotified_{};
     int coins_{};
     CoinPickupSystem coinPickups_;
-    std::unordered_set<std::uint64_t> rewardedEnemyCoins_;
+    std::vector<EntityId> rewardedEnemyCoins_;
     std::array<ResourceCost, ModularBuildPieceCount>
         modularBuildingCosts_;
     struct PendingResourceGrant {
@@ -718,6 +813,19 @@ class Simulation {
         int chainDepth{};
     };
     std::vector<PendingSawSplinter> pendingSawSplinters_;
+    struct PendingSawChainLaunch {
+        EntityId sourceId;
+        Vec3 position;
+        int depth{};
+    };
+    std::vector<PendingSawChainLaunch> sawChainLaunchBuffer_;
+    std::vector<const ResourceNode*> sawCandidateBuffer_;
+    struct RecentPlayerHit {
+        EntityId target;
+        double damage{};
+    };
+    std::vector<RecentPlayerHit> recentPlayerHitBuffer_;
+    std::vector<EntityId> ricochetedTowerBuffer_;
     bool unlimitedResources_{};
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};
@@ -755,7 +863,7 @@ class Simulation {
     SkillTree skillTree_;
     InsightSystem insight_;
     ObjectiveSystem objectives_;
-    std::unordered_set<std::uint64_t> insightRewardedEnemyIds_;
+    std::vector<EntityId> insightRewardedEnemyIds_;
     BombSystem bombs_;
     IceWandSystem iceWand_;
     IceWandSystem fireWand_;
@@ -778,6 +886,7 @@ class Simulation {
     bool currentWaveHasBoss_{};
     bool stageCleared_{};
     bool finalNight_{};
+    std::unique_ptr<SuspendedRunState> waveStartCheckpoint_;
     double playerDamageMultiplier_{1.0};
     double runPlayerDamageMultiplier_{1.0};
     double playerAttackSpeedMultiplier_{1.0};

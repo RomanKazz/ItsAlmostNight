@@ -1042,6 +1042,17 @@ void App::processPresentationEvents(
                     .remaining = DeathDuration,
                     .duration = DeathDuration,
                 });
+            } else if (event.enemyType) {
+                constexpr double DeathDuration = 0.9;
+                destroyedEnemyVisuals_.push_back({
+                    .type = *event.enemyType,
+                    .eliteAffixes = event.enemyEliteAffixes,
+                    .position = event.position,
+                    .surfaceHeightOffset = 0.0,
+                    .yaw = 0.0,
+                    .remaining = DeathDuration,
+                    .duration = DeathDuration,
+                });
             }
         }
         if (event.type == GameEventType::PlayerDamaged) {

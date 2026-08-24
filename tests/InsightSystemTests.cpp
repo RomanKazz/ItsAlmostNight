@@ -123,6 +123,19 @@ void saveLoadAndReset() {
     requireNear(loaded.grantInsight(15.0, InsightSource::ResourceGathered,
                     InsightCategory::Gathering).finalAmount,
                 12.5, 1e-9, "load restores current diminishing budget");
+
+    auto invalid = saved;
+    invalid.consumedEventIds.push_back(123);
+    require(!loaded.loadState(invalid),
+            "load rejects duplicate consumed event IDs");
+    invalid = saved;
+    invalid.progress.requiredInsight += 1.0;
+    require(!loaded.loadState(invalid),
+            "load rejects a requirement inconsistent with earned points");
+    invalid = saved;
+    invalid.consumedEventIds.assign(100'001U, 1U);
+    require(!loaded.loadState(invalid),
+            "load bounds consumed event history");
     loaded.reset();
     requireNear(loaded.progress().currentInsight, 0.0, 1e-9,
                 "new run resets Insight");

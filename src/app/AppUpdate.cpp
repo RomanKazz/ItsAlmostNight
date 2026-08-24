@@ -24,6 +24,12 @@ using namespace app_detail;
 
 void App::update() {
     const double frameSeconds = static_cast<double>(GetFrameTime());
+    const RunState currentRunState = simulation_.snapshot().state;
+    if ((currentRunState == RunState::Victory ||
+         currentRunState == RunState::Defeat) &&
+        suspendedRunAvailable()) {
+        discardSuspendedRun();
+    }
     if (renderer_ &&
         renderer_->settings().fullscreen != fullscreenApplied_) {
         applyFullscreenSetting(renderer_->settings().fullscreen);
@@ -727,7 +733,8 @@ void App::update() {
         pendingGateToggle_.reset();
         pendingPlacedBuildingRotation_.reset();
     }
-    const auto events = simulation_.takeEvents();
+    simulation_.takeEvents(gameEventBuffer_);
+    const std::span<const GameEvent> events = gameEventBuffer_;
     recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
     refreshDecorationExclusions(eventSnapshot);

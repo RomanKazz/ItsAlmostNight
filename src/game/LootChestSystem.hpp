@@ -101,6 +101,8 @@ class LootChestSystem {
                const TerrainHeightfield& terrain,
                std::span<const ResourceNode> resources,
                Vec3 playerSpawn);
+    [[nodiscard]] bool restoreChests(
+        std::span<const LootChestInstance> chests);
     void tick(double deltaSeconds);
 
     [[nodiscard]] std::optional<EntityId> raycastChest(

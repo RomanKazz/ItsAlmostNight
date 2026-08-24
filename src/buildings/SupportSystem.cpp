@@ -71,22 +71,20 @@ SupportSystem::acquire(
 void SupportSystem::release(
     const std::array<std::uint32_t, 4>& supportIds) {
     for (const std::uint32_t id : supportIds) {
-        const auto support = std::find_if(
-            supports_.begin(), supports_.end(),
-            [id](const SharedSupport& candidate) {
-                return candidate.active &&
-                       candidate.id == id;
-            });
-        if (support == supports_.end()) {
+        if (id == 0U || id > supports_.size()) {
             continue;
         }
-        if (support->referenceCount > 1U) {
-            --support->referenceCount;
+        SharedSupport& support = supports_[id - 1U];
+        if (!support.active || support.id != id) {
             continue;
         }
-        supportByCorner_.erase(support->corner);
-        support->referenceCount = 0U;
-        support->active = false;
+        if (support.referenceCount > 1U) {
+            --support.referenceCount;
+            continue;
+        }
+        supportByCorner_.erase(support.corner);
+        support.referenceCount = 0U;
+        support.active = false;
     }
 }
 

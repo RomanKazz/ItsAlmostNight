@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 
 namespace ian {
 namespace {
@@ -175,6 +176,93 @@ void LootChestSystem::reset(
         terrain, resources, playerSpawn, playerSpawn,
         ExplorationMaximumRadius, ExplorationMinimumRadius,
         LootChestPurpose::Exploration);
+}
+
+bool LootChestSystem::restoreChests(
+    std::span<const LootChestInstance> chests) {
+    constexpr std::size_t MaximumRestoredChests = 2048U;
+    constexpr std::uint32_t ReservedIdHeadroom = 4096U;
+    if (chests.size() > MaximumRestoredChests) {
+        return false;
+    }
+    const auto finiteVector = [](Vec3 value) {
+        return std::isfinite(value.x) && std::isfinite(value.y) &&
+               std::isfinite(value.z);
+    };
+    const auto validProgress = [](double value) {
+        return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+    };
+    const auto validTimer = [](double value) {
+        return std::isfinite(value) && value >= 0.0 &&
+               value <= 1'000'000.0;
+    };
+    const auto key = [](EntityId id) {
+        return
+            (static_cast<std::uint64_t>(id.generation) << 32U) |
+            static_cast<std::uint64_t>(id.index);
+    };
+
+    std::unordered_set<std::uint64_t> ids;
+    ids.reserve(chests.size());
+    std::uint32_t generation = 0U;
+    std::uint32_t nextIndex = 0U;
+    for (const LootChestInstance& chest : chests) {
+        const int type = static_cast<int>(chest.type);
+        const int purpose = static_cast<int>(chest.purpose);
+        const int state = static_cast<int>(chest.state);
+        const int targetEffect = static_cast<int>(chest.rerollTargetEffect);
+        const int targetRarity = static_cast<int>(chest.rerollTargetRarity);
+        const int effect = static_cast<int>(chest.loot.effect);
+        const int rarity = static_cast<int>(chest.loot.rarity);
+        const double normalLengthSquared =
+            chest.surfaceNormal.x * chest.surfaceNormal.x +
+            chest.surfaceNormal.y * chest.surfaceNormal.y +
+            chest.surfaceNormal.z * chest.surfaceNormal.z;
+        if (chest.id.generation == 0U ||
+            chest.id.index >=
+                std::numeric_limits<std::uint32_t>::max() -
+                    ReservedIdHeadroom ||
+            chest.loot.id != chest.id ||
+            !ids.insert(key(chest.id)).second ||
+            (generation != 0U && chest.id.generation != generation) ||
+            type < 0 || type > static_cast<int>(LootChestType::Stone) ||
+            purpose < 0 ||
+            purpose > static_cast<int>(LootChestPurpose::Reward) ||
+            state < 0 || state > static_cast<int>(LootChestState::Open) ||
+            targetEffect < 0 ||
+            targetEffect >= static_cast<int>(LootUpgradeEffectCount) ||
+            targetRarity < 0 ||
+            targetRarity > static_cast<int>(LootRarity::Legendary) ||
+            effect < 0 || effect >= static_cast<int>(LootUpgradeEffectCount) ||
+            rarity < 0 || rarity > static_cast<int>(LootRarity::Legendary) ||
+            !finiteVector(chest.position) ||
+            !finiteVector(chest.surfaceNormal) ||
+            normalLengthSquared < 0.25 || normalLengthSquared > 2.25 ||
+            !std::isfinite(chest.yaw) || chest.coinCost < 0 ||
+            chest.coinCost > 1'000'000 || chest.rerollCount > 3U ||
+            !validProgress(chest.rerollProgress) ||
+            !validProgress(chest.openingProgress) ||
+            !validTimer(chest.disappearanceDelayRemaining) ||
+            !validProgress(chest.disappearanceProgress) ||
+            !finiteVector(chest.loot.position) ||
+            !validProgress(chest.loot.revealProgress) ||
+            !validTimer(chest.loot.hoverTime) ||
+            !validTimer(chest.loot.pickupDelayRemaining) ||
+            !std::isfinite(chest.loot.proximityPickupRadius) ||
+            chest.loot.proximityPickupRadius < 0.1 ||
+            chest.loot.proximityPickupRadius > 100.0) {
+            return false;
+        }
+        generation = chest.id.generation;
+        nextIndex = std::max(nextIndex, chest.id.index + 1U);
+    }
+
+    chests_.assign(chests.begin(), chests.end());
+    if (generation != 0U) {
+        runGeneration_ = generation;
+    }
+    nextEntityIndex_ = nextIndex;
+    return true;
 }
 
 void LootChestSystem::spawnAdditionalChests(

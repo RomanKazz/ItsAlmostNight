@@ -138,6 +138,13 @@ void runCollisionWorldTests() {
         ian::CollisionWorld::PlayerRadius);
     require(stoppedByStone.z > 0.6,
             "authored stone sphere physically blocks player movement");
+    resourceCollision.reset();
+    const auto passedResetResource = resourceCollision.moveCircle(
+        {0.0, 1.7, 3.0}, {0.0, 0.0, -6.0},
+        ian::CollisionWorld::PlayerRadius);
+    require(
+        passedResetResource.z < -2.5,
+        "run reset clears resource broadphase indices with resource colliders");
 
     const auto wall =
         buildings.place(ian::BuildingType::Wall, {3, 0}, 0, 30, 30);

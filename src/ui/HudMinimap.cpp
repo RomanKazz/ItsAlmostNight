@@ -11,7 +11,6 @@
 #include <array>
 #include <cmath>
 #include <string_view>
-#include <vector>
 
 namespace ian {
 namespace {
@@ -106,13 +105,11 @@ void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale,
     double viewRadius, float expanded) {
-    const int cells = expanded > 0.55F ? 64 : 40;
+    const int cells = expanded > 0.55F ? 64 : 28;
     const double cellWorld = viewRadius * 2.0 /
         static_cast<double>(cells);
     const int verticesPerAxis = cells + 1;
-    std::vector<Color> colors(
-        static_cast<std::size_t>(verticesPerAxis) *
-        static_cast<std::size_t>(verticesPerAxis));
+    std::array<Color, 65U * 65U> colors{};
     for (int z = 0; z <= cells; ++z) {
         for (int x = 0; x <= cells; ++x) {
             const double worldX = snapshot.playerPosition.x - viewRadius +
@@ -160,7 +157,8 @@ void drawMinimapTerrain(
 
 void drawMinimapPonds(
     const SimulationSnapshot& snapshot,
-    Rectangle mapBounds, float mapScale, float expanded) {
+    Rectangle mapBounds, float mapScale,
+    double viewRadius, float expanded) {
     const auto mapPoint = [&snapshot, mapBounds, mapScale](
                               double x, double z) {
         return minimapPoint(
@@ -168,18 +166,26 @@ void drawMinimapPonds(
             snapshot.playerPosition.x,
             snapshot.playerPosition.z, x, z);
     };
-    constexpr int Segments = 40;
+    const int segments = expanded > 0.55F ? 40 : 24;
     const Color water{53, 158, 181, 225};
     const Color shore{127, 215, 207, 205};
     for (const PondDefinition& pond : snapshot.ponds) {
+        const double pondExtent =
+            std::max(pond.radiusX, pond.radiusZ) + pond.bayRadius;
+        if (std::hypot(
+                pond.x - snapshot.playerPosition.x,
+                pond.z - snapshot.playerPosition.z) >
+            viewRadius + pondExtent) {
+            continue;
+        }
         const Vector2 center = mapPoint(pond.x, pond.z);
-        std::array<Vector2, Segments> points{};
+        std::array<Vector2, 40> points{};
         const double sine = std::sin(pond.rotation);
         const double cosine = std::cos(pond.rotation);
-        for (int segment = 0; segment < Segments; ++segment) {
+        for (int segment = 0; segment < segments; ++segment) {
             const double angle =
                 static_cast<double>(segment) * 2.0 * PI /
-                static_cast<double>(Segments);
+                static_cast<double>(segments);
             const double organicRadius =
                 1.0 + std::sin(angle * 3.0 + pond.phase) * 0.095 +
                 std::sin(angle * 5.0 - pond.phase * 1.37) * 0.052 +
@@ -192,8 +198,8 @@ void drawMinimapPonds(
                 pond.x + localX * cosine - localZ * sine,
                 pond.z + localX * sine + localZ * cosine);
         }
-        for (int segment = 0; segment < Segments; ++segment) {
-            const int next = (segment + 1) % Segments;
+        for (int segment = 0; segment < segments; ++segment) {
+            const int next = (segment + 1) % segments;
             DrawTriangle(
                 center,
                 points[static_cast<std::size_t>(next)],
@@ -229,7 +235,7 @@ void drawMinimapPonds(
 } // namespace
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
-                    float expansion) {
+                    float expansion, float topInset) {
     if (expansion < 0.0F) return;
     const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
     const float expanded =
@@ -260,7 +266,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         displayMapSize * 0.5F - panelPadding - headerHeight;
     const float panelX = std::lerp(
         collapsedPanelX, expandedPanelX, expanded);
-    const float panelY = std::lerp(12.0F, expandedPanelY, expanded);
+    const float panelY = std::lerp(
+        12.0F + std::max(topInset, 0.0F),
+        expandedPanelY, expanded);
     const Rectangle displayMapBounds{
         panelX + panelPadding,
         panelY + panelPadding + headerHeight,
@@ -290,6 +298,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             18.0F, {224, 205, 171, 255});
     }
 
+    const int desiredTargetSize = expanded > 0.55F
+        ? 768
+        : expanded > 0.02F ? 512 : 256;
+    ui.updateMinimapTarget(desiredTargetSize);
     if (!ui.beginMinimapTarget()) {
         return;
     }
@@ -304,7 +316,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     drawMinimapTerrain(
         snapshot, mapBounds, mapScale,
         viewRadius, expanded);
-    drawMinimapPonds(snapshot, mapBounds, mapScale, expanded);
+    drawMinimapPonds(
+        snapshot, mapBounds, mapScale, viewRadius, expanded);
     const Vector2 mapCenter{
         mapBounds.x + mapSize * 0.5F,
         mapBounds.y + mapSize * 0.5F,
@@ -334,6 +347,13 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 snapshot.playerPosition.z,
                 worldX, worldZ);
         };
+    const float pointMargin = 12.0F * symbolScale;
+    const auto pointVisible = [mapBounds, pointMargin](Vector2 point) {
+        return point.x >= mapBounds.x - pointMargin &&
+            point.x <= mapBounds.x + mapBounds.width + pointMargin &&
+            point.y >= mapBounds.y - pointMargin &&
+            point.y <= mapBounds.y + mapBounds.height + pointMargin;
+    };
 
     BeginScissorMode(
         static_cast<int>(mapBounds.x),
@@ -347,6 +367,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
         const Vector2 point = mapPoint(
             resource.position.x, resource.position.z);
+        if (!pointVisible(point)) {
+            continue;
+        }
         if (isDestructibleProp(resource.type)) {
             if (!snapshot.unlimitedResources) {
                 continue;
@@ -409,6 +432,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
              snapshot.worldLandmarks) {
             const Vector2 point = mapPoint(
                 landmark.position.x, landmark.position.z);
+            if (!pointVisible(point)) {
+                continue;
+            }
             const float size = 5.0F * symbolScale;
             const Color fill = landmark.activated
                 ? Color{96, 220, 137, 255}
@@ -454,6 +480,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 (!mapRevealsChests && !chest.revealed)) continue;
             const Vector2 point = mapPoint(
                 chest.position.x, chest.position.z);
+            if (!pointVisible(point)) {
+                continue;
+            }
             const float size = 3.2F * symbolScale;
             const Color color = chest.type == LootChestType::Stone
                 ? Color{170, 183, 195, 255}
@@ -496,6 +525,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         const Vector2 point = modularPoint(
             frame.anchor, PlatformFrameWidthCells,
             PlatformFrameWidthCells);
+        if (!pointVisible(point)) {
+            continue;
+        }
         DrawRectangleRec(
             {point.x - 1.7F * symbolScale,
              point.y - 1.7F * symbolScale,
@@ -504,6 +536,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
     for (const WallInstance& wall : snapshot.modularWalls) {
         const Vector2 point = modularPoint(wall.anchor, 1.0, 1.0);
+        if (!pointVisible(point)) {
+            continue;
+        }
         const bool alongX =
             wall.rotation == Rotation::Deg0 ||
             wall.rotation == Rotation::Deg180;
@@ -522,6 +557,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             ramp.anchor,
             alongZ ? ModularRampWidthCells : ModularRampRunCells,
             alongZ ? ModularRampRunCells : ModularRampWidthCells);
+        if (!pointVisible(point)) {
+            continue;
+        }
         DrawCircleV(
             point, 2.0F * symbolScale,
             {205, 174, 119, 190});
@@ -530,6 +568,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     for (const BuildingInstance& building : snapshot.buildings) {
         const Vec3 position = buildingWorldPosition(building);
         const Vector2 point = mapPoint(position.x, position.z);
+        if (building.type != BuildingType::Core &&
+            !pointVisible(point)) {
+            continue;
+        }
         switch (building.type) {
         case BuildingType::Core: {
             const Vector2 delta{
@@ -649,6 +691,9 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
             continue;
         }
         const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
+        if (!pointVisible(point)) {
+            continue;
+        }
         float radius = 2.25F;
         Color color{239, 75, 66, 245};
         if (enemy.type == EnemyType::Fast) {

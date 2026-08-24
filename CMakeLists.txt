@@ -112,6 +112,7 @@ add_library(ian_simulation
     src/game/SimulationPlacement.cpp
     src/game/SimulationProgression.cpp
     src/game/SimulationSnapshot.cpp
+    src/game/SimulationSuspendedRun.cpp
     src/game/SimulationWaves.cpp
     src/game/SimulationWorldSync.cpp
     src/game/ModularCombat.cpp
@@ -168,6 +169,7 @@ add_library(ian_graphics
     src/graphics/EnvironmentSystem.cpp
     src/graphics/GraphicsResourceAccessors.cpp
     src/graphics/GraphicsResources.cpp
+    src/graphics/InstanceBufferPool.cpp
     src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
     src/graphics/RendererDecorations.cpp
@@ -206,6 +208,7 @@ target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression)
 add_executable(its_almost_night
     src/core/PerformanceRecorder.cpp
     src/app/App.cpp
+    src/app/AppRunSave.cpp
     src/app/AppActionModes.cpp
     src/app/AppCoreDefenseMenu.cpp
     src/app/AppEffects.cpp
@@ -227,13 +230,14 @@ add_executable(its_almost_night
     src/app/AppSkillTree.cpp
     src/app/AppUpdate.cpp
     src/app/AppWorldOverlayEffects.cpp
+    src/app/AppWorldEnemies.cpp
     src/app/AppWorldRender.cpp
     src/app/AppWorldOverlays.cpp
     src/app/main.cpp
 )
 target_link_libraries(its_almost_night PRIVATE
     ian_simulation ian_graphics ian_ui ian_audio
-    ian_presentation ian_settings
+    ian_presentation ian_settings nlohmann_json::nlohmann_json
 )
 target_include_directories(its_almost_night SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src")

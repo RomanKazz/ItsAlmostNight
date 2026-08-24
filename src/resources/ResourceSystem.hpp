@@ -107,6 +107,9 @@ class ResourceSystem {
         GroundSafetyProvider groundSafety = {});
 
     void reset();
+    [[nodiscard]] bool restoreNodes(
+        std::span<const ResourceNode> nodes,
+        double woodYieldMultiplier);
     void setWoodYieldMultiplier(double multiplier);
     void tick(
         double deltaSeconds,

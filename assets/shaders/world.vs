@@ -78,9 +78,23 @@ void main()
     } else {
         localNormal = normalize(localNormal);
     }
-    vec3 worldNormal = instancingEnabled != 0
-        ? transpose(inverse(mat3(modelMatrix))) * localNormal
-        : (matNormal*vec4(localNormal, 0.0)).xyz;
+    vec3 worldNormal;
+    if (instancingEnabled != 0)
+    {
+        // Instance transforms are rotation plus per-axis scale. Their exact
+        // inverse-transpose can be reduced to three squared axis lengths,
+        // avoiding a full matrix inverse for every vertex.
+        mat3 instanceMatrix = mat3(modelMatrix);
+        vec3 scaleSquared = max(vec3(
+            dot(instanceMatrix[0], instanceMatrix[0]),
+            dot(instanceMatrix[1], instanceMatrix[1]),
+            dot(instanceMatrix[2], instanceMatrix[2])), vec3(0.0000001));
+        worldNormal = instanceMatrix*(localNormal/scaleSquared);
+    }
+    else
+    {
+        worldNormal = (matNormal*vec4(localNormal, 0.0)).xyz;
+    }
     fragWorldNormal = dot(worldNormal, worldNormal) < 0.000001
         ? vec3(0.0, 1.0, 0.0)
         : normalize(worldNormal);

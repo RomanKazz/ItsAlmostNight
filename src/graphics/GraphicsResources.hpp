@@ -186,7 +186,7 @@ class GraphicsResources {
 
     void initialize(const GraphicsSettings& settings);
     void updateFramebuffer(const GraphicsSettings& settings);
-    void updateViewModelTarget();
+    void updateViewModelTarget(const GraphicsSettings& settings);
     void updateSelectionMask(const GraphicsSettings& settings);
     void updateShadowMap(const GraphicsSettings& settings);
     void shutdown();

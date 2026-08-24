@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <utility>
 
 namespace ian {
 
@@ -55,8 +56,9 @@ BuildGrid::occupiedRectangleCells(
         return cells;
     }
     cells.reserve(
-        static_cast<std::size_t>(
-            widthCells * depthCells * heightLevels));
+        static_cast<std::size_t>(widthCells) *
+        static_cast<std::size_t>(depthCells) *
+        static_cast<std::size_t>(heightLevels));
     for (int y = 0; y < heightLevels; ++y) {
         for (int z = 0; z < depthCells; ++z) {
             for (int x = 0; x < widthCells; ++x) {
@@ -90,25 +92,30 @@ bool BuildGrid::canOccupyRectangle(
         heightLevels <= 0) {
         return false;
     }
-    for (const GridCoord cell :
-         occupiedRectangleCells(
-             anchor, widthCells, depthCells,
-             heightLevels)) {
-        const auto iterator = occupancy_.find(cell);
-        if (iterator == occupancy_.end()) {
-            continue;
-        }
-        const bool conflict = std::any_of(
-            iterator->second.begin(),
-            iterator->second.end(),
-            [layer, ignoredOwner](
-                const OccupancyRecord& record) {
-                return record.owner != ignoredOwner &&
-                       layersConflict(
-                           layer, record.layer);
-            });
-        if (conflict) {
-            return false;
+    for (int y = 0; y < heightLevels; ++y) {
+        for (int z = 0; z < depthCells; ++z) {
+            for (int x = 0; x < widthCells; ++x) {
+                const GridCoord cell{
+                    anchor.x + x,
+                    anchor.yLevel + y,
+                    anchor.z + z,
+                };
+                const auto iterator = occupancy_.find(cell);
+                if (iterator == occupancy_.end()) {
+                    continue;
+                }
+                const bool conflict = std::any_of(
+                    iterator->second.begin(),
+                    iterator->second.end(),
+                    [layer, ignoredOwner](
+                        const OccupancyRecord& record) {
+                        return record.owner != ignoredOwner &&
+                               layersConflict(layer, record.layer);
+                    });
+                if (conflict) {
+                    return false;
+                }
+            }
         }
     }
     return true;
@@ -134,29 +141,48 @@ bool BuildGrid::occupyRectangle(
         return false;
     }
     release(owner);
-    for (const GridCoord cell :
-         occupiedRectangleCells(
-             anchor, widthCells, depthCells,
-             heightLevels)) {
-        occupancy_[cell].push_back({owner, layer});
+    std::vector<GridCoord> cells;
+    cells.reserve(
+        static_cast<std::size_t>(widthCells) *
+        static_cast<std::size_t>(depthCells) *
+        static_cast<std::size_t>(heightLevels));
+    for (int y = 0; y < heightLevels; ++y) {
+        for (int z = 0; z < depthCells; ++z) {
+            for (int x = 0; x < widthCells; ++x) {
+                const GridCoord cell{
+                    anchor.x + x,
+                    anchor.yLevel + y,
+                    anchor.z + z,
+                };
+                occupancy_[cell].push_back({owner, layer});
+                cells.push_back(cell);
+            }
+        }
     }
+    cellsByOwner_[ownerKey(owner)] = std::move(cells);
     return true;
 }
 
 void BuildGrid::release(EntityId owner) {
-    for (auto iterator = occupancy_.begin();
-         iterator != occupancy_.end();) {
+    const auto owned = cellsByOwner_.find(ownerKey(owner));
+    if (owned == cellsByOwner_.end()) {
+        return;
+    }
+    for (const GridCoord cell : owned->second) {
+        const auto iterator = occupancy_.find(cell);
+        if (iterator == occupancy_.end()) {
+            continue;
+        }
         std::erase_if(
             iterator->second,
             [owner](const OccupancyRecord& record) {
                 return record.owner == owner;
             });
         if (iterator->second.empty()) {
-            iterator = occupancy_.erase(iterator);
-        } else {
-            ++iterator;
+            occupancy_.erase(iterator);
         }
     }
+    cellsByOwner_.erase(owned);
 }
 
 bool BuildGrid::isOccupied(
@@ -212,6 +238,12 @@ int BuildGrid::footprintWidth(
     return footprint == Footprint::TwoByTwo
                ? 2
                : 1;
+}
+
+std::uint64_t BuildGrid::ownerKey(EntityId owner) {
+    return
+        (static_cast<std::uint64_t>(owner.generation) << 32U) |
+        static_cast<std::uint64_t>(owner.index);
 }
 
 bool BuildGrid::layersConflict(

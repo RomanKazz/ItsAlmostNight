@@ -2,6 +2,7 @@
 #include "progression/ObjectiveSystem.hpp"
 
 #include <algorithm>
+#include <limits>
 
 namespace {
 
@@ -84,6 +85,20 @@ void worldEventAndSaveStateWork() {
                 status(loaded, "resources_100").progress ==
                     status(objectives, "resources_100").progress,
             "objective save preserves completion and aggregate progress");
+
+    auto invalid = saved;
+    invalid.statuses.front().id = "unknown_objective";
+    require(!loaded.loadState(invalid),
+            "objective load rejects unknown status IDs");
+    invalid = saved;
+    invalid.recentGathering.push_back({
+        std::numeric_limits<double>::quiet_NaN(), 1});
+    require(!loaded.loadState(invalid),
+            "objective load rejects non-finite gathering history");
+    invalid = saved;
+    invalid.recentGathering.push_back({6.0, -1});
+    require(!loaded.loadState(invalid),
+            "objective load rejects negative gathering amounts");
     loaded.reset();
     require(!status(loaded, "far_from_home").completed,
             "new run clears objective state");

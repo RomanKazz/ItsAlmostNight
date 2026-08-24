@@ -55,6 +55,7 @@ class GameUi {
     [[nodiscard]] bool beginMinimapTarget() const;
     void endMinimapTarget() const;
     void drawMinimapTarget(Rectangle bounds) const;
+    void updateMinimapTarget(int desiredSize);
     [[nodiscard]] int minimapTargetSize() const;
     float drawSliderBar(Rectangle bounds, float value,
                         float minimum, float maximum) const;

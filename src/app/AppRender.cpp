@@ -14,6 +14,7 @@
 #include <cmath>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace ian {
 namespace {
@@ -50,11 +51,36 @@ const char* modularPlacementMessage(
     return "CANNOT BUILD";
 }
 
+void drawFpsCounter() {
+    constexpr float FontSize = 16.0F;
+    constexpr float HorizontalPadding = 10.0F;
+    constexpr float VerticalPadding = 5.0F;
+    constexpr float ScreenMargin = 12.0F;
+    const std::string_view label{TextFormat("%d FPS", GetFPS())};
+    const Vector2 textSize = measureUiText(label, FontSize);
+    const Rectangle bounds{
+        static_cast<float>(GetScreenWidth()) - ScreenMargin -
+            textSize.x - HorizontalPadding * 2.0F,
+        ScreenMargin,
+        textSize.x + HorizontalPadding * 2.0F,
+        textSize.y + VerticalPadding * 2.0F,
+    };
+    DrawRectangleRounded(bounds, 0.22F, 6, {7, 10, 14, 215});
+    DrawRectangleRoundedLinesEx(
+        bounds, 0.22F, 6, 1.0F, {103, 139, 130, 220});
+    drawUiText(
+        label,
+        {bounds.x + HorizontalPadding,
+         bounds.y + VerticalPadding},
+        FontSize, {235, 245, 238, 255});
+}
+
 } // namespace
 
 using namespace app_detail;
 
 void App::render() {
+    renderer_->beginFrame();
     const auto renderPreparationStart = PerformanceClock::now();
     auto uiStart = renderPreparationStart;
     const auto& snapshot = simulation_.snapshot();
@@ -391,12 +417,13 @@ void App::render() {
             performanceMilliseconds(worldEntitiesStart));
 
         const auto environmentStart = PerformanceClock::now();
+        const auto pondDecorStart = PerformanceClock::now();
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondRockMaterial{};
         pondRockMaterial.bakedAo = 0.76F;
         pondRockMaterial.screenAoAmount = 0.0F;
         renderer_->setWorldMaterial(pondRockMaterial);
-        renderer_->drawPondShoreRocks();
+        renderer_->drawPondShoreRocks(camera);
         WorldMaterialState pondPlantMaterial{};
         pondPlantMaterial.bakedAo = 0.82F;
         pondPlantMaterial.screenAoAmount = 0.0F;
@@ -405,19 +432,35 @@ void App::render() {
         pondPlantMaterial.distantFadeAmount = 0.9F;
         pondPlantMaterial.vegetationAmount = 1.0F;
         renderer_->setWorldMaterial(pondPlantMaterial);
-        renderer_->drawPondDecor();
+        renderer_->drawPondDecor(camera);
         renderer_->endWorldShader();
+        double pondDecorMilliseconds =
+            performanceMilliseconds(pondDecorStart);
+        const auto waterStart = PerformanceClock::now();
         renderer_->drawWater(camera.position, lighting);
+        performanceStats_.waterRender.sample(
+            performanceMilliseconds(waterStart));
+        const auto pondSurfaceStart = PerformanceClock::now();
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondSurfaceMaterial{};
         pondSurfaceMaterial.bakedAo = 0.82F;
         pondSurfaceMaterial.screenAoAmount = 0.0F;
         renderer_->setWorldMaterial(pondSurfaceMaterial);
-        renderer_->drawPondSurfaceDecor();
+        renderer_->drawPondSurfaceDecor(camera);
         renderer_->endWorldShader();
+        pondDecorMilliseconds +=
+            performanceMilliseconds(pondSurfaceStart);
+        performanceStats_.pondDecorRender.sample(
+            pondDecorMilliseconds);
+        const auto cloudStart = PerformanceClock::now();
         renderer_->drawClouds(
-            camera.position, nightAmount, lighting);
+            camera, nightAmount, lighting);
+        performanceStats_.cloudRender.sample(
+            performanceMilliseconds(cloudStart));
+        const auto atmosphereStart = PerformanceClock::now();
         drawAtmosphereParticles(camera, nightAmount);
+        performanceStats_.atmosphereRender.sample(
+            performanceMilliseconds(atmosphereStart));
         performanceStats_.environmentRender.sample(
             performanceMilliseconds(environmentStart));
 
@@ -1085,7 +1128,8 @@ void App::render() {
 
         drawMinimapHud(
             ui_, presentationSnapshot,
-            minimapExpansion_);
+            minimapExpansion_,
+            userSettings_.accessibility.showFps ? 40.0F : 0.0F);
 
         drawRunStateOverlay(snapshot);
         drawRunUpgradeOverlay(snapshot);
@@ -1125,14 +1169,18 @@ void App::render() {
                 ui_.drawButton(
                     {centerX - 190.0F, menuY,
                      380.0F, 58.0F},
-                    "RETURN TO MAIN MENU") ||
+                    "SAVE & MAIN MENU") ||
                 pendingReturnToMenuFromUi_;
             menuY += 70.0F;
             if (ui_.drawButton(
                     {centerX - 190.0F, menuY,
                      380.0F, 58.0F},
-                    "EXIT GAME")) {
-                exitRequested_ = true;
+                    "SAVE & EXIT")) {
+                if (saveSuspendedRun()) {
+                    exitRequested_ = true;
+                } else {
+                    audio_.playUiError();
+                }
             }
         }
     }
@@ -1151,6 +1199,9 @@ void App::render() {
     drawObjectiveDebugMenu(snapshot);
     if (performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
+    }
+    if (userSettings_.accessibility.showFps) {
+        drawFpsCounter();
     }
     const bool uiCursorVisible =
         snapshot.state == RunState::MainMenu ||

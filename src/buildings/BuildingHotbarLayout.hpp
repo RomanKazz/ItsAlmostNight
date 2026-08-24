@@ -10,8 +10,8 @@
 
 namespace ian {
 
-// UI and input share this order so a visible key can never select a different
-// building. Newly researched defenses simply occupy the next visible slot.
+// UI and input share one permanent order. Locked buildings remain visible, so
+// researching a building never moves another building to a different key.
 inline constexpr std::array<BuildingType, GameBalance::BuildingTypeCount>
     BuildingHotbarOrder{
         BuildingType::Core,
@@ -49,10 +49,9 @@ struct BuildingHotbarLayout {
 };
 
 [[nodiscard]] inline BuildingHotbarLayout makeBuildingHotbarLayout(
-    const std::array<bool, GameBalance::BuildingTypeCount>& unlocked) {
+    const std::array<bool, GameBalance::BuildingTypeCount>&) {
     BuildingHotbarLayout layout;
     for (const BuildingType type : BuildingHotbarOrder) {
-        if (!unlocked[static_cast<std::size_t>(type)]) continue;
         layout.types[layout.count++] = type;
     }
     return layout;

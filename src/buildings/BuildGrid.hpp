@@ -97,6 +97,8 @@ class BuildGrid {
 
     [[nodiscard]] static int footprintWidth(
         Footprint footprint);
+    [[nodiscard]] static std::uint64_t ownerKey(
+        EntityId owner);
     [[nodiscard]] static bool layersConflict(
         OccupancyLayer left, OccupancyLayer right);
 
@@ -105,6 +107,8 @@ class BuildGrid {
         GridCoord, std::vector<OccupancyRecord>,
         GridCoordHash>
         occupancy_;
+    std::unordered_map<std::uint64_t, std::vector<GridCoord>>
+        cellsByOwner_;
 };
 
 } // namespace ian

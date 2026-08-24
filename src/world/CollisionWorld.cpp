@@ -287,6 +287,7 @@ void CollisionWorld::reset() {
     buildingSurfaces_.clear();
     modularSurfaces_.clear();
     rebuildColliders();
+    rebuildResourceBroadphase();
 }
 
 void CollisionWorld::syncWorldLandmarks(

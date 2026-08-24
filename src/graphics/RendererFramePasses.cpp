@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CameraCulling.hpp"
 #include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
@@ -145,7 +146,7 @@ void Renderer::drawSky(const SkyState& sky) {
 }
 
 void Renderer::drawClouds(
-    Vector3 cameraPosition, float nightAmount,
+    const Camera3D& camera, float nightAmount,
     const WorldLighting& lighting) {
     if (!settings_.sky || !resources_.cloudShader().valid()) {
         return;
@@ -163,6 +164,9 @@ void Renderer::drawClouds(
     }
 
     Shader& shader = resources_.cloudShader().get();
+    const Vector3 cameraPosition = camera.position;
+    const auto cameraView =
+        camera_culling::horizontalView(camera);
     SetShaderValue(
         shader, cloudCameraPositionLocation_, &cameraPosition,
         SHADER_UNIFORM_VEC3);
@@ -183,7 +187,6 @@ void Renderer::drawClouds(
         Vector3 position;
         Vector3 scale;
         float rotationDegrees{};
-        float visibility{};
         float distanceSquared{};
         std::size_t variant{};
     };
@@ -251,6 +254,20 @@ void Renderer::drawClouds(
         const float distanceSquared =
             offsetX * offsetX + offsetZ * offsetZ;
         const float distance = std::sqrt(distanceSquared);
+        const float facing =
+            offsetX * cameraView.forward.x +
+            offsetZ * cameraView.forward.y;
+        if (distanceSquared > 2500.0F) {
+            const float sideDistance = std::abs(
+                offsetX * cameraView.forward.y -
+                offsetZ * cameraView.forward.x);
+            if (facing < -30.0F ||
+                sideDistance >
+                    std::max(facing, 0.0F) *
+                        cameraView.fovTangent + 35.0F) {
+                continue;
+            }
+        }
         const float distanceFade = 1.0F -
             smoothstep(FadeStart, FadeEnd, distance);
         const float visibility =
@@ -283,7 +300,6 @@ void Renderer::drawClouds(
             },
             .rotationDegrees =
                 (unitFloat(seed + 10U) * 2.0F - 1.0F) * 8.0F,
-            .visibility = visibility,
             .distanceSquared = distanceSquared,
             .variant = variant,
         };
@@ -306,10 +322,37 @@ void Renderer::drawClouds(
         RL_FUNC_ADD, RL_FUNC_ADD);
     BeginBlendMode(BLEND_CUSTOM_SEPARATE);
     rlDisableDepthMask();
+
+    std::array<std::array<Matrix, CloudCount>, 2> transforms{};
+    std::array<int, 2> transformCounts{};
     for (std::size_t index = 0; index < visibleCount; ++index) {
         const CloudInstance& cloud = clouds[index];
         ModelResource& resource = resources_.cloudModel(cloud.variant);
         if (!resource.valid()) {
+            continue;
+        }
+        const std::size_t variant = cloud.variant % transforms.size();
+        transforms[variant][static_cast<std::size_t>(
+            transformCounts[variant]++)] = MatrixMultiply(
+            resource.get().transform,
+            MatrixMultiply(
+                MatrixScale(
+                    cloud.scale.x, cloud.scale.y, cloud.scale.z),
+                MatrixMultiply(
+                    MatrixRotateY(cloud.rotationDegrees * DEG2RAD),
+                    MatrixTranslate(
+                        cloud.position.x,
+                        cloud.position.y,
+                        cloud.position.z))));
+    }
+    const float visibility = dayVisibility * 0.82F;
+    SetShaderValue(
+        shader, cloudVisibilityLocation_, &visibility,
+        SHADER_UNIFORM_FLOAT);
+    for (std::size_t variant = 0; variant < transforms.size(); ++variant) {
+        const int transformCount = transformCounts[variant];
+        ModelResource& resource = resources_.cloudModel(variant);
+        if (transformCount <= 0 || !resource.valid()) {
             continue;
         }
         Model& model = resource.get();
@@ -317,12 +360,11 @@ void Renderer::drawClouds(
              materialIndex < model.materialCount; ++materialIndex) {
             model.materials[materialIndex].shader = shader;
         }
-        SetShaderValue(
-            shader, cloudVisibilityLocation_, &cloud.visibility,
-            SHADER_UNIFORM_FLOAT);
-        DrawModelEx(
-            model, cloud.position, {0.0F, 1.0F, 0.0F},
-            cloud.rotationDegrees, cloud.scale, WHITE);
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader,
+            std::span<const Matrix>(
+                transforms[variant].data(),
+                static_cast<std::size_t>(transformCount))));
     }
     rlDrawRenderBatchActive();
     rlEnableDepthMask();
@@ -478,7 +520,7 @@ void Renderer::drawSsaoPass() {
 }
 
 bool Renderer::beginFirstPersonToolPass() {
-    resources_.updateViewModelTarget();
+    resources_.updateViewModelTarget(settings_);
     if (!resources_.viewModelTargetValid()) {
         return false;
     }
@@ -516,12 +558,17 @@ void Renderer::endFirstPersonToolPass(
         };
         const float outlineEnabled =
             tuning.outlineEnabled ? 1.0F : 0.0F;
+        const float targetScale =
+            static_cast<float>(target.texture.width) /
+            static_cast<float>(std::max(GetRenderWidth(), 1));
+        const float scaledOutlineWidth =
+            tuning.outlineWidth * targetScale;
         SetShaderValue(shader, viewModelTexelSizeLocation_,
                        &texelSize, SHADER_UNIFORM_VEC2);
         SetShaderValue(shader, viewModelOutlineEnabledLocation_,
                        &outlineEnabled, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelOutlineWidthLocation_,
-                       &tuning.outlineWidth, SHADER_UNIFORM_FLOAT);
+                       &scaledOutlineWidth, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelOutlineStrengthLocation_,
                        &tuning.outlineStrength, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelRimStrengthLocation_,

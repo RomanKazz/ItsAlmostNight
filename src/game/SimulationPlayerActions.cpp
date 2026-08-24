@@ -242,9 +242,8 @@ void Simulation::updatePlayerActions(
     constexpr bool automaticToolSwitch = true;
     // Smart Tools chooses the matching unlocked tool. When the player holds
     // another tool but has not unlocked the match yet, hands are the safe
-    // universal fallback. Explicit Bare Hands stays intentional.
-    if (automaticToolSwitch && !selectedBuilding_ && aimedResource_ &&
-        heldTool != PlayerWeapon::BareHands) {
+    // universal fallback. This also upgrades hands to an unlocked match.
+    if (automaticToolSwitch && !selectedBuilding_ && aimedResource_) {
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,
             &ResourceNode::id);
@@ -324,6 +323,8 @@ void Simulation::updatePlayerActions(
                     events_.push_back({
                         .type = GameEventType::EnemyKilled,
                         .entityId = fire->targetId,
+                        .enemyType = fire->targetType,
+                        .enemyEliteAffixes = fire->targetEliteAffixes,
                         .position = fire->hitPosition,
                     });
                     aimedEnemy_.reset();
@@ -428,6 +429,8 @@ void Simulation::updatePlayerActions(
                     events_.push_back({
                         .type = GameEventType::EnemyKilled,
                         .entityId = result.id,
+                        .enemyType = result.type,
+                        .enemyEliteAffixes = result.eliteAffixes,
                         .position = result.position,
                     });
                 }
@@ -454,6 +457,8 @@ void Simulation::updatePlayerActions(
                 events_.push_back({
                     .type = GameEventType::EnemyKilled,
                     .entityId = result->id,
+                    .enemyType = result->type,
+                    .enemyEliteAffixes = result->eliteAffixes,
                     .position = result->position,
                 });
                 aimedEnemy_.reset();
@@ -676,6 +681,8 @@ void Simulation::updatePlayerActions(
                 .type = GameEventType::EnemyKilled,
                 .entityId = hit.enemyId,
                 .sourceId = hit.projectileId,
+                .enemyType = hit.enemyType,
+                .enemyEliteAffixes = hit.enemyEliteAffixes,
                 .position = hit.position,
             });
             if (aimedEnemy_ && *aimedEnemy_ == hit.enemyId) {
@@ -723,6 +730,8 @@ void Simulation::updatePlayerActions(
                 .type = GameEventType::EnemyKilled,
                 .entityId = hit.enemyId,
                 .sourceId = hit.projectileId,
+                .enemyType = hit.enemyType,
+                .enemyEliteAffixes = hit.enemyEliteAffixes,
                 .position = hit.position,
             });
             if (aimedEnemy_ && *aimedEnemy_ == hit.enemyId) {

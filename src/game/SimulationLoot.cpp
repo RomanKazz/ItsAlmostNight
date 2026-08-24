@@ -404,11 +404,9 @@ void Simulation::updateLootEffects(
 
 void Simulation::processRunUpgradeCombatEffects(
     std::size_t firstGameplayEvent) {
-    struct RecentPlayerHit {
-        EntityId target;
-        double damage{};
-    };
-    std::vector<RecentPlayerHit> playerHits;
+    std::vector<RecentPlayerHit>& playerHits =
+        recentPlayerHitBuffer_;
+    playerHits.clear();
     const std::size_t eventLimit = events_.size();
     playerHits.reserve(eventLimit - std::min(firstGameplayEvent, eventLimit));
 
@@ -503,6 +501,8 @@ void Simulation::processRunUpgradeCombatEffects(
             events_.push_back({
                 .type = GameEventType::EnemyKilled,
                 .entityId = result->id,
+                .enemyType = result->type,
+                .enemyEliteAffixes = result->eliteAffixes,
                 .position = result->position,
             });
             if (harvestStacks > 0) {
@@ -577,7 +577,9 @@ void Simulation::launchSawSplinters(
     const double damageFraction = std::min(
         0.375, 0.225 + static_cast<double>(stacks - 1) * 0.05);
 
-    std::vector<const ResourceNode*> candidates;
+    std::vector<const ResourceNode*>& candidates =
+        sawCandidateBuffer_;
+    candidates.clear();
     candidates.reserve(resources_.nodes().size());
     for (const ResourceNode& node : resources_.nodes()) {
         if (!node.active || node.id == sourceId ||
@@ -650,12 +652,9 @@ void Simulation::launchSawSplinters(
 }
 
 void Simulation::updateSawSplinters(double deltaSeconds) {
-    struct ChainLaunch {
-        EntityId sourceId;
-        Vec3 position;
-        int depth;
-    };
-    std::vector<ChainLaunch> chainLaunches;
+    std::vector<PendingSawChainLaunch>& chainLaunches =
+        sawChainLaunchBuffer_;
+    chainLaunches.clear();
     for (PendingSawSplinter& splinter : pendingSawSplinters_) {
         splinter.remaining -= deltaSeconds;
         if (splinter.remaining > 0.0) {
@@ -705,7 +704,7 @@ void Simulation::updateSawSplinters(double deltaSeconds) {
         pendingSawSplinters_, [](const PendingSawSplinter& splinter) {
             return splinter.remaining <= 0.0;
         });
-    for (const ChainLaunch& launch : chainLaunches) {
+    for (const PendingSawChainLaunch& launch : chainLaunches) {
         launchSawSplinters(
             launch.sourceId, launch.position, launch.depth);
     }

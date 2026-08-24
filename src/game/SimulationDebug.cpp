@@ -107,6 +107,8 @@ void Simulation::castChainLightning(
             events_.push_back({
                 .type = GameEventType::EnemyKilled,
                 .entityId = current,
+                .enemyType = result->type,
+                .enemyEliteAffixes = result->eliteAffixes,
                 .position = result->position,
             });
             if (aimedEnemy_ == current) {

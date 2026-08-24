@@ -386,6 +386,37 @@ void App::drawWorldOverlays(
                 ? Color{135, 244, 169, 190}
                 : Color{255, 88, 76, 220});
     }
+    if (snapshot.selectedBuilding && snapshot.coreBuildRadius > 0) {
+        const auto core = std::ranges::find(
+            snapshot.buildings, BuildingType::Core,
+            &BuildingInstance::type);
+        if (core != snapshot.buildings.end()) {
+            const Vec3 center = buildingWorldPosition(*core);
+            constexpr int SegmentCount = 72;
+            Vector3 previous{};
+            for (int segment = 0; segment <= SegmentCount; ++segment) {
+                const float angle = 2.0F * PI *
+                    static_cast<float>(segment) /
+                    static_cast<float>(SegmentCount);
+                const Vector3 point{
+                    static_cast<float>(center.x) + std::cos(angle) *
+                        static_cast<float>(snapshot.coreBuildRadius),
+                    0.0F,
+                    static_cast<float>(center.z) + std::sin(angle) *
+                        static_cast<float>(snapshot.coreBuildRadius)};
+                const Vector3 grounded{
+                    point.x,
+                    static_cast<float>(simulation_.terrain().getHeight(
+                        point.x, point.z)) + 0.08F,
+                    point.z};
+                if (segment > 0) {
+                    DrawLine3D(previous, grounded,
+                        {255, 190, 74, 190});
+                }
+                previous = grounded;
+            }
+        }
+    }
     if (snapshot.buildingPreview) {
         const Vec3 targetCenter = buildingWorldPosition(
             snapshot.buildingPreview->type,

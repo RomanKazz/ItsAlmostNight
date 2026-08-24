@@ -264,6 +264,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::GunTurret),
             buildingUnlocked(BuildingType::Catapult),
         },
+        .coreBuildRadius = buildings_.coreBuildRadius(),
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
         .buildings = std::span<const BuildingInstance>{buildings_.buildings()},

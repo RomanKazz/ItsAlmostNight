@@ -400,6 +400,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             shotBuffer_.push_back({
                 .towerId = tower.buildingId,
                 .targetId = candidate.id,
+                .targetType = damageResult->type,
+                .targetEliteAffixes = damageResult->eliteAffixes,
                 .origin = origin,
                 .hitPosition = candidate.hitPosition,
                 .type = building->type,

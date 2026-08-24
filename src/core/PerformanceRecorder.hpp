@@ -33,6 +33,10 @@ struct PerformanceFrameRecord {
     double decorationsMs{};
     double grassMs{};
     double environmentMs{};
+    double pondDecorMs{};
+    double waterMs{};
+    double cloudMs{};
+    double atmosphereMs{};
     double overlaysMs{};
     double postProcessMs{};
     double uiMs{};

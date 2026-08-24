@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CameraCulling.hpp"
 
 #include <raymath.h>
 #include <rlgl.h>
@@ -87,13 +88,14 @@ float pathEdgeRockAmount(
     return closeToPath * outsideCore;
 }
 
-
 } // namespace
 
 void Renderer::drawDecorativeRocks(
-    Vector3 cameraPosition, float worldLimit,
+    const Camera3D& camera, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
     ensureGrassClearAreaIndex(clearAreas);
+    const Vector3 cameraPosition = camera.position;
+    const auto cameraView = camera_culling::horizontalView(camera);
     constexpr std::size_t VariantCount = 4U;
     constexpr float Spacing = 4.45F;
     const float DrawRadius =
@@ -461,8 +463,12 @@ void Renderer::drawDecorativeRocks(
                 instance.position.x - cameraPosition.x;
             const float offsetZ =
                 instance.position.y - cameraPosition.z;
-            if (offsetX * offsetX + offsetZ * offsetZ <=
-                    DrawRadius * DrawRadius &&
+            const float distanceSquared =
+                offsetX * offsetX + offsetZ * offsetZ;
+            if (distanceSquared <= DrawRadius * DrawRadius &&
+                camera_culling::visibleInHorizontalCone(
+                    offsetX, offsetZ, distanceSquared,
+                    cameraView, 3.0F) &&
                 !decorationExclusionMap_.blocked(
                     instance.position.x, instance.position.y) &&
                 clearAreaVisibility(
@@ -494,6 +500,9 @@ void Renderer::drawDecorativeRocks(
             const bool keepDistantDetail =
                 stableNoise <= 1.0F - detailFade * 0.42F;
             if (distanceSquared <= BushDrawRadius * BushDrawRadius &&
+                camera_culling::visibleInHorizontalCone(
+                    offsetX, offsetZ, distanceSquared,
+                    cameraView, 4.5F) &&
                 keepDistantDetail &&
                 !decorationExclusionMap_.blocked(
                     instance.position.x, instance.position.y) &&
@@ -523,20 +532,11 @@ void Renderer::drawDecorativeRocks(
         shader, worldInstancingEnabledLocation_, &enabled,
         SHADER_UNIFORM_INT);
     setSkinningEnabled(shader, false);
-    const auto drawInstanced = [&shader](
+    const auto drawInstanced = [this, &shader](
                                    Model& model,
                                    const std::vector<Matrix>& transforms) {
-        for (int meshIndex = 0; meshIndex < model.meshCount;
-             ++meshIndex) {
-            const int materialIndex = model.meshMaterial[meshIndex];
-            Material material = model.materials[materialIndex];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                transforms.data(),
-                static_cast<int>(transforms.size()));
-        }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, transforms));
     };
     for (std::size_t variant = 0; variant < VariantCount; ++variant) {
         if (decorativeRockTransforms_[variant].empty() ||
@@ -599,13 +599,15 @@ void Renderer::drawDecorativeRocks(
 }
 
 void Renderer::drawDecorativeRockAo(
-    Vector3 cameraPosition, float worldLimit,
+    const Camera3D& camera, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {
     ensureGrassClearAreaIndex(clearAreas);
     if (!blobShadowBatchOpen_ ||
         terrainHeightfield_ == nullptr) {
         return;
     }
+    const Vector3 cameraPosition = camera.position;
+    const auto cameraView = camera_culling::horizontalView(camera);
     constexpr float Spacing = 4.45F;
     constexpr float DrawRadius = 34.0F;
     constexpr float CoreClearRadius = 10.5F;
@@ -636,8 +638,12 @@ void Renderer::drawDecorativeRockAo(
                     instance.position.x - cameraPosition.x;
                 const float offsetZ =
                     instance.position.y - cameraPosition.z;
-                if (offsetX * offsetX + offsetZ * offsetZ >
-                    DrawRadius * DrawRadius) {
+                const float distanceSquared =
+                    offsetX * offsetX + offsetZ * offsetZ;
+                if (distanceSquared > DrawRadius * DrawRadius ||
+                    !camera_culling::visibleInHorizontalCone(
+                        offsetX, offsetZ, distanceSquared,
+                        cameraView, 3.0F)) {
                     continue;
                 }
                 if (decorationExclusionMap_.blocked(
@@ -671,8 +677,12 @@ void Renderer::drawDecorativeRockAo(
                     instance.position.x - cameraPosition.x;
                 const float offsetZ =
                     instance.position.y - cameraPosition.z;
-                if (offsetX * offsetX + offsetZ * offsetZ >
-                    BushDrawRadius * BushDrawRadius) {
+                const float distanceSquared =
+                    offsetX * offsetX + offsetZ * offsetZ;
+                if (distanceSquared > BushDrawRadius * BushDrawRadius ||
+                    !camera_culling::visibleInHorizontalCone(
+                        offsetX, offsetZ, distanceSquared,
+                        cameraView, 4.5F)) {
                     continue;
                 }
                 if (decorationExclusionMap_.blocked(
@@ -768,8 +778,12 @@ void Renderer::drawDecorativeRockAo(
             }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
-            if (cameraX * cameraX + cameraZ * cameraZ >
-                DrawRadius * DrawRadius) {
+            const float distanceSquared =
+                cameraX * cameraX + cameraZ * cameraZ;
+            if (distanceSquared > DrawRadius * DrawRadius ||
+                !camera_culling::visibleInHorizontalCone(
+                    cameraX, cameraZ, distanceSquared,
+                    cameraView, 3.0F)) {
                 continue;
             }
             const float visibility = clearAreaVisibility(
@@ -856,8 +870,12 @@ void Renderer::drawDecorativeRockAo(
             }
             const float cameraX = x - cameraPosition.x;
             const float cameraZ = z - cameraPosition.z;
-            if (cameraX * cameraX + cameraZ * cameraZ >
-                BushDrawRadius * BushDrawRadius) {
+            const float distanceSquared =
+                cameraX * cameraX + cameraZ * cameraZ;
+            if (distanceSquared > BushDrawRadius * BushDrawRadius ||
+                !camera_culling::visibleInHorizontalCone(
+                    cameraX, cameraZ, distanceSquared,
+                    cameraView, 4.5F)) {
                 continue;
             }
             const float visibility = clearAreaVisibility(
@@ -892,7 +910,7 @@ void Renderer::drawDecorativeRockAo(
     }
 }
 
-void Renderer::drawBoundaryForest() {
+void Renderer::drawBoundaryForest(const Camera3D& camera) {
     if (!worldShaderActive_ ||
         terrainHeightfield_ == nullptr ||
         !resources_.worldShader().valid()) {
@@ -913,6 +931,9 @@ void Renderer::drawBoundaryForest() {
         config.terrainWorldSize * 0.5 -
         config.terrainBoundaryRiseWidth + 0.5);
     const float forestOuterLimit = terrainLimit - 0.5F;
+    const auto cameraView = camera_culling::horizontalView(camera);
+    const float maximumDrawDistance = static_cast<float>(
+        config.terrainRenderDistance + 28.0);
     const int minimumX = static_cast<int>(std::floor(
         -terrainLimit / Spacing));
     const int maximumX = static_cast<int>(std::ceil(
@@ -1020,50 +1041,47 @@ void Renderer::drawBoundaryForest() {
             continue;
         }
         Model& model = resource.get();
-        const Matrix* transforms =
-            boundaryForestTransforms_[variant].data();
-        int transformCount = static_cast<int>(
+        auto& visibleTransforms =
+            boundaryForestVisibleTransforms_[variant];
+        visibleTransforms.clear();
+        visibleTransforms.reserve(
             boundaryForestTransforms_[variant].size());
-        if (worldRevealElapsed_ < 1.7F) {
-            auto& revealTransforms =
-                boundaryForestRevealTransforms_[variant];
-            revealTransforms.clear();
-            revealTransforms.reserve(
-                boundaryForestTransforms_[variant].size());
-            for (const Matrix transform :
-                 boundaryForestTransforms_[variant]) {
+        for (const Matrix& transform :
+             boundaryForestTransforms_[variant]) {
+            const float offsetX = transform.m12 - camera.position.x;
+            const float offsetZ = transform.m14 - camera.position.z;
+            const float distanceSquared =
+                offsetX * offsetX + offsetZ * offsetZ;
+            if (distanceSquared >
+                    maximumDrawDistance * maximumDrawDistance ||
+                !camera_culling::visibleInHorizontalCone(
+                    offsetX, offsetZ, distanceSquared,
+                    cameraView, 16.0F)) {
+                continue;
+            }
+            if (worldRevealElapsed_ < 1.7F) {
                 const float revealScale =
                     worldRevealScaleAt(
                         {transform.m12, transform.m14});
                 if (revealScale <= 0.001F) {
                     continue;
                 }
-                revealTransforms.push_back(
+                visibleTransforms.push_back(
                     MatrixMultiply(
                         MatrixScale(
                             revealScale,
                             revealScale,
                             revealScale),
                         transform));
-            }
-            transforms = revealTransforms.data();
-            transformCount = static_cast<int>(
-                revealTransforms.size());
-            if (transformCount == 0) {
-                continue;
+            } else {
+                visibleTransforms.push_back(transform);
             }
         }
-        for (int meshIndex = 0; meshIndex < model.meshCount;
-             ++meshIndex) {
-            const int materialIndex =
-                model.meshMaterial[meshIndex];
-            Material material = model.materials[materialIndex];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                transforms, transformCount);
+        if (visibleTransforms.empty()) {
+            continue;
         }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, visibleTransforms));
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();

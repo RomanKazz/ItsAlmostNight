@@ -47,10 +47,13 @@ void App::drawFloatingDamageNumbers(
             0.0F, 1.0F);
         const auto alpha = static_cast<unsigned char>(
             std::lround(fade * 255.0F));
-        const int fontSize =
-            (number.critical ? 50 : 40) +
-            static_cast<int>(
-                std::lround(std::sin(progress * PI) * 7.0F));
+        const float distance = Vector3Length(toNumber);
+        const float distanceScale = std::clamp(
+            1.18F - (distance - 3.0F) / 42.0F * 0.52F,
+            0.66F, 1.18F);
+        const int fontSize = static_cast<int>(std::lround(
+            ((number.critical ? 50.0F : 40.0F) +
+             std::sin(progress * PI) * 7.0F) * distanceScale));
         const char* text = TextFormat("-%.1f", number.damage);
         const float x =
             screenPosition.x -
@@ -392,12 +395,14 @@ float App::buildingAnimationScaleAt(
     return scale;
 }
 
-std::vector<ModularAnimationScale>
+std::span<const ModularAnimationScale>
 App::modularAnimationScales(
     const SimulationSnapshot& snapshot) const {
     const double cellSize =
         simulation_.terrain().config().cellSize;
-    std::vector<ModularAnimationScale> scales;
+    std::vector<ModularAnimationScale>& scales =
+        modularAnimationScaleBuffer_;
+    scales.clear();
     scales.reserve(
         snapshot.platformFrames.size() +
         snapshot.modularWalls.size() +
@@ -455,7 +460,7 @@ App::modularAnimationScales(
                     cellSize,
             });
     }
-    return scales;
+    return std::span<const ModularAnimationScale>{scales};
 }
 
 float App::productionScaleAt(

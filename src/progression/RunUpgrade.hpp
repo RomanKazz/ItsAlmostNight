@@ -13,6 +13,7 @@ enum class RunUpgradeEffect {
     MaximumHealth,
     RecoverableArmor,
     BuildingHealth,
+    BuildRadius,
     DefenseDamage,
     DefenseFireRate,
     ProductionSpeed,
@@ -28,7 +29,7 @@ enum class RunUpgradeEffect {
     Salvager,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 19U;
+inline constexpr std::size_t RunUpgradeEffectCount = 20U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -53,6 +54,8 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+8 recoverable armor."},
         {RunUpgradeEffect::BuildingHealth, "SOLID FOUNDATIONS",
          "+12% maximum health for all structures."},
+        {RunUpgradeEffect::BuildRadius, "EXPANDED PERIMETER",
+         "+3 meters to the building radius around the core."},
         {RunUpgradeEffect::DefenseDamage, "CALIBRATED SIGHTS",
          "+12% damage for defensive structures."},
         {RunUpgradeEffect::DefenseFireRate, "CLOCKWORK SPRINGS",

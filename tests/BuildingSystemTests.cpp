@@ -12,17 +12,23 @@ void runBuildingSystemTests() {
     unlocked[static_cast<std::size_t>(ian::BuildingType::GunTurret)] = true;
     auto hotbar = ian::makeBuildingHotbarLayout(unlocked);
     require(
-        hotbar.count == 3U &&
+        hotbar.count == ian::GameBalance::BuildingTypeCount &&
             hotbar.types[0] == ian::BuildingType::Core &&
             hotbar.types[1] == ian::BuildingType::Wall &&
-            hotbar.types[2] == ian::BuildingType::GunTurret,
-        "starter turret occupies the third visible number slot");
+            hotbar.types[2] == ian::BuildingType::GunTurret &&
+            hotbar.types[3] == ian::BuildingType::Turret,
+        "locked buildings keep permanent visible slots");
     unlocked[static_cast<std::size_t>(ian::BuildingType::Turret)] = true;
     hotbar = ian::makeBuildingHotbarLayout(unlocked);
     require(
-        hotbar.count == 4U &&
+        hotbar.count == ian::GameBalance::BuildingTypeCount &&
             hotbar.types[3] == ian::BuildingType::Turret,
-        "newly unlocked crossbow receives the next visible number slot");
+        "unlocking a building does not move hotbar slots");
+
+    ian::BuildingSystem radiusBuildings;
+    radiusBuildings.setCoreBuildRadius(5);
+    require(radiusBuildings.coreBuildRadius() == 5,
+            "core build radius can be upgraded at runtime");
 
     ian::BuildingSystem starterDefense;
     const auto starterCore = starterDefense.place(

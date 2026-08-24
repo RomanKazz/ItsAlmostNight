@@ -685,15 +685,10 @@ void App::drawGraphicsPanel() {
     } else if (graphicsPanelTab_ == AccessibilityPage) {
         auto& accessibility = userSettings_.accessibility;
         float y = panelY + ControlStartY;
-        if (ui_.drawToggleButton(
-                {contentX, y, contentWidth, ButtonHeight},
-                accessibility.reduceFlashes
-                    ? "REDUCE FLASHES: ON"
-                    : "REDUCE FLASHES: OFF",
-                accessibility.reduceFlashes)) {
-            accessibility.reduceFlashes =
-                !accessibility.reduceFlashes;
-        }
+        toggleButton(
+            0, y, "FPS COUNTER", accessibility.showFps);
+        toggleButton(
+            1, y, "REDUCE FLASHES", accessibility.reduceFlashes);
         y += ButtonHeight + Gap;
         const std::string languageLabel =
             std::string("LANGUAGE: ") +

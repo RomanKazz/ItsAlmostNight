@@ -5,6 +5,7 @@
     "ru": {
       "SETTINGS": "НАСТРОЙКИ",
       "START RUN": "НАЧАТЬ ИГРУ",
+      "CONTINUE RUN": "ПРОДОЛЖИТЬ ЗАБЕГ",
       "CHOOSE YOUR CLASS": "ВЫБЕРИТЕ КЛАСС",
       "CLASS COLLECTION": "КОЛЛЕКЦИЯ КЛАССОВ",
       "COLLECTION": "КОЛЛЕКЦИЯ",
@@ -68,6 +69,8 @@
       "RIFLE · HOURGLASS · ROPE": "ВИНТОВКА · ЧАСЫ · ВЕРЁВКА",
       "TREE OF KNOWLEDGE": "ДРЕВО ЗНАНИЙ",
       "EXIT GAME": "ВЫЙТИ ИЗ ИГРЫ",
+      "SAVE & MAIN MENU": "СОХРАНИТЬ И В МЕНЮ",
+      "SAVE & EXIT": "СОХРАНИТЬ И ВЫЙТИ",
       "FORTBONK": "FORTBONK",
       "BUILD. DEFEND. BONK.": "СТРОЙ. ЗАЩИЩАЙ. БЕЙ.",
       "IT'S ALMOST NIGHT": "СКОРО НАСТУПИТ НОЧЬ",

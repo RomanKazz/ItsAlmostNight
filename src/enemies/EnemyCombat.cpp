@@ -76,6 +76,7 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     enemy->hitAnimationRemaining = 0.22;
     const bool killed = enemy->health <= 0.0;
     const EnemyType killedType = enemy->type;
+    const std::uint8_t killedAffixes = enemy->eliteAffixes;
     const Vec3 killedPosition = enemy->position;
     const double eliteHealthMultiplier =
         enemy->eliteAffixes != 0U ? 1.6 : 1.0;
@@ -92,6 +93,8 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     }
     const EnemyDamageResult result{
         .id = id,
+        .type = killedType,
+        .eliteAffixes = killedAffixes,
         .position = killedPosition,
         .damage = previousHealth - enemy->health,
         .remainingHealth = enemy->health,
@@ -331,6 +334,7 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         enemy->hitAnimationRemaining = 0.22;
         const bool killed = enemy->health <= 0.0;
         const EnemyType killedType = enemy->type;
+        const std::uint8_t killedAffixes = enemy->eliteAffixes;
         const double childHealthMultiplier = enemy->maxHealth /
             definitions_[static_cast<std::size_t>(enemy->type)].health /
             (enemy->eliteAffixes != 0U ? 1.6 : 1.0);
@@ -342,6 +346,8 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         }
         areaDamageBuffer_.push_back({
             .id = enemy->id,
+            .type = killedType,
+            .eliteAffixes = killedAffixes,
             .position = enemy->position,
             .damage = previousHealth - enemy->health,
             .remainingHealth = enemy->health,

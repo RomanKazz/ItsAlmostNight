@@ -50,6 +50,10 @@ struct IceWandHit {
     bool killed{};
     bool alreadyFrozen{};
     bool periodicBurn{};
+    // Stored in the original tail padding, keeping the 512-entry fixed
+    // buffer from increasing Simulation's already large stack footprint.
+    EnemyType enemyType{EnemyType::Basic};
+    std::uint8_t enemyEliteAffixes{};
 };
 
 struct IceWandImpact {

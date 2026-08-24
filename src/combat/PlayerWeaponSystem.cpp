@@ -30,6 +30,17 @@ void PlayerWeaponSystem::setRifleSkillModifiers(
 
 void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) { selectedWeapon_ = weapon; }
 
+void PlayerWeaponSystem::restoreState(
+    PlayerWeapon selectedWeapon, int rifleLevel) {
+    rifleLevel_ = std::clamp(
+        rifleLevel, 1,
+        static_cast<int>(definition_.upgradeCrystal.size()) + 1);
+    ammunition_ = magazineSize();
+    fireCooldownRemaining_ = 0.0;
+    reloadRemaining_ = 0.0;
+    selectedWeapon_ = selectedWeapon;
+}
+
 void PlayerWeaponSystem::tick(double deltaSeconds) {
     fireCooldownRemaining_ = std::max(0.0, fireCooldownRemaining_ - deltaSeconds);
     if (reloadRemaining_ <= 0.0) {
@@ -60,6 +71,8 @@ std::optional<WeaponFireResult> PlayerWeaponSystem::fireRifle(Vec3 origin, Vec3 
             *targetId, rifleDamage() * std::max(damageMultiplier, 0.0));
         if (target && damage) {
             result.targetId = *targetId;
+            result.targetType = damage->type;
+            result.targetEliteAffixes = damage->eliteAffixes;
             result.hitPosition = target->position;
             result.damage = damage->damage;
             result.killed = damage->killed;

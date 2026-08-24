@@ -1782,6 +1782,7 @@ bool Renderer::drawSpikeTrap(
             ColorTint(original, tint);
         DrawMesh(model.meshes[meshIndex], material, transform);
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
     if (model.meshCount < 2) {
         DrawModelEx(
@@ -1996,22 +1997,8 @@ bool Renderer::drawRocksInstanced(
         if (resourceRockTransforms_[variant].empty()) continue;
         ModelResource& resource = resources_.rockModel(variant);
         Model& model = resource.get();
-        for (int meshIndex = 0; meshIndex < model.meshCount;
-             ++meshIndex) {
-            if (!resource.meshValid(
-                    static_cast<std::size_t>(meshIndex))) continue;
-            const int materialIndex = model.meshMaterial[meshIndex];
-            if (materialIndex < 0 ||
-                materialIndex >= model.materialCount) continue;
-            Material material = model.materials[materialIndex];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                resourceRockTransforms_[variant].data(),
-                static_cast<int>(
-                    resourceRockTransforms_[variant].size()));
-        }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, resourceRockTransforms_[variant]));
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();
@@ -2166,25 +2153,8 @@ bool Renderer::drawTreesInstanced(
             continue;
         }
         Model& model = resources_.treeModel(variant).get();
-        for (int meshIndex = 0; meshIndex < model.meshCount;
-             ++meshIndex) {
-            if (!resources_.treeModel(variant).meshValid(
-                    static_cast<std::size_t>(meshIndex))) {
-                continue;
-            }
-            const int materialIndex = model.meshMaterial[meshIndex];
-            if (materialIndex < 0 || materialIndex >= model.materialCount) {
-                continue;
-            }
-            Material material = model.materials[materialIndex];
-            material.shader = shader;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = WHITE;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                resourceTreeTransforms_[variant].data(),
-                static_cast<int>(
-                    resourceTreeTransforms_[variant].size()));
-        }
+        static_cast<void>(instanceBuffers_.drawModel(
+            model, shader, resourceTreeTransforms_[variant]));
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();
@@ -2509,6 +2479,11 @@ bool Renderer::drawEnemiesInstanced(
         return false;
     }
     const auto drawStart = PerformanceClock::now();
+    ++enemyBatchFrame_;
+    if (enemyBatchFrame_ == 0U) {
+        enemyBatchFrame_ = 1U;
+        enemyBatches_.clear();
+    }
 
     const auto modelFor = [this](EnemyModelVisual visual)
         -> ModelResource* {
@@ -2586,9 +2561,10 @@ bool Renderer::drawEnemiesInstanced(
         const bool batchLoop = lowDetail ? true : instance.loop;
         const EnemyBatchKey key{
             instance.modelVisual, batchAnimation, batchFrame,
-            tint, static_cast<int>(std::lround(instance.scale * 1000.0F)),
-            batchLoop, lowDetail, instance.inkOutlineEligible};
+            tint, batchLoop, lowDetail,
+            instance.inkOutlineEligible};
         EnemyBatch& batch = enemyBatches_[key];
+        batch.lastUsedFrame = enemyBatchFrame_;
         if (batch.transforms.empty()) {
             batch.representative = instance;
             batch.representative.animationSeconds =
@@ -2628,11 +2604,24 @@ bool Renderer::drawEnemiesInstanced(
     }
 
     Shader& shader = resources_.worldShader().get();
-    const int enabled = 1;
+    int instancingValue = 1;
+    bool instancingEnabled = true;
     rlDrawRenderBatchActive();
     SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &enabled,
+        shader, worldInstancingEnabledLocation_, &instancingValue,
         SHADER_UNIFORM_INT);
+    const auto setInstancing = [this, &shader, &instancingEnabled,
+                                &instancingValue](bool enabled) {
+        if (enabled == instancingEnabled) {
+            return;
+        }
+        rlDrawRenderBatchActive();
+        instancingValue = enabled ? 1 : 0;
+        SetShaderValue(
+            shader, worldInstancingEnabledLocation_, &instancingValue,
+            SHADER_UNIFORM_INT);
+        instancingEnabled = enabled;
+    };
 
     std::size_t nonEmptyBatchCount = 0U;
     const bool originalInkOutlineEligible =
@@ -2647,6 +2636,11 @@ bool Renderer::drawEnemiesInstanced(
             ++nonEmptyBatchCount;
             const EnemyDrawInstance& representative =
                 batch.representative;
+            const bool multipleInstances =
+                batch.transforms.size() > 1U;
+            const InstanceBatch instanceBatch = multipleInstances
+                ? instanceBuffers_.upload(batch.transforms)
+                : InstanceBatch{};
             WorldMaterialState batchMaterial = worldMaterial_;
             batchMaterial.inkOutlineEligible =
                 representative.inkOutlineEligible;
@@ -2655,14 +2649,23 @@ bool Renderer::drawEnemiesInstanced(
                 setSkinningEnabled(shader, false);
                 Material material = enemyCrowdLodModel_.materials[0];
                 material.shader = shader;
+                const Color original =
+                    material.maps[MATERIAL_MAP_DIFFUSE].color;
                 material.maps[MATERIAL_MAP_DIFFUSE].color =
                     crowdLodTint(
                         representative.modelVisual,
                         representative.tint);
-                DrawMeshInstanced(
-                    enemyCrowdLodModel_.meshes[0], material,
-                    batch.transforms.data(),
-                    static_cast<int>(batch.transforms.size()));
+                setInstancing(multipleInstances);
+                if (multipleInstances) {
+                    instanceBuffers_.drawMesh(
+                        enemyCrowdLodModel_.meshes[0], material,
+                        instanceBatch);
+                } else {
+                    DrawMesh(
+                        enemyCrowdLodModel_.meshes[0], material,
+                        batch.transforms.front());
+                }
+                material.maps[MATERIAL_MAP_DIFFUSE].color = original;
                 continue;
             }
         ModelResource* resource =
@@ -2768,21 +2771,26 @@ bool Renderer::drawEnemiesInstanced(
             }
             Material material = model.materials[materialIndex];
             material.shader = shader;
+            const Color original =
+                material.maps[MATERIAL_MAP_DIFFUSE].color;
             material.maps[MATERIAL_MAP_DIFFUSE].color =
                 representative.tint;
-            DrawMeshInstanced(
-                model.meshes[meshIndex], material,
-                batch.transforms.data(),
-                static_cast<int>(batch.transforms.size()));
+            setInstancing(multipleInstances);
+            if (multipleInstances) {
+                instanceBuffers_.drawMesh(
+                    model.meshes[meshIndex], material,
+                    instanceBatch);
+            } else {
+                DrawMesh(
+                    model.meshes[meshIndex], material,
+                    batch.transforms.front());
+            }
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
         }
         }
     }
 
-    const int disabled = 0;
-    rlDrawRenderBatchActive();
-    SetShaderValue(
-        shader, worldInstancingEnabledLocation_, &disabled,
-        SHADER_UNIFORM_INT);
+    setInstancing(false);
     setSkinningEnabled(shader, false);
     WorldMaterialState restoredMaterial = worldMaterial_;
     restoredMaterial.inkOutlineEligible = originalInkOutlineEligible;
@@ -2801,6 +2809,18 @@ bool Renderer::drawEnemiesInstanced(
         performanceStats_.enemyBatchCount, nonEmptyBatchCount);
     performanceStats_.lowDetailEnemyCount = std::max(
         performanceStats_.lowDetailEnemyCount, lowDetailCount);
+    constexpr std::size_t MaximumCachedEnemyBatches = 256U;
+    constexpr std::uint64_t EnemyBatchRetentionFrames = 120U;
+    if (enemyBatches_.size() > MaximumCachedEnemyBatches &&
+        enemyBatchFrame_ % EnemyBatchRetentionFrames == 0U) {
+        std::erase_if(
+            enemyBatches_,
+            [this](const auto& entry) {
+                return enemyBatchFrame_ -
+                        entry.second.lastUsedFrame >
+                    EnemyBatchRetentionFrames;
+            });
+    }
     return true;
 }
 

@@ -36,7 +36,7 @@ void settingsRoundTrip() {
         written.controls, ian::ControlAction::Interact, KEY_F);
     ian::setControlKey(
         written.controls, ian::ControlAction::Attack, KEY_T);
-    written.accessibility.showFps = false;
+    written.accessibility.showFps = true;
     written.accessibility.reduceFlashes = true;
     written.language = ian::Language::Russian;
 
@@ -74,7 +74,7 @@ void settingsRoundTrip() {
                 ian::controlKey(
                     loaded.controls, ian::ControlAction::Attack) == KEY_T,
             "key bindings survive settings round trip");
-    require(!loaded.accessibility.showFps &&
+    require(loaded.accessibility.showFps &&
                 loaded.accessibility.reduceFlashes,
             "accessibility settings survive round trip");
     require(loaded.language == ian::Language::Russian,

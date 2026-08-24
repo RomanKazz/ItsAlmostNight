@@ -25,6 +25,211 @@ void unlockHammer(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        constexpr std::uint32_t SavedSeed = 0x4f52544bU;
+        auto original = std::make_unique<ian::Simulation>();
+        auto restored = std::make_unique<ian::Simulation>();
+        original->startRunFromSeed(
+            ian::PlayerClass::Prospector, SavedSeed);
+        restored->startRunFromSeed(
+            ian::PlayerClass::Prospector, SavedSeed);
+        ian::PlayerCommand movement;
+        movement.moveForward = 1.0;
+        movement.lookYaw = 0.16;
+        for (int tick = 0; tick < 90; ++tick) {
+            original->tick(1.0 / 60.0, movement);
+            restored->tick(1.0 / 60.0, movement);
+            movement.lookYaw = 0.0;
+        }
+        require(
+            original->snapshot().terrainSeed == SavedSeed &&
+                restored->snapshot().terrainSeed == SavedSeed &&
+                original->snapshot().tick == restored->snapshot().tick &&
+                std::abs(original->snapshot().playerPosition.x -
+                    restored->snapshot().playerPosition.x) < 1e-12 &&
+                std::abs(original->snapshot().playerPosition.y -
+                    restored->snapshot().playerPosition.y) < 1e-12 &&
+                std::abs(original->snapshot().playerPosition.z -
+                    restored->snapshot().playerPosition.z) < 1e-12,
+            "saved seed and input replay restore deterministic run state");
+    }
+    {
+        constexpr std::uint32_t SavedSeed = 0x43484543U;
+        auto original = std::make_unique<ian::Simulation>();
+        original->startRunFromSeed(
+            ian::PlayerClass::Prospector, SavedSeed);
+        ian::PlayerCommand movement;
+        movement.moveForward = 1.0;
+        movement.lookYaw = 0.2;
+        for (int tick = 0; tick < 30; ++tick) {
+            original->tick(1.0 / 60.0, movement);
+            movement.lookYaw = 0.0;
+        }
+        original->grantSkillPoints(2, ian::SkillPointSource::Event);
+        original->grantLootUpgrade(
+            ian::LootUpgradeEffect::Magnet,
+            ian::LootRarity::Rare);
+
+        ian::SuspendedRunState checkpoint =
+            original->saveSuspendedRunState();
+        checkpoint.wave = 7;
+        checkpoint.bestWave = 7;
+        checkpoint.wood = 17;
+        checkpoint.stone = 11;
+        checkpoint.crystals = 3;
+        checkpoint.coins = 29;
+        checkpoint.bombs = 2;
+        checkpoint.coreBuildRadius = 15;
+        checkpoint.buildings.push_back({
+            .id = {1000U, 1U},
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+            .health = 420.0,
+            .maxHealth = 500.0,
+        });
+        ian::FoundationSystem savedFoundations{original->terrain()};
+        std::optional<ian::PlatformFrameInstance> savedFrame;
+        for (int z = -20; z <= 20 && !savedFrame; z += 2) {
+            for (int x = -20; x <= 20 && !savedFrame; x += 2) {
+                const double height = original->terrain().getHeight(x, z);
+                const ian::Vec3 hit{
+                    static_cast<double>(x), height,
+                    static_cast<double>(z)};
+                const auto placement = savedFoundations.previewFoundation(
+                    hit, {hit.x, height + 1.7, hit.z});
+                if (placement.valid()) {
+                    savedFrame =
+                        savedFoundations.placePlatformFrame(placement);
+                }
+            }
+        }
+        require(savedFrame.has_value(),
+                "checkpoint fixture finds a valid modular foundation");
+        checkpoint.platformFrames.assign(
+            savedFoundations.platformFrames().begin(),
+            savedFoundations.platformFrames().end());
+        require(!checkpoint.resourceNodes.empty() &&
+                    !checkpoint.lootChests.empty() &&
+                    !checkpoint.challengeColumns.empty() &&
+                    !checkpoint.worldLandmarks.empty() &&
+                    !checkpoint.objectives.statuses.empty(),
+                "checkpoint fixture has persistent world state");
+        checkpoint.resourceNodes.front().active = false;
+        checkpoint.resourceNodes.front().health = 0.0;
+        checkpoint.resourceNodes.front().yieldRemaining = 0;
+        checkpoint.resourceNodes.front().respawnRemaining = 5.0;
+        const std::size_t savedChestCount =
+            checkpoint.lootChests.size() - 1U;
+        checkpoint.lootChests.erase(checkpoint.lootChests.begin());
+        checkpoint.challengeColumns.front().state =
+            ian::ChallengeColumnState::Completed;
+        checkpoint.challengeColumns.front().completionProgress = 0.75;
+        checkpoint.worldLandmarks.front().activated = true;
+        checkpoint.worldLandmarks.front().productionProgress = 3.25;
+        checkpoint.insight.progress.currentInsight = 17.0;
+        checkpoint.insight.progress.totalInsightEarned = 17.0;
+        checkpoint.objectives.statuses.front().progress = 0.5;
+        checkpoint.runStatistics.structuresBuilt = 9;
+
+        auto restored = std::make_unique<ian::Simulation>();
+        require(restored->loadSuspendedRunState(checkpoint),
+                "checkpoint loads without replaying prior ticks");
+        const auto& snapshot = restored->snapshot();
+        require(
+            snapshot.state == ian::RunState::BuildPhase &&
+                snapshot.playerClass == ian::PlayerClass::Prospector &&
+                snapshot.terrainSeed == SavedSeed && snapshot.wave == 7 &&
+                snapshot.wood == 17 && snapshot.stone == 11 &&
+                snapshot.crystals == 3 && snapshot.coins == 29 &&
+                snapshot.bombsRemaining == 2 &&
+                snapshot.skillPoints == 2 &&
+                snapshot.coreBuildRadius == 15 &&
+                snapshot.buildings.size() == 1 &&
+                snapshot.buildings.front().health == 420.0 &&
+                snapshot.platformFrames.size() == 1U &&
+                snapshot.platformFrames.front().id == savedFrame->id &&
+                !snapshot.resourceNodes.front().active &&
+                snapshot.resourceNodes.front().respawnRemaining == 5.0 &&
+                snapshot.lootChests.size() == savedChestCount &&
+                snapshot.challengeColumns.front().state ==
+                    ian::ChallengeColumnState::Completed &&
+                snapshot.worldLandmarks.front().activated &&
+                snapshot.worldLandmarks.front().productionProgress == 3.25 &&
+                snapshot.currentInsight == 17.0 &&
+                snapshot.objectives.front().progress == 0.5 &&
+                snapshot.runStatistics.structuresBuilt == 9 &&
+                snapshot.lootStacks[ian::lootUpgradeIndex(
+                    ian::LootUpgradeEffect::Magnet)] == 1,
+            "checkpoint preserves run progression and mutable world state");
+        requireNear(snapshot.playerPosition.x,
+                    checkpoint.playerPosition.x, 1e-12,
+                    "checkpoint preserves player X position");
+        requireNear(snapshot.playerPosition.z,
+                    checkpoint.playerPosition.z, 1e-12,
+                    "checkpoint preserves player Z position");
+        require(snapshot.enemies.empty(),
+                "checkpoint resumes safely without stale combat actors");
+
+        ian::SuspendedRunState duplicateIds = checkpoint;
+        duplicateIds.buildings.push_back(duplicateIds.buildings.front());
+        duplicateIds.buildings.back().type = ian::BuildingType::Wall;
+        auto rejected = std::make_unique<ian::Simulation>();
+        require(
+            !rejected->loadSuspendedRunState(duplicateIds) &&
+                rejected->snapshot().state == ian::RunState::MainMenu,
+            "checkpoint rejects duplicate entity IDs transactionally");
+    }
+    {
+        ian::GameBalance balance = ian::GameBalance::defaults();
+        auto& coreBalance = balance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)];
+        coreBalance.wood = 0;
+        coreBalance.stone = 0;
+        coreBalance.crystals = 0;
+        ian::MapDefinition map = ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        auto interrupted = std::make_unique<ian::Simulation>(
+            balance, map, world);
+        interrupted->startRunFromSeed(
+            ian::PlayerClass::Vanguard, 0x57415645U);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        interrupted->tick(1.0 / 60.0, placeCore);
+        require(interrupted->snapshot().coreMaxHealth > 0.0,
+                "interrupted-wave fixture places a core");
+        ian::PlayerCommand beginWave;
+        beginWave.startWaveEarly = ian::StartWaveEarlyCommand{};
+        interrupted->tick(1.0 / 60.0, beginWave);
+        require(interrupted->snapshot().state == ian::RunState::Wave &&
+                    interrupted->snapshot().wave == 1,
+                "interrupted-wave fixture starts its first night");
+        interrupted->grantLootUpgrade(
+            ian::LootUpgradeEffect::Map,
+            ian::LootRarity::Common);
+        require(
+            interrupted->snapshot().lootStacks[ian::lootUpgradeIndex(
+                ian::LootUpgradeEffect::Map)] == 1,
+            "interrupted-wave fixture earns transient wave progress");
+
+        const ian::SuspendedRunState replay =
+            interrupted->saveSuspendedRunState();
+        require(replay.resumeState == ian::RunState::BuildPhase &&
+                    replay.wave == 0 &&
+                    replay.lootStacks[ian::lootUpgradeIndex(
+                        ian::LootUpgradeEffect::Map)] == 0,
+                "active night checkpoint replays without farming wave rewards");
+        auto resumed = std::make_unique<ian::Simulation>(
+            balance, map, world);
+        require(resumed->loadSuspendedRunState(replay) &&
+                    resumed->snapshot().state == ian::RunState::BuildPhase &&
+                    resumed->snapshot().wave == 0 &&
+                    resumed->snapshot().enemies.empty(),
+                "active night resumes at its preceding safe build phase");
+    }
+    {
         ian::Simulation defenseProgression;
         defenseProgression.startRun();
         const auto initial = defenseProgression.snapshot();
@@ -1715,6 +1920,8 @@ void runSimulationTests() {
         ian::PlayerCommand selectBareHands;
         selectBareHands.selectWeapon =
             ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
+        selectBareHands.overrideAimedResource = true;
+        selectBareHands.aimedResourceOverride.reset();
         bareHandsTools.tick(1.0 / 60.0, selectBareHands);
         require(bareHandsTools.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::BareHands,
@@ -1742,14 +1949,33 @@ void runSimulationTests() {
                        event.resourceType == ian::ResourceType::Wood;
             });
         require(bareHandsTools.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands &&
+                    ian::PlayerWeapon::Axe &&
                     bareHit != bareEvents.end(),
-                "Smart Tools keeps Bare Hands and gathers the aimed tree");
+                "Smart Tools upgrades Bare Hands to the unlocked axe");
         requireNear(
             bareHit->damage,
-            bareHandsBalance.gameplay.pickaxeDamage * 0.25,
+            bareHandsBalance.gameplay.pickaxeDamage,
             1e-12,
-            "Bare Hands gathering keeps its reduced damage coefficient");
+            "hands-to-axe Smart Tools uses full wood efficiency");
+
+        const auto stone = std::find_if(
+            bareSnapshot.resourceNodes.begin(),
+            bareSnapshot.resourceNodes.end(),
+            [](const ian::ResourceNode& node) {
+                return node.active &&
+                    node.type == ian::ResourceType::Stone;
+            });
+        require(stone != bareSnapshot.resourceNodes.end(),
+                "hands-to-pickaxe fixture has stone");
+        bareHandsTools.tick(1.0 / 60.0, selectBareHands);
+        ian::PlayerCommand aimStoneFromHands;
+        aimStoneFromHands.overrideAimedResource = true;
+        aimStoneFromHands.aimedResourceOverride = stone->id;
+        bareHandsTools.tick(1.0 / 60.0, aimStoneFromHands);
+        require(
+            bareHandsTools.snapshot().selectedWeapon ==
+                ian::PlayerWeapon::Pickaxe,
+            "Smart Tools upgrades Bare Hands to the unlocked pickaxe");
     }
     {
         auto crystalBalance = ian::GameBalance::defaults();
@@ -3432,6 +3658,10 @@ void runSimulationTests() {
     simulation.restartRun();
     ian::PlayerCommand unlimited;
     unlimited.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+    // Smart Tools must not let a randomly aligned resource change the
+    // deterministic starting point of the weapon-cycle assertion below.
+    unlimited.overrideAimedResource = true;
+    unlimited.aimedResourceOverride.reset();
     simulation.tick(1.0 / 60.0, unlimited);
     require(simulation.snapshot().unlimitedResources, "unlimited resource command enables cheat");
     require(simulation.snapshot().playerInvulnerable,

@@ -8,9 +8,12 @@
 #include "progression/InsightSystem.hpp"
 
 #include <optional>
+#include <cstdint>
 #include <string>
 
 namespace ian {
+
+enum class EnemyType : std::uint8_t;
 
 enum class GameEventType {
     RunStarted,
@@ -117,6 +120,8 @@ struct GameEvent {
     std::optional<EntityId> sourceId;
     std::optional<ResourceType> resourceType;
     std::optional<BuildingType> buildingType;
+    std::optional<EnemyType> enemyType;
+    std::uint8_t enemyEliteAffixes{};
     std::optional<BuildingInstance> building;
     std::optional<PlatformFrameInstance> platformFrame;
     std::optional<WallInstance> modularWall;

@@ -125,12 +125,29 @@ void App::processInput() {
             coreDefenseMenuVisible_ = false;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
+            runUpgradeChoiceInputDelayRemaining_ = 0.65;
+            runUpgradeChoiceInputArmed_ = false;
+        }
+        runUpgradeChoiceInputDelayRemaining_ = std::max(
+            0.0, runUpgradeChoiceInputDelayRemaining_ -
+                static_cast<double>(GetFrameTime()));
+        const bool choiceInputsReleased =
+            !IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+            !IsMouseButtonDown(MOUSE_BUTTON_RIGHT) &&
+            !IsKeyDown(KEY_R) && !IsKeyDown(KEY_ONE) &&
+            !IsKeyDown(KEY_TWO) && !IsKeyDown(KEY_THREE) &&
+            !IsKeyDown(KEY_FOUR) && !IsKeyDown(KEY_FIVE);
+        if (runUpgradeChoiceInputDelayRemaining_ <= 0.0 &&
+            choiceInputsReleased) {
+            runUpgradeChoiceInputArmed_ = true;
         }
         std::optional<std::size_t> choice;
-        if (IsKeyPressed(KEY_R) && simulation_.rerollRunUpgrades()) {
+        if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
+            simulation_.rerollRunUpgrades()) {
             audio_.playUiConfirm();
         }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        if (runUpgradeChoiceInputArmed_ &&
+            IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             const auto hovered = hoveredRunUpgradeChoice(
                 snapshot, GetMousePosition());
             if (hovered && simulation_.lockRunUpgrade(*hovered)) {
@@ -139,13 +156,15 @@ void App::processInput() {
         }
         for (std::size_t index = 0;
              index < snapshot.runUpgradeChoiceCount; ++index) {
-            if (IsKeyPressed(static_cast<int>(KEY_ONE) +
+            if (runUpgradeChoiceInputArmed_ &&
+                IsKeyPressed(static_cast<int>(KEY_ONE) +
                              static_cast<int>(index))) {
                 choice = index;
                 break;
             }
         }
-        if (!choice && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (runUpgradeChoiceInputArmed_ && !choice &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             choice = hoveredRunUpgradeChoice(
                 snapshot, GetMousePosition());
         }
@@ -153,6 +172,7 @@ void App::processInput() {
             audio_.playUiConfirm();
             if (!simulation_.snapshot().runUpgradeChoicePending) {
                 runUpgradeChoiceWasVisible_ = false;
+                runUpgradeChoiceInputArmed_ = false;
                 DisableCursor();
             }
         }
@@ -171,6 +191,7 @@ void App::processInput() {
     }
     if (runUpgradeChoiceWasVisible_) {
         runUpgradeChoiceWasVisible_ = false;
+        runUpgradeChoiceInputArmed_ = false;
         if (snapshot.state != RunState::Paused &&
             snapshot.state != RunState::MainMenu) {
             DisableCursor();
@@ -245,6 +266,10 @@ void App::processInput() {
     }
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
+        if (!saveSuspendedRun()) {
+            audio_.playUiError();
+            return;
+        }
         simulation_.returnToMainMenu();
         classSelectionVisible_ = false;
         fixedStep_.reset();
@@ -342,6 +367,25 @@ void App::processInput() {
         return;
     }
     if (snapshot.state == RunState::MainMenu &&
+        pendingContinueFromUi_) {
+        pendingContinueFromUi_ = false;
+        if (loadSuspendedRun()) {
+            const auto continuedSnapshot = simulation_.snapshot();
+            classSelectionVisible_ = false;
+            classCollectionOnly_ = false;
+            worldRevealOrigin_ = {
+                static_cast<float>(continuedSnapshot.playerPosition.x),
+                static_cast<float>(continuedSnapshot.playerPosition.z)};
+            worldRevealElapsed_ = 1.7;
+            DisableCursor();
+            audio_.playUiConfirm();
+        } else {
+            discardSuspendedRun();
+            audio_.playUiError();
+        }
+        return;
+    }
+    if (snapshot.state == RunState::MainMenu &&
         classSelectionVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             classSelectionVisible_ = false;
@@ -401,6 +445,7 @@ void App::processInput() {
         classCollectionOnly_ = false;
         simulation_.startRun(selectedPlayerClass_);
         const auto startedSnapshot = simulation_.snapshot();
+        discardSuspendedRun();
         rebuildTerrainGraphics();
         worldRevealOrigin_ = {
             static_cast<float>(
@@ -524,6 +569,7 @@ void App::processInput() {
         automaticRunRestartPending_ = false;
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
+        discardSuspendedRun();
         rebuildTerrainGraphics();
         worldRevealOrigin_ = {
             static_cast<float>(
@@ -1010,8 +1056,24 @@ void App::processInput() {
             for (std::size_t keyIndex = 0;
                  keyIndex < keyCount; ++keyIndex) {
                 if (IsKeyPressed(BuildingKeys[keyIndex])) {
-                    selectBuildingMode(
-                        layout.types[keyOffset + keyIndex]);
+                    const BuildingType type =
+                        layout.types[keyOffset + keyIndex];
+                    bool selectable =
+                        currentSnapshot.unlockedBuildings[
+                            static_cast<std::size_t>(type)] &&
+                        (type == BuildingType::Core
+                            ? currentSnapshot.coreMaxHealth <= 0.0
+                            : currentSnapshot.coreMaxHealth > 0.0);
+                    if (type == BuildingType::SlowTrap ||
+                        type == BuildingType::SpikeTrap ||
+                        type == BuildingType::LumberMill ||
+                        type == BuildingType::Quarry) {
+                        selectable = selectable &&
+                            currentSnapshot.coreLevel >= 2;
+                    }
+                    if (selectable) {
+                        selectBuildingMode(type);
+                    }
                 }
             }
         } else {

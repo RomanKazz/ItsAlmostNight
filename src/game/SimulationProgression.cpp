@@ -128,7 +128,8 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
     skillTree_ = std::move(loadedTree);
     insight_ = std::move(loadedInsight);
     objectives_ = std::move(loadedObjectives);
-    insightRewardedEnemyIds_.clear();
+    std::fill(insightRewardedEnemyIds_.begin(),
+              insightRewardedEnemyIds_.end(), EntityId{});
     invalidateSnapshotCache();
     playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
     grantPlayerClassStartingNodes();
@@ -289,6 +290,10 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
         break;
     case RunUpgradeEffect::BuildingHealth:
         runBuildingMaxHealthMultiplier_ += 0.12;
+        break;
+    case RunUpgradeEffect::BuildRadius:
+        buildings_.setCoreBuildRadius(
+            buildings_.coreBuildRadius() + 3);
         break;
     case RunUpgradeEffect::DefenseDamage:
         defenseDamageMultiplier_ += 0.12;
@@ -501,22 +506,29 @@ void Simulation::processInsightEvent(const GameEvent& event) {
     }
     case GameEventType::EnemyKilled:
         if (event.entityId) {
-            const auto found = std::ranges::find_if(enemies_.enemies(),
-                [&event](const EnemyInstance& enemy) { return enemy.id == *event.entityId; });
-            const EnemyType type = found != enemies_.enemies().end()
-                ? found->type : EnemyType::Basic;
+            auto found = enemies_.enemies().end();
+            if (!event.enemyType) {
+                found = std::ranges::find_if(
+                    enemies_.enemies(), [&event](const EnemyInstance& enemy) {
+                        return enemy.id == *event.entityId;
+                    });
+            }
+            const EnemyType type = event.enemyType.value_or(
+                found != enemies_.enemies().end()
+                    ? found->type : EnemyType::Basic);
             const bool boss = type == EnemyType::Boss;
-            const double eliteMultiplier =
-                found != enemies_.enemies().end() &&
-                    found->eliteAffixes != 0U
-                ? 1.7 : 1.0;
+            const bool elite = event.enemyType
+                ? event.enemyEliteAffixes != 0U
+                : found != enemies_.enemies().end() &&
+                    found->eliteAffixes != 0U;
+            const double eliteMultiplier = elite ? 1.7 : 1.0;
             grantConfiguredInsight(
                 config.enemy[static_cast<std::size_t>(type)] *
                     eliteMultiplier,
                 boss ? InsightSource::BossKilled : InsightSource::EnemyKilled,
                 InsightCategory::Combat,
                 {.eventId = insightEntityEvent(0x300U, *event.entityId),
-                 .oneTime = true, .bypassDiminishing = boss});
+                 .oneTime = false, .bypassDiminishing = boss});
         }
         break;
     case GameEventType::ResourceHit:
@@ -727,10 +739,11 @@ void Simulation::processInsightEvents(
     for (std::size_t index = firstEvent; index < lastGameplayEvent; ++index) {
         const GameEvent event = events_[index];
         if (event.type == GameEventType::EnemyKilled && event.entityId) {
-            const std::uint64_t id = insightEntityEvent(0x300U, *event.entityId);
-            insightRewardedEnemyIds_.insert(id);
+            if (!markEnemyRewarded(
+                    insightRewardedEnemyIds_, *event.entityId)) {
+                continue;
+            }
             if (suppressEnemyRewards) {
-                insight_.markEventConsumed(id);
                 continue;
             }
         }
@@ -738,38 +751,52 @@ void Simulation::processInsightEvents(
     }
     for (const EnemyInstance& enemy : enemies_.enemies()) {
         if (enemy.active || enemy.state != EnemyState::Dead) continue;
-        const std::uint64_t id = insightEntityEvent(0x300U, enemy.id);
-        if (!insightRewardedEnemyIds_.insert(id).second) continue;
+        if (!markEnemyRewarded(
+                insightRewardedEnemyIds_, enemy.id)) continue;
         if (suppressEnemyRewards) {
-            insight_.markEventConsumed(id);
             continue;
         }
-        processInsightEvent({.type = GameEventType::EnemyKilled,
-                             .entityId = enemy.id, .position = enemy.position});
+        processInsightEvent({
+            .type = GameEventType::EnemyKilled,
+            .entityId = enemy.id,
+            .enemyType = enemy.type,
+            .enemyEliteAffixes = enemy.eliteAffixes,
+            .position = enemy.position,
+        });
     }
 }
 
 void Simulation::cycleUnlockedTool() {
-    std::vector<PlayerWeapon> tools{PlayerWeapon::BareHands};
+    std::array<PlayerWeapon, PlayerWeaponCount> tools{};
+    std::size_t toolCount = 0U;
+    const auto addTool = [&tools, &toolCount](PlayerWeapon tool) {
+        tools[toolCount++] = tool;
+    };
+    addTool(PlayerWeapon::BareHands);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.axe"))
-        tools.push_back(PlayerWeapon::Axe);
+        addTool(PlayerWeapon::Axe);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.pickaxe"))
-        tools.push_back(PlayerWeapon::Pickaxe);
+        addTool(PlayerWeapon::Pickaxe);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.club"))
-        tools.push_back(PlayerWeapon::Club);
+        addTool(PlayerWeapon::Club);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.ice_wand"))
-        tools.push_back(PlayerWeapon::IceWand);
+        addTool(PlayerWeapon::IceWand);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.fire_wand"))
-        tools.push_back(PlayerWeapon::FireWand);
+        addTool(PlayerWeapon::FireWand);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.hammer"))
-        tools.push_back(PlayerWeapon::Hammer);
+        addTool(PlayerWeapon::Hammer);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.rifle"))
-        tools.push_back(PlayerWeapon::Rifle);
+        addTool(PlayerWeapon::Rifle);
     if (unlimitedResources_ || skillTree_.hasEffect("unlock.bombs"))
-        tools.push_back(PlayerWeapon::Bomb);
-    const auto current = std::ranges::find(tools, playerWeapons_.selectedWeapon());
-    const std::size_t next = current == tools.end()
-        ? 0 : (static_cast<std::size_t>(std::distance(tools.begin(), current)) + 1) % tools.size();
+        addTool(PlayerWeapon::Bomb);
+    const auto end = tools.begin() + static_cast<std::ptrdiff_t>(toolCount);
+    const auto current = std::find(
+        tools.begin(), end, playerWeapons_.selectedWeapon());
+    const std::size_t next = current == end
+        ? 0U
+        : (static_cast<std::size_t>(
+               std::distance(tools.begin(), current)) + 1U) %
+              toolCount;
     playerWeapons_.selectWeapon(tools[next]);
     selectedBuilding_.reset();
     buildingPreview_.reset();

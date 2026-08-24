@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace ian {
 namespace {
@@ -110,6 +111,7 @@ void Simulation::tickWaveSpawning(double deltaSeconds) {
 
 void Simulation::completeWave() {
     const bool completedBossWave = currentWaveHasBoss_;
+    waveStartCheckpoint_.reset();
     enemies_.clearProjectiles();
     cannons_.clearProjectiles();
     bombs_.clearProjectiles();
@@ -196,6 +198,23 @@ void Simulation::completeWave() {
         return;
     }
     if (finalNight_) {
+        // Endless-night waves have no dawn pause. Keep a fresh checkpoint
+        // after the completed wave, before the next wave grants consumables
+        // or spawns actors.
+        SuspendedRunState checkpoint = saveSuspendedRunState();
+        checkpoint.resumeState = RunState::StageClear;
+        checkpoint.wave = wave_;
+        checkpoint.bestWave = std::max(bestWave_, wave_);
+        checkpoint.runStatistics.wavesSurvived = std::max(
+            checkpoint.runStatistics.wavesSurvived, wave_);
+        checkpoint.stageCleared = true;
+        checkpoint.finalNight = false;
+        checkpoint.phaseTimeRemaining = 0.0;
+        checkpoint.phaseDuration = 0.0;
+        checkpoint.riskyInvestmentPending = riskyInvestmentPending_;
+        waveStartCheckpoint_ =
+            std::make_unique<SuspendedRunState>(
+                std::move(checkpoint));
         static_cast<void>(beginNextFinalNightWave());
         return;
     }
@@ -242,13 +261,20 @@ bool Simulation::enterFinalNight() {
         return false;
     }
     invalidateSnapshotCache();
+    waveStartCheckpoint_ = std::make_unique<SuspendedRunState>(
+        saveSuspendedRunState());
     finalNight_ = true;
     events_.push_back({
         .type = GameEventType::FinalNightStarted,
         .amount = wave_,
         .critical = true,
     });
-    return beginNextFinalNightWave();
+    if (beginNextFinalNightWave()) {
+        return true;
+    }
+    finalNight_ = false;
+    waveStartCheckpoint_.reset();
+    return false;
 }
 
 bool Simulation::bankStageClear() {

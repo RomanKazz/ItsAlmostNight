@@ -507,6 +507,8 @@ void IceWandSystem::recordHit(
         .killed = result.killed,
         .alreadyFrozen = alreadyFrozen,
         .periodicBurn = false,
+        .enemyType = result.type,
+        .enemyEliteAffixes = result.eliteAffixes,
     };
     ++hitCount_;
 }
@@ -548,6 +550,8 @@ void IceWandSystem::updateBurning(
                     .killed = result->killed,
                     .alreadyFrozen = false,
                     .periodicBurn = true,
+                    .enemyType = result->type,
+                    .enemyEliteAffixes = result->eliteAffixes,
                 };
             }
             if (result->killed) {

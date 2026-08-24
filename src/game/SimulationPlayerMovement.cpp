@@ -131,6 +131,8 @@ void Simulation::updatePlayer(double deltaSeconds,
                     events_.push_back({
                         .type = GameEventType::EnemyKilled,
                         .entityId = hit.id,
+                        .enemyType = hit.type,
+                        .enemyEliteAffixes = hit.eliteAffixes,
                         .position = hit.position,
                     });
                 }

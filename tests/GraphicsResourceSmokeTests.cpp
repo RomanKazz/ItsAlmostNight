@@ -4,6 +4,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -276,8 +277,27 @@ int main() {
             .fovy = 60.0F,
             .projection = CAMERA_PERSPECTIVE,
         };
+        renderer.beginFrame();
         renderer.beginWorldPass(BLACK, smokeCamera);
         renderer.drawSky(ian::SkyState{});
+        BeginMode3D(smokeCamera);
+        ian::WorldLighting smokeLighting{};
+        smokeLighting.cameraPosition = smokeCamera.position;
+        renderer.beginWorldShader(smokeLighting);
+        const std::array<ian::TreeDrawInstance, 2> smokeTrees{{
+            {.position = {-0.8F, 0.0F, 0.0F},
+             .yawRadians = 0.2F,
+             .scale = 0.6F,
+             .visualVariant = 0U},
+            {.position = {0.8F, 0.0F, 0.0F},
+             .yawRadians = -0.2F,
+             .scale = 0.6F,
+             .visualVariant = 0U},
+        }};
+        const bool instancedTreesDrawn =
+            renderer.drawTreesInstanced(smokeTrees);
+        renderer.endWorldShader();
+        EndMode3D();
         renderer.endWorldPass();
         EndDrawing();
         BeginDrawing();
@@ -324,7 +344,8 @@ int main() {
         EndMode3D();
         EndDrawing();
         renderer.shutdown();
-        if (!woodenDrawn || !stoneDrawn || !barrelDrawn ||
+        if (!instancedTreesDrawn || !woodenDrawn || !stoneDrawn ||
+            !barrelDrawn ||
             !crateDrawn || !itemCrateDrawn) {
             std::cerr << "world prop renderer failed\n";
             result = 1;

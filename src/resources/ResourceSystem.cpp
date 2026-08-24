@@ -167,6 +167,58 @@ void ResourceSystem::reset() {
     collisionGeometryDirty_ = true;
 }
 
+bool ResourceSystem::restoreNodes(
+    std::span<const ResourceNode> nodes,
+    double woodYieldMultiplier) {
+    if (nodes.size() != definitions_.size() ||
+        !std::isfinite(woodYieldMultiplier) ||
+        woodYieldMultiplier < 0.0 || woodYieldMultiplier > 1000.0) {
+        return false;
+    }
+    std::uint32_t generation = 0U;
+    for (std::size_t index = 0; index < nodes.size(); ++index) {
+        const ResourceNode& node = nodes[index];
+        const ResourceNodeDefinition& definition = definitions_[index];
+        if (node.id.index != index || node.id.generation == 0U ||
+            (generation != 0U && node.id.generation != generation) ||
+            node.type != definition.type ||
+            !std::isfinite(node.position.x) ||
+            !std::isfinite(node.position.y) ||
+            !std::isfinite(node.position.z) ||
+            !std::isfinite(node.radius) || node.radius <= 0.0 ||
+            node.radius > 16.0 ||
+            !std::isfinite(node.groundOffset) ||
+            std::abs(node.groundOffset) > 100.0 ||
+            !std::isfinite(node.health) || node.health < 0.0 ||
+            !std::isfinite(node.maxHealth) || node.maxHealth <= 0.0 ||
+            node.maxHealth > 1'000'000.0 ||
+            node.health > node.maxHealth || node.yield < 0 ||
+            node.yield > 1'000'000 || node.yieldRemaining < 0 ||
+            node.yieldRemaining > node.yield ||
+            !std::isfinite(node.respawnSeconds) ||
+            node.respawnSeconds < 0.0 ||
+            node.respawnSeconds > 1'000'000.0 ||
+            !std::isfinite(node.respawnRemaining) ||
+            node.respawnRemaining < 0.0 ||
+            node.respawnRemaining > 1'000'000.0 ||
+            !std::isfinite(node.visualYaw) ||
+            !std::isfinite(node.visualScale) ||
+            node.visualScale <= 0.0 || node.visualScale > 10.0 ||
+            node.visualVariant > 1024U) {
+            return false;
+        }
+        generation = node.id.generation;
+    }
+
+    nodes_.assign(nodes.begin(), nodes.end());
+    if (generation != 0U) {
+        runGeneration_ = generation;
+    }
+    woodYieldMultiplier_ = woodYieldMultiplier;
+    collisionGeometryDirty_ = true;
+    return true;
+}
+
 void ResourceSystem::setWoodYieldMultiplier(double multiplier) {
     const double next = std::max(0.0, multiplier);
     if (std::abs(next - woodYieldMultiplier_) <= 1e-9) {

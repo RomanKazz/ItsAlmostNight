@@ -59,6 +59,18 @@ Vec3 Simulation::lookDirection(double yaw, double pitch) {
     };
 }
 
+bool Simulation::markEnemyRewarded(
+    std::vector<EntityId>& rewarded,
+    EntityId id) const {
+    const auto slot = enemies_.slotIndex(id);
+    if (!slot || *slot >= rewarded.size() ||
+        rewarded[*slot] == id) {
+        return false;
+    }
+    rewarded[*slot] = id;
+    return true;
+}
+
 Simulation::Simulation(
     GameBalance balance, MapDefinition map,
     WorldConfig worldConfig,
@@ -161,6 +173,19 @@ Simulation::Simulation(
     resetWorldLandmarks();
     resetChallengeColumns();
     waveSpawnQueue_.reserve(WaveDirector::MaximumWaveEnemies);
+    rewardedEnemyCoins_.resize(EnemySystem::MaxEnemies);
+    insightRewardedEnemyIds_.resize(EnemySystem::MaxEnemies);
+    events_.reserve(256U);
+    pendingResourceGrants_.reserve(64U);
+    pendingSawSplinters_.reserve(64U);
+    sawChainLaunchBuffer_.reserve(16U);
+    sawCandidateBuffer_.reserve(256U);
+    recentPlayerHitBuffer_.reserve(128U);
+    ricochetedTowerBuffer_.reserve(64U);
+    activeFortifications_.reserve(64U);
+    activeRepairCooldowns_.reserve(64U);
+    modularTargetBuffer_.reserve(512U);
+    pendingEliteExplosions_.reserve(64U);
 }
 
 void Simulation::startRun(PlayerClass playerClass) {
@@ -169,6 +194,13 @@ void Simulation::startRun(PlayerClass playerClass) {
     }
     playerClass_ = playerClass;
     resetRun(GameEventType::RunStarted);
+}
+
+void Simulation::startRunFromSeed(
+    PlayerClass playerClass, std::uint32_t terrainSeed) {
+    if (state_ != RunState::MainMenu) return;
+    forcedRunTerrainSeed_ = terrainSeed;
+    startRun(playerClass);
 }
 
 void Simulation::restartRun() {
@@ -229,6 +261,7 @@ bool Simulation::resourceGroundPositionIsSafe(
 void Simulation::returnToMainMenu() {
     invalidateSnapshotCache();
     enemies_.clearProjectiles();
+    waveStartCheckpoint_.reset();
     state_ = RunState::MainMenu;
     stateBeforePause_ = RunState::Gathering;
     selectedBuilding_.reset();
@@ -239,7 +272,14 @@ void Simulation::returnToMainMenu() {
 void Simulation::resetRun(GameEventType eventType) {
     invalidateSnapshotCache();
     ++structuralRevision_;
-    terrain_.generate(nextRunTerrainSeed());
+    if (forcedRunTerrainSeed_) {
+        if (terrain_.seed() != *forcedRunTerrainSeed_) {
+            terrain_.generate(*forcedRunTerrainSeed_);
+        }
+        forcedRunTerrainSeed_.reset();
+    } else {
+        terrain_.generate(nextRunTerrainSeed());
+    }
     resources_ = ResourceSystem(
         scatterResources(
             map_.resources, map_.worldLimit, terrain_, map_.obstacles,
@@ -291,7 +331,8 @@ void Simulation::resetRun(GameEventType eventType) {
     crystalStorageFullNotified_ = false;
     coins_ = 0;
     coinPickups_.reset();
-    rewardedEnemyCoins_.clear();
+    std::fill(rewardedEnemyCoins_.begin(),
+              rewardedEnemyCoins_.end(), EntityId{});
     pendingResourceGrants_.clear();
     pendingSawSplinters_.clear();
     unlimitedResources_ = false;
@@ -359,6 +400,7 @@ void Simulation::resetRun(GameEventType eventType) {
     buildingRotation_ = 0;
     buildingPreview_.reset();
     buildings_.reset();
+    buildings_.setCoreBuildRadius(map_.coreBuildRadius);
     buildings_.setMaxHealthMultiplier(1.0);
     buildings_.setNewTowerBonusEnabled(false);
     foundations_.reset();
@@ -380,7 +422,8 @@ void Simulation::resetRun(GameEventType eventType) {
     skillTree_.reset();
     insight_.reset();
     objectives_.reset();
-    insightRewardedEnemyIds_.clear();
+    std::fill(insightRewardedEnemyIds_.begin(),
+              insightRewardedEnemyIds_.end(), EntityId{});
     bareHandsWoodGathered_ = 0;
     bareHandsStoneGathered_ = 0;
     introSkillObjectiveCompleted_ = false;
@@ -467,6 +510,7 @@ void Simulation::resetRun(GameEventType eventType) {
     currentWaveHasBoss_ = false;
     stageCleared_ = false;
     finalNight_ = false;
+    waveStartCheckpoint_.reset();
     modularTargetBuffer_.clear();
     collisionWorld_.syncPondLilySurfaces(
         generatePondLilyPlacements(terrain_));
@@ -497,6 +541,12 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         deltaSeconds < 0.0) {
         return;
     }
+    if (state_ == RunState::BuildPhase && !challengeActive() &&
+        buildings_.hasCore() &&
+        (command.startWaveEarly || phaseTimeRemaining_ <= deltaSeconds)) {
+        waveStartCheckpoint_ = std::make_unique<SuspendedRunState>(
+            saveSuspendedRunState());
+    }
     invalidateSnapshotCache();
     lootChests_.setOpeningCostSurcharge(
         saturatingMultiplyNonNegative(
@@ -521,7 +571,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
-        rewardedEnemyCoins_.clear();
+        std::fill(rewardedEnemyCoins_.begin(),
+                  rewardedEnemyCoins_.end(), EntityId{});
         ++tick_;
         elapsedSeconds_ += deltaSeconds;
         return;
@@ -555,7 +606,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
             crystals_ = 0;
             coins_ = 0;
             coinPickups_.reset();
-            rewardedEnemyCoins_.clear();
+            std::fill(rewardedEnemyCoins_.begin(),
+                      rewardedEnemyCoins_.end(), EntityId{});
             events_.push_back({
                 .type = GameEventType::RunEnded,
             });
@@ -596,7 +648,8 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
         crystals_ = 0;
         coins_ = 0;
         coinPickups_.reset();
-        rewardedEnemyCoins_.clear();
+        std::fill(rewardedEnemyCoins_.begin(),
+                  rewardedEnemyCoins_.end(), EntityId{});
         ++tick_;
         elapsedSeconds_ += deltaSeconds;
         return;
@@ -663,12 +716,20 @@ void Simulation::startRepairCooldown(EntityId id) {
     }
 }
 
-std::vector<GameEvent> Simulation::takeEvents() {
+void Simulation::takeEvents(
+    std::vector<GameEvent>& destination) {
     if (!events_.empty()) {
         recordRunStatistics(events_);
         invalidateSnapshotCache();
     }
-    return std::exchange(events_, {});
+    destination.clear();
+    events_.swap(destination);
+}
+
+std::vector<GameEvent> Simulation::takeEvents() {
+    std::vector<GameEvent> result;
+    takeEvents(result);
+    return result;
 }
 
 void Simulation::recordRunStatistics(

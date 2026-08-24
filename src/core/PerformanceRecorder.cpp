@@ -35,7 +35,8 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "modular_pieces,frame_ms,input_ms,update_ms,sim_tick_ms,"
                "render_ms,present_ms,render_prep_ms,shadow_ms,selection_ms,"
                "terrain_ms,world_objects_ms,decorations_ms,grass_ms,"
-               "environment_ms,overlays_ms,postprocess_ms,ui_ms,enemy_ai_ms,"
+               "environment_ms,pond_decor_ms,water_ms,cloud_ms,atmosphere_ms,"
+               "overlays_ms,postprocess_ms,ui_ms,enemy_ai_ms,"
                "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms\n";
     return true;
 }
@@ -58,7 +59,9 @@ void PerformanceRecorder::record(
             << value.shadowMs << ',' << value.selectionMs << ','
             << value.terrainMs << ',' << value.worldObjectsMs << ','
             << value.decorationsMs << ',' << value.grassMs << ','
-            << value.environmentMs << ',' << value.overlaysMs << ','
+            << value.environmentMs << ',' << value.pondDecorMs << ','
+            << value.waterMs << ',' << value.cloudMs << ','
+            << value.atmosphereMs << ',' << value.overlaysMs << ','
             << value.postProcessMs << ',' << value.uiMs << ','
             << value.enemyAiMs << ',' << value.enemyCollisionMs << ','
             << value.enemyDrawMs << ',' << value.blobShadowsMs << '\n';

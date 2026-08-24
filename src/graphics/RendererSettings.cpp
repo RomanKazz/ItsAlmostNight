@@ -53,7 +53,13 @@ void Renderer::cycleFrameRateLimit() {
 }
 
 void Renderer::applyFrameRateLimit() const {
+#if defined(__APPLE__)
+    // App owns precise mach-time pacing. Disable raylib's usleep limiter.
+    SetTargetFPS(0);
+    ClearWindowState(FLAG_VSYNC_HINT);
+#else
     SetTargetFPS(settings_.frameRateLimit);
+#endif
 }
 
 void Renderer::cycleAoStrength() {

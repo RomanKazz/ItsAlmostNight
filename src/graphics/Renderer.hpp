@@ -6,6 +6,7 @@
 #include "economy/CoinPickupSystem.hpp"
 #include "graphics/DecorationExclusionMap.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "graphics/InstanceBufferPool.hpp"
 #include "game/LootChestSystem.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "graphics/TerrainRenderer.hpp"
@@ -204,6 +205,7 @@ class Renderer {
 
     void initialize();
     void shutdown();
+    void beginFrame();
     void processInput();
     [[nodiscard]] bool graphicsPanelVisible() const;
     void setGraphicsPanelVisible(bool visible);
@@ -224,7 +226,7 @@ class Renderer {
 
     void beginWorldPass(Color clearColor, const Camera3D& camera);
     void drawSky(const SkyState& sky);
-    void drawClouds(Vector3 cameraPosition, float nightAmount,
+    void drawClouds(const Camera3D& camera, float nightAmount,
                     const WorldLighting& lighting);
     void endWorldPass();
     void beginUiOnlyFrame(Color clearColor);
@@ -261,9 +263,9 @@ class Renderer {
     void drawTerrain(
         Color tint, Vector3 focusPosition,
         bool wireframe = false);
-    void drawPondDecor();
-    void drawPondShoreRocks();
-    void drawPondSurfaceDecor();
+    void drawPondDecor(const Camera3D& camera);
+    void drawPondShoreRocks(const Camera3D& camera);
+    void drawPondSurfaceDecor(const Camera3D& camera);
     void drawWater(Vector3 cameraPosition,
                    const WorldLighting& lighting);
     [[nodiscard]] std::optional<double>
@@ -441,12 +443,12 @@ class Renderer {
                             std::span<const GrassClearArea>
                                 clearAreas = {});
     void drawDecorativeRocks(
-        Vector3 cameraPosition, float worldLimit,
+        const Camera3D& camera, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
     void drawDecorativeRockAo(
-        Vector3 cameraPosition, float worldLimit,
+        const Camera3D& camera, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
-    void drawBoundaryForest();
+    void drawBoundaryForest(const Camera3D& camera);
     void setWorldReveal(Vector2 origin,
                         float elapsedSeconds);
     [[nodiscard]] float worldRevealScaleAt(
@@ -470,7 +472,6 @@ class Renderer {
         EnemyAnimationVisual animation{};
         int frame{};
         std::uint32_t tint{};
-        int scale{};
         bool loop{};
         bool lowDetail{};
         bool inkOutlineEligible{};
@@ -489,6 +490,7 @@ class Renderer {
     struct EnemyBatch {
         EnemyDrawInstance representative{};
         std::vector<Matrix> transforms{};
+        std::uint64_t lastUsedFrame{};
     };
 
     struct CachedInstance {
@@ -559,6 +561,7 @@ class Renderer {
         int slopeBias{-1};
         int shadowStrength{-1};
         int shadowMapTexelSize{-1};
+        int shadowSampleCount{-1};
         int instancingEnabled{-1};
         int inkOutlineEligible{-1};
     };
@@ -646,6 +649,7 @@ class Renderer {
     void resolveSkyShaderLocations();
     void resolvePostProcessLocations();
     void resolveSsaoLocations();
+    void resolveAuxiliaryShaderLocations();
     void drawSsaoPass();
     void uploadPostProcessSettings();
     void uploadWorldLighting(const WorldLighting& lighting);
@@ -653,9 +657,10 @@ class Renderer {
     void bindTerrainTexture();
     void bindShadowMap();
     void rebuildPondDecorInstances();
-    void drawPondDecorInstances(std::size_t beginVariant,
+    void drawPondDecorInstances(const Camera3D& camera,
+                                std::size_t beginVariant,
                                 std::size_t endVariant);
-    void drawPondShoreRockInstances();
+    void drawPondShoreRockInstances(const Camera3D& camera);
     void setSkinningEnabled(Shader& shader, bool enabled);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
@@ -672,6 +677,7 @@ class Renderer {
     float menuDepthOfFieldFocusRange_{3.0F};
     float menuDepthOfFieldMaximumBlurPixels_{7.0F};
     GraphicsResources resources_;
+    InstanceBufferPool instanceBuffers_;
     TerrainRenderer terrainRenderer_;
     DecorationExclusionMap decorationExclusionMap_;
     const TerrainHeightfield* terrainHeightfield_{};
@@ -735,6 +741,7 @@ class Renderer {
     int waterExposureLocation_{-1};
     int waterTimeLocation_{-1};
     int waterWaveSpeedLocation_{-1};
+    int waterQualityLocation_{-1};
     int upgradeEffectOriginLocation_{-1};
     int upgradeEffectHeightLocation_{-1};
     int upgradeEffectProgressLocation_{-1};
@@ -780,6 +787,8 @@ class Renderer {
         boundaryForestTransforms_;
     std::array<std::vector<Matrix>, 2>
         boundaryForestRevealTransforms_;
+    std::array<std::vector<Matrix>, 2>
+        boundaryForestVisibleTransforms_;
     std::array<std::vector<Matrix>, TreeVisualVariantCount>
         resourceTreeTransforms_;
     std::array<std::vector<Matrix>, StoneVisualVariantCount>
@@ -815,8 +824,12 @@ class Renderer {
     Vector2 decorativeCacheRevealOrigin_{};
     std::array<std::vector<Matrix>, 5>
         pondDecorTransforms_;
+    std::array<std::vector<Matrix>, 5>
+        visiblePondDecorTransforms_;
     std::array<std::vector<Matrix>, 4>
         pondShoreRockTransforms_;
+    std::array<std::vector<Matrix>, 4>
+        visiblePondShoreRockTransforms_;
     bool boundaryForestCached_{};
     Vector2 worldRevealOrigin_{};
     float worldRevealElapsed_{1000.0F};
@@ -826,6 +839,7 @@ class Renderer {
         enemyBoneMappings_;
     std::map<EnemyBatchKey, EnemyBatch> enemyBatches_;
     std::vector<EnemyBatch*> activeEnemyBatches_;
+    std::uint64_t enemyBatchFrame_{};
     std::map<EnemyPoseKey, std::vector<Matrix>> enemyBonePoseCache_;
     Model enemyCrowdLodModel_{};
     RendererPerformanceStats performanceStats_{};

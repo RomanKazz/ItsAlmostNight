@@ -36,9 +36,13 @@ void runEnemySystemTests() {
             resetIds.enemies().front().id;
         resetIds.reset();
         resetIds.spawnWave(Spawn);
+        const ian::EntityId afterReset =
+            resetIds.enemies().front().id;
         require(
-            resetIds.enemies().front().id != beforeReset,
-            "enemy reset never aliases a previous run ID");
+            afterReset != beforeReset &&
+                resetIds.enemy(afterReset).has_value() &&
+                resetIds.damage(afterReset, 1.0).has_value(),
+            "enemy reset keeps new IDs unique and addressable");
     }
     {
         ian::EnemySystem trialEnemies;
@@ -96,9 +100,15 @@ void runEnemySystemTests() {
             "warden protects nearby allies but not itself");
         const ian::EntityId volatileId =
             eliteEnemies.enemies()[2].id;
+        const auto volatileDeath =
+            eliteEnemies.damage(volatileId, 1000.0);
         require(
-            eliteEnemies.damage(volatileId, 1000.0)->killed,
-            "volatile elite fixture dies");
+            volatileDeath && volatileDeath->killed &&
+                volatileDeath->type == ian::EnemyType::Basic &&
+                ian::hasEliteAffix(
+                    volatileDeath->eliteAffixes,
+                    ian::EliteAffix::Volatile),
+            "death result preserves type and elite reward metadata");
         const auto eliteDeaths =
             eliteEnemies.takeEliteDeathEvents();
         require(

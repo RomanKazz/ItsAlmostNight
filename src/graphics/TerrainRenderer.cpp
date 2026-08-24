@@ -79,7 +79,7 @@ void TerrainRenderer::rebuild(
     ready_ = true;
     // Build and upload the finite terrain during loading. Doing this lazily
     // from the first shadow/world pass creates a large single-frame stall.
-    updateVisibleChunks({0.0F, 0.0F, 0.0F});
+    buildChunks();
 }
 
 Model TerrainRenderer::buildChunk(
@@ -462,7 +462,7 @@ Model TerrainRenderer::buildWaterModel() const {
     const auto appendVertex = [&](const PondDefinition& pond,
                                   double x, double z) {
         const double signedDistance =
-            terrain_->waterSignedDistance(x, z);
+            pond.signedDistance(x, z);
         const double depth = std::clamp(
             (pond.waterLevel - terrain_->getHeight(x, z)) /
                 std::max(pond.depth, 0.01),
@@ -521,10 +521,10 @@ Model TerrainRenderer::buildWaterModel() const {
                 const double x0 = coordinate(minimumX, xCell);
                 const double x1 = coordinate(minimumX, xCell + 1);
                 const std::array<double, 4> distances{{
-                    terrain_->waterSignedDistance(x0, z0),
-                    terrain_->waterSignedDistance(x1, z0),
-                    terrain_->waterSignedDistance(x0, z1),
-                    terrain_->waterSignedDistance(x1, z1),
+                    pond.signedDistance(x0, z0),
+                    pond.signedDistance(x1, z0),
+                    pond.signedDistance(x0, z1),
+                    pond.signedDistance(x1, z1),
                 }};
                 const auto [minimumDistance, maximumDistance] =
                     std::minmax_element(
@@ -677,8 +677,7 @@ void TerrainRenderer::buildPathMask() {
     }
 }
 
-void TerrainRenderer::updateVisibleChunks(
-    Vector3 focusPosition) {
+void TerrainRenderer::buildChunks() {
     if (terrain_ == nullptr) {
         return;
     }
@@ -687,31 +686,17 @@ void TerrainRenderer::updateVisibleChunks(
     const int chunkCount = std::max(
         1, static_cast<int>(
                std::ceil(config.terrainWorldSize / chunkSize)));
-    (void)focusPosition;
     const std::size_t cellCount = static_cast<std::size_t>(chunkCount) *
         static_cast<std::size_t>(chunkCount);
-    if (chunkGridCount_ != chunkCount ||
-        chunkBuilt_.size() != cellCount) {
-        chunkGridCount_ = chunkCount;
-        chunkBuilt_.assign(cellCount, 0U);
-        chunks_.reserve(cellCount);
-    }
+    chunks_.reserve(cellCount);
     for (int z = 0; z < chunkCount; ++z) {
         for (int x = 0; x < chunkCount; ++x) {
-            const std::size_t index = static_cast<std::size_t>(z) *
-                static_cast<std::size_t>(chunkCount) +
-                static_cast<std::size_t>(x);
-            if (chunkBuilt_[index] != 0U) {
-                continue;
-            }
             Model model = buildChunk(x, z);
             if (IsModelValid(model)) {
                 chunks_.push_back({x, z, model});
-                chunkBuilt_[index] = 1U;
             }
         }
     }
-
 }
 
 void TerrainRenderer::draw(
@@ -720,21 +705,25 @@ void TerrainRenderer::draw(
     if (!ready_) {
         return;
     }
-    updateVisibleChunks(focusPosition);
     constexpr int PathMaskTextureSlot = 11;
     const float pathMaskEnabled =
         IsTextureValid(pathMaskTexture_) ? 1.0F : 0.0F;
-    const int pathMaskLocation =
-        GetShaderLocation(shader, "terrainPathMask");
-    const int pathMaskEnabledLocation =
-        GetShaderLocation(shader, "terrainPathMaskEnabled");
-    if (pathMaskLocation >= 0 && pathMaskEnabledLocation >= 0) {
-        SetShaderValue(shader, pathMaskLocation,
+    if (!pathMaskLocationsResolved_ ||
+        pathMaskShaderId_ != shader.id) {
+        pathMaskShaderId_ = shader.id;
+        pathMaskLocation_ =
+            GetShaderLocation(shader, "terrainPathMask");
+        pathMaskEnabledLocation_ =
+            GetShaderLocation(shader, "terrainPathMaskEnabled");
+        pathMaskLocationsResolved_ = true;
+    }
+    if (pathMaskLocation_ >= 0 && pathMaskEnabledLocation_ >= 0) {
+        SetShaderValue(shader, pathMaskLocation_,
                        &PathMaskTextureSlot, SHADER_UNIFORM_INT);
-        SetShaderValue(shader, pathMaskEnabledLocation,
+        SetShaderValue(shader, pathMaskEnabledLocation_,
                        &pathMaskEnabled, SHADER_UNIFORM_FLOAT);
     }
-    if (pathMaskEnabled > 0.5F && pathMaskLocation >= 0) {
+    if (pathMaskEnabled > 0.5F && pathMaskLocation_ >= 0) {
         rlActiveTextureSlot(PathMaskTextureSlot);
         rlEnableTexture(pathMaskTexture_.id);
         rlActiveTextureSlot(0);
@@ -843,8 +832,6 @@ void TerrainRenderer::shutdown() {
         }
     }
     chunks_.clear();
-    chunkBuilt_.clear();
-    chunkGridCount_ = 0;
     if (IsModelValid(mountainBackdropModel_)) {
         UnloadModel(mountainBackdropModel_);
     }
@@ -857,6 +844,10 @@ void TerrainRenderer::shutdown() {
         UnloadTexture(pathMaskTexture_);
     }
     pathMaskTexture_ = {};
+    pathMaskShaderId_ = 0U;
+    pathMaskLocation_ = -1;
+    pathMaskEnabledLocation_ = -1;
+    pathMaskLocationsResolved_ = false;
     terrain_ = nullptr;
     ready_ = false;
 }

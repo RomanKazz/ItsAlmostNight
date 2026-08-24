@@ -19,30 +19,36 @@ const vec3 Luma = vec3(0.2126, 0.7152, 0.0722);
 void main()
 {
     vec4 source = texture(texture0, fragTexCoord);
-    float outside = 0.0;
-    float insideMinimum = 1.0;
-    const vec2 Directions[8] = vec2[](
+    const vec2 Directions[4] = vec2[](
         vec2(1.0, 0.0), vec2(-1.0, 0.0),
-        vec2(0.0, 1.0), vec2(0.0, -1.0),
-        vec2(0.7071, 0.7071), vec2(-0.7071, 0.7071),
-        vec2(0.7071, -0.7071), vec2(-0.7071, -0.7071));
-    for (int index = 0; index < 8; ++index)
-    {
-        float alpha = texture(
-            texture0,
-            fragTexCoord + Directions[index]*texelSize*outlineWidth).a;
-        outside = max(outside, alpha);
-        insideMinimum = min(insideMinimum, alpha);
-    }
-
-    float outlineAlpha = outlineEnabled * outlineStrength *
-        smoothstep(0.02, 0.4, outside) * (1.0 - source.a);
+        vec2(0.0, 1.0), vec2(0.0, -1.0));
     if (source.a <= 0.001)
     {
+        if (outlineEnabled <= 0.0 || outlineStrength <= 0.0)
+        {
+            finalColor = vec4(0.0);
+            return;
+        }
+        float outside = 0.0;
+        for (int index = 0; index < 4; ++index)
+        {
+            outside = max(outside, texture(
+                texture0,
+                fragTexCoord + Directions[index]*texelSize*outlineWidth).a);
+        }
+        float outlineAlpha = outlineEnabled * outlineStrength *
+            smoothstep(0.02, 0.4, outside);
         finalColor = vec4(vec3(0.055, 0.075, 0.085), outlineAlpha);
         return;
     }
 
+    float insideMinimum = 1.0;
+    for (int index = 0; index < 4; ++index)
+    {
+        insideMinimum = min(insideMinimum, texture(
+            texture0,
+            fragTexCoord + Directions[index]*texelSize*outlineWidth).a);
+    }
     float luminance = dot(source.rgb, Luma);
     vec3 color = mix(vec3(luminance), source.rgb, saturation) * brightness;
     float innerEdge = source.a * (1.0 - insideMinimum);

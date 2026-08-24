@@ -83,6 +83,14 @@ void Simulation::updateRunPhase(
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if ((phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) &&
             buildings_.hasCore()) {
+            // Preserve the last pre-wave state. Saving during combat returns
+            // this checkpoint, so replay cannot keep rewards already earned
+            // from the same wave.
+            if (!waveStartCheckpoint_) {
+                waveStartCheckpoint_ =
+                    std::make_unique<SuspendedRunState>(
+                        saveSuspendedRunState());
+            }
             state_ = RunState::Sunset;
             phaseTimeRemaining_ = gameplay_.sunsetSeconds;
             phaseDuration_ = phaseTimeRemaining_;
@@ -569,6 +577,8 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
                     .type = GameEventType::EnemyKilled,
                     .entityId = hit.id,
                     .sourceId = pending.sourceId,
+                    .enemyType = hit.type,
+                    .enemyEliteAffixes = hit.eliteAffixes,
                     .position = hit.position,
                 });
             }

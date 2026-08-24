@@ -976,6 +976,7 @@ void EnemySystem::reset() {
     // the previous run as a fresh kill on the first restarted tick.
     // clear() retains vector capacity, so restart stays allocation-free.
     enemies_.clear();
+    firstIndex_ = nextIndex_;
     attackBuffer_.clear();
     playerAttackBuffer_.clear();
     projectiles_.clear();
@@ -2379,27 +2380,19 @@ void EnemySystem::rebuildSpatialIndex() {
 }
 
 EnemyInstance* EnemySystem::findEnemy(EntityId id) {
-    if (id.index < FirstEnemyIndex) {
+    const auto slot = slotIndex(id);
+    if (!slot || enemies_[*slot].id != id) {
         return nullptr;
     }
-    const std::size_t slot =
-        static_cast<std::size_t>(id.index - FirstEnemyIndex);
-    if (slot >= enemies_.size() || enemies_[slot].id != id) {
-        return nullptr;
-    }
-    return &enemies_[slot];
+    return &enemies_[*slot];
 }
 
 const EnemyInstance* EnemySystem::findEnemy(EntityId id) const {
-    if (id.index < FirstEnemyIndex) {
+    const auto slot = slotIndex(id);
+    if (!slot || enemies_[*slot].id != id) {
         return nullptr;
     }
-    const std::size_t slot =
-        static_cast<std::size_t>(id.index - FirstEnemyIndex);
-    if (slot >= enemies_.size() || enemies_[slot].id != id) {
-        return nullptr;
-    }
-    return &enemies_[slot];
+    return &enemies_[*slot];
 }
 
 } // namespace ian

@@ -210,6 +210,14 @@ class BuildingSystem {
     double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
     void setNewTowerBonusStacks(int stacks);
+    void setCoreBuildRadius(int radius);
+    [[nodiscard]] int coreBuildRadius() const;
+    [[nodiscard]] bool restoreBuildings(
+        std::span<const BuildingInstance> buildings,
+        std::span<const std::uint8_t> blueprintLevels,
+        int coreBuildRadius);
+    [[nodiscard]] const std::array<std::uint8_t,
+        GameBalance::BuildingTypeCount>& blueprintLevels() const;
 
     [[nodiscard]] PlacementResult validate(BuildingType type, GridPosition position, int wood,
                                            int stone, int crystals = 0,

@@ -71,6 +71,10 @@ struct AppPerformanceStats {
     PerformanceMetric decorationsRender;
     PerformanceMetric grassRender;
     PerformanceMetric environmentRender;
+    PerformanceMetric pondDecorRender;
+    PerformanceMetric waterRender;
+    PerformanceMetric cloudRender;
+    PerformanceMetric atmosphereRender;
     PerformanceMetric overlayRender;
     PerformanceMetric postProcess;
     PerformanceMetric uiRender;
@@ -117,10 +121,12 @@ class App {
                            float nightAmount,
                            const WorldLighting& lighting,
                            float interpolationAlpha);
+    void drawWorldEnemies(const SimulationSnapshot& snapshot,
+                          const Camera3D& camera);
     void drawChallengeFence(
         const ChallengeColumnInstance& column,
         bool drawRopes);
-    [[nodiscard]] std::vector<GrassClearArea>
+    [[nodiscard]] std::span<const GrassClearArea>
         activeDecorationClearAreas(
             const SimulationSnapshot& snapshot) const;
     void drawSoldBuildingVisuals();
@@ -151,7 +157,7 @@ class App {
         Vec3 position,
         std::optional<EntityId> entityId =
             std::nullopt) const;
-    [[nodiscard]] std::vector<ModularAnimationScale>
+    [[nodiscard]] std::span<const ModularAnimationScale>
     modularAnimationScales(
         const SimulationSnapshot& snapshot) const;
     [[nodiscard]] float productionScaleAt(
@@ -169,6 +175,12 @@ class App {
     void drawMainMenuWorld(const SimulationSnapshot& snapshot);
     void persistUserSettings(bool force = false);
     void persistMetaProgression();
+    [[nodiscard]] bool saveSuspendedRun();
+    [[nodiscard]] bool loadSuspendedRun();
+    void discardSuspendedRun();
+    [[nodiscard]] bool suspendedRunAvailable() const;
+    [[nodiscard]] std::optional<std::uint32_t>
+    suspendedRunTerrainSeed() const;
     void recordMetaProgression(std::span<const GameEvent> events);
     void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
@@ -223,6 +235,7 @@ class App {
     GameUi ui_;
     SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
+    bool pendingContinueFromUi_{};
     bool classSelectionVisible_{};
     bool classCollectionOnly_{};
     PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
@@ -232,9 +245,12 @@ class App {
     bool pendingReturnToMenuFromUi_{};
     bool automaticRunRestartPending_{};
     bool exitRequested_{};
+    mutable std::optional<bool> suspendedRunAvailabilityCache_;
     bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     bool runUpgradeChoiceWasVisible_{};
+    double runUpgradeChoiceInputDelayRemaining_{};
+    bool runUpgradeChoiceInputArmed_{};
     bool fullscreenApplied_{};
     int graphicsPanelTab_{};
     std::optional<ControlAction> pendingControlRebind_;
@@ -349,6 +365,7 @@ class App {
     double statusMessageRemaining_{};
     double lootDescriptionRemaining_{};
     std::vector<PresentationEffect> effects_;
+    std::vector<GameEvent> gameEventBuffer_;
     std::unordered_map<std::uint64_t, float>
         enemyHitFlashById_;
     std::unordered_map<std::uint64_t, float>
@@ -406,6 +423,10 @@ class App {
         resourceTreeDrawInstances_;
     std::vector<RockDrawInstance>
         resourceRockDrawInstances_;
+    mutable std::vector<ModularAnimationScale>
+        modularAnimationScaleBuffer_;
+    mutable std::vector<GrassClearArea>
+        activeDecorationClearAreaBuffer_;
     std::vector<std::pair<float, std::size_t>>
         shadowCandidateBuffer_;
     struct SoldBuildingVisual {

@@ -18,6 +18,7 @@ uniform float fogEnd;
 uniform float exposure;
 uniform float timeSeconds;
 uniform float waveSpeed;
+uniform int qualityLevel;
 
 layout(location = 0) out vec4 finalColor;
 layout(location = 1) out vec4 normalAo;
@@ -60,17 +61,31 @@ void main()
     // and made the lake read as a swamp.
     float depth = smoothstep(0.025, 0.72, fragWaterDepth);
     float variation =
-        sin(fragWorldPosition.x*0.071 + fragWorldPosition.z*0.053)*0.018 +
-        sin(fragWorldPosition.x*0.031 - fragWorldPosition.z*0.089)*0.012;
+        sin(fragWorldPosition.x*0.071 + fragWorldPosition.z*0.053)*0.018;
+    if (qualityLevel >= 2)
+    {
+        variation +=
+            sin(fragWorldPosition.x*0.031 -
+                fragWorldPosition.z*0.089)*0.012;
+    }
     float colorDepth = clamp(depth + variation, 0.0, 1.0);
     vec3 water = mix(shallowColor, deepColor, colorDepth);
 
+    float waveDetail = 0.0;
+    if (qualityLevel > 0)
+    {
+        waveDetail = cos(
+            fragWorldPosition.x*0.19 +
+            fragWorldPosition.z*0.14 + time*1.9);
+    }
     float waveX =
-        cos(fragWorldPosition.x*0.092 + fragWorldPosition.z*0.027 + time*1.35)*0.060 +
-        cos(fragWorldPosition.x*0.19 + fragWorldPosition.z*0.14 + time*1.9)*0.020;
+        cos(fragWorldPosition.x*0.092 +
+            fragWorldPosition.z*0.027 + time*1.35)*0.060 +
+        waveDetail*0.020;
     float waveZ =
-        cos(fragWorldPosition.z*0.118 - fragWorldPosition.x*0.021 - time*1.05)*0.068 +
-        cos(fragWorldPosition.x*0.19 + fragWorldPosition.z*0.14 + time*1.9)*0.015;
+        cos(fragWorldPosition.z*0.118 -
+            fragWorldPosition.x*0.021 - time*1.05)*0.068 +
+        waveDetail*0.015;
     vec3 normal = normalize(vec3(
         -waveX, 1.0, -waveZ));
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
@@ -82,31 +97,56 @@ void main()
     // it noisy or realistic enough to clash with the toon world.
     float longRipple = sin(
         fragWorldPosition.x*0.23 + fragWorldPosition.z*0.11 + time*1.7);
-    float crossRipple = sin(
-        fragWorldPosition.z*0.31 - fragWorldPosition.x*0.08 - time*1.25);
+    float crossRipple = longRipple;
+    if (qualityLevel >= 2)
+    {
+        crossRipple = sin(
+            fragWorldPosition.z*0.31 -
+            fragWorldPosition.x*0.08 - time*1.25);
+    }
     float rippleLine = smoothstep(0.72, 0.96,
         longRipple*0.58 + crossRipple*0.42);
     water += vec3(0.055, 0.13, 0.18)*rippleLine*(0.35 + fresnel*0.65);
 
     vec3 halfDirection = normalize(viewDirection - normalize(sunDirection));
     float sparkle = pow(max(dot(normal, halfDirection), 0.0), 88.0);
-    float sparkleNoise = smoothstep(
-        0.72, 0.96,
-        sin(fragWorldPosition.x*1.37 + time*3.1)*0.5 +
-        sin(fragWorldPosition.z*1.71 - time*2.4)*0.5);
+    float sparkleNoise = 0.35;
+    if (qualityLevel >= 2)
+    {
+        sparkleNoise = smoothstep(
+            0.72, 0.96,
+            sin(fragWorldPosition.x*1.37 + time*3.1)*0.5 +
+            sin(fragWorldPosition.z*1.71 - time*2.4)*0.5);
+    }
     water += sunColor*sparkle*(0.28 + sparkleNoise*0.42);
 
     float inward = clamp(-fragShoreDistance, 0.0, 2.0);
     float shoreFade = 1.0 - smoothstep(0.0, 0.58, inward);
-    // Keep neighbouring foam phases continuous. A raw per-cell hash creates
-    // visible rectangular seams where shoreline wave bands cross cell edges.
-    float pattern = valueNoise(fragWorldPosition.xz*0.18)*0.22;
-    float travel = fract(inward*0.82 + time*0.27 + pattern);
-    float bandA = 1.0 - smoothstep(0.025, 0.075, abs(travel - 0.18));
-    float bandB = 1.0 - smoothstep(
-        0.022, 0.065, abs(fract(travel + 0.51) - 0.18));
-    float foam = max(bandA, bandB*0.58)*shoreFade*
-                 (1.0 - depth*0.72)*edgeCoverage;
+    float foam = 0.0;
+    if (shoreFade > 0.001)
+    {
+        // Noise and wave bands are expensive and have exactly zero effect
+        // outside the narrow shoreline. Avoid evaluating four hashes and
+        // both bands across the entire pond surface.
+        float pattern = 0.09;
+        if (qualityLevel >= 2)
+        {
+            pattern = valueNoise(fragWorldPosition.xz*0.18)*0.22;
+        }
+        else if (qualityLevel == 1)
+        {
+            pattern = (sin(
+                fragWorldPosition.x*0.21 +
+                fragWorldPosition.z*0.17)*0.5 + 0.5)*0.18;
+        }
+        float travel = fract(inward*0.82 + time*0.27 + pattern);
+        float bandA = 1.0 - smoothstep(
+            0.025, 0.075, abs(travel - 0.18));
+        float bandB = 1.0 - smoothstep(
+            0.022, 0.065, abs(fract(travel + 0.51) - 0.18));
+        foam = max(bandA, bandB*0.58)*shoreFade*
+               (1.0 - depth*0.72)*edgeCoverage;
+    }
     water = mix(water, vec3(0.68, 0.90, 0.96), foam*0.36);
 
     float alpha = mix(0.82, 0.96, depth);

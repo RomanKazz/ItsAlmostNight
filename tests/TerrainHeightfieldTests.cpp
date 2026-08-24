@@ -216,6 +216,24 @@ void runTerrainHeightfieldTests() {
         defaultTerrain.ponds().size() >= 3U &&
             defaultTerrain.ponds().size() <= 7U,
         "default terrain generates three to seven ponds");
+    ian::PondDefinition pondShape{
+        .x = 0.0,
+        .z = 0.0,
+        .radiusX = 10.0,
+        .radiusZ = 8.0,
+        .phase = 0.4,
+        .bayRadius = 1.8,
+    };
+    require(
+        pondShape.signedDistance(0.0, 0.0) < 0.0 &&
+            pondShape.signedDistance(30.0, 30.0) > 0.0,
+        "single-pond distance distinguishes water and dry terrain");
+    pondShape.islandX = 0.0;
+    pondShape.islandZ = 0.0;
+    pondShape.islandRadius = 2.0;
+    require(
+        pondShape.signedDistance(0.0, 0.0) > 0.0,
+        "single-pond distance keeps islands outside water");
     ian::TerrainHeightfield deterministicPonds{
         ian::WorldConfig::defaults()};
     require(

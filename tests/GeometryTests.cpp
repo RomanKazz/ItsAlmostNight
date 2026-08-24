@@ -1,5 +1,8 @@
 #include "TestHarness.hpp"
 #include "core/Geometry.hpp"
+#include "graphics/CameraCulling.hpp"
+
+#include <limits>
 
 void runGeometryTests() {
     using namespace ian;
@@ -44,4 +47,26 @@ void runGeometryTests() {
     require(capsuleCapHit.has_value(), "ray hits capsule end cap");
     requireNear(*capsuleCapHit, 5.0, 1e-12,
                 "capsule end cap uses sphere intersection");
+
+    const camera_culling::HorizontalView horizontalView{
+        .forward = {0.0F, -1.0F},
+        .fovTangent = 1.0F,
+    };
+    require(
+        camera_culling::visibleInHorizontalRange(
+            0.0F, -5.0F, horizontalView, 10.0F, 1.0F),
+        "horizontal culling keeps objects in front of the camera");
+    require(
+        !camera_culling::visibleInHorizontalRange(
+            0.0F, -12.0F, horizontalView, 10.0F, 1.0F),
+        "horizontal culling rejects objects beyond draw distance");
+    require(
+        !camera_culling::visibleInHorizontalRange(
+            0.0F, 5.0F, horizontalView, 10.0F, 1.0F),
+        "horizontal culling rejects objects behind the camera");
+    require(
+        !camera_culling::visibleInHorizontalRange(
+            std::numeric_limits<float>::quiet_NaN(), -5.0F,
+            horizontalView, 10.0F, 1.0F),
+        "horizontal culling rejects non-finite positions");
 }

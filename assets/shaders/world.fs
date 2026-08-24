@@ -54,6 +54,7 @@ uniform float constantBias;
 uniform float slopeBias;
 uniform float shadowStrength;
 uniform float shadowMapTexelSize;
+uniform int shadowSampleCount;
 
 layout(location = 0) out vec4 finalColor;
 layout(location = 1) out vec4 normalAo;
@@ -309,9 +310,9 @@ float sampleShadow(vec3 normal)
 
     float lightFacing = max(dot(normal, normalize(-sunDirection)), 0.0);
     float bias = constantBias + slopeBias*(1.0 - lightFacing);
-    // A compact disc-shaped PCF kernel avoids the square, technical-looking
-    // edge produced by a regular grid. It deliberately keeps the old nine
-    // texture reads: softer silhouettes without additional fill-rate cost.
+    // Nested disc-shaped PCF kernels let quality presets reduce the dominant
+    // foliage fill-rate cost without changing shadow resolution. The first
+    // five samples form a balanced kernel; High adds the outer detail taps.
     const vec2 disc[9] = vec2[9](
         vec2( 0.00,  0.00),
         vec2(-0.34, -0.91),
@@ -326,6 +327,10 @@ float sampleShadow(vec3 normal)
     float totalWeight = 0.0;
     for (int sampleIndex = 0; sampleIndex < 9; ++sampleIndex)
     {
+        if (sampleIndex >= shadowSampleCount)
+        {
+            break;
+        }
         float centerWeight = sampleIndex == 0 ? 1.55 : 1.0;
         vec2 offset = disc[sampleIndex]*shadowMapTexelSize*3.15;
         float closestDepth = texture(
