@@ -15,8 +15,7 @@ constexpr double LootProximityPickupRadius = 2.0;
 
 [[nodiscard]] constexpr bool isMeleeAttackWeapon(
     PlayerWeapon weapon) {
-    return weapon == PlayerWeapon::BareHands ||
-           weapon == PlayerWeapon::Axe ||
+    return weapon == PlayerWeapon::Axe ||
            weapon == PlayerWeapon::Pickaxe ||
            weapon == PlayerWeapon::Club ||
            weapon == PlayerWeapon::Hammer;
@@ -122,11 +121,7 @@ double Simulation::resourceToolEfficiency(
     if (resource == ResourceType::Crystal) {
         return tool == PlayerWeapon::Pickaxe ? 1.0 : 0.0;
     }
-    if (tool == PlayerWeapon::BareHands) {
-        // Bare Hands already receives its 25% multiplier in the common melee
-        // damage calculation.
-        return 1.0;
-    }
+    if (tool == PlayerWeapon::LegacyBareHands) return 0.0;
     if ((tool == PlayerWeapon::Axe &&
          resource == ResourceType::Wood) ||
         (tool == PlayerWeapon::Pickaxe &&
@@ -229,21 +224,17 @@ void Simulation::updatePlayerActions(
             command.aimedModularBuildingOverride;
     }
     PlayerWeapon heldTool = playerWeapons_.selectedWeapon();
-    const bool canGather = heldTool == PlayerWeapon::BareHands ||
-                           heldTool == PlayerWeapon::Axe ||
-                           heldTool == PlayerWeapon::Pickaxe ||
-                           heldTool == PlayerWeapon::Hammer;
-    aimedResource_ = canGather
-        ? resources_.raycast(playerPosition_, direction, gameplay_.resourceGatherRange)
-        : std::nullopt;
-    if (command.overrideAimedResource && canGather) {
+    aimedResource_ = resources_.raycast(
+        playerPosition_, direction,
+        gameplay_.resourceGatherRange);
+    if (command.overrideAimedResource) {
         aimedResource_ = command.aimedResourceOverride;
     }
     constexpr bool automaticToolSwitch = true;
     // Smart Tools chooses the matching unlocked tool. When the player holds
-    // another tool but has not unlocked the match yet, hands are the safe
-    // universal fallback. This also upgrades hands to an unlocked match.
-    if (automaticToolSwitch && !selectedBuilding_ && aimedResource_) {
+    // another tool, switch to the matching starter tool.
+    if (automaticToolSwitch && !command.selectWeapon &&
+        !selectedBuilding_ && aimedResource_) {
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,
             &ResourceNode::id);
@@ -253,12 +244,7 @@ void Simulation::updatePlayerActions(
                 node->type == ResourceType::Wood
                     ? PlayerWeapon::Axe
                     : PlayerWeapon::Pickaxe;
-            const bool desiredToolUnlocked = unlimitedResources_ ||
-                skillTree_.hasEffect(
-                    desiredTool == PlayerWeapon::Axe
-                        ? "unlock.axe" : "unlock.pickaxe");
-            const PlayerWeapon smartTool = desiredToolUnlocked
-                ? desiredTool : PlayerWeapon::BareHands;
+            const PlayerWeapon smartTool = desiredTool;
             if (heldTool != smartTool) {
                 playerWeapons_.selectWeapon(smartTool);
                 heldTool = smartTool;
@@ -375,7 +361,7 @@ void Simulation::updatePlayerActions(
             gameplay_.pickaxeCriticalChance;
         const bool clubAttack = heldTool == PlayerWeapon::Club;
         double toolMultiplier = 1.0;
-        if (heldTool == PlayerWeapon::BareHands) toolMultiplier = 0.25;
+        if (heldTool == PlayerWeapon::LegacyBareHands) toolMultiplier = 0.0;
         else if (clubAttack) toolMultiplier = club_.damageMultiplier;
         else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
         const double skillDamageMultiplier = std::max(
@@ -520,11 +506,20 @@ void Simulation::updatePlayerActions(
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);
+                const double masteryMultiplier =
+                    (heldTool == PlayerWeapon::Axe &&
+                     !skillTree_.hasEffect("unlock.axe")) ||
+                            (heldTool == PlayerWeapon::Pickaxe &&
+                             !skillTree_.hasEffect("unlock.pickaxe"))
+                        ? 0.8
+                        : 1.0;
                 const double resourceDamage =
                     targetBeforeHit != resources_.nodes().end()
                     ? damage * std::max(
                           0.05, 1.0 + skillTree_.effectValue(
                               "gather.damage")) *
+                          gameplay_.resourceToolDamageMultiplier *
+                          masteryMultiplier *
                           resourceToolEfficiency(
                           heldTool, targetBeforeHit->type)
                     : 0.0;
@@ -542,7 +537,11 @@ void Simulation::updatePlayerActions(
                     .amount = hit->amount,
                     .damage = resourceDamage,
                     .critical = critical,
-                    .bareHands = heldTool == PlayerWeapon::BareHands,
+                    .matchingTool =
+                        (heldTool == PlayerWeapon::Axe &&
+                         hit->type == ResourceType::Wood) ||
+                        (heldTool == PlayerWeapon::Pickaxe &&
+                         hit->type == ResourceType::Stone),
                     .largeDeposit = largeDeposit,
                     .night = state_ == RunState::Sunset || state_ == RunState::Wave,
                 });
@@ -554,17 +553,6 @@ void Simulation::updatePlayerActions(
                         .remaining =
                             ResourcePickupFlightSeconds,
                     });
-                    if (heldTool == PlayerWeapon::BareHands &&
-                        !introSkillObjectiveCompleted_) {
-                        if (hit->type == ResourceType::Wood)
-                            bareHandsWoodGathered_ += hit->amount;
-                        else if (hit->type == ResourceType::Stone)
-                            bareHandsStoneGathered_ += hit->amount;
-                        if (bareHandsWoodGathered_ >= 15 && bareHandsStoneGathered_ >= 10) {
-                            introSkillObjectiveCompleted_ = true;
-                            events_.push_back({.type = GameEventType::IntroSkillObjectiveCompleted});
-                        }
-                    }
                 }
                 if (hit->collected) {
                     if (hit->type == ResourceType::Wood) {
@@ -634,11 +622,11 @@ void Simulation::updatePlayerActions(
                     }
                 }
             }
-        } else if (canGather) {
+        } else if (heldTool == PlayerWeapon::Axe ||
+                   heldTool == PlayerWeapon::Pickaxe) {
             events_.push_back({
                 .type = GameEventType::ResourceGatherMissed,
                 .position = playerPosition_,
-                .bareHands = heldTool == PlayerWeapon::BareHands,
                 .night = state_ == RunState::Sunset || state_ == RunState::Wave,
             });
         }

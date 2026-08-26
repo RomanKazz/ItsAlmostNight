@@ -53,8 +53,8 @@ struct InsightConfig {
     double reducedRateMultiplier{0.5};
     double exhaustedMultiplier{0.2};
 
-    double introGatherObjective{60.0};
-    double introCoreObjective{40.0};
+    double introGatherObjective{};
+    double introCoreObjective{100.0};
     double normalWave{30.0};
     double milestoneWave{55.0};
     double bossWave{100.0};
@@ -85,7 +85,7 @@ struct InsightConfig {
 struct InsightProgress {
     double currentInsight{};
     double requiredInsight{100.0};
-    int totalTreePointsEarned{};
+    int totalLevelsEarned{};
     double totalInsightEarned{};
 };
 
@@ -113,7 +113,7 @@ struct InsightGrantResult {
     double insightBefore{};
     double insightAfter{};
     double requirement{};
-    int treePointsGranted{};
+    int levelsGranted{};
 };
 
 struct InsightRunState {

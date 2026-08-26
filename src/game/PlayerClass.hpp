@@ -64,7 +64,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .role = "Let the fort fight",
             .traits = {"+35% BUILDING HEALTH", "+25% DEFENSE DAMAGE", "-10% DAMAGE"},
             .startingNodeIds = {"hammer", "defense_engineering", ""},
-            .startingNodesLabel = "HAMMER · DEFENSE ENGINEERING",
+            .startingNodesLabel = "FORTIFICATION · DEFENSE ENGINEERING",
             .damageMultiplier = 0.90,
             .buildingHealthMultiplier = 1.35,
             .defenseDamageMultiplier = 1.25,

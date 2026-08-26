@@ -42,6 +42,19 @@ void runTrapSystemTests() {
     require(traps.tick(1.0, buildings.buildings(), enemies).empty(),
             "trap cooldown prevents immediate activation");
 
+    ian::EnemySystem reactiveEnemies;
+    reactiveEnemies.spawnWave(Spawn);
+    ian::TrapSystem reactiveTraps;
+    reactiveTraps.setSkillModifiers(
+        1.0, 1.0, 1.0, 1.0, 6.0);
+    reactiveTraps.syncBuildings(buildings.buildings());
+    reactiveTraps.tick(
+        1.0 / 60.0, buildings.buildings(), reactiveEnemies);
+    require(
+        !reactiveTraps.hits().empty() &&
+            reactiveTraps.hits().front().result.damage > 0.0,
+        "Reactive Traps turns a slow activation into a damaging pulse");
+
     ian::BuildingSystem spikeBuildings;
     const auto spikeCore = spikeBuildings.place(
         ian::BuildingType::Core, {0, 0}, 0, 30, 0);

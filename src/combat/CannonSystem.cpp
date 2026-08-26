@@ -121,11 +121,13 @@ void CannonSystem::reset() {
 
 void CannonSystem::setSkillModifiers(
     double damage, double radius, double fireRate,
-    double highGroundDamage) {
+    double highGroundDamage, int clusterExplosionCount) {
     damageMultiplier_ = std::max(0.05, damage);
     radiusMultiplier_ = std::max(0.05, radius);
     fireRateMultiplier_ = std::max(0.05, fireRate);
     highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+    clusterExplosionCount_ = std::clamp(
+        clusterExplosionCount, 0, 4);
 }
 
 void CannonSystem::clearProjectiles() {
@@ -452,6 +454,44 @@ void CannonSystem::explode(CannonProjectile& projectile, EnemySystem& enemies) {
         .hitCount = static_cast<int>(damage.size()),
         .killedCount = killedCount,
     });
+    constexpr double FullCircle = 6.283185307179586;
+    for (int clusterIndex = 0;
+         clusterIndex < clusterExplosionCount_; ++clusterIndex) {
+        const double angle = FullCircle *
+            (static_cast<double>(clusterIndex) /
+                 static_cast<double>(
+                     std::max(1, clusterExplosionCount_)) +
+             static_cast<double>(projectile.id.index % 17U) /
+                 17.0);
+        const double offset = projectile.explosionRadius * 0.72;
+        const Vec3 clusterPosition{
+            projectile.position.x + std::cos(angle) * offset,
+            projectile.position.y,
+            projectile.position.z + std::sin(angle) * offset,
+        };
+        const double clusterRadius =
+            projectile.explosionRadius * 0.52;
+        const auto clusterDamage = enemies.damageInRadius(
+            clusterPosition, clusterRadius,
+            projectile.explosionDamage * 0.45,
+            projectile.explosionImpulse * 0.45);
+        int clusterKills = 0;
+        for (const EnemyDamageResult& result : clusterDamage) {
+            hitBuffer_.push_back({
+                .cannonId = projectile.cannonId,
+                .result = result,
+                .type = projectile.type,
+            });
+            if (result.killed) ++clusterKills;
+        }
+        explosionBuffer_.push_back({
+            .projectileId = projectile.id,
+            .position = clusterPosition,
+            .radius = clusterRadius,
+            .hitCount = static_cast<int>(clusterDamage.size()),
+            .killedCount = clusterKills,
+        });
+    }
     projectile.active = false;
 }
 

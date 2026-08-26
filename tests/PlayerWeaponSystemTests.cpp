@@ -6,14 +6,10 @@
 
 void runPlayerWeaponSystemTests() {
     require(
-        ian::PlayerToolHotbarOrder ==
+        ian::PlayerWeaponHotbarOrder ==
                 std::array{
-                    ian::PlayerWeapon::BareHands,
-                    ian::PlayerWeapon::Pickaxe,
                     ian::PlayerWeapon::Axe,
-                    ian::PlayerWeapon::Hammer} &&
-            ian::PlayerCombatHotbarOrder ==
-                std::array{
+                    ian::PlayerWeapon::Pickaxe,
                     ian::PlayerWeapon::Club,
                     ian::PlayerWeapon::IceWand,
                     ian::PlayerWeapon::FireWand,
@@ -21,18 +17,28 @@ void runPlayerWeaponSystemTests() {
                     ian::PlayerWeapon::Bomb} &&
             ian::isPlayerTool(ian::PlayerWeapon::Pickaxe) &&
             !ian::isPlayerTool(ian::PlayerWeapon::Rifle),
-        "tools and combat weapons use separate canonical hotbars");
+        "tools and combat weapons share one canonical hotbar");
 
     std::array<bool, ian::PlayerWeaponCount> categoryUnlocks{};
     categoryUnlocks[static_cast<std::size_t>(
-        ian::PlayerWeapon::BareHands)] = true;
+        ian::PlayerWeapon::Pickaxe)] = true;
     categoryUnlocks[static_cast<std::size_t>(
-        ian::PlayerWeapon::Axe)] = true;
+        ian::PlayerWeapon::Club)] = true;
     require(
         ian::playerWeaponVisibleHotbarIndex(
-            ian::PlayerWeapon::Axe, categoryUnlocks,
-            ian::PlayerToolHotbarOrder) == 1U,
-        "category hotbar index skips locked equipment");
+            ian::PlayerWeapon::Club, categoryUnlocks) == 1U,
+        "unified hotbar index skips locked equipment");
+
+    ian::PlayerWeaponSystem legacySelection;
+    legacySelection.restoreState(
+        ian::PlayerWeapon::LegacyBareHands, 1);
+    require(
+        legacySelection.selectedWeapon() == ian::PlayerWeapon::Axe,
+        "old suspended runs migrate removed Hands selection to Axe");
+    legacySelection.restoreState(ian::PlayerWeapon::Hammer, 1);
+    require(
+        legacySelection.selectedWeapon() == ian::PlayerWeapon::Axe,
+        "old suspended runs migrate removed Hammer selection to Axe");
 
     ian::EnemySystem enemies;
     constexpr std::array<ian::Vec3, 1> Spawn{{{0.0, 0.8, -10.0}}};

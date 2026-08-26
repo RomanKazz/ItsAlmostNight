@@ -29,6 +29,14 @@ bool validRunUpgrade(RunUpgradeEffect effect) {
            value < static_cast<int>(RunUpgradeEffectCount);
 }
 
+bool validProgressionCard(
+    ProgressionCardId card, std::size_t skillCount) {
+    if (isSkillProgressionCard(card)) {
+        return progressionCardSkillIndex(card) < skillCount;
+    }
+    return validRunUpgrade(progressionCardRunUpgrade(card));
+}
+
 bool samePosition(Vec3 left, Vec3 right, double tolerance = 1e-5) {
     return std::abs(left.x - right.x) <= tolerance &&
            std::abs(left.y - right.y) <= tolerance &&
@@ -235,16 +243,16 @@ bool Simulation::loadSuspendedRunState(
         saved.runUpgradeChoiceCount > MaximumRunUpgradeChoices ||
         saved.runUpgradeSelectionsRemaining < 0 ||
         saved.runUpgradeSelectionsRemaining > MaximumSavedStack;
-    std::unordered_set<int> offeredUpgrades;
+    std::unordered_set<ProgressionCardId> offeredUpgrades;
     for (std::size_t index = 0;
          index < saved.runUpgradeChoiceCount; ++index) {
-        const RunUpgradeEffect effect = saved.runUpgradeChoices[index];
-        invalidChoices = invalidChoices || !validRunUpgrade(effect) ||
-            !offeredUpgrades.insert(static_cast<int>(effect)).second;
+        const ProgressionCardId card = saved.runUpgradeChoices[index];
+        invalidChoices = invalidChoices ||
+            !validProgressionCard(card, skillTree_.nodes().size()) ||
+            !offeredUpgrades.insert(card).second;
     }
     if (saved.runUpgradeChoicePending) {
         invalidChoices = invalidChoices ||
-            saved.resumeState != RunState::WaveComplete ||
             saved.runUpgradeChoiceCount < MinimumRunUpgradeChoices ||
             saved.runUpgradeSelectionsRemaining <= 0;
     } else if (saved.runUpgradeSelectionsRemaining != 0) {
@@ -421,7 +429,7 @@ bool Simulation::loadSuspendedRunState(
         0, saved.freeChestRerollsRemaining);
     runNightlyBombBonus_ = std::max(0, saved.runNightlyBombBonus);
     runUpgradeRerollTokens_ = std::max(0, saved.runUpgradeRerollTokens);
-    runUpgradeLockUnlocked_ = saved.runUpgradeLockUnlocked;
+    runUpgradeLockUnlocked_ = true;
     lockedRunUpgrade_ = saved.lockedRunUpgrade;
     bonusSelectionsNextReward_ = std::max(
         0, saved.bonusSelectionsNextReward);
@@ -433,6 +441,7 @@ bool Simulation::loadSuspendedRunState(
     bareHandsStoneGathered_ = saved.bareHandsStoneGathered;
     introSkillObjectiveCompleted_ = saved.introSkillObjectiveCompleted;
     runStatistics_ = saved.runStatistics;
+    const int migratedLevelChoices = skillTree_.takePoints();
 
     refreshSkillRuntimeEffects();
     if (!buildings_.restoreBuildings(
@@ -515,6 +524,11 @@ bool Simulation::loadSuspendedRunState(
     waveSpawnGroupSize_ = 1;
     waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
+    waveSpawnGroupsDue_ = 0U;
+    waveSpawnCycle_ = 0U;
+    waveHealthScale_ = 1.0;
+    waveDamageScale_ = 1.0;
+    forceWaveCompletion_ = false;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
     currentWaveHasBoss_ = false;
@@ -527,6 +541,13 @@ bool Simulation::loadSuspendedRunState(
     runUpgradeSelectionsRemaining_ =
         saved.runUpgradeSelectionsRemaining;
     runUpgradeOfferGeneration_ = saved.runUpgradeOfferGeneration;
+    if (migratedLevelChoices > 0) {
+        runUpgradeSelectionsRemaining_ += migratedLevelChoices;
+        if (!runUpgradeChoicePending_) {
+            generateRunUpgradeChoices();
+            runUpgradeChoicePending_ = true;
+        }
+    }
     stageCleared_ = saved.stageCleared;
     finalNight_ = false;
     waveStartCheckpoint_.reset();

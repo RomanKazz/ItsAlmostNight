@@ -16,10 +16,6 @@
 #include <string>
 #include <utility>
 
-#if defined(__APPLE__)
-#include <mach/mach_time.h>
-#endif
-
 namespace ian {
 namespace {
 
@@ -29,64 +25,6 @@ constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
 constexpr std::string_view MetaProgressionPath =
     "user_settings/meta_progression.json";
-
-#if defined(__APPLE__)
-class MacFramePacer {
-  public:
-    MacFramePacer() {
-        mach_timebase_info(&timebase_);
-    }
-
-    void beginFrame(int framesPerSecond) {
-        if (framesPerSecond <= 0) {
-            framesPerSecond_ = 0;
-            deadline_ = 0U;
-            return;
-        }
-        if (framesPerSecond_ != framesPerSecond || deadline_ == 0U) {
-            framesPerSecond_ = framesPerSecond;
-            deadline_ = mach_absolute_time();
-        }
-    }
-
-    void endFrame(int framesPerSecond) {
-        if (framesPerSecond <= 0) {
-            framesPerSecond_ = 0;
-            deadline_ = 0U;
-            return;
-        }
-        if (framesPerSecond_ != framesPerSecond || deadline_ == 0U) {
-            framesPerSecond_ = framesPerSecond;
-            deadline_ = mach_absolute_time();
-        }
-        const std::uint64_t period = nanosecondsToTicks(
-            1'000'000'000ULL /
-            static_cast<std::uint64_t>(framesPerSecond_));
-        const std::uint64_t target = deadline_ + period;
-        const std::uint64_t now = mach_absolute_time();
-        if (now >= target) {
-            // Never accumulate catch-up debt after a slow render or focus
-            // change. Next frame starts a fresh cadence.
-            deadline_ = now;
-            return;
-        }
-        // mach_wait_until uses the same absolute clock as our deadline and
-        // avoids burning a CPU core for the tail of every capped frame.
-        static_cast<void>(mach_wait_until(target));
-        deadline_ = target;
-    }
-
-  private:
-    [[nodiscard]] std::uint64_t nanosecondsToTicks(
-        std::uint64_t nanoseconds) const {
-        return nanoseconds * timebase_.denom / timebase_.numer;
-    }
-
-    mach_timebase_info_data_t timebase_{};
-    int framesPerSecond_{};
-    std::uint64_t deadline_{};
-};
-#endif
 
 std::uint64_t mixDecorationFingerprint(
     std::uint64_t hash, std::uint64_t value) {
@@ -241,8 +179,7 @@ App::App()
       loadAppBalance(), loadAppMap(),
           loadAppWorldConfig(), loadAppSkills(),
           loadAppInsightConfig(), loadAppObjectives()),
-      environment_(loadAppEnvironment()),
-      skillTree_(simulation_.skillTree()) {
+      environment_(loadAppEnvironment()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
     static_cast<void>(loadMetaProgression(
@@ -266,7 +203,11 @@ App::App()
     }
     effects_.reserve(128);
     gameEventBuffer_.reserve(256);
-    arrowVisuals_.reserve(64);
+    // Tower fire is hitscan in the simulation, but presentation keeps a
+    // short-lived projectile/tracer so the player can read where the base is
+    // shooting.  Reserve the full bounded visual budget to avoid reallocating
+    // during dense nights.
+    arrowVisuals_.reserve(1024);
     damageIndicators_.reserve(12);
     floatingDamageNumbers_.reserve(32);
     resourceGainVisuals_.reserve(16);
@@ -298,10 +239,22 @@ int App::run() {
     renderer_->settings() = userSettings_.graphics;
     renderer_->applyFrameRateLimit();
     renderer_->initialize();
+    static_cast<void>(vfxImpactTexture_.load(
+        "assets/vfx/brackeys/impact_6x5.png"));
+    static_cast<void>(vfxExplosionTexture_.load(
+        "assets/vfx/brackeys/explosion_6x5.png"));
+    static_cast<void>(vfxElectricRingTexture_.load(
+        "assets/vfx/brackeys/electric_ring_6x5.png"));
+    for (TextureResource* texture : {
+             &vfxImpactTexture_, &vfxExplosionTexture_,
+             &vfxElectricRingTexture_}) {
+        if (texture->valid()) {
+            SetTextureFilter(texture->get(), TEXTURE_FILTER_BILINEAR);
+        }
+    }
     modularBuildingRenderer_.setRenderer(&*renderer_);
     rebuildTerrainGraphics();
     ui_.initialize();
-    skillTree_.initialize();
     audio_.initialize();
     performanceLoggingApplied_ =
         renderer_->settings().performanceLogging;
@@ -310,14 +263,7 @@ int App::run() {
             "performance_logs"));
     }
 
-#if defined(__APPLE__)
-    MacFramePacer framePacer;
-#endif
-
     while (!WindowShouldClose() && !exitRequested_) {
-#if defined(__APPLE__)
-        framePacer.beginFrame(renderer_->settings().frameRateLimit);
-#endif
         const auto frameStart = PerformanceClock::now();
         const auto inputStart = PerformanceClock::now();
         processInput();
@@ -326,11 +272,13 @@ int App::run() {
         update();
         const auto renderStart = PerformanceClock::now();
         render();
+        const double renderMilliseconds =
+            performanceMilliseconds(renderStart);
         performanceStats_.render.sample(
-            performanceMilliseconds(renderStart));
-#if defined(__APPLE__)
-        framePacer.endFrame(renderer_->settings().frameRateLimit);
-#endif
+            std::max(
+                0.0,
+                renderMilliseconds -
+                    renderer_->framePacingMilliseconds()));
         performanceStats_.frame.sample(
             performanceMilliseconds(frameStart));
         const bool performanceLoggingRequested =
@@ -424,9 +372,11 @@ int App::run() {
             toolTunings_[static_cast<std::size_t>(visual)]));
     }
 
-    skillTree_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
+    vfxImpactTexture_.unload();
+    vfxExplosionTexture_.unload();
+    vfxElectricRingTexture_.unload();
     modularBuildingRenderer_.setRenderer(nullptr);
     renderer_->shutdown();
     renderer_.reset();
@@ -507,6 +457,9 @@ void App::persistMetaProgression() {
 }
 
 void App::recordMetaProgression(std::span<const GameEvent> events) {
+    if (simulation_.snapshot().sandboxMode) {
+        return;
+    }
     std::array<bool, PlayerClassDefinitions.size()> unlockedBefore{};
     for (std::size_t index = 0;
          index < PlayerClassDefinitions.size(); ++index) {
@@ -678,15 +631,11 @@ void App::drawBuildModePie() const {
         const char* subtitle;
         Color accent;
     };
-    constexpr std::array<Segment, 4> Segments{{
-        {ActionMode::Tools, 137.0F, 223.0F, {-1.0F, 0.0F},
-         "GATHER & REPAIR", {104, 190, 132, 255}},
-        {ActionMode::Weapons, 227.0F, 313.0F, {0.0F, -1.0F},
-         "COMBAT", {222, 105, 92, 255}},
-        {ActionMode::Buildings, -43.0F, 43.0F, {1.0F, 0.0F},
-         "STRUCTURES", {236, 190, 91, 255}},
-        {ActionMode::Modular, 47.0F, 133.0F, {0.0F, 1.0F},
-         "FLOORS & RAMPS", {100, 164, 224, 255}},
+    constexpr std::array<Segment, 2> Segments{{
+        {ActionMode::Equipment, 180.0F, 360.0F, {0.0F, -1.0F},
+         "GATHER & COMBAT", {104, 190, 132, 255}},
+        {ActionMode::Buildings, 0.0F, 180.0F, {0.0F, 1.0F},
+         "STRUCTURES & MODULAR", {236, 190, 91, 255}},
     }};
 
     DrawCircleV(
@@ -697,25 +646,12 @@ void App::drawBuildModePie() const {
     DrawCircleV(center, OuterRadius + 3.0F,
                 {14, 18, 25, 248});
 
-    const auto& snapshot = simulation_.snapshot();
-    const bool weaponsAvailable = std::ranges::any_of(
-        PlayerCombatHotbarOrder,
-        [&snapshot](PlayerWeapon weapon) {
-            return snapshot.unlockedWeapons[
-                static_cast<std::size_t>(weapon)];
-        });
-
     for (const Segment& segment : Segments) {
         const bool selected =
             buildModePieChoice_ == segment.mode;
         const bool active = actionMode_ == segment.mode;
-        const bool available =
-            segment.mode != ActionMode::Weapons ||
-            weaponsAvailable;
         Color fill = selected
-            ? (available
-                   ? segment.accent
-                   : Color{91, 91, 96, 255})
+            ? segment.accent
             : active
                 ? Color{
                       static_cast<unsigned char>(
@@ -743,11 +679,9 @@ void App::drawBuildModePie() const {
             center.x + segment.direction.x * LabelRadius,
             center.y + segment.direction.y * LabelRadius,
         };
-        const Color textColor = !available
-            ? Color{171, 169, 164, 235}
-            : selected
-                ? Color{25, 26, 27, 255}
-                : Color{250, 241, 220, 255};
+        const Color textColor = selected
+            ? Color{25, 26, 27, 255}
+            : Color{250, 241, 220, 255};
         const std::string_view label =
             actionModeLabel(segment.mode);
         const Vector2 labelSize = measureUiText(label, 17.0F);
@@ -756,9 +690,7 @@ void App::drawBuildModePie() const {
             {labelCenter.x - labelSize.x * 0.5F,
              labelCenter.y - 13.0F},
             17.0F, textColor);
-        const std::string_view subtitle = available
-            ? segment.subtitle
-            : "LOCKED • SKILL TREE";
+        const std::string_view subtitle = segment.subtitle;
         const Vector2 subtitleSize =
             measureUiText(subtitle, 9.0F);
         drawUiText(

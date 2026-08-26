@@ -1,12 +1,15 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/CoreProgression.hpp"
 #include "game/Simulation.hpp"
+#include "progression/RunUpgrade.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <ranges>
 
 namespace {
 void unlockAxe(ian::Simulation& simulation) {
@@ -15,11 +18,31 @@ void unlockAxe(ian::Simulation& simulation) {
     require(axe && simulation.purchaseSkill(*axe) == ian::SkillPurchaseError::None,
             "test fixture unlocks axe");
 }
-void unlockHammer(ian::Simulation& simulation) {
+void unlockFortificationKit(ian::Simulation& simulation) {
     simulation.grantSkillPoints(1, ian::SkillPointSource::Event);
     const auto hammer = simulation.skillTree().indexOf("hammer");
     require(hammer && simulation.purchaseSkill(*hammer) == ian::SkillPurchaseError::None,
-            "test fixture unlocks hammer");
+            "test fixture unlocks fortification kit");
+}
+void resolveLevelUps(
+    ian::Simulation& simulation,
+    bool preferStackableCard = true) {
+    while (simulation.snapshot().runUpgradeChoicePending) {
+        std::size_t choice = 0U;
+        if (preferStackableCard) {
+            const auto& snapshot = simulation.snapshot();
+            for (std::size_t index = 0;
+                 index < snapshot.runUpgradeChoiceCount; ++index) {
+                if (!ian::isSkillProgressionCard(
+                        snapshot.runUpgradeChoices[index])) {
+                    choice = index;
+                    break;
+                }
+            }
+        }
+        require(simulation.selectRunUpgrade(choice),
+                "test fixture resolves queued level-up cards");
+    }
 }
 }
 
@@ -141,7 +164,9 @@ void runSimulationTests() {
                 snapshot.wood == 17 && snapshot.stone == 11 &&
                 snapshot.crystals == 3 && snapshot.coins == 29 &&
                 snapshot.bombsRemaining == 2 &&
-                snapshot.skillPoints == 2 &&
+                snapshot.skillPoints == 0 &&
+                snapshot.runUpgradeChoicePending &&
+                snapshot.runUpgradeSelectionsRemaining == 2 &&
                 snapshot.coreBuildRadius == 15 &&
                 snapshot.buildings.size() == 1 &&
                 snapshot.buildings.front().health == 420.0 &&
@@ -159,7 +184,7 @@ void runSimulationTests() {
                 snapshot.runStatistics.structuresBuilt == 9 &&
                 snapshot.lootStacks[ian::lootUpgradeIndex(
                     ian::LootUpgradeEffect::Magnet)] == 1,
-            "checkpoint preserves run progression and mutable world state");
+            "checkpoint migrates old points to cards and preserves mutable world state");
         requireNear(snapshot.playerPosition.x,
                     checkpoint.playerPosition.x, 1e-12,
                     "checkpoint preserves player X position");
@@ -200,6 +225,7 @@ void runSimulationTests() {
         interrupted->tick(1.0 / 60.0, placeCore);
         require(interrupted->snapshot().coreMaxHealth > 0.0,
                 "interrupted-wave fixture places a core");
+        resolveLevelUps(*interrupted);
         ian::PlayerCommand beginWave;
         beginWave.startWaveEarly = ian::StartWaveEarlyCommand{};
         interrupted->tick(1.0 / 60.0, beginWave);
@@ -230,34 +256,133 @@ void runSimulationTests() {
                 "active night resumes at its preceding safe build phase");
     }
     {
+        ian::GameBalance timedBalance = ian::GameBalance::defaults();
+        timedBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Core)].wood = 0;
+        timedBalance.gameplay.nightDurationSeconds = 12.0;
+        ian::WorldConfig timedWorld = ian::WorldConfig::defaults();
+        timedWorld.terrainAmplitude = 0.0;
+        ian::Simulation timedNight{
+            timedBalance, ian::MapDefinition::defaults(), timedWorld};
+        timedNight.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        timedNight.tick(1.0 / 60.0, unlimited);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        timedNight.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(timedNight);
+        ian::PlayerCommand startNight;
+        startNight.startWaveEarly = ian::StartWaveEarlyCommand{};
+        timedNight.tick(1.0 / 60.0, startNight);
+        require(
+            timedNight.snapshot().state == ian::RunState::Wave &&
+                timedNight.snapshot().phaseDuration == 12.0,
+            "regular nights expose their fixed dawn timer");
+        timedNight.tick(8.0);
+        require(
+            timedNight.snapshot().state == ian::RunState::Wave &&
+                timedNight.snapshot().activeEnemyCount > 15U,
+            "a cleared spawn budget is replenished during the timed night");
+        timedNight.tick(4.0);
+        require(
+            timedNight.snapshot().state == ian::RunState::WaveComplete &&
+                timedNight.snapshot().activeEnemyCount == 0U,
+            "dawn ends the fixed night and banishes remaining enemies");
+    }
+    {
+        ian::WorldConfig sandboxWorld = ian::WorldConfig::defaults();
+        sandboxWorld.terrainAmplitude = 0.0;
+        ian::Simulation sandbox{
+            ian::GameBalance::defaults(),
+            ian::MapDefinition::defaults(), sandboxWorld};
+        sandbox.startSandboxRun(ian::PlayerClass::Vanguard);
+        const double buildTime = sandbox.snapshot().phaseTimeRemaining;
+        sandbox.tick(30.0);
+        require(
+            sandbox.snapshot().sandboxMode &&
+                sandbox.snapshot().unlimitedResources &&
+                sandbox.snapshot().playerInvulnerable &&
+                sandbox.snapshot().phaseTimeRemaining == buildTime,
+            "sandbox grants creative rules and pauses the build timer");
+        require(
+            std::ranges::all_of(
+                sandbox.snapshot().unlockedBuildings,
+                [](bool unlocked) { return unlocked; }) &&
+                sandbox.snapshot().unlockedWeapons[
+                    static_cast<std::size_t>(ian::PlayerWeapon::Rifle)],
+            "sandbox exposes every building and late-game equipment immediately");
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+        };
+        sandbox.tick(1.0 / 60.0, placeCore);
+        ian::PlayerCommand placeCannon;
+        placeCannon.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Cannon,
+            .gridPosition = {3, 1},
+        };
+        sandbox.tick(1.0 / 60.0, placeCannon);
+        require(
+            std::ranges::any_of(
+                sandbox.snapshot().buildings,
+                [](const ian::BuildingInstance& building) {
+                    return building.type == ian::BuildingType::Cannon;
+                }),
+            "sandbox bypasses normal Core-level construction gates");
+        require(
+            sandbox.snapshot().wood == 0 &&
+                sandbox.snapshot().stone == 0 &&
+                sandbox.snapshot().crystals == 0,
+            "sandbox construction never consumes carried resources");
+
+        const std::size_t fireRateIndex = ian::runUpgradeIndex(
+            ian::RunUpgradeEffect::DefenseFireRate);
+        require(
+            sandbox.grantSandboxProgressionCard(
+                ian::progressionCardId(
+                    ian::RunUpgradeEffect::DefenseFireRate)) &&
+                sandbox.snapshot().runUpgradeStacks[fireRateIndex] == 1,
+            "sandbox can grant a selected power card directly");
+        const auto rifleCard = sandbox.skillTree().indexOf("rifle");
+        require(
+            rifleCard && sandbox.grantSandboxProgressionCard(
+                ian::skillProgressionCardId(*rifleCard)) &&
+                sandbox.skillTree().isUnlocked("rifle"),
+            "sandbox can grant a selected unlock card directly");
+
+        sandbox.restartRun();
+        require(
+            sandbox.snapshot().sandboxMode &&
+                sandbox.snapshot().unlimitedResources,
+            "sandbox restart preserves the selected run mode");
+        sandbox.returnToMainMenu();
+        require(!sandbox.snapshot().sandboxMode,
+                "returning to the menu leaves sandbox mode");
+        require(
+            !sandbox.grantSandboxProgressionCard(
+                ian::progressionCardId(
+                    ian::RunUpgradeEffect::Damage)),
+            "direct card grants are rejected outside sandbox");
+    }
+    {
         ian::Simulation defenseProgression;
         defenseProgression.startRun();
         const auto initial = defenseProgression.snapshot();
         require(
             initial.unlockedBuildings[static_cast<std::size_t>(
-                ian::BuildingType::GunTurret)] &&
+                ian::BuildingType::Core)] &&
+                !initial.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::GunTurret)] &&
                 !initial.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Turret)] &&
                 !initial.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Cannon)],
-            "only the starter turret is exposed before defense research");
-        defenseProgression.grantSkillPoints(
-            3, ian::SkillPointSource::Event);
-        const auto hammer =
-            defenseProgression.skillTree().indexOf("hammer");
-        const auto engineering =
-            defenseProgression.skillTree().indexOf("defense_engineering");
-        const auto crossbow =
-            defenseProgression.skillTree().indexOf("crossbow_unlock");
-        require(
-            hammer && engineering && crossbow &&
-                defenseProgression.purchaseSkill(*hammer) ==
-                    ian::SkillPurchaseError::None &&
-                defenseProgression.purchaseSkill(*engineering) ==
-                    ian::SkillPurchaseError::None &&
-                defenseProgression.purchaseSkill(*crossbow) ==
-                    ian::SkillPurchaseError::CoreLevelRequired,
-            "crossbow research cannot bypass its core level requirement");
+            "only the Core is exposed before it is placed");
     }
     {
         ian::Simulation rotationSimulation;
@@ -273,6 +398,7 @@ void runSimulationTests() {
             .gridPosition = {0, 0},
         };
         rotationSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(rotationSimulation);
         ian::PlayerCommand placeTurret;
         placeTurret.placeBuilding = ian::PlaceBuildingCommand{
             .type = ian::BuildingType::Turret,
@@ -319,6 +445,7 @@ void runSimulationTests() {
             .rotation = 0,
         };
         wallDragFoundations.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(wallDragFoundations);
         require(
             wallDragFoundations.snapshot().coreId.has_value(),
             "wall drag foundation fixture creates core");
@@ -463,6 +590,31 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         objectiveSimulation.tick(1.0 / 60.0, placeCore);
+        require(
+            objectiveSimulation.snapshot().runUpgradeChoicePending &&
+                objectiveSimulation.snapshot().playerLevel == 2 &&
+                objectiveSimulation.snapshot().runUpgradeChoiceCount == 3U,
+            "filling the XP bar pauses play with three unified cards");
+        const auto clubCard =
+            objectiveSimulation.skillTree().indexOf("club");
+        require(
+            clubCard && std::ranges::any_of(
+                objectiveSimulation.snapshot().runUpgradeChoices |
+                    std::views::take(
+                        objectiveSimulation.snapshot()
+                            .runUpgradeChoiceCount),
+                [clubCard](ian::ProgressionCardId card) {
+                    return ian::isSkillProgressionCard(card) &&
+                        ian::progressionCardSkillIndex(card) == *clubCard;
+                }),
+            "the first level guarantees a usable combat weapon card");
+        const int unlockedBeforeLevelUp =
+            objectiveSimulation.skillTree().unlockedCount();
+        resolveLevelUps(objectiveSimulation, false);
+        require(
+            objectiveSimulation.skillTree().unlockedCount() >
+                unlockedBeforeLevelUp,
+            "selecting a former tree node applies it as a level-up card");
         const auto objectiveSnapshot =
             objectiveSimulation.snapshot();
         require(
@@ -593,6 +745,7 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         lightningSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(lightningSimulation);
         ian::PlayerCommand spawnEnemies;
         spawnEnemies.spawnEnemy = ian::SpawnEnemyCommand{
             ian::EnemyType::Heavy, 4};
@@ -661,6 +814,7 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         defeatSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(defeatSimulation);
         defeatSimulation.grantLootUpgrade(
             ian::LootUpgradeEffect::Hourglass,
             ian::LootRarity::Rare);
@@ -725,8 +879,8 @@ void runSimulationTests() {
         earlySimulation.startRun();
         requireNear(
             earlySimulation.snapshot().phaseDuration,
-            120.0, 1e-9,
-            "first wave preparation lasts two minutes");
+            60.0, 1e-9,
+            "first wave preparation lasts one minute");
         earlySimulation.grantSkillPoints(
             7, ian::SkillPointSource::Event);
         constexpr std::array<const char*, 4> LongerDayPath{{
@@ -743,7 +897,7 @@ void runSimulationTests() {
         }
         requireNear(
             earlySimulation.snapshot().phaseDuration,
-            135.0, 1e-9,
+            75.0, 1e-9,
             "Longer Days adds exactly fifteen seconds to current daytime");
         require(
             unlockedLongerDays,
@@ -752,6 +906,7 @@ void runSimulationTests() {
         placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         earlySimulation.tick(1.0 / 60.0, placeFreeCore);
+        resolveLevelUps(earlySimulation);
         const auto twilightResource = std::ranges::find_if(
             earlySimulation.snapshot().resourceNodes,
             [](const ian::ResourceNode& node) {
@@ -812,6 +967,7 @@ void runSimulationTests() {
             }
         }
         earlySimulation.tick(1.0 / 60.0, placeFreeCore);
+        resolveLevelUps(earlySimulation);
         earlySimulation.grantLootUpgrade(
             ian::LootUpgradeEffect::Hourglass,
             ian::LootRarity::Rare);
@@ -898,6 +1054,10 @@ void runSimulationTests() {
             ian::BuildingType::Core)].wood = 0;
         blueprintBalance.buildings[static_cast<std::size_t>(
             ian::BuildingType::Wall)].wood = 0;
+        blueprintBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Wall)].stone = 0;
+        blueprintBalance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::Wall)].crystals = 0;
         ian::MapDefinition blueprintMap =
             ian::MapDefinition::defaults();
         blueprintMap.obstacles.clear();
@@ -911,27 +1071,22 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         blueprintSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(blueprintSimulation);
         const double beforeBlueprint =
-            blueprintSimulation.snapshot().currentInsight;
+            blueprintSimulation.snapshot().totalInsightEarned;
         blueprintSimulation.grantLootUpgrade(
             ian::LootUpgradeEffect::Blueprint,
             ian::LootRarity::Rare);
+        require(
+            blueprintSimulation.snapshot().unlockedBuildings[
+                static_cast<std::size_t>(ian::BuildingType::Wall)],
+            "Core level one unlocks walls");
         requireNear(
-            blueprintSimulation.snapshot().currentInsight,
+            blueprintSimulation.snapshot().totalInsightEarned,
             beforeBlueprint + blueprintSimulation
                 .insightSystem().config().firstBuildingTypeBonus,
             1e-9,
             "Blueprint immediately rewards already-built unique types");
-        const double beforeWall =
-            blueprintSimulation.snapshot().currentInsight;
-        ian::PlayerCommand placeWall;
-        placeWall.placeBuilding = ian::PlaceBuildingCommand{
-            ian::BuildingType::Wall, {3, 0}, 0};
-        blueprintSimulation.tick(1.0 / 60.0, placeWall);
-        require(
-            blueprintSimulation.snapshot().currentInsight >
-                beforeWall + 2.0,
-            "Blueprint rewards a newly built type plus normal building Insight");
     }
     {
         auto fallingSimulation = [](double spawnHeight,
@@ -1019,10 +1174,11 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         storageSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(storageSimulation);
         require(
-            storageSimulation.snapshot().woodCapacity == 100 &&
-                storageSimulation.snapshot().stoneCapacity == 60 &&
-                storageSimulation.snapshot().crystalCapacity == 60,
+            storageSimulation.snapshot().woodCapacity == 120 &&
+                storageSimulation.snapshot().stoneCapacity == 75 &&
+                storageSimulation.snapshot().crystalCapacity == 75,
             "level-one core expands the initial inventory capacity");
 
         ian::PlayerCommand placeWoodStorage;
@@ -1051,9 +1207,9 @@ void runSimulationTests() {
         storageSimulation.tick(1.0 / 60.0, upgradeCore);
         storageSimulation.tick(1.0 / 60.0, godMode);
         require(
-            storageSimulation.snapshot().woodCapacity == 180 &&
-                storageSimulation.snapshot().stoneCapacity == 110 &&
-                storageSimulation.snapshot().crystalCapacity == 120,
+            storageSimulation.snapshot().woodCapacity == 240 &&
+                storageSimulation.snapshot().stoneCapacity == 150 &&
+                storageSimulation.snapshot().crystalCapacity == 150,
             "upgrading the core expands all resource capacities");
     }
     {
@@ -1344,6 +1500,7 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         potionSimulation.tick(0.0, placeCore);
+        resolveLevelUps(potionSimulation);
         ian::PlayerCommand startWave;
         startWave.startWaveEarly =
             ian::StartWaveEarlyCommand{};
@@ -1372,28 +1529,38 @@ void runSimulationTests() {
         weaponProgression.startRun();
         ian::PlayerCommand cycle;
         cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        cycle.overrideAimedResource = true;
+        cycle.aimedResourceOverride.reset();
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
-                "weapon cycle skips locked weapons and keeps bare hands selectable");
+                    ian::PlayerWeapon::Pickaxe,
+                "weapon cycle advances from Axe to Pickaxe");
         const auto initialWeapons =
             weaponProgression.snapshot().unlockedWeapons;
         require(initialWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::BareHands)] &&
+                    ian::PlayerWeapon::Axe)] &&
+                    initialWeapons[static_cast<std::size_t>(
+                        ian::PlayerWeapon::Pickaxe)] &&
+                    !initialWeapons[static_cast<std::size_t>(
+                        ian::PlayerWeapon::LegacyBareHands)] &&
                     !initialWeapons[static_cast<std::size_t>(
                         ian::PlayerWeapon::Bomb)] &&
-                    std::count(initialWeapons.begin(), initialWeapons.end(), true) == 1,
-                "weapon hotbar initially exposes only bare hands");
-        ian::PlayerCommand selectHandsInitially;
-        selectHandsInitially.selectWeapon =
-            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
-        weaponProgression.tick(1.0 / 60.0, selectHandsInitially);
+                    std::count(initialWeapons.begin(), initialWeapons.end(), true) == 2,
+                "weapon hotbar initially exposes only Axe and Pickaxe");
+        ian::PlayerCommand selectAxe;
+        selectAxe.selectWeapon =
+            ian::SelectWeaponCommand{ian::PlayerWeapon::Axe};
+        selectAxe.overrideAimedResource = true;
+        selectAxe.aimedResourceOverride.reset();
+        weaponProgression.tick(1.0 / 60.0, selectAxe);
         ian::PlayerCommand lockedSelection;
         lockedSelection.selectWeapon =
             ian::SelectWeaponCommand{ian::PlayerWeapon::Club};
+        lockedSelection.overrideAimedResource = true;
+        lockedSelection.aimedResourceOverride.reset();
         weaponProgression.tick(1.0 / 60.0, lockedSelection);
         require(weaponProgression.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
+                    ian::PlayerWeapon::Axe,
                 "direct hotbar selection cannot equip a locked weapon");
 
         weaponProgression.grantSkillPoints(2, ian::SkillPointSource::Event);
@@ -1411,18 +1578,14 @@ void runSimulationTests() {
         require(weaponProgression.snapshot().unlockedWeapons[
                     static_cast<std::size_t>(ian::PlayerWeapon::Club)],
                 "weapon hotbar exposes club immediately after unlock");
-        ian::PlayerCommand selectHands;
-        selectHands.selectWeapon =
-            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
-        weaponProgression.tick(1.0 / 60.0, selectHands);
         weaponProgression.tick(1.0 / 60.0, lockedSelection);
         require(weaponProgression.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::Club,
                 "direct hotbar selection equips an unlocked weapon");
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
-                "weapon cycle includes fists after unlocked club");
+                    ian::PlayerWeapon::Axe,
+                "weapon cycle wraps from Club to Axe");
 
         weaponProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
         const auto rifle = weaponProgression.skillTree().indexOf("rifle");
@@ -1433,8 +1596,8 @@ void runSimulationTests() {
                 "rifle unlock applies only after club dependency");
         weaponProgression.tick(1.0 / 60.0, cycle);
         require(weaponProgression.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
-                "weapon cycle wraps from rifle to fists while bombs are locked");
+                    ian::PlayerWeapon::Axe,
+                "weapon cycle wraps from Rifle to Axe while bombs are locked");
     }
     {
         ian::Simulation iceProgression;
@@ -1467,10 +1630,12 @@ void runSimulationTests() {
         iceProgression.grantSkillPoints(1, ian::SkillPointSource::Event);
         ian::PlayerCommand cycle;
         cycle.toggleWeapon = ian::ToggleWeaponCommand{};
+        cycle.overrideAimedResource = true;
+        cycle.aimedResourceOverride.reset();
         iceProgression.tick(1.0 / 60.0, cycle);
         require(iceProgression.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
-                "locked wands and bombs are absent from the weapon cycle");
+                    ian::PlayerWeapon::Pickaxe,
+                "the cycle exposes baseline tools but skips locked weapons");
     }
     {
         auto clubBalance = ian::GameBalance::defaults();
@@ -1523,6 +1688,7 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         clubCombat.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(clubCombat);
         require(
             clubCombat.snapshot().coreId.has_value(),
             "club combat fixture places core");
@@ -1720,13 +1886,13 @@ void runSimulationTests() {
             hammer && automaticTools.purchaseSkill(*hammer) ==
                            ian::SkillPurchaseError::None &&
                 automaticTools.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::Hammer,
-            "Smart Tools fixture equips the hammer");
+                    ian::PlayerWeapon::Pickaxe,
+            "Fortification Kit does not occupy an equipment slot");
         automaticTools.tick(1.0 / 60.0, aimWood);
         require(
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Axe,
-            "Smart Tools switches from hammer to axe for wood");
+            "Smart Tools still switches to axe for wood");
         ian::PlayerCommand selectHammer;
         selectHammer.selectWeapon = ian::SelectWeaponCommand{
             ian::PlayerWeapon::Hammer};
@@ -1737,7 +1903,7 @@ void runSimulationTests() {
         require(
             automaticTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
-            "Smart Tools switches from hammer to pickaxe for stone");
+            "removed hammer selection cannot block automatic tools");
         ian::PlayerCommand buildWhileAimingWood;
         buildWhileAimingWood.selectBuilding =
             ian::BuildingType::Core;
@@ -1807,11 +1973,11 @@ void runSimulationTests() {
             powerSwing.snapshot().resourceNodes;
         requireNear(
             afterPowerSwing[0].health,
-            primaryHealth - 3.75, 1e-12,
+            primaryHealth - 2.4375, 1e-12,
             "three gathering hits damage primary resource three times");
         requireNear(
             afterPowerSwing[1].health,
-            nearbyHealth - 1.25, 1e-12,
+            nearbyHealth - 0.8125, 1e-12,
             "third Power Swing damages nearby resource once");
     }
     {
@@ -1852,13 +2018,17 @@ void runSimulationTests() {
                     event.resourceType == ian::ResourceType::Stone;
             });
         require(
-            axeHit != hitEvents.end(),
-            "axe can damage stone instead of rejecting the target");
+            axeHit != hitEvents.end() &&
+                inefficientTools.snapshot().selectedWeapon ==
+                    ian::PlayerWeapon::Pickaxe,
+            "Smart Tools selects the baseline pickaxe for stone");
         requireNear(
             axeHit->damage,
-            inefficientBalance.gameplay.pickaxeDamage * 0.25,
+            inefficientBalance.gameplay.pickaxeDamage *
+                inefficientBalance.gameplay.resourceToolDamageMultiplier *
+                0.8,
             1e-12,
-            "axe mines stone at twenty-five percent efficiency");
+            "an unmastered starter pickaxe deals eighty percent damage");
 
         inefficientTools.tick(
             inefficientBalance.gameplay.pickaxeCooldown);
@@ -1891,7 +2061,8 @@ void runSimulationTests() {
             "Smart Tools routes a wood hit through the unlocked axe");
         requireNear(
             pickaxeHit->damage,
-            inefficientBalance.gameplay.pickaxeDamage,
+            inefficientBalance.gameplay.pickaxeDamage *
+                inefficientBalance.gameplay.resourceToolDamageMultiplier,
             1e-12,
             "Smart Tools avoids wrong-tool efficiency loss");
         require(
@@ -1900,82 +2071,73 @@ void runSimulationTests() {
             "Smart Tools visibly selects the correct unlocked tool");
     }
     {
-        auto bareHandsBalance = ian::GameBalance::defaults();
-        bareHandsBalance.gameplay.pickaxeDamageVariation = 0.0;
-        bareHandsBalance.gameplay.pickaxeCriticalChance = 0.0;
-        ian::Simulation bareHandsTools{bareHandsBalance};
-        bareHandsTools.startRun();
-        bareHandsTools.grantSkillPoints(
+        auto baselineToolBalance = ian::GameBalance::defaults();
+        baselineToolBalance.gameplay.pickaxeDamageVariation = 0.0;
+        baselineToolBalance.gameplay.pickaxeCriticalChance = 0.0;
+        ian::Simulation baselineTools{baselineToolBalance};
+        baselineTools.startRun();
+        baselineTools.grantSkillPoints(
             2, ian::SkillPointSource::Event);
-        const auto axe = bareHandsTools.skillTree().indexOf("axe");
-        const auto pickaxe = bareHandsTools.skillTree().indexOf("pickaxe");
+        const auto axe = baselineTools.skillTree().indexOf("axe");
+        const auto pickaxe = baselineTools.skillTree().indexOf("pickaxe");
         require(axe && pickaxe &&
-                    bareHandsTools.purchaseSkill(*axe) ==
+                    baselineTools.purchaseSkill(*axe) ==
                         ian::SkillPurchaseError::None &&
-                    bareHandsTools.purchaseSkill(*pickaxe) ==
+                    baselineTools.purchaseSkill(*pickaxe) ==
                         ian::SkillPurchaseError::None,
-                "bare-hands Smart Tools fixture unlocks gathering tools");
-        require(bareHandsTools.snapshot().automaticToolSwitch,
-                "Smart Tools remains active in Bare Hands mode");
-        ian::PlayerCommand selectBareHands;
-        selectBareHands.selectWeapon =
-            ian::SelectWeaponCommand{ian::PlayerWeapon::BareHands};
-        selectBareHands.overrideAimedResource = true;
-        selectBareHands.aimedResourceOverride.reset();
-        bareHandsTools.tick(1.0 / 60.0, selectBareHands);
-        require(bareHandsTools.snapshot().selectedWeapon ==
-                    ian::PlayerWeapon::BareHands,
-                "Smart Tools test enters explicit Bare Hands mode");
-        const auto bareSnapshot = bareHandsTools.snapshot();
+                "baseline Smart Tools fixture masters both gathering tools");
+        require(baselineTools.snapshot().automaticToolSwitch,
+                "Smart Tools remains a base mechanic");
+        const auto baselineSnapshot = baselineTools.snapshot();
         const auto wood = std::find_if(
-            bareSnapshot.resourceNodes.begin(),
-            bareSnapshot.resourceNodes.end(),
+            baselineSnapshot.resourceNodes.begin(),
+            baselineSnapshot.resourceNodes.end(),
             [](const ian::ResourceNode& node) {
                 return node.active && node.type == ian::ResourceType::Wood;
             });
-        require(wood != bareSnapshot.resourceNodes.end(),
-                "bare-hands Smart Tools fixture has a tree");
-        ian::PlayerCommand gatherWithHands;
-        gatherWithHands.overrideAimedResource = true;
-        gatherWithHands.aimedResourceOverride = wood->id;
-        gatherWithHands.usePickaxe = true;
-        bareHandsTools.tick(1.0 / 60.0, gatherWithHands);
-        const auto bareEvents = bareHandsTools.takeEvents();
-        const auto bareHit = std::find_if(
-            bareEvents.begin(), bareEvents.end(),
+        require(wood != baselineSnapshot.resourceNodes.end(),
+                "baseline Smart Tools fixture has a tree");
+        ian::PlayerCommand gatherWood;
+        gatherWood.overrideAimedResource = true;
+        gatherWood.aimedResourceOverride = wood->id;
+        gatherWood.usePickaxe = true;
+        baselineTools.tick(1.0 / 60.0, gatherWood);
+        const auto gatherEvents = baselineTools.takeEvents();
+        const auto woodHit = std::find_if(
+            gatherEvents.begin(), gatherEvents.end(),
             [](const ian::GameEvent& event) {
                 return (event.type == ian::GameEventType::ResourceHit ||
                         event.type == ian::GameEventType::ResourceCollected) &&
                        event.resourceType == ian::ResourceType::Wood;
             });
-        require(bareHandsTools.snapshot().selectedWeapon ==
+        require(baselineTools.snapshot().selectedWeapon ==
                     ian::PlayerWeapon::Axe &&
-                    bareHit != bareEvents.end(),
-                "Smart Tools upgrades Bare Hands to the unlocked axe");
+                    woodHit != gatherEvents.end(),
+                "Smart Tools selects Axe for wood");
         requireNear(
-            bareHit->damage,
-            bareHandsBalance.gameplay.pickaxeDamage,
+            woodHit->damage,
+            baselineToolBalance.gameplay.pickaxeDamage *
+                baselineToolBalance.gameplay.resourceToolDamageMultiplier,
             1e-12,
-            "hands-to-axe Smart Tools uses full wood efficiency");
+            "mastered Axe uses full wood efficiency");
 
         const auto stone = std::find_if(
-            bareSnapshot.resourceNodes.begin(),
-            bareSnapshot.resourceNodes.end(),
+            baselineSnapshot.resourceNodes.begin(),
+            baselineSnapshot.resourceNodes.end(),
             [](const ian::ResourceNode& node) {
                 return node.active &&
                     node.type == ian::ResourceType::Stone;
             });
-        require(stone != bareSnapshot.resourceNodes.end(),
-                "hands-to-pickaxe fixture has stone");
-        bareHandsTools.tick(1.0 / 60.0, selectBareHands);
-        ian::PlayerCommand aimStoneFromHands;
-        aimStoneFromHands.overrideAimedResource = true;
-        aimStoneFromHands.aimedResourceOverride = stone->id;
-        bareHandsTools.tick(1.0 / 60.0, aimStoneFromHands);
+        require(stone != baselineSnapshot.resourceNodes.end(),
+                "baseline Smart Tools fixture has stone");
+        ian::PlayerCommand aimStone;
+        aimStone.overrideAimedResource = true;
+        aimStone.aimedResourceOverride = stone->id;
+        baselineTools.tick(1.0 / 60.0, aimStone);
         require(
-            bareHandsTools.snapshot().selectedWeapon ==
+            baselineTools.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe,
-            "Smart Tools upgrades Bare Hands to the unlocked pickaxe");
+            "Smart Tools selects Pickaxe for stone");
     }
     {
         auto crystalBalance = ian::GameBalance::defaults();
@@ -1984,7 +2146,7 @@ void runSimulationTests() {
         ian::MapDefinition crystalMap = ian::MapDefinition::defaults();
         crystalMap.resources = {{
             ian::ResourceType::Crystal, {0.0, 0.0, -2.0},
-            0.72, 12.0, 8, 28.0,
+            0.72, 12.0, 10, 28.0,
         }};
         ian::Simulation crystalMining{crystalBalance, crystalMap};
         crystalMining.startRun();
@@ -1999,8 +2161,12 @@ void runSimulationTests() {
         crystalMining.tick(1.0 / 60.0, handHit);
         requireNear(
             crystalMining.snapshot().resourceNodes.front().health,
-            initialHealth, 1e-12,
-            "bare hands cannot damage a crystal deposit");
+            initialHealth -
+                crystalBalance.gameplay.pickaxeDamage *
+                    crystalBalance.gameplay.resourceToolDamageMultiplier *
+                    0.8,
+            1e-12,
+            "Smart Tools uses the baseline pickaxe on crystal deposits");
 
         crystalMining.tick(crystalBalance.gameplay.pickaxeCooldown);
         crystalMining.grantSkillPoints(
@@ -2066,6 +2232,7 @@ void runSimulationTests() {
     {
         auto transactionBalance =
             ian::GameBalance::defaults();
+        transactionBalance.gameplay.resourceToolDamageMultiplier = 1.0;
         transactionBalance.gameplay.pickaxeDamageVariation = 0.0;
         transactionBalance.gameplay.pickaxeCriticalChance = 0.0;
         auto& coreDefinition =
@@ -2142,6 +2309,7 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         transactions.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(transactions);
         require(
             transactions.snapshot().coreId.has_value() &&
                 transactions.snapshot().wood == 10,
@@ -2226,6 +2394,7 @@ void runSimulationTests() {
             placeCore.placeBuilding = ian::PlaceBuildingCommand{
                 ian::BuildingType::Core, {0, 0}, 0};
             restartStress.tick(1.0 / 60.0, placeCore);
+            resolveLevelUps(restartStress);
             const auto coreId = restartStress.snapshot().coreId;
             require(
                 coreId.has_value() &&
@@ -2268,6 +2437,7 @@ void runSimulationTests() {
             ian::GameBalance::defaults();
         producerUnlockBalance.buildings[static_cast<std::size_t>(
             ian::BuildingType::Core)].wood = 0;
+        producerUnlockBalance.economy.coreUpgradeCrystals = {0, 0};
         ian::WorldConfig producerUnlockWorld =
             ian::WorldConfig::defaults();
         producerUnlockWorld.terrainAmplitude = 0.0;
@@ -2280,36 +2450,53 @@ void runSimulationTests() {
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         producerUnlocks.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(producerUnlocks);
         require(
             producerUnlocks.previewPlacement(
                 ian::BuildingType::LumberMill, {3, 3}).error ==
-                    ian::PlacementError::SkillRequired &&
+                    ian::PlacementError::CoreLevelRequired &&
             producerUnlocks.previewPlacement(
                 ian::BuildingType::Quarry, {5, 3}).error ==
-                    ian::PlacementError::SkillRequired &&
+                    ian::PlacementError::CoreLevelRequired &&
             producerUnlocks.previewPlacement(
                 ian::BuildingType::CrystalMine, {7, 3}).error ==
-                    ian::PlacementError::SkillRequired,
-            "fresh runs lock all three production buildings behind skills");
-        producerUnlocks.grantSkillPoints(
-            2, ian::SkillPointSource::Event);
-        const auto axeSkill =
-            producerUnlocks.skillTree().indexOf("axe");
-        const auto lumberSkill =
-            producerUnlocks.skillTree().indexOf("lumber_mill");
+                    ian::PlacementError::CoreLevelRequired,
+            "Core level one keeps advanced production locked");
+        const auto coreId = producerUnlocks.snapshot().coreId;
+        require(coreId.has_value(), "progression fixture places the Core");
+        ian::PlayerCommand upgradeCore;
+        upgradeCore.upgradeBuilding =
+            ian::UpgradeBuildingCommand{*coreId};
+        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
+        const auto levelTwo = producerUnlocks.snapshot();
         require(
-            axeSkill && lumberSkill &&
-                producerUnlocks.purchaseSkill(*axeSkill) ==
-                    ian::SkillPurchaseError::None &&
-                producerUnlocks.purchaseSkill(*lumberSkill) ==
-                    ian::SkillPurchaseError::None &&
-                producerUnlocks.previewPlacement(
-                    ian::BuildingType::LumberMill, {3, 3}).error !=
-                    ian::PlacementError::SkillRequired &&
-                producerUnlocks.previewPlacement(
-                    ian::BuildingType::Quarry, {5, 3}).error ==
-                    ian::PlacementError::SkillRequired,
-            "each producer unlock affects only its own building");
+            levelTwo.coreLevel == 2 &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::LumberMill)] &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Quarry)] &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Turret)] &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::SlowTrap)] &&
+                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::CrystalMine)] &&
+                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Cannon)],
+            "Core level two unlocks basic economy, crossbow and traps");
+        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
+        const auto levelThree = producerUnlocks.snapshot();
+        require(
+            levelThree.coreLevel == 3 &&
+                levelThree.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::CrystalMine)] &&
+                levelThree.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Cannon)] &&
+                !levelThree.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Catapult)] &&
+                ian::buildingRequiredCoreLevel(
+                    ian::BuildingType::Catapult) == 4,
+            "Core level three unlocks crystal mining and cannons; catapults require four");
     }
     {
         ian::GameBalance productionBalance =
@@ -2362,6 +2549,10 @@ void runSimulationTests() {
             "preferred standing level raises terrain building and extends its automatic foundation");
         productionSimulation.grantSkillPoints(
             8, ian::SkillPointSource::Event);
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        productionSimulation.tick(1.0 / 60.0, unlimited);
         constexpr std::array<const char*, 5> ProducerSkills{{
             "axe", "pickaxe", "lumber_mill", "quarry", "crystal_mine",
         }};
@@ -2374,15 +2565,11 @@ void runSimulationTests() {
                         ian::SkillPurchaseError::None,
                 "production fixture unlocks each producer separately");
         }
-        ian::PlayerCommand unlimited;
-        unlimited.enableUnlimitedResources =
-            ian::EnableUnlimitedResourcesCommand{};
-        productionSimulation.tick(1.0 / 60.0, unlimited);
-
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         productionSimulation.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(productionSimulation);
         const auto coreId =
             productionSimulation.snapshot().coreId;
         require(coreId.has_value(),
@@ -2526,6 +2713,7 @@ void runSimulationTests() {
             };
         foundationLifecycle.tick(
             1.0 / 60.0, placeCore);
+        resolveLevelUps(foundationLifecycle);
         require(
             foundationLifecycle.snapshot()
                 .coreId.has_value(),
@@ -2704,6 +2892,7 @@ void runSimulationTests() {
             };
         protectedCore.tick(
             1.0 / 60.0, placeCore);
+        resolveLevelUps(protectedCore);
         const auto placed =
             protectedCore.snapshot();
         require(
@@ -2794,6 +2983,7 @@ void runSimulationTests() {
                 .gridPosition = {0, 0},
             };
         elevatedBuilding.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(elevatedBuilding);
         const auto ground =
             elevatedBuilding.placeFoundation({4.2, 0.0, 4.2});
         require(
@@ -3185,6 +3375,7 @@ void runSimulationTests() {
         placeCore.placeBuilding =
             ian::PlaceBuildingCommand{ian::BuildingType::Core, {0, 0}, 0};
         daytimeSpawning.tick(1.0 / 60.0, placeCore);
+        resolveLevelUps(daytimeSpawning);
 
         ian::PlayerCommand spawn;
         spawn.spawnEnemy =
@@ -3232,6 +3423,7 @@ void runSimulationTests() {
     }
 
     auto simulationBalance = ian::GameBalance::defaults();
+    simulationBalance.gameplay.resourceToolDamageMultiplier = 1.0;
     simulationBalance.gameplay.pickaxeDamageVariation = 0.0;
     simulationBalance.gameplay.pickaxeCriticalChance = 0.0;
     simulationBalance.gameplay.playerRespawnSeconds = 1.0;
@@ -3302,8 +3494,8 @@ void runSimulationTests() {
             engineerClass.skillTree().isUnlocked(
                 "defense_engineering") &&
             engineerClass.snapshot().selectedWeapon ==
-                ian::PlayerWeapon::Hammer,
-        "engineer starts with hammer and defense nodes");
+                ian::PlayerWeapon::Axe,
+        "engineer starts with fortification and defense bonuses");
     const auto engineerStone = std::ranges::find_if(
         engineerClass.snapshot().resourceNodes,
         [](const ian::ResourceNode& node) {
@@ -3318,8 +3510,8 @@ void runSimulationTests() {
     engineerClass.tick(1.0 / 60.0, engineerAimStone);
     require(
         engineerClass.snapshot().selectedWeapon ==
-            ian::PlayerWeapon::BareHands,
-        "Smart Tools falls back from hammer to hands when pickaxe is locked");
+            ian::PlayerWeapon::Pickaxe,
+        "Smart Tools switches every class from its weapon to the baseline pickaxe");
 
     ian::Simulation prospectorClass{simulationBalance};
     prospectorClass.startRun(ian::PlayerClass::Prospector);
@@ -3365,12 +3557,13 @@ void runSimulationTests() {
     ian::PlayerCommand woundVampire;
     woundVampire.damagePlayer = ian::DamagePlayerCommand{55.0};
     vampireClass->tick(0.0, woundVampire);
-    const double vampireHealthBeforeKill =
-        vampireClass->snapshot().playerHealth;
     ian::PlayerCommand placeVampireCore;
     placeVampireCore.placeBuilding = ian::PlaceBuildingCommand{
         ian::BuildingType::Core, {0, 0}, 0};
     vampireClass->tick(0.0, placeVampireCore);
+    resolveLevelUps(*vampireClass);
+    const double vampireHealthBeforeKill =
+        vampireClass->snapshot().playerHealth;
     ian::PlayerCommand spawnVampireTarget;
     spawnVampireTarget.spawnEnemy = ian::SpawnEnemyCommand{
         .type = ian::EnemyType::Basic,
@@ -3444,9 +3637,14 @@ void runSimulationTests() {
     require(simulation.snapshot().tick == 1, "running simulation advances");
     require(simulation.snapshot().playerHealth == simulation.snapshot().playerMaxHealth,
             "run starts with full player health");
-    require(simulation.snapshot().tutorialObjective ==
-                ian::TutorialObjective::BareHandsTraining,
-            "tutorial starts with bare-hands objective");
+    require(
+        simulation.snapshot().tutorialObjective ==
+                ian::TutorialObjective::MineWood &&
+            simulation.snapshot().unlockedWeapons[
+                static_cast<std::size_t>(ian::PlayerWeapon::Axe)] &&
+            simulation.snapshot().unlockedWeapons[
+                static_cast<std::size_t>(ian::PlayerWeapon::Pickaxe)],
+        "tutorial starts with wood gathering and both smart tools available");
 
     const auto startPosition = simulation.snapshot().playerPosition;
     ian::PlayerCommand movement;
@@ -3652,7 +3850,10 @@ void runSimulationTests() {
     require(criticalHit != criticalEvents.end() &&
                 criticalHit->critical &&
                 criticalHit->damage ==
-                    criticalBalance.gameplay.pickaxeDamage * 2.0,
+                    criticalBalance.gameplay.pickaxeDamage *
+                        criticalBalance.gameplay
+                            .resourceToolDamageMultiplier *
+                        2.0,
             "pickaxe critical hit doubles damage and marks event");
 
     simulation.restartRun();
@@ -3691,16 +3892,14 @@ void runSimulationTests() {
         "nightly delivery fixture upgrades the reward to every night");
     const std::size_t chestsBeforeFirstNight =
         simulation.snapshot().lootChests.size();
-    constexpr std::array<ian::PlayerWeapon, 9> GodModeTools{{
-        ian::PlayerWeapon::Axe,
+    constexpr std::array<ian::PlayerWeapon, 7> GodModeTools{{
         ian::PlayerWeapon::Pickaxe,
         ian::PlayerWeapon::Club,
         ian::PlayerWeapon::IceWand,
         ian::PlayerWeapon::FireWand,
-        ian::PlayerWeapon::Hammer,
         ian::PlayerWeapon::Rifle,
         ian::PlayerWeapon::Bomb,
-        ian::PlayerWeapon::BareHands,
+        ian::PlayerWeapon::Axe,
     }};
     for (const ian::PlayerWeapon expected : GodModeTools) {
         ian::PlayerCommand cycle;
@@ -3709,12 +3908,8 @@ void runSimulationTests() {
         cycle.aimedResourceOverride.reset();
         simulation.tick(1.0 / 60.0, cycle);
         require(simulation.snapshot().selectedWeapon == expected,
-                "god mode weapon cycle includes every tool and weapon");
+                "god mode weapon cycle excludes contextual tools");
     }
-    ian::PlayerCommand selectGodModeAxe;
-    selectGodModeAxe.toggleWeapon =
-        ian::ToggleWeaponCommand{};
-    simulation.tick(1.0 / 60.0, selectGodModeAxe);
     const auto godModeSnapshot = simulation.snapshot();
     const auto godModeStone = std::find_if(
         godModeSnapshot.resourceNodes.begin(),
@@ -3760,14 +3955,15 @@ void runSimulationTests() {
     placeCore.placeBuilding =
         ian::PlaceBuildingCommand{ian::BuildingType::Core, {0, 0}, 0};
     simulation.tick(1.0 / 60.0, placeCore);
+    resolveLevelUps(simulation);
     require(simulation.snapshot().coreMaxHealth > 0.0,
             "unlimited resources allow building without inventory");
     require(!simulation.snapshot().flowDebugVectors.empty(),
             "placing core publishes flow-field debug samples");
     require(simulation.snapshot().wood == 0, "unlimited building does not spend inventory");
     require(simulation.snapshot().tutorialObjective ==
-                ian::TutorialObjective::BuildCrystalMine,
-            "tutorial requests first crystals mine after core");
+                ian::TutorialObjective::PrepareForNight,
+            "tutorial moves directly from the core to first-night preparation");
     ian::PlayerCommand toggleInvulnerability;
     toggleInvulnerability.toggleInvulnerability =
         ian::ToggleInvulnerabilityCommand{};
@@ -3873,7 +4069,7 @@ void runSimulationTests() {
     requireNear(upgradedWall.maxHealth, 115.0, 1e-9,
                 "simulation uses gradual building health growth");
 
-    unlockHammer(simulation);
+    unlockFortificationKit(simulation);
     ian::PlayerCommand repairFullWall;
     repairFullWall.repairBuilding = ian::RepairBuildingCommand{*wall};
     simulation.tick(1.0 / 60.0, repairFullWall);
@@ -3882,7 +4078,7 @@ void runSimulationTests() {
     for (const auto& event : buildingEvents) {
         if (event.type == ian::GameEventType::BuildingFortified) fortified = true;
     }
-    require(fortified, "hammer fortifies full-health building");
+    require(fortified, "fortification kit fortifies full-health building");
 
     simulation.tick(1.0 / 60.0, repairFullWall);
     buildingEvents = simulation.takeEvents();
@@ -3896,7 +4092,7 @@ void runSimulationTests() {
                         ian::BuildingActionError::Cooldown &&
                     event.intensity > 0.0;
             }),
-        "hammer repair and fortification have a per-target cooldown");
+        "repair and fortification have a per-target cooldown");
     simulation.tick(
         ian::GameBalance::defaults().economy.repairCooldownSeconds);
     simulation.tick(1.0 / 60.0, repairFullWall);
@@ -3988,9 +4184,9 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, defeatWave);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "cleared non-final wave enters dawn state");
-    require(simulation.snapshot().runUpgradeChoicePending &&
-                simulation.snapshot().runUpgradeChoiceCount == 3U,
-            "survived night offers three run upgrades");
+    require(!simulation.snapshot().runUpgradeChoicePending &&
+                simulation.snapshot().playerLevel == 1,
+            "partial XP progress does not interrupt play with cards");
     require(
         !simulation.snapshot().coinPickups.empty() &&
             simulation.snapshot().coins == 0,
@@ -4039,18 +4235,10 @@ void runSimulationTests() {
     require(rewardEventFound, "wave completion emits reward event");
 
     simulation.tick(0.5);
-    requireNear(simulation.snapshot().phaseTimeRemaining, dawnDuration, 1e-12,
-                "post-night choice pauses the dawn timer");
-    const ian::RunUpgradeEffect firstRunUpgrade =
-        simulation.snapshot().runUpgradeChoices[0];
-    do {
-        require(simulation.selectRunUpgrade(0U),
-                "player can select every earned post-night run upgrade");
-    } while (simulation.snapshot().runUpgradeChoicePending);
-    require(!simulation.snapshot().runUpgradeChoicePending &&
-                simulation.snapshot().runUpgradeStacks[
-                    ian::runUpgradeIndex(firstRunUpgrade)] >= 1,
-            "selected run upgrades are applied and close the choice");
+    requireNear(
+        simulation.snapshot().phaseTimeRemaining,
+        dawnDuration - 0.5, 1e-12,
+        "dawn timer continues when the XP bar is not full");
     simulation.tick(dawnDuration - 1.0);
     require(simulation.snapshot().state == ian::RunState::WaveComplete,
             "dawn remains active before timer expires");
@@ -4081,10 +4269,10 @@ void runSimulationTests() {
                 crystalsBeforeReward + 10 + 5 * expectedWave,
             "endless wave reward follows the balanced base plus wave curve");
         if (expectedWave < ian::Simulation::StageClearWave - 1) {
-            do {
+            while (simulation.snapshot().runUpgradeChoicePending) {
                 require(simulation.selectRunUpgrade(0U),
-                        "each survived night accepts every earned run-upgrade choice");
-            } while (simulation.snapshot().runUpgradeChoicePending);
+                        "each earned level accepts every queued card choice");
+            }
             simulation.tick(
                 simulation.snapshot().phaseDuration);
             require(
@@ -4099,10 +4287,10 @@ void runSimulationTests() {
                 ian::Simulation::StageClearWave - 1,
         "snapshot exposes current wave and best reached record");
 
-    do {
+    while (simulation.snapshot().runUpgradeChoicePending) {
         require(simulation.selectRunUpgrade(0U),
-                "last pre-clear night accepts earned run upgrades");
-    } while (simulation.snapshot().runUpgradeChoicePending);
+                "last pre-clear level accepts earned upgrades");
+    }
     simulation.tick(simulation.snapshot().phaseDuration);
     simulation.tick(1.0 / 60.0, startWaveEarly);
     require(
@@ -4113,9 +4301,12 @@ void runSimulationTests() {
     require(
         simulation.snapshot().state == ian::RunState::StageClear &&
             simulation.snapshot().stageCleared &&
-            !simulation.snapshot().finalNight &&
-            !simulation.snapshot().runUpgradeChoicePending,
-        "stage boss opens bank-or-final-night choice without dawn upgrade");
+            !simulation.snapshot().finalNight,
+        "stage boss opens the bank-or-final-night choice");
+    while (simulation.snapshot().runUpgradeChoicePending) {
+        require(simulation.selectRunUpgrade(0U),
+                "stage-clear XP upgrades remain selectable");
+    }
     require(simulation.enterFinalNight(),
             "cleared stage can continue into final night");
     require(
@@ -4126,9 +4317,12 @@ void runSimulationTests() {
     simulation.tick(1.0 / 60.0, defeatWave);
     require(
         simulation.snapshot().state == ian::RunState::Wave &&
-            simulation.snapshot().wave == ian::Simulation::StageClearWave + 2 &&
-            !simulation.snapshot().runUpgradeChoicePending,
-        "final night chains waves without dawn or upgrade pauses");
+            simulation.snapshot().wave == ian::Simulation::StageClearWave + 2,
+        "final night chains waves while preserving earned level-ups");
+    while (simulation.snapshot().runUpgradeChoicePending) {
+        require(simulation.selectRunUpgrade(0U),
+                "final-night XP upgrades remain selectable");
+    }
     const std::uint32_t completedRunSeed =
         simulation.snapshot().terrainSeed;
     simulation.restartRun();

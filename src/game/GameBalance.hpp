@@ -152,6 +152,7 @@ struct GameplayBalanceDefinition {
     double pickaxeRange;
     double resourceGatherRange;
     double pickaxeDamage;
+    double resourceToolDamageMultiplier;
     double pickaxeDamageVariation;
     double pickaxeCriticalChance;
     double pickaxeCooldown;
@@ -160,6 +161,7 @@ struct GameplayBalanceDefinition {
     double firstBuildPhaseSeconds;
     double betweenWaveSeconds;
     double sunsetSeconds;
+    double nightDurationSeconds;
     double dawnSeconds;
     double minimumPlacementDistance;
     double maximumPlacementDistance;

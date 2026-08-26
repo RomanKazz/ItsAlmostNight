@@ -26,8 +26,7 @@ bool matchingResourceTool(PlayerWeapon weapon, ResourceType type) {
     if (type == ResourceType::Crystal) {
         return weapon == PlayerWeapon::Pickaxe;
     }
-    return weapon == PlayerWeapon::BareHands ||
-           (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
+    return (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
            (type == ResourceType::Stone && weapon == PlayerWeapon::Pickaxe);
 }
 
@@ -103,7 +102,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         snapshot.selectedBuilding || foundationBuildMode_) {
         return std::nullopt;
     }
-    if (skillTree_.isOpen() || renderer_->graphicsPanelVisible() ||
+    if (renderer_->graphicsPanelVisible() ||
         enemySpawnMenuVisible_ || itemGrantMenuVisible_) {
         return std::nullopt;
     }
@@ -343,13 +342,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                               "% efficiency  ·  " +
                               recommendedTool(resource->type) +
                               " recommended"}
-                    : snapshot.selectedWeapon == PlayerWeapon::BareHands
-                        ? std::optional<std::string>{
-                              std::to_string(efficiencyPercent) +
-                              "% efficiency  ·  " +
-                              recommendedTool(resource->type) +
-                              " recommended"}
-                        : std::nullopt,
+                    : std::nullopt,
                 .progress = progress,
                 .showProgress = progressActive,
                 .recentSuccess = crosshairHitRemaining_ > 0.0,
@@ -361,9 +354,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     }
 
     if (snapshot.aimedBuilding) {
-        const bool hammerManagementActive =
-            snapshot.unlockedWeapons[
-                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+        const bool buildingManagementActive =
             !snapshot.selectedBuilding;
         const auto building = std::find_if(
             snapshot.buildings.begin(), snapshot.buildings.end(),
@@ -374,7 +365,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
             const bool gate = building->type == BuildingType::Gate;
             const bool core = building->type == BuildingType::Core;
             std::optional<std::string> managementHint;
-            if (hammerManagementActive) {
+            if (buildingManagementActive) {
                 const auto keyName = [this](ControlAction action) {
                     return keyboardKeyName(controlKey(
                         userSettings_.controls, action));
@@ -403,29 +394,16 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(anchor.y + 0.42),
                     static_cast<float>(anchor.z),
                 },
-                .actionText = gate && !hammerManagementActive
-                    ? "Toggle Gate"
-                    : hammerManagementActive
-                        ? core
-                            ? "Manage Defenses"
-                            : std::string("Repair ") +
-                                  std::string(buildingDisplayName(
-                                      building->type))
-                        : "Hammer Required",
-                .input = gate && !hammerManagementActive
-                    ? ControlAction::Interact
-                    : core && hammerManagementActive
+                .actionText = core
+                    ? "Manage Defenses"
+                    : std::string("Repair ") +
+                          std::string(buildingDisplayName(
+                              building->type)),
+                .input = core && buildingManagementActive
                         ? ControlAction::Interact
                         : ControlAction::Attack,
-                .state = (gate || hammerManagementActive)
-                    ? InteractionState::Available
-                    : InteractionState::Unavailable,
-                .hint = managementHint
-                    ? managementHint
-                    : !hammerManagementActive && !gate
-                    ? std::optional<std::string>{
-                          "HAMMER REQUIRED TO MANAGE"}
-                    : std::nullopt,
+                .state = InteractionState::Available,
+                .hint = managementHint,
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -433,9 +411,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     }
 
     if (snapshot.aimedModularBuilding) {
-        const bool hammerManagementActive =
-            snapshot.unlockedWeapons[
-                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+        const bool buildingManagementActive =
             !snapshot.selectedBuilding;
         const EntityId target = *snapshot.aimedModularBuilding;
         if (const auto frame = std::find_if(
@@ -456,20 +432,17 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         (frame->anchor.z + PlatformFrameWidthCells * 0.5) *
                         snapshot.worldCellSize),
                 },
-                .actionText = hammerManagementActive
+                .actionText = buildingManagementActive
                     ? frame->storey == 0
                         ? "Repair Foundation"
                         : "Repair Floor"
-                    : "Hammer Required",
+                    : "Repair",
                 .input = ControlAction::Attack,
-                .state = hammerManagementActive
+                .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = hammerManagementActive
+                .hint = buildingManagementActive
                     ? std::optional<std::string>{"Q COPY · X SELL"}
-                    : !hammerManagementActive
-                    ? std::optional<std::string>{
-                          "HAMMER REQUIRED TO MANAGE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -489,17 +462,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(
                         (wall->anchor.z + 0.5) * snapshot.worldCellSize),
                 },
-                .actionText = hammerManagementActive
-                    ? "Repair Wall" : "Hammer Required",
+                .actionText = "Repair Wall",
                 .input = ControlAction::Attack,
-                .state = hammerManagementActive
+                .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = hammerManagementActive
+                .hint = buildingManagementActive
                     ? std::optional<std::string>{"Q COPY · X SELL"}
-                    : !hammerManagementActive
-                    ? std::optional<std::string>{
-                          "HAMMER REQUIRED TO MANAGE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -527,17 +496,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         (ramp->anchor.z + depthCells * 0.5) *
                         snapshot.worldCellSize),
                 },
-                .actionText = hammerManagementActive
-                    ? "Repair Ramp" : "Hammer Required",
+                .actionText = "Repair Ramp",
                 .input = ControlAction::Attack,
-                .state = hammerManagementActive
+                .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
-                .hint = hammerManagementActive
+                .hint = buildingManagementActive
                     ? std::optional<std::string>{"Q COPY · X SELL"}
-                    : !hammerManagementActive
-                    ? std::optional<std::string>{
-                          "HAMMER REQUIRED TO MANAGE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });

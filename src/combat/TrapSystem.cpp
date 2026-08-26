@@ -54,11 +54,12 @@ void TrapSystem::reset() {
 
 void TrapSystem::setSkillModifiers(
     double damage, double radius, double fireRate,
-    double highGroundDamage) {
+    double highGroundDamage, double reactiveShockDamage) {
     damageMultiplier_ = std::max(0.05, damage);
     radiusMultiplier_ = std::max(0.05, radius);
     fireRateMultiplier_ = std::max(0.05, fireRate);
     highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+    reactiveShockDamage_ = std::max(0.0, reactiveShockDamage);
 }
 
 void TrapSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -139,6 +140,22 @@ std::span<const TrapActivation> TrapSystem::tick(
             }
             trap.cooldownRemaining = cooldown(building->level) /
                 fireRateMultiplier_;
+        }
+        if (reactiveShockDamage_ > 0.0) {
+            const double heightBonus = building->platformStorey > 0
+                ? highGroundDamageMultiplier_ : 1.0;
+            const auto shockHits = enemies.damageInRadius(
+                position,
+                std::max(
+                    triggerRadius(building->level),
+                    spikeTriggerRadius(building->level)) *
+                    radiusMultiplier_ * 1.25,
+                reactiveShockDamage_ * damageMultiplier_ *
+                    heightBonus,
+                1.5);
+            for (const EnemyDamageResult& hit : shockHits) {
+                hitBuffer_.push_back({trap.buildingId, hit});
+            }
         }
         activationBuffer_.push_back({
             .trapId = trap.buildingId,

@@ -344,11 +344,11 @@ int coreResourceCapacity(
     // The player inventory before placing the Core remains deliberately
     // smaller and is handled by Simulation::resourceCapacity().
     constexpr std::array<int, MaxBuildingLevel> Wood{
-        100, 180, 300, 450, 650, 900, 1200, 1550};
+        120, 240, 400, 600, 850, 1150, 1500, 1900};
     constexpr std::array<int, MaxBuildingLevel> Stone{
-        60, 110, 180, 280, 400, 550, 720, 900};
+        75, 150, 250, 375, 525, 700, 900, 1150};
     constexpr std::array<int, MaxBuildingLevel> Crystal{
-        60, 120, 180, 240, 320, 380, 440, 520};
+        75, 150, 230, 320, 420, 540, 680, 850};
     const std::size_t index = static_cast<std::size_t>(
         std::clamp<int>(coreLevel, 1, MaxBuildingLevel) - 1);
     if (storageType == BuildingType::WoodStorage) return Wood[index];
@@ -620,6 +620,10 @@ void BuildingSystem::reset() {
     blueprintLevels_.fill(1);
 }
 
+void BuildingSystem::setSandboxMode(bool enabled) {
+    sandboxMode_ = enabled;
+}
+
 void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
     const double next = std::max(1.0, multiplier);
     if (std::abs(next - maxHealthMultiplier_) <= 1e-9) {
@@ -674,10 +678,10 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
     if (type != BuildingType::Core && !hasCore()) {
         return {PlacementError::CoreRequired, requiredCost};
     }
-    if (placementCount(type) >= placementLimit(type)) {
+    if (!sandboxMode_ && placementCount(type) >= placementLimit(type)) {
         return {PlacementError::LimitReached, requiredCost};
     }
-    if (type != BuildingType::Core) {
+    if (type != BuildingType::Core && !sandboxMode_) {
         const auto coreBuilding = core();
         if (!coreBuilding ||
             static_cast<int>(coreBuilding->level) < definition(type).unlockCoreLevel) {
@@ -692,7 +696,7 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
         return {PlacementError::InsufficientResources, requiredCost};
     }
 
-    if (type != BuildingType::Core) {
+    if (type != BuildingType::Core && !sandboxMode_) {
         const auto core = std::find_if(buildings_.begin(), buildings_.end(),
                                        [](const BuildingInstance& building) {
                                            return building.type == BuildingType::Core;
@@ -725,6 +729,9 @@ int BuildingSystem::placementCount(BuildingType type) const {
 }
 
 int BuildingSystem::placementLimit(BuildingType type) const {
+    if (sandboxMode_) {
+        return std::numeric_limits<int>::max();
+    }
     int limit = definition(type).maxCount;
     if (buildingLimitCategory(type) ==
         BuildingLimitCategory::None) {

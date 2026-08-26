@@ -598,7 +598,7 @@ void App::drawGraphicsPanel() {
         y += compact ? 22.0F : 30.0F;
 
         constexpr std::array<
-            ControlAction, ControlActionCount - 2U>
+            ControlAction, ControlActionCount - 3U>
             Actions{
                 ControlAction::MoveForward,
                 ControlAction::MoveLeft,
@@ -618,7 +618,6 @@ void App::drawGraphicsPanel() {
                 ControlAction::UpgradeWeapon,
                 ControlAction::BuildMode,
                 ControlAction::Pause,
-                ControlAction::Skills,
                 ControlAction::Map,
                 ControlAction::StartWave,
             };

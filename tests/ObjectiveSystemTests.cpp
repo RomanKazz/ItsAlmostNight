@@ -39,12 +39,12 @@ void gatheringChallengesUseTimeAndMisses() {
     ian::ObjectiveSystem objectives;
     static_cast<void>(objectives.onResourceEvent({
         .wood = true, .amount = 25, .depleted = true,
-        .bareHands = true, .elapsedSeconds = 10.0}));
+        .matchingTool = true, .elapsedSeconds = 10.0}));
     static_cast<void>(objectives.onResourceEvent({
         .wood = false, .amount = 25, .depleted = true,
         .elapsedSeconds = 50.0}));
-    require(status(objectives, "bare_hands").completed,
-            "bare-hands challenge sees the actual finishing tool");
+    require(status(objectives, "proper_tool").completed,
+            "proper-tool challenge sees the actual finishing tool");
     require(status(objectives, "workaholic").completed,
             "rolling sixty-second window sums actual yield");
     objectives.onGatheringMiss();

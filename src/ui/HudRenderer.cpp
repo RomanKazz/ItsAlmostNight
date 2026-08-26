@@ -2,6 +2,7 @@
 
 #include "app/UserSettings.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/CoreProgression.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
@@ -28,7 +29,7 @@ const char* placementMessage(
     switch (error) {
     case PlacementError::None:
         return supportsManualBuildingRotation(type)
-            ? "LMB place/drag   RMB cancel   R/Wheel rotate"
+            ? "LMB place/drag   RMB cancel   R rotate"
             : "LMB place/drag   RMB cancel";
     case PlacementError::CoreAlreadyPlaced:
         return "Core already placed";
@@ -49,9 +50,9 @@ const char* placementMessage(
     case PlacementError::OutOfRange:
         return "Placement is too far";
     case PlacementError::CoreLevelRequired:
-        return "Core level II required";
+        return "Upgrade Core to unlock";
     case PlacementError::SkillRequired:
-        return "Unlock in Skill Tree";
+        return "Upgrade Core to unlock";
     case PlacementError::ResourceBlocked:
         return "Clear tree or stone first";
     }
@@ -189,8 +190,8 @@ std::string objectiveInstruction(
         return "Fully deplete a large resource deposit";
     case ObjectiveMetric::AllResourceTypesInDay:
         return "Gather wood, stone and crystals in one day";
-    case ObjectiveMetric::BareHandsDepletion:
-        return "Destroy a tree or stone without a tool";
+    case ObjectiveMetric::MatchingToolDepletion:
+        return "Destroy a tree or stone with its matching starter tool";
     case ObjectiveMetric::ResourcesInSixtySeconds:
         return "Gather 50 resources within 60 seconds";
     case ObjectiveMetric::ConsecutiveDepletions:
@@ -286,26 +287,12 @@ std::string tutorialText(const SimulationSnapshot& snapshot) {
         return {};
     }
     switch (*snapshot.tutorialObjective) {
-    case TutorialObjective::BareHandsTraining:
-        return "GATHER BY HAND  •  WOOD " +
-               std::to_string(snapshot.bareHandsWoodGathered) + "/15  STONE " +
-               std::to_string(snapshot.bareHandsStoneGathered) + "/10";
     case TutorialObjective::MineWood:
         return "MINE TREES  •  WOOD " +
                std::to_string(snapshot.wood) + "/" +
                std::to_string(snapshot.tutorialWoodTarget);
     case TutorialObjective::PlaceCore:
         return "PLACE CORE  [1]";
-    case TutorialObjective::MineStone:
-        return "MINE ROCKS  •  STONE " +
-               std::to_string(snapshot.stone) + "/" +
-               std::to_string(snapshot.tutorialStoneTarget);
-    case TutorialObjective::BuildCrystalMine:
-        return snapshot.unlockedBuildings[
-                   static_cast<std::size_t>(
-                       BuildingType::CrystalMine)]
-            ? "BUILD CRYSTAL MINE  [4]"
-            : "UNLOCK CRYSTAL MINE  [K]";
     case TutorialObjective::PrepareForNight:
         return "BUILD DEFENSES  •  [N] STARTS SUNSET";
     case TutorialObjective::SurviveFirstWave:
@@ -323,27 +310,11 @@ std::optional<TutorialProgress> tutorialProgress(
     const SimulationSnapshot& snapshot) {
     if (!snapshot.tutorialObjective) return std::nullopt;
     switch (*snapshot.tutorialObjective) {
-    case TutorialObjective::BareHandsTraining:
-        return TutorialProgress{
-            std::min(
-                1.0,
-                static_cast<double>(snapshot.bareHandsWoodGathered) /
-                    15.0) +
-                std::min(
-                    1.0,
-                    static_cast<double>(snapshot.bareHandsStoneGathered) /
-                        10.0),
-            2.0};
     case TutorialObjective::MineWood:
         return TutorialProgress{
             static_cast<double>(snapshot.wood),
             static_cast<double>(snapshot.tutorialWoodTarget)};
-    case TutorialObjective::MineStone:
-        return TutorialProgress{
-            static_cast<double>(snapshot.stone),
-            static_cast<double>(snapshot.tutorialStoneTarget)};
     case TutorialObjective::PlaceCore:
-    case TutorialObjective::BuildCrystalMine:
     case TutorialObjective::PrepareForNight:
     case TutorialObjective::SurviveFirstWave:
         return std::nullopt;
@@ -356,7 +327,7 @@ void drawBuildingContextCard(
     const BuildingInstance& building, const HudViewState& view,
     const Camera3D& camera, const ControlSettings& controls) {
     constexpr float CardWidth = 760.0F;
-    constexpr float CardHeight = 480.0F;
+    constexpr float CardHeight = 520.0F;
     const Vec3 buildingCenter =
         buildingWorldPosition(building);
     const Vector2 buildingScreen = GetWorldToScreen(
@@ -744,6 +715,14 @@ void drawBuildingContextCard(
     drawCost(UiResourceIcon::Stone, cost.stone, snapshot.stone);
     drawCost(
         UiResourceIcon::Crystal, cost.crystals, snapshot.crystals);
+    if (building.type == BuildingType::Core) {
+        const std::string_view unlocks = coreLevelUnlockSummary(
+            static_cast<int>(building.level) + 1);
+        if (!unlocks.empty()) {
+            drawUiText(unlocks, {x + 24.0F, y + 470.0F}, 13.0F,
+                       {105, 231, 132, 245});
+        }
+    }
 }
 
 std::string phaseClock(double seconds) {
@@ -766,32 +745,29 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float crystalY = -view.crystalResourceBounce;
     const float coinY = -view.coinResourceBounce;
     constexpr float ResourcePanelX = 12.0F;
-    constexpr float ResourcePanelY = 12.0F;
-    constexpr float ResourceCellWidth = 104.0F;
-    constexpr float ResourcePanelWidth =
-        ResourceCellWidth * 4.0F + 12.0F;
-    ui.drawPanel(
-        {ResourcePanelX, ResourcePanelY,
-         ResourcePanelWidth, 48.0F}, 156);
+    constexpr float ResourcePanelY = 27.0F;
+    constexpr float ResourceCellWidth = 150.0F;
+    constexpr float ResourceIconSize = 34.2F;
+    constexpr float ResourceFontSize = 18.9F;
     const auto drawResourceCell =
         [&ui](std::size_t index, UiResourceIcon icon,
               std::string value, float bounce, Color color) {
-            const float x = 18.0F +
+            const float x = ResourcePanelX + 6.0F +
                 static_cast<float>(index) * ResourceCellWidth;
             ui.drawResourceIcon(
-                {x, 21.0F + bounce, 27.0F, 27.0F}, icon);
+                {x, ResourcePanelY + 4.0F + bounce,
+                 ResourceIconSize, ResourceIconSize}, icon);
             drawUiText(
-                value, {x + 33.0F, 24.0F + bounce},
-                14.0F, color);
+                value,
+                {x + ResourceIconSize + 8.0F,
+                 ResourcePanelY + 8.0F + bounce},
+                ResourceFontSize, color);
         };
     const auto resourceValue = [&snapshot](int amount, int capacity) {
         if (snapshot.unlimitedResources) return std::string{"∞"};
-        const bool capacityRelevant = capacity > 0 &&
-            amount * 5 >= capacity * 4;
-        return compactAmount(amount) +
-            (capacityRelevant
-                 ? "/" + compactAmount(capacity)
-                 : std::string{});
+        return capacity > 0
+            ? compactAmount(amount) + "/" + compactAmount(capacity)
+            : compactAmount(amount);
     };
     drawResourceCell(
         0U, UiResourceIcon::Wood,
@@ -811,9 +787,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     if (snapshot.crystalStorageFull) {
         drawUiText(
             "FULL",
-            {18.0F + 2.0F * ResourceCellWidth + 33.0F,
-             42.0F},
-            7.0F, {255, 153, 92, 245});
+            {ResourcePanelX + 6.0F +
+                 2.0F * ResourceCellWidth + ResourceIconSize + 9.0F,
+             ResourcePanelY + 33.0F},
+            9.45F, {255, 153, 92, 245});
     }
     drawResourceCell(
         3U, UiResourceIcon::Coin,
@@ -842,8 +819,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     for (std::size_t index = 0;
          index < resourcePulses.size(); ++index) {
         drawResourcePulse(
-            {15.0F + static_cast<float>(index) * ResourceCellWidth,
-             15.0F, ResourceCellWidth - 3.0F, 42.0F},
+             {ResourcePanelX + 3.0F +
+                 static_cast<float>(index) * ResourceCellWidth,
+             ResourcePanelY + 1.0F, 140.0F, 46.0F},
             resourcePulses[index]);
     }
     if (!snapshot.unlimitedResources &&
@@ -932,7 +910,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                                snapshot.coreMaxHealth),
             UiBarColor::Yellow);
     }
-    if (snapshot.unlimitedResources) {
+    if (snapshot.sandboxMode) {
+        drawUiText("SANDBOX  ∞", {256.0F, healthY - 2.0F}, 14.0F,
+                   {111, 220, 151, 255});
+    } else if (snapshot.unlimitedResources) {
         drawUiText("∞", {256.0F, healthY - 2.0F}, 20.0F,
                    {111, 220, 151, 255});
     }
@@ -950,9 +931,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     constexpr float TrackerWidth = 330.0F;
     const float trackerX = static_cast<float>(GetScreenWidth()) -
         TrackerWidth - 12.0F;
+    const float minimapTop = view.showFps ? 68.0F : 32.0F;
     const float trackerY = view.minimapHidden
-        ? 18.0F
-        : 24.0F + compactMapSize;
+        ? 32.0F
+        : minimapTop + compactMapSize + 8.0F;
     const bool quietBuildPhase =
         snapshot.state == RunState::BuildPhase;
     if (!view.mapOverlayOpen && quietBuildPhase &&
@@ -1017,7 +999,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             {ObjectiveX + 43.0F, ObjectiveY + 9.0F},
             14.0F, {255, 225, 157, 255});
         drawUiText(
-            "Complete tasks to earn Insight",
+            "Complete tasks to earn XP",
             {ObjectiveX + 43.0F, ObjectiveY + 27.0F},
             10.5F, {190, 178, 157, 225});
         const std::string activeCount =
@@ -1086,7 +1068,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const std::string reward = "+" +
                 std::to_string(static_cast<int>(std::lround(
                     objective.definition.insightReward))) +
-                " INSIGHT";
+                " XP";
             const float rewardWidth =
                 measureUiText(reward, 10.0F).x;
             drawUiText(
@@ -1265,9 +1247,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                      measureUiText(compassText, 13.0F).x + 30.0F);
         ui.drawPanel({static_cast<float>(GetScreenWidth()) * 0.5F -
                           compassWidth * 0.5F,
-                      82.0F, compassWidth, 31.0F}, 188);
+                      96.0F, compassWidth, 31.0F}, 188);
         drawCenteredUiText(
-            compassText, 89.0F, 13.0F,
+            compassText, 103.0F, 13.0F,
             {255, 215, 116, 255});
         chestCompassVisible = true;
     }
@@ -1276,9 +1258,17 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     std::string phaseSubtext;
     Color phaseColor{245, 184, 76, 255};
     if (snapshot.state == RunState::BuildPhase) {
-        phaseText = "SUNSET  " +
-            phaseClock(snapshot.phaseTimeRemaining);
-        if (snapshot.earlyWaveBonus > 0) {
+        if (snapshot.sandboxMode) {
+            phaseText = "SANDBOX  •  BUILD MODE";
+            phaseSubtext = actionKeyLabel(
+                controls, ControlAction::StartWave) +
+                "  START NIGHT  •  F5  CARDS";
+            phaseColor = {111, 220, 151, 255};
+        } else {
+            phaseText = "SUNSET  " +
+                phaseClock(snapshot.phaseTimeRemaining);
+        }
+        if (!snapshot.sandboxMode && snapshot.earlyWaveBonus > 0) {
             phaseSubtext = "N  EARLY  +" +
                 std::to_string(snapshot.earlyWaveBonus) +
                 " CRYSTALS";
@@ -1292,7 +1282,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 phaseSubtext += "  +" +
                     std::to_string(
                         snapshot.earlyWaveInsightBonus) +
-                    " INSIGHT";
+                    " XP";
             }
         }
     } else if (snapshot.state == RunState::Sunset) {
@@ -1303,11 +1293,14 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         phaseColor = {255, 146, 79, 255};
     } else if (snapshot.state == RunState::Wave) {
         phaseText = (snapshot.finalNight ? "FINAL NIGHT  •  WAVE " : "WAVE ") +
-            std::to_string(snapshot.wave) +
-            "  •  " +
-            std::to_string(snapshot.activeEnemyCount +
-                           snapshot.pendingEnemyCount) +
-            " LEFT";
+            std::to_string(snapshot.wave);
+        if (!snapshot.finalNight) {
+            phaseText += "  •  DAWN " +
+                phaseClock(snapshot.phaseTimeRemaining);
+        } else {
+            phaseText += "  •  " +
+                std::to_string(snapshot.activeEnemyCount) + " ACTIVE";
+        }
         phaseColor = {242, 108, 82, 255};
         const auto activeBoss = std::find_if(
             snapshot.enemies.begin(), snapshot.enemies.end(),
@@ -1333,26 +1326,13 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         phaseColor = {255, 194, 92, 255};
     }
     if (!phaseText.empty()) {
-        constexpr float PhaseFontSize = 18.0F;
-        const float textWidth = measureUiText(
-            phaseText, PhaseFontSize).x;
-        const float subtextWidth = phaseSubtext.empty()
-            ? 0.0F
-            : measureUiText(phaseSubtext, 9.0F).x;
-        const float panelWidth =
-            std::max(textWidth, subtextWidth) + 40.0F;
-        const float panelHeight = phaseSubtext.empty() ? 42.0F : 55.0F;
-        const float centerX = static_cast<float>(GetScreenWidth()) * 0.5F;
-        DrawRectangleRounded(
-            {centerX - panelWidth * 0.5F,
-             11.0F, panelWidth, panelHeight},
-            0.34F, 7, {25, 20, 18, 196});
+        constexpr float PhaseFontSize = 24.3F;
         drawCenteredUiText(
-            phaseText, phaseSubtext.empty() ? 20.0F : 16.0F,
+            phaseText, phaseSubtext.empty() ? 30.0F : 25.0F,
             PhaseFontSize, phaseColor);
         if (!phaseSubtext.empty()) {
             drawCenteredUiText(
-                phaseSubtext, 39.0F, 9.0F,
+                phaseSubtext, 57.0F, 12.15F,
                 {221, 210, 187, 225});
         }
     }
@@ -1360,7 +1340,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const bool attackWarningVisible =
         snapshot.state == RunState::Sunset &&
         hasAttackDirections(snapshot);
-    float nextCenterHudY = chestCompassVisible ? 121.0F : 64.0F;
+    float nextCenterHudY = chestCompassVisible ? 135.0F : 96.0F;
     if (attackWarningVisible) {
         const std::string warning =
             "ATTACK FROM " + attackDirectionNames(snapshot);
@@ -1379,8 +1359,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     }
 
     const bool buildModeActive =
-        view.actionMode == ActionMode::Buildings ||
-        view.actionMode == ActionMode::Modular;
+        view.actionMode == ActionMode::Buildings;
     drawCompactInsight(
         ui, snapshot, view,
         buildModeActive || view.showCoreHealth);

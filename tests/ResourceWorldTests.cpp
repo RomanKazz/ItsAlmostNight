@@ -142,6 +142,29 @@ void runResourceWorldTests() {
     requireNear(clustered.back().position.x,
                 repeated.back().position.x, 1e-12,
                 "resource scattering stays deterministic");
+
+    const ian::Vec3 playerSpawn{0.0, 0.0, 6.0};
+    for (std::uint32_t seed = 1U; seed <= 32U; ++seed) {
+        const auto starterResources = ian::scatterResources(
+            clusterInput, 48.0, largeTerrain, {}, seed,
+            playerSpawn);
+        const auto starterCrystal = std::find_if(
+            starterResources.begin(), starterResources.end(),
+            [&playerSpawn](
+                const ian::ResourceNodeDefinition& resource) {
+                return resource.type == ian::ResourceType::Crystal &&
+                    std::hypot(
+                        resource.position.x - playerSpawn.x,
+                        resource.position.z - playerSpawn.z) <= 11.0 &&
+                    std::hypot(
+                        resource.position.x,
+                        resource.position.z) >= 5.0 &&
+                    resource.yield >= 10;
+            });
+        require(
+            starterCrystal != starterResources.end(),
+            "every run places a ten-yield crystal near spawn and clear of the Core");
+    }
     int nearbyTreePairs = 0;
     for (std::size_t left = clusterInput.size();
          left < clustered.size(); ++left) {

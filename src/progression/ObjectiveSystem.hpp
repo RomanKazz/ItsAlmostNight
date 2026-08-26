@@ -26,7 +26,7 @@ enum class ObjectiveMetric : std::uint8_t {
     TotalResourcesGathered,
     LargeDepositDepleted,
     AllResourceTypesInDay,
-    BareHandsDepletion,
+    MatchingToolDepletion,
     ResourcesInSixtySeconds,
     ConsecutiveDepletions,
     NightResourcesGathered,
@@ -87,7 +87,7 @@ struct ObjectiveResourceEvent {
     int amount{};
     bool depleted{};
     bool largeDeposit{};
-    bool bareHands{};
+    bool matchingTool{};
     bool night{};
     bool hasCore{};
     double distanceFromCore{};
@@ -114,6 +114,7 @@ struct ObjectiveRunState {
     int dayCrystalsGathered{};
     int consecutiveDepletions{};
     int largeDepositsDepleted{};
+    // Serialized under the legacy field name for suspended-run compatibility.
     int bareHandsDepletions{};
     int nightResourcesGathered{};
     int farResourcesGathered{};
@@ -160,7 +161,7 @@ class ObjectiveSystem {
     int dayStoneGathered_{};
     int dayCrystalsGathered_{};
     int largeDepositsDepleted_{};
-    int bareHandsDepletions_{};
+    int matchingToolDepletions_{};
     int consecutiveDepletions_{};
     int nightResourcesGathered_{};
     int farResourcesGathered_{};

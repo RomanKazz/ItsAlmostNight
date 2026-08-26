@@ -335,6 +335,7 @@ class EnemySystem {
     [[nodiscard]] std::vector<BossActionEvent> takeBossActionEvents();
 
     [[nodiscard]] std::size_t activeCount() const;
+    [[nodiscard]] bool hasPendingSplits() const;
     [[nodiscard]] const std::vector<EnemyInstance>& enemies() const;
     [[nodiscard]] std::span<const EnemyProjectile> projectiles() const;
     void clearProjectiles();

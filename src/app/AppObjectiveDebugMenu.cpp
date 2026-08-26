@@ -51,7 +51,7 @@ void App::drawObjectiveDebugMenu(const SimulationSnapshot& snapshot) {
                 std::to_string(static_cast<int>(std::ceil(
                     status.definition.target))) +
                 "   +" + std::to_string(static_cast<int>(std::lround(
-                    status.definition.insightReward))) + " Insight";
+                    status.definition.insightReward))) + " XP";
             drawUiText(progress, {columnX + 10.0F, rowY + 13.0F}, 9.0F,
                        status.active ? Color{182, 171, 158, 235}
                                      : Color{105, 103, 100, 190});

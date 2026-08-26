@@ -10,11 +10,8 @@ namespace ian::app_detail {
 
 [[nodiscard]] inline std::span<const PlayerWeapon> equipmentOrder(
     ActionMode mode) {
-    if (mode == ActionMode::Tools) {
-        return PlayerToolHotbarOrder;
-    }
-    if (mode == ActionMode::Weapons) {
-        return PlayerCombatHotbarOrder;
+    if (mode == ActionMode::Equipment) {
+        return PlayerWeaponHotbarOrder;
     }
     return {};
 }

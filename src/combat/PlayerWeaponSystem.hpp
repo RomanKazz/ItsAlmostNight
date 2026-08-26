@@ -11,7 +11,9 @@
 namespace ian {
 
 enum class PlayerWeapon {
-    BareHands,
+    // Reserved numeric value for suspended runs created before Hands were
+    // removed. Selection is normalized to Axe at the system boundary.
+    LegacyBareHands,
     Axe,
     Pickaxe,
     Club,
@@ -25,29 +27,10 @@ enum class PlayerWeapon {
 inline constexpr std::size_t PlayerWeaponCount = 9;
 
 // Canonical order shared by input, HUD layout and selection animation.
-inline constexpr std::array<PlayerWeapon, PlayerWeaponCount>
+inline constexpr std::array<PlayerWeapon, PlayerWeaponCount - 2U>
     PlayerWeaponHotbarOrder{
-        PlayerWeapon::BareHands,
-        PlayerWeapon::Club,
-        PlayerWeapon::Pickaxe,
         PlayerWeapon::Axe,
-        PlayerWeapon::IceWand,
-        PlayerWeapon::FireWand,
-        PlayerWeapon::Hammer,
-        PlayerWeapon::Rifle,
-        PlayerWeapon::Bomb,
-    };
-
-inline constexpr std::array<PlayerWeapon, 4>
-    PlayerToolHotbarOrder{
-        PlayerWeapon::BareHands,
         PlayerWeapon::Pickaxe,
-        PlayerWeapon::Axe,
-        PlayerWeapon::Hammer,
-    };
-
-inline constexpr std::array<PlayerWeapon, 5>
-    PlayerCombatHotbarOrder{
         PlayerWeapon::Club,
         PlayerWeapon::IceWand,
         PlayerWeapon::FireWand,
@@ -57,33 +40,18 @@ inline constexpr std::array<PlayerWeapon, 5>
 
 [[nodiscard]] inline constexpr bool isPlayerTool(
     PlayerWeapon weapon) {
-    return weapon == PlayerWeapon::BareHands ||
-           weapon == PlayerWeapon::Pickaxe ||
+    return weapon == PlayerWeapon::Pickaxe ||
            weapon == PlayerWeapon::Axe ||
            weapon == PlayerWeapon::Hammer;
 }
 
 [[nodiscard]] inline constexpr bool isPlayerCombatWeapon(
     PlayerWeapon weapon) {
-    return !isPlayerTool(weapon);
-}
-
-template <std::size_t Size>
-[[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(
-    PlayerWeapon selected,
-    const std::array<bool, PlayerWeaponCount>& unlocked,
-    const std::array<PlayerWeapon, Size>& order) {
-    std::size_t visibleIndex = 0;
-    for (const PlayerWeapon weapon : order) {
-        if (!unlocked[static_cast<std::size_t>(weapon)]) {
-            continue;
-        }
-        if (weapon == selected) {
-            return visibleIndex;
-        }
-        ++visibleIndex;
-    }
-    return 0;
+    return weapon == PlayerWeapon::Club ||
+           weapon == PlayerWeapon::IceWand ||
+           weapon == PlayerWeapon::FireWand ||
+           weapon == PlayerWeapon::Rifle ||
+           weapon == PlayerWeapon::Bomb;
 }
 
 [[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(
@@ -158,7 +126,7 @@ class PlayerWeaponSystem {
   private:
     void beginReload();
 
-    PlayerWeapon selectedWeapon_{PlayerWeapon::BareHands};
+    PlayerWeapon selectedWeapon_{PlayerWeapon::Axe};
     RifleBalanceDefinition definition_;
     int rifleLevel_{1};
     int ammunition_{};

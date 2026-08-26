@@ -215,7 +215,7 @@ class Renderer {
     void cycleQuality();
     void cycleShadowQuality();
     void cycleFrameRateLimit();
-    void applyFrameRateLimit() const;
+    void applyFrameRateLimit();
     void adjustPixelSize(int direction);
     void setLowHealthEffect(float amount,
                             bool reduceFlashes);
@@ -465,6 +465,7 @@ class Renderer {
     [[nodiscard]] GraphicsSettings& settings();
     [[nodiscard]] const GraphicsSettings& settings() const;
     [[nodiscard]] const RendererPerformanceStats& performanceStats() const;
+    [[nodiscard]] double framePacingMilliseconds() const;
 
   private:
     struct EnemyBatchKey {
@@ -509,6 +510,7 @@ class Renderer {
     void drawTerrainAlignedModel(
         Model& model, Vector3 position, float yawRadians,
         Vector3 scale, Color tint) const;
+    void paceFrame();
     [[nodiscard]] float clearAreaVisibility(
         Vector2 position,
         std::span<const GrassClearArea> clearAreas,
@@ -844,6 +846,13 @@ class Renderer {
     Model enemyCrowdLodModel_{};
     RendererPerformanceStats performanceStats_{};
     double instancedEnemyMillisecondsThisFrame_{};
+    double framePacingMilliseconds_{};
+#if defined(__APPLE__)
+    int pacedFrameRate_{};
+    std::uint64_t frameDeadline_{};
+    std::uint32_t machTimebaseNumer_{};
+    std::uint32_t machTimebaseDenom_{};
+#endif
     std::vector<std::vector<std::uint32_t>>
         grassClearAreaCells_;
     const GrassClearArea* indexedGrassClearAreaData_{};

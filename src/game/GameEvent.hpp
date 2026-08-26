@@ -48,6 +48,7 @@ enum class GameEventType {
     PlayerDied,
     PlayerRespawned,
     EnemyKilled,
+    EnemyBanished,
     EnemySplit,
     EliteEnemySpawned,
     EliteVolatilePrimed,
@@ -137,7 +138,7 @@ struct GameEvent {
     double damage{};
     double intensity{};
     bool critical{};
-    bool bareHands{};
+    bool matchingTool{};
     bool largeDeposit{};
     bool night{};
     bool secondaryImpact{};
@@ -148,7 +149,7 @@ struct GameEvent {
     double insightAfter{};
     double insightRequirement{};
     double insightDiminishingMultiplier{1.0};
-    int treePointsGranted{};
+    int levelsGranted{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };

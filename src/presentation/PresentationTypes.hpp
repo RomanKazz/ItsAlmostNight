@@ -8,26 +8,22 @@
 namespace ian {
 
 enum class ActionMode {
-    Tools,
-    Weapons,
+    Equipment,
     Buildings,
-    Modular,
 };
 
 [[nodiscard]] inline constexpr bool actionModeUsesEquipment(
     ActionMode mode) {
-    return mode == ActionMode::Tools || mode == ActionMode::Weapons;
+    return mode == ActionMode::Equipment;
 }
 
 [[nodiscard]] inline constexpr const char*
 actionModeLabel(ActionMode mode) {
     switch (mode) {
-    case ActionMode::Tools: return "TOOLS";
-    case ActionMode::Weapons: return "WEAPONS";
+    case ActionMode::Equipment: return "EQUIPMENT";
     case ActionMode::Buildings: return "BUILDINGS";
-    case ActionMode::Modular: return "MODULAR";
     }
-    return "TOOLS";
+    return "EQUIPMENT";
 }
 
 enum class PresentationEffectType {

@@ -593,7 +593,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::UpgradeWeapon: return "UPGRADE WEAPON";
     case ControlAction::BuildMode: return "MODE WHEEL";
     case ControlAction::Pause: return "PAUSE";
-    case ControlAction::Skills: return "SKILL TREE";
+    case ControlAction::Skills: return "CARD COLLECTION";
     case ControlAction::Map: return "MAP";
     case ControlAction::StartWave: return "START WAVE";
     case ControlAction::Restart: return "RESTART RUN";

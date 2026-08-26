@@ -8,8 +8,8 @@
     "exhaustedMultiplier": 0.2
   },
   "rewards": {
-    "introGatherObjective": 60.0,
-    "introCoreObjective": 40.0,
+    "introGatherObjective": 0.0,
+    "introCoreObjective": 100.0,
     "normalWave": 30.0,
     "milestoneWave": 55.0,
     "bossWave": 100.0,

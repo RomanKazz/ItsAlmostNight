@@ -80,8 +80,12 @@ void Simulation::updateRunPhase(
         const int earlyInsightBonus = command.startWaveEarly
             ? earlyWaveInsightBonus()
             : 0;
-        phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
-        if ((phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) &&
+        if (!sandboxMode_) {
+            phaseTimeRemaining_ = std::max(
+                0.0, phaseTimeRemaining_ - deltaSeconds);
+        }
+        if (((!sandboxMode_ && phaseTimeRemaining_ <= 0.0) ||
+             command.startWaveEarly) &&
             buildings_.hasCore()) {
             // Preserve the last pre-wave state. Saving during combat returns
             // this checkpoint, so replay cannot keep rewards already earned
@@ -142,8 +146,8 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseTimeRemaining_ = 0.0;
-                phaseDuration_ = 0.0;
+                phaseTimeRemaining_ = gameplay_.nightDurationSeconds;
+                phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,
                     .amount = wave_,
@@ -164,7 +168,8 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseDuration_ = 0.0;
+                phaseTimeRemaining_ = gameplay_.nightDurationSeconds;
+                phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,
                     .amount = wave_,
@@ -198,6 +203,29 @@ void Simulation::updateRunPhase(
 void Simulation::updateCombat(double deltaSeconds) {
     if (state_ == RunState::Wave || enemies_.activeCount() > 0) {
         if (state_ == RunState::Wave) {
+            if (!finalNight_) {
+                phaseTimeRemaining_ = std::max(
+                    0.0, phaseTimeRemaining_ - deltaSeconds);
+                if (phaseTimeRemaining_ <= 0.0) {
+                    // Dawn banishes the remaining horde. Resetting actors
+                    // deliberately produces no kill XP, Coins, loot, splits,
+                    // or volatile elite explosions.
+                    for (const EnemyInstance& enemy : enemies_.enemies()) {
+                        if (!enemy.active) continue;
+                        events_.push_back({
+                            .type = GameEventType::EnemyBanished,
+                            .entityId = enemy.id,
+                            .enemyType = enemy.type,
+                            .enemyEliteAffixes = enemy.eliteAffixes,
+                            .position = enemy.position,
+                        });
+                    }
+                    enemies_.reset();
+                    enemies_.clearProjectiles();
+                    completeWave();
+                    return;
+                }
+            }
             tickWaveSpawning(deltaSeconds);
         }
         updateTrapCombat(deltaSeconds);
@@ -511,6 +539,10 @@ void Simulation::updateCombat(double deltaSeconds) {
     // during building phases even when there are no enemies.
     updateTowerCombat(deltaSeconds);
     updateCannonCombat(deltaSeconds);
+    if (forceWaveCompletion_ && state_ == RunState::Wave) {
+        forceWaveCompletion_ = false;
+        completeWave();
+    }
 }
 
 void Simulation::collectEliteEnemyEvents() {

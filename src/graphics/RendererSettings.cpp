@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <array>
 
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#endif
+
 namespace ian {
 void Renderer::cycleQuality() {
     switch (settings_.quality) {
@@ -52,13 +56,84 @@ void Renderer::cycleFrameRateLimit() {
     applyFrameRateLimit();
 }
 
-void Renderer::applyFrameRateLimit() const {
+void Renderer::applyFrameRateLimit() {
 #if defined(__APPLE__)
-    // App owns precise mach-time pacing. Disable raylib's usleep limiter.
+    // Renderer owns presentation pacing. Disable raylib's usleep limiter.
     SetTargetFPS(0);
     ClearWindowState(FLAG_VSYNC_HINT);
+    pacedFrameRate_ = 0;
+    frameDeadline_ = 0U;
 #else
     SetTargetFPS(settings_.frameRateLimit);
+#endif
+}
+
+void Renderer::paceFrame() {
+    framePacingMilliseconds_ = 0.0;
+#if defined(__APPLE__)
+    const int framesPerSecond = settings_.frameRateLimit;
+    if (framesPerSecond <= 0) {
+        pacedFrameRate_ = 0;
+        frameDeadline_ = 0U;
+        return;
+    }
+
+    if (machTimebaseNumer_ == 0U || machTimebaseDenom_ == 0U) {
+        mach_timebase_info_data_t timebase{};
+        static_cast<void>(mach_timebase_info(&timebase));
+        machTimebaseNumer_ = std::max(timebase.numer, 1U);
+        machTimebaseDenom_ = std::max(timebase.denom, 1U);
+    }
+    const auto nanosecondsToTicks = [this](std::uint64_t nanoseconds) {
+        return nanoseconds * machTimebaseDenom_ / machTimebaseNumer_;
+    };
+
+    const std::uint64_t now = mach_absolute_time();
+    if (pacedFrameRate_ != framesPerSecond || frameDeadline_ == 0U) {
+        pacedFrameRate_ = framesPerSecond;
+        frameDeadline_ = now;
+    }
+    const std::uint64_t period = nanosecondsToTicks(
+        1'000'000'000ULL /
+        static_cast<std::uint64_t>(framesPerSecond));
+    const std::uint64_t target = frameDeadline_ + period;
+    if (now >= target) {
+        // A slow frame or focus change starts a new cadence instead of
+        // creating several short catch-up frames.
+        frameDeadline_ = now;
+        return;
+    }
+
+    // mach_wait_until can oversleep enough to be visible at 60 Hz. Sleep for
+    // the coarse part, then use a very short spin only for the precision tail.
+    constexpr std::uint64_t SpinTailNanoseconds = 400'000ULL;
+    const std::uint64_t spinTail = nanosecondsToTicks(
+        SpinTailNanoseconds);
+    const std::uint64_t coarseTarget = target > spinTail
+        ? target - spinTail
+        : target;
+    if (now < coarseTarget) {
+        static_cast<void>(mach_wait_until(coarseTarget));
+    }
+
+    std::uint64_t presentedAt = mach_absolute_time();
+    while (presentedAt < target) {
+        presentedAt = mach_absolute_time();
+    }
+
+    // Do not compensate a scheduler oversleep with a visibly short frame.
+    constexpr std::uint64_t LateToleranceNanoseconds = 250'000ULL;
+    const std::uint64_t lateTolerance = nanosecondsToTicks(
+        LateToleranceNanoseconds);
+    frameDeadline_ = presentedAt > target + lateTolerance
+        ? presentedAt
+        : target;
+    const std::uint64_t pacingTicks = presentedAt - now;
+    framePacingMilliseconds_ =
+        static_cast<double>(pacingTicks) *
+        static_cast<double>(machTimebaseNumer_) /
+        static_cast<double>(machTimebaseDenom_) /
+        1'000'000.0;
 #endif
 }
 

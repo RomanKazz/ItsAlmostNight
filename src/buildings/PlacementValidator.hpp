@@ -20,6 +20,7 @@ enum class ModularPlacementError {
     NoSupport,
     ResourceBlocked,
     InsufficientResources,
+    CoreLevelRequired,
 };
 
 struct FoundationSupport {

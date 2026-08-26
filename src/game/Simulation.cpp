@@ -130,7 +130,8 @@ Simulation::Simulation(
       }},
       resources_(scatterResources(
           map_.resources, map_.worldLimit,
-          terrain_, map_.obstacles),
+          terrain_, map_.obstacles, 0U,
+          map_.playerSpawn),
           [this](double x, double z) {
               return terrain_.getHeight(x, z);
           },
@@ -192,6 +193,16 @@ void Simulation::startRun(PlayerClass playerClass) {
     if (state_ != RunState::MainMenu) {
         return;
     }
+    sandboxMode_ = false;
+    playerClass_ = playerClass;
+    resetRun(GameEventType::RunStarted);
+}
+
+void Simulation::startSandboxRun(PlayerClass playerClass) {
+    if (state_ != RunState::MainMenu) {
+        return;
+    }
+    sandboxMode_ = true;
     playerClass_ = playerClass;
     resetRun(GameEventType::RunStarted);
 }
@@ -263,6 +274,7 @@ void Simulation::returnToMainMenu() {
     enemies_.clearProjectiles();
     waveStartCheckpoint_.reset();
     state_ = RunState::MainMenu;
+    sandboxMode_ = false;
     stateBeforePause_ = RunState::Gathering;
     selectedBuilding_.reset();
     buildingPreview_.reset();
@@ -284,7 +296,8 @@ void Simulation::resetRun(GameEventType eventType) {
         scatterResources(
             map_.resources, map_.worldLimit, terrain_, map_.obstacles,
             eventType == GameEventType::RunRestarted
-                ? terrain_.seed() : 0U),
+                ? terrain_.seed() : 0U,
+            map_.playerSpawn),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },
@@ -335,8 +348,8 @@ void Simulation::resetRun(GameEventType eventType) {
               rewardedEnemyCoins_.end(), EntityId{});
     pendingResourceGrants_.clear();
     pendingSawSplinters_.clear();
-    unlimitedResources_ = false;
-    playerInvulnerable_ = false;
+    unlimitedResources_ = sandboxMode_;
+    playerInvulnerable_ = sandboxMode_;
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
     powerSwingResourceHits_ = 0;
@@ -384,12 +397,13 @@ void Simulation::resetRun(GameEventType eventType) {
     lootStacks_.fill(0);
     runUpgradeChoicePending_ = false;
     runUpgradeChoiceCount_ = 0U;
-    runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
+    runUpgradeChoices_.fill(
+        progressionCardId(RunUpgradeEffect::Damage));
     runUpgradeStacks_.fill(0);
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
     runUpgradeRerollTokens_ = 0;
-    runUpgradeLockUnlocked_ = false;
+    runUpgradeLockUnlocked_ = true;
     lockedRunUpgrade_.reset();
     bonusSelectionsNextReward_ = 0;
     riskyInvestmentPending_ = 0;
@@ -400,6 +414,7 @@ void Simulation::resetRun(GameEventType eventType) {
     buildingRotation_ = 0;
     buildingPreview_.reset();
     buildings_.reset();
+    buildings_.setSandboxMode(sandboxMode_);
     buildings_.setCoreBuildRadius(map_.coreBuildRadius);
     buildings_.setMaxHealthMultiplier(1.0);
     buildings_.setNewTowerBonusEnabled(false);
@@ -464,8 +479,7 @@ void Simulation::resetRun(GameEventType eventType) {
                 playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
             break;
         case PlayerClass::Engineer:
-            if (skillTree_.hasEffect("unlock.hammer"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Hammer);
+            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             break;
         case PlayerClass::Prospector:
             if (skillTree_.hasEffect("unlock.pickaxe"))
@@ -505,6 +519,11 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnGroupSize_ = 1;
     waveSpawnInterval_ = 1.0;
     waveSpawnTimeRemaining_ = 0.0;
+    waveSpawnGroupsDue_ = 0U;
+    waveSpawnCycle_ = 0U;
+    waveHealthScale_ = 1.0;
+    waveDamageScale_ = 1.0;
+    forceWaveCompletion_ = false;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
     currentWaveHasBoss_ = false;
@@ -535,7 +554,8 @@ void Simulation::togglePause() {
 }
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
-    if (state_ == RunState::MainMenu || state_ == RunState::Paused ||
+    if (runUpgradeChoicePending_ ||
+        state_ == RunState::MainMenu || state_ == RunState::Paused ||
         state_ == RunState::StageClear || state_ == RunState::Victory ||
         state_ == RunState::Defeat || !std::isfinite(deltaSeconds) ||
         deltaSeconds < 0.0) {

@@ -103,9 +103,9 @@ std::vector<ObjectiveDefinition> ObjectiveSystem::defaultDefinitions() {
         ObjectiveMetric::AllResourceTypesInDay, 3, 15, "all_resources_day", 0));
 
     result.push_back(challenge(
-        "bare_hands", "Bare hands",
-        "Destroy a tree or stone without a tool",
-        ObjectiveMetric::BareHandsDepletion, 1, 20));
+        "proper_tool", "Proper tool",
+        "Destroy a tree or stone with its matching starter tool",
+        ObjectiveMetric::MatchingToolDepletion, 1, 20));
     result.push_back(challenge(
         "workaholic", "Workaholic",
         "Gather 50 resources within 60 seconds",
@@ -148,7 +148,7 @@ void ObjectiveSystem::reset() {
     dayStoneGathered_ = 0;
     dayCrystalsGathered_ = 0;
     largeDepositsDepleted_ = 0;
-    bareHandsDepletions_ = 0;
+    matchingToolDepletions_ = 0;
     consecutiveDepletions_ = 0;
     nightResourcesGathered_ = 0;
     farResourcesGathered_ = 0;
@@ -203,7 +203,7 @@ void ObjectiveSystem::refreshProgress(double elapsedSeconds) {
         case ObjectiveMetric::TotalResourcesGathered: status.progress = totalResourcesGathered_; break;
         case ObjectiveMetric::LargeDepositDepleted: status.progress = largeDepositsDepleted_; break;
         case ObjectiveMetric::AllResourceTypesInDay: status.progress = resourceTypesToday; break;
-        case ObjectiveMetric::BareHandsDepletion: status.progress = bareHandsDepletions_; break;
+        case ObjectiveMetric::MatchingToolDepletion: status.progress = matchingToolDepletions_; break;
         case ObjectiveMetric::ResourcesInSixtySeconds: status.progress = recentAmount; break;
         case ObjectiveMetric::ConsecutiveDepletions: status.progress = consecutiveDepletions_; break;
         case ObjectiveMetric::NightResourcesGathered: status.progress = nightResourcesGathered_; break;
@@ -281,7 +281,7 @@ std::vector<ObjectiveCompletion> ObjectiveSystem::onResourceEvent(
         else ++totalStonesDestroyed_;
         ++consecutiveDepletions_;
         if (event.largeDeposit) ++largeDepositsDepleted_;
-        if (event.bareHands) ++bareHandsDepletions_;
+        if (event.matchingTool) ++matchingToolDepletions_;
     }
     refreshProgress(event.elapsedSeconds);
     return collectCompletions();
@@ -324,7 +324,7 @@ std::vector<ObjectiveCompletion> ObjectiveSystem::beginNewDay() {
     dayWoodGathered_ = 0;
     dayStoneGathered_ = 0;
     dayCrystalsGathered_ = 0;
-    bareHandsDepletions_ = 0;
+    matchingToolDepletions_ = 0;
     consecutiveDepletions_ = 0;
     nightResourcesGathered_ = 0;
     recentGathering_.clear();
@@ -368,7 +368,7 @@ ObjectiveRunState ObjectiveSystem::saveState() const {
         .dayCrystalsGathered = dayCrystalsGathered_,
         .consecutiveDepletions = consecutiveDepletions_,
         .largeDepositsDepleted = largeDepositsDepleted_,
-        .bareHandsDepletions = bareHandsDepletions_,
+        .bareHandsDepletions = matchingToolDepletions_,
         .nightResourcesGathered = nightResourcesGathered_,
         .farResourcesGathered = farResourcesGathered_};
     for (const auto& status : statuses_)
@@ -440,7 +440,7 @@ bool ObjectiveSystem::loadState(const ObjectiveRunState& state) {
     loaded.dayCrystalsGathered_ = state.dayCrystalsGathered;
     loaded.consecutiveDepletions_ = state.consecutiveDepletions;
     loaded.largeDepositsDepleted_ = state.largeDepositsDepleted;
-    loaded.bareHandsDepletions_ = state.bareHandsDepletions;
+    loaded.matchingToolDepletions_ = state.bareHandsDepletions;
     loaded.nightResourcesGathered_ = state.nightResourcesGathered;
     loaded.farResourcesGathered_ = state.farResourcesGathered;
     loaded.recentGathering_.assign(state.recentGathering.begin(), state.recentGathering.end());
@@ -491,7 +491,8 @@ std::vector<ObjectiveDefinition> loadObjectiveDefinitions(
                 {"total_resources", ObjectiveMetric::TotalResourcesGathered},
                 {"large_deposit", ObjectiveMetric::LargeDepositDepleted},
                 {"all_resources_day", ObjectiveMetric::AllResourceTypesInDay},
-                {"bare_hands", ObjectiveMetric::BareHandsDepletion},
+                {"matching_tool", ObjectiveMetric::MatchingToolDepletion},
+                {"bare_hands", ObjectiveMetric::MatchingToolDepletion},
                 {"resources_60s", ObjectiveMetric::ResourcesInSixtySeconds},
                 {"consecutive_depletions", ObjectiveMetric::ConsecutiveDepletions},
                 {"night_resources", ObjectiveMetric::NightResourcesGathered},

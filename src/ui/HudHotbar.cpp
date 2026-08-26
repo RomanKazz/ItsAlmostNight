@@ -34,6 +34,8 @@ void drawHotbarSlots(
     std::string_view categoryLabel = {},
     float verticalOffset = 0.0F,
     float selectedInfoOffset = 0.0F) {
+    if (slots.empty()) return;
+
     constexpr float Gap = 7.0F;
     constexpr float MaximumSize = 58.0F;
     const float screenWidth =
@@ -56,7 +58,8 @@ void drawHotbarSlots(
         const float labelWidth =
             measureUiText(categoryLabel, 12.0F).x;
         const Rectangle badge{
-            startX, slotY - 25.0F,
+            (screenWidth - labelWidth - 24.0F) * 0.5F,
+            slotY - 25.0F,
             labelWidth + 24.0F, 24.0F};
         DrawRectangleRounded(
             badge, 0.42F, 6,
@@ -198,7 +201,8 @@ void drawFoundationHotbar(
         ui, slots,
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha,
-        false, true, "MODULAR");
+        false, true,
+        "MODULAR  •  C CATEGORY  •  WHEEL ITEM");
 }
 
 void drawBuildHotbar(
@@ -208,12 +212,16 @@ void drawBuildHotbar(
         drawFoundationHotbar(ui, snapshot, view);
         return;
     }
-    constexpr std::array<const char*, 15> Keys{
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-        "SHIFT 1", "SHIFT 2", "SHIFT 3", "SHIFT 4", "SHIFT 5",
+    constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
+        "1", "2", "3", "4", "5", "6",
     };
     const BuildingHotbarLayout layout =
-        makeBuildingHotbarLayout(snapshot.unlockedBuildings);
+        makeBuildingHotbarLayout(
+            snapshot.unlockedBuildings,
+            view.buildingHotbarCategory,
+            snapshot.coreMaxHealth > 0.0,
+            snapshot.coreLevel,
+            snapshot.sandboxMode);
     std::vector<HotbarSlot> slots;
     slots.reserve(layout.count);
     for (std::size_t index = 0; index < layout.count; ++index) {
@@ -224,56 +232,31 @@ void drawBuildHotbar(
         const bool selected =
             snapshot.selectedBuilding &&
             *snapshot.selectedBuilding == type;
-        bool unlocked = snapshot.unlockedBuildings[typeIndex] &&
-            (type == BuildingType::Core
-                ? snapshot.coreMaxHealth <= 0.0
-                : snapshot.coreMaxHealth > 0.0);
-        if (type == BuildingType::SlowTrap ||
-            type == BuildingType::SpikeTrap ||
-            type == BuildingType::LumberMill ||
-            type == BuildingType::Quarry) {
-            unlocked = unlocked && snapshot.coreLevel >= 2;
-        }
         const bool affordable =
             snapshot.unlimitedResources ||
             canAfford(
                 cost, snapshot.wood,
                 snapshot.stone, snapshot.crystals);
-        const bool available = unlocked && affordable;
         slots.push_back({
             .key = Keys[index],
             .label = buildingDisplayName(type),
             .cost = cost,
             .selected = selected,
-            .available = available,
+            .available = affordable,
         });
     }
-    const std::size_t primaryCount =
-        std::min<std::size_t>(10U, slots.size());
-    const std::span<const HotbarSlot> primarySlots{
-        slots.data(), primaryCount};
-    const std::span<const HotbarSlot> secondarySlots{
-        slots.data() + primaryCount,
-        slots.size() - primaryCount};
-    const auto selectedIndex = snapshot.selectedBuilding
-        ? layout.indexOf(*snapshot.selectedBuilding)
-        : std::nullopt;
-    const bool secondarySelected =
-        selectedIndex && *selectedIndex >= primaryCount;
+    const std::string categoryLabel =
+        snapshot.coreMaxHealth <= 0.0
+            ? "BASE"
+            : std::string(buildingHotbarCategoryName(
+                  view.buildingHotbarCategory)) +
+                  "  •  C CATEGORY  •  WHEEL ITEM";
     drawHotbarSlots(
-        ui, primarySlots,
+        ui, slots,
         view.buildHotbarSelectionPosition,
-        secondarySelected ? 0.0F : view.buildHotbarSelectionAlpha,
-        false, !secondarySelected, {},
-        -66.0F);
-    if (!secondarySlots.empty()) {
-        drawHotbarSlots(
-            ui, secondarySlots,
-            view.buildHotbarSelectionPosition -
-                static_cast<float>(primaryCount),
-            secondarySelected ? view.buildHotbarSelectionAlpha : 0.0F,
-            false, secondarySelected, {}, 0.0F, -66.0F);
-    }
+        view.buildHotbarSelectionAlpha,
+        false, true, categoryLabel,
+        0.0F, -28.0F);
 }
 
 void drawLootInventory(
@@ -526,7 +509,7 @@ void drawLootInventory(
 
 const char* weaponLabel(PlayerWeapon weapon) {
     switch (weapon) {
-    case PlayerWeapon::BareHands: return "BARE HANDS";
+    case PlayerWeapon::LegacyBareHands: return "REMOVED";
     case PlayerWeapon::Axe: return "AXE";
     case PlayerWeapon::Pickaxe: return "PICKAXE";
     case PlayerWeapon::Club: return "CLUB";
@@ -541,54 +524,76 @@ const char* weaponLabel(PlayerWeapon weapon) {
 
 void drawCompactInsight(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view, bool raised) {
+    const HudViewState& view, bool /*raised*/) {
+    static_cast<void>(ui);
     const float pulse = std::clamp(
         static_cast<float>(view.insightPulse), 0.0F, 1.0F);
     const float pointPulse = std::clamp(
         static_cast<float>(view.treePointPulse), 0.0F, 1.0F);
 
-    constexpr float width = 244.0F;
-    constexpr float x = 18.0F;
-    const float y = static_cast<float>(GetScreenHeight()) -
-        (raised ? 282.0F : 226.0F);
+    const float width = static_cast<float>(GetScreenWidth());
+    constexpr float x = 0.0F;
+    constexpr float y = 0.0F;
+    constexpr float height = 22.0F;
     const float requirement = std::max(
         1.0F, static_cast<float>(snapshot.requiredInsight));
     const float fraction = std::clamp(
         static_cast<float>(view.displayedInsight) / requirement,
         0.0F, 1.0F);
-    if (pulse > 0.01F || pointPulse > 0.01F) {
-        DrawRectangleRounded(
-            {x - 5.0F - pointPulse * 4.0F,
-             y - 5.0F - pointPulse * 4.0F,
-             width + 10.0F + pointPulse * 8.0F,
-             30.0F + pointPulse * 8.0F},
-            0.45F, 7,
-            {151, 112, 255,
-             static_cast<unsigned char>(55.0F +
-                 95.0F * std::max(pulse, pointPulse))});
+    const float glow = std::max(pulse, pointPulse);
+    constexpr float FrameThickness = 2.0F;
+    constexpr float InnerInset = 3.0F;
+    const Rectangle outerBounds{x, y, width, height};
+    const Rectangle innerBounds{
+        x + InnerInset, y + InnerInset,
+        std::max(0.0F, width - InnerInset * 2.0F),
+        height - InnerInset * 2.0F,
+    };
+    DrawRectangleRec(outerBounds, {2, 3, 5, 255});
+    DrawRectangleGradientV(
+        static_cast<int>(innerBounds.x),
+        static_cast<int>(innerBounds.y),
+        static_cast<int>(innerBounds.width * fraction),
+        static_cast<int>(innerBounds.height),
+        {21, 198, 239, 255}, {7, 166, 221, 255});
+    if (glow > 0.01F) {
+        DrawRectangleRec(
+            {innerBounds.x, innerBounds.y,
+             innerBounds.width * fraction, innerBounds.height},
+            {118, 231, 255,
+             static_cast<unsigned char>(glow * 125.0F)});
     }
-    ui.drawProgressBar(
-        {x, y, width, 12.0F},
-        fraction, UiBarColor::Purple);
-    const std::string value = std::to_string(static_cast<int>(
-        std::floor(std::max(0.0, view.displayedInsight)))) +
-        " / " + std::to_string(static_cast<int>(
-            std::ceil(snapshot.requiredInsight)));
-    const float valueWidth = measureUiText(value, 11.0F).x;
+    if (fraction > 0.001F && fraction < 0.999F) {
+        const float fillEdge = innerBounds.x +
+            innerBounds.width * fraction;
+        DrawRectangleRec(
+            {fillEdge - 1.0F, innerBounds.y, 2.0F,
+             innerBounds.height},
+            {104, 222, 249, 210});
+    }
+    DrawRectangleLinesEx(
+        outerBounds, FrameThickness, {75, 78, 83, 255});
+    DrawRectangleLinesEx(
+        {x + FrameThickness, y + FrameThickness,
+         width - FrameThickness * 2.0F,
+         height - FrameThickness * 2.0F},
+        1.0F, {17, 19, 22, 255});
+
+    const float screenMinimum = static_cast<float>(
+        std::min(GetScreenWidth(), GetScreenHeight()));
+    const float minimapSize = std::clamp(
+        screenMinimum * 0.16F, 120.0F, 156.0F);
+    const std::string status =
+        "LVL " + std::to_string(snapshot.playerLevel) +
+        "  •  WAVE " +
+        std::to_string(std::max(0, snapshot.wave));
+    constexpr float statusFontSize = 14.85F;
+    const Vector2 statusSize = measureUiText(status, statusFontSize);
     drawUiText(
-        value, {x + width - valueWidth, y - 21.0F},
-        11.0F, {224, 211, 251, 245});
-    drawUiText("INSIGHT", {x, y - 22.0F}, 11.0F,
-               {208, 187, 245, 245});
-    const float pointCenterX = x + 78.0F;
-    DrawPoly({pointCenterX, y - 17.0F - pointPulse * 2.0F}, 4,
-             6.0F + pointPulse * 1.5F, 45.0F,
-             {208, 177, 255, 255});
-    const std::string points = std::to_string(snapshot.skillPoints);
-    drawUiText(
-        points,
-        {pointCenterX + 11.0F, y - 26.0F - pointPulse * 2.0F},
-        15.0F + pointPulse * 2.0F, {208, 177, 255, 255});
+        status,
+        {width - minimapSize - 28.0F - statusSize.x,
+         32.0F},
+        statusFontSize, {246, 231, 255, 255});
 }
 
 void drawWeaponHotbar(
@@ -597,14 +602,13 @@ void drawWeaponHotbar(
     std::array<HotbarSlot, PlayerWeaponCount> slots{};
     std::array<std::string, PlayerWeaponCount> keys{};
     std::array<std::string, PlayerWeaponCount> labels{};
-    const std::span<const PlayerWeapon> order =
-        view.actionMode == ActionMode::Tools
-            ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
-            : std::span<const PlayerWeapon>{PlayerCombatHotbarOrder};
     std::size_t slotCount = 0;
-    for (const PlayerWeapon weapon : order) {
+    for (const PlayerWeapon weapon : PlayerWeaponHotbarOrder) {
         const bool unlocked = snapshot.unlockedWeapons[
             static_cast<std::size_t>(weapon)];
+        if (!unlocked) {
+            continue;
+        }
         keys[slotCount] = std::to_string(slotCount + 1U);
         labels[slotCount] = weapon == PlayerWeapon::Bomb && unlocked
                 ? std::string("BOMBS x") +
@@ -617,14 +621,13 @@ void drawWeaponHotbar(
                                "/" +
                                std::to_string(snapshot.bombPurchaseCoinCost)
                          : "")
-                : weapon == PlayerWeapon::BareHands
-                    ? "HANDS" : weaponLabel(weapon);
+                : weaponLabel(weapon);
         slots[slotCount] = {
             .key = keys[slotCount],
             .label = labels[slotCount],
             .cost = {},
             .selected = snapshot.selectedWeapon == weapon,
-            .available = unlocked,
+            .available = true,
         };
         ++slotCount;
     }

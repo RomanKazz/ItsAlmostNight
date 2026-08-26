@@ -81,7 +81,8 @@ class CannonSystem {
 
     void reset();
     void setSkillModifiers(double damage, double radius,
-                           double fireRate, double highGroundDamage);
+                           double fireRate, double highGroundDamage,
+                           int clusterExplosionCount = 0);
     void clearProjectiles();
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const CannonExplosion> tick(double deltaSeconds,
@@ -108,6 +109,7 @@ class CannonSystem {
     double radiusMultiplier_{1.0};
     double fireRateMultiplier_{1.0};
     double highGroundDamageMultiplier_{1.0};
+    int clusterExplosionCount_{};
 };
 
 } // namespace ian

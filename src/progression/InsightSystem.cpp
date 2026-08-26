@@ -110,9 +110,9 @@ InsightGrantResult InsightSystem::grantInsight(
 
     while (progress_.currentInsight + 1e-9 >= progress_.requiredInsight) {
         progress_.currentInsight = std::max(0.0, progress_.currentInsight - progress_.requiredInsight);
-        ++progress_.totalTreePointsEarned;
-        ++result.treePointsGranted;
-        progress_.requiredInsight = requirementFor(progress_.totalTreePointsEarned);
+        ++progress_.totalLevelsEarned;
+        ++result.levelsGranted;
+        progress_.requiredInsight = requirementFor(progress_.totalLevelsEarned);
     }
     result.insightAfter = progress_.currentInsight;
     lastGrant_ = result;
@@ -154,11 +154,11 @@ InsightRunState InsightSystem::saveState() const {
 bool InsightSystem::loadState(const InsightRunState& state) {
     constexpr std::size_t MaximumConsumedEventIds = 100'000U;
     const double expectedRequirement =
-        requirementFor(state.progress.totalTreePointsEarned);
+        requirementFor(state.progress.totalLevelsEarned);
     if (!validNonNegative(state.progress.currentInsight) ||
         !std::isfinite(state.progress.requiredInsight) || state.progress.requiredInsight <= 0.0 ||
         state.progress.currentInsight >= state.progress.requiredInsight + 1e-9 ||
-        state.progress.totalTreePointsEarned < 0 ||
+        state.progress.totalLevelsEarned < 0 ||
         !validNonNegative(state.progress.totalInsightEarned) ||
         state.progress.totalInsightEarned + 1e-9 <
             state.progress.currentInsight ||

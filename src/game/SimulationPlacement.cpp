@@ -1,5 +1,6 @@
 #include "game/Simulation.hpp"
 
+#include "buildings/CoreProgression.hpp"
 #include "core/SaturatingArithmetic.hpp"
 #include "game/ResourceWorld.hpp"
 
@@ -10,35 +11,17 @@
 namespace ian {
 
 bool Simulation::buildingUnlocked(BuildingType type) const {
+    if (sandboxMode_) return true;
     if (type == BuildingType::WoodStorage ||
         type == BuildingType::StoneStorage ||
         type == BuildingType::CrystalStorage) {
         return false;
     }
     if (unlimitedResources_) return true;
+    if (type == BuildingType::Core) return true;
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;
-    switch (type) {
-    case BuildingType::Turret:
-        return coreLevel >= 2 &&
-            skillTree_.hasEffect("unlock.crossbow");
-    case BuildingType::Cannon:
-        return coreLevel >= 3 &&
-            skillTree_.hasEffect("unlock.cannon");
-    case BuildingType::Catapult:
-        return coreLevel >= 4 &&
-            skillTree_.hasEffect("unlock.catapult");
-    case BuildingType::GunTurret:
-        return true;
-    case BuildingType::LumberMill:
-        return skillTree_.hasEffect("unlock.lumber_mill");
-    case BuildingType::Quarry:
-        return skillTree_.hasEffect("unlock.quarry");
-    case BuildingType::CrystalMine:
-        return skillTree_.hasEffect("unlock.crystal_mine");
-    default:
-        return true;
-    }
+    return coreLevel >= buildingRequiredCoreLevel(type);
 }
 
 PlacementResult Simulation::validatePlacement(
@@ -52,8 +35,10 @@ PlacementResult Simulation::validatePlacement(
     BuildingType type, GridPosition position,
     const BuildingPlatformSurface& surface) const {
     if (!buildingUnlocked(type)) {
+        const bool corePlaced = buildings_.core().has_value();
         return {
-            PlacementError::SkillRequired,
+            corePlaced ? PlacementError::CoreLevelRequired
+                       : PlacementError::CoreRequired,
             buildings_.configuredCost(type),
         };
     }
@@ -356,7 +341,9 @@ Simulation::automaticFoundationPlacement(
         placement = previewAtHeight(compactHeight);
     }
     if (placement.error ==
-        ModularPlacementError::InsufficientResources) {
+            ModularPlacementError::InsufficientResources ||
+        placement.error ==
+            ModularPlacementError::CoreLevelRequired) {
         // Combined affordability is checked after adding building cost.
         placement.error = ModularPlacementError::None;
     }

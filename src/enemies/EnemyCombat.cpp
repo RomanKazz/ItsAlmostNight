@@ -573,6 +573,10 @@ std::size_t EnemySystem::activeCount() const {
     return activeCount_;
 }
 
+bool EnemySystem::hasPendingSplits() const {
+    return !delayedSplitBuffer_.empty();
+}
+
 const std::vector<EnemyInstance>& EnemySystem::enemies() const {
     return enemies_;
 }

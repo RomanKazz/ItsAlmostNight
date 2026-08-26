@@ -48,6 +48,89 @@ float effectUnit(int index, int channel) {
         0x85ebca6bU * static_cast<std::uint32_t>(channel + 3));
 }
 
+void drawAtlasBillboard(
+    Texture2D texture, int columns, int rows, int frame,
+    Vector3 center, float worldSize, const Camera3D& camera,
+    Vector3 cameraUp, Color tint, float rotation = 0.0F) {
+    if (!IsTextureValid(texture) || columns <= 0 || rows <= 0) {
+        return;
+    }
+    const int frameCount = columns * rows;
+    const int clampedFrame = std::clamp(frame, 0, frameCount - 1);
+    const float cellWidth = static_cast<float>(texture.width) /
+        static_cast<float>(columns);
+    const float cellHeight = static_cast<float>(texture.height) /
+        static_cast<float>(rows);
+    const Rectangle source{
+        static_cast<float>(clampedFrame % columns) * cellWidth,
+        static_cast<float>(clampedFrame / columns) * cellHeight,
+        cellWidth, cellHeight,
+    };
+    DrawBillboardPro(
+        camera, texture, source, center, cameraUp,
+        {worldSize, worldSize},
+        {worldSize * 0.5F, worldSize * 0.5F},
+        rotation, tint);
+}
+
+int animationFrame(float progress, int frameCount) {
+    return std::min(
+        frameCount - 1,
+        static_cast<int>(std::clamp(progress, 0.0F, 1.0F) *
+                         static_cast<float>(frameCount)));
+}
+
+void emitImpactDisc(
+    Vector3 center, Vector3 right, Vector3 up,
+    float radius, Color centerColor, int segments = 8) {
+    Color edgeColor = centerColor;
+    edgeColor.a = 0;
+    for (int segment = 0; segment < segments; ++segment) {
+        const float angleA = 2.0F * PI * static_cast<float>(segment) /
+            static_cast<float>(segments);
+        const float angleB = 2.0F * PI * static_cast<float>(segment + 1) /
+            static_cast<float>(segments);
+        const Vector3 edgeA = Vector3Add(
+            center, Vector3Add(
+                Vector3Scale(right, std::cos(angleA) * radius),
+                Vector3Scale(up, std::sin(angleA) * radius)));
+        const Vector3 edgeB = Vector3Add(
+            center, Vector3Add(
+                Vector3Scale(right, std::cos(angleB) * radius),
+                Vector3Scale(up, std::sin(angleB) * radius)));
+        rlColor4ub(centerColor.r, centerColor.g,
+                   centerColor.b, centerColor.a);
+        rlVertex3f(center.x, center.y, center.z);
+        rlColor4ub(edgeColor.r, edgeColor.g, edgeColor.b, edgeColor.a);
+        rlVertex3f(edgeA.x, edgeA.y, edgeA.z);
+        rlVertex3f(edgeB.x, edgeB.y, edgeB.z);
+    }
+}
+
+void emitImpactStreak(
+    Vector3 center, Vector3 right, Vector3 up,
+    float angle, float length, float halfWidth, Color color) {
+    const Vector3 direction = Vector3Add(
+        Vector3Scale(right, std::cos(angle)),
+        Vector3Scale(up, std::sin(angle)));
+    const Vector3 perpendicular = Vector3Add(
+        Vector3Scale(right, -std::sin(angle)),
+        Vector3Scale(up, std::cos(angle)));
+    const Vector3 tip = Vector3Add(center, Vector3Scale(direction, length));
+    const Vector3 sideA = Vector3Add(
+        center, Vector3Scale(perpendicular, halfWidth));
+    const Vector3 sideB = Vector3Subtract(
+        center, Vector3Scale(perpendicular, halfWidth));
+    Color transparent = color;
+    transparent.a = 0;
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlVertex3f(sideA.x, sideA.y, sideA.z);
+    rlColor4ub(transparent.r, transparent.g, transparent.b, transparent.a);
+    rlVertex3f(tip.x, tip.y, tip.z);
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlVertex3f(sideB.x, sideB.y, sideB.z);
+}
+
 Vector3 lightningOffsetDirection(
     Vector3 direction, Vector3 axis) {
     Vector3 result = Vector3CrossProduct(direction, axis);
@@ -534,6 +617,168 @@ void App::drawChestLootGlow(
 }
 
 void App::drawPresentationEffects(const Camera3D& camera) {
+    Vector3 cameraForward = Vector3Subtract(camera.target, camera.position);
+    cameraForward = Vector3LengthSqr(cameraForward) > 0.000001F
+        ? Vector3Normalize(cameraForward)
+        : Vector3{0.0F, 0.0F, -1.0F};
+    Vector3 cameraRight = Vector3CrossProduct(cameraForward, camera.up);
+    cameraRight = Vector3LengthSqr(cameraRight) > 0.000001F
+        ? Vector3Normalize(cameraRight)
+        : Vector3{1.0F, 0.0F, 0.0F};
+    const Vector3 billboardUp = Vector3Normalize(
+        Vector3CrossProduct(cameraRight, cameraForward));
+
+    // Hits are the highest-volume effect during tower-heavy nights. Submit
+    // every flash and spark as one camera-facing triangle batch rather than
+    // issuing spheres and lines per hit.
+    BeginBlendMode(BLEND_ADDITIVE);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    rlBegin(RL_TRIANGLES);
+    for (const PresentationEffect& effect : effects_) {
+        if (effect.startDelayRemaining > 0.0 ||
+            (effect.type != PresentationEffectType::Hit &&
+             effect.type != PresentationEffectType::EnemyHitImpact)) {
+            continue;
+        }
+        const float progress = std::clamp(static_cast<float>(
+            1.0 - effect.remaining / effect.duration), 0.0F, 1.0F);
+        const Vector3 origin{
+            static_cast<float>(effect.position.x),
+            static_cast<float>(effect.position.y),
+            static_cast<float>(effect.position.z),
+        };
+        const bool enemyImpact =
+            effect.type == PresentationEffectType::EnemyHitImpact;
+        const bool critical = enemyImpact && (effect.variant & 8) != 0;
+        const int style = enemyImpact ? effect.variant & 7 : 2;
+        Color core{255, 244, 207, 255};
+        Color edge{203, 176, 119, 255};
+        if (style == 1) {
+            core = {215, 250, 255, 255};
+            edge = {86, 199, 255, 255};
+        } else if (style == 2) {
+            core = {255, 239, 154, 255};
+            edge = {255, 92, 35, 255};
+        } else if (style == 3) {
+            core = {242, 224, 255, 255};
+            edge = {151, 102, 255, 255};
+        }
+        const float fade = enemyImpact
+            ? 1.0F - smoothstep(0.36F, 1.0F, progress)
+            : 1.0F - progress;
+        const float flash = enemyImpact
+            ? 1.0F - smoothstep(0.0F, 0.30F, progress)
+            : fade;
+        const float criticalScale = critical ? 1.24F : 1.0F;
+        Color outer = edge;
+        outer.a = atmosphereAlpha(fade * 0.62F);
+        Color inner = core;
+        inner.a = atmosphereAlpha(flash * 0.94F);
+        emitImpactDisc(
+            origin, cameraRight, billboardUp,
+            effect.scale * criticalScale *
+                (0.22F + progress * 0.24F),
+            outer);
+        emitImpactDisc(
+            origin, cameraRight, billboardUp,
+            effect.scale * criticalScale *
+                (0.095F + progress * 0.055F),
+            inner, 6);
+
+        const bool authoredImpactAvailable = style == 5
+            ? vfxElectricRingTexture_.valid()
+            : vfxImpactTexture_.valid();
+        if (renderer_->settings().particles &&
+            !authoredImpactAvailable) {
+            const int streakCount = critical ? 5 : 3;
+            const int seed = effect.entityId
+                ? static_cast<int>(effect.entityId->index) : style * 17;
+            for (int index = 0; index < streakCount; ++index) {
+                const float angle = effectUnit(
+                    seed + index * 13, 401) * 2.0F * PI;
+                Color streak = core;
+                streak.a = atmosphereAlpha(fade * 0.78F);
+                emitImpactStreak(
+                    origin, cameraRight, billboardUp, angle,
+                    effect.scale * criticalScale *
+                        (0.24F + progress * 0.34F),
+                    effect.scale * 0.025F, streak);
+            }
+        }
+    }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    EndBlendMode();
+
+    // Authored flipbooks add a readable silhouette without multiplying the
+    // sphere/line count. Draw in two texture-coherent passes so dense tower
+    // combat remains batch friendly; the second pass is reserved for the
+    // much rarer ricochet impacts.
+    if (renderer_->settings().particles &&
+        (vfxImpactTexture_.valid() ||
+         vfxElectricRingTexture_.valid())) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        rlDisableDepthMask();
+        for (int electricPass = 0; electricPass < 2; ++electricPass) {
+            const TextureResource& resource = electricPass != 0
+                ? vfxElectricRingTexture_ : vfxImpactTexture_;
+            if (!resource.valid()) continue;
+            for (const PresentationEffect& effect : effects_) {
+                if (effect.startDelayRemaining > 0.0 ||
+                    (effect.type != PresentationEffectType::Hit &&
+                     effect.type !=
+                         PresentationEffectType::EnemyHitImpact)) {
+                    continue;
+                }
+                const bool enemyImpact = effect.type ==
+                    PresentationEffectType::EnemyHitImpact;
+                const int style = enemyImpact
+                    ? effect.variant & 7 : 2;
+                const bool electric = style == 5;
+                if (electric != (electricPass != 0)) continue;
+                const float progress = std::clamp(static_cast<float>(
+                    1.0 - effect.remaining / effect.duration),
+                    0.0F, 1.0F);
+                const bool critical = enemyImpact &&
+                    (effect.variant & 8) != 0;
+                Color tint{255, 238, 182, 255};
+                if (style == 1) {
+                    tint = {116, 218, 255, 255};
+                } else if (style == 2) {
+                    tint = {255, 139, 64, 255};
+                } else if (style == 3) {
+                    tint = {188, 128, 255, 255};
+                } else if (electric) {
+                    tint = {176, 235, 255, 255};
+                }
+                const float fade = 1.0F - smoothstep(
+                    electric ? 0.62F : 0.48F, 1.0F, progress);
+                tint.a = atmosphereAlpha(fade *
+                    (electric ? 0.92F : 0.76F));
+                const Vector3 origin{
+                    static_cast<float>(effect.position.x),
+                    static_cast<float>(effect.position.y),
+                    static_cast<float>(effect.position.z),
+                };
+                const float size = effect.scale *
+                    (electric ? 1.72F : 1.38F) *
+                    (critical ? 1.26F : 1.0F);
+                const int seed = effect.entityId
+                    ? static_cast<int>(effect.entityId->index) : style * 19;
+                drawAtlasBillboard(
+                    resource.get(), 6, 5,
+                    animationFrame(progress, 30), origin, size,
+                    camera, billboardUp, tint,
+                    static_cast<float>(seed % 7 - 3) * 4.0F);
+            }
+        }
+        rlEnableDepthMask();
+        EndBlendMode();
+    }
+
     for (const auto& effect : effects_) {
         if (effect.startDelayRemaining > 0.0) {
             continue;
@@ -546,6 +791,10 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             static_cast<float>(effect.position.y),
             static_cast<float>(effect.position.z),
         };
+        if (effect.type == PresentationEffectType::Hit ||
+            effect.type == PresentationEffectType::EnemyHitImpact) {
+            continue;
+        }
         if (effect.type == PresentationEffectType::RepairShockwave) {
             renderer_->drawRepairShockwave(
                 origin, camera.position, progress, effect.scale);
@@ -1372,8 +1621,34 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                  atmosphereAlpha(flash * 0.82F)});
             EndBlendMode();
         } else if (effect.type == PresentationEffectType::Hit) {
-            DrawSphere(origin, 0.18F * (1.0F - progress),
-                       {255, 220, 120, 255});
+            const float flash = 1.0F - progress;
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawSphereEx(origin, effect.scale * 0.30F * flash,
+                         7, 5,
+                         {255, 133, 30,
+                          atmosphereAlpha(flash * 0.72F)});
+            DrawSphereEx(origin, effect.scale * 0.13F * flash,
+                         6, 4,
+                         {255, 244, 179,
+                          atmosphereAlpha(flash)});
+            constexpr int ImpactRayCount = 4;
+            for (int index = 0; index < ImpactRayCount; ++index) {
+                const float angle =
+                    effectUnit(index, 211) * 2.0F * PI;
+                Vector3 direction{
+                    std::cos(angle),
+                    0.20F + effectUnit(index, 212) * 0.55F,
+                    std::sin(angle),
+                };
+                direction = Vector3Normalize(direction);
+                const Vector3 end = Vector3Add(
+                    origin, Vector3Scale(direction,
+                        effect.scale * (0.18F + progress * 0.38F)));
+                DrawLine3D(origin, end,
+                           {255, 208, 106,
+                            atmosphereAlpha(flash * 0.85F)});
+            }
+            EndBlendMode();
         } else if (effect.type == PresentationEffectType::LandingDust) {
             const float fade =
                 1.0F - smoothstep(0.38F, 1.0F, progress);
@@ -1468,6 +1743,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             const float smoke = smoothstep(0.14F, 0.34F, progress) *
                 (1.0F - smoothstep(0.72F, 1.0F, progress));
             const float shock = 1.0F - smoothstep(0.16F, 0.62F, progress);
+            const bool spriteExplosion =
+                renderer_->settings().particles &&
+                vfxExplosionTexture_.valid();
 
             // Ground-hugging pressure wave and dust front.
             const float shockRadius = scale * (0.35F + progress * 5.4F);
@@ -1481,7 +1759,7 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                      atmosphereAlpha(shock * (0.78F - static_cast<float>(ring) * 0.17F))});
             }
 
-            constexpr int DustCount = 22;
+            const int DustCount = spriteExplosion ? 10 : 22;
             for (int index = 0; index < DustCount; ++index) {
                 const float angle = effectUnit(index, 0) * 2.0F * PI;
                 const float speed = scale * (2.2F + effectUnit(index, 1) * 3.0F);
@@ -1499,7 +1777,7 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             }
 
             // Dense dark smoke survives after the fireball disappears.
-            constexpr int SmokeCount = 15;
+            const int SmokeCount = spriteExplosion ? 8 : 15;
             for (int index = 0; index < SmokeCount; ++index) {
                 const float delay = effectUnit(index, 4) * 0.22F;
                 const float local = std::clamp(
@@ -1523,7 +1801,7 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             }
 
             // Chunks retain weight: quick launch, gravity, rotation.
-            constexpr int DebrisCount = 13;
+            const int DebrisCount = spriteExplosion ? 7 : 13;
             for (int index = 0; index < DebrisCount; ++index) {
                 const float angle = effectUnit(index, 11) * 2.0F * PI;
                 const float speed = scale * (1.7F + effectUnit(index, 12) * 3.3F);
@@ -1546,15 +1824,29 @@ void App::drawPresentationEffects(const Camera3D& camera) {
 
             BeginBlendMode(BLEND_ADDITIVE);
             // White-hot core followed by layered orange fire blobs.
-            DrawSphereEx(
-                {origin.x, origin.y + 0.24F, origin.z},
-                scale * (0.22F + progress * 1.55F), 8, 8,
-                {255, 246, 202, atmosphereAlpha(flash * 0.95F)});
-            DrawSphereEx(
-                {origin.x, origin.y + 0.28F, origin.z},
-                scale * (0.38F + progress * 1.9F), 8, 8,
-                {255, 91, 18, atmosphereAlpha(flame * 0.52F)});
-            constexpr int FlameCount = 16;
+            if (spriteExplosion) {
+                drawAtlasBillboard(
+                    vfxExplosionTexture_.get(), 6, 5,
+                    animationFrame(progress, 30),
+                    {origin.x,
+                     origin.y + scale * (0.82F + progress * 0.34F),
+                     origin.z},
+                    scale * 4.4F, camera, billboardUp,
+                    {255, 255, 255,
+                     atmosphereAlpha(std::max(flame, shock) * 0.96F)});
+            } else {
+                DrawSphereEx(
+                    {origin.x, origin.y + 0.24F, origin.z},
+                    scale * (0.22F + progress * 1.55F), 8, 8,
+                    {255, 246, 202,
+                     atmosphereAlpha(flash * 0.95F)});
+                DrawSphereEx(
+                    {origin.x, origin.y + 0.28F, origin.z},
+                    scale * (0.38F + progress * 1.9F), 8, 8,
+                    {255, 91, 18,
+                     atmosphereAlpha(flame * 0.52F)});
+            }
+            const int FlameCount = spriteExplosion ? 6 : 16;
             for (int index = 0; index < FlameCount; ++index) {
                 const float angle = effectUnit(index, 16) * 2.0F * PI;
                 const float radial = progress * scale *
@@ -1574,8 +1866,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                     size, 5, 5, color);
             }
 
-            // Long, bright fragments make the blast readable at distance.
-            constexpr int SparkCount = 28;
+            // Legacy fallback only. Authored flipbook already contains its
+            // own sparks, so layering generated streaks over it adds clutter.
+            const int SparkCount = spriteExplosion ? 0 : 28;
             for (int index = 0; index < SparkCount; ++index) {
                 const float angle = effectUnit(index, 20) * 2.0F * PI;
                 const float speed = scale * (3.0F + effectUnit(index, 21) * 5.5F);

@@ -130,10 +130,7 @@ void translateDynamicHudText(std::string& text) {
         {"AVAILABLE", "ДОСТУПНО"},
         {"LOCKED", "ЗАБЛОКИРОВАНО"},
         {"COST", "ЦЕНА"},
-        {"SKILL POINT ACQUIRED", "ОЧКО НАВЫКА ПОЛУЧЕНО"},
-        {"SKILL POINTS ACQUIRED", "ОЧКИ НАВЫКОВ ПОЛУЧЕНЫ"},
-        {"PRESS K", "НАЖМИТЕ K"},
-        {"INSIGHT", "ОЗАРЕНИЕ"},
+        {"LEVEL UP", "НОВЫЙ УРОВЕНЬ"},
         {"NEXT POINT", "ДО СЛЕДУЮЩЕГО ОЧКА"},
         {"FREE", "БЕСПЛАТНО"},
     };

@@ -8,7 +8,7 @@ PlayerWeaponSystem::PlayerWeaponSystem(RifleBalanceDefinition definition)
     : definition_(definition), ammunition_(definition.magazineSize) {}
 
 void PlayerWeaponSystem::reset() {
-    selectedWeapon_ = PlayerWeapon::BareHands;
+    selectedWeapon_ = PlayerWeapon::Axe;
     rifleLevel_ = 1;
     ammunition_ = definition_.magazineSize;
     fireCooldownRemaining_ = 0.0;
@@ -28,7 +28,13 @@ void PlayerWeaponSystem::setRifleSkillModifiers(
         0, magazineSize());
 }
 
-void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) { selectedWeapon_ = weapon; }
+void PlayerWeaponSystem::selectWeapon(PlayerWeapon weapon) {
+    selectedWeapon_ =
+        weapon == PlayerWeapon::LegacyBareHands ||
+            weapon == PlayerWeapon::Hammer
+        ? PlayerWeapon::Axe
+        : weapon;
+}
 
 void PlayerWeaponSystem::restoreState(
     PlayerWeapon selectedWeapon, int rifleLevel) {
@@ -38,7 +44,7 @@ void PlayerWeaponSystem::restoreState(
     ammunition_ = magazineSize();
     fireCooldownRemaining_ = 0.0;
     reloadRemaining_ = 0.0;
-    selectedWeapon_ = selectedWeapon;
+    selectWeapon(selectedWeapon);
 }
 
 void PlayerWeaponSystem::tick(double deltaSeconds) {

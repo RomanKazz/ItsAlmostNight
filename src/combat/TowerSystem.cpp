@@ -229,11 +229,12 @@ void TowerSystem::reset() {
 
 void TowerSystem::setSkillModifiers(
     double damage, double range, double fireRate,
-    double highGroundDamage) {
+    double highGroundDamage, int extraTargetCount) {
     damageMultiplier_ = std::max(0.05, damage);
     rangeMultiplier_ = std::max(0.05, range);
     fireRateMultiplier_ = std::max(0.05, fireRate);
     highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
+    extraTargetCount_ = std::clamp(extraTargetCount, 0, 3);
 }
 
 void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -408,6 +409,77 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 .damage = damageResult->damage,
                 .muzzleIndex = tower.nextMuzzle,
                 .secondaryImpact = index + 1 < targetCount,
+                .killed = damageResult->killed,
+            });
+        }
+        std::array<const EnemyInstance*, 3> extraTargets{};
+        std::array<double, 3> extraDistances{
+            range * range, range * range, range * range};
+        for (const EnemyInstance& enemy : enemies.enemies()) {
+            if (!enemy.active || !towerCanTarget(
+                    building->type, enemy,
+                    building->baseHeight) ||
+                std::ranges::any_of(
+                    std::span{piercingCandidates}.first(targetCount),
+                    [&enemy](const PiercingCandidate& candidate) {
+                        return candidate.id == enemy.id;
+                    })) {
+                continue;
+            }
+            const double extraDeltaX = enemy.position.x - origin.x;
+            const double extraDeltaZ = enemy.position.z - origin.z;
+            const double distanceSquared =
+                extraDeltaX * extraDeltaX +
+                extraDeltaZ * extraDeltaZ;
+            const auto candidateDistances =
+                std::span{extraDistances}.first(
+                    static_cast<std::size_t>(extraTargetCount_));
+            const auto insertion = std::ranges::find_if(
+                candidateDistances,
+                [distanceSquared](double candidate) {
+                    return distanceSquared < candidate;
+                });
+            if (insertion == candidateDistances.end()) {
+                continue;
+            }
+            const std::size_t insertionIndex =
+                static_cast<std::size_t>(
+                    insertion - candidateDistances.begin());
+            for (std::size_t shift =
+                     static_cast<std::size_t>(extraTargetCount_ - 1);
+                 shift > insertionIndex; --shift) {
+                extraDistances[shift] = extraDistances[shift - 1U];
+                extraTargets[shift] = extraTargets[shift - 1U];
+            }
+            extraDistances[insertionIndex] = distanceSquared;
+            extraTargets[insertionIndex] = &enemy;
+        }
+        for (int extraIndex = 0;
+             extraIndex < extraTargetCount_; ++extraIndex) {
+            const EnemyInstance* extraTarget = extraTargets[
+                static_cast<std::size_t>(extraIndex)];
+            if (!extraTarget) break;
+            const double damageFraction = std::max(
+                0.40, 0.65 - 0.10 *
+                    static_cast<double>(extraIndex));
+            const auto damageResult = enemies.damage(
+                extraTarget->id, damage * damageFraction);
+            if (!damageResult) continue;
+            ++successfulHits;
+            shotBuffer_.push_back({
+                .towerId = tower.buildingId,
+                .targetId = damageResult->id,
+                .targetType = damageResult->type,
+                .targetEliteAffixes =
+                    damageResult->eliteAffixes,
+                .origin = origin,
+                .hitPosition = enemyAimPosition(*extraTarget),
+                .type = building->type,
+                .damage = damageResult->damage,
+                .muzzleIndex = static_cast<std::uint8_t>(
+                    tower.nextMuzzle + 1U +
+                    static_cast<std::uint8_t>(extraIndex)),
+                .secondaryImpact = false,
                 .killed = damageResult->killed,
             });
         }

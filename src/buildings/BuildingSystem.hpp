@@ -206,6 +206,7 @@ class BuildingSystem {
         int coreBuildRadius = 12);
 
     void reset();
+    void setSandboxMode(bool enabled);
     void setMaxHealthMultiplier(double multiplier);
     double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
@@ -272,6 +273,7 @@ class BuildingSystem {
     int coreBuildRadius_;
     double maxHealthMultiplier_{1.0};
     bool newTowerBonusEnabled_{};
+    bool sandboxMode_{};
     std::uint8_t newTowerBonusStacks_{};
     std::array<std::uint8_t, GameBalance::BuildingTypeCount>
         blueprintLevels_{};

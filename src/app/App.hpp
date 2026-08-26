@@ -7,6 +7,7 @@
 #include "core/PerformanceRecorder.hpp"
 #include "game/Simulation.hpp"
 #include "graphics/EnvironmentSystem.hpp"
+#include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "presentation/PresentationTypes.hpp"
@@ -14,7 +15,6 @@
 #include "ui/GameUi.hpp"
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
-#include "ui/SkillTreeScreen.hpp"
 #include "ui/TargetHealthBar.hpp"
 
 #include <optional>
@@ -185,6 +185,7 @@ class App {
     void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
     void drawItemGrantMenu();
+    void drawSandboxCardMenu(const SimulationSnapshot& snapshot);
     void drawCoreDefenseMenu();
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
     [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
@@ -194,7 +195,6 @@ class App {
     void processPresentationEvents(
         std::span<const GameEvent> events,
         const SimulationSnapshot& snapshot);
-    void setSkillTreeVisible(bool visible);
     void drawBuildModePie() const;
     void selectActionMode(
         ActionMode mode,
@@ -202,7 +202,15 @@ class App {
     void selectNextActionModeItem(
         const SimulationSnapshot& snapshot,
         int direction = 1);
+    void selectNextBuildingCategory(
+        const SimulationSnapshot& snapshot,
+        int direction = 1);
+    void selectNextBuildingItem(
+        const SimulationSnapshot& snapshot,
+        int direction = 1);
     void resetRunInputState();
+    void resetEquipmentActionMode(
+        const SimulationSnapshot& snapshot);
     void addEffect(PresentationEffectType type, Vec3 position,
                    double duration, float scale = 1.0F,
                    std::optional<EntityId> entityId =
@@ -232,25 +240,29 @@ class App {
     MetaProgression persistedMetaProgression_;
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
+    TextureResource vfxImpactTexture_;
+    TextureResource vfxExplosionTexture_;
+    TextureResource vfxElectricRingTexture_;
     GameUi ui_;
-    SkillTreeScreen skillTree_;
     bool pendingStartFromUi_{};
     bool pendingContinueFromUi_{};
     bool classSelectionVisible_{};
+    bool sandboxClassSelection_{};
     bool classCollectionOnly_{};
     PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
-    bool pendingOpenSkillTreeFromUi_{};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};
     bool pendingReturnToMenuFromUi_{};
     bool automaticRunRestartPending_{};
     bool exitRequested_{};
     mutable std::optional<bool> suspendedRunAvailabilityCache_;
-    bool skillTreePausedSimulation_{};
     bool graphicsPanelWasVisible_{};
     bool runUpgradeChoiceWasVisible_{};
     double runUpgradeChoiceInputDelayRemaining_{};
     bool runUpgradeChoiceInputArmed_{};
+    double runUpgradeOverlayEntranceSeconds_{};
+    std::array<float, MaximumRunUpgradeChoices>
+        runUpgradeCardHoverAmounts_{};
     bool fullscreenApplied_{};
     int graphicsPanelTab_{};
     std::optional<ControlAction> pendingControlRebind_;
@@ -286,6 +298,8 @@ class App {
     double toolSwapCandidateSeconds_{};
     double toolSwapRemaining_{};
     double toolSwapDuration_{0.32};
+    double contextualHammerRemaining_{};
+    bool contextualHammerSwingPending_{};
     bool pendingRifleShot_{};
     bool pendingIceWandShot_{};
     bool pendingFireWandShot_{};
@@ -304,6 +318,9 @@ class App {
     bool placementDragExtended_{};
     std::deque<PlaceBuildingCommand> pendingWallPlacements_;
     int pendingBuildingRotation_{};
+    double buildingItemWheelAccumulator_{};
+    double buildingItemWheelReleaseRemaining_{};
+    bool buildingItemWheelArmed_{true};
     double buildingRotationWheelAccumulator_{};
     double buildingRotationCooldownRemaining_{};
     bool pendingStartWave_{};
@@ -345,7 +362,10 @@ class App {
     bool pendingChainLightning_{};
     bool enemySpawnMenuVisible_{};
     bool itemGrantMenuVisible_{};
+    bool sandboxCardMenuVisible_{};
     bool coreDefenseMenuVisible_{};
+    int sandboxCardMenuTab_{};
+    float sandboxCardMenuScroll_{};
     std::size_t selectedDefenseBlueprint_{};
     int debugSpawnCount_{50};
     LootUpgradeEffect debugGrantLootEffect_{
@@ -358,6 +378,7 @@ class App {
         int count;
     };
     std::optional<PendingLootGrant> pendingLootGrant_;
+    std::optional<ProgressionCardId> pendingSandboxCardGrant_;
     std::optional<ToggleGateCommand> pendingGateToggle_;
     std::optional<RotatePlacedBuildingCommand>
         pendingPlacedBuildingRotation_;
@@ -373,6 +394,7 @@ class App {
     std::vector<ArrowVisual> arrowVisuals_;
     double cameraShakeRemaining_{};
     double cameraShakeStrength_{};
+    double explosionShakeCooldownRemaining_{};
     double cameraBobPhase_{};
     double cameraBobAmount_{};
     double cameraBobSpeed_{};
@@ -473,8 +495,6 @@ class App {
     double insightAnimationBefore_{};
     double insightAnimationAfter_{};
     double insightAnimationRequirement_{100.0};
-    int insightAnimationPoints_{};
-    int pendingInsightPointNotification_{};
     std::unordered_map<std::string, double>
         objectiveProgressCache_;
     std::string objectivePulseId_;
@@ -534,6 +554,9 @@ class App {
     bool showTerrainWireframe_{};
     bool performanceOverlayVisible_{};
     bool objectiveDebugMenuVisible_{};
+    bool cardCollectionVisible_{};
+    std::size_t cardCollectionPage_{};
+    bool cardCollectionPausedRun_{};
     AppPerformanceStats performanceStats_{};
     PerformanceRecorder performanceRecorder_{};
     bool performanceLoggingApplied_{};
@@ -542,12 +565,13 @@ class App {
     Vector2 buildModePieDirection_{};
     std::optional<ActionMode>
         buildModePieChoice_;
-    ActionMode actionMode_{ActionMode::Tools};
-    ActionMode previousActionMode_{ActionMode::Weapons};
-    PlayerWeapon lastToolSelection_{PlayerWeapon::BareHands};
-    PlayerWeapon lastWeaponSelection_{PlayerWeapon::Club};
+    ActionMode actionMode_{ActionMode::Equipment};
+    ActionMode previousActionMode_{ActionMode::Buildings};
+    PlayerWeapon lastEquipmentSelection_{PlayerWeapon::Axe};
     BuildingType lastBuildingSelection_{
         BuildingType::Wall};
+    BuildingHotbarCategory buildingHotbarCategory_{
+        BuildingHotbarCategory::Base};
     float buildHotbarSelectionPosition_{1.0F};
     float buildHotbarSelectionAlpha_{};
     float foundationHotbarSelectionPosition_{};

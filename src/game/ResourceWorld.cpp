@@ -12,6 +12,8 @@ namespace {
 
 constexpr double ResourcePlacementClearance = 0.08;
 constexpr double PropPlacementClearance = 0.80;
+constexpr double StarterCrystalMaximumDistance = 11.0;
+constexpr int StarterCrystalMinimumYield = 10;
 
 std::size_t clusteredTreeVariant(
     std::size_t cluster, std::size_t member,
@@ -66,7 +68,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
     double worldLimit,
     const TerrainHeightfield& terrain,
     std::span<const MapObstacle> obstacles,
-    std::uint32_t layoutSeed) {
+    std::uint32_t layoutSeed,
+    std::optional<Vec3> playerSpawn) {
     std::vector<ResourceNodeDefinition> result = configured;
     const auto placeOnDryTerrain = [&terrain](
         std::vector<ResourceNodeDefinition>& definitions) {
@@ -123,6 +126,119 @@ std::vector<ResourceNodeDefinition> scatterResources(
         }
     }
 
+    if (playerSpawn) {
+        const auto distanceToSpawn = [&playerSpawn](
+                                         const ResourceNodeDefinition& node) {
+            return std::hypot(
+                node.position.x - playerSpawn->x,
+                node.position.z - playerSpawn->z);
+        };
+        auto nearbyCrystal = std::find_if(
+            result.begin(), result.end(),
+            [&distanceToSpawn](const ResourceNodeDefinition& node) {
+                return node.type == ResourceType::Crystal &&
+                    distanceToSpawn(node) <=
+                        StarterCrystalMaximumDistance;
+            });
+        if (nearbyCrystal != result.end()) {
+            nearbyCrystal->yield = std::max(
+                nearbyCrystal->yield,
+                StarterCrystalMinimumYield);
+        } else {
+            ResourceNodeDefinition starterCrystal{
+                ResourceType::Crystal, {}, 0.72, 12.0,
+                StarterCrystalMinimumYield, 28.0};
+            const auto configuredCrystal = std::find_if(
+                configured.begin(), configured.end(),
+                [](const ResourceNodeDefinition& node) {
+                    return node.type == ResourceType::Crystal;
+                });
+            if (configuredCrystal != configured.end()) {
+                starterCrystal = *configuredCrystal;
+                starterCrystal.yield = std::max(
+                    starterCrystal.yield,
+                    StarterCrystalMinimumYield);
+            }
+            const double startingAngle = worldRotation + 0.47;
+            constexpr std::size_t CandidateCount = 64U;
+            for (std::size_t attempt = 0;
+                 attempt < CandidateCount; ++attempt) {
+                const double radius = 5.5 +
+                    static_cast<double>(attempt / 16U) * 1.5;
+                const double angle = startingAngle +
+                    static_cast<double>(attempt % 16U) *
+                        Tau / 16.0;
+                starterCrystal.position = {
+                    playerSpawn->x + std::cos(angle) * radius,
+                    CrystalVisualGroundOffset,
+                    playerSpawn->z + std::sin(angle) * radius,
+                };
+                // The default Core tutorial is anchored around world origin.
+                // Keep the guaranteed deposit close to the player without
+                // letting it invalidate the initial Core footprint.
+                if (std::hypot(
+                        starterCrystal.position.x,
+                        starterCrystal.position.z) < 5.0) {
+                    continue;
+                }
+                if (std::abs(starterCrystal.position.x) >
+                        worldLimit - starterCrystal.radius - 1.0 ||
+                    std::abs(starterCrystal.position.z) >
+                        worldLimit - starterCrystal.radius - 1.0 ||
+                    terrain.waterSignedDistance(
+                        starterCrystal.position.x,
+                        starterCrystal.position.z) <
+                        starterCrystal.radius + 0.8) {
+                    continue;
+                }
+                const bool obstacleBlocked = std::any_of(
+                    obstacles.begin(), obstacles.end(),
+                    [&starterCrystal](const MapObstacle& obstacle) {
+                        const double distanceX = std::max(
+                            0.0,
+                            std::max(
+                                obstacle.collision.minX -
+                                    starterCrystal.position.x,
+                                starterCrystal.position.x -
+                                    obstacle.collision.maxX));
+                        const double distanceZ = std::max(
+                            0.0,
+                            std::max(
+                                obstacle.collision.minZ -
+                                    starterCrystal.position.z,
+                                starterCrystal.position.z -
+                                    obstacle.collision.maxZ));
+                        const double required =
+                            starterCrystal.radius + 0.30;
+                        return distanceX * distanceX +
+                                   distanceZ * distanceZ <
+                               required * required;
+                    });
+                const bool resourceBlocked = std::any_of(
+                    result.begin(), result.end(),
+                    [&starterCrystal](
+                        const ResourceNodeDefinition& other) {
+                        const double distanceX =
+                            starterCrystal.position.x -
+                            other.position.x;
+                        const double distanceZ =
+                            starterCrystal.position.z -
+                            other.position.z;
+                        const double required =
+                            starterCrystal.radius + other.radius +
+                            PropPlacementClearance;
+                        return distanceX * distanceX +
+                                   distanceZ * distanceZ <
+                               required * required;
+                    });
+                if (!obstacleBlocked && !resourceBlocked) {
+                    result.push_back(starterCrystal);
+                    break;
+                }
+            }
+        }
+    }
+
     const auto templateFor =
         [&configured](ResourceType type) {
             const auto found = std::find_if(
@@ -143,7 +259,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
                     type, {}, 0.9, 4.0, 12, 15.0};
             }
             return ResourceNodeDefinition{
-                type, {}, 0.72, 12.0, 8, 28.0};
+                type, {}, 0.72, 12.0, 10, 28.0};
         };
 
     constexpr std::size_t TreesPerCluster = 5;

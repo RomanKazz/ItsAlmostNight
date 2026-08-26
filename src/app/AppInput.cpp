@@ -60,10 +60,10 @@ void App::processInput() {
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     if (primaryMouseDown &&
         acceptsGameplayInput(snapshot.state) &&
-        !skillTree_.isOpen() &&
         !graphicsPanelVisible &&
         !enemySpawnMenuVisible_ &&
         !itemGrantMenuVisible_ &&
+        !sandboxCardMenuVisible_ &&
         !coreDefenseMenuVisible_ &&
         !pendingControlRebind_) {
         primaryAttackHoldSeconds_ +=
@@ -94,7 +94,8 @@ void App::processInput() {
         pendingFireWandShot_ = false;
         return;
     }
-    if (snapshot.state == RunState::StageClear) {
+    if (snapshot.state == RunState::StageClear &&
+        !snapshot.runUpgradeChoicePending) {
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
             if (simulation_.enterFinalNight()) {
                 audio_.playUiConfirm();
@@ -122,11 +123,23 @@ void App::processInput() {
             renderer_->setGraphicsPanelVisible(false);
             enemySpawnMenuVisible_ = false;
             itemGrantMenuVisible_ = false;
+            sandboxCardMenuVisible_ = false;
             coreDefenseMenuVisible_ = false;
+            cameraBobSpeed_ = 0.0;
+            cameraBobAmount_ = 0.0;
+            cameraLookYawLag_ = 0.0;
+            cameraLookPitchLag_ = 0.0;
+            cameraStrafeLean_ = 0.0;
+            cameraImpulseOffset_ = {};
+            cameraShakeRemaining_ = 0.0;
+            explosionShakeCooldownRemaining_ = 0.0;
+            landingResponseRemaining_ = 0.0;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
-            runUpgradeChoiceInputDelayRemaining_ = 0.65;
+            runUpgradeChoiceInputDelayRemaining_ = 0.88;
             runUpgradeChoiceInputArmed_ = false;
+            runUpgradeOverlayEntranceSeconds_ = 0.0;
+            runUpgradeCardHoverAmounts_.fill(0.0F);
         }
         runUpgradeChoiceInputDelayRemaining_ = std::max(
             0.0, runUpgradeChoiceInputDelayRemaining_ -
@@ -144,6 +157,10 @@ void App::processInput() {
         std::optional<std::size_t> choice;
         if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
             simulation_.rerollRunUpgrades()) {
+            runUpgradeOverlayEntranceSeconds_ = 0.0;
+            runUpgradeCardHoverAmounts_.fill(0.0F);
+            runUpgradeChoiceInputDelayRemaining_ = 0.78;
+            runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
         }
         if (runUpgradeChoiceInputArmed_ &&
@@ -174,6 +191,11 @@ void App::processInput() {
                 runUpgradeChoiceWasVisible_ = false;
                 runUpgradeChoiceInputArmed_ = false;
                 DisableCursor();
+            } else {
+                runUpgradeOverlayEntranceSeconds_ = 0.0;
+                runUpgradeCardHoverAmounts_.fill(0.0F);
+                runUpgradeChoiceInputDelayRemaining_ = 0.78;
+                runUpgradeChoiceInputArmed_ = false;
             }
         }
         input_.moveForward = 0.0;
@@ -192,6 +214,8 @@ void App::processInput() {
     if (runUpgradeChoiceWasVisible_) {
         runUpgradeChoiceWasVisible_ = false;
         runUpgradeChoiceInputArmed_ = false;
+        runUpgradeOverlayEntranceSeconds_ = 0.0;
+        runUpgradeCardHoverAmounts_.fill(0.0F);
         if (snapshot.state != RunState::Paused &&
             snapshot.state != RunState::MainMenu) {
             DisableCursor();
@@ -205,38 +229,6 @@ void App::processInput() {
             DisableCursor();
         }
         graphicsPanelWasVisible_ = graphicsPanelVisible;
-    }
-    if (skillTree_.isOpen()) {
-        if (keyPressed(userSettings_.controls, ControlAction::Skills) ||
-            IsKeyPressed(KEY_ESCAPE)) {
-            setSkillTreeVisible(false);
-            audio_.playUiConfirm();
-        }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        pendingPickaxe_ = false;
-        pendingRifleShot_ = false;
-        pendingIceWandShot_ = false;
-        pendingFireWandShot_ = false;
-        return;
-    }
-    if (!graphicsPanelVisible && !coreDefenseMenuVisible_ &&
-        (keyPressed(userSettings_.controls, ControlAction::Skills) ||
-         pendingOpenSkillTreeFromUi_)) {
-        pendingOpenSkillTreeFromUi_ = false;
-        setSkillTreeVisible(true);
-        audio_.playUiConfirm();
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        return;
     }
     if (graphicsPanelVisible) {
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -266,7 +258,7 @@ void App::processInput() {
     }
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
-        if (!saveSuspendedRun()) {
+        if (!snapshot.sandboxMode && !saveSuspendedRun()) {
             audio_.playUiError();
             return;
         }
@@ -281,8 +273,14 @@ void App::processInput() {
         !IsKeyDown(KEY_LEFT_SHIFT) &&
         !IsKeyDown(KEY_RIGHT_SHIFT) &&
         IsKeyPressed(KEY_F5)) {
-        itemGrantMenuVisible_ = !itemGrantMenuVisible_;
-        if (itemGrantMenuVisible_) {
+        if (snapshot.sandboxMode) {
+            sandboxCardMenuVisible_ = !sandboxCardMenuVisible_;
+            itemGrantMenuVisible_ = false;
+        } else {
+            itemGrantMenuVisible_ = !itemGrantMenuVisible_;
+            sandboxCardMenuVisible_ = false;
+        }
+        if (itemGrantMenuVisible_ || sandboxCardMenuVisible_) {
             enemySpawnMenuVisible_ = false;
             coreDefenseMenuVisible_ = false;
             EnableCursor();
@@ -290,6 +288,21 @@ void App::processInput() {
             DisableCursor();
         }
         audio_.playUiConfirm();
+    }
+    if (sandboxCardMenuVisible_) {
+        if (!snapshot.sandboxMode || IsKeyPressed(KEY_ESCAPE)) {
+            sandboxCardMenuVisible_ = false;
+            if (snapshot.state != RunState::Paused) {
+                DisableCursor();
+            }
+            audio_.playUiConfirm();
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        return;
     }
     if (coreDefenseMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -327,6 +340,7 @@ void App::processInput() {
         enemySpawnMenuVisible_ = !enemySpawnMenuVisible_;
         if (enemySpawnMenuVisible_) {
             itemGrantMenuVisible_ = false;
+            sandboxCardMenuVisible_ = false;
             coreDefenseMenuVisible_ = false;
             EnableCursor();
         } else if (snapshot.state != RunState::Paused) {
@@ -390,6 +404,7 @@ void App::processInput() {
         if (IsKeyPressed(KEY_ESCAPE)) {
             classSelectionVisible_ = false;
             classCollectionOnly_ = false;
+            sandboxClassSelection_ = false;
             pendingStartFromUi_ = false;
             audio_.playUiConfirm();
             return;
@@ -418,9 +433,10 @@ void App::processInput() {
                     (static_cast<int>(nextIndex) + direction +
                      static_cast<int>(PlayerClassDefinitions.size())) %
                     static_cast<int>(PlayerClassDefinitions.size()));
-            } while (!isPlayerClassUnlocked(
-                PlayerClassDefinitions[nextIndex].type,
-                metaProgression_));
+            } while (!sandboxClassSelection_ &&
+                !isPlayerClassUnlocked(
+                    PlayerClassDefinitions[nextIndex].type,
+                    metaProgression_));
             selectedPlayerClass_ = PlayerClassDefinitions[nextIndex].type;
             audio_.playUiConfirm();
         }
@@ -431,11 +447,13 @@ void App::processInput() {
             pendingStartFromUi_ = false;
             classSelectionVisible_ = true;
             classCollectionOnly_ = false;
+            sandboxClassSelection_ = false;
             audio_.playUiConfirm();
             return;
         }
-        if (classCollectionOnly_ || !isPlayerClassUnlocked(
-                selectedPlayerClass_, metaProgression_)) {
+        if (classCollectionOnly_ ||
+            (!sandboxClassSelection_ && !isPlayerClassUnlocked(
+                selectedPlayerClass_, metaProgression_))) {
             pendingStartFromUi_ = false;
             audio_.playUiError();
             return;
@@ -443,9 +461,16 @@ void App::processInput() {
         pendingStartFromUi_ = false;
         classSelectionVisible_ = false;
         classCollectionOnly_ = false;
-        simulation_.startRun(selectedPlayerClass_);
+        if (sandboxClassSelection_) {
+            simulation_.startSandboxRun(selectedPlayerClass_);
+        } else {
+            simulation_.startRun(selectedPlayerClass_);
+        }
         const auto startedSnapshot = simulation_.snapshot();
-        discardSuspendedRun();
+        if (!sandboxClassSelection_) {
+            discardSuspendedRun();
+        }
+        sandboxClassSelection_ = false;
         rebuildTerrainGraphics();
         worldRevealOrigin_ = {
             static_cast<float>(
@@ -480,6 +505,7 @@ void App::processInput() {
         buildingRotationCooldownRemaining_ = 0.0;
         cameraShakeRemaining_ = 0.0;
         cameraShakeStrength_ = 0.0;
+        explosionShakeCooldownRemaining_ = 0.0;
         cameraLookYawLag_ = 0.0;
         cameraLookPitchLag_ = 0.0;
         cameraStrafeLean_ = 0.0;
@@ -540,12 +566,46 @@ void App::processInput() {
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
         resetRunInputState();
-        actionMode_ = ActionMode::Tools;
-        previousActionMode_ = ActionMode::Weapons;
-        lastToolSelection_ = PlayerWeapon::BareHands;
-        lastWeaponSelection_ = PlayerWeapon::Club;
-        foundationBuildMode_ = false;
+        resetEquipmentActionMode(startedSnapshot);
         DisableCursor();
+    }
+    if (cardCollectionVisible_) {
+        if (IsKeyPressed(KEY_LEFT)) {
+            const std::size_t pages = cardCollectionPageCount(
+                simulation_.skillTree());
+            cardCollectionPage_ =
+                (cardCollectionPage_ + pages - 1U) % pages;
+        }
+        if (IsKeyPressed(KEY_RIGHT)) {
+            cardCollectionPage_ =
+                (cardCollectionPage_ + 1U) % cardCollectionPageCount(
+                    simulation_.skillTree());
+        }
+        if (keyPressed(userSettings_.controls, ControlAction::Skills) ||
+            IsKeyPressed(KEY_ESCAPE)) {
+            cardCollectionVisible_ = false;
+            if (cardCollectionPausedRun_ &&
+                simulation_.snapshot().state == RunState::Paused) {
+                simulation_.togglePause();
+            }
+            cardCollectionPausedRun_ = false;
+            fixedStep_.reset();
+            DisableCursor();
+        }
+        return;
+    }
+    if (snapshot.state != RunState::MainMenu &&
+        snapshot.state != RunState::Defeat &&
+        snapshot.state != RunState::Victory &&
+        !snapshot.runUpgradeChoicePending &&
+        keyPressed(userSettings_.controls, ControlAction::Skills)) {
+        cardCollectionVisible_ = true;
+        cardCollectionPage_ = 0U;
+        cardCollectionPausedRun_ = snapshot.state != RunState::Paused;
+        if (cardCollectionPausedRun_) simulation_.togglePause();
+        fixedStep_.reset();
+        EnableCursor();
+        return;
     }
     if (snapshot.state != RunState::Defeat &&
         snapshot.state != RunState::Victory &&
@@ -603,6 +663,7 @@ void App::processInput() {
         buildingRotationCooldownRemaining_ = 0.0;
         cameraShakeRemaining_ = 0.0;
         cameraShakeStrength_ = 0.0;
+        explosionShakeCooldownRemaining_ = 0.0;
         cameraLookYawLag_ = 0.0;
         cameraLookPitchLag_ = 0.0;
         cameraStrafeLean_ = 0.0;
@@ -663,11 +724,7 @@ void App::processInput() {
         buildModePieDirection_ = {};
         buildModePieChoice_.reset();
         resetRunInputState();
-        actionMode_ = ActionMode::Tools;
-        previousActionMode_ = ActionMode::Weapons;
-        lastToolSelection_ = PlayerWeapon::BareHands;
-        lastWeaponSelection_ = PlayerWeapon::Club;
-        foundationBuildMode_ = false;
+        resetEquipmentActionMode(restartedSnapshot);
         DisableCursor();
     }
     if ((snapshot.state == RunState::Defeat ||
@@ -774,16 +831,17 @@ void App::processInput() {
         }
         // Building mode keeps the previously equipped weapon in the
         // simulation, while ranged weapons intentionally suppress resource
-        // aim. Use hands for this aim test in every mode that can switch back
+        // aim. Use the axe for this aim test in every mode that can switch back
         // to gathering from resource hover.
         auto resourceAimSnapshot = currentSnapshot;
         const bool resourceAutoSwitchMode =
             actionMode_ == ActionMode::Buildings ||
-            actionMode_ == ActionMode::Modular ||
-            actionMode_ == ActionMode::Weapons;
+            (actionMode_ == ActionMode::Equipment &&
+             isPlayerCombatWeapon(
+                 currentSnapshot.selectedWeapon));
         if (resourceAutoSwitchMode) {
             resourceAimSnapshot.selectedWeapon =
-                PlayerWeapon::BareHands;
+                PlayerWeapon::Axe;
         }
         currentSnapshot.aimedResource =
             preciseResourceAim(
@@ -791,7 +849,7 @@ void App::processInput() {
 
         // Looking directly at a harvestable resource while building should be
         // enough to return to gathering.  Prefer the matching unlocked tool;
-        // hands remain the universal fallback for a new run.
+        // the starter tools remain the universal fallback for a new run.
         if (resourceAutoSwitchMode && currentSnapshot.aimedResource) {
             const auto resource = std::ranges::find_if(
                 currentSnapshot.resourceNodes,
@@ -805,17 +863,11 @@ void App::processInput() {
                     resource->type == ResourceType::Wood
                         ? PlayerWeapon::Axe
                         : PlayerWeapon::Pickaxe;
-                const std::size_t preferredToolIndex =
-                    static_cast<std::size_t>(preferredTool);
-                const PlayerWeapon selectedTool =
-                    currentSnapshot.unlockedWeapons[preferredToolIndex]
-                        ? preferredTool
-                        : PlayerWeapon::BareHands;
-
-                selectActionMode(ActionMode::Tools, currentSnapshot);
-                pendingWeaponSelection_ = selectedTool;
-                lastToolSelection_ = selectedTool;
-                currentSnapshot.selectedWeapon = selectedTool;
+                selectActionMode(
+                    ActionMode::Equipment, currentSnapshot);
+                pendingWeaponSelection_ = preferredTool;
+                lastEquipmentSelection_ = preferredTool;
+                currentSnapshot.selectedWeapon = preferredTool;
                 currentSnapshot.selectedBuilding.reset();
                 currentSnapshot.buildingPreview.reset();
             }
@@ -842,16 +894,9 @@ void App::processInput() {
         input_.overrideAimedWorldLandmark = true;
         input_.aimedWorldLandmarkOverride =
             currentSnapshot.aimedWorldLandmark;
-        const bool hammerManagementActive =
-            currentSnapshot.unlockedWeapons[
-                static_cast<std::size_t>(PlayerWeapon::Hammer)] &&
+        const bool buildingManagementActive =
             !foundationBuildMode_ &&
             !currentSnapshot.selectedBuilding;
-        if (!hammerManagementActive && buildingContextCardTarget_) {
-            buildingContextCardTarget_.reset();
-            buildingContextCardUpgradeCost_.reset();
-            buildingContextCardStats_.reset();
-        }
         const std::optional<EntityId> actionBuilding =
             buildingContextCardTarget_
                 ? buildingContextCardTarget_
@@ -891,13 +936,15 @@ void App::processInput() {
             [this, &currentSnapshot](BuildingType type) {
                 selectActionMode(
                     ActionMode::Buildings, currentSnapshot);
+                buildingHotbarCategory_ =
+                    buildingHotbarCategory(type);
                 lastBuildingSelection_ = type;
                 pendingBuildingSelection_ = type;
             };
         const Vector2 mouseDelta = GetMouseDelta();
         const float wheel = GetMouseWheelMove();
         std::optional<EntityId> aimedDirectionalDefense;
-        if (hammerManagementActive &&
+        if (buildingManagementActive &&
             !currentSnapshot.selectedBuilding &&
             currentSnapshot.aimedBuilding) {
             const auto aimed = std::ranges::find(
@@ -941,39 +988,34 @@ void App::processInput() {
             if (Vector2Length(
                     buildModePieDirection_) >=
                     DeadZoneRadius) {
-                const float absoluteX = std::abs(
-                    buildModePieDirection_.x);
-                const float absoluteY = std::abs(
-                    buildModePieDirection_.y);
-                if (absoluteX > absoluteY) {
-                    buildModePieChoice_ =
-                        buildModePieDirection_.x < 0.0F
-                            ? ActionMode::Tools
-                            : ActionMode::Buildings;
+                float pieAngle = std::atan2(
+                    buildModePieDirection_.y,
+                    buildModePieDirection_.x) * 57.2957795F;
+                if (pieAngle < 0.0F) {
+                    pieAngle += 360.0F;
+                }
+                if (pieAngle >= 180.0F) {
+                    buildModePieChoice_ = ActionMode::Equipment;
                 } else {
-                    buildModePieChoice_ =
-                        buildModePieDirection_.y < 0.0F
-                            ? ActionMode::Weapons
-                            : ActionMode::Modular;
+                    buildModePieChoice_ = ActionMode::Buildings;
                 }
             } else {
                 buildModePieChoice_.reset();
                 if (keyDown(
-                        userSettings_.controls,
-                        ControlAction::MoveLeft)) {
-                    buildModePieChoice_ = ActionMode::Tools;
-                } else if (keyDown(
                                userSettings_.controls,
                                ControlAction::MoveForward)) {
-                    buildModePieChoice_ = ActionMode::Weapons;
+                    buildModePieChoice_ = ActionMode::Equipment;
                 } else if (keyDown(
                                userSettings_.controls,
                                ControlAction::MoveRight)) {
                     buildModePieChoice_ = ActionMode::Buildings;
                 } else if (keyDown(
                                userSettings_.controls,
+                               ControlAction::MoveLeft) ||
+                           keyDown(
+                               userSettings_.controls,
                                ControlAction::MoveBackward)) {
-                    buildModePieChoice_ = ActionMode::Modular;
+                    buildModePieChoice_ = ActionMode::Buildings;
                 }
             }
 
@@ -1019,7 +1061,8 @@ void App::processInput() {
              keyPressed(
                  userSettings_.controls,
                  ControlAction::Dash));
-        if (actionMode_ == ActionMode::Modular) {
+        if (actionMode_ == ActionMode::Buildings &&
+            foundationBuildMode_) {
             if (IsKeyPressed(KEY_ONE)) {
                 selectModularBuildPiece(
                     ModularBuildPiece::Foundation);
@@ -1036,68 +1079,112 @@ void App::processInput() {
                 selectModularBuildPiece(
                     ModularBuildPiece::Ramp);
             }
+            constexpr double BuildingWheelThreshold = 0.55;
+            constexpr double BuildingWheelReleaseSeconds = 0.10;
+            if (std::abs(wheel) > 0.01F) {
+                buildingItemWheelReleaseRemaining_ =
+                    BuildingWheelReleaseSeconds;
+                if (buildingItemWheelArmed_) {
+                    buildingItemWheelAccumulator_ = std::clamp(
+                        buildingItemWheelAccumulator_ +
+                            static_cast<double>(wheel),
+                        -1.0, 1.0);
+                    if (std::abs(buildingItemWheelAccumulator_) >=
+                        BuildingWheelThreshold) {
+                        selectNextBuildingItem(
+                            currentSnapshot,
+                            buildingItemWheelAccumulator_ > 0.0
+                                ? -1 : 1);
+                        buildingItemWheelAccumulator_ = 0.0;
+                        buildingItemWheelArmed_ = false;
+                    }
+                }
+            } else if (
+                buildingItemWheelReleaseRemaining_ > 0.0 ||
+                !buildingItemWheelArmed_) {
+                buildingItemWheelReleaseRemaining_ = std::max(
+                    0.0,
+                    buildingItemWheelReleaseRemaining_ -
+                        static_cast<double>(GetFrameTime()));
+                if (buildingItemWheelReleaseRemaining_ <= 0.0) {
+                    buildingItemWheelArmed_ = true;
+                    buildingItemWheelAccumulator_ = 0.0;
+                }
+            }
         } else if (actionMode_ == ActionMode::Buildings) {
-            const bool shiftHeld =
-                IsKeyDown(KEY_LEFT_SHIFT) ||
-                IsKeyDown(KEY_RIGHT_SHIFT);
-            constexpr std::array<int, 10> BuildingKeys{
-                KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
-                KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO,
-            };
+            constexpr std::array<int, MaximumBuildingHotbarSlots>
+                BuildingKeys{
+                    KEY_ONE, KEY_TWO, KEY_THREE,
+                    KEY_FOUR, KEY_FIVE, KEY_SIX,
+                };
             const BuildingHotbarLayout layout =
                 makeBuildingHotbarLayout(
-                    currentSnapshot.unlockedBuildings);
-            const std::size_t keyOffset = shiftHeld ? 10U : 0U;
-            const std::size_t keyCount = std::min(
-                BuildingKeys.size(),
-                layout.count > keyOffset
-                    ? layout.count - keyOffset
-                    : 0U);
+                    currentSnapshot.unlockedBuildings,
+                    buildingHotbarCategory_,
+                    currentSnapshot.coreMaxHealth > 0.0,
+                    currentSnapshot.coreLevel,
+                    currentSnapshot.sandboxMode);
             for (std::size_t keyIndex = 0;
-                 keyIndex < keyCount; ++keyIndex) {
+                 keyIndex < layout.count; ++keyIndex) {
                 if (IsKeyPressed(BuildingKeys[keyIndex])) {
                     const BuildingType type =
-                        layout.types[keyOffset + keyIndex];
-                    bool selectable =
-                        currentSnapshot.unlockedBuildings[
-                            static_cast<std::size_t>(type)] &&
-                        (type == BuildingType::Core
-                            ? currentSnapshot.coreMaxHealth <= 0.0
-                            : currentSnapshot.coreMaxHealth > 0.0);
-                    if (type == BuildingType::SlowTrap ||
-                        type == BuildingType::SpikeTrap ||
-                        type == BuildingType::LumberMill ||
-                        type == BuildingType::Quarry) {
-                        selectable = selectable &&
-                            currentSnapshot.coreLevel >= 2;
+                        layout.types[keyIndex];
+                    selectBuildingMode(type);
+                }
+            }
+            constexpr double BuildingWheelThreshold = 0.55;
+            constexpr double BuildingWheelReleaseSeconds = 0.10;
+            if (std::abs(wheel) > 0.01F) {
+                buildingItemWheelReleaseRemaining_ =
+                    BuildingWheelReleaseSeconds;
+                if (buildingItemWheelArmed_) {
+                    buildingItemWheelAccumulator_ = std::clamp(
+                        buildingItemWheelAccumulator_ +
+                            static_cast<double>(wheel),
+                        -1.0, 1.0);
+                    if (std::abs(buildingItemWheelAccumulator_) >=
+                        BuildingWheelThreshold) {
+                        selectNextBuildingItem(
+                            currentSnapshot,
+                            buildingItemWheelAccumulator_ > 0.0
+                                ? -1
+                                : 1);
+                        buildingItemWheelAccumulator_ = 0.0;
+                        buildingItemWheelArmed_ = false;
                     }
-                    if (selectable) {
-                        selectBuildingMode(type);
-                    }
+                }
+            } else if (
+                buildingItemWheelReleaseRemaining_ > 0.0 ||
+                !buildingItemWheelArmed_) {
+                buildingItemWheelReleaseRemaining_ = std::max(
+                    0.0,
+                    buildingItemWheelReleaseRemaining_ -
+                        static_cast<double>(GetFrameTime()));
+                if (buildingItemWheelReleaseRemaining_ <= 0.0) {
+                    buildingItemWheelArmed_ = true;
+                    buildingItemWheelAccumulator_ = 0.0;
                 }
             }
         } else {
             constexpr std::array<int, PlayerWeaponCount> EquipmentKeys{
                 KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR,
                 KEY_FIVE, KEY_SIX, KEY_SEVEN, KEY_EIGHT,
+                KEY_NINE,
             };
             const auto order = equipmentOrder(actionMode_);
-            for (std::size_t slotIndex = 0;
-                 slotIndex < order.size(); ++slotIndex) {
-                const PlayerWeapon weapon = order[slotIndex];
+            std::size_t visibleSlotIndex = 0;
+            for (const PlayerWeapon weapon : order) {
                 const std::size_t weaponIndex =
                     static_cast<std::size_t>(weapon);
                 if (!currentSnapshot.unlockedWeapons[weaponIndex]) {
                     continue;
                 }
-                if (IsKeyPressed(EquipmentKeys[slotIndex])) {
+                if (IsKeyPressed(
+                        EquipmentKeys[visibleSlotIndex])) {
                     pendingWeaponSelection_ = weapon;
-                    if (actionMode_ == ActionMode::Tools) {
-                        lastToolSelection_ = weapon;
-                    } else {
-                        lastWeaponSelection_ = weapon;
-                    }
+                    lastEquipmentSelection_ = weapon;
                 }
+                ++visibleSlotIndex;
             }
             const float hotbarWheel = wheel;
             if (std::abs(hotbarWheel) > 0.01F &&
@@ -1177,7 +1264,7 @@ void App::processInput() {
                 ControlAction::ToggleTool)) {
             selectNextActionModeItem(currentSnapshot);
         }
-        if (hammerManagementActive &&
+        if (buildingManagementActive &&
             keyPressed(userSettings_.controls, ControlAction::Copy)) {
             bool copiedPlacement = false;
             if (actionBuilding) {
@@ -1225,8 +1312,11 @@ void App::processInput() {
                 if (frame !=
                     currentSnapshot.platformFrames.end()) {
                     selectActionMode(
-                        ActionMode::Modular,
+                        ActionMode::Buildings,
                         currentSnapshot);
+                    buildingHotbarCategory_ =
+                        BuildingHotbarCategory::Modular;
+                    setFoundationBuildMode(true);
                     selectModularBuildPiece(
                         frame->storey == 0
                             ? ModularBuildPiece::Foundation
@@ -1236,16 +1326,22 @@ void App::processInput() {
                     wall !=
                     currentSnapshot.modularWalls.end()) {
                     selectActionMode(
-                        ActionMode::Modular,
+                        ActionMode::Buildings,
                         currentSnapshot);
+                    buildingHotbarCategory_ =
+                        BuildingHotbarCategory::Modular;
+                    setFoundationBuildMode(true);
                     selectModularBuildPiece(
                         ModularBuildPiece::Wall);
                     modularRotation_ = wall->rotation;
                 } else if (
                     ramp != currentSnapshot.ramps.end()) {
                     selectActionMode(
-                        ActionMode::Modular,
+                        ActionMode::Buildings,
                         currentSnapshot);
+                    buildingHotbarCategory_ =
+                        BuildingHotbarCategory::Modular;
+                    setFoundationBuildMode(true);
                     selectModularBuildPiece(
                         ModularBuildPiece::Ramp);
                     modularRotation_ = ramp->rotation;
@@ -1257,14 +1353,17 @@ void App::processInput() {
             actionBuilding == currentSnapshot.coreId;
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
-            (!aimingCore && actionMode_ == ActionMode::Weapons &&
+            (!aimingCore &&
+             actionMode_ == ActionMode::Equipment &&
+             isPlayerCombatWeapon(
+                 currentSnapshot.selectedWeapon) &&
              keyPressed(userSettings_.controls,
                         ControlAction::UpgradeWeapon));
         pendingRevealChest_ = pendingRevealChest_ ||
             keyPressed(userSettings_.controls,
                        ControlAction::RevealChest);
-        pendingDefeatAllEnemies_ =
-            pendingDefeatAllEnemies_ || IsKeyPressed(KEY_K);
+        pendingDefeatAllEnemies_ = pendingDefeatAllEnemies_ ||
+            (controlDown && IsKeyPressed(KEY_K));
         pendingToggleInvulnerability_ =
             pendingToggleInvulnerability_ || IsKeyPressed(KEY_I);
         pendingDamageCore_ = pendingDamageCore_ ||
@@ -1305,7 +1404,7 @@ void App::processInput() {
             if (currentSnapshot.aimedLoot) {
                 pendingChestReroll_ = RerollChestCommand{
                     *currentSnapshot.aimedLoot};
-            } else if (hammerManagementActive && actionBuilding) {
+            } else if (buildingManagementActive && actionBuilding) {
                 const auto building = std::find_if(
                     currentSnapshot.buildings.begin(),
                     currentSnapshot.buildings.end(),
@@ -1319,7 +1418,7 @@ void App::processInput() {
                 }
             }
         }
-        if (hammerManagementActive && aimingCore &&
+        if (buildingManagementActive && aimingCore &&
             keyPressed(userSettings_.controls, ControlAction::Repair)) {
             pendingRepairAllBuildings_ = true;
         }
@@ -1330,7 +1429,7 @@ void App::processInput() {
             pendingPurchaseBombBundle_ = true;
         }
         repairSweepActive_ =
-            hammerManagementActive &&
+            buildingManagementActive &&
             !aimingCore &&
             keyDown(userSettings_.controls, ControlAction::Repair);
         if (repairSweepActive_) {
@@ -1390,8 +1489,12 @@ void App::processInput() {
         } else {
             repairSweepTarget_.reset();
         }
+        if (pendingBuildingRepair_) {
+            contextualHammerRemaining_ = 1.15;
+            contextualHammerSwingPending_ = true;
+        }
         const bool canSweepRemove =
-            hammerManagementActive;
+            buildingManagementActive;
         const auto aimedRemovalTarget =
             [&]() -> std::optional<EntityId> {
                 if (currentSnapshot.aimedBuilding) {
@@ -1457,10 +1560,11 @@ void App::processInput() {
                 currentSnapshot.aimedChallengeColumn ||
                 currentSnapshot.aimedWorldLandmark) {
                 pendingInteract_ = true;
-            } else if (hammerManagementActive && aimingCore) {
+            } else if (buildingManagementActive && aimingCore) {
                 coreDefenseMenuVisible_ = true;
                 enemySpawnMenuVisible_ = false;
                 itemGrantMenuVisible_ = false;
+                sandboxCardMenuVisible_ = false;
                 EnableCursor();
                 audio_.playUiConfirm();
             } else if (!currentSnapshot.selectedBuilding &&
@@ -1482,10 +1586,16 @@ void App::processInput() {
              IsKeyDown(KEY_RIGHT_SHIFT));
         if (foundationBuildMode_ ||
             currentSnapshot.selectedBuilding ||
-            (hammerManagementActive && aimedDirectionalDefense)) {
+            (buildingManagementActive && aimedDirectionalDefense)) {
+            // The compact building catalog uses the wheel to move between
+            // items. Rotation for a selected building remains available on R.
+            const double rotationWheel =
+                actionMode_ == ActionMode::Buildings
+                    ? 0.0
+                    : static_cast<double>(wheel);
             buildingRotationWheelAccumulator_ = std::clamp(
                 buildingRotationWheelAccumulator_ +
-                    static_cast<double>(wheel),
+                    rotationWheel,
                 -1.0, 1.0);
             const bool wheelRotationReady =
                 buildingRotationCooldownRemaining_ <= 0.0 &&
@@ -1528,7 +1638,7 @@ void App::processInput() {
                         *currentSnapshot.selectedBuilding)) {
                     pendingBuildingRotation_ +=
                         direction;
-                } else if (hammerManagementActive &&
+                } else if (buildingManagementActive &&
                            aimedDirectionalDefense) {
                     pendingPlacedBuildingRotation_ =
                         RotatePlacedBuildingCommand{
@@ -1728,13 +1838,13 @@ void App::processInput() {
                 AttackHoldRepeatDelaySeconds;
         const bool heldResourceGather =
             currentSnapshot.holdToGather &&
-            actionMode_ == ActionMode::Tools &&
+            actionMode_ == ActionMode::Equipment &&
             isPlayerTool(currentSnapshot.selectedWeapon) &&
             !currentSnapshot.buildingPreview &&
             !foundationBuildMode_ &&
             primaryMouseHeldForRepeat;
         const bool heldWeaponAttack =
-            actionMode_ == ActionMode::Weapons &&
+            actionMode_ == ActionMode::Equipment &&
             isPlayerCombatWeapon(
                 currentSnapshot.selectedWeapon) &&
             !currentSnapshot.buildingPreview &&
@@ -1824,7 +1934,7 @@ void App::processInput() {
                 };
             } else if (
                 mousePrimaryPressed &&
-                hammerManagementActive &&
+                buildingManagementActive &&
                 !pendingBuildingSelection_ &&
                 (currentSnapshot.aimedBuilding ||
                  currentSnapshot.aimedModularBuilding)) {
@@ -1835,19 +1945,33 @@ void App::processInput() {
                                .aimedModularBuilding;
                 pendingBuildingRepair_ =
                     RepairBuildingCommand{target};
-                if (currentSnapshot.selectedWeapon ==
-                        PlayerWeapon::Hammer &&
-                    toolSwapRemaining_ <= 0.0 &&
-                    toolSwingRemaining_ <= 0.0) {
-                    toolSwingDuration_ =
-                        activeToolTuning().swingDuration;
-                    toolSwingRemaining_ =
-                        toolSwingDuration_;
-                    toolSwingAttackPending_ = false;
+                contextualHammerRemaining_ = 1.15;
+                contextualHammerSwingPending_ = true;
+                if (currentSnapshot.aimedBuilding) {
+                    buildingContextCardTarget_ =
+                        currentSnapshot.aimedBuilding;
+                    buildingContextCardUpgradeCost_ =
+                        currentSnapshot.aimedBuildingUpgradeCost;
+                    buildingContextCardStats_ =
+                        currentSnapshot.aimedBuildingStats;
                 }
-                buildingContextCardTarget_.reset();
-                buildingContextCardUpgradeCost_.reset();
-                buildingContextCardStats_.reset();
+            } else if (mousePrimaryPressed &&
+                       !pendingBuildingSelection_ &&
+                       !currentSnapshot.aimedEnemy &&
+                       currentSnapshot.aimedBuilding) {
+                if (buildingContextCardTarget_ ==
+                    currentSnapshot.aimedBuilding) {
+                    buildingContextCardTarget_.reset();
+                    buildingContextCardUpgradeCost_.reset();
+                    buildingContextCardStats_.reset();
+                } else {
+                    buildingContextCardTarget_ =
+                        currentSnapshot.aimedBuilding;
+                    buildingContextCardUpgradeCost_ =
+                        currentSnapshot.aimedBuildingUpgradeCost;
+                    buildingContextCardStats_ =
+                        currentSnapshot.aimedBuildingStats;
+                }
             } else if (actionModeUsesEquipment(actionMode_) &&
                        !pendingBuildingSelection_ &&
                        currentSnapshot.selectedWeapon == PlayerWeapon::Bomb) {
@@ -1898,8 +2022,6 @@ void App::processInput() {
                         currentSnapshot.selectedWeapon ==
                             PlayerWeapon::Club;
                     if (currentSnapshot.automaticToolSwitch &&
-                        currentSnapshot.selectedWeapon !=
-                            PlayerWeapon::BareHands &&
                         currentSnapshot.aimedResource) {
                         const auto resource = std::find_if(
                             currentSnapshot.resourceNodes.begin(),

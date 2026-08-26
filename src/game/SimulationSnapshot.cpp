@@ -94,7 +94,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
     }
     double heldDamage = gameplay_.pickaxeDamage;
     switch (playerWeapons_.selectedWeapon()) {
-    case PlayerWeapon::BareHands: heldDamage *= 0.25; break;
+    case PlayerWeapon::LegacyBareHands: heldDamage = 0.0; break;
     case PlayerWeapon::Club: heldDamage *= club_.damageMultiplier; break;
     case PlayerWeapon::IceWand: heldDamage = iceWand_.directDamage(); break;
     case PlayerWeapon::FireWand: heldDamage = fireWand_.directDamage(); break;
@@ -109,11 +109,17 @@ const SimulationSnapshot& Simulation::snapshot() const {
     heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
         playerClassDamageMultiplier();
     std::array<int, 3> recommendedObjectives{-1, -1, -1};
-    const auto recommended = objectives_.recommended(recommendedObjectives.size());
-    for (std::size_t index = 0; index < recommended.size(); ++index)
-        recommendedObjectives[index] = static_cast<int>(recommended[index]);
+    if (!sandboxMode_) {
+        const auto recommended = objectives_.recommended(
+            recommendedObjectives.size());
+        for (std::size_t index = 0; index < recommended.size(); ++index) {
+            recommendedObjectives[index] =
+                static_cast<int>(recommended[index]);
+        }
+    }
     snapshotCache_ = SimulationSnapshot{
         .state = state_,
+        .sandboxMode = sandboxMode_,
         .playerClass = playerClass_,
         .tick = tick_,
         .elapsedSeconds = elapsedSeconds_,
@@ -210,10 +216,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             if (resource == resources_.nodes().end()) return 1.0;
             const PlayerWeapon weapon =
                 playerWeapons_.selectedWeapon();
-            const double handMultiplier =
-                weapon == PlayerWeapon::BareHands ? 0.25 : 1.0;
-            return resourceToolEfficiency(weapon, resource->type) *
-                handMultiplier;
+            return resourceToolEfficiency(weapon, resource->type);
         }(),
         .resourceNodes = std::span<const ResourceNode>{resources_.nodes()},
         .worldLimit = map_.worldLimit,
@@ -264,7 +267,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
             buildingUnlocked(BuildingType::GunTurret),
             buildingUnlocked(BuildingType::Catapult),
         },
-        .coreBuildRadius = buildings_.coreBuildRadius(),
+        .coreBuildRadius = sandboxMode_
+            ? 0
+            : buildings_.coreBuildRadius(),
         .modularBuildingCosts = modularBuildingCosts_,
         .buildingPreview = buildingPreview_,
         .buildings = std::span<const BuildingInstance>{buildings_.buildings()},
@@ -334,23 +339,15 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .automaticToolSwitch = true,
         .holdToGather = true,
         .unlockedWeapons = {
-            true,
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.axe"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.pickaxe"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.club"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.ice_wand"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.fire_wand"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.hammer"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.rifle"),
-            unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.bombs"),
+            playerWeaponUnlocked(PlayerWeapon::LegacyBareHands),
+            playerWeaponUnlocked(PlayerWeapon::Axe),
+            playerWeaponUnlocked(PlayerWeapon::Pickaxe),
+            playerWeaponUnlocked(PlayerWeapon::Club),
+            playerWeaponUnlocked(PlayerWeapon::IceWand),
+            playerWeaponUnlocked(PlayerWeapon::FireWand),
+            playerWeaponUnlocked(PlayerWeapon::Hammer),
+            playerWeaponUnlocked(PlayerWeapon::Rifle),
+            playerWeaponUnlocked(PlayerWeapon::Bomb),
         },
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = heldDamage,
@@ -393,20 +390,18 @@ const SimulationSnapshot& Simulation::snapshot() const {
             saturatingMultiplyNonNegative(
                 economy_.waveRewardPerWave, wave_)),
         .tutorialWoodTarget = buildings_.configuredCost(BuildingType::Core).wood,
-        .tutorialStoneTarget = buildings_.configuredCost(BuildingType::CrystalMine).stone,
-        .tutorialObjective = tutorialObjective(),
+        .tutorialObjective = sandboxMode_
+            ? std::optional<TutorialObjective>{}
+            : tutorialObjective(),
         .skillPoints = unlimitedResources_
             ? std::numeric_limits<int>::max()
             : skillTree_.points(),
+        .playerLevel = insight_.progress().totalLevelsEarned + 1,
         .currentInsight = insight_.progress().currentInsight,
         .requiredInsight = insight_.progress().requiredInsight,
         .totalInsightEarned = insight_.progress().totalInsightEarned,
-        .totalTreePointsEarned = insight_.progress().totalTreePointsEarned,
         .objectives = objectives_.statuses(),
         .recommendedObjectives = recommendedObjectives,
-        .bareHandsWoodGathered = std::min(bareHandsWoodGathered_, 15),
-        .bareHandsStoneGathered = std::min(bareHandsStoneGathered_, 10),
-        .introSkillObjectiveCompleted = introSkillObjectiveCompleted_,
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,

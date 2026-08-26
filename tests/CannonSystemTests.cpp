@@ -58,6 +58,25 @@ void runCannonSystemTests() {
     require(enemies.activeCount() == 4,
             "cannon targets dense group instead of closer isolated enemy");
 
+    ian::EnemySystem clusterPayloadEnemies;
+    clusterPayloadEnemies.spawnWave(Cluster);
+    ian::CannonSystem clusterPayloadCannons;
+    clusterPayloadCannons.setSkillModifiers(
+        1.0, 1.0, 1.0, 1.0, 2);
+    clusterPayloadCannons.syncBuildings(buildings.buildings());
+    std::span<const ian::CannonExplosion> clusterExplosions;
+    for (int tick = 0;
+         tick < 240 && clusterExplosions.empty(); ++tick) {
+        clusterExplosions = clusterPayloadCannons.tick(
+            1.0 / 60.0, buildings.buildings(),
+            clusterPayloadEnemies);
+    }
+    require(
+        clusterExplosions.size() == 3U &&
+            clusterExplosions[1].radius <
+                clusterExplosions[0].radius,
+        "Cluster Payload adds two smaller secondary explosions");
+
     ian::EnemySystem angledEnemies;
     constexpr std::array<ian::Vec3, 3> AngledCluster{{
         {5.0, 0.8, -8.0},

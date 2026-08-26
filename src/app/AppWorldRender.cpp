@@ -37,6 +37,66 @@ float challengeFenceAngle(int index) {
         static_cast<float>(ChallengeFencePegCount);
 }
 
+void emitProjectileRibbon(
+    Vector3 tail, Vector3 head, Vector3 cameraPosition,
+    float tailHalfWidth, float headHalfWidth, Color color) {
+    const Vector3 axis = Vector3Subtract(head, tail);
+    if (Vector3LengthSqr(axis) <= 0.000001F) return;
+    const Vector3 middle = Vector3Scale(Vector3Add(tail, head), 0.5F);
+    Vector3 view = Vector3Subtract(cameraPosition, middle);
+    Vector3 side = Vector3CrossProduct(axis, view);
+    if (Vector3LengthSqr(side) <= 0.000001F) {
+        side = Vector3CrossProduct(axis, {0.0F, 1.0F, 0.0F});
+    }
+    if (Vector3LengthSqr(side) <= 0.000001F) {
+        side = {1.0F, 0.0F, 0.0F};
+    } else {
+        side = Vector3Normalize(side);
+    }
+    const Vector3 tailSide = Vector3Scale(side, tailHalfWidth);
+    const Vector3 headSide = Vector3Scale(side, headHalfWidth);
+    const std::array<Vector3, 4> vertices{
+        Vector3Add(tail, tailSide),
+        Vector3Add(head, headSide),
+        Vector3Subtract(head, headSide),
+        Vector3Subtract(tail, tailSide),
+    };
+    for (const Vector3 vertex : vertices) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(vertex.x, vertex.y, vertex.z);
+    }
+}
+
+void emitProjectileBillboard(
+    Vector3 center, const Camera3D& camera, float radius, Color color) {
+    Vector3 forward = Vector3Subtract(camera.target, camera.position);
+    if (Vector3LengthSqr(forward) <= 0.000001F) {
+        forward = {0.0F, 0.0F, -1.0F};
+    } else {
+        forward = Vector3Normalize(forward);
+    }
+    Vector3 right = Vector3CrossProduct(forward, camera.up);
+    if (Vector3LengthSqr(right) <= 0.000001F) {
+        right = {1.0F, 0.0F, 0.0F};
+    } else {
+        right = Vector3Normalize(right);
+    }
+    Vector3 up = Vector3CrossProduct(right, forward);
+    up = Vector3Normalize(up);
+    right = Vector3Scale(right, radius);
+    up = Vector3Scale(up, radius);
+    const std::array<Vector3, 4> vertices{
+        Vector3Add(Vector3Subtract(center, right), up),
+        Vector3Add(Vector3Add(center, right), up),
+        Vector3Subtract(Vector3Add(center, right), up),
+        Vector3Subtract(Vector3Subtract(center, right), up),
+    };
+    for (const Vector3 vertex : vertices) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(vertex.x, vertex.y, vertex.z);
+    }
+}
+
 
 } // namespace
 
@@ -985,33 +1045,122 @@ void App::drawWorldEntities(
             }
         }
     }
-    for (const auto& arrow : arrowVisuals_) {
-        const double progress =
-            1.0 - arrow.remaining / arrow.duration;
-        const Vec3 arrowPosition{
-            arrow.origin.x +
-                (arrow.target.x - arrow.origin.x) * progress,
-            arrow.origin.y +
-                (arrow.target.y - arrow.origin.y) * progress,
-            arrow.origin.z +
-                (arrow.target.z - arrow.origin.z) * progress,
+    // Bright projectile cores and short trails are deliberately rendered as
+    // simple fixed-cost primitives.  They remain legible against both the day
+    // sky and dark nights without bloom or the optional particle setting.
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const auto& projectile : snapshot.cannonProjectiles) {
+        if (!projectile.active ||
+            projectile.type == BuildingType::Catapult) {
+            continue;
+        }
+        const Vector3 position{
+            static_cast<float>(projectile.position.x),
+            static_cast<float>(projectile.position.y),
+            static_cast<float>(projectile.position.z),
         };
-        const Vector3 projectilePosition{
-            static_cast<float>(arrowPosition.x),
-            static_cast<float>(arrowPosition.y),
-            static_cast<float>(arrowPosition.z)};
-        const Vector3 projectileDirection{
-            static_cast<float>(arrow.direction.x),
-            static_cast<float>(arrow.direction.y),
-            static_cast<float>(arrow.direction.z)};
-        if (arrow.turretBullet) {
-            (void)renderer_->drawTurretBullet(
-                projectilePosition, projectileDirection);
-        } else {
-            (void)renderer_->drawArrow(
-                projectilePosition, projectileDirection);
+        Vector3 velocity{
+            static_cast<float>(projectile.velocity.x),
+            static_cast<float>(projectile.velocity.y),
+            static_cast<float>(projectile.velocity.z),
+        };
+        if (Vector3LengthSqr(velocity) > 0.0001F) {
+            velocity = Vector3Normalize(velocity);
+            const Vector3 tail = Vector3Subtract(
+                position, Vector3Scale(velocity, 1.15F));
+            DrawCylinderEx(tail, position, 0.13F, 0.20F, 6,
+                           {255, 103, 20, 90});
+            DrawCylinderEx(tail, position, 0.042F, 0.075F, 6,
+                           {255, 226, 132, 230});
+        }
+        DrawSphereEx(position, 0.25F, 7, 5,
+                     {255, 121, 25, 105});
+        DrawSphereEx(position, 0.115F, 6, 4,
+                     {255, 244, 184, 245});
+    }
+    EndBlendMode();
+
+    // Every tower projectile is submitted through one rlgl batch.  This keeps
+    // hundreds of simultaneous shots cheap: the amount of geometry grows,
+    // but draw-call count does not grow per bullet.
+    BeginBlendMode(BLEND_ADDITIVE);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    rlBegin(RL_QUADS);
+    for (const auto& arrow : arrowVisuals_) {
+        const float progress = std::clamp(static_cast<float>(
+            1.0 - arrow.remaining / arrow.duration), 0.0F, 1.0F);
+        const Vector3 origin{
+            static_cast<float>(arrow.origin.x),
+            static_cast<float>(arrow.origin.y),
+            static_cast<float>(arrow.origin.z),
+        };
+        const Vector3 target{
+            static_cast<float>(arrow.target.x),
+            static_cast<float>(arrow.target.y),
+            static_cast<float>(arrow.target.z),
+        };
+        const Vector3 path = Vector3Subtract(target, origin);
+        const float distance = Vector3Length(path);
+        if (distance <= 0.0001F) continue;
+        const Vector3 direction = Vector3Scale(path, 1.0F / distance);
+        const Vector3 head = Vector3Add(
+            origin, Vector3Scale(path, progress));
+        const float trailLength = arrow.turretBullet ? 2.6F : 1.35F;
+        const float visibleLength = std::min(
+            trailLength, distance * progress);
+        const Vector3 tail = Vector3Subtract(
+            head, Vector3Scale(direction, visibleLength));
+        // A bright white tracer reads against both day and night scenes.
+        // Keep it strong at the muzzle, then smoothly dissolve instead of
+        // popping out when the short presentation lifetime ends.
+        const float fade = std::clamp(
+            (1.0F - progress) / 0.72F, 0.0F, 1.0F);
+        const float smoothFade = fade * fade * (3.0F - 2.0F * fade);
+        const auto fadedAlpha = [smoothFade](float alpha) {
+            return static_cast<unsigned char>(std::clamp(
+                alpha * smoothFade, 0.0F, 255.0F));
+        };
+        const Color outer{
+            238, 246, 255,
+            fadedAlpha(arrow.turretBullet ? 150.0F : 135.0F)};
+        const Color core{
+            255, 255, 255,
+            fadedAlpha(arrow.turretBullet ? 245.0F : 230.0F)};
+        const float outerRadius = arrow.turretBullet ? 0.085F : 0.060F;
+        const float coreRadius = arrow.turretBullet ? 0.027F : 0.020F;
+        emitProjectileRibbon(
+            tail, head, camera.position,
+            outerRadius * 0.65F, outerRadius, outer);
+        emitProjectileRibbon(
+            tail, head, camera.position,
+            coreRadius * 0.55F, coreRadius, core);
+        emitProjectileBillboard(
+            head, camera,
+            arrow.turretBullet ? 0.115F : 0.085F, outer);
+        emitProjectileBillboard(
+            head, camera,
+            arrow.turretBullet ? 0.052F : 0.038F, core);
+
+        if (progress < 0.30F) {
+            const float flash = 1.0F - progress / 0.30F;
+            emitProjectileBillboard(
+                origin, camera,
+                (arrow.turretBullet ? 0.30F : 0.21F) * flash,
+                {255, 129, 24,
+                 static_cast<unsigned char>(120.0F * flash)});
+            emitProjectileBillboard(
+                origin, camera,
+                (arrow.turretBullet ? 0.13F : 0.09F) * flash,
+                {255, 246, 190,
+                 static_cast<unsigned char>(245.0F * flash)});
         }
     }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    EndBlendMode();
     for (const auto& projectile : snapshot.bombProjectiles) {
         if (projectile.active) {
             const Vector3 position{

@@ -30,7 +30,10 @@ void runGameBalanceTests() {
         "asset enemy damage keeps increased difficulty tuning");
     require(
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
-            assetBalance.balance.gameplay.pickaxeRange == 4.0,
+            assetBalance.balance.gameplay.pickaxeRange == 4.0 &&
+            assetBalance.balance.gameplay.nightDurationSeconds == 90.0 &&
+            assetBalance.balance.gameplay.resourceToolDamageMultiplier ==
+                0.65,
         "resource gathering range is tuned separately from melee range");
     require(
         assetBalance.balance.weapons.club.areaRadius == 1.25 &&
@@ -134,8 +137,9 @@ void runGameBalanceTests() {
     require(loaded.valid(), "valid JSON balance parses");
     require(
         loaded.balance.gameplay.resourceGatherRange ==
-            loaded.balance.gameplay.pickaxeRange,
-        "older gameplay balance uses pickaxe range for gathering");
+            loaded.balance.gameplay.pickaxeRange &&
+            loaded.balance.gameplay.resourceToolDamageMultiplier == 0.65,
+        "older gameplay balance uses safe gathering defaults");
     require(
         loaded.balance.modularBuildings[0].wood == 20,
         "older building balance keeps default modular prices");

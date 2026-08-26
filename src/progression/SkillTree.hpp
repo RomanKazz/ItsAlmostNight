@@ -27,6 +27,7 @@ enum class SkillPurchaseError {
     InsufficientPoints,
     MutuallyExclusive,
     CoreLevelRequired,
+    SurvivedNightRequired,
 };
 
 struct SkillTreePoint { float x{}; float y{}; };
@@ -53,6 +54,7 @@ struct SkillNodeDefinition {
     std::string exclusiveGroup;
     SkillNodeSize size{SkillNodeSize::Small};
     int minimumCoreLevel{};
+    int minimumWavesSurvived{};
 };
 
 struct SkillTreeRunState {
@@ -70,9 +72,11 @@ class SkillTree {
     [[nodiscard]] SkillNodeState state(std::size_t index) const;
     [[nodiscard]] SkillNodeState state(std::string_view id) const;
     [[nodiscard]] SkillPurchaseError purchase(
-        std::size_t index, bool spendPoints = true);
+        std::size_t index, bool spendPoints = true,
+        bool requirePrerequisites = true);
     [[nodiscard]] bool unlock(std::size_t index);
     void grantPoints(int amount);
+    [[nodiscard]] int takePoints();
     [[nodiscard]] int points() const;
     [[nodiscard]] bool isUnlocked(std::string_view id) const;
     [[nodiscard]] bool isExcluded(std::size_t index) const;

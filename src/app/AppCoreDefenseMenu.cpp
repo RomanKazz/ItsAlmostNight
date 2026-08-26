@@ -178,7 +178,7 @@ void App::drawCoreDefenseMenu() {
                {195, 188, 175, 230});
 
     std::string reason;
-    if (!selected.unlocked) reason = "UNLOCK IN THE SKILL TREE FIRST";
+    if (!selected.unlocked) reason = "UPGRADE CORE TO UNLOCK";
     else if (snapshot.state == RunState::Wave)
         reason = "UNAVAILABLE DURING THE NIGHT";
     else if (selected.upgradeError == UpgradeError::MaxLevel)

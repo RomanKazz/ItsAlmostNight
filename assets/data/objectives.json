@@ -79,7 +79,7 @@
   {"id":"fall_saves_1","title":"Survive a lethal fall","kind":"milestone","metric":"falls_saved","target":1,"insightReward":12,"chain":"fall_saves","chainOrder":0},
   {"id":"large_deposit","title":"Deep excavation","description":"Fully deplete a large resource deposit","kind":"milestone","metric":"large_deposit","target":1,"insightReward":25,"chain":"large_deposit","chainOrder":0},
   {"id":"all_resources_day","title":"Varied harvest","description":"Gather wood, stone and crystals in one day","kind":"milestone","metric":"all_resources_day","target":3,"insightReward":15,"chain":"all_resources_day","chainOrder":0},
-  {"id":"bare_hands","title":"Bare hands","description":"Destroy a tree or stone without a tool","kind":"challenge","metric":"bare_hands","target":1,"insightReward":20},
+  {"id":"proper_tool","title":"Proper tool","description":"Destroy a tree or stone with its matching starter tool","kind":"challenge","metric":"matching_tool","target":1,"insightReward":20},
   {"id":"workaholic","title":"Workaholic","description":"Gather 50 resources within 60 seconds","kind":"challenge","metric":"resources_60s","target":50,"insightReward":30},
   {"id":"no_stopping","title":"No stopping","description":"Destroy 5 resource objects without missing","kind":"challenge","metric":"consecutive_depletions","target":5,"insightReward":30},
   {"id":"night_shift","title":"Night shift","description":"Gather 30 resources during the night","kind":"challenge","metric":"night_resources","target":30,"insightReward":25},

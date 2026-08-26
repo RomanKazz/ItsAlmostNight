@@ -36,9 +36,9 @@ void runUiLabelsTests() {
         ian::introGatherRewardMessage(60.0);
     require(
         introReward ==
-            "Gathering objective complete: +60 Insight" &&
+            "Gathering objective complete: +60 XP" &&
             introReward.find("Skill point") == std::string::npos,
-        "intro gathering completion reports Insight, not a skill point");
+        "intro gathering completion reports XP, not a skill point");
 
     ian::BuildingInstance elevatedTurret{
         .id = {42U, 1U},

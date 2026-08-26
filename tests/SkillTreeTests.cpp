@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "progression/ProgressionCardRules.hpp"
 #include "progression/SkillTree.hpp"
 
 #include <cmath>
@@ -75,6 +76,54 @@ void runSkillTreeTests() {
             rifleTree.purchase(*rifle) ==
                 ian::SkillPurchaseError::DependenciesLocked,
         "hidden weapon unlock cannot bypass Combat Training");
+
+    ian::SkillTree cardTree;
+    const auto cardRifle = cardTree.indexOf("rifle");
+    require(
+        cardRifle && ian::progressionCardEligible(
+            cardTree, *cardRifle,
+            {.playerLevel = 2,
+             .coreLevel = 1,
+             .wavesSurvived = 0,
+             .playerClass = ian::PlayerClass::Ranger}) &&
+            cardTree.purchase(*cardRifle, false, false) ==
+                ian::SkillPurchaseError::None &&
+            cardTree.isUnlocked("rifle"),
+        "progression cards bypass the removed tree path");
+    const auto legacyLumber = cardTree.indexOf("lumber_mill");
+    const auto turretCalibration =
+        cardTree.indexOf("turret_calibration");
+    require(
+        legacyLumber && turretCalibration &&
+            !ian::progressionCardEligible(
+                cardTree, *legacyLumber,
+                {.playerLevel = 20, .coreLevel = 8,
+                 .wavesSurvived = 20}) &&
+            !ian::progressionCardEligible(
+                cardTree, *turretCalibration,
+                {.playerLevel = 20, .coreLevel = 1,
+                 .wavesSurvived = 20}) &&
+            ian::progressionCardEligible(
+                cardTree, *turretCalibration,
+                {.playerLevel = 20, .coreLevel = 2,
+                 .wavesSurvived = 20}),
+        "Core progression replaces unlock cards while preserving defense modifiers");
+    const auto cardMarksman = cardTree.indexOf("marksman");
+    require(
+        cardMarksman &&
+            !ian::progressionCardEligible(
+                cardTree, *cardMarksman,
+                {.playerLevel = 6, .coreLevel = 1}) &&
+            ian::progressionCardEligible(
+                cardTree, *cardMarksman,
+                {.playerLevel = 7, .coreLevel = 1}),
+        "advanced cards expose explicit level and owned-card requirements");
+    const auto flatSaved = cardTree.saveState();
+    ian::SkillTree flatLoaded;
+    require(
+        flatLoaded.loadState(flatSaved) &&
+            flatLoaded.isUnlocked("rifle"),
+        "flat card unlocks survive save migration without old prerequisites");
     require(
         combatTraining && rifle && marksman && assault &&
             rifleTree.purchase(*combatTraining) ==
@@ -192,6 +241,7 @@ void runSkillTreeTests() {
             definitionById("lumber_mill") != definitions.end() &&
             definitionById("quarry") != definitions.end() &&
             definitionById("crystal_mine") != definitions.end() &&
+            definitionById("crystal_mine")->minimumWavesSurvived == 1 &&
             definitionById("night_shift") != definitions.end() &&
             definitionById("night_shift")->effects.front().key ==
                 "production.night_speed" &&

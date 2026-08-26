@@ -30,7 +30,8 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         std::vector<SkillEffectDefinition> effects = {},
         std::string exclusiveGroup = {},
         SkillNodeSize size = SkillNodeSize::Small,
-        int minimumCoreLevel = 0) {
+        int minimumCoreLevel = 0,
+        int minimumWavesSurvived = 0) {
         return SkillNodeDefinition{
             .id = std::move(id), .title = std::move(title),
             .description = std::move(description), .icon = std::move(icon),
@@ -38,22 +39,23 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
             .prerequisites = std::move(dependencies),
             .effects = std::move(effects),
             .exclusiveGroup = std::move(exclusiveGroup), .size = size,
-            .minimumCoreLevel = minimumCoreLevel};
+            .minimumCoreLevel = minimumCoreLevel,
+            .minimumWavesSurvived = minimumWavesSurvived};
     };
     using E = SkillEffectDefinition;
     return {
         make("bare_hands", "SURVIVOR", "The origin of every run.", "bare_hands", SkillBranch::Root, {0, 0}, 0, {}),
 
-        make("axe", "AXE", "Unlock the axe for efficient wood gathering.", "axe", SkillBranch::Gathering, {-190, -190}, 1, {"bare_hands"}, {E{"unlock.axe"}}),
-        make("pickaxe", "PICKAXE", "Unlock the pickaxe for efficient stone gathering.", "pickaxe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, {E{"unlock.pickaxe"}}),
+        make("axe", "AXE MASTERY", "Master the starter axe to increase its gathering damage by 25%.", "axe", SkillBranch::Gathering, {-190, -190}, 1, {"bare_hands"}, {E{"unlock.axe"}}),
+        make("pickaxe", "PICKAXE MASTERY", "Master the starter pickaxe to increase its gathering damage by 25%.", "pickaxe", SkillBranch::Gathering, {-190, 0}, 1, {"bare_hands"}, {E{"unlock.pickaxe"}}),
         make("efficient_strikes", "EFFICIENT STRIKES", "Tools deal 25% more damage to resources.", "efficient_strikes", SkillBranch::Gathering, {-380, 190}, 1, {"axe", "pickaxe"}, {E{"gather.damage", 0.25}}),
         make("power_swing", "POWER SWING", "Every third resource hit also strikes nearby deposits.", "power_swing", SkillBranch::Gathering, {-570, 190}, 2, {"efficient_strikes"}, {E{"gather.power_swing"}}, {}, SkillNodeSize::Large),
         make("wide_swing", "WIDE SWING", "Power Swing reaches 50% farther.", "wide_swing", SkillBranch::Gathering, {-760, 190}, 1, {"power_swing"}, {E{"gather.power_swing_radius", 0.5}}),
-        make("hands_on", "HANDS-ON", "Manual gathering is 45% stronger, but producers work 20% slower.", "hands_on", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"gather.damage", 0.45}, E{"production.speed", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
+        make("hands_on", "FIELD WORKER", "Manual gathering is 45% stronger, but producers work 20% slower.", "hands_on", SkillBranch::Gathering, {-570, 380}, 2, {"efficient_strikes"}, {E{"gather.damage", 0.45}, E{"production.speed", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
         make("industrialist", "INDUSTRIALIST", "Producers work 40% faster, but manual gathering is 20% weaker.", "industrialist", SkillBranch::Gathering, {-570, 570}, 2, {"efficient_strikes"}, {E{"production.speed", 0.40}, E{"gather.damage", -0.20}}, "gathering_doctrine", SkillNodeSize::Large),
         make("lumber_mill", "LUMBER MILL", "Unlock the Lumber Mill for passive wood production during the day.", "lumber_mill", SkillBranch::Gathering, {-380, -190}, 1, {"axe"}, {E{"unlock.lumber_mill"}}),
         make("quarry", "QUARRY", "Unlock the Quarry for passive stone production during the day.", "quarry", SkillBranch::Gathering, {-380, 0}, 1, {"pickaxe"}, {E{"unlock.quarry"}}),
-        make("crystal_mine", "CRYSTAL MINE", "Unlock the Crystal Mine for passive crystal production during the day.", "crystal_mine", SkillBranch::Gathering, {-380, 760}, 1, {"bare_hands"}, {E{"unlock.crystal_mine"}}),
+        make("crystal_mine", "CRYSTAL MINE", "Unlock passive crystal production after surviving the first night.", "crystal_mine", SkillBranch::Gathering, {-380, 760}, 1, {"bare_hands"}, {E{"unlock.crystal_mine"}}, {}, SkillNodeSize::Small, 0, 1),
         make("night_shift", "NIGHT SHIFT", "All production buildings operate at 50% speed during enemy waves.", "night_shift", SkillBranch::Gathering, {-760, 570}, 3, {"lumber_mill", "quarry", "crystal_mine"}, {E{"production.night_speed", 0.50}}, {}, SkillNodeSize::Large),
 
         make("combat_training", "COMBAT TRAINING", "All player attacks deal 10% more damage.", "combat_training", SkillBranch::Weapons, {0, -190}, 1, {"bare_hands"}, {E{"player.damage", 0.10}}),
@@ -74,7 +76,7 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("inferno", "INFERNO", "Fire impact and burn damage increase, but the blast becomes smaller.", "inferno", SkillBranch::Weapons, {190, -760}, 3, {"fire_wand"}, {E{"fire.damage", 0.45}, E{"fire.burn_damage", 0.45}, E{"fire.radius", -0.20}}, "fire_style", SkillNodeSize::Large),
         make("thermal_shock", "THERMAL SHOCK", "Fire striking a frozen enemy consumes Freeze for a violent burst.", "thermal_shock", SkillBranch::Weapons, {380, -760}, 3, {"ice_wand", "fire_wand"}, {E{"element.thermal_shock", 18.0}}, {}, SkillNodeSize::Large),
 
-        make("hammer", "HAMMER", "Unlock repair and active fortification.", "hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, {E{"unlock.hammer"}}),
+        make("hammer", "FORTIFICATION KIT", "Repairing a full-health structure fortifies it for 10 seconds.", "hammer", SkillBranch::Construction, {190, 0}, 1, {"bare_hands"}, {E{"repair.fortification"}}),
         make("reinforced_frames", "REINFORCED FRAMES", "All structures gain 20% maximum health.", "reinforced_frames", SkillBranch::Construction, {380, 0}, 1, {"hammer"}, {E{"building.health", 0.20}}),
         make("field_repairs", "FIELD REPAIRS", "Surviving structures recover 18% health after every night.", "field_repairs", SkillBranch::Construction, {570, 0}, 2, {"reinforced_frames"}, {E{"wave.repair_fraction", 0.18}}, {}, SkillNodeSize::Large),
         make("defense_engineering", "DEFENSE ENGINEERING", "Turrets, cannons and spike traps deal 12% more damage.", "defense_engineering", SkillBranch::Construction, {380, 190}, 1, {"hammer"}, {E{"defense.damage", 0.12}}),
@@ -99,9 +101,9 @@ std::vector<SkillNodeDefinition> SkillTree::defaultDefinitions() {
         make("frequent_bounty", "NIGHTLY DELIVERY", "Night's Bounty now delivers a chest after every survived night.", "frequent_bounty", SkillBranch::Economy, {-190, 380}, 2, {"nightly_chest"}, {E{"loot.nightly_chests", 1.0}}),
         make("safe_delivery", "SAFE DELIVERY", "Reward chests arrive closer to the base.", "safe_delivery", SkillBranch::Economy, {0, 380}, 1, {"nightly_chest"}, {E{"loot.safe_delivery", 1.0}}),
         make("keymaster", "KEYMASTER", "All chests cost 20% fewer Coins to open.", "keymaster", SkillBranch::Economy, {190, 380}, 1, {"nightly_chest"}, {E{"loot.chest_cost", -0.20}}),
-        make("early_planning", "EARLY PLANNING", "Early wave starts grant Crystals, Coins and Insight; all early rewards increase 25%.", "early_planning", SkillBranch::Economy, {0, 570}, 1, {"safe_delivery"}, {E{"early.base_bonus", 0.25}}),
-        make("mercenary_contract", "MERCENARY CONTRACT", "Early starts grant many more Coins, but no bonus Insight.", "mercenary_contract", SkillBranch::Economy, {-190, 760}, 3, {"early_planning"}, {E{"early.coins", 1.0}, E{"early.insight", -1.0}}, "early_contract", SkillNodeSize::Large),
-        make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more Insight, but no bonus Coins.", "scholar_contract", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.coins", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
+        make("early_planning", "EARLY PLANNING", "Early wave starts grant Crystals, Coins and XP; all early rewards increase 25%.", "early_planning", SkillBranch::Economy, {0, 570}, 1, {"safe_delivery"}, {E{"early.base_bonus", 0.25}}),
+        make("mercenary_contract", "MERCENARY CONTRACT", "Early starts grant many more Coins, but no bonus XP.", "mercenary_contract", SkillBranch::Economy, {-190, 760}, 3, {"early_planning"}, {E{"early.coins", 1.0}, E{"early.insight", -1.0}}, "early_contract", SkillNodeSize::Large),
+        make("scholar_contract", "SCHOLAR CONTRACT", "Early starts grant much more XP, but no bonus Coins.", "scholar_contract", SkillBranch::Economy, {190, 760}, 3, {"early_planning"}, {E{"early.coins", -1.0}, E{"early.insight", 1.0}}, "early_contract", SkillNodeSize::Large),
         make("expanded_storage", "EXPANDED STORAGE", "The Core holds 40% more of every resource.", "expanded_storage", SkillBranch::Economy, {380, 570}, 2, {"keymaster"}, {E{"storage.capacity", 0.40}}),
         make("scavenger", "SCAVENGER", "Destructible world props drop 50% more coins.", "scavenger", SkillBranch::Economy, {-380, 570}, 2, {"safe_delivery"}, {E{"prop.coins", 0.50}}),
         make("longer_days", "LONGER DAYS", "Each daytime build phase lasts 15 seconds longer.", "placeholder_hourglass", SkillBranch::Economy, {380, 760}, 2, {"expanded_storage"}, {E{"day.duration_seconds", 15.0}}),
@@ -133,12 +135,16 @@ SkillNodeState SkillTree::state(std::string_view id) const {
 }
 
 SkillPurchaseError SkillTree::purchase(
-    std::size_t index, bool spendPoints) {
+    std::size_t index, bool spendPoints,
+    bool requirePrerequisites) {
     if (index >= nodes_.size()) return SkillPurchaseError::InvalidNode;
     if (unlocked_[index]) return SkillPurchaseError::AlreadyUnlocked;
     if (conflictsWithUnlocked(nodes_[index]))
         return SkillPurchaseError::MutuallyExclusive;
-    if (!prerequisitesUnlocked(nodes_[index])) return SkillPurchaseError::DependenciesLocked;
+    if (requirePrerequisites &&
+        !prerequisitesUnlocked(nodes_[index])) {
+        return SkillPurchaseError::DependenciesLocked;
+    }
     if (spendPoints && points_ < nodes_[index].cost)
         return SkillPurchaseError::InsufficientPoints;
     if (spendPoints) points_ -= nodes_[index].cost;
@@ -154,6 +160,12 @@ void SkillTree::grantPoints(int amount) {
     if (amount <= 0) return;
     const int room = std::numeric_limits<int>::max() - points_;
     points_ += std::min(room, amount);
+}
+
+int SkillTree::takePoints() {
+    const int points = points_;
+    points_ = 0;
+    return points;
 }
 
 int SkillTree::points() const { return points_; }
@@ -256,10 +268,6 @@ bool SkillTree::loadState(const SkillTreeRunState& stateToLoad) {
     for (std::size_t i = 0; i < nodes_.size(); ++i) {
         if (nodes_[i].cost == 0) loaded[i] = true;
         if (!loaded[i]) continue;
-        for (const auto& prerequisite : nodes_[i].prerequisites) {
-            const auto parent = indexOf(prerequisite);
-            if (!parent || !loaded[*parent]) return false;
-        }
         if (!nodes_[i].exclusiveGroup.empty()) {
             for (std::size_t other = i + 1; other < nodes_.size(); ++other) {
                 if (loaded[other] &&
@@ -351,8 +359,11 @@ std::vector<SkillNodeDefinition> loadSkillTreeDefinitions(const std::filesystem:
                 ? SkillNodeSize::Large
                 : SkillNodeSize::Small;
             node.minimumCoreLevel = value.value("minimumCoreLevel", 0);
+            node.minimumWavesSurvived =
+                value.value("minimumWavesSurvived", 0);
             if (node.id.empty() || node.cost < 0 ||
                 node.minimumCoreLevel < 0 ||
+                node.minimumWavesSurvived < 0 ||
                 !std::isfinite(node.position.x) ||
                 !std::isfinite(node.position.y) ||
                 !ids.insert(node.id).second) {

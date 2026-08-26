@@ -17,8 +17,8 @@ void lessThanThreshold() {
     const auto result = insight.grantInsight(
         25.0, InsightSource::Objective, InsightCategory::Exploration,
         {.bypassDiminishing = true});
-    require(result.accepted && result.treePointsGranted == 0,
-            "sub-threshold Insight must not grant a point");
+    require(result.accepted && result.levelsGranted == 0,
+            "sub-threshold XP must not grant a level");
     requireNear(insight.progress().currentInsight, 25.0, 1e-9,
                 "sub-threshold Insight remains in the bar");
 }
@@ -28,7 +28,7 @@ void exactThreshold() {
     const auto result = insight.grantInsight(
         100.0, InsightSource::Objective, InsightCategory::Exploration,
         {.bypassDiminishing = true});
-    require(result.treePointsGranted == 1, "exact threshold grants one point");
+    require(result.levelsGranted == 1, "exact threshold grants one level");
     requireNear(insight.progress().currentInsight, 0.0, 1e-9,
                 "exact threshold resets the bar");
 }
@@ -38,11 +38,11 @@ void overflowAndMultiplePoints() {
     const auto result = insight.grantInsight(
         250.0, InsightSource::ChallengeCompleted, InsightCategory::Combat,
         {.bypassDiminishing = true});
-    require(result.treePointsGranted == 2, "250 Insight grants two points");
+    require(result.levelsGranted == 2, "250 XP grants two levels");
     requireNear(insight.progress().currentInsight, 50.0, 1e-9,
                 "overflow remainder must be preserved");
-    require(insight.progress().totalTreePointsEarned == 2,
-            "total earned point telemetry follows overflow");
+    require(insight.progress().totalLevelsEarned == 2,
+            "total earned level telemetry follows overflow");
 }
 
 void duplicateEventsAreBlocked() {
@@ -139,7 +139,7 @@ void saveLoadAndReset() {
     loaded.reset();
     requireNear(loaded.progress().currentInsight, 0.0, 1e-9,
                 "new run resets Insight");
-    require(loaded.progress().totalTreePointsEarned == 0 &&
+    require(loaded.progress().totalLevelsEarned == 0 &&
                 loaded.blockedDuplicateEvents() == 0,
             "new run resets progression telemetry and dedupe");
 }
@@ -163,7 +163,7 @@ void growingRequirementIsSupportedButDisabledByDefault() {
     InsightSystem insight{config};
     const auto result = insight.grantInsight(215.0, InsightSource::Objective,
         InsightCategory::Exploration, {.bypassDiminishing = true});
-    require(result.treePointsGranted == 2, "growing requirement uses each new threshold");
+    require(result.levelsGranted == 2, "growing requirement uses each new threshold");
     requireNear(insight.progress().currentInsight, 5.0, 1e-9,
                 "growing thresholds preserve the final remainder");
     requireNear(insight.progress().requiredInsight, 120.0, 1e-9,
@@ -176,7 +176,7 @@ void simulationProgressionStateRoundTripsAndResets() {
     state.skillTree.points = 2;
     state.insight.progress.currentInsight = 47.5;
     state.insight.progress.requiredInsight = 100.0;
-    state.insight.progress.totalTreePointsEarned = 2;
+    state.insight.progress.totalLevelsEarned = 2;
     state.insight.progress.totalInsightEarned = 247.5;
     state.insight.consumedEventIds = {45, 90};
     require(simulation.loadProgressionState(state),

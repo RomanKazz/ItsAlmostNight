@@ -1,5 +1,6 @@
 #pragma once
 
+#include "buildings/BuildingHotbarLayout.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "presentation/PresentationTypes.hpp"
 
@@ -20,9 +21,11 @@ struct HudViewState {
     std::span<const DamageIndicator> damageIndicators;
     std::string_view statusMessage;
     double statusMessageRemaining{};
-    ActionMode actionMode{ActionMode::Tools};
+    ActionMode actionMode{ActionMode::Equipment};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
+    BuildingHotbarCategory buildingHotbarCategory{
+        BuildingHotbarCategory::Base};
     float buildHotbarSelectionPosition{};
     float buildHotbarSelectionAlpha{};
     float foundationHotbarSelectionPosition{};
@@ -32,6 +35,7 @@ struct HudViewState {
     float informationExpansion{};
     bool mapOverlayOpen{};
     bool minimapHidden{};
+    bool showFps{};
     bool showCoreHealth{};
     bool showBuildingContextCard{};
     bool repairSweepActive{};

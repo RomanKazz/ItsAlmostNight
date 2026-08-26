@@ -109,6 +109,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .sourceId = shot.towerId,
             .buildingType = shot.type,
             .position = result->position,
+            .targetPosition = shot.hitPosition,
             .damage = result->damage,
             .intensity = fraction,
             .secondaryImpact = true,
@@ -170,11 +171,6 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
                 .position = hit.result.position,
             });
         }
-    }
-    if (state_ == RunState::Wave &&
-        enemies_.activeCount() == 0 &&
-        nextWaveSpawnIndex_ >= waveSpawnQueue_.size()) {
-        completeWave();
     }
 }
 

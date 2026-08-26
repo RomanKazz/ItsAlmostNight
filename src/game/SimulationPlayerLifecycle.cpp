@@ -243,8 +243,6 @@ Simulation::tutorialObjective() const {
         effectiveState == RunState::WaveComplete || wave_ > 1) {
         return std::nullopt;
     }
-    if (!introSkillObjectiveCompleted_ && !unlimitedResources_)
-        return TutorialObjective::BareHandsTraining;
     if (wave_ == 1) {
         return effectiveState == RunState::Wave
             ? std::optional<TutorialObjective>{
@@ -259,21 +257,6 @@ Simulation::tutorialObjective() const {
             return TutorialObjective::MineWood;
         }
         return TutorialObjective::PlaceCore;
-    }
-    const bool hasCrystalMine = std::any_of(
-        buildings_.buildings().begin(),
-        buildings_.buildings().end(),
-        [](const BuildingInstance& building) {
-            return building.type == BuildingType::CrystalMine;
-        });
-    if (!hasCrystalMine) {
-        if (!unlimitedResources_ &&
-            stone_ < buildings_
-                         .configuredCost(BuildingType::CrystalMine)
-                         .stone) {
-            return TutorialObjective::MineStone;
-        }
-        return TutorialObjective::BuildCrystalMine;
     }
     return TutorialObjective::PrepareForNight;
 }

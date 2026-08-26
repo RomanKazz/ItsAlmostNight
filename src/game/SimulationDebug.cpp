@@ -195,33 +195,22 @@ void Simulation::registerNailHit(
 void Simulation::processDebugCommands(
     const PlayerCommand& command) {
     if (command.enableUnlimitedResources) {
-        unlimitedResources_ = !unlimitedResources_;
-        playerInvulnerable_ = unlimitedResources_;
-        if (unlimitedResources_) {
-            playerHealth_ = playerPermanentMaxHealth() +
-                playerTemporaryHealth_;
+        if (sandboxMode_) {
+            unlimitedResources_ = true;
+            playerInvulnerable_ = true;
         } else {
-            clampResourcesToCapacity();
-            const PlayerWeapon selected =
-                playerWeapons_.selectedWeapon();
-            const bool stillUnlocked =
-                selected == PlayerWeapon::BareHands ||
-                (selected == PlayerWeapon::Axe &&
-                 skillTree_.hasEffect("unlock.axe")) ||
-                (selected == PlayerWeapon::Pickaxe &&
-                 skillTree_.hasEffect("unlock.pickaxe")) ||
-                (selected == PlayerWeapon::Club &&
-                 skillTree_.hasEffect("unlock.club")) ||
-                (selected == PlayerWeapon::IceWand &&
-                 skillTree_.hasEffect("unlock.ice_wand")) ||
-                (selected == PlayerWeapon::FireWand &&
-                 skillTree_.hasEffect("unlock.fire_wand")) ||
-                (selected == PlayerWeapon::Hammer &&
-                 skillTree_.hasEffect("unlock.hammer")) ||
-                (selected == PlayerWeapon::Rifle &&
-                 skillTree_.hasEffect("unlock.rifle"));
-            if (!stillUnlocked) {
-                playerWeapons_.selectWeapon(PlayerWeapon::BareHands);
+            unlimitedResources_ = !unlimitedResources_;
+            playerInvulnerable_ = unlimitedResources_;
+            if (unlimitedResources_) {
+                playerHealth_ = playerPermanentMaxHealth() +
+                    playerTemporaryHealth_;
+            } else {
+                clampResourcesToCapacity();
+                const PlayerWeapon selected =
+                    playerWeapons_.selectedWeapon();
+                if (!playerWeaponUnlocked(selected)) {
+                    playerWeapons_.selectWeapon(PlayerWeapon::Axe);
+                }
             }
         }
     }
@@ -350,43 +339,7 @@ void Simulation::processDebugCommands(
     }
     if (command.selectWeapon) {
         const PlayerWeapon weapon = command.selectWeapon->weapon;
-        bool unlocked = weapon == PlayerWeapon::BareHands;
-        switch (weapon) {
-        case PlayerWeapon::BareHands: break;
-        case PlayerWeapon::Axe:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.axe");
-            break;
-        case PlayerWeapon::Pickaxe:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.pickaxe");
-            break;
-        case PlayerWeapon::Club:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.club");
-            break;
-        case PlayerWeapon::IceWand:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.ice_wand");
-            break;
-        case PlayerWeapon::FireWand:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.fire_wand");
-            break;
-        case PlayerWeapon::Hammer:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.hammer");
-            break;
-        case PlayerWeapon::Rifle:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.rifle");
-            break;
-        case PlayerWeapon::Bomb:
-            unlocked = unlimitedResources_ ||
-                skillTree_.hasEffect("unlock.bombs");
-            break;
-        }
-        if (unlocked) {
+        if (playerWeaponUnlocked(weapon)) {
             playerWeapons_.selectWeapon(weapon);
             selectedBuilding_.reset();
             buildingPreview_.reset();
@@ -443,6 +396,7 @@ void Simulation::processDebugCommands(
         enemies_.activeCount() > 0) {
         if (state_ == RunState::Wave) {
             nextWaveSpawnIndex_ = waveSpawnQueue_.size();
+            forceWaveCompletion_ = true;
         }
         enemies_.defeatAll();
         // The debug wave-clear command must not turn every volatile elite

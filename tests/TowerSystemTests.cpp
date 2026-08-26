@@ -169,6 +169,32 @@ void runTowerSystemTests() {
     require(muzzles[0] == 0 && muzzles[1] == 1,
             "gun turret must alternate authored muzzle sockets");
 
+    ian::EnemySystem twinBatteryEnemies;
+    constexpr std::array<ian::EnemySpawn, 3> TwinBatterySpawn{{
+        {.type = ian::EnemyType::Basic,
+         .position = {0.0, 0.0, -8.0}},
+        {.type = ian::EnemyType::Basic,
+         .position = {-1.8, 0.0, -8.0}},
+        {.type = ian::EnemyType::Basic,
+         .position = {1.8, 0.0, -8.0}},
+    }};
+    twinBatteryEnemies.spawnWave(TwinBatterySpawn);
+    ian::TowerSystem twinBatteryTowers;
+    twinBatteryTowers.setSkillModifiers(
+        1.0, 1.0, 1.0, 1.0, 1);
+    twinBatteryTowers.syncBuildings(gunBuildings.buildings());
+    std::span<const ian::TowerShot> twinShots;
+    for (int tick = 0; tick < 120 && twinShots.empty(); ++tick) {
+        twinShots = twinBatteryTowers.tick(
+            1.0 / 60.0, gunBuildings.buildings(),
+            twinBatteryEnemies);
+    }
+    require(
+        twinShots.size() == 2U &&
+            twinShots[0].targetId != twinShots[1].targetId &&
+            !twinShots[1].secondaryImpact,
+        "Twin Batteries creates a visible shot toward another target");
+
     ian::EnemySystem flyingGunEnemies;
     flyingGunEnemies.spawnWave(FlyingSpawn);
     ian::TowerSystem antiAirRestrictedGun;

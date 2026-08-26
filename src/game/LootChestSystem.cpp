@@ -732,9 +732,9 @@ const char* lootUpgradeDescription(LootUpgradeEffect effect) {
     case LootUpgradeEffect::Potion:
         return "Below 35% HP: Berserk with speed and lifesteal; stacks extend duration";
     case LootUpgradeEffect::Blueprint:
-        return "First building of each type grants Insight; retroactive";
+        return "First building of each type grants XP; retroactive";
     case LootUpgradeEffect::Hourglass:
-        return "Early night converts remaining time into Coins and Insight";
+        return "Early night converts remaining time into Coins and XP";
     case LootUpgradeEffect::Rope:
         return "Reduces fall damage; consumes one to prevent a fatal fall";
     case LootUpgradeEffect::Magnet:

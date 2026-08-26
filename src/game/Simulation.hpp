@@ -43,7 +43,7 @@ struct StartWaveEarlyCommand {};
 struct EnableUnlimitedResourcesCommand {};
 struct ToggleWeaponCommand {};
 struct SelectWeaponCommand {
-    PlayerWeapon weapon{PlayerWeapon::BareHands};
+    PlayerWeapon weapon{PlayerWeapon::Axe};
 };
 struct UpgradeWeaponCommand {};
 struct UseConsumableCommand {};
@@ -196,11 +196,8 @@ struct WorldLandmarkInstance {
 };
 
 enum class TutorialObjective {
-    BareHandsTraining,
     MineWood,
     PlaceCore,
-    MineStone,
-    BuildCrystalMine,
     PrepareForNight,
     SurviveFirstWave,
 };
@@ -229,6 +226,7 @@ struct RunCombatStatistics {
 
 struct SimulationSnapshot {
     RunState state;
+    bool sandboxMode{};
     PlayerClass playerClass{PlayerClass::None};
     std::uint64_t tick;
     double elapsedSeconds;
@@ -381,21 +379,17 @@ struct SimulationSnapshot {
     int chestRevealCoinCost;
     int waveCompletionReward;
     int tutorialWoodTarget;
-    int tutorialStoneTarget;
     std::optional<TutorialObjective> tutorialObjective;
     int skillPoints;
+    int playerLevel;
     double currentInsight;
     double requiredInsight;
     double totalInsightEarned;
-    int totalTreePointsEarned;
     std::span<const ObjectiveStatus> objectives;
     std::array<int, 3> recommendedObjectives;
-    int bareHandsWoodGathered;
-    int bareHandsStoneGathered;
-    bool introSkillObjectiveCompleted;
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
-    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
     int runUpgradeSelectionsRemaining{};
@@ -431,7 +425,7 @@ struct SuspendedRunState {
     int crystals{};
     int coins{};
     int bombs{};
-    PlayerWeapon selectedWeapon{PlayerWeapon::BareHands};
+    PlayerWeapon selectedWeapon{PlayerWeapon::Axe};
     int rifleLevel{1};
     SkillTreeRunState skillTree;
     std::array<int, LootUpgradeEffectCount> lootStacks{};
@@ -482,7 +476,7 @@ struct SuspendedRunState {
     ObjectiveRunState objectives;
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
-    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
     int runUpgradeSelectionsRemaining{};
     std::uint32_t runUpgradeOfferGeneration{};
@@ -512,6 +506,7 @@ class Simulation {
                             ObjectiveSystem::defaultDefinitions());
 
     void startRun(PlayerClass playerClass = PlayerClass::None);
+    void startSandboxRun(PlayerClass playerClass = PlayerClass::None);
     void startRunFromSeed(PlayerClass playerClass, std::uint32_t terrainSeed);
     void restartRun();
     void returnToMainMenu();
@@ -575,8 +570,12 @@ class Simulation {
     void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
     [[nodiscard]] const SkillTree& skillTree() const;
-    [[nodiscard]] SkillPurchaseError purchaseSkill(std::size_t index);
+    [[nodiscard]] SkillPurchaseError purchaseSkill(
+        std::size_t index, bool spendPoints = true,
+        bool progressionCard = false);
     void grantSkillPoints(int amount, SkillPointSource source);
+    [[nodiscard]] bool grantSandboxProgressionCard(
+        ProgressionCardId card);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
     [[nodiscard]] bool lockRunUpgrade(std::size_t choiceIndex);
@@ -639,6 +638,7 @@ class Simulation {
         BuildingType type, GridPosition position,
         std::optional<double> preferredHeight) const;
     [[nodiscard]] bool buildingUnlocked(BuildingType type) const;
+    [[nodiscard]] bool playerWeaponUnlocked(PlayerWeapon weapon) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,
                      GridPosition position) const;
@@ -682,6 +682,7 @@ class Simulation {
                      double damageScale = 1.0);
     void beginPreparedWave();
     [[nodiscard]] bool beginNextFinalNightWave();
+    void refillWaveSpawnQueue();
     void tickWaveSpawning(double deltaSeconds);
     void completeWave();
     void cycleUnlockedTool();
@@ -737,8 +738,10 @@ class Simulation {
         int blueprintStackOrdinal);
     void refreshSkillRuntimeEffects();
     void grantPlayerClassStartingNodes();
-    void prepareRunUpgradeChoices();
+    void prepareRunUpgradeChoices(int selections = 1);
     void generateRunUpgradeChoices();
+    [[nodiscard]] bool applyRunUpgradeEffect(
+        RunUpgradeEffect effect);
     void processRunUpgradeCombatEffects(std::size_t firstGameplayEvent);
     void salvageDestroyedBuilding(BuildingType type, Vec3 position);
     void salvageDestroyedModularBuilding(
@@ -747,6 +750,7 @@ class Simulation {
     [[nodiscard]] std::uint32_t nextRunTerrainSeed();
 
     RunState state_{RunState::MainMenu};
+    bool sandboxMode_{};
     PlayerClass playerClass_{PlayerClass::None};
     RunState stateBeforePause_{RunState::Gathering};
     std::uint64_t tick_{};
@@ -881,9 +885,14 @@ class Simulation {
     int waveSpawnGroupSize_{1};
     double waveSpawnInterval_{1.0};
     double waveSpawnTimeRemaining_{};
+    std::size_t waveSpawnGroupsDue_{};
+    std::uint32_t waveSpawnCycle_{};
+    double waveHealthScale_{1.0};
+    double waveDamageScale_{1.0};
     std::optional<AttackDirection> upcomingAttackDirection_;
     std::array<bool, 4> upcomingAttackDirections_{};
     bool currentWaveHasBoss_{};
+    bool forceWaveCompletion_{};
     bool stageCleared_{};
     bool finalNight_{};
     std::unique_ptr<SuspendedRunState> waveStartCheckpoint_;
@@ -918,7 +927,7 @@ class Simulation {
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     bool runUpgradeChoicePending_{};
     std::size_t runUpgradeChoiceCount_{};
-    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
+    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
         runUpgradeChoices_{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks_{};
     int runNightlyBombBonus_{};

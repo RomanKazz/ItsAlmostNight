@@ -5,6 +5,7 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <span>
+#include <optional>
 #include <vector>
 
 namespace ian {
@@ -21,7 +22,8 @@ struct MapObstacle;
     double worldLimit,
     const TerrainHeightfield& terrain,
     std::span<const MapObstacle> obstacles = {},
-    std::uint32_t layoutSeed = 0U);
+    std::uint32_t layoutSeed = 0U,
+    std::optional<Vec3> playerSpawn = std::nullopt);
 
 [[nodiscard]] Vec3 resourceImpactPosition(
     std::span<const ResourceNode> nodes, EntityId id,

@@ -28,11 +28,9 @@ void runPresentationTimelineTests() {
         "completed point timeline cannot lose its notification");
 
     require(
-        ian::actionModeUsesEquipment(ian::ActionMode::Tools) &&
-            ian::actionModeUsesEquipment(ian::ActionMode::Weapons) &&
-            !ian::actionModeUsesEquipment(ian::ActionMode::Buildings) &&
-            !ian::actionModeUsesEquipment(ian::ActionMode::Modular),
-        "construction modes never expose equipped viewmodels");
+        ian::actionModeUsesEquipment(ian::ActionMode::Equipment) &&
+            !ian::actionModeUsesEquipment(ian::ActionMode::Buildings),
+        "only the unified equipment mode exposes viewmodels");
 
     std::vector<TimedVisual> visuals{
         {.id = 1, .remaining = 0.5},

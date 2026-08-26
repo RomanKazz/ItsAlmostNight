@@ -121,7 +121,17 @@ void App::addEffect(PresentationEffectType type, Vec3 position,
                     double startDelay) {
     constexpr std::size_t MaxEffects = 128;
     if (effects_.size() >= MaxEffects) {
-        effects_.erase(effects_.begin());
+        const auto disposableImpact = std::find_if(
+            effects_.begin(), effects_.end(),
+            [](const PresentationEffect& effect) {
+                return effect.type == PresentationEffectType::Hit ||
+                    effect.type ==
+                        PresentationEffectType::EnemyHitImpact;
+            });
+        // High-volume hit flashes may replace one another, but must not evict
+        // an explosion, loot pickup, building cue, or other rare feedback.
+        effects_.erase(disposableImpact != effects_.end()
+            ? disposableImpact : effects_.begin());
     }
     effects_.push_back({
         .type = type,

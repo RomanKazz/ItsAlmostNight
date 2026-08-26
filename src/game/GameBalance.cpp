@@ -314,6 +314,8 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
             "resourceGatherRange",
             value.at("pickaxeRange").get<double>()),
         .pickaxeDamage = value.at("pickaxeDamage").get<double>(),
+        .resourceToolDamageMultiplier =
+            value.value("resourceToolDamageMultiplier", 0.65),
         .pickaxeDamageVariation =
             value.value("pickaxeDamageVariation", 0.2),
         .pickaxeCriticalChance =
@@ -326,6 +328,8 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .firstBuildPhaseSeconds = value.at("firstBuildPhaseSeconds").get<double>(),
         .betweenWaveSeconds = value.at("betweenWaveSeconds").get<double>(),
         .sunsetSeconds = value.at("sunsetSeconds").get<double>(),
+        .nightDurationSeconds =
+            value.value("nightDurationSeconds", 90.0),
         .dawnSeconds = value.at("dawnSeconds").get<double>(),
         .minimumPlacementDistance = value.at("minimumPlacementDistance").get<double>(),
         .maximumPlacementDistance = value.at("maximumPlacementDistance").get<double>(),
@@ -346,6 +350,8 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.pickaxeRange <= 0.0 ||
         definition.resourceGatherRange <= 0.0 ||
         definition.pickaxeDamage <= 0.0 ||
+        definition.resourceToolDamageMultiplier <= 0.0 ||
+        definition.resourceToolDamageMultiplier > 1.0 ||
         definition.pickaxeDamageVariation < 0.0 ||
         definition.pickaxeDamageVariation >= 1.0 ||
         definition.pickaxeCriticalChance < 0.0 ||
@@ -357,6 +363,7 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.pickaxeWoodEfficiency > 1.0 ||
         definition.firstBuildPhaseSeconds <= 0.0 ||
         definition.betweenWaveSeconds <= 0.0 || definition.sunsetSeconds <= 0.0 ||
+        definition.nightDurationSeconds <= 0.0 ||
         definition.dawnSeconds <= 0.0 || definition.minimumPlacementDistance <= 0.0 ||
         definition.maximumPlacementDistance < definition.minimumPlacementDistance) {
         throw std::runtime_error("invalid gameplay definition");
@@ -440,8 +447,8 @@ GameBalance GameBalance::defaults() {
         },
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
-                     1.0, 0.2, 0.15, 0.45, 0.25, 0.30,
-                     120.0, 45.0, 6.0, 5.0, 1.0, 10.0},
+                     1.0, 0.65, 0.2, 0.15, 0.45, 0.25, 0.30,
+                     60.0, 45.0, 6.0, 90.0, 5.0, 1.0, 10.0},
     };
 }
 

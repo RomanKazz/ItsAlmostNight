@@ -48,7 +48,8 @@ class TrapSystem {
 
     void reset();
     void setSkillModifiers(double damage, double radius,
-                           double fireRate, double highGroundDamage);
+                           double fireRate, double highGroundDamage,
+                           double reactiveShockDamage = 0.0);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TrapActivation> tick(double deltaSeconds,
                                          const std::vector<BuildingInstance>& buildings,
@@ -64,6 +65,7 @@ class TrapSystem {
     double radiusMultiplier_{1.0};
     double fireRateMultiplier_{1.0};
     double highGroundDamageMultiplier_{1.0};
+    double reactiveShockDamage_{};
 };
 
 } // namespace ian

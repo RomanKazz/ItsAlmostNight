@@ -26,7 +26,7 @@ std::vector<ResourceNodeDefinition> defaultDefinitions() {
         {ResourceType::Stone, {3.0, 0.8, 4.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {8.0, 0.8, -1.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {-6.0, 0.8, -5.0}, 0.9, 4.0, 12, 15.0},
-        {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 8, 28.0},
+        {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 10, 28.0},
     };
 }
 

@@ -33,6 +33,11 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     waveSpawnQueue_.assign(plan.spawns.begin(), plan.spawns.end());
     healthScale = std::max(0.05, healthScale);
     damageScale = std::max(0.05, damageScale);
+    waveHealthScale_ = healthScale;
+    waveDamageScale_ = damageScale;
+    waveSpawnCycle_ = 0U;
+    waveSpawnGroupsDue_ = 0U;
+    forceWaveCompletion_ = false;
     for (EnemySpawn& spawn : waveSpawnQueue_) {
         spawn.healthMultiplier *= healthScale;
         spawn.damageMultiplier *= damageScale;
@@ -78,34 +83,83 @@ void Simulation::beginPreparedWave() {
     enemies_.spawnWave(
         std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
+    waveSpawnGroupsDue_ = 0U;
+}
+
+void Simulation::refillWaveSpawnQueue() {
+    const auto core = buildings_.core();
+    if (!core || map_.enemySpawnAnchors.empty()) return;
+
+    ++waveSpawnCycle_;
+    const std::size_t anchor =
+        (static_cast<std::size_t>(std::max(1, wave_)) +
+         static_cast<std::size_t>(waveSpawnCycle_) * 3U) %
+        map_.enemySpawnAnchors.size();
+    const WavePlan plan = waveDirector_.buildWave(
+        wave_, core->gridPosition, anchor);
+    waveSpawnQueue_.clear();
+    waveSpawnQueue_.reserve(plan.spawns.size());
+    const double riskyHealth = 1.0 +
+        0.25 * static_cast<double>(riskyInvestmentActive_);
+    const double riskyDamage = 1.0 +
+        0.15 * static_cast<double>(riskyInvestmentActive_);
+    for (EnemySpawn spawn : plan.spawns) {
+        // Bosses appear once per night. Later batches remain endless but use
+        // regular and elite enemies only.
+        if (spawn.type == EnemyType::Boss) continue;
+        spawn.healthMultiplier *= waveHealthScale_ * riskyHealth;
+        spawn.damageMultiplier *= waveDamageScale_ * riskyDamage;
+        waveSpawnQueue_.push_back(spawn);
+    }
+    if (waveSpawnQueue_.size() > 1U) {
+        const std::size_t offset =
+            (static_cast<std::size_t>(waveSpawnCycle_) * 7U +
+             static_cast<std::size_t>(std::max(1, wave_)) * 5U) %
+            waveSpawnQueue_.size();
+        std::rotate(
+            waveSpawnQueue_.begin(),
+            waveSpawnQueue_.begin() +
+                static_cast<std::ptrdiff_t>(offset),
+            waveSpawnQueue_.end());
+    }
+    nextWaveSpawnIndex_ = 0U;
 }
 
 void Simulation::tickWaveSpawning(double deltaSeconds) {
-    if (nextWaveSpawnIndex_ >= waveSpawnQueue_.size()) {
-        return;
-    }
+    constexpr std::size_t TechnicalActiveEnemyLimit = 240U;
+    constexpr std::size_t MaximumSpawnBacklog = 4096U;
     waveSpawnTimeRemaining_ -= deltaSeconds;
-    while (waveSpawnTimeRemaining_ <= 0.0 &&
-           nextWaveSpawnIndex_ < waveSpawnQueue_.size()) {
-        const std::size_t active = enemies_.activeCount();
-        if (active >= MaximumActiveEnemies) {
-            return;
+    // The timetable advances regardless of how quickly the base kills. A
+    // strong defense therefore cannot trigger extra groups, and a weak one
+    // cannot slow the director down by leaving enemies alive.
+    while (waveSpawnTimeRemaining_ <= 0.0) {
+        waveSpawnGroupsDue_ = std::min(
+            MaximumSpawnBacklog, waveSpawnGroupsDue_ + 1U);
+        waveSpawnTimeRemaining_ += waveSpawnInterval_;
+    }
+
+    while (waveSpawnGroupsDue_ > 0U) {
+        if (nextWaveSpawnIndex_ >= waveSpawnQueue_.size()) {
+            refillWaveSpawnQueue();
+            if (waveSpawnQueue_.empty()) return;
         }
+        const std::size_t active = enemies_.activeCount();
         const std::size_t remaining =
             waveSpawnQueue_.size() - nextWaveSpawnIndex_;
-        const std::size_t groupSize = std::min({
+        const std::size_t groupSize = std::min(
             static_cast<std::size_t>(waveSpawnGroupSize_),
-            remaining, MaximumActiveEnemies - active});
+            remaining);
+        const std::size_t technicalLimit = std::min(
+            MaximumActiveEnemies, TechnicalActiveEnemyLimit);
+        if (groupSize == 0U || active + groupSize > technicalLimit) {
+            // Keep the scheduled group in the backlog. This guard exists only
+            // to protect frame time during pathological accumulation.
+            return;
+        }
         enemies_.spawnGroup(std::span<const EnemySpawn>{
             waveSpawnQueue_.data() + nextWaveSpawnIndex_, groupSize});
         nextWaveSpawnIndex_ += groupSize;
-        if (groupSize <
-            std::min(static_cast<std::size_t>(waveSpawnGroupSize_),
-                     remaining)) {
-            waveSpawnTimeRemaining_ = 0.0;
-            return;
-        }
-        waveSpawnTimeRemaining_ += waveSpawnInterval_;
+        --waveSpawnGroupsDue_;
     }
 }
 
@@ -119,6 +173,8 @@ void Simulation::completeWave() {
     fireWand_.clearProjectiles();
     waveSpawnQueue_.clear();
     nextWaveSpawnIndex_ = 0;
+    waveSpawnGroupsDue_ = 0U;
+    waveSpawnCycle_ = 0U;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
     int nightlyChests = static_cast<int>(std::lround(
@@ -184,7 +240,7 @@ void Simulation::completeWave() {
         .type = GameEventType::WaveRewardGranted,
         .amount = reward,
     });
-    if (!stageCleared_ && completedBossWave &&
+    if (!sandboxMode_ && !stageCleared_ && completedBossWave &&
         wave_ == StageClearWave) {
         stageCleared_ = true;
         state_ = RunState::StageClear;
@@ -221,7 +277,6 @@ void Simulation::completeWave() {
     state_ = RunState::WaveComplete;
     phaseTimeRemaining_ = gameplay_.dawnSeconds;
     phaseDuration_ = phaseTimeRemaining_;
-    prepareRunUpgradeChoices();
 }
 
 bool Simulation::beginNextFinalNightWave() {

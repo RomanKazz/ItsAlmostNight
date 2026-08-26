@@ -10,20 +10,66 @@ void runBuildingSystemTests() {
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
     unlocked[static_cast<std::size_t>(ian::BuildingType::Wall)] = true;
     unlocked[static_cast<std::size_t>(ian::BuildingType::GunTurret)] = true;
-    auto hotbar = ian::makeBuildingHotbarLayout(unlocked);
+    auto hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Base,
+        true, 1);
     require(
-        hotbar.count == ian::GameBalance::BuildingTypeCount &&
-            hotbar.types[0] == ian::BuildingType::Core &&
-            hotbar.types[1] == ian::BuildingType::Wall &&
-            hotbar.types[2] == ian::BuildingType::GunTurret &&
-            hotbar.types[3] == ian::BuildingType::Turret,
-        "locked buildings keep permanent visible slots");
+        hotbar.count == 1U &&
+            hotbar.types[0] == ian::BuildingType::Wall,
+        "building hotbar only shows unlocked buildings in its category");
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Defense,
+        true, 1);
+    require(
+        hotbar.count == 1U &&
+            hotbar.types[0] == ian::BuildingType::GunTurret,
+        "defense category is compact and independent from base buildings");
     unlocked[static_cast<std::size_t>(ian::BuildingType::Turret)] = true;
-    hotbar = ian::makeBuildingHotbarLayout(unlocked);
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Defense,
+        true, 2);
     require(
-        hotbar.count == ian::GameBalance::BuildingTypeCount &&
-            hotbar.types[3] == ian::BuildingType::Turret,
-        "unlocking a building does not move hotbar slots");
+        hotbar.count == 2U &&
+            hotbar.types[0] == ian::BuildingType::GunTurret &&
+            hotbar.types[1] == ian::BuildingType::Turret,
+        "new defense unlock appears at the end of the compact category");
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Economy,
+        false, 0);
+    require(
+        hotbar.count == 1U &&
+            hotbar.types[0] == ian::BuildingType::Core,
+        "only the core is visible before the core is placed");
+    unlocked[static_cast<std::size_t>(
+        ian::BuildingType::WoodStorage)] = true;
+    unlocked[static_cast<std::size_t>(
+        ian::BuildingType::StoneStorage)] = true;
+    unlocked[static_cast<std::size_t>(
+        ian::BuildingType::CrystalStorage)] = true;
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Economy,
+        true, 8);
+    require(
+        hotbar.count == 0U,
+        "legacy storage buildings never return to the build catalog");
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Economy,
+        true, 1, true);
+    require(
+        hotbar.count == 3U &&
+            hotbar.types[0] == ian::BuildingType::WoodStorage &&
+            hotbar.types[1] == ian::BuildingType::StoneStorage &&
+            hotbar.types[2] == ian::BuildingType::CrystalStorage,
+        "sandbox catalog exposes legacy storage buildings for testing");
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Modular,
+        true, 8);
+    require(
+        hotbar.count == 0U &&
+            ian::BuildingHotbarCategoryCount == 4U &&
+            ian::buildingHotbarCategoryName(
+                ian::BuildingHotbarCategory::Modular) == "MODULAR",
+        "modular construction is a dedicated building category");
 
     ian::BuildingSystem radiusBuildings;
     radiusBuildings.setCoreBuildRadius(5);

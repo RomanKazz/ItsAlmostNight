@@ -471,6 +471,10 @@ void AudioSystem::playEvent(
         play(waveWarning_, 0.92F, 0.72F);
         break;
     case GameEventType::InsightGranted:
+        if (event.levelsGranted > 0) {
+            play(upgrade_, 0.86F, 1.12F);
+            play(uiConfirm_, 0.48F, 1.26F);
+        }
         break;
     case GameEventType::ChestOpened:
         play(gate_, 0.62F, 0.78F);

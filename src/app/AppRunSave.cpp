@@ -56,6 +56,22 @@ bool readFixedArray(const Json& document, std::string_view key,
     return true;
 }
 
+template <typename T, std::size_t Size>
+bool readExpandableFixedArray(
+    const Json& document, std::string_view key,
+    std::array<T, Size>& destination) {
+    const auto iterator = document.find(key);
+    if (iterator == document.end() || !iterator->is_array() ||
+        iterator->size() > Size) {
+        return false;
+    }
+    destination.fill(T{});
+    for (std::size_t index = 0; index < iterator->size(); ++index) {
+        destination[index] = iterator->at(index).get<T>();
+    }
+    return true;
+}
+
 Json buildingJson(const BuildingInstance& building) {
     return {
         {"idIndex", building.id.index},
@@ -375,7 +391,7 @@ Json insightJson(const InsightRunState& insight) {
         {"progress", {
             {"current", insight.progress.currentInsight},
             {"required", insight.progress.requiredInsight},
-            {"treePoints", insight.progress.totalTreePointsEarned},
+            {"treePoints", insight.progress.totalLevelsEarned},
             {"total", insight.progress.totalInsightEarned},
         }},
         {"cycleBaseEarned", insight.cycleBaseEarned},
@@ -392,7 +408,7 @@ InsightRunState readInsight(const Json& value) {
     insight.progress = {
         .currentInsight = progress.at("current").get<double>(),
         .requiredInsight = progress.at("required").get<double>(),
-        .totalTreePointsEarned = progress.at("treePoints").get<int>(),
+        .totalLevelsEarned = progress.at("treePoints").get<int>(),
         .totalInsightEarned = progress.at("total").get<double>(),
     };
     if (!readFixedArray(value, "cycleBaseEarned", insight.cycleBaseEarned) ||
@@ -521,8 +537,8 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         landmarks.push_back(worldLandmarkJson(landmark));
     }
     Json upgradeChoices = Json::array();
-    for (const RunUpgradeEffect choice : saved.runUpgradeChoices) {
-        upgradeChoices.push_back(static_cast<int>(choice));
+    for (const ProgressionCardId choice : saved.runUpgradeChoices) {
+        upgradeChoices.push_back(choice);
     }
     return {
         {"version", SuspendedRunVersion},
@@ -668,8 +684,9 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.skillTree.unlockedNodeIds =
         document.at("unlockedNodeIds").get<std::vector<std::string>>();
     if (!readFixedArray(document, "lootStacks", saved.lootStacks) ||
-        !readFixedArray(document, "runUpgradeStacks",
-                        saved.runUpgradeStacks) ||
+        !readExpandableFixedArray(
+            document, "runUpgradeStacks",
+            saved.runUpgradeStacks) ||
         !readFixedArray(document, "buildingBlueprintLevels",
                         saved.buildingBlueprintLevels)) {
         throw Json::type_error::create(302, "invalid checkpoint array", &document);
@@ -855,7 +872,8 @@ bool replaceSuspendedRunFile(
 bool App::saveSuspendedRun() {
     const SimulationSnapshot& snapshot = simulation_.snapshot();
     const RunState state = snapshot.state;
-    if (state == RunState::MainMenu || state == RunState::Victory ||
+    if (snapshot.sandboxMode ||
+        state == RunState::MainMenu || state == RunState::Victory ||
         state == RunState::Defeat ||
         snapshot.playerClass == PlayerClass::None) {
         return false;
@@ -929,6 +947,7 @@ bool App::loadSuspendedRun() {
         selectedPlayerClass_ = saved.playerClass;
         fixedStep_.reset();
         resetRunInputState();
+        resetEquipmentActionMode(simulation_.snapshot());
         if (terrainGraphicsAlreadyMatch) {
             refreshDecorationExclusions(simulation_.snapshot());
         } else {

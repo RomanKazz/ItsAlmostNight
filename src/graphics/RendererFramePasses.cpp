@@ -641,6 +641,13 @@ void Renderer::endFrame() {
     }
     performanceStats_.instancedEnemyDraw.sample(
         instancedEnemyMillisecondsThisFrame_);
+    // Submit the final UI batch before waiting so the GPU can finish it while
+    // the CPU approaches the presentation deadline.
+    rlDrawRenderBatchActive();
+    // Pace immediately before presenting. Waiting after EndDrawing() keeps
+    // frame starts regular but still exposes render-time variance as visible
+    // presentation jitter.
+    paceFrame();
     EndDrawing();
     frameOpen_ = false;
 }

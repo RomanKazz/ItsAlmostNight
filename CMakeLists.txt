@@ -195,7 +195,6 @@ add_library(ian_ui
     src/ui/HudMinimap.cpp
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
-    src/ui/SkillTreeScreen.cpp
     src/ui/TargetHealthBar.cpp
     src/ui/WorldBillboard.cpp
 )
@@ -227,7 +226,6 @@ add_executable(its_almost_night
     src/app/AppRenderPasses.cpp
     src/app/AppRender.cpp
     src/app/AppRenderSupport.cpp
-    src/app/AppSkillTree.cpp
     src/app/AppUpdate.cpp
     src/app/AppWorldOverlayEffects.cpp
     src/app/AppWorldEnemies.cpp

@@ -1,0 +1,15 @@
+Brackeys VFX Bundle
+
+All included assets are licensed under Creative Commons Zero (CC0).
+
+This project uses resized versions of these pre-drawn spritesheets:
+- big_hit_6x5.png
+- explosion_6x5.png
+- electric_ring_6x5.png
+
+Bundle repackaged and modified by Brackeys.
+Pre-drawn spritesheets by CodeManu:
+https://codemanu.itch.io/vfx-free-pack
+
+Original bundle credits also list particle textures by Picster and Kenney,
+and flipbooks by Thomas Iche. Those assets are not included here.

@@ -1,5 +1,6 @@
 #include "game/Simulation.hpp"
 
+#include "buildings/CoreProgression.hpp"
 #include "game/ResourceWorld.hpp"
 
 #include <algorithm>
@@ -10,6 +11,13 @@ namespace ian {
 namespace {
 
 constexpr double ResourcePlacementClearance = 0.08;
+
+bool modularBuildingUnlocked(
+    const BuildingSystem& buildings, bool unlimitedResources) {
+    if (unlimitedResources) return true;
+    const auto core = buildings.core();
+    return core && core->level >= ModularBuildingRequiredCoreLevel;
+}
 
 bool resourceOverlapsBox(
     std::span<const ResourceNode> nodes,
@@ -81,7 +89,8 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     resources_ = ResourceSystem(
         scatterResources(
             map_.resources, map_.worldLimit,
-            terrain_, map_.obstacles, terrain_.seed()),
+            terrain_, map_.obstacles, terrain_.seed(),
+            map_.playerSpawn),
         [this](double x, double z) {
             return terrain_.getHeight(x, z);
         },
@@ -174,6 +183,10 @@ PlatformFramePlacement Simulation::previewFoundation(
         placement.error =
             ModularPlacementError::InsufficientResources;
     }
+    if (placement.valid() &&
+        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        placement.error = ModularPlacementError::CoreLevelRequired;
+    }
     return placement;
 }
 
@@ -230,6 +243,10 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
             wood_, stone_, crystals_)) {
         placement.error =
             ModularPlacementError::InsufficientResources;
+    }
+    if (placement.valid() &&
+        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        placement.error = ModularPlacementError::CoreLevelRequired;
     }
     return placement;
 }
@@ -293,6 +310,10 @@ PlatformFramePlacement Simulation::previewFloorPlatform(
         foundations_.previewFloorPlatform(
             anchor, storey, floorHeight,
             playerPosition_);
+    if (placement.valid() &&
+        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        placement.error = ModularPlacementError::CoreLevelRequired;
+    }
     const double cellSize = worldConfig_.cellSize;
     const CollisionBox floorBox =
         platformFloorCollisionBox(placement, cellSize);
@@ -353,6 +374,10 @@ WallPlacement Simulation::previewWall(
     Vec3 terrainHit, Rotation rotation) const {
     WallPlacement placement = foundations_.previewWall(
         terrainHit, playerPosition_, rotation);
+    if (placement.valid() &&
+        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        placement.error = ModularPlacementError::CoreLevelRequired;
+    }
     const double cellSize = worldConfig_.cellSize;
     if (placement.valid() &&
         resourceOverlapsRectangle(
@@ -412,6 +437,10 @@ RampPlacement Simulation::previewRamp(
     Vec3 terrainHit, Rotation rotation) const {
     RampPlacement placement = foundations_.previewRamp(
         terrainHit, playerPosition_, rotation);
+    if (placement.valid() &&
+        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        placement.error = ModularPlacementError::CoreLevelRequired;
+    }
     const double cellSize = worldConfig_.cellSize;
     if (placement.valid()) {
         const auto rampBoxes = rampCollisionBoxes(

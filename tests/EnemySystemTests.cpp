@@ -689,8 +689,9 @@ void runEnemySystemTests() {
     require(
         splitterDeath && splitterDeath->killed &&
             splitterEnemies.activeCount() == 0 &&
+            splitterEnemies.hasPendingSplits() &&
             splitterEnemies.enemies().front().splitAnimationRemaining > 0.0,
-        "splitter death starts a readable split windup");
+        "splitter death remains wave-relevant during its split windup");
     require(
         splitterEnemies.takeSplitEvents().empty(),
         "split event waits until the windup finishes");
@@ -698,7 +699,8 @@ void runEnemySystemTests() {
         0.4, buildings.buildings(), flowField);
     const auto splitEvents = splitterEnemies.takeSplitEvents();
     require(
-        splitEvents.size() == 1U &&
+        !splitterEnemies.hasPendingSplits() &&
+            splitEvents.size() == 1U &&
             splitEvents.front().parentId == splitterId &&
             splitEvents.front().childCount == 3,
         "splitter emits one confirmed split event");

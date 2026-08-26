@@ -45,7 +45,7 @@ std::string introGatherRewardMessage(double insightReward) {
     return "Gathering objective complete: +" +
         std::to_string(static_cast<int>(std::lround(
             std::max(0.0, insightReward)))) +
-        " Insight";
+        " XP";
 }
 
 } // namespace ian

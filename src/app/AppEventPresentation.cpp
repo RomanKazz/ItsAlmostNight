@@ -181,7 +181,9 @@ void App::processPresentationEvents(
         if (enemyHit && event.entityId) {
             targetHealthBar_.notifyEnemyHit(*event.entityId);
             Vec3 sourcePosition = eventSnapshot.playerPosition;
-            if (event.type == GameEventType::ChainLightningHit) {
+            if (event.secondaryImpact && event.targetPosition) {
+                sourcePosition = *event.targetPosition;
+            } else if (event.type == GameEventType::ChainLightningHit) {
                 sourcePosition = event.position;
             } else if (event.sourceId) {
                 const auto source = std::find_if(
@@ -213,7 +215,7 @@ void App::processPresentationEvents(
                 variant = 3;
             } else if (event.type == GameEventType::ProjectileHit ||
                        event.type == GameEventType::CannonHit) {
-                variant = 4;
+                variant = event.secondaryImpact ? 5 : 4;
             }
             if (event.critical) {
                 variant |= 8;
@@ -236,7 +238,6 @@ void App::processPresentationEvents(
             event.type == GameEventType::RunRestarted) {
             displayedInsight_ = 0.0;
             insightPointSequenceRemaining_ = 0.0;
-            pendingInsightPointNotification_ = 0;
             lootDescriptionRemaining_ = 0.0;
             objectiveProgressCache_.clear();
             objectivePulseId_.clear();
@@ -249,16 +250,13 @@ void App::processPresentationEvents(
                     ? insightConfig.hudLargePulseSeconds
                     : insightConfig.hudSmallPulseSeconds);
             insightPulseRemaining_ = insightPulseDuration_;
-            if (event.treePointsGranted > 0) {
+            if (event.levelsGranted > 0) {
                 insightPointSequenceDuration_ = std::max(
                     0.05, insightConfig.hudPointSequenceSeconds);
                 insightPointSequenceRemaining_ = insightPointSequenceDuration_;
                 insightAnimationBefore_ = event.insightBefore;
                 insightAnimationAfter_ = event.insightAfter;
                 insightAnimationRequirement_ = event.insightRequirement;
-                insightAnimationPoints_ = event.treePointsGranted;
-                pendingInsightPointNotification_ +=
-                    event.treePointsGranted;
             }
         }
         if (event.type == GameEventType::ObjectiveCompleted && event.objectiveId) {
@@ -271,7 +269,7 @@ void App::processPresentationEvents(
                 ? objective->definition.title : *event.objectiveId;
             setStatusMessage("OBJECTIVE COMPLETE: " + title + "  +" +
                 std::to_string(static_cast<int>(std::lround(event.intensity))) +
-                " INSIGHT", 2.6);
+                " XP", 2.6);
         }
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
@@ -595,19 +593,58 @@ void App::processPresentationEvents(
                     deltaX * deltaX + deltaY * deltaY +
                     deltaZ * deltaZ);
                 const double duration =
-                    std::clamp(distance / (gunTurret ? 45.0 : 18.0),
-                               gunTurret ? 0.03 : 0.08,
-                               gunTurret ? 0.16 : 0.35);
+                    std::clamp(distance / (gunTurret ? 32.0 : 14.0),
+                               gunTurret ? 0.10 : 0.14,
+                               gunTurret ? 0.32 : 0.52);
+                constexpr std::size_t MaximumShotVisuals = 1024;
+                if (arrowVisuals_.size() < MaximumShotVisuals) {
+                    arrowVisuals_.push_back({
+                        .origin = origin,
+                        .target = projectileTarget,
+                        .direction = authoredDirection.value_or(Vec3{
+                            deltaX, deltaY, deltaZ}),
+                        .remaining = duration,
+                        .duration = duration,
+                        .turretBullet = gunTurret,
+                    });
+                }
+            }
+        } else if (event.type == GameEventType::ProjectileHit &&
+                   event.secondaryImpact && event.targetPosition) {
+            const Vec3 origin = *event.targetPosition;
+            Vec3 target = event.position;
+            if (event.entityId) {
+                if (const auto bounds = enemyBounds(*event.entityId)) {
+                    target.y =
+                        (static_cast<double>(bounds->min.y) +
+                         static_cast<double>(bounds->max.y)) * 0.5;
+                }
+            }
+            const double deltaX = target.x - origin.x;
+            const double deltaY = target.y - origin.y;
+            const double deltaZ = target.z - origin.z;
+            const double distance = std::sqrt(
+                deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+            constexpr std::size_t MaximumShotVisuals = 1024;
+            if (arrowVisuals_.size() < MaximumShotVisuals) {
+                const double duration = std::clamp(
+                    distance / 24.0, 0.10, 0.28);
                 arrowVisuals_.push_back({
                     .origin = origin,
-                    .target = projectileTarget,
-                    .direction = authoredDirection.value_or(Vec3{
-                        deltaX, deltaY, deltaZ}),
+                    .target = target,
+                    .direction = {deltaX, deltaY, deltaZ},
                     .remaining = duration,
                     .duration = duration,
-                    .turretBullet = gunTurret,
+                    .turretBullet = true,
                 });
             }
+        }
+        if (event.type == GameEventType::CannonFired &&
+            event.buildingType != BuildingType::Catapult) {
+            // The event position is the authored cannon muzzle.  This stays
+            // independent from particles so shots remain readable on Low.
+            addEffect(PresentationEffectType::Hit,
+                      event.position, 0.16, 1.55F);
         }
         if (event.type == GameEventType::ResourceHit) {
             addEffect(PresentationEffectType::Hit,
@@ -631,9 +668,7 @@ void App::processPresentationEvents(
             const Vec3 impactPosition = event.entityId
                 ? enemyImpactAnchor(*event.entityId, event.position)
                 : event.position;
-            if (event.type == GameEventType::TrapHit ||
-                (event.type == GameEventType::ProjectileHit &&
-                 event.sourceId)) {
+            if (event.type == GameEventType::TrapHit) {
                 addEffect(PresentationEffectType::Hit,
                           impactPosition, 0.18, 0.8F,
                           event.entityId);
@@ -744,9 +779,20 @@ void App::processPresentationEvents(
                 }
                 ++burnCount;
             }
-            addCameraShake(0.34, 0.055 + 0.17 * proximity);
-            addCameraImpulse({0.0, 0.035 * proximity,
-                              -0.025 * proximity});
+            // A cannon build can produce many explosions in the same frame.
+            // Keep one restrained nearby response, then allow the camera to
+            // settle before another explosion may shake it again.
+            if (proximity > 0.05 &&
+                explosionShakeCooldownRemaining_ <= 0.0) {
+                constexpr double ExplosionShakeCooldown = 0.28;
+                explosionShakeCooldownRemaining_ =
+                    ExplosionShakeCooldown;
+                addCameraShake(
+                    0.16, 0.008 + 0.022 * proximity);
+                addCameraImpulse({
+                    0.0, 0.012 * proximity,
+                    -0.008 * proximity});
+            }
         } else if (
             event.type == GameEventType::BuildingDestroyed ||
             event.type ==
@@ -1020,7 +1066,8 @@ void App::processPresentationEvents(
         }
         constexpr std::size_t MaxDestroyedEnemyVisuals =
             192U;
-        if (event.type == GameEventType::EnemyKilled &&
+        if ((event.type == GameEventType::EnemyKilled ||
+             event.type == GameEventType::EnemyBanished) &&
             event.entityId &&
             destroyedEnemyVisuals_.size() <
                 MaxDestroyedEnemyVisuals) {
@@ -1201,14 +1248,14 @@ void App::processPresentationEvents(
                 message += "  +" +
                     std::to_string(static_cast<int>(
                         std::lround(event.insightAmount))) +
-                    " Insight";
+                    " XP";
             }
         } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
             message = introGatherRewardMessage(
                 simulation_.insightSystem().config()
                     .introGatherObjective);
         } else if (event.type == GameEventType::SkillUnlocked) {
-            message = "Skill unlocked";
+            message = "Upgrade acquired";
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";
         } else if (event.type == GameEventType::ChestOpenRejected) {

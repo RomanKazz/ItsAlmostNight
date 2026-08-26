@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "app/AppRunUpgradeOverlay.hpp"
 #include "buildings/BuildingHotbarLayout.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -42,11 +43,37 @@ void App::update() {
         }
         pendingLootGrant_.reset();
     }
+    if (pendingSandboxCardGrant_) {
+        const bool granted = simulation_.grantSandboxProgressionCard(
+            *pendingSandboxCardGrant_);
+        statusMessage_ = granted
+            ? "SANDBOX CARD GRANTED"
+            : "CARD ALREADY ACTIVE";
+        statusMessageRemaining_ = 1.4;
+        if (granted) {
+            audio_.playUiConfirm();
+        } else {
+            audio_.playUiError();
+        }
+        pendingSandboxCardGrant_.reset();
+    }
     const auto& progressionSnapshot = simulation_.snapshot();
-    skillTree_.setUnlimitedPoints(progressionSnapshot.unlimitedResources);
-    skillTree_.setCoreLevel(progressionSnapshot.coreLevel);
-    skillTree_.setInsightProgress(progressionSnapshot.currentInsight,
-                                  progressionSnapshot.requiredInsight);
+    if (progressionSnapshot.runUpgradeChoicePending) {
+        runUpgradeOverlayEntranceSeconds_ = std::min(
+            1.5, runUpgradeOverlayEntranceSeconds_ + frameSeconds);
+        const auto hovered = hoveredRunUpgradeChoice(
+            progressionSnapshot, GetMousePosition());
+        const float hoverBlend = static_cast<float>(
+            1.0 - std::exp(-12.0 * frameSeconds));
+        for (std::size_t index = 0;
+             index < runUpgradeCardHoverAmounts_.size(); ++index) {
+            const float target = hovered && *hovered == index
+                ? 1.0F : 0.0F;
+            runUpgradeCardHoverAmounts_[index] +=
+                (target - runUpgradeCardHoverAmounts_[index]) *
+                hoverBlend;
+        }
+    }
     insightPulseRemaining_ = std::max(0.0, insightPulseRemaining_ - frameSeconds);
     insightPointSequenceRemaining_ = std::max(
         0.0, insightPointSequenceRemaining_ - frameSeconds);
@@ -69,16 +96,6 @@ void App::update() {
         presentation::timelineProgress(
             insightPointSequenceRemaining_,
             insightPointSequenceDuration_);
-    if (pendingInsightPointNotification_ > 0 &&
-        lootDescriptionRemaining_ <= 0.0 &&
-        insightPointProgress >= 0.35) {
-        statusMessage_ = pendingInsightPointNotification_ == 1
-            ? "SKILL POINT ACQUIRED — PRESS K"
-            : std::to_string(pendingInsightPointNotification_) +
-                  " SKILL POINTS ACQUIRED — PRESS K";
-        statusMessageRemaining_ = 3.0;
-        pendingInsightPointNotification_ = 0;
-    }
     if (insightPointSequenceRemaining_ > 0.0) {
         const double progress = insightPointProgress;
         if (progress < 0.35) {
@@ -92,30 +109,6 @@ void App::update() {
     } else {
         displayedInsight_ += (progressionSnapshot.currentInsight - displayedInsight_) *
             (1.0 - std::exp(-10.0 * frameSeconds));
-    }
-    if (const auto purchase = skillTree_.update(static_cast<float>(frameSeconds))) {
-        const PlayerWeapon weaponBeforePurchase =
-            simulation_.snapshot().selectedWeapon;
-        if (simulation_.purchaseSkill(*purchase) == SkillPurchaseError::None) {
-            audio_.playUiConfirm();
-            const auto& purchasedSnapshot = simulation_.snapshot();
-            if (purchasedSnapshot.selectedWeapon !=
-                weaponBeforePurchase) {
-                if (isPlayerTool(
-                        purchasedSnapshot.selectedWeapon)) {
-                    lastToolSelection_ =
-                        purchasedSnapshot.selectedWeapon;
-                } else {
-                    lastWeaponSelection_ =
-                        purchasedSnapshot.selectedWeapon;
-                }
-                selectActionMode(
-                    isPlayerTool(purchasedSnapshot.selectedWeapon)
-                        ? ActionMode::Tools
-                        : ActionMode::Weapons,
-                    purchasedSnapshot);
-            }
-        }
     }
     const auto& hotbarSnapshot = simulation_.snapshot();
     const bool lowHealthActive =
@@ -180,7 +173,11 @@ void App::update() {
                    static_cast<float>(frameSeconds));
     const BuildingHotbarLayout buildingLayout =
         makeBuildingHotbarLayout(
-            hotbarSnapshot.unlockedBuildings);
+            hotbarSnapshot.unlockedBuildings,
+            buildingHotbarCategory_,
+            hotbarSnapshot.coreMaxHealth > 0.0,
+            hotbarSnapshot.coreLevel,
+            hotbarSnapshot.sandboxMode);
     const BuildingType highlightedBuilding =
         hotbarSnapshot.selectedBuilding.value_or(
             lastBuildingSelection_);
@@ -195,29 +192,22 @@ void App::update() {
         (static_cast<float>(modularBuildPiece_) -
          foundationHotbarSelectionPosition_) *
         hotbarBlend;
-    const auto equipmentOrder = actionMode_ == ActionMode::Tools
-        ? std::span<const PlayerWeapon>{PlayerToolHotbarOrder}
-        : std::span<const PlayerWeapon>{PlayerCombatHotbarOrder};
-    const auto selectedEquipment = std::ranges::find(
-        equipmentOrder, hotbarSnapshot.selectedWeapon);
-    const float weaponTarget = selectedEquipment == equipmentOrder.end()
-        ? 0.0F
-        : static_cast<float>(std::distance(
-              equipmentOrder.begin(), selectedEquipment));
+    const float weaponTarget = static_cast<float>(
+        playerWeaponVisibleHotbarIndex(
+            hotbarSnapshot.selectedWeapon,
+            hotbarSnapshot.unlockedWeapons));
     weaponHotbarSelectionPosition_ +=
         (weaponTarget - weaponHotbarSelectionPosition_) *
         hotbarBlend;
     const float buildAlphaTarget =
-        actionMode_ == ActionMode::Buildings
+        actionMode_ == ActionMode::Buildings && !foundationBuildMode_
             ? 1.0F
             : 0.0F;
     const float foundationAlphaTarget =
-        actionMode_ == ActionMode::Modular ? 1.0F : 0.0F;
+        actionMode_ == ActionMode::Buildings && foundationBuildMode_
+            ? 1.0F : 0.0F;
     const float weaponAlphaTarget =
-        actionMode_ == ActionMode::Tools ||
-                actionMode_ == ActionMode::Weapons
-            ? 1.0F
-            : 0.0F;
+        actionMode_ == ActionMode::Equipment ? 1.0F : 0.0F;
     buildHotbarSelectionAlpha_ +=
         (buildAlphaTarget - buildHotbarSelectionAlpha_) *
         hotbarBlend;
@@ -230,7 +220,6 @@ void App::update() {
         hotbarBlend;
     const bool minimapHeld =
         hotbarSnapshot.state != RunState::MainMenu &&
-        !skillTree_.isOpen() &&
         !renderer_->graphicsPanelVisible() &&
         !IsKeyDown(KEY_LEFT_CONTROL) &&
         !IsKeyDown(KEY_RIGHT_CONTROL) &&
@@ -311,9 +300,11 @@ void App::update() {
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == ToolSettingsTab) {
         desiredToolVisual = toolPanelPreviewVisual_;
+    } else if (contextualHammerRemaining_ > 0.0) {
+        desiredToolVisual = FirstPersonToolVisual::Hammer;
     } else {
         switch (hotbarSnapshot.selectedWeapon) {
-        case PlayerWeapon::BareHands:
+        case PlayerWeapon::LegacyBareHands:
         case PlayerWeapon::Rifle:
             desiredToolVisual = FirstPersonToolVisual::None;
             break;
@@ -340,6 +331,8 @@ void App::update() {
             break;
         }
     }
+    contextualHammerRemaining_ = std::max(
+        0.0, contextualHammerRemaining_ - frameSeconds);
     if (!toolViewModelInitialized_) {
         // Establish the initial state without playing an equip animation as
         // the run or settings preview is first created.
@@ -384,6 +377,18 @@ void App::update() {
             toolSwapRemaining_ = toolSwapDuration_;
         }
     }
+    if (contextualHammerSwingPending_ &&
+        displayedToolVisual_ == FirstPersonToolVisual::Hammer &&
+        toolSwapRemaining_ <= 0.0 &&
+        toolSwingRemaining_ <= 0.0) {
+        toolSwingDuration_ = activeToolTuning().swingDuration;
+        toolSwingRemaining_ = toolSwingDuration_;
+        toolSwingAttackPending_ = false;
+        contextualHammerSwingPending_ = false;
+        contextualHammerRemaining_ = std::max(
+            contextualHammerRemaining_,
+            toolSwingDuration_ + 0.18);
+    }
     const bool queuedResourceStillTargeted =
         !toolQueuedResourceTarget_ ||
         (hotbarSnapshot.aimedResource ==
@@ -418,6 +423,7 @@ void App::update() {
     const SimulationSnapshot& movementSnapshot =
         simulation_.snapshot();
     const bool sprinting =
+        !movementSnapshot.runUpgradeChoicePending &&
         acceptsGameplayInput(
             movementSnapshot.state) &&
         input_.sprint &&
@@ -431,8 +437,10 @@ void App::update() {
         std::exp(
             -(movementSnapshot.dashing ? 24.0F : 7.5F) *
             static_cast<float>(frameSeconds));
-    cameraFov_ +=
-        (targetFov - cameraFov_) * fovBlend;
+    if (!movementSnapshot.runUpgradeChoicePending) {
+        cameraFov_ +=
+            (targetFov - cameraFov_) * fovBlend;
+    }
     buildingStatsUpgradeRemaining_ = std::max(
         0.0,
         buildingStatsUpgradeRemaining_ - frameSeconds);
@@ -444,7 +452,8 @@ void App::update() {
     }
     const RunState frameState = simulation_.snapshot().state;
     const double resourceAnimationSeconds =
-        acceptsGameplayInput(frameState)
+        !movementSnapshot.runUpgradeChoicePending &&
+                acceptsGameplayInput(frameState)
             ? (slowMotion_ ? frameSeconds * 0.2 : frameSeconds)
             : 0.0;
     statusMessageRemaining_ =
@@ -452,6 +461,8 @@ void App::update() {
     lootDescriptionRemaining_ =
         std::max(0.0, lootDescriptionRemaining_ - frameSeconds);
     cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
+    explosionShakeCooldownRemaining_ = std::max(
+        0.0, explosionShakeCooldownRemaining_ - frameSeconds);
     landingResponseRemaining_ = std::max(
         0.0, landingResponseRemaining_ - frameSeconds);
     playerDamageFlashRemaining_ =
@@ -738,7 +749,13 @@ void App::update() {
     recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
     refreshDecorationExclusions(eventSnapshot);
-    if (!groundCameraSmoothingInitialized_ ||
+    if (eventSnapshot.runUpgradeChoicePending) {
+        if (!groundCameraSmoothingInitialized_) {
+            smoothedGroundCameraY_ =
+                eventSnapshot.playerPosition.y;
+            groundCameraSmoothingInitialized_ = true;
+        }
+    } else if (!groundCameraSmoothingInitialized_ ||
         !eventSnapshot.playerGrounded ||
         !groundCameraWasGrounded_) {
         smoothedGroundCameraY_ =
@@ -902,6 +919,7 @@ void App::update() {
     cameraBobPreviousPosition_ =
         eventSnapshot.playerPosition;
     const bool canBob =
+        !eventSnapshot.runUpgradeChoicePending &&
         acceptsGameplayInput(eventSnapshot.state) &&
         eventSnapshot.playerGrounded &&
         bobDistance < 1.5;

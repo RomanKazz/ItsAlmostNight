@@ -92,30 +92,6 @@ void drawOutlinedTitle(
     });
 }
 
-void drawMenuBadge(
-    const MenuLayout& layout, Rectangle button, int amount) {
-    if (amount <= 0) {
-        return;
-    }
-    const float radius = 17.0F * layout.scale;
-    const Vector2 center{
-        button.x + button.width - 16.0F * layout.scale,
-        button.y + 12.0F * layout.scale,
-    };
-    DrawCircleV(center, radius + 3.0F * layout.scale,
-                {46, 35, 20, 255});
-    DrawCircleV(center, radius, {247, 193, 45, 255});
-    const std::string label = amount > 9
-        ? "9+" : std::to_string(amount);
-    const float fontSize = 12.0F * layout.scale;
-    const Vector2 size = measureUiText(label, fontSize);
-    drawUiText(
-        label,
-        {center.x - size.x * 0.5F,
-         center.y - size.y * 0.5F - 1.0F * layout.scale},
-        fontSize, {51, 35, 13, 255});
-}
-
 void drawObjectiveCard(
     const GameUi& ui, const MenuLayout& layout,
     Rectangle bounds, const ObjectiveStatus& objective,
@@ -358,7 +334,7 @@ void App::drawMainMenuWorld(
 }
 
 void App::drawMainMenu(const SimulationSnapshot& snapshot) {
-    if (renderer_->graphicsPanelVisible() || skillTree_.isOpen()) {
+    if (renderer_->graphicsPanelVisible()) {
         return;
     }
     const MenuLayout layout = menuLayout();
@@ -414,7 +390,11 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
             layout.rect(100.0F, 110.0F, 1720.0F, 850.0F);
         ui_.drawPanel(panel, 250);
         drawOutlinedTitle(
-            classCollectionOnly_ ? "CLASS COLLECTION" : "CHOOSE YOUR CLASS",
+            classCollectionOnly_
+                ? "CLASS COLLECTION"
+                : sandboxClassSelection_
+                    ? "CHOOSE SANDBOX CLASS"
+                    : "CHOOSE YOUR CLASS",
             layout, 960.0F, 142.0F, 34.0F, 900.0F);
         drawUiText(
             classCollectionOnly_
@@ -438,8 +418,9 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
              index < PlayerClassDefinitions.size(); ++index) {
             const PlayerClassDefinition& definition =
                 PlayerClassDefinitions[index];
-            const bool unlocked = isPlayerClassUnlocked(
-                definition.type, metaProgression_);
+            const bool unlocked = sandboxClassSelection_ ||
+                isPlayerClassUnlocked(
+                    definition.type, metaProgression_);
             const float column = static_cast<float>(index % 4U);
             const float row = static_cast<float>(index / 4U);
             const Rectangle card = layout.rect(
@@ -562,7 +543,9 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         if (!classCollectionOnly_) {
             pendingStartFromUi_ = ui_.drawButton(
                 layout.rect(690.0F, 776.0F, 540.0F, 72.0F),
-                "START AS SELECTED CLASS") || pendingStartFromUi_;
+                sandboxClassSelection_
+                    ? "START SANDBOX"
+                    : "START AS SELECTED CLASS") || pendingStartFromUi_;
         }
         drawUiText(
             classCollectionOnly_
@@ -586,24 +569,29 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
     if (ui_.drawButton(playButton, "START RUN")) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
+        sandboxClassSelection_ = false;
         audio_.playUiConfirm();
     }
     menuButtonY += 84.0F;
-    const Rectangle treeButton =
+    const Rectangle sandboxButton =
         layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
-    pendingOpenSkillTreeFromUi_ =
-        ui_.drawButton(treeButton, "TREE OF KNOWLEDGE") ||
-        pendingOpenSkillTreeFromUi_;
-    drawMenuBadge(layout, treeButton, snapshot.skillPoints);
-    if (ui_.drawButton(
-            layout.rect(775.0F, menuButtonY + 84.0F, 370.0F, 70.0F),
-            "COLLECTION")) {
+    if (ui_.drawButton(sandboxButton, "SANDBOX")) {
+        classSelectionVisible_ = true;
+        classCollectionOnly_ = false;
+        sandboxClassSelection_ = true;
+        audio_.playUiConfirm();
+    }
+    menuButtonY += 84.0F;
+    const Rectangle collectionButton =
+        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
+    if (ui_.drawButton(collectionButton, "COLLECTION")) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = true;
+        sandboxClassSelection_ = false;
         audio_.playUiConfirm();
     }
     if (ui_.drawButton(
-            layout.rect(775.0F, menuButtonY + 168.0F, 370.0F, 70.0F),
+            layout.rect(775.0F, menuButtonY + 84.0F, 370.0F, 70.0F),
             "SETTINGS")) {
         renderer_->setGraphicsPanelVisible(true);
     }

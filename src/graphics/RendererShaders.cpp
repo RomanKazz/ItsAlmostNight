@@ -40,6 +40,10 @@ const RendererPerformanceStats& Renderer::performanceStats() const {
     return performanceStats_;
 }
 
+double Renderer::framePacingMilliseconds() const {
+    return framePacingMilliseconds_;
+}
+
 void Renderer::resolveAuxiliaryShaderLocations() {
     if (resources_.iceMagicShader().valid()) {
         Shader& shader = resources_.iceMagicShader().get();

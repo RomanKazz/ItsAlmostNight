@@ -47,6 +47,8 @@ const char* modularPlacementMessage(
         return "CLEAR RESOURCE FIRST";
     case ModularPlacementError::InsufficientResources:
         return "NOT ENOUGH RESOURCES";
+    case ModularPlacementError::CoreLevelRequired:
+        return "UPGRADE CORE TO LEVEL 2";
     }
     return "CANNOT BUILD";
 }
@@ -56,12 +58,13 @@ void drawFpsCounter() {
     constexpr float HorizontalPadding = 10.0F;
     constexpr float VerticalPadding = 5.0F;
     constexpr float ScreenMargin = 12.0F;
+    constexpr float Top = 32.0F;
     const std::string_view label{TextFormat("%d FPS", GetFPS())};
     const Vector2 textSize = measureUiText(label, FontSize);
     const Rectangle bounds{
         static_cast<float>(GetScreenWidth()) - ScreenMargin -
             textSize.x - HorizontalPadding * 2.0F,
-        ScreenMargin,
+        Top,
         textSize.x + HorizontalPadding * 2.0F,
         textSize.y + VerticalPadding * 2.0F,
     };
@@ -191,10 +194,12 @@ void App::render() {
             static_cast<float>(std::sin(visualPitch)),
             static_cast<float>(-std::cos(visualYaw) * cosPitch),
         };
+        const float cameraMotionScale =
+            snapshot.runUpgradeChoicePending ? 0.0F : 1.0F;
         const float bobAmount =
             static_cast<float>(cameraBobAmount_) *
             (input_.sprint ? 1.12F : 1.0F) *
-            motionBobIntensity_;
+            motionBobIntensity_ * cameraMotionScale;
         const float bobSide =
             static_cast<float>(
                 std::sin(cameraBobPhase_)) *
@@ -215,10 +220,10 @@ void App::render() {
             Vector3Scale(
                 bobRight,
                 static_cast<float>(cameraLookYawLag_ * 0.42) *
-                    motionSwayIntensity_));
+                    motionSwayIntensity_ * cameraMotionScale));
         position.y += static_cast<float>(
             cameraLookPitchLag_ * 0.32) *
-            motionSwayIntensity_;
+            motionSwayIntensity_ * cameraMotionScale;
         position = Vector3Add(
             position,
             Vector3Scale(bobRight, bobSide));
@@ -233,8 +238,9 @@ void App::render() {
                          0.0045F * bobAmount -
                      static_cast<float>(
                          cameraStrafeLean_) *
-                         motionSwayIntensity_))));
-        if (landingResponseRemaining_ > 0.0 &&
+                         motionSwayIntensity_ * cameraMotionScale))));
+        if (cameraMotionScale > 0.0F &&
+            landingResponseRemaining_ > 0.0 &&
             landingResponseDuration_ > 0.0) {
             const double progress = std::clamp(
                 1.0 - landingResponseRemaining_ /
@@ -253,17 +259,18 @@ void App::render() {
             Vector3Scale(
                 bobRight,
                 static_cast<float>(cameraImpulseOffset_.x) *
-                    motionShakeIntensity_));
+                    motionShakeIntensity_ * cameraMotionScale));
         position.y +=
             static_cast<float>(cameraImpulseOffset_.y) *
-            motionShakeIntensity_;
+            motionShakeIntensity_ * cameraMotionScale;
         position = Vector3Add(
             position,
             Vector3Scale(
                 forward,
                 static_cast<float>(cameraImpulseOffset_.z) *
-                    motionShakeIntensity_));
-        if (weaponRecoilRemaining_ > 0.0 &&
+                    motionShakeIntensity_ * cameraMotionScale));
+        if (cameraMotionScale > 0.0F &&
+            weaponRecoilRemaining_ > 0.0 &&
             weaponRecoilDuration_ > 0.0) {
             const float progress = std::clamp(
                 static_cast<float>(
@@ -279,7 +286,8 @@ void App::render() {
             forward.y += recoil * 0.38F;
             forward = Vector3Normalize(forward);
         }
-        if (cameraShakeRemaining_ > 0.0) {
+        if (cameraMotionScale > 0.0F &&
+            cameraShakeRemaining_ > 0.0) {
             const double visualTime = GetTime();
             const float shake =
                 static_cast<float>(cameraShakeStrength_ * cameraShakeRemaining_ / 0.35) *
@@ -755,6 +763,8 @@ void App::render() {
                     .selectedModularBuildPiece =
                         static_cast<std::size_t>(
                             modularBuildPiece_),
+                    .buildingHotbarCategory =
+                        buildingHotbarCategory_,
                     .buildHotbarSelectionPosition =
                         buildHotbarSelectionPosition_,
                     .buildHotbarSelectionAlpha =
@@ -772,6 +782,8 @@ void App::render() {
                     .mapOverlayOpen =
                         minimapExpansion_ > 0.01F,
                     .minimapHidden = false,
+                    .showFps =
+                        userSettings_.accessibility.showFps,
                     .showCoreHealth =
                         presentationSnapshot.state == RunState::Wave ||
                         presentationSnapshot.state == RunState::Sunset ||
@@ -1129,13 +1141,21 @@ void App::render() {
         drawMinimapHud(
             ui_, presentationSnapshot,
             minimapExpansion_,
-            userSettings_.accessibility.showFps ? 40.0F : 0.0F);
+            userSettings_.accessibility.showFps ? 56.0F : 20.0F);
 
         drawRunStateOverlay(snapshot);
-        drawRunUpgradeOverlay(snapshot);
+        drawRunUpgradeOverlay(
+            snapshot, simulation_.skillTree(),
+            runUpgradeOverlayEntranceSeconds_,
+            runUpgradeCardHoverAmounts_);
+        if (cardCollectionVisible_) {
+            drawCardCollectionOverlay(
+                snapshot, simulation_.skillTree(),
+                cardCollectionPage_);
+        }
         if (snapshot.state == RunState::Paused &&
             !renderer_->graphicsPanelVisible() &&
-            !skillTree_.isOpen()) {
+            !cardCollectionVisible_) {
             const float centerX =
                 static_cast<float>(GetScreenWidth()) * 0.5F;
             const float centerY =
@@ -1169,14 +1189,18 @@ void App::render() {
                 ui_.drawButton(
                     {centerX - 190.0F, menuY,
                      380.0F, 58.0F},
-                    "SAVE & MAIN MENU") ||
+                    snapshot.sandboxMode
+                        ? "MAIN MENU"
+                        : "SAVE & MAIN MENU") ||
                 pendingReturnToMenuFromUi_;
             menuY += 70.0F;
             if (ui_.drawButton(
                     {centerX - 190.0F, menuY,
                      380.0F, 58.0F},
-                    "SAVE & EXIT")) {
-                if (saveSuspendedRun()) {
+                    snapshot.sandboxMode
+                        ? "EXIT"
+                        : "SAVE & EXIT")) {
+                if (snapshot.sandboxMode || saveSuspendedRun()) {
                     exitRequested_ = true;
                 } else {
                     audio_.playUiError();
@@ -1185,17 +1209,14 @@ void App::render() {
         }
     }
 
-    if (skillTree_.isOpen()) {
-        skillTree_.draw(ui_);
-    } else {
-        drawBuildModePie();
-        if (renderer_->graphicsPanelVisible()) {
-            drawGraphicsPanel();
-        }
-        drawEnemySpawnMenu();
-        drawItemGrantMenu();
-        drawCoreDefenseMenu();
+    drawBuildModePie();
+    if (renderer_->graphicsPanelVisible()) {
+        drawGraphicsPanel();
     }
+    drawEnemySpawnMenu();
+    drawItemGrantMenu();
+    drawSandboxCardMenu(snapshot);
+    drawCoreDefenseMenu();
     drawObjectiveDebugMenu(snapshot);
     if (performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
@@ -1208,9 +1229,9 @@ void App::render() {
         snapshot.state == RunState::Paused ||
         snapshot.state == RunState::StageClear ||
         snapshot.state == RunState::Victory ||
-        renderer_->graphicsPanelVisible() ||
-        skillTree_.isOpen() || enemySpawnMenuVisible_ ||
-        itemGrantMenuVisible_ || coreDefenseMenuVisible_;
+        renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
+        itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
+        coreDefenseMenuVisible_;
     if (uiCursorVisible) {
         HideCursor();
         ui_.drawCursor();
