@@ -1,5 +1,6 @@
 #include "game/Simulation.hpp"
 
+#include "buildings/CoreProgression.hpp"
 #include "core/DeterministicRandom.hpp"
 #include "progression/ProgressionCardRules.hpp"
 
@@ -18,6 +19,11 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
         return false;
     }
     if (unlimitedResources_) {
+        return true;
+    }
+    const auto core = buildings_.core();
+    const int coreLevel = core ? static_cast<int>(core->level) : 0;
+    if (coreLevel >= playerWeaponRequiredCoreLevel(weapon)) {
         return true;
     }
     switch (weapon) {
@@ -106,6 +112,7 @@ SkillPurchaseError Simulation::purchaseSkill(
     }
     const double previousDayExtension =
         skillTree_.effectValue("day.duration_seconds");
+    const int previousCardLevel = skillTree_.level(index);
     const SkillPurchaseError result = skillTree_.purchase(
         index, spendPoints && !unlimitedResources_,
         !progressionCard);
@@ -117,13 +124,15 @@ SkillPurchaseError Simulation::purchaseSkill(
                 return effect.key == key && effect.value != 0.0;
             });
     };
-    if (nodeHas("unlock.axe")) playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-    else if (nodeHas("unlock.pickaxe")) playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
-    else if (nodeHas("unlock.club")) playerWeapons_.selectWeapon(PlayerWeapon::Club);
-    else if (nodeHas("unlock.ice_wand")) playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
-    else if (nodeHas("unlock.fire_wand")) playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
-    else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
-    else if (nodeHas("unlock.bombs")) playerWeapons_.selectWeapon(PlayerWeapon::Bomb);
+    if (previousCardLevel == 0) {
+        if (nodeHas("unlock.axe")) playerWeapons_.selectWeapon(PlayerWeapon::Axe);
+        else if (nodeHas("unlock.pickaxe")) playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
+        else if (nodeHas("unlock.club")) playerWeapons_.selectWeapon(PlayerWeapon::Club);
+        else if (nodeHas("unlock.ice_wand")) playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
+        else if (nodeHas("unlock.fire_wand")) playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
+        else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+        else if (nodeHas("unlock.bombs")) playerWeapons_.selectWeapon(PlayerWeapon::Bomb);
+    }
     refreshSkillRuntimeEffects();
     const RunState effectiveState =
         state_ == RunState::Paused ? stateBeforePause_ : state_;
@@ -270,8 +279,11 @@ void Simulation::generateRunUpgradeChoices() {
                    RunUpgradeEffect::WiderChoice)])));
     runUpgradeChoiceCount_ = MinimumRunUpgradeChoices + extraChoices;
 
-    if (lockedRunUpgrade_ == RunUpgradeEffect::WiderChoice &&
-        runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) {
+    if (lockedRunUpgrade_ &&
+        (runUpgradeStacks_[runUpgradeIndex(*lockedRunUpgrade_)] >=
+             runUpgradeMaximumLevel(*lockedRunUpgrade_) ||
+         (*lockedRunUpgrade_ == RunUpgradeEffect::WiderChoice &&
+          runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices))) {
         lockedRunUpgrade_.reset();
     }
     std::vector<ProgressionCardId> pool;
@@ -282,13 +294,17 @@ void Simulation::generateRunUpgradeChoices() {
          RunUpgradeDefinitions) {
         const RunUpgradeEffect effect = definition.effect;
         if (effect == RunUpgradeEffect::LockChoice) continue;
+        if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
+            runUpgradeMaximumLevel(effect)) {
+            continue;
+        }
         if (definition.effect == RunUpgradeEffect::WiderChoice &&
             runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) {
             continue;
         }
         if (effect == RunUpgradeEffect::NightlyBomb &&
             !unlimitedResources_ &&
-            !skillTree_.hasEffect("unlock.bombs")) {
+            !playerWeaponUnlocked(PlayerWeapon::Bomb)) {
             continue;
         }
         if (effect == RunUpgradeEffect::ProductionSpeed &&
@@ -301,14 +317,6 @@ void Simulation::generateRunUpgradeChoices() {
         }
         if (effect == RunUpgradeEffect::ReactiveTraps &&
             !unlimitedResources_ && coreLevel < 2) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::TwinBatteries &&
-            runUpgradeStacks_[runUpgradeIndex(effect)] >= 3) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::ClusterPayload &&
-            runUpgradeStacks_[runUpgradeIndex(effect)] >= 2) {
             continue;
         }
         if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) {
@@ -394,41 +402,11 @@ void Simulation::generateRunUpgradeChoices() {
         std::erase(pool, runUpgradeChoices_[0]);
         firstRandomIndex = 1U;
     }
-        // Keep one skill card in every offer. Building and defense unlocks are
-        // deterministic Core upgrades and are intentionally absent here.
+    // Keep one skill card in every offer. Building and weapon unlocks are
+    // deterministic Core upgrades and are intentionally absent here.
     if (!skillPool.empty() && firstRandomIndex < runUpgradeChoiceCount_) {
-        const auto eligibleById =
-            [this, &skillPool](std::string_view id)
-                -> std::optional<ProgressionCardId> {
-                const auto node = skillTree_.indexOf(id);
-                if (!node) return std::nullopt;
-                const ProgressionCardId card =
-                    skillProgressionCardId(*node);
-                return std::ranges::find(skillPool, card) !=
-                        skillPool.end()
-                    ? std::optional<ProgressionCardId>{card}
-                    : std::nullopt;
-            };
-        std::optional<ProgressionCardId> priority;
-        const bool combatWeaponUnlocked =
-            skillTree_.hasEffect("unlock.club") ||
-            skillTree_.hasEffect("unlock.rifle") ||
-            skillTree_.hasEffect("unlock.ice_wand") ||
-            skillTree_.hasEffect("unlock.fire_wand");
-        if (!priority && !combatWeaponUnlocked) {
-            std::string_view starter = "club";
-            if (playerClass_ == PlayerClass::Alchemist) {
-                starter = "fire_wand";
-            } else if (playerClass_ == PlayerClass::Chronomancer) {
-                starter = "ice_wand";
-            } else if (playerClass_ == PlayerClass::Ranger ||
-                       playerClass_ == PlayerClass::Vampire) {
-                starter = "rifle";
-            }
-            priority = eligibleById(starter);
-        }
-        const ProgressionCardId skill = priority.value_or(
-            skillPool[chooseWeighted(skillPool)]);
+        const ProgressionCardId skill =
+            skillPool[chooseWeighted(skillPool)];
         runUpgradeChoices_[firstRandomIndex++] = skill;
         std::erase(pool, skill);
     }
@@ -444,7 +422,7 @@ void Simulation::generateRunUpgradeChoices() {
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
-    if (stacks >= 999) return false;
+    if (stacks >= runUpgradeMaximumLevel(effect)) return false;
     ++stacks;
     switch (effect) {
     case RunUpgradeEffect::Damage:

@@ -14,11 +14,11 @@ void runSkillTreeTests() {
         tree.state("axe") == ian::SkillNodeState::Available,
         "root child starts available");
     require(
-        tree.state("efficient_strikes") == ian::SkillNodeState::Hidden &&
-            tree.state("lumber_mill") == ian::SkillNodeState::Hidden &&
-            tree.state("quarry") == ian::SkillNodeState::Hidden &&
-            tree.state("power_swing") == ian::SkillNodeState::Hidden,
-        "deeper skill nodes begin hidden");
+        tree.state("efficient_strikes") == ian::SkillNodeState::Available &&
+            tree.state("lumber_mill") == ian::SkillNodeState::Available &&
+            tree.state("quarry") == ian::SkillNodeState::Available &&
+            tree.state("power_swing") == ian::SkillNodeState::Available,
+        "all progression cards are visible without tree dependencies");
 
     const auto axe = tree.indexOf("axe");
     require(axe.has_value(), "axe node exists");
@@ -34,10 +34,10 @@ void runSkillTreeTests() {
             tree.state("lumber_mill") ==
                 ian::SkillNodeState::Available &&
             tree.state("quarry") ==
-                ian::SkillNodeState::Hidden &&
+                ian::SkillNodeState::Available &&
             tree.state("efficient_strikes") ==
-                ian::SkillNodeState::Locked,
-        "Axe reveals Lumber Mill without revealing the Pickaxe branch");
+                ian::SkillNodeState::Available,
+        "selecting one flat card does not gate unrelated cards");
 
     tree.grantPoints(16);
     const auto pickaxe = tree.indexOf("pickaxe");
@@ -51,7 +51,7 @@ void runSkillTreeTests() {
                 ian::SkillNodeState::Available &&
             tree.purchase(*efficient) == ian::SkillPurchaseError::None &&
             tree.purchase(*handsOn) == ian::SkillPurchaseError::None,
-        "gathering doctrine prerequisites unlock in order");
+        "independent gathering cards apply in any order");
     requireNear(
         tree.effectValue("gather.damage"), 0.70, 1e-9,
         "multiple data-driven modifiers accumulate");
@@ -72,24 +72,19 @@ void runSkillTreeTests() {
     require(
         combatTraining && rifle &&
             rifleTree.state(*rifle) ==
-                ian::SkillNodeState::Hidden &&
-            rifleTree.purchase(*rifle) ==
-                ian::SkillPurchaseError::DependenciesLocked,
-        "hidden weapon unlock cannot bypass Combat Training");
+                ian::SkillNodeState::Available,
+        "legacy weapon records no longer depend on Combat Training");
 
     ian::SkillTree cardTree;
     const auto cardRifle = cardTree.indexOf("rifle");
     require(
-        cardRifle && ian::progressionCardEligible(
+        cardRifle && !ian::progressionCardEligible(
             cardTree, *cardRifle,
-            {.playerLevel = 2,
-             .coreLevel = 1,
-             .wavesSurvived = 0,
-             .playerClass = ian::PlayerClass::Ranger}) &&
-            cardTree.purchase(*cardRifle, false, false) ==
-                ian::SkillPurchaseError::None &&
-            cardTree.isUnlocked("rifle"),
-        "progression cards bypass the removed tree path");
+            {.playerLevel = 20,
+             .coreLevel = 8,
+             .wavesSurvived = 20,
+             .playerClass = ian::PlayerClass::Ranger}),
+        "deterministic Core weapon unlocks never enter card offers");
     const auto legacyLumber = cardTree.indexOf("lumber_mill");
     const auto turretCalibration =
         cardTree.indexOf("turret_calibration");
@@ -114,10 +109,82 @@ void runSkillTreeTests() {
             !ian::progressionCardEligible(
                 cardTree, *cardMarksman,
                 {.playerLevel = 6, .coreLevel = 1}) &&
+            !ian::progressionCardEligible(
+                cardTree, *cardMarksman,
+                {.playerLevel = 7, .coreLevel = 1}) &&
             ian::progressionCardEligible(
                 cardTree, *cardMarksman,
-                {.playerLevel = 7, .coreLevel = 1}),
-        "advanced cards expose explicit level and owned-card requirements");
+                {.playerLevel = 7, .coreLevel = 2}),
+        "weapon specialization cards require level and Core weapon access");
+    const auto wideSwing = cardTree.indexOf("wide_swing");
+    const auto impactDash = cardTree.indexOf("impact_dash");
+    const auto supplyDrop = cardTree.indexOf("nightly_chest");
+    require(
+        wideSwing && impactDash && supplyDrop &&
+            ian::progressionCardEligible(
+                cardTree, *wideSwing,
+                {.playerLevel = 2}) &&
+            ian::progressionCardEligible(
+                cardTree, *impactDash,
+                {.playerLevel = 4}) &&
+            ian::progressionCardEligible(
+                cardTree, *supplyDrop,
+                {.playerLevel = 4}),
+        "self-contained cards never require another selected card");
+    const auto obsoleteDelivery = cardTree.indexOf("frequent_bounty");
+    const auto obsoleteSafeDelivery = cardTree.indexOf("safe_delivery");
+    require(
+        obsoleteDelivery && obsoleteSafeDelivery &&
+            !ian::progressionCardEligible(
+                cardTree, *obsoleteDelivery,
+                {.playerLevel = 20}) &&
+            !ian::progressionCardEligible(
+                cardTree, *obsoleteSafeDelivery,
+                {.playerLevel = 20}),
+        "conditional legacy chest cards stay out of new offers");
+    require(
+        cardTree.purchase(*wideSwing, false) ==
+                ian::SkillPurchaseError::None &&
+            cardTree.hasEffect("gather.power_swing") &&
+            cardTree.purchase(*impactDash, false) ==
+                ian::SkillPurchaseError::None &&
+            cardTree.hasEffect("dash.unlock"),
+        "standalone variants include the base mechanic they modify");
+
+    ian::SkillTree levelTree;
+    const auto repeatableCard = levelTree.indexOf("efficient_strikes");
+    require(repeatableCard.has_value(), "repeatable power card exists");
+    for (int level = 1; level <= 5; ++level) {
+        require(
+            ian::progressionCardEligible(
+                levelTree, *repeatableCard,
+                {.playerLevel = 20}) &&
+                levelTree.purchase(*repeatableCard, false) ==
+                    ian::SkillPurchaseError::None &&
+                levelTree.level(*repeatableCard) == level,
+            "repeatable card advances exactly one level");
+    }
+    require(
+        levelTree.isMaxLevel(*repeatableCard) &&
+            !ian::progressionCardEligible(
+                levelTree, *repeatableCard,
+                {.playerLevel = 20}) &&
+            levelTree.purchase(*repeatableCard, false) ==
+                ian::SkillPurchaseError::AlreadyUnlocked,
+        "max-level cards leave the offer pool");
+    requireNear(
+        levelTree.effectValue("gather.damage"), 1.25, 1e-9,
+        "each card level adds another copy of its effect");
+    ian::SkillTree restoredLevelTree;
+    require(
+        restoredLevelTree.loadState(levelTree.saveState()) &&
+            restoredLevelTree.level("efficient_strikes") == 5 &&
+            restoredLevelTree.isMaxLevel(*repeatableCard),
+        "card levels round-trip through legacy-compatible saves");
+    require(
+        cardTree.purchase(*cardRifle, false, false) ==
+            ian::SkillPurchaseError::None,
+        "legacy weapon card state remains loadable for old runs");
     const auto flatSaved = cardTree.saveState();
     ian::SkillTree flatLoaded;
     require(
@@ -150,17 +217,16 @@ void runSkillTreeTests() {
          .cost = 1, .prerequisites = {"child"}},
     });
     require(
-        dependent.state("leaf") == ian::SkillNodeState::Hidden,
-        "dependency keeps a distant leaf hidden");
+        dependent.state("leaf") == ian::SkillNodeState::Available,
+        "legacy dependency metadata is flattened by the card collection");
     dependent.grantPoints(3);
     require(
         dependent.purchase(*dependent.indexOf("child")) ==
                 ian::SkillPurchaseError::None &&
             dependent.points() == 1 &&
-            dependent.state("leaf") ==
-                ian::SkillNodeState::Available &&
+            dependent.state("leaf") == ian::SkillNodeState::Available &&
             dependent.effectValue("test.value") == 0.25,
-        "generic effect works without adding a C++ enum value");
+        "generic flat-card effects work without a C++ enum value");
 
     const auto saved = rifleTree.saveState();
     ian::SkillTree loaded;
@@ -193,9 +259,11 @@ void runSkillTreeTests() {
                 "dash",
             },
         }) &&
-            gatedMigration.isUnlocked("combat_training") &&
-            gatedMigration.isUnlocked("sprinter"),
-        "old saves gain newly inserted prerequisite gates");
+            !gatedMigration.isUnlocked("combat_training") &&
+            !gatedMigration.isUnlocked("sprinter") &&
+            gatedMigration.isUnlocked("club") &&
+            gatedMigration.isUnlocked("dash"),
+        "old saves load flat cards without synthesizing tree gates");
 
 #ifdef IAN_SOURCE_DIR
     const auto definitions = ian::loadSkillTreeDefinitions(
@@ -221,8 +289,7 @@ void runSkillTreeTests() {
                 "element.thermal_shock" &&
             dash != definitions.end() &&
             dash->size == ian::SkillNodeSize::Large &&
-            dash->prerequisites ==
-                std::vector<std::string>{"sprinter"} &&
+            dash->prerequisites.empty() &&
             longerDays != definitions.end() &&
             longerDays->effects.size() == 1 &&
             longerDays->effects.front().key ==
@@ -249,10 +316,15 @@ void runSkillTreeTests() {
             std::ranges::all_of(
                 definitions,
                 [](const ian::SkillNodeDefinition& node) {
+                    return node.prerequisites.empty();
+                }) &&
+            std::ranges::all_of(
+                definitions,
+                [](const ian::SkillNodeDefinition& node) {
                     return std::fmod(node.position.x, 190.0F) == 0.0F &&
                            std::fmod(node.position.y, 190.0F) == 0.0F;
                 }),
-        "expanded data-driven tree loads on a clean grid");
+        "flat data-driven card collection loads without dependencies");
 #endif
 
     tree.reset();

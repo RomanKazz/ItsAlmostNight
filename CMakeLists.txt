@@ -56,6 +56,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raygui)
 
+set(LUNASVG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LUNASVG_DISABLE_LOAD_SYSTEM_FONTS ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    lunasvg
+    GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
+    GIT_TAG v3.5.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(lunasvg)
+
 add_library(ian_assets
     src/assets/GlbCollision.cpp
 )
@@ -196,13 +206,15 @@ add_library(ian_ui
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
     src/ui/TargetHealthBar.cpp
+    src/ui/UiEditor.cpp
     src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
 target_include_directories(ian_ui SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src"
     "${raygui_SOURCE_DIR}/src")
-target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression)
+target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression
+    PRIVATE nlohmann_json::nlohmann_json lunasvg::lunasvg)
 
 add_executable(its_almost_night
     src/core/PerformanceRecorder.cpp
@@ -246,13 +258,27 @@ add_executable(ian_skill_icon_parser
 target_link_libraries(ian_skill_icon_parser PRIVATE raylib)
 target_include_directories(ian_skill_icon_parser SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src")
+file(GLOB_RECURSE IAN_RUNTIME_ASSET_FILES
+    CONFIGURE_DEPENDS
+    LIST_DIRECTORIES false
+    "${CMAKE_SOURCE_DIR}/assets/*"
+)
+set(IAN_RUNTIME_ASSET_STAMP
+    "${CMAKE_CURRENT_BINARY_DIR}/ian_runtime_assets_$<CONFIG>.stamp")
 add_custom_command(
-    TARGET its_almost_night POST_BUILD
+    OUTPUT "${IAN_RUNTIME_ASSET_STAMP}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${CMAKE_SOURCE_DIR}/assets"
             "$<TARGET_FILE_DIR:its_almost_night>/assets"
+    COMMAND "${CMAKE_COMMAND}" -E touch
+            "${IAN_RUNTIME_ASSET_STAMP}"
+    DEPENDS ${IAN_RUNTIME_ASSET_FILES}
     COMMENT "Copying runtime assets"
+    VERBATIM
 )
+add_custom_target(ian_runtime_assets
+    DEPENDS "${IAN_RUNTIME_ASSET_STAMP}")
+add_dependencies(its_almost_night ian_runtime_assets)
 
 function(ian_set_warnings target)
     if(MSVC)

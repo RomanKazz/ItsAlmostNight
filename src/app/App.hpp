@@ -16,6 +16,7 @@
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
 #include "ui/TargetHealthBar.hpp"
+#include "ui/UiEditor.hpp"
 
 #include <optional>
 #include <array>
@@ -244,6 +245,7 @@ class App {
     TextureResource vfxExplosionTexture_;
     TextureResource vfxElectricRingTexture_;
     GameUi ui_;
+    UiEditor uiEditor_;
     bool pendingStartFromUi_{};
     bool pendingContinueFromUi_{};
     bool classSelectionVisible_{};
@@ -257,6 +259,7 @@ class App {
     bool exitRequested_{};
     mutable std::optional<bool> suspendedRunAvailabilityCache_;
     bool graphicsPanelWasVisible_{};
+    bool uiEditorWasVisible_{};
     bool runUpgradeChoiceWasVisible_{};
     double runUpgradeChoiceInputDelayRemaining_{};
     bool runUpgradeChoiceInputArmed_{};
@@ -553,6 +556,7 @@ class App {
     bool showSpatialHash_{};
     bool showTerrainWireframe_{};
     bool performanceOverlayVisible_{};
+    bool hudHidden_{};
     bool objectiveDebugMenuVisible_{};
     bool cardCollectionVisible_{};
     std::size_t cardCollectionPage_{};

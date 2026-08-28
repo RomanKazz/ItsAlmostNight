@@ -226,7 +226,9 @@ void tabResetsPreserveOtherTabs() {
             "color reset preserves style tab");
 
     ian::resetStyleSettings(settings);
-    require(!settings.inkOutlines,
+    require(settings.inkOutlines &&
+                settings.outlineStrength == 0.68F &&
+                settings.outlineWidth == 1.5F,
             "style reset restores style defaults");
 }
 

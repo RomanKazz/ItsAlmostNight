@@ -75,6 +75,19 @@ vec3 decodeOctahedralNormal(vec2 encoded)
     return normalize(normal);
 }
 
+float materialClassOf(vec4 packedNormal)
+{
+    return floor(packedNormal.b*4.0 + 0.01);
+}
+
+float screenAoMaskOf(vec3 packedNormal)
+{
+    float materialClass = floor(packedNormal.b*4.0 + 0.01);
+    return clamp(
+        (packedNormal.b - materialClass*0.25)*8.0,
+        0.0, 1.0);
+}
+
 float bilateralSsao(vec2 uv)
 {
     if (ssaoEnabled < 0.5)
@@ -83,7 +96,11 @@ float bilateralSsao(vec2 uv)
     }
     float centerDepth = texture(sceneDepth, uv).r;
     vec3 centerPackedNormal = texture(sceneNormal, uv).rgb;
-    if (centerDepth >= 0.999999 || centerPackedNormal.b <= 0.001)
+    float centerMaterialClass = materialClassOf(
+        vec4(centerPackedNormal, 1.0));
+    float centerAoMask = screenAoMaskOf(centerPackedNormal);
+    if (centerDepth >= 0.999999 ||
+        centerMaterialClass < 0.5 || centerAoMask <= 0.001)
     {
         return 0.0;
     }
@@ -108,8 +125,11 @@ float bilateralSsao(vec2 uv)
             vec2(1.0) - ssaoTexelSize*0.5);
         float sampleDepth = texture(sceneDepth, sampleUv).r;
         vec3 samplePackedNormal = texture(sceneNormal, sampleUv).rgb;
+        float sampleMaterialClass = materialClassOf(
+            vec4(samplePackedNormal, 1.0));
+        float sampleAoMask = screenAoMaskOf(samplePackedNormal);
         if (sampleDepth >= 0.999999 ||
-            samplePackedNormal.b <= 0.001)
+            sampleMaterialClass < 0.5 || sampleAoMask <= 0.001)
         {
             continue;
         }
@@ -122,20 +142,12 @@ float bilateralSsao(vec2 uv)
         float normalWeight = pow(
             max(dot(centerNormal, sampleNormal), 0.0), 5.0);
         float spatialWeight = sampleIndex == 0 ? 1.0 : 0.62;
-        float weight = depthWeight*normalWeight*spatialWeight;
+        float weight = depthWeight*normalWeight*spatialWeight*
+            sampleAoMask;
         total += texture(ssaoTexture, sampleUv).r*weight;
         totalWeight += weight;
     }
     return total/max(totalWeight, 0.0001);
-}
-
-vec4 sourcePixel(ivec2 coordinate)
-{
-    ivec2 size = textureSize(texture0, 0);
-    return texelFetch(
-        texture0,
-        clamp(coordinate, ivec2(0), size - ivec2(1)),
-        0);
 }
 
 vec4 normalPixel(ivec2 coordinate)
@@ -148,32 +160,45 @@ vec4 normalPixel(ivec2 coordinate)
 }
 
 float inkDifference(
-    vec3 centerColor, float centerLuminance,
-    ivec2 coordinate, float directionWeight,
-    float vegetationOutlineFade)
+    float centerDepth, float centerMaterialClass,
+    float depthTolerance,
+    ivec2 coordinate, float directionWeight)
 {
-    vec4 neighbor = sourcePixel(coordinate);
-    // Grass uses a reserved alpha tag. Ignoring it here prevents the
-    // eligible terrain pixel beside a blade from drawing the missing half
-    // of the outline back onto the ground.
-    if (neighbor.a > 0.06 && neighbor.a < 0.20)
-    {
-        return 0.0;
-    }
-    float neighborVegetation =
-        step(0.5, normalPixel(coordinate).a);
-    vec3 neighborColor = neighbor.rgb;
-    float neighborLuminance = luminanceOf(neighborColor);
-    float luminanceContrast =
-        abs(centerLuminance - neighborLuminance);
-    float colorContrast =
-        length(centerColor - neighborColor)*0.16;
-    float darkerSide = smoothstep(
-        -0.025, 0.065,
-        neighborLuminance - centerLuminance);
-    return (luminanceContrast + colorContrast)*
-        mix(0.04, 1.0, darkerSide)*directionWeight*
-        mix(1.0, vegetationOutlineFade, neighborVegetation);
+    float neighborDepth = texelFetch(
+        sceneDepth,
+        clamp(coordinate, ivec2(0), textureSize(sceneDepth, 0) - ivec2(1)),
+        0).r;
+    vec4 neighborPackedNormal = normalPixel(coordinate);
+    float neighborMaterialClass =
+        materialClassOf(neighborPackedNormal);
+    float centerIsObject = step(1.5, centerMaterialClass);
+    float neighborIsObject = step(1.5, neighborMaterialClass);
+    float centerIsTerrain =
+        step(0.5, centerMaterialClass)*
+        (1.0 - step(1.5, centerMaterialClass));
+    float neighborIsBackground =
+        1.0 - step(0.5, neighborMaterialClass);
+
+    // Draw on the object's own pixels whenever its neighbour is terrain,
+    // water, grass or sky.  Unlike a raw depth edge this closes the contour
+    // where a trunk or rock meets the ground.
+    float materialBoundary = centerIsObject*
+        (1.0 - neighborIsObject);
+    // Preserve separation between overlapping props of the same class.
+    float objectDepthBoundary = centerIsObject*neighborIsObject*smoothstep(
+        depthTolerance * 8.0,
+        depthTolerance * 32.0,
+        neighborDepth - centerDepth);
+    // Terrain receives ink only against actual sky.  This keeps a fine
+    // mountain skyline without outlining every blade of grass on the ground.
+    float terrainSkyBoundary = centerIsTerrain*
+        neighborIsBackground*step(0.9999, neighborDepth);
+    float silhouette = max(
+        materialBoundary,
+        max(objectDepthBoundary, terrainSkyBoundary));
+    // Deliberately ignore color and normal changes inside one surface.
+    // Low-poly facets belong to the fill; ink is reserved for silhouettes.
+    return silhouette * directionWeight;
 }
 
 float bayer4(vec2 pixel)
@@ -400,32 +425,59 @@ void main()
         color += dither/255.0*6.0;
     }
 
-    if (inkOutlinesEnabled > 0.5 && source.a > 0.25)
+    float centerMaterialClass = materialClassOf(
+        normalPixel(sourceCoordinate));
+    if (inkOutlinesEnabled > 0.5 && centerMaterialClass > 0.5)
     {
         float centerDepth = texture(sceneDepth, pixelUv).r;
+        float depthTolerance = max(fwidth(centerDepth) * 1.5, 0.000002);
         float viewDistance = centerDepth < 0.999999
             ? length(reconstructViewPosition(pixelUv, centerDepth))
             : 100000.0;
-        // Strong readable silhouettes nearby, restrained marks through the
-        // middle ground, and no black tracing over distant forests/mountains.
-        float outlineDistance =
-            1.0 - smoothstep(30.0, 86.0, viewDistance);
+        // Distance controls both opacity and width. Far silhouettes keep a
+        // fine line instead of disappearing, while nearby props receive the
+        // chunky contour used by the HUD and concept art.
+        float nearDistance =
+            1.0 - smoothstep(24.0, 120.0, viewDistance);
+        // Distant silhouettes stay solid enough to survive FXAA instead of
+        // breaking into short dashes along thin tree crowns and branches.
+        float outlineDistance = mix(0.56, 1.0, nearDistance);
         outlineDistance *= 1.0 - menuDofAmount;
         // The auxiliary normal/AO target marks trees and sizeable plants.
         // Their ink disappears earlier than prop/enemy ink, including the
         // terrain-side half of an edge, so distant foliage becomes a clean
         // mass instead of line noise without making its RGB transparent.
-        float vegetationOutlineFade =
-            1.0 - smoothstep(18.0, 60.0, viewDistance);
+        float vegetationOutlineFade = mix(
+            0.82, 1.0,
+            1.0 - smoothstep(32.0, 125.0, viewDistance));
         float sourceVegetation = step(
-            0.5, texture(sceneNormal, pixelUv).a);
+            2.5, centerMaterialClass);
         outlineDistance *= mix(
             1.0, vegetationOutlineFade, sourceVegetation);
-        float centerLuminance = luminanceOf(source.rgb);
         float edge = 0.0;
-        int pixelWidth = int(round(clamp(
-            outlineWidth, 1.0, 4.0)));
-        for (int ring = 1; ring <= 4; ++ring)
+        // Keep the close-up contour only slightly wider than the distant
+        // one. The previous 1.75 multiplier turned the minimum UI setting
+        // into a nearly two-pixel line.
+        float distanceWidthScale = mix(
+            1.00, 1.40,
+            1.0 - smoothstep(10.0, 78.0, viewDistance));
+        // Trees become thinner sooner than solid props, but retain one full
+        // pixel even in the distant forest.
+        distanceWidthScale *= mix(
+            1.0,
+            mix(1.0, 0.94, smoothstep(28.0, 105.0, viewDistance)),
+            sourceVegetation);
+        float effectiveWidth = clamp(
+            outlineWidth * distanceWidthScale, 1.0, 3.0);
+        float sourceTerrain = step(0.5, centerMaterialClass)*
+            (1.0 - step(1.5, centerMaterialClass));
+        // Mountain contours stay a single fine pixel at every distance.
+        effectiveWidth = mix(effectiveWidth, 1.0, sourceTerrain);
+        // Fractional outer rings give nearby silhouettes a soft extra edge
+        // instead of jumping directly between hard one- and two-pixel lines.
+        // Four cardinal samples still keep this kernel half the former size.
+        int pixelWidth = int(ceil(effectiveWidth));
+        for (int ring = 1; ring <= 3; ++ring)
         {
             if (ring > pixelWidth)
             {
@@ -433,54 +485,33 @@ void main()
             }
             ivec2 horizontal = ivec2(ring, 0);
             ivec2 vertical = ivec2(0, ring);
-            ivec2 diagonal = ivec2(ring, ring);
             float ringEdge = 0.0;
             ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate + horizontal, 1.0,
-                vegetationOutlineFade));
+                centerDepth, centerMaterialClass, depthTolerance,
+                sourceCoordinate + horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate - horizontal, 1.0,
-                vegetationOutlineFade));
+                centerDepth, centerMaterialClass, depthTolerance,
+                sourceCoordinate - horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate + vertical, 1.0,
-                vegetationOutlineFade));
+                centerDepth, centerMaterialClass, depthTolerance,
+                sourceCoordinate + vertical, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate - vertical, 1.0,
-                vegetationOutlineFade));
-            ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate + diagonal, 0.72,
-                vegetationOutlineFade));
-            ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate - diagonal, 0.72,
-                vegetationOutlineFade));
-            ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate + ivec2(ring, -ring), 0.72,
-                vegetationOutlineFade));
-            ringEdge = max(ringEdge, inkDifference(
-                source.rgb, centerLuminance,
-                sourceCoordinate + ivec2(-ring, ring), 0.72,
-                vegetationOutlineFade));
-            edge = max(edge, ringEdge);
+                centerDepth, centerMaterialClass, depthTolerance,
+                sourceCoordinate - vertical, 1.0));
+            float ringCoverage = clamp(
+                effectiveWidth - float(ring) + 1.0,
+                0.0, 1.0);
+            edge = max(edge, ringEdge * ringCoverage);
         }
         // A steeper response restores the chunky foreground silhouette.
         // Distance still removes it from the background independently.
         float nearBoost = mix(1.0, 1.24,
             1.0 - smoothstep(18.0, 32.0, viewDistance));
-        float ink = smoothstep(0.045, 0.205, edge)*outlineStrength*
+        float ink = smoothstep(0.10, 0.52, edge)*
+            sqrt(clamp(outlineStrength, 0.0, 1.0))*1.3*
             outlineDistance*nearBoost;
-        // A cold green-grey reads as ink without cutting holes into the
-        // bright low-poly palette like a pure black multiply does.
-        vec3 inkColor = mix(
-            vec3(0.018, 0.043, 0.049),
-            color*vec3(0.16, 0.24, 0.23), 0.22);
-        color = mix(color, inkColor, clamp(ink, 0.0, 0.96));
+        vec3 inkColor = vec3(0.006, 0.008, 0.010);
+        color = mix(color, inkColor, clamp(ink, 0.0, 0.985));
     }
 
     if (paperGrainEnabled > 0.5)

@@ -55,6 +55,7 @@ struct SkillNodeDefinition {
     SkillNodeSize size{SkillNodeSize::Small};
     int minimumCoreLevel{};
     int minimumWavesSurvived{};
+    int maximumLevel{5};
 };
 
 struct SkillTreeRunState {
@@ -79,6 +80,9 @@ class SkillTree {
     [[nodiscard]] int takePoints();
     [[nodiscard]] int points() const;
     [[nodiscard]] bool isUnlocked(std::string_view id) const;
+    [[nodiscard]] int level(std::size_t index) const;
+    [[nodiscard]] int level(std::string_view id) const;
+    [[nodiscard]] bool isMaxLevel(std::size_t index) const;
     [[nodiscard]] bool isExcluded(std::size_t index) const;
     [[nodiscard]] bool hasEffect(std::string_view key) const;
     [[nodiscard]] double effectValue(std::string_view key) const;
@@ -90,13 +94,10 @@ class SkillTree {
     void reset();
 
   private:
-    [[nodiscard]] bool isRevealed(
-        const SkillNodeDefinition& node) const;
-    [[nodiscard]] bool prerequisitesUnlocked(const SkillNodeDefinition& node) const;
     [[nodiscard]] bool conflictsWithUnlocked(
         const SkillNodeDefinition& node) const;
     std::vector<SkillNodeDefinition> nodes_;
-    std::vector<bool> unlocked_;
+    std::vector<int> levels_;
     int points_{};
 };
 

@@ -164,21 +164,6 @@ Color fadedColor(Color color, float opacity) {
     return color;
 }
 
-Color mixedColor(Color from, Color to, float amount) {
-    const float t = std::clamp(amount, 0.0F, 1.0F);
-    const auto mixChannel = [t](unsigned char first, unsigned char second) {
-        return static_cast<unsigned char>(std::lround(
-            static_cast<float>(first) +
-            (static_cast<float>(second) - static_cast<float>(first)) * t));
-    };
-    return {
-        mixChannel(from.r, to.r),
-        mixChannel(from.g, to.g),
-        mixChannel(from.b, to.b),
-        mixChannel(from.a, to.a),
-    };
-}
-
 } // namespace
 
 Rectangle runUpgradeCardBounds(std::size_t index, std::size_t count) {
@@ -215,6 +200,7 @@ std::optional<std::size_t> hoveredRunUpgradeChoice(
 }
 
 void drawRunUpgradeOverlay(
+    GameUi& ui,
     const SimulationSnapshot& snapshot,
     const SkillTree& skillTree,
     double entranceSeconds,
@@ -302,13 +288,10 @@ void drawRunUpgradeOverlay(
                     {accent.r, accent.g, accent.b, 42},
                     cardFade * hover));
         }
-        DrawRectangleRounded(
-            bounds, 0.08F, 8,
-            fadedColor(
-                mixedColor(
-                    {22, 26, 30, 250},
-                    {38, 43, 45, 252}, hover),
-                cardFade));
+        ui.drawCardPanel(
+            bounds, accent,
+            static_cast<unsigned char>(std::lround(
+                250.0F * cardFade)));
         DrawRectangleRounded(
             {bounds.x + 5.0F * scale,
              bounds.y + 5.0F * scale,
@@ -319,11 +302,14 @@ void drawRunUpgradeOverlay(
                 {accent.r, accent.g, accent.b,
                  static_cast<unsigned char>(38 + 35 * hover)},
                 cardFade));
-        DrawRectangleRoundedLinesEx(bounds, 0.08F, 8,
-                                    std::max(1.0F,
-                                        (2.0F + 2.0F * hover +
-                                         (locked ? 1.0F : 0.0F)) * scale),
-                                    fadedColor(accent, cardFade));
+        if (hover > 0.01F || locked) {
+            DrawRectangleRoundedLinesEx(
+                bounds, 0.08F, 8,
+                std::max(1.0F,
+                    (1.0F + 2.0F * hover +
+                     (locked ? 1.0F : 0.0F)) * scale),
+                fadedColor(accent, cardFade));
+        }
         const Rectangle innerBorder{
             bounds.x + 6.0F * scale,
             bounds.y + 6.0F * scale,
@@ -399,7 +385,7 @@ void drawRunUpgradeOverlay(
                         titleSizeMeasured.x * 0.5F,
                     bounds.y + 143.0F * scale},
                    titleSize * scale,
-                   fadedColor(RAYWHITE, cardFade));
+                   fadedColor({35, 54, 69, 255}, cardFade));
         const auto lines = wrappedLines(
             description, 14.0F, baseBounds.width - 34.0F);
         float lineY = bounds.y + 184.0F * scale;
@@ -409,17 +395,20 @@ void drawRunUpgradeOverlay(
                        {bounds.x + bounds.width * 0.5F - size.x * 0.5F,
                         lineY},
                        14.0F * scale,
-                       fadedColor({218, 220, 211, 245}, cardFade));
+                       fadedColor({78, 101, 117, 245}, cardFade));
             lineY += 20.0F * scale;
         }
-        const int currentLevel = skillCard ? 0 : snapshot.runUpgradeStacks[
-            runUpgradeIndex(effect)];
-        const std::string level = skillCard
-            ? (skill->cost >= 3 ? "LEGENDARY" :
-               skill->cost == 2 ? "RARE" : "NEW")
-            : currentLevel == 0
-                ? "NEW" : "LEVEL " + std::to_string(currentLevel) +
-                    "  >  " + std::to_string(currentLevel + 1);
+        const int currentLevel = skillCard
+            ? skillTree.level(skillIndex)
+            : snapshot.runUpgradeStacks[runUpgradeIndex(effect)];
+        const int maximumLevel = skillCard
+            ? skill->maximumLevel
+            : runUpgradeMaximumLevel(effect);
+        const std::string level = currentLevel == 0
+            ? "NEW  •  LVL 1 / " + std::to_string(maximumLevel)
+            : "LVL " + std::to_string(currentLevel) + "  >  " +
+                std::to_string(currentLevel + 1) + " / " +
+                std::to_string(maximumLevel);
         DrawRectangleRounded(
             {bounds.x + 16.0F * scale,
              bounds.y + bounds.height - 48.0F * scale,
@@ -460,12 +449,13 @@ std::size_t cardCollectionPageCount(const SkillTree& skillTree) {
     const std::size_t count = static_cast<std::size_t>(std::ranges::count_if(
         skillTree.nodes(), [](const SkillNodeDefinition& node) {
             return node.cost > 0 &&
-                !progressionCardIsLegacyBuildingUnlock(node.id);
+                !progressionCardIsHidden(node.id);
         }));
     return std::max<std::size_t>(1U, (count + 11U) / 12U);
 }
 
 void drawCardCollectionOverlay(
+    GameUi& ui,
     const SimulationSnapshot& snapshot,
     const SkillTree& skillTree,
     std::size_t page) {
@@ -476,7 +466,7 @@ void drawCardCollectionOverlay(
     cards.reserve(skillTree.nodes().size());
     for (std::size_t index = 0; index < skillTree.nodes().size(); ++index) {
         if (skillTree.nodes()[index].cost > 0 &&
-            !progressionCardIsLegacyBuildingUnlock(
+            !progressionCardIsHidden(
                 skillTree.nodes()[index].id)) {
             cards.push_back(index);
         }
@@ -516,6 +506,8 @@ void drawCardCollectionOverlay(
         const std::size_t index = cards[visible];
         const SkillNodeDefinition& node = skillTree.nodes()[index];
         const bool unlocked = skillTree.isUnlocked(node.id);
+        const int level = skillTree.level(index);
+        const bool maximumLevel = skillTree.isMaxLevel(index);
         const bool available = progressionCardEligible(
             skillTree, index, context);
         const Color accent = skillColor(node.branch);
@@ -524,32 +516,31 @@ void drawCardCollectionOverlay(
         const float y = startY +
             static_cast<float>(slot / Columns) * (cardHeight + Gap);
         const Rectangle bounds{x, y, cardWidth, cardHeight};
-        DrawRectangleRounded(
-            bounds, 0.08F, 7,
-            unlocked ? Color{27, 43, 37, 248}
-                : available ? Color{30, 32, 36, 248}
-                : Color{17, 19, 22, 232});
-        DrawRectangleRoundedLinesEx(
-            bounds, 0.08F, 7, unlocked ? 2.5F : 1.5F,
+        ui.drawCardPanel(
+            bounds,
             unlocked || available
-                ? accent
-                : Color{83, 88, 91, 210});
-        const std::string_view state = unlocked
-            ? "OWNED" : available ? "AVAILABLE" : "LOCKED";
+                ? accent : Color{83, 88, 91, 210},
+            unlocked ? 252 : available ? 246 : 222);
+        const std::string state = maximumLevel
+            ? "MAX LEVEL"
+            : unlocked
+                ? "LVL " + std::to_string(level) + " / " +
+                    std::to_string(node.maximumLevel)
+                : available ? "AVAILABLE" : "LOCKED";
         drawUiText(state, {x + 12.0F, y + 10.0F}, 10.0F,
                    unlocked || available
                        ? accent : Color{137, 140, 140, 220});
         const float titleSize = fitUiTextSize(
             node.title, 16.0F, 11.0F, cardWidth - 24.0F);
         drawUiText(node.title, {x + 12.0F, y + 31.0F},
-                   titleSize, RAYWHITE);
+                   titleSize, {35, 54, 69, 255});
         const auto lines = wrappedLines(
             node.description, 10.5F, cardWidth - 24.0F);
         float lineY = y + 57.0F;
         for (std::size_t line = 0;
              line < std::min<std::size_t>(3U, lines.size()); ++line) {
             drawUiText(lines[line], {x + 12.0F, lineY}, 10.5F,
-                       {204, 208, 202, 235});
+                       {78, 101, 117, 235});
             lineY += 15.0F;
         }
         std::string requirement;
@@ -571,22 +562,6 @@ void drawCardCollectionOverlay(
                        node.minimumWavesSurvived) {
                 requirement = "WAVE " +
                     std::to_string(node.minimumWavesSurvived);
-            } else {
-                const auto required = progressionCardRequiredCards(node.id);
-                if (!required.empty()) {
-                    requirement = "NEEDS ";
-                    for (std::size_t requiredIndex = 0;
-                         requiredIndex < required.size(); ++requiredIndex) {
-                        if (requiredIndex > 0) requirement += " + ";
-                        std::string name{required[requiredIndex]};
-                        std::ranges::replace(name, '_', ' ');
-                        std::ranges::transform(
-                            name, name.begin(), [](unsigned char value) {
-                                return static_cast<char>(std::toupper(value));
-                            });
-                        requirement += name;
-                    }
-                }
             }
         }
         if (!requirement.empty()) {

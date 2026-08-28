@@ -35,6 +35,7 @@ void App::update() {
         renderer_->settings().fullscreen != fullscreenApplied_) {
         applyFullscreenSetting(renderer_->settings().fullscreen);
     }
+    if (uiEditor_.visible()) return;
     if (pendingLootGrant_) {
         for (int index = 0; index < pendingLootGrant_->count; ++index) {
             simulation_.grantLootUpgrade(

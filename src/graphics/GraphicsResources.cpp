@@ -1039,7 +1039,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     heartOutlineShader_.load(
         "assets/shaders/heart_outline.vs",
         "assets/shaders/coin_outline.fs");
-    terrainTexture_.load("assets/textures/grass_watercolor.png");
+    terrainTexture_.load("assets/textures/grass_voronoi_tile.png");
     if (terrainTexture_.valid()) {
         Texture2D& texture = terrainTexture_.get();
         GenTextureMipmaps(&texture);

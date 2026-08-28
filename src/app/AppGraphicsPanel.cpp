@@ -49,9 +49,27 @@ void App::drawGraphicsPanel() {
         {7, 10, 14, 190});
     constexpr float PanelWidth = 900.0F;
     const bool compact = GetScreenHeight() < 900;
+    float requestedPanelHeight = 920.0F;
+    switch (graphicsPanelTab_) {
+    case PresetPage:
+        requestedPanelHeight = compact ? 570.0F : 640.0F;
+        break;
+    case AudioPage:
+        requestedPanelHeight = compact ? 670.0F : 740.0F;
+        break;
+    case AccessibilityPage:
+        requestedPanelHeight = compact ? 650.0F : 720.0F;
+        break;
+    case ControlsPage:
+        requestedPanelHeight = compact ? 760.0F : 850.0F;
+        break;
+    default:
+        break;
+    }
     const float PanelHeight = std::min(
-        compact ? static_cast<float>(GetScreenHeight()) - 32.0F
-                : 920.0F,
+        compact ? std::min(requestedPanelHeight,
+                           static_cast<float>(GetScreenHeight()) - 32.0F)
+                : requestedPanelHeight,
         static_cast<float>(GetScreenHeight()) - 56.0F);
     const float Margin = compact ? 16.0F : 28.0F;
     const float Gap = compact ? 8.0F : 14.0F;
@@ -61,7 +79,9 @@ void App::drawGraphicsPanel() {
     const float panelX = std::max(
         Margin,
         (static_cast<float>(GetScreenWidth()) - PanelWidth) * 0.5F);
-    const float panelY = 28.0F;
+    const float panelY = std::max(
+        compact ? 16.0F : 28.0F,
+        (static_cast<float>(GetScreenHeight()) - PanelHeight) * 0.5F);
     const float contentX = panelX + 28.0F;
     const float contentWidth = PanelWidth - 56.0F;
     const float columnWidth = (contentWidth - Gap) * 0.5F;
@@ -69,8 +89,6 @@ void App::drawGraphicsPanel() {
     ui_.drawPanel({panelX, panelY, PanelWidth, PanelHeight}, 250);
     const float headerY = compact ? 40.0F : 56.0F;
     const float headerHeight = compact ? 56.0F : 76.0F;
-    ui_.drawInsetPanel(
-        {contentX, panelY + headerY, contentWidth, headerHeight}, 245);
     ui_.drawLabel(
         {contentX + 16.0F, panelY + headerY + 8.0F,
          contentWidth - 32.0F, headerHeight - 16.0F},
@@ -130,13 +148,13 @@ void App::drawGraphicsPanel() {
                 presetName(currentPreset),
             {contentX + 22.0F, y + 16.0F},
             compact ? 20.0F : 25.0F,
-            {255, 235, 174, 255});
+            {40, 61, 78, 255});
         drawUiText(
             "Changes performance options together. Color, style and controls stay yours.",
             {contentX + 22.0F,
              y + (compact ? 45.0F : 58.0F)},
             compact ? 13.0F : 16.0F,
-            {199, 174, 142, 255});
+            {93, 116, 132, 255});
 
         const float cardY =
             y + (compact ? 90.0F : 124.0F);
@@ -167,7 +185,7 @@ void App::drawGraphicsPanel() {
         drawUiText(
             "Preset applies instantly. Fine-tune any option in Display, Color, Style or Motion.",
             {contentX, noteY}, compact ? 14.0F : 17.0F,
-            {245, 220, 174, 255});
+            {53, 76, 94, 255});
     } else if (graphicsPanelTab_ == DisplayPage) {
     float y = panelY + ControlStartY;
     if (ui_.drawToggleButton(
@@ -295,7 +313,7 @@ void App::drawGraphicsPanel() {
                     TextFormat(
                         "%s  %.2f", label, value),
                     {x, y}, 15.0F,
-                    {245, 220, 174, 255});
+                    {53, 76, 94, 255});
                 ui_.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
@@ -381,7 +399,7 @@ void App::drawGraphicsPanel() {
                 drawUiText(
                     TextFormat("%s  %.2f", label, value),
                     {x, y}, 15.0F,
-                    {245, 220, 174, 255});
+                    {53, 76, 94, 255});
                 ui_.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
@@ -413,7 +431,7 @@ void App::drawGraphicsPanel() {
         styleSlider(3, "BLOOM STRENGTH",
                     settings.bloomStrength, 0.0F, 1.0F);
         y += RowHeight;
-        toggleButton(0, y, "INK OUTLINES",
+        toggleButton(0, y, "OBJECT OUTLINES",
                      settings.inkOutlines);
         styleSlider(4, "OUTLINE STRENGTH",
                     settings.outlineStrength, 0.0F, 1.0F);
@@ -448,8 +466,8 @@ void App::drawGraphicsPanel() {
             settings.ditherStrength = 0.42F;
             settings.lightingSteps = 6.0F;
             settings.bloomStrength = 0.24F;
-            settings.outlineStrength = 0.3F;
-            settings.outlineWidth = 1.25F;
+            settings.outlineStrength = 0.68F;
+            settings.outlineWidth = 1.5F;
             settings.fogBandCount = 6.0F;
             settings.paperGrainStrength = 0.025F;
         }
@@ -474,7 +492,7 @@ void App::drawGraphicsPanel() {
                                static_cast<int>(
                                    std::lround(value * 100.0F))),
                     {contentX, y}, 15.0F,
-                    {245, 220, 174, 255});
+                    {53, 76, 94, 255});
                 ui_.drawInsetPanel(
                     {contentX,
                      y + (compact ? 20.0F : 29.0F),
@@ -539,7 +557,7 @@ void App::drawGraphicsPanel() {
                         static_cast<int>(
                             std::lround(value * 100.0F))),
                     {contentX, yPosition}, 16.0F,
-                    {245, 220, 174, 255});
+                    {53, 76, 94, 255});
                 ui_.drawInsetPanel(
                     {contentX, yPosition + 25.0F,
                      contentWidth, compact ? 30.0F : 38.0F},
@@ -572,7 +590,7 @@ void App::drawGraphicsPanel() {
                 static_cast<int>(
                     std::lround(controls.mouseSensitivity * 100.0F))),
             {contentX, y}, 17.0F,
-            {245, 220, 174, 255});
+            {53, 76, 94, 255});
         ui_.drawInsetPanel(
             {contentX, y + 28.0F, contentWidth,
              compact ? 32.0F : 40.0F}, 235);
@@ -594,7 +612,7 @@ void App::drawGraphicsPanel() {
         drawUiText(
             "CLICK A KEY TO REBIND  •  ESC CANCELS  •  LMB REMAINS PRIMARY",
             {contentX, y}, compact ? 11.0F : 14.0F,
-            {199, 174, 142, 255});
+            {93, 116, 132, 255});
         y += compact ? 22.0F : 30.0F;
 
         constexpr std::array<
@@ -620,6 +638,7 @@ void App::drawGraphicsPanel() {
                 ControlAction::Pause,
                 ControlAction::Map,
                 ControlAction::StartWave,
+                ControlAction::ToggleHud,
             };
         const std::size_t rowsPerColumn =
             (Actions.size() + 2U) / 3U;
@@ -646,7 +665,7 @@ void App::drawGraphicsPanel() {
                 controlActionName(Actions[index]),
                 {x + 12.0F, rowY + (compact ? 5.0F : 10.0F)},
                 compact ? 10.0F : 14.0F,
-                {245, 220, 174, 255});
+                {53, 76, 94, 255});
             const Rectangle keyBounds{
                 x + controlColumnWidth - keyWidth, rowY,
                 keyWidth, keyHeight};
@@ -715,7 +734,7 @@ void App::drawGraphicsPanel() {
         drawUiText(
             "MOTION PROFILE",
             {contentX, y}, 18.0F,
-            {255, 235, 174, 255});
+            {40, 61, 78, 255});
         y += compact ? 28.0F : 38.0F;
         const float profileWidth =
             (contentWidth - Gap * 2.0F) / 3.0F;
@@ -754,7 +773,7 @@ void App::drawGraphicsPanel() {
             "Outline controls remain available in Style Lab.",
             {contentX + 20.0F, y + 20.0F},
             compact ? 14.0F : 17.0F,
-            {199, 174, 142, 255});
+            {93, 116, 132, 255});
     } else if (graphicsPanelTab_ == ToolPage) {
         const auto toolSlider =
             [this, contentX, columnWidth, panelY, Gap,
@@ -769,7 +788,7 @@ void App::drawGraphicsPanel() {
                     static_cast<float>(row) * RowHeight;
                 drawUiText(
                     TextFormat("%s  %.2f", label, value),
-                    {x, y}, 15.0F, {245, 220, 174, 255});
+                    {x, y}, 15.0F, {53, 76, 94, 255});
                 ui_.drawInsetPanel(
                     {x, y + (compact ? 20.0F : 29.0F),
                      columnWidth, compact ? 27.0F : 36.0F},
@@ -930,7 +949,7 @@ void App::drawGraphicsPanel() {
                    GetScreenWidth(), GetScreenHeight(),
                    GetRenderWidth(), GetRenderHeight()),
         {contentX, panelY + PanelHeight - 48.0F}, 16.0F,
-        {245, 220, 174, 255});
+        {53, 76, 94, 255});
 
 }
 

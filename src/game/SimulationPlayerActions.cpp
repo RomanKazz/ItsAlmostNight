@@ -506,13 +506,19 @@ void Simulation::updatePlayerActions(
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);
-                const double masteryMultiplier =
-                    (heldTool == PlayerWeapon::Axe &&
-                     !skillTree_.hasEffect("unlock.axe")) ||
-                            (heldTool == PlayerWeapon::Pickaxe &&
-                             !skillTree_.hasEffect("unlock.pickaxe"))
-                        ? 0.8
-                        : 1.0;
+                double masteryMultiplier = 1.0;
+                if (heldTool == PlayerWeapon::Axe) {
+                    masteryMultiplier = skillTree_.hasEffect("unlock.axe")
+                        ? 0.85 + skillTree_.effectValue(
+                            "gather.axe_mastery")
+                        : 0.8;
+                } else if (heldTool == PlayerWeapon::Pickaxe) {
+                    masteryMultiplier = skillTree_.hasEffect(
+                        "unlock.pickaxe")
+                        ? 0.85 + skillTree_.effectValue(
+                            "gather.pickaxe_mastery")
+                        : 0.8;
+                }
                 const double resourceDamage =
                     targetBeforeHit != resources_.nodes().end()
                     ? damage * std::max(

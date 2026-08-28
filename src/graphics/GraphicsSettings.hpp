@@ -23,7 +23,7 @@ struct GraphicsSettings {
     bool paletteQuantization{false};
     bool dithering{false};
     bool posterizedLighting{true};
-    bool inkOutlines{false};
+    bool inkOutlines{true};
     bool fogBands{false};
     bool paperGrain{false};
     bool performanceLogging{false};
@@ -56,8 +56,8 @@ struct GraphicsSettings {
     float ditherStrength{0.35F};
     float lightingSteps{5.0F};
     float bloomStrength{0.28F};
-    float outlineStrength{0.35F};
-    float outlineWidth{1.0F};
+    float outlineStrength{0.68F};
+    float outlineWidth{1.5F};
     float fogBandCount{5.0F};
     float paperGrainStrength{0.035F};
 

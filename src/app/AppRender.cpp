@@ -439,6 +439,7 @@ void App::render() {
         pondPlantMaterial.localWindHeight = 1.0F;
         pondPlantMaterial.distantFadeAmount = 0.9F;
         pondPlantMaterial.vegetationAmount = 1.0F;
+        pondPlantMaterial.inkOutlineEligible = false;
         renderer_->setWorldMaterial(pondPlantMaterial);
         renderer_->drawPondDecor(camera);
         renderer_->endWorldShader();
@@ -542,6 +543,7 @@ void App::render() {
             (tuningPreview ||
              displayedToolVisual_ != FirstPersonToolVisual::None) &&
             (tuningPreview || actionModeUsesEquipment(actionMode_)) &&
+            !hudHidden_ &&
             !snapshot.selectedBuilding &&
             !foundationBuildMode_ &&
             !snapshot.playerRespawning;
@@ -629,33 +631,35 @@ void App::render() {
 
         // World-space UI is composited after post-processing so health bars,
         // levels and production rewards remain crisp above pixelization.
-        BeginMode3D(camera);
-        // These are overlays. Keeping them out of the depth buffer also
-        // prevents the viewmodel's independent camera depth from affecting
-        // their visibility.
-        rlDisableDepthTest();
-        targetHealthBar_.draw(
-            healthBarSnapshot, camera,
-            simulation_.terrain(),
-            [this](const EnemyInstance& enemy)
-                -> std::optional<BoundingBox> {
-                Vector3 position = enemyRenderPosition(enemy);
-                position.y += static_cast<float>(
-                    simulation_.terrain().getHeight(
-                        enemy.position.x, enemy.position.z));
-                const BoundingBox bounds = renderer_->enemyWorldBounds(
-                    enemyModelVisual(enemy.type), position,
-                    static_cast<float>(enemy.yaw),
-                    enemyVisualScale(enemy.type) *
-                        (enemy.eliteAffixes != 0U
-                            ? 1.08F : 1.0F));
-                return world_transforms::finite(bounds)
-                    ? std::optional<BoundingBox>{bounds}
-                    : std::nullopt;
-            });
-        drawProductionVisuals(camera);
-        rlEnableDepthTest();
-        EndMode3D();
+        if (!hudHidden_) {
+            BeginMode3D(camera);
+            // These are overlays. Keeping them out of the depth buffer also
+            // prevents the viewmodel's independent camera depth from affecting
+            // their visibility.
+            rlDisableDepthTest();
+            targetHealthBar_.draw(
+                healthBarSnapshot, camera,
+                simulation_.terrain(),
+                [this](const EnemyInstance& enemy)
+                    -> std::optional<BoundingBox> {
+                    Vector3 position = enemyRenderPosition(enemy);
+                    position.y += static_cast<float>(
+                        simulation_.terrain().getHeight(
+                            enemy.position.x, enemy.position.z));
+                    const BoundingBox bounds = renderer_->enemyWorldBounds(
+                        enemyModelVisual(enemy.type), position,
+                        static_cast<float>(enemy.yaw),
+                        enemyVisualScale(enemy.type) *
+                            (enemy.eliteAffixes != 0U
+                                ? 1.08F : 1.0F));
+                    return world_transforms::finite(bounds)
+                        ? std::optional<BoundingBox>{bounds}
+                        : std::nullopt;
+                });
+            drawProductionVisuals(camera);
+            rlEnableDepthTest();
+            EndMode3D();
+        }
 
         if (playerDamageFlashRemaining_ > 0.0 &&
             !userSettings_.accessibility.reduceFlashes) {
@@ -672,7 +676,7 @@ void App::render() {
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                           {142, 229, 255, alpha});
         }
-        drawFloatingDamageNumbers(camera);
+        if (!hudHidden_) drawFloatingDamageNumbers(camera);
         if (showTerrainWireframe_) {
             drawUiText(
                 TextFormat(
@@ -722,9 +726,11 @@ void App::render() {
 
         // Interaction prompts use a world anchor but are composited in
         // screen space after the 3D/post-process passes.
-        interactionPromptRenderer_.draw(
-            buildInteractionPrompt(feedbackSnapshot, camera), camera,
-            ui_, userSettings_.controls);
+        if (!hudHidden_) {
+            interactionPromptRenderer_.draw(
+                buildInteractionPrompt(feedbackSnapshot, camera), camera,
+                ui_, userSettings_.controls);
+        }
 
         auto hudSnapshot = presentationSnapshot;
         bool showBuildingContextCard =
@@ -751,7 +757,7 @@ void App::render() {
                     buildingContextCardStats_;
             }
         }
-        drawHud(
+        if (!hudHidden_) drawHud(
             ui_, hudSnapshot,
             {
                     .damageIndicators = damageIndicators_,
@@ -889,7 +895,7 @@ void App::render() {
                         buildingStatsUpgradeDuration_,
             },
             camera, userSettings_.controls);
-        if (foundationBuildMode_) {
+        if (!hudHidden_ && foundationBuildMode_) {
             const char* pieceName = "FOUNDATION 2x2";
             int previewStorey = 0;
             bool previewValid = false;
@@ -1074,7 +1080,7 @@ void App::render() {
                     fontSize, {255, 235, 184, 255});
             }
         }
-        if (wallDragStart_ && wallDragEnd_ &&
+        if (!hudHidden_ && wallDragStart_ && wallDragEnd_ &&
             placementDragType_) {
             const auto cells =
                 placementLine(
@@ -1112,7 +1118,7 @@ void App::render() {
                  y + 14.0F},
                 fontSize, {255, 235, 184, 255});
         }
-        if (removalDragActive_) {
+        if (!hudHidden_ && removalDragActive_) {
             const std::string removalHint =
                 "REMOVE x" +
                 std::to_string(
@@ -1124,7 +1130,7 @@ void App::render() {
                     GetScreenHeight() / 2 + 76),
                 20.0F, {255, 104, 91, 255});
         }
-        if (removalDragActive_ &&
+        if (!hudHidden_ && removalDragActive_ &&
             !structuralRiskIds_.empty()) {
             drawCenteredUiText(
                 "COLLAPSE RISK: " +
@@ -1136,21 +1142,23 @@ void App::render() {
                     (removalDragActive_ ? 106 : 132)),
                 17.0F, {255, 197, 82, 255});
         }
-        drawResourceGainVisuals(camera);
+        if (!hudHidden_) drawResourceGainVisuals(camera);
 
-        drawMinimapHud(
-            ui_, presentationSnapshot,
-            minimapExpansion_,
-            userSettings_.accessibility.showFps ? 56.0F : 20.0F);
+        if (!hudHidden_) {
+            drawMinimapHud(
+                ui_, presentationSnapshot,
+                minimapExpansion_,
+                userSettings_.accessibility.showFps ? 56.0F : 20.0F);
+        }
 
         drawRunStateOverlay(snapshot);
         drawRunUpgradeOverlay(
-            snapshot, simulation_.skillTree(),
+            ui_, snapshot, simulation_.skillTree(),
             runUpgradeOverlayEntranceSeconds_,
             runUpgradeCardHoverAmounts_);
         if (cardCollectionVisible_) {
             drawCardCollectionOverlay(
-                snapshot, simulation_.skillTree(),
+                ui_, snapshot, simulation_.skillTree(),
                 cardCollectionPage_);
         }
         if (snapshot.state == RunState::Paused &&
@@ -1209,7 +1217,7 @@ void App::render() {
         }
     }
 
-    drawBuildModePie();
+    if (!hudHidden_) drawBuildModePie();
     if (renderer_->graphicsPanelVisible()) {
         drawGraphicsPanel();
     }
@@ -1218,10 +1226,11 @@ void App::render() {
     drawSandboxCardMenu(snapshot);
     drawCoreDefenseMenu();
     drawObjectiveDebugMenu(snapshot);
-    if (performanceOverlayVisible_) {
+    uiEditor_.draw(ui_);
+    if (!hudHidden_ && performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
     }
-    if (userSettings_.accessibility.showFps) {
+    if (!hudHidden_ && userSettings_.accessibility.showFps) {
         drawFpsCounter();
     }
     const bool uiCursorVisible =
@@ -1231,7 +1240,7 @@ void App::render() {
         snapshot.state == RunState::Victory ||
         renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
         itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
-        coreDefenseMenuVisible_;
+        coreDefenseMenuVisible_ || uiEditor_.visible();
     if (uiCursorVisible) {
         HideCursor();
         ui_.drawCursor();

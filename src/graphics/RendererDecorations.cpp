@@ -547,16 +547,15 @@ void Renderer::drawDecorativeRocks(
             resources_.decorativeRockModel(variant).get(),
             decorativeRockTransforms_[variant]);
     }
-    constexpr std::size_t FirstFlowerVariant = 6U;
-    constexpr std::size_t LastFlowerVariant = 7U;
+    constexpr std::size_t FirstSmallPlantVariant = 6U;
+    constexpr std::size_t LastSmallPlantVariant = 8U;
     rlDrawRenderBatchActive();
     WorldMaterialState bushMaterial = worldMaterial_;
     bushMaterial.distantFadeAmount = 1.0F;
     bushMaterial.vegetationAmount = 1.0F;
     uploadWorldMaterial(bushMaterial);
     for (std::size_t variant = 0; variant < BushVariantCount; ++variant) {
-        if (variant >= FirstFlowerVariant &&
-            variant <= LastFlowerVariant) {
+        if (variant >= FirstSmallPlantVariant) {
             continue;
         }
         if (decorativeBushTransforms_[variant].empty() ||
@@ -568,19 +567,19 @@ void Renderer::drawDecorativeRocks(
             decorativeBushTransforms_[variant]);
     }
     rlDrawRenderBatchActive();
-    // Small flower clusters share the same reserved material tag as grass.
-    // Their RGB stays opaque, while post-process ink ignores both sides of
-    // the flower/terrain boundary. Bushes and the larger plant keep ink.
-    WorldMaterialState flowerMaterial = worldMaterial_;
-    flowerMaterial.baseColor.w = 0.125F;
-    uploadWorldMaterial(flowerMaterial);
+    // Flowers and thin plants become visual noise when every blade receives
+    // ink. Keep larger rounded bushes eligible, but render the small plant
+    // family as clean color shapes without a post-process silhouette.
+    WorldMaterialState smallPlantMaterial = worldMaterial_;
+    smallPlantMaterial.inkOutlineEligible = false;
+    uploadWorldMaterial(smallPlantMaterial);
     rlSetBlendFactorsSeparate(
         RL_ONE, RL_ZERO,
         RL_ONE, RL_ZERO,
         RL_FUNC_ADD, RL_FUNC_ADD);
     BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-    for (std::size_t variant = FirstFlowerVariant;
-         variant <= LastFlowerVariant; ++variant) {
+    for (std::size_t variant = FirstSmallPlantVariant;
+         variant <= LastSmallPlantVariant; ++variant) {
         if (decorativeBushTransforms_[variant].empty() ||
             !resources_.decorativeBushModel(variant).valid()) {
             continue;

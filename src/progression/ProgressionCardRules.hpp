@@ -4,10 +4,8 @@
 #include "progression/SkillTree.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <ranges>
-#include <span>
 #include <string_view>
 
 namespace ian {
@@ -19,22 +17,49 @@ struct ProgressionCardContext {
     PlayerClass playerClass{PlayerClass::None};
 };
 
-[[nodiscard]] constexpr bool progressionCardIsLegacyBuildingUnlock(
+[[nodiscard]] constexpr bool progressionCardIsDeterministicUnlock(
     std::string_view id) {
     return id == "lumber_mill" || id == "quarry" ||
         id == "crystal_mine" || id == "crossbow_unlock" ||
-        id == "cannon_unlock" || id == "catapult_unlock";
+        id == "cannon_unlock" || id == "catapult_unlock" ||
+        id == "club" || id == "rifle" || id == "bombs" ||
+        id == "ice_wand" || id == "fire_wand";
+}
+
+[[nodiscard]] constexpr bool progressionCardIsRetired(
+    std::string_view id) {
+    return id == "combat_training" || id == "power_swing" ||
+        id == "reinforced_frames" || id == "defense_engineering" ||
+        id == "sprinter" || id == "dash" ||
+        id == "frequent_bounty" || id == "safe_delivery";
+}
+
+[[nodiscard]] constexpr bool progressionCardIsHidden(
+    std::string_view id) {
+    return progressionCardIsDeterministicUnlock(id) ||
+        progressionCardIsRetired(id);
 }
 
 [[nodiscard]] constexpr int progressionCardRequiredCoreLevel(
     std::string_view id) {
+    if (id == "concussive_swings" || id == "bruiser" ||
+        id == "crowd_breaker") {
+        return 1;
+    }
     if (id == "night_shift" || id == "turret_calibration" ||
         id == "rapid_battery" || id == "long_watch" ||
-        id == "trap_engineer") {
+        id == "trap_engineer" || id == "marksman" ||
+        id == "assault_rifle") {
         return 2;
     }
-    if (id == "artillery_corps" || id == "high_ground") {
+    if (id == "artillery_corps" || id == "high_ground" ||
+        id == "bomb_pouch") {
         return 3;
+    }
+    if (id == "deep_freeze" || id == "ice_lance") return 4;
+    if (id == "wildfire" || id == "inferno" ||
+        id == "thermal_shock") {
+        return 5;
     }
     return 0;
 }
@@ -46,69 +71,23 @@ struct ProgressionCardContext {
     return 2;
 }
 
-[[nodiscard]] inline std::span<const std::string_view>
-progressionCardRequiredCards(std::string_view id) {
-    using Requirements = std::array<std::string_view, 2>;
-    static constexpr Requirements None{};
-    static constexpr Requirements PowerSwing{"power_swing"};
-    static constexpr Requirements Bombs{"bombs"};
-    static constexpr Requirements Club{"club"};
-    static constexpr Requirements Rifle{"rifle"};
-    static constexpr Requirements Ice{"ice_wand"};
-    static constexpr Requirements Fire{"fire_wand"};
-    static constexpr Requirements IceAndFire{"ice_wand", "fire_wand"};
-    static constexpr Requirements Dash{"dash"};
-    static constexpr Requirements NightlyChest{"nightly_chest"};
-    if (id == "wide_swing") return {PowerSwing.data(), 1U};
-    if (id == "bomb_pouch") return {Bombs.data(), 1U};
-    if (id == "concussive_swings" || id == "bruiser" ||
-        id == "crowd_breaker") return {Club.data(), 1U};
-    if (id == "marksman" || id == "assault_rifle") {
-        return {Rifle.data(), 1U};
-    }
-    if (id == "deep_freeze" || id == "ice_lance") {
-        return {Ice.data(), 1U};
-    }
-    if (id == "wildfire" || id == "inferno") {
-        return {Fire.data(), 1U};
-    }
-    if (id == "thermal_shock") return IceAndFire;
-    if (id == "frequent_bounty") {
-        return {NightlyChest.data(), 1U};
-    }
-    if (id == "impact_dash" || id == "long_dash" ||
-        id == "rapid_dash") return {Dash.data(), 1U};
-    return {None.data(), 0U};
-}
-
-[[nodiscard]] inline bool progressionCardRequirementsMet(
-    const SkillTree& tree, const SkillNodeDefinition& node) {
-    return std::ranges::all_of(
-        progressionCardRequiredCards(node.id),
-        [&tree](std::string_view required) {
-            return tree.isUnlocked(required);
-        });
-}
-
 [[nodiscard]] inline bool progressionCardEligible(
     const SkillTree& tree, std::size_t index,
     const ProgressionCardContext& context) {
-    if (index >= tree.nodes().size() || tree.isUnlocked(
-            tree.nodes()[index].id) || tree.isExcluded(index)) {
+    if (index >= tree.nodes().size() || tree.isMaxLevel(index) ||
+        tree.isExcluded(index)) {
         return false;
     }
     const SkillNodeDefinition& node = tree.nodes()[index];
     if (node.cost <= 0 ||
-        progressionCardIsLegacyBuildingUnlock(node.id) ||
+        progressionCardIsHidden(node.id) ||
         context.playerLevel < progressionCardMinimumLevel(node) ||
         context.coreLevel < node.minimumCoreLevel ||
         context.wavesSurvived < node.minimumWavesSurvived) {
         return false;
     }
-    if (context.coreLevel < progressionCardRequiredCoreLevel(node.id)) {
-        return false;
-    }
-    return progressionCardRequirementsMet(tree, node);
+    return context.coreLevel >=
+        progressionCardRequiredCoreLevel(node.id);
 }
 
 [[nodiscard]] inline int progressionCardClassWeight(

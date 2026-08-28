@@ -226,9 +226,11 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.flying += growth / 3;
     result.splitter += (growth + 3) / 4;
     result.boss = normalizedWave % ConfiguredWaveCount == 0;
-    result.groupSize = std::min(24, 10 + extraWaves / 4);
+    result.groupSize = std::min(
+        10, definitions_.back().groupSize + extraWaves / 4);
     result.groupInterval = std::max(
-        0.35, 1.2 - 0.02 * static_cast<double>(extraWaves));
+        3.5, definitions_.back().groupInterval -
+                 0.05 * static_cast<double>(extraWaves));
     result.budget =
         result.basic * enemyBudgetCost(EnemyType::Basic) +
         result.fast * enemyBudgetCost(EnemyType::Fast) +

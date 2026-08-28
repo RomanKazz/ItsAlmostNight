@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 
+#include "progression/ProgressionCardRules.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
@@ -7,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <vector>
 
 namespace ian {
 namespace {
@@ -178,7 +180,7 @@ void App::drawSandboxCardMenu(
     if (ui_.drawToggleButton(
             {x + Padding + tabWidth + 12.0F, tabY,
              tabWidth, 48.0F},
-            "UNLOCK CARDS", sandboxCardMenuTab_ == 1)) {
+            "POWER CARDS", sandboxCardMenuTab_ == 1)) {
         sandboxCardMenuTab_ = 1;
         sandboxCardMenuScroll_ = 0.0F;
     }
@@ -189,9 +191,20 @@ void App::drawSandboxCardMenu(
     const Rectangle viewport{
         x + Padding, viewportY,
         width - Padding * 2.0F, viewportHeight};
+    std::vector<std::size_t> powerCards;
+    if (sandboxCardMenuTab_ == 1) {
+        for (std::size_t index = 0;
+             index < simulation_.skillTree().nodes().size(); ++index) {
+            const SkillNodeDefinition& node =
+                simulation_.skillTree().nodes()[index];
+            if (node.cost > 0 &&
+                !progressionCardIsHidden(node.id)) {
+                powerCards.push_back(index);
+            }
+        }
+    }
     const std::size_t cardCount = sandboxCardMenuTab_ == 0
-        ? RunUpgradeDefinitions.size()
-        : simulation_.skillTree().nodes().size();
+        ? RunUpgradeDefinitions.size() : powerCards.size();
     const float contentHeight = static_cast<float>(cardCount) *
         (RowHeight + RowGap) - RowGap;
     const float maximumScroll = std::max(
@@ -230,18 +243,24 @@ void App::drawSandboxCardMenu(
             card = progressionCardId(definition.effect);
             title = std::string(definition.name);
             description = std::string(definition.description);
-            stateLabel = "x" + std::to_string(
-                snapshot.runUpgradeStacks[
-                    runUpgradeIndex(definition.effect)]);
+            const int level = snapshot.runUpgradeStacks[
+                runUpgradeIndex(definition.effect)];
+            const int maximumLevel = runUpgradeMaximumLevel(
+                definition.effect);
+            grantable = level < maximumLevel;
+            stateLabel = "LVL " + std::to_string(level) + " / " +
+                std::to_string(maximumLevel);
         } else {
+            const std::size_t skillIndex = powerCards[index];
             const SkillNodeDefinition& definition =
-                simulation_.skillTree().nodes()[index];
-            card = skillProgressionCardId(index);
+                simulation_.skillTree().nodes()[skillIndex];
+            card = skillProgressionCardId(skillIndex);
             title = definition.title;
             description = definition.description;
-            grantable = simulation_.skillTree().state(index) !=
-                SkillNodeState::Unlocked;
-            stateLabel = grantable ? "LOCKED" : "UNLOCKED";
+            const int level = simulation_.skillTree().level(skillIndex);
+            grantable = !simulation_.skillTree().isMaxLevel(skillIndex);
+            stateLabel = "LVL " + std::to_string(level) + " / " +
+                std::to_string(definition.maximumLevel);
         }
 
         const float textWidth = row.width - GrantWidth - 64.0F;

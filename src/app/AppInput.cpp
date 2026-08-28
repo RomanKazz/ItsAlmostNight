@@ -52,6 +52,44 @@ bool keyReleased(const ControlSettings& settings,
 }
 
 void App::processInput() {
+    if (uiEditorWasVisible_ && !uiEditor_.visible() &&
+        simulation_.snapshot().state != RunState::MainMenu &&
+        simulation_.snapshot().state != RunState::Paused) {
+        DisableCursor();
+    }
+    uiEditorWasVisible_ = uiEditor_.visible();
+    const bool editorShortcut =
+        (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) &&
+        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
+        IsKeyPressed(KEY_U);
+    if (editorShortcut) {
+        uiEditor_.toggle();
+        uiEditorWasVisible_ = uiEditor_.visible();
+        renderer_->setGraphicsPanelVisible(false);
+        if (uiEditor_.visible()) {
+            EnableCursor();
+        } else if (simulation_.snapshot().state != RunState::MainMenu &&
+                   simulation_.snapshot().state != RunState::Paused) {
+            DisableCursor();
+        }
+    }
+    if (uiEditor_.visible()) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            uiEditor_.close();
+            if (simulation_.snapshot().state != RunState::MainMenu &&
+                simulation_.snapshot().state != RunState::Paused) {
+                DisableCursor();
+            }
+        }
+        input_.moveForward = 0.0;
+        input_.moveRight = 0.0;
+        input_.sprint = false;
+        pendingYaw_ = 0.0;
+        pendingPitch_ = 0.0;
+        pendingJump_ = false;
+        pendingDash_ = false;
+        return;
+    }
     renderer_->processInput();
     const auto snapshot = simulation_.snapshot();
     const bool graphicsPanelVisible =
@@ -738,6 +776,11 @@ void App::processInput() {
         return;
     }
     if (snapshot.state != RunState::MainMenu) {
+        if (!controlDown &&
+            keyPressed(userSettings_.controls,
+                       ControlAction::ToggleHud)) {
+            hudHidden_ = !hudHidden_;
+        }
         if (shiftDown &&
             IsKeyPressed(KEY_F10)) {
             performanceOverlayVisible_ =

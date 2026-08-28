@@ -284,8 +284,9 @@ void runSimulationTests() {
         timedNight.tick(8.0);
         require(
             timedNight.snapshot().state == ian::RunState::Wave &&
-                timedNight.snapshot().activeEnemyCount > 15U,
-            "a cleared spawn budget is replenished during the timed night");
+                timedNight.snapshot().activeEnemyCount >= 3U &&
+                timedNight.snapshot().activeEnemyCount <= 6U,
+            "first timed night starts with a manageable spawn cadence");
         timedNight.tick(4.0);
         require(
             timedNight.snapshot().state == ian::RunState::WaveComplete &&
@@ -348,6 +349,23 @@ void runSimulationTests() {
                     ian::RunUpgradeEffect::DefenseFireRate)) &&
                 sandbox.snapshot().runUpgradeStacks[fireRateIndex] == 1,
             "sandbox can grant a selected power card directly");
+        for (int level = 2;
+             level <= ian::runUpgradeMaximumLevel(
+                 ian::RunUpgradeEffect::DefenseFireRate);
+             ++level) {
+            require(
+                sandbox.grantSandboxProgressionCard(
+                    ian::progressionCardId(
+                        ian::RunUpgradeEffect::DefenseFireRate)) &&
+                    sandbox.snapshot().runUpgradeStacks[
+                        fireRateIndex] == level,
+                "repeatable power card advances through its levels");
+        }
+        require(
+            !sandbox.grantSandboxProgressionCard(
+                ian::progressionCardId(
+                    ian::RunUpgradeEffect::DefenseFireRate)),
+            "maxed power cards reject additional levels");
         const auto rifleCard = sandbox.skillTree().indexOf("rifle");
         require(
             rifleCard && sandbox.grantSandboxProgressionCard(
@@ -598,7 +616,10 @@ void runSimulationTests() {
         const auto clubCard =
             objectiveSimulation.skillTree().indexOf("club");
         require(
-            clubCard && std::ranges::any_of(
+            clubCard && objectiveSimulation.snapshot().unlockedWeapons[
+                            static_cast<std::size_t>(
+                                ian::PlayerWeapon::Club)] &&
+                std::ranges::none_of(
                 objectiveSimulation.snapshot().runUpgradeChoices |
                     std::views::take(
                         objectiveSimulation.snapshot()
@@ -607,7 +628,7 @@ void runSimulationTests() {
                     return ian::isSkillProgressionCard(card) &&
                         ian::progressionCardSkillIndex(card) == *clubCard;
                 }),
-            "the first level guarantees a usable combat weapon card");
+            "core level one unlocks the club without offering an unlock card");
         const int unlockedBeforeLevelUp =
             objectiveSimulation.skillTree().unlockedCount();
         resolveLevelUps(objectiveSimulation, false);
@@ -882,26 +903,19 @@ void runSimulationTests() {
             60.0, 1e-9,
             "first wave preparation lasts one minute");
         earlySimulation.grantSkillPoints(
-            7, ian::SkillPointSource::Event);
-        constexpr std::array<const char*, 4> LongerDayPath{{
-            "nightly_chest", "keymaster", "expanded_storage",
-            "longer_days",
-        }};
-        bool unlockedLongerDays = true;
-        for (const char* id : LongerDayPath) {
-            const auto skill =
-                earlySimulation.skillTree().indexOf(id);
-            unlockedLongerDays = unlockedLongerDays && skill &&
-                earlySimulation.purchaseSkill(*skill) ==
-                    ian::SkillPurchaseError::None;
-        }
+            2, ian::SkillPointSource::Event);
+        const auto longerDays =
+            earlySimulation.skillTree().indexOf("longer_days");
+        const bool unlockedLongerDays = longerDays &&
+            earlySimulation.purchaseSkill(*longerDays) ==
+                ian::SkillPurchaseError::None;
         requireNear(
             earlySimulation.snapshot().phaseDuration,
             75.0, 1e-9,
             "Longer Days adds exactly fifteen seconds to current daytime");
         require(
             unlockedLongerDays,
-            "Longer Days unlocks through its complete prerequisite path");
+            "Longer Days works as an independent card");
         ian::PlayerCommand placeFreeCore;
         placeFreeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
@@ -957,14 +971,10 @@ void runSimulationTests() {
             "twilight can be skipped after the player finishes building");
         earlySimulation.restartRun();
         earlySimulation.grantSkillPoints(
-            11, ian::SkillPointSource::Event);
-        for (const char* id : LongerDayPath) {
-            const auto skill =
-                earlySimulation.skillTree().indexOf(id);
-            if (skill) {
-                static_cast<void>(
-                    earlySimulation.purchaseSkill(*skill));
-            }
+            2, ian::SkillPointSource::Event);
+        if (longerDays) {
+            static_cast<void>(
+                earlySimulation.purchaseSkill(*longerDays));
         }
         earlySimulation.tick(1.0 / 60.0, placeFreeCore);
         resolveLevelUps(earlySimulation);
@@ -980,22 +990,20 @@ void runSimulationTests() {
         require(hourglassBonus > 0,
                 "preparation HUD advertises an early-wave bonus");
         require(
-            hourglassCoins == hourglassBonus &&
-                hourglassInsight == hourglassBonus,
-            "Hourglass converts early-wave time into Coins and Insight");
+            hourglassCoins == hourglassBonus,
+            "Hourglass converts early-wave time into Coins");
+        require(
+            hourglassInsight == hourglassBonus,
+            "Hourglass converts early-wave time into Insight");
 
         earlySimulation.grantSkillPoints(
-            4, ian::SkillPointSource::Event);
-        constexpr std::array<const char*, 2> EarlyPlanningPath{{
-            "safe_delivery", "early_planning",
-        }};
-        bool unlockedEarlyPlanning = true;
-        for (const char* id : EarlyPlanningPath) {
-            const auto skill = earlySimulation.skillTree().indexOf(id);
-            unlockedEarlyPlanning = unlockedEarlyPlanning && skill &&
-                earlySimulation.purchaseSkill(*skill) ==
-                    ian::SkillPurchaseError::None;
-        }
+            1, ian::SkillPointSource::Event);
+        const auto earlyPlanning =
+            earlySimulation.skillTree().indexOf("early_planning");
+        const bool unlockedEarlyPlanning = earlyPlanning &&
+            (earlySimulation.skillTree().isUnlocked("early_planning") ||
+             earlySimulation.purchaseSkill(*earlyPlanning) ==
+                ian::SkillPurchaseError::None);
         const int advertisedBonus =
             earlySimulation.snapshot().earlyWaveBonus;
         const int advertisedCoins =
@@ -1509,9 +1517,11 @@ void runSimulationTests() {
             potionSimulation.snapshot().state == ian::RunState::Wave &&
                 potionSimulation.snapshot().battlePotionAvailable,
             "Battle Potion arms once at the beginning of a night");
+        const double potionTriggerDamage =
+            potionSimulation.snapshot().playerHealth * 0.7;
         ian::PlayerCommand criticalDamage;
         criticalDamage.damagePlayer =
-            ian::DamagePlayerCommand{66.0};
+            ian::DamagePlayerCommand{potionTriggerDamage};
         potionSimulation.tick(0.0, criticalDamage);
         require(
             !potionSimulation.snapshot().battlePotionAvailable &&
@@ -2462,6 +2472,12 @@ void runSimulationTests() {
                 ian::BuildingType::CrystalMine, {7, 3}).error ==
                     ian::PlacementError::CoreLevelRequired,
             "Core level one keeps advanced production locked");
+        require(
+            producerUnlocks.snapshot().unlockedWeapons[
+                static_cast<std::size_t>(ian::PlayerWeapon::Club)] &&
+                !producerUnlocks.snapshot().unlockedWeapons[
+                    static_cast<std::size_t>(ian::PlayerWeapon::Rifle)],
+            "Core level one guarantees the Club but keeps ranged weapons locked");
         const auto coreId = producerUnlocks.snapshot().coreId;
         require(coreId.has_value(), "progression fixture places the Core");
         ian::PlayerCommand upgradeCore;
@@ -2479,6 +2495,10 @@ void runSimulationTests() {
                     ian::BuildingType::Turret)] &&
                 levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::SlowTrap)] &&
+                levelTwo.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::Rifle)] &&
+                !levelTwo.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::Bomb)] &&
                 !levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::CrystalMine)] &&
                 !levelTwo.unlockedBuildings[static_cast<std::size_t>(
@@ -2492,11 +2512,48 @@ void runSimulationTests() {
                     ian::BuildingType::CrystalMine)] &&
                 levelThree.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Cannon)] &&
+                levelThree.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::Bomb)] &&
+                !levelThree.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::IceWand)] &&
                 !levelThree.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Catapult)] &&
                 ian::buildingRequiredCoreLevel(
                     ian::BuildingType::Catapult) == 4,
             "Core level three unlocks crystal mining and cannons; catapults require four");
+        ian::PlayerCommand toggleUnlimited;
+        toggleUnlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
+        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+        const auto levelFour = producerUnlocks.snapshot();
+        require(
+            levelFour.coreLevel == 4 &&
+                levelFour.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::IceWand)] &&
+                !levelFour.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::FireWand)],
+            "Core level four guarantees the Ice Wand");
+        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
+        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+        const auto levelFive = producerUnlocks.snapshot();
+        require(
+            levelFive.coreLevel == 5 &&
+                levelFive.unlockedWeapons[static_cast<std::size_t>(
+                    ian::PlayerWeapon::FireWand)],
+            "Core level five guarantees the Fire Wand");
+        require(
+            ian::playerWeaponRequiredCoreLevel(
+                ian::PlayerWeapon::Rifle) == 2 &&
+                ian::playerWeaponRequiredCoreLevel(
+                    ian::PlayerWeapon::Bomb) == 3 &&
+                ian::playerWeaponRequiredCoreLevel(
+                    ian::PlayerWeapon::IceWand) == 4 &&
+                ian::playerWeaponRequiredCoreLevel(
+                    ian::PlayerWeapon::FireWand) == 5,
+            "player weapon Core gates stay explicit and ordered");
     }
     {
         ian::GameBalance productionBalance =
@@ -3447,12 +3504,12 @@ void runSimulationTests() {
         rangerClass.snapshot().playerMoveSpeedMultiplier, 1.12, 1e-12,
         "ranger class applies its glass-cannon run modifiers");
     require(
-        rangerClass.skillTree().isUnlocked("combat_training") &&
+        !rangerClass.skillTree().isUnlocked("combat_training") &&
             rangerClass.skillTree().isUnlocked("rifle") &&
             rangerClass.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Rifle &&
             rangerClass.skillTree().points() == 0,
-        "ranger starts with its rifle path unlocked for free");
+        "ranger starts with its rifle without a hidden damage card");
     rangerClass.restartRun();
     require(
         rangerClass.snapshot().playerClass ==
@@ -3474,11 +3531,11 @@ void runSimulationTests() {
         vanguardClass.snapshot().playerDamageMultiplier, 0.90, 1e-12,
         "vanguard class trades damage for health and resistance");
     require(
-        vanguardClass.skillTree().isUnlocked("combat_training") &&
+        !vanguardClass.skillTree().isUnlocked("combat_training") &&
             vanguardClass.skillTree().isUnlocked("club") &&
             vanguardClass.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Club,
-        "vanguard starts with combat training and club nodes");
+        "vanguard starts with its club without a hidden damage card");
 
     ian::Simulation engineerClass{simulationBalance};
     engineerClass.startRun(ian::PlayerClass::Engineer);
@@ -3491,11 +3548,11 @@ void runSimulationTests() {
         "engineer class applies its personal damage tradeoff");
     require(
         engineerClass.skillTree().isUnlocked("hammer") &&
-            engineerClass.skillTree().isUnlocked(
+            !engineerClass.skillTree().isUnlocked(
                 "defense_engineering") &&
             engineerClass.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Axe,
-        "engineer starts with fortification and defense bonuses");
+        "engineer receives only its advertised fortification card");
     const auto engineerStone = std::ranges::find_if(
         engineerClass.snapshot().resourceNodes,
         [](const ian::ResourceNode& node) {
@@ -3520,12 +3577,12 @@ void runSimulationTests() {
                 ian::PlayerClass::Prospector &&
             prospectorClass.skillTree().isUnlocked("axe") &&
             prospectorClass.skillTree().isUnlocked("pickaxe") &&
-            prospectorClass.skillTree().isUnlocked(
+            !prospectorClass.skillTree().isUnlocked(
                 "efficient_strikes") &&
             prospectorClass.snapshot().selectedWeapon ==
                 ian::PlayerWeapon::Pickaxe &&
             prospectorClass.skillTree().points() == 0,
-        "prospector starts with free resource gathering nodes");
+        "prospector starts with its tools without a hidden gathering card");
     requireNear(
         prospectorClass.snapshot().playerDamageMultiplier,
         0.85, 1e-12,
@@ -3592,9 +3649,12 @@ void runSimulationTests() {
     require(
         alchemistClass->snapshot().lootStacks[
             ian::lootUpgradeIndex(ian::LootUpgradeEffect::Apple)] == 1 &&
-        alchemistClass->snapshot().lootStacks[
-            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Potion)] == 1,
-        "alchemist starts with Apple and Potion items");
+            alchemistClass->snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Potion)] == 1 &&
+            alchemistClass->skillTree().isUnlocked("fire_wand") &&
+            alchemistClass->snapshot().selectedWeapon ==
+                ian::PlayerWeapon::FireWand,
+        "alchemist starts with Fire Wand, Apple and Potion");
 
     auto chronomancerClass =
         std::make_unique<ian::Simulation>(simulationBalance);
@@ -3602,9 +3662,12 @@ void runSimulationTests() {
     require(
         chronomancerClass->snapshot().lootStacks[
             ian::lootUpgradeIndex(ian::LootUpgradeEffect::Hourglass)] == 1 &&
-        chronomancerClass->snapshot().lootStacks[
-            ian::lootUpgradeIndex(ian::LootUpgradeEffect::Rope)] == 1,
-        "chronomancer starts with Hourglass and Rope items");
+            chronomancerClass->snapshot().lootStacks[
+                ian::lootUpgradeIndex(ian::LootUpgradeEffect::Rope)] == 1 &&
+            chronomancerClass->skillTree().isUnlocked("ice_wand") &&
+            chronomancerClass->snapshot().selectedWeapon ==
+                ian::PlayerWeapon::IceWand,
+        "chronomancer starts with Ice Wand, Hourglass and Rope");
 
     ian::Simulation simulation{simulationBalance};
     require(simulation.snapshot().state == ian::RunState::MainMenu, "simulation starts in menu");
@@ -3878,18 +3941,16 @@ void runSimulationTests() {
             "god mode exposes infinite skill points");
     const auto nightlyChestSkill =
         simulation.skillTree().indexOf("nightly_chest");
-    require(
-        nightlyChestSkill &&
+    require(nightlyChestSkill.has_value(),
+            "Supply Drop card exists");
+    for (int level = 1; level <= 3; ++level) {
+        require(
             simulation.purchaseSkill(*nightlyChestSkill) ==
-                ian::SkillPurchaseError::None,
-        "nightly chest fixture unlocks survived-night reward");
-    const auto frequentBountySkill =
-        simulation.skillTree().indexOf("frequent_bounty");
-    require(
-        frequentBountySkill &&
-            simulation.purchaseSkill(*frequentBountySkill) ==
-                ian::SkillPurchaseError::None,
-        "nightly delivery fixture upgrades the reward to every night");
+                    ian::SkillPurchaseError::None &&
+                simulation.skillTree().level(*nightlyChestSkill) ==
+                    level,
+            "Supply Drop shortens its interval each level");
+    }
     const std::size_t chestsBeforeFirstNight =
         simulation.snapshot().lootChests.size();
     constexpr std::array<ian::PlayerWeapon, 7> GodModeTools{{
@@ -4137,8 +4198,8 @@ void runSimulationTests() {
                            simulation.snapshot().upcomingAttackDirections.end(),
                            true) == 1,
             "first wave advertises its single attack front");
-    require(simulation.snapshot().activeEnemyCount == 5 &&
-                simulation.snapshot().pendingEnemyCount == 10,
+    require(simulation.snapshot().activeEnemyCount == 3 &&
+                simulation.snapshot().pendingEnemyCount == 12,
             "early wave immediately spawns first enemy group");
     auto phaseEvents = simulation.takeEvents();
     bool directionWarningFound = false;
@@ -4158,22 +4219,22 @@ void runSimulationTests() {
     require(waveEventFound,
             "early wave emits WaveStarted event");
     require(simulation.snapshot().wave == 1 &&
-                simulation.snapshot().activeEnemyCount == 5 &&
-                simulation.snapshot().pendingEnemyCount == 10,
+                simulation.snapshot().activeEnemyCount == 3 &&
+                simulation.snapshot().pendingEnemyCount == 12,
             "first wave starts with configured enemy group");
     require(simulation.snapshot().enemies.front().position.z > 20.0,
             "first group enters from outside initial player view");
     require(simulation.snapshot().tutorialObjective ==
                 ian::TutorialObjective::SurviveFirstWave,
             "tutorial switches to first-night survival");
-    simulation.tick(2.0);
-    require(simulation.snapshot().activeEnemyCount == 10 &&
-                simulation.snapshot().pendingEnemyCount == 5,
+    simulation.tick(8.0);
+    require(simulation.snapshot().activeEnemyCount == 6 &&
+                simulation.snapshot().pendingEnemyCount == 9,
             "next enemy group arrives after configured interval");
     ian::PlayerCommand spawnDebugEnemy;
     spawnDebugEnemy.spawnEnemy = ian::SpawnEnemyCommand{ian::EnemyType::Boss};
     simulation.tick(1.0 / 60.0, spawnDebugEnemy);
-    require(simulation.snapshot().activeEnemyCount == 11,
+    require(simulation.snapshot().activeEnemyCount == 7,
             "debug command spawns selected enemy during wave");
     phaseEvents = simulation.takeEvents();
 

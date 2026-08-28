@@ -59,6 +59,10 @@ void runWaveDirectorTests() {
             fourthComposition.sapper > 0 &&
             fifthComposition.flying > 0,
         "enemy roles unlock progressively across early waves");
+    require(
+        firstComposition.groupSize == 3 &&
+            firstComposition.groupInterval == 8.0,
+        "first timed night uses a manageable spawn cadence");
 
     const auto firstBuild = director.buildWave(4, {3, -2});
     const ian::Vec3 firstPosition = firstBuild.spawns.front().position;
@@ -158,18 +162,20 @@ void runWaveDirectorTests() {
     require(
         distantWave.wave == 1000000 &&
             distantWave.spawns.size() <=
-                ian::WaveDirector::MaximumWaveEnemies,
+                ian::WaveDirector::MaximumWaveEnemies &&
+            distantWave.groupSize <= 10 &&
+            distantWave.groupInterval >= 3.5,
         "unbounded wave numbers keep a bounded spawn queue");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
     requireNear(groupedWave.spawns[0].position.z, -24.0, 1e-12,
                 "first group uses first attack direction");
-    require(groupedWave.spawns[5].position.z < -20.0,
+    require(groupedWave.spawns[3].position.z < -20.0,
             "first wave keeps every group on one attack front");
 
     const auto twoFrontWave = director.buildWave(2, {0, 0});
     require(twoFrontWave.spawns[0].position.z < -20.0 &&
-                twoFrontWave.spawns[6].position.x > 20.0,
+                twoFrontWave.spawns[4].position.x > 20.0,
             "second wave introduces exactly a second attack front");
 
     constexpr std::array<ian::Vec3, 3> Anchors{{

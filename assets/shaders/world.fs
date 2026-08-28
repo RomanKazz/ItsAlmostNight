@@ -126,6 +126,10 @@ vec3 terrainMaterial(
     float patchNoise = valueNoise(worldXZ*0.095 + vec2(19.3, -7.1));
     float detailNoise = valueNoise(worldXZ*0.42 + vec2(-31.7, 42.9));
     float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
+    // Backdrop vertices encode a mountain band in R-B. Ordinary playable
+    // terrain, including shoreline tinting, remains greyscale.
+    float playableTerrain =
+        1.0 - step(0.001, abs(vertexColor.r - vertexColor.b));
 
     // Steep terrace walls stay dirt-covered. Returning very steep fragments
     // to grass exposed the terrain triangulation as green/brown wedges.
@@ -137,23 +141,22 @@ vec3 terrainMaterial(
     float dirtWeight = clamp(
         max(dirtSlopeBand*0.96, dirtPatch*0.66), 0.0, 1.0);
 
-    vec3 textureSample =
-        texture(terrainTexture, worldXZ*0.08).rgb;
+    // The authored texture supplies the cellular shapes. A continuous,
+    // low-frequency UV warp breaks the square repetition without seams and
+    // is substantially cheaper than evaluating Worley per terrain pixel.
+    vec2 grassUvWarp = vec2(
+        broadNoise - 0.5,
+        patchNoise - 0.5);
+    vec2 grassUv = worldXZ*0.106667 + grassUvWarp*0.075;
+    vec3 textureSample = texture(terrainTexture, grassUv).rgb;
     float textureLuminance = dot(
         textureSample, vec3(0.2126, 0.7152, 0.0722));
-    // Keep the watercolor lively, but below the saturation of foliage and
-    // gameplay accents so the ground still supports the scene.
-    vec3 gradedGrassTexture = mix(
-        vec3(textureLuminance), textureSample, 0.74)*
-        vec3(1.04, 0.93, 0.88);
-    float grassDetail = mix(
-        0.82 + detailNoise*0.24,
-        1.0,
-        terrainTextureEnabled);
+    // The texture is authored as final grass albedo. Do not reinterpret it
+    // as a mask or replace its yellow-green palette with the old dark tint.
+    // The regular world lighting, shadows and atmosphere are applied later.
     vec3 grass = mix(
-        terrainGrassTint*grassDetail,
-        gradedGrassTexture,
-        terrainTextureEnabled);
+        terrainGrassTint, textureSample,
+        clamp(terrainTextureEnabled, 0.0, 1.0));
 
     float sideDetail = valueNoise(vec2(
         worldPosition.y*0.21 + worldPosition.x*0.035,
@@ -225,8 +228,6 @@ vec3 terrainMaterial(
 
     // Dedicated bilinear mask keeps narrow path edges independent from the
     // terrain triangle grid. Backdrop UVs use another scale, so exclude it.
-    float playableTerrain =
-        1.0 - step(0.001, abs(vertexColor.r - vertexColor.b));
     float pathWeight = texture(
         terrainPathMask, fragTexCoord).r*
         terrainPathMaskEnabled*playableTerrain;
@@ -595,8 +596,21 @@ void main()
     }
 
     finalColor = vec4(litColor, outputAlpha);
-    normalAo = vec4(
-        encodeOctahedralNormal(normal),
+    // Pack the outline material class and the SSAO mask together.  Keeping
+    // the class separate from scene color alpha is important: alpha is also
+    // used by transparent ghosts and blending, while the ink pass needs a
+    // stable distinction between terrain, props and vegetation.
+    //
+    //   0 = no ink geometry, 1 = terrain, 2 = solid prop, 3 = vegetation
+    //   fractional half of the bucket = screen-space AO amount
+    float outlineMaterialClass = mix(
+        2.0, 1.0, step(0.5, terrainAmount));
+    outlineMaterialClass = mix(
+        outlineMaterialClass, 3.0, step(0.5, vegetationAmount));
+    outlineMaterialClass *= step(0.5, inkOutlineEligible);
+    float packedClassAo = outlineMaterialClass*0.25 +
         clamp(screenAoAmount, 0.0, 1.0)*(1.0 - ghost)*
-        (1.0 - terraceWall), clamp(vegetationAmount, 0.0, 1.0));
+        (1.0 - terraceWall)*0.125;
+    normalAo = vec4(
+        encodeOctahedralNormal(normal), packedClassAo, 1.0);
 }

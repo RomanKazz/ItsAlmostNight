@@ -72,7 +72,7 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
 
 void Simulation::beginPreparedWave() {
     bestWave_ = std::max(bestWave_, wave_);
-    if (unlimitedResources_ || skillTree_.hasEffect("unlock.bombs")) {
+    if (playerWeaponUnlocked(PlayerWeapon::Bomb)) {
         bombs_.addBombs(2 + runNightlyBombBonus_ + std::max(
             0, static_cast<int>(std::lround(
                 skillTree_.effectValue("bomb.nightly_bonus")))));
@@ -177,8 +177,14 @@ void Simulation::completeWave() {
     waveSpawnCycle_ = 0U;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
+    const int supplyDropLevel = static_cast<int>(std::lround(
+        skillTree_.effectValue("loot.supply_drop")));
     int nightlyChests = static_cast<int>(std::lround(
         skillTree_.effectValue("loot.nightly_chests")));
+    if (supplyDropLevel > 0) {
+        const int interval = std::max(1, 4 - supplyDropLevel);
+        if (wave_ % interval == 0) ++nightlyChests;
+    }
     if (nightlyChests <= 0 &&
         skillTree_.hasEffect("loot.chest_every_two_nights") &&
         wave_ % 2 == 0) {
@@ -189,8 +195,9 @@ void Simulation::completeWave() {
         if (const auto core = buildings_.core()) {
             preferredCenter = buildingWorldPosition(*core);
         }
-        const double preferredRadius =
-            skillTree_.hasEffect("loot.safe_delivery") ? 18.0 : 28.0;
+        const double preferredRadius = supplyDropLevel > 0 ||
+                skillTree_.hasEffect("loot.safe_delivery")
+            ? 18.0 : 28.0;
         lootChests_.spawnAdditionalChests(
             nightlyChests, terrain_.seed(), map_.worldLimit,
             terrain_, resources_.nodes(), playerPosition_,

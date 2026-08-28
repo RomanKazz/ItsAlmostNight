@@ -15,8 +15,8 @@ void Simulation::processBuildingActions(
             economy_.bombPurchaseCoinCost,
             saturatingMultiplyNonNegative(
                 economy_.bombPurchaseCoinCostPerWave, wave_));
-        const bool bombsUnlocked = unlimitedResources_ ||
-            skillTree_.hasEffect("unlock.bombs");
+        const bool bombsUnlocked =
+            playerWeaponUnlocked(PlayerWeapon::Bomb);
         if (bombsUnlocked &&
             (unlimitedResources_ || coins_ >= cost)) {
             if (!unlimitedResources_) coins_ -= cost;

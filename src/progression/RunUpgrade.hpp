@@ -136,4 +136,23 @@ runUpgradeDefinition(RunUpgradeEffect effect) {
     return RunUpgradeDefinitions[runUpgradeIndex(effect)];
 }
 
+[[nodiscard]] constexpr int runUpgradeMaximumLevel(
+    RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::WiderChoice:
+        return 2;
+    case RunUpgradeEffect::Salvager:
+    case RunUpgradeEffect::TwinBatteries:
+    case RunUpgradeEffect::DoubleDown:
+    case RunUpgradeEffect::RiskyInvestment:
+        return 3;
+    case RunUpgradeEffect::ClusterPayload:
+        return 2;
+    case RunUpgradeEffect::LockChoice:
+        return 1;
+    default:
+        return 5;
+    }
+}
+
 } // namespace ian

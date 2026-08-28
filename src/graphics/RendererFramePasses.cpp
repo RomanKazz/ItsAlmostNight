@@ -401,9 +401,12 @@ void Renderer::endWorldPass() {
                 resources_.postProcessTarget();
             BeginTextureMode(postTarget);
             ClearBackground(BLACK);
-            uploadPostProcessSettings();
             BeginShaderMode(
                 resources_.postProcessShader().get());
+            // Additional sampler textures must be registered after entering
+            // shader mode. BeginShaderMode flushes raylib's batch and clears
+            // registrations made by SetShaderValueTexture beforehand.
+            uploadPostProcessSettings();
             DrawTexturePro(
                 target.texture, source,
                 {0.0F, 0.0F,
@@ -427,9 +430,9 @@ void Renderer::endWorldPass() {
             BeginDrawing();
             ClearBackground(BLACK);
             if (resources_.postProcessShader().valid()) {
-                uploadPostProcessSettings();
                 BeginShaderMode(
                     resources_.postProcessShader().get());
+                uploadPostProcessSettings();
                 DrawTexturePro(
                     target.texture, source, destination,
                     {0.0F, 0.0F}, 0.0F, WHITE);
@@ -477,6 +480,11 @@ void Renderer::drawSsaoPass() {
         fadeEnd = 42.0F;
         sampleCount = 8;
     }
+    BeginTextureMode(target);
+    ClearBackground(BLACK);
+    BeginShaderMode(shader);
+    // SetShaderValueTexture must happen inside shader mode; otherwise the
+    // batch flush in BeginShaderMode silently drops the auxiliary textures.
     SetShaderValueTexture(
         shader, ssaoLocations_.sceneDepth, scene.depth);
     SetShaderValueTexture(
@@ -501,10 +509,6 @@ void Renderer::drawSsaoPass() {
                    &fadeEnd, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, ssaoLocations_.sampleCount,
                    &sampleCount, SHADER_UNIFORM_INT);
-
-    BeginTextureMode(target);
-    ClearBackground(BLACK);
-    BeginShaderMode(shader);
     DrawTexturePro(
         scene.texture,
         {0.0F, 0.0F,
@@ -599,9 +603,9 @@ void Renderer::drawScenePreview(Rectangle bounds) {
         -static_cast<float>(target.texture.height),
     };
     if (resources_.postProcessShader().valid()) {
-        uploadPostProcessSettings();
         BeginShaderMode(
             resources_.postProcessShader().get());
+        uploadPostProcessSettings();
         DrawTexturePro(
             target.texture, source, bounds,
             {0.0F, 0.0F}, 0.0F, WHITE);

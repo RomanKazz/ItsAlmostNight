@@ -57,8 +57,12 @@ void main()
 {
     float centerDepth = texture(sceneDepth, fragTexCoord).r;
     vec3 packedNormal = texture(sceneNormal, fragTexCoord).rgb;
-    float aoMask = packedNormal.b;
-    if (centerDepth >= 0.999999 || aoMask <= 0.001)
+    float materialClass = floor(packedNormal.b*4.0 + 0.01);
+    float aoMask = clamp(
+        (packedNormal.b - materialClass*0.25)*8.0,
+        0.0, 1.0);
+    if (centerDepth >= 0.999999 ||
+        materialClass < 0.5 || aoMask <= 0.001)
     {
         finalColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
@@ -102,7 +106,13 @@ void main()
         }
         float sampleDepth = texture(sceneDepth, sampleUv).r;
         vec3 samplePackedNormal = texture(sceneNormal, sampleUv).rgb;
-        if (sampleDepth >= 0.999999 || samplePackedNormal.b <= 0.001)
+        float sampleMaterialClass = floor(
+            samplePackedNormal.b*4.0 + 0.01);
+        float sampleAoMask = clamp(
+            (samplePackedNormal.b - sampleMaterialClass*0.25)*8.0,
+            0.0, 1.0);
+        if (sampleDepth >= 0.999999 ||
+            sampleMaterialClass < 0.5 || sampleAoMask <= 0.001)
         {
             continue;
         }
@@ -112,7 +122,7 @@ void main()
             centerPosition.z - sampledPosition.z);
         float rangeWeight = smoothstep(
             0.0, 1.0, radius/max(depthDelta, 0.0001));
-        float weight = rangeWeight*samplePackedNormal.b;
+        float weight = rangeWeight*sampleAoMask;
         occlusion +=
             (sampledPosition.z >= samplePosition.z + bias ? 1.0 : 0.0)*
             weight;

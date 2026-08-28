@@ -255,6 +255,7 @@ int App::run() {
     modularBuildingRenderer_.setRenderer(&*renderer_);
     rebuildTerrainGraphics();
     ui_.initialize();
+    uiEditor_.initialize();
     audio_.initialize();
     performanceLoggingApplied_ =
         renderer_->settings().performanceLogging;
@@ -372,6 +373,7 @@ int App::run() {
             toolTunings_[static_cast<std::size_t>(visual)]));
     }
 
+    uiEditor_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
     vfxImpactTexture_.unload();

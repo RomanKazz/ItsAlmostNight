@@ -494,14 +494,14 @@ void Simulation::resetRun(GameEventType eventType) {
                 playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
             break;
         case PlayerClass::Alchemist:
-            if (skillTree_.hasEffect("unlock.club"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            if (skillTree_.hasEffect("unlock.fire_wand"))
+                playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
             grantLootUpgrade(LootUpgradeEffect::Apple);
             grantLootUpgrade(LootUpgradeEffect::Potion);
             break;
         case PlayerClass::Chronomancer:
-            if (skillTree_.hasEffect("unlock.rifle"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            if (skillTree_.hasEffect("unlock.ice_wand"))
+                playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
             grantLootUpgrade(LootUpgradeEffect::Hourglass);
             grantLootUpgrade(LootUpgradeEffect::Rope);
             break;

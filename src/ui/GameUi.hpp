@@ -31,10 +31,13 @@ class GameUi {
 
     void initialize();
     void shutdown();
+    void reloadThemeSlices();
 
     void drawPanel(Rectangle bounds, unsigned char alpha = 245) const;
     void drawInsetPanel(Rectangle bounds,
                         unsigned char alpha = 235) const;
+    void drawCardPanel(Rectangle bounds, Color accent,
+                       unsigned char alpha = 250) const;
     void drawLabel(Rectangle bounds, std::string_view text,
                    int alignment = 0) const;
     void drawProgressBar(Rectangle bounds, float fraction,
@@ -62,30 +65,32 @@ class GameUi {
     void drawCursor() const;
 
   private:
+    struct SliceInsets {
+        int left{};
+        int top{};
+        int right{};
+        int bottom{};
+    };
+
     static Texture2D loadTexture(const char* path);
     static void unloadTexture(Texture2D& texture);
 
     Texture2D panel_{};
     Texture2D insetPanel_{};
     Texture2D button_{};
+    Texture2D buttonHover_{};
     Texture2D buttonPressed_{};
+    Texture2D buttonActive_{};
+    Texture2D buttonActiveHover_{};
+    Texture2D buttonActivePressed_{};
     Texture2D keyCap_{};
     Texture2D keyCapPressed_{};
-    Texture2D barBackLeft_{};
     Texture2D barBack_{};
-    Texture2D barBackRight_{};
-    Texture2D barBlueLeft_{};
     Texture2D barBlue_{};
-    Texture2D barBlueRight_{};
-    Texture2D barRedLeft_{};
     Texture2D barRed_{};
-    Texture2D barRedRight_{};
-    Texture2D barGreenLeft_{};
     Texture2D barGreen_{};
-    Texture2D barGreenRight_{};
-    Texture2D barYellowLeft_{};
     Texture2D barYellow_{};
-    Texture2D barYellowRight_{};
+    Texture2D barPurple_{};
     Texture2D sliderKnob_{};
     Texture2D sliderKnobHover_{};
     Texture2D cursorHand_{};
@@ -96,6 +101,10 @@ class GameUi {
     Texture2D resourceStone_{};
     Texture2D resourceCrystal_{};
     Texture2D resourceCoin_{};
+    SliceInsets panelInsets_{16, 16, 16, 18};
+    SliceInsets insetInsets_{9, 9, 9, 9};
+    SliceInsets buttonInsets_{12, 10, 12, 14};
+    SliceInsets barInsets_{12, 4, 12, 4};
     RenderTexture2D minimapTarget_{};
     Shader minimapCircleShader_{};
     bool initialized_{};
