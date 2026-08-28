@@ -392,12 +392,16 @@ void App::render() {
             performanceMilliseconds(renderPreparationStart));
 
         const auto shadowStart = PerformanceClock::now();
-        drawShadowPass(snapshot, lighting);
+        if constexpr (!MinimalWorldVisuals) {
+            drawShadowPass(snapshot, lighting);
+        }
         performanceStats_.shadowPass.sample(
             performanceMilliseconds(shadowStart));
 
         const auto selectionStart = PerformanceClock::now();
-        drawSelectionPass(feedbackSnapshot, camera);
+        if constexpr (!MinimalWorldVisuals) {
+            drawSelectionPass(feedbackSnapshot, camera);
+        }
         performanceStats_.selectionPass.sample(
             performanceMilliseconds(selectionStart));
 
@@ -425,6 +429,7 @@ void App::render() {
             performanceMilliseconds(worldEntitiesStart));
 
         const auto environmentStart = PerformanceClock::now();
+        if constexpr (!MinimalWorldVisuals) {
         const auto pondDecorStart = PerformanceClock::now();
         renderer_->beginWorldShader(lighting);
         WorldMaterialState pondRockMaterial{};
@@ -472,13 +477,18 @@ void App::render() {
             performanceMilliseconds(atmosphereStart));
         performanceStats_.environmentRender.sample(
             performanceMilliseconds(environmentStart));
+        }
 
         const auto overlayStart = PerformanceClock::now();
-        drawBlobShadows(snapshot, camera);
-        drawWorldOverlays(presentationSnapshot, lighting);
-        drawPresentationEffects(camera);
+        if constexpr (!MinimalWorldVisuals) {
+            drawBlobShadows(snapshot, camera);
+            drawWorldOverlays(presentationSnapshot, lighting);
+            drawPresentationEffects(camera);
+        }
         EndMode3D();
-        renderer_->drawSelectionOutline();
+        if constexpr (!MinimalWorldVisuals) {
+            renderer_->drawSelectionOutline();
+        }
         performanceStats_.overlayRender.sample(
             performanceMilliseconds(overlayStart));
 

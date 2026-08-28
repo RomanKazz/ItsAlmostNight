@@ -321,27 +321,34 @@ void App::drawWorldEntities(
             offsetX, offsetZ, horizontalView,
             distanceLimit, radius);
     };
-    WorldMaterialState obstacleMaterial{};
-    obstacleMaterial.bakedAo = 0.74F;
-    renderer_->setWorldMaterial(obstacleMaterial);
-    for (const auto& obstacle : snapshot.mapObstacles) {
-        const float width =
-            static_cast<float>(obstacle.collision.maxX - obstacle.collision.minX);
-        const float depth =
-            static_cast<float>(obstacle.collision.maxZ - obstacle.collision.minZ);
-        const Vector3 center{
-            static_cast<float>((obstacle.collision.minX + obstacle.collision.maxX) * 0.5),
-            static_cast<float>(obstacle.height * 0.5),
-            static_cast<float>((obstacle.collision.minZ + obstacle.collision.maxZ) * 0.5),
-        };
-        if (!worldObjectVisible(
-                {center.x, center.y, center.z},
-                0.5F * std::hypot(width, depth),
-                worldDrawDistance)) {
-            continue;
+    if constexpr (!MinimalWorldVisuals) {
+        WorldMaterialState obstacleMaterial{};
+        obstacleMaterial.bakedAo = 0.74F;
+        renderer_->setWorldMaterial(obstacleMaterial);
+        for (const auto& obstacle : snapshot.mapObstacles) {
+            const float width = static_cast<float>(
+                obstacle.collision.maxX - obstacle.collision.minX);
+            const float depth = static_cast<float>(
+                obstacle.collision.maxZ - obstacle.collision.minZ);
+            const Vector3 center{
+                static_cast<float>(
+                    (obstacle.collision.minX + obstacle.collision.maxX) *
+                    0.5),
+                static_cast<float>(obstacle.height * 0.5),
+                static_cast<float>(
+                    (obstacle.collision.minZ + obstacle.collision.maxZ) *
+                    0.5),
+            };
+            if (!worldObjectVisible(
+                    {center.x, center.y, center.z},
+                    0.5F * std::hypot(width, depth),
+                    worldDrawDistance)) {
+                continue;
+            }
+            DrawCube(center, width,
+                     static_cast<float>(obstacle.height), depth,
+                     {99, 111, 122, 255});
         }
-        DrawCube(center, width, static_cast<float>(obstacle.height), depth,
-                 {99, 111, 122, 255});
     }
     WorldMaterialState boundaryForestMaterial{};
     boundaryForestMaterial.baseColor = {
@@ -353,14 +360,16 @@ void App::drawWorldEntities(
     boundaryForestMaterial.vegetationAmount = 1.0F;
     renderer_->setWorldMaterial(boundaryForestMaterial);
     renderer_->drawBoundaryForest(camera);
-    WorldMaterialState decorativeRockMaterial{};
-    decorativeRockMaterial.bakedAo = 0.82F;
-    decorativeRockMaterial.screenAoAmount = 0.0F;
-    renderer_->setWorldMaterial(decorativeRockMaterial);
-    renderer_->drawDecorativeRocks(
-        camera,
-        static_cast<float>(snapshot.worldLimit),
-        clearAreas);
+    if constexpr (!MinimalWorldVisuals) {
+        WorldMaterialState decorativeRockMaterial{};
+        decorativeRockMaterial.bakedAo = 0.82F;
+        decorativeRockMaterial.screenAoAmount = 0.0F;
+        renderer_->setWorldMaterial(decorativeRockMaterial);
+        renderer_->drawDecorativeRocks(
+            camera,
+            static_cast<float>(snapshot.worldLimit),
+            clearAreas);
+    }
     performanceStats_.decorationsRender.sample(
         performanceMilliseconds(decorationsStart));
     const float resourceDrawDistance = static_cast<float>(
@@ -371,7 +380,10 @@ void App::drawWorldEntities(
     resourceRockDrawInstances_.clear();
     resourceRockDrawInstances_.reserve(snapshot.resourceNodes.size());
     for (const auto& node : snapshot.resourceNodes) {
-        if (!node.active) {
+        if (!node.active ||
+            (MinimalWorldVisuals &&
+             node.type != ResourceType::Wood &&
+             node.type != ResourceType::Stone)) {
             continue;
         }
         if (!worldObjectVisible(
@@ -505,6 +517,10 @@ void App::drawWorldEntities(
                     tree.visualVariant, tree.yawRadians));
             }
         }
+    }
+    if constexpr (MinimalWorldVisuals) {
+        renderer_->endWorldShader();
+        return;
     }
     // Draw the additive loot light in world space before the opaque chest.
     // It keeps terrain depth occlusion and the chest naturally covers the

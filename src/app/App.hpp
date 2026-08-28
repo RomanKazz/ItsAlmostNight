@@ -94,6 +94,9 @@ class App {
 
   private:
     static constexpr int ToolSettingsTab = 8;
+    // Temporary clean visual-rework baseline. Keep simulation state intact;
+    // render only terrain, trees, and stone resources.
+    static constexpr bool MinimalWorldVisuals = true;
     static constexpr double ToolSwapHideFraction = 0.42;
     static constexpr double ToolSwapDurationScale = 1.35;
 

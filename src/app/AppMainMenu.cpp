@@ -241,7 +241,9 @@ void App::drawMainMenuWorld(
         {static_cast<float>(snapshot.playerPosition.x),
          static_cast<float>(snapshot.playerPosition.z)},
         1000.0F);
-    drawShadowPass(snapshot, lighting);
+    if constexpr (!MinimalWorldVisuals) {
+        drawShadowPass(snapshot, lighting);
+    }
     renderer_->beginWorldPass(environment.skyHorizon, camera);
     renderer_->drawSky(sky);
     BeginMode3D(camera);
@@ -253,18 +255,20 @@ void App::drawMainMenuWorld(
     renderer_->drawTerrain({66, 112, 67, 255}, camera.position);
     drawWorldEntities(
         snapshot, camera, environment.nightFactor, lighting, 1.0F);
-    renderer_->beginWorldShader(lighting);
-    WorldMaterialState pondMaterial{};
-    pondMaterial.bakedAo = 0.8F;
-    pondMaterial.screenAoAmount = 0.0F;
-    renderer_->setWorldMaterial(pondMaterial);
-    renderer_->drawPondShoreRocks(camera);
-    renderer_->drawPondDecor(camera);
-    renderer_->endWorldShader();
-    renderer_->drawWater(camera.position, lighting);
-    renderer_->drawClouds(
-        camera, environment.nightFactor, lighting);
-    drawBlobShadows(snapshot, camera);
+    if constexpr (!MinimalWorldVisuals) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState pondMaterial{};
+        pondMaterial.bakedAo = 0.8F;
+        pondMaterial.screenAoAmount = 0.0F;
+        renderer_->setWorldMaterial(pondMaterial);
+        renderer_->drawPondShoreRocks(camera);
+        renderer_->drawPondDecor(camera);
+        renderer_->endWorldShader();
+        renderer_->drawWater(camera.position, lighting);
+        renderer_->drawClouds(
+            camera, environment.nightFactor, lighting);
+        drawBlobShadows(snapshot, camera);
+    }
     EndMode3D();
     renderer_->endWorldPass();
     renderer_->setMenuDepthOfField(false);
@@ -285,7 +289,8 @@ void App::drawMainMenuWorld(
     // Crisp foreground showcase, analogous to Megabonk's microwave. It is
     // composited after background post-processing and owns an independent
     // depth buffer, producing stable framing for every generated world.
-    if (renderer_->beginFirstPersonToolPass()) {
+    if (!MinimalWorldVisuals &&
+        renderer_->beginFirstPersonToolPass()) {
         const Camera3D showcaseCamera{
             .position = {5.0F, 4.0F, 8.0F},
             .target = {1.8F, 2.6F, 0.0F},
