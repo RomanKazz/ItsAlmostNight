@@ -429,8 +429,7 @@ void App::drawWorldOverlays(
             *snapshot.buildingPreview,
             snapshot.playerPosition);
         drawBuildGrid(
-            {static_cast<float>(snapshot.playerPosition.x), 0.0F,
-             static_cast<float>(snapshot.playerPosition.z)},
+            {visualCenter.x, 0.0F, visualCenter.y},
             snapshot.worldLimit,
             simulation_.terrain());
         if (wallDragStart_ && wallDragEnd_ &&
@@ -516,7 +515,7 @@ void App::drawWorldOverlays(
                 range,
                 static_cast<float>(placementRotationYaw_),
                 static_cast<float>(defenseAttackArcDegrees(1)),
-                {255, 252, 244, 190},
+                {228, 239, 226, 92},
                 artillery
                     ? static_cast<float>(
                           CannonSystem::minimumRange(type, 1))
@@ -740,6 +739,16 @@ void App::drawWorldOverlays(
         };
         previewMaterial.bakedAo = 0.85F;
         previewMaterial.screenAoAmount = 0.0F;
+        // Transparent ghost pieces overlap heavily. Screen-space ink edges
+        // turn those internal intersections into black scratches, so keep
+        // outlines for real objects but exclude placement previews.
+        previewMaterial.inkOutlineEligible = false;
+        previewMaterial.ghostAmount = 1.0F;
+        previewMaterial.ghostTint = {
+            static_cast<float>(color.r) / 255.0F,
+            static_cast<float>(color.g) / 255.0F,
+            static_cast<float>(color.b) / 255.0F};
+        previewMaterial.ghostOpacity = 0.36F;
         if (visualPreview.placement.valid()) {
             previewMaterial.baseColor = {
                 0.72F, 0.94F, 1.0F, 0.46F};
@@ -747,7 +756,7 @@ void App::drawWorldOverlays(
             previewMaterial.ghostAmount = 1.0F;
             previewMaterial.ghostTint = {
                 0.16F, 0.68F, 1.0F};
-            previewMaterial.ghostOpacity = 0.44F;
+            previewMaterial.ghostOpacity = 0.32F;
         }
         const bool drawPreviewModel =
             !placementPreviewObstructed(

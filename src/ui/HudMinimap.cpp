@@ -101,6 +101,66 @@ Color minimapHeightColor(double height) {
     return Colors.back();
 }
 
+constexpr int CompassFrameSegments = 128;
+
+float roundedCardinalSpike(float angle, float halfAngle) {
+    const float quarterTurn = PI * 0.5F;
+    const float distanceToAxis = std::abs(std::remainder(
+        angle, quarterTurn));
+    const float amount = std::clamp(
+        1.0F - distanceToAxis / std::max(halfAngle, 0.001F),
+        0.0F, 1.0F);
+    const float smoothAmount =
+        amount * amount * (3.0F - 2.0F * amount);
+    return std::pow(smoothAmount, 1.35F);
+}
+
+void drawRoundedCompassPlate(
+    Vector2 center, float radius, float spikeLength,
+    float spikeHalfAngle, float rotation, Color color) {
+    std::array<Vector2, CompassFrameSegments + 2> points{};
+    points[0] = center;
+    for (int segment = 0; segment <= CompassFrameSegments;
+         ++segment) {
+        const float angle = -PI * 0.5F -
+            static_cast<float>(segment) * 2.0F * PI /
+                static_cast<float>(CompassFrameSegments);
+        const float contourRadius = radius + spikeLength *
+            roundedCardinalSpike(
+                angle + rotation, spikeHalfAngle);
+        points[static_cast<std::size_t>(segment + 1)] = {
+            center.x + std::cos(angle) * contourRadius,
+            center.y + std::sin(angle) * contourRadius,
+        };
+    }
+    DrawTriangleFan(
+        points.data(), static_cast<int>(points.size()), color);
+}
+
+void drawRoundedPlayerMarker(
+    Vector2 center, float scale, Color fill) {
+    const Color outline{49, 49, 49, 255};
+    const Vector2 outerTip{center.x, center.y - 11.0F * scale};
+    const Vector2 outerLeft{
+        center.x - 6.8F * scale, center.y + 1.5F * scale};
+    const Vector2 outerRight{
+        center.x + 6.8F * scale, center.y + 1.5F * scale};
+    DrawTriangle(outerTip, outerLeft, outerRight, outline);
+    DrawCircleV(
+        {center.x, center.y + 2.0F * scale},
+        7.2F * scale, outline);
+
+    const Vector2 innerTip{center.x, center.y - 8.2F * scale};
+    const Vector2 innerLeft{
+        center.x - 4.4F * scale, center.y + 1.2F * scale};
+    const Vector2 innerRight{
+        center.x + 4.4F * scale, center.y + 1.2F * scale};
+    DrawTriangle(innerTip, innerLeft, innerRight, fill);
+    DrawCircleV(
+        {center.x, center.y + 2.0F * scale},
+        4.9F * scale, fill);
+}
+
 void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale,
@@ -236,6 +296,7 @@ void drawMinimapPonds(
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                     float expansion, float topInset) {
+    static_cast<void>(topInset);
     if (expansion < 0.0F) return;
     const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
     const float expanded =
@@ -256,9 +317,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float panelWidth = displayMapSize + panelPadding * 2.0F;
     const float collapsedPanelWidth =
         collapsedMapSize + 4.0F * 2.0F;
+    const float collapsedCompassMargin = 32.0F;
     const float collapsedPanelX =
         static_cast<float>(GetScreenWidth()) -
-        collapsedPanelWidth - 12.0F;
+        collapsedPanelWidth - 12.0F - collapsedCompassMargin;
     const float expandedPanelX =
         (static_cast<float>(GetScreenWidth()) - panelWidth) * 0.5F;
     const float expandedPanelY =
@@ -267,7 +329,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float panelX = std::lerp(
         collapsedPanelX, expandedPanelX, expanded);
     const float panelY = std::lerp(
-        12.0F + std::max(topInset, 0.0F),
+        collapsedCompassMargin,
         expandedPanelY, expanded);
     const Rectangle displayMapBounds{
         panelX + panelPadding,
@@ -720,57 +782,11 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     const Vector2 player = mapPoint(
         snapshot.playerPosition.x, snapshot.playerPosition.z);
-    // The map rotates with the camera, so the player's heading remains up.
-    const Vector2 direction{0.0F, -1.0F};
-    const Vector2 side{-direction.y, direction.x};
     const Color playerColor = snapshot.playerRespawning
         ? Color{174, 181, 181, 240}
         : Color{250, 250, 244, 255};
-    const Vector2 outerTip{
-        player.x + direction.x * 12.5F * symbolScale,
-        player.y + direction.y * 12.5F * symbolScale,
-    };
-    const Vector2 outerBase{
-        player.x + direction.x * 5.8F * symbolScale,
-        player.y + direction.y * 5.8F * symbolScale,
-    };
-    const Vector2 outerLeft{
-        outerBase.x - side.x * 5.2F * symbolScale,
-        outerBase.y - side.y * 5.2F * symbolScale,
-    };
-    const Vector2 outerRight{
-        outerBase.x + side.x * 5.2F * symbolScale,
-        outerBase.y + side.y * 5.2F * symbolScale,
-    };
-    DrawTriangle(
-        outerTip, outerLeft, outerRight,
-        {30, 35, 38, 255});
-    DrawCircleV(
-        player, 7.2F * symbolScale,
-        {30, 35, 38, 255});
-
-    const Vector2 innerTip{
-        player.x + direction.x * 10.5F * symbolScale,
-        player.y + direction.y * 10.5F * symbolScale,
-    };
-    const Vector2 innerBase{
-        player.x + direction.x * 5.8F * symbolScale,
-        player.y + direction.y * 5.8F * symbolScale,
-    };
-    const Vector2 innerLeft{
-        innerBase.x - side.x * 3.5F * symbolScale,
-        innerBase.y - side.y * 3.5F * symbolScale,
-    };
-    const Vector2 innerRight{
-        innerBase.x + side.x * 3.5F * symbolScale,
-        innerBase.y + side.y * 3.5F * symbolScale,
-    };
-    DrawTriangle(
-        innerTip, innerLeft, innerRight,
-        playerColor);
-    DrawCircleV(
-        player, 5.2F * symbolScale,
-        playerColor);
+    drawRoundedPlayerMarker(
+        player, symbolScale * 1.25F, playerColor);
 
     if (snapshot.nearestChestPosition) {
         const Vector2 chestPoint = mapPoint(
@@ -879,40 +895,149 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         displayMapBounds.x + displayMapSize * 0.5F,
         displayMapBounds.y + displayMapSize * 0.5F,
     };
-    DrawCircleV(
-        displayMapCenter, displayMapSize * 0.5F + 3.0F,
-        {43, 34, 27, 225});
-    ui.drawMinimapTarget(displayMapBounds);
-    const float borderThickness = std::lerp(1.25F, 5.0F, expanded);
-    DrawRing(
-        displayMapCenter,
-        displayMapSize * 0.5F - borderThickness,
-        displayMapSize * 0.5F, 0.0F, 360.0F, 96,
-        {196, 172, 126, 230});
-    const float compassFontSize =
-        std::lerp(15.0F, 24.0F, expanded);
-    const float compassRadius =
-        displayMapSize * 0.5F - compassFontSize * 0.78F;
-    const auto drawCompassLabel =
-        [compassFontSize](std::string_view label, Vector2 center) {
-            const Vector2 size = measureUiText(label, compassFontSize);
-            const Vector2 position{
-                center.x - size.x * 0.5F,
-                center.y - size.y * 0.5F,
-            };
-            drawUiText(
-                label, {position.x + 1.5F, position.y + 1.5F},
-                compassFontSize, {18, 22, 20, 235});
-            drawUiText(
-                label, position, compassFontSize,
-                {248, 235, 201, 255});
-        };
-    constexpr std::array<std::string_view, 4> CompassLabels{{
-        "N", "E", "S", "W"}};
+    const float frameScale = std::clamp(
+        displayMapSize / 150.0F, 1.0F, 3.5F);
+    const float mapRadius = displayMapSize * 0.5F;
+    const float outerPadding = 6.0F * frameScale;
+    const float lightPadding = 2.8F * frameScale;
+    const float outerSpikeLength = 7.0F * frameScale;
+    const float lightSpikeLength = 6.2F * frameScale;
+    constexpr float SpikeHalfAngle = 0.13F;
+    const float shadowOffset = 4.0F * frameScale;
+    const float compassRotation =
+        static_cast<float>(snapshot.playerYaw);
+    const bool hasAttackWarning = std::ranges::any_of(
+        snapshot.upcomingAttackDirections,
+        [](bool active) { return active; });
+    const float warningWave = hasAttackWarning
+        ? 0.5F + 0.5F * std::sin(
+              static_cast<float>(GetTime()) * 2.0F * PI / 0.75F)
+        : 0.0F;
+    const float warningPulse = warningWave * warningWave *
+        (3.0F - 2.0F * warningWave);
+    const float warningPhaseElapsed = static_cast<float>(
+        std::max(0.0,
+            snapshot.phaseDuration - snapshot.phaseTimeRemaining));
+    const float warningIntro = snapshot.state == RunState::Sunset
+        ? 1.0F - std::clamp(
+              warningPhaseElapsed / 1.5F, 0.0F, 1.0F)
+        : 0.0F;
+    const bool activeAttack = snapshot.state == RunState::Wave;
+    const Color warningColor = activeAttack
+        ? Color{255, 78, 66, 255}
+        : Color{255, 145, 67, 255};
     constexpr std::array<Vector2, 4> CompassDirections{{
         {0.0F, -1.0F}, {1.0F, 0.0F},
         {0.0F, 1.0F}, {-1.0F, 0.0F},
     }};
+    drawRoundedCompassPlate(
+        {displayMapCenter.x,
+         displayMapCenter.y + shadowOffset},
+        mapRadius + outerPadding, outerSpikeLength,
+        SpikeHalfAngle, compassRotation,
+        {82, 82, 82, 255});
+    drawRoundedCompassPlate(
+        displayMapCenter,
+        mapRadius + outerPadding, outerSpikeLength,
+        SpikeHalfAngle, compassRotation,
+        {49, 49, 49, 255});
+    drawRoundedCompassPlate(
+        displayMapCenter,
+        mapRadius + lightPadding, lightSpikeLength,
+        SpikeHalfAngle, compassRotation,
+        {221, 221, 221, 255});
+    ui.drawMinimapTarget(displayMapBounds);
+    const float borderThickness = 3.0F * frameScale;
+    DrawRing(
+        displayMapCenter,
+        displayMapSize * 0.5F - borderThickness,
+        displayMapSize * 0.5F, 0.0F, 360.0F, 96,
+        {221, 221, 221, 255});
+    for (std::size_t index = 0;
+         index < snapshot.upcomingAttackDirections.size(); ++index) {
+        if (!snapshot.upcomingAttackDirections[index]) {
+            continue;
+        }
+        const Vector2 offset = rotateMinimapOffset(
+            CompassDirections[index].x,
+            CompassDirections[index].y,
+            snapshot.playerYaw);
+        const float angleDegrees =
+            std::atan2(offset.y, offset.x) * RAD2DEG;
+        DrawRing(
+            displayMapCenter,
+            mapRadius - 1.5F * frameScale,
+            mapRadius + 4.0F * frameScale,
+            angleDegrees - 14.0F,
+            angleDegrees + 14.0F,
+            16,
+            {warningColor.r, warningColor.g, warningColor.b,
+             static_cast<unsigned char>(
+                 145.0F + warningPulse * 90.0F)});
+        const float arrowRadius = mapRadius + 8.0F * frameScale;
+        const Vector2 arrowCenter{
+            displayMapCenter.x + offset.x * arrowRadius,
+            displayMapCenter.y + offset.y * arrowRadius};
+        const Vector2 tangent{-offset.y, offset.x};
+        DrawTriangle(
+            {arrowCenter.x - offset.x * 7.0F * frameScale,
+             arrowCenter.y - offset.y * 7.0F * frameScale},
+            {arrowCenter.x + offset.x * 2.0F * frameScale +
+                 tangent.x * 4.0F * frameScale,
+             arrowCenter.y + offset.y * 2.0F * frameScale +
+                 tangent.y * 4.0F * frameScale},
+            {arrowCenter.x + offset.x * 2.0F * frameScale -
+                 tangent.x * 4.0F * frameScale,
+             arrowCenter.y + offset.y * 2.0F * frameScale -
+                 tangent.y * 4.0F * frameScale},
+            warningColor);
+    }
+    const float compassRenderedSize =
+        std::lerp(20.0F, 28.0F, expanded);
+    const float compassFontSize =
+        compassRenderedSize / 1.68F;
+    const float compassRadius =
+        mapRadius + outerPadding + outerSpikeLength +
+        7.0F * frameScale;
+    const auto drawCompassLabel =
+        [compassFontSize, frameScale, warningPulse, warningIntro,
+         warningColor](
+            std::string_view label, Vector2 center, bool warning) {
+            const float pulseAmount = warning ? warningPulse : 0.0F;
+            const float renderedFontSize =
+                compassFontSize *
+                (1.0F + pulseAmount *
+                    (0.15F + warningIntro * 0.06F));
+            if (warning) {
+                DrawCircleV(
+                    center,
+                    (11.0F + pulseAmount * 5.0F) * frameScale,
+                    {warningColor.r, warningColor.g, warningColor.b,
+                     static_cast<unsigned char>(
+                         24.0F + pulseAmount * 42.0F)});
+            }
+            const Vector2 size = measureUiText(label, renderedFontSize);
+            const Vector2 position{
+                center.x - size.x * 0.5F,
+                center.y - size.y * 0.5F,
+            };
+            SdfUiTextStyle style{};
+            style.fillColor = warning
+                ? ColorLerp(
+                      WHITE, warningColor,
+                      0.42F + warningPulse * 0.58F)
+                : WHITE;
+            style.outlineColor = {49, 49, 49, 255};
+            style.shadowColor = warning
+                ? Color{126, 38, 21, 255}
+                : Color{82, 82, 82, 255};
+            style.shadowOffsetPixels = {0.0F, warning ? 4.0F : 3.0F};
+            style.outlinePixels = warning ? 2.6F : 2.0F;
+            drawStyledSdfUiText(
+                label, position, renderedFontSize, style);
+        };
+    constexpr std::array<std::string_view, 4> CompassLabels{{
+        "N", "E", "S", "W"}};
     for (std::size_t index = 0; index < CompassLabels.size(); ++index) {
         const Vector2 offset = rotateMinimapOffset(
             CompassDirections[index].x,
@@ -921,7 +1046,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         drawCompassLabel(
             CompassLabels[index],
             {displayMapCenter.x + offset.x * compassRadius,
-             displayMapCenter.y + offset.y * compassRadius});
+             displayMapCenter.y + offset.y * compassRadius},
+            snapshot.upcomingAttackDirections[index]);
     }
 }
 

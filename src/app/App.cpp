@@ -222,7 +222,11 @@ int App::run() {
     if (const auto seed = suspendedRunTerrainSeed()) {
         simulation_.regenerateTerrain(*seed);
     }
-    unsigned int windowFlags = FLAG_WINDOW_RESIZABLE;
+    // Render the final framebuffer (especially SDF UI text) at the native
+    // backing resolution on Retina/HiDPI displays. World resolution remains
+    // independently controlled by GraphicsSettings::renderWidth/Height.
+    unsigned int windowFlags =
+        FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI;
     // The world already receives a dedicated FXAA pass. Keep costly 4x
     // default-framebuffer MSAA only for the High preset, where it still
     // improves UI geometry; on Low/Medium it needlessly resolves the whole
@@ -239,6 +243,12 @@ int App::run() {
     renderer_->settings() = userSettings_.graphics;
     renderer_->applyFrameRateLimit();
     renderer_->initialize();
+    static_cast<void>(vfxImpactShader_.load(
+        nullptr, "assets/shaders/vfx_impact.fs"));
+    if (vfxImpactShader_.valid()) {
+        vfxImpactUseTextureLocation_ = GetShaderLocation(
+            vfxImpactShader_.get(), "useTexture");
+    }
     static_cast<void>(vfxImpactTexture_.load(
         "assets/vfx/brackeys/impact_6x5.png"));
     static_cast<void>(vfxExplosionTexture_.load(
@@ -300,6 +310,8 @@ int App::run() {
                 simulation_.snapshot();
             const EnemyPerformanceStats& enemyStats =
                 simulation_.enemyPerformanceStats();
+            const RendererPerformanceStats& rendererStats =
+                renderer_->performanceStats();
             performanceRecorder_.record({
                 .frame = performanceFrameIndex_++,
                 .sessionSeconds = GetTime(),
@@ -349,6 +361,39 @@ int App::run() {
                 .postProcessMs =
                     performanceStats_.postProcess.lastMilliseconds,
                 .uiMs = performanceStats_.uiRender.lastMilliseconds,
+                .viewModelMs =
+                    performanceStats_.viewModelRender.lastMilliseconds,
+                .worldUiMs =
+                    performanceStats_.worldUiRender.lastMilliseconds,
+                .interactionPromptMs =
+                    performanceStats_.interactionPromptRender
+                        .lastMilliseconds,
+                .hudCoreMs =
+                    performanceStats_.hudCoreRender.lastMilliseconds,
+                .resourceGainMs =
+                    performanceStats_.resourceGainRender.lastMilliseconds,
+                .minimapMs =
+                    performanceStats_.minimapRender.lastMilliseconds,
+                .uiOverlaysMs =
+                    performanceStats_.uiOverlaysRender.lastMilliseconds,
+                .uiTextMs =
+                    performanceStats_.uiTextRender.lastMilliseconds,
+                .uiTextSubmissions =
+                    uiTextPerformanceStats().submissions,
+                .uiTextCharacters =
+                    uiTextPerformanceStats().characters,
+                .gpuWorldMs =
+                    rendererStats.gpuWorld.lastMilliseconds,
+                .gpuPostProcessMs =
+                    rendererStats.gpuPostProcess.lastMilliseconds,
+                .gpuViewModelMs =
+                    rendererStats.gpuViewModel.lastMilliseconds,
+                .gpuViewModelTargetMs =
+                    rendererStats.gpuViewModelTarget.lastMilliseconds,
+                .gpuViewModelCompositeMs =
+                    rendererStats.gpuViewModelComposite.lastMilliseconds,
+                .gpuUiMs =
+                    rendererStats.gpuUi.lastMilliseconds,
                 .enemyAiMs = enemyStats.tick.lastMilliseconds,
                 .enemyCollisionMs = enemyStats.collision.lastMilliseconds,
                 .enemyDrawMs =
@@ -376,6 +421,7 @@ int App::run() {
     uiEditor_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
+    vfxImpactShader_.unload();
     vfxImpactTexture_.unload();
     vfxExplosionTexture_.unload();
     vfxElectricRingTexture_.unload();
@@ -403,7 +449,8 @@ void App::applyFullscreenSetting(bool fullscreen) {
         ToggleBorderlessWindowed();
     }
     if (!fullscreen) {
-        // A maximized native window retains minimize and reliable Alt+Tab.
+        // Preserve the original fitted windowed behavior. Render resolution
+        // is configured independently and never grows the native window.
         MaximizeWindow();
     }
     fullscreenApplied_ = fullscreen;
@@ -534,7 +581,7 @@ void App::drawPerformanceOverlay(
         renderer_->performanceStats();
     constexpr float PanelX = 18.0F;
     constexpr float PanelY = 48.0F;
-    constexpr float PanelWidth = 450.0F;
+    constexpr float PanelWidth = 870.0F;
     constexpr float PanelHeight = 482.0F;
     constexpr float FontSize = 15.0F;
     constexpr float LineHeight = 18.0F;
@@ -559,6 +606,22 @@ void App::drawPerformanceOverlay(
                                 int index, const char* name,
                                 const PerformanceMetric& metric) {
         drawLine(index, TextFormat(
+            "%-13s %6.2f ms   PEAK %6.2f",
+            name, metric.averageMilliseconds,
+            metric.recentPeakMilliseconds));
+    };
+    const auto drawDetailLine = [](int index, const char* text,
+                                   Color color = Color{220, 235, 226, 255}) {
+        drawUiText(
+            text,
+            {PanelX + 450.0F,
+             78.0F + static_cast<float>(index) * LineHeight},
+            FontSize, color);
+    };
+    const auto detailMetricLine = [&drawDetailLine](
+                                      int index, const char* name,
+                                      const PerformanceMetric& metric) {
+        drawDetailLine(index, TextFormat(
             "%-13s %6.2f ms   PEAK %6.2f",
             name, metric.averageMilliseconds,
             metric.recentPeakMilliseconds));
@@ -611,6 +674,47 @@ void App::drawPerformanceOverlay(
               ? "SESSION RECORDING: FAILED"
               : "SESSION RECORDING: OFF");
     drawLine(22, "AVG = LOAD   PEAK = RECENT HITCH");
+    drawDetailLine(
+        0, "CPU HUD/UI BREAKDOWN", {255, 218, 139, 255});
+    detailMetricLine(
+        1, "VIEWMODEL", performanceStats_.viewModelRender);
+    detailMetricLine(
+        2, "WORLD UI", performanceStats_.worldUiRender);
+    detailMetricLine(
+        3, "PROMPT", performanceStats_.interactionPromptRender);
+    detailMetricLine(
+        4, "HUD CORE", performanceStats_.hudCoreRender);
+    detailMetricLine(
+        5, "RESOURCE FX", performanceStats_.resourceGainRender);
+    detailMetricLine(
+        6, "MINIMAP", performanceStats_.minimapRender);
+    detailMetricLine(
+        7, "UI OVERLAYS", performanceStats_.uiOverlaysRender);
+    detailMetricLine(
+        8, "UI TEXT", performanceStats_.uiTextRender);
+    const UiTextPerformanceStats textStats = uiTextPerformanceStats();
+    drawDetailLine(9, TextFormat(
+        "TEXT CALLS %d   CHARS %d",
+        static_cast<int>(textStats.submissions),
+        static_cast<int>(textStats.characters)));
+    drawDetailLine(
+        11,
+        rendererStats.gpuTimersSupported
+            ? "GPU TIME (ASYNC)"
+            : "GPU TIME: UNSUPPORTED",
+        rendererStats.gpuTimersSupported
+            ? Color{143, 210, 255, 255}
+            : Color{244, 112, 91, 255});
+    detailMetricLine(12, "GPU WORLD", rendererStats.gpuWorld);
+    detailMetricLine(
+        13, "GPU POST", rendererStats.gpuPostProcess);
+    detailMetricLine(
+        14, "GPU VIEWMODEL", rendererStats.gpuViewModel);
+    detailMetricLine(
+        15, "  TARGET", rendererStats.gpuViewModelTarget);
+    detailMetricLine(
+        16, "  COMPOSITE", rendererStats.gpuViewModelComposite);
+    detailMetricLine(17, "GPU UI", rendererStats.gpuUi);
 }
 
 void App::drawBuildModePie() const {
@@ -618,9 +722,13 @@ void App::drawBuildModePie() const {
         return;
     }
 
-    constexpr float OuterRadius = 174.0F;
-    constexpr float InnerRadius = 62.0F;
-    constexpr float LabelRadius = 119.0F;
+    constexpr float OuterRadius = 168.0F;
+    constexpr float InnerRadius = 58.0F;
+    constexpr float LabelRadius = 116.0F;
+    constexpr Color FrameColor{104, 60, 37, 255};
+    constexpr Color FrameHighlight{230, 188, 147, 255};
+    constexpr Color SurfaceColor{117, 76, 52, 250};
+    constexpr Color SelectedSurface{230, 188, 147, 255};
     const Vector2 center{
         static_cast<float>(GetScreenWidth()) * 0.5F,
         static_cast<float>(GetScreenHeight()) * 0.5F,
@@ -635,111 +743,127 @@ void App::drawBuildModePie() const {
     };
     constexpr std::array<Segment, 2> Segments{{
         {ActionMode::Equipment, 180.0F, 360.0F, {0.0F, -1.0F},
-         "GATHER & COMBAT", {104, 190, 132, 255}},
+         "GATHER & COMBAT", {104, 220, 148, 255}},
         {ActionMode::Buildings, 0.0F, 180.0F, {0.0F, 1.0F},
          "STRUCTURES & MODULAR", {236, 190, 91, 255}},
     }};
 
     DrawCircleV(
-        {center.x + 4.0F, center.y + 7.0F},
-        OuterRadius + 12.0F, {5, 7, 12, 145});
-    DrawCircleV(center, OuterRadius + 8.0F,
-                {247, 225, 177, 105});
-    DrawCircleV(center, OuterRadius + 3.0F,
-                {14, 18, 25, 248});
+        {center.x + 3.0F, center.y + 5.0F},
+        OuterRadius + 9.0F, {49, 30, 22, 115});
+    DrawCircleV(center, OuterRadius + 7.0F, FrameColor);
+    DrawCircleV(center, OuterRadius + 3.0F, FrameHighlight);
+    DrawCircleV(center, OuterRadius, SurfaceColor);
 
     for (const Segment& segment : Segments) {
         const bool selected =
             buildModePieChoice_ == segment.mode;
         const bool active = actionMode_ == segment.mode;
-        Color fill = selected
-            ? segment.accent
+        const Color fill = selected
+            ? SelectedSurface
             : active
-                ? Color{
-                      static_cast<unsigned char>(
-                          segment.accent.r * 0.48F),
-                      static_cast<unsigned char>(
-                          segment.accent.g * 0.48F),
-                      static_cast<unsigned char>(
-                          segment.accent.b * 0.48F),
-                      245}
-                : Color{43, 51, 64, 242};
+                ? Color{151, 104, 70, 252}
+                : SurfaceColor;
         DrawRing(
             center, InnerRadius + 5.0F,
-            OuterRadius - (selected ? 0.0F : 5.0F),
+            OuterRadius - (selected ? 1.0F : 5.0F),
             segment.startAngle, segment.endAngle,
-            32, fill);
-        if (active) {
+            64, fill);
+        if (selected || active) {
             DrawRing(
-                center, OuterRadius - 10.0F,
-                OuterRadius - 5.0F,
+                center, OuterRadius - 8.0F,
+                OuterRadius - 3.0F,
                 segment.startAngle, segment.endAngle,
-                32, segment.accent);
+                64, selected
+                    ? UiWhite
+                    : segment.accent);
         }
 
         const Vector2 labelCenter{
             center.x + segment.direction.x * LabelRadius,
             center.y + segment.direction.y * LabelRadius,
         };
-        const Color textColor = selected
-            ? Color{25, 26, 27, 255}
-            : Color{250, 241, 220, 255};
+        SdfUiTextStyle labelStyle{};
+        labelStyle.fillColor = UiWhite;
+        labelStyle.outlineColor = {49, 49, 49, 255};
+        labelStyle.shadowColor = {82, 58, 39, 220};
+        labelStyle.shadowOffsetPixels = {0.0F, 2.0F};
+        labelStyle.outlinePixels = 2.0F;
         const std::string_view label =
             actionModeLabel(segment.mode);
         const Vector2 labelSize = measureUiText(label, 17.0F);
-        drawUiText(
+        drawStyledSdfUiText(
             label,
             {labelCenter.x - labelSize.x * 0.5F,
              labelCenter.y - 13.0F},
-            17.0F, textColor);
+            17.0F, labelStyle);
         const std::string_view subtitle = segment.subtitle;
         const Vector2 subtitleSize =
             measureUiText(subtitle, 9.0F);
-        drawUiText(
+        SdfUiTextStyle subtitleStyle = labelStyle;
+        subtitleStyle.fillColor = selected
+            ? Color{112, 69, 45, 255}
+            : Color{238, 218, 183, 245};
+        subtitleStyle.outlinePixels = selected ? 0.8F : 1.2F;
+        subtitleStyle.shadowOffsetPixels = {0.0F, 1.0F};
+        drawStyledSdfUiText(
             subtitle,
             {labelCenter.x - subtitleSize.x * 0.5F,
              labelCenter.y + 10.0F},
-            9.0F,
-            selected
-                ? Color{39, 42, 44, 230}
-                : Color{207, 211, 214, 220});
+            9.0F, subtitleStyle);
         if (active) {
             DrawCircleV(
                 {labelCenter.x,
                  labelCenter.y + 31.0F},
                 4.0F,
                 selected
-                    ? Color{25, 26, 27, 255}
+                    ? FrameColor
                     : segment.accent);
         }
     }
 
-    DrawCircleV(center, InnerRadius + 5.0F,
-                {245, 224, 178, 145});
-    DrawCircleV(center, InnerRadius,
-                {18, 22, 30, 255});
+    DrawRectangleRec(
+        {center.x - OuterRadius, center.y - 2.0F,
+         OuterRadius - InnerRadius - 3.0F, 4.0F},
+        FrameColor);
+    DrawRectangleRec(
+        {center.x + InnerRadius + 3.0F, center.y - 2.0F,
+         OuterRadius - InnerRadius - 3.0F, 4.0F},
+        FrameColor);
+    DrawCircleV(center, InnerRadius + 5.0F, FrameColor);
+    DrawCircleV(center, InnerRadius + 1.0F, FrameHighlight);
+    DrawCircleV(center, InnerRadius - 4.0F,
+                {76, 54, 43, 255});
     const ActionMode centerMode =
         buildModePieChoice_.value_or(actionMode_);
     const std::string_view centerCaption =
         buildModePieChoice_ ? "SELECT" : "CURRENT";
     const Vector2 captionSize =
         measureUiText(centerCaption, 9.0F);
-    drawUiText(
+    SdfUiTextStyle centerStyle{};
+    centerStyle.fillColor = {242, 222, 190, 255};
+    centerStyle.outlineColor = {49, 49, 49, 255};
+    centerStyle.shadowColor = {31, 24, 20, 210};
+    centerStyle.shadowOffsetPixels = {0.0F, 2.0F};
+    centerStyle.outlinePixels = 1.5F;
+    drawStyledSdfUiText(
         centerCaption,
         {center.x - captionSize.x * 0.5F,
          center.y - 22.0F},
-        9.0F, {178, 183, 190, 240});
+        9.0F, centerStyle);
     const std::string_view centerLabel =
         actionModeLabel(centerMode);
     const float centerFont = centerLabel.size() > 7U
         ? 13.0F : 15.0F;
     const Vector2 centerLabelSize =
         measureUiText(centerLabel, centerFont);
-    drawUiText(
+    centerStyle.fillColor = {255, 239, 199, 255};
+    centerStyle.outlinePixels = 2.0F;
+    drawStyledSdfUiText(
         centerLabel,
         {center.x - centerLabelSize.x * 0.5F,
          center.y - 5.0F},
-        centerFont, {255, 238, 196, 255});
+        centerFont, centerStyle);
 
     const float length =
         Vector2Length(buildModePieDirection_);
@@ -753,24 +877,26 @@ void App::drawBuildModePie() const {
                 center,
                 Vector2Scale(direction, InnerRadius - 13.0F));
         DrawCircleV(pointer, 8.0F,
-                    {255, 245, 220, 255});
+                    {255, 213, 112, 255});
         DrawCircleLines(
             static_cast<int>(pointer.x),
             static_cast<int>(pointer.y),
-            11.0F, {255, 245, 220, 155});
+            11.0F, {244, 240, 223, 190});
     }
 
     const std::string key = keyboardKeyName(controlKey(
         userSettings_.controls, ControlAction::BuildMode));
-    drawCenteredUiText(
-        "HOLD " + key + "  •  MOVE MOUSE  •  RELEASE",
-        center.y + OuterRadius + 22.0F,
-        13.0F, {247, 237, 215, 245});
-    drawCenteredUiText(
-        std::string{"TAP: "} +
-            actionModeLabel(previousActionMode_),
-        center.y + OuterRadius + 43.0F,
-        10.0F, {183, 189, 198, 225});
+    const std::string hint =
+        "HOLD " + key + "   CHOOSE   RELEASE";
+    const float hintWidth = measureUiText(hint, 12.0F).x;
+    SdfUiTextStyle hintStyle = centerStyle;
+    hintStyle.fillColor = {255, 239, 207, 245};
+    hintStyle.outlinePixels = 1.7F;
+    drawStyledSdfUiText(
+        hint,
+        {center.x - hintWidth * 0.5F,
+         center.y + OuterRadius + 22.0F},
+        12.0F, hintStyle);
 }
 
 

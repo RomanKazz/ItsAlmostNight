@@ -67,8 +67,9 @@ void assetProfilesLoad() {
     const auto& day = loaded.profiles[1];
     require(day.sunIntensity > day.ambientIntensity*2.5F,
             "day profile preserves directional-light hierarchy");
-    require(day.fogStart >= 50.0F && day.fogEnd >= 175.0F,
-            "day atmosphere preserves middle and distant planes");
+    require(day.fogStart >= 18.0F && day.fogStart <= 28.0F &&
+                day.fogEnd >= 105.0F && day.fogEnd <= 130.0F,
+            "day atmosphere keeps foreground clear and separates distance");
 }
 
 } // namespace

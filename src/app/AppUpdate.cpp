@@ -111,7 +111,71 @@ void App::update() {
         displayedInsight_ += (progressionSnapshot.currentInsight - displayedInsight_) *
             (1.0 - std::exp(-10.0 * frameSeconds));
     }
+    const auto updateHudResourceCounter =
+        [frameSeconds](HudResourceCounter& counter, int target) {
+            if (counter.target < 0) {
+                counter.displayed = static_cast<double>(target);
+                counter.target = target;
+                return;
+            } else if (target < counter.target) {
+                // Spending must remain exact; only gains count upward.
+                counter.displayed = static_cast<double>(target);
+            } else if (target > counter.target) {
+                constexpr double AnimationSeconds = 0.22;
+                constexpr double MinimumUnitsPerSecond = 24.0;
+                constexpr double SequentialGainLimit = 10.0;
+                const double gain = static_cast<double>(target) -
+                    counter.displayed;
+                counter.unitsPerSecond = std::max(
+                    MinimumUnitsPerSecond,
+                    gain / AnimationSeconds);
+                counter.sequential = gain <= SequentialGainLimit;
+            }
+            counter.target = target;
+            if (counter.displayed < static_cast<double>(target)) {
+                double step = frameSeconds * counter.unitsPerSecond;
+                if (counter.sequential) {
+                    // Keep every integer visible for at least one frame.
+                    step = std::min(step, 1.0);
+                }
+                step = std::min(
+                    static_cast<double>(target) - counter.displayed,
+                    step);
+                counter.displayed += std::max(0.0, step);
+            } else if (counter.displayed > static_cast<double>(target)) {
+                counter.displayed = static_cast<double>(target);
+            }
+        };
+    updateHudResourceCounter(
+        woodHudCounter_, progressionSnapshot.wood);
+    updateHudResourceCounter(
+        stoneHudCounter_, progressionSnapshot.stone);
+    updateHudResourceCounter(
+        crystalHudCounter_, progressionSnapshot.crystals);
+    updateHudResourceCounter(
+        coinHudCounter_, progressionSnapshot.coins);
     const auto& hotbarSnapshot = simulation_.snapshot();
+    const bool resetPlayerHealthTrail =
+        displayedPlayerHealthTrail_ < 0.0 ||
+        std::abs(displayedPlayerHealthMaximum_ -
+                 hotbarSnapshot.playerMaxHealth) > 1e-6 ||
+        hotbarSnapshot.state == RunState::MainMenu ||
+        hotbarSnapshot.playerRespawning ||
+        hotbarSnapshot.playerHealth >= displayedPlayerHealthTrail_;
+    displayedPlayerHealthMaximum_ = hotbarSnapshot.playerMaxHealth;
+    if (resetPlayerHealthTrail) {
+        displayedPlayerHealthTrail_ = hotbarSnapshot.playerHealth;
+    } else if (playerDamageFlashRemaining_ <= 0.0) {
+        const double healthTrailBlend =
+            1.0 - std::exp(-3.2 * frameSeconds);
+        displayedPlayerHealthTrail_ +=
+            (hotbarSnapshot.playerHealth -
+             displayedPlayerHealthTrail_) * healthTrailBlend;
+        if (displayedPlayerHealthTrail_ -
+                hotbarSnapshot.playerHealth < 0.05) {
+            displayedPlayerHealthTrail_ = hotbarSnapshot.playerHealth;
+        }
+    }
     const bool lowHealthActive =
         hotbarSnapshot.state != RunState::MainMenu &&
         hotbarSnapshot.state != RunState::Defeat &&
@@ -178,7 +242,8 @@ void App::update() {
             buildingHotbarCategory_,
             hotbarSnapshot.coreMaxHealth > 0.0,
             hotbarSnapshot.coreLevel,
-            hotbarSnapshot.sandboxMode);
+            hotbarSnapshot.sandboxMode ||
+                hotbarSnapshot.unlimitedResources);
     const BuildingType highlightedBuilding =
         hotbarSnapshot.selectedBuilding.value_or(
             lastBuildingSelection_);
@@ -676,6 +741,9 @@ void App::update() {
             if (pendingToggleInvulnerability_) {
                 tickInput.toggleInvulnerability = ToggleInvulnerabilityCommand{};
             }
+            if (pendingGrantInsight_) {
+                tickInput.grantInsight = GrantInsightCommand{};
+            }
             if (pendingDamageCore_) {
                 tickInput.damageCore = DamageCoreCommand{};
             }
@@ -739,6 +807,7 @@ void App::update() {
         pendingRevealChest_ = false;
         pendingDefeatAllEnemies_ = false;
         pendingToggleInvulnerability_ = false;
+        pendingGrantInsight_ = false;
         pendingDamageCore_ = false;
         pendingSpawnEnemy_ = false;
         pendingChainLightning_ = false;

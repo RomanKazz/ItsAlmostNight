@@ -25,12 +25,10 @@ namespace ian {
 namespace {
 
 const char* placementMessage(
-    PlacementError error, BuildingType type) {
+    PlacementError error, BuildingType) {
     switch (error) {
     case PlacementError::None:
-        return supportsManualBuildingRotation(type)
-            ? "LMB place/drag   RMB cancel   R rotate"
-            : "LMB place/drag   RMB cancel";
+        return "";
     case PlacementError::CoreAlreadyPlaced:
         return "Core already placed";
     case PlacementError::CoreRequired:
@@ -134,6 +132,293 @@ std::string compactAmount(int amount) {
             text, sizeof(text), "%dk", amount / 1000);
     }
     return text;
+}
+
+struct VitalBarPalette {
+    Color outer;
+    Color inner;
+    Color fill;
+};
+
+constexpr VitalBarPalette PlayerHealthPalette{
+    .outer = {216, 0, 56, 255},
+    .inner = {255, 64, 86, 255},
+    .fill = {255, 158, 134, 255},
+};
+constexpr VitalBarPalette CoreHealthPalette{
+    .outer = {138, 11, 168, 255},
+    .inner = {217, 27, 232, 255},
+    .fill = {245, 139, 239, 255},
+};
+
+void drawVitalBar(GameUi& ui, Rectangle bounds, float fraction,
+                  float trailFraction, float damagePulse,
+                  const VitalBarPalette& palette,
+                  std::string_view text, bool core) {
+    constexpr float OuterRadius = 10.0F;
+    constexpr float InnerInset = 5.0F;
+    constexpr float InnerHeight = 26.0F;
+    constexpr float InnerRadius = 6.0F;
+    constexpr float FillHeight = 20.0F;
+    constexpr float FillRadius = 6.0F;
+    constexpr float TextFontSize = 24.0F / 1.68F;
+
+    fraction = std::clamp(fraction, 0.0F, 1.0F);
+    trailFraction = std::clamp(
+        std::max(trailFraction, fraction), 0.0F, 1.0F);
+    damagePulse = std::clamp(damagePulse, 0.0F, 1.0F);
+    DrawRectangleRounded(
+        bounds, OuterRadius * 2.0F / bounds.height,
+        8, palette.outer);
+    const Rectangle innerBounds{
+        bounds.x + InnerInset,
+        bounds.y + InnerInset,
+        bounds.width - InnerInset * 2.0F,
+        InnerHeight,
+    };
+    DrawRectangleRounded(
+        innerBounds, InnerRadius * 2.0F / InnerHeight,
+        8, palette.inner);
+    if (trailFraction > fraction + 0.001F) {
+        const Rectangle trailBounds{
+            innerBounds.x,
+            bounds.y + InnerInset,
+            innerBounds.width * trailFraction,
+            FillHeight,
+        };
+        DrawRectangleRounded(
+            trailBounds,
+            std::clamp(
+                FillRadius * 2.0F /
+                    std::max(1.0F, trailBounds.height),
+                0.0F, 1.0F),
+            8, {255, 221, 166, 255});
+    }
+    if (fraction > 0.001F) {
+        const Rectangle fillBounds{
+            innerBounds.x,
+            bounds.y + InnerInset,
+            innerBounds.width * fraction,
+            FillHeight,
+        };
+        DrawRectangleRounded(
+            fillBounds,
+            std::clamp(
+                FillRadius * 2.0F /
+                    std::max(1.0F, fillBounds.height),
+                0.0F, 1.0F),
+            8, palette.fill);
+    }
+
+    const Vector2 textSize = measureUiText(text, TextFontSize);
+    SdfUiTextStyle textStyle{};
+    textStyle.fillColor = UiWhite;
+    textStyle.outlineColor = {49, 49, 49, 255};
+    textStyle.shadowColor = {82, 82, 82, 255};
+    textStyle.shadowOffsetPixels = {0.0F, 2.0F};
+    textStyle.outlinePixels = 2.0F;
+    drawStyledSdfUiText(
+        text,
+        {bounds.x + (bounds.width - textSize.x) * 0.5F,
+         bounds.y + (bounds.height - textSize.y) * 0.5F},
+        TextFontSize, textStyle);
+
+    if (damagePulse > 0.001F) {
+        DrawRectangleRoundedLinesEx(
+            bounds,
+            OuterRadius * 2.0F / bounds.height,
+            8, 2.0F + damagePulse * 1.5F,
+            {255, 73, 80,
+             static_cast<unsigned char>(
+                 90.0F + damagePulse * 150.0F)});
+    }
+    const float iconSize = 40.0F * (1.0F + damagePulse * 0.10F);
+    const Rectangle iconBounds{
+        bounds.x - 43.0F - (iconSize - 40.0F) * 0.5F,
+        bounds.y - 2.0F - (iconSize - 40.0F) * 0.5F,
+        iconSize, iconSize};
+    ui.drawVitalIcon(iconBounds, core);
+}
+
+void drawDayNightBowl(
+    Rectangle bounds, float cornerRadius, Color color) {
+    const float safeCornerRadius = std::clamp(
+        cornerRadius, 0.0F, bounds.height * 0.5F);
+    const float centerY = bounds.y + safeCornerRadius;
+    const float radiusY = bounds.height - safeCornerRadius;
+    if (safeCornerRadius > 0.0F) {
+        const Rectangle topCap{
+            bounds.x, bounds.y, bounds.width,
+            safeCornerRadius * 2.0F};
+        DrawRectangleRounded(
+            topCap,
+            safeCornerRadius * 2.0F /
+                std::max(topCap.height, 1.0F),
+            8, color);
+    }
+    BeginScissorMode(
+        static_cast<int>(std::floor(bounds.x)),
+        static_cast<int>(std::floor(
+            bounds.y + safeCornerRadius)),
+        static_cast<int>(std::ceil(bounds.width)),
+        static_cast<int>(std::ceil(
+            bounds.height - safeCornerRadius)));
+    DrawEllipse(
+        static_cast<int>(std::lround(
+            bounds.x + bounds.width * 0.5F)),
+        static_cast<int>(std::lround(centerY)),
+        bounds.width * 0.5F, radiusY, color);
+    EndScissorMode();
+}
+
+float dayNightCycleAngle(
+    const SimulationSnapshot& snapshot) {
+    // One continuous phase coordinate rotates the dial through day,
+    // sunset, night and dawn.
+    constexpr float DayArc = 2.70F;
+    constexpr float SunsetArc = 0.55F;
+    constexpr float NightArc = 2.70F;
+    constexpr float DawnArc = 2.0F * PI -
+        DayArc - SunsetArc - NightArc;
+    const float progress = snapshot.phaseDuration > 0.0
+        ? std::clamp(
+              1.0F - static_cast<float>(
+                  snapshot.phaseTimeRemaining /
+                  snapshot.phaseDuration),
+              0.0F, 1.0F)
+        : 0.0F;
+    if (snapshot.state == RunState::BuildPhase) {
+        return DayArc * progress;
+    }
+    if (snapshot.state == RunState::Sunset) {
+        return DayArc + SunsetArc * progress;
+    }
+    if (snapshot.state == RunState::Wave) {
+        return DayArc + SunsetArc + NightArc * progress;
+    }
+    if (snapshot.state == RunState::WaveComplete) {
+        return DayArc + SunsetArc + NightArc +
+            DawnArc * progress;
+    }
+    return 0.0F;
+}
+
+void drawDayNightDialSector(
+    Rectangle bounds, float cornerRadius,
+    float centerAngle, float sectorAngle, Color color) {
+    constexpr int SegmentCount = 32;
+    const float safeCornerRadius = std::clamp(
+        cornerRadius, 0.0F, bounds.height * 0.5F);
+    const Vector2 center{
+        bounds.x + bounds.width * 0.5F,
+        bounds.y + safeCornerRadius,
+    };
+    const float radiusX = bounds.width * 0.5F;
+    const float radiusY = bounds.height - safeCornerRadius;
+    const float startAngle = centerAngle - sectorAngle * 0.5F;
+    BeginScissorMode(
+        static_cast<int>(std::floor(bounds.x)),
+        static_cast<int>(std::floor(bounds.y)),
+        static_cast<int>(std::ceil(bounds.width)),
+        static_cast<int>(std::ceil(bounds.height)));
+    // Raylib shape triangles sample an anti-aliased texture on every internal
+    // edge, exposing the sector below as colored radial speckles. Submit an
+    // untextured fan and overlap only internal edges by a subpixel angle.
+    constexpr float SegmentOverlap = 0.0025F;
+    const float step = sectorAngle / static_cast<float>(SegmentCount);
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    for (int segment = 0; segment < SegmentCount; ++segment) {
+        const float segmentStart = startAngle +
+            static_cast<float>(segment) * step -
+            (segment > 0 ? SegmentOverlap : 0.0F);
+        const float segmentEnd = startAngle +
+            static_cast<float>(segment + 1) * step +
+            (segment + 1 < SegmentCount ? SegmentOverlap : 0.0F);
+        rlVertex2f(center.x, center.y);
+        rlVertex2f(
+            center.x + std::cos(segmentEnd) * radiusX,
+            center.y + std::sin(segmentEnd) * radiusY);
+        rlVertex2f(
+            center.x + std::cos(segmentStart) * radiusX,
+            center.y + std::sin(segmentStart) * radiusY);
+    }
+    rlEnd();
+    EndScissorMode();
+}
+
+void drawDayNightIndicator(
+    Rectangle bounds, const SimulationSnapshot& snapshot) {
+    constexpr Color ShadowColor{82, 82, 82, 255};
+    constexpr Color FrameColor{49, 49, 49, 255};
+    constexpr Color NightColor{59, 67, 165, 255};
+    constexpr Color SunsetColor{232, 121, 62, 255};
+    constexpr Color DayColor{224, 177, 39, 255};
+    constexpr float FrameInset = 4.0F;
+    constexpr float DayArc = 2.70F;
+    constexpr float SunsetArc = 0.55F;
+    constexpr float NightArc = 2.70F;
+    constexpr float DawnArc = 2.0F * PI -
+        DayArc - SunsetArc - NightArc;
+
+    const bool urgentPhase = snapshot.phaseDuration > 0.0 &&
+        snapshot.phaseTimeRemaining > 0.0 &&
+        snapshot.phaseTimeRemaining <= 10.0;
+    if (urgentPhase) {
+        const float urgency = 1.0F - std::clamp(
+            static_cast<float>(snapshot.phaseTimeRemaining / 10.0),
+            0.0F, 1.0F);
+        const float wave = 0.5F + 0.5F * std::sin(
+            static_cast<float>(GetTime()) * 8.0F);
+        drawDayNightBowl(
+            {bounds.x - 3.0F, bounds.y - 2.0F,
+             bounds.width + 6.0F, bounds.height + 6.0F},
+            8.0F,
+            {255, 105, 60,
+             static_cast<unsigned char>(
+                 28.0F + urgency * (35.0F + wave * 55.0F))});
+    }
+
+    drawDayNightBowl(
+        {bounds.x, bounds.y + 4.0F,
+         bounds.width, bounds.height},
+        6.0F, ShadowColor);
+    drawDayNightBowl(bounds, 6.0F, FrameColor);
+
+    const Rectangle inner{
+        bounds.x + FrameInset,
+        bounds.y + FrameInset,
+        bounds.width - FrameInset * 2.0F,
+        bounds.height - FrameInset * 2.0F,
+    };
+    constexpr float InnerCornerRadius = 4.0F;
+    drawDayNightBowl(inner, InnerCornerRadius, NightColor);
+
+    // At zero the fixed notch sits exactly on the start of the yellow day
+    // sector. Decreasing the angle rotates the dial counter-clockwise.
+    float sectorStart = PI * 0.5F - dayNightCycleAngle(snapshot);
+    const auto drawRotatingSector =
+        [&](float sectorArc, Color color) {
+            drawDayNightDialSector(
+                inner, InnerCornerRadius,
+                sectorStart + sectorArc * 0.5F,
+                sectorArc, color);
+            sectorStart += sectorArc;
+        };
+    drawRotatingSector(DayArc, DayColor);
+    drawRotatingSector(SunsetArc, SunsetColor);
+    drawRotatingSector(NightArc, NightColor);
+    drawRotatingSector(DawnArc, SunsetColor);
+
+    const Vector2 center{
+        inner.x + inner.width * 0.5F,
+        inner.y + InnerCornerRadius};
+    DrawTriangle(
+        {center.x - 7.0F, inner.y},
+        {center.x, inner.y + 11.0F},
+        {center.x + 7.0F, inner.y},
+        FrameColor);
 }
 
 const char* objectiveKindLabel(ObjectiveKind kind) {
@@ -352,12 +637,12 @@ void drawBuildingContextCard(
                      CardHeight - 24.0F));
     ui.drawPanel({x, y, CardWidth, CardHeight}, 242);
 
-    drawUiText(buildingDisplayName(building.type), {x + 24.0F, y + 18.0F},
+    drawSdfUiText(buildingDisplayName(building.type), {x + 24.0F, y + 18.0F},
                26.0F, {255, 235, 174, 255});
-    drawUiText("LEVEL " + std::to_string(building.level),
-               {x + 24.0F, y + 62.0F}, 19.0F, RAYWHITE);
+    drawSdfUiText("LEVEL " + std::to_string(building.level),
+               {x + 24.0F, y + 62.0F}, 19.0F, UiWhite);
 
-    drawUiText("STATS", {x + 24.0F, y + 105.0F},
+    drawSdfUiText("STATS", {x + 24.0F, y + 105.0F},
                16.0F, {245, 184, 76, 255});
 
     struct StatRow {
@@ -513,9 +798,9 @@ void drawBuildingContextCard(
         : 0.0F;
     const Color currentColor = animatingUpgrade
         ? ColorLerp(
-              Color{255, 191, 65, 255}, RAYWHITE,
+              Color{255, 191, 65, 255}, UiWhite,
               easedProgress)
-        : RAYWHITE;
+        : UiWhite;
     const auto formatValue =
         [](double value, int decimals,
            const char* suffix) {
@@ -533,7 +818,7 @@ void drawBuildingContextCard(
         const StatRow& row = rows[index];
         const float rowY =
             y + 141.0F + static_cast<float>(index) * 31.0F;
-        drawUiText(
+        drawSdfUiText(
             row.label, {x + 24.0F, rowY}, 15.0F,
             {205, 197, 184, 255});
         double displayedCurrent = row.current;
@@ -543,22 +828,22 @@ void drawBuildingContextCard(
                 (row.current - *row.previous) *
                     static_cast<double>(easedProgress);
         }
-        drawUiText(
+        drawSdfUiText(
             formatValue(
                 displayedCurrent, row.decimals, row.suffix),
             {x + 265.0F, rowY - numberPulse * 0.5F},
             18.0F + numberPulse, currentColor);
         if (row.next) {
-            drawUiText(
+            drawSdfUiText(
                 ">", {x + 390.0F, rowY}, 18.0F,
                 {245, 184, 76, 255});
-            drawUiText(
+            drawSdfUiText(
                 formatValue(*row.next, row.decimals, row.suffix),
                 {x + 435.0F, rowY}, 18.0F,
                 {105, 231, 132, 255});
             const double delta = *row.next - row.current;
             if (std::abs(delta) > 0.0001) {
-                drawUiText(
+                drawSdfUiText(
                     "+" + formatValue(
                               delta, row.decimals, row.suffix),
                     {x + 565.0F, rowY}, 14.0F,
@@ -629,7 +914,7 @@ void drawBuildingContextCard(
             actionKeyLabel(controls, ControlAction::Upgrade) +
             "  UPGRADE";
     }
-    drawUiText(
+    drawSdfUiText(
                primaryActions,
                {x + 24.0F, y + 340.0F}, 14.0F,
                {222, 210, 194, 255});
@@ -654,14 +939,14 @@ void drawBuildingContextCard(
         actions += "    E  TOGGLE";
     }
     if (!actions.empty()) {
-        drawUiText(actions, {x + 24.0F, y + 371.0F},
+        drawSdfUiText(actions, {x + 24.0F, y + 371.0F},
                    14.0F, {222, 210, 194, 255});
     }
 
     const ResourceCost repairCost = buildingRepairCost(building);
     if (repairCost.wood > 0 || repairCost.stone > 0 ||
         repairCost.crystals > 0) {
-        drawUiText(
+        drawSdfUiText(
             "REPAIR  " + hud_detail::costText(repairCost) + "  +" +
                 std::to_string(static_cast<int>(std::ceil(
                     std::max(0.0, building.maxHealth - building.health)))) +
@@ -669,14 +954,14 @@ void drawBuildingContextCard(
             {x + 24.0F, y + 399.0F}, 13.0F,
             {255, 210, 126, 235});
     } else if (building.health >= building.maxHealth) {
-        drawUiText(
+        drawSdfUiText(
             "REPAIR  FULL HEALTH",
             {x + 24.0F, y + 399.0F}, 13.0F,
             {145, 218, 159, 225});
     }
 
     if (globalBlueprint) {
-        drawUiText(
+        drawSdfUiText(
             "GLOBAL BLUEPRINT LEVEL " +
                 std::to_string(building.level) +
                 "  -  MANAGE AT CORE",
@@ -685,12 +970,12 @@ void drawBuildingContextCard(
         return;
     }
     if (!snapshot.aimedBuildingUpgradeCost) {
-        drawUiText("MAX LEVEL", {x + 24.0F, y + 424.0F},
+        drawSdfUiText("MAX LEVEL", {x + 24.0F, y + 424.0F},
                    19.0F, {245, 184, 76, 255});
         return;
     }
 
-    drawUiText("UPGRADE", {x + 24.0F, y + 427.0F}, 16.0F,
+    drawSdfUiText("UPGRADE", {x + 24.0F, y + 427.0F}, 16.0F,
                {245, 184, 76, 255});
     const ResourceCost cost =
         *snapshot.aimedBuildingUpgradeCost;
@@ -703,7 +988,7 @@ void drawBuildingContextCard(
             }
             ui.drawResourceIcon(
                 {itemX, y + 413.0F, 48.0F, 48.0F}, icon);
-            drawUiText(
+            drawSdfUiText(
                 std::to_string(amount),
                 {itemX + 54.0F, y + 420.0F}, 18.0F,
                 available >= amount
@@ -719,7 +1004,7 @@ void drawBuildingContextCard(
         const std::string_view unlocks = coreLevelUnlockSummary(
             static_cast<int>(building.level) + 1);
         if (!unlocks.empty()) {
-            drawUiText(unlocks, {x + 24.0F, y + 470.0F}, 13.0F,
+            drawSdfUiText(unlocks, {x + 24.0F, y + 470.0F}, 13.0F,
                        {105, 231, 132, 245});
         }
     }
@@ -740,28 +1025,83 @@ using namespace hud_detail;
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera,
              const ControlSettings& controls) {
-    const float woodY = -view.woodResourceBounce;
-    const float stoneY = -view.stoneResourceBounce;
-    const float crystalY = -view.crystalResourceBounce;
-    const float coinY = -view.coinResourceBounce;
-    constexpr float ResourcePanelX = 12.0F;
-    constexpr float ResourcePanelY = 27.0F;
-    constexpr float ResourceCellWidth = 150.0F;
-    constexpr float ResourceIconSize = 34.2F;
-    constexpr float ResourceFontSize = 18.9F;
+    const float woodPop = std::clamp(view.woodResourcePop, 0.0F, 1.0F);
+    const float stonePop = std::clamp(view.stoneResourcePop, 0.0F, 1.0F);
+    const float crystalPop = std::clamp(
+        view.crystalResourcePop, 0.0F, 1.0F);
+    const float coinPop = std::clamp(view.coinResourcePop, 0.0F, 1.0F);
+    constexpr float ResourcePanelX = 18.0F;
+    constexpr float ResourcePanelY = 9.0F;
+    constexpr float ResourceIconSize = 54.0F;
+    constexpr float ResourceIconGap = 6.0F;
+    constexpr float ResourceItemGap = 20.0F;
+    // Figma uses 52 for the current amount and 24 for the /capacity suffix.
+    // UiText applies the established 1.68 font correction internally.
+    constexpr float ResourceAmountFontSize = 52.0F / 1.68F;
+    constexpr float ResourceCapacityFontSize = 24.0F / 1.68F;
+    constexpr float ResourceCapacityYOffset = 21.5F;
+    std::array<Vector2, 4> resourceAmountPositions{};
+    float nextResourceX = ResourcePanelX + 6.0F;
     const auto drawResourceCell =
-        [&ui](std::size_t index, UiResourceIcon icon,
-              std::string value, float bounce, Color color) {
-            const float x = ResourcePanelX + 6.0F +
-                static_cast<float>(index) * ResourceCellWidth;
+        [&ui, &nextResourceX, &resourceAmountPositions](
+            std::size_t index, UiResourceIcon icon,
+            std::string value, float pop, Color color) {
+            const float x = nextResourceX;
+            const float iconSize = icon == UiResourceIcon::Coin
+                ? 44.0F
+                : ResourceIconSize;
+            const float iconInset = ResourceIconSize - iconSize;
+            const float poppedIconSize = iconSize * (1.0F + pop * 0.11F);
+            const float popInset = (poppedIconSize - iconSize) * 0.5F;
             ui.drawResourceIcon(
-                {x, ResourcePanelY + 4.0F + bounce,
-                 ResourceIconSize, ResourceIconSize}, icon);
-            drawUiText(
-                value,
-                {x + ResourceIconSize + 8.0F,
-                 ResourcePanelY + 8.0F + bounce},
-                ResourceFontSize, color);
+                {x + iconInset - popInset,
+                 ResourcePanelY + 4.0F + iconInset * 0.5F - popInset,
+                 poppedIconSize, poppedIconSize}, icon);
+            SdfUiTextStyle resourceTextStyle{};
+            resourceTextStyle.fillColor = color;
+            resourceTextStyle.outlineColor = {49, 49, 49, 255};
+            resourceTextStyle.shadowColor = {82, 82, 82, 255};
+            resourceTextStyle.shadowOffsetPixels = {0.0F, 4.0F};
+            resourceTextStyle.outlinePixels = 3.0F;
+            const float amountFontSize = value == "∞"
+                ? ResourceAmountFontSize * 0.80F
+                : ResourceAmountFontSize;
+            const Vector2 amountPosition{
+                x + ResourceIconSize + ResourceIconGap,
+                ResourcePanelY + 8.0F +
+                    (ResourceAmountFontSize - amountFontSize) * 0.42F};
+            resourceAmountPositions[index] = amountPosition;
+            const std::size_t separator = value.find('/');
+            float textWidth = 0.0F;
+            if (separator == std::string::npos) {
+                drawStyledSdfUiText(
+                    value, amountPosition,
+                    amountFontSize, resourceTextStyle);
+                textWidth = measureUiText(
+                    value, amountFontSize).x;
+            } else {
+                const std::string amount = value.substr(0, separator);
+                const std::string capacity = value.substr(separator);
+                const Vector2 amountSize = measureUiText(
+                    amount, ResourceAmountFontSize);
+                const Vector2 capacitySize = measureUiText(
+                    capacity, ResourceCapacityFontSize);
+                const std::array runs{
+                    SdfUiTextRun{
+                        amount, amountPosition, ResourceAmountFontSize,
+                        color},
+                    SdfUiTextRun{
+                        capacity,
+                        {amountPosition.x + amountSize.x,
+                         amountPosition.y + ResourceCapacityYOffset},
+                        ResourceCapacityFontSize,
+                        Color{221, 221, 221, 255}},
+                };
+                drawStyledSdfUiTextRuns(runs, resourceTextStyle);
+                textWidth = amountSize.x + capacitySize.x;
+            }
+            const float contentRight = amountPosition.x + textWidth;
+            nextResourceX = contentRight + ResourceItemGap;
         };
     const auto resourceValue = [&snapshot](int amount, int capacity) {
         if (snapshot.unlimitedResources) return std::string{"∞"};
@@ -769,61 +1109,77 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             ? compactAmount(amount) + "/" + compactAmount(capacity)
             : compactAmount(amount);
     };
+    const auto displayedAmount = [](double animated, int fallback) {
+        if (animated < 0.0) {
+            return fallback;
+        }
+        return std::max(0, static_cast<int>(std::floor(animated + 1e-6)));
+    };
     drawResourceCell(
         0U, UiResourceIcon::Wood,
-        resourceValue(snapshot.wood, snapshot.woodCapacity),
-        woodY, RAYWHITE);
+        resourceValue(
+            displayedAmount(view.displayedWood, snapshot.wood),
+            snapshot.woodCapacity),
+        woodPop, UiWhite);
     drawResourceCell(
         1U, UiResourceIcon::Stone,
-        resourceValue(snapshot.stone, snapshot.stoneCapacity),
-        stoneY, RAYWHITE);
+        resourceValue(
+            displayedAmount(view.displayedStone, snapshot.stone),
+            snapshot.stoneCapacity),
+        stonePop, UiWhite);
     drawResourceCell(
         2U, UiResourceIcon::Crystal,
-        resourceValue(snapshot.crystals, snapshot.crystalCapacity),
-        crystalY,
+        resourceValue(
+            displayedAmount(view.displayedCrystals, snapshot.crystals),
+            snapshot.crystalCapacity),
+        crystalPop,
         snapshot.crystalStorageFull
             ? Color{255, 174, 112, 255}
-            : RAYWHITE);
-    if (snapshot.crystalStorageFull) {
-        drawUiText(
-            "FULL",
-            {ResourcePanelX + 6.0F +
-                 2.0F * ResourceCellWidth + ResourceIconSize + 9.0F,
-             ResourcePanelY + 33.0F},
-            9.45F, {255, 153, 92, 245});
-    }
+            : UiWhite);
     drawResourceCell(
         3U, UiResourceIcon::Coin,
         snapshot.unlimitedResources
             ? "∞"
-            : compactAmount(snapshot.coins),
-        coinY, {255, 236, 152, 255});
-    const auto drawResourcePulse =
-        [](Rectangle bounds, float remaining) {
-            if (remaining <= 0.0F) {
+            : compactAmount(displayedAmount(
+                  view.displayedCoins, snapshot.coins)),
+        coinPop, UiWhite);
+    const auto drawFullResourceGlint =
+        [&resourceAmountPositions, snapshot](
+            std::size_t index, bool full) {
+            if (!full) {
                 return;
             }
-            const float progress =
-                1.0F - std::clamp(remaining, 0.0F, 1.0F);
-            const float pulse =
-                std::sin(progress * PI);
-            const auto alpha = static_cast<unsigned char>(
-                std::lround(pulse * 245.0F));
-            DrawRectangleLinesEx(
-                bounds, 3.0F + pulse * 2.0F,
-                {255, 236, 160, alpha});
+            const float glintWave = 0.5F + 0.5F * std::sin(
+                static_cast<float>(snapshot.elapsedSeconds) * 2.4F +
+                static_cast<float>(index) * 1.7F);
+            const float glint = std::pow(glintWave, 6.0F);
+            const float iconX = resourceAmountPositions[index].x -
+                ResourceIconSize - ResourceIconGap;
+            const Vector2 glintCenter{
+                iconX + ResourceIconSize * 0.78F,
+                ResourcePanelY + 12.0F};
+            const Color glintColor{
+                255, 247, 211,
+                static_cast<unsigned char>(
+                    40.0F + glint * 210.0F)};
+            DrawLineEx(
+                {glintCenter.x - 5.0F * glint, glintCenter.y},
+                {glintCenter.x + 5.0F * glint, glintCenter.y},
+                1.5F + glint, glintColor);
+            DrawLineEx(
+                {glintCenter.x, glintCenter.y - 5.0F * glint},
+                {glintCenter.x, glintCenter.y + 5.0F * glint},
+                1.5F + glint, glintColor);
+            DrawCircleV(
+                glintCenter, 1.0F + glint * 1.8F, glintColor);
         };
-    const std::array<float, 4> resourcePulses{
-        view.woodResourcePulse, view.stoneResourcePulse,
-        view.crystalResourcePulse, view.coinResourcePulse};
-    for (std::size_t index = 0;
-         index < resourcePulses.size(); ++index) {
-        drawResourcePulse(
-             {ResourcePanelX + 3.0F +
-                 static_cast<float>(index) * ResourceCellWidth,
-             ResourcePanelY + 1.0F, 140.0F, 46.0F},
-            resourcePulses[index]);
-    }
+    drawFullResourceGlint(
+        0U, snapshot.woodCapacity > 0 &&
+                snapshot.wood >= snapshot.woodCapacity);
+    drawFullResourceGlint(
+        1U, snapshot.stoneCapacity > 0 &&
+                snapshot.stone >= snapshot.stoneCapacity);
+    drawFullResourceGlint(2U, snapshot.crystalStorageFull);
     if (!snapshot.unlimitedResources &&
         snapshot.coins >= snapshot.chestRevealCoinCost &&
         !snapshot.nearestChestPosition) {
@@ -831,30 +1187,42 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             actionKeyLabel(controls, ControlAction::RevealChest) +
             "  REVEAL CHEST  •  " +
             std::to_string(snapshot.chestRevealCoinCost) + " COINS";
-        drawUiText(
+        drawSdfUiText(
             revealHint,
             {ResourcePanelX + 6.0F, ResourcePanelY + 54.0F},
             9.0F, {231, 213, 172, 215});
     }
 
-    const float healthY = static_cast<float>(GetScreenHeight()) -
-        (view.showCoreHealth ? 132.0F : 76.0F);
-    const double healthFraction =
-        snapshot.playerHealth / snapshot.playerMaxHealth;
-    std::string healthLabel =
-        "HP  " +
-        std::to_string(static_cast<int>(snapshot.playerHealth)) +
-        " / " +
+    constexpr float VitalBarX = 58.0F;
+    constexpr float VitalBarWidth = 256.0F;
+    constexpr float VitalBarHeight = 36.0F;
+    constexpr float VitalBarGap = 8.0F;
+    constexpr float VitalBarBottomMargin = 12.0F;
+    const bool coreBarVisible = snapshot.coreMaxHealth > 0.0;
+    const float lowerBarY = static_cast<float>(GetScreenHeight()) -
+        VitalBarBottomMargin - VitalBarHeight;
+    const float playerBarY = coreBarVisible
+        ? lowerBarY - VitalBarGap - VitalBarHeight
+        : lowerBarY;
+    const float playerHealthFraction = snapshot.playerMaxHealth > 0.0
+        ? static_cast<float>(
+              snapshot.playerHealth / snapshot.playerMaxHealth)
+        : 0.0F;
+    const std::string playerHealthText =
+        std::to_string(static_cast<int>(snapshot.playerHealth)) + "/" +
         std::to_string(static_cast<int>(snapshot.playerMaxHealth));
-    if (const PlayerClassDefinition* playerClass =
-            playerClassDefinition(snapshot.playerClass)) {
-        healthLabel += "  •  " + std::string(playerClass->name);
-    }
-    drawUiText(
-        healthLabel,
-        {18.0F, healthY}, 14.0F,
-        healthFraction > 0.3 ? Color{176, 225, 179, 255}
-                             : Color{240, 116, 98, 255});
+    drawVitalBar(
+        ui,
+        {VitalBarX, playerBarY, VitalBarWidth, VitalBarHeight},
+        playerHealthFraction,
+        snapshot.playerMaxHealth > 0.0
+            ? static_cast<float>(
+                  view.playerHealthTrail / snapshot.playerMaxHealth)
+            : playerHealthFraction,
+        view.playerDamagePulse,
+        PlayerHealthPalette,
+        playerHealthText, false);
+
     const bool hasRecoverableArmor =
         snapshot.playerMaxRecoverableArmor > 0.0;
     if (hasRecoverableArmor) {
@@ -872,50 +1240,42 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 static_cast<int>(std::ceil(
                     snapshot.playerArmorRechargeDelayRemaining))) + "s";
         }
-        drawUiText(
-            armorText, {154.0F, healthY + 2.0F}, 9.0F,
+        drawSdfUiText(
+            armorText,
+            {VitalBarX + VitalBarWidth + 12.0F,
+             playerBarY + 8.0F},
+            9.0F,
             snapshot.playerArmorRechargeDelayRemaining > 0.05
                 ? Color{127, 172, 190, 235}
                 : Color{139, 225, 250, 255});
     }
-    const Rectangle healthBarBounds{
-        18.0F, healthY + 25.0F, 230.0F, 14.0F};
-    ui.drawProgressBar(
-        healthBarBounds,
-        static_cast<float>(healthFraction),
-        healthFraction > 0.3 ? UiBarColor::Green : UiBarColor::Red);
-    if (hasRecoverableArmor) {
-        // Armor is a protective coating on the health bar rather than a
-        // second standalone resource bar.
-        ui.drawProgressBar(
-            {healthBarBounds.x, healthBarBounds.y,
-             healthBarBounds.width, 8.0F},
-            static_cast<float>(
-                snapshot.playerRecoverableArmor /
-                snapshot.playerMaxRecoverableArmor),
-            UiBarColor::Blue);
-    }
 
-    if (view.showCoreHealth && snapshot.coreMaxHealth > 0.0) {
-        drawUiText(
-            "CORE L" + std::to_string(snapshot.coreLevel) + "  " +
-                std::to_string(static_cast<int>(snapshot.coreHealth)) +
-                " / " +
-                std::to_string(static_cast<int>(snapshot.coreMaxHealth)),
-            {18.0F, healthY + 55.0F}, 15.0F,
-            {232, 196, 123, 255});
-        ui.drawProgressBar(
-            {18.0F, healthY + 80.0F, 230.0F, 14.0F},
-            static_cast<float>(snapshot.coreHealth /
-                               snapshot.coreMaxHealth),
-            UiBarColor::Yellow);
+    if (coreBarVisible) {
+        const std::string coreHealthText =
+            std::to_string(static_cast<int>(snapshot.coreHealth)) + "/" +
+            std::to_string(static_cast<int>(snapshot.coreMaxHealth));
+        drawVitalBar(
+            ui,
+            {VitalBarX, lowerBarY, VitalBarWidth, VitalBarHeight},
+            static_cast<float>(
+                snapshot.coreHealth / snapshot.coreMaxHealth),
+            static_cast<float>(
+                snapshot.coreHealth / snapshot.coreMaxHealth),
+            0.0F,
+            CoreHealthPalette, coreHealthText, true);
     }
     if (snapshot.sandboxMode) {
-        drawUiText("SANDBOX  ∞", {256.0F, healthY - 2.0F}, 14.0F,
-                   {111, 220, 151, 255});
+        drawSdfUiText(
+            "SANDBOX  ∞",
+            {VitalBarX + VitalBarWidth + 12.0F,
+             playerBarY - 2.0F},
+            14.0F, {111, 220, 151, 255});
     } else if (snapshot.unlimitedResources) {
-        drawUiText("∞", {256.0F, healthY - 2.0F}, 20.0F,
-                   {111, 220, 151, 255});
+        drawSdfUiText(
+            "∞",
+            {VitalBarX + VitalBarWidth + 12.0F,
+             playerBarY - 2.0F},
+            20.0F, {111, 220, 151, 255});
     }
 
     int objectiveCount = 0;
@@ -931,10 +1291,12 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     constexpr float TrackerWidth = 330.0F;
     const float trackerX = static_cast<float>(GetScreenWidth()) -
         TrackerWidth - 12.0F;
-    const float minimapTop = view.showFps ? 68.0F : 32.0F;
+    constexpr float MinimapTop = 0.0F;
+    constexpr float MinimapCompassMargin = 32.0F;
     const float trackerY = view.minimapHidden
         ? 32.0F
-        : minimapTop + compactMapSize + 8.0F;
+        : MinimapTop + compactMapSize +
+            MinimapCompassMargin * 2.0F + 20.0F;
     const bool quietBuildPhase =
         snapshot.state == RunState::BuildPhase;
     if (!view.mapOverlayOpen && quietBuildPhase &&
@@ -950,7 +1312,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         DrawPoly(
             {card.x + 17.0F, card.y + 19.0F},
             4, 6.0F, 45.0F, {255, 194, 82, 255});
-        drawUiText(
+        drawSdfUiText(
             tutorial,
             {card.x + 32.0F, card.y + 8.0F},
             fitUiTextSize(
@@ -994,11 +1356,11 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         DrawPoly(
             {ObjectiveX + 24.0F, ObjectiveY + 23.0F},
             4, 6.5F, 45.0F, {255, 215, 105, 255});
-        drawUiText(
+        drawSdfUiText(
             "OBJECTIVE TRACKER",
             {ObjectiveX + 43.0F, ObjectiveY + 9.0F},
             14.0F, {255, 225, 157, 255});
-        drawUiText(
+        drawSdfUiText(
             "Complete tasks to earn XP",
             {ObjectiveX + 43.0F, ObjectiveY + 27.0F},
             10.5F, {190, 178, 157, 225});
@@ -1006,7 +1368,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             "TRACKED  " + std::to_string(objectiveCount);
         const float activeWidth =
             measureUiText(activeCount, 10.5F).x;
-        drawUiText(
+        drawSdfUiText(
             activeCount,
             {ObjectiveX + ObjectiveWidth - activeWidth - 15.0F,
              ObjectiveY + 17.0F},
@@ -1041,6 +1403,19 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                      static_cast<unsigned char>(70.0F * pulse)});
             }
             ui.drawInsetPanel(card, 238);
+            const bool completed =
+                objective.definition.target > 0.0 &&
+                objective.progress + 1e-6 >=
+                    objective.definition.target;
+            if (pulsing && completed) {
+                const float completionPulse = static_cast<float>(
+                    std::sin(view.objectivePulse * PI));
+                DrawRectangleRounded(
+                    card, 0.09F, 8,
+                    {255, 198, 71,
+                     static_cast<unsigned char>(
+                         completionPulse * 88.0F)});
+            }
             DrawRectangleRoundedLinesEx(
                 card, 0.09F, 8, pulsing ? 2.2F : 1.2F,
                 {kindColor.r, kindColor.g, kindColor.b,
@@ -1061,7 +1436,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const float eyebrowSize = fitUiTextSize(
                 eyebrow, 11.0F, 9.0F,
                 card.width - 165.0F, 17.0F);
-            drawUiText(
+            drawSdfUiText(
                 eyebrow,
                 {card.x + 44.0F, card.y + 8.0F},
                 eyebrowSize, kindColor);
@@ -1071,7 +1446,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 " XP";
             const float rewardWidth =
                 measureUiText(reward, 10.0F).x;
-            drawUiText(
+            drawSdfUiText(
                 reward,
                 {card.x + card.width - rewardWidth - 12.0F,
                  card.y + 9.0F},
@@ -1082,7 +1457,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             const float instructionSize = fitUiTextSize(
                 instruction, 14.0F, 10.5F,
                 card.width - 142.0F, 22.0F);
-            drawUiText(
+            drawSdfUiText(
                 instruction,
                 {card.x + 44.0F, card.y + 31.0F},
                 instructionSize, {247, 238, 215, 255});
@@ -1098,7 +1473,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 std::to_string(target);
             const float progressWidth =
                 measureUiText(progress, 13.0F).x;
-            drawUiText(
+            drawSdfUiText(
                 progress,
                 {card.x + card.width - progressWidth - 12.0F,
                  card.y + 33.0F},
@@ -1154,7 +1529,27 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 {trackerX, rowY, TrackerWidth, RowHeight - 3.0F},
                 0.18F, 5,
                 {20, 18, 16,
-                 static_cast<unsigned char>(pulsing ? 218 : 152)});
+                 static_cast<unsigned char>(pulsing ? 232 : 190)});
+            const bool completed =
+                objective.definition.target > 0.0 &&
+                objective.progress + 1e-6 >=
+                    objective.definition.target;
+            if (pulsing && completed) {
+                const float completionPulse = static_cast<float>(
+                    std::sin(view.objectivePulse * PI));
+                DrawRectangleRounded(
+                    {trackerX, rowY,
+                     TrackerWidth, RowHeight - 3.0F},
+                    0.18F, 5,
+                    {255, 198, 71,
+                     static_cast<unsigned char>(
+                         completionPulse * 92.0F)});
+            }
+            DrawRectangleRoundedLinesEx(
+                {trackerX, rowY, TrackerWidth, RowHeight - 3.0F},
+                0.18F, 5, 1.0F,
+                {255, 196, 76,
+                 static_cast<unsigned char>(pulsing ? 150 : 72)});
             drawObjectiveKindIcon(
                 objective.definition.kind,
                 {trackerX + 17.0F, rowY + 20.0F}, color);
@@ -1162,7 +1557,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 objectiveInstruction(objective.definition);
             const float instructionSize = fitUiTextSize(
                 instruction, 12.0F, 9.0F, 205.0F, 18.0F);
-            drawUiText(
+            drawSdfUiText(
                 instruction,
                 {trackerX + 32.0F, rowY + 7.0F},
                 instructionSize, {242, 234, 214, 250});
@@ -1181,12 +1576,12 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 measureUiText(progress, 12.0F).x;
             const float rewardWidth =
                 measureUiText(reward, 10.0F).x;
-            drawUiText(
+            drawSdfUiText(
                 progress,
                 {trackerX + TrackerWidth - progressWidth - 9.0F,
                  rowY + 6.0F},
                 12.0F, {255, 235, 176, 255});
-            drawUiText(
+            drawSdfUiText(
                 reward,
                 {trackerX + TrackerWidth - rewardWidth - 22.0F,
                  rowY + 27.0F},
@@ -1215,7 +1610,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     if (!view.mapOverlayOpen) {
         drawLootInventory(
             ui, snapshot, false,
-            view.showCoreHealth);
+            coreBarVisible);
     }
 
     bool chestCompassVisible = false;
@@ -1247,9 +1642,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                      measureUiText(compassText, 13.0F).x + 30.0F);
         ui.drawPanel({static_cast<float>(GetScreenWidth()) * 0.5F -
                           compassWidth * 0.5F,
-                      96.0F, compassWidth, 31.0F}, 188);
-        drawCenteredUiText(
-            compassText, 103.0F, 13.0F,
+                      172.0F, compassWidth, 31.0F}, 188);
+        drawCenteredSdfUiText(
+            compassText, 179.0F, 13.0F,
             {255, 215, 116, 255});
         chestCompassVisible = true;
     }
@@ -1286,21 +1681,15 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             }
         }
     } else if (snapshot.state == RunState::Sunset) {
-        phaseText = "WAVE " +
-            std::to_string(snapshot.wave + 1) + "  •  " +
+        phaseText = "SUNSET  " +
             phaseClock(snapshot.phaseTimeRemaining);
         phaseSubtext = "FINAL BUILD / REPAIR";
         phaseColor = {255, 146, 79, 255};
     } else if (snapshot.state == RunState::Wave) {
-        phaseText = (snapshot.finalNight ? "FINAL NIGHT  •  WAVE " : "WAVE ") +
-            std::to_string(snapshot.wave);
-        if (!snapshot.finalNight) {
-            phaseText += "  •  DAWN " +
-                phaseClock(snapshot.phaseTimeRemaining);
-        } else {
-            phaseText += "  •  " +
-                std::to_string(snapshot.activeEnemyCount) + " ACTIVE";
-        }
+        phaseText = snapshot.finalNight
+            ? "FINAL NIGHT  •  " +
+                  std::to_string(snapshot.activeEnemyCount) + " ACTIVE"
+            : "DAWN  " + phaseClock(snapshot.phaseTimeRemaining);
         phaseColor = {242, 108, 82, 255};
         const auto activeBoss = std::find_if(
             snapshot.enemies.begin(), snapshot.enemies.end(),
@@ -1326,13 +1715,63 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         phaseColor = {255, 194, 92, 255};
     }
     if (!phaseText.empty()) {
-        constexpr float PhaseFontSize = 24.3F;
-        drawCenteredUiText(
-            phaseText, phaseSubtext.empty() ? 30.0F : 25.0F,
-            PhaseFontSize, phaseColor);
+        const int displayedWave = snapshot.state == RunState::Sunset
+            ? std::max(0, snapshot.wave + 1)
+            : std::max(0, snapshot.wave);
+        const std::string waveText =
+            "WAVE " + std::to_string(displayedWave);
+        SdfUiTextStyle waveStyle{};
+        waveStyle.fillColor = UiWhite;
+        waveStyle.outlineColor = {49, 49, 49, 255};
+        waveStyle.shadowColor = {82, 82, 82, 255};
+        waveStyle.shadowOffsetPixels = {0.0F, 4.0F};
+        waveStyle.outlinePixels = 3.0F;
+        constexpr float BaseWaveFontSize = 56.0F / 1.68F;
+        float waveEntrance = 0.0F;
+        if (snapshot.state == RunState::Wave &&
+            snapshot.phaseDuration > 0.0) {
+            const float waveElapsed = static_cast<float>(
+                snapshot.phaseDuration - snapshot.phaseTimeRemaining);
+            waveEntrance = 1.0F - std::clamp(
+                waveElapsed / 0.55F, 0.0F, 1.0F);
+            waveEntrance *= waveEntrance;
+        }
+        const float waveFontSize =
+            BaseWaveFontSize * (1.0F + waveEntrance * 0.16F);
+        waveStyle.shadowOffsetPixels.y =
+            4.0F + waveEntrance * 2.0F;
+        drawCenteredStyledSdfUiText(
+            waveText,
+            16.0F - waveEntrance * 3.0F,
+            waveFontSize, waveStyle);
+
+        constexpr float DayNightIndicatorWidth = 84.0F;
+        constexpr float DayNightIndicatorHeight = 42.0F;
+        constexpr float DayNightIndicatorY = 68.0F;
+        drawDayNightIndicator(
+            {
+                (static_cast<float>(GetScreenWidth()) -
+                 DayNightIndicatorWidth) * 0.5F,
+                DayNightIndicatorY,
+                DayNightIndicatorWidth,
+                DayNightIndicatorHeight,
+            },
+            snapshot);
+
+        const bool phaseTextContainsTime =
+            (snapshot.state == RunState::BuildPhase &&
+             !snapshot.sandboxMode) ||
+            snapshot.state == RunState::Sunset ||
+            (snapshot.state == RunState::Wave &&
+             !snapshot.finalNight) ||
+            snapshot.state == RunState::WaveComplete;
+        if (!phaseTextContainsTime) {
+            drawCenteredSdfUiText(
+                phaseText, 137.0F, 12.15F, phaseColor);
+        }
         if (!phaseSubtext.empty()) {
-            drawCenteredUiText(
-                phaseSubtext, 57.0F, 12.15F,
+            drawCenteredSdfUiText(
+                phaseSubtext, 160.0F, 9.0F,
                 {221, 210, 187, 225});
         }
     }
@@ -1340,7 +1779,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const bool attackWarningVisible =
         snapshot.state == RunState::Sunset &&
         hasAttackDirections(snapshot);
-    float nextCenterHudY = chestCompassVisible ? 135.0F : 96.0F;
+    float nextCenterHudY = chestCompassVisible ? 216.0F : 190.0F;
     if (attackWarningVisible) {
         const std::string warning =
             "ATTACK FROM " + attackDirectionNames(snapshot);
@@ -1353,7 +1792,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             {centerX - warningWidth * 0.5F - 22.0F,
              nextCenterHudY, warningWidth + 44.0F, 48.0F},
             0.24F, 8, {32, 10, 9, 205});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             warning, nextCenterHudY + 8.0F,
             WarningFontSize, {255, 134, 88, 255});
     }
@@ -1399,7 +1838,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<float>(GetScreenHeight()) * 0.5F,
     };
     if (view.repairSweepActive) {
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "REPAIR MODE", crosshairCenter.y + 42.0F,
             17.0F, {104, 232, 163, 255});
     }
@@ -1409,7 +1848,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             : view.crosshairHitRemaining > 0.0 &&
                       view.crosshairHitCritical
                   ? Color{255, 215, 62, 255}
-                  : RAYWHITE;
+                  : UiWhite;
     const float gap =
         5.0F - hitPulse * 2.8F +
         std::clamp(view.weaponRecoilAmount, 0.0F, 1.0F) *
@@ -1565,57 +2004,35 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             {centerX - statusWidth * 0.5F - 18.0F,
              statusY - 7.0F, statusWidth + 36.0F, 40.0F},
             0.3F, 7, {24, 20, 16, 198});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             status, statusY, StatusFontSize,
             {255, 194, 92, 255});
     }
 
     if (snapshot.buildingPreview) {
         const BuildingPreview& preview = *snapshot.buildingPreview;
-        const ResourceCost cost = preview.placement.cost;
-        const std::string buildText =
-            std::string(buildingDisplayName(preview.type)) +
-            "  W:" + std::to_string(cost.wood) +
-            " S:" + std::to_string(cost.stone) +
-            " C:" + std::to_string(cost.crystals);
-        const Vec3 previewCenter = buildingWorldPosition(
-            preview.type, preview.gridPosition);
-        const Vector2 anchor = GetWorldToScreen(
-            {static_cast<float>(previewCenter.x), 2.35F,
-             static_cast<float>(previewCenter.z)},
-            camera);
-        constexpr float BuildFontSize = 18.0F;
-        constexpr float MessageFontSize = 16.0F;
         const std::string placementText = placementMessage(
             preview.placement.error, preview.type);
-        const float PanelWidth = std::clamp(
-            std::max(measureUiText(buildText, BuildFontSize).x,
-                     measureUiText(placementText, MessageFontSize).x) +
-                44.0F,
-            420.0F, 680.0F);
-        constexpr float PanelHeight = 116.0F;
-        const float panelX = std::clamp(
-            anchor.x - PanelWidth * 0.5F, 18.0F,
-            std::max(
-                18.0F,
-                static_cast<float>(GetScreenWidth()) -
-                    PanelWidth - 18.0F));
-        const float panelY = std::clamp(
-            anchor.y - PanelHeight - 34.0F, 18.0F,
-            std::max(
-                18.0F,
-                static_cast<float>(GetScreenHeight()) -
-                    PanelHeight - 18.0F));
-        ui.drawPanel(
-            {panelX, panelY, PanelWidth, PanelHeight}, 236);
-        drawUiText(
-            buildText, {panelX + 18.0F, panelY + 14.0F},
-            BuildFontSize, RAYWHITE);
-        drawUiText(
-            placementText,
-            {panelX + 18.0F, panelY + 62.0F}, MessageFontSize,
-            placementMessageColor(
-                preview.placement.error));
+        if (!placementText.empty()) {
+            constexpr float MessageFontSize = 16.0F;
+            const float messageY = static_cast<float>(
+                GetScreenHeight()) * 0.5F + 72.0F;
+            const float messageWidth = measureUiText(
+                placementText, MessageFontSize).x;
+            SdfUiTextStyle messageStyle{};
+            messageStyle.fillColor = placementMessageColor(
+                preview.placement.error);
+            messageStyle.outlineColor = {49, 49, 49, 255};
+            messageStyle.shadowColor = {20, 16, 14, 210};
+            messageStyle.shadowOffsetPixels = {0.0F, 3.0F};
+            messageStyle.outlinePixels = 2.0F;
+            drawStyledSdfUiText(
+                placementText,
+                {(static_cast<float>(GetScreenWidth()) -
+                  messageWidth) * 0.5F,
+                 messageY},
+                MessageFontSize, messageStyle);
+        }
     } else if (
         snapshot.aimedBuilding &&
         view.showBuildingContextCard) {
@@ -1636,9 +2053,9 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
     if (snapshot.state == RunState::Paused) {
         DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                       {0, 0, 0, 150});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "PAUSED", static_cast<float>(GetScreenHeight() / 2 - 24),
-            48.0F, RAYWHITE);
+            48.0F, UiWhite);
     } else if (snapshot.state == RunState::StageClear) {
         DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                       {4, 7, 10, 218});
@@ -1655,22 +2072,22 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
         DrawRectangleRoundedLinesEx(
             {x, centerY - 190.0F, panelWidth, 380.0F},
             0.06F, 10, 3.0F, {232, 178, 74, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "FORT DEFENDED", centerY - 145.0F,
             46.0F, {255, 205, 92, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "STAGE CLEARED  •  WAVE 12 BOSS DEFEATED",
             centerY - 78.0F, 19.0F, {229, 219, 190, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "Your rewards are secured. Bank the run, or test the build",
             centerY - 25.0F, 16.0F, {184, 186, 179, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "against an endless night that grows stronger every wave.",
             centerY + 3.0F, 16.0F, {184, 186, 179, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "ENTER / F   FACE THE FINAL NIGHT",
             centerY + 72.0F, 21.0F, {242, 108, 82, 255});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "B   BANK REWARDS AND END RUN",
             centerY + 118.0F, 18.0F, {142, 207, 147, 255});
     } else if (snapshot.state == RunState::Defeat ||
@@ -1692,7 +2109,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             successfulRun ? Color{188, 145, 65, 255}
                           : Color{142, 96, 65, 255});
 
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             successfulRun ? "FORT DEFENDED" : "CORE DESTROYED",
             y + 24.0F, 43.0F,
             successfulRun ? Color{255, 205, 92, 255}
@@ -1705,7 +2122,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             "SURVIVED  %02d:%02d   •   WAVES CLEARED  %d",
             elapsed / 60, elapsed % 60,
             snapshot.runStatistics.wavesSurvived);
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             survival, y + 82.0F, 19.0F,
             {224, 205, 170, 255});
 
@@ -1718,9 +2135,9 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             DrawRectangleRounded(
                 {left, cardY, cardWidth, 91.0F}, 0.12F, 7,
                 {38, 38, 40, 245});
-            drawUiText(label, {left + 18.0F, cardY + 12.0F}, 14.0F,
+            drawSdfUiText(label, {left + 18.0F, cardY + 12.0F}, 14.0F,
                        {169, 162, 151, 255});
-            drawUiText(value, {left + 18.0F, cardY + 37.0F}, 31.0F,
+            drawSdfUiText(value, {left + 18.0F, cardY + 37.0F}, 31.0F,
                        color);
         };
         const double totalDamage =
@@ -1741,10 +2158,10 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
         const auto drawStat = [&](float left, float top,
                                   std::string_view label,
                                   std::string value, Color valueColor) {
-            drawUiText(label, {left, top}, 15.0F,
+            drawSdfUiText(label, {left, top}, 15.0F,
                        {155, 151, 145, 255});
             const Vector2 valueSize = measureUiText(value, 18.0F);
-            drawUiText(
+            drawSdfUiText(
                 value,
                 {left + panelWidth * 0.39F - valueSize.x, top - 2.0F},
                 18.0F, valueColor);
@@ -1781,7 +2198,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             {x + 36.0F, y + panelHeight - 72.0F},
             {x + panelWidth - 36.0F, y + panelHeight - 72.0F},
             2.0F, {85, 70, 58, 190});
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             "R  RESTART     •     ESC  MENU",
             y + panelHeight - 47.0F, 18.0F,
             {238, 230, 210, 255});
@@ -1804,10 +2221,10 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             respawnText, sizeof(respawnText),
             "RESPAWN IN %.1f",
             snapshot.playerRespawnTimeRemaining);
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             respawnText,
             static_cast<float>(panelY + 30), 34.0F,
-            RAYWHITE);
+            UiWhite);
 
         char lossText[128]{};
         std::snprintf(
@@ -1816,7 +2233,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             snapshot.deathLostWood,
             snapshot.deathLostStone,
             snapshot.deathLostCrystals);
-        drawCenteredUiText(
+        drawCenteredSdfUiText(
             lossText,
             static_cast<float>(panelY + 91), 19.0F,
             {235, 148, 112, 255});

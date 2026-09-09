@@ -71,6 +71,25 @@ void main()
     float colorDepth = clamp(depth + variation, 0.0, 1.0);
     vec3 water = mix(shallowColor, deepColor, colorDepth);
 
+    // Three extremely broad, slow fields add painterly surface grouping while
+    // leaving the authored shallow-to-deep gradient as the dominant structure.
+    // Their non-parallel axes and different drift rates avoid visible scrolling.
+    float broadA = sin(
+        fragWorldPosition.x*0.035 + fragWorldPosition.z*0.021 + time*0.055);
+    float broadB = sin(
+        fragWorldPosition.z*0.028 - fragWorldPosition.x*0.017 - time*0.041);
+    float broadC = sin(
+        (fragWorldPosition.x - fragWorldPosition.z)*0.013 + time*0.026);
+    float broadField = broadA*0.46 + broadB*0.34 + broadC*0.20;
+    float broadTone =
+        smoothstep(-0.55, -0.12, broadField)*0.5 +
+        smoothstep(0.18, 0.62, broadField)*0.5;
+    float broadVariation = (broadTone - 0.5)*0.05;
+    water *= vec3(
+        1.0 + broadVariation*0.45,
+        1.0 + broadVariation*0.85,
+        1.0 + broadVariation);
+
     float waveDetail = 0.0;
     if (qualityLevel > 0)
     {
@@ -121,7 +140,8 @@ void main()
     water += sunColor*sparkle*(0.28 + sparkleNoise*0.42);
 
     float inward = clamp(-fragShoreDistance, 0.0, 2.0);
-    float shoreFade = 1.0 - smoothstep(0.0, 0.58, inward);
+    float shoreWidth = mix(0.53, 0.62, broadTone);
+    float shoreFade = 1.0 - smoothstep(0.0, shoreWidth, inward);
     float foam = 0.0;
     if (shoreFade > 0.001)
     {
@@ -147,11 +167,17 @@ void main()
         foam = max(bandA, bandB*0.58)*shoreFade*
                (1.0 - depth*0.72)*edgeCoverage;
     }
-    water = mix(water, vec3(0.68, 0.90, 0.96), foam*0.36);
+    water = mix(water, vec3(0.62, 0.86, 0.92), foam*0.31);
 
     float alpha = mix(0.82, 0.96, depth);
     alpha = max(alpha, foam*0.88)*edgeCoverage;
     water *= dayNightTint*exposure;
+    float nightAmount = smoothstep(
+        0.02, 0.26, 1.0 - dayNightTint.r);
+    // Gameplay water remains legible at night, but no channel stays at its
+    // daytime brightness and blue/teal identity is preserved.
+    water *= mix(
+        vec3(1.0), vec3(0.62, 0.68, 0.72), nightAmount);
     float cameraDistance = distance(cameraPosition, fragWorldPosition);
     float fog = smoothstep(fogStart, max(fogEnd, fogStart + 0.01),
                            cameraDistance);

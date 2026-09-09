@@ -3,8 +3,12 @@
 #include <raylib.h>
 
 #include <string_view>
+#include <array>
 
 namespace ian {
+enum class BuildingType;
+enum class PlayerWeapon;
+enum class RunUpgradeEffect;
 
 enum class UiBarColor {
     Red,
@@ -45,8 +49,15 @@ class GameUi {
     void drawResourceIcon(Rectangle bounds,
                           UiResourceIcon icon,
                           Color tint = WHITE) const;
+    void drawVitalIcon(Rectangle bounds, bool core) const;
     [[nodiscard]] Texture2D resourceTexture(
         UiResourceIcon icon) const;
+    [[nodiscard]] Texture2D buildingTexture(BuildingType type) const;
+    [[nodiscard]] Texture2D weaponTexture(PlayerWeapon weapon) const;
+    [[nodiscard]] Texture2D runUpgradeTexture(
+        RunUpgradeEffect effect) const;
+    [[nodiscard]] Texture2D levelUpBannerTexture() const;
+    [[nodiscard]] Texture2D levelUpRaysTexture() const;
     bool drawButton(Rectangle bounds, std::string_view text) const;
     bool drawToggleButton(Rectangle bounds, std::string_view text,
                           bool active) const;
@@ -101,6 +112,23 @@ class GameUi {
     Texture2D resourceStone_{};
     Texture2D resourceCrystal_{};
     Texture2D resourceCoin_{};
+    Texture2D healthPlayer_{};
+    Texture2D healthCore_{};
+    Texture2D coreBuildingIcon_{};
+    Texture2D wallBuildingIcon_{};
+    std::array<Texture2D, 5> buildingIcons_{};
+    std::array<Texture2D, 3> weaponIcons_{};
+    Texture2D armorUpgradeIcon_{};
+    Texture2D extraUpgradeIcon_{};
+    Texture2D heartUpgradeIcon_{};
+    Texture2D lifestealUpgradeIcon_{};
+    Texture2D magnetUpgradeIcon_{};
+    Texture2D moveUpgradeIcon_{};
+    Texture2D pierceUpgradeIcon_{};
+    Texture2D ricochetUpgradeIcon_{};
+    Texture2D xpGainUpgradeIcon_{};
+    Texture2D levelUpBanner_{};
+    Texture2D levelUpRays_{};
     SliceInsets panelInsets_{16, 16, 16, 18};
     SliceInsets insetInsets_{9, 9, 9, 9};
     SliceInsets buttonInsets_{12, 10, 12, 14};

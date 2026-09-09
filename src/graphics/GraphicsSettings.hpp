@@ -28,6 +28,8 @@ struct GraphicsSettings {
     bool paperGrain{false};
     bool performanceLogging{false};
 
+    int renderWidth{1920};
+    int renderHeight{1080};
     int shadowMapSize{2048};
     int frameRateLimit{60};
 
@@ -58,6 +60,7 @@ struct GraphicsSettings {
     float bloomStrength{0.28F};
     float outlineStrength{0.68F};
     float outlineWidth{1.5F};
+    float outlineFogFadeStrength{0.75F};
     float fogBandCount{5.0F};
     float paperGrainStrength{0.035F};
 

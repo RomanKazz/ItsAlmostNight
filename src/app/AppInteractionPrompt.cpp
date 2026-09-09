@@ -16,20 +16,6 @@
 namespace ian {
 namespace {
 
-const char* recommendedTool(ResourceType type) {
-    if (isDestructibleProp(type)) return "Any tool";
-    return type == ResourceType::Wood ? "Axe" : "Pickaxe";
-}
-
-bool matchingResourceTool(PlayerWeapon weapon, ResourceType type) {
-    if (isDestructibleProp(type)) return true;
-    if (type == ResourceType::Crystal) {
-        return weapon == PlayerWeapon::Pickaxe;
-    }
-    return (type == ResourceType::Wood && weapon == PlayerWeapon::Axe) ||
-           (type == ResourceType::Stone && weapon == PlayerWeapon::Pickaxe);
-}
-
 const char* enemyName(EnemyType type) {
     switch (type) {
     case EnemyType::Basic: return "Basic";
@@ -43,22 +29,6 @@ const char* enemyName(EnemyType type) {
     case EnemyType::Splitling: return "Splitling";
     }
     return "Enemy";
-}
-
-Vector3 resourcePromptAnchor(
-    const ResourceNode& resource, const TerrainHeightfield& terrain) {
-    const double ground = terrain.getHeight(
-        resource.position.x, resource.position.z);
-    const double height = resource.type == ResourceType::Wood
-        ? 1.95 * resource.visualScale
-        : isDestructibleProp(resource.type)
-            ? 0.82 * resource.visualScale + 0.58
-            : 1.45 * resource.visualScale;
-    return {
-        static_cast<float>(resource.position.x),
-        static_cast<float>(ground + height),
-        static_cast<float>(resource.position.z),
-    };
 }
 
 bool terrainOccludesPrompt(
@@ -284,71 +254,6 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .accentColor = affordable
                     ? Color{214, 203, 181, 255}
                     : Color{214, 108, 96, 255},
-            });
-        }
-    }
-
-    if (snapshot.aimedResource) {
-        const auto resource = std::find_if(
-            snapshot.resourceNodes.begin(), snapshot.resourceNodes.end(),
-            [&snapshot](const ResourceNode& value) {
-                return value.active &&
-                       value.id == *snapshot.aimedResource;
-            });
-        if (resource != snapshot.resourceNodes.end()) {
-            const bool matching = matchingResourceTool(
-                snapshot.selectedWeapon, resource->type);
-            const bool warning = !matching;
-            const int efficiencyPercent = static_cast<int>(
-                std::lround(
-                    snapshot.aimedResourceEfficiency * 100.0));
-            const bool held = InputKeycap::held(
-                userSettings_.controls, ControlAction::Attack);
-            float progress = 0.0F;
-            if (toolSwingRemaining_ > 0.0 &&
-                toolSwingDuration_ > 0.0) {
-                progress = static_cast<float>(std::clamp(
-                    1.0 - toolSwingRemaining_ /
-                              toolSwingDuration_,
-                    0.0, 1.0));
-            } else if (pendingPickaxe_) {
-                progress = 1.0F;
-            }
-            const bool progressActive =
-                held || toolSwingRemaining_ > 0.0 ||
-                toolSwingQueued_ || pendingPickaxe_;
-            return finalize(InteractionPrompt{
-                .targetKind = InteractionPromptTargetKind::Resource,
-                .targetId = resource->id,
-                .worldAnchor = resourcePromptAnchor(
-                    *resource, simulation_.terrain()),
-                .actionText = resource->type == ResourceType::Wood
-                    ? "Gather Wood"
-                    : resource->type == ResourceType::Stone
-                        ? "Mine Stone"
-                        : resource->type == ResourceType::Crystal
-                            ? "Mine Crystal"
-                        : resource->type == ResourceType::Barrel
-                            ? "Break Barrel"
-                            : "Break Crate",
-                .input = ControlAction::Attack,
-                .state = warning ? InteractionState::Warning
-                                 : InteractionState::Available,
-                .hint = warning
-                    ? resource->type == ResourceType::Crystal
-                        ? std::optional<std::string>{"Pickaxe required"}
-                        : std::optional<std::string>{
-                              std::to_string(efficiencyPercent) +
-                              "% efficiency  ·  " +
-                              recommendedTool(resource->type) +
-                              " recommended"}
-                    : std::nullopt,
-                .progress = progress,
-                .showProgress = progressActive,
-                .recentSuccess = crosshairHitRemaining_ > 0.0,
-                .accentColor = warning
-                    ? Color{222, 169, 77, 255}
-                    : Color{238, 229, 207, 255},
             });
         }
     }

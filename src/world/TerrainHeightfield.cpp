@@ -215,11 +215,11 @@ makeTerrainPaths(
         return paths;
     }
     const std::size_t outerCount = plateaus.size() - 1U;
-    paths.reserve(outerCount * 3U);
+    paths.reserve(outerCount);
     const TerrainPlateau& center = plateaus.front();
     const double halfWidth = std::clamp(
-        config.terrainBuildPlateauRadius * 0.105,
-        1.15, 1.55);
+        config.terrainBuildPlateauRadius * 0.115,
+        1.45, 1.90);
     const auto appendPath = [&](double fromX, double fromZ,
                                 double toX, double toZ,
                                 std::uint32_t salt,
@@ -266,44 +266,21 @@ makeTerrainPaths(
         appendPath(
             from.x + directionX * from.radius * 0.68,
             from.z + directionZ * from.radius * 0.68,
-            to.x - directionX * to.radius * 0.68,
-            to.z - directionZ * to.radius * 0.68,
+            // Finish inside the broad flat destination plateau. Existing
+            // landmarks can occupy this endpoint while retaining a clear,
+            // readable approach from the route.
+            to.x - directionX * to.radius * 0.42,
+            to.z - directionZ * to.radius * 0.42,
             salt, bendScale, 0.12, 0.12);
     };
 
-    // Four spokes give each build plateau a separate entrance.
+    // Four sparse spokes give each build plateau a meaningful entrance.
+    // Keeping only these POI routes avoids turning the open field into a
+    // decorative road network.
     for (std::size_t index = 1U; index < plateaus.size(); ++index) {
         appendPlateauConnection(
             center, plateaus[index],
-            static_cast<std::uint32_t>(index), 2.2);
-    }
-    // Ring links turn isolated spokes into a traversable path network.
-    for (std::size_t index = 0U; index < outerCount; ++index) {
-        const TerrainPlateau& from = plateaus[index + 1U];
-        const TerrainPlateau& to =
-            plateaus[(index + 1U) % outerCount + 1U];
-        appendPlateauConnection(
-            from, to,
-            0x100U + static_cast<std::uint32_t>(index), 3.8);
-    }
-    // One route from each plateau continues into the outer world. These
-    // taper into the boundary terrain instead of ending in a hard round cap.
-    const double playableLimit =
-        config.terrainWorldSize * 0.5 -
-        config.terrainBoundaryRiseWidth - 8.0;
-    for (std::size_t index = 1U; index < plateaus.size(); ++index) {
-        const TerrainPlateau& from = plateaus[index];
-        const double radialLength = std::max(
-            std::hypot(from.x - center.x, from.z - center.z), 0.01);
-        const double directionX = (from.x - center.x) / radialLength;
-        const double directionZ = (from.z - center.z) / radialLength;
-        appendPath(
-            from.x + directionX * from.radius * 0.68,
-            from.z + directionZ * from.radius * 0.68,
-            center.x + directionX * playableLimit,
-            center.z + directionZ * playableLimit,
-            0x200U + static_cast<std::uint32_t>(index),
-            5.2, 0.10, 0.16);
+            static_cast<std::uint32_t>(index), 2.8);
     }
     return paths;
 }
@@ -795,32 +772,53 @@ double TerrainHeightfield::getBackdropHeight(
     // the camera sees several overlapping ridges instead of a single wall.
     const double backdropWidth = std::max(
         config_.terrainBoundaryRiseWidth * 2.25, 96.0);
-    const double outsideAmount = smoother(
-        edgeDistance / backdropWidth);
+    const double ridgeProgress = std::clamp(
+        edgeDistance / backdropWidth, 0.0, 1.0);
+    const double outsideAmount = smoother(ridgeProgress);
     const double edgeX = std::clamp(worldX, -halfSize, halfSize);
     const double edgeZ = std::clamp(worldZ, -halfSize, halfSize);
     const double edgeHeight = getHeight(edgeX, edgeZ);
 
-    // Broad noise defines the mountain mass, ridged noise creates distinct
-    // crests, and the finer octave breaks up the silhouette. All fields are
-    // seeded from the same world seed, so regenerated maps stay coherent.
-    const double broad = valueNoise(
-        worldX * 0.0105,
-        worldZ * 0.0105,
-        seed_ ^ 0x6d2b79f5U) * 0.5 + 0.5;
-    const double ridgeNoise = valueNoise(
-        worldX * 0.024,
-        worldZ * 0.024,
-        seed_ ^ 0xa511e9b3U);
-    const double ridge = std::pow(
-        1.0 - std::abs(ridgeNoise), 1.55);
-    const double detail = valueNoise(
-        worldX * 0.071,
-        worldZ * 0.071,
-        seed_ ^ 0x63d83595U);
-    const double mountainRise =
-        22.0 + broad * 34.0 + ridge * 27.0 + detail * 6.0;
-    return edgeHeight + outsideAmount * mountainRise;
+    const auto ridgeBand = [ridgeProgress](
+                               double center,
+                               double halfWidth) {
+        return 1.0 - smoother(
+            std::abs(ridgeProgress - center) /
+            std::max(halfWidth, 0.001));
+    };
+    const auto ridgeShape = [this, worldX, worldZ](
+                                double frequency,
+                                std::uint32_t salt) {
+        const double broad = valueNoise(
+            worldX * frequency,
+            worldZ * frequency,
+            seed_ ^ salt) * 0.5 + 0.5;
+        const double crestNoise = valueNoise(
+            worldX * frequency * 2.35 + 17.2,
+            worldZ * frequency * 2.35 - 9.4,
+            seed_ ^ (salt + 0x9e3779b9U));
+        const double crest = std::pow(
+            1.0 - std::abs(crestNoise), 1.38);
+        return std::pair{broad, crest};
+    };
+
+    // Three radial bands create readable near/middle/far ridges. Their
+    // different frequencies prevent the square annulus from reading as one
+    // continuous wall while the shared edge height keeps the seam closed.
+    const auto [nearBroad, nearCrest] = ridgeShape(
+        0.0165, 0x68e31da4U);
+    const auto [middleBroad, middleCrest] = ridgeShape(
+        0.0110, 0xa511e9b3U);
+    const auto [farBroad, farCrest] = ridgeShape(
+        0.0075, 0x63d83595U);
+    const double nearRise = ridgeBand(0.23, 0.23) *
+        (9.0 + nearBroad * 13.0 + nearCrest * 14.0);
+    const double middleRise = ridgeBand(0.55, 0.34) *
+        (12.0 + middleBroad * 17.0 + middleCrest * 20.0);
+    const double farRise = ridgeBand(0.88, 0.42) *
+        (16.0 + farBroad * 22.0 + farCrest * 25.0);
+    return edgeHeight + outsideAmount * 3.5 +
+        nearRise + middleRise + farRise;
 }
 
 Vec3 TerrainHeightfield::getNormal(
@@ -970,6 +968,11 @@ TerrainHeightfield::ponds() const {
     return ponds_;
 }
 
+std::span<const TerrainPathDefinition>
+TerrainHeightfield::paths() const {
+    return paths_;
+}
+
 double TerrainHeightfield::waterSignedDistance(
     double worldX, double worldZ) const {
     if (!waterDistanceCache_.empty()) {
@@ -1091,9 +1094,9 @@ double TerrainHeightfield::calculatePathAmount(
         const double meander = std::sin(
             progress * 11.0 + path.phase) * 0.16;
         const double width = path.halfWidth +
-            edgeNoise * 0.38 + meander;
+            edgeNoise * 0.52 + meander * 1.35;
         const double pathMask = 1.0 - smoother(
-            (distance - width) / 0.58);
+            (distance - width) / 0.95);
         const double startFade = path.fadeIn > 0.0
             ? smoother(progress / path.fadeIn)
             : 1.0;
@@ -1102,6 +1105,22 @@ double TerrainHeightfield::calculatePathAmount(
             : 1.0;
         amount = std::max(
             amount, pathMask * startFade * endFade);
+
+        // Broad irregular aprons near route endpoints read as trampled grass
+        // around the central/start clearing and the outer build plateaus.
+        // Their limited mask value never turns them into full dirt circles.
+        const double wearNoise = valueNoise(
+            worldX * 0.052 + std::sin(path.phase) * 7.0,
+            worldZ * 0.052 - std::cos(path.phase) * 7.0,
+            seed_ ^ 0x68e31da4U);
+        const double wearRadius =
+            path.halfWidth * 2.55 + wearNoise * 0.62;
+        const double endpointDistance = std::min(
+            std::hypot(worldX - path.fromX, worldZ - path.fromZ),
+            std::hypot(worldX - path.toX, worldZ - path.toZ));
+        const double endpointWear = 1.0 - smoother(
+            (endpointDistance - wearRadius) / 1.35);
+        amount = std::max(amount, endpointWear * 0.42);
     }
     return std::clamp(amount, 0.0, 1.0);
 }
@@ -1149,10 +1168,11 @@ void TerrainHeightfield::rebuildPathSegmentCache() {
             previousZ = currentZ;
         }
         // Outside this conservative box, smooth path mask is exactly zero.
-        constexpr double MaximumEdgeVariation = 0.38 + 0.16;
-        constexpr double PathFeather = 0.58;
+        constexpr double MaximumEdgeVariation = 0.52 + 0.16 * 1.35;
+        constexpr double PathFeather = 1.35;
         const double padding =
-            path.halfWidth + MaximumEdgeVariation + PathFeather;
+            path.halfWidth * 2.55 +
+            MaximumEdgeVariation + PathFeather;
         pathBounds_.push_back({
             .minimumX = minimumX - padding,
             .maximumX = maximumX + padding,

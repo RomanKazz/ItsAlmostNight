@@ -595,6 +595,7 @@ bool Renderer::drawFirstPersonTool(
     const bool fireWand = visual == FirstPersonToolVisual::FireWand;
     const bool wand = iceWand || fireWand;
     const bool bomb = visual == FirstPersonToolVisual::Bomb;
+    const bool pickaxe = visual == FirstPersonToolVisual::Pickaxe;
     switch (visual) {
     case FirstPersonToolVisual::None:
         break;
@@ -659,7 +660,7 @@ bool Renderer::drawFirstPersonTool(
     const float wandZ = wand
         ? tuning.position.z + recoil * 0.075F
         : tuning.position.z + swingPush;
-    rlTranslatef(wandX, wandY, wandZ);
+    rlTranslatef(wandX, wandY - (pickaxe ? 0.035F : 0.0F), wandZ);
     // Swing in camera space. Applying this before the model's local pose
     // keeps the strike aimed forward even when the tool is yawed in-hand.
     rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
@@ -670,7 +671,7 @@ bool Renderer::drawFirstPersonTool(
     rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
     const float modelScale = bomb
         ? tuning.scale / 1.5F
-        : tuning.scale;
+        : tuning.scale * (pickaxe ? 0.88F : 1.0F);
     rlScalef(modelScale, modelScale, modelScale);
     if (bomb) {
         DrawSphereEx({}, 0.27F, 12, 12, {49, 55, 63, 255});
@@ -2011,7 +2012,9 @@ bool Renderer::drawRocksInstanced(
 bool Renderer::drawTree(Vector3 position, Color tint,
                         float scale, std::size_t visualVariant,
                         float yawRadians) {
-    auto& resource = resources_.treeModel(visualVariant);
+    const std::size_t variant =
+        visualVariant % TreeVisualVariantCount;
+    auto& resource = resources_.treeModel(variant);
     if (!resource.valid()) {
         return false;
     }
@@ -2043,13 +2046,25 @@ bool Renderer::drawTree(Vector3 position, Color tint,
     // terrain normals are intentionally not used for resource spawning.
     position.y += static_cast<float>(
         TreeVisualGroundOffsets[
-            visualVariant % TreeVisualVariantCount] * scale);
+            variant] * scale * TreeVisualHeightScale);
+    const bool conifer = variant >= 3U && variant <= 5U;
+    if (worldShaderActive_ && !shadowPassOpen_ &&
+        !selectionMaskPassOpen_) {
+        WorldMaterialState treeMaterial = worldMaterial_;
+        treeMaterial.coniferAmount = conifer ? 1.0F : 0.0F;
+        uploadWorldMaterial(treeMaterial);
+    }
     DrawModelEx(
         model, position, {0.0F, 1.0F, 0.0F},
         yawRadians * RAD2DEG,
-        {TreeModelScale * scale, TreeModelScale * scale,
+        {TreeModelScale * scale,
+         TreeModelScale * scale * TreeVisualHeightScale,
          TreeModelScale * scale},
         tint);
+    if (worldShaderActive_ && !shadowPassOpen_ &&
+        !selectionMaskPassOpen_) {
+        uploadWorldMaterial(worldMaterial_);
+    }
     return true;
 }
 
@@ -2065,13 +2080,17 @@ BoundingBox Renderer::treeWorldBounds(
     scale *= worldRevealScaleAt({position.x, position.z});
     if (!std::isfinite(scale) || scale <= 0.001F) return {};
     position.y += static_cast<float>(
-        TreeVisualGroundOffsets[variant] * scale);
+        TreeVisualGroundOffsets[variant] * scale *
+        TreeVisualHeightScale);
     const float modelScale = TreeModelScale * scale;
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
             MatrixMultiply(
-                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixScale(
+                    modelScale,
+                    modelScale * TreeVisualHeightScale,
+                    modelScale),
                 MatrixRotateY(yawRadians)),
             MatrixTranslate(position.x, position.y, position.z)));
     BoundingBox bounds = world_transforms::transformBounds(
@@ -2120,7 +2139,8 @@ bool Renderer::drawTreesInstanced(
         }
         Vector3 position = instance.position;
         position.y += static_cast<float>(
-            TreeVisualGroundOffsets[variant] * scale);
+            TreeVisualGroundOffsets[variant] * scale *
+            TreeVisualHeightScale);
         const float modelScale = TreeModelScale * scale;
         const Matrix rotation = MatrixRotateY(
             instance.yawRadians);
@@ -2129,7 +2149,9 @@ bool Renderer::drawTreesInstanced(
             MatrixMultiply(
                 MatrixMultiply(
                     MatrixScale(
-                        modelScale, modelScale, modelScale),
+                        modelScale,
+                        modelScale * TreeVisualHeightScale,
+                        modelScale),
                     rotation),
                 MatrixTranslate(
                     position.x, position.y, position.z))));
@@ -2152,9 +2174,18 @@ bool Renderer::drawTreesInstanced(
         if (resourceTreeTransforms_[variant].empty()) {
             continue;
         }
+        if (worldInstancing) {
+            WorldMaterialState treeMaterial = worldMaterial_;
+            treeMaterial.coniferAmount =
+                variant >= 3U && variant <= 5U ? 1.0F : 0.0F;
+            uploadWorldMaterial(treeMaterial);
+        }
         Model& model = resources_.treeModel(variant).get();
         static_cast<void>(instanceBuffers_.drawModel(
             model, shader, resourceTreeTransforms_[variant]));
+    }
+    if (worldInstancing) {
+        uploadWorldMaterial(worldMaterial_);
     }
     const int disabled = 0;
     rlDrawRenderBatchActive();

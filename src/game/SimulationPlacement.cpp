@@ -11,13 +11,12 @@
 namespace ian {
 
 bool Simulation::buildingUnlocked(BuildingType type) const {
-    if (sandboxMode_) return true;
+    if (sandboxMode_ || unlimitedResources_) return true;
     if (type == BuildingType::WoodStorage ||
         type == BuildingType::StoneStorage ||
         type == BuildingType::CrystalStorage) {
         return false;
     }
-    if (unlimitedResources_) return true;
     if (type == BuildingType::Core) return true;
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;

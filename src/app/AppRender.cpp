@@ -57,13 +57,21 @@ void drawFpsCounter() {
     constexpr float FontSize = 16.0F;
     constexpr float HorizontalPadding = 10.0F;
     constexpr float VerticalPadding = 5.0F;
-    constexpr float ScreenMargin = 12.0F;
-    constexpr float Top = 32.0F;
+    constexpr float Top = 66.0F;
     const std::string_view label{TextFormat("%d FPS", GetFPS())};
     const Vector2 textSize = measureUiText(label, FontSize);
+    const float screenMinimum = static_cast<float>(
+        std::min(GetScreenWidth(), GetScreenHeight()));
+    const float minimapSize = std::clamp(
+        screenMinimum * 0.16F, 120.0F, 156.0F);
+    constexpr float MinimapRightMargin = 12.0F;
+    constexpr float CompassMargin = 32.0F;
+    constexpr float Gap = 18.0F;
+    const float minimapOuterLeft = static_cast<float>(GetScreenWidth()) -
+        MinimapRightMargin - CompassMargin * 2.0F - minimapSize;
     const Rectangle bounds{
-        static_cast<float>(GetScreenWidth()) - ScreenMargin -
-            textSize.x - HorizontalPadding * 2.0F,
+        minimapOuterLeft - Gap - textSize.x -
+            HorizontalPadding * 2.0F,
         Top,
         textSize.x + HorizontalPadding * 2.0F,
         textSize.y + VerticalPadding * 2.0F,
@@ -84,8 +92,19 @@ using namespace app_detail;
 
 void App::render() {
     renderer_->beginFrame();
+    beginUiTextPerformanceFrame();
+    renderer_->setGpuProfilingEnabled(
+        renderer_->settings().performanceLogging ||
+        performanceOverlayVisible_);
     const auto renderPreparationStart = PerformanceClock::now();
     auto uiStart = renderPreparationStart;
+    double viewModelMilliseconds = 0.0;
+    double worldUiMilliseconds = 0.0;
+    double interactionPromptMilliseconds = 0.0;
+    double hudCoreMilliseconds = 0.0;
+    double resourceGainMilliseconds = 0.0;
+    double minimapMilliseconds = 0.0;
+    double uiOverlaysMilliseconds = 0.0;
     const auto& snapshot = simulation_.snapshot();
     structuralRiskIds_.clear();
     std::vector<EntityId> structuralRiskRoots;
@@ -391,10 +410,9 @@ void App::render() {
         performanceStats_.renderPreparation.sample(
             performanceMilliseconds(renderPreparationStart));
 
+        renderer_->beginGpuTimer(RendererGpuStage::World);
         const auto shadowStart = PerformanceClock::now();
-        if constexpr (!MinimalWorldVisuals) {
-            drawShadowPass(snapshot, lighting);
-        }
+        drawShadowPass(snapshot, lighting);
         performanceStats_.shadowPass.sample(
             performanceMilliseconds(shadowStart));
 
@@ -459,6 +477,7 @@ void App::render() {
         WorldMaterialState pondSurfaceMaterial{};
         pondSurfaceMaterial.bakedAo = 0.82F;
         pondSurfaceMaterial.screenAoAmount = 0.0F;
+        pondSurfaceMaterial.inkOutlineEligible = false;
         renderer_->setWorldMaterial(pondSurfaceMaterial);
         renderer_->drawPondSurfaceDecor(camera);
         renderer_->endWorldShader();
@@ -480,15 +499,12 @@ void App::render() {
         }
 
         const auto overlayStart = PerformanceClock::now();
+        drawBlobShadows(snapshot, camera);
         if constexpr (!MinimalWorldVisuals) {
-            drawBlobShadows(snapshot, camera);
             drawWorldOverlays(presentationSnapshot, lighting);
             drawPresentationEffects(camera);
         }
         EndMode3D();
-        if constexpr (!MinimalWorldVisuals) {
-            renderer_->drawSelectionOutline();
-        }
         performanceStats_.overlayRender.sample(
             performanceMilliseconds(overlayStart));
 
@@ -539,10 +555,20 @@ void App::render() {
                 }
             }
         }
+        renderer_->endGpuTimer(RendererGpuStage::World);
+        renderer_->beginGpuTimer(RendererGpuStage::PostProcess);
         const auto postProcessStart = PerformanceClock::now();
         renderer_->endWorldPass();
         performanceStats_.postProcess.sample(
             performanceMilliseconds(postProcessStart));
+
+        // Selection is a readability overlay. Composite it after the world
+        // ink pass so black contours from background objects cannot overwrite
+        // the white interaction silhouette.
+        if constexpr (!MinimalWorldVisuals) {
+            renderer_->drawSelectionOutline();
+        }
+        renderer_->endGpuTimer(RendererGpuStage::PostProcess);
 
         uiStart = PerformanceClock::now();
 
@@ -557,6 +583,7 @@ void App::render() {
             !snapshot.selectedBuilding &&
             !foundationBuildMode_ &&
             !snapshot.playerRespawning;
+        const auto viewModelStart = PerformanceClock::now();
         if (showFirstPersonTool) {
             FirstPersonToolVisual toolVisual =
                 displayedToolVisual_;
@@ -626,6 +653,8 @@ void App::render() {
             }
             if (renderer_->beginFirstPersonToolPass()) {
                 BeginMode3D(viewModelCamera);
+                renderer_->beginGpuTimer(
+                    RendererGpuStage::ViewModelTarget);
                 static_cast<void>(renderer_->drawFirstPersonTool(
                     toolVisual,
                     swingProgress,
@@ -634,13 +663,24 @@ void App::render() {
                     renderTuning,
                     iceChargeProgress,
                     iceRecoilProgress));
+                renderer_->endGpuTimer(
+                    RendererGpuStage::ViewModelTarget);
                 EndMode3D();
-                renderer_->endFirstPersonToolPass(activeToolTuning());
+                renderer_->beginGpuTimer(
+                    RendererGpuStage::ViewModelComposite);
+                renderer_->endFirstPersonToolPass(
+                    activeToolTuning(), &lighting);
+                renderer_->endGpuTimer(
+                    RendererGpuStage::ViewModelComposite);
             }
         }
+        viewModelMilliseconds =
+            performanceMilliseconds(viewModelStart);
+        renderer_->beginGpuTimer(RendererGpuStage::Ui);
 
         // World-space UI is composited after post-processing so health bars,
         // levels and production rewards remain crisp above pixelization.
+        const auto worldUiStart = PerformanceClock::now();
         if (!hudHidden_) {
             BeginMode3D(camera);
             // These are overlays. Keeping them out of the depth buffer also
@@ -650,6 +690,7 @@ void App::render() {
             targetHealthBar_.draw(
                 healthBarSnapshot, camera,
                 simulation_.terrain(),
+                ui_,
                 [this](const EnemyInstance& enemy)
                     -> std::optional<BoundingBox> {
                     Vector3 position = enemyRenderPosition(enemy);
@@ -670,14 +711,9 @@ void App::render() {
             rlEnableDepthTest();
             EndMode3D();
         }
+        worldUiMilliseconds =
+            performanceMilliseconds(worldUiStart);
 
-        if (playerDamageFlashRemaining_ > 0.0 &&
-            !userSettings_.accessibility.reduceFlashes) {
-            const auto alpha = static_cast<unsigned char>(
-                90.0 * playerDamageFlashRemaining_ / 0.18);
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                          {190, 24, 24, alpha});
-        }
         if (iceImpactFlashRemaining_ > 0.0 &&
             !userSettings_.accessibility.reduceFlashes) {
             const auto alpha = static_cast<unsigned char>(
@@ -736,11 +772,14 @@ void App::render() {
 
         // Interaction prompts use a world anchor but are composited in
         // screen space after the 3D/post-process passes.
+        const auto interactionPromptStart = PerformanceClock::now();
         if (!hudHidden_) {
             interactionPromptRenderer_.draw(
                 buildInteractionPrompt(feedbackSnapshot, camera), camera,
                 ui_, userSettings_.controls);
         }
+        interactionPromptMilliseconds =
+            performanceMilliseconds(interactionPromptStart);
 
         auto hudSnapshot = presentationSnapshot;
         bool showBuildingContextCard =
@@ -767,8 +806,10 @@ void App::render() {
                     buildingContextCardStats_;
             }
         }
-        if (!hudHidden_) drawHud(
-            ui_, hudSnapshot,
+        const auto hudCoreStart = PerformanceClock::now();
+        if (!hudHidden_) {
+            beginSdfUiTextBatch();
+            drawHud(ui_, hudSnapshot,
             {
                     .damageIndicators = damageIndicators_,
                     .statusMessage = statusMessage_,
@@ -810,62 +851,56 @@ void App::render() {
                          recentlyDamagedBuilding_ ==
                              presentationSnapshot.coreId &&
                          damagedBuildingHealthBarRemaining_ > 0.0),
+                    .playerHealthTrail =
+                        displayedPlayerHealthTrail_,
+                    .playerDamagePulse = static_cast<float>(
+                        std::clamp(
+                            playerDamageFlashRemaining_ / 0.18,
+                            0.0, 1.0)),
                     .showBuildingContextCard =
                         showBuildingContextCard,
                     .repairSweepActive =
                         repairSweepActive_,
-                    .woodResourceBounce =
+                    .woodResourcePop =
                         woodHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
                                   std::sin(
                                       (1.0 -
                                        woodHudBounceRemaining_ /
                                            0.28) *
-                                      PI) *
-                                  10.0)
+                                      PI))
                             : 0.0F,
-                    .stoneResourceBounce =
+                    .stoneResourcePop =
                         stoneHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
                                   std::sin(
                                       (1.0 -
                                        stoneHudBounceRemaining_ /
                                            0.28) *
-                                      PI) *
-                                  10.0)
+                                      PI))
                             : 0.0F,
-                    .crystalResourceBounce =
+                    .crystalResourcePop =
                         crystalHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
                                   std::sin(
                                       (1.0 -
                                        crystalHudBounceRemaining_ /
                                            0.28) *
-                                      PI) *
-                                  10.0)
+                                      PI))
                             : 0.0F,
-                    .woodResourcePulse =
-                        static_cast<float>(
-                            woodHudBounceRemaining_ / 0.28),
-                    .stoneResourcePulse =
-                        static_cast<float>(
-                            stoneHudBounceRemaining_ / 0.28),
-                    .crystalResourcePulse =
-                        static_cast<float>(
-                            crystalHudBounceRemaining_ / 0.28),
-                    .coinResourceBounce =
+                    .coinResourcePop =
                         coinHudBounceRemaining_ > 0.0
                             ? static_cast<float>(
                                   std::sin(
                                       (1.0 -
                                        coinHudBounceRemaining_ /
                                            0.32) *
-                                      PI) *
-                                  12.0)
+                                      PI))
                             : 0.0F,
-                    .coinResourcePulse =
-                        static_cast<float>(
-                            coinHudBounceRemaining_ / 0.32),
+                    .displayedWood = woodHudCounter_.displayed,
+                    .displayedStone = stoneHudCounter_.displayed,
+                    .displayedCrystals = crystalHudCounter_.displayed,
+                    .displayedCoins = coinHudCounter_.displayed,
                     .displayedInsight = displayedInsight_,
                     .insightPulse = insightPulseRemaining_ > 0.0
                         ? insightPulseRemaining_ / insightPulseDuration_ : 0.0,
@@ -904,7 +939,11 @@ void App::render() {
                     .buildingStatsUpgradeDuration =
                         buildingStatsUpgradeDuration_,
             },
-            camera, userSettings_.controls);
+                camera, userSettings_.controls);
+            endSdfUiTextBatch();
+        }
+        hudCoreMilliseconds =
+            performanceMilliseconds(hudCoreStart);
         if (!hudHidden_ && foundationBuildMode_) {
             const char* pieceName = "FOUNDATION 2x2";
             int previewStorey = 0;
@@ -1023,16 +1062,7 @@ void App::render() {
             }
             std::string foundationHint =
                 pieceLabel + "   LEVEL " +
-                std::to_string(previewStorey) +
-                "   LMB DRAG";
-            foundationHint += "   V PIECE";
-            if (modularBuildPiece_ ==
-                    ModularBuildPiece::Wall ||
-                modularBuildPiece_ ==
-                    ModularBuildPiece::Ramp) {
-                foundationHint += "   R / WHEEL ROTATE";
-            }
-            foundationHint += "   RMB CANCEL";
+                std::to_string(previewStorey);
             const Color messageColor =
                 previewValid
                     ? Color{126, 239, 151, 255}
@@ -1152,19 +1182,33 @@ void App::render() {
                     (removalDragActive_ ? 106 : 132)),
                 17.0F, {255, 197, 82, 255});
         }
+        const auto resourceGainStart = PerformanceClock::now();
         if (!hudHidden_) drawResourceGainVisuals(camera);
+        resourceGainMilliseconds =
+            performanceMilliseconds(resourceGainStart);
 
+        const auto minimapStart = PerformanceClock::now();
         if (!hudHidden_) {
             drawMinimapHud(
                 ui_, presentationSnapshot,
                 minimapExpansion_,
                 userSettings_.accessibility.showFps ? 56.0F : 20.0F);
         }
+        minimapMilliseconds =
+            performanceMilliseconds(minimapStart);
 
-        drawRunStateOverlay(snapshot);
+        const auto uiOverlaysStart = PerformanceClock::now();
+        const bool unobscuredColorPreview =
+            renderer_->graphicsPanelVisible() &&
+            graphicsPanelTab_ == ColorSettingsTab;
+        if (!unobscuredColorPreview) {
+            drawRunStateOverlay(snapshot);
+        }
         drawRunUpgradeOverlay(
             ui_, snapshot, simulation_.skillTree(),
             runUpgradeOverlayEntranceSeconds_,
+            runUpgradeOverlayExitSeconds_,
+            runUpgradePendingChoice_,
             runUpgradeCardHoverAmounts_);
         if (cardCollectionVisible_) {
             drawCardCollectionOverlay(
@@ -1225,8 +1269,11 @@ void App::render() {
                 }
             }
         }
+        uiOverlaysMilliseconds +=
+            performanceMilliseconds(uiOverlaysStart);
     }
 
+    const auto commonUiOverlaysStart = PerformanceClock::now();
     if (!hudHidden_) drawBuildModePie();
     if (renderer_->graphicsPanelVisible()) {
         drawGraphicsPanel();
@@ -1255,7 +1302,26 @@ void App::render() {
         HideCursor();
         ui_.drawCursor();
     }
+    uiOverlaysMilliseconds +=
+        performanceMilliseconds(commonUiOverlaysStart);
     if (snapshot.state != RunState::MainMenu) {
+        renderer_->endGpuTimer(RendererGpuStage::Ui);
+        performanceStats_.viewModelRender.sample(
+            viewModelMilliseconds);
+        performanceStats_.worldUiRender.sample(
+            worldUiMilliseconds);
+        performanceStats_.interactionPromptRender.sample(
+            interactionPromptMilliseconds);
+        performanceStats_.hudCoreRender.sample(
+            hudCoreMilliseconds);
+        performanceStats_.resourceGainRender.sample(
+            resourceGainMilliseconds);
+        performanceStats_.minimapRender.sample(
+            minimapMilliseconds);
+        performanceStats_.uiOverlaysRender.sample(
+            uiOverlaysMilliseconds);
+        performanceStats_.uiTextRender.sample(
+            uiTextPerformanceStats().milliseconds);
         performanceStats_.uiRender.sample(
             performanceMilliseconds(uiStart));
     } else {

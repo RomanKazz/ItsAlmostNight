@@ -21,6 +21,8 @@ void settingsRoundTrip() {
 
     ian::UserSettings written;
     written.graphics.fullscreen = true;
+    written.graphics.renderWidth = 2560;
+    written.graphics.renderHeight = 1440;
     written.graphics.inkOutlines = true;
     written.graphics.outlineWidth = 3.0F;
     written.graphics.pixelSize = 6;
@@ -49,6 +51,9 @@ void settingsRoundTrip() {
             "style toggle survives settings round trip");
     require(loaded.graphics.fullscreen,
             "fullscreen setting survives settings round trip");
+    require(loaded.graphics.renderWidth == 2560 &&
+                loaded.graphics.renderHeight == 1440,
+            "render resolution survives settings round trip");
     requireNear(loaded.graphics.outlineWidth, 3.0, 1e-6,
                 "style slider survives settings round trip");
     require(loaded.graphics.pixelSize == 6,
@@ -131,6 +136,8 @@ void loadedValuesAreValidated() {
             "graphics": {
                 "pixelSize": 5,
                 "frameRateLimit": 119,
+                "renderWidth": 100,
+                "renderHeight": 99999,
                 "outlineWidth": 99.0,
                 "contrast": -10.0
             },
@@ -146,6 +153,9 @@ void loadedValuesAreValidated() {
             "unsupported pixel size selects nearest valid size");
     require(loaded.graphics.frameRateLimit == 120,
             "unsupported frame rate selects nearest valid limit");
+    require(loaded.graphics.renderWidth == 960 &&
+                loaded.graphics.renderHeight == 2160,
+            "render resolution is clamped to safe limits");
     requireNear(loaded.graphics.outlineWidth, 4.0, 1e-6,
                 "outline width is clamped");
     requireNear(loaded.graphics.contrast, 0.5, 1e-6,
@@ -172,6 +182,8 @@ void graphicsPresetsAreCompleteAndDetectable() {
     settings.brightness = 0.31F;
     settings.inkOutlines = true;
     settings.frameRateLimit = 144;
+    settings.renderWidth = 2560;
+    settings.renderHeight = 1440;
     settings.performanceLogging = true;
 
     ian::applyGraphicsPreset(settings, ian::GraphicsQuality::Low);
@@ -212,6 +224,8 @@ void tabResetsPreserveOtherTabs() {
     ian::resetDisplaySettings(settings);
     require(settings.shadows && settings.pixelSize == 1 &&
                 settings.frameRateLimit == 60 &&
+                settings.renderWidth == 1920 &&
+                settings.renderHeight == 1080 &&
                 !settings.performanceLogging,
             "display reset restores display defaults");
     requireNear(settings.brightness, 0.4, 1e-6,

@@ -750,11 +750,11 @@ float smoothstep(float edge0, float edge1, float value) {
 void drawBuildGrid(
     Vector3 playerPosition, double worldLimit,
     const TerrainHeightfield& terrain) {
-    constexpr float FadeStart = 13.0F;
-    constexpr float FadeEnd = 20.0F;
+    constexpr float FadeStart = 7.0F;
+    constexpr float FadeEnd = 13.0F;
     constexpr float GridTerrainOffset = 0.025F;
-    constexpr float MinorOpacity = 0.15F;
-    constexpr float MajorOpacity = 0.28F;
+    constexpr float MinorOpacity = 0.10F;
+    constexpr float MajorOpacity = 0.20F;
     constexpr int MajorInterval = 5;
 
     const int worldMinimum =
@@ -1133,19 +1133,19 @@ void drawTacticalGroundSector(
             }
             const float angularDistance =
                 std::min(angleT, 1.0F - angleT) * 2.0F;
-            // The boundary is the visual focus: a crisp white outer arc and
-            // two white rays feather inward into an almost clear center.
+            // Keep the tactical sector readable without turning its edges
+            // into bright white beams across the whole scene.
             const float sideEdge = 1.0F - smoothstep(
-                0.0F, 0.20F, angularDistance);
+                0.0F, 0.12F, angularDistance);
             const float outerEdge = smoothstep(
-                0.70F, 1.0F, radiusT);
+                0.84F, 1.0F, radiusT);
             const float innerEdge = innerRadius > 0.001F
                 ? 1.0F - smoothstep(0.0F, 0.24F, radiusT)
                 : 0.0F;
-            constexpr float ClearInterior = 0.025F;
+            constexpr float ClearInterior = 0.012F;
             const float edge = std::max(
                 sideEdge, std::max(outerEdge, innerEdge));
-            return ClearInterior + edge * (1.0F - ClearInterior);
+            return ClearInterior + edge * 0.58F;
         };
         const auto vertexAt = [&](float angleT, float radiusT) {
             const float angle =

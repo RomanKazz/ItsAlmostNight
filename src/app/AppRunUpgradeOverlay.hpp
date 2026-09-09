@@ -10,6 +10,8 @@
 
 namespace ian::app_detail {
 
+inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
+
 [[nodiscard]] Rectangle runUpgradeCardBounds(
     std::size_t index, std::size_t count);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
@@ -19,6 +21,8 @@ void drawRunUpgradeOverlay(
     const SimulationSnapshot& snapshot,
     const SkillTree& skillTree,
     double entranceSeconds,
+    double exitSeconds,
+    std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts);
 [[nodiscard]] std::size_t cardCollectionPageCount(
     const SkillTree& skillTree);

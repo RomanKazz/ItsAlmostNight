@@ -80,7 +80,7 @@ int animationFrame(float progress, int frameCount) {
                          static_cast<float>(frameCount)));
 }
 
-void emitImpactDisc(
+void emitSoftBillboardDisc(
     Vector3 center, Vector3 right, Vector3 up,
     float radius, Color centerColor, int segments = 8) {
     Color edgeColor = centerColor;
@@ -317,11 +317,12 @@ void App::drawAtmosphereParticles(
         rlPopMatrix();
     }
 
-    // Small pollen motes are additive and deliberately sparse. Low-segment
-    // spheres keep them readable after pixelization without expensive meshes.
+    // Small pollen motes are additive and deliberately sparse. A soft
+    // camera-facing octagon avoids the square silhouette of a solid quad.
     constexpr int PollenCount = 24;
     constexpr float PollenHalfExtent = 19.0F;
     BeginBlendMode(BLEND_ADDITIVE);
+    rlBegin(RL_TRIANGLES);
     for (int index = 0; index < PollenCount; ++index) {
         const std::uint32_t seed =
             0xa511e9b3U + static_cast<std::uint32_t>(index) *
@@ -368,11 +369,11 @@ void App::drawAtmosphereParticles(
         }
         const float radius =
             0.025F + atmosphereUnit(seed + 8U) * 0.025F;
-        drawWorldBillboardQuad(
-            {x, y, z}, radius * 2.0F, radius * 2.0F,
-            {255, 239, 170, atmosphereAlpha(alpha)},
-            cameraRight, billboardUp);
+        emitSoftBillboardDisc(
+            {x, y, z}, cameraRight, billboardUp, radius,
+            {255, 239, 170, atmosphereAlpha(alpha)}, 8);
     }
+    rlEnd();
     EndBlendMode();
 
     // Fireflies live in small world-anchored colonies around planted pond
@@ -384,6 +385,7 @@ void App::drawAtmosphereParticles(
         return;
     }
     BeginBlendMode(BLEND_ADDITIVE);
+    rlBegin(RL_TRIANGLES);
     std::size_t pondIndex = 0U;
     for (const PondDefinition& pond : simulation_.terrain().ponds()) {
         constexpr int ColoniesPerPond = 3;
@@ -476,16 +478,17 @@ void App::drawAtmosphereParticles(
                 const Color core = fly % 4 == 0
                     ? Color{255, 248, 177, atmosphereAlpha(alpha * 0.95F)}
                     : Color{225, 255, 157, atmosphereAlpha(alpha * 0.92F)};
-                drawWorldBillboardQuad(
-                    {x, y, z}, 0.22F, 0.22F, glow,
-                    cameraRight, billboardUp);
-                drawWorldBillboardQuad(
-                    {x, y, z}, 0.05F, 0.05F, core,
-                    cameraRight, billboardUp);
+                emitSoftBillboardDisc(
+                    {x, y, z}, cameraRight, billboardUp, 0.11F,
+                    glow, 8);
+                emitSoftBillboardDisc(
+                    {x, y, z}, cameraRight, billboardUp, 0.025F,
+                    core, 6);
             }
         }
         ++pondIndex;
     }
+    rlEnd();
     EndBlendMode();
 }
 
@@ -631,7 +634,22 @@ void App::drawPresentationEffects(const Camera3D& camera) {
     // Hits are the highest-volume effect during tower-heavy nights. Submit
     // every flash and spark as one camera-facing triangle batch rather than
     // issuing spheres and lines per hit.
-    BeginBlendMode(BLEND_ADDITIVE);
+    const bool taggedImpactGeometryPass = vfxImpactShader_.valid();
+    if (taggedImpactGeometryPass) {
+        rlDrawRenderBatchActive();
+        rlSetBlendFactorsSeparate(
+            RL_ONE, RL_ONE,
+            RL_ONE, RL_ZERO,
+            RL_FUNC_ADD, RL_FUNC_ADD);
+        BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+        constexpr float UseTexture = 0.0F;
+        SetShaderValue(
+            vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
+            &UseTexture, SHADER_UNIFORM_FLOAT);
+        BeginShaderMode(vfxImpactShader_.get());
+    } else {
+        BeginBlendMode(BLEND_ADDITIVE);
+    }
     rlDisableDepthMask();
     rlDisableBackfaceCulling();
     rlBegin(RL_TRIANGLES);
@@ -675,12 +693,12 @@ void App::drawPresentationEffects(const Camera3D& camera) {
         outer.a = atmosphereAlpha(fade * 0.62F);
         Color inner = core;
         inner.a = atmosphereAlpha(flash * 0.94F);
-        emitImpactDisc(
+        emitSoftBillboardDisc(
             origin, cameraRight, billboardUp,
             effect.scale * criticalScale *
                 (0.22F + progress * 0.24F),
             outer);
-        emitImpactDisc(
+        emitSoftBillboardDisc(
             origin, cameraRight, billboardUp,
             effect.scale * criticalScale *
                 (0.095F + progress * 0.055F),
@@ -711,6 +729,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
     rlDrawRenderBatchActive();
     rlEnableBackfaceCulling();
     rlEnableDepthMask();
+    if (taggedImpactGeometryPass) {
+        EndShaderMode();
+    }
     EndBlendMode();
 
     // Authored flipbooks add a readable silhouette without multiplying the
@@ -720,7 +741,22 @@ void App::drawPresentationEffects(const Camera3D& camera) {
     if (renderer_->settings().particles &&
         (vfxImpactTexture_.valid() ||
          vfxElectricRingTexture_.valid())) {
-        BeginBlendMode(BLEND_ADDITIVE);
+        const bool taggedImpactPass = vfxImpactShader_.valid();
+        if (taggedImpactPass) {
+            rlDrawRenderBatchActive();
+            rlSetBlendFactorsSeparate(
+                RL_ONE, RL_ONE,
+                RL_ONE, RL_ZERO,
+                RL_FUNC_ADD, RL_FUNC_ADD);
+            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+            constexpr float UseTexture = 1.0F;
+            SetShaderValue(
+                vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
+                &UseTexture, SHADER_UNIFORM_FLOAT);
+            BeginShaderMode(vfxImpactShader_.get());
+        } else {
+            BeginBlendMode(BLEND_ADDITIVE);
+        }
         rlDisableDepthMask();
         for (int electricPass = 0; electricPass < 2; ++electricPass) {
             const TextureResource& resource = electricPass != 0
@@ -776,6 +812,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             }
         }
         rlEnableDepthMask();
+        if (taggedImpactPass) {
+            EndShaderMode();
+        }
         EndBlendMode();
     }
 

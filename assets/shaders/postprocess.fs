@@ -7,10 +7,12 @@ uniform sampler2D texture0;
 uniform sampler2D sceneDepth;
 uniform sampler2D sceneNormal;
 uniform sampler2D ssaoTexture;
+uniform sampler2D selectionMask;
 uniform mat4 inverseProjection;
 uniform vec2 ssaoTexelSize;
 uniform float ssaoEnabled;
 uniform float ssaoStrength;
+uniform float selectionMaskEnabled;
 uniform float postExposure;
 uniform float brightness;
 uniform float contrast;
@@ -37,6 +39,10 @@ uniform float bloomStrength;
 uniform float inkOutlinesEnabled;
 uniform float outlineStrength;
 uniform float outlineWidth;
+uniform float outlineFogFadeStrength;
+uniform vec3 outlineFogColor;
+uniform float outlineFogStart;
+uniform float outlineFogEnd;
 uniform float paperGrainEnabled;
 uniform float paperGrainStrength;
 uniform float menuDofEnabled;
@@ -162,15 +168,28 @@ vec4 normalPixel(ivec2 coordinate)
 float inkDifference(
     float centerDepth, float centerMaterialClass,
     float depthTolerance,
-    ivec2 coordinate, float directionWeight)
+    ivec2 centerCoordinate, ivec2 coordinate,
+    float directionWeight)
 {
+    ivec2 depthSize = textureSize(sceneDepth, 0);
     float neighborDepth = texelFetch(
         sceneDepth,
-        clamp(coordinate, ivec2(0), textureSize(sceneDepth, 0) - ivec2(1)),
+        clamp(coordinate, ivec2(0), depthSize - ivec2(1)),
         0).r;
     vec4 neighborPackedNormal = normalPixel(coordinate);
     float neighborMaterialClass =
         materialClassOf(neighborPackedNormal);
+    float neighborSceneAlpha = texelFetch(
+        texture0,
+        clamp(coordinate, ivec2(0), textureSize(texture0, 0) - ivec2(1)),
+        0).a;
+    float neighborIsGrass =
+        1.0 - step(0.02, abs(neighborSceneAlpha - 0.125));
+    float neighborIsOpaqueNoInk =
+        (1.0 - step(0.5, neighborMaterialClass))*
+        step(0.98, neighborSceneAlpha);
+    float neighborWantsToSuppressInk = max(
+        neighborIsGrass, neighborIsOpaqueNoInk);
     float centerIsObject = step(1.5, centerMaterialClass);
     float neighborIsObject = step(1.5, neighborMaterialClass);
     float centerIsTerrain =
@@ -179,11 +198,30 @@ float inkDifference(
     float neighborIsBackground =
         1.0 - step(0.5, neighborMaterialClass);
 
-    // Draw on the object's own pixels whenever its neighbour is terrain,
-    // water, grass or sky.  Unlike a raw depth edge this closes the contour
-    // where a trunk or rock meets the ground.
+    // Material tags can be absent beneath late ground overlays. Determine
+    // actual ground contact from the separation of the two visible surfaces
+    // in view space as well: adjacent contact pixels are close, while terrain
+    // seen behind an object's outer side is substantially farther away.
+    float neighborHasDepth = 1.0 - step(0.999999, neighborDepth);
+    vec2 bufferSize = vec2(depthSize);
+    vec3 centerPosition = reconstructViewPosition(
+        (vec2(centerCoordinate) + 0.5)/bufferSize, centerDepth);
+    vec3 neighborPosition = reconstructViewPosition(
+        (vec2(coordinate) + 0.5)/bufferSize, neighborDepth);
+    float surfaceSeparation = length(neighborPosition - centerPosition);
+    float closeSurface = 1.0 - smoothstep(0.16, 0.52, surfaceSeparation);
+    float neighborSuppressesInk =
+        neighborWantsToSuppressInk * closeSurface;
+    float groundContact = (1.0 - neighborIsObject)*neighborHasDepth*
+        closeSurface;
+
+    // Keep the exterior silhouette against water and sky, but leave the
+    // object-to-terrain contact clean. Contact AO grounds props without the
+    // dark sticker-like seam that an ink line creates along their base.
+    // Grass and opaque no-ink props suppress this side of the boundary too.
     float materialBoundary = centerIsObject*
-        (1.0 - neighborIsObject);
+        (1.0 - neighborIsObject)*(1.0 - groundContact)*
+        (1.0 - neighborSuppressesInk);
     // Preserve separation between overlapping props of the same class.
     float objectDepthBoundary = centerIsObject*neighborIsObject*smoothstep(
         depthTolerance * 8.0,
@@ -346,6 +384,17 @@ void main()
         (vec2(sourceCoordinate) + 0.5)/vec2(sourceSize);
     vec4 source =
         texelFetch(texture0, sourceCoordinate, 0)*fragColor;
+    float selectedSurface = 0.0;
+    if (selectionMaskEnabled > 0.5)
+    {
+        vec3 selectionColor = texture(selectionMask, pixelUv).rgb;
+        selectedSurface = smoothstep(
+            0.05, 0.35,
+            max(selectionColor.r,
+                max(selectionColor.g, selectionColor.b)));
+    }
+    float impactSpriteMask =
+        1.0 - step(0.025, abs(source.a - 0.375));
     vec2 texel = 1.0/vec2(sourceSize);
     float menuDofAmount = menuDepthOfFieldAmount(pixelUv);
     source.rgb = menuDepthOfFieldSample(
@@ -364,7 +413,8 @@ void main()
     vec2 stylePixel = vec2(sourceCoordinate);
     vec3 color = source.rgb;
     float contactAo = bilateralSsao(pixelUv)*
-        clamp(ssaoStrength, 0.0, 0.6);
+        clamp(ssaoStrength, 0.0, 0.6)*
+        (1.0 - selectedSurface);
     // Cool green-grey contact, never black. Keeps bright low-poly palette.
     color *= mix(
         vec3(1.0), vec3(0.38, 0.52, 0.47), contactAo);
@@ -427,7 +477,8 @@ void main()
 
     float centerMaterialClass = materialClassOf(
         normalPixel(sourceCoordinate));
-    if (inkOutlinesEnabled > 0.5 && centerMaterialClass > 0.5)
+    if (inkOutlinesEnabled > 0.5 && centerMaterialClass > 0.5 &&
+        impactSpriteMask < 0.5 && selectedSurface < 0.5)
     {
         float centerDepth = texture(sceneDepth, pixelUv).r;
         float depthTolerance = max(fwidth(centerDepth) * 1.5, 0.000002);
@@ -469,6 +520,9 @@ void main()
             sourceVegetation);
         float effectiveWidth = clamp(
             outlineWidth * distanceWidthScale, 1.0, 3.0);
+        effectiveWidth = min(
+            effectiveWidth,
+            mix(3.0, 2.0, sourceVegetation));
         float sourceTerrain = step(0.5, centerMaterialClass)*
             (1.0 - step(1.5, centerMaterialClass));
         // Mountain contours stay a single fine pixel at every distance.
@@ -488,16 +542,16 @@ void main()
             float ringEdge = 0.0;
             ringEdge = max(ringEdge, inkDifference(
                 centerDepth, centerMaterialClass, depthTolerance,
-                sourceCoordinate + horizontal, 1.0));
+                sourceCoordinate, sourceCoordinate + horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
                 centerDepth, centerMaterialClass, depthTolerance,
-                sourceCoordinate - horizontal, 1.0));
+                sourceCoordinate, sourceCoordinate - horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
                 centerDepth, centerMaterialClass, depthTolerance,
-                sourceCoordinate + vertical, 1.0));
+                sourceCoordinate, sourceCoordinate + vertical, 1.0));
             ringEdge = max(ringEdge, inkDifference(
                 centerDepth, centerMaterialClass, depthTolerance,
-                sourceCoordinate - vertical, 1.0));
+                sourceCoordinate, sourceCoordinate - vertical, 1.0));
             float ringCoverage = clamp(
                 effectiveWidth - float(ring) + 1.0,
                 0.0, 1.0);
@@ -510,7 +564,28 @@ void main()
         float ink = smoothstep(0.10, 0.52, edge)*
             sqrt(clamp(outlineStrength, 0.0, 1.0))*1.3*
             outlineDistance*nearBoost;
-        vec3 inkColor = vec3(0.006, 0.008, 0.010);
+        vec3 inkColor = mix(
+            vec3(0.006, 0.008, 0.010),
+            vec3(0.094, 0.239, 0.231),
+            sourceVegetation);
+        // Match the world shader's atmospheric curve using view distance
+        // reconstructed from the same scene depth. Near ink is untouched;
+        // distant ink approaches haze colour without a hard disappearance.
+        float outlineFogRange = max(
+            outlineFogEnd - outlineFogStart, 0.01);
+        float outlineFogDistance = clamp(
+            (viewDistance - outlineFogStart)/outlineFogRange,
+            0.0, 1.0);
+        float outlineHazeCurve = pow(
+            smoothstep(0.0, 1.0, outlineFogDistance), 1.45);
+        float outlineDistanceFog =
+            (1.0 - exp(
+                -2.45*outlineHazeCurve*outlineHazeCurve))*0.82;
+        float outlineFogBlend = clamp(
+            outlineDistanceFog*outlineFogFadeStrength,
+            0.0, 1.0);
+        inkColor = mix(
+            inkColor, outlineFogColor, outlineFogBlend);
         color = mix(color, inkColor, clamp(ink, 0.0, 0.985));
     }
 

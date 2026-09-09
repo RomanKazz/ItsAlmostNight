@@ -610,7 +610,10 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             : settings_.quality == GraphicsQuality::Medium
                 ? 52.0F
                 : 60.0F;
-    constexpr float ClusterSize = 11.0F;
+    constexpr float BroadPatchSize = 18.0F;
+    constexpr float DetailPatchSize = 7.5F;
+    constexpr float RegionalPatchSize = 31.0F;
+    constexpr float PatchWarpSize = 37.0F;
     constexpr float CacheCellSize = 8.0F;
     constexpr float CachePadding = 10.0F;
     const int cameraCellX = static_cast<int>(std::floor(
@@ -646,9 +649,21 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         return static_cast<float>(value & 0xffffU) /
                65535.0F;
     };
-    const auto clusterNoise = [&](float x, float z) {
-        const float sampleX = x / ClusterSize;
-        const float sampleZ = z / ClusterSize;
+    const auto randomChannel = [&unitFloat](
+                                   std::uint32_t value,
+                                   std::uint32_t salt) {
+        value ^= salt;
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        value ^= value >> 16U;
+        return unitFloat(value);
+    };
+    const auto clusterNoise = [&](float x, float z, float scale,
+                                  std::uint32_t salt) {
+        const float sampleX = x / scale;
+        const float sampleZ = z / scale;
         const int cellX = static_cast<int>(std::floor(sampleX));
         const int cellZ = static_cast<int>(std::floor(sampleZ));
         float blendX = sampleX - static_cast<float>(cellX);
@@ -658,7 +673,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
         const auto sample = [&](int offsetX, int offsetZ) {
             return unitFloat(
                 hashCell(cellX + offsetX, cellZ + offsetZ) ^
-                0x27d4eb2fU);
+                salt);
         };
         const float lower = sample(0, 0) +
             (sample(1, 0) - sample(0, 0)) * blendX;
@@ -722,46 +737,87 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                           terrainHeightfield_->pathAmount(x, z))
                     : 0.0F;
 
-                const float cluster = clusterNoise(x, z);
-                float shapedCluster = std::clamp(
-                    (cluster - 0.32F) / 0.52F, 0.0F, 1.0F);
-                shapedCluster = shapedCluster * shapedCluster *
-                    (3.0F - 2.0F * shapedCluster);
+                const float patchWarpX =
+                    (clusterNoise(
+                         x, z, PatchWarpSize, 0x68bc21ebU) -
+                     0.5F) * 10.0F;
+                const float patchWarpZ =
+                    (clusterNoise(
+                         x, z, PatchWarpSize, 0x02e5be93U) -
+                     0.5F) * 10.0F;
+                const float broadPatch = clusterNoise(
+                    x + patchWarpX, z + patchWarpZ,
+                    BroadPatchSize, 0x27d4eb2fU);
+                const float patchDetail = clusterNoise(
+                    x - patchWarpZ * 0.35F,
+                    z + patchWarpX * 0.35F,
+                    DetailPatchSize, 0x165667b1U);
+                const float regionalVariation = clusterNoise(
+                    x, z, RegionalPatchSize, 0xd3a2646cU);
+                const float patchField =
+                    broadPatch * 0.74F + patchDetail * 0.26F;
+                const float patchThreshold =
+                    0.55F + (regionalVariation - 0.5F) * 0.14F;
+                if (patchField <= patchThreshold) {
+                    continue;
+                }
+                float patchStrength = std::clamp(
+                    (patchField - patchThreshold) / 0.25F,
+                    0.0F, 1.0F);
+                patchStrength = patchStrength * patchStrength *
+                    (3.0F - 2.0F * patchStrength);
                 float shoreRecovery = std::clamp(
                     (shoreDistance - 0.22F) / 2.45F, 0.0F, 1.0F);
                 shoreRecovery = shoreRecovery * shoreRecovery *
                     (3.0F - 2.0F * shoreRecovery);
-                float clusterDensity = std::clamp(
-                    (0.025F + shapedCluster * 0.10F +
-                     shapedCluster * shapedCluster * 0.84F) *
-                        (0.18F + shoreRecovery * 0.82F),
-                    0.008F, 0.96F);
+                // True patch cutoffs leave broad gaps with no volumetric
+                // grass. Inside a patch, density rises sharply so the same
+                // sparse budget reads as several nearby clumps instead of a
+                // uniform scatter.
+                float clusterDensity =
+                    (0.12F + patchStrength * 0.88F) * 0.70F *
+                    (0.18F + shoreRecovery * 0.82F);
                 const float pathGrass = std::clamp(
                     (pathAmount - 0.04F) / 0.78F, 0.0F, 1.0F);
-                clusterDensity *= 1.0F - pathGrass * 0.94F;
-                if (unitFloat(hash ^ 0xb5297a4dU) >
+                // Retain a few isolated tufts in the packed core: shoulders
+                // keep roughly 50--70% of ordinary patch density, while a
+                // fully worn center keeps 15%: clearly trampled, but without
+                // turning the whole route into a completely empty corridor.
+                clusterDensity *= 1.0F - pathGrass * 0.85F;
+                if (randomChannel(hash, 0xb5297a4dU) >
                     clusterDensity) {
                     continue;
                 }
 
-                const std::size_t variant =
-                    static_cast<std::size_t>(hash % VariantCount);
-                const float widthScale =
-                    0.55F +
-                    unitFloat(hash ^ 0x63d83595U) * 0.65F;
-                const float heightScale =
-                    0.45F +
-                    unitFloat(hash ^ 0x9e3779b9U) * 1.10F;
+                const float variantRoll =
+                    randomChannel(hash, 0x045d9f3bU);
+                // Model order: large, medium, small. Small tufts dominate;
+                // large clumps remain rare accents.
+                const std::size_t variant = variantRoll < 0.15F
+                    ? 0U
+                    : variantRoll < 0.55F ? 1U : 2U;
+                constexpr std::array<float, VariantCount> BaseScales{
+                    0.60F, 0.68F, 0.75F};
+                const float uniformVariation =
+                    0.88F +
+                    randomChannel(hash, 0x63d83595U) * 0.24F;
+                const float widthVariation =
+                    0.98F +
+                    randomChannel(hash, 0x7f4a7c15U) * 0.04F;
+                const float heightVariation =
+                    0.98F +
+                    randomChannel(hash, 0x9e3779b9U) * 0.04F;
                 const float revealScale =
                     worldRevealScaleAt({x, z});
                 if (revealScale <= 0.001F) {
                     continue;
                 }
                 const float horizontalScale =
-                    widthScale * revealScale;
+                    BaseScales[variant] * uniformVariation *
+                    widthVariation * revealScale;
                 const float verticalScale =
-                    heightScale * revealScale *
-                    (1.0F - pathGrass * 0.42F);
+                    BaseScales[variant] * uniformVariation *
+                    heightVariation * revealScale;
                 const float terrainHeight =
                     terrainHeightfield_ != nullptr
                         ? static_cast<float>(
@@ -769,7 +825,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                                   x, z))
                         : 0.0F;
                 const float rotation =
-                    unitFloat(hash ^ 0xa511e9b3U) * PI * 2.0F;
+                    randomChannel(hash, 0xa511e9b3U) * PI * 2.0F;
                 grassInstanceCandidates_[variant].push_back({
                     .transform = MatrixMultiply(
                         MatrixScale(
@@ -825,7 +881,11 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
             const float stableNoise = std::fmod(std::abs(std::sin(
                 instance.position.x * 12.9898F +
                 instance.position.y * 78.233F) * 43758.5453F), 1.0F);
-            if (stableNoise > 1.0F - detailFade * 0.48F) {
+            const float farDensityReduction = variant == 2U
+                ? 0.72F
+                : variant == 1U ? 0.62F : 0.52F;
+            if (stableNoise >
+                1.0F - detailFade * farDensityReduction) {
                 continue;
             }
             if (decorationExclusionMap_.blocked(

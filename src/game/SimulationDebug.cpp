@@ -218,6 +218,13 @@ void Simulation::processDebugCommands(
         !unlimitedResources_) {
         playerInvulnerable_ = !playerInvulnerable_;
     }
+    if (command.grantInsight && unlimitedResources_) {
+        grantConfiguredInsight(
+            command.grantInsight->amount,
+            InsightSource::Other,
+            InsightCategory::Exploration,
+            {.bypassDiminishing = true});
+    }
     if (command.damageCore && !unlimitedResources_) {
         const auto core = buildings_.core();
         if (core) {

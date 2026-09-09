@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,8 @@ struct HotbarSlot {
     ResourceCost cost;
     bool selected{};
     bool available{};
+    bool upgradeAvailable{};
+    Texture2D icon{};
 };
 
 void drawHotbarSlots(
@@ -33,27 +36,61 @@ void drawHotbarSlots(
     bool showSelectedInfo = true,
     std::string_view categoryLabel = {},
     float verticalOffset = 0.0F,
-    float selectedInfoOffset = 0.0F) {
+    float selectedInfoOffset = 0.0F,
+    double invalidActionRemaining = 0.0,
+    bool showSwitchLabel = false) {
     if (slots.empty()) return;
+    static_cast<void>(ui);
 
+    const bool iconLayout = std::ranges::any_of(
+        slots, [](const HotbarSlot& slot) {
+            return IsTextureValid(slot.icon);
+        });
     constexpr float Gap = 7.0F;
-    constexpr float MaximumSize = 58.0F;
+    constexpr float SlotSize = 96.0F;
+    constexpr float SlotRadius = 15.0F;
+    constexpr float KeyBadgeRadius = 14.45F;
+    constexpr float KeyFontSize = 16.32F;
+    constexpr float InnerSize = 86.0F;
+    constexpr float InnerRadius = 11.0F;
+    constexpr float SurfaceHeight = 82.0F;
+    constexpr Color SlotColor{104, 60, 37, 255};
+    constexpr Color ShadowColor{147, 115, 73, 255};
+    constexpr Color SurfaceColor{230, 188, 147, 255};
     const float screenWidth =
         static_cast<float>(GetScreenWidth());
-    const float availableWidth = screenWidth - 32.0F;
     const float gapWidth =
         Gap * static_cast<float>(slots.size() - 1U);
-    const float slotSize = std::min(
-        MaximumSize,
-        (availableWidth - gapWidth) /
-            static_cast<float>(slots.size()));
     const float totalWidth =
-        slotSize * static_cast<float>(slots.size()) +
+        SlotSize * static_cast<float>(slots.size()) +
         gapWidth;
     const float startX =
         (screenWidth - totalWidth) * 0.5F;
     const float slotY = static_cast<float>(GetScreenHeight()) -
-        slotSize - 12.0F + verticalOffset;
+        SlotSize - 20.0F + verticalOffset;
+    selectionPosition = std::clamp(
+        selectionPosition, 0.0F,
+        static_cast<float>(slots.size() - 1U));
+    selectionAlpha = std::clamp(selectionAlpha, 0.0F, 1.0F);
+    const auto alpha =
+        [](float value) {
+            return static_cast<unsigned char>(std::clamp(
+                value, 0.0F, 255.0F));
+        };
+    const auto mixColor =
+        [&alpha](Color from, Color to, float amount) {
+            amount = std::clamp(amount, 0.0F, 1.0F);
+            return Color{
+                alpha(static_cast<float>(from.r) +
+                      (static_cast<float>(to.r) - from.r) * amount),
+                alpha(static_cast<float>(from.g) +
+                      (static_cast<float>(to.g) - from.g) * amount),
+                alpha(static_cast<float>(from.b) +
+                      (static_cast<float>(to.b) - from.b) * amount),
+                alpha(static_cast<float>(from.a) +
+                      (static_cast<float>(to.a) - from.a) * amount),
+            };
+        };
     if (!categoryLabel.empty()) {
         const float labelWidth =
             measureUiText(categoryLabel, 12.0F).x;
@@ -67,7 +104,7 @@ void drawHotbarSlots(
         DrawRectangleLinesEx(
             badge, 1.0F,
             {213, 183, 119, 185});
-        drawUiText(
+        drawSdfUiText(
             categoryLabel,
             {badge.x + 12.0F, badge.y + 4.0F},
             12.0F, {249, 225, 171, 245});
@@ -79,97 +116,234 @@ void drawHotbarSlots(
                 text, fontSize, 6.0F, maximumWidth);
             const float width =
                 measureUiText(text, fittedSize).x;
-            drawUiText(
+            drawSdfUiText(
                 text, {centerX - width * 0.5F, textY},
                 fittedSize, color);
         };
+    const auto selected = std::ranges::find_if(
+        slots, &HotbarSlot::selected);
+    const bool shakeSelectedSlot =
+        selected != slots.end() && !selected->available &&
+        invalidActionRemaining > 0.0;
+    const float invalidShake = shakeSelectedSlot
+        ? std::sin(static_cast<float>(GetTime()) * 92.0F) *
+              4.0F * static_cast<float>(std::clamp(
+                  invalidActionRemaining / 0.22, 0.0, 1.0))
+        : 0.0F;
+    if (selectionAlpha > 0.01F && !slots.empty()) {
+        const float selectionX =
+            startX + selectionPosition *
+                         (SlotSize + Gap) + invalidShake;
+        const float nearestSlotDistance = std::min(
+            0.5F,
+            std::abs(selectionPosition - std::round(selectionPosition)));
+        const float settledness = 1.0F - nearestSlotDistance * 2.0F;
+        const float frameLift = 7.0F * selectionAlpha *
+            (0.65F + settledness * 0.35F);
+        const Rectangle selectionBounds{
+            selectionX - 2.0F, slotY - frameLift - 2.0F,
+            SlotSize + 4.0F, SlotSize + 4.0F};
+        const Rectangle glowBounds{
+            selectionBounds.x - 3.0F,
+            selectionBounds.y - 3.0F,
+            selectionBounds.width + 6.0F,
+            selectionBounds.height + 6.0F};
+        DrawRectangleRoundedLinesEx(
+            glowBounds,
+            SlotRadius * 2.0F / glowBounds.height,
+            8, 3.0F,
+            {255, 186, 72,
+             alpha(72.0F * selectionAlpha)});
+        DrawRectangleRoundedLinesEx(
+            selectionBounds,
+            SlotRadius * 2.0F / selectionBounds.height,
+            8, 2.5F,
+            {255, 250, 224,
+             alpha(255.0F * selectionAlpha)});
+        const Vector2 selectionBadgeCenter{
+            selectionX + 5.0F,
+            slotY - frameLift + 5.0F};
+        DrawRing(
+            selectionBadgeCenter,
+            KeyBadgeRadius + 2.0F,
+            KeyBadgeRadius + 5.0F,
+            0.0F, 360.0F, 32,
+            {255, 186, 72,
+             alpha(72.0F * selectionAlpha)});
+        DrawRing(
+            selectionBadgeCenter,
+            KeyBadgeRadius,
+            KeyBadgeRadius + 2.5F,
+            0.0F, 360.0F, 32,
+            {255, 250, 224,
+             alpha(255.0F * selectionAlpha)});
+    }
     for (std::size_t index = 0; index < slots.size();
          ++index) {
         const HotbarSlot& slot = slots[index];
         const float x =
             startX + static_cast<float>(index) *
-                         (slotSize + Gap);
-        const Rectangle bounds{x, slotY, slotSize, slotSize};
-        ui.drawInsetPanel(bounds, slot.available ? 225 : 145);
-        DrawRectangleLinesEx(
-            bounds, slot.selected ? 2.5F : 1.0F,
-            slot.available
-                ? (slot.selected
-                    ? Color{255, 224, 139, 255}
-                    : Color{156, 143, 119, 190})
-                : Color{83, 76, 69, 165});
+                         (SlotSize + Gap) +
+            (slot.selected ? invalidShake : 0.0F);
+        const float proximity = std::max(
+            0.0F,
+            1.0F - std::abs(
+                static_cast<float>(index) - selectionPosition));
+        const float easedProximity =
+            proximity * proximity * (3.0F - 2.0F * proximity);
+        const float selectionAmount =
+            easedProximity * selectionAlpha;
+        const float raisedY = slotY - 7.0F * selectionAmount;
+        const Rectangle bounds{x, raisedY, SlotSize, SlotSize};
+        const float innerInset = 5.0F;
+        const Rectangle shadowBounds{
+            x + innerInset, raisedY + innerInset,
+            InnerSize, InnerSize};
+        const Rectangle surfaceBounds{
+            x + innerInset, raisedY + innerInset,
+            InnerSize, SurfaceHeight};
+        DrawRectangleRounded(
+            bounds, SlotRadius * 2.0F / SlotSize,
+            8, SlotColor);
+        DrawRectangleRounded(
+            shadowBounds, InnerRadius * 2.0F / InnerSize,
+            8, ShadowColor);
+        DrawRectangleRounded(
+            surfaceBounds, InnerRadius * 2.0F / SurfaceHeight,
+            8, SurfaceColor);
+        if (selectionAmount > 0.001F) {
+            DrawRectangleRounded(
+                surfaceBounds,
+                InnerRadius * 2.0F / SurfaceHeight,
+                8, {255, 228, 170,
+                    alpha(selectionAmount * 42.0F)});
+        }
+        if (!slot.available) {
+            DrawRectangleRounded(
+                bounds, SlotRadius * 2.0F / SlotSize,
+                8, {25, 24, 22, 90});
+        }
+        if (slot.upgradeAvailable) {
+            const float upgradeWave = 0.5F + 0.5F * std::sin(
+                static_cast<float>(GetTime()) * 4.8F);
+            const Vector2 upgradeCenter{
+                x + SlotSize - 12.0F, raisedY - 2.0F};
+            DrawCircleV(
+                upgradeCenter, 5.5F + upgradeWave * 1.5F,
+                {255, 190, 63,
+                 alpha(50.0F + upgradeWave * 55.0F)});
+            DrawCircleV(
+                upgradeCenter, 3.4F,
+                {255, 221, 112, 255});
+            DrawCircleV(
+                {upgradeCenter.x - 1.0F,
+                 upgradeCenter.y - 1.0F},
+                1.0F, {255, 253, 221, 255});
+        }
 
-        centeredText(
-            slot.key, x + slotSize * 0.5F,
-            slotY + slotSize * (showSlotLabels ? 0.10F : 0.28F),
-            showSlotLabels ? 10.5F : 16.0F,
-            slotSize - 8.0F,
-            !slot.available
-                ? Color{126, 121, 111, 205}
-                : slot.selected
-                ? Color{255, 239, 190, 255}
-                : Color{245, 238, 220, 255});
-        if (showSlotLabels) {
+        const Color keyColor = !slot.available
+            ? Color{126, 121, 111, 205}
+            : mixColor(
+                  {245, 238, 220, 255},
+                  {255, 247, 213, 255},
+                  selectionAmount);
+
+        const bool hasIcon = IsTextureValid(slot.icon);
+        if (hasIcon) {
+            const float IconSize = iconLayout ? 74.0F : 62.0F;
+            const float scale = IconSize / static_cast<float>(
+                std::max(slot.icon.width, slot.icon.height));
+            const float width = static_cast<float>(slot.icon.width) * scale;
+            const float height = static_cast<float>(slot.icon.height) * scale;
+            DrawTexturePro(slot.icon,
+                {0, 0, static_cast<float>(slot.icon.width),
+                 static_cast<float>(slot.icon.height)},
+                {x + (SlotSize - width) * 0.5F,
+                 raisedY + (iconLayout ? 8.0F : 26.0F) +
+                     (IconSize - height) * 0.5F,
+                 width, height}, {}, 0.0F,
+                slot.available ? WHITE : Color{160, 160, 160, 210});
+        }
+        const Vector2 keyBadgeCenter{x + 5.0F, raisedY + 5.0F};
+        DrawCircleV(keyBadgeCenter, KeyBadgeRadius, SlotColor);
+
+        const Vector2 keySize = measureUiText(slot.key, KeyFontSize);
+        SdfUiTextStyle keyStyle{};
+        keyStyle.fillColor = keyColor;
+        keyStyle.outlineColor = {49, 49, 49, 255};
+        keyStyle.shadowColor = {49, 49, 49, 255};
+        keyStyle.shadowOffsetPixels = {0.0F, 2.4F};
+        keyStyle.outlinePixels = 1.8F;
+        drawStyledSdfUiText(
+            slot.key,
+            {keyBadgeCenter.x - keySize.x * 0.5F,
+             raisedY - 6.0F},
+            KeyFontSize, keyStyle);
+        if (!hasIcon && (showSlotLabels || iconLayout)) {
+            const Color labelColor = !slot.available
+                ? Color{112, 108, 101, 190}
+                : mixColor(
+                      {224, 215, 195, 235},
+                      {255, 239, 197, 255},
+                      selectionAmount);
             centeredText(
-                slot.label, x + slotSize * 0.5F,
-                slotY + slotSize * 0.52F, 11.0F,
-                slotSize - 8.0F,
-                !slot.available
-                    ? Color{112, 108, 101, 190}
-                    : slot.selected
-                    ? Color{255, 239, 197, 255}
-                    : Color{224, 215, 195, 235});
+                slot.label, x + SlotSize * 0.5F,
+                raisedY + SlotSize * 0.48F, 10.0F,
+                SlotSize - 8.0F,
+                labelColor);
         }
     }
 
-    const auto selected = std::ranges::find_if(
-        slots, &HotbarSlot::selected);
     if (showSelectedInfo && selected != slots.end()) {
         const std::string title{selected->label};
-        const std::string cost = costText(selected->cost);
         const float titleWidth = measureUiText(title, 17.0F).x;
-        const float costWidth = measureUiText(cost, 14.0F).x;
+        const float costWidth = resourceCostRowWidth(selected->cost);
         const float infoWidth = std::max(titleWidth, costWidth) + 40.0F;
         const float infoX = (screenWidth - infoWidth) * 0.5F;
         const float infoY = slotY - 68.0F + selectedInfoOffset;
-        DrawRectangleRounded(
-            {infoX, infoY, infoWidth, 58.0F},
-            0.22F, 6, {23, 20, 17, 218});
-        drawUiText(
+        drawSdfUiText(
             title,
             {infoX + (infoWidth - titleWidth) * 0.5F,
              infoY + 6.0F},
             17.0F, {255, 225, 155, 255});
-        drawUiText(
-            cost,
+        drawResourceCostRow(
+            ui, selected->cost,
             {infoX + (infoWidth - costWidth) * 0.5F,
              infoY + 32.0F},
-            14.0F,
+            14.0F, 22.0F,
             selected->available
                 ? Color{226, 218, 197, 245}
                 : Color{242, 103, 83, 255});
     }
 
-    if (selectionAlpha > 0.01F && !slots.empty()) {
-        selectionPosition = std::clamp(
-            selectionPosition, 0.0F,
-            static_cast<float>(slots.size() - 1U));
-        const float selectionX =
-            startX + selectionPosition *
-                         (slotSize + Gap);
-        const auto alpha =
-            [selectionAlpha](float value) {
-                return static_cast<unsigned char>(
-                    std::clamp(
-                        value * selectionAlpha,
-                        0.0F, 255.0F));
-            };
-        DrawRectangleLinesEx(
-            {selectionX - 2.0F, slotY - 2.0F,
-             slotSize + 4.0F, slotSize + 4.0F},
-            2.5F,
-            {255, 255, 246, alpha(255.0F)});
+    if (showSwitchLabel && selected != slots.end()) {
+        const float selectedIndex = static_cast<float>(
+            std::distance(slots.begin(), selected));
+        const float travel = std::abs(
+            selectedIndex - selectionPosition);
+        const float labelAlpha = std::clamp(
+            travel * 2.4F, 0.0F, 1.0F) * selectionAlpha;
+        if (labelAlpha > 0.01F) {
+            constexpr float LabelFontSize = 15.0F;
+            const float labelWidth =
+                measureUiText(selected->label, LabelFontSize).x;
+            SdfUiTextStyle labelStyle{};
+            labelStyle.fillColor = {
+                255, 239, 197, alpha(255.0F * labelAlpha)};
+            labelStyle.outlineColor = {
+                49, 49, 49, alpha(255.0F * labelAlpha)};
+            labelStyle.shadowColor = {
+                82, 58, 39, alpha(210.0F * labelAlpha)};
+            labelStyle.shadowOffsetPixels = {0.0F, 3.0F};
+            labelStyle.outlinePixels = 2.0F;
+            drawStyledSdfUiText(
+                selected->label,
+                {(screenWidth - labelWidth) * 0.5F,
+                 slotY - 35.0F - (1.0F - labelAlpha) * 5.0F},
+                LabelFontSize, labelStyle);
+        }
     }
+
 }
 
 void drawFoundationHotbar(
@@ -202,7 +376,8 @@ void drawFoundationHotbar(
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha,
         false, true,
-        "MODULAR  •  C CATEGORY  •  WHEEL ITEM");
+        {},
+        0.0F, 0.0F, view.invalidActionRemaining);
 }
 
 void drawBuildHotbar(
@@ -221,7 +396,7 @@ void drawBuildHotbar(
             view.buildingHotbarCategory,
             snapshot.coreMaxHealth > 0.0,
             snapshot.coreLevel,
-            snapshot.sandboxMode);
+            snapshot.sandboxMode || snapshot.unlimitedResources);
     std::vector<HotbarSlot> slots;
     slots.reserve(layout.count);
     for (std::size_t index = 0; index < layout.count; ++index) {
@@ -243,20 +418,15 @@ void drawBuildHotbar(
             .cost = cost,
             .selected = selected,
             .available = affordable,
+            .icon = ui.buildingTexture(type),
         });
     }
-    const std::string categoryLabel =
-        snapshot.coreMaxHealth <= 0.0
-            ? "BASE"
-            : std::string(buildingHotbarCategoryName(
-                  view.buildingHotbarCategory)) +
-                  "  •  C CATEGORY  •  WHEEL ITEM";
     drawHotbarSlots(
         ui, slots,
         view.buildHotbarSelectionPosition,
         view.buildHotbarSelectionAlpha,
-        false, true, categoryLabel,
-        0.0F, -28.0F);
+        false, true, {},
+        0.0F, -28.0F, view.invalidActionRemaining);
 }
 
 void drawLootInventory(
@@ -310,7 +480,7 @@ void drawLootInventory(
         static_cast<float>(rows) * (SlotSize + Gap);
     if (expanded) {
         ui.drawPanel({PanelX, PanelY, panelWidth, panelHeight}, 210);
-        drawUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
+        drawSdfUiText("ITEMS", {PanelX + 10.0F, PanelY + 7.0F},
                    10.0F, {218, 203, 173, 235});
     }
 
@@ -439,7 +609,7 @@ void drawLootInventory(
         } else {
             const std::string initial(1, lootUpgradeName(effect)[0]);
             const Vector2 size = measureUiText(initial, 20.0F);
-            drawUiText(initial,
+            drawSdfUiText(initial,
                        {center.x - size.x * 0.5F,
                         center.y - size.y * 0.5F},
                        20.0F, {236, 226, 196, 255});
@@ -452,8 +622,8 @@ void drawLootInventory(
             badgeSize.x + 7.0F, 15.0F};
         DrawRectangleRounded(badgeBounds, 0.45F, 5,
                              {13, 18, 20, 245});
-        drawUiText(badge, {badgeBounds.x + 3.0F, badgeBounds.y - 1.0F},
-                   9.0F, RAYWHITE);
+        drawSdfUiText(badge, {badgeBounds.x + 3.0F, badgeBounds.y - 1.0F},
+                   9.0F, UiWhite);
         if (CheckCollisionPointRec(mouse, slot)) {
             hovered = effect;
             hoveredStacks = stacks;
@@ -462,7 +632,7 @@ void drawLootInventory(
     }
 
     if (!expanded && activeCount > shownCount) {
-        drawUiText(
+        drawSdfUiText(
             "+" + std::to_string(activeCount - shownCount),
             {PanelX + panelWidth + 2.0F, PanelY + 18.0F},
             12.0F, {218, 203, 173, 235});
@@ -492,13 +662,13 @@ void drawLootInventory(
         const Rectangle tooltip{
             tooltipX, PanelY, tooltipWidth, 66.0F};
         ui.drawPanel(tooltip, 238);
-        drawUiText(tooltipTitle,
+        drawSdfUiText(tooltipTitle,
                    {tooltip.x + 12.0F, tooltip.y + 9.0F},
                    fitUiTextSize(
                        tooltipTitle, 13.0F, 9.0F,
                        tooltip.width - 24.0F),
                    {122, 218, 255, 255});
-        drawUiText(tooltipDescription,
+        drawSdfUiText(tooltipDescription,
                    {tooltip.x + 12.0F, tooltip.y + 36.0F},
                    fitUiTextSize(
                        tooltipDescription, 10.0F, 7.0F,
@@ -526,74 +696,82 @@ void drawCompactInsight(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const HudViewState& view, bool /*raised*/) {
     static_cast<void>(ui);
-    const float pulse = std::clamp(
-        static_cast<float>(view.insightPulse), 0.0F, 1.0F);
-    const float pointPulse = std::clamp(
-        static_cast<float>(view.treePointPulse), 0.0F, 1.0F);
 
-    const float width = static_cast<float>(GetScreenWidth());
-    constexpr float x = 0.0F;
-    constexpr float y = 0.0F;
-    constexpr float height = 22.0F;
+    constexpr float y = 20.0F;
+    constexpr float OuterHeight = 24.0F;
+    constexpr float LevelSlotWidth = 92.0F;
+    constexpr float ExperienceWidth = 220.0F;
+    constexpr float OuterRadius = 8.0F;
+    constexpr float InnerHeight = 16.0F;
+    constexpr float InnerRadius = 5.0F;
+    constexpr float FillHeight = 10.0F;
+    constexpr float FillRadius = 5.0F;
+    constexpr float InnerHorizontalInset = 5.0F;
+    constexpr Color OuterColor{0, 122, 255, 255};
+    constexpr Color InnerColor{0, 189, 255, 255};
+    constexpr Color FillColor{128, 221, 255, 255};
+    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenMinimum = static_cast<float>(
+        std::min(GetScreenWidth(), GetScreenHeight()));
+    const float minimapSize = std::clamp(
+        screenMinimum * 0.16F, 120.0F, 156.0F);
+    constexpr float MinimapRightMargin = 12.0F;
+    constexpr float CompassMargin = 32.0F;
+    constexpr float PanelMapGap = 18.0F;
+    const float minimapOuterLeft = screenWidth - MinimapRightMargin -
+        CompassMargin * 2.0F - minimapSize;
+    const float totalWidth = LevelSlotWidth + ExperienceWidth;
+    const float x = std::max(
+        18.0F, minimapOuterLeft - PanelMapGap - totalWidth);
     const float requirement = std::max(
         1.0F, static_cast<float>(snapshot.requiredInsight));
     const float fraction = std::clamp(
         static_cast<float>(view.displayedInsight) / requirement,
         0.0F, 1.0F);
-    const float glow = std::max(pulse, pointPulse);
-    constexpr float FrameThickness = 2.0F;
-    constexpr float InnerInset = 3.0F;
-    const Rectangle outerBounds{x, y, width, height};
+    const Rectangle outerBounds{
+        x + LevelSlotWidth, y, ExperienceWidth, OuterHeight};
     const Rectangle innerBounds{
-        x + InnerInset, y + InnerInset,
-        std::max(0.0F, width - InnerInset * 2.0F),
-        height - InnerInset * 2.0F,
+        outerBounds.x + InnerHorizontalInset,
+        y + (OuterHeight - InnerHeight) * 0.5F,
+        ExperienceWidth - InnerHorizontalInset * 2.0F,
+        InnerHeight,
     };
-    DrawRectangleRec(outerBounds, {2, 3, 5, 255});
-    DrawRectangleGradientV(
-        static_cast<int>(innerBounds.x),
-        static_cast<int>(innerBounds.y),
-        static_cast<int>(innerBounds.width * fraction),
-        static_cast<int>(innerBounds.height),
-        {21, 198, 239, 255}, {7, 166, 221, 255});
-    if (glow > 0.01F) {
-        DrawRectangleRec(
-            {innerBounds.x, innerBounds.y,
-             innerBounds.width * fraction, innerBounds.height},
-            {118, 231, 255,
-             static_cast<unsigned char>(glow * 125.0F)});
+    const Rectangle fillTrack{
+        innerBounds.x,
+        y + 5.0F,
+        innerBounds.width,
+        FillHeight,
+    };
+    DrawRectangleRounded(
+        outerBounds, OuterRadius * 2.0F / OuterHeight,
+        8, OuterColor);
+    DrawRectangleRounded(
+        innerBounds, InnerRadius * 2.0F / InnerHeight,
+        8, InnerColor);
+    if (fraction > 0.001F) {
+        const Rectangle fillBounds{
+            fillTrack.x, fillTrack.y,
+            fillTrack.width * fraction, fillTrack.height};
+        DrawRectangleRounded(
+            fillBounds, FillRadius * 2.0F / FillHeight,
+            8, FillColor);
     }
-    if (fraction > 0.001F && fraction < 0.999F) {
-        const float fillEdge = innerBounds.x +
-            innerBounds.width * fraction;
-        DrawRectangleRec(
-            {fillEdge - 1.0F, innerBounds.y, 2.0F,
-             innerBounds.height},
-            {104, 222, 249, 210});
-    }
-    DrawRectangleLinesEx(
-        outerBounds, FrameThickness, {75, 78, 83, 255});
-    DrawRectangleLinesEx(
-        {x + FrameThickness, y + FrameThickness,
-         width - FrameThickness * 2.0F,
-         height - FrameThickness * 2.0F},
-        1.0F, {17, 19, 22, 255});
 
-    const float screenMinimum = static_cast<float>(
-        std::min(GetScreenWidth(), GetScreenHeight()));
-    const float minimapSize = std::clamp(
-        screenMinimum * 0.16F, 120.0F, 156.0F);
     const std::string status =
-        "LVL " + std::to_string(snapshot.playerLevel) +
-        "  •  WAVE " +
-        std::to_string(std::max(0, snapshot.wave));
-    constexpr float statusFontSize = 14.85F;
+        "LVL " + std::to_string(snapshot.playerLevel);
+    constexpr float statusFontSize = 28.0F / 1.68F;
     const Vector2 statusSize = measureUiText(status, statusFontSize);
-    drawUiText(
+    SdfUiTextStyle statusStyle{};
+    statusStyle.fillColor = UiWhite;
+    statusStyle.outlineColor = {49, 49, 49, 255};
+    statusStyle.shadowColor = {82, 82, 82, 255};
+    statusStyle.shadowOffsetPixels = {0.0F, 4.0F};
+    statusStyle.outlinePixels = 3.0F;
+    drawStyledSdfUiText(
         status,
-        {width - minimapSize - 28.0F - statusSize.x,
-         32.0F},
-        statusFontSize, {246, 231, 255, 255});
+        {x + (LevelSlotWidth - statusSize.x) * 0.5F,
+         y + (OuterHeight - statusSize.y) * 0.5F},
+        statusFontSize, statusStyle);
 }
 
 void drawWeaponHotbar(
@@ -628,6 +806,14 @@ void drawWeaponHotbar(
             .cost = {},
             .selected = snapshot.selectedWeapon == weapon,
             .available = true,
+            .upgradeAvailable =
+                weapon == PlayerWeapon::Rifle &&
+                snapshot.rifleLevel < 3 &&
+                snapshot.coreLevel > snapshot.rifleLevel &&
+                (snapshot.unlimitedResources ||
+                 snapshot.crystals >=
+                     snapshot.rifleUpgradeCrystalCost),
+            .icon = ui.weaponTexture(weapon),
         };
         ++slotCount;
     }
@@ -635,7 +821,8 @@ void drawWeaponHotbar(
         ui, std::span<const HotbarSlot>{slots.data(), slotCount},
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
-        true, false);
+        true, false, {}, 0.0F, 0.0F,
+        view.invalidActionRemaining, true);
 }
 
 

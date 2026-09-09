@@ -6,6 +6,19 @@
 #include <ranges>
 
 void runBuildingSystemTests() {
+    {
+        std::array<bool, ian::GameBalance::BuildingTypeCount> allUnlocked;
+        allUnlocked.fill(true);
+        for (const auto category : {ian::BuildingHotbarCategory::Defense,
+                                    ian::BuildingHotbarCategory::Economy}) {
+            const auto creative = ian::makeBuildingHotbarLayout(
+                allUnlocked, category, true, 1, true);
+            require(
+                creative.count == 6U,
+                "creative catalog exposes every defense and economy "
+                "structure at core level one");
+        }
+    }
     std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
     unlocked[static_cast<std::size_t>(ian::BuildingType::Wall)] = true;

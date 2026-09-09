@@ -102,6 +102,27 @@ void runResourceWorldTests() {
         std::count_if(
             clustered.begin(), clustered.end(),
             [](const ian::ResourceNodeDefinition& definition) {
+                return definition.type == ian::ResourceType::Wood;
+            }) == 34,
+        "tree clustering redistributes the fixed generated budget");
+    require(
+        std::count_if(
+            clustered.begin(), clustered.end(),
+            [](const ian::ResourceNodeDefinition& definition) {
+                return definition.type == ian::ResourceType::Stone;
+            }) == 21,
+        "stone clustering redistributes the fixed generated budget");
+    require(
+        std::count_if(
+            clustered.begin(), clustered.end(),
+            [](const ian::ResourceNodeDefinition& definition) {
+                return definition.type == ian::ResourceType::Crystal;
+            }) == 5,
+        "crystal pockets preserve the fixed generated budget");
+    require(
+        std::count_if(
+            clustered.begin(), clustered.end(),
+            [](const ian::ResourceNodeDefinition& definition) {
                 return ian::isDestructibleProp(definition.type);
             }) >= 10,
         "large worlds scatter destructible barrels and crates");
@@ -188,11 +209,11 @@ void runResourceWorldTests() {
     require(nearbyTreePairs >= 25,
             "generated trees form several visible local clusters");
     constexpr std::size_t GeneratedTreeCount = 30U;
-    constexpr std::size_t GeneratedTreeClusterCount = 5U;
+    constexpr std::size_t GeneratedTreeClusterCount = 6U;
     constexpr std::size_t TreesPerGeneratedCluster = 5U;
     static_assert(
         GeneratedTreeClusterCount * TreesPerGeneratedCluster ==
-        25U);
+        GeneratedTreeCount);
     for (std::size_t clusterIndex = 0;
          clusterIndex < GeneratedTreeClusterCount; ++clusterIndex) {
         const std::size_t firstTreeIndex =
@@ -222,6 +243,26 @@ void runResourceWorldTests() {
                     ian::TreeVisualVariantCount;
             }),
         "generated trees select one of nine visual variants");
+
+    int nearbyStonePairs = 0;
+    const std::size_t firstGeneratedStone =
+        clusterInput.size() + GeneratedTreeCount;
+    constexpr std::size_t GeneratedStoneCount = 18U;
+    for (std::size_t left = firstGeneratedStone;
+         left < firstGeneratedStone + GeneratedStoneCount; ++left) {
+        for (std::size_t right = left + 1U;
+             right < firstGeneratedStone + GeneratedStoneCount; ++right) {
+            const double distance = std::hypot(
+                clustered[left].position.x - clustered[right].position.x,
+                clustered[left].position.z - clustered[right].position.z);
+            if (distance < 8.0) {
+                ++nearbyStonePairs;
+            }
+        }
+    }
+    require(
+        nearbyStonePairs >= 12,
+        "generated stones form irregular local resource groups");
 
     config.terrainWorldSize = 384.0;
     config.terrainBoundaryRiseWidth = 48.0;

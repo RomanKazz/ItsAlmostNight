@@ -54,6 +54,9 @@ struct PurchaseBombBundleCommand {};
 struct RevealNearestChestCommand {};
 struct DefeatAllEnemiesCommand {};
 struct ToggleInvulnerabilityCommand {};
+struct GrantInsightCommand {
+    double amount{100.0};
+};
 struct DamageCoreCommand {
     double amount{50.0};
 };
@@ -127,6 +130,7 @@ struct PlayerCommand {
     std::optional<RevealNearestChestCommand> revealNearestChest;
     std::optional<DefeatAllEnemiesCommand> defeatAllEnemies;
     std::optional<ToggleInvulnerabilityCommand> toggleInvulnerability;
+    std::optional<GrantInsightCommand> grantInsight;
     std::optional<DamageCoreCommand> damageCore;
     std::optional<DamagePlayerCommand> damagePlayer;
     std::optional<SpawnEnemyCommand> spawnEnemy;

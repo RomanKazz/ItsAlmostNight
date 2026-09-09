@@ -174,21 +174,53 @@ void App::processInput() {
             landingResponseRemaining_ = 0.0;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
-            runUpgradeChoiceInputDelayRemaining_ = 0.88;
+            runUpgradeChoiceInputDelayRemaining_ = 0.62;
             runUpgradeChoiceInputArmed_ = false;
             runUpgradeOverlayEntranceSeconds_ = 0.0;
+            runUpgradeOverlayExitSeconds_ = 0.0;
+            runUpgradePendingChoice_.reset();
             runUpgradeCardHoverAmounts_.fill(0.0F);
         }
         runUpgradeChoiceInputDelayRemaining_ = std::max(
             0.0, runUpgradeChoiceInputDelayRemaining_ -
                 static_cast<double>(GetFrameTime()));
+        if (runUpgradePendingChoice_) {
+            runUpgradeChoiceInputArmed_ = false;
+            runUpgradeOverlayExitSeconds_ = std::min(
+                RunUpgradeOverlayExitDuration,
+                runUpgradeOverlayExitSeconds_ +
+                    static_cast<double>(GetFrameTime()));
+            if (runUpgradeOverlayExitSeconds_ >=
+                RunUpgradeOverlayExitDuration) {
+                const std::size_t selected =
+                    *runUpgradePendingChoice_;
+                runUpgradePendingChoice_.reset();
+                runUpgradeOverlayExitSeconds_ = 0.0;
+                if (simulation_.selectRunUpgrade(selected)) {
+                    if (!simulation_.snapshot().runUpgradeChoicePending) {
+                        runUpgradeChoiceWasVisible_ = false;
+                        runUpgradeChoiceInputArmed_ = false;
+                        runUpgradeChoiceInputDelayRemaining_ = 0.58;
+                        DisableCursor();
+                    } else {
+                        runUpgradeOverlayEntranceSeconds_ = 0.0;
+                        runUpgradeCardHoverAmounts_.fill(0.0F);
+                        runUpgradeChoiceInputDelayRemaining_ = 0.58;
+                        runUpgradeChoiceInputArmed_ = false;
+                    }
+                } else {
+                    runUpgradeChoiceInputDelayRemaining_ = 0.12;
+                }
+            }
+        }
         const bool choiceInputsReleased =
             !IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
             !IsMouseButtonDown(MOUSE_BUTTON_RIGHT) &&
             !IsKeyDown(KEY_R) && !IsKeyDown(KEY_ONE) &&
             !IsKeyDown(KEY_TWO) && !IsKeyDown(KEY_THREE) &&
             !IsKeyDown(KEY_FOUR) && !IsKeyDown(KEY_FIVE);
-        if (runUpgradeChoiceInputDelayRemaining_ <= 0.0 &&
+        if (!runUpgradePendingChoice_ &&
+            runUpgradeChoiceInputDelayRemaining_ <= 0.0 &&
             choiceInputsReleased) {
             runUpgradeChoiceInputArmed_ = true;
         }
@@ -196,8 +228,10 @@ void App::processInput() {
         if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
             simulation_.rerollRunUpgrades()) {
             runUpgradeOverlayEntranceSeconds_ = 0.0;
+            runUpgradeOverlayExitSeconds_ = 0.0;
+            runUpgradePendingChoice_.reset();
             runUpgradeCardHoverAmounts_.fill(0.0F);
-            runUpgradeChoiceInputDelayRemaining_ = 0.78;
+            runUpgradeChoiceInputDelayRemaining_ = 0.58;
             runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
         }
@@ -223,18 +257,11 @@ void App::processInput() {
             choice = hoveredRunUpgradeChoice(
                 snapshot, GetMousePosition());
         }
-        if (choice && simulation_.selectRunUpgrade(*choice)) {
+        if (choice && !runUpgradePendingChoice_) {
+            runUpgradePendingChoice_ = *choice;
+            runUpgradeOverlayExitSeconds_ = 0.0;
+            runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
-            if (!simulation_.snapshot().runUpgradeChoicePending) {
-                runUpgradeChoiceWasVisible_ = false;
-                runUpgradeChoiceInputArmed_ = false;
-                DisableCursor();
-            } else {
-                runUpgradeOverlayEntranceSeconds_ = 0.0;
-                runUpgradeCardHoverAmounts_.fill(0.0F);
-                runUpgradeChoiceInputDelayRemaining_ = 0.78;
-                runUpgradeChoiceInputArmed_ = false;
-            }
         }
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;
@@ -253,6 +280,8 @@ void App::processInput() {
         runUpgradeChoiceWasVisible_ = false;
         runUpgradeChoiceInputArmed_ = false;
         runUpgradeOverlayEntranceSeconds_ = 0.0;
+        runUpgradeOverlayExitSeconds_ = 0.0;
+        runUpgradePendingChoice_.reset();
         runUpgradeCardHoverAmounts_.fill(0.0F);
         if (snapshot.state != RunState::Paused &&
             snapshot.state != RunState::MainMenu) {
@@ -1166,7 +1195,8 @@ void App::processInput() {
                     buildingHotbarCategory_,
                     currentSnapshot.coreMaxHealth > 0.0,
                     currentSnapshot.coreLevel,
-                    currentSnapshot.sandboxMode);
+                    currentSnapshot.sandboxMode ||
+                        currentSnapshot.unlimitedResources);
             for (std::size_t keyIndex = 0;
                  keyIndex < layout.count; ++keyIndex) {
                 if (IsKeyPressed(BuildingKeys[keyIndex])) {
@@ -1409,6 +1439,9 @@ void App::processInput() {
             (controlDown && IsKeyPressed(KEY_K));
         pendingToggleInvulnerability_ =
             pendingToggleInvulnerability_ || IsKeyPressed(KEY_I);
+        pendingGrantInsight_ = pendingGrantInsight_ ||
+            (currentSnapshot.unlimitedResources &&
+             controlDown && IsKeyPressed(KEY_J));
         pendingDamageCore_ = pendingDamageCore_ ||
             (controlDown && IsKeyPressed(KEY_M));
         if (IsKeyPressed(KEY_Z)) {

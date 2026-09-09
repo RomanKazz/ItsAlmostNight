@@ -94,7 +94,7 @@ void App::drawCoreDefenseMenu() {
                {x + 54.0F, y + 224.0F}, 28.0F,
                {255, 226, 154, 255});
     drawUiText("BLUEPRINT LEVEL " + std::to_string(selected.level),
-               {x + 54.0F, y + 266.0F}, 18.0F, RAYWHITE);
+               {x + 54.0F, y + 266.0F}, 18.0F, UiWhite);
     drawUiText("BUILT: " +
                    std::to_string(selected.existingBuildingCount),
                {x + 310.0F, y + 266.0F}, 18.0F,
@@ -152,7 +152,7 @@ void App::drawCoreDefenseMenu() {
         drawUiText(row.name, {x + 54.0F, rowY}, 15.0F,
                    {203, 195, 179, 255});
         drawUiText(statValue(row.current, row.decimals, row.suffix),
-                   {x + 255.0F, rowY}, 17.0F, RAYWHITE);
+                   {x + 255.0F, rowY}, 17.0F, UiWhite);
         if (row.next) {
             drawUiText(">", {x + 390.0F, rowY}, 17.0F,
                        {245, 184, 76, 255});

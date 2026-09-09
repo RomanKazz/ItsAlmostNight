@@ -15,6 +15,7 @@
 #include <raylib.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -51,10 +52,50 @@ struct WorldMaterialState {
     float terrainAmount{};
     Vector3 terrainGrassTint{0.22F, 0.34F, 0.14F};
     Vector3 terrainDirtTint{0.46F, 0.32F, 0.18F};
+    // World-space terrain texture controls. Scale is texture repeats/metre.
+    float groundTextureScale{0.050F};
+    float groundTextureStrength{1.0F};
+    float groundSaturation{0.70F};
+    float groundBrightness{0.91F};
+    Vector3 groundTextureTint{0.90F, 1.0F, 1.06F};
+    float groundTextureContrast{0.80F};
+    float groundHighlightCompression{0.18F};
+    float groundSecondaryBlend{0.18F};
+    float groundMacroVariation{0.075F};
     float windAmount{};
     float localWindHeight{};
     float distantFadeAmount{};
     float vegetationAmount{};
+    float treeAmount{};
+    Vector3 treeLeafShadowColor{0.192F, 0.345F, 0.275F};
+    Vector3 treeLeafMidColor{0.400F, 0.553F, 0.243F};
+    Vector3 treeLeafLightColor{0.659F, 0.776F, 0.325F};
+    Vector3 treeTrunkShadowColor{0.286F, 0.216F, 0.184F};
+    Vector3 treeTrunkMidColor{0.608F, 0.357F, 0.196F};
+    Vector3 treeTrunkLightColor{0.820F, 0.541F, 0.302F};
+    float treeShadowThreshold{0.38F};
+    float treeHighlightThreshold{0.88F};
+    float treeRampSmoothness{0.19F};
+    float treeHighlightStrength{0.90F};
+    float treeTextureVariation{0.08F};
+    float treeLeafFlatness{0.45F};
+    float bushAmount{};
+    Vector3 bushShadowColor{0.157F, 0.325F, 0.247F};
+    Vector3 bushMidColor{0.333F, 0.498F, 0.224F};
+    Vector3 bushLightColor{0.525F, 0.678F, 0.259F};
+    float bushShadowThreshold{0.28F};
+    float bushHighlightThreshold{0.84F};
+    float bushRampSmoothness{0.10F};
+    float bushHighlightStrength{0.82F};
+    float coniferAmount{};
+    Vector3 coniferShadowColor{0.129F, 0.302F, 0.263F};
+    Vector3 coniferMidColor{0.275F, 0.482F, 0.259F};
+    Vector3 coniferLightColor{0.475F, 0.663F, 0.294F};
+    float coniferShadowThreshold{0.28F};
+    float coniferHighlightThreshold{0.84F};
+    float coniferRampSmoothness{0.11F};
+    float coniferHighlightStrength{0.84F};
+    float coniferFacetBlend{0.58F};
     float hitFlashAmount{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
@@ -68,11 +109,27 @@ struct WorldMaterialState {
 
 struct RendererPerformanceStats {
     PerformanceMetric instancedEnemyDraw;
+    PerformanceMetric gpuWorld;
+    PerformanceMetric gpuPostProcess;
+    PerformanceMetric gpuViewModel;
+    PerformanceMetric gpuViewModelTarget;
+    PerformanceMetric gpuViewModelComposite;
+    PerformanceMetric gpuUi;
+    bool gpuTimersSupported{};
     std::size_t instancedEnemyCount{};
     std::size_t enemyBatchCount{};
     std::size_t lowDetailEnemyCount{};
     std::size_t blobShadowCount{};
     std::size_t blobShadowTriangles{};
+};
+
+enum class RendererGpuStage : std::size_t {
+    World,
+    PostProcess,
+    ViewModelTarget,
+    ViewModelComposite,
+    Ui,
+    Count,
 };
 
 struct GrassClearArea {
@@ -134,9 +191,9 @@ enum class FirstPersonToolVisual {
 };
 
 struct FirstPersonToolTuning {
-    Vector3 position{0.47401315F, -0.409843F, -0.7427701F};
-    Vector3 rotation{19.27515F, -72.26504F, 5.6109023F};
-    float scale{0.9171346F};
+    Vector3 position{0.55401313F, -0.349843F, -0.7427701F};
+    Vector3 rotation{22.0F, -60.0F, 7.0F};
+    float scale{0.74F};
     float windupDegrees{34.0625F};
     float strikeDegrees{-75.38535F};
     float depthPush{-0.098322F};
@@ -146,11 +203,11 @@ struct FirstPersonToolTuning {
     float swapDuration{0.32F};
     float swapDrop{0.72F};
     bool outlineEnabled{true};
-    float outlineWidth{3.3623266F};
-    float outlineStrength{0.3901942F};
-    float rimStrength{0.4286008F};
-    float brightness{1.2466959F};
-    float saturation{1.1411145F};
+    float outlineWidth{2.48F};
+    float outlineStrength{0.78F};
+    float rimStrength{0.30F};
+    float brightness{1.12F};
+    float saturation{0.96F};
 };
 
 [[nodiscard]] bool loadFirstPersonToolTuning(
@@ -234,7 +291,8 @@ class Renderer {
     void drawScenePreview(Rectangle bounds);
     [[nodiscard]] bool beginFirstPersonToolPass();
     void endFirstPersonToolPass(
-        const FirstPersonToolTuning& tuning);
+        const FirstPersonToolTuning& tuning,
+        const WorldLighting* lighting = nullptr);
 
     [[nodiscard]] bool beginShadowPass(const WorldLighting& lighting,
                                        Vector3 focus);
@@ -466,6 +524,9 @@ class Renderer {
     [[nodiscard]] const GraphicsSettings& settings() const;
     [[nodiscard]] const RendererPerformanceStats& performanceStats() const;
     [[nodiscard]] double framePacingMilliseconds() const;
+    void setGpuProfilingEnabled(bool enabled);
+    void beginGpuTimer(RendererGpuStage stage);
+    void endGpuTimer(RendererGpuStage stage);
 
   private:
     struct EnemyBatchKey {
@@ -545,11 +606,50 @@ class Renderer {
         int terrainDirtTint{-1};
         int terrainTexture{-1};
         int terrainTextureEnabled{-1};
+        int groundTextureScale{-1};
+        int groundTextureStrength{-1};
+        int groundSaturation{-1};
+        int groundBrightness{-1};
+        int groundTextureTint{-1};
+        int groundTextureContrast{-1};
+        int groundHighlightCompression{-1};
+        int groundSecondaryBlend{-1};
+        int groundMacroVariation{-1};
         int timeSeconds{-1};
         int windAmount{-1};
         int localWindHeight{-1};
         int distantFadeAmount{-1};
         int vegetationAmount{-1};
+        int treeAmount{-1};
+        int treeLeafShadowColor{-1};
+        int treeLeafMidColor{-1};
+        int treeLeafLightColor{-1};
+        int treeTrunkShadowColor{-1};
+        int treeTrunkMidColor{-1};
+        int treeTrunkLightColor{-1};
+        int treeShadowThreshold{-1};
+        int treeHighlightThreshold{-1};
+        int treeRampSmoothness{-1};
+        int treeHighlightStrength{-1};
+        int treeTextureVariation{-1};
+        int treeLeafFlatness{-1};
+        int bushAmount{-1};
+        int bushShadowColor{-1};
+        int bushMidColor{-1};
+        int bushLightColor{-1};
+        int bushShadowThreshold{-1};
+        int bushHighlightThreshold{-1};
+        int bushRampSmoothness{-1};
+        int bushHighlightStrength{-1};
+        int coniferAmount{-1};
+        int coniferShadowColor{-1};
+        int coniferMidColor{-1};
+        int coniferLightColor{-1};
+        int coniferShadowThreshold{-1};
+        int coniferHighlightThreshold{-1};
+        int coniferRampSmoothness{-1};
+        int coniferHighlightStrength{-1};
+        int coniferFacetBlend{-1};
         int hitFlashAmount{-1};
         int selectionAmount{-1};
         int selectionTint{-1};
@@ -618,6 +718,10 @@ class Renderer {
         int inkOutlinesEnabled{-1};
         int outlineStrength{-1};
         int outlineWidth{-1};
+        int outlineFogFadeStrength{-1};
+        int outlineFogColor{-1};
+        int outlineFogStart{-1};
+        int outlineFogEnd{-1};
         int paperGrainEnabled{-1};
         int paperGrainStrength{-1};
         int menuDofEnabled{-1};
@@ -627,10 +731,12 @@ class Renderer {
         int sceneDepth{-1};
         int sceneNormal{-1};
         int ssaoTexture{-1};
+        int selectionMask{-1};
         int inverseProjection{-1};
         int ssaoTexelSize{-1};
         int ssaoEnabled{-1};
         int ssaoStrength{-1};
+        int selectionMaskEnabled{-1};
     };
 
     struct SsaoLocations {
@@ -678,6 +784,9 @@ class Renderer {
     float menuDepthOfFieldFocusDistance_{18.0F};
     float menuDepthOfFieldFocusRange_{3.0F};
     float menuDepthOfFieldMaximumBlurPixels_{7.0F};
+    Vector3 postProcessFogColor_{0.25F, 0.33F, 0.44F};
+    float postProcessFogStart_{30.0F};
+    float postProcessFogEnd_{75.0F};
     GraphicsResources resources_;
     InstanceBufferPool instanceBuffers_;
     TerrainRenderer terrainRenderer_;
@@ -692,6 +801,9 @@ class Renderer {
         ghostPreviewRestoreMaterial_;
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
+    int selectionOutlineSceneDepthLocation_{-1};
+    int selectionOutlineInverseProjectionLocation_{-1};
+    int selectionOutlineDepthOcclusionEnabledLocation_{-1};
     int selectionMaskTimeLocation_{-1};
     int selectionMaskWindLocation_{-1};
     int selectionMaskColorLocation_{-1};
@@ -707,6 +819,8 @@ class Renderer {
     int viewModelRimStrengthLocation_{-1};
     int viewModelBrightnessLocation_{-1};
     int viewModelSaturationLocation_{-1};
+    int viewModelEnvironmentTintLocation_{-1};
+    int viewModelEnvironmentBrightnessLocation_{-1};
     int grassTintLocation_{-1};
     int grassTimeLocation_{-1};
     int grassCameraPositionLocation_{-1};
@@ -730,6 +844,7 @@ class Renderer {
     int cloudSunIntensityLocation_{-1};
     int cloudAmbientColorLocation_{-1};
     int cloudVisibilityLocation_{-1};
+    int cloudNightAmountLocation_{-1};
     int waterCameraPositionLocation_{-1};
     int waterShallowColorLocation_{-1};
     int waterDeepColorLocation_{-1};
@@ -845,6 +960,26 @@ class Renderer {
     std::map<EnemyPoseKey, std::vector<Matrix>> enemyBonePoseCache_;
     Model enemyCrowdLodModel_{};
     RendererPerformanceStats performanceStats_{};
+    static constexpr std::size_t GpuQueryBufferCount = 4U;
+    struct GpuQuerySlot {
+        unsigned int id{};
+        bool pending{};
+    };
+    std::array<
+        std::array<GpuQuerySlot, GpuQueryBufferCount>,
+        static_cast<std::size_t>(RendererGpuStage::Count)>
+        gpuQueries_{};
+    std::array<
+        std::size_t,
+        static_cast<std::size_t>(RendererGpuStage::Count)>
+        gpuQueryWriteIndices_{};
+    std::optional<RendererGpuStage> activeGpuStage_;
+    std::size_t activeGpuQueryIndex_{};
+    bool gpuProfilingEnabled_{};
+    bool gpuTimersInitialized_{};
+    void initializeGpuTimers();
+    void shutdownGpuTimers();
+    void pollGpuTimers();
     double instancedEnemyMillisecondsThisFrame_{};
     double framePacingMilliseconds_{};
 #if defined(__APPLE__)

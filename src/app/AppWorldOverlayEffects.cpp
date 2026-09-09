@@ -297,6 +297,12 @@ void App::drawBlobShadows(
             if (!node.active) {
                 continue;
             }
+            if constexpr (MinimalWorldVisuals) {
+                if (node.type != ResourceType::Wood &&
+                    node.type != ResourceType::Stone) {
+                    continue;
+                }
+            }
             if (!withinAoDistance(
                     node.position.x, node.position.z)) {
                 continue;
@@ -308,9 +314,9 @@ void App::drawBlobShadows(
                     static_cast<float>(node.visualScale);
             } else if (node.type == ResourceType::Stone) {
                 // The authored rocks are wider than their gameplay radius.
-                // Keep a soft rim visible around that footprint instead of
-                // hiding the entire contact shadow beneath the mesh.
-                radius *= 1.48F;
+                // Leave enough of the soft rim outside the model footprint
+                // to remain readable over the painterly ground texture.
+                radius *= 1.82F;
             } else if (node.type == ResourceType::Crystal) {
                 radius *= 1.18F *
                     static_cast<float>(node.visualScale);
@@ -333,17 +339,17 @@ void App::drawBlobShadows(
                 node.position.y - node.groundOffset);
             const float outerOpacity =
                 node.type == ResourceType::Wood
-                    ? 0.30F
+                    ? 0.176F
                     : node.type == ResourceType::Stone
-                        ? 0.22F
+                        ? 0.34F
                         : node.type == ResourceType::Crystal
                             ? 0.24F
                         : 0.25F;
             const float contactOpacity =
                 node.type == ResourceType::Wood
-                    ? 0.48F
+                    ? 0.34F
                     : node.type == ResourceType::Stone
-                        ? 0.38F
+                        ? 0.52F
                         : node.type == ResourceType::Crystal
                             ? 0.42F
                         : 0.40F;
@@ -358,10 +364,26 @@ void App::drawBlobShadows(
                 groundY + 0.02F,
                  static_cast<float>(node.position.z)},
                 radius *
-                    (node.type == ResourceType::Stone ? 0.68F : 0.52F),
+                    (node.type == ResourceType::Stone ? 0.72F : 0.52F),
                 radius *
-                    (node.type == ResourceType::Stone ? 0.56F : 0.42F),
+                    (node.type == ResourceType::Stone ? 0.60F : 0.42F),
                 contactOpacity);
+        }
+        // Small decorative bushes and rocks remain part of the minimal world
+        // baseline, so keep their grounding AO alongside resource shadows.
+        const auto clearAreas =
+            activeDecorationClearAreas(snapshot);
+        renderer_->drawDecorativeRockAo(
+            camera,
+            static_cast<float>(snapshot.worldLimit),
+            clearAreas);
+        if constexpr (MinimalWorldVisuals) {
+            // Hidden gameplay objects must not leave contact marks behind in
+            // the temporary terrain/tree/rock-only visual baseline.
+            renderer_->endBlobShadowBatch();
+            performanceStats_.blobShadows.sample(
+                performanceMilliseconds(blobShadowStart));
+            return;
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.looseLoot ||
@@ -388,17 +410,6 @@ void App::drawBlobShadows(
                 {position.x, position.y + 0.002F, position.z},
                 radius*0.52F*visible,
                 radius*0.38F*visible, 0.25F*visible);
-        }
-        // Decorative rock/bush AO repeats the full decoration grid traversal.
-        // Keep it for High quality; gameplay-critical objects retain their
-        // contact shadows on every preset.
-        if (renderer_->settings().quality != GraphicsQuality::Low) {
-            const auto clearAreas =
-                activeDecorationClearAreas(snapshot);
-            renderer_->drawDecorativeRockAo(
-                camera,
-                static_cast<float>(snapshot.worldLimit),
-                clearAreas);
         }
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05 ||

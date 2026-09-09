@@ -311,7 +311,8 @@ std::optional<double> Renderer::resourceRaycastDistance(
                 : visualScale;
     position.y += type == ResourceType::Wood
         ? static_cast<float>(TreeVisualGroundOffsets[
-              visualVariant % TreeVisualVariantCount] * visualScale)
+              visualVariant % TreeVisualVariantCount] * visualScale *
+              TreeVisualHeightScale)
         : type == ResourceType::Stone
             ? rockGroundOffset(visualVariant)
             : type == ResourceType::Crystal
@@ -321,11 +322,14 @@ std::optional<double> Renderer::resourceRaycastDistance(
     const Matrix rotation = isDestructibleProp(type)
         ? terrainAlignedRotation(position.x, position.z, yawRadians)
         : MatrixRotateY(yawRadians);
+    const float modelScaleY = type == ResourceType::Wood
+        ? modelScale * TreeVisualHeightScale
+        : modelScale;
     const Matrix transform = MatrixMultiply(
         resource.get().transform,
         MatrixMultiply(
             MatrixMultiply(
-                MatrixScale(modelScale, modelScale, modelScale),
+                MatrixScale(modelScale, modelScaleY, modelScale),
                 rotation),
             MatrixTranslate(position.x, position.y, position.z)));
     return modelColliderRaycastDistance(

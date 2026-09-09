@@ -241,9 +241,7 @@ void App::drawMainMenuWorld(
         {static_cast<float>(snapshot.playerPosition.x),
          static_cast<float>(snapshot.playerPosition.z)},
         1000.0F);
-    if constexpr (!MinimalWorldVisuals) {
-        drawShadowPass(snapshot, lighting);
-    }
+    drawShadowPass(snapshot, lighting);
     renderer_->beginWorldPass(environment.skyHorizon, camera);
     renderer_->drawSky(sky);
     BeginMode3D(camera);

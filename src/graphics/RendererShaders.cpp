@@ -73,6 +73,10 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             GetShaderLocation(shader, "brightness");
         viewModelSaturationLocation_ =
             GetShaderLocation(shader, "saturation");
+        viewModelEnvironmentTintLocation_ =
+            GetShaderLocation(shader, "environmentTint");
+        viewModelEnvironmentBrightnessLocation_ =
+            GetShaderLocation(shader, "environmentBrightness");
     }
     if (resources_.cloudShader().valid()) {
         Shader& shader = resources_.cloudShader().get();
@@ -96,6 +100,8 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             GetShaderLocation(shader, "ambientColor");
         cloudVisibilityLocation_ =
             GetShaderLocation(shader, "visibility");
+        cloudNightAmountLocation_ =
+            GetShaderLocation(shader, "nightAmount");
     }
     if (resources_.waterShader().valid()) {
         Shader& shader = resources_.waterShader().get();
@@ -136,6 +142,14 @@ void Renderer::resolveAuxiliaryShaderLocations() {
         selectionOutlineRadiusLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(),
             "outlineRadius");
+        selectionOutlineSceneDepthLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "sceneDepth");
+        selectionOutlineInverseProjectionLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(),
+            "inverseProjection");
+        selectionOutlineDepthOcclusionEnabledLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(),
+            "depthOcclusionEnabled");
     }
     if (resources_.selectionMaskShader().valid()) {
         Shader& shader = resources_.selectionMaskShader().get();
@@ -301,6 +315,24 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "terrainTexture"),
         .terrainTextureEnabled =
             GetShaderLocation(shader, "terrainTextureEnabled"),
+        .groundTextureScale =
+            GetShaderLocation(shader, "groundTextureScale"),
+        .groundTextureStrength =
+            GetShaderLocation(shader, "groundTextureStrength"),
+        .groundSaturation =
+            GetShaderLocation(shader, "groundSaturation"),
+        .groundBrightness =
+            GetShaderLocation(shader, "groundBrightness"),
+        .groundTextureTint =
+            GetShaderLocation(shader, "groundTextureTint"),
+        .groundTextureContrast =
+            GetShaderLocation(shader, "groundTextureContrast"),
+        .groundHighlightCompression =
+            GetShaderLocation(shader, "groundHighlightCompression"),
+        .groundSecondaryBlend =
+            GetShaderLocation(shader, "groundSecondaryBlend"),
+        .groundMacroVariation =
+            GetShaderLocation(shader, "groundMacroVariation"),
         .timeSeconds = GetShaderLocation(shader, "timeSeconds"),
         .windAmount = GetShaderLocation(shader, "windAmount"),
         .localWindHeight = GetShaderLocation(shader, "localWindHeight"),
@@ -308,6 +340,61 @@ void Renderer::resolveWorldShaderLocations() {
             GetShaderLocation(shader, "distantFadeAmount"),
         .vegetationAmount =
             GetShaderLocation(shader, "vegetationAmount"),
+        .treeAmount = GetShaderLocation(shader, "treeAmount"),
+        .treeLeafShadowColor =
+            GetShaderLocation(shader, "treeLeafShadowColor"),
+        .treeLeafMidColor =
+            GetShaderLocation(shader, "treeLeafMidColor"),
+        .treeLeafLightColor =
+            GetShaderLocation(shader, "treeLeafLightColor"),
+        .treeTrunkShadowColor =
+            GetShaderLocation(shader, "treeTrunkShadowColor"),
+        .treeTrunkMidColor =
+            GetShaderLocation(shader, "treeTrunkMidColor"),
+        .treeTrunkLightColor =
+            GetShaderLocation(shader, "treeTrunkLightColor"),
+        .treeShadowThreshold =
+            GetShaderLocation(shader, "treeShadowThreshold"),
+        .treeHighlightThreshold =
+            GetShaderLocation(shader, "treeHighlightThreshold"),
+        .treeRampSmoothness =
+            GetShaderLocation(shader, "treeRampSmoothness"),
+        .treeHighlightStrength =
+            GetShaderLocation(shader, "treeHighlightStrength"),
+        .treeTextureVariation =
+            GetShaderLocation(shader, "treeTextureVariation"),
+        .treeLeafFlatness =
+            GetShaderLocation(shader, "treeLeafFlatness"),
+        .bushAmount = GetShaderLocation(shader, "bushAmount"),
+        .bushShadowColor =
+            GetShaderLocation(shader, "bushShadowColor"),
+        .bushMidColor = GetShaderLocation(shader, "bushMidColor"),
+        .bushLightColor = GetShaderLocation(shader, "bushLightColor"),
+        .bushShadowThreshold =
+            GetShaderLocation(shader, "bushShadowThreshold"),
+        .bushHighlightThreshold =
+            GetShaderLocation(shader, "bushHighlightThreshold"),
+        .bushRampSmoothness =
+            GetShaderLocation(shader, "bushRampSmoothness"),
+        .bushHighlightStrength =
+            GetShaderLocation(shader, "bushHighlightStrength"),
+        .coniferAmount = GetShaderLocation(shader, "coniferAmount"),
+        .coniferShadowColor =
+            GetShaderLocation(shader, "coniferShadowColor"),
+        .coniferMidColor =
+            GetShaderLocation(shader, "coniferMidColor"),
+        .coniferLightColor =
+            GetShaderLocation(shader, "coniferLightColor"),
+        .coniferShadowThreshold =
+            GetShaderLocation(shader, "coniferShadowThreshold"),
+        .coniferHighlightThreshold =
+            GetShaderLocation(shader, "coniferHighlightThreshold"),
+        .coniferRampSmoothness =
+            GetShaderLocation(shader, "coniferRampSmoothness"),
+        .coniferHighlightStrength =
+            GetShaderLocation(shader, "coniferHighlightStrength"),
+        .coniferFacetBlend =
+            GetShaderLocation(shader, "coniferFacetBlend"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
@@ -445,6 +532,14 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "outlineStrength"),
         .outlineWidth =
             GetShaderLocation(shader, "outlineWidth"),
+        .outlineFogFadeStrength =
+            GetShaderLocation(shader, "outlineFogFadeStrength"),
+        .outlineFogColor =
+            GetShaderLocation(shader, "outlineFogColor"),
+        .outlineFogStart =
+            GetShaderLocation(shader, "outlineFogStart"),
+        .outlineFogEnd =
+            GetShaderLocation(shader, "outlineFogEnd"),
         .paperGrainEnabled =
             GetShaderLocation(shader, "paperGrainEnabled"),
         .paperGrainStrength = GetShaderLocation(
@@ -460,11 +555,14 @@ void Renderer::resolvePostProcessLocations() {
         .sceneDepth = GetShaderLocation(shader, "sceneDepth"),
         .sceneNormal = GetShaderLocation(shader, "sceneNormal"),
         .ssaoTexture = GetShaderLocation(shader, "ssaoTexture"),
+        .selectionMask = GetShaderLocation(shader, "selectionMask"),
         .inverseProjection = GetShaderLocation(
             shader, "inverseProjection"),
         .ssaoTexelSize = GetShaderLocation(shader, "ssaoTexelSize"),
         .ssaoEnabled = GetShaderLocation(shader, "ssaoEnabled"),
         .ssaoStrength = GetShaderLocation(shader, "ssaoStrength"),
+        .selectionMaskEnabled =
+            GetShaderLocation(shader, "selectionMaskEnabled"),
     };
 }
 
@@ -552,6 +650,14 @@ void Renderer::uploadPostProcessSettings() {
            settings_.outlineStrength);
     upload(postProcessLocations_.outlineWidth,
            settings_.outlineWidth);
+    upload(postProcessLocations_.outlineFogFadeStrength,
+           settings_.outlineFogFadeStrength);
+    SetShaderValue(shader, postProcessLocations_.outlineFogColor,
+                   &postProcessFogColor_, SHADER_UNIFORM_VEC3);
+    upload(postProcessLocations_.outlineFogStart,
+           postProcessFogStart_);
+    upload(postProcessLocations_.outlineFogEnd,
+           postProcessFogEnd_);
     upload(postProcessLocations_.paperGrainEnabled,
            settings_.paperGrain ? 1.0F : 0.0F);
     upload(postProcessLocations_.paperGrainStrength,
@@ -569,6 +675,12 @@ void Renderer::uploadPostProcessSettings() {
     const float ssaoStrength = settings_.aoStrength*1.15F;
     upload(postProcessLocations_.ssaoEnabled, ssaoEnabled);
     upload(postProcessLocations_.ssaoStrength, ssaoStrength);
+    const float selectionMaskEnabled =
+        selectionMaskReady_ && resources_.selectionMaskValid()
+            ? 1.0F
+            : 0.0F;
+    upload(postProcessLocations_.selectionMaskEnabled,
+           selectionMaskEnabled);
     SetShaderValueMatrix(
         shader, postProcessLocations_.inverseProjection,
         ssaoInverseProjection_);
@@ -580,6 +692,11 @@ void Renderer::uploadPostProcessSettings() {
     SetShaderValueTexture(
         shader, postProcessLocations_.sceneNormal,
         resources_.sceneNormalTexture());
+    if (selectionMaskEnabled > 0.5F) {
+        SetShaderValueTexture(
+            shader, postProcessLocations_.selectionMask,
+            resources_.selectionMask().texture);
+    }
     if (ssaoEnabled > 0.5F) {
         const Vector2 ssaoTexelSize{
             1.0F / static_cast<float>(
@@ -599,6 +716,9 @@ void Renderer::uploadWorldLighting(const WorldLighting& lighting) {
     auto& shader = resources_.worldShader().get();
     const float fogStart = settings_.fog ? lighting.fogStart : 1000000.0F;
     const float fogEnd = settings_.fog ? lighting.fogEnd : 1000001.0F;
+    postProcessFogColor_ = lighting.fogColor;
+    postProcessFogStart_ = fogStart;
+    postProcessFogEnd_ = fogEnd;
     const float shadowsEnabled =
         settings_.shadows && shadowFrameValid_ &&
                 resources_.shadowMap().valid()
@@ -692,6 +812,25 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.terrainGrassTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.terrainDirtTint,
                    &material.terrainDirtTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.groundTextureScale,
+                   &material.groundTextureScale, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundTextureStrength,
+                   &material.groundTextureStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundSaturation,
+                   &material.groundSaturation, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundBrightness,
+                   &material.groundBrightness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundTextureTint,
+                   &material.groundTextureTint, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.groundTextureContrast,
+                   &material.groundTextureContrast, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundHighlightCompression,
+                   &material.groundHighlightCompression,
+                   SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundSecondaryBlend,
+                   &material.groundSecondaryBlend, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.groundMacroVariation,
+                   &material.groundMacroVariation, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.windAmount,
                    &material.windAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.localWindHeight,
@@ -700,6 +839,66 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.distantFadeAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.vegetationAmount,
                    &material.vegetationAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeAmount,
+                   &material.treeAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeLeafShadowColor,
+                   &material.treeLeafShadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeLeafMidColor,
+                   &material.treeLeafMidColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeLeafLightColor,
+                   &material.treeLeafLightColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeTrunkShadowColor,
+                   &material.treeTrunkShadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeTrunkMidColor,
+                   &material.treeTrunkMidColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeTrunkLightColor,
+                   &material.treeTrunkLightColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.treeShadowThreshold,
+                   &material.treeShadowThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeHighlightThreshold,
+                   &material.treeHighlightThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeRampSmoothness,
+                   &material.treeRampSmoothness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeHighlightStrength,
+                   &material.treeHighlightStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeTextureVariation,
+                   &material.treeTextureVariation, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.treeLeafFlatness,
+                   &material.treeLeafFlatness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.bushAmount,
+                   &material.bushAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.bushShadowColor,
+                   &material.bushShadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.bushMidColor,
+                   &material.bushMidColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.bushLightColor,
+                   &material.bushLightColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.bushShadowThreshold,
+                   &material.bushShadowThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.bushHighlightThreshold,
+                   &material.bushHighlightThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.bushRampSmoothness,
+                   &material.bushRampSmoothness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.bushHighlightStrength,
+                   &material.bushHighlightStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferAmount,
+                   &material.coniferAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferShadowColor,
+                   &material.coniferShadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.coniferMidColor,
+                   &material.coniferMidColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.coniferLightColor,
+                   &material.coniferLightColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.coniferShadowThreshold,
+                   &material.coniferShadowThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferHighlightThreshold,
+                   &material.coniferHighlightThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferRampSmoothness,
+                   &material.coniferRampSmoothness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferHighlightStrength,
+                   &material.coniferHighlightStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.coniferFacetBlend,
+                   &material.coniferFacetBlend, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,

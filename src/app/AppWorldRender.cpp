@@ -350,26 +350,28 @@ void App::drawWorldEntities(
                      {99, 111, 122, 255});
         }
     }
-    WorldMaterialState boundaryForestMaterial{};
-    boundaryForestMaterial.baseColor = {
-        0.45F, 0.53F, 0.43F, 1.0F};
-    boundaryForestMaterial.bakedAo = 0.72F;
-    boundaryForestMaterial.screenAoAmount = 0.0F;
-    boundaryForestMaterial.windAmount = 0.18F;
-    boundaryForestMaterial.distantFadeAmount = 1.0F;
-    boundaryForestMaterial.vegetationAmount = 1.0F;
-    renderer_->setWorldMaterial(boundaryForestMaterial);
-    renderer_->drawBoundaryForest(camera);
     if constexpr (!MinimalWorldVisuals) {
-        WorldMaterialState decorativeRockMaterial{};
-        decorativeRockMaterial.bakedAo = 0.82F;
-        decorativeRockMaterial.screenAoAmount = 0.0F;
-        renderer_->setWorldMaterial(decorativeRockMaterial);
-        renderer_->drawDecorativeRocks(
-            camera,
-            static_cast<float>(snapshot.worldLimit),
-            clearAreas);
+        WorldMaterialState boundaryForestMaterial{};
+        boundaryForestMaterial.baseColor = {
+            0.45F, 0.53F, 0.43F, 1.0F};
+        boundaryForestMaterial.bakedAo = 0.72F;
+        boundaryForestMaterial.screenAoAmount = 0.0F;
+        boundaryForestMaterial.windAmount = 0.18F;
+        boundaryForestMaterial.distantFadeAmount = 1.0F;
+        boundaryForestMaterial.vegetationAmount = 1.0F;
+        boundaryForestMaterial.treeAmount = 1.0F;
+        boundaryForestMaterial.coniferAmount = 1.0F;
+        renderer_->setWorldMaterial(boundaryForestMaterial);
+        renderer_->drawBoundaryForest(camera);
     }
+    WorldMaterialState decorativeRockMaterial{};
+    decorativeRockMaterial.bakedAo = 0.82F;
+    decorativeRockMaterial.screenAoAmount = 0.0F;
+    renderer_->setWorldMaterial(decorativeRockMaterial);
+    renderer_->drawDecorativeRocks(
+        camera,
+        static_cast<float>(snapshot.worldLimit),
+        clearAreas);
     performanceStats_.decorationsRender.sample(
         performanceMilliseconds(decorationsStart));
     const float resourceDrawDistance = static_cast<float>(
@@ -407,8 +409,8 @@ void App::drawWorldEntities(
         material.windAmount =
             node.type == ResourceType::Wood ? 1.0F : 0.0F;
         if (node.type == ResourceType::Wood) {
-            material.distantFadeAmount = 1.0F;
             material.vegetationAmount = 1.0F;
+            material.treeAmount = 1.0F;
         }
         material.hitFlashAmount =
             presentation::resourceHitFlash(
@@ -505,8 +507,8 @@ void App::drawWorldEntities(
         WorldMaterialState treeMaterial{};
         treeMaterial.bakedAo = 0.78F;
         treeMaterial.windAmount = 1.0F;
-        treeMaterial.distantFadeAmount = 1.0F;
         treeMaterial.vegetationAmount = 1.0F;
+        treeMaterial.treeAmount = 1.0F;
         renderer_->setWorldMaterial(treeMaterial);
         if (!renderer_->drawTreesInstanced(
                 resourceTreeDrawInstances_)) {
@@ -520,6 +522,12 @@ void App::drawWorldEntities(
     }
     if constexpr (MinimalWorldVisuals) {
         renderer_->endWorldShader();
+        const auto grassStart = PerformanceClock::now();
+        renderer_->drawGrassInstances(
+            camera.position, static_cast<float>(snapshot.worldLimit),
+            nightAmount, lighting, clearAreas);
+        performanceStats_.grassRender.sample(
+            performanceMilliseconds(grassStart));
         return;
     }
     // Draw the additive loot light in world space before the opaque chest.
@@ -705,6 +713,10 @@ void App::drawWorldEntities(
         material.bakedAo = 0.78F;
         material.baseColor = {1.0F, 1.0F, 1.0F, fade};
         material.windAmount =
+            visual.type == ResourceType::Wood ? 1.0F : 0.0F;
+        material.vegetationAmount =
+            visual.type == ResourceType::Wood ? 1.0F : 0.0F;
+        material.treeAmount =
             visual.type == ResourceType::Wood ? 1.0F : 0.0F;
         renderer_->setWorldMaterial(material);
         const Vector3 position{

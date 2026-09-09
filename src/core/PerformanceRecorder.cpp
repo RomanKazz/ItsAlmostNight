@@ -36,7 +36,13 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "render_ms,present_ms,render_prep_ms,shadow_ms,selection_ms,"
                "terrain_ms,world_objects_ms,decorations_ms,grass_ms,"
                "environment_ms,pond_decor_ms,water_ms,cloud_ms,atmosphere_ms,"
-               "overlays_ms,postprocess_ms,ui_ms,enemy_ai_ms,"
+               "overlays_ms,postprocess_ms,ui_ms,viewmodel_ms,world_ui_ms,"
+               "interaction_prompt_ms,hud_core_ms,resource_gain_ms,"
+               "minimap_ms,ui_overlays_ms,ui_text_ms,ui_text_submissions,"
+               "ui_text_characters,gpu_world_ms,"
+               "gpu_postprocess_ms,gpu_viewmodel_ms,"
+               "gpu_viewmodel_target_ms,gpu_viewmodel_composite_ms,"
+               "gpu_ui_ms,enemy_ai_ms,"
                "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms\n";
     return true;
 }
@@ -63,6 +69,17 @@ void PerformanceRecorder::record(
             << value.waterMs << ',' << value.cloudMs << ','
             << value.atmosphereMs << ',' << value.overlaysMs << ','
             << value.postProcessMs << ',' << value.uiMs << ','
+            << value.viewModelMs << ',' << value.worldUiMs << ','
+            << value.interactionPromptMs << ',' << value.hudCoreMs << ','
+            << value.resourceGainMs << ',' << value.minimapMs << ','
+            << value.uiOverlaysMs << ',' << value.uiTextMs << ','
+            << value.uiTextSubmissions << ','
+            << value.uiTextCharacters << ','
+            << value.gpuWorldMs << ',' << value.gpuPostProcessMs << ','
+            << value.gpuViewModelMs << ','
+            << value.gpuViewModelTargetMs << ','
+            << value.gpuViewModelCompositeMs << ','
+            << value.gpuUiMs << ','
             << value.enemyAiMs << ',' << value.enemyCollisionMs << ','
             << value.enemyDrawMs << ',' << value.blobShadowsMs << '\n';
     ++framesSinceFlush_;

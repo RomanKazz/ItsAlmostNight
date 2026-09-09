@@ -74,6 +74,9 @@ class TerrainHeightfield {
     [[nodiscard]] double spacing() const;
     [[nodiscard]] std::span<const float> samples() const;
     [[nodiscard]] std::span<const PondDefinition> ponds() const;
+    // Stable visual-composition routes. Gameplay landmarks may reuse their
+    // outer endpoints instead of maintaining a second unrelated path system.
+    [[nodiscard]] std::span<const TerrainPathDefinition> paths() const;
     [[nodiscard]] double waterSignedDistance(
         double worldX, double worldZ) const;
     [[nodiscard]] double waterDepth(

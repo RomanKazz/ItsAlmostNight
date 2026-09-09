@@ -10,6 +10,10 @@ void drawWorldBillboardQuad(
     Vector3 center, float width, float height, Color color,
     Vector3 cameraRight, Vector3 cameraUp);
 
+void drawWorldBillboardRoundedRectangle(
+    Vector3 center, float width, float height, float radius,
+    Color color, Vector3 cameraRight, Vector3 cameraUp);
+
 [[nodiscard]] float measureWorldBillboardText(
     std::string_view text, float worldSize);
 

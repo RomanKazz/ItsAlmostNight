@@ -13,13 +13,12 @@
 namespace ian {
 namespace {
 
-constexpr float DecorativeRockClusterSize = 18.0F;
-
-std::uint32_t decorativeRockClusterHash(int x, int z) {
+std::uint32_t decorativeClusterHash(
+    int x, int z, std::uint32_t seed) {
     std::uint32_t value =
         static_cast<std::uint32_t>(x) * 0x8da6b343U ^
         static_cast<std::uint32_t>(z) * 0xd8163841U ^
-        0x27d4eb2fU;
+        0x27d4eb2fU ^ seed;
     value ^= value >> 16U;
     value *= 0x7feb352dU;
     value ^= value >> 15U;
@@ -27,19 +26,20 @@ std::uint32_t decorativeRockClusterHash(int x, int z) {
     return value ^ (value >> 16U);
 }
 
-float decorativeRockClusterDensity(float x, float z) {
-    const float sampleX = x / DecorativeRockClusterSize;
-    const float sampleZ = z / DecorativeRockClusterSize;
+float smoothCompositionField(
+    float x, float z, float scale, std::uint32_t seed) {
+    const float sampleX = x / scale;
+    const float sampleZ = z / scale;
     const int cellX = static_cast<int>(std::floor(sampleX));
     const int cellZ = static_cast<int>(std::floor(sampleZ));
     float blendX = sampleX - static_cast<float>(cellX);
     float blendZ = sampleZ - static_cast<float>(cellZ);
     blendX = blendX * blendX * (3.0F - 2.0F * blendX);
     blendZ = blendZ * blendZ * (3.0F - 2.0F * blendZ);
-    const auto sample = [](int sampleCellX, int sampleCellZ) {
+    const auto sample = [seed](int sampleCellX, int sampleCellZ) {
         return static_cast<float>(
-                   decorativeRockClusterHash(
-                       sampleCellX, sampleCellZ) &
+                   decorativeClusterHash(
+                       sampleCellX, sampleCellZ, seed) &
                    0xffffU) /
                65535.0F;
     };
@@ -50,14 +50,51 @@ float decorativeRockClusterDensity(float x, float z) {
         (sample(cellX + 1, cellZ + 1) -
          sample(cellX, cellZ + 1)) *
             blendX;
-    const float cluster = lower + (upper - lower) * blendZ;
+    return lower + (upper - lower) * blendZ;
+}
+
+float compositionPatchDensity(
+    float x, float z, float scale, std::uint32_t seed) {
+    const float broad = smoothCompositionField(x, z, scale, seed);
+    const float shape = smoothCompositionField(
+        x + scale * 0.61F, z - scale * 0.43F,
+        scale * 0.56F, seed ^ 0x9e3779b9U);
+    const float field = broad * 0.76F + shape * 0.24F;
     float shaped = std::clamp(
-        (cluster - 0.34F) / 0.46F, 0.0F, 1.0F);
+        (field - 0.43F) / 0.36F, 0.0F, 1.0F);
     shaped = shaped * shaped * (3.0F - 2.0F * shaped);
-    // Large quiet gaps, soft outskirts, then a genuinely dense core.
+    // No uniform floor: broad cells can remain completely quiet. Patch cores
+    // grow dense enough to preserve the existing overall visual budget.
     return std::clamp(
-        0.012F + shaped * 0.10F + shaped * shaped * 0.78F,
-        0.012F, 0.89F);
+        shaped * 0.12F + shaped * shaped * 0.76F,
+        0.0F, 0.88F);
+}
+
+struct DecorationComposition {
+    float rocks{};
+    float bushes{};
+    float flora{};
+};
+
+DecorationComposition decorationComposition(
+    float x, float z, std::uint32_t seed) {
+    const float rockPatch = compositionPatchDensity(
+        x, z, 24.0F, seed ^ 0x51f15e5dU);
+    const float bushPatch = compositionPatchDensity(
+        x + 19.0F, z - 27.0F, 29.0F,
+        seed ^ 0xa511e9b3U);
+    const float flowerPatch = compositionPatchDensity(
+        x - 37.0F, z + 16.0F, 22.0F,
+        seed ^ 0x68e31da4U);
+    return {
+        .rocks = rockPatch,
+        .bushes = std::clamp(
+            bushPatch * 0.78F + rockPatch * 0.16F,
+            0.0F, 0.84F),
+        .flora = std::clamp(
+            flowerPatch * 0.84F + bushPatch * 0.12F,
+            0.0F, 0.82F),
+    };
 }
 
 float pathEdgeRockAmount(
@@ -86,6 +123,55 @@ float pathEdgeRockAmount(
     const float outsideCore =
         1.0F - smoothstep(0.28F, 0.82F, center);
     return closeToPath * outsideCore;
+}
+
+float pathDecorationRetention(float pathAmount, bool flora) {
+    float centerAmount = std::clamp(
+        (pathAmount - 0.12F) / 0.76F, 0.0F, 1.0F);
+    centerAmount = centerAmount * centerAmount *
+        (3.0F - 2.0F * centerAmount);
+    // Flowers remain as occasional accents (20% in a packed core). Rounded
+    // bushes are almost absent there and naturally collect beside the route.
+    return 1.0F - centerAmount * (flora ? 0.80F : 0.96F);
+}
+
+float decorativePlantDensity(
+    const DecorationComposition& composition,
+    const TerrainHeightfield* terrain,
+    float x, float z, std::size_t variant) {
+    const bool flora = variant >= 6U;
+    float density = flora ? composition.flora : composition.bushes;
+    const float pathAmount = terrain != nullptr
+        ? static_cast<float>(terrain->pathAmount(x, z))
+        : 0.0F;
+    density *= pathDecorationRetention(pathAmount, flora);
+    if (terrain == nullptr || !flora) {
+        return density;
+    }
+
+    const float shoreDistance = static_cast<float>(
+        terrain->waterSignedDistance(x, z));
+    const auto smoothRange = [](float from, float to, float value) {
+        float amount = std::clamp(
+            (value - from) / std::max(to - from, 0.001F),
+            0.0F, 1.0F);
+        return amount * amount * (3.0F - 2.0F * amount);
+    };
+    if (variant <= 7U) {
+        // Keep colourful flowers beside the bank rather than directly on the
+        // waterline. The modulation is gradual, never a uniform shoreline.
+        density *= 0.22F + smoothRange(
+            0.9F, 2.7F, shoreDistance) * 0.78F;
+    } else {
+        // The plain green plant may form selected moist patches, while the
+        // same broad composition field prevents a continuous lake ring.
+        const float wetBand = smoothRange(
+            0.7F, 1.8F, shoreDistance) *
+            (1.0F - smoothRange(4.0F, 7.0F, shoreDistance));
+        density = std::max(
+            density, wetBand * composition.bushes * 0.58F);
+    }
+    return std::clamp(density, 0.0F, 0.88F);
 }
 
 } // namespace
@@ -232,11 +318,15 @@ void Renderer::drawDecorativeRocks(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 jitterZ;
+            const DecorationComposition composition =
+                decorationComposition(x, z, decorationSeed);
             const float pathEdge = pathEdgeRockAmount(
                 terrainHeightfield_, x, z);
+            const float pathStoneAccent = pathEdge *
+                (0.16F + composition.rocks * 0.64F);
             const float rockDensity = std::max(
-                decorativeRockClusterDensity(x, z),
-                pathEdge * 0.46F);
+                composition.rocks,
+                pathStoneAccent);
             if (unitFloat(hash) > rockDensity) {
                 continue;
             }
@@ -280,8 +370,7 @@ void Renderer::drawDecorativeRocks(
             }
             const float baseScale =
                 0.55F + unitFloat(hash ^ 0xa511e9b3U) * 0.45F;
-            const float clusterStrength =
-                decorativeRockClusterDensity(x, z);
+            const float clusterStrength = composition.rocks;
             const float revealScale =
                 worldRevealScaleAt({x, z});
             if (revealScale <= 0.001F) {
@@ -355,23 +444,15 @@ void Renderer::drawDecorativeRocks(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
                 (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
-            const float sharedCluster =
-                decorativeRockClusterDensity(x, z);
-            const float secondaryCluster =
-                decorativeRockClusterDensity(x + 31.0F, z - 23.0F);
-            const float clusterDensity = std::clamp(
-                sharedCluster * 0.74F + secondaryCluster * 0.34F,
-                0.0F, 0.88F);
+            const DecorationComposition composition =
+                decorationComposition(x, z, decorationSeed);
             const std::size_t selector = static_cast<std::size_t>(
                 (hash ^ 0x7f4a7c15U) % 14U);
             const std::size_t variant = selector < 6U
                 ? selector
                 : selector < 10U ? 6U : selector < 13U ? 7U : 8U;
-            const bool flora = variant >= 6U;
-            const float placementDensity = flora
-                ? std::clamp(0.28F + clusterDensity * 0.62F,
-                             0.28F, 0.82F)
-                : clusterDensity;
+            const float placementDensity = decorativePlantDensity(
+                composition, terrainHeightfield_, x, z, variant);
             if (unitFloat(hash ^ 0x68e31da4U) > placementDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
@@ -384,10 +465,6 @@ void Renderer::drawDecorativeRocks(
             }
             if (terrainHeightfield_ != nullptr &&
                 terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
-                continue;
-            }
-            if (terrainHeightfield_ != nullptr &&
-                terrainHeightfield_->pathAmount(x, z) > 0.06) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -410,7 +487,7 @@ void Renderer::drawDecorativeRocks(
             const float scale =
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
-                (0.90F + sharedCluster * 0.22F) *
+                (0.90F + composition.bushes * 0.22F) *
                 revealScale;
             if (scale <= 0.001F) {
                 continue;
@@ -538,6 +615,9 @@ void Renderer::drawDecorativeRocks(
         static_cast<void>(instanceBuffers_.drawModel(
             model, shader, transforms));
     };
+    WorldMaterialState smallRockMaterial = worldMaterial_;
+    smallRockMaterial.inkOutlineEligible = false;
+    uploadWorldMaterial(smallRockMaterial);
     for (std::size_t variant = 0; variant < VariantCount; ++variant) {
         if (decorativeRockTransforms_[variant].empty() ||
             !resources_.decorativeRockModel(variant).valid()) {
@@ -551,8 +631,13 @@ void Renderer::drawDecorativeRocks(
     constexpr std::size_t LastSmallPlantVariant = 8U;
     rlDrawRenderBatchActive();
     WorldMaterialState bushMaterial = worldMaterial_;
+    // Decorative rocks deliberately skip screen-space AO, but rounded bushes
+    // must contribute to it so their lower lobes and the ground contact do
+    // not appear detached. Thin flowers below keep the inherited zero mask.
+    bushMaterial.screenAoAmount = 0.85F;
     bushMaterial.distantFadeAmount = 1.0F;
     bushMaterial.vegetationAmount = 1.0F;
+    bushMaterial.bushAmount = 1.0F;
     uploadWorldMaterial(bushMaterial);
     for (std::size_t variant = 0; variant < BushVariantCount; ++variant) {
         if (variant >= FirstSmallPlantVariant) {
@@ -573,11 +658,6 @@ void Renderer::drawDecorativeRocks(
     WorldMaterialState smallPlantMaterial = worldMaterial_;
     smallPlantMaterial.inkOutlineEligible = false;
     uploadWorldMaterial(smallPlantMaterial);
-    rlSetBlendFactorsSeparate(
-        RL_ONE, RL_ZERO,
-        RL_ONE, RL_ZERO,
-        RL_FUNC_ADD, RL_FUNC_ADD);
-    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
     for (std::size_t variant = FirstSmallPlantVariant;
          variant <= LastSmallPlantVariant; ++variant) {
         if (decorativeBushTransforms_[variant].empty() ||
@@ -588,7 +668,6 @@ void Renderer::drawDecorativeRocks(
             resources_.decorativeBushModel(variant).get(),
             decorativeBushTransforms_[variant]);
     }
-    EndBlendMode();
     uploadWorldMaterial(worldMaterial_);
     const int disabled = 0;
     rlDrawRenderBatchActive();
@@ -612,9 +691,11 @@ void Renderer::drawDecorativeRockAo(
     constexpr float CoreClearRadius = 10.5F;
     constexpr std::size_t BushVariantCount = 9U;
     constexpr std::array<float, BushVariantCount> BushAoRadii{
-        0.42F, 0.78F, 0.55F, 0.68F, 0.60F, 0.50F,
+        0.44F, 1.30F, 0.72F, 1.00F, 0.72F, 0.62F,
         0.0F, 0.34F, 0.38F,
     };
+    constexpr float RoundedBushOuterOpacity = 0.15F;
+    constexpr float RoundedBushContactOpacity = 0.27F;
     constexpr float BushDrawRadius = 36.0F;
     const int cameraCellX = static_cast<int>(std::floor(
         (cameraPosition.x + 4.0F) / 8.0F));
@@ -704,13 +785,13 @@ void Renderer::drawDecorativeRockAo(
                      instance.groundHeight + 0.018F,
                      instance.position.y},
                     radius, radius * 0.82F,
-                    largePlant ? 0.07F : 0.11F);
+                    largePlant ? 0.07F : RoundedBushOuterOpacity);
                 drawBlobShadow(
                     {instance.position.x,
                      instance.groundHeight + 0.02F,
                      instance.position.y},
                     radius * 0.52F, radius * 0.42F,
-                    largePlant ? 0.12F : 0.19F);
+                    largePlant ? 0.12F : RoundedBushContactOpacity);
             }
         }
         return;
@@ -750,11 +831,15 @@ void Renderer::drawDecorativeRockAo(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * Spacing +
                 (unitFloat(hash >> 15U) - 0.5F) * Spacing * 0.78F;
+            const DecorationComposition composition =
+                decorationComposition(x, z, decorationSeed);
             const float pathEdge = pathEdgeRockAmount(
                 terrainHeightfield_, x, z);
+            const float pathStoneAccent = pathEdge *
+                (0.16F + composition.rocks * 0.64F);
             const float rockDensity = std::max(
-                decorativeRockClusterDensity(x, z),
-                pathEdge * 0.46F);
+                composition.rocks,
+                pathStoneAccent);
             if (unitFloat(hash) > rockDensity) {
                 continue;
             }
@@ -793,7 +878,7 @@ void Renderer::drawDecorativeRockAo(
             const float scale =
                 (0.55F +
                  unitFloat(hash ^ 0xa511e9b3U) * 0.45F) *
-                (0.88F + decorativeRockClusterDensity(x, z) * 0.28F) *
+                (0.88F + composition.rocks * 0.28F) *
                 worldRevealScaleAt({x, z}) *
                 (1.0F - pathEdge * 0.62F);
             if (scale <= 0.001F) {
@@ -835,23 +920,15 @@ void Renderer::drawDecorativeRockAo(
             const float z =
                 (static_cast<float>(cellZ) + 0.5F) * BushSpacing +
                 (unitFloat(hash >> 14U) - 0.5F) * BushSpacing * 0.76F;
-            const float sharedCluster =
-                decorativeRockClusterDensity(x, z);
-            const float secondaryCluster =
-                decorativeRockClusterDensity(x + 31.0F, z - 23.0F);
-            const float clusterDensity = std::clamp(
-                sharedCluster * 0.74F + secondaryCluster * 0.34F,
-                0.0F, 0.88F);
+            const DecorationComposition composition =
+                decorationComposition(x, z, decorationSeed);
             const std::size_t selector = static_cast<std::size_t>(
                 (hash ^ 0x7f4a7c15U) % 14U);
             const std::size_t variant = selector < 6U
                 ? selector
                 : selector < 10U ? 6U : selector < 13U ? 7U : 8U;
-            const bool flora = variant >= 6U;
-            const float placementDensity = flora
-                ? std::clamp(0.28F + clusterDensity * 0.62F,
-                             0.28F, 0.82F)
-                : clusterDensity;
+            const float placementDensity = decorativePlantDensity(
+                composition, terrainHeightfield_, x, z, variant);
             if (unitFloat(hash ^ 0x68e31da4U) > placementDensity ||
                 std::abs(x) > worldLimit - 0.9F ||
                 std::abs(z) > worldLimit - 0.9F ||
@@ -862,9 +939,6 @@ void Renderer::drawDecorativeRockAo(
                 continue;
             }
             if (terrainHeightfield_->waterSignedDistance(x, z) < 1.0) {
-                continue;
-            }
-            if (terrainHeightfield_->pathAmount(x, z) > 0.06) {
                 continue;
             }
             const float cameraX = x - cameraPosition.x;
@@ -885,7 +959,7 @@ void Renderer::drawDecorativeRockAo(
             const float scale =
                 BushVariantScales[variant] *
                 (0.82F + unitFloat(hash ^ 0x68e31da4U) * 0.43F) *
-                (0.90F + sharedCluster * 0.22F) *
+                (0.90F + composition.bushes * 0.22F) *
                 worldRevealScaleAt({x, z});
             if (scale <= 0.001F) {
                 continue;
@@ -900,11 +974,11 @@ void Renderer::drawDecorativeRockAo(
             drawBlobShadow(
                 {x, groundY + 0.018F, z},
                 radius, radius * 0.82F,
-                largePlant ? 0.07F : 0.11F);
+                largePlant ? 0.07F : RoundedBushOuterOpacity);
             drawBlobShadow(
                 {x, groundY + 0.02F, z},
                 radius * 0.52F, radius * 0.42F,
-                largePlant ? 0.12F : 0.19F);
+                largePlant ? 0.12F : RoundedBushContactOpacity);
         }
     }
 }

@@ -32,8 +32,8 @@ inline constexpr std::array<BuildingType, 6> DefenseBuildingOrder{
         BuildingType::Turret,
         BuildingType::Cannon,
         BuildingType::Catapult,
-        BuildingType::SlowTrap,
         BuildingType::SpikeTrap,
+        BuildingType::SlowTrap,
     };
 inline constexpr std::array<BuildingType, 6> EconomyBuildingOrder{
     BuildingType::LumberMill,

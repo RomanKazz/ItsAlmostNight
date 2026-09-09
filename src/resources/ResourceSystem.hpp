@@ -16,6 +16,7 @@ inline constexpr std::size_t TreeVisualVariantsPerStyle = 3U;
 inline constexpr std::size_t TreeVisualVariantCount =
     TreeVisualStyleCount * TreeVisualVariantsPerStyle;
 inline constexpr std::size_t StoneVisualVariantCount = 3U;
+inline constexpr float TreeVisualHeightScale = 0.92F;
 inline constexpr double StoneVisualModelScale = 0.60;
 inline constexpr double CrystalVisualModelScale = 1.55;
 // The authored crystal origin already sits on its bottom surface.

@@ -110,6 +110,8 @@ void InteractionPromptRenderer::updateAnimation(
         wantsVisible ? 0.045F : 0.050F, deltaSeconds);
 
     const bool showProgress = prompt && prompt->showProgress &&
+                              prompt->targetKind !=
+                                  InteractionPromptTargetKind::Resource &&
                               wantsVisible;
     if (showProgress) {
         progress_ = approach(

@@ -24,6 +24,36 @@ enum SettingsPage {
     ToolPage,
 };
 
+struct ResolutionOption {
+    int width;
+    int height;
+};
+
+constexpr std::array ResolutionOptions{
+    ResolutionOption{1280, 720},
+    ResolutionOption{1366, 768},
+    ResolutionOption{1440, 810},
+    ResolutionOption{1600, 900},
+    ResolutionOption{1920, 1080},
+    ResolutionOption{2560, 1440},
+    ResolutionOption{3840, 2160},
+};
+
+void cycleRenderResolution(GraphicsSettings& settings) {
+    int current = -1;
+    for (std::size_t index = 0; index < ResolutionOptions.size(); ++index) {
+        if (ResolutionOptions[index].width == settings.renderWidth &&
+            ResolutionOptions[index].height == settings.renderHeight) {
+            current = static_cast<int>(index);
+            break;
+        }
+    }
+    const std::size_t next = static_cast<std::size_t>(
+        (current + 1) % static_cast<int>(ResolutionOptions.size()));
+    settings.renderWidth = ResolutionOptions[next].width;
+    settings.renderHeight = ResolutionOptions[next].height;
+}
+
 const char* presetName(
     std::optional<GraphicsQuality> preset) {
     if (!preset) {
@@ -44,9 +74,12 @@ const char* presetName(
 
 void App::drawGraphicsPanel() {
     auto& settings = renderer_->settings();
-    DrawRectangle(
-        0, 0, GetScreenWidth(), GetScreenHeight(),
-        {7, 10, 14, 190});
+    const bool liveColorPreview = graphicsPanelTab_ == ColorPage;
+    if (!liveColorPreview) {
+        DrawRectangle(
+            0, 0, GetScreenWidth(), GetScreenHeight(),
+            {7, 10, 14, 190});
+    }
     constexpr float PanelWidth = 900.0F;
     const bool compact = GetScreenHeight() < 900;
     float requestedPanelHeight = 920.0F;
@@ -76,9 +109,13 @@ void App::drawGraphicsPanel() {
     const float ButtonHeight = compact ? 38.0F : 58.0F;
     const float ControlStartY = compact ? 220.0F : 286.0F;
     const float RowHeight = compact ? 44.0F : 62.0F;
+    const float centeredPanelX =
+        (static_cast<float>(GetScreenWidth()) - PanelWidth) * 0.5F;
     const float panelX = std::max(
         Margin,
-        (static_cast<float>(GetScreenWidth()) - PanelWidth) * 0.5F);
+        liveColorPreview
+            ? static_cast<float>(GetScreenWidth()) - PanelWidth - Margin
+            : centeredPanelX);
     const float panelY = std::max(
         compact ? 16.0F : 28.0F,
         (static_cast<float>(GetScreenHeight()) - PanelHeight) * 0.5F);
@@ -196,8 +233,14 @@ void App::drawGraphicsPanel() {
             settings.fullscreen)) {
         settings.fullscreen = !settings.fullscreen;
     }
-    toggleButton(1, y, "PERFORMANCE LOGS",
-                 settings.performanceLogging);
+    if (ui_.drawButton(
+            {contentX + columnWidth + Gap, y,
+             columnWidth, ButtonHeight},
+            TextFormat("RENDER: %d X %d",
+                       settings.renderWidth,
+                       settings.renderHeight))) {
+        cycleRenderResolution(settings);
+    }
     y += ButtonHeight + Gap;
     toggleButton(0, y, "SHADOWS", settings.shadows);
     toggleButton(1, y, "FOG", settings.fog);
@@ -278,10 +321,12 @@ void App::drawGraphicsPanel() {
             : std::string("FPS LIMIT: ") +
                   std::to_string(settings.frameRateLimit);
     if (ui_.drawButton(
-            {contentX, y, contentWidth, ButtonHeight},
+            {contentX, y, columnWidth, ButtonHeight},
             frameRateLabel)) {
         renderer_->cycleFrameRateLimit();
     }
+    toggleButton(1, y, "PERFORMANCE LOGS",
+                 settings.performanceLogging);
     y += ButtonHeight + Gap;
 
     if (ui_.drawButton(

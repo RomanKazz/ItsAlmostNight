@@ -20,6 +20,16 @@ namespace {
 
 constexpr int MaterialMapCount = 12;
 
+float configuredRenderScale(const GraphicsSettings& settings) {
+    constexpr float ReferenceWidth = 1920.0F;
+    constexpr float ReferenceHeight = 1080.0F;
+    return std::clamp(
+        std::min(
+            static_cast<float>(settings.renderWidth) / ReferenceWidth,
+            static_cast<float>(settings.renderHeight) / ReferenceHeight),
+        0.5F, 2.0F);
+}
+
 using Json = nlohmann::json;
 
 std::optional<Json> loadGltfDocument(
@@ -966,6 +976,12 @@ bool ShadowMapResource::load(int size) {
     loaded_ = rlFramebufferComplete(target_.id);
     if (!loaded_) {
         unload();
+    } else {
+        // Linear depth sampling lets the existing PCF kernel resolve the
+        // shadow edge between texel centres instead of exposing the raw
+        // shadow-map grid. This costs no additional texture fetches.
+        SetTextureFilter(target_.depth, TEXTURE_FILTER_BILINEAR);
+        SetTextureWrap(target_.depth, TEXTURE_WRAP_CLAMP);
     }
     return loaded_;
 }
@@ -1039,7 +1055,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     heartOutlineShader_.load(
         "assets/shaders/heart_outline.vs",
         "assets/shaders/coin_outline.fs");
-    terrainTexture_.load("assets/textures/grass_voronoi_tile.png");
+    terrainTexture_.load("assets/textures/grass_painterly_tile.png");
     if (terrainTexture_.valid()) {
         Texture2D& texture = terrainTexture_.get();
         GenTextureMipmaps(&texture);
@@ -1199,11 +1215,11 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     wallTModel_.load("assets/models/construction/walls/t.glb");
     wallCrossModel_.load("assets/models/construction/walls/cross.glb");
     grassModelB_.load(
-        "assets/models/environment/grass/Grass_2_B_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/grass_large.glb");
     grassModelC_.load(
-        "assets/models/environment/grass/Grass_2_C_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/grass_medium.glb");
     grassModelD_.load(
-        "assets/models/environment/grass/Grass_2_D_Singlesided_Color1.gltf");
+        "assets/models/environment/grass/grass_small.glb");
     enemyMinionModel_.load(
         "assets/models/enemies/pink_blob.gltf");
     enemyRogueModel_.load(
@@ -1259,12 +1275,13 @@ void GraphicsResources::updateViewModelTarget(
     } else if (settings.quality == GraphicsQuality::Medium) {
         resolutionScale = 0.75F;
     }
+    resolutionScale *= configuredRenderScale(settings);
     const int width = std::max(
         1, static_cast<int>(std::lround(
-               static_cast<float>(GetRenderWidth()) * resolutionScale)));
+               static_cast<float>(GetScreenWidth()) * resolutionScale)));
     const int height = std::max(
         1, static_cast<int>(std::lround(
-               static_cast<float>(GetRenderHeight()) * resolutionScale)));
+               static_cast<float>(GetScreenHeight()) * resolutionScale)));
     if (width <= 0 || height <= 0 ||
         (width == requestedViewModelWidth_ &&
          height == requestedViewModelHeight_)) {
@@ -1284,7 +1301,15 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         return;
     }
 
-    if (!settings.postProcessing) {
+    const float renderScale = configuredRenderScale(settings);
+    const int outputWidth = GetRenderWidth();
+    const int outputHeight = GetRenderHeight();
+    const int screenWidth = GetScreenWidth();
+    const int screenHeight = GetScreenHeight();
+    const bool needsResolutionTarget =
+        std::abs(renderScale - 1.0F) > 0.001F ||
+        outputWidth != screenWidth || outputHeight != screenHeight;
+    if (!settings.postProcessing && !needsResolutionTarget) {
         sceneTarget_.unload();
         postProcessTarget_.unload();
         ssaoTarget_.unload();
@@ -1295,8 +1320,12 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
         return;
     }
 
-    const int framebufferWidth = GetRenderWidth();
-    const int framebufferHeight = GetRenderHeight();
+    // Use logical screen dimensions as the 3D-resolution baseline. On a
+    // Retina display GetRender* is the larger native backing framebuffer;
+    // reserving that density for HUD/SDF text keeps it crisp without silently
+    // multiplying the cost of all world render targets.
+    const int framebufferWidth = screenWidth;
+    const int framebufferHeight = screenHeight;
     if (framebufferWidth <= 0 || framebufferHeight <= 0) {
         return;
     }
@@ -1308,17 +1337,24 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
     } else if (settings.quality == GraphicsQuality::Medium) {
         qualityScale = 0.90F;
     }
+    const int scaledWidth = std::max(
+        1, static_cast<int>(std::lround(
+               static_cast<float>(framebufferWidth) * renderScale)));
+    const int scaledHeight = std::max(
+        1, static_cast<int>(std::lround(
+               static_cast<float>(framebufferHeight) * renderScale)));
     const int pixelWidth =
-        std::max(1, (framebufferWidth + pixelSize - 1) / pixelSize);
+        std::max(1, (scaledWidth + pixelSize - 1) / pixelSize);
     const int pixelHeight =
-        std::max(1, (framebufferHeight + pixelSize - 1) / pixelSize);
+        std::max(1, (scaledHeight + pixelSize - 1) / pixelSize);
     const int desiredWidth =
         std::max(1, static_cast<int>(std::lround(
                static_cast<float>(pixelWidth) * qualityScale)));
     const int desiredHeight =
         std::max(1, static_cast<int>(std::lround(
                static_cast<float>(pixelHeight) * qualityScale)));
-    const bool needsScreenSpaceBuffers = settings.ssao;
+    const bool needsScreenSpaceBuffers =
+        settings.postProcessing && settings.ssao;
     if (desiredWidth != requestedSceneWidth_ ||
         desiredHeight != requestedSceneHeight_ ||
         !sceneTarget_.valid() ||
@@ -1331,17 +1367,22 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
             sceneTarget_.load(desiredWidth, desiredHeight);
         }
     }
-    if (!postProcessTarget_.valid() ||
-        postProcessTarget_.get().texture.width != desiredWidth ||
-        postProcessTarget_.get().texture.height != desiredHeight) {
-        postProcessTarget_.load(desiredWidth, desiredHeight);
-        if (postProcessTarget_.valid()) {
-            SetTextureFilter(postProcessTarget_.get().texture,
-                             TEXTURE_FILTER_BILINEAR);
+    if (settings.postProcessing) {
+        if (!postProcessTarget_.valid() ||
+            postProcessTarget_.get().texture.width != desiredWidth ||
+            postProcessTarget_.get().texture.height != desiredHeight) {
+            postProcessTarget_.load(desiredWidth, desiredHeight);
+            if (postProcessTarget_.valid()) {
+                SetTextureFilter(postProcessTarget_.get().texture,
+                                 TEXTURE_FILTER_BILINEAR);
+            }
         }
+    } else {
+        postProcessTarget_.unload();
     }
 
-    if (!settings.ssao || !sceneTarget_.valid()) {
+    if (!settings.postProcessing || !settings.ssao ||
+        !sceneTarget_.valid()) {
         ssaoTarget_.unload();
         requestedSsaoWidth_ = 0;
         requestedSsaoHeight_ = 0;
@@ -1365,17 +1406,17 @@ void GraphicsResources::updateFramebuffer(const GraphicsSettings& settings) {
 }
 
 void GraphicsResources::updateSelectionMask(
-    const GraphicsSettings& settings) {
+    const GraphicsSettings&) {
     if (!initialized_) {
         return;
     }
 
-    const bool useSceneTarget =
-        settings.postProcessing && sceneTarget_.valid();
-    const int desiredWidth =
-        useSceneTarget ? requestedSceneWidth_ : GetScreenWidth();
-    const int desiredHeight =
-        useSceneTarget ? requestedSceneHeight_ : GetScreenHeight();
+    // Selection is a UI/readability overlay, so it must not inherit the
+    // reduced internal resolution used by the 3D quality/render-scale
+    // settings. Use the full logical output size, but do not allocate at the
+    // Retina backing size: that quadruples mask fill cost while hovering.
+    const int desiredWidth = GetScreenWidth();
+    const int desiredHeight = GetScreenHeight();
     if (desiredWidth <= 0 || desiredHeight <= 0 ||
         (desiredWidth == requestedSelectionMaskWidth_ &&
          desiredHeight == requestedSelectionMaskHeight_)) {
@@ -1385,6 +1426,13 @@ void GraphicsResources::updateSelectionMask(
     requestedSelectionMaskWidth_ = desiredWidth;
     requestedSelectionMaskHeight_ = desiredHeight;
     selectionMaskTarget_.load(desiredWidth, desiredHeight);
+    if (selectionMaskTarget_.valid()) {
+        // The selection shader consumes the interpolated RGB mask as edge
+        // coverage. Linear sampling gives its exterior contour a one-pixel
+        // antialiased transition without an additional MSAA render target.
+        SetTextureFilter(selectionMaskTarget_.get().texture,
+                         TEXTURE_FILTER_BILINEAR);
+    }
 }
 
 void GraphicsResources::updateShadowMap(const GraphicsSettings& settings) {

@@ -4,6 +4,10 @@
 
 #include <raymath.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+
 namespace ian {
 namespace {
 
@@ -28,6 +32,60 @@ void drawWorldBillboardQuad(
         Vector3Subtract(center, horizontal), vertical);
     DrawTriangle3D(bottomLeft, bottomRight, topRight, color);
     DrawTriangle3D(bottomLeft, topRight, topLeft, color);
+}
+
+void drawWorldBillboardRoundedRectangle(
+    Vector3 center, float width, float height, float radius,
+    Color color, Vector3 cameraRight, Vector3 cameraUp) {
+    if (width <= 0.0F || height <= 0.0F) {
+        return;
+    }
+    radius = std::clamp(
+        radius, 0.0F, std::min(width, height) * 0.5F);
+    if (radius <= 0.0001F) {
+        drawWorldBillboardQuad(
+            center, width, height, color, cameraRight, cameraUp);
+        return;
+    }
+
+    constexpr int CornerSegments = 5;
+    constexpr int PointCount = CornerSegments * 4;
+    std::array<Vector3, PointCount> perimeter{};
+    const float halfWidth = width * 0.5F;
+    const float halfHeight = height * 0.5F;
+    constexpr std::array<Vector2, 4> CornerCenters{{
+        {-1.0F, -1.0F}, {1.0F, -1.0F},
+        {1.0F, 1.0F}, {-1.0F, 1.0F},
+    }};
+    constexpr std::array<float, 4> StartAngles{{
+        PI, PI * 1.5F, 0.0F, PI * 0.5F,
+    }};
+    std::size_t pointIndex = 0;
+    for (std::size_t corner = 0; corner < 4; ++corner) {
+        const float cornerX = CornerCenters[corner].x *
+            (halfWidth - radius);
+        const float cornerY = CornerCenters[corner].y *
+            (halfHeight - radius);
+        for (int segment = 0; segment < CornerSegments; ++segment) {
+            const float angle = StartAngles[corner] +
+                static_cast<float>(segment) *
+                    (PI * 0.5F) /
+                    static_cast<float>(CornerSegments - 1);
+            const float x = cornerX + std::cos(angle) * radius;
+            const float y = cornerY + std::sin(angle) * radius;
+            perimeter[pointIndex++] = Vector3Add(
+                Vector3Add(
+                    center, Vector3Scale(cameraRight, x)),
+                Vector3Scale(cameraUp, y));
+        }
+    }
+    for (std::size_t index = 0; index < perimeter.size(); ++index) {
+        DrawTriangle3D(
+            center,
+            perimeter[index],
+            perimeter[(index + 1U) % perimeter.size()],
+            color);
+    }
 }
 
 float measureWorldBillboardText(

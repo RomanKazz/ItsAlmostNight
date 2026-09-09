@@ -67,6 +67,7 @@ void App::drawShadowPass(
         // Terrain remains a shadow receiver, but rendering it into its own
         // shadow map causes long self-shadowing bands on shallow slopes.
         // Skipping it also makes the shadow pass substantially cheaper.
+        if constexpr (!MinimalWorldVisuals) {
         for (const auto& obstacle : snapshot.mapObstacles) {
             const float width = static_cast<float>(
                 obstacle.collision.maxX - obstacle.collision.minX);
@@ -86,6 +87,7 @@ void App::drawShadowPass(
                 DrawCube(center, width,
                          static_cast<float>(obstacle.height), depth, WHITE);
             }
+        }
         }
 
         // Static props use real geometry in the shadow map near the player,
@@ -201,6 +203,11 @@ void App::drawShadowPass(
                     rock.position, WHITE, rock.scale,
                     rock.visualVariant, rock.yawRadians));
             }
+        }
+
+        if constexpr (MinimalWorldVisuals) {
+            renderer_->endShadowPass();
+            return;
         }
 
         selectResources(

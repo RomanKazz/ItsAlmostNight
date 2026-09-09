@@ -132,12 +132,16 @@ int main() {
             !resources.ssaoShader().valid() ||
             !resources.selectionMaskValid() ||
             !resources.viewModelTargetValid() ||
+            !resources.viewModelCompositeShader().valid() ||
             !resources.enemyMinionModel().valid() ||
             !resources.enemyRogueModel().valid() ||
             !resources.enemyWarriorModel().valid() ||
             !resources.enemySplitterModel().valid() ||
             !resources.enemySplitlingModel().valid() ||
             !resources.spikeTrapModel().valid() ||
+            !resources.grassModelB().valid() ||
+            !resources.grassModelC().valid() ||
+            !resources.grassModelD().valid() ||
             resources.enemyPinkBlobAnimations().find("Idle") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Walk") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Death") == nullptr ||
@@ -249,6 +253,27 @@ int main() {
         if (resources.sceneTargetValid() ||
             resources.ssaoTargetValid()) {
             std::cerr << "post-process disable transition failed\n";
+            result = 1;
+        }
+        settings.pixelSize = 1;
+        settings.renderWidth = 1280;
+        settings.renderHeight = 720;
+        resources.updateFramebuffer(settings);
+        const int expectedScaledWidth = static_cast<int>(std::lround(
+            static_cast<float>(GetScreenWidth()) * (2.0F / 3.0F)));
+        const int expectedScaledHeight = static_cast<int>(std::lround(
+            static_cast<float>(GetScreenHeight()) * (2.0F / 3.0F)));
+        if (!resources.sceneTargetValid() ||
+            resources.sceneWidth() != expectedScaledWidth ||
+            resources.sceneHeight() != expectedScaledHeight) {
+            std::cerr << "render-resolution scale transition failed\n";
+            result = 1;
+        }
+        settings.renderWidth = 1920;
+        settings.renderHeight = 1080;
+        resources.updateFramebuffer(settings);
+        if (resources.sceneTargetValid()) {
+            std::cerr << "native render-resolution transition failed\n";
             result = 1;
         }
         settings.postProcessing = true;

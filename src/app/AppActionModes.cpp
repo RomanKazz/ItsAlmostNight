@@ -42,6 +42,7 @@ void App::resetRunInputState() {
     pendingRevealChest_ = false;
     pendingDefeatAllEnemies_ = false;
     pendingToggleInvulnerability_ = false;
+    pendingGrantInsight_ = false;
     pendingDamageCore_ = false;
     pendingSpawnEnemy_ = false;
     pendingChainLightning_ = false;
@@ -51,6 +52,9 @@ void App::resetRunInputState() {
     runUpgradeChoiceWasVisible_ = false;
     runUpgradeChoiceInputDelayRemaining_ = 0.0;
     runUpgradeChoiceInputArmed_ = false;
+    runUpgradeOverlayEntranceSeconds_ = 0.0;
+    runUpgradeOverlayExitSeconds_ = 0.0;
+    runUpgradePendingChoice_.reset();
 
     primaryAttackHoldSeconds_ = 0.0;
     toolSwingUsesAxe_ = false;
@@ -141,7 +145,8 @@ void App::selectActionMode(
                     snapshot.unlockedBuildings,
                     buildingHotbarCategory_, true,
                     snapshot.coreLevel,
-                    snapshot.sandboxMode);
+                    snapshot.sandboxMode ||
+                        snapshot.unlimitedResources);
             if (layout.indexOf(lastBuildingSelection_)) {
                 pendingBuildingSelection_ = lastBuildingSelection_;
             } else if (layout.count > 0U) {
@@ -175,7 +180,9 @@ void App::selectNextBuildingCategory(
         const auto candidate =
             static_cast<BuildingHotbarCategory>(category);
         if (candidate == BuildingHotbarCategory::Modular) {
-            if (!snapshot.sandboxMode && snapshot.coreLevel < 2) {
+            if (!snapshot.sandboxMode &&
+                !snapshot.unlimitedResources &&
+                snapshot.coreLevel < 2) {
                 continue;
             }
             buildingHotbarCategory_ = candidate;
@@ -187,7 +194,8 @@ void App::selectNextBuildingCategory(
             makeBuildingHotbarLayout(
                 snapshot.unlockedBuildings, candidate, true,
                 snapshot.coreLevel,
-                snapshot.sandboxMode);
+                snapshot.sandboxMode ||
+                    snapshot.unlimitedResources);
         if (layout.count == 0U) continue;
         setFoundationBuildMode(false);
         buildingHotbarCategory_ = candidate;
@@ -215,7 +223,7 @@ void App::selectNextBuildingItem(
             buildingHotbarCategory_,
             snapshot.coreMaxHealth > 0.0,
             snapshot.coreLevel,
-            snapshot.sandboxMode);
+            snapshot.sandboxMode || snapshot.unlimitedResources);
     if (layout.count == 0U) return;
 
     const BuildingType current =

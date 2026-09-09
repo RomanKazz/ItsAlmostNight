@@ -13,6 +13,8 @@ namespace ian {
 struct SimulationSnapshot;
 struct EnemyInstance;
 class TerrainHeightfield;
+class GameUi;
+enum class UiResourceIcon;
 
 using EnemyBoundsProvider =
     std::function<std::optional<BoundingBox>(const EnemyInstance&)>;
@@ -22,6 +24,7 @@ class TargetHealthBar {
     void draw(const SimulationSnapshot& snapshot,
               const Camera3D& camera,
               const TerrainHeightfield& terrain,
+              const GameUi& ui,
               EnemyBoundsProvider enemyBoundsProvider = {});
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id);
@@ -46,6 +49,9 @@ class TargetHealthBar {
     void drawBillboard(Target target, Vector3 anchorPosition,
                        double health, double maxHealth,
                        Color fillColor, const Camera3D& camera,
+                       const GameUi& ui,
+                       std::optional<UiResourceIcon> resourceIcon =
+                           std::nullopt,
                        int buildingLevel = 0,
                        float opacity = 1.0F);
 
@@ -55,6 +61,7 @@ class TargetHealthBar {
         double health{};
         double maxHealth{};
         Color fillColor{WHITE};
+        std::optional<UiResourceIcon> resourceIcon;
         int buildingLevel{};
     };
 

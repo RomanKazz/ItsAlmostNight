@@ -79,6 +79,14 @@ struct AppPerformanceStats {
     PerformanceMetric overlayRender;
     PerformanceMetric postProcess;
     PerformanceMetric uiRender;
+    PerformanceMetric viewModelRender;
+    PerformanceMetric worldUiRender;
+    PerformanceMetric interactionPromptRender;
+    PerformanceMetric hudCoreRender;
+    PerformanceMetric resourceGainRender;
+    PerformanceMetric minimapRender;
+    PerformanceMetric uiOverlaysRender;
+    PerformanceMetric uiTextRender;
     PerformanceMetric present;
     PerformanceMetric enemyRender;
     PerformanceMetric blobShadows;
@@ -94,9 +102,10 @@ class App {
 
   private:
     static constexpr int ToolSettingsTab = 8;
-    // Temporary clean visual-rework baseline. Keep simulation state intact;
-    // render only terrain, trees, and stone resources.
-    static constexpr bool MinimalWorldVisuals = true;
+    static constexpr int ColorSettingsTab = 2;
+    // Full world presentation is restored. Retain the switch only as a
+    // compile-time diagnostic for future isolated rendering work.
+    static constexpr bool MinimalWorldVisuals = false;
     static constexpr double ToolSwapHideFraction = 0.42;
     static constexpr double ToolSwapDurationScale = 1.35;
 
@@ -244,6 +253,8 @@ class App {
     MetaProgression persistedMetaProgression_;
     ModularBuildingRenderer modularBuildingRenderer_;
     std::optional<Renderer> renderer_;
+    ShaderResource vfxImpactShader_;
+    int vfxImpactUseTextureLocation_{-1};
     TextureResource vfxImpactTexture_;
     TextureResource vfxExplosionTexture_;
     TextureResource vfxElectricRingTexture_;
@@ -267,6 +278,8 @@ class App {
     double runUpgradeChoiceInputDelayRemaining_{};
     bool runUpgradeChoiceInputArmed_{};
     double runUpgradeOverlayEntranceSeconds_{};
+    double runUpgradeOverlayExitSeconds_{};
+    std::optional<std::size_t> runUpgradePendingChoice_{};
     std::array<float, MaximumRunUpgradeChoices>
         runUpgradeCardHoverAmounts_{};
     bool fullscreenApplied_{};
@@ -363,6 +376,7 @@ class App {
     bool pendingRevealChest_{};
     bool pendingDefeatAllEnemies_{};
     bool pendingToggleInvulnerability_{};
+    bool pendingGrantInsight_{};
     bool pendingDamageCore_{};
     bool pendingSpawnEnemy_{};
     bool pendingChainLightning_{};
@@ -493,6 +507,16 @@ class App {
     double stoneHudBounceRemaining_{};
     double crystalHudBounceRemaining_{};
     double coinHudBounceRemaining_{};
+    struct HudResourceCounter {
+        double displayed{-1.0};
+        int target{-1};
+        double unitsPerSecond{24.0};
+        bool sequential{true};
+    };
+    HudResourceCounter woodHudCounter_;
+    HudResourceCounter stoneHudCounter_;
+    HudResourceCounter crystalHudCounter_;
+    HudResourceCounter coinHudCounter_;
     double displayedInsight_{-1.0};
     double insightPulseRemaining_{};
     double insightPulseDuration_{0.55};
@@ -522,6 +546,8 @@ class App {
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
+    double displayedPlayerHealthTrail_{-1.0};
+    double displayedPlayerHealthMaximum_{};
     float lowHealthEffect_{};
     double iceImpactFlashRemaining_{};
     double iceWandRecoilRemaining_{};

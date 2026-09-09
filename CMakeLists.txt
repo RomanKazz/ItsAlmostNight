@@ -37,6 +37,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
+# raylib's native SDF generator defaults to a very short two-source-pixel
+# distance range, which is sufficient for antialiasing but clips the 2-4 px
+# UI outlines used by the HUD. Keep the native generator and give it enough
+# signed-distance range/padding for each scalable 64 px UI atlas.
+target_compile_definitions(raylib PRIVATE
+    FONT_SDF_CHAR_PADDING=10
+    FONT_SDF_PIXEL_DIST_SCALE=16.0f
+)
+
 find_package(nlohmann_json 3.11.3 CONFIG QUIET)
 if(NOT nlohmann_json_FOUND)
     FetchContent_Declare(
@@ -394,4 +403,20 @@ if(BUILD_TESTING)
         SKIP_RETURN_CODE 77
         TIMEOUT 60
         LABELS "graphics;integration")
+
+    add_executable(ian_ui_text_sdf_smoke
+        tests/UiTextSdfSmokeTests.cpp
+    )
+    target_link_libraries(ian_ui_text_sdf_smoke PRIVATE
+        ian_text raylib)
+    target_include_directories(ian_ui_text_sdf_smoke SYSTEM PRIVATE
+        "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_ui_text_sdf_smoke)
+    add_test(NAME ian_ui_text_sdf_smoke
+        COMMAND ian_ui_text_sdf_smoke)
+    set_tests_properties(ian_ui_text_sdf_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+        LABELS "graphics;ui;integration")
 endif()

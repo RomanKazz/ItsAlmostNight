@@ -14,8 +14,32 @@
 #include <cstdint>
 #include <cstring>
 
+#if defined(__APPLE__)
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#endif
+
 namespace ian {
 namespace {
+
+PerformanceMetric& gpuMetricForStage(
+    RendererPerformanceStats& stats, RendererGpuStage stage) {
+    switch (stage) {
+    case RendererGpuStage::World:
+        return stats.gpuWorld;
+    case RendererGpuStage::PostProcess:
+        return stats.gpuPostProcess;
+    case RendererGpuStage::ViewModelTarget:
+        return stats.gpuViewModelTarget;
+    case RendererGpuStage::ViewModelComposite:
+        return stats.gpuViewModelComposite;
+    case RendererGpuStage::Ui:
+        return stats.gpuUi;
+    case RendererGpuStage::Count:
+        break;
+    }
+    return stats.gpuUi;
+}
 
 const std::array<std::array<Vector2, 25>, 3>& blobShadowUnitCircles() {
     static const auto circles = [] {
@@ -50,13 +74,16 @@ void Renderer::initialize() {
     resolvePostProcessLocations();
     resolveSsaoLocations();
     resolveAuxiliaryShaderLocations();
+    initializeGpuTimers();
 }
 
 void Renderer::beginFrame() {
+    pollGpuTimers();
     instanceBuffers_.beginFrame();
 }
 
 void Renderer::shutdown() {
+    shutdownGpuTimers();
     frameOpen_ = false;
     worldPassOpen_ = false;
     worldShaderActive_ = false;
@@ -146,6 +173,149 @@ void Renderer::shutdown() {
     instanceBuffers_.shutdown();
     terrainRenderer_.shutdown();
     resources_.shutdown();
+}
+
+void Renderer::initializeGpuTimers() {
+    shutdownGpuTimers();
+#if defined(__APPLE__)
+    constexpr std::size_t StageCount =
+        static_cast<std::size_t>(RendererGpuStage::Count);
+    std::array<GLuint, StageCount * GpuQueryBufferCount> ids{};
+    glGenQueries(static_cast<GLsizei>(ids.size()), ids.data());
+    bool valid = true;
+    for (std::size_t stage = 0; stage < StageCount; ++stage) {
+        for (std::size_t slot = 0; slot < GpuQueryBufferCount; ++slot) {
+            const GLuint id = ids[stage * GpuQueryBufferCount + slot];
+            gpuQueries_[stage][slot].id = id;
+            gpuQueries_[stage][slot].pending = false;
+            valid = valid && id != 0U;
+        }
+    }
+    if (!valid) {
+        glDeleteQueries(static_cast<GLsizei>(ids.size()), ids.data());
+        gpuQueries_ = {};
+        return;
+    }
+    gpuTimersInitialized_ = true;
+    performanceStats_.gpuTimersSupported = true;
+#endif
+}
+
+void Renderer::shutdownGpuTimers() {
+#if defined(__APPLE__)
+    if (gpuTimersInitialized_) {
+        constexpr std::size_t StageCount =
+            static_cast<std::size_t>(RendererGpuStage::Count);
+        std::array<GLuint, StageCount * GpuQueryBufferCount> ids{};
+        for (std::size_t stage = 0; stage < StageCount; ++stage) {
+            for (std::size_t slot = 0; slot < GpuQueryBufferCount; ++slot) {
+                ids[stage * GpuQueryBufferCount + slot] =
+                    gpuQueries_[stage][slot].id;
+            }
+        }
+        glDeleteQueries(static_cast<GLsizei>(ids.size()), ids.data());
+    }
+#endif
+    gpuQueries_ = {};
+    gpuQueryWriteIndices_ = {};
+    activeGpuStage_.reset();
+    activeGpuQueryIndex_ = 0U;
+    gpuProfilingEnabled_ = false;
+    gpuTimersInitialized_ = false;
+    performanceStats_.gpuTimersSupported = false;
+}
+
+void Renderer::setGpuProfilingEnabled(bool enabled) {
+    gpuProfilingEnabled_ = enabled && gpuTimersInitialized_;
+}
+
+void Renderer::beginGpuTimer(RendererGpuStage stage) {
+#if defined(__APPLE__)
+    if (!gpuProfilingEnabled_ || activeGpuStage_ ||
+        stage == RendererGpuStage::Count) {
+        return;
+    }
+    const std::size_t stageIndex = static_cast<std::size_t>(stage);
+    std::size_t slotIndex = gpuQueryWriteIndices_[stageIndex];
+    bool found = false;
+    for (std::size_t attempt = 0; attempt < GpuQueryBufferCount;
+         ++attempt) {
+        if (!gpuQueries_[stageIndex][slotIndex].pending) {
+            found = true;
+            break;
+        }
+        slotIndex = (slotIndex + 1U) % GpuQueryBufferCount;
+    }
+    if (!found) {
+        return;
+    }
+    rlDrawRenderBatchActive();
+    glBeginQuery(
+        GL_TIME_ELAPSED, gpuQueries_[stageIndex][slotIndex].id);
+    activeGpuStage_ = stage;
+    activeGpuQueryIndex_ = slotIndex;
+#else
+    (void)stage;
+#endif
+}
+
+void Renderer::endGpuTimer(RendererGpuStage stage) {
+#if defined(__APPLE__)
+    if (!activeGpuStage_ || *activeGpuStage_ != stage) {
+        return;
+    }
+    rlDrawRenderBatchActive();
+    glEndQuery(GL_TIME_ELAPSED);
+    const std::size_t stageIndex = static_cast<std::size_t>(stage);
+    gpuQueries_[stageIndex][activeGpuQueryIndex_].pending = true;
+    gpuQueryWriteIndices_[stageIndex] =
+        (activeGpuQueryIndex_ + 1U) % GpuQueryBufferCount;
+    activeGpuStage_.reset();
+#else
+    (void)stage;
+#endif
+}
+
+void Renderer::pollGpuTimers() {
+#if defined(__APPLE__)
+    if (!gpuTimersInitialized_) {
+        return;
+    }
+    constexpr std::size_t StageCount =
+        static_cast<std::size_t>(RendererGpuStage::Count);
+    bool viewModelTimerUpdated = false;
+    for (std::size_t stage = 0; stage < StageCount; ++stage) {
+        for (GpuQuerySlot& slot : gpuQueries_[stage]) {
+            if (!slot.pending) {
+                continue;
+            }
+            GLint available = GL_FALSE;
+            glGetQueryObjectiv(
+                slot.id, GL_QUERY_RESULT_AVAILABLE, &available);
+            if (available == GL_FALSE) {
+                continue;
+            }
+            GLuint64 nanoseconds = 0U;
+            glGetQueryObjectui64v(
+                slot.id, GL_QUERY_RESULT, &nanoseconds);
+            gpuMetricForStage(
+                performanceStats_,
+                static_cast<RendererGpuStage>(stage))
+                .sample(static_cast<double>(nanoseconds) / 1'000'000.0);
+            viewModelTimerUpdated = viewModelTimerUpdated ||
+                stage == static_cast<std::size_t>(
+                    RendererGpuStage::ViewModelTarget) ||
+                stage == static_cast<std::size_t>(
+                    RendererGpuStage::ViewModelComposite);
+            slot.pending = false;
+        }
+    }
+    if (viewModelTimerUpdated) {
+        performanceStats_.gpuViewModel.sample(
+            performanceStats_.gpuViewModelTarget.lastMilliseconds +
+            performanceStats_.gpuViewModelComposite.lastMilliseconds);
+    }
+#endif
 }
 
 void Renderer::processInput() {

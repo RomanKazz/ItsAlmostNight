@@ -1,4 +1,8 @@
 #include "ui/GameUi.hpp"
+
+#include "combat/PlayerWeaponSystem.hpp"
+#include "buildings/BuildingSystem.hpp"
+#include "progression/RunUpgrade.hpp"
 #include "ui/UiCString.hpp"
 #include "ui/UiText.hpp"
 #include "localization/Localization.hpp"
@@ -106,6 +110,70 @@ void GameUi::initialize() {
     resourceStone_ = loadTexture("assets/ui/resource_stone.png");
     resourceCrystal_ =
         loadTexture("assets/ui/resource_crystal.png");
+    resourceCoin_ = loadTexture("assets/ui/resource_coin.png");
+    healthPlayer_ = loadTexture("assets/ui/health_player.png");
+    healthCore_ = loadTexture("assets/ui/health_core.png");
+    const auto smoothHudIcon = [](Texture2D& texture) {
+        if (!IsTextureValid(texture)) {
+            return;
+        }
+        GenTextureMipmaps(&texture);
+        SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+    };
+    smoothHudIcon(resourceWood_);
+    smoothHudIcon(resourceStone_);
+    smoothHudIcon(resourceCrystal_);
+    smoothHudIcon(resourceCoin_);
+    smoothHudIcon(healthPlayer_);
+    smoothHudIcon(healthCore_);
+    coreBuildingIcon_ = loadTexture("assets/ui/building_core.png");
+    smoothHudIcon(coreBuildingIcon_);
+    wallBuildingIcon_ = loadTexture("assets/ui/building_wall.png");
+    smoothHudIcon(wallBuildingIcon_);
+    constexpr std::array BuildingIconPaths{
+        "assets/ui/building_ballista.png",
+        "assets/ui/building_cannon.png",
+        "assets/ui/building_catapult.png",
+        "assets/ui/building_spikes.png",
+        "assets/ui/building_turret.png",
+    };
+    for (std::size_t index = 0; index < buildingIcons_.size(); ++index) {
+        buildingIcons_[index] = loadTexture(BuildingIconPaths[index]);
+        smoothHudIcon(buildingIcons_[index]);
+    }
+    constexpr std::array WeaponIconPaths{
+        "assets/ui/weapon_axe.png",
+        "assets/ui/weapon_pickaxe.png",
+        "assets/ui/weapon_club.png",
+    };
+    for (std::size_t index = 0; index < weaponIcons_.size(); ++index) {
+        weaponIcons_[index] = loadTexture(WeaponIconPaths[index]);
+        smoothHudIcon(weaponIcons_[index]);
+    }
+    armorUpgradeIcon_ = loadTexture("assets/ui/upgrade_armor.png");
+    extraUpgradeIcon_ = loadTexture("assets/ui/upgrade_extra.png");
+    heartUpgradeIcon_ = loadTexture("assets/ui/upgrade_heart.png");
+    lifestealUpgradeIcon_ = loadTexture(
+        "assets/ui/upgrade_lifesteal.png");
+    magnetUpgradeIcon_ = loadTexture("assets/ui/upgrade_magnet.png");
+    moveUpgradeIcon_ = loadTexture("assets/ui/upgrade_move.png");
+    pierceUpgradeIcon_ = loadTexture("assets/ui/upgrade_pierce.png");
+    ricochetUpgradeIcon_ = loadTexture(
+        "assets/ui/upgrade_ricochet.png");
+    xpGainUpgradeIcon_ = loadTexture("assets/ui/upgrade_xp_gain.png");
+    smoothHudIcon(armorUpgradeIcon_);
+    smoothHudIcon(extraUpgradeIcon_);
+    smoothHudIcon(heartUpgradeIcon_);
+    smoothHudIcon(lifestealUpgradeIcon_);
+    smoothHudIcon(magnetUpgradeIcon_);
+    smoothHudIcon(moveUpgradeIcon_);
+    smoothHudIcon(pierceUpgradeIcon_);
+    smoothHudIcon(ricochetUpgradeIcon_);
+    smoothHudIcon(xpGainUpgradeIcon_);
+    levelUpBanner_ = loadTexture("assets/ui/levelup.png");
+    smoothHudIcon(levelUpBanner_);
+    levelUpRays_ = loadTexture("assets/ui/levelup_rays.png");
+    smoothHudIcon(levelUpRays_);
     minimapTarget_ = LoadRenderTexture(
         MinimapTargetSize, MinimapTargetSize);
     if (IsTextureValid(minimapTarget_.texture)) {
@@ -114,7 +182,6 @@ void GameUi::initialize() {
     }
     minimapCircleShader_ = LoadShader(
         nullptr, "assets/shaders/minimap_circle.fs");
-    resourceCoin_ = loadTexture("assets/ui/resource_coin.png");
     reloadThemeSlices();
     initializeUiText();
     initialized_ = true;
@@ -149,10 +216,27 @@ void GameUi::shutdown() {
         UnloadRenderTexture(minimapTarget_);
     }
     minimapTarget_ = {};
+    unloadTexture(healthCore_);
+    unloadTexture(healthPlayer_);
+    unloadTexture(coreBuildingIcon_);
+    unloadTexture(wallBuildingIcon_);
     unloadTexture(resourceCrystal_);
     unloadTexture(resourceCoin_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
+    unloadTexture(levelUpRays_);
+    unloadTexture(levelUpBanner_);
+    unloadTexture(xpGainUpgradeIcon_);
+    unloadTexture(ricochetUpgradeIcon_);
+    unloadTexture(pierceUpgradeIcon_);
+    unloadTexture(moveUpgradeIcon_);
+    unloadTexture(magnetUpgradeIcon_);
+    unloadTexture(lifestealUpgradeIcon_);
+    unloadTexture(heartUpgradeIcon_);
+    unloadTexture(extraUpgradeIcon_);
+    unloadTexture(armorUpgradeIcon_);
+    for (auto& icon : buildingIcons_) unloadTexture(icon);
+    for (auto& icon : weaponIcons_) unloadTexture(icon);
     unloadTexture(arrowRight_);
     unloadTexture(arrowLeft_);
     unloadTexture(checkIcon_);
@@ -402,6 +486,73 @@ void GameUi::drawResourceIcon(Rectangle bounds,
         {0.0F, 0.0F, static_cast<float>(texture.width),
          static_cast<float>(texture.height)},
         bounds, {0.0F, 0.0F}, 0.0F, tint);
+}
+
+Texture2D GameUi::buildingTexture(BuildingType type) const {
+    switch (type) {
+    case BuildingType::Core: return coreBuildingIcon_;
+    case BuildingType::Wall: return wallBuildingIcon_;
+    case BuildingType::Turret: return buildingIcons_[0];
+    case BuildingType::Cannon: return buildingIcons_[1];
+    case BuildingType::Catapult: return buildingIcons_[2];
+    case BuildingType::SpikeTrap: return buildingIcons_[3];
+    case BuildingType::GunTurret: return buildingIcons_[4];
+    default: return {};
+    }
+}
+
+Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
+    switch (weapon) {
+    case PlayerWeapon::Axe: return weaponIcons_[0];
+    case PlayerWeapon::Pickaxe: return weaponIcons_[1];
+    case PlayerWeapon::Club: return weaponIcons_[2];
+    default: return {};
+    }
+}
+
+Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
+    switch (effect) {
+    case RunUpgradeEffect::MoveSpeed:
+        return moveUpgradeIcon_;
+    case RunUpgradeEffect::MaximumHealth:
+        return heartUpgradeIcon_;
+    case RunUpgradeEffect::RecoverableArmor:
+        return armorUpgradeIcon_;
+    case RunUpgradeEffect::ProductionSpeed:
+        return xpGainUpgradeIcon_;
+    case RunUpgradeEffect::BloodHarvest:
+        return lifestealUpgradeIcon_;
+    case RunUpgradeEffect::Overkill:
+        return pierceUpgradeIcon_;
+    case RunUpgradeEffect::Ricochet:
+        return ricochetUpgradeIcon_;
+    case RunUpgradeEffect::Salvager:
+        return magnetUpgradeIcon_;
+    case RunUpgradeEffect::TwinBatteries:
+        return extraUpgradeIcon_;
+    default:
+        return {};
+    }
+}
+
+Texture2D GameUi::levelUpBannerTexture() const {
+    return levelUpBanner_;
+}
+
+Texture2D GameUi::levelUpRaysTexture() const {
+    return levelUpRays_;
+}
+
+void GameUi::drawVitalIcon(Rectangle bounds, bool core) const {
+    const Texture2D texture = core ? healthCore_ : healthPlayer_;
+    if (!IsTextureValid(texture)) {
+        return;
+    }
+    DrawTexturePro(
+        texture,
+        {0.0F, 0.0F, static_cast<float>(texture.width),
+         static_cast<float>(texture.height)},
+        bounds, {0.0F, 0.0F}, 0.0F, WHITE);
 }
 
 Texture2D GameUi::resourceTexture(

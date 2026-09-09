@@ -17,6 +17,29 @@
 #include <cstring>
 
 namespace ian {
+namespace {
+
+float smoothUnit(float value) {
+    value = std::clamp(value, 0.0F, 1.0F);
+    return value * value * (3.0F - 2.0F * value);
+}
+
+Vector3 normalizedViewModelTint(Vector3 color) {
+    constexpr Vector3 Luma{0.2126F, 0.7152F, 0.0722F};
+    const float luminance = std::max(Vector3DotProduct(color, Luma), 0.001F);
+    return {
+        std::clamp(color.x / luminance, 0.78F, 1.18F),
+        std::clamp(color.y / luminance, 0.78F, 1.18F),
+        std::clamp(color.z / luminance, 0.78F, 1.18F),
+    };
+}
+
+Vector3 mixViewModelTint(Vector3 from, Vector3 to, float amount) {
+    return Vector3Lerp(from, to, std::clamp(amount, 0.0F, 1.0F));
+}
+
+} // namespace
+
 void Renderer::beginWorldPass(
     Color clearColor, const Camera3D& camera) {
     performanceStats_.instancedEnemyCount = 0U;
@@ -36,8 +59,7 @@ void Renderer::beginWorldPass(
     ssaoInverseProjection_ = MatrixInvert(ssaoProjection_);
     ssaoViewMatrix_ = GetCameraMatrix(camera);
     ssaoFrameReady_ = false;
-    usingOffscreenTarget_ =
-        settings_.postProcessing && resources_.sceneTargetValid();
+    usingOffscreenTarget_ = resources_.sceneTargetValid();
     if (usingOffscreenTarget_) {
         BeginTextureMode(resources_.sceneTarget());
         rlActiveDrawBuffers(
@@ -153,15 +175,7 @@ void Renderer::drawClouds(
     }
 
     const float night = std::clamp(nightAmount, 0.0F, 1.0F);
-    const float nightFadeProgress = std::clamp(
-        (night - 0.30F) / 0.48F, 0.0F, 1.0F);
-    const float smoothNightFade =
-        nightFadeProgress * nightFadeProgress *
-        (3.0F - 2.0F * nightFadeProgress);
-    const float dayVisibility = 1.0F - smoothNightFade;
-    if (dayVisibility <= 0.002F) {
-        return;
-    }
+    const float cloudVisibility = 0.94F - night * 0.08F;
 
     Shader& shader = resources_.cloudShader().get();
     const Vector3 cameraPosition = camera.position;
@@ -182,6 +196,9 @@ void Renderer::drawClouds(
     SetShaderValue(
         shader, cloudAmbientColorLocation_, &lighting.skyAmbientColor,
         SHADER_UNIFORM_VEC3);
+    SetShaderValue(
+        shader, cloudNightAmountLocation_, &night,
+        SHADER_UNIFORM_FLOAT);
 
     struct CloudInstance {
         Vector3 position;
@@ -230,6 +247,11 @@ void Renderer::drawClouds(
         const std::uint32_t seed =
             static_cast<std::uint32_t>(index) * 0x9e3779b9U +
             0x51f15e1dU;
+        // Deterministic gaps break up the previous grid-like coverage while
+        // retaining the same wrapping architecture and fixed upper bound.
+        if (unitFloat(seed + 1U) < 0.30F) {
+            continue;
+        }
         const std::size_t column = index % CloudGridSize;
         const std::size_t row = index / CloudGridSize;
         const float jitterX =
@@ -244,10 +266,16 @@ void Renderer::drawClouds(
         const float baseZ = -WrapHalfExtent +
             (static_cast<float>(row) + 0.5F) * CloudCellSize +
             jitterZ;
+        const float speedVariation =
+            0.88F + unitFloat(seed + 11U) * 0.24F;
+        const float lateralSpeed =
+            0.075F +
+            (unitFloat(seed + 12U) - 0.5F) * 0.08F;
         const float x = wrapAround(
-            baseX + timeSeconds * 1.04F, cameraPosition.x);
+            baseX + timeSeconds * 0.42F * speedVariation,
+            cameraPosition.x);
         const float z = wrapAround(
-            baseZ + timeSeconds * 0.22F,
+            baseZ + timeSeconds * lateralSpeed,
             cameraPosition.z);
         const float offsetX = x - cameraPosition.x;
         const float offsetZ = z - cameraPosition.z;
@@ -271,7 +299,7 @@ void Renderer::drawClouds(
         const float distanceFade = 1.0F -
             smoothstep(FadeStart, FadeEnd, distance);
         const float visibility =
-            dayVisibility * distanceFade * 0.82F;
+            cloudVisibility * distanceFade;
         if (visibility <= 0.002F) {
             continue;
         }
@@ -345,9 +373,8 @@ void Renderer::drawClouds(
                         cloud.position.y,
                         cloud.position.z))));
     }
-    const float visibility = dayVisibility * 0.82F;
     SetShaderValue(
-        shader, cloudVisibilityLocation_, &visibility,
+        shader, cloudVisibilityLocation_, &cloudVisibility,
         SHADER_UNIFORM_FLOAT);
     for (std::size_t variant = 0; variant < transforms.size(); ++variant) {
         const int transformCount = transformCounts[variant];
@@ -392,7 +419,7 @@ void Renderer::endWorldPass() {
             static_cast<float>(GetScreenWidth()),
             static_cast<float>(GetScreenHeight()),
         };
-        const bool useFxaa =
+        const bool useFxaa = settings_.postProcessing &&
             resources_.postProcessShader().valid() &&
             resources_.fxaaShader().valid() &&
             resources_.postProcessTargetValid();
@@ -429,7 +456,8 @@ void Renderer::endWorldPass() {
         } else {
             BeginDrawing();
             ClearBackground(BLACK);
-            if (resources_.postProcessShader().valid()) {
+            if (settings_.postProcessing &&
+                resources_.postProcessShader().valid()) {
                 BeginShaderMode(
                     resources_.postProcessShader().get());
                 uploadPostProcessSettings();
@@ -449,7 +477,8 @@ void Renderer::endWorldPass() {
 
 void Renderer::drawSsaoPass() {
     ssaoFrameReady_ = false;
-    if (!settings_.ssao || !resources_.ssaoShader().valid() ||
+    if (!settings_.postProcessing || !settings_.ssao ||
+        !resources_.ssaoShader().valid() ||
         !resources_.ssaoTargetValid() ||
         !resources_.sceneTargetValid()) {
         return;
@@ -534,7 +563,8 @@ bool Renderer::beginFirstPersonToolPass() {
 }
 
 void Renderer::endFirstPersonToolPass(
-    const FirstPersonToolTuning& tuning) {
+    const FirstPersonToolTuning& tuning,
+    const WorldLighting* lighting) {
     if (!resources_.viewModelTargetValid()) {
         return;
     }
@@ -551,6 +581,28 @@ void Renderer::endFirstPersonToolPass(
         static_cast<float>(GetScreenWidth()),
         static_cast<float>(GetScreenHeight()),
     };
+    // Gameplay tools occupy the lower-right screen region. Scissoring only
+    // the composite keeps the full-resolution source and identical camera,
+    // while avoiding expensive outline samples over empty pixels. Main-menu
+    // showcase rendering passes no world lighting and remains full-screen.
+    const bool cropGameplayComposite = lighting != nullptr;
+    const int compositeLeft = cropGameplayComposite
+        ? static_cast<int>(std::floor(
+              static_cast<float>(GetScreenWidth()) * 0.30F))
+        : 0;
+    const int compositeTop = cropGameplayComposite
+        ? static_cast<int>(std::floor(
+              static_cast<float>(GetScreenHeight()) * 0.12F))
+        : 0;
+    const int compositeWidth = std::max(
+        GetScreenWidth() - compositeLeft, 1);
+    const int compositeHeight = std::max(
+        GetScreenHeight() - compositeTop, 1);
+    if (cropGameplayComposite) {
+        BeginScissorMode(
+            compositeLeft, compositeTop,
+            compositeWidth, compositeHeight);
+    }
     if (resources_.viewModelCompositeShader().valid()) {
         Shader& shader =
             resources_.viewModelCompositeShader().get();
@@ -567,6 +619,34 @@ void Renderer::endFirstPersonToolPass(
             static_cast<float>(std::max(GetRenderWidth(), 1));
         const float scaledOutlineWidth =
             tuning.outlineWidth * targetScale;
+        Vector3 environmentTint{1.0F, 1.0F, 1.0F};
+        float environmentBrightness = 1.0F;
+        if (lighting != nullptr) {
+            // Red falls continuously only as the interpolated environment
+            // enters night. This avoids a second time-of-day state machine.
+            const float nightAmount = smoothUnit(
+                (1.0F - lighting->dayNightTint.x - 0.02F) / 0.24F);
+            const float sunsetAmount = smoothUnit(
+                (lighting->dayNightTint.x -
+                 lighting->dayNightTint.z - 0.10F) / 0.14F) *
+                (1.0F - nightAmount);
+            const Vector3 ambientColor = Vector3Lerp(
+                lighting->groundAmbientColor,
+                lighting->skyAmbientColor, 0.72F);
+            const Vector3 ambientTint =
+                normalizedViewModelTint(ambientColor);
+            const Vector3 sunTint =
+                normalizedViewModelTint(lighting->sunColor);
+            const Vector3 sunsetTint = mixViewModelTint(
+                sunTint, ambientTint, 0.35F);
+            environmentTint = mixViewModelTint(
+                environmentTint, sunsetTint, sunsetAmount * 0.20F);
+            environmentTint = mixViewModelTint(
+                environmentTint, ambientTint, nightAmount * 0.55F);
+            constexpr float FirstPersonNightBrightness = 0.64F;
+            environmentBrightness = 1.0F -
+                nightAmount * (1.0F - FirstPersonNightBrightness);
+        }
         SetShaderValue(shader, viewModelTexelSizeLocation_,
                        &texelSize, SHADER_UNIFORM_VEC2);
         SetShaderValue(shader, viewModelOutlineEnabledLocation_,
@@ -581,14 +661,24 @@ void Renderer::endFirstPersonToolPass(
                        &tuning.brightness, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelSaturationLocation_,
                        &tuning.saturation, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(shader, viewModelEnvironmentTintLocation_,
+                       &environmentTint, SHADER_UNIFORM_VEC3);
+        SetShaderValue(shader, viewModelEnvironmentBrightnessLocation_,
+                       &environmentBrightness, SHADER_UNIFORM_FLOAT);
         BeginShaderMode(shader);
         DrawTexturePro(target.texture, source, destination,
                        {}, 0.0F, WHITE);
         EndShaderMode();
+        if (cropGameplayComposite) {
+            EndScissorMode();
+        }
         return;
     }
     DrawTexturePro(target.texture, source, destination,
                    {}, 0.0F, WHITE);
+    if (cropGameplayComposite) {
+        EndScissorMode();
+    }
 }
 
 void Renderer::drawScenePreview(Rectangle bounds) {
@@ -929,7 +1019,7 @@ void Renderer::drawSelectionOutline() {
             std::sin(
                 static_cast<float>(GetTime()) * 3.2F);
     const int outlineRadius = std::clamp(
-        static_cast<int>(std::ceil(12.0F / outputScale)), 1, 12);
+        static_cast<int>(std::ceil(6.0F / outputScale)), 1, 12);
     SetShaderValue(shader, selectionOutlineRadiusLocation_,
                    &outlineRadius, SHADER_UNIFORM_INT);
     const Rectangle source{
@@ -939,29 +1029,47 @@ void Renderer::drawSelectionOutline() {
     };
     const Rectangle destination{
         0.0F, 0.0F,
-        usingOffscreenTarget_
-            ? static_cast<float>(resources_.sceneWidth())
-            : static_cast<float>(GetScreenWidth()),
-        usingOffscreenTarget_
-            ? static_cast<float>(resources_.sceneHeight())
-            : static_cast<float>(GetScreenHeight()),
+        static_cast<float>(GetScreenWidth()),
+        static_cast<float>(GetScreenHeight()),
     };
+    const bool depthOcclusionEnabled =
+        usingOffscreenTarget_ && resources_.sceneTargetValid() &&
+        resources_.sceneScreenSpaceBuffers();
+    const float depthOcclusionAmount =
+        depthOcclusionEnabled ? 1.0F : 0.0F;
     BeginBlendMode(BLEND_ALPHA);
     if (selectionOutlineBounds_) {
         const Rectangle bounds = *selectionOutlineBounds_;
+        const float boundsScaleX = destination.width /
+            static_cast<float>(std::max(target.texture.width, 1));
+        const float boundsScaleY = destination.height /
+            static_cast<float>(std::max(target.texture.height, 1));
         BeginScissorMode(
-            static_cast<int>(std::floor(bounds.x)),
-            static_cast<int>(std::floor(bounds.y)),
-            std::max(1, static_cast<int>(std::ceil(bounds.width))),
-            std::max(1, static_cast<int>(std::ceil(bounds.height))));
+            static_cast<int>(std::floor(bounds.x * boundsScaleX)),
+            static_cast<int>(std::floor(bounds.y * boundsScaleY)),
+            std::max(1, static_cast<int>(
+                std::ceil(bounds.width * boundsScaleX))),
+            std::max(1, static_cast<int>(
+                std::ceil(bounds.height * boundsScaleY))));
     }
     BeginShaderMode(shader);
+    SetShaderValue(shader,
+                   selectionOutlineDepthOcclusionEnabledLocation_,
+                   &depthOcclusionAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValueMatrix(
+        shader, selectionOutlineInverseProjectionLocation_,
+        ssaoInverseProjection_);
+    if (depthOcclusionEnabled) {
+        SetShaderValueTexture(
+            shader, selectionOutlineSceneDepthLocation_,
+            resources_.sceneTarget().depth);
+    }
     const auto brightness =
         static_cast<unsigned char>(
-            std::lround(244.0F + pulse * 11.0F));
+            std::lround(242.0F + pulse * 7.0F));
     const auto alpha =
         static_cast<unsigned char>(
-            std::lround(238.0F + pulse * 17.0F));
+            std::lround(225.0F + pulse * 12.0F));
     DrawTexturePro(
         target.texture, source, destination,
         {0.0F, 0.0F}, 0.0F,
@@ -970,10 +1078,10 @@ void Renderer::drawSelectionOutline() {
              brightness / 255U),
          static_cast<unsigned char>(
              static_cast<unsigned int>(selectionOutlineTint_.g) *
-             brightness / 255U),
+             static_cast<unsigned int>(brightness * 0.98F) / 255U),
          static_cast<unsigned char>(
              static_cast<unsigned int>(selectionOutlineTint_.b) *
-             brightness / 255U),
+             static_cast<unsigned int>(brightness * 0.92F) / 255U),
          static_cast<unsigned char>(
              static_cast<unsigned int>(selectionOutlineTint_.a) *
              alpha / 255U)});
@@ -1011,6 +1119,10 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
     if (!worldShaderActive_) {
         return;
     }
+    const auto sameVector3 = [](Vector3 left, Vector3 right) {
+        return left.x == right.x && left.y == right.y &&
+            left.z == right.z;
+    };
     if (material.baseColor.x == worldMaterial_.baseColor.x &&
         material.baseColor.y == worldMaterial_.baseColor.y &&
         material.baseColor.z == worldMaterial_.baseColor.z &&
@@ -1025,10 +1137,79 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.terrainDirtTint.x == worldMaterial_.terrainDirtTint.x &&
         material.terrainDirtTint.y == worldMaterial_.terrainDirtTint.y &&
         material.terrainDirtTint.z == worldMaterial_.terrainDirtTint.z &&
+        material.groundTextureScale == worldMaterial_.groundTextureScale &&
+        material.groundTextureStrength ==
+            worldMaterial_.groundTextureStrength &&
+        material.groundSaturation == worldMaterial_.groundSaturation &&
+        material.groundBrightness == worldMaterial_.groundBrightness &&
+        sameVector3(material.groundTextureTint,
+                    worldMaterial_.groundTextureTint) &&
+        material.groundTextureContrast ==
+            worldMaterial_.groundTextureContrast &&
+        material.groundHighlightCompression ==
+            worldMaterial_.groundHighlightCompression &&
+        material.groundSecondaryBlend ==
+            worldMaterial_.groundSecondaryBlend &&
+        material.groundMacroVariation ==
+            worldMaterial_.groundMacroVariation &&
         material.windAmount == worldMaterial_.windAmount &&
         material.localWindHeight == worldMaterial_.localWindHeight &&
         material.distantFadeAmount == worldMaterial_.distantFadeAmount &&
         material.vegetationAmount == worldMaterial_.vegetationAmount &&
+        material.treeAmount == worldMaterial_.treeAmount &&
+        sameVector3(material.treeLeafShadowColor,
+                    worldMaterial_.treeLeafShadowColor) &&
+        sameVector3(material.treeLeafMidColor,
+                    worldMaterial_.treeLeafMidColor) &&
+        sameVector3(material.treeLeafLightColor,
+                    worldMaterial_.treeLeafLightColor) &&
+        sameVector3(material.treeTrunkShadowColor,
+                    worldMaterial_.treeTrunkShadowColor) &&
+        sameVector3(material.treeTrunkMidColor,
+                    worldMaterial_.treeTrunkMidColor) &&
+        sameVector3(material.treeTrunkLightColor,
+                    worldMaterial_.treeTrunkLightColor) &&
+        material.treeShadowThreshold ==
+            worldMaterial_.treeShadowThreshold &&
+        material.treeHighlightThreshold ==
+            worldMaterial_.treeHighlightThreshold &&
+        material.treeRampSmoothness == worldMaterial_.treeRampSmoothness &&
+        material.treeHighlightStrength ==
+            worldMaterial_.treeHighlightStrength &&
+        material.treeTextureVariation == worldMaterial_.treeTextureVariation &&
+        material.treeLeafFlatness == worldMaterial_.treeLeafFlatness &&
+        material.bushAmount == worldMaterial_.bushAmount &&
+        sameVector3(material.bushShadowColor,
+                    worldMaterial_.bushShadowColor) &&
+        sameVector3(material.bushMidColor,
+                    worldMaterial_.bushMidColor) &&
+        sameVector3(material.bushLightColor,
+                    worldMaterial_.bushLightColor) &&
+        material.bushShadowThreshold ==
+            worldMaterial_.bushShadowThreshold &&
+        material.bushHighlightThreshold ==
+            worldMaterial_.bushHighlightThreshold &&
+        material.bushRampSmoothness ==
+            worldMaterial_.bushRampSmoothness &&
+        material.bushHighlightStrength ==
+            worldMaterial_.bushHighlightStrength &&
+        material.coniferAmount == worldMaterial_.coniferAmount &&
+        sameVector3(material.coniferShadowColor,
+                    worldMaterial_.coniferShadowColor) &&
+        sameVector3(material.coniferMidColor,
+                    worldMaterial_.coniferMidColor) &&
+        sameVector3(material.coniferLightColor,
+                    worldMaterial_.coniferLightColor) &&
+        material.coniferShadowThreshold ==
+            worldMaterial_.coniferShadowThreshold &&
+        material.coniferHighlightThreshold ==
+            worldMaterial_.coniferHighlightThreshold &&
+        material.coniferRampSmoothness ==
+            worldMaterial_.coniferRampSmoothness &&
+        material.coniferHighlightStrength ==
+            worldMaterial_.coniferHighlightStrength &&
+        material.coniferFacetBlend ==
+            worldMaterial_.coniferFacetBlend &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&

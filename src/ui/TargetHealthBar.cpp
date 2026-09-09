@@ -1,6 +1,7 @@
 #include "ui/TargetHealthBar.hpp"
 
 #include "game/Simulation.hpp"
+#include "ui/GameUi.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/WorldBillboard.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -43,6 +44,53 @@ Color withOpacity(Color color, float opacity) {
     return color;
 }
 
+Color scaledColor(Color color, float scale) {
+    return {
+        static_cast<unsigned char>(std::clamp(
+            std::lround(static_cast<float>(color.r) * scale),
+            0L, 255L)),
+        static_cast<unsigned char>(std::clamp(
+            std::lround(static_cast<float>(color.g) * scale),
+            0L, 255L)),
+        static_cast<unsigned char>(std::clamp(
+            std::lround(static_cast<float>(color.b) * scale),
+            0L, 255L)),
+        color.a,
+    };
+}
+
+Color resourceHealthColor(ResourceType type) {
+    switch (type) {
+    case ResourceType::Wood:
+        return {221, 128, 49, 255};
+    case ResourceType::Stone:
+        return {120, 161, 190, 255};
+    case ResourceType::Crystal:
+        return {218, 65, 225, 255};
+    case ResourceType::Barrel:
+    case ResourceType::Crate:
+    case ResourceType::ItemCrate:
+        return {232, 172, 62, 255};
+    }
+    return {232, 172, 62, 255};
+}
+
+std::optional<UiResourceIcon> resourceUiIcon(ResourceType type) {
+    switch (type) {
+    case ResourceType::Wood:
+        return UiResourceIcon::Wood;
+    case ResourceType::Stone:
+        return UiResourceIcon::Stone;
+    case ResourceType::Crystal:
+        return UiResourceIcon::Crystal;
+    case ResourceType::Barrel:
+    case ResourceType::Crate:
+    case ResourceType::ItemCrate:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
 Color enemyHealthColor(const EnemyInstance& enemy) {
     if (hasEliteAffix(
             enemy.eliteAffixes, EliteAffix::Warden)) {
@@ -80,6 +128,7 @@ const char* eliteAffixLabel(const EnemyInstance& enemy) {
 void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            const TerrainHeightfield& terrain,
+                           const GameUi& ui,
                            EnemyBoundsProvider enemyBoundsProvider) {
     const double frameSeconds = static_cast<double>(std::clamp(
         GetFrameTime(), 0.0F, 0.10F));
@@ -151,14 +200,19 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             {TargetKind::Enemy, enemy.id},
             anchor,
             enemy.health, enemy.maxHealth,
-            enemyHealthColor(enemy), camera, 0, opacity);
+            enemyHealthColor(enemy), camera, ui,
+            std::nullopt, 0, opacity);
         drawEliteLabel(enemy, anchor, opacity);
     };
 
     const auto resourceAnchor = [&](const ResourceNode& resource) {
-        const float AnchorHeight = isDestructibleProp(resource.type)
-            ? 0.82F * static_cast<float>(resource.visualScale)
-            : 1.12F;
+        const float visualScale =
+            static_cast<float>(resource.visualScale);
+        const float AnchorHeight = resource.type == ResourceType::Wood
+            ? 1.95F * visualScale * TreeVisualHeightScale
+            : isDestructibleProp(resource.type)
+                ? 0.82F * visualScale + 0.58F
+                : 1.45F * visualScale;
         // Resource meshes are placed on the current terrain surface at
         // render time; simulation Y can contain a stale authored offset.
         const float ground = static_cast<float>(terrain.getHeight(
@@ -221,7 +275,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             {TargetKind::Resource, resource.id},
             resourceAnchor(resource),
             resource.health, resource.maxHealth,
-            {235, 186, 55, 255}, camera, 0, opacity);
+            resourceHealthColor(resource.type),
+            camera, ui, resourceUiIcon(resource.type), 0, opacity);
         if (++woundedResourceBars >= MaximumWoundedResourceBars) {
             break;
         }
@@ -309,7 +364,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 .anchorPosition = resourceAnchor(*resource),
                 .health = resource->health,
                 .maxHealth = resource->maxHealth,
-                .fillColor = {235, 186, 55, 255},
+                .fillColor = resourceHealthColor(resource->type),
+                .resourceIcon = resourceUiIcon(resource->type),
             };
         }
     } else if (snapshot.aimedBuilding) {
@@ -462,8 +518,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         drawBillboard(
             visual.target, visual.anchorPosition,
             visual.health, visual.maxHealth,
-            visual.fillColor, camera, visual.buildingLevel,
-            opacity_);
+            visual.fillColor, camera, ui, visual.resourceIcon,
+            visual.buildingLevel, opacity_);
         if (aimedEnemy &&
             visual.target.kind == TargetKind::Enemy &&
             visual.target.id == aimedEnemy->id) {
@@ -517,6 +573,8 @@ void TargetHealthBar::notifyResourceHit(EntityId id) {
 void TargetHealthBar::drawBillboard(
     Target target, Vector3 anchorPosition, double health,
     double maxHealth, Color fillColor, const Camera3D& camera,
+    const GameUi& ui,
+    std::optional<UiResourceIcon> resourceIcon,
     int buildingLevel, float opacity) {
     if (maxHealth <= 0.0) {
         return;
@@ -531,7 +589,7 @@ void TargetHealthBar::drawBillboard(
             repairPulseRemaining_ > 0.0;
         const double blend =
             1.0 - std::exp(
-                -(repairing ? 28.0 : 12.0) *
+                -(repairing ? 28.0 : 3.2) *
                 static_cast<double>(GetFrameTime()));
         displayedHealth_ += (health - displayedHealth_) * blend;
         if (std::abs(displayedHealth_ - health) < 0.01) {
@@ -547,95 +605,134 @@ void TargetHealthBar::drawBillboard(
         Vector3CrossProduct(cameraRight, viewForward));
     const Vector3 towardCamera = Vector3Negate(viewForward);
 
+    if (target.kind == TargetKind::Resource) {
+        // With routine mining prompts hidden, keep the bar just above the
+        // resource instead of leaving it floating in the old prompt stack.
+        anchorPosition = Vector3Add(
+            anchorPosition,
+            Vector3Scale(cameraUp, 0.18F));
+    }
+
     float pulseScale = 1.0F;
     if (repairTarget_ && *repairTarget_ == target.id &&
         repairPulseRemaining_ > 0.0) {
         const float progress = static_cast<float>(
             1.0 - repairPulseRemaining_ / repairPulseDuration_);
         pulseScale += std::sin(progress * PI) *
-                      (1.0F - progress) * 0.1F;
+                      (1.0F - progress) * 0.05F;
     }
-    const float outerWidth = 1.26F * pulseScale;
-    const float outerHeight = 0.252F * pulseScale;
-    constexpr float Border = 0.035F;
+    // One shared world-space scale for bars and their resource icons.
+    constexpr float WorldBarScale = 0.67F;
+    pulseScale *= WorldBarScale;
+    constexpr float WorldWidth = 1.62F;
+    constexpr float WorldHeight = 0.23F;
+    constexpr float InnerInset = 0.035F;
+    constexpr float InnerHeight = 0.175F;
+    constexpr float FillHeight = 0.13F;
+    constexpr float OuterRadius = 0.06F;
+    constexpr float InnerRadius = 0.04F;
+    constexpr float FillRadius = 0.04F;
     constexpr float LayerOffset = 0.004F;
-    const float innerWidth = outerWidth - Border * 2.0F;
-    const float innerHeight = outerHeight - Border * 2.0F;
+    const float outerWidth = WorldWidth * pulseScale;
+    const float outerHeight = WorldHeight * pulseScale;
+    const float innerWidth =
+        (WorldWidth - InnerInset * 2.0F) * pulseScale;
+    const float innerHeight = InnerHeight * pulseScale;
+    const float fillHeight = FillHeight * pulseScale;
+    const float outerRadius = OuterRadius * pulseScale;
+    const float innerRadius = InnerRadius * pulseScale;
+    const float fillRadius = FillRadius * pulseScale;
+    const float layerOffset = LayerOffset;
     const float displayedFraction = static_cast<float>(
         std::clamp(displayedHealth_ / maxHealth, 0.0, 1.0));
     const float actualFraction = static_cast<float>(
         std::clamp(health / maxHealth, 0.0, 1.0));
+    if (target.kind == TargetKind::Building ||
+        target.kind == TargetKind::Foundation) {
+        const float safeHealth = std::clamp(
+            (actualFraction - 0.18F) / 0.52F, 0.0F, 1.0F);
+        const float smoothHealth = safeHealth * safeHealth *
+            (3.0F - 2.0F * safeHealth);
+        fillColor = ColorLerp(
+            {235, 75, 57, 255},
+            {82, 210, 103, 255},
+            smoothHealth);
+    }
+    const Color outerColor{49, 49, 49, 255};
+    const Color innerColor = scaledColor(fillColor, 0.78F);
+    const Color activeColor = ColorLerp(fillColor, WHITE, 0.32F);
+    const Color trailColor = ColorLerp(fillColor, WHITE, 0.68F);
 
     rlDrawRenderBatchActive();
     rlDisableDepthTest();
-    drawWorldBillboardQuad(
-        anchorPosition, outerWidth, outerHeight,
-        withOpacity(WHITE, opacity),
+    constexpr float IconWorldSize = 0.31F;
+    constexpr float IconWorldGap = 0.03F;
+    Vector3 barAnchor = anchorPosition;
+    if (resourceIcon) {
+        const float iconAndGap =
+            (IconWorldSize + IconWorldGap) * pulseScale;
+        barAnchor = Vector3Add(
+            barAnchor,
+            Vector3Scale(cameraRight, iconAndGap * 0.5F));
+    }
+    const Vector3 outerCenter = Vector3Add(
+        barAnchor,
+        Vector3Scale(towardCamera, layerOffset));
+    drawWorldBillboardRoundedRectangle(
+        outerCenter, outerWidth, outerHeight, outerRadius,
+        withOpacity(outerColor, opacity),
         cameraRight, cameraUp);
     const Vector3 innerCenter = Vector3Add(
-        anchorPosition, Vector3Scale(towardCamera, LayerOffset));
-    drawWorldBillboardQuad(
-        innerCenter, innerWidth, innerHeight,
-        withOpacity({25, 22, 20, 255}, opacity),
+        outerCenter, Vector3Scale(towardCamera, layerOffset));
+    drawWorldBillboardRoundedRectangle(
+        innerCenter, innerWidth, innerHeight, innerRadius,
+        withOpacity(innerColor, opacity),
         cameraRight, cameraUp);
 
-    const auto drawSegment =
-        [&](float leftFraction, float rightFraction,
-            Color color, float depthLayers) {
-            if (rightFraction <= leftFraction) {
+    const auto drawFill =
+        [&](float fraction, Color color, float depthLayers) {
+            if (fraction <= 0.0F) {
                 return;
             }
-            const float width =
-                innerWidth * (rightFraction - leftFraction);
+            const float width = innerWidth * fraction;
             const float centerOffset =
-                -innerWidth * 0.5F + innerWidth * leftFraction +
-                width * 0.5F;
+                -innerWidth * 0.5F + width * 0.5F;
             Vector3 center = Vector3Add(
                 innerCenter,
                 Vector3Scale(cameraRight, centerOffset));
             center = Vector3Add(
                 center,
-                Vector3Scale(
-                    towardCamera, LayerOffset * depthLayers));
-            drawWorldBillboardQuad(
-                center, width, innerHeight,
+                Vector3Scale(cameraUp, 0.018F * pulseScale));
+            center = Vector3Add(
+                center, Vector3Scale(
+                    towardCamera, layerOffset * depthLayers));
+            drawWorldBillboardRoundedRectangle(
+                center, width, fillHeight,
+                std::min(fillRadius, width * 0.5F),
                 withOpacity(color, opacity),
                 cameraRight, cameraUp);
         };
-    drawSegment(actualFraction, displayedFraction,
-                {255, 137, 62, 150}, 1.0F);
-    drawSegment(0.0F, actualFraction, fillColor, 2.0F);
+    if (displayedFraction > actualFraction + 0.001F) {
+        drawFill(displayedFraction, trailColor, 1.0F);
+    }
+    drawFill(actualFraction, activeColor, 2.0F);
 
-    const Vector3 borderCenter = Vector3Add(
-        innerCenter, Vector3Scale(towardCamera, LayerOffset));
-    drawWorldBillboardQuad(
-        Vector3Add(
-            borderCenter,
-            Vector3Scale(cameraUp,
-                         (outerHeight - Border) * 0.5F)),
-        outerWidth, Border, withOpacity(WHITE, opacity),
-        cameraRight, cameraUp);
-    drawWorldBillboardQuad(
-        Vector3Subtract(
-            borderCenter,
-            Vector3Scale(cameraUp,
-                         (outerHeight - Border) * 0.5F)),
-        outerWidth, Border, withOpacity(WHITE, opacity),
-        cameraRight, cameraUp);
-    drawWorldBillboardQuad(
-        Vector3Subtract(
-            borderCenter,
-            Vector3Scale(cameraRight,
-                         (outerWidth - Border) * 0.5F)),
-        Border, innerHeight, withOpacity(WHITE, opacity),
-        cameraRight, cameraUp);
-    drawWorldBillboardQuad(
-        Vector3Add(
-            borderCenter,
-            Vector3Scale(cameraRight,
-                         (outerWidth - Border) * 0.5F)),
-        Border, innerHeight, withOpacity(WHITE, opacity),
-        cameraRight, cameraUp);
+    if (resourceIcon) {
+        const Texture2D texture = ui.resourceTexture(*resourceIcon);
+        const float iconSize = IconWorldSize * pulseScale;
+        Vector3 iconCenter = Vector3Subtract(
+            anchorPosition,
+            Vector3Scale(
+                cameraRight,
+                (outerWidth + IconWorldGap * pulseScale) * 0.5F));
+        iconCenter = Vector3Add(
+            iconCenter,
+            Vector3Scale(towardCamera, layerOffset * 4.0F));
+        drawWorldBillboardTexture(
+            texture, iconCenter, {iconSize, iconSize},
+            camera, cameraUp, withOpacity(WHITE, opacity));
+    }
+
     if (buildingLevel > 0) {
         const std::string levelText =
             "LEVEL " + std::to_string(buildingLevel);
@@ -643,11 +740,13 @@ void TargetHealthBar::drawBillboard(
             Vector3Add(
                 anchorPosition,
                 Vector3Scale(cameraUp,
-                             outerHeight * 0.5F + 0.22F)),
-            Vector3Scale(towardCamera, LayerOffset * 4.0F));
+                             outerHeight * 0.5F +
+                                 0.16F)),
+            Vector3Scale(towardCamera, layerOffset * 4.0F));
         rlDrawRenderBatchActive();
         drawWorldBillboardText(
-            levelText, labelCenter, 0.28F, camera,
+            levelText, labelCenter,
+            0.14F, camera,
             cameraRight, cameraUp,
             withOpacity({255, 235, 174, 255}, opacity));
     }

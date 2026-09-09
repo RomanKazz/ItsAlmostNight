@@ -361,6 +361,18 @@ void runTerrainHeightfieldTests() {
         maximumPathAmount > 0.75,
         "terrain generates a visible route to each build plateau");
     require(
+        defaultTerrain.paths().size() == 4U,
+        "terrain keeps a sparse four-route composition network");
+    require(
+        std::all_of(
+            defaultTerrain.paths().begin(),
+            defaultTerrain.paths().end(),
+            [&defaultTerrain](const ian::TerrainPathDefinition& path) {
+                return defaultTerrain.pathAmount(path.toX, path.toZ) >=
+                    0.35;
+            }),
+        "each outer landmark anchor includes a worn approach apron");
+    require(
         defaultTerrain.pathAmount(
             EastPlateauX * 0.5 + 8.0,
             EastPlateauZ * 0.5 + 10.0) < 0.05,

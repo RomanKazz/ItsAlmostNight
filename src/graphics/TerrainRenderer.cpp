@@ -15,6 +15,41 @@
 namespace ian {
 namespace {
 
+[[nodiscard]] std::uint32_t mountainHash(
+    int x, int z, std::uint32_t seed) {
+    std::uint32_t value = seed ^
+        static_cast<std::uint32_t>(x) * 0x9e3779b9U ^
+        static_cast<std::uint32_t>(z) * 0x85ebca6bU;
+    value ^= value >> 16U;
+    value *= 0x7feb352dU;
+    value ^= value >> 15U;
+    value *= 0x846ca68bU;
+    return value ^ (value >> 16U);
+}
+
+[[nodiscard]] double mountainValueNoise(
+    double x, double z, std::uint32_t seed) {
+    const int cellX = static_cast<int>(std::floor(x));
+    const int cellZ = static_cast<int>(std::floor(z));
+    double blendX = x - static_cast<double>(cellX);
+    double blendZ = z - static_cast<double>(cellZ);
+    blendX = blendX * blendX * (3.0 - 2.0 * blendX);
+    blendZ = blendZ * blendZ * (3.0 - 2.0 * blendZ);
+    const auto sample = [seed](int sampleX, int sampleZ) {
+        return static_cast<double>(
+                   mountainHash(sampleX, sampleZ, seed)) /
+                   static_cast<double>(
+                       std::numeric_limits<std::uint32_t>::max()) *
+                   2.0 - 1.0;
+    };
+    const double north = sample(cellX, cellZ) +
+        (sample(cellX + 1, cellZ) - sample(cellX, cellZ)) * blendX;
+    const double south = sample(cellX, cellZ + 1) +
+        (sample(cellX + 1, cellZ + 1) -
+         sample(cellX, cellZ + 1)) * blendX;
+    return north + (south - north) * blendZ;
+}
+
 [[nodiscard]] Model buildTriangleModel(
     const std::vector<float>& vertices,
     const std::vector<float>& normals,
@@ -288,6 +323,9 @@ Model TerrainRenderer::buildMountainBackdrop() const {
         return {};
     }
     const auto& config = terrain_->config();
+    if (config.terrainBoundaryRiseHeight <= 0.0) {
+        return {};
+    }
     const double inner = config.terrainWorldSize * 0.5;
     const double width = std::max(
         config.terrainBoundaryRiseWidth * 2.25, 96.0);
@@ -295,14 +333,15 @@ Model TerrainRenderer::buildMountainBackdrop() const {
         return {};
     }
     const double outer = inner + width;
+    // Large triangles are intentional: the previous 2.25 m grid contained
+    // tens of thousands of smoothly shaded faces and read as one soft wall.
     const double step = std::max(
-        terrain_->spacing() * 3.0, 2.25);
+        terrain_->spacing() * 6.0, 6.0);
     const int longCells = std::max(
         2, static_cast<int>(std::ceil(outer * 2.0 / step)));
     const int sideCells = std::max(
         2, static_cast<int>(std::ceil(width / step)));
-    const double normalStep = std::max(
-        terrain_->spacing() * 1.5, 1.0);
+    const double normalStep = std::max(step * 0.55, 2.5);
 
     std::vector<float> vertices;
     std::vector<float> normals;
@@ -341,9 +380,11 @@ Model TerrainRenderer::buildMountainBackdrop() const {
         normal.z /= length;
         return normal;
     };
-    const auto appendVertex = [&](double x, double z) {
-        const double y = terrain_->getBackdropHeight(x, z);
-        const Vec3 normal = normalAt(x, z);
+    const auto appendVertex = [&](const Vec3& point,
+                                  const Vec3& normal) {
+        const double x = point.x;
+        const double y = point.y;
+        const double z = point.z;
         const double edgeDistance = std::max(
             std::abs(x), std::abs(z)) - inner;
         const double mountainProgress = std::clamp(
@@ -362,21 +403,34 @@ Model TerrainRenderer::buildMountainBackdrop() const {
         const double edgeZ = std::clamp(z, -inner, inner);
         const double relativeMountainHeight =
             y - terrain_->getHeight(edgeX, edgeZ);
-        // Keep the altitude band narrow so the snowline reads as a clear
-        // cap instead of a long, foggy blend down the whole mountain.
+        // Snow uses a continuous world-space field and the smooth terrain
+        // normal even though lighting keeps the faceted normal. Shared
+        // vertices therefore agree across triangles and cannot form seams.
+        const double snowLineVariation = mountainValueNoise(
+            x * 0.018,
+            z * 0.018,
+            terrain_->seed() ^ 0xd3a2646cU);
+        const double snowLine = 34.0 + snowLineVariation * 3.0;
         const double heightSnow = std::clamp(
-            (relativeMountainHeight - 30.0) / 10.0,
+            (relativeMountainHeight - snowLine) / 9.5,
             0.0, 1.0);
         const double smoothHeightSnow =
             heightSnow * heightSnow *
             (3.0 - 2.0 * heightSnow);
+        const Vec3 snowNormal = normalAt(x, z);
         const double topSurfaceSnow =
             std::clamp(
-                (normal.y - 0.34) / 0.26,
+                (snowNormal.y - 0.32) / 0.32,
                 0.0, 1.0);
+        const double snowCoverage = std::clamp(
+            0.88 + mountainValueNoise(
+                x * 0.012 + 14.0,
+                z * 0.012 - 8.0,
+                terrain_->seed() ^ 0x165667b1U) * 0.14,
+            0.72, 1.0);
         const double snowAmount =
             smoothHeightSnow * topSurfaceSnow *
-            mountainMaterialAmount;
+            snowCoverage * mountainMaterialAmount;
         const auto snowGreen = static_cast<unsigned char>(
             std::lround(255.0 * (1.0 - snowAmount)));
         vertices.insert(vertices.end(), {
@@ -399,14 +453,80 @@ Model TerrainRenderer::buildMountainBackdrop() const {
         colors.insert(colors.end(), {
             255U, snowGreen, mountainBlue, 255U});
     };
+    const auto appendTriangle = [&](double x0, double z0,
+                                    double x1, double z1,
+                                    double x2, double z2) {
+        const Vec3 point0{x0, terrain_->getBackdropHeight(x0, z0), z0};
+        const Vec3 point1{x1, terrain_->getBackdropHeight(x1, z1), z1};
+        const Vec3 point2{x2, terrain_->getBackdropHeight(x2, z2), z2};
+        const Vec3 edge1{
+            point1.x - point0.x,
+            point1.y - point0.y,
+            point1.z - point0.z,
+        };
+        const Vec3 edge2{
+            point2.x - point0.x,
+            point2.y - point0.y,
+            point2.z - point0.z,
+        };
+        Vec3 faceNormal{
+            edge1.y * edge2.z - edge1.z * edge2.y,
+            edge1.z * edge2.x - edge1.x * edge2.z,
+            edge1.x * edge2.y - edge1.y * edge2.x,
+        };
+        double faceLength = std::sqrt(
+            faceNormal.x * faceNormal.x +
+            faceNormal.y * faceNormal.y +
+            faceNormal.z * faceNormal.z);
+        if (faceLength <= 1e-9) {
+            faceNormal = {0.0, 1.0, 0.0};
+        } else {
+            faceNormal.x /= faceLength;
+            faceNormal.y /= faceLength;
+            faceNormal.z /= faceLength;
+        }
+        if (faceNormal.y < 0.0) {
+            faceNormal.x = -faceNormal.x;
+            faceNormal.y = -faceNormal.y;
+            faceNormal.z = -faceNormal.z;
+        }
+        const double centerX = (x0 + x1 + x2) / 3.0;
+        const double centerZ = (z0 + z1 + z2) / 3.0;
+        const Vec3 smoothNormal = normalAt(centerX, centerZ);
+        constexpr double FaceNormalWeight = 0.78;
+        Vec3 facetNormal{
+            faceNormal.x * FaceNormalWeight +
+                smoothNormal.x * (1.0 - FaceNormalWeight),
+            faceNormal.y * FaceNormalWeight +
+                smoothNormal.y * (1.0 - FaceNormalWeight),
+            faceNormal.z * FaceNormalWeight +
+                smoothNormal.z * (1.0 - FaceNormalWeight),
+        };
+        const double facetLength = std::sqrt(
+            facetNormal.x * facetNormal.x +
+            facetNormal.y * facetNormal.y +
+            facetNormal.z * facetNormal.z);
+        if (facetLength > 1e-9) {
+            facetNormal.x /= facetLength;
+            facetNormal.y /= facetLength;
+            facetNormal.z /= facetLength;
+        }
+        appendVertex(point0, facetNormal);
+        appendVertex(point1, facetNormal);
+        appendVertex(point2, facetNormal);
+    };
     const auto appendCell = [&](double x0, double z0,
                                 double x1, double z1) {
-        appendVertex(x0, z0);
-        appendVertex(x0, z1);
-        appendVertex(x1, z0);
-        appendVertex(x1, z0);
-        appendVertex(x0, z1);
-        appendVertex(x1, z1);
+        const std::int64_t diagonal =
+            static_cast<std::int64_t>(std::llround(x0 / step)) +
+            static_cast<std::int64_t>(std::llround(z0 / step));
+        if ((diagonal & 1) == 0) {
+            appendTriangle(x0, z0, x0, z1, x1, z0);
+            appendTriangle(x1, z0, x0, z1, x1, z1);
+        } else {
+            appendTriangle(x0, z0, x0, z1, x1, z1);
+            appendTriangle(x0, z0, x1, z1, x1, z0);
+        }
     };
     const auto appendGrid = [&](double minimumX, double maximumX,
                                 double minimumZ, double maximumZ,

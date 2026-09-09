@@ -94,6 +94,8 @@ void Simulation::resetWorldLandmarks() {
     const double maximumRadius = std::max(
         MinimumSpawnDistance + 1.0,
         map_.worldLimit - 8.0);
+    const std::span<const TerrainPathDefinition> compositionRoutes =
+        terrain_.paths();
     for (std::size_t typeIndex = 0;
          typeIndex < Types.size(); ++typeIndex) {
         const WorldLandmarkType type = Types[typeIndex];
@@ -104,18 +106,35 @@ void Simulation::resetWorldLandmarks() {
                 static_cast<std::uint64_t>(terrain_.seed()) ^
                 (typeIndex + 1U) * 0xd1b54a32d192ed03ULL ^
                 (attempt + 1U) * 0x9e3779b97f4a7c15ULL);
-            const double angle = unitRandom(
-                seed ^ 0x243f6a8885a308d3ULL) * Tau;
-            const double radius = std::sqrt(
-                MinimumSpawnDistance * MinimumSpawnDistance +
-                unitRandom(seed ^ 0x13198a2e03707344ULL) *
-                    (maximumRadius * maximumRadius -
-                     MinimumSpawnDistance * MinimumSpawnDistance));
-            Vec3 position{
-                map_.playerSpawn.x + std::cos(angle) * radius,
-                0.0,
-                map_.playerSpawn.z + std::sin(angle) * radius,
-            };
+            Vec3 position{};
+            if (attempt < compositionRoutes.size()) {
+                // First try one of the four authored terrain-flow anchors.
+                // A seed-dependent cyclic offset keeps reruns varied while
+                // ensuring that landmarks have a real worn approach.
+                const std::size_t routeOffset = static_cast<std::size_t>(
+                    mixBits64(
+                        static_cast<std::uint64_t>(terrain_.seed()) ^
+                        (typeIndex + 1U) * 0xa4093822299f31d0ULL) %
+                    compositionRoutes.size());
+                const TerrainPathDefinition& route = compositionRoutes[
+                    (routeOffset + attempt) % compositionRoutes.size()];
+                position = {route.toX, 0.0, route.toZ};
+            } else {
+                // Preserve the previous deterministic free-placement search
+                // as a safe fallback when all route anchors are obstructed.
+                const double angle = unitRandom(
+                    seed ^ 0x243f6a8885a308d3ULL) * Tau;
+                const double radius = std::sqrt(
+                    MinimumSpawnDistance * MinimumSpawnDistance +
+                    unitRandom(seed ^ 0x13198a2e03707344ULL) *
+                        (maximumRadius * maximumRadius -
+                         MinimumSpawnDistance * MinimumSpawnDistance));
+                position = {
+                    map_.playerSpawn.x + std::cos(angle) * radius,
+                    0.0,
+                    map_.playerSpawn.z + std::sin(angle) * radius,
+                };
+            }
             if (!terrain_.isInside(position.x, position.z) ||
                 terrain_.waterSignedDistance(
                     position.x, position.z) < footprintRadius + 3.0 ||

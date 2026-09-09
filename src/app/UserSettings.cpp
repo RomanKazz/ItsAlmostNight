@@ -94,6 +94,16 @@ const char* qualityName(GraphicsQuality quality) {
 
 void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "fullscreen", settings.fullscreen);
+    if (value.contains("renderWidth")) {
+        readValue(value, "renderWidth", settings.renderWidth);
+    } else {
+        readValue(value, "windowWidth", settings.renderWidth);
+    }
+    if (value.contains("renderHeight")) {
+        readValue(value, "renderHeight", settings.renderHeight);
+    } else {
+        readValue(value, "windowHeight", settings.renderHeight);
+    }
     readValue(value, "sky", settings.sky);
     readValue(value, "worldShader", settings.worldShader);
     readValue(value, "shadows", settings.shadows);
@@ -139,6 +149,8 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     readValue(value, "bloomStrength", settings.bloomStrength);
     readValue(value, "outlineStrength", settings.outlineStrength);
     readValue(value, "outlineWidth", settings.outlineWidth);
+    readValue(value, "outlineFogFadeStrength",
+              settings.outlineFogFadeStrength);
     readValue(value, "fogBandCount", settings.fogBandCount);
     readValue(value, "paperGrainStrength", settings.paperGrainStrength);
 
@@ -153,6 +165,8 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
     }
 
     const GraphicsSettings defaults;
+    settings.renderWidth = std::clamp(settings.renderWidth, 960, 3840);
+    settings.renderHeight = std::clamp(settings.renderHeight, 540, 2160);
     settings.shadowMapSize = nearestShadowMapSize(settings.shadowMapSize);
     settings.frameRateLimit = nearestFrameRateLimit(settings.frameRateLimit);
     settings.pixelSize = nearestPixelSize(settings.pixelSize);
@@ -206,6 +220,9 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
         settings.outlineStrength, defaults.outlineStrength, 0.0F, 1.0F);
     settings.outlineWidth = finiteClamped(
         settings.outlineWidth, defaults.outlineWidth, 1.0F, 4.0F);
+    settings.outlineFogFadeStrength = finiteClamped(
+        settings.outlineFogFadeStrength,
+        defaults.outlineFogFadeStrength, 0.0F, 1.0F);
     settings.fogBandCount = finiteClamped(
         settings.fogBandCount, defaults.fogBandCount, 2.0F, 12.0F);
     settings.paperGrainStrength = finiteClamped(
@@ -216,6 +233,8 @@ void readGraphics(const Json& value, GraphicsSettings& settings) {
 Json graphicsJson(const GraphicsSettings& settings) {
     return {
         {"fullscreen", settings.fullscreen},
+        {"renderWidth", settings.renderWidth},
+        {"renderHeight", settings.renderHeight},
         {"sky", settings.sky},
         {"worldShader", settings.worldShader},
         {"shadows", settings.shadows},
@@ -261,6 +280,7 @@ Json graphicsJson(const GraphicsSettings& settings) {
         {"bloomStrength", settings.bloomStrength},
         {"outlineStrength", settings.outlineStrength},
         {"outlineWidth", settings.outlineWidth},
+        {"outlineFogFadeStrength", settings.outlineFogFadeStrength},
         {"fogBandCount", settings.fogBandCount},
         {"paperGrainStrength", settings.paperGrainStrength},
         {"quality", qualityName(settings.quality)},
@@ -382,7 +402,7 @@ bool saveUserSettings(
             std::filesystem::create_directories(filePath.parent_path());
         }
         const Json document{
-            {"version", 5},
+            {"version", 6},
             {"language", std::string(languageCode(settings.language))},
             {"graphics", graphicsJson(settings.graphics)},
             {"audio",
@@ -426,6 +446,8 @@ bool saveUserSettings(
 void resetDisplaySettings(GraphicsSettings& settings) {
     const GraphicsSettings defaults;
     settings.fullscreen = defaults.fullscreen;
+    settings.renderWidth = defaults.renderWidth;
+    settings.renderHeight = defaults.renderHeight;
     settings.sky = defaults.sky;
     settings.worldShader = defaults.worldShader;
     settings.shadows = defaults.shadows;
@@ -481,6 +503,7 @@ void resetStyleSettings(GraphicsSettings& settings) {
     settings.bloomStrength = defaults.bloomStrength;
     settings.outlineStrength = defaults.outlineStrength;
     settings.outlineWidth = defaults.outlineWidth;
+    settings.outlineFogFadeStrength = defaults.outlineFogFadeStrength;
     settings.fogBandCount = defaults.fogBandCount;
     settings.paperGrainStrength = defaults.paperGrainStrength;
 }

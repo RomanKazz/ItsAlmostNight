@@ -335,6 +335,18 @@ void Renderer::drawLootItem(
     Vector3 position, LootUpgradeEffect effect,
     LootRarity rarity, float rotationRadians, Color tint,
     float scale, Vector3 surfaceNormal) {
+    // Static chest rewards are solid props. Drawing them through raylib's
+    // default alpha blend can mix the authored material with the chest and
+    // scenery behind it, making the whole item look translucent. Keep alpha
+    // only for the reroll transition and the hourglass's intentional glass.
+    const bool opaquePass = tint.a == 255 &&
+        effect != LootUpgradeEffect::Hourglass &&
+        !selectionMaskPassOpen_ && !shadowPassOpen_;
+    if (opaquePass) {
+        rlDrawRenderBatchActive();
+        rlEnableDepthMask();
+        rlDisableColorBlend();
+    }
     const Color color = ColorTint(
         ColorBrightness(lootRarityColor(rarity), 0.22F), tint);
     rlPushMatrix();
@@ -359,6 +371,10 @@ void Renderer::drawLootItem(
         }
         if (model.materials == nullptr || model.meshMaterial == nullptr) {
             rlPopMatrix();
+            if (opaquePass) {
+                rlDrawRenderBatchActive();
+                rlEnableColorBlend();
+            }
             return;
         }
         for (int index = 0; index < model.materialCount; ++index) {
@@ -371,6 +387,10 @@ void Renderer::drawLootItem(
         drawLootItemGeometry(effect, color);
     }
     rlPopMatrix();
+    if (opaquePass) {
+        rlDrawRenderBatchActive();
+        rlEnableColorBlend();
+    }
 }
 
 void Renderer::drawCoin(

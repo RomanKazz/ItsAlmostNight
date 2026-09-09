@@ -204,6 +204,37 @@ void runSimulationTests() {
             "checkpoint rejects duplicate entity IDs transactionally");
     }
     {
+        ian::Simulation simulation;
+        simulation.startRun();
+
+        ian::PlayerCommand grantInsight;
+        grantInsight.grantInsight = ian::GrantInsightCommand{25.0};
+        simulation.tick(1.0 / 60.0, grantInsight);
+        requireNear(
+            simulation.snapshot().currentInsight, 0.0, 1e-12,
+            "debug Insight shortcut is ignored outside god mode");
+
+        ian::PlayerCommand godMode;
+        godMode.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        simulation.tick(1.0 / 60.0, godMode);
+        simulation.takeEvents();
+        simulation.tick(1.0 / 60.0, grantInsight);
+        requireNear(
+            simulation.snapshot().currentInsight, 25.0, 1e-12,
+            "god mode can grant debug Insight");
+        const auto events = simulation.takeEvents();
+        require(
+            std::ranges::any_of(
+                events,
+                [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::InsightGranted &&
+                           event.amount == 25;
+                }),
+            "debug Insight grant uses the normal progression event");
+    }
+    {
         ian::GameBalance balance = ian::GameBalance::defaults();
         auto& coreBalance = balance.buildings[static_cast<std::size_t>(
             ian::BuildingType::Core)];
@@ -269,6 +300,11 @@ void runSimulationTests() {
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
         timedNight.tick(1.0 / 60.0, unlimited);
+        require(std::ranges::all_of(
+                    timedNight.snapshot().unlockedBuildings,
+                    [](bool unlocked) { return unlocked; }),
+                "godmode unlocks every structure including storage "
+                "without core levels");
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
@@ -1189,6 +1225,9 @@ void runSimulationTests() {
                 storageSimulation.snapshot().crystalCapacity == 75,
             "level-one core expands the initial inventory capacity");
 
+        // This assertion covers the normal catalog. Creative modes expose
+        // these legacy structures intentionally for testing.
+        storageSimulation.tick(1.0 / 60.0, godMode);
         ian::PlayerCommand placeWoodStorage;
         placeWoodStorage.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::WoodStorage, {4, 0}, 0};
@@ -1201,6 +1240,8 @@ void runSimulationTests() {
                         ian::BuildingType::WoodStorage;
                 }),
             "specialized storage buildings can no longer be placed");
+
+        storageSimulation.tick(1.0 / 60.0, godMode);
 
         const auto coreBuilding = std::ranges::find(
             storageSimulation.snapshot().buildings,

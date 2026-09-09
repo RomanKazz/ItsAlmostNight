@@ -263,6 +263,8 @@ std::vector<ResourceNodeDefinition> scatterResources(
         };
 
     constexpr std::size_t TreesPerCluster = 5;
+    constexpr std::size_t StonesPerCluster = 4;
+    constexpr std::size_t CrystalsPerCluster = 3;
     constexpr double GoldenAngle = 2.39996322972865332;
     const double innerRadius =
         std::min(10.0, worldLimit * 0.3);
@@ -282,83 +284,119 @@ std::vector<ResourceNodeDefinition> scatterResources(
     const std::size_t additionalCrystalCount =
         static_cast<std::size_t>(
             std::lround(5.0 * std::sqrt(densityScale)));
-    const std::size_t treeClusterCount =
-        std::max<std::size_t>(
-            1U, additionalTreeCount / 6U);
-    const std::size_t clusteredTreeCount = std::min(
-        additionalTreeCount,
-        treeClusterCount * TreesPerCluster);
+    const std::size_t treeClusterCount = std::max<std::size_t>(
+        1U, (additionalTreeCount + TreesPerCluster - 1U) /
+                TreesPerCluster);
+    const std::size_t stoneClusterCount = std::max<std::size_t>(
+        1U, (additionalStoneCount + StonesPerCluster - 1U) /
+                StonesPerCluster);
+    const std::size_t crystalClusterCount = std::max<std::size_t>(
+        1U, (additionalCrystalCount + CrystalsPerCluster - 1U) /
+                CrystalsPerCluster);
     result.reserve(
         result.size() + additionalTreeCount +
         additionalStoneCount + additionalCrystalCount);
 
     const double clusterOuterRadius =
         std::max(innerRadius + 1.0, outerRadius - 5.0);
+    const auto clusteredPosition = [
+        &terrain, worldSeed, worldRotation, innerRadius,
+        outerRadius, clusterOuterRadius](
+        std::size_t cluster, std::size_t clusterCount,
+        std::size_t member, double phase,
+        double firstMemberRadius, double memberStep,
+        double resourceRadius, std::uint64_t salt) {
+        // All attempts remain tied to the run seed. Usually the first one is
+        // accepted; later attempts only rotate a whole ecological group away
+        // from water or a path while preserving its local shape.
+        constexpr std::size_t MaximumAttempts = 72U;
+        for (std::size_t attempt = 0; attempt < MaximumAttempts; ++attempt) {
+            const std::size_t centerAttempt = attempt / 9U;
+            const std::size_t localAttempt = attempt % 9U;
+            const double clusterProgress =
+                (static_cast<double>(cluster) + 0.58) /
+                static_cast<double>(clusterCount);
+            const double clusterRadius = std::sqrt(
+                innerRadius * innerRadius + clusterProgress *
+                    (clusterOuterRadius * clusterOuterRadius -
+                     innerRadius * innerRadius));
+            const double clusterAngle =
+                static_cast<double>(cluster) * GoldenAngle + phase +
+                worldRotation + static_cast<double>(centerAttempt) *
+                    GoldenAngle * 0.37;
+            const std::uint64_t seed = mixBits64(
+                worldSeed ^ salt ^
+                static_cast<std::uint64_t>(cluster + 1U) *
+                    0x9e3779b97f4a7c15ULL ^
+                static_cast<std::uint64_t>(member + 1U) *
+                    0xd1b54a32d192ed03ULL);
+            const double localRadius = member == 0U
+                ? unitRandom(seed) * 0.42
+                : firstMemberRadius +
+                      static_cast<double>(member - 1U) * memberStep +
+                      unitRandom(seed ^ 0x243f6a8885a308d3ULL) * 0.46;
+            const double localAngle =
+                static_cast<double>(member) * GoldenAngle +
+                unitRandom(seed ^ 0x13198a2e03707344ULL) * 0.82 +
+                static_cast<double>(localAttempt) * GoldenAngle * 0.43;
+            const Vec3 candidate{
+                std::cos(clusterAngle) * clusterRadius +
+                    std::cos(localAngle) * localRadius,
+                0.0,
+                std::sin(clusterAngle) * clusterRadius +
+                    std::sin(localAngle) * localRadius,
+            };
+            if (std::hypot(candidate.x, candidate.z) > outerRadius ||
+                terrain.waterSignedDistance(candidate.x, candidate.z) <
+                    resourceRadius + 0.8 ||
+                terrain.pathAmount(candidate.x, candidate.z) > 0.10) {
+                continue;
+            }
+            return candidate;
+        }
+
+        // Extremely pond-heavy custom configurations still receive the same
+        // resource budget through a deterministic sparse annulus fallback.
+        for (std::size_t attempt = 0; attempt < 256U; ++attempt) {
+            const std::uint64_t seed = mixBits64(
+                worldSeed ^ salt ^
+                static_cast<std::uint64_t>(cluster + 1U) *
+                    0xa4093822299f31d0ULL ^
+                static_cast<std::uint64_t>(member + attempt + 1U) *
+                    0x94d049bb133111ebULL);
+            const double progress =
+                (static_cast<double>(attempt) + 0.5) / 256.0;
+            const double radius = std::sqrt(
+                innerRadius * innerRadius + progress *
+                    (outerRadius * outerRadius -
+                     innerRadius * innerRadius));
+            const double angle = unitRandom(seed) * Tau + worldRotation;
+            const Vec3 candidate{
+                std::cos(angle) * radius, 0.0,
+                std::sin(angle) * radius,
+            };
+            if (terrain.waterSignedDistance(candidate.x, candidate.z) >=
+                    resourceRadius + 0.8 &&
+                terrain.pathAmount(candidate.x, candidate.z) <= 0.10) {
+                return candidate;
+            }
+        }
+        return Vec3{innerRadius, 0.0, 0.0};
+    };
+
     for (std::size_t index = 0;
          index < additionalTreeCount; ++index) {
         ResourceNodeDefinition definition =
             templateFor(ResourceType::Wood);
-        if (index >= clusteredTreeCount) {
-            const std::size_t singleIndex =
-                index - clusteredTreeCount;
-            definition.visualVariant = clusteredTreeVariant(
-                singleIndex / TreesPerCluster,
-                singleIndex % TreesPerCluster, worldSeed);
-            const double progress =
-                (static_cast<double>(singleIndex) + 0.5) /
-                static_cast<double>(
-                    additionalTreeCount - clusteredTreeCount);
-            const double radius = std::sqrt(
-                innerRadius * innerRadius +
-                progress *
-                    (outerRadius * outerRadius -
-                     innerRadius * innerRadius));
-            const double angle =
-                static_cast<double>(singleIndex) * GoldenAngle +
-                1.73 + worldRotation;
-            definition.position = {
-                std::cos(angle) * radius,
-                1.0,
-                std::sin(angle) * radius,
-            };
-            result.push_back(definition);
-            continue;
-        }
         const std::size_t cluster = index % treeClusterCount;
         const std::size_t member = index / treeClusterCount;
         definition.visualVariant = clusteredTreeVariant(
             cluster, member, worldSeed);
-        const double clusterProgress =
-            (static_cast<double>(cluster) + 0.65) /
-            static_cast<double>(treeClusterCount);
-        const double clusterRadius = std::sqrt(
-            innerRadius * innerRadius +
-            clusterProgress *
-                (clusterOuterRadius * clusterOuterRadius -
-                 innerRadius * innerRadius));
-        const double clusterAngle =
-            static_cast<double>(cluster) * GoldenAngle + 0.31 +
-            worldRotation;
-        const std::uint64_t seed =
-            0x51f15e5dULL + worldSeed +
-            static_cast<std::uint64_t>(cluster) * 131U +
-            static_cast<std::uint64_t>(member) * 977U;
-        const double localRadius = member == 0U
-                                       ? unitRandom(seed) * 0.55
-                                       : 1.55 +
-                                             static_cast<double>(member) *
-                                                 0.62 +
-                                             unitRandom(seed) * 0.38;
-        const double localAngle =
-            static_cast<double>(member) * GoldenAngle +
-            unitRandom(seed ^ 0x9e3779b97f4a7c15ULL) * 0.7;
-        definition.position = {
-            std::cos(clusterAngle) * clusterRadius +
-                std::cos(localAngle) * localRadius,
-            1.0,
-            std::sin(clusterAngle) * clusterRadius +
-                std::sin(localAngle) * localRadius,
-        };
+        definition.position = clusteredPosition(
+            cluster, treeClusterCount, member,
+            0.31, 1.90, 0.94, definition.radius,
+            0x51f15e5dULL);
+        definition.position.y = 1.0;
         result.push_back(definition);
     }
 
@@ -366,27 +404,13 @@ std::vector<ResourceNodeDefinition> scatterResources(
          index < additionalStoneCount; ++index) {
         ResourceNodeDefinition definition =
             templateFor(ResourceType::Stone);
-        const double radialProgress =
-            (static_cast<double>(index) + 0.5) /
-            static_cast<double>(additionalStoneCount);
-        const double radius = std::sqrt(
-            innerRadius * innerRadius +
-            radialProgress *
-                (outerRadius * outerRadius -
-                 innerRadius * innerRadius));
-        const double angle =
-            static_cast<double>(index) * GoldenAngle + 0.87 +
-            worldRotation +
-            (unitRandom(
-                 0x8f3f73b5ULL + worldSeed +
-                 static_cast<std::uint64_t>(index)) -
-             0.5) *
-                0.42;
-        definition.position = {
-            std::cos(angle) * radius,
-            0.8,
-            std::sin(angle) * radius,
-        };
+        const std::size_t cluster = index % stoneClusterCount;
+        const std::size_t member = index / stoneClusterCount;
+        definition.position = clusteredPosition(
+            cluster, stoneClusterCount, member,
+            0.87, 2.35, 1.20, definition.radius,
+            0x8f3f73b5ULL);
+        definition.position.y = 0.8;
         result.push_back(definition);
     }
 
@@ -394,21 +418,13 @@ std::vector<ResourceNodeDefinition> scatterResources(
          index < additionalCrystalCount; ++index) {
         ResourceNodeDefinition definition =
             templateFor(ResourceType::Crystal);
-        const double progress =
-            (static_cast<double>(index) + 0.55) /
-            static_cast<double>(additionalCrystalCount);
-        const double radius = std::sqrt(
-            innerRadius * innerRadius + progress *
-                (outerRadius * outerRadius -
-                 innerRadius * innerRadius));
-        const double angle =
-            static_cast<double>(index) * GoldenAngle + 2.17 +
-            worldRotation;
-        definition.position = {
-            std::cos(angle) * radius,
-            CrystalVisualGroundOffset,
-            std::sin(angle) * radius,
-        };
+        const std::size_t cluster = index % crystalClusterCount;
+        const std::size_t member = index / crystalClusterCount;
+        definition.position = clusteredPosition(
+            cluster, crystalClusterCount, member,
+            2.17, 2.05, 1.05, definition.radius,
+            0x165667b1ULL);
+        definition.position.y = CrystalVisualGroundOffset;
         result.push_back(definition);
     }
 
@@ -416,6 +432,9 @@ std::vector<ResourceNodeDefinition> scatterResources(
     // precise hover, health bars and collision, but have their own rewards.
     const std::size_t propCount = static_cast<std::size_t>(
         std::lround(12.0 * std::sqrt(densityScale)));
+    constexpr std::size_t PropsPerCluster = 2U;
+    const std::size_t propClusterCount = std::max<std::size_t>(
+        1U, (propCount + PropsPerCluster - 1U) / PropsPerCluster);
     SpatialHash placementIndex;
     double maximumResourceRadius = 0.0;
     for (std::size_t index = 0; index < result.size(); ++index) {
@@ -429,9 +448,15 @@ std::vector<ResourceNodeDefinition> scatterResources(
         const std::uint64_t seed =
             0xa0761d6478bd642fULL + worldSeed +
             index * 0xe7037ed1a0b428dbULL;
+        const std::size_t cluster = index % propClusterCount;
+        const std::size_t member = index / propClusterCount;
+        const std::uint64_t clusterSeed = mixBits64(
+            worldSeed ^
+            static_cast<std::uint64_t>(cluster + 1U) *
+                0x94d049bb133111ebULL);
         const double progress =
-            (static_cast<double>(index) + 0.6) /
-            static_cast<double>(propCount);
+            (static_cast<double>(cluster) + 0.6) /
+            static_cast<double>(propClusterCount);
         const double radius = std::sqrt(
             (innerRadius + 2.0) * (innerRadius + 2.0) + progress *
             (outerRadius * outerRadius -
@@ -448,22 +473,37 @@ std::vector<ResourceNodeDefinition> scatterResources(
         constexpr std::size_t MaximumPropPlacementAttempts = 32U;
         for (std::size_t attempt = 0;
              attempt < MaximumPropPlacementAttempts; ++attempt) {
-            const std::uint64_t attemptSeed = seed +
-                attempt * 0x9e3779b97f4a7c15ULL;
-            const double candidateRadius = std::clamp(
+            const double clusterRadius = std::clamp(
                 radius +
-                    (unitRandom(attemptSeed ^ 0x243f6a8885a308d3ULL) -
-                     0.5) * 7.0,
+                    (unitRandom(clusterSeed ^ 0x243f6a8885a308d3ULL) -
+                     0.5) * 4.0,
                 innerRadius + 2.0, outerRadius);
-            const double angle =
-                static_cast<double>(index) * GoldenAngle +
-                worldRotation + unitRandom(seed) * 0.9 +
+            const double clusterAngle =
+                static_cast<double>(cluster) * GoldenAngle +
+                worldRotation + unitRandom(clusterSeed) * 0.9 +
                 static_cast<double>(attempt) * GoldenAngle * 0.41;
+            const double localRadius = member == 0U
+                ? unitRandom(seed ^ 0x68e31da4U) * 0.35
+                : 3.0 + unitRandom(seed ^ 0x165667b1U) * 1.15;
+            const double localAngle =
+                static_cast<double>(member) * GoldenAngle +
+                unitRandom(seed ^ 0xb5297a4dU) * 0.9 +
+                static_cast<double>(attempt) * 0.37;
             definition.position = {
-                std::cos(angle) * candidateRadius,
+                std::cos(clusterAngle) * clusterRadius +
+                    std::cos(localAngle) * localRadius,
                 0.62,
-                std::sin(angle) * candidateRadius,
+                std::sin(clusterAngle) * clusterRadius +
+                    std::sin(localAngle) * localRadius,
             };
+            if (std::hypot(
+                    definition.position.x,
+                    definition.position.z) > outerRadius ||
+                terrain.pathAmount(
+                    definition.position.x,
+                    definition.position.z) > 0.18) {
+                continue;
+            }
             if (terrain.waterSignedDistance(
                     definition.position.x,
                     definition.position.z) <
