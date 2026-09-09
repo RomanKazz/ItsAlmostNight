@@ -666,9 +666,20 @@ void main()
         vec3 crownNormal = normalize(mix(
             normal, faceNormal,
             clamp(treeLeafFlatness, 0.0, 1.0)));
+        float crownSunFacing = dot(crownNormal, lightDirection);
+        float faceSunFacing = dot(faceNormal, lightDirection);
+        float crownDirectRamp = crownSunFacing*0.5 + 0.5;
+        // Use constant triangle normals for shadow-side fill. Sunlit crowns
+        // retain their soft authored response; unlit crowns reveal low-poly
+        // planes instead of a smooth gradient or one flat green mass.
+        float crownShadowSide =
+            1.0 - smoothstep(-0.12, 0.30, faceSunFacing);
+        float crownFacetedFillRamp = clamp(
+            faceSunFacing*0.38 + 0.58, 0.0, 1.0);
         float crownRamp = clamp(
-            dot(crownNormal, lightDirection)*0.5 + 0.5 -
-            castShadowAmount*0.14,
+            mix(crownDirectRamp, crownFacetedFillRamp,
+                crownShadowSide*0.88) -
+            castShadowAmount*0.12,
             0.0, 1.0);
         float rampSmoothness = clamp(treeRampSmoothness, 0.02, 0.28);
         float shadowThreshold = clamp(
