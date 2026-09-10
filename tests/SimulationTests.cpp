@@ -980,6 +980,11 @@ void runSimulationTests() {
                 earlySimulation.snapshot().phaseDuration ==
                     earlyBalance.gameplay.sunsetSeconds,
             "day expiry begins the full twilight construction window");
+        require(
+            std::ranges::none_of(
+                earlySimulation.snapshot().attackPortalPositions,
+                [](const auto& portal) { return portal.has_value(); }),
+            "attack portals stay closed throughout sunset");
         ian::PlayerCommand twilightGather;
         twilightGather.overrideAimedResource = true;
         twilightGather.aimedResourceOverride =
@@ -4239,9 +4244,35 @@ void runSimulationTests() {
                            simulation.snapshot().upcomingAttackDirections.end(),
                            true) == 1,
             "first wave advertises its single attack front");
+    require(
+        simulation.snapshot().attackPortalPositions[
+            static_cast<std::size_t>(ian::AttackDirection::South)]
+                .has_value() &&
+            std::count_if(
+                simulation.snapshot().attackPortalPositions.begin(),
+                simulation.snapshot().attackPortalPositions.end(),
+                [](const auto& portal) { return portal.has_value(); }) == 1,
+        "first night opens one portal on its attack front");
+    require(
+        simulation.snapshot().attackPortalPositions[
+            static_cast<std::size_t>(ian::AttackDirection::South)]->z > 0.0,
+        "south attack portal surrounds the enemy spawn lane");
     require(simulation.snapshot().activeEnemyCount == 3 &&
                 simulation.snapshot().pendingEnemyCount == 12,
             "early wave immediately spawns first enemy group");
+    const ian::Vec3 southPortal =
+        *simulation.snapshot().attackPortalPositions[
+            static_cast<std::size_t>(ian::AttackDirection::South)];
+    require(
+        std::ranges::all_of(
+            simulation.snapshot().enemies,
+            [southPortal](const ian::EnemyInstance& enemy) {
+                return !enemy.active ||
+                    std::hypot(
+                        enemy.position.x - southPortal.x,
+                        enemy.position.z - southPortal.z) <= 1.25;
+            }),
+        "opening enemy group emerges inside portal aperture");
     auto phaseEvents = simulation.takeEvents();
     bool directionWarningFound = false;
     bool waveEventFound = false;

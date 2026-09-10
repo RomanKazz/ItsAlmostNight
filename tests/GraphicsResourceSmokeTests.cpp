@@ -181,6 +181,9 @@ int main() {
             !resources.iceMagicShader().valid() ||
             !resources.coinOutlineShader().valid() ||
             !resources.heartOutlineShader().valid() ||
+            !resources.portalMatterTexture().valid() ||
+            !resources.portalMatterShader().valid() ||
+            !resources.enemyPortalModel().valid() ||
             !resources.skyboxTexture(0).valid() ||
             !resources.skyboxTexture(1).valid() ||
             !resources.skyboxTexture(2).valid() ||
@@ -214,6 +217,7 @@ int main() {
             result = 1;
         }
         if (!hasTexturedRenderableMesh(resources.appleLootModel()) ||
+            !hasTexturedRenderableMesh(resources.enemyPortalModel()) ||
             !hasTexturedRenderableMesh(resources.breadLootModel()) ||
             !hasTexturedRenderableMesh(resources.potionLootModel()) ||
             !hasTexturedRenderableMesh(resources.blueprintLootModel()) ||
@@ -366,12 +370,15 @@ int main() {
             ian::ResourceType::Crate, {0.0F, 0.0F, -1.0F}, -0.2F);
         const bool itemCrateDrawn = renderer.drawDestructibleProp(
             ian::ResourceType::ItemCrate, {1.3F, 0.0F, -1.0F}, 0.0F);
+        const bool portalDrawn = renderer.drawEnemyPortal(
+            {0.0F, 0.0F, -2.0F}, 0.0F, 0.4F,
+            smokeLighting, 0.35F);
         EndMode3D();
         EndDrawing();
         renderer.shutdown();
         if (!instancedTreesDrawn || !woodenDrawn || !stoneDrawn ||
             !barrelDrawn ||
-            !crateDrawn || !itemCrateDrawn) {
+            !crateDrawn || !itemCrateDrawn || !portalDrawn) {
             std::cerr << "world prop renderer failed\n";
             result = 1;
         }

@@ -526,6 +526,9 @@ void Simulation::resetRun(GameEventType eventType) {
     forceWaveCompletion_ = false;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
+    wavePortalPositions_.fill(std::nullopt);
+    waveFirstAnchorIndex_ = 0U;
+    wavePortalsActive_ = false;
     currentWaveHasBoss_ = false;
     stageCleared_ = false;
     finalNight_ = false;

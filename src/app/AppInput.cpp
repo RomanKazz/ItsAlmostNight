@@ -1328,8 +1328,16 @@ void App::processInput() {
             selectActionMode(
                 previousActionMode_, currentSnapshot);
         }
-        pendingStartWave_ = pendingStartWave_ || keyPressed(
+        const bool startWavePressed = keyPressed(
             userSettings_.controls, ControlAction::StartWave);
+        if (startWavePressed &&
+            currentSnapshot.state == RunState::BuildPhase &&
+            !currentSnapshot.coreId) {
+            statusMessage_ = localizeText("Place Core first");
+            statusMessageRemaining_ = 1.8;
+        } else {
+            pendingStartWave_ = pendingStartWave_ || startWavePressed;
+        }
         pendingUnlimitedResources_ =
             pendingUnlimitedResources_ || IsKeyPressed(KEY_O);
         if (keyPressed(

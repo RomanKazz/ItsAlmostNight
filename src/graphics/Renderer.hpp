@@ -390,6 +390,10 @@ class Renderer {
     [[nodiscard]] bool drawChallengeArenaPeg(
         Vector3 position, float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawEnemyPortal(
+        Vector3 position, float yawRadians,
+        float matterRotationRadians, const WorldLighting& lighting,
+        float scale = 1.0F);
     [[nodiscard]] bool drawWorldLandmark(
         std::size_t variant, Vector3 position,
         float yawRadians = 0.0F, Color tint = WHITE,

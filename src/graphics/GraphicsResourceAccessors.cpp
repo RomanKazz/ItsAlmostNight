@@ -202,6 +202,14 @@ const ShaderResource& GraphicsResources::iceMagicShader() const {
     return iceMagicShader_;
 }
 
+ShaderResource& GraphicsResources::portalMatterShader() {
+    return portalMatterShader_;
+}
+
+const ShaderResource& GraphicsResources::portalMatterShader() const {
+    return portalMatterShader_;
+}
+
 ShaderResource& GraphicsResources::coinOutlineShader() {
     return coinOutlineShader_;
 }
@@ -228,6 +236,14 @@ TextureResource& GraphicsResources::terrainTexture() {
 
 const TextureResource& GraphicsResources::terrainTexture() const {
     return terrainTexture_;
+}
+
+TextureResource& GraphicsResources::portalMatterTexture() {
+    return portalMatterTexture_;
+}
+
+const TextureResource& GraphicsResources::portalMatterTexture() const {
+    return portalMatterTexture_;
 }
 
 TextureResource& GraphicsResources::skyboxTexture(std::size_t variant) {
@@ -317,6 +333,10 @@ ModelResource& GraphicsResources::challengeColumnModel() {
 
 ModelResource& GraphicsResources::challengeArenaPegModel() {
     return challengeArenaPegModel_;
+}
+
+ModelResource& GraphicsResources::enemyPortalModel() {
+    return enemyPortalModel_;
 }
 
 ModelResource& GraphicsResources::worldLandmarkModel(

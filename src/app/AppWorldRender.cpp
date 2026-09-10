@@ -203,6 +203,11 @@ App::activeDecorationClearAreas(
             add(center.x, center.z, radius);
         }
     }
+    for (const auto& portal : snapshot.attackPortalPositions) {
+        if (portal) {
+            add(portal->x, portal->z, 2.6);
+        }
+    }
     return std::span<const GrassClearArea>{result};
 }
 
@@ -1264,6 +1269,47 @@ void App::drawWorldEntities(
                 }
             }
         }
+    }
+    if (std::ranges::any_of(
+            snapshot.attackPortalPositions,
+            [](const auto& position) { return position.has_value(); })) {
+        Vec3 portalTarget{};
+        if (const auto core = std::ranges::find_if(
+                snapshot.buildings,
+                [](const BuildingInstance& building) {
+                    return building.type == BuildingType::Core;
+                }); core != snapshot.buildings.end()) {
+            portalTarget = buildingWorldPosition(*core);
+        }
+        renderer_->endWorldShader();
+        const float portalTime = static_cast<float>(snapshot.elapsedSeconds);
+        for (std::size_t index = 0;
+             index < snapshot.attackPortalPositions.size(); ++index) {
+            const auto& portal = snapshot.attackPortalPositions[index];
+            if (!portal || !worldObjectVisible(
+                    *portal, 3.2F, worldDrawDistance)) {
+                continue;
+            }
+            const float x = static_cast<float>(portal->x);
+            const float z = static_cast<float>(portal->z);
+            const Vector3 position{
+                x,
+                static_cast<float>(
+                    simulation_.terrain().getHeight(x, z)),
+                z,
+            };
+            const float yaw = std::atan2(
+                static_cast<float>(portalTarget.x - portal->x),
+                static_cast<float>(portalTarget.z - portal->z)) -
+                PI * 0.5F;
+            constexpr float PortalScale = 0.72F;
+            static_cast<void>(renderer_->drawEnemyPortal(
+                position, yaw,
+                portalTime * 0.32F + static_cast<float>(index) * 0.83F,
+                lighting, PortalScale));
+        }
+        renderer_->beginWorldShader(lighting);
+        renderer_->setWorldMaterial({});
     }
     drawWorldEnemies(snapshot, camera);
     renderer_->endWorldShader();

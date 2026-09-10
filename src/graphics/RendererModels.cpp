@@ -20,6 +20,7 @@
 #include <ranges>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace ian {
 namespace {
@@ -541,6 +542,123 @@ Color crowdLodTint(EnemyModelVisual visual, Color tint) {
         return {82, 190, 91, tint.a};
     }
     return tint;
+}
+
+void drawPortalMatterPlane(
+    Texture2D texture, Vector3 center, float yawRadians,
+    float halfExtent, float textureRotationRadians, Color tint) {
+    // Portal.glb opens in its local YZ plane. Match that plane after yaw;
+    // using the usual local XY billboard axes turns the matter 90 degrees
+    // through the stone frame.
+    const Vector3 normal{
+        std::cos(yawRadians), 0.0F, -std::sin(yawRadians)};
+    const Vector3 right{
+        std::sin(yawRadians), 0.0F, std::cos(yawRadians)};
+    center = Vector3Add(center, Vector3Scale(normal, 0.035F));
+    const Vector3 worldUp{0.0F, 1.0F, 0.0F};
+    const float cosine = std::cos(textureRotationRadians);
+    const float sine = std::sin(textureRotationRadians);
+    const Vector3 horizontal = Vector3Scale(
+        Vector3Add(
+            Vector3Scale(right, cosine),
+            Vector3Scale(worldUp, sine)),
+        halfExtent);
+    const Vector3 vertical = Vector3Scale(
+        Vector3Add(
+            Vector3Scale(right, -sine),
+            Vector3Scale(worldUp, cosine)),
+        halfExtent);
+    constexpr int SegmentCount = 48;
+    rlSetTexture(texture.id);
+    rlBegin(RL_TRIANGLES);
+    rlNormal3f(normal.x, normal.y, normal.z);
+    rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+    for (int segment = 0; segment < SegmentCount; ++segment) {
+        const float firstAngle =
+            2.0F * PI * static_cast<float>(segment) /
+            static_cast<float>(SegmentCount);
+        const float secondAngle =
+            2.0F * PI * static_cast<float>(segment + 1) /
+            static_cast<float>(SegmentCount);
+        const auto emit = [&](Vector3 vertex, Vector2 uv) {
+            rlTexCoord2f(uv.x, uv.y);
+            rlVertex3f(vertex.x, vertex.y, vertex.z);
+        };
+        emit(center, {0.5F, 0.5F});
+        emit(
+            Vector3Add(
+                center,
+                Vector3Add(
+                    Vector3Scale(horizontal, std::cos(firstAngle)),
+                    Vector3Scale(vertical, std::sin(firstAngle)))),
+            {0.5F + 0.5F * std::cos(firstAngle),
+             0.5F - 0.5F * std::sin(firstAngle)});
+        emit(
+            Vector3Add(
+                center,
+                Vector3Add(
+                    Vector3Scale(horizontal, std::cos(secondAngle)),
+                    Vector3Scale(vertical, std::sin(secondAngle)))),
+            {0.5F + 0.5F * std::cos(secondAngle),
+             0.5F - 0.5F * std::sin(secondAngle)});
+    }
+    rlEnd();
+    rlSetTexture(0);
+}
+
+void drawPortalGlowRing(
+    Vector3 center, float yawRadians, float matterRadius,
+    Color tint) {
+    const Vector3 normal{
+        std::cos(yawRadians), 0.0F, -std::sin(yawRadians)};
+    const Vector3 right{
+        std::sin(yawRadians), 0.0F, std::cos(yawRadians)};
+    const Vector3 worldUp{0.0F, 1.0F, 0.0F};
+    center = Vector3Add(center, Vector3Scale(normal, 0.052F));
+    constexpr int SegmentCount = 48;
+    constexpr std::array<float, 3> RadiusFactors{
+        0.90F, 1.01F, 1.15F};
+    const std::array<unsigned char, 3> Alphas{
+        0U, tint.a, 0U};
+    const auto point = [&](float radius, float angle) {
+        return Vector3Add(
+            center,
+            Vector3Add(
+                Vector3Scale(right, std::cos(angle) * radius),
+                Vector3Scale(worldUp, std::sin(angle) * radius)));
+    };
+    const auto emit = [&](Vector3 vertex, unsigned char alpha) {
+        rlColor4ub(tint.r, tint.g, tint.b, alpha);
+        rlVertex3f(vertex.x, vertex.y, vertex.z);
+    };
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    rlNormal3f(normal.x, normal.y, normal.z);
+    for (int segment = 0; segment < SegmentCount; ++segment) {
+        const float firstAngle =
+            2.0F * PI * static_cast<float>(segment) /
+            static_cast<float>(SegmentCount);
+        const float secondAngle =
+            2.0F * PI * static_cast<float>(segment + 1) /
+            static_cast<float>(SegmentCount);
+        for (std::size_t band = 0; band < 2U; ++band) {
+            const float innerRadius =
+                matterRadius * RadiusFactors[band];
+            const float outerRadius =
+                matterRadius * RadiusFactors[band + 1U];
+            const Vector3 innerFirst = point(innerRadius, firstAngle);
+            const Vector3 innerSecond = point(innerRadius, secondAngle);
+            const Vector3 outerFirst = point(outerRadius, firstAngle);
+            const Vector3 outerSecond = point(outerRadius, secondAngle);
+            emit(innerFirst, Alphas[band]);
+            emit(outerFirst, Alphas[band + 1U]);
+            emit(outerSecond, Alphas[band + 1U]);
+            emit(innerFirst, Alphas[band]);
+            emit(outerSecond, Alphas[band + 1U]);
+            emit(innerSecond, Alphas[band]);
+        }
+    }
+    rlEnd();
 }
 
 } // namespace
@@ -1498,6 +1616,72 @@ bool Renderer::drawChallengeArenaPeg(
     DrawModelEx(
         model, position, {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
         {modelScale * scale, modelScale * scale, modelScale * scale}, tint);
+    return true;
+}
+
+bool Renderer::drawEnemyPortal(
+    Vector3 position, float yawRadians,
+    float matterRotationRadians, const WorldLighting& lighting,
+    float scale) {
+    ModelResource& portal = resources_.enemyPortalModel();
+    TextureResource& matter = resources_.portalMatterTexture();
+    if (!portal.valid() || !matter.valid() || scale <= 0.001F) {
+        return false;
+    }
+
+    constexpr float PortalCenterHeight = 1.74F;
+    constexpr float PortalGroundLift = -0.24F;
+    constexpr float MatterRadius = 2.13F;
+    Model& frame = portal.get();
+    beginWorldShader(lighting);
+    WorldMaterialState stoneMaterial{};
+    stoneMaterial.bakedAo = 0.78F;
+    stoneMaterial.screenAoAmount = 0.0F;
+    setWorldMaterial(stoneMaterial);
+    if (resources_.worldShader().valid()) {
+        for (int index = 0; index < frame.materialCount; ++index) {
+            frame.materials[index].shader = resources_.worldShader().get();
+        }
+    }
+    Vector3 framePosition = position;
+    framePosition.y += PortalGroundLift * scale;
+    DrawModelEx(
+        frame, framePosition,
+        {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
+        {scale, scale, scale}, WHITE);
+    endWorldShader();
+
+    const Vector3 matterCenter{
+        position.x,
+        position.y + PortalCenterHeight * scale,
+        position.z,
+    };
+    rlDrawRenderBatchActive();
+    rlDisableBackfaceCulling();
+    BeginBlendMode(BLEND_ALPHA);
+    const bool masksBackgroundInk =
+        resources_.portalMatterShader().valid();
+    if (masksBackgroundInk) {
+        BeginShaderMode(resources_.portalMatterShader().get());
+    }
+    drawPortalMatterPlane(
+        matter.get(), matterCenter, yawRadians,
+        MatterRadius * scale, matterRotationRadians,
+        WHITE);
+    if (masksBackgroundInk) {
+        EndShaderMode();
+    }
+    EndBlendMode();
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
+    BeginBlendMode(BLEND_ADDITIVE);
+    drawPortalGlowRing(
+        matterCenter, yawRadians, MatterRadius * scale,
+        {194, 72, 255, 72});
+    EndBlendMode();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
     return true;
 }
 

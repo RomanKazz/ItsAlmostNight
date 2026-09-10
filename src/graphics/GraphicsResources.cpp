@@ -1049,6 +1049,8 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     shockwaveShader_.load("assets/shaders/shockwave.vs",
                           "assets/shaders/shockwave.fs");
     iceMagicShader_.load(nullptr, "assets/shaders/ice_magic.fs");
+    portalMatterShader_.load(
+        nullptr, "assets/shaders/portal_matter.fs");
     coinOutlineShader_.load(
         "assets/shaders/coin_outline.vs",
         "assets/shaders/coin_outline.fs");
@@ -1061,6 +1063,13 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         GenTextureMipmaps(&texture);
         SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
         SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
+    }
+    portalMatterTexture_.load("assets/textures/portal_matter.png");
+    if (portalMatterTexture_.valid()) {
+        Texture2D& texture = portalMatterTexture_.get();
+        GenTextureMipmaps(&texture);
+        SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+        SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
     }
     constexpr std::array<const char*, 3> SkyboxPaths{{
         "assets/textures/skyboxes/day.png",
@@ -1099,6 +1108,20 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/challenges/skull_column.glb");
     challengeArenaPegModel_.load(
         "assets/models/challenges/arena_peg.glb");
+    enemyPortalModel_.load(
+        "assets/models/environment/portal/portal.glb");
+    if (enemyPortalModel_.valid()) {
+        Model& model = enemyPortalModel_.get();
+        for (int index = 0; index < model.materialCount; ++index) {
+            if (model.materials[index].maps == nullptr) continue;
+            Texture2D& texture = model.materials[index]
+                .maps[MATERIAL_MAP_DIFFUSE].texture;
+            if (texture.id == 0U || !IsTextureValid(texture)) continue;
+            GenTextureMipmaps(&texture);
+            SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+            SetTextureWrap(texture, TEXTURE_WRAP_REPEAT);
+        }
+    }
     worldLandmarkModels_[0].load(
         "assets/models/world_landmarks/abandoned_mine.glb");
     worldLandmarkModels_[1].load(
@@ -1518,6 +1541,7 @@ void GraphicsResources::shutdown() {
     stoneChestModel_.unload();
     challengeColumnModel_.unload();
     challengeArenaPegModel_.unload();
+    enemyPortalModel_.unload();
     for (auto& model : worldLandmarkModels_) model.unload();
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
@@ -1553,11 +1577,13 @@ void GraphicsResources::shutdown() {
     catapultModel_.unload();
     placeholderModel_.unload();
     terrainTexture_.unload();
+    portalMatterTexture_.unload();
     for (auto& texture : skyboxTextures_) texture.unload();
     fallbackTexture_.unload();
     upgradeEffectShader_.unload();
     shockwaveShader_.unload();
     iceMagicShader_.unload();
+    portalMatterShader_.unload();
     coinOutlineShader_.unload();
     heartOutlineShader_.unload();
     grassShader_.unload();

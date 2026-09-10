@@ -188,8 +188,6 @@ float inkDifference(
     float neighborIsOpaqueNoInk =
         (1.0 - step(0.5, neighborMaterialClass))*
         step(0.98, neighborSceneAlpha);
-    float neighborWantsToSuppressInk = max(
-        neighborIsGrass, neighborIsOpaqueNoInk);
     float centerIsObject = step(1.5, centerMaterialClass);
     float neighborIsObject = step(1.5, neighborMaterialClass);
     float centerIsTerrain =
@@ -210,8 +208,12 @@ float inkDifference(
         (vec2(coordinate) + 0.5)/bufferSize, neighborDepth);
     float surfaceSeparation = length(neighborPosition - centerPosition);
     float closeSurface = 1.0 - smoothstep(0.16, 0.52, surfaceSeparation);
-    float neighborSuppressesInk =
-        neighborWantsToSuppressInk * closeSurface;
+    // Foreground grass must always mask ink from geometry behind it. Opaque
+    // no-ink surfaces only suppress nearby contact edges so they do not erase
+    // unrelated silhouettes across a large depth gap.
+    float neighborSuppressesInk = max(
+        neighborIsGrass,
+        neighborIsOpaqueNoInk * closeSurface);
     float groundContact = (1.0 - neighborIsObject)*neighborHasDepth*
         closeSurface;
 

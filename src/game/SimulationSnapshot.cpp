@@ -322,6 +322,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .upcomingWaveHasBoss = upcomingComposition.boss,
         .upcomingAttackDirection = upcomingAttackDirection_,
         .upcomingAttackDirections = upcomingAttackDirections_,
+        .attackPortalPositions = wavePortalsActive_
+            ? wavePortalPositions_
+            : std::array<std::optional<Vec3>, 4>{},
         .phaseTimeRemaining = phaseTimeRemaining_,
         .phaseDuration = phaseDuration_,
         .earlyWaveBonus = earlyWaveBonus(),

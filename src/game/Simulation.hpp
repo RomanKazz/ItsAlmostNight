@@ -349,6 +349,7 @@ struct SimulationSnapshot {
     bool upcomingWaveHasBoss;
     std::optional<AttackDirection> upcomingAttackDirection;
     std::array<bool, 4> upcomingAttackDirections{};
+    std::array<std::optional<Vec3>, 4> attackPortalPositions{};
     double phaseTimeRemaining;
     double phaseDuration;
     int earlyWaveBonus;
@@ -895,6 +896,9 @@ class Simulation {
     double waveDamageScale_{1.0};
     std::optional<AttackDirection> upcomingAttackDirection_;
     std::array<bool, 4> upcomingAttackDirections_{};
+    std::array<std::optional<Vec3>, 4> wavePortalPositions_{};
+    std::size_t waveFirstAnchorIndex_{};
+    bool wavePortalsActive_{};
     bool currentWaveHasBoss_{};
     bool forceWaveCompletion_{};
     bool stageCleared_{};

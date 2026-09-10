@@ -3,7 +3,9 @@
 #include "core/SaturatingArithmetic.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace ian {
@@ -24,6 +26,85 @@ std::size_t attackDirectionIndex(AttackDirection direction) {
     return static_cast<std::size_t>(direction);
 }
 
+std::array<std::optional<Vec3>, 4> portalPositions(
+    std::span<const EnemySpawn> spawns, GridPosition corePosition) {
+    constexpr std::size_t DirectionCount = 4U;
+    std::array<double, DirectionCount> nearestRadius{};
+    nearestRadius.fill(std::numeric_limits<double>::infinity());
+    for (const EnemySpawn& spawn : spawns) {
+        const std::size_t index = attackDirectionIndex(
+            attackDirection(spawn.position, corePosition));
+        nearestRadius[index] = std::min(
+            nearestRadius[index],
+            std::hypot(
+                spawn.position.x - static_cast<double>(corePosition.x),
+                spawn.position.z - static_cast<double>(corePosition.z)));
+    }
+
+    std::array<Vec3, DirectionCount> sums{};
+    std::array<std::size_t, DirectionCount> counts{};
+    for (const EnemySpawn& spawn : spawns) {
+        const std::size_t index = attackDirectionIndex(
+            attackDirection(spawn.position, corePosition));
+        const double radius = std::hypot(
+            spawn.position.x - static_cast<double>(corePosition.x),
+            spawn.position.z - static_cast<double>(corePosition.z));
+        if (radius > nearestRadius[index] + 0.22) continue;
+        sums[index].x += spawn.position.x;
+        sums[index].z += spawn.position.z;
+        ++counts[index];
+    }
+
+    std::array<std::optional<Vec3>, DirectionCount> result{};
+    for (std::size_t index = 0; index < DirectionCount; ++index) {
+        if (counts[index] == 0U) continue;
+        const double inverseCount =
+            1.0 / static_cast<double>(counts[index]);
+        result[index] = Vec3{
+            sums[index].x * inverseCount,
+            0.0,
+            sums[index].z * inverseCount,
+        };
+    }
+    return result;
+}
+
+void routeSpawnsThroughPortals(
+    std::vector<EnemySpawn>& spawns,
+    const std::array<std::optional<Vec3>, 4>& portals,
+    GridPosition corePosition, int groupSize) {
+    const std::size_t normalizedGroupSize =
+        static_cast<std::size_t>(std::max(1, groupSize));
+    const double laneSpacing = normalizedGroupSize > 1U
+        ? std::min(
+              1.0,
+              2.6 / static_cast<double>(normalizedGroupSize - 1U))
+        : 0.0;
+    for (std::size_t index = 0; index < spawns.size(); ++index) {
+        EnemySpawn& spawn = spawns[index];
+        const std::size_t directionIndex = attackDirectionIndex(
+            attackDirection(spawn.position, corePosition));
+        if (!portals[directionIndex]) continue;
+
+        const Vec3 portal = *portals[directionIndex];
+        const double outwardX =
+            portal.x - static_cast<double>(corePosition.x);
+        const double outwardZ =
+            portal.z - static_cast<double>(corePosition.z);
+        const double length = std::max(
+            0.001, std::hypot(outwardX, outwardZ));
+        const double tangentX = -outwardZ / length;
+        const double tangentZ = outwardX / length;
+        const std::size_t indexInGroup = index % normalizedGroupSize;
+        const double lane =
+            (static_cast<double>(indexInGroup) -
+             static_cast<double>(normalizedGroupSize - 1U) * 0.5) *
+            laneSpacing;
+        spawn.position.x = portal.x + tangentX * lane;
+        spawn.position.z = portal.z + tangentZ * lane;
+    }
+}
+
 } // namespace
 
 void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
@@ -38,6 +119,13 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     waveSpawnCycle_ = 0U;
     waveSpawnGroupsDue_ = 0U;
     forceWaveCompletion_ = false;
+    wavePortalsActive_ = false;
+    waveFirstAnchorIndex_ = firstAnchorIndex %
+        map_.enemySpawnAnchors.size();
+    wavePortalPositions_ = portalPositions(plan.spawns, corePosition);
+    routeSpawnsThroughPortals(
+        waveSpawnQueue_, wavePortalPositions_, corePosition,
+        plan.groupSize);
     for (EnemySpawn& spawn : waveSpawnQueue_) {
         spawn.healthMultiplier *= healthScale;
         spawn.damageMultiplier *= damageScale;
@@ -59,7 +147,8 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
     nextWaveSpawnIndex_ = 0;
     waveSpawnTimeRemaining_ = waveSpawnInterval_;
     upcomingAttackDirection_ =
-        attackDirection(map_.enemySpawnAnchors[firstAnchorIndex], corePosition);
+        attackDirection(
+            map_.enemySpawnAnchors[waveFirstAnchorIndex_], corePosition);
     upcomingAttackDirections_.fill(false);
     for (const EnemySpawn& spawn : plan.spawns) {
         const AttackDirection direction =
@@ -84,6 +173,7 @@ void Simulation::beginPreparedWave() {
         std::span<const EnemySpawn>{waveSpawnQueue_.data(), firstGroupSize});
     nextWaveSpawnIndex_ = firstGroupSize;
     waveSpawnGroupsDue_ = 0U;
+    wavePortalsActive_ = true;
 }
 
 void Simulation::refillWaveSpawnQueue() {
@@ -91,12 +181,8 @@ void Simulation::refillWaveSpawnQueue() {
     if (!core || map_.enemySpawnAnchors.empty()) return;
 
     ++waveSpawnCycle_;
-    const std::size_t anchor =
-        (static_cast<std::size_t>(std::max(1, wave_)) +
-         static_cast<std::size_t>(waveSpawnCycle_) * 3U) %
-        map_.enemySpawnAnchors.size();
     const WavePlan plan = waveDirector_.buildWave(
-        wave_, core->gridPosition, anchor);
+        wave_, core->gridPosition, waveFirstAnchorIndex_);
     waveSpawnQueue_.clear();
     waveSpawnQueue_.reserve(plan.spawns.size());
     const double riskyHealth = 1.0 +
@@ -111,6 +197,9 @@ void Simulation::refillWaveSpawnQueue() {
         spawn.damageMultiplier *= waveDamageScale_ * riskyDamage;
         waveSpawnQueue_.push_back(spawn);
     }
+    routeSpawnsThroughPortals(
+        waveSpawnQueue_, wavePortalPositions_, core->gridPosition,
+        plan.groupSize);
     if (waveSpawnQueue_.size() > 1U) {
         const std::size_t offset =
             (static_cast<std::size_t>(waveSpawnCycle_) * 7U +
@@ -177,6 +266,8 @@ void Simulation::completeWave() {
     waveSpawnCycle_ = 0U;
     upcomingAttackDirection_.reset();
     upcomingAttackDirections_.fill(false);
+    wavePortalPositions_.fill(std::nullopt);
+    wavePortalsActive_ = false;
     const int supplyDropLevel = static_cast<int>(std::lround(
         skillTree_.effectValue("loot.supply_drop")));
     int nightlyChests = static_cast<int>(std::lround(

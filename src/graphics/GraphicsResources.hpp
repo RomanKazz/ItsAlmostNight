@@ -242,6 +242,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& shockwaveShader() const;
     [[nodiscard]] ShaderResource& iceMagicShader();
     [[nodiscard]] const ShaderResource& iceMagicShader() const;
+    [[nodiscard]] ShaderResource& portalMatterShader();
+    [[nodiscard]] const ShaderResource& portalMatterShader() const;
     [[nodiscard]] ShaderResource& coinOutlineShader();
     [[nodiscard]] const ShaderResource& coinOutlineShader() const;
     [[nodiscard]] ShaderResource& heartOutlineShader();
@@ -249,6 +251,8 @@ class GraphicsResources {
     [[nodiscard]] TextureResource& fallbackTexture();
     [[nodiscard]] TextureResource& terrainTexture();
     [[nodiscard]] const TextureResource& terrainTexture() const;
+    [[nodiscard]] TextureResource& portalMatterTexture();
+    [[nodiscard]] const TextureResource& portalMatterTexture() const;
     [[nodiscard]] TextureResource& skyboxTexture(std::size_t variant);
     [[nodiscard]] const TextureResource& skyboxTexture(
         std::size_t variant) const;
@@ -272,6 +276,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& stoneChestModel();
     [[nodiscard]] ModelResource& challengeColumnModel();
     [[nodiscard]] ModelResource& challengeArenaPegModel();
+    [[nodiscard]] ModelResource& enemyPortalModel();
     [[nodiscard]] ModelResource& worldLandmarkModel(
         std::size_t variant);
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
@@ -379,10 +384,12 @@ class GraphicsResources {
     ShaderResource upgradeEffectShader_;
     ShaderResource shockwaveShader_;
     ShaderResource iceMagicShader_;
+    ShaderResource portalMatterShader_;
     ShaderResource coinOutlineShader_;
     ShaderResource heartOutlineShader_;
     TextureResource fallbackTexture_;
     TextureResource terrainTexture_;
+    TextureResource portalMatterTexture_;
     std::array<TextureResource, 3> skyboxTextures_;
     ModelResource placeholderModel_;
     ModelResource cannonModel_;
@@ -404,6 +411,7 @@ class GraphicsResources {
     ModelResource stoneChestModel_;
     ModelResource challengeColumnModel_;
     ModelResource challengeArenaPegModel_;
+    ModelResource enemyPortalModel_;
     std::array<ModelResource, 2> worldLandmarkModels_;
     std::array<ModelResource, 3> coinModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
