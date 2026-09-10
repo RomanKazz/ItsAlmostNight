@@ -173,7 +173,6 @@ void growingRequirementIsSupportedButDisabledByDefault() {
 void simulationProgressionStateRoundTripsAndResets() {
     ian::Simulation simulation;
     ian::ProgressionRunState state;
-    state.skillTree.points = 2;
     state.insight.progress.currentInsight = 47.5;
     state.insight.progress.requiredInsight = 100.0;
     state.insight.progress.totalLevelsEarned = 2;
@@ -182,15 +181,13 @@ void simulationProgressionStateRoundTripsAndResets() {
     require(simulation.loadProgressionState(state),
             "combined run progression state loads atomically");
     const auto saved = simulation.saveProgressionState();
-    require(saved.skillTree.points == 2 &&
-                saved.insight.progress.currentInsight == 47.5 &&
+    require(saved.insight.progress.currentInsight == 47.5 &&
                 saved.insight.consumedEventIds.size() == 2,
-            "combined save preserves SkillTree and Insight state");
+            "run progression save preserves Insight state");
     simulation.startRun();
-    require(simulation.skillTree().points() == 0 &&
-                simulation.insightSystem().progress().currentInsight == 0.0 &&
+    require(simulation.insightSystem().progress().currentInsight == 0.0 &&
                 simulation.insightSystem().saveState().consumedEventIds.empty(),
-            "starting a new run resets both progression halves");
+            "starting a new run resets progression");
 }
 
 } // namespace

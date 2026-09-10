@@ -43,7 +43,6 @@ enum class ControlAction : std::uint8_t {
     UpgradeWeapon,
     BuildMode,
     Pause,
-    Skills,
     Map,
     StartWave,
     Restart,
@@ -61,8 +60,8 @@ inline constexpr std::array<int, ControlActionCount>
         KEY_SPACE,      KEY_LEFT_SHIFT, KEY_NULL,
         KEY_NULL,       KEY_C,       KEY_E,       KEY_G,
         KEY_F,          KEY_Q,       KEY_U,       KEY_X,
-        KEY_V,          KEY_TAB,     KEY_P,       KEY_K,
-        KEY_M,          KEY_N,       KEY_R,       KEY_L,
+        KEY_V,          KEY_TAB,     KEY_P,       KEY_M,
+        KEY_N,          KEY_R,       KEY_L,
         KEY_H,
     };
 

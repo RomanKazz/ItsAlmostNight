@@ -61,7 +61,7 @@ void runCannonSystemTests() {
     ian::EnemySystem clusterPayloadEnemies;
     clusterPayloadEnemies.spawnWave(Cluster);
     ian::CannonSystem clusterPayloadCannons;
-    clusterPayloadCannons.setSkillModifiers(
+    clusterPayloadCannons.setModifiers(
         1.0, 1.0, 1.0, 1.0, 2);
     clusterPayloadCannons.syncBuildings(buildings.buildings());
     std::span<const ian::CannonExplosion> clusterExplosions;

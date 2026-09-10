@@ -1,6 +1,5 @@
 #include "app/AppRunUpgradeOverlay.hpp"
 
-#include "progression/ProgressionCardRules.hpp"
 #include "ui/UiText.hpp"
 
 #include <algorithm>
@@ -8,7 +7,6 @@
 #include <cmath>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace ian::app_detail {
 namespace {
@@ -150,57 +148,6 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::ReactiveTraps: return "PULSE";
     }
     return "+";
-}
-
-UpgradeColorClass skillColorClass(SkillBranch branch) {
-    switch (branch) {
-    case SkillBranch::Gathering: return UpgradeColorClass::Green;
-    case SkillBranch::Weapons: return UpgradeColorClass::Red;
-    case SkillBranch::Construction: return UpgradeColorClass::Yellow;
-    case SkillBranch::Movement: return UpgradeColorClass::Blue;
-    case SkillBranch::Economy: return UpgradeColorClass::Purple;
-    case SkillBranch::Root: return UpgradeColorClass::Blue;
-    }
-    return UpgradeColorClass::Blue;
-}
-
-std::string_view skillMark(SkillBranch branch) {
-    switch (branch) {
-    case SkillBranch::Gathering: return "GATHER";
-    case SkillBranch::Weapons: return "COMBAT";
-    case SkillBranch::Construction: return "BUILD";
-    case SkillBranch::Movement: return "MOVE";
-    case SkillBranch::Economy: return "ECON";
-    case SkillBranch::Root: return "CORE";
-    }
-    return "+";
-}
-
-std::vector<std::string> wrappedLines(
-    std::string_view text, float fontSize, float maximumWidth) {
-    std::vector<std::string> lines;
-    std::string line;
-    std::size_t position = 0U;
-    while (position < text.size()) {
-        while (position < text.size() && text[position] == ' ') ++position;
-        const std::size_t end = text.find(' ', position);
-        const std::string word{text.substr(
-            position, end == std::string_view::npos
-                ? text.size() - position : end - position)};
-        const std::string candidate = line.empty()
-            ? word : line + " " + word;
-        if (!line.empty() &&
-            measureUiText(candidate, fontSize).x > maximumWidth) {
-            lines.push_back(line);
-            line = word;
-        } else {
-            line = candidate;
-        }
-        if (end == std::string_view::npos) break;
-        position = end + 1U;
-    }
-    if (!line.empty()) lines.push_back(line);
-    return lines;
 }
 
 float smoothUnit(float value) {
@@ -354,178 +301,6 @@ struct UpgradeValueCopy {
     std::string label;
 };
 
-struct SkillCardCopy {
-    std::string_view title;
-    std::string_view value;
-    std::string_view label;
-};
-
-SkillCardCopy skillCardCopy(const SkillNodeDefinition& skill) {
-    const std::string_view id = skill.id;
-    if (id == "axe") return {"AXE", "+15%", "AXE DAMAGE"};
-    if (id == "pickaxe") {
-        return {"PICKAXE", "+15%", "PICKAXE DAMAGE"};
-    }
-    if (id == "efficient_strikes") {
-        return {"GATHER", "+25%", "RESOURCE DAMAGE"};
-    }
-    if (id == "power_swing") {
-        return {"CLEAVE", "3RD HIT", "AREA STRIKE"};
-    }
-    if (id == "wide_swing") {
-        return {"WIDE SWING", "+50%", "CLEAVE AREA"};
-    }
-    if (id == "hands_on") {
-        return {"HANDS ON", "+45%", "MANUAL GATHERING"};
-    }
-    if (id == "industrialist") {
-        return {"INDUSTRY", "+40%", "PRODUCTION SPEED"};
-    }
-    if (id == "lumber_mill") {
-        return {"LUMBER MILL", "UNLOCK", "WOOD PRODUCTION"};
-    }
-    if (id == "quarry") {
-        return {"QUARRY", "UNLOCK", "STONE PRODUCTION"};
-    }
-    if (id == "crystal_mine") {
-        return {"CRYSTAL MINE", "UNLOCK", "CRYSTAL PRODUCTION"};
-    }
-    if (id == "night_shift") {
-        return {"NIGHT SHIFT", "+50%", "NIGHT PRODUCTION"};
-    }
-    if (id == "combat_training") {
-        return {"POWER", "+10%", "ATTACK DAMAGE"};
-    }
-    if (id == "club") return {"CLUB", "UNLOCK", "MELEE WEAPON"};
-    if (id == "rifle") return {"RIFLE", "UNLOCK", "RANGED WEAPON"};
-    if (id == "ice_wand") {
-        return {"ICE WAND", "UNLOCK", "FREEZE MAGIC"};
-    }
-    if (id == "fire_wand") {
-        return {"FIRE WAND", "UNLOCK", "FIRE MAGIC"};
-    }
-    if (id == "bombs") return {"BOMBS", "+2", "BOMBS EACH NIGHT"};
-    if (id == "bomb_pouch") {
-        return {"BOMB POUCH", "+1", "NIGHTLY BOMB"};
-    }
-    if (id == "concussive_swings") {
-        return {"KNOCKBACK", "+3", "CLUB KNOCKBACK"};
-    }
-    if (id == "bruiser") {
-        return {"BRUISER", "+55%", "CLUB DAMAGE"};
-    }
-    if (id == "crowd_breaker") {
-        return {"CROWD BREAKER", "+55%", "CLUB AREA"};
-    }
-    if (id == "marksman") {
-        return {"MARKSMAN", "+70%", "RIFLE DAMAGE"};
-    }
-    if (id == "assault_rifle") {
-        return {"ASSAULT", "+50%", "RIFLE SPEED"};
-    }
-    if (id == "deep_freeze") {
-        return {"DEEP FREEZE", "+55%", "FREEZE TIME"};
-    }
-    if (id == "ice_lance") {
-        return {"ICE LANCE", "+65%", "ICE DAMAGE"};
-    }
-    if (id == "wildfire") {
-        return {"WILDFIRE", "+50%", "BURN TIME"};
-    }
-    if (id == "inferno") {
-        return {"INFERNO", "+45%", "FIRE DAMAGE"};
-    }
-    if (id == "thermal_shock") {
-        return {"THERMAL SHOCK", "+18", "BURST DAMAGE"};
-    }
-    if (id == "hammer") {
-        return {"FORTIFY", "10 SEC", "FORTIFICATION"};
-    }
-    if (id == "reinforced_frames") {
-        return {"FORTIFY", "+20%", "BUILDING HP"};
-    }
-    if (id == "field_repairs") {
-        return {"REPAIR", "+18%", "NIGHTLY REPAIR"};
-    }
-    if (id == "defense_engineering") {
-        return {"TOWER POWER", "+12%", "DEFENSE DAMAGE"};
-    }
-    if (id == "crossbow_unlock") {
-        return {"CROSSBOW", "UNLOCK", "DEFENSE"};
-    }
-    if (id == "turret_calibration") {
-        return {"CALIBRATION", "+20%", "RANGE & DAMAGE"};
-    }
-    if (id == "rapid_battery") {
-        return {"RAPID FIRE", "+45%", "TOWER SPEED"};
-    }
-    if (id == "long_watch") {
-        return {"LONG WATCH", "+45%", "TOWER RANGE"};
-    }
-    if (id == "cannon_unlock") {
-        return {"CANNON", "UNLOCK", "DEFENSE"};
-    }
-    if (id == "catapult_unlock") {
-        return {"CATAPULT", "UNLOCK", "DEFENSE"};
-    }
-    if (id == "artillery_corps") {
-        return {"ARTILLERY", "+30%", "BLAST & DAMAGE"};
-    }
-    if (id == "trap_engineer") {
-        return {"TRAPS", "+30%", "TRAP DAMAGE"};
-    }
-    if (id == "high_ground") {
-        return {"HIGH GROUND", "+35%", "DEFENSE DAMAGE"};
-    }
-    if (id == "light_footwork") {
-        return {"MOVE", "+15%", "MOVE SPEED"};
-    }
-    if (id == "sprinter") {
-        return {"SPRINT", "+10%", "MOVE SPEED"};
-    }
-    if (id == "dash") return {"DASH", "UNLOCK", "MOVEMENT SKILL"};
-    if (id == "impact_dash") {
-        return {"IMPACT DASH", "+10", "DASH DAMAGE"};
-    }
-    if (id == "long_dash") {
-        return {"LONG DASH", "+30%", "DASH SPEED"};
-    }
-    if (id == "rapid_dash") {
-        return {"RAPID DASH", "+45%", "DASH RECOVERY"};
-    }
-    if (id == "nightly_chest") {
-        return {"SUPPLY DROP", "3 NIGHTS", "REWARD CHEST"};
-    }
-    if (id == "frequent_bounty") {
-        return {"DELIVERY", "+1", "CHEST EACH NIGHT"};
-    }
-    if (id == "safe_delivery") {
-        return {"SAFE DROP", "NEAR CORE", "REWARD CHESTS"};
-    }
-    if (id == "keymaster") {
-        return {"KEYMASTER", "-20%", "CHEST COST"};
-    }
-    if (id == "early_planning") {
-        return {"PLANNING", "+25%", "EARLY REWARDS"};
-    }
-    if (id == "mercenary_contract") {
-        return {"MERCENARY", "BONUS", "COINS, NO XP"};
-    }
-    if (id == "scholar_contract") {
-        return {"SCHOLAR", "BONUS", "XP, NO COINS"};
-    }
-    if (id == "expanded_storage") {
-        return {"STORAGE", "+40%", "RESOURCE CAPACITY"};
-    }
-    if (id == "scavenger") {
-        return {"SCAVENGE", "+50%", "PROP COINS"};
-    }
-    if (id == "longer_days") {
-        return {"LONG DAYS", "+15 SEC", "DAY TIME"};
-    }
-    return {skill.title, skillMark(skill.branch), "SPECIAL UPGRADE"};
-}
-
 UpgradeValueCopy upgradeValueCopy(
     std::string_view description, std::string_view fallback) {
     if (description.size() >= 2U &&
@@ -586,7 +361,6 @@ std::optional<std::size_t> hoveredRunUpgradeChoice(
 void drawRunUpgradeOverlay(
     GameUi& ui,
     const SimulationSnapshot& snapshot,
-    const SkillTree& skillTree,
     double entranceSeconds,
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
@@ -666,25 +440,11 @@ void drawRunUpgradeOverlay(
 
     const Vector2 mouse = GetMousePosition();
     for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
-         ++index) {
-        const ProgressionCardId card = snapshot.runUpgradeChoices[index];
-        const bool skillCard = isSkillProgressionCard(card);
-        const std::size_t skillIndex = skillCard
-            ? progressionCardSkillIndex(card) : 0U;
-        if (skillCard && skillIndex >= skillTree.nodes().size()) continue;
-        const RunUpgradeEffect effect = skillCard
-            ? RunUpgradeEffect::Damage
-            : progressionCardRunUpgrade(card);
-        const SkillNodeDefinition* skill = skillCard
-            ? &skillTree.nodes()[skillIndex] : nullptr;
-        const SkillCardCopy skillCopy = skillCard
-            ? skillCardCopy(*skill) : SkillCardCopy{};
-        const std::string_view title = skillCard
-            ? skillCopy.title
-            : runUpgradeDefinition(effect).name;
-        const std::string_view description = skillCard
-            ? std::string_view{skill->description}
-            : runUpgradeDefinition(effect).description;
+        ++index) {
+        const RunUpgradeEffect effect = snapshot.runUpgradeChoices[index];
+        const std::string_view title = runUpgradeDefinition(effect).name;
+        const std::string_view description =
+            runUpgradeDefinition(effect).description;
         const Rectangle baseBounds = runUpgradeCardBounds(
             index, snapshot.runUpgradeChoiceCount);
         const bool hovered = CheckCollisionPointRec(mouse, baseBounds);
@@ -737,12 +497,9 @@ void drawRunUpgradeOverlay(
                  selectedCenterX) * exitEase;
         }
         const float scale = layoutScale * animationScale;
-        const bool locked = !skillCard &&
-            snapshot.lockedRunUpgrade == effect;
+        const bool locked = snapshot.lockedRunUpgrade == effect;
         const UpgradePalette palette = upgradePalette(
-            skillCard
-                ? skillColorClass(skill->branch)
-                : upgradeColorClass(effect));
+            upgradeColorClass(effect));
         const Color accent = palette.accent;
         const Rectangle colorBounds = expandedRectangle(
             bounds, 10.0F * scale);
@@ -825,15 +582,9 @@ void drawRunUpgradeOverlay(
         const Vector2 emblemCenter{
             centerX, bounds.y + 140.0F * scale};
 
-        const std::string_view mark = skillCard
-            ? skillMark(skill->branch)
-            : upgradeMark(effect);
-        const RunUpgradeEffect iconEffect =
-            skillCard && skill->branch == SkillBranch::Movement
-                ? RunUpgradeEffect::MoveSpeed : effect;
-        const Texture2D cardIcon = ui.runUpgradeTexture(iconEffect);
-        const bool drawUpgradeIcon = IsTextureValid(cardIcon) &&
-            (!skillCard || skill->branch == SkillBranch::Movement);
+        const std::string_view mark = upgradeMark(effect);
+        const Texture2D cardIcon = ui.runUpgradeTexture(effect);
+        const bool drawUpgradeIcon = IsTextureValid(cardIcon);
         if (drawUpgradeIcon) {
             const float iconSize = 320.0F * scale;
             DrawTexturePro(
@@ -910,10 +661,9 @@ void drawRunUpgradeOverlay(
         }
 
         std::string_view displayTitle = title;
-        if (!skillCard &&
-            (effect == RunUpgradeEffect::MoveSpeed ||
-             effect == RunUpgradeEffect::MaximumHealth ||
-             effect == RunUpgradeEffect::RecoverableArmor)) {
+        if (effect == RunUpgradeEffect::MoveSpeed ||
+            effect == RunUpgradeEffect::MaximumHealth ||
+            effect == RunUpgradeEffect::RecoverableArmor) {
             displayTitle = mark;
         }
         const std::string displayTitleText{displayTitle};
@@ -952,11 +702,8 @@ void drawRunUpgradeOverlay(
                 valuePanel, 25.0F * scale),
             8,
             fadedColor(CardInset, cardFade));
-        const UpgradeValueCopy valueCopy = skillCard
-            ? UpgradeValueCopy{
-                  std::string{skillCopy.value},
-                  std::string{skillCopy.label}}
-            : upgradeValueCopy(description, mark);
+        const UpgradeValueCopy valueCopy =
+            upgradeValueCopy(description, mark);
         const float valueSize = fitUiTextSize(
             valueCopy.value,
             56.0F / UiTextRasterScale * scale,
@@ -977,12 +724,9 @@ void drawRunUpgradeOverlay(
             valuePanel.y + 63.0F * scale,
             labelSize, CardValueCream, cardFade, scale,
             CardInk, 4.0F, false);
-        const int currentLevel = skillCard
-            ? skillTree.level(skillIndex)
-            : snapshot.runUpgradeStacks[runUpgradeIndex(effect)];
-        const int maximumLevel = skillCard
-            ? skill->maximumLevel
-            : runUpgradeMaximumLevel(effect);
+        const int currentLevel =
+            snapshot.runUpgradeStacks[runUpgradeIndex(effect)];
+        const int maximumLevel = runUpgradeMaximumLevel(effect);
         const Rectangle levelBadge{
             centerX - 100.0F * scale,
             bounds.y + 448.0F * scale,
@@ -1071,139 +815,6 @@ void drawRunUpgradeOverlay(
             15.0F,
             fadedColor({229, 219, 185, 245}, controlsFade));
     }
-}
-
-std::size_t cardCollectionPageCount(const SkillTree& skillTree) {
-    const std::size_t count = static_cast<std::size_t>(std::ranges::count_if(
-        skillTree.nodes(), [](const SkillNodeDefinition& node) {
-            return node.cost > 0 &&
-                !progressionCardIsHidden(node.id);
-        }));
-    return std::max<std::size_t>(1U, (count + 11U) / 12U);
-}
-
-void drawCardCollectionOverlay(
-    GameUi& ui,
-    const SimulationSnapshot& snapshot,
-    const SkillTree& skillTree,
-    std::size_t page) {
-    constexpr std::size_t CardsPerPage = 12U;
-    constexpr std::size_t Columns = 4U;
-    constexpr float Gap = 12.0F;
-    std::vector<std::size_t> cards;
-    cards.reserve(skillTree.nodes().size());
-    for (std::size_t index = 0; index < skillTree.nodes().size(); ++index) {
-        if (skillTree.nodes()[index].cost > 0 &&
-            !progressionCardIsHidden(
-                skillTree.nodes()[index].id)) {
-            cards.push_back(index);
-        }
-    }
-    const std::size_t pages = std::max<std::size_t>(
-        1U, (cards.size() + CardsPerPage - 1U) / CardsPerPage);
-    page = std::min(page, pages - 1U);
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                  {4, 7, 11, 235});
-    drawCenteredUiText("CARD COLLECTION", 34.0F, 32.0F,
-                       {224, 201, 255, 255});
-    drawCenteredUiText(
-        "K / ESC CLOSE   •   LEFT / RIGHT PAGE",
-        75.0F, 12.0F, {205, 211, 207, 235});
-
-    const float usableWidth = std::min(1180.0F, screenWidth - 48.0F);
-    const float cardWidth =
-        (usableWidth - Gap * static_cast<float>(Columns - 1U)) /
-        static_cast<float>(Columns);
-    const float cardHeight = std::clamp(
-        (screenHeight - 154.0F - Gap * 2.0F) / 3.0F,
-        118.0F, 172.0F);
-    const float startX = (screenWidth - usableWidth) * 0.5F;
-    const float startY = 105.0F;
-    const ProgressionCardContext context{
-        .playerLevel = snapshot.playerLevel,
-        .coreLevel = snapshot.coreLevel,
-        .wavesSurvived = snapshot.runStatistics.wavesSurvived,
-        .playerClass = snapshot.playerClass,
-    };
-    const std::size_t first = page * CardsPerPage;
-    const std::size_t last = std::min(first + CardsPerPage, cards.size());
-    for (std::size_t visible = first; visible < last; ++visible) {
-        const std::size_t slot = visible - first;
-        const std::size_t index = cards[visible];
-        const SkillNodeDefinition& node = skillTree.nodes()[index];
-        const bool unlocked = skillTree.isUnlocked(node.id);
-        const int level = skillTree.level(index);
-        const bool maximumLevel = skillTree.isMaxLevel(index);
-        const bool available = progressionCardEligible(
-            skillTree, index, context);
-        const Color accent = upgradePalette(
-            skillColorClass(node.branch)).accent;
-        const float x = startX +
-            static_cast<float>(slot % Columns) * (cardWidth + Gap);
-        const float y = startY +
-            static_cast<float>(slot / Columns) * (cardHeight + Gap);
-        const Rectangle bounds{x, y, cardWidth, cardHeight};
-        ui.drawCardPanel(
-            bounds,
-            unlocked || available
-                ? accent : Color{83, 88, 91, 210},
-            unlocked ? 252 : available ? 246 : 222);
-        const std::string state = maximumLevel
-            ? "MAX LEVEL"
-            : unlocked
-                ? "LVL " + std::to_string(level) + " / " +
-                    std::to_string(node.maximumLevel)
-                : available ? "AVAILABLE" : "LOCKED";
-        drawUiText(state, {x + 12.0F, y + 10.0F}, 10.0F,
-                   unlocked || available
-                       ? accent : Color{137, 140, 140, 220});
-        const float titleSize = fitUiTextSize(
-            node.title, 16.0F, 11.0F, cardWidth - 24.0F);
-        drawUiText(node.title, {x + 12.0F, y + 31.0F},
-                   titleSize, {35, 54, 69, 255});
-        const auto lines = wrappedLines(
-            node.description, 10.5F, cardWidth - 24.0F);
-        float lineY = y + 57.0F;
-        for (std::size_t line = 0;
-             line < std::min<std::size_t>(3U, lines.size()); ++line) {
-            drawUiText(lines[line], {x + 12.0F, lineY}, 10.5F,
-                       {78, 101, 117, 235});
-            lineY += 15.0F;
-        }
-        std::string requirement;
-        if (!unlocked) {
-            if (skillTree.isExcluded(index)) {
-                requirement = "MUTUALLY EXCLUSIVE";
-            } else if (const int minimumLevel =
-                           progressionCardMinimumLevel(node);
-                       snapshot.playerLevel < minimumLevel) {
-                requirement = "LVL " + std::to_string(minimumLevel);
-            } else if (snapshot.coreLevel < std::max(
-                           node.minimumCoreLevel,
-                           progressionCardRequiredCoreLevel(node.id))) {
-                requirement = "CORE " +
-                    std::to_string(std::max(
-                        node.minimumCoreLevel,
-                        progressionCardRequiredCoreLevel(node.id)));
-            } else if (snapshot.runStatistics.wavesSurvived <
-                       node.minimumWavesSurvived) {
-                requirement = "WAVE " +
-                    std::to_string(node.minimumWavesSurvived);
-            }
-        }
-        if (!requirement.empty()) {
-            drawUiText(
-                requirement, {x + 12.0F, y + cardHeight - 23.0F},
-                10.0F, {242, 176, 99, 245});
-        }
-    }
-    drawCenteredUiText(
-        "PAGE " + std::to_string(page + 1U) + " / " +
-            std::to_string(pages),
-        screenHeight - 34.0F, 13.0F,
-        {220, 208, 236, 245});
 }
 
 } // namespace ian::app_detail

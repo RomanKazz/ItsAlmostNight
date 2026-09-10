@@ -1250,12 +1250,6 @@ void App::processPresentationEvents(
                         std::lround(event.insightAmount))) +
                     " XP";
             }
-        } else if (event.type == GameEventType::IntroSkillObjectiveCompleted) {
-            message = introGatherRewardMessage(
-                simulation_.insightSystem().config()
-                    .introGatherObjective);
-        } else if (event.type == GameEventType::SkillUnlocked) {
-            message = "Upgrade acquired";
         } else if (event.type == GameEventType::BuildingFortified) {
             message = "Building fortified for 10 seconds";
         } else if (event.type == GameEventType::ChestOpenRejected) {

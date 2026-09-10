@@ -45,7 +45,7 @@ void runTrapSystemTests() {
     ian::EnemySystem reactiveEnemies;
     reactiveEnemies.spawnWave(Spawn);
     ian::TrapSystem reactiveTraps;
-    reactiveTraps.setSkillModifiers(
+    reactiveTraps.setModifiers(
         1.0, 1.0, 1.0, 1.0, 6.0);
     reactiveTraps.syncBuildings(buildings.buildings());
     reactiveTraps.tick(

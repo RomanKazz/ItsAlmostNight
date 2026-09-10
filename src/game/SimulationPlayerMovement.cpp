@@ -78,20 +78,15 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double speed =
         (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
         playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ *
-        (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) * std::max(
-            0.05, 1.0 + skillTree_.effectValue("player.move_speed")) *
+        (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) *
         terrain_.waterMovementMultiplier(
             playerPosition_.x, playerPosition_.z);
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
 
-    const bool dashUnlocked =
-        skillTree_.hasEffect("dash.unlock");
-    const double dashSpeedMultiplier = std::max(
-        0.05, 1.0 + skillTree_.effectValue("dash.speed"));
-    const double dashRecoveryMultiplier = std::max(
-        0.05, 1.0 + skillTree_.effectValue("dash.cooldown"));
-    if (command.dash && dashUnlocked &&
+    constexpr double dashSpeedMultiplier = 1.0;
+    constexpr double dashRecoveryMultiplier = 1.0;
+    if (command.dash &&
         dashCooldownRemaining_ <= 0.0 &&
         dashRemaining_ <= 0.0) {
         dashDirection_ = hasMovementInput
@@ -114,30 +109,6 @@ void Simulation::updatePlayer(double deltaSeconds,
             .position = playerPosition_,
             .intensity = 1.0,
         });
-        const double impactDamage = skillTree_.effectValue(
-            "dash.impact_damage");
-        if (impactDamage > 0.0) {
-            const auto hits = enemies_.damageInRadius(
-                playerPosition_, 1.8, impactDamage, 5.0,
-                playerPosition_);
-            for (const EnemyDamageResult& hit : hits) {
-                events_.push_back({
-                    .type = GameEventType::ProjectileHit,
-                    .entityId = hit.id,
-                    .position = hit.position,
-                    .damage = hit.damage,
-                });
-                if (hit.killed) {
-                    events_.push_back({
-                        .type = GameEventType::EnemyKilled,
-                        .entityId = hit.id,
-                        .enemyType = hit.type,
-                        .enemyEliteAffixes = hit.eliteAffixes,
-                        .position = hit.position,
-                    });
-                }
-            }
-        }
     }
 
     const bool dashing = dashRemaining_ > 0.0;
@@ -175,8 +146,6 @@ void Simulation::updatePlayer(double deltaSeconds,
         velocityChangeRate *=
             hasMovementInput ? 0.55 : 0.35;
     }
-    velocityChangeRate *= std::max(
-        0.05, 1.0 + skillTree_.effectValue("player.acceleration"));
     if (!hasMovementInput &&
         autoJumpAssistRemaining_ > 0.0) {
         velocityChangeRate = 0.0;

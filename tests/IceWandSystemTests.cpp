@@ -119,7 +119,7 @@ void runIceWandSystemTests() {
     const double healthBeforeThermal =
         thermalEnemies.enemies().front().health;
     ian::IceWandSystem thermalFire{fireBalance};
-    thermalFire.setSkillModifiers(1.0, 1.0, 1.0, 1.0, 5.0);
+    thermalFire.setModifiers(1.0, 1.0, 1.0, 1.0, 5.0);
     require(
         thermalFire.requestFire(
             {0.0, 1.0, 0.0}, {0.0, 0.0, -1.0}),

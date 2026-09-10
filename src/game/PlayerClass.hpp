@@ -22,8 +22,7 @@ struct PlayerClassDefinition {
     std::string_view name;
     std::string_view role;
     std::array<std::string_view, 3> traits;
-    std::array<std::string_view, 5> startingNodeIds;
-    std::string_view startingNodesLabel;
+    std::string_view startingLoadoutLabel;
     double damageMultiplier{1.0};
     double attackSpeedMultiplier{1.0};
     double moveSpeedMultiplier{1.0};
@@ -41,8 +40,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "VANGUARD",
             .role = "Stand your ground",
             .traits = {"+35% MAX HEALTH", "+20% DAMAGE RESIST", "-10% DAMAGE"},
-            .startingNodeIds = {"club", ""},
-            .startingNodesLabel = "CLUB",
+            .startingLoadoutLabel = "STARTS WITH CLUB",
             .damageMultiplier = 0.90,
             .maxHealthMultiplier = 1.35,
             .armorMultiplier = 1.25,
@@ -52,8 +50,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "RANGER",
             .role = "Move fast, kill first",
             .traits = {"+25% DAMAGE", "+12% MOVE SPEED", "-20% MAX HEALTH"},
-            .startingNodeIds = {"rifle", ""},
-            .startingNodesLabel = "RIFLE",
+            .startingLoadoutLabel = "STARTS WITH RIFLE",
             .damageMultiplier = 1.25,
             .moveSpeedMultiplier = 1.12,
             .maxHealthMultiplier = 0.80,
@@ -63,8 +60,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "ENGINEER",
             .role = "Let the fort fight",
             .traits = {"+35% BUILDING HEALTH", "+25% DEFENSE DAMAGE", "-10% DAMAGE"},
-            .startingNodeIds = {"hammer", ""},
-            .startingNodesLabel = "FORTIFICATION",
+            .startingLoadoutLabel = "FORTIFICATION AVAILABLE",
             .damageMultiplier = 0.90,
             .buildingHealthMultiplier = 1.35,
             .defenseDamageMultiplier = 1.25,
@@ -74,8 +70,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "PROSPECTOR",
             .role = "Strip the land, feed the fort",
             .traits = {"AXE + PICKAXE", "+20% PRODUCTION SPEED", "-15% DAMAGE"},
-            .startingNodeIds = {"axe", "pickaxe", ""},
-            .startingNodesLabel = "AXE · PICKAXE",
+            .startingLoadoutLabel = "STARTS WITH AXE + PICKAXE",
             .damageMultiplier = 0.85,
             .productionSpeedMultiplier = 1.20,
         },
@@ -84,8 +79,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "BERSERKER",
             .role = "Pain becomes power",
             .traits = {"LOST HP: UP TO +75% DAMAGE", "CLUB + DASH", "-15% MAX HEALTH"},
-            .startingNodeIds = {"club", "dash", ""},
-            .startingNodesLabel = "CLUB · DASH · RAGE",
+            .startingLoadoutLabel = "STARTS WITH CLUB",
             .maxHealthMultiplier = 0.85,
         },
         {
@@ -93,8 +87,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "VAMPIRE",
             .role = "Feed on the horde",
             .traits = {"EVERY KILL RESTORES 2 HP", "+10% DAMAGE", "-25% MAX HEALTH"},
-            .startingNodeIds = {"rifle", ""},
-            .startingNodesLabel = "RIFLE · BLOOD FEAST",
+            .startingLoadoutLabel = "STARTS WITH RIFLE",
             .damageMultiplier = 1.10,
             .maxHealthMultiplier = 0.75,
         },
@@ -103,8 +96,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "ALCHEMIST",
             .role = "Turn danger into medicine",
             .traits = {"STARTS WITH APPLE + POTION", "+10% ATTACK SPEED", "-10% MOVE SPEED"},
-            .startingNodeIds = {"fire_wand", ""},
-            .startingNodesLabel = "FIRE WAND · APPLE · POTION",
+            .startingLoadoutLabel = "FIRE WAND + APPLE + POTION",
             .attackSpeedMultiplier = 1.10,
             .moveSpeedMultiplier = 0.90,
         },
@@ -113,8 +105,7 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "CHRONOMANCER",
             .role = "Make every second dangerous",
             .traits = {"STARTS WITH HOURGLASS + ROPE", "+10% MOVE SPEED", "-15% MAX HEALTH"},
-            .startingNodeIds = {"ice_wand", ""},
-            .startingNodesLabel = "ICE WAND · HOURGLASS · ROPE",
+            .startingLoadoutLabel = "ICE WAND + HOURGLASS + ROPE",
             .moveSpeedMultiplier = 1.10,
             .maxHealthMultiplier = 0.85,
         },

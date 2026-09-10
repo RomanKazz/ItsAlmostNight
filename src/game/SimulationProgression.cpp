@@ -2,7 +2,6 @@
 
 #include "buildings/CoreProgression.hpp"
 #include "core/DeterministicRandom.hpp"
-#include "progression/ProgressionCardRules.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,28 +20,22 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
     if (unlimitedResources_) {
         return true;
     }
+    const bool classUnlock =
+        ((playerClass_ == PlayerClass::Vanguard ||
+          playerClass_ == PlayerClass::Berserker) &&
+         weapon == PlayerWeapon::Club) ||
+        ((playerClass_ == PlayerClass::Ranger ||
+          playerClass_ == PlayerClass::Vampire) &&
+         weapon == PlayerWeapon::Rifle) ||
+        (playerClass_ == PlayerClass::Alchemist &&
+         weapon == PlayerWeapon::FireWand) ||
+        (playerClass_ == PlayerClass::Chronomancer &&
+         weapon == PlayerWeapon::IceWand);
+    if (classUnlock) return true;
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;
     if (coreLevel >= playerWeaponRequiredCoreLevel(weapon)) {
         return true;
-    }
-    switch (weapon) {
-    case PlayerWeapon::Club:
-        return skillTree_.hasEffect("unlock.club");
-    case PlayerWeapon::IceWand:
-        return skillTree_.hasEffect("unlock.ice_wand");
-    case PlayerWeapon::FireWand:
-        return skillTree_.hasEffect("unlock.fire_wand");
-    case PlayerWeapon::Hammer:
-        return false;
-    case PlayerWeapon::Rifle:
-        return skillTree_.hasEffect("unlock.rifle");
-    case PlayerWeapon::Bomb:
-        return skillTree_.hasEffect("unlock.bombs");
-    case PlayerWeapon::LegacyBareHands:
-    case PlayerWeapon::Axe:
-    case PlayerWeapon::Pickaxe:
-        break;
     }
     return false;
 }
@@ -72,7 +65,6 @@ std::uint64_t insightStringEvent(std::uint64_t tag, std::string_view text, int c
 
 } // namespace
 
-const SkillTree& Simulation::skillTree() const { return skillTree_; }
 const InsightSystem& Simulation::insightSystem() const { return insight_; }
 const ObjectiveSystem& Simulation::objectiveSystem() const { return objectives_; }
 
@@ -80,179 +72,57 @@ std::uint64_t Simulation::structuralRevision() const {
     return structuralRevision_;
 }
 
-SkillPurchaseError Simulation::purchaseSkill(
-    std::size_t index, bool spendPoints,
-    bool progressionCard) {
-    invalidateSnapshotCache();
-    if (index >= skillTree_.nodes().size()) {
-        return SkillPurchaseError::InvalidNode;
-    }
-    const auto core = buildings_.core();
-    const int coreLevel = core ? static_cast<int>(core->level) : 0;
-    if (progressionCard && !unlimitedResources_) {
-        const ProgressionCardContext context{
-            .playerLevel = insight_.progress().totalLevelsEarned + 1,
-            .coreLevel = coreLevel,
-            .wavesSurvived = runStatistics_.wavesSurvived,
-            .playerClass = playerClass_,
-        };
-        if (!progressionCardEligible(skillTree_, index, context)) {
-            return SkillPurchaseError::DependenciesLocked;
-        }
-    } else if (!unlimitedResources_ &&
-        skillTree_.state(index) == SkillNodeState::Available &&
-        coreLevel < skillTree_.nodes()[index].minimumCoreLevel) {
-        return SkillPurchaseError::CoreLevelRequired;
-    }
-    if (!progressionCard && !unlimitedResources_ &&
-        skillTree_.state(index) == SkillNodeState::Available &&
-        runStatistics_.wavesSurvived <
-            skillTree_.nodes()[index].minimumWavesSurvived) {
-        return SkillPurchaseError::SurvivedNightRequired;
-    }
-    const double previousDayExtension =
-        skillTree_.effectValue("day.duration_seconds");
-    const int previousCardLevel = skillTree_.level(index);
-    const SkillPurchaseError result = skillTree_.purchase(
-        index, spendPoints && !unlimitedResources_,
-        !progressionCard);
-    if (result != SkillPurchaseError::None) return result;
-    const auto nodeHas = [&](std::string_view key) {
-        return std::ranges::any_of(
-            skillTree_.nodes()[index].effects,
-            [key](const SkillEffectDefinition& effect) {
-                return effect.key == key && effect.value != 0.0;
-            });
-    };
-    if (previousCardLevel == 0) {
-        if (nodeHas("unlock.axe")) playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-        else if (nodeHas("unlock.pickaxe")) playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
-        else if (nodeHas("unlock.club")) playerWeapons_.selectWeapon(PlayerWeapon::Club);
-        else if (nodeHas("unlock.ice_wand")) playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
-        else if (nodeHas("unlock.fire_wand")) playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
-        else if (nodeHas("unlock.rifle")) playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
-        else if (nodeHas("unlock.bombs")) playerWeapons_.selectWeapon(PlayerWeapon::Bomb);
-    }
-    refreshSkillRuntimeEffects();
-    const RunState effectiveState =
-        state_ == RunState::Paused ? stateBeforePause_ : state_;
-    if (effectiveState == RunState::BuildPhase) {
-        const double addedSeconds = std::max(
-            0.0,
-            skillTree_.effectValue("day.duration_seconds") -
-                previousDayExtension);
-        phaseTimeRemaining_ += addedSeconds;
-        phaseDuration_ += addedSeconds;
-    }
-    selectedBuilding_.reset();
-    buildingPreview_.reset();
-    events_.push_back({.type = GameEventType::SkillUnlocked,
-                       .amount = static_cast<int>(index)});
-    return result;
-}
-
-void Simulation::grantSkillPoints(int amount, SkillPointSource source) {
-    if (amount <= 0) return;
-    invalidateSnapshotCache();
-    skillTree_.grantPoints(amount);
-    events_.push_back({.type = GameEventType::SkillPointsGranted,
-                       .amount = amount,
-                       .intensity = static_cast<double>(source)});
-}
-
-SkillTreeRunState Simulation::saveSkillTreeState() const {
-    return skillTree_.saveState();
-}
-
-bool Simulation::loadSkillTreeState(const SkillTreeRunState& state) {
-    if (!skillTree_.loadState(state)) return false;
-    invalidateSnapshotCache();
-    playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-    grantPlayerClassStartingNodes();
-    refreshSkillRuntimeEffects();
-    return true;
-}
-
 ProgressionRunState Simulation::saveProgressionState() const {
-    return {.skillTree = skillTree_.saveState(), .insight = insight_.saveState(),
+    return {.insight = insight_.saveState(),
             .objectives = objectives_.saveState()};
 }
 
 bool Simulation::loadProgressionState(const ProgressionRunState& state) {
-    SkillTree loadedTree = skillTree_;
     InsightSystem loadedInsight = insight_;
     ObjectiveSystem loadedObjectives = objectives_;
-    if (!loadedTree.loadState(state.skillTree) ||
-        !loadedInsight.loadState(state.insight) ||
+    if (!loadedInsight.loadState(state.insight) ||
         !loadedObjectives.loadState(state.objectives)) return false;
-    skillTree_ = std::move(loadedTree);
     insight_ = std::move(loadedInsight);
     objectives_ = std::move(loadedObjectives);
     std::fill(insightRewardedEnemyIds_.begin(),
               insightRewardedEnemyIds_.end(), EntityId{});
     invalidateSnapshotCache();
-    playerWeapons_.selectWeapon(PlayerWeapon::Axe);
-    grantPlayerClassStartingNodes();
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
     return true;
 }
 
-void Simulation::refreshSkillRuntimeEffects() {
-    const auto multiplier = [this](std::string_view key) {
-        return std::max(0.05, 1.0 + skillTree_.effectValue(key));
-    };
+void Simulation::refreshRunUpgradeRuntimeEffects() {
     crystalMines_.setProductionSpeedMultiplier(
-        productionSpeedMultiplier_ * runProductionSpeedMultiplier_ *
-        multiplier("production.speed"));
+        productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
     lootChests_.setCoinCostMultiplier(
-        chestOpeningCostMultiplier_ * multiplier("loot.chest_cost"));
+        chestOpeningCostMultiplier_);
     buildings_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ *
-        multiplier("building.health"));
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_);
     foundations_.setMaxHealthMultiplier(
-        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_ *
-        multiplier("building.health"));
+        buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_);
 
-    const double defenseDamage = defenseDamageMultiplier_ *
-        multiplier("defense.damage");
-    const double highGround = multiplier("defense.high_ground_damage");
-    towers_.setSkillModifiers(
-        defenseDamage * multiplier("tower.damage"),
-        multiplier("tower.range"), defenseFireRateMultiplier_ *
-            multiplier("tower.fire_rate"),
-        highGround,
+    const double defenseDamage = defenseDamageMultiplier_;
+    towers_.setModifiers(
+        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         runUpgradeStacks_[runUpgradeIndex(
             RunUpgradeEffect::TwinBatteries)]);
-    cannons_.setSkillModifiers(
-        defenseDamage * multiplier("cannon.damage"),
-        multiplier("cannon.radius"), defenseFireRateMultiplier_ *
-            multiplier("cannon.fire_rate"),
-        highGround,
+    cannons_.setModifiers(
+        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         2 * runUpgradeStacks_[runUpgradeIndex(
             RunUpgradeEffect::ClusterPayload)]);
-    traps_.setSkillModifiers(
-        defenseDamage * multiplier("trap.damage"),
-        multiplier("trap.radius"), defenseFireRateMultiplier_ *
-            multiplier("trap.fire_rate"),
-        highGround,
+    traps_.setModifiers(
+        defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         6.0 * static_cast<double>(runUpgradeStacks_[
             runUpgradeIndex(RunUpgradeEffect::ReactiveTraps)]));
-    playerWeapons_.setRifleSkillModifiers(
-        multiplier("rifle.damage"), multiplier("rifle.range"),
+    playerWeapons_.setRifleModifiers(
+        1.0, 1.0,
         playerAttackSpeedMultiplier_ *
-            temporaryAttackSpeedMultiplier() *
-            multiplier("rifle.fire_rate"),
-        static_cast<int>(std::lround(
-            skillTree_.effectValue("rifle.magazine"))));
-    const double playerDamage = multiplier("player.damage");
-    iceWand_.setSkillModifiers(
-        playerDamage * multiplier("ice.damage"), multiplier("ice.radius"),
-        multiplier("ice.freeze_duration"), 1.0, 0.0);
-    fireWand_.setSkillModifiers(
-        playerDamage * multiplier("fire.damage"), multiplier("fire.radius"),
-        multiplier("fire.burn_duration"),
-        multiplier("fire.burn_damage"),
-        skillTree_.effectValue("element.thermal_shock"));
+            temporaryAttackSpeedMultiplier(),
+        0);
+    iceWand_.setModifiers(
+        1.0, 1.0, 1.0, 1.0, 0.0);
+    fireWand_.setModifiers(
+        1.0, 1.0, 1.0, 1.0, 0.0);
     const double castSpeed = temporaryAttackSpeedMultiplier() *
         (battlePotionBerserkRemaining_ > 0.0
              ? BattlePotionAttackSpeedMultiplier
@@ -286,8 +156,8 @@ void Simulation::generateRunUpgradeChoices() {
           runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices))) {
         lockedRunUpgrade_.reset();
     }
-    std::vector<ProgressionCardId> pool;
-    pool.reserve(RunUpgradeEffectCount + skillTree_.nodes().size());
+    std::vector<RunUpgradeEffect> pool;
+    pool.reserve(RunUpgradeEffectCount);
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;
     for (const RunUpgradeDefinition& definition :
@@ -322,25 +192,7 @@ void Simulation::generateRunUpgradeChoices() {
         if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) {
             continue;
         }
-        pool.push_back(progressionCardId(definition.effect));
-    }
-    std::vector<ProgressionCardId> skillPool;
-    skillPool.reserve(skillTree_.nodes().size());
-    for (std::size_t index = 0; index < skillTree_.nodes().size();
-         ++index) {
-        const ProgressionCardContext context{
-            .playerLevel = insight_.progress().totalLevelsEarned + 1,
-            .coreLevel = coreLevel,
-            .wavesSurvived = runStatistics_.wavesSurvived,
-            .playerClass = playerClass_,
-        };
-        if (!progressionCardEligible(
-                skillTree_, index, context)) {
-            continue;
-        }
-        const ProgressionCardId card = skillProgressionCardId(index);
-        skillPool.push_back(card);
-        pool.push_back(card);
+        pool.push_back(definition.effect);
     }
     std::uint64_t randomState = mixBits64(
         static_cast<std::uint64_t>(terrain_.seed()) ^
@@ -348,41 +200,33 @@ void Simulation::generateRunUpgradeChoices() {
          0x9e3779b97f4a7c15ULL) ^
         (static_cast<std::uint64_t>(++runUpgradeOfferGeneration_) *
          0xd1b54a32d192ed03ULL));
-    const auto cardWeight = [this](ProgressionCardId card) {
-        if (!isSkillProgressionCard(card)) {
-            switch (progressionCardRunUpgrade(card)) {
-            case RunUpgradeEffect::TwinBatteries:
-            case RunUpgradeEffect::ClusterPayload:
-            case RunUpgradeEffect::ReactiveTraps:
-            case RunUpgradeEffect::Ricochet:
-                return 6;
-            case RunUpgradeEffect::BuildingHealth:
-            case RunUpgradeEffect::DefenseDamage:
-            case RunUpgradeEffect::DefenseFireRate:
-            case RunUpgradeEffect::ProductionSpeed:
-                return 4;
-            case RunUpgradeEffect::Damage:
-            case RunUpgradeEffect::AttackSpeed:
-            case RunUpgradeEffect::MoveSpeed:
-            case RunUpgradeEffect::Overkill:
-                return 1;
-            default:
-                return 2;
-            }
+    const auto cardWeight = [](RunUpgradeEffect effect) {
+        switch (effect) {
+        case RunUpgradeEffect::TwinBatteries:
+        case RunUpgradeEffect::ClusterPayload:
+        case RunUpgradeEffect::ReactiveTraps:
+        case RunUpgradeEffect::Ricochet:
+            return 6;
+        case RunUpgradeEffect::BuildingHealth:
+        case RunUpgradeEffect::DefenseDamage:
+        case RunUpgradeEffect::DefenseFireRate:
+        case RunUpgradeEffect::ProductionSpeed:
+            return 4;
+        case RunUpgradeEffect::Damage:
+        case RunUpgradeEffect::AttackSpeed:
+        case RunUpgradeEffect::MoveSpeed:
+        case RunUpgradeEffect::Overkill:
+            return 1;
+        default:
+            return 2;
         }
-        const std::size_t index = progressionCardSkillIndex(card);
-        return index < skillTree_.nodes().size()
-            ? progressionCardClassWeight(
-                  skillTree_.nodes()[index].branch,
-                  playerClass_)
-            : 1;
     };
     const auto chooseWeighted =
         [&randomState, &cardWeight](
-            const std::vector<ProgressionCardId>& candidates) {
+            const std::vector<RunUpgradeEffect>& candidates) {
             int totalWeight = 0;
-            for (const ProgressionCardId card : candidates) {
-                totalWeight += std::max(1, cardWeight(card));
+            for (const RunUpgradeEffect effect : candidates) {
+                totalWeight += std::max(1, cardWeight(effect));
             }
             randomState = mixBits64(
                 randomState + 0x9e3779b97f4a7c15ULL);
@@ -398,17 +242,9 @@ void Simulation::generateRunUpgradeChoices() {
         };
     std::size_t firstRandomIndex = 0U;
     if (lockedRunUpgrade_) {
-        runUpgradeChoices_[0] = progressionCardId(*lockedRunUpgrade_);
+        runUpgradeChoices_[0] = *lockedRunUpgrade_;
         std::erase(pool, runUpgradeChoices_[0]);
         firstRandomIndex = 1U;
-    }
-    // Keep one skill card in every offer. Building and weapon unlocks are
-    // deterministic Core upgrades and are intentionally absent here.
-    if (!skillPool.empty() && firstRandomIndex < runUpgradeChoiceCount_) {
-        const ProgressionCardId skill =
-            skillPool[chooseWeighted(skillPool)];
-        runUpgradeChoices_[firstRandomIndex++] = skill;
-        std::erase(pool, skill);
     }
     runUpgradeChoiceCount_ = std::min(
         runUpgradeChoiceCount_, firstRandomIndex + pool.size());
@@ -486,26 +322,20 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
         ++riskyInvestmentPending_;
         break;
     }
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
     return true;
 }
 
-bool Simulation::grantSandboxProgressionCard(
-    ProgressionCardId card) {
+bool Simulation::grantSandboxRunUpgrade(
+    RunUpgradeEffect effect) {
     if (!sandboxMode_) return false;
-    if (isSkillProgressionCard(card)) {
-        const std::size_t index = progressionCardSkillIndex(card);
-        return purchaseSkill(index, false, true) ==
-            SkillPurchaseError::None;
-    }
-    const int rawEffect = card;
+    const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
         rawEffect >= static_cast<int>(RunUpgradeEffectCount)) {
         return false;
     }
     invalidateSnapshotCache();
-    return applyRunUpgradeEffect(
-        progressionCardRunUpgrade(card));
+    return applyRunUpgradeEffect(effect);
 }
 
 bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
@@ -514,23 +344,7 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
         return false;
     }
     invalidateSnapshotCache();
-    const ProgressionCardId card = runUpgradeChoices_[choiceIndex];
-    if (isSkillProgressionCard(card)) {
-        const std::size_t skillIndex = progressionCardSkillIndex(card);
-        if (purchaseSkill(skillIndex, false, true) !=
-            SkillPurchaseError::None) {
-            return false;
-        }
-        --runUpgradeSelectionsRemaining_;
-        if (runUpgradeSelectionsRemaining_ > 0) {
-            generateRunUpgradeChoices();
-        } else {
-            runUpgradeChoicePending_ = false;
-        }
-        invalidateSnapshotCache();
-        return true;
-    }
-    const RunUpgradeEffect effect = progressionCardRunUpgrade(card);
+    const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
     if (lockedRunUpgrade_ == effect) lockedRunUpgrade_.reset();
     if (!applyRunUpgradeEffect(effect)) return false;
     --runUpgradeSelectionsRemaining_;
@@ -557,9 +371,7 @@ bool Simulation::lockRunUpgrade(std::size_t choiceIndex) {
         choiceIndex >= runUpgradeChoiceCount_) {
         return false;
     }
-    const ProgressionCardId card = runUpgradeChoices_[choiceIndex];
-    if (isSkillProgressionCard(card)) return false;
-    const RunUpgradeEffect effect = progressionCardRunUpgrade(card);
+    const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
     if (lockedRunUpgrade_ == effect) {
         lockedRunUpgrade_.reset();
     } else {
@@ -702,12 +514,6 @@ void Simulation::grantBlueprintInsightForExistingBuildings(
 void Simulation::processInsightEvent(const GameEvent& event) {
     const InsightConfig& config = insight_.config();
     switch (event.type) {
-    case GameEventType::IntroSkillObjectiveCompleted:
-        grantConfiguredInsight(config.introGatherObjective, InsightSource::Objective,
-            InsightCategory::Exploration,
-            {.eventId = insightIntegerEvent(0x100U, 1U), .oneTime = true,
-             .bypassDiminishing = true});
-        break;
     case GameEventType::WaveCompleted: {
         const bool boss = event.critical;
         const bool milestone = !boss && config.milestoneWaveInterval > 0 &&

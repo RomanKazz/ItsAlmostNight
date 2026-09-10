@@ -384,7 +384,6 @@ class App {
     bool itemGrantMenuVisible_{};
     bool sandboxCardMenuVisible_{};
     bool coreDefenseMenuVisible_{};
-    int sandboxCardMenuTab_{};
     float sandboxCardMenuScroll_{};
     std::size_t selectedDefenseBlueprint_{};
     int debugSpawnCount_{50};
@@ -398,7 +397,7 @@ class App {
         int count;
     };
     std::optional<PendingLootGrant> pendingLootGrant_;
-    std::optional<ProgressionCardId> pendingSandboxCardGrant_;
+    std::optional<RunUpgradeEffect> pendingSandboxCardGrant_;
     std::optional<ToggleGateCommand> pendingGateToggle_;
     std::optional<RotatePlacedBuildingCommand>
         pendingPlacedBuildingRotation_;
@@ -587,9 +586,6 @@ class App {
     bool performanceOverlayVisible_{};
     bool hudHidden_{};
     bool objectiveDebugMenuVisible_{};
-    bool cardCollectionVisible_{};
-    std::size_t cardCollectionPage_{};
-    bool cardCollectionPausedRun_{};
     AppPerformanceStats performanceStats_{};
     PerformanceRecorder performanceRecorder_{};
     bool performanceLoggingApplied_{};

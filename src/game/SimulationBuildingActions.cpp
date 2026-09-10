@@ -229,14 +229,6 @@ void Simulation::processBuildingActions(
             &BuildingInstance::id);
         if (fortifyTarget != buildings_.buildings().end() &&
             fortifyTarget->health >= fortifyTarget->maxHealth) {
-            if (!skillTree_.hasEffect("repair.fortification")) {
-                events_.push_back({
-                    .type = GameEventType::BuildingRepairRejected,
-                    .entityId = command.repairBuilding->buildingId,
-                    .buildingActionError = BuildingActionError::Unsupported,
-                });
-                return;
-            }
             auto active = std::ranges::find(
                 activeFortifications_, command.repairBuilding->buildingId,
                 &ActiveFortification::id);

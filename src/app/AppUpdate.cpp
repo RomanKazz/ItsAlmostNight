@@ -45,7 +45,7 @@ void App::update() {
         pendingLootGrant_.reset();
     }
     if (pendingSandboxCardGrant_) {
-        const bool granted = simulation_.grantSandboxProgressionCard(
+        const bool granted = simulation_.grantSandboxRunUpgrade(
             *pendingSandboxCardGrant_);
         statusMessage_ = granted
             ? "SANDBOX CARD GRANTED"

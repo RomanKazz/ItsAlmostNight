@@ -1205,19 +1205,13 @@ void App::render() {
             drawRunStateOverlay(snapshot);
         }
         drawRunUpgradeOverlay(
-            ui_, snapshot, simulation_.skillTree(),
+            ui_, snapshot,
             runUpgradeOverlayEntranceSeconds_,
             runUpgradeOverlayExitSeconds_,
             runUpgradePendingChoice_,
             runUpgradeCardHoverAmounts_);
-        if (cardCollectionVisible_) {
-            drawCardCollectionOverlay(
-                ui_, snapshot, simulation_.skillTree(),
-                cardCollectionPage_);
-        }
         if (snapshot.state == RunState::Paused &&
-            !renderer_->graphicsPanelVisible() &&
-            !cardCollectionVisible_) {
+            !renderer_->graphicsPanelVisible()) {
             const float centerX =
                 static_cast<float>(GetScreenWidth()) * 0.5F;
             const float centerY =

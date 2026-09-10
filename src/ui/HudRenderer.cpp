@@ -49,8 +49,6 @@ const char* placementMessage(
         return "Placement is too far";
     case PlacementError::CoreLevelRequired:
         return "Upgrade Core to unlock";
-    case PlacementError::SkillRequired:
-        return "Upgrade Core to unlock";
     case PlacementError::ResourceBlocked:
         return "Clear tree or stone first";
     }
@@ -71,7 +69,6 @@ Color placementMessageColor(PlacementError error) {
         return {255, 222, 82, 255};
     case PlacementError::CoreRequired:
     case PlacementError::CoreLevelRequired:
-    case PlacementError::SkillRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:
         return {255, 132, 71, 255};

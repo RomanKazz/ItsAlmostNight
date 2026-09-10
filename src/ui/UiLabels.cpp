@@ -41,11 +41,4 @@ std::string_view buildingDisplayName(BuildingType type) {
     return {};
 }
 
-std::string introGatherRewardMessage(double insightReward) {
-    return "Gathering objective complete: +" +
-        std::to_string(static_cast<int>(std::lround(
-            std::max(0.0, insightReward)))) +
-        " XP";
-}
-
 } // namespace ian

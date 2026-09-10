@@ -129,7 +129,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .playerGrounded = playerGrounded_,
         .playerHorizontalVelocity =
             playerHorizontalVelocity_,
-        .dashUnlocked = skillTree_.hasEffect("dash.unlock"),
+        .dashUnlocked = true,
         .dashing = dashRemaining_ > 0.0,
         .dashCooldownRemaining = dashCooldownRemaining_,
         .dashCooldownDuration = 0.90,
@@ -396,9 +396,6 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .tutorialObjective = sandboxMode_
             ? std::optional<TutorialObjective>{}
             : tutorialObjective(),
-        .skillPoints = unlimitedResources_
-            ? std::numeric_limits<int>::max()
-            : skillTree_.points(),
         .playerLevel = insight_.progress().totalLevelsEarned + 1,
         .currentInsight = insight_.progress().currentInsight,
         .requiredInsight = insight_.progress().requiredInsight,

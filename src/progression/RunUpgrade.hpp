@@ -36,39 +36,6 @@ inline constexpr std::size_t RunUpgradeEffectCount = 23U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
-// Unified progression offers use a compact, save-friendly integer id. Values
-// below SkillProgressionCardOffset retain the legacy run-upgrade encoding;
-// skill definitions occupy the separate upper range.
-using ProgressionCardId = int;
-inline constexpr ProgressionCardId SkillProgressionCardOffset = 1000;
-
-[[nodiscard]] constexpr ProgressionCardId progressionCardId(
-    RunUpgradeEffect effect) {
-    return static_cast<ProgressionCardId>(effect);
-}
-
-[[nodiscard]] constexpr ProgressionCardId skillProgressionCardId(
-    std::size_t skillIndex) {
-    return SkillProgressionCardOffset +
-        static_cast<ProgressionCardId>(skillIndex);
-}
-
-[[nodiscard]] constexpr bool isSkillProgressionCard(
-    ProgressionCardId card) {
-    return card >= SkillProgressionCardOffset;
-}
-
-[[nodiscard]] constexpr std::size_t progressionCardSkillIndex(
-    ProgressionCardId card) {
-    return static_cast<std::size_t>(
-        card - SkillProgressionCardOffset);
-}
-
-[[nodiscard]] constexpr RunUpgradeEffect progressionCardRunUpgrade(
-    ProgressionCardId card) {
-    return static_cast<RunUpgradeEffect>(card);
-}
-
 struct RunUpgradeDefinition {
     RunUpgradeEffect effect;
     std::string_view name;

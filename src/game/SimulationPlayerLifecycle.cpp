@@ -91,7 +91,7 @@ void Simulation::damagePlayer(
         0.0, playerHealth_ - healthDamage);
     if (breadWellFed_) {
         breadWellFed_ = false;
-        refreshSkillRuntimeEffects();
+        refreshRunUpgradeRuntimeEffects();
     }
     if (!ignoreArmor && armorBeforeHit > 0.0 &&
         playerRecoverableArmor_ <= 0.0 &&

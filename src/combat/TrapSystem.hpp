@@ -47,7 +47,7 @@ class TrapSystem {
     [[nodiscard]] static double spikeCooldown(std::uint8_t level);
 
     void reset();
-    void setSkillModifiers(double damage, double radius,
+    void setModifiers(double damage, double radius,
                            double fireRate, double highGroundDamage,
                            double reactiveShockDamage = 0.0);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);

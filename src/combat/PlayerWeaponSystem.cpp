@@ -15,7 +15,7 @@ void PlayerWeaponSystem::reset() {
     reloadRemaining_ = 0.0;
 }
 
-void PlayerWeaponSystem::setRifleSkillModifiers(
+void PlayerWeaponSystem::setRifleModifiers(
     double damage, double range, double fireRate,
     int magazineBonus) {
     const int previousMagazine = magazineSize();

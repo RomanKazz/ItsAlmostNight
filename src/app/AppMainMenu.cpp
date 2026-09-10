@@ -504,18 +504,18 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
                         ? Color{242, 112, 91, 255}
                         : Color{116, 220, 132, 255});
             }
-            const std::string localizedNodes =
-                localizeText(definition.startingNodesLabel);
-            const float nodesSize = fitUiTextSize(
-                localizedNodes,
+            const std::string localizedLoadout =
+                localizeText(definition.startingLoadoutLabel);
+            const float loadoutSize = fitUiTextSize(
+                localizedLoadout,
                 7.5F * layout.scale,
                 6.0F * layout.scale,
                 card.width - 70.0F * layout.scale);
             drawUiText(
-                localizedNodes,
+                localizedLoadout,
                 {card.x + 35.0F * layout.scale,
                  card.y + 191.0F * layout.scale},
-                nodesSize, ClassColors[index]);
+                loadoutSize, ClassColors[index]);
             if (!unlocked) {
                 DrawRectangleRounded(
                     card, 0.09F, 8, {7, 9, 12, 218});
@@ -648,7 +648,7 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         10.0F * layout.scale, {197, 193, 169, 220});
 
     drawUiText(
-        "ENTER  PLAY     F2  SETTINGS     K  SKILLS",
+        "ENTER  PLAY     F2  SETTINGS",
         layout.point(754.0F, 1018.0F),
         11.0F * layout.scale, {222, 217, 191, 225});
 }

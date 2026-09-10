@@ -74,7 +74,6 @@ bool Simulation::markEnemyRewarded(
 Simulation::Simulation(
     GameBalance balance, MapDefinition map,
     WorldConfig worldConfig,
-    std::vector<SkillNodeDefinition> skills,
     InsightConfig insightConfig,
     std::vector<ObjectiveDefinition> objectiveDefinitions)
     : map_(constrainMapToPlayableTerrain(
@@ -142,7 +141,7 @@ Simulation::Simulation(
       collisionWorld_(map_.worldLimit, mapCollisionBoxes(map_)),
       flowField_(mapCollisionBoxes(map_), &terrain_),
       enemies_(balance.enemies),
-      playerWeapons_(balance.weapons.rifle), skillTree_(std::move(skills)),
+      playerWeapons_(balance.weapons.rifle),
       insight_(std::move(insightConfig)),
       objectives_(std::move(objectiveDefinitions)),
       bombs_(balance.weapons.bomb),
@@ -216,21 +215,6 @@ void Simulation::startRunFromSeed(
 
 void Simulation::restartRun() {
     resetRun(GameEventType::RunRestarted);
-}
-
-void Simulation::grantPlayerClassStartingNodes() {
-    const PlayerClassDefinition* playerClass =
-        playerClassDefinition(playerClass_);
-    if (playerClass == nullptr) return;
-    for (const std::string_view nodeId :
-         playerClass->startingNodeIds) {
-        if (nodeId.empty()) continue;
-        const auto nodeIndex = skillTree_.indexOf(nodeId);
-        if (nodeIndex) {
-            static_cast<void>(
-                skillTree_.purchase(*nodeIndex, false));
-        }
-    }
 }
 
 std::uint32_t Simulation::nextRunTerrainSeed() {
@@ -352,7 +336,6 @@ void Simulation::resetRun(GameEventType eventType) {
     playerInvulnerable_ = sandboxMode_;
     debugSpawnSequence_ = 0;
     pickaxeAttackSequence_ = 0;
-    powerSwingResourceHits_ = 0;
     nailHitCounter_ = 0;
     pickaxeCooldownRemaining_ = 0.0;
     pickaxeInputBufferRemaining_ = 0.0;
@@ -397,8 +380,7 @@ void Simulation::resetRun(GameEventType eventType) {
     lootStacks_.fill(0);
     runUpgradeChoicePending_ = false;
     runUpgradeChoiceCount_ = 0U;
-    runUpgradeChoices_.fill(
-        progressionCardId(RunUpgradeEffect::Damage));
+    runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
     runUpgradeStacks_.fill(0);
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
@@ -434,14 +416,10 @@ void Simulation::resetRun(GameEventType eventType) {
     cannons_.reset();
     traps_.reset();
     playerWeapons_.reset();
-    skillTree_.reset();
     insight_.reset();
     objectives_.reset();
     std::fill(insightRewardedEnemyIds_.begin(),
               insightRewardedEnemyIds_.end(), EntityId{});
-    bareHandsWoodGathered_ = 0;
-    bareHandsStoneGathered_ = 0;
-    introSkillObjectiveCompleted_ = false;
     activeFortifications_.clear();
     activeRepairCooldowns_.clear();
     bombs_.reset();
@@ -468,40 +446,32 @@ void Simulation::resetRun(GameEventType eventType) {
             playerClass->defenseDamageMultiplier;
         productionSpeedMultiplier_ *=
             playerClass->productionSpeedMultiplier;
-        grantPlayerClassStartingNodes();
         switch (playerClass_) {
         case PlayerClass::Vanguard:
-            if (skillTree_.hasEffect("unlock.club"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            playerWeapons_.selectWeapon(PlayerWeapon::Club);
             break;
         case PlayerClass::Ranger:
-            if (skillTree_.hasEffect("unlock.rifle"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
             break;
         case PlayerClass::Engineer:
             playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             break;
         case PlayerClass::Prospector:
-            if (skillTree_.hasEffect("unlock.pickaxe"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
+            playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
             break;
         case PlayerClass::Berserker:
-            if (skillTree_.hasEffect("unlock.club"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            playerWeapons_.selectWeapon(PlayerWeapon::Club);
             break;
         case PlayerClass::Vampire:
-            if (skillTree_.hasEffect("unlock.rifle"))
-                playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
             break;
         case PlayerClass::Alchemist:
-            if (skillTree_.hasEffect("unlock.fire_wand"))
-                playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
+            playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
             grantLootUpgrade(LootUpgradeEffect::Apple);
             grantLootUpgrade(LootUpgradeEffect::Potion);
             break;
         case PlayerClass::Chronomancer:
-            if (skillTree_.hasEffect("unlock.ice_wand"))
-                playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
+            playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
             grantLootUpgrade(LootUpgradeEffect::Hourglass);
             grantLootUpgrade(LootUpgradeEffect::Rope);
             break;
@@ -510,7 +480,7 @@ void Simulation::resetRun(GameEventType eventType) {
         }
         playerHealth_ = playerPermanentMaxHealth();
     }
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;
     wave_ = 0;

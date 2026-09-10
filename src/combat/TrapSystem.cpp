@@ -52,7 +52,7 @@ void TrapSystem::reset() {
     hitBuffer_.clear();
 }
 
-void TrapSystem::setSkillModifiers(
+void TrapSystem::setModifiers(
     double damage, double radius, double fireRate,
     double highGroundDamage, double reactiveShockDamage) {
     damageMultiplier_ = std::max(0.05, damage);

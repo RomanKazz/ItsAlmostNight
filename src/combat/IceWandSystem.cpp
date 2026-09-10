@@ -93,7 +93,7 @@ void IceWandSystem::reset() {
     castSpeedMultiplier_ = 1.0;
 }
 
-void IceWandSystem::setSkillModifiers(
+void IceWandSystem::setModifiers(
     double damage, double radius, double statusDuration,
     double burnDamage, double thermalShockDamage) {
     damageMultiplier_ = std::max(0.05, damage);

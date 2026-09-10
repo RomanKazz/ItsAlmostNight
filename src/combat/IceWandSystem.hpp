@@ -71,7 +71,7 @@ class IceWandSystem {
     explicit IceWandSystem(FireWandBalanceDefinition definition);
 
     void reset();
-    void setSkillModifiers(double damage, double radius,
+    void setModifiers(double damage, double radius,
                            double statusDuration, double burnDamage,
                            double thermalShockDamage);
     void setCastSpeedMultiplier(double multiplier);

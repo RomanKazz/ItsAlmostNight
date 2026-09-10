@@ -13,7 +13,7 @@ namespace {
 using Json = nlohmann::json;
 constexpr std::string_view SuspendedRunPath =
     "user_settings/suspended_run.json";
-constexpr int SuspendedRunVersion = 4;
+constexpr int SuspendedRunVersion = 5;
 constexpr std::uintmax_t MaximumSuspendedRunBytes = 4U * 1024U * 1024U;
 
 Json entityJson(EntityId id) {
@@ -537,8 +537,8 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         landmarks.push_back(worldLandmarkJson(landmark));
     }
     Json upgradeChoices = Json::array();
-    for (const ProgressionCardId choice : saved.runUpgradeChoices) {
-        upgradeChoices.push_back(choice);
+    for (const RunUpgradeEffect choice : saved.runUpgradeChoices) {
+        upgradeChoices.push_back(static_cast<int>(choice));
     }
     return {
         {"version", SuspendedRunVersion},
@@ -566,8 +566,6 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"bombs", saved.bombs},
         {"selectedWeapon", static_cast<int>(saved.selectedWeapon)},
         {"rifleLevel", saved.rifleLevel},
-        {"skillPoints", saved.skillTree.points},
-        {"unlockedNodeIds", saved.skillTree.unlockedNodeIds},
         {"lootStacks", saved.lootStacks},
         {"runUpgradeStacks", saved.runUpgradeStacks},
         {"buildings", std::move(buildings)},
@@ -620,10 +618,6 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"bonusSelectionsNextReward", saved.bonusSelectionsNextReward},
             {"riskyInvestmentPending", saved.riskyInvestmentPending},
             {"bloodHarvestKillProgress", saved.bloodHarvestKillProgress},
-            {"bareHandsWoodGathered", saved.bareHandsWoodGathered},
-            {"bareHandsStoneGathered", saved.bareHandsStoneGathered},
-            {"introSkillObjectiveCompleted",
-             saved.introSkillObjectiveCompleted},
         }},
         {"runUpgradeOffer", {
             {"pending", saved.runUpgradeChoicePending},
@@ -680,9 +674,6 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.selectedWeapon = static_cast<PlayerWeapon>(
         document.at("selectedWeapon").get<int>());
     saved.rifleLevel = document.at("rifleLevel").get<int>();
-    saved.skillTree.points = document.at("skillPoints").get<int>();
-    saved.skillTree.unlockedNodeIds =
-        document.at("unlockedNodeIds").get<std::vector<std::string>>();
     if (!readFixedArray(document, "lootStacks", saved.lootStacks) ||
         !readExpandableFixedArray(
             document, "runUpgradeStacks",
@@ -754,10 +745,6 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.bonusSelectionsNextReward = runtime.at("bonusSelectionsNextReward");
     saved.riskyInvestmentPending = runtime.at("riskyInvestmentPending");
     saved.bloodHarvestKillProgress = runtime.at("bloodHarvestKillProgress");
-    saved.bareHandsWoodGathered = runtime.at("bareHandsWoodGathered");
-    saved.bareHandsStoneGathered = runtime.at("bareHandsStoneGathered");
-    saved.introSkillObjectiveCompleted =
-        runtime.at("introSkillObjectiveCompleted");
     const Json& upgradeOffer = document.at("runUpgradeOffer");
     saved.runUpgradeChoicePending = upgradeOffer.at("pending").get<bool>();
     saved.runUpgradeChoiceCount = upgradeOffer.at("count").get<std::size_t>();

@@ -100,7 +100,7 @@ class PlayerWeaponSystem {
         RifleBalanceDefinition definition = GameBalance::defaults().weapons.rifle);
 
     void reset();
-    void setRifleSkillModifiers(double damage, double range,
+    void setRifleModifiers(double damage, double range,
                                 double fireRate, int magazineBonus);
     void selectWeapon(PlayerWeapon weapon);
     void restoreState(PlayerWeapon selectedWeapon, int rifleLevel);

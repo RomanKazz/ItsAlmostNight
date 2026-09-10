@@ -35,12 +35,7 @@ int Simulation::resourceCapacity(BuildingType storageType) const {
     } else if (storageType == BuildingType::CrystalStorage) {
         capacity = 10;
     }
-    return static_cast<int>(std::min(
-        static_cast<double>(std::numeric_limits<int>::max()),
-        static_cast<double>(std::lround(
-            static_cast<double>(capacity) * std::max(
-                0.05, 1.0 + skillTree_.effectValue(
-                    "storage.capacity"))))));
+    return capacity;
 }
 
 void Simulation::clampResourcesToCapacity() {
@@ -144,11 +139,7 @@ void Simulation::updatePlayerActions(
         productionDeltaSeconds = 0.0;
     }
     if (state_ == RunState::Wave) {
-        productionDeltaSeconds *= unlimitedResources_
-            ? 1.0
-            : std::clamp(
-                  skillTree_.effectValue("production.night_speed"),
-                  0.0, 1.0);
+        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
     }
     const auto production = crystalMines_.tick(
         productionDeltaSeconds);
@@ -287,9 +278,7 @@ void Simulation::updatePlayerActions(
         const auto fire = playerWeapons_.fireRifle(
             playerPosition_, direction, enemies_,
             playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
-                playerClassDamageMultiplier() * std::max(
-                0.05, 1.0 + skillTree_.effectValue(
-                    "player.damage")));
+                playerClassDamageMultiplier());
         if (fire) {
             events_.push_back({
                 .type = GameEventType::WeaponFired,
@@ -364,16 +353,10 @@ void Simulation::updatePlayerActions(
         if (heldTool == PlayerWeapon::LegacyBareHands) toolMultiplier = 0.0;
         else if (clubAttack) toolMultiplier = club_.damageMultiplier;
         else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
-        const double skillDamageMultiplier = std::max(
-            0.05, 1.0 + skillTree_.effectValue("player.damage"));
-        if (clubAttack) {
-            toolMultiplier *= std::max(
-                0.05, 1.0 + skillTree_.effectValue("club.damage"));
-        }
         const double damage = playerDamageMultiplier_ *
             runPlayerDamageMultiplier_ *
             playerClassDamageMultiplier() *
-            skillDamageMultiplier * toolMultiplier *
+            toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
         if (clubAttack) {
@@ -388,12 +371,8 @@ void Simulation::updatePlayerActions(
                 }
             }
             const auto results = enemies_.damageInRadius(
-                impactPosition, club_.areaRadius * std::max(
-                    0.05, 1.0 + skillTree_.effectValue("club.area")),
-                damage, (club_.knockbackStrength +
-                    skillTree_.effectValue("club.knockback_strength")) *
-                    std::max(0.05, 1.0 +
-                        skillTree_.effectValue("club.knockback")),
+                impactPosition, club_.areaRadius,
+                damage, club_.knockbackStrength,
                 playerPosition_,
                 club_.maxDamagePerAttack);
             bool nailHitRegistered = false;
@@ -453,39 +432,6 @@ void Simulation::updatePlayerActions(
             const EntityId primaryTarget = *aimedResource_;
             std::vector<EntityId> resourceTargets{
                 primaryTarget};
-            const bool powerSwingUnlocked =
-                skillTree_.hasEffect("gather.power_swing");
-            const bool powerSwing = powerSwingUnlocked &&
-                (++powerSwingResourceHits_ % 3U == 0U);
-            if (powerSwing) {
-                const double powerSwingRadius = 3.0 * std::max(
-                    0.05, 1.0 + skillTree_.effectValue(
-                        "gather.power_swing_radius"));
-                const auto primary = std::ranges::find(
-                    resources_.nodes(), primaryTarget,
-                    &ResourceNode::id);
-                if (primary != resources_.nodes().end()) {
-                    for (const ResourceNode& node :
-                         resources_.nodes()) {
-                        if (!node.active ||
-                            node.id == primaryTarget) {
-                            continue;
-                        }
-                        const double deltaX =
-                            node.position.x -
-                            primary->position.x;
-                        const double deltaZ =
-                            node.position.z -
-                            primary->position.z;
-                        if (deltaX * deltaX +
-                                deltaZ * deltaZ <=
-                            powerSwingRadius * powerSwingRadius) {
-                            resourceTargets.push_back(
-                                node.id);
-                        }
-                    }
-                }
-            }
             for (const EntityId targetId : resourceTargets) {
                 const auto targetBeforeHit = std::ranges::find(
                     resources_.nodes(), targetId, &ResourceNode::id);
@@ -506,26 +452,9 @@ void Simulation::updatePlayerActions(
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);
-                double masteryMultiplier = 1.0;
-                if (heldTool == PlayerWeapon::Axe) {
-                    masteryMultiplier = skillTree_.hasEffect("unlock.axe")
-                        ? 0.85 + skillTree_.effectValue(
-                            "gather.axe_mastery")
-                        : 0.8;
-                } else if (heldTool == PlayerWeapon::Pickaxe) {
-                    masteryMultiplier = skillTree_.hasEffect(
-                        "unlock.pickaxe")
-                        ? 0.85 + skillTree_.effectValue(
-                            "gather.pickaxe_mastery")
-                        : 0.8;
-                }
                 const double resourceDamage =
                     targetBeforeHit != resources_.nodes().end()
-                    ? damage * std::max(
-                          0.05, 1.0 + skillTree_.effectValue(
-                              "gather.damage")) *
-                          gameplay_.resourceToolDamageMultiplier *
-                          masteryMultiplier *
+                    ? damage * gameplay_.resourceToolDamageMultiplier *
                           resourceToolEfficiency(
                           heldTool, targetBeforeHit->type)
                     : 0.0;
@@ -577,9 +506,7 @@ void Simulation::updatePlayerActions(
                                 ? 5 + static_cast<int>(rewardSeed % 7ULL)
                                 : 7 + static_cast<int>(rewardSeed % 9ULL);
                         const int coins = static_cast<int>(std::lround(
-                            static_cast<double>(baseCoins) * std::max(
-                                0.0, 1.0 + skillTree_.effectValue(
-                                    "prop.coins"))));
+                            static_cast<double>(baseCoins)));
                         bool droppedItem = false;
                         LootRarity rarity = LootRarity::Common;
                         if (hit->type == ResourceType::Crate) {

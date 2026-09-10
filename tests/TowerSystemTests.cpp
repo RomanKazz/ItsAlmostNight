@@ -180,7 +180,7 @@ void runTowerSystemTests() {
     }};
     twinBatteryEnemies.spawnWave(TwinBatterySpawn);
     ian::TowerSystem twinBatteryTowers;
-    twinBatteryTowers.setSkillModifiers(
+    twinBatteryTowers.setModifiers(
         1.0, 1.0, 1.0, 1.0, 1);
     twinBatteryTowers.syncBuildings(gunBuildings.buildings());
     std::span<const ian::TowerShot> twinShots;

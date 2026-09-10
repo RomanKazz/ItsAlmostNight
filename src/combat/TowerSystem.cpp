@@ -227,7 +227,7 @@ void TowerSystem::reset() {
     shotBuffer_.clear();
 }
 
-void TowerSystem::setSkillModifiers(
+void TowerSystem::setModifiers(
     double damage, double range, double fireRate,
     double highGroundDamage, int extraTargetCount) {
     damageMultiplier_ = std::max(0.05, damage);

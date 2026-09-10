@@ -54,7 +54,7 @@ class TowerSystem {
                                            std::uint8_t level);
 
     void reset();
-    void setSkillModifiers(double damage, double range,
+    void setModifiers(double damage, double range,
                            double fireRate, double highGroundDamage,
                            int extraTargetCount = 0);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);

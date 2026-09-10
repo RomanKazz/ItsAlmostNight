@@ -86,7 +86,6 @@ add_library(ian_progression
     src/progression/InsightSystem.cpp
     src/progression/MetaProgression.cpp
     src/progression/ObjectiveSystem.cpp
-    src/progression/SkillTree.cpp
 )
 target_include_directories(ian_progression PUBLIC src)
 target_link_libraries(ian_progression PRIVATE nlohmann_json::nlohmann_json)
@@ -261,12 +260,6 @@ target_link_libraries(its_almost_night PRIVATE
 target_include_directories(its_almost_night SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src")
 
-add_executable(ian_skill_icon_parser
-    tools/skill_icon_parser.cpp
-)
-target_link_libraries(ian_skill_icon_parser PRIVATE raylib)
-target_include_directories(ian_skill_icon_parser SYSTEM PRIVATE
-    "${raylib_SOURCE_DIR}/src")
 file(GLOB_RECURSE IAN_RUNTIME_ASSET_FILES
     CONFIGURE_DEPENDS
     LIST_DIRECTORIES false
@@ -276,6 +269,8 @@ set(IAN_RUNTIME_ASSET_STAMP
     "${CMAKE_CURRENT_BINARY_DIR}/ian_runtime_assets_$<CONFIG>.stamp")
 add_custom_command(
     OUTPUT "${IAN_RUNTIME_ASSET_STAMP}"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+            "$<TARGET_FILE_DIR:its_almost_night>/assets"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${CMAKE_SOURCE_DIR}/assets"
             "$<TARGET_FILE_DIR:its_almost_night>/assets"
@@ -313,8 +308,6 @@ ian_set_warnings(ian_progression)
 ian_set_warnings(ian_graphics)
 ian_set_warnings(ian_ui)
 ian_set_warnings(its_almost_night)
-ian_set_warnings(ian_skill_icon_parser)
-
 if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
     foreach(target ian_assets ian_simulation ian_text ian_audio ian_settings ian_presentation ian_progression ian_graphics ian_ui its_almost_night)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
@@ -359,7 +352,6 @@ if(BUILD_TESTING)
         tests/GlbCollisionTests.cpp
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
-        tests/SkillTreeTests.cpp
         tests/InsightSystemTests.cpp
         tests/ObjectiveSystemTests.cpp
         tests/UserSettingsTests.cpp

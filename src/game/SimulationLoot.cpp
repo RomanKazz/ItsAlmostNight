@@ -112,7 +112,7 @@ void Simulation::applyLootPickup(const LootPickup& pickup) {
     if (pickup.effect == LootUpgradeEffect::Apple) {
         tryConsumeApple();
     }
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
     events_.push_back({
         .type = GameEventType::LootCollected,
         .entityId = pickup.lootId,
@@ -204,7 +204,7 @@ void Simulation::applyPotionWaveStart() {
     battlePotionBerserkRemaining_ = 0.0;
     battlePotionBerserkDuration_ = 0.0;
     battlePotionLifestealRemaining_ = 0.0;
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
 }
 
 void Simulation::grantLootUpgrade(
@@ -228,7 +228,7 @@ void Simulation::updateLootEffects(
         battlePotionBerserkRemaining_ = 0.0;
         battlePotionBerserkDuration_ = 0.0;
         battlePotionLifestealRemaining_ = 0.0;
-        if (hadBreadBuff) refreshSkillRuntimeEffects();
+        if (hadBreadBuff) refreshRunUpgradeRuntimeEffects();
         return;
     }
 
@@ -309,7 +309,7 @@ void Simulation::updateLootEffects(
             battlePotionLifestealRemaining_ = std::min(
                 40.0, 20.0 + 5.0 *
                     static_cast<double>(potionStacks - 1));
-            refreshSkillRuntimeEffects();
+            refreshRunUpgradeRuntimeEffects();
             events_.push_back({
                 .type = GameEventType::BattlePotionActivated,
                 .position = playerPosition_,
@@ -357,7 +357,7 @@ void Simulation::updateLootEffects(
             playerTemporaryHealth_ += temporaryHealth;
             playerHealth_ += temporaryHealth;
             battlePotionLifestealRemaining_ = 0.0;
-            refreshSkillRuntimeEffects();
+            refreshRunUpgradeRuntimeEffects();
         }
     }
     const double previousSeconds = secondsSincePlayerDamage_;
@@ -392,7 +392,7 @@ void Simulation::updateLootEffects(
             static_cast<double>(breadStacks));
     if (!breadWellFed_ && playerHealth_ >= maximumHealth - 1e-9) {
         breadWellFed_ = true;
-        refreshSkillRuntimeEffects();
+        refreshRunUpgradeRuntimeEffects();
         events_.push_back({
             .type = GameEventType::BreadWellFed,
             .position = playerPosition_,

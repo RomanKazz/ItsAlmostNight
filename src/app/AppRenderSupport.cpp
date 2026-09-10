@@ -900,7 +900,6 @@ Color placementColor(
         return {255, 222, 82, alpha};
     case PlacementError::CoreRequired:
     case PlacementError::CoreLevelRequired:
-    case PlacementError::SkillRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:
         return {255, 132, 71, alpha};
@@ -1383,10 +1382,6 @@ WorldConfig loadAppWorldConfig() {
     return loadWorldConfig(
                "assets/data/world.json")
         .config;
-}
-
-std::vector<SkillNodeDefinition> loadAppSkills() {
-    return loadSkillTreeDefinitions("assets/data/skills.json");
 }
 
 InsightConfig loadAppInsightConfig() {

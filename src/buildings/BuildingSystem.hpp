@@ -81,7 +81,6 @@ enum class PlacementError {
     LimitReached,
     OutOfRange,
     CoreLevelRequired,
-    SkillRequired,
     ResourceBlocked,
 };
 

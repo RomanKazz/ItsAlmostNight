@@ -636,44 +636,6 @@ void App::processInput() {
         resetEquipmentActionMode(startedSnapshot);
         DisableCursor();
     }
-    if (cardCollectionVisible_) {
-        if (IsKeyPressed(KEY_LEFT)) {
-            const std::size_t pages = cardCollectionPageCount(
-                simulation_.skillTree());
-            cardCollectionPage_ =
-                (cardCollectionPage_ + pages - 1U) % pages;
-        }
-        if (IsKeyPressed(KEY_RIGHT)) {
-            cardCollectionPage_ =
-                (cardCollectionPage_ + 1U) % cardCollectionPageCount(
-                    simulation_.skillTree());
-        }
-        if (keyPressed(userSettings_.controls, ControlAction::Skills) ||
-            IsKeyPressed(KEY_ESCAPE)) {
-            cardCollectionVisible_ = false;
-            if (cardCollectionPausedRun_ &&
-                simulation_.snapshot().state == RunState::Paused) {
-                simulation_.togglePause();
-            }
-            cardCollectionPausedRun_ = false;
-            fixedStep_.reset();
-            DisableCursor();
-        }
-        return;
-    }
-    if (snapshot.state != RunState::MainMenu &&
-        snapshot.state != RunState::Defeat &&
-        snapshot.state != RunState::Victory &&
-        !snapshot.runUpgradeChoicePending &&
-        keyPressed(userSettings_.controls, ControlAction::Skills)) {
-        cardCollectionVisible_ = true;
-        cardCollectionPage_ = 0U;
-        cardCollectionPausedRun_ = snapshot.state != RunState::Paused;
-        if (cardCollectionPausedRun_) simulation_.togglePause();
-        fixedStep_.reset();
-        EnableCursor();
-        return;
-    }
     if (snapshot.state != RunState::Defeat &&
         snapshot.state != RunState::Victory &&
         (keyPressed(userSettings_.controls, ControlAction::Pause) ||

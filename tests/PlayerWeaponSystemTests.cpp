@@ -127,7 +127,7 @@ void runPlayerWeaponSystemTests() {
         specializedWeapon.fireInterval();
     const int specializedBaseMagazine =
         specializedWeapon.magazineSize();
-    specializedWeapon.setRifleSkillModifiers(
+    specializedWeapon.setRifleModifiers(
         1.70, 1.35, 0.70, 4);
     requireNear(
         specializedWeapon.rifleDamage(),

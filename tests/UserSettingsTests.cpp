@@ -259,13 +259,11 @@ void localizationCatalogTranslatesFixedAndDynamicText() {
     require(ian::localizeText("Core upgraded") == "Ядро улучшено",
             "localization translates event messages");
     require(
-        ian::localizeText("LIGHT FOOTWORK") ==
-            "ЛЁГКАЯ ПОХОДКА" &&
         ian::localizeText("Select Wall") ==
             "Выбрать стену" &&
         ian::localizeText("Attack Flying") ==
             "Атаковать летающего врага",
-        "localization covers movement skills and interaction prompts");
+        "localization covers interaction prompts");
     require(
         ian::localizeText(
             "Q  COPY    F  REPAIR    U  UPGRADE") ==

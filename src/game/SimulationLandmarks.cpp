@@ -303,15 +303,10 @@ void Simulation::updateWorldLandmarks(
     double productionDeltaSeconds = deltaSeconds;
     if (challengeActive()) productionDeltaSeconds = 0.0;
     if (state_ == RunState::Wave) {
-        productionDeltaSeconds *= unlimitedResources_
-            ? 1.0
-            : std::clamp(
-                  skillTree_.effectValue("production.night_speed"),
-                  0.0, 1.0);
+        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
     }
     productionDeltaSeconds *= productionSpeedMultiplier_ *
-        runProductionSpeedMultiplier_ * std::max(
-        0.05, 1.0 + skillTree_.effectValue("production.speed"));
+        runProductionSpeedMultiplier_;
     if (!std::isfinite(productionDeltaSeconds) ||
         productionDeltaSeconds <= 0.0) {
         return;

@@ -29,14 +29,6 @@ bool validRunUpgrade(RunUpgradeEffect effect) {
            value < static_cast<int>(RunUpgradeEffectCount);
 }
 
-bool validProgressionCard(
-    ProgressionCardId card, std::size_t skillCount) {
-    if (isSkillProgressionCard(card)) {
-        return progressionCardSkillIndex(card) < skillCount;
-    }
-    return validRunUpgrade(progressionCardRunUpgrade(card));
-}
-
 bool samePosition(Vec3 left, Vec3 right, double tolerance = 1e-5) {
     return std::abs(left.x - right.x) <= tolerance &&
            std::abs(left.y - right.y) <= tolerance &&
@@ -74,7 +66,6 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .bombs = bombs_.remainingBombs(),
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .rifleLevel = playerWeapons_.rifleLevel(),
-        .skillTree = skillTree_.saveState(),
         .lootStacks = lootStacks_,
         .runUpgradeStacks = runUpgradeStacks_,
         .buildings = buildings_.buildings(),
@@ -124,9 +115,6 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .runUpgradeOfferGeneration = runUpgradeOfferGeneration_,
         .stageCleared = stageCleared_,
         .finalNight = finalNight_,
-        .bareHandsWoodGathered = bareHandsWoodGathered_,
-        .bareHandsStoneGathered = bareHandsStoneGathered_,
-        .introSkillObjectiveCompleted = introSkillObjectiveCompleted_,
         .runStatistics = runStatistics_,
     };
     saved.platformFrames.assign(
@@ -160,10 +148,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         } else {
             saved.resumeState = RunState::BuildPhase;
             saved.wave = std::max(0, wave_ - 1);
-            saved.phaseTimeRemaining =
-                gameplay_.betweenWaveSeconds + std::max(
-                    0.0, skillTree_.effectValue(
-                        "day.duration_seconds"));
+            saved.phaseTimeRemaining = gameplay_.betweenWaveSeconds;
             saved.phaseDuration = saved.phaseTimeRemaining;
         }
     }
@@ -243,12 +228,12 @@ bool Simulation::loadSuspendedRunState(
         saved.runUpgradeChoiceCount > MaximumRunUpgradeChoices ||
         saved.runUpgradeSelectionsRemaining < 0 ||
         saved.runUpgradeSelectionsRemaining > MaximumSavedStack;
-    std::unordered_set<ProgressionCardId> offeredUpgrades;
+    std::unordered_set<RunUpgradeEffect> offeredUpgrades;
     for (std::size_t index = 0;
          index < saved.runUpgradeChoiceCount; ++index) {
-        const ProgressionCardId card = saved.runUpgradeChoices[index];
+        const RunUpgradeEffect card = saved.runUpgradeChoices[index];
         invalidChoices = invalidChoices ||
-            !validProgressionCard(card, skillTree_.nodes().size()) ||
+            !validRunUpgrade(card) ||
             !offeredUpgrades.insert(card).second;
     }
     if (saved.runUpgradeChoicePending) {
@@ -266,8 +251,7 @@ bool Simulation::loadSuspendedRunState(
         saved.bombs, saved.freeChestRerollsRemaining,
         saved.runNightlyBombBonus, saved.runUpgradeRerollTokens,
         saved.bonusSelectionsNextReward, saved.riskyInvestmentPending,
-        saved.bloodHarvestKillProgress, saved.bareHandsWoodGathered,
-        saved.bareHandsStoneGathered,
+        saved.bloodHarvestKillProgress,
     };
     const RunCombatStatistics& statistics = saved.runStatistics;
     const bool invalidStatistics =
@@ -342,18 +326,15 @@ bool Simulation::loadSuspendedRunState(
         !finiteNonNegative(saved.playerRecoverableArmor) ||
         !finiteNonNegative(saved.playerMaxRecoverableArmor) ||
         saved.playerRecoverableArmor > saved.playerMaxRecoverableArmor ||
-        saved.skillTree.unlockedNodeIds.size() > 4096U ||
         saved.insight.consumedEventIds.size() > 100'000U ||
         saved.objectives.statuses.size() > 4096U ||
         saved.objectives.recentGathering.size() > 100'000U) {
         return false;
     }
 
-    SkillTree skillTreeValidation = skillTree_;
     InsightSystem insightValidation = insight_;
     ObjectiveSystem objectiveValidation = objectives_;
-    if (!skillTreeValidation.loadState(saved.skillTree) ||
-        !insightValidation.loadState(saved.insight) ||
+    if (!insightValidation.loadState(saved.insight) ||
         !objectiveValidation.loadState(saved.objectives)) {
         return false;
     }
@@ -383,7 +364,6 @@ bool Simulation::loadSuspendedRunState(
     coins_ = saved.coins;
     lootStacks_ = saved.lootStacks;
     runUpgradeStacks_ = saved.runUpgradeStacks;
-    skillTree_ = std::move(skillTreeValidation);
     insight_ = std::move(insightValidation);
     objectives_ = std::move(objectiveValidation);
     std::fill(insightRewardedEnemyIds_.begin(),
@@ -437,13 +417,9 @@ bool Simulation::loadSuspendedRunState(
     riskyInvestmentActive_ = 0;
     bloodHarvestKillProgress_ = std::max(
         0, saved.bloodHarvestKillProgress);
-    bareHandsWoodGathered_ = saved.bareHandsWoodGathered;
-    bareHandsStoneGathered_ = saved.bareHandsStoneGathered;
-    introSkillObjectiveCompleted_ = saved.introSkillObjectiveCompleted;
     runStatistics_ = saved.runStatistics;
-    const int migratedLevelChoices = skillTree_.takePoints();
 
-    refreshSkillRuntimeEffects();
+    refreshRunUpgradeRuntimeEffects();
     if (!buildings_.restoreBuildings(
             saved.buildings, saved.buildingBlueprintLevels,
             saved.coreBuildRadius) ||
@@ -541,13 +517,6 @@ bool Simulation::loadSuspendedRunState(
     runUpgradeSelectionsRemaining_ =
         saved.runUpgradeSelectionsRemaining;
     runUpgradeOfferGeneration_ = saved.runUpgradeOfferGeneration;
-    if (migratedLevelChoices > 0) {
-        runUpgradeSelectionsRemaining_ += migratedLevelChoices;
-        if (!runUpgradeChoicePending_) {
-            generateRunUpgradeChoices();
-            runUpgradeChoicePending_ = true;
-        }
-    }
     stageCleared_ = saved.stageCleared;
     finalNight_ = false;
     waveStartCheckpoint_.reset();

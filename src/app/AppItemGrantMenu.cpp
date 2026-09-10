@@ -1,6 +1,5 @@
 #include "app/App.hpp"
 
-#include "progression/ProgressionCardRules.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
@@ -169,42 +168,13 @@ void App::drawSandboxCardMenu(
         {x + Padding, y + 54.0F}, 10.0F,
         {202, 198, 181, 225});
 
-    const float tabY = y + 80.0F;
-    const float tabWidth = (width - Padding * 2.0F - 12.0F) * 0.5F;
-    if (ui_.drawToggleButton(
-            {x + Padding, tabY, tabWidth, 48.0F},
-            "POWER CARDS", sandboxCardMenuTab_ == 0)) {
-        sandboxCardMenuTab_ = 0;
-        sandboxCardMenuScroll_ = 0.0F;
-    }
-    if (ui_.drawToggleButton(
-            {x + Padding + tabWidth + 12.0F, tabY,
-             tabWidth, 48.0F},
-            "POWER CARDS", sandboxCardMenuTab_ == 1)) {
-        sandboxCardMenuTab_ = 1;
-        sandboxCardMenuScroll_ = 0.0F;
-    }
-
-    const float viewportY = y + 144.0F;
+    const float viewportY = y + 96.0F;
     const float footerHeight = 76.0F;
-    const float viewportHeight = height - 144.0F - footerHeight;
+    const float viewportHeight = height - 96.0F - footerHeight;
     const Rectangle viewport{
         x + Padding, viewportY,
         width - Padding * 2.0F, viewportHeight};
-    std::vector<std::size_t> powerCards;
-    if (sandboxCardMenuTab_ == 1) {
-        for (std::size_t index = 0;
-             index < simulation_.skillTree().nodes().size(); ++index) {
-            const SkillNodeDefinition& node =
-                simulation_.skillTree().nodes()[index];
-            if (node.cost > 0 &&
-                !progressionCardIsHidden(node.id)) {
-                powerCards.push_back(index);
-            }
-        }
-    }
-    const std::size_t cardCount = sandboxCardMenuTab_ == 0
-        ? RunUpgradeDefinitions.size() : powerCards.size();
+    const std::size_t cardCount = RunUpgradeDefinitions.size();
     const float contentHeight = static_cast<float>(cardCount) *
         (RowHeight + RowGap) - RowGap;
     const float maximumScroll = std::max(
@@ -235,33 +205,20 @@ void App::drawSandboxCardMenu(
         std::string title;
         std::string description;
         std::string stateLabel;
-        ProgressionCardId card{};
+        RunUpgradeEffect card{};
         bool grantable = true;
-        if (sandboxCardMenuTab_ == 0) {
-            const RunUpgradeDefinition& definition =
-                RunUpgradeDefinitions[index];
-            card = progressionCardId(definition.effect);
-            title = std::string(definition.name);
-            description = std::string(definition.description);
-            const int level = snapshot.runUpgradeStacks[
-                runUpgradeIndex(definition.effect)];
-            const int maximumLevel = runUpgradeMaximumLevel(
-                definition.effect);
-            grantable = level < maximumLevel;
-            stateLabel = "LVL " + std::to_string(level) + " / " +
-                std::to_string(maximumLevel);
-        } else {
-            const std::size_t skillIndex = powerCards[index];
-            const SkillNodeDefinition& definition =
-                simulation_.skillTree().nodes()[skillIndex];
-            card = skillProgressionCardId(skillIndex);
-            title = definition.title;
-            description = definition.description;
-            const int level = simulation_.skillTree().level(skillIndex);
-            grantable = !simulation_.skillTree().isMaxLevel(skillIndex);
-            stateLabel = "LVL " + std::to_string(level) + " / " +
-                std::to_string(definition.maximumLevel);
-        }
+        const RunUpgradeDefinition& definition =
+            RunUpgradeDefinitions[index];
+        card = definition.effect;
+        title = std::string(definition.name);
+        description = std::string(definition.description);
+        const int level = snapshot.runUpgradeStacks[
+            runUpgradeIndex(definition.effect)];
+        const int maximumLevel = runUpgradeMaximumLevel(
+            definition.effect);
+        grantable = level < maximumLevel;
+        stateLabel = "LVL " + std::to_string(level) + " / " +
+            std::to_string(maximumLevel);
 
         const float textWidth = row.width - GrantWidth - 64.0F;
         drawUiText(

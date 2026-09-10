@@ -162,9 +162,7 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
 void Simulation::beginPreparedWave() {
     bestWave_ = std::max(bestWave_, wave_);
     if (playerWeaponUnlocked(PlayerWeapon::Bomb)) {
-        bombs_.addBombs(2 + runNightlyBombBonus_ + std::max(
-            0, static_cast<int>(std::lround(
-                skillTree_.effectValue("bomb.nightly_bonus")))));
+        bombs_.addBombs(2 + runNightlyBombBonus_);
     }
     const std::size_t firstGroupSize = std::min({
         static_cast<std::size_t>(waveSpawnGroupSize_),
@@ -268,33 +266,6 @@ void Simulation::completeWave() {
     upcomingAttackDirections_.fill(false);
     wavePortalPositions_.fill(std::nullopt);
     wavePortalsActive_ = false;
-    const int supplyDropLevel = static_cast<int>(std::lround(
-        skillTree_.effectValue("loot.supply_drop")));
-    int nightlyChests = static_cast<int>(std::lround(
-        skillTree_.effectValue("loot.nightly_chests")));
-    if (supplyDropLevel > 0) {
-        const int interval = std::max(1, 4 - supplyDropLevel);
-        if (wave_ % interval == 0) ++nightlyChests;
-    }
-    if (nightlyChests <= 0 &&
-        skillTree_.hasEffect("loot.chest_every_two_nights") &&
-        wave_ % 2 == 0) {
-        nightlyChests = 1;
-    }
-    if (nightlyChests > 0) {
-        std::optional<Vec3> preferredCenter;
-        if (const auto core = buildings_.core()) {
-            preferredCenter = buildingWorldPosition(*core);
-        }
-        const double preferredRadius = supplyDropLevel > 0 ||
-                skillTree_.hasEffect("loot.safe_delivery")
-            ? 18.0 : 28.0;
-        lootChests_.spawnAdditionalChests(
-            nightlyChests, terrain_.seed(), map_.worldLimit,
-            terrain_, resources_.nodes(), playerPosition_,
-            preferredCenter, preferredRadius, 8.0,
-            LootChestPurpose::Reward);
-    }
     int additionalChests = 0;
     if (currentWaveHasBoss_) {
         const int mapStacks = lootStacks_[
@@ -307,21 +278,11 @@ void Simulation::completeWave() {
         if (const auto core = buildings_.core()) {
             preferredCenter = buildingWorldPosition(*core);
         }
-        const double preferredRadius =
-            skillTree_.hasEffect("loot.safe_delivery") ? 18.0 : 28.0;
         lootChests_.spawnAdditionalChests(
             additionalChests, terrain_.seed(), map_.worldLimit,
             terrain_, resources_.nodes(), playerPosition_,
-            preferredCenter, preferredRadius, 8.0,
+            preferredCenter, 28.0, 8.0,
             LootChestPurpose::Reward);
-    }
-    const double restoredHealthFraction = std::clamp(
-        skillTree_.effectValue("wave.repair_fraction"), 0.0, 1.0);
-    if (restoredHealthFraction > 0.0) {
-        static_cast<void>(buildings_.restoreHealthFraction(
-            restoredHealthFraction));
-        static_cast<void>(foundations_.restoreHealthFraction(
-            restoredHealthFraction));
     }
     events_.push_back({
         .type = GameEventType::WaveCompleted,

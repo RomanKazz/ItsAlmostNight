@@ -18,7 +18,6 @@
 #include "game/PlayerClass.hpp"
 #include "game/LootChestSystem.hpp"
 #include "resources/ResourceSystem.hpp"
-#include "progression/SkillTree.hpp"
 #include "progression/InsightSystem.hpp"
 #include "progression/ObjectiveSystem.hpp"
 #include "progression/RunUpgrade.hpp"
@@ -206,8 +205,6 @@ enum class TutorialObjective {
     SurviveFirstWave,
 };
 
-enum class SkillPointSource { IntroObjective, Wave, Boss, Event, Elite };
-
 enum class AttackDirection {
     North,
     East,
@@ -385,7 +382,6 @@ struct SimulationSnapshot {
     int waveCompletionReward;
     int tutorialWoodTarget;
     std::optional<TutorialObjective> tutorialObjective;
-    int skillPoints;
     int playerLevel;
     double currentInsight;
     double requiredInsight;
@@ -394,7 +390,7 @@ struct SimulationSnapshot {
     std::array<int, 3> recommendedObjectives;
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
-    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
     int runUpgradeSelectionsRemaining{};
@@ -404,7 +400,6 @@ struct SimulationSnapshot {
 };
 
 struct ProgressionRunState {
-    SkillTreeRunState skillTree;
     InsightRunState insight;
     ObjectiveRunState objectives;
 };
@@ -432,7 +427,6 @@ struct SuspendedRunState {
     int bombs{};
     PlayerWeapon selectedWeapon{PlayerWeapon::Axe};
     int rifleLevel{1};
-    SkillTreeRunState skillTree;
     std::array<int, LootUpgradeEffectCount> lootStacks{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
     std::vector<BuildingInstance> buildings;
@@ -481,15 +475,12 @@ struct SuspendedRunState {
     ObjectiveRunState objectives;
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
-    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
     int runUpgradeSelectionsRemaining{};
     std::uint32_t runUpgradeOfferGeneration{};
     bool stageCleared{};
     bool finalNight{};
-    int bareHandsWoodGathered{};
-    int bareHandsStoneGathered{};
-    bool introSkillObjectiveCompleted{};
     RunCombatStatistics runStatistics;
 };
 
@@ -503,8 +494,6 @@ class Simulation {
                         MapDefinition map = MapDefinition::defaults(),
                         WorldConfig worldConfig =
                             WorldConfig::defaults(),
-                        std::vector<SkillNodeDefinition> skills =
-                            SkillTree::defaultDefinitions(),
                         InsightConfig insightConfig =
                             InsightConfig::defaults(),
                         std::vector<ObjectiveDefinition> objectives =
@@ -574,21 +563,14 @@ class Simulation {
     [[nodiscard]] std::size_t clearModularBuildings();
     void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
-    [[nodiscard]] const SkillTree& skillTree() const;
-    [[nodiscard]] SkillPurchaseError purchaseSkill(
-        std::size_t index, bool spendPoints = true,
-        bool progressionCard = false);
-    void grantSkillPoints(int amount, SkillPointSource source);
-    [[nodiscard]] bool grantSandboxProgressionCard(
-        ProgressionCardId card);
+    [[nodiscard]] bool grantSandboxRunUpgrade(
+        RunUpgradeEffect effect);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
     [[nodiscard]] bool lockRunUpgrade(std::size_t choiceIndex);
     void grantLootUpgrade(
         LootUpgradeEffect effect,
         LootRarity rarity = LootRarity::Common);
-    [[nodiscard]] SkillTreeRunState saveSkillTreeState() const;
-    [[nodiscard]] bool loadSkillTreeState(const SkillTreeRunState& state);
     [[nodiscard]] ProgressionRunState saveProgressionState() const;
     [[nodiscard]] bool loadProgressionState(const ProgressionRunState& state);
     [[nodiscard]] const InsightSystem& insightSystem() const;
@@ -741,7 +723,7 @@ class Simulation {
         BuildingType type, int blueprintStackOrdinal);
     void grantBlueprintInsightForExistingBuildings(
         int blueprintStackOrdinal);
-    void refreshSkillRuntimeEffects();
+    void refreshRunUpgradeRuntimeEffects();
     void grantPlayerClassStartingNodes();
     void prepareRunUpgradeChoices(int selections = 1);
     void generateRunUpgradeChoices();
@@ -839,7 +821,6 @@ class Simulation {
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};
     std::uint64_t pickaxeAttackSequence_{};
-    std::uint64_t powerSwingResourceHits_{};
     std::uint64_t nailHitCounter_{};
     double pickaxeCooldownRemaining_{};
     double pickaxeInputBufferRemaining_{};
@@ -869,7 +850,6 @@ class Simulation {
     CannonSystem cannons_;
     TrapSystem traps_;
     PlayerWeaponSystem playerWeapons_;
-    SkillTree skillTree_;
     InsightSystem insight_;
     ObjectiveSystem objectives_;
     std::vector<EntityId> insightRewardedEnemyIds_;
@@ -935,7 +915,7 @@ class Simulation {
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     bool runUpgradeChoicePending_{};
     std::size_t runUpgradeChoiceCount_{};
-    std::array<ProgressionCardId, MaximumRunUpgradeChoices>
+    std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices_{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks_{};
     int runNightlyBombBonus_{};
@@ -948,9 +928,6 @@ class Simulation {
     int riskyInvestmentActive_{};
     int bloodHarvestKillProgress_{};
     std::uint32_t runUpgradeOfferGeneration_{};
-    int bareHandsWoodGathered_{};
-    int bareHandsStoneGathered_{};
-    bool introSkillObjectiveCompleted_{};
     struct ActiveFortification { EntityId id; double remaining; };
     std::vector<ActiveFortification> activeFortifications_;
     struct ActiveRepairCooldown { EntityId id; double remaining; };

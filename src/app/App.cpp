@@ -177,7 +177,7 @@ const FirstPersonToolTuning& App::activeToolTuning() const {
 App::App()
     : simulation_(
       loadAppBalance(), loadAppMap(),
-          loadAppWorldConfig(), loadAppSkills(),
+          loadAppWorldConfig(),
           loadAppInsightConfig(), loadAppObjectives()),
       environment_(loadAppEnvironment()) {
     static_cast<void>(loadUserSettings(

@@ -119,7 +119,7 @@ void CannonSystem::reset() {
     hitBuffer_.clear();
 }
 
-void CannonSystem::setSkillModifiers(
+void CannonSystem::setModifiers(
     double damage, double radius, double fireRate,
     double highGroundDamage, int clusterExplosionCount) {
     damageMultiplier_ = std::max(0.05, damage);

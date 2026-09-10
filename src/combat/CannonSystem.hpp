@@ -80,7 +80,7 @@ class CannonSystem {
         BuildingType type, std::uint8_t level);
 
     void reset();
-    void setSkillModifiers(double damage, double radius,
+    void setModifiers(double damage, double radius,
                            double fireRate, double highGroundDamage,
                            int clusterExplosionCount = 0);
     void clearProjectiles();
