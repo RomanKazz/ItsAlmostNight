@@ -64,6 +64,29 @@ struct HudViewState {
     double buildingStatsUpgradeDuration{};
 };
 
+struct HudRenderPerformanceStats {
+    double resourcesMs{};
+    double vitalityMs{};
+    double informationMs{};
+    double objectivesMs{};
+    double lootMs{};
+    double phaseMs{};
+    double hotbarMs{};
+    double feedbackMs{};
+};
+
+struct MinimapRenderPerformanceStats {
+    double setupMs{};
+    double targetRefreshMs{};
+    double frameMs{};
+    double labelsMs{};
+};
+
+[[nodiscard]] const HudRenderPerformanceStats&
+hudRenderPerformanceStats() noexcept;
+[[nodiscard]] const MinimapRenderPerformanceStats&
+minimapRenderPerformanceStats() noexcept;
+
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera,
              const ControlSettings& controls);

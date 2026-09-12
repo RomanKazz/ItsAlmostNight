@@ -1,10 +1,12 @@
 #include "ui/HudRenderer.hpp"
 
 #include "game/Simulation.hpp"
+#include "core/PerformanceStats.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
+#include <raymath.h>
 #include <rlgl.h>
 
 #include <algorithm>
@@ -14,6 +16,8 @@
 
 namespace ian {
 namespace {
+
+MinimapRenderPerformanceStats minimapPerformanceStats{};
 
 Vector2 rotateMinimapOffset(
     double worldX, double worldZ, double playerYaw) {
@@ -101,7 +105,7 @@ Color minimapHeightColor(double height) {
     return Colors.back();
 }
 
-constexpr int CompassFrameSegments = 128;
+constexpr int CompassFrameSegments = 64;
 
 float roundedCardinalSpike(float angle, float halfAngle) {
     const float quarterTurn = PI * 0.5F;
@@ -164,7 +168,7 @@ void drawRoundedPlayerMarker(
 void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale,
-    double viewRadius, float expanded) {
+    double viewRadius, float expanded, double mapYaw) {
     const int cells = expanded > 0.55F ? 64 : 28;
     const double cellWorld = viewRadius * 2.0 /
         static_cast<double>(cells);
@@ -194,7 +198,7 @@ void drawMinimapTerrain(
         const double worldZ = snapshot.playerPosition.z - viewRadius +
             static_cast<double>(z) * cellWorld;
         const Vector2 point = minimapPoint(
-            mapBounds, mapScale, snapshot.playerYaw,
+            mapBounds, mapScale, mapYaw,
             snapshot.playerPosition.x,
             snapshot.playerPosition.z,
             worldX, worldZ);
@@ -218,11 +222,11 @@ void drawMinimapTerrain(
 void drawMinimapPonds(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale,
-    double viewRadius, float expanded) {
-    const auto mapPoint = [&snapshot, mapBounds, mapScale](
+    double viewRadius, float expanded, double mapYaw) {
+    const auto mapPoint = [&snapshot, mapBounds, mapScale, mapYaw](
                               double x, double z) {
         return minimapPoint(
-            mapBounds, mapScale, snapshot.playerYaw,
+            mapBounds, mapScale, mapYaw,
             snapshot.playerPosition.x,
             snapshot.playerPosition.z, x, z);
     };
@@ -292,10 +296,43 @@ void drawMinimapPonds(
     }
 }
 
+constexpr float CachedFrameMapDiameter = 800.0F;
+
+void ensureMinimapFrameTarget(GameUi& ui) {
+    if (ui.minimapFrameTargetReady() ||
+        !ui.beginMinimapFrameTarget()) {
+        return;
+    }
+    const float targetSize = static_cast<float>(
+        ui.minimapFrameTargetSize());
+    const Vector2 center{targetSize * 0.5F, targetSize * 0.5F};
+    constexpr float mapRadius = CachedFrameMapDiameter * 0.5F;
+    constexpr float frameScale = CachedFrameMapDiameter / 150.0F;
+    constexpr float outerPadding = 6.0F * frameScale;
+    constexpr float lightPadding = 2.8F * frameScale;
+    constexpr float outerSpikeLength = 7.0F * frameScale;
+    constexpr float lightSpikeLength = 6.2F * frameScale;
+    constexpr float spikeHalfAngle = 0.13F;
+    drawRoundedCompassPlate(
+        center, mapRadius + outerPadding, outerSpikeLength,
+        spikeHalfAngle, 0.0F, {49, 49, 49, 255});
+    drawRoundedCompassPlate(
+        center, mapRadius + lightPadding, lightSpikeLength,
+        spikeHalfAngle, 0.0F, {221, 221, 221, 255});
+    ui.endMinimapFrameTarget();
+}
+
 } // namespace
+
+const MinimapRenderPerformanceStats&
+minimapRenderPerformanceStats() noexcept {
+    return minimapPerformanceStats;
+}
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                     float expansion, float topInset) {
+    minimapPerformanceStats = {};
+    auto minimapSectionStart = PerformanceClock::now();
     static_cast<void>(topInset);
     if (expansion < 0.0F) return;
     const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
@@ -362,8 +399,20 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     const int desiredTargetSize = expanded > 0.55F
         ? 768
-        : expanded > 0.02F ? 512 : 256;
+        : 512;
     ui.updateMinimapTarget(desiredTargetSize);
+    const double minimapNow = GetTime();
+    const bool expansionAnimating =
+        rawExpansion > 0.001F && rawExpansion < 0.999F;
+    const double refreshInterval = expanded > 0.55F
+        ? 1.0 / 30.0
+        : 1.0 / 20.0;
+    const bool refreshTarget = ui.minimapTargetRefreshDue(
+        minimapNow, refreshInterval, expansionAnimating);
+    minimapPerformanceStats.setupMs =
+        performanceMilliseconds(minimapSectionStart);
+    minimapSectionStart = PerformanceClock::now();
+    if (refreshTarget) {
     if (!ui.beginMinimapTarget()) {
         return;
     }
@@ -373,13 +422,14 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         static_cast<float>(std::max(viewRadius, 1.0));
     const float renderScale = mapSize /
         std::max(displayMapSize, 1.0F);
+    constexpr double MapYaw = 0.0;
 
     DrawRectangleRec(mapBounds, {29, 43, 35, 255});
     drawMinimapTerrain(
         snapshot, mapBounds, mapScale,
-        viewRadius, expanded);
+        viewRadius, expanded, MapYaw);
     drawMinimapPonds(
-        snapshot, mapBounds, mapScale, viewRadius, expanded);
+        snapshot, mapBounds, mapScale, viewRadius, expanded, MapYaw);
     const Vector2 mapCenter{
         mapBounds.x + mapSize * 0.5F,
         mapBounds.y + mapSize * 0.5F,
@@ -401,10 +451,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float symbolScale =
         std::lerp(1.0F, 1.55F, expanded) * renderScale;
     const auto mapPoint =
-        [&snapshot, mapBounds, mapScale](
+        [&snapshot, mapBounds, mapScale, mapYaw = MapYaw](
             double worldX, double worldZ) {
             return minimapPoint(
-                mapBounds, mapScale, snapshot.playerYaw,
+                mapBounds, mapScale, mapYaw,
                 snapshot.playerPosition.x,
                 snapshot.playerPosition.z,
                 worldX, worldZ);
@@ -748,46 +798,131 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
-    for (const EnemyInstance& enemy : snapshot.enemies) {
-        if (!enemy.active || enemy.state == EnemyState::Dead) {
-            continue;
-        }
-        const Vector2 point = mapPoint(enemy.position.x, enemy.position.z);
-        if (!pointVisible(point)) {
-            continue;
-        }
-        float radius = 2.25F;
+    struct EnemyMarkerAppearance {
+        float radius{2.25F};
         Color color{239, 75, 66, 245};
-        if (enemy.type == EnemyType::Fast) {
-            radius = 1.8F;
-        } else if (enemy.type == EnemyType::Heavy) {
-            radius = 2.8F;
-        } else if (enemy.type == EnemyType::Boss) {
-            radius = 4.6F;
-            color = {255, 123, 55, 255};
-        } else if (enemy.type == EnemyType::Flying) {
-            color = {220, 105, 232, 250};
-        } else if (enemy.type == EnemyType::Splitter) {
-            radius = 3.0F;
-            color = {87, 194, 92, 250};
-        } else if (enemy.type == EnemyType::Splitling) {
-            radius = 1.55F;
-            color = {116, 224, 108, 245};
+        int priority{1};
+    };
+    const auto markerAppearance = [](EnemyType type) {
+        EnemyMarkerAppearance result{};
+        if (type == EnemyType::Fast) {
+            result.radius = 1.8F;
+        } else if (type == EnemyType::Heavy) {
+            result.radius = 2.8F;
+            result.priority = 3;
+        } else if (type == EnemyType::Boss) {
+            result.radius = 4.6F;
+            result.color = {255, 123, 55, 255};
+            result.priority = 6;
+        } else if (type == EnemyType::Flying) {
+            result.color = {220, 105, 232, 250};
+            result.priority = 2;
+        } else if (type == EnemyType::Splitter) {
+            result.radius = 3.0F;
+            result.color = {87, 194, 92, 250};
+            result.priority = 4;
+        } else if (type == EnemyType::Splitling) {
+            result.radius = 1.55F;
+            result.color = {116, 224, 108, 245};
         }
+        return result;
+    };
+    const auto drawEnemyMarker = [symbolScale](
+                                     Vector2 point,
+                                     EnemyMarkerAppearance appearance,
+                                     int clusteredEnemies = 1) {
+        const float clusterGrowth = std::min(
+            1.7F,
+            std::log2(static_cast<float>(
+                std::max(clusteredEnemies, 1))) * 0.32F);
+        const float radius = appearance.radius + clusterGrowth;
         DrawCircleV(
             point, (radius + 1.0F) * symbolScale,
             {51, 16, 17, 210});
-        DrawCircleV(point, radius * symbolScale, color);
+        DrawCircleV(
+            point, radius * symbolScale,
+            clusteredEnemies > 1
+                ? ColorLerp(
+                      appearance.color, {255, 151, 91, 255},
+                      std::min(0.28F, clusterGrowth * 0.12F))
+                : appearance.color);
+    };
+
+    if (expanded > 0.55F) {
+        for (const EnemyInstance& enemy : snapshot.enemies) {
+            if (!enemy.active || enemy.state == EnemyState::Dead) {
+                continue;
+            }
+            const Vector2 point = mapPoint(
+                enemy.position.x, enemy.position.z);
+            if (pointVisible(point)) {
+                drawEnemyMarker(
+                    point, markerAppearance(enemy.type));
+            }
+        }
+    } else {
+        // The compact map cannot visually resolve hundreds of overlapping
+        // enemy dots. Aggregate them into screen-space cells so crowd cost is
+        // bounded while bosses and large enemies keep visual priority.
+        constexpr int EnemyClusterCells = 18;
+        struct EnemyMarkerCluster {
+            Vector2 positionSum{};
+            int count{};
+            EnemyMarkerAppearance appearance{};
+        };
+        std::array<
+            EnemyMarkerCluster,
+            EnemyClusterCells * EnemyClusterCells> clusters{};
+        for (const EnemyInstance& enemy : snapshot.enemies) {
+            if (!enemy.active || enemy.state == EnemyState::Dead) {
+                continue;
+            }
+            const Vector2 point = mapPoint(
+                enemy.position.x, enemy.position.z);
+            if (!pointVisible(point)) {
+                continue;
+            }
+            const float normalizedX = std::clamp(
+                (point.x - mapBounds.x) /
+                    std::max(mapBounds.width, 1.0F),
+                0.0F, 0.9999F);
+            const float normalizedY = std::clamp(
+                (point.y - mapBounds.y) /
+                    std::max(mapBounds.height, 1.0F),
+                0.0F, 0.9999F);
+            const int cellX = static_cast<int>(
+                normalizedX * EnemyClusterCells);
+            const int cellY = static_cast<int>(
+                normalizedY * EnemyClusterCells);
+            EnemyMarkerCluster& cluster = clusters[
+                static_cast<std::size_t>(cellY * EnemyClusterCells +
+                                         cellX)];
+            cluster.positionSum = Vector2Add(
+                cluster.positionSum, point);
+            ++cluster.count;
+            const EnemyMarkerAppearance appearance =
+                markerAppearance(enemy.type);
+            if (appearance.priority > cluster.appearance.priority) {
+                cluster.appearance = appearance;
+            } else {
+                cluster.appearance.radius = std::max(
+                    cluster.appearance.radius, appearance.radius);
+            }
+        }
+        for (const EnemyMarkerCluster& cluster : clusters) {
+            if (cluster.count <= 0) {
+                continue;
+            }
+            drawEnemyMarker(
+                Vector2Scale(
+                    cluster.positionSum,
+                    1.0F / static_cast<float>(cluster.count)),
+                cluster.appearance, cluster.count);
+        }
     }
 
     const Vector2 player = mapPoint(
         snapshot.playerPosition.x, snapshot.playerPosition.z);
-    const Color playerColor = snapshot.playerRespawning
-        ? Color{174, 181, 181, 240}
-        : Color{250, 250, 244, 255};
-    drawRoundedPlayerMarker(
-        player, symbolScale * 1.25F, playerColor);
-
     if (snapshot.nearestChestPosition) {
         const Vector2 chestPoint = mapPoint(
             snapshot.nearestChestPosition->x,
@@ -863,7 +998,7 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
         const Vector2 outward = rotateMinimapOffset(
             worldDirection.x, worldDirection.y,
-            snapshot.playerYaw);
+            MapYaw);
         const Vector2 inward{-outward.x, -outward.y};
         // Keep warnings in their own inner ring so compass letters remain
         // readable on the rotating rim.
@@ -890,6 +1025,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     EndScissorMode();
     ui.endMinimapTarget();
+    ui.markMinimapTargetRefreshed(minimapNow);
+    }
+
+    minimapPerformanceStats.targetRefreshMs =
+        performanceMilliseconds(minimapSectionStart);
+    minimapSectionStart = PerformanceClock::now();
 
     const Vector2 displayMapCenter{
         displayMapBounds.x + displayMapSize * 0.5F,
@@ -906,6 +1047,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
     const float shadowOffset = 4.0F * frameScale;
     const float compassRotation =
         static_cast<float>(snapshot.playerYaw);
+    const float mapRotationDegrees =
+        -compassRotation * RAD2DEG;
     const bool hasAttackWarning = std::ranges::any_of(
         snapshot.upcomingAttackDirections,
         [](bool active) { return active; });
@@ -930,28 +1073,53 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         {0.0F, -1.0F}, {1.0F, 0.0F},
         {0.0F, 1.0F}, {-1.0F, 0.0F},
     }};
-    drawRoundedCompassPlate(
-        {displayMapCenter.x,
-         displayMapCenter.y + shadowOffset},
-        mapRadius + outerPadding, outerSpikeLength,
-        SpikeHalfAngle, compassRotation,
-        {82, 82, 82, 255});
-    drawRoundedCompassPlate(
+    if (expanded <= 0.001F) {
+        ensureMinimapFrameTarget(ui);
+        const float frameTargetSize = displayMapSize *
+            static_cast<float>(ui.minimapFrameTargetSize()) /
+            CachedFrameMapDiameter;
+        const Rectangle frameBounds{
+            displayMapCenter.x - frameTargetSize * 0.5F,
+            displayMapCenter.y - frameTargetSize * 0.5F,
+            frameTargetSize, frameTargetSize};
+        Rectangle shadowBounds = frameBounds;
+        shadowBounds.y += shadowOffset;
+        ui.drawMinimapFrameTarget(
+            shadowBounds, mapRotationDegrees,
+            {82, 82, 82, 140});
+        ui.drawMinimapFrameTarget(
+            frameBounds, mapRotationDegrees);
+    } else {
+        drawRoundedCompassPlate(
+            {displayMapCenter.x,
+             displayMapCenter.y + shadowOffset},
+            mapRadius + outerPadding, outerSpikeLength,
+            SpikeHalfAngle, compassRotation,
+            {82, 82, 82, 140});
+        drawRoundedCompassPlate(
+            displayMapCenter,
+            mapRadius + outerPadding, outerSpikeLength,
+            SpikeHalfAngle, compassRotation,
+            {49, 49, 49, 255});
+        drawRoundedCompassPlate(
+            displayMapCenter,
+            mapRadius + lightPadding, lightSpikeLength,
+            SpikeHalfAngle, compassRotation,
+            {221, 221, 221, 255});
+    }
+    ui.drawMinimapTarget(displayMapBounds, mapRotationDegrees);
+    const Color playerColor = snapshot.playerRespawning
+        ? Color{174, 181, 181, 240}
+        : Color{250, 250, 244, 255};
+    drawRoundedPlayerMarker(
         displayMapCenter,
-        mapRadius + outerPadding, outerSpikeLength,
-        SpikeHalfAngle, compassRotation,
-        {49, 49, 49, 255});
-    drawRoundedCompassPlate(
-        displayMapCenter,
-        mapRadius + lightPadding, lightSpikeLength,
-        SpikeHalfAngle, compassRotation,
-        {221, 221, 221, 255});
-    ui.drawMinimapTarget(displayMapBounds);
+        std::lerp(1.0F, 1.55F, expanded) * 1.25F,
+        playerColor);
     const float borderThickness = 3.0F * frameScale;
     DrawRing(
         displayMapCenter,
         displayMapSize * 0.5F - borderThickness,
-        displayMapSize * 0.5F, 0.0F, 360.0F, 96,
+        displayMapSize * 0.5F, 0.0F, 360.0F, 64,
         {221, 221, 221, 255});
     for (std::size_t index = 0;
          index < snapshot.upcomingAttackDirections.size(); ++index) {
@@ -992,6 +1160,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                  tangent.y * 4.0F * frameScale},
             warningColor);
     }
+    minimapPerformanceStats.frameMs =
+        performanceMilliseconds(minimapSectionStart);
+    minimapSectionStart = PerformanceClock::now();
+
     const float compassRenderedSize =
         std::lerp(20.0F, 28.0F, expanded);
     const float compassFontSize =
@@ -1021,20 +1193,12 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 center.x - size.x * 0.5F,
                 center.y - size.y * 0.5F,
             };
-            SdfUiTextStyle style{};
-            style.fillColor = warning
+            const Color labelColor = warning
                 ? ColorLerp(
                       WHITE, warningColor,
                       0.42F + warningPulse * 0.58F)
                 : WHITE;
-            style.outlineColor = {49, 49, 49, 255};
-            style.shadowColor = warning
-                ? Color{126, 38, 21, 255}
-                : Color{82, 82, 82, 255};
-            style.shadowOffsetPixels = {0.0F, warning ? 4.0F : 3.0F};
-            style.outlinePixels = warning ? 2.6F : 2.0F;
-            drawStyledSdfUiText(
-                label, position, renderedFontSize, style);
+            drawUiText(label, position, renderedFontSize, labelColor);
         };
     constexpr std::array<std::string_view, 4> CompassLabels{{
         "N", "E", "S", "W"}};
@@ -1049,6 +1213,8 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
              displayMapCenter.y + offset.y * compassRadius},
             snapshot.upcomingAttackDirections[index]);
     }
+    minimapPerformanceStats.labelsMs =
+        performanceMilliseconds(minimapSectionStart);
 }
 
 } // namespace ian

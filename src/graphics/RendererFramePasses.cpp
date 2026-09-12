@@ -742,7 +742,9 @@ void Renderer::endFrame() {
     // frame starts regular but still exposes render-time variance as visible
     // presentation jitter.
     paceFrame();
+    const auto swapStart = PerformanceClock::now();
     EndDrawing();
+    frameSwapMilliseconds_ = performanceMilliseconds(swapStart);
     frameOpen_ = false;
 }
 
@@ -1211,6 +1213,9 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.coniferFacetBlend ==
             worldMaterial_.coniferFacetBlend &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
+        sameVector3(material.hitFlashPosition,
+                    worldMaterial_.hitFlashPosition) &&
+        material.hitFlashRadius == worldMaterial_.hitFlashRadius &&
         material.selectionAmount == worldMaterial_.selectionAmount &&
         material.selectionTint.x == worldMaterial_.selectionTint.x &&
         material.selectionTint.y == worldMaterial_.selectionTint.y &&

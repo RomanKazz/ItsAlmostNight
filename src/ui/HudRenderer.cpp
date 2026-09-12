@@ -3,6 +3,7 @@
 #include "app/UserSettings.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/CoreProgression.hpp"
+#include "core/PerformanceStats.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
@@ -23,6 +24,8 @@
 
 namespace ian {
 namespace {
+
+HudRenderPerformanceStats hudPerformanceStats{};
 
 const char* placementMessage(
     PlacementError error, BuildingType) {
@@ -148,10 +151,10 @@ constexpr VitalBarPalette CoreHealthPalette{
     .fill = {245, 139, 239, 255},
 };
 
-void drawVitalBar(GameUi& ui, Rectangle bounds, float fraction,
+void drawVitalBar(Rectangle bounds, float fraction,
                   float trailFraction, float damagePulse,
                   const VitalBarPalette& palette,
-                  std::string_view text, bool core) {
+                  std::string_view text) {
     constexpr float OuterRadius = 10.0F;
     constexpr float InnerInset = 5.0F;
     constexpr float InnerHeight = 26.0F;
@@ -229,12 +232,6 @@ void drawVitalBar(GameUi& ui, Rectangle bounds, float fraction,
              static_cast<unsigned char>(
                  90.0F + damagePulse * 150.0F)});
     }
-    const float iconSize = 40.0F * (1.0F + damagePulse * 0.10F);
-    const Rectangle iconBounds{
-        bounds.x - 43.0F - (iconSize - 40.0F) * 0.5F,
-        bounds.y - 2.0F - (iconSize - 40.0F) * 0.5F,
-        iconSize, iconSize};
-    ui.drawVitalIcon(iconBounds, core);
 }
 
 void drawDayNightBowl(
@@ -253,19 +250,59 @@ void drawDayNightBowl(
                 std::max(topCap.height, 1.0F),
             8, color);
     }
-    BeginScissorMode(
-        static_cast<int>(std::floor(bounds.x)),
-        static_cast<int>(std::floor(
-            bounds.y + safeCornerRadius)),
-        static_cast<int>(std::ceil(bounds.width)),
-        static_cast<int>(std::ceil(
-            bounds.height - safeCornerRadius)));
-    DrawEllipse(
-        static_cast<int>(std::lround(
-            bounds.x + bounds.width * 0.5F)),
-        static_cast<int>(std::lround(centerY)),
-        bounds.width * 0.5F, radiusY, color);
-    EndScissorMode();
+    // This is the lower half of an ellipse. Emitting it directly avoids a
+    // scissor-state flush in the middle of the HUD pass.
+    constexpr int HalfEllipseSegments = 24;
+    const Vector2 center{
+        bounds.x + bounds.width * 0.5F, centerY};
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    for (int segment = 0; segment < HalfEllipseSegments; ++segment) {
+        const float start = static_cast<float>(segment) * PI /
+            static_cast<float>(HalfEllipseSegments);
+        const float end = static_cast<float>(segment + 1) * PI /
+            static_cast<float>(HalfEllipseSegments);
+        rlVertex2f(center.x, center.y);
+        rlVertex2f(
+            center.x + std::cos(start) * bounds.width * 0.5F,
+            center.y + std::sin(start) * radiusY);
+        rlVertex2f(
+            center.x + std::cos(end) * bounds.width * 0.5F,
+            center.y + std::sin(end) * radiusY);
+    }
+    rlEnd();
+}
+
+void emitTriangleClippedBelow(
+    Vector2 first, Vector2 second, Vector2 third, float minimumY) {
+    const std::array<Vector2, 3> input{first, second, third};
+    std::array<Vector2, 4> output{};
+    std::size_t outputCount = 0U;
+    auto previous = input.back();
+    bool previousInside = previous.y >= minimumY;
+    for (const Vector2 current : input) {
+        const bool currentInside = current.y >= minimumY;
+        if (currentInside != previousInside) {
+            const float denominator = current.y - previous.y;
+            const float factor = std::abs(denominator) > 0.0001F
+                ? (minimumY - previous.y) / denominator
+                : 0.0F;
+            output[outputCount++] = {
+                previous.x + (current.x - previous.x) * factor,
+                minimumY};
+        }
+        if (currentInside) {
+            output[outputCount++] = current;
+        }
+        previous = current;
+        previousInside = currentInside;
+    }
+    for (std::size_t index = 1U; index + 1U < outputCount; ++index) {
+        rlVertex2f(output[0].x, output[0].y);
+        rlVertex2f(output[index].x, output[index].y);
+        rlVertex2f(output[index + 1U].x, output[index + 1U].y);
+    }
 }
 
 float dayNightCycleAngle(
@@ -300,7 +337,7 @@ float dayNightCycleAngle(
     return 0.0F;
 }
 
-void drawDayNightDialSector(
+void emitDayNightDialSector(
     Rectangle bounds, float cornerRadius,
     float centerAngle, float sectorAngle, Color color) {
     constexpr int SegmentCount = 32;
@@ -313,18 +350,10 @@ void drawDayNightDialSector(
     const float radiusX = bounds.width * 0.5F;
     const float radiusY = bounds.height - safeCornerRadius;
     const float startAngle = centerAngle - sectorAngle * 0.5F;
-    BeginScissorMode(
-        static_cast<int>(std::floor(bounds.x)),
-        static_cast<int>(std::floor(bounds.y)),
-        static_cast<int>(std::ceil(bounds.width)),
-        static_cast<int>(std::ceil(bounds.height)));
-    // Raylib shape triangles sample an anti-aliased texture on every internal
-    // edge, exposing the sector below as colored radial speckles. Submit an
-    // untextured fan and overlap only internal edges by a subpixel angle.
+    // The caller owns one shared untextured batch and scissor for all sectors.
+    // Overlap internal edges slightly to avoid colored radial speckles.
     constexpr float SegmentOverlap = 0.0025F;
     const float step = sectorAngle / static_cast<float>(SegmentCount);
-    rlSetTexture(0);
-    rlBegin(RL_TRIANGLES);
     rlColor4ub(color.r, color.g, color.b, color.a);
     for (int segment = 0; segment < SegmentCount; ++segment) {
         const float segmentStart = startAngle +
@@ -333,19 +362,17 @@ void drawDayNightDialSector(
         const float segmentEnd = startAngle +
             static_cast<float>(segment + 1) * step +
             (segment + 1 < SegmentCount ? SegmentOverlap : 0.0F);
-        rlVertex2f(center.x, center.y);
-        rlVertex2f(
-            center.x + std::cos(segmentEnd) * radiusX,
-            center.y + std::sin(segmentEnd) * radiusY);
-        rlVertex2f(
-            center.x + std::cos(segmentStart) * radiusX,
-            center.y + std::sin(segmentStart) * radiusY);
+        emitTriangleClippedBelow(
+            center,
+            {center.x + std::cos(segmentEnd) * radiusX,
+             center.y + std::sin(segmentEnd) * radiusY},
+            {center.x + std::cos(segmentStart) * radiusX,
+             center.y + std::sin(segmentStart) * radiusY},
+            bounds.y);
     }
-    rlEnd();
-    EndScissorMode();
 }
 
-void drawDayNightIndicator(
+[[maybe_unused]] void drawDayNightIndicator(
     Rectangle bounds, const SimulationSnapshot& snapshot) {
     constexpr Color ShadowColor{82, 82, 82, 255};
     constexpr Color FrameColor{49, 49, 49, 255};
@@ -395,18 +422,21 @@ void drawDayNightIndicator(
     // At zero the fixed notch sits exactly on the start of the yellow day
     // sector. Decreasing the angle rotates the dial counter-clockwise.
     float sectorStart = PI * 0.5F - dayNightCycleAngle(snapshot);
-    const auto drawRotatingSector =
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    const auto emitRotatingSector =
         [&](float sectorArc, Color color) {
-            drawDayNightDialSector(
+            emitDayNightDialSector(
                 inner, InnerCornerRadius,
                 sectorStart + sectorArc * 0.5F,
                 sectorArc, color);
             sectorStart += sectorArc;
         };
-    drawRotatingSector(DayArc, DayColor);
-    drawRotatingSector(SunsetArc, SunsetColor);
-    drawRotatingSector(NightArc, NightColor);
-    drawRotatingSector(DawnArc, SunsetColor);
+    emitRotatingSector(DayArc, DayColor);
+    emitRotatingSector(SunsetArc, SunsetColor);
+    emitRotatingSector(NightArc, NightColor);
+    emitRotatingSector(DawnArc, SunsetColor);
+    rlEnd();
 
     const Vector2 center{
         inner.x + inner.width * 0.5F,
@@ -1019,9 +1049,16 @@ std::string phaseClock(double seconds) {
 
 using namespace hud_detail;
 
+const HudRenderPerformanceStats&
+hudRenderPerformanceStats() noexcept {
+    return hudPerformanceStats;
+}
+
 void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              const HudViewState& view, const Camera3D& camera,
              const ControlSettings& controls) {
+    hudPerformanceStats = {};
+    auto sectionStart = PerformanceClock::now();
     const float woodPop = std::clamp(view.woodResourcePop, 0.0F, 1.0F);
     const float stonePop = std::clamp(view.stoneResourcePop, 0.0F, 1.0F);
     const float crystalPop = std::clamp(
@@ -1190,7 +1227,11 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             9.0F, {231, 213, 172, 215});
     }
 
-    constexpr float VitalBarX = 58.0F;
+    hudPerformanceStats.resourcesMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
+
+    constexpr float VitalBarX = 16.0F;
     constexpr float VitalBarWidth = 256.0F;
     constexpr float VitalBarHeight = 36.0F;
     constexpr float VitalBarGap = 8.0F;
@@ -1209,7 +1250,6 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         std::to_string(static_cast<int>(snapshot.playerHealth)) + "/" +
         std::to_string(static_cast<int>(snapshot.playerMaxHealth));
     drawVitalBar(
-        ui,
         {VitalBarX, playerBarY, VitalBarWidth, VitalBarHeight},
         playerHealthFraction,
         snapshot.playerMaxHealth > 0.0
@@ -1218,7 +1258,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             : playerHealthFraction,
         view.playerDamagePulse,
         PlayerHealthPalette,
-        playerHealthText, false);
+        playerHealthText);
 
     const bool hasRecoverableArmor =
         snapshot.playerMaxRecoverableArmor > 0.0;
@@ -1252,14 +1292,13 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             std::to_string(static_cast<int>(snapshot.coreHealth)) + "/" +
             std::to_string(static_cast<int>(snapshot.coreMaxHealth));
         drawVitalBar(
-            ui,
             {VitalBarX, lowerBarY, VitalBarWidth, VitalBarHeight},
             static_cast<float>(
                 snapshot.coreHealth / snapshot.coreMaxHealth),
             static_cast<float>(
                 snapshot.coreHealth / snapshot.coreMaxHealth),
             0.0F,
-            CoreHealthPalette, coreHealthText, true);
+            CoreHealthPalette, coreHealthText);
     }
     if (snapshot.sandboxMode) {
         drawSdfUiText(
@@ -1274,6 +1313,11 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
              playerBarY - 2.0F},
             20.0F, {111, 220, 151, 255});
     }
+
+    hudPerformanceStats.vitalityMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
+    const auto informationStart = sectionStart;
 
     int objectiveCount = 0;
     for (int index : snapshot.recommendedObjectives) {
@@ -1604,11 +1648,19 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
+    hudPerformanceStats.objectivesMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
+
     if (!view.mapOverlayOpen) {
         drawLootInventory(
             ui, snapshot, false,
             coreBarVisible);
     }
+
+    hudPerformanceStats.lootMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
 
     bool chestCompassVisible = false;
     if (snapshot.nearestChestPosition &&
@@ -1742,19 +1794,6 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             16.0F - waveEntrance * 3.0F,
             waveFontSize, waveStyle);
 
-        constexpr float DayNightIndicatorWidth = 84.0F;
-        constexpr float DayNightIndicatorHeight = 42.0F;
-        constexpr float DayNightIndicatorY = 68.0F;
-        drawDayNightIndicator(
-            {
-                (static_cast<float>(GetScreenWidth()) -
-                 DayNightIndicatorWidth) * 0.5F,
-                DayNightIndicatorY,
-                DayNightIndicatorWidth,
-                DayNightIndicatorHeight,
-            },
-            snapshot);
-
         const bool phaseTextContainsTime =
             (snapshot.state == RunState::BuildPhase &&
              !snapshot.sandboxMode) ||
@@ -1794,6 +1833,12 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             WarningFontSize, {255, 134, 88, 255});
     }
 
+    hudPerformanceStats.informationMs =
+        performanceMilliseconds(informationStart);
+    hudPerformanceStats.phaseMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
+
     const bool buildModeActive =
         view.actionMode == ActionMode::Buildings;
     drawCompactInsight(
@@ -1804,6 +1849,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
     } else {
         drawWeaponHotbar(ui, snapshot, view);
     }
+
+    hudPerformanceStats.hotbarMs =
+        performanceMilliseconds(sectionStart);
+    sectionStart = PerformanceClock::now();
 
     const float hitProgress =
         view.crosshairHitRemaining > 0.0 &&
@@ -2044,6 +2093,8 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
+    hudPerformanceStats.feedbackMs =
+        performanceMilliseconds(sectionStart);
 }
 
 void drawRunStateOverlay(const SimulationSnapshot& snapshot) {

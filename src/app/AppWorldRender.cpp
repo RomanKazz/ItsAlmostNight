@@ -420,6 +420,19 @@ void App::drawWorldEntities(
         material.hitFlashAmount =
             presentation::resourceHitFlash(
                 effects_, node.id);
+        if (node.type == ResourceType::Stone &&
+            material.hitFlashAmount > 0.001F) {
+            if (const auto hitPosition =
+                    presentation::resourceHitPosition(
+                        effects_, node.id)) {
+                material.hitFlashPosition = {
+                    static_cast<float>(hitPosition->x),
+                    static_cast<float>(hitPosition->y),
+                    static_cast<float>(hitPosition->z),
+                };
+                material.hitFlashRadius = 0.92F;
+            }
+        }
         const float hitScale =
             presentation::resourceHitScale(
                 effects_, node.id);

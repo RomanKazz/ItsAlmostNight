@@ -32,6 +32,8 @@ enum class PresentationEffectType {
     ResourceBurst,
     ResourceHitWood,
     ResourceHitStone,
+    StoneCrack,
+    StoneChip,
     ResourceDestroyedWood,
     ResourceDestroyedStone,
     Explosion,

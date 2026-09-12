@@ -227,13 +227,8 @@ int App::run() {
     // independently controlled by GraphicsSettings::renderWidth/Height.
     unsigned int windowFlags =
         FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI;
-    // The world already receives a dedicated FXAA pass. Keep costly 4x
-    // default-framebuffer MSAA only for the High preset, where it still
-    // improves UI geometry; on Low/Medium it needlessly resolves the whole
-    // window again during presentation.
-    if (userSettings_.graphics.quality == GraphicsQuality::High) {
-        windowFlags |= FLAG_MSAA_4X_HINT;
-    }
+    // The world already receives FXAA and UI text uses SDF. Multisampling the
+    // native Retina framebuffer adds a costly full-screen resolve at swap.
     SetConfigFlags(windowFlags);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "FORTBONK");
@@ -255,9 +250,11 @@ int App::run() {
         "assets/vfx/brackeys/explosion_6x5.png"));
     static_cast<void>(vfxElectricRingTexture_.load(
         "assets/vfx/brackeys/electric_ring_6x5.png"));
+    static_cast<void>(stoneCrackTexture_.load(
+        "assets/vfx/stone_crack.png"));
     for (TextureResource* texture : {
              &vfxImpactTexture_, &vfxExplosionTexture_,
-             &vfxElectricRingTexture_}) {
+             &vfxElectricRingTexture_, &stoneCrackTexture_}) {
         if (texture->valid()) {
             SetTextureFilter(texture->get(), TEXTURE_FILTER_BILINEAR);
         }
@@ -333,6 +330,10 @@ int App::run() {
                     performanceStats_.simulationTick.lastMilliseconds,
                 .renderMs = performanceStats_.render.lastMilliseconds,
                 .presentMs = performanceStats_.present.lastMilliseconds,
+                .presentPacingMs =
+                    renderer_->framePacingMilliseconds(),
+                .presentSwapMs =
+                    renderer_->frameSwapMilliseconds(),
                 .renderPreparationMs =
                     performanceStats_.renderPreparation.lastMilliseconds,
                 .shadowMs = performanceStats_.shadowPass.lastMilliseconds,
@@ -370,10 +371,39 @@ int App::run() {
                         .lastMilliseconds,
                 .hudCoreMs =
                     performanceStats_.hudCoreRender.lastMilliseconds,
+                .hudTargetHealthMs =
+                    performanceStats_.hudTargetHealthRender.lastMilliseconds,
+                .hudResourcesMs =
+                    performanceStats_.hudResourcesRender.lastMilliseconds,
+                .hudVitalityMs =
+                    performanceStats_.hudVitalityRender.lastMilliseconds,
+                .hudInformationMs =
+                    performanceStats_.hudInformationRender.lastMilliseconds,
+                .hudObjectivesMs =
+                    performanceStats_.hudObjectivesRender.lastMilliseconds,
+                .hudLootMs =
+                    performanceStats_.hudLootRender.lastMilliseconds,
+                .hudPhaseMs =
+                    performanceStats_.hudPhaseRender.lastMilliseconds,
+                .hudHotbarMs =
+                    performanceStats_.hudHotbarRender.lastMilliseconds,
+                .hudFeedbackMs =
+                    performanceStats_.hudFeedbackRender.lastMilliseconds,
+                .hudTextFlushMs =
+                    performanceStats_.hudTextFlushRender.lastMilliseconds,
                 .resourceGainMs =
                     performanceStats_.resourceGainRender.lastMilliseconds,
                 .minimapMs =
                     performanceStats_.minimapRender.lastMilliseconds,
+                .minimapSetupMs =
+                    performanceStats_.minimapSetupRender.lastMilliseconds,
+                .minimapTargetRefreshMs =
+                    performanceStats_.minimapTargetRefreshRender
+                        .lastMilliseconds,
+                .minimapFrameMs =
+                    performanceStats_.minimapFrameRender.lastMilliseconds,
+                .minimapLabelsMs =
+                    performanceStats_.minimapLabelsRender.lastMilliseconds,
                 .uiOverlaysMs =
                     performanceStats_.uiOverlaysRender.lastMilliseconds,
                 .uiTextMs =
@@ -425,6 +455,7 @@ int App::run() {
     vfxImpactTexture_.unload();
     vfxExplosionTexture_.unload();
     vfxElectricRingTexture_.unload();
+    stoneCrackTexture_.unload();
     modularBuildingRenderer_.setRenderer(nullptr);
     renderer_->shutdown();
     renderer_.reset();

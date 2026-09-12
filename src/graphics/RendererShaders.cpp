@@ -44,6 +44,10 @@ double Renderer::framePacingMilliseconds() const {
     return framePacingMilliseconds_;
 }
 
+double Renderer::frameSwapMilliseconds() const {
+    return frameSwapMilliseconds_;
+}
+
 void Renderer::resolveAuxiliaryShaderLocations() {
     if (resources_.iceMagicShader().valid()) {
         Shader& shader = resources_.iceMagicShader().get();
@@ -396,6 +400,8 @@ void Renderer::resolveWorldShaderLocations() {
         .coniferFacetBlend =
             GetShaderLocation(shader, "coniferFacetBlend"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
+        .hitFlashPosition = GetShaderLocation(shader, "hitFlashPosition"),
+        .hitFlashRadius = GetShaderLocation(shader, "hitFlashRadius"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
         .selectionTint = GetShaderLocation(shader, "selectionTint"),
         .ghostAmount = GetShaderLocation(shader, "ghostAmount"),
@@ -901,6 +907,10 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.coniferFacetBlend, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.hitFlashPosition,
+                   &material.hitFlashPosition, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, worldShaderLocations_.hitFlashRadius,
+                   &material.hitFlashRadius, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionAmount,
                    &material.selectionAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.selectionTint,

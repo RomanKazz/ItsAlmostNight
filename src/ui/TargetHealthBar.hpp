@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <optional>
+#include <string>
 #include <unordered_map>
 
 namespace ian {
@@ -13,8 +14,6 @@ namespace ian {
 struct SimulationSnapshot;
 struct EnemyInstance;
 class TerrainHeightfield;
-class GameUi;
-enum class UiResourceIcon;
 
 using EnemyBoundsProvider =
     std::function<std::optional<BoundingBox>(const EnemyInstance&)>;
@@ -24,8 +23,8 @@ class TargetHealthBar {
     void draw(const SimulationSnapshot& snapshot,
               const Camera3D& camera,
               const TerrainHeightfield& terrain,
-              const GameUi& ui,
               EnemyBoundsProvider enemyBoundsProvider = {});
+    void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id);
     void notifyResourceHit(EntityId id);
@@ -49,11 +48,9 @@ class TargetHealthBar {
     void drawBillboard(Target target, Vector3 anchorPosition,
                        double health, double maxHealth,
                        Color fillColor, const Camera3D& camera,
-                       const GameUi& ui,
-                       std::optional<UiResourceIcon> resourceIcon =
-                           std::nullopt,
                        int buildingLevel = 0,
-                       float opacity = 1.0F);
+                       float opacity = 1.0F,
+                       bool showHealthText = false);
 
     struct Visual {
         Target target;
@@ -61,13 +58,20 @@ class TargetHealthBar {
         double health{};
         double maxHealth{};
         Color fillColor{WHITE};
-        std::optional<UiResourceIcon> resourceIcon;
         int buildingLevel{};
+        bool showHealthText{};
     };
 
     struct HealthVisibility {
         double remaining{};
         std::uint64_t lastSeenFrame{};
+    };
+
+    struct ScreenHealthText {
+        std::string text;
+        Vector2 center{};
+        float fontSize{};
+        float opacity{};
     };
 
     std::optional<Target> target_;
@@ -83,6 +87,7 @@ class TargetHealthBar {
     std::unordered_map<std::uint64_t, HealthVisibility>
         resourceHealthVisibility_;
     std::uint64_t resourceHealthFrame_{};
+    std::optional<ScreenHealthText> screenHealthText_;
 };
 
 } // namespace ian

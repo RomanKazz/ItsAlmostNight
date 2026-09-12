@@ -102,8 +102,22 @@ void App::render() {
     double worldUiMilliseconds = 0.0;
     double interactionPromptMilliseconds = 0.0;
     double hudCoreMilliseconds = 0.0;
+    double hudTargetHealthMilliseconds = 0.0;
+    double hudResourcesMilliseconds = 0.0;
+    double hudVitalityMilliseconds = 0.0;
+    double hudInformationMilliseconds = 0.0;
+    double hudObjectivesMilliseconds = 0.0;
+    double hudLootMilliseconds = 0.0;
+    double hudPhaseMilliseconds = 0.0;
+    double hudHotbarMilliseconds = 0.0;
+    double hudFeedbackMilliseconds = 0.0;
+    double hudTextFlushMilliseconds = 0.0;
     double resourceGainMilliseconds = 0.0;
     double minimapMilliseconds = 0.0;
+    double minimapSetupMilliseconds = 0.0;
+    double minimapTargetRefreshMilliseconds = 0.0;
+    double minimapFrameMilliseconds = 0.0;
+    double minimapLabelsMilliseconds = 0.0;
     double uiOverlaysMilliseconds = 0.0;
     const auto& snapshot = simulation_.snapshot();
     structuralRiskIds_.clear();
@@ -502,7 +516,7 @@ void App::render() {
         drawBlobShadows(snapshot, camera);
         if constexpr (!MinimalWorldVisuals) {
             drawWorldOverlays(presentationSnapshot, lighting);
-            drawPresentationEffects(camera);
+            drawPresentationEffects(camera, lighting);
         }
         EndMode3D();
         performanceStats_.overlayRender.sample(
@@ -567,6 +581,10 @@ void App::render() {
         // the white interaction silhouette.
         if constexpr (!MinimalWorldVisuals) {
             renderer_->drawSelectionOutline();
+            // Crack sprites are projected from their world-space tangent
+            // planes after ink/selection composition. They therefore cannot
+            // inherit world outlines while the viewmodel still covers them.
+            drawStoneCrackOverlays(camera);
         }
         renderer_->endGpuTimer(RendererGpuStage::PostProcess);
 
@@ -690,7 +708,6 @@ void App::render() {
             targetHealthBar_.draw(
                 healthBarSnapshot, camera,
                 simulation_.terrain(),
-                ui_,
                 [this](const EnemyInstance& enemy)
                     -> std::optional<BoundingBox> {
                     Vector3 position = enemyRenderPosition(enemy);
@@ -809,6 +826,10 @@ void App::render() {
         const auto hudCoreStart = PerformanceClock::now();
         if (!hudHidden_) {
             beginSdfUiTextBatch();
+            const auto targetHealthStart = PerformanceClock::now();
+            targetHealthBar_.drawScreenOverlay();
+            hudTargetHealthMilliseconds =
+                performanceMilliseconds(targetHealthStart);
             drawHud(ui_, hudSnapshot,
             {
                     .damageIndicators = damageIndicators_,
@@ -940,7 +961,19 @@ void App::render() {
                         buildingStatsUpgradeDuration_,
             },
                 camera, userSettings_.controls);
+            const auto& hudTimings = hudRenderPerformanceStats();
+            hudResourcesMilliseconds = hudTimings.resourcesMs;
+            hudVitalityMilliseconds = hudTimings.vitalityMs;
+            hudInformationMilliseconds = hudTimings.informationMs;
+            hudObjectivesMilliseconds = hudTimings.objectivesMs;
+            hudLootMilliseconds = hudTimings.lootMs;
+            hudPhaseMilliseconds = hudTimings.phaseMs;
+            hudHotbarMilliseconds = hudTimings.hotbarMs;
+            hudFeedbackMilliseconds = hudTimings.feedbackMs;
+            const auto textFlushStart = PerformanceClock::now();
             endSdfUiTextBatch();
+            hudTextFlushMilliseconds =
+                performanceMilliseconds(textFlushStart);
         }
         hudCoreMilliseconds =
             performanceMilliseconds(hudCoreStart);
@@ -1193,6 +1226,13 @@ void App::render() {
                 ui_, presentationSnapshot,
                 minimapExpansion_,
                 userSettings_.accessibility.showFps ? 56.0F : 20.0F);
+            const auto& minimapTimings =
+                minimapRenderPerformanceStats();
+            minimapSetupMilliseconds = minimapTimings.setupMs;
+            minimapTargetRefreshMilliseconds =
+                minimapTimings.targetRefreshMs;
+            minimapFrameMilliseconds = minimapTimings.frameMs;
+            minimapLabelsMilliseconds = minimapTimings.labelsMs;
         }
         minimapMilliseconds =
             performanceMilliseconds(minimapStart);
@@ -1308,10 +1348,38 @@ void App::render() {
             interactionPromptMilliseconds);
         performanceStats_.hudCoreRender.sample(
             hudCoreMilliseconds);
+        performanceStats_.hudTargetHealthRender.sample(
+            hudTargetHealthMilliseconds);
+        performanceStats_.hudResourcesRender.sample(
+            hudResourcesMilliseconds);
+        performanceStats_.hudVitalityRender.sample(
+            hudVitalityMilliseconds);
+        performanceStats_.hudInformationRender.sample(
+            hudInformationMilliseconds);
+        performanceStats_.hudObjectivesRender.sample(
+            hudObjectivesMilliseconds);
+        performanceStats_.hudLootRender.sample(
+            hudLootMilliseconds);
+        performanceStats_.hudPhaseRender.sample(
+            hudPhaseMilliseconds);
+        performanceStats_.hudHotbarRender.sample(
+            hudHotbarMilliseconds);
+        performanceStats_.hudFeedbackRender.sample(
+            hudFeedbackMilliseconds);
+        performanceStats_.hudTextFlushRender.sample(
+            hudTextFlushMilliseconds);
         performanceStats_.resourceGainRender.sample(
             resourceGainMilliseconds);
         performanceStats_.minimapRender.sample(
             minimapMilliseconds);
+        performanceStats_.minimapSetupRender.sample(
+            minimapSetupMilliseconds);
+        performanceStats_.minimapTargetRefreshRender.sample(
+            minimapTargetRefreshMilliseconds);
+        performanceStats_.minimapFrameRender.sample(
+            minimapFrameMilliseconds);
+        performanceStats_.minimapLabelsRender.sample(
+            minimapLabelsMilliseconds);
         performanceStats_.uiOverlaysRender.sample(
             uiOverlaysMilliseconds);
         performanceStats_.uiTextRender.sample(

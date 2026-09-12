@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <vector>
 
 namespace ian {
 
@@ -544,6 +545,58 @@ void App::drawWorldEnemies(
         flameRight = Vector3Normalize(flameRight);
     }
     const bool detailedFlames = renderer_->settings().particles;
+    // Chain explosions can ignite most of a wave at once. Keep cheap batched
+    // flame geometry on every burning enemy, but bound close-range detail so
+    // smoke draw calls do not grow with the whole crowd.
+    constexpr std::size_t BurnEnemyVisualBudget = 72U;
+    constexpr std::size_t DetailedBurnEnemyBudget = 24U;
+    struct BurnVisualCandidate {
+        std::uint64_t id{};
+        float distanceSquared{};
+    };
+    std::vector<BurnVisualCandidate> burnVisualCandidates;
+    burnVisualCandidates.reserve(std::min(
+        snapshot.enemies.size(), BurnEnemyVisualBudget * 2U));
+    for (const EnemyInstance& enemy : snapshot.enemies) {
+        if (!enemy.active) {
+            continue;
+        }
+        const auto burn = enemyBurnAmountById_.find(
+            effectKey(enemy.id));
+        if (burn == enemyBurnAmountById_.end() ||
+            burn->second <= 0.01F) {
+            continue;
+        }
+        const Vector3 position = enemyRenderPosition(enemy);
+        if (!enemyVisible(position, 4.0F)) {
+            continue;
+        }
+        const float distanceSquared = Vector3DistanceSqr(
+            position, camera.position);
+        if (distanceSquared > 1600.0F) {
+            continue;
+        }
+        burnVisualCandidates.push_back({
+            .id = effectKey(enemy.id),
+            .distanceSquared = distanceSquared,
+        });
+    }
+    std::ranges::sort(
+        burnVisualCandidates, {},
+        &BurnVisualCandidate::distanceSquared);
+    if (burnVisualCandidates.size() > BurnEnemyVisualBudget) {
+        burnVisualCandidates.resize(BurnEnemyVisualBudget);
+    }
+    const auto burnVisualRank =
+        [&burnVisualCandidates](std::uint64_t id) {
+            const auto match = std::ranges::find(
+                burnVisualCandidates, id,
+                &BurnVisualCandidate::id);
+            return match == burnVisualCandidates.end()
+                ? burnVisualCandidates.size()
+                : static_cast<std::size_t>(std::distance(
+                      burnVisualCandidates.begin(), match));
+        };
     for (const EnemyInstance& enemy : snapshot.enemies) {
         if (!enemy.active) {
             continue;
@@ -566,7 +619,14 @@ void App::drawWorldEnemies(
         if (distanceSquared > 1600.0F) {
             continue;
         }
+        const std::size_t visualRank = burnVisualRank(
+            effectKey(enemy.id));
+        if (visualRank >= BurnEnemyVisualBudget) {
+            continue;
+        }
         const float scale = enemyFlameScale(enemy.type);
+        const bool detailedBurn = detailedFlames &&
+            visualRank < DetailedBurnEnemyBudget;
         Vector3 toCamera = Vector3Subtract(camera.position, position);
         toCamera.y = 0.0F;
         if (Vector3LengthSqr(toCamera) < 0.001F) {
@@ -576,8 +636,7 @@ void App::drawWorldEnemies(
         toCamera = Vector3Normalize(toCamera);
         const Vector3 visibleFront = Vector3Add(
             position, Vector3Scale(toCamera, scale * 0.42F));
-        const int lobeCount =
-            detailedFlames && distanceSquared < 324.0F ? 5 : 3;
+        const int lobeCount = detailedBurn ? 5 : 3;
         for (int lobe = 0; lobe < lobeCount; ++lobe) {
             const float lobeIndex = static_cast<float>(lobe);
             const float phase = static_cast<float>(
@@ -603,10 +662,7 @@ void App::drawWorldEnemies(
                 base, flameRight, width, height, sway,
                 burn->second * (1.0F - lobeIndex * 0.08F));
         }
-        const int emberCount = detailedFlames &&
-                distanceSquared < 324.0F
-            ? 6
-            : 2;
+        const int emberCount = detailedBurn ? 6 : 2;
         for (int ember = 0; ember < emberCount; ++ember) {
             const float emberIndex = static_cast<float>(ember);
             const float seed = static_cast<float>(
@@ -658,7 +714,8 @@ void App::drawWorldEnemies(
             }
             position.y += static_cast<float>(simulation_.terrain().getHeight(
                 enemy.position.x, enemy.position.z));
-            if (Vector3DistanceSqr(position, camera.position) > 324.0F) {
+            if (burnVisualRank(effectKey(enemy.id)) >=
+                DetailedBurnEnemyBudget) {
                 continue;
             }
             const float scale = enemyFlameScale(enemy.type);

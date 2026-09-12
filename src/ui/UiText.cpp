@@ -4,6 +4,7 @@
 #include "localization/Localization.hpp"
 
 #include <rlgl.h>
+#include <raymath.h>
 
 #include <algorithm>
 #include <array>
@@ -107,6 +108,10 @@ std::unordered_map<SdfTextTextureKey, SdfTextObservation,
                    SdfTextTextureKeyHash> sdfTextObservations;
 std::size_t cachedSdfTextPixels{};
 std::uint64_t sdfTextCacheFrame{};
+RenderTexture2D hudTextBatchTarget{};
+std::size_t hudTextBatchHash{};
+bool hudTextBatchCacheValid{};
+std::vector<Rectangle> hudTextBatchRegions;
 
 class ScopedTextPerformanceSample {
   public:
@@ -461,19 +466,6 @@ bool textLayerVisible(const SdfUiTextStyle& style,
     return false;
 }
 
-void drawSdfTextItemLayer(const QueuedSdfText& queued,
-                          SdfTextLayer layer) {
-    if (!textLayerVisible(queued.style, layer)) return;
-    const auto pass = textLayerStyle(queued.style, layer);
-    const Font font = activeSdfFont(queued.scaledSize);
-    const Vector2 offset = layer == SdfTextLayer::Shadow
-        ? queued.style.shadowOffsetPixels : Vector2{};
-    rlSetTexture(font.texture.id);
-    rlBegin(RL_QUADS);
-    emitCachedText(queued, font, pass, offset);
-    rlEnd();
-}
-
 void drawSdfTextItemsDirect(
     std::span<const QueuedSdfText* const> items,
     std::optional<float> forcedFramebufferScale = std::nullopt) {
@@ -484,8 +476,41 @@ void drawSdfTextItemsDirect(
              SdfTextLayer::Shadow,
              SdfTextLayer::Outline,
              SdfTextLayer::Fill}) {
+        std::array<unsigned int, 4> submittedTextures{};
+        std::size_t submittedTextureCount = 0U;
         for (const QueuedSdfText* queued : items) {
-            drawSdfTextItemLayer(*queued, layer);
+            if (!textLayerVisible(queued->style, layer)) {
+                continue;
+            }
+            const Font font = activeSdfFont(queued->scaledSize);
+            const auto submittedEnd = submittedTextures.begin() +
+                static_cast<std::ptrdiff_t>(submittedTextureCount);
+            if (std::find(
+                    submittedTextures.begin(), submittedEnd,
+                    font.texture.id) != submittedEnd) {
+                continue;
+            }
+            submittedTextures[submittedTextureCount++] = font.texture.id;
+            rlSetTexture(font.texture.id);
+            rlBegin(RL_QUADS);
+            for (const QueuedSdfText* candidate : items) {
+                if (!textLayerVisible(candidate->style, layer)) {
+                    continue;
+                }
+                const Font candidateFont = activeSdfFont(
+                    candidate->scaledSize);
+                if (candidateFont.texture.id != font.texture.id) {
+                    continue;
+                }
+                const SdfUiTextStyle pass = textLayerStyle(
+                    candidate->style, layer);
+                const Vector2 offset = layer == SdfTextLayer::Shadow
+                    ? candidate->style.shadowOffsetPixels
+                    : Vector2{};
+                emitCachedText(
+                    *candidate, candidateFont, pass, offset);
+            }
+            rlEnd();
         }
     }
     rlSetTexture(0);
@@ -662,7 +687,209 @@ struct CachedSdfTextDraw {
     Rectangle destination{};
 };
 
+std::size_t currentSdfTextBatchHash() {
+    std::size_t hash = sdfTextBatch.size();
+    hashCombine(hash, static_cast<std::size_t>(GetScreenWidth()));
+    hashCombine(hash, static_cast<std::size_t>(GetScreenHeight()));
+    for (const QueuedSdfText& queued : sdfTextBatch) {
+        hashCombine(hash, std::hash<std::string>{}(queued.text));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.x));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.y));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(queued.scaledSize));
+        hashCombine(hash, packedColor(queued.style.fillColor));
+        hashCombine(hash, packedColor(queued.style.outlineColor));
+        hashCombine(hash, packedColor(queued.style.shadowColor));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.style.shadowOffsetPixels.x));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.style.shadowOffsetPixels.y));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.style.outlinePixels));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.style.softness));
+    }
+    return hash;
+}
+
+bool ensureHudTextBatchTarget() {
+    const int width = std::max(GetScreenWidth(), 1);
+    const int height = std::max(GetScreenHeight(), 1);
+    if (IsRenderTextureValid(hudTextBatchTarget) &&
+        hudTextBatchTarget.texture.width == width &&
+        hudTextBatchTarget.texture.height == height) {
+        return true;
+    }
+    if (IsRenderTextureValid(hudTextBatchTarget)) {
+        UnloadRenderTexture(hudTextBatchTarget);
+    }
+    hudTextBatchTarget = LoadRenderTexture(width, height);
+    hudTextBatchCacheValid = false;
+    hudTextBatchRegions.clear();
+    if (!IsRenderTextureValid(hudTextBatchTarget)) {
+        return false;
+    }
+    SetTextureFilter(
+        hudTextBatchTarget.texture, TEXTURE_FILTER_BILINEAR);
+    return true;
+}
+
+std::vector<Rectangle> buildHudTextBatchRegions(
+    std::span<const QueuedSdfText* const> items) {
+    constexpr int TileSize = 128;
+    constexpr float SamplingPadding = 2.0F;
+    const int width = std::max(GetScreenWidth(), 1);
+    const int height = std::max(GetScreenHeight(), 1);
+    const int columnCount = (width + TileSize - 1) / TileSize;
+    const int rowCount = (height + TileSize - 1) / TileSize;
+    std::vector<unsigned char> occupied(
+        static_cast<std::size_t>(columnCount * rowCount), 0U);
+
+    for (const QueuedSdfText* queued : items) {
+        const Font font = activeSdfFont(queued->scaledSize);
+        const CachedGlyphLayout& layout = cachedGlyphLayout(
+            queued->text, font, queued->scaledSize);
+        if (layout.quads.empty()) continue;
+
+        float minimumX = std::numeric_limits<float>::max();
+        float minimumY = std::numeric_limits<float>::max();
+        float maximumX = std::numeric_limits<float>::lowest();
+        float maximumY = std::numeric_limits<float>::lowest();
+        for (const CachedGlyphQuad& glyph : layout.quads) {
+            minimumX = std::min(minimumX, glyph.destination.x);
+            minimumY = std::min(minimumY, glyph.destination.y);
+            maximumX = std::max(
+                maximumX,
+                glyph.destination.x + glyph.destination.width);
+            maximumY = std::max(
+                maximumY,
+                glyph.destination.y + glyph.destination.height);
+        }
+
+        minimumX += queued->position.x + std::min(
+            0.0F, queued->style.shadowOffsetPixels.x) - SamplingPadding;
+        minimumY += queued->position.y + std::min(
+            0.0F, queued->style.shadowOffsetPixels.y) - SamplingPadding;
+        maximumX += queued->position.x + std::max(
+            0.0F, queued->style.shadowOffsetPixels.x) + SamplingPadding;
+        maximumY += queued->position.y + std::max(
+            0.0F, queued->style.shadowOffsetPixels.y) + SamplingPadding;
+
+        const int firstColumn = std::clamp(
+            static_cast<int>(std::floor(minimumX / TileSize)),
+            0, columnCount - 1);
+        const int lastColumn = std::clamp(
+            static_cast<int>(std::floor(maximumX / TileSize)),
+            0, columnCount - 1);
+        const int firstRow = std::clamp(
+            static_cast<int>(std::floor(minimumY / TileSize)),
+            0, rowCount - 1);
+        const int lastRow = std::clamp(
+            static_cast<int>(std::floor(maximumY / TileSize)),
+            0, rowCount - 1);
+        if (maximumX < 0.0F || maximumY < 0.0F ||
+            minimumX >= static_cast<float>(width) ||
+            minimumY >= static_cast<float>(height)) {
+            continue;
+        }
+        for (int row = firstRow; row <= lastRow; ++row) {
+            for (int column = firstColumn;
+                 column <= lastColumn; ++column) {
+                occupied[static_cast<std::size_t>(
+                    row * columnCount + column)] = 1U;
+            }
+        }
+    }
+
+    std::vector<Rectangle> regions;
+    for (int row = 0; row < rowCount; ++row) {
+        for (int column = 0; column < columnCount;) {
+            if (occupied[static_cast<std::size_t>(
+                    row * columnCount + column)] == 0U) {
+                ++column;
+                continue;
+            }
+            const int firstColumn = column;
+            while (column < columnCount &&
+                   occupied[static_cast<std::size_t>(
+                       row * columnCount + column)] != 0U) {
+                ++column;
+            }
+            const float x = static_cast<float>(firstColumn * TileSize);
+            const float y = static_cast<float>(row * TileSize);
+            const float regionWidth = static_cast<float>(
+                std::min(column * TileSize, width) - firstColumn * TileSize);
+            const float regionHeight = static_cast<float>(
+                std::min((row + 1) * TileSize, height) - row * TileSize);
+
+            auto previous = std::find_if(
+                regions.rbegin(), regions.rend(),
+                [x, y, regionWidth](const Rectangle& region) {
+                    return region.x == x && region.width == regionWidth &&
+                        region.y + region.height == y;
+                });
+            if (previous != regions.rend()) {
+                previous->height += regionHeight;
+            } else {
+                regions.push_back({x, y, regionWidth, regionHeight});
+            }
+        }
+    }
+    return regions;
+}
+
+bool drawCachedHudTextBatch(
+    std::span<const QueuedSdfText* const> items) {
+    if (!ensureHudTextBatchTarget()) {
+        return false;
+    }
+    const std::size_t hash = currentSdfTextBatchHash();
+    if (!hudTextBatchCacheValid || hash != hudTextBatchHash) {
+        BeginTextureMode(hudTextBatchTarget);
+        ClearBackground(BLANK);
+        rlSetBlendFactorsSeparate(
+            RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
+            RL_ONE, RL_ONE_MINUS_SRC_ALPHA,
+            RL_FUNC_ADD, RL_FUNC_ADD);
+        BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+        drawSdfTextItemsDirect(items, 1.0F);
+        EndBlendMode();
+        EndTextureMode();
+        hudTextBatchRegions = buildHudTextBatchRegions(items);
+        hudTextBatchHash = hash;
+        hudTextBatchCacheValid = true;
+    }
+    BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+    for (const Rectangle& region : hudTextBatchRegions) {
+        DrawTexturePro(
+            hudTextBatchTarget.texture,
+            {region.x,
+             static_cast<float>(hudTextBatchTarget.texture.height) -
+                 region.y - region.height,
+             region.width, -region.height},
+            region, {}, 0.0F, WHITE);
+    }
+    EndBlendMode();
+    return true;
+}
+
 void drawSdfTextBatch() {
+    // Large HUD batches are cheaper as glyph geometry from one font atlas
+    // than as many separately cached text textures and texture switches.
+    constexpr std::size_t DirectAtlasBatchThreshold = 8U;
+    if (sdfTextBatch.size() >= DirectAtlasBatchThreshold) {
+        std::vector<const QueuedSdfText*> items;
+        items.reserve(sdfTextBatch.size());
+        for (const QueuedSdfText& queued : sdfTextBatch) {
+            items.push_back(&queued);
+        }
+        if (rlGetActiveFramebuffer() == 0U &&
+            drawCachedHudTextBatch(items)) {
+            return;
+        }
+        drawSdfTextItemsDirect(items);
+        return;
+    }
+
     std::vector<const QueuedSdfText*> directItems;
     directItems.reserve(sdfTextBatch.size());
     std::vector<CachedSdfTextDraw> cachedDraws;
@@ -747,7 +974,7 @@ float specialGlyphAdvance(float scaledSize) {
 
 void drawInfinityGlyph(Vector2 position, float scaledSize, Color color,
                        float thicknessExpansion = 0.0F) {
-    constexpr int Segments = 64;
+    constexpr int Segments = 40;
     const Vector2 center{
         position.x + scaledSize * 0.45F,
         position.y + scaledSize * 0.51F};
@@ -763,12 +990,36 @@ void drawInfinityGlyph(Vector2 position, float scaledSize, Color color,
             center.x + std::sin(angle) * radiusX,
             center.y + std::sin(angle) * std::cos(angle) * radiusY};
     }
+    // Four unlimited-resource counters can render twelve styled infinity
+    // layers every frame. DrawLineEx per segment produced hundreds of tiny
+    // submissions. Emit every segment of one layer in a single rlgl batch.
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlBegin(RL_TRIANGLES);
     for (int index = 0; index < Segments; ++index) {
-        DrawLineEx(
-            points[static_cast<std::size_t>(index)],
-            points[static_cast<std::size_t>(index + 1)],
-            thickness, color);
+        const Vector2 start = points[static_cast<std::size_t>(index)];
+        const Vector2 end = points[static_cast<std::size_t>(index + 1)];
+        const Vector2 delta = Vector2Subtract(end, start);
+        const float length = Vector2Length(delta);
+        if (length <= 0.0001F) {
+            continue;
+        }
+        const Vector2 normal{
+            -delta.y / length * thickness * 0.5F,
+            delta.x / length * thickness * 0.5F,
+        };
+        const Vector2 first = Vector2Add(start, normal);
+        const Vector2 second = Vector2Subtract(start, normal);
+        const Vector2 third = Vector2Subtract(end, normal);
+        const Vector2 fourth = Vector2Add(end, normal);
+        rlVertex2f(first.x, first.y);
+        rlVertex2f(second.x, second.y);
+        rlVertex2f(third.x, third.y);
+        rlVertex2f(first.x, first.y);
+        rlVertex2f(third.x, third.y);
+        rlVertex2f(fourth.x, fourth.y);
     }
+    rlEnd();
+    rlColor4ub(255, 255, 255, 255);
 }
 
 void drawCheckGlyph(Vector2 position, float scaledSize, Color color,
@@ -957,6 +1208,13 @@ void shutdownUiText() {
     }
     sdfTextTextureCache.clear();
     sdfTextObservations.clear();
+    if (IsRenderTextureValid(hudTextBatchTarget)) {
+        UnloadRenderTexture(hudTextBatchTarget);
+    }
+    hudTextBatchTarget = {};
+    hudTextBatchCacheValid = false;
+    hudTextBatchHash = 0U;
+    hudTextBatchRegions.clear();
     cachedSdfTextPixels = 0U;
     sdfTextCacheFrame = 0U;
     sdfTextBatchActive = false;

@@ -37,10 +37,34 @@ void runPresentationEffectQueryTests() {
             ian::presentation::resourceHitScale(
                 effects, otherTree) == 1.0F,
         "nearby generic hit cannot animate another resource");
+    const auto hitPosition =
+        ian::presentation::resourceHitPosition(effects, tree);
+    require(
+        hitPosition && hitPosition->x == 0.1 &&
+        hitPosition->y == 0.0 && hitPosition->z == 0.0 &&
+        !ian::presentation::resourceHitPosition(effects, otherTree),
+        "resource flash position follows only its targeted effect");
     const ian::Vec3 offset =
         ian::presentation::resourceHitOffset(
             effects, tree, {0.0, 0.0, 0.0});
     require(
         offset.x < 0.0 && offset.z == 0.0,
         "resource offset follows its own impact direction");
+
+    const std::array<ian::PresentationEffect, 1> stoneHit{{
+        {
+            .type = ian::PresentationEffectType::ResourceHitStone,
+            .entityId = tree,
+            .position = {0.1, 0.0, 0.0},
+            .remaining = 0.3,
+            .duration = 0.46,
+            .variant = 1,
+        },
+    }};
+    require(
+        ian::presentation::resourceHitFlash(
+            stoneHit, tree) > 0.0F &&
+            ian::presentation::resourceHitScale(
+                stoneHit, tree) < 1.0F,
+        "stone crack keeps the shared resource flash and deformation");
 }

@@ -452,6 +452,10 @@ void Simulation::updatePlayerActions(
                 Vec3 impactPosition = resourceImpactPosition(
                     resources_.nodes(), targetId,
                     playerPosition_, direction);
+                const std::optional<Vec3> resourceCenter =
+                    targetBeforeHit != resources_.nodes().end()
+                    ? std::optional<Vec3>{targetBeforeHit->position}
+                    : std::nullopt;
                 const double resourceDamage =
                     targetBeforeHit != resources_.nodes().end()
                     ? damage * gameplay_.resourceToolDamageMultiplier *
@@ -469,6 +473,7 @@ void Simulation::updatePlayerActions(
                     .entityId = hit->nodeId,
                     .resourceType = hit->type,
                     .position = impactPosition,
+                    .targetPosition = resourceCenter,
                     .amount = hit->amount,
                     .damage = resourceDamage,
                     .critical = critical,

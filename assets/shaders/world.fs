@@ -81,6 +81,8 @@ uniform float coniferRampSmoothness;
 uniform float coniferHighlightStrength;
 uniform float coniferFacetBlend;
 uniform float hitFlashAmount;
+uniform vec3 hitFlashPosition;
+uniform float hitFlashRadius;
 uniform float selectionAmount;
 uniform vec3 selectionTint;
 uniform float ghostAmount;
@@ -142,6 +144,22 @@ vec2 terrainBiomeFields(vec2 worldPosition)
         valueNoise(warped*0.91 + vec2(-17.5, 8.6)));
 }
 
+vec2 terrainWearFields(vec2 worldPosition)
+{
+    // A separate, warped field keeps exposed earth independent from the
+    // square grass texture. The first channel makes broad clearings; the
+    // second breaks their edges and the soil visible on hillsides.
+    vec2 position = worldPosition*0.0205;
+    vec2 warp = vec2(
+        valueNoise(position*0.61 + vec2(7.1, -19.4)),
+        valueNoise(position*0.61 + vec2(-23.8, 11.6))) - 0.5;
+    vec2 warped = position + warp*0.82;
+    float clearing = valueNoise(warped + vec2(16.3, 5.7));
+    float breakup = valueNoise(
+        warped*2.18 + vec2(-8.6, 29.2));
+    return vec2(clearing*0.78 + breakup*0.22, breakup);
+}
+
 float cloudShadowPattern(vec2 worldPosition)
 {
     // Large, coherent shapes moving in the same direction as the model
@@ -158,9 +176,10 @@ float cloudShadowPattern(vec2 worldPosition)
 }
 
 vec3 painterlyGroundMaterial(
-    vec3 worldPosition, vec4 vertexColor, vec2 pathUv)
+    vec3 worldPosition, vec3 normal, vec4 vertexColor, vec2 pathUv)
 {
     vec2 worldXZ = worldPosition.xz;
+    float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
     float textureScale = max(groundTextureScale, 0.0001);
 
     // Two continuous world-space projections break the square repetition.
@@ -224,6 +243,60 @@ vec3 painterlyGroundMaterial(
         1.0 + macroStrength*greenerRegion*0.08);
     grass = mix(grass, vec3(0.565, 0.510, 0.255),
                 macroStrength*dryRegion*0.86);
+
+    // Wide, irregular bare patches give the open field a readable material
+    // rhythm. Their scale is measured in world space, so they do not crawl
+    // with the camera or reveal the terrain triangles.
+    vec2 wearFields = terrainWearFields(worldXZ);
+    float flatGround = 1.0 - smoothstep(0.035, 0.115, slope);
+    float barePatch = smoothstep(0.595, 0.715, wearFields.x)*
+        flatGround;
+    float bareEdge = smoothstep(0.24, 0.74, wearFields.y);
+    barePatch *= mix(0.70, 1.0, bareEdge);
+    float earthDetail = valueNoise(
+        worldXZ*0.19 + vec2(12.4, -35.7));
+    float grassValue = dot(
+        grass, vec3(0.2126, 0.7152, 0.0722));
+    vec3 exposedEarth = mix(
+        terrainDirtTint*vec3(0.98, 1.00, 0.98),
+        vec3(0.48, 0.355, 0.205),
+        0.36 + earthDetail*0.30);
+    exposedEarth *= 0.92 + earthDetail*0.17;
+    exposedEarth = mix(
+        exposedEarth,
+        exposedEarth*(0.84 + grassValue*0.22),
+        0.28);
+    grass = mix(grass, exposedEarth, barePatch*0.88);
+
+    // Slopes expose streaks of warm subsoil, then cooler stone as they get
+    // steeper. Two world-space projections prevent a single uniform brown
+    // band around every terrace.
+    float slopeField = valueNoise(vec2(
+        worldPosition.x*0.030 + worldPosition.y*0.17,
+        worldPosition.z*0.041 - worldPosition.y*0.11));
+    float slopeDetail = valueNoise(
+        worldXZ*0.105 + vec2(-27.5, 14.2));
+    float slopeBreakup = smoothstep(
+        0.24, 0.78, slopeField*0.68 + slopeDetail*0.32);
+    float soilSlope = smoothstep(0.025, 0.115, slope)*
+        (1.0 - smoothstep(0.20, 0.42, slope));
+    float slopeSoilWeight = soilSlope*mix(0.28, 0.76, slopeBreakup);
+    vec3 slopeSoil = terrainDirtTint*
+        mix(vec3(1.00, 1.04, 1.03), vec3(1.18, 1.06, 0.90),
+            slopeDetail);
+    slopeSoil *= 0.88 + slopeField*0.20;
+    grass = mix(grass, slopeSoil, slopeSoilWeight);
+
+    float steepSlope = smoothstep(0.13, 0.33, slope);
+    float rockBreakup = smoothstep(
+        0.38, 0.72, slopeField*0.42 + slopeDetail*0.58);
+    vec3 slopeRock = mix(
+        vec3(0.35, 0.355, 0.325),
+        vec3(0.46, 0.415, 0.335),
+        slopeDetail);
+    grass = mix(
+        grass, slopeRock,
+        steepSlope*mix(0.48, 0.82, rockBreakup));
 
     // Existing terrain vertices already encode a soft 3.6 m shoreline
     // proximity. Apply it only in irregular broad sections so the lake edge
@@ -608,7 +681,7 @@ void main()
     if (terrainAmount > 0.001)
     {
         terrainAlbedo = painterlyGroundMaterial(
-            fragWorldPosition, fragVertexColor, fragTexCoord);
+            fragWorldPosition, normal, fragVertexColor, fragTexCoord);
         if (mountainSurface > 0.001)
         {
             // Keep the approved painterly grass on playable terrain, while
@@ -941,7 +1014,17 @@ void main()
     litColor = mix(
         litColor, atmosphereColor, farMountain*0.18);
     litColor = mix(litColor, selectionTint, clamp(selectionAmount, 0.0, 1.0));
-    litColor = mix(litColor, vec3(1.0, 0.95, 0.78), clamp(hitFlashAmount, 0.0, 1.0));
+    float hitFlashMask = 1.0;
+    if (hitFlashRadius > 0.001) {
+        float hitDistance = distance(
+            fragWorldPosition, hitFlashPosition);
+        hitFlashMask = 1.0 - smoothstep(
+            hitFlashRadius*0.28, hitFlashRadius, hitDistance);
+    }
+    float localHitFlash = clamp(
+        hitFlashAmount*hitFlashMask, 0.0, 1.0);
+    litColor = mix(
+        litColor, vec3(1.0, 0.95, 0.78), localHitFlash);
 
     // Cheap height shaping lets distant bases settle into haze while peaks
     // remain clearer. Both terms are smooth, avoiding a horizontal fog band.

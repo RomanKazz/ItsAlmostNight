@@ -21,8 +21,9 @@ namespace ian {
 namespace {
 
 constexpr float UiTextScale = 1.68F;
-constexpr int MinimapTargetSize = 256;
+constexpr int MinimapTargetSize = 512;
 constexpr int MaximumMinimapTargetSize = 768;
+constexpr int MinimapFrameTargetSize = 1024;
 
 std::string localizedCopy(std::string_view text) {
     return currentLanguage() == Language::English
@@ -176,9 +177,18 @@ void GameUi::initialize() {
     smoothHudIcon(levelUpRays_);
     minimapTarget_ = LoadRenderTexture(
         MinimapTargetSize, MinimapTargetSize);
+    minimapFrameTarget_ = LoadRenderTexture(
+        MinimapFrameTargetSize, MinimapFrameTargetSize);
+    minimapTargetCacheValid_ = false;
+    minimapFrameTargetCacheValid_ = false;
+    minimapTargetLastRefreshSeconds_ = 0.0;
     if (IsTextureValid(minimapTarget_.texture)) {
         SetTextureFilter(
             minimapTarget_.texture, TEXTURE_FILTER_BILINEAR);
+    }
+    if (IsTextureValid(minimapFrameTarget_.texture)) {
+        SetTextureFilter(
+            minimapFrameTarget_.texture, TEXTURE_FILTER_BILINEAR);
     }
     minimapCircleShader_ = LoadShader(
         nullptr, "assets/shaders/minimap_circle.fs");
@@ -208,6 +218,9 @@ void GameUi::initialize() {
 }
 
 void GameUi::shutdown() {
+    minimapTargetCacheValid_ = false;
+    minimapFrameTargetCacheValid_ = false;
+    minimapTargetLastRefreshSeconds_ = 0.0;
     if (IsShaderValid(minimapCircleShader_)) {
         UnloadShader(minimapCircleShader_);
     }
@@ -216,6 +229,10 @@ void GameUi::shutdown() {
         UnloadRenderTexture(minimapTarget_);
     }
     minimapTarget_ = {};
+    if (IsRenderTextureValid(minimapFrameTarget_)) {
+        UnloadRenderTexture(minimapFrameTarget_);
+    }
+    minimapFrameTarget_ = {};
     unloadTexture(healthCore_);
     unloadTexture(healthPlayer_);
     unloadTexture(coreBuildingIcon_);
@@ -321,19 +338,26 @@ void GameUi::endMinimapTarget() const {
     EndTextureMode();
 }
 
-void GameUi::drawMinimapTarget(Rectangle bounds) const {
+void GameUi::drawMinimapTarget(
+    Rectangle bounds, float rotationDegrees) const {
     if (!IsRenderTextureValid(minimapTarget_)) {
         return;
     }
     if (IsShaderValid(minimapCircleShader_)) {
         BeginShaderMode(minimapCircleShader_);
     }
+    const Rectangle destination{
+        bounds.x + bounds.width * 0.5F,
+        bounds.y + bounds.height * 0.5F,
+        bounds.width, bounds.height};
     DrawTexturePro(
         minimapTarget_.texture,
         {0.0F, 0.0F,
          static_cast<float>(minimapTarget_.texture.width),
          -static_cast<float>(minimapTarget_.texture.height)},
-        bounds, {0.0F, 0.0F}, 0.0F, WHITE);
+        destination,
+        {bounds.width * 0.5F, bounds.height * 0.5F},
+        rotationDegrees, WHITE);
     if (IsShaderValid(minimapCircleShader_)) {
         EndShaderMode();
     }
@@ -351,6 +375,7 @@ void GameUi::updateMinimapTarget(int desiredSize) {
         UnloadRenderTexture(minimapTarget_);
     }
     minimapTarget_ = LoadRenderTexture(desiredSize, desiredSize);
+    minimapTargetCacheValid_ = false;
     if (IsTextureValid(minimapTarget_.texture)) {
         SetTextureFilter(
             minimapTarget_.texture, TEXTURE_FILTER_BILINEAR);
@@ -360,6 +385,68 @@ void GameUi::updateMinimapTarget(int desiredSize) {
 int GameUi::minimapTargetSize() const {
     return IsRenderTextureValid(minimapTarget_)
         ? minimapTarget_.texture.width
+        : 0;
+}
+
+bool GameUi::minimapTargetRefreshDue(
+    double nowSeconds, double intervalSeconds,
+    bool forceRefresh) const {
+    return forceRefresh || !minimapTargetCacheValid_ ||
+        nowSeconds < minimapTargetLastRefreshSeconds_ ||
+        nowSeconds - minimapTargetLastRefreshSeconds_ >=
+            std::max(intervalSeconds, 0.0);
+}
+
+void GameUi::markMinimapTargetRefreshed(double nowSeconds) {
+    minimapTargetCacheValid_ = true;
+    minimapTargetLastRefreshSeconds_ = nowSeconds;
+}
+
+bool GameUi::beginMinimapFrameTarget() const {
+    if (!IsRenderTextureValid(minimapFrameTarget_)) {
+        return false;
+    }
+    BeginTextureMode(minimapFrameTarget_);
+    ClearBackground(BLANK);
+    return true;
+}
+
+void GameUi::endMinimapFrameTarget() {
+    EndTextureMode();
+    if (IsTextureValid(minimapFrameTarget_.texture)) {
+        GenTextureMipmaps(&minimapFrameTarget_.texture);
+        SetTextureFilter(
+            minimapFrameTarget_.texture, TEXTURE_FILTER_TRILINEAR);
+    }
+    minimapFrameTargetCacheValid_ = true;
+}
+
+void GameUi::drawMinimapFrameTarget(
+    Rectangle bounds, float rotationDegrees, Color tint) const {
+    if (!minimapFrameTargetCacheValid_ ||
+        !IsRenderTextureValid(minimapFrameTarget_)) {
+        return;
+    }
+    DrawTexturePro(
+        minimapFrameTarget_.texture,
+        {0.0F, 0.0F,
+         static_cast<float>(minimapFrameTarget_.texture.width),
+         -static_cast<float>(minimapFrameTarget_.texture.height)},
+        {bounds.x + bounds.width * 0.5F,
+         bounds.y + bounds.height * 0.5F,
+         bounds.width, bounds.height},
+        {bounds.width * 0.5F, bounds.height * 0.5F},
+        rotationDegrees, tint);
+}
+
+bool GameUi::minimapFrameTargetReady() const noexcept {
+    return minimapFrameTargetCacheValid_ &&
+        IsRenderTextureValid(minimapFrameTarget_);
+}
+
+int GameUi::minimapFrameTargetSize() const noexcept {
+    return IsRenderTextureValid(minimapFrameTarget_)
+        ? minimapFrameTarget_.texture.width
         : 0;
 }
 

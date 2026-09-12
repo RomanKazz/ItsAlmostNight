@@ -1,8 +1,6 @@
 #include "app/App.hpp"
 
-#include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
-#include "graphics/WorldTransforms.hpp"
 #include "ui/InputKeycap.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiLabels.hpp"
@@ -15,21 +13,6 @@
 
 namespace ian {
 namespace {
-
-const char* enemyName(EnemyType type) {
-    switch (type) {
-    case EnemyType::Basic: return "Basic";
-    case EnemyType::Fast: return "Fast";
-    case EnemyType::Heavy: return "Heavy";
-    case EnemyType::Boss: return "Boss";
-    case EnemyType::Ranged: return "Ranged";
-    case EnemyType::Sapper: return "Sapper";
-    case EnemyType::Flying: return "Flying";
-    case EnemyType::Splitter: return "Splitter";
-    case EnemyType::Splitling: return "Splitling";
-    }
-    return "Enemy";
-}
 
 bool terrainOccludesPrompt(
     Vector3 cameraPosition, Vector3 anchor,
@@ -414,43 +397,9 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         }
     }
 
-    if (snapshot.aimedEnemy) {
-        const auto enemy = std::find_if(
-            snapshot.enemies.begin(), snapshot.enemies.end(),
-            [&snapshot](const EnemyInstance& value) {
-                return value.active && value.id == *snapshot.aimedEnemy;
-            });
-        if (enemy != snapshot.enemies.end()) {
-            Vector3 position = app_detail::enemyRenderPosition(*enemy);
-            position.y += static_cast<float>(
-                simulation_.terrain().getHeight(
-                    enemy->position.x, enemy->position.z));
-            const BoundingBox bounds = renderer_->enemyWorldBounds(
-                app_detail::enemyModelVisual(enemy->type), position,
-                static_cast<float>(enemy->yaw),
-                app_detail::enemyVisualScale(enemy->type));
-            const bool hasBounds =
-                world_transforms::finite(bounds);
-            const Vector3 worldAnchor = hasBounds
-                ? Vector3{
-                      (bounds.min.x + bounds.max.x) * 0.5F,
-                      bounds.max.y + 0.42F,
-                      (bounds.min.z + bounds.max.z) * 0.5F}
-                : Vector3{
-                      position.x, position.y + 1.66F,
-                      position.z};
-            return finalize(InteractionPrompt{
-                .targetKind = InteractionPromptTargetKind::Enemy,
-                .targetId = enemy->id,
-                .worldAnchor = worldAnchor,
-                .actionText = std::string("Attack ") +
-                    enemyName(enemy->type),
-                .input = ControlAction::Attack,
-                .state = InteractionState::Available,
-                .accentColor = {238, 229, 207, 255},
-            });
-        }
-    }
+    // Basic attacks are already communicated by the equipped weapon and
+    // crosshair. Enemy identity and health live in one target widget instead
+    // of competing with a redundant interaction prompt.
     return std::nullopt;
 }
 

@@ -646,11 +646,137 @@ void App::processPresentationEvents(
             addEffect(PresentationEffectType::Hit,
                       event.position, 0.16, 1.55F);
         }
+        const bool pickaxeStoneImpact =
+            (event.type == GameEventType::ResourceHit ||
+             event.type == GameEventType::ResourceCollected) &&
+            event.resourceType == ResourceType::Stone &&
+            event.matchingTool;
+        const bool stoneDestroyed =
+            event.type == GameEventType::ResourceCollected &&
+            event.resourceType == ResourceType::Stone;
+        if (pickaxeStoneImpact) {
+            addEffect(
+                PresentationEffectType::StoneCrack,
+                event.position, 0.30,
+                event.critical ? 1.14F : 1.0F,
+                event.entityId);
+            effects_.back().targetPosition = event.targetPosition;
+            // Keep the common resource flash and compression response. The
+            // variant only suppresses the superseded colored particles.
+            addEffect(
+                PresentationEffectType::ResourceHitStone,
+                event.position, 0.46,
+                event.critical ? 1.3F : 1.0F,
+                event.entityId);
+            effects_.back().variant = 1;
+            if (renderer_->settings().particles) {
+                const Vector3 hitPosition{
+                    static_cast<float>(event.position.x),
+                    static_cast<float>(event.position.y),
+                    static_cast<float>(event.position.z),
+                };
+                Vector3 impactNormal{0.0F, 1.0F, 0.0F};
+                if (event.targetPosition) {
+                    impactNormal = Vector3Subtract(
+                        hitPosition,
+                        {static_cast<float>(event.targetPosition->x),
+                         static_cast<float>(event.targetPosition->y),
+                         static_cast<float>(event.targetPosition->z)});
+                }
+                if (Vector3LengthSqr(impactNormal) <= 0.000001F) {
+                    impactNormal = {0.0F, 1.0F, 0.0F};
+                }
+                impactNormal = Vector3Normalize(impactNormal);
+                Vector3 tangent = Vector3CrossProduct(
+                    impactNormal, {0.0F, 1.0F, 0.0F});
+                if (Vector3LengthSqr(tangent) <= 0.0001F) {
+                    tangent = Vector3CrossProduct(
+                        impactNormal, {1.0F, 0.0F, 0.0F});
+                }
+                tangent = Vector3Normalize(tangent);
+                const Vector3 bitangent = Vector3Normalize(
+                    Vector3CrossProduct(impactNormal, tangent));
+                const std::uint32_t eventSeed =
+                    (event.entityId
+                         ? event.entityId->index * 0x9e3779b9U ^
+                               event.entityId->generation * 0x85ebca6bU
+                         : 0x27d4eb2fU) ^
+                    static_cast<std::uint32_t>(
+                        eventSnapshot.elapsedSeconds * 1000.0);
+                const auto randomUnit = [](std::uint32_t value) {
+                    value ^= value >> 16U;
+                    value *= 0x7feb352dU;
+                    value ^= value >> 15U;
+                    value *= 0x846ca68bU;
+                    value ^= value >> 16U;
+                    return static_cast<float>(value & 0xffffU) /
+                        65535.0F;
+                };
+                const int chipCount = stoneDestroyed
+                    ? (event.critical ? 16 : 13)
+                    : (event.critical ? 10 : 7);
+                const float burstSpeed =
+                    stoneDestroyed ? 1.35F : 1.0F;
+                for (int index = 0; index < chipCount; ++index) {
+                    const std::uint32_t seed = eventSeed +
+                        static_cast<std::uint32_t>(index + 1) *
+                            0x9e3779b9U;
+                    const float angle =
+                        (static_cast<float>(index) /
+                             static_cast<float>(chipCount) +
+                         randomUnit(seed) * 0.18F) *
+                        2.0F * PI;
+                    const float lateralSpeed =
+                        (0.72F +
+                         randomUnit(seed ^ 0xa511e9b3U) * 0.72F) *
+                        burstSpeed;
+                    Vector3 velocity = Vector3Add(
+                        Vector3Scale(
+                            impactNormal,
+                            (1.15F +
+                             randomUnit(seed ^ 0x68e31da4U) * 0.85F) *
+                                burstSpeed),
+                        Vector3Scale(
+                            Vector3Add(
+                                Vector3Scale(tangent, std::cos(angle)),
+                                Vector3Scale(bitangent, std::sin(angle))),
+                            lateralSpeed));
+                    velocity.y +=
+                        (1.05F +
+                         randomUnit(seed ^ 0x1b56c4e9U) * 0.85F) *
+                        burstSpeed;
+                    const double duration =
+                        stoneDestroyed
+                            ? 0.58 +
+                                  randomUnit(seed ^ 0x63d83595U) * 0.20
+                            : 0.44 +
+                                  randomUnit(seed ^ 0x63d83595U) * 0.18;
+                    addEffect(
+                        PresentationEffectType::StoneChip,
+                        {event.position.x + impactNormal.x * 0.06,
+                         event.position.y + impactNormal.y * 0.06,
+                         event.position.z + impactNormal.z * 0.06},
+                        duration,
+                        stoneDestroyed
+                            ? 0.22F +
+                                  randomUnit(seed ^ 0xd8163841U) * 0.15F
+                            : 0.18F +
+                                  randomUnit(seed ^ 0xd8163841U) * 0.12F,
+                        event.entityId);
+                    effects_.back().targetPosition = Vec3{
+                        velocity.x, velocity.y, velocity.z};
+                    effects_.back().variant =
+                        static_cast<int>(seed & 0x00ffffffU);
+                }
+            }
+        }
         if (event.type == GameEventType::ResourceHit) {
-            addEffect(PresentationEffectType::Hit,
-                      event.position, 0.34, 1.0F,
-                      event.entityId);
-            if (event.resourceType) {
+            if (!pickaxeStoneImpact) {
+                addEffect(PresentationEffectType::Hit,
+                          event.position, 0.34, 1.0F,
+                          event.entityId);
+            }
+            if (event.resourceType && !pickaxeStoneImpact) {
                 addEffect(
                     *event.resourceType == ResourceType::Wood
                         ? PresentationEffectType::ResourceHitWood
@@ -697,7 +823,12 @@ void App::processPresentationEvents(
                     *event.resourceType == ResourceType::Wood
                         ? PresentationEffectType::ResourceDestroyedWood
                         : PresentationEffectType::ResourceDestroyedStone;
-                addEffect(type, center, 0.92, 1.0F);
+                // Stone destruction uses the physical decorative-rock burst
+                // above. Keep the authored color particles for other
+                // resource families only.
+                if (*event.resourceType != ResourceType::Stone) {
+                    addEffect(type, center, 0.92, 1.0F);
+                }
                 destroyedResourceVisuals_.push_back({
                     .type = *event.resourceType,
                     .visualVariant =

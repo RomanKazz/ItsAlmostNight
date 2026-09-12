@@ -2,11 +2,15 @@
 
 #include "presentation/PresentationTypes.hpp"
 
+#include <optional>
 #include <span>
 
 namespace ian::presentation {
 
 [[nodiscard]] float resourceHitFlash(
+    std::span<const PresentationEffect> effects,
+    EntityId id);
+[[nodiscard]] std::optional<Vec3> resourceHitPosition(
     std::span<const PresentationEffect> effects,
     EntityId id);
 [[nodiscard]] float resourceHitScale(

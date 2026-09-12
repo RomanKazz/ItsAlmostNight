@@ -97,6 +97,8 @@ struct WorldMaterialState {
     float coniferHighlightStrength{0.84F};
     float coniferFacetBlend{0.58F};
     float hitFlashAmount{};
+    Vector3 hitFlashPosition{};
+    float hitFlashRadius{};
     float selectionAmount{};
     Vector3 selectionTint{1.0F, 0.72F, 0.2F};
     float ghostAmount{};
@@ -507,6 +509,10 @@ class Renderer {
     void drawDecorativeRocks(
         const Camera3D& camera, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
+    [[nodiscard]] bool drawDecorativeRockFragment(
+        Vector3 position, Vector3 rotationAxis,
+        float rotationDegrees, float scale,
+        std::size_t variant, Color tint = WHITE);
     void drawDecorativeRockAo(
         const Camera3D& camera, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
@@ -528,6 +534,7 @@ class Renderer {
     [[nodiscard]] const GraphicsSettings& settings() const;
     [[nodiscard]] const RendererPerformanceStats& performanceStats() const;
     [[nodiscard]] double framePacingMilliseconds() const;
+    [[nodiscard]] double frameSwapMilliseconds() const;
     void setGpuProfilingEnabled(bool enabled);
     void beginGpuTimer(RendererGpuStage stage);
     void endGpuTimer(RendererGpuStage stage);
@@ -655,6 +662,8 @@ class Renderer {
         int coniferHighlightStrength{-1};
         int coniferFacetBlend{-1};
         int hitFlashAmount{-1};
+        int hitFlashPosition{-1};
+        int hitFlashRadius{-1};
         int selectionAmount{-1};
         int selectionTint{-1};
         int ghostAmount{-1};
@@ -986,6 +995,7 @@ class Renderer {
     void pollGpuTimers();
     double instancedEnemyMillisecondsThisFrame_{};
     double framePacingMilliseconds_{};
+    double frameSwapMilliseconds_{};
 #if defined(__APPLE__)
     int pacedFrameRate_{};
     std::uint64_t frameDeadline_{};

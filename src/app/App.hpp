@@ -37,6 +37,9 @@ struct ResourceGainVisual {
     int amount;
     double remaining;
     double duration;
+    float horizontalDrift{};
+    float visualScale{1.0F};
+    float rotationDegrees{};
 };
 
 struct DestroyedResourceVisual {
@@ -83,8 +86,22 @@ struct AppPerformanceStats {
     PerformanceMetric worldUiRender;
     PerformanceMetric interactionPromptRender;
     PerformanceMetric hudCoreRender;
+    PerformanceMetric hudTargetHealthRender;
+    PerformanceMetric hudResourcesRender;
+    PerformanceMetric hudVitalityRender;
+    PerformanceMetric hudInformationRender;
+    PerformanceMetric hudObjectivesRender;
+    PerformanceMetric hudLootRender;
+    PerformanceMetric hudPhaseRender;
+    PerformanceMetric hudHotbarRender;
+    PerformanceMetric hudFeedbackRender;
+    PerformanceMetric hudTextFlushRender;
     PerformanceMetric resourceGainRender;
     PerformanceMetric minimapRender;
+    PerformanceMetric minimapSetupRender;
+    PerformanceMetric minimapTargetRefreshRender;
+    PerformanceMetric minimapFrameRender;
+    PerformanceMetric minimapLabelsRender;
     PerformanceMetric uiOverlaysRender;
     PerformanceMetric uiTextRender;
     PerformanceMetric present;
@@ -149,7 +166,9 @@ class App {
                            const WorldLighting& lighting);
     void drawPerformanceOverlay(
         const SimulationSnapshot& snapshot) const;
-    void drawPresentationEffects(const Camera3D& camera);
+    void drawPresentationEffects(
+        const Camera3D& camera, const WorldLighting& lighting);
+    void drawStoneCrackOverlays(const Camera3D& camera) const;
     void drawAtmosphereParticles(
         const Camera3D& camera, float nightAmount);
     void drawChestLootGlow(
@@ -258,6 +277,7 @@ class App {
     TextureResource vfxImpactTexture_;
     TextureResource vfxExplosionTexture_;
     TextureResource vfxElectricRingTexture_;
+    TextureResource stoneCrackTexture_;
     GameUi ui_;
     UiEditor uiEditor_;
     bool pendingStartFromUi_{};

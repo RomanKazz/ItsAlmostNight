@@ -247,12 +247,32 @@ void App::addResourceGainVisual(
         resourceGainVisuals_.erase(resourceGainVisuals_.begin());
     }
     constexpr double Duration = ResourcePickupFlightSeconds;
+    std::uint32_t seed = static_cast<std::uint32_t>(
+        resourceGainVisuals_.size() + 1U) * 0x9e3779b9U;
+    seed ^= static_cast<std::uint32_t>(
+        std::lround((position.x + 192.0) * 37.0));
+    seed ^= static_cast<std::uint32_t>(
+        std::lround((position.z + 192.0) * 53.0)) << 1U;
+    const auto variation = [](std::uint32_t value) {
+        value ^= value >> 16U;
+        value *= 0x7feb352dU;
+        value ^= value >> 15U;
+        value *= 0x846ca68bU;
+        value ^= value >> 16U;
+        return static_cast<float>(value & 0xffffU) / 65535.0F;
+    };
     resourceGainVisuals_.push_back({
         .type = type,
         .position = position,
         .amount = amount,
         .remaining = Duration,
         .duration = Duration,
+        .horizontalDrift =
+            (variation(seed) * 2.0F - 1.0F) * 34.0F,
+        .visualScale =
+            0.88F + variation(seed ^ 0xa511e9b3U) * 0.24F,
+        .rotationDegrees =
+            (variation(seed ^ 0x68e31da4U) * 2.0F - 1.0F) * 8.0F,
     });
 }
 

@@ -33,12 +33,19 @@ bool PerformanceRecorder::start(std::string_view directory) {
     stream_ << "frame,session_seconds,run_state,build_mode,modular_build_mode,"
                "fixed_ticks,active_enemies,visible_enemies,buildings,"
                "modular_pieces,frame_ms,input_ms,update_ms,sim_tick_ms,"
-               "render_ms,present_ms,render_prep_ms,shadow_ms,selection_ms,"
+               "render_ms,present_ms,present_pacing_ms,present_swap_ms,"
+               "render_prep_ms,shadow_ms,selection_ms,"
                "terrain_ms,world_objects_ms,decorations_ms,grass_ms,"
                "environment_ms,pond_decor_ms,water_ms,cloud_ms,atmosphere_ms,"
                "overlays_ms,postprocess_ms,ui_ms,viewmodel_ms,world_ui_ms,"
-               "interaction_prompt_ms,hud_core_ms,resource_gain_ms,"
-               "minimap_ms,ui_overlays_ms,ui_text_ms,ui_text_submissions,"
+               "interaction_prompt_ms,hud_core_ms,hud_target_health_ms,"
+               "hud_resources_ms,hud_vitality_ms,hud_information_ms,"
+               "hud_objectives_ms,hud_loot_ms,hud_phase_ms,"
+               "hud_hotbar_ms,hud_feedback_ms,hud_text_flush_ms,"
+               "resource_gain_ms,minimap_ms,minimap_setup_ms,"
+               "minimap_target_refresh_ms,minimap_frame_ms,"
+               "minimap_labels_ms,ui_overlays_ms,ui_text_ms,"
+               "ui_text_submissions,"
                "ui_text_characters,gpu_world_ms,"
                "gpu_postprocess_ms,gpu_viewmodel_ms,"
                "gpu_viewmodel_target_ms,gpu_viewmodel_composite_ms,"
@@ -61,7 +68,8 @@ void PerformanceRecorder::record(
             << value.modularPieces << ',' << value.frameMs << ','
             << value.inputMs << ',' << value.updateMs << ','
             << value.simulationTickMs << ',' << value.renderMs << ','
-            << value.presentMs << ',' << value.renderPreparationMs << ','
+            << value.presentMs << ',' << value.presentPacingMs << ','
+            << value.presentSwapMs << ',' << value.renderPreparationMs << ','
             << value.shadowMs << ',' << value.selectionMs << ','
             << value.terrainMs << ',' << value.worldObjectsMs << ','
             << value.decorationsMs << ',' << value.grassMs << ','
@@ -71,7 +79,16 @@ void PerformanceRecorder::record(
             << value.postProcessMs << ',' << value.uiMs << ','
             << value.viewModelMs << ',' << value.worldUiMs << ','
             << value.interactionPromptMs << ',' << value.hudCoreMs << ','
+            << value.hudTargetHealthMs << ','
+            << value.hudResourcesMs << ',' << value.hudVitalityMs << ','
+            << value.hudInformationMs << ','
+            << value.hudObjectivesMs << ',' << value.hudLootMs << ','
+            << value.hudPhaseMs << ',' << value.hudHotbarMs << ','
+            << value.hudFeedbackMs << ',' << value.hudTextFlushMs << ','
             << value.resourceGainMs << ',' << value.minimapMs << ','
+            << value.minimapSetupMs << ','
+            << value.minimapTargetRefreshMs << ','
+            << value.minimapFrameMs << ',' << value.minimapLabelsMs << ','
             << value.uiOverlaysMs << ',' << value.uiTextMs << ','
             << value.uiTextSubmissions << ','
             << value.uiTextCharacters << ','

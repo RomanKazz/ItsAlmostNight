@@ -68,9 +68,21 @@ class GameUi {
         bool pressed = false) const;
     [[nodiscard]] bool beginMinimapTarget() const;
     void endMinimapTarget() const;
-    void drawMinimapTarget(Rectangle bounds) const;
+    void drawMinimapTarget(
+        Rectangle bounds, float rotationDegrees = 0.0F) const;
     void updateMinimapTarget(int desiredSize);
     [[nodiscard]] int minimapTargetSize() const;
+    [[nodiscard]] bool minimapTargetRefreshDue(
+        double nowSeconds, double intervalSeconds,
+        bool forceRefresh = false) const;
+    void markMinimapTargetRefreshed(double nowSeconds);
+    [[nodiscard]] bool beginMinimapFrameTarget() const;
+    void endMinimapFrameTarget();
+    void drawMinimapFrameTarget(
+        Rectangle bounds, float rotationDegrees,
+        Color tint = WHITE) const;
+    [[nodiscard]] bool minimapFrameTargetReady() const noexcept;
+    [[nodiscard]] int minimapFrameTargetSize() const noexcept;
     float drawSliderBar(Rectangle bounds, float value,
                         float minimum, float maximum) const;
     void drawCursor() const;
@@ -134,7 +146,11 @@ class GameUi {
     SliceInsets buttonInsets_{12, 10, 12, 14};
     SliceInsets barInsets_{12, 4, 12, 4};
     RenderTexture2D minimapTarget_{};
+    RenderTexture2D minimapFrameTarget_{};
     Shader minimapCircleShader_{};
+    bool minimapTargetCacheValid_{};
+    bool minimapFrameTargetCacheValid_{};
+    double minimapTargetLastRefreshSeconds_{};
     bool initialized_{};
 };
 

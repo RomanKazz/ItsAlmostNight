@@ -85,12 +85,23 @@ void App::drawResourceGainVisuals(
             continue;
         }
 
-        const float progress = std::clamp(
-            static_cast<float>(
-                1.0 - gain.remaining / gain.duration),
+        constexpr float FeedbackDelaySeconds = 0.10F;
+        const float elapsed = static_cast<float>(
+            gain.duration - gain.remaining);
+        if (elapsed < FeedbackDelaySeconds) {
+            continue;
+        }
+        const float activeDuration = std::max(
+            0.01F,
+            static_cast<float>(gain.duration) - FeedbackDelaySeconds);
+        const float activeProgress = std::clamp(
+            (elapsed - FeedbackDelaySeconds) / activeDuration,
             0.0F, 1.0F);
-        const Vector2 start =
+        const Vector2 projected =
             GetWorldToScreen(worldPosition, camera);
+        const Vector2 start{
+            projected.x, projected.y - 62.0F,
+        };
         const Vector2 target =
             gain.type == ResourceType::Wood
                 ? Vector2{70.0F, 66.0F}
@@ -99,15 +110,15 @@ void App::drawResourceGainVisuals(
                     : Vector2{210.0F, 66.0F};
         constexpr float RiseEnd = 0.3F;
         const float riseProgress =
-            std::clamp(progress / RiseEnd, 0.0F, 1.0F);
+            std::clamp(activeProgress / RiseEnd, 0.0F, 1.0F);
         const float riseEased =
             riseProgress * riseProgress *
             (3.0F - 2.0F * riseProgress);
         const Vector2 liftedStart{
-            start.x, start.y - 58.0F,
+            start.x + gain.horizontalDrift, start.y - 58.0F,
         };
         const float flightProgress = std::clamp(
-            (progress - RiseEnd) / (1.0F - RiseEnd),
+            (activeProgress - RiseEnd) / (1.0F - RiseEnd),
             0.0F, 1.0F);
         float eased = 0.0F;
         if (flightProgress < 0.8F) {
@@ -127,7 +138,7 @@ void App::drawResourceGainVisuals(
             start.y +
                 (liftedStart.y - start.y) * riseEased,
         };
-        if (progress >= RiseEnd) {
+        if (activeProgress >= RiseEnd) {
             position.x =
                 liftedStart.x +
                 (target.x - liftedStart.x) * eased;
@@ -137,6 +148,15 @@ void App::drawResourceGainVisuals(
                 std::sin(flightProgress * PI) * 54.0F;
         }
         const float iconSize = 104.0F - eased * 36.0F;
+        const float visualScale =
+            gain.visualScale + (1.0F - gain.visualScale) * eased;
+        const float rotationDegrees =
+            gain.rotationDegrees * (1.0F - eased);
+        rlPushMatrix();
+        rlTranslatef(position.x, position.y, 0.0F);
+        rlRotatef(rotationDegrees, 0.0F, 0.0F, 1.0F);
+        rlScalef(visualScale, visualScale, 1.0F);
+        rlTranslatef(-position.x, -position.y, 0.0F);
         ui_.drawResourceIcon(
             {position.x - iconSize * 0.5F,
              position.y - iconSize * 0.5F, iconSize, iconSize},
@@ -147,7 +167,7 @@ void App::drawResourceGainVisuals(
                     : UiResourceIcon::Stone);
 
         const float textFade = std::clamp(
-            (0.7F - progress) / 0.25F, 0.0F, 1.0F);
+            (0.7F - activeProgress) / 0.25F, 0.0F, 1.0F);
         if (textFade > 0.0F) {
             const auto alpha = static_cast<unsigned char>(
                 std::lround(textFade * 255.0F));
@@ -157,6 +177,7 @@ void App::drawResourceGainVisuals(
                  position.y - 36.0F},
                 48.0F, {255, 245, 204, alpha});
         }
+        rlPopMatrix();
     }
 }
 

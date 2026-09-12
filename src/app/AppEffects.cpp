@@ -8,8 +8,10 @@
 #include <rlgl.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cmath>
+#include <ranges>
 #include <string>
 
 namespace ian {
@@ -71,6 +73,59 @@ void drawAtlasBillboard(
         {worldSize, worldSize},
         {worldSize * 0.5F, worldSize * 0.5F},
         rotation, tint);
+}
+
+std::optional<std::array<Vector2, 4>> projectedSurfaceQuad(
+    Vector3 center, Vector3 right, Vector3 up, float worldSize,
+    float rotationRadians, const Camera3D& camera) {
+    if (worldSize <= 0.0F) {
+        return std::nullopt;
+    }
+    const float cosine = std::cos(rotationRadians);
+    const float sine = std::sin(rotationRadians);
+    const Vector3 rotatedRight = Vector3Add(
+        Vector3Scale(right, cosine), Vector3Scale(up, sine));
+    const Vector3 rotatedUp = Vector3Add(
+        Vector3Scale(up, cosine), Vector3Scale(right, -sine));
+    const Vector3 halfRight = Vector3Scale(
+        rotatedRight, worldSize * 0.5F);
+    const Vector3 halfUp = Vector3Scale(
+        rotatedUp, worldSize * 0.5F);
+    const Vector3 topLeft = Vector3Add(
+        Vector3Subtract(center, halfRight), halfUp);
+    const Vector3 bottomLeft = Vector3Subtract(
+        Vector3Subtract(center, halfRight), halfUp);
+    const Vector3 bottomRight = Vector3Subtract(
+        Vector3Add(center, halfRight), halfUp);
+    const Vector3 topRight = Vector3Add(
+        Vector3Add(center, halfRight), halfUp);
+    return std::array<Vector2, 4>{
+        GetWorldToScreen(topLeft, camera),
+        GetWorldToScreen(bottomLeft, camera),
+        GetWorldToScreen(bottomRight, camera),
+        GetWorldToScreen(topRight, camera),
+    };
+}
+
+void drawScreenTextureQuad(
+    Texture2D texture, const std::array<Vector2, 4>& corners,
+    Color tint) {
+    if (!IsTextureValid(texture)) {
+        return;
+    }
+    rlSetTexture(texture.id);
+    rlBegin(RL_QUADS);
+    rlColor4ub(tint.r, tint.g, tint.b, tint.a);
+    rlTexCoord2f(0.0F, 0.0F);
+    rlVertex2f(corners[0].x, corners[0].y);
+    rlTexCoord2f(0.0F, 1.0F);
+    rlVertex2f(corners[1].x, corners[1].y);
+    rlTexCoord2f(1.0F, 1.0F);
+    rlVertex2f(corners[2].x, corners[2].y);
+    rlTexCoord2f(1.0F, 0.0F);
+    rlVertex2f(corners[3].x, corners[3].y);
+    rlEnd();
+    rlSetTexture(0);
 }
 
 int animationFrame(float progress, int frameCount) {
@@ -619,7 +674,118 @@ void App::drawChestLootGlow(
     EndBlendMode();
 }
 
-void App::drawPresentationEffects(const Camera3D& camera) {
+void App::drawStoneCrackOverlays(const Camera3D& camera) const {
+    if (!stoneCrackTexture_.valid()) {
+        return;
+    }
+    Vector3 cameraForward = Vector3Subtract(
+        camera.target, camera.position);
+    cameraForward = Vector3LengthSqr(cameraForward) > 0.000001F
+        ? Vector3Normalize(cameraForward)
+        : Vector3{0.0F, 0.0F, -1.0F};
+
+    const auto drawPass = [&](bool glowPass) {
+        BeginBlendMode(glowPass ? BLEND_ADDITIVE : BLEND_ALPHA);
+        for (const PresentationEffect& effect : effects_) {
+            if (effect.startDelayRemaining > 0.0 ||
+                effect.type != PresentationEffectType::StoneCrack) {
+                continue;
+            }
+            const Vector3 hitPosition{
+                static_cast<float>(effect.position.x),
+                static_cast<float>(effect.position.y),
+                static_cast<float>(effect.position.z),
+            };
+            if (Vector3DotProduct(
+                    Vector3Subtract(hitPosition, camera.position),
+                    cameraForward) <= 0.0F) {
+                continue;
+            }
+            Vector3 surfaceNormal = Vector3Negate(cameraForward);
+            if (effect.targetPosition) {
+                surfaceNormal = Vector3Subtract(
+                    hitPosition,
+                    {static_cast<float>(effect.targetPosition->x),
+                     static_cast<float>(effect.targetPosition->y),
+                     static_cast<float>(effect.targetPosition->z)});
+            }
+            if (Vector3LengthSqr(surfaceNormal) <= 0.000001F) {
+                surfaceNormal = Vector3Negate(cameraForward);
+            }
+            surfaceNormal = Vector3Normalize(surfaceNormal);
+            Vector3 surfaceUp = Vector3Subtract(
+                {0.0F, 1.0F, 0.0F},
+                Vector3Scale(
+                    surfaceNormal,
+                    Vector3DotProduct(
+                        {0.0F, 1.0F, 0.0F}, surfaceNormal)));
+            if (Vector3LengthSqr(surfaceUp) <= 0.0001F) {
+                surfaceUp = Vector3Subtract(
+                    camera.up,
+                    Vector3Scale(
+                        surfaceNormal,
+                        Vector3DotProduct(camera.up, surfaceNormal)));
+            }
+            if (Vector3LengthSqr(surfaceUp) <= 0.0001F) {
+                continue;
+            }
+            surfaceUp = Vector3Normalize(surfaceUp);
+            const Vector3 surfaceRight = Vector3Normalize(
+                Vector3CrossProduct(surfaceUp, surfaceNormal));
+            const float progress = std::clamp(static_cast<float>(
+                1.0 - effect.remaining / effect.duration),
+                0.0F, 1.0F);
+            float scaleEnvelope = 1.0F;
+            if (progress < 0.28F) {
+                const float t = progress / 0.28F;
+                const float easeOut =
+                    1.0F - std::pow(1.0F - t, 3.0F);
+                scaleEnvelope = 1.12F * easeOut;
+            } else if (progress < 0.44F) {
+                const float t = smoothstep(
+                    0.28F, 0.44F, progress);
+                scaleEnvelope = 1.12F + (1.0F - 1.12F) * t;
+            } else if (progress > 0.70F) {
+                scaleEnvelope = 1.0F - smoothstep(
+                    0.70F, 1.0F, progress);
+            }
+            const float fade =
+                1.0F - smoothstep(0.80F, 1.0F, progress);
+            const float glow =
+                (1.0F - smoothstep(0.18F, 1.0F, progress)) * 0.14F;
+            const float size = glowPass
+                ? effect.scale * 0.78F * scaleEnvelope
+                : effect.scale * 0.70F * scaleEnvelope;
+            const int seed = effect.entityId
+                ? static_cast<int>(effect.entityId->index) : 0;
+            const auto quad = projectedSurfaceQuad(
+                Vector3Add(
+                    hitPosition,
+                    Vector3Scale(surfaceNormal, 0.028F)),
+                surfaceRight, surfaceUp, size,
+                static_cast<float>(seed % 9 - 4) * 0.0872665F,
+                camera);
+            if (!quad) {
+                continue;
+            }
+            drawScreenTextureQuad(
+                stoneCrackTexture_.get(), *quad,
+                glowPass
+                    ? Color{255, 202, 72, atmosphereAlpha(glow)}
+                    : Color{255, 248, 220,
+                            atmosphereAlpha(fade * 0.92F)});
+        }
+        EndBlendMode();
+    };
+
+    // Render after world ink: first a restrained glow, then the authored
+    // alpha layer. Neither pass participates in world outline detection.
+    drawPass(true);
+    drawPass(false);
+}
+
+void App::drawPresentationEffects(
+    const Camera3D& camera, const WorldLighting& lighting) {
     Vector3 cameraForward = Vector3Subtract(camera.target, camera.position);
     cameraForward = Vector3LengthSqr(cameraForward) > 0.000001F
         ? Vector3Normalize(cameraForward)
@@ -630,6 +796,66 @@ void App::drawPresentationEffects(const Camera3D& camera) {
         : Vector3{1.0F, 0.0F, 0.0F};
     const Vector3 billboardUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, cameraForward));
+
+    const bool hasStoneChips = std::ranges::any_of(
+        effects_, [](const PresentationEffect& effect) {
+            return effect.startDelayRemaining <= 0.0 &&
+                effect.type == PresentationEffectType::StoneChip;
+        });
+    if (hasStoneChips) {
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState chipMaterial{};
+        chipMaterial.bakedAo = 0.86F;
+        chipMaterial.screenAoAmount = 0.0F;
+        chipMaterial.inkOutlineEligible = true;
+        renderer_->setWorldMaterial(chipMaterial);
+        for (const PresentationEffect& effect : effects_) {
+            if (effect.startDelayRemaining > 0.0 ||
+                effect.type != PresentationEffectType::StoneChip ||
+                !effect.targetPosition) {
+                continue;
+            }
+            const float elapsed = static_cast<float>(
+                effect.duration - effect.remaining);
+            const float progress = std::clamp(
+                elapsed / static_cast<float>(effect.duration),
+                0.0F, 1.0F);
+            const Vector3 velocity{
+                static_cast<float>(effect.targetPosition->x),
+                static_cast<float>(effect.targetPosition->y),
+                static_cast<float>(effect.targetPosition->z),
+            };
+            Vector3 position{
+                static_cast<float>(effect.position.x) +
+                    velocity.x * elapsed,
+                static_cast<float>(effect.position.y) +
+                    velocity.y * elapsed - 3.9F * elapsed * elapsed,
+                static_cast<float>(effect.position.z) +
+                    velocity.z * elapsed,
+            };
+            const float groundHeight = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    position.x, position.z));
+            position.y = std::max(position.y, groundHeight + 0.025F);
+            const std::uint32_t seed =
+                static_cast<std::uint32_t>(effect.variant);
+            const Vector3 rotationAxis = Vector3Normalize({
+                0.35F + effectUnit(static_cast<int>(seed), 711),
+                0.55F + effectUnit(static_cast<int>(seed), 719),
+                0.25F + effectUnit(static_cast<int>(seed), 727),
+            });
+            const float disappearScale =
+                1.0F - smoothstep(0.76F, 1.0F, progress);
+            static_cast<void>(renderer_->drawDecorativeRockFragment(
+                position, rotationAxis,
+                progress *
+                    (480.0F + effectUnit(
+                        static_cast<int>(seed), 733) * 420.0F),
+                effect.scale * disappearScale,
+                seed % 4U, WHITE));
+        }
+        renderer_->endWorldShader();
+    }
 
     // Hits are the highest-volume effect during tower-heavy nights. Submit
     // every flash and spark as one camera-facing triangle batch rather than
@@ -818,6 +1044,13 @@ void App::drawPresentationEffects(const Camera3D& camera) {
         EndBlendMode();
     }
 
+    const std::size_t activeExplosionCount =
+        static_cast<std::size_t>(std::ranges::count_if(
+            effects_, [](const PresentationEffect& effect) {
+                return effect.startDelayRemaining <= 0.0 &&
+                    effect.type == PresentationEffectType::Explosion;
+            }));
+    std::size_t explosionOrdinal = 0U;
     for (const auto& effect : effects_) {
         if (effect.startDelayRemaining > 0.0) {
             continue;
@@ -831,7 +1064,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             static_cast<float>(effect.position.z),
         };
         if (effect.type == PresentationEffectType::Hit ||
-            effect.type == PresentationEffectType::EnemyHitImpact) {
+            effect.type == PresentationEffectType::EnemyHitImpact ||
+            effect.type == PresentationEffectType::StoneCrack ||
+            effect.type == PresentationEffectType::StoneChip) {
             continue;
         }
         if (effect.type == PresentationEffectType::RepairShockwave) {
@@ -1254,6 +1489,11 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                     PresentationEffectType::ResourceHitWood ||
                 effect.type ==
                     PresentationEffectType::ResourceDestroyedWood;
+            const bool suppressSupersededStoneParticles =
+                resourceHit && !wood && effect.variant == 1;
+            if (suppressSupersededStoneParticles) {
+                continue;
+            }
             const int particleCount =
                 resourceDestroyed ? 26 : 11;
             const float fade =
@@ -1776,6 +2016,15 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                      atmosphereAlpha(fade * 0.92F)});
             }
         } else if (effect.type == PresentationEffectType::Explosion) {
+            // Preserve full detail on newest explosions. Older overlapping
+            // blasts retain silhouette, flipbook and smoke, but stop
+            // multiplying dozens of individual sphere/cube submissions.
+            constexpr std::size_t DetailedExplosionBudget = 4U;
+            const bool detailedExplosion =
+                activeExplosionCount <= DetailedExplosionBudget ||
+                explosionOrdinal + DetailedExplosionBudget >=
+                    activeExplosionCount;
+            ++explosionOrdinal;
             const float scale = effect.scale;
             const float flash = 1.0F - smoothstep(0.02F, 0.2F, progress);
             const float flame = 1.0F - smoothstep(0.12F, 0.58F, progress);
@@ -1788,7 +2037,8 @@ void App::drawPresentationEffects(const Camera3D& camera) {
 
             // Ground-hugging pressure wave and dust front.
             const float shockRadius = scale * (0.35F + progress * 5.4F);
-            for (int ring = 0; ring < 3; ++ring) {
+            const int ShockRingCount = detailedExplosion ? 2 : 1;
+            for (int ring = 0; ring < ShockRingCount; ++ring) {
                 DrawCircle3D(
                     {origin.x, origin.y + 0.025F + static_cast<float>(ring) * 0.012F,
                      origin.z},
@@ -1798,7 +2048,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                      atmosphereAlpha(shock * (0.78F - static_cast<float>(ring) * 0.17F))});
             }
 
-            const int DustCount = spriteExplosion ? 10 : 22;
+            const int DustCount = detailedExplosion
+                ? (spriteExplosion ? 6 : 12)
+                : 2;
             for (int index = 0; index < DustCount; ++index) {
                 const float angle = effectUnit(index, 0) * 2.0F * PI;
                 const float speed = scale * (2.2F + effectUnit(index, 1) * 3.0F);
@@ -1816,7 +2068,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             }
 
             // Dense dark smoke survives after the fireball disappears.
-            const int SmokeCount = spriteExplosion ? 8 : 15;
+            const int SmokeCount = detailedExplosion
+                ? (spriteExplosion ? 5 : 9)
+                : 2;
             for (int index = 0; index < SmokeCount; ++index) {
                 const float delay = effectUnit(index, 4) * 0.22F;
                 const float local = std::clamp(
@@ -1840,7 +2094,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
             }
 
             // Chunks retain weight: quick launch, gravity, rotation.
-            const int DebrisCount = spriteExplosion ? 7 : 13;
+            const int DebrisCount = detailedExplosion
+                ? (spriteExplosion ? 4 : 7)
+                : 0;
             for (int index = 0; index < DebrisCount; ++index) {
                 const float angle = effectUnit(index, 11) * 2.0F * PI;
                 const float speed = scale * (1.7F + effectUnit(index, 12) * 3.3F);
@@ -1885,7 +2141,9 @@ void App::drawPresentationEffects(const Camera3D& camera) {
                     {255, 91, 18,
                      atmosphereAlpha(flame * 0.52F)});
             }
-            const int FlameCount = spriteExplosion ? 6 : 16;
+            const int FlameCount = detailedExplosion
+                ? (spriteExplosion ? 3 : 8)
+                : 0;
             for (int index = 0; index < FlameCount; ++index) {
                 const float angle = effectUnit(index, 16) * 2.0F * PI;
                 const float radial = progress * scale *

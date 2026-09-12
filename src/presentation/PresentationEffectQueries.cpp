@@ -39,6 +39,28 @@ float resourceHitFlash(
     return amount;
 }
 
+std::optional<Vec3> resourceHitPosition(
+    std::span<const PresentationEffect> effects,
+    EntityId id) {
+    const PresentationEffect* strongest = nullptr;
+    float strongestAmount = 0.0F;
+    for (const PresentationEffect& effect : effects) {
+        if (!targetsResource(effect, id)) {
+            continue;
+        }
+        const float amount = static_cast<float>(
+            effect.remaining / effect.duration) *
+            std::clamp(effect.scale, 0.8F, 1.3F);
+        if (strongest == nullptr || amount > strongestAmount) {
+            strongest = &effect;
+            strongestAmount = amount;
+        }
+    }
+    return strongest != nullptr
+        ? std::optional<Vec3>{strongest->position}
+        : std::nullopt;
+}
+
 float resourceHitScale(
     std::span<const PresentationEffect> effects,
     EntityId id) {
