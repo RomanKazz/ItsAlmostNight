@@ -169,11 +169,53 @@ CoinCollection CoinPickupSystem::tick(
 
         if (coin.magnetized) {
             coin.magnetTime += deltaSeconds;
+            const double anticipationDuration =
+                coin.kind == PickupKind::Coin
+                    ? MagnetAnticipationDuration
+                    : 0.0;
+            if (coin.magnetTime < anticipationDuration) {
+                // Anticipation makes collection readable: the coin first
+                // recoils a short distance from the player, then the magnet
+                // snaps it back. Hearts keep their direct healing flight.
+                const double progress = std::clamp(
+                    coin.magnetTime / anticipationDuration,
+                    0.0, 1.0);
+                double awayX = coin.position.x - target.x;
+                double awayZ = coin.position.z - target.z;
+                const double horizontalDistance = std::hypot(
+                    awayX, awayZ);
+                if (horizontalDistance > 0.0001) {
+                    awayX /= horizontalDistance;
+                    awayZ /= horizontalDistance;
+                } else {
+                    awayX = std::cos(coin.spinPhase);
+                    awayZ = std::sin(coin.spinPhase);
+                }
+                const double easeOut =
+                    1.0 - (1.0 - progress) * (1.0 - progress);
+                const double recoilSpeed =
+                    4.4 + (0.8 - 4.4) * easeOut;
+                const double curl =
+                    std::sin(coin.spinPhase) *
+                    (1.0 - progress) * 0.75;
+                coin.velocity = {
+                    awayX * recoilSpeed - awayZ * curl,
+                    1.65 * (1.0 - progress) - 0.35 * progress,
+                    awayZ * recoilSpeed + awayX * curl,
+                };
+                coin.position.x += coin.velocity.x * deltaSeconds;
+                coin.position.y += coin.velocity.y * deltaSeconds;
+                coin.position.z += coin.velocity.z * deltaSeconds;
+                continue;
+            }
+
+            const double pullTime =
+                coin.magnetTime - anticipationDuration;
             const double distance = std::max(length(toPlayer), 0.0001);
             const double accelerationEase = std::clamp(
-                coin.magnetTime / 0.24, 0.0, 1.0);
+                pullTime / 0.22, 0.0, 1.0);
             const double speed =
-                7.0 + accelerationEase * 18.0 +
+                6.0 + accelerationEase * 20.0 +
                 std::max(0.0, attractionRadius - distance) * 1.1;
             const double swirl =
                 std::sin(coin.spinPhase + coin.age * 13.0) *
@@ -228,7 +270,10 @@ CoinCollection CoinPickupSystem::tick(
         const double deltaX = target.x - coin.position.x;
         const double deltaY = target.y - coin.position.y;
         const double deltaZ = target.z - coin.position.z;
-        bool reachedPlayer = coin.magnetized &&
+        const bool anticipationComplete =
+            coin.kind != PickupKind::Coin ||
+            coin.magnetTime >= MagnetAnticipationDuration;
+        bool reachedPlayer = coin.magnetized && anticipationComplete &&
             deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <=
                 collectionSquared;
         if (reachedPlayer) {

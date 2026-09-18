@@ -73,7 +73,8 @@ struct PlatformEdgeSnap {
 platformEdgeSnapAtAim(
     GridCoord frameAnchor, double floorHeight,
     Vec3 viewer, Vec3 lookDirection,
-    double cellSize) {
+    double cellSize,
+    bool snapCenterFromBelow = false) {
     if (std::abs(lookDirection.y) <= 1e-5) {
         return std::nullopt;
     }
@@ -94,12 +95,29 @@ platformEdgeSnapAtAim(
         (frameAnchor.z +
          PlatformFrameWidthCells * 0.5) *
         cellSize;
-    const double localX = hitX - centerX;
-    const double localZ = hitZ - centerZ;
+    double localX = hitX - centerX;
+    double localZ = hitZ - centerZ;
     constexpr double EdgeThresholdCells = 0.42;
     if (std::max(std::abs(localX), std::abs(localZ)) <
         cellSize * EdgeThresholdCells) {
-        return std::nullopt;
+        if (!snapCenterFromBelow) {
+            return std::nullopt;
+        }
+        // When the underside is aimed near its center there is no visible
+        // top edge to select. Use the side nearest the player so building
+        // from below still extends the current floor instead of attempting
+        // to stack another piece into the occupied cell.
+        localX = viewer.x - centerX;
+        localZ = viewer.z - centerZ;
+        if (std::max(std::abs(localX), std::abs(localZ)) <=
+            1e-6) {
+            localX = -lookDirection.x;
+            localZ = -lookDirection.z;
+        }
+        if (std::max(std::abs(localX), std::abs(localZ)) <=
+            1e-6) {
+            localX = 1.0;
+        }
     }
 
     GridCoord extension = frameAnchor;

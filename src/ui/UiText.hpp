@@ -52,6 +52,10 @@ void drawUiText(std::string_view text, Vector2 position,
 void drawStyledSdfUiText(std::string_view text, Vector2 position,
                          float fontSize,
                          const SdfUiTextStyle& style);
+void drawRotatedStyledUiText(
+    std::string_view text, Vector2 center,
+    float fontSize, float rotationDegrees,
+    const SdfUiTextStyle& style);
 void drawStyledSdfUiTextRuns(
     std::span<const SdfUiTextRun> runs,
     const SdfUiTextStyle& style);

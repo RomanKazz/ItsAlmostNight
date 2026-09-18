@@ -18,6 +18,7 @@ uniform mat4 lightViewProjection;
 uniform float timeSeconds;
 uniform float windAmount;
 uniform float localWindHeight;
+uniform float terrainAmount;
 uniform mat4 boneMatrices[48];
 uniform int skinningEnabled;
 uniform int instancingEnabled;
@@ -27,6 +28,26 @@ out vec3 fragWorldNormal;
 out vec4 fragVertexColor;
 out vec2 fragTexCoord;
 out vec4 fragLightSpacePosition;
+out vec4 fragTerrainNoiseA;
+out vec4 fragTerrainNoiseB;
+
+float terrainHash21(vec2 position)
+{
+    return fract(sin(dot(position, vec2(127.1, 311.7)))*43758.5453);
+}
+
+float terrainValueNoise(vec2 position)
+{
+    vec2 cell = floor(position);
+    vec2 local = fract(position);
+    vec2 blend = local*local*(3.0 - 2.0*local);
+    float bottomLeft = terrainHash21(cell);
+    float bottomRight = terrainHash21(cell + vec2(1.0, 0.0));
+    float topLeft = terrainHash21(cell + vec2(0.0, 1.0));
+    float topRight = terrainHash21(cell + vec2(1.0, 1.0));
+    return mix(mix(bottomLeft, bottomRight, blend.x),
+               mix(topLeft, topRight, blend.x), blend.y);
+}
 
 void main()
 {
@@ -101,6 +122,59 @@ void main()
     fragVertexColor = vertexColor;
     fragTexCoord = vertexTexCoord;
     fragLightSpacePosition = lightViewProjection*worldPosition;
+
+    // These fields vary over metres, while the terrain grid is spaced at
+    // roughly 0.75 m. Evaluating them per vertex and interpolating produces
+    // the same smooth shapes without repeating dozens of noise hashes for
+    // every covered screen pixel. Non-terrain draws skip the work entirely.
+    fragTerrainNoiseA = vec4(0.0);
+    fragTerrainNoiseB = vec4(0.0);
+    if (terrainAmount > 0.001)
+    {
+        vec2 worldXZ = worldPosition.xz;
+        vec2 cloudPosition =
+            (worldXZ - vec2(2.20, 0.46)*timeSeconds)*0.025 +
+            vec2(6.7, 7.0);
+        float cloudBroad = terrainValueNoise(cloudPosition);
+        float cloudShape = terrainValueNoise(
+            cloudPosition*1.92 + vec2(17.4, -8.7));
+        fragTerrainNoiseB.w = smoothstep(
+            0.48, 0.72, cloudBroad*0.72 + cloudShape*0.28);
+
+        float playableTerrain = 1.0 - step(
+            0.001, abs(vertexColor.r - vertexColor.b));
+        if (playableTerrain > 0.5)
+        {
+            mat2 macroRotation = mat2(0.6, -0.8, 0.8, 0.6);
+            vec2 macroFields = vec2(
+                terrainValueNoise(worldXZ*0.012 + vec2(31.7, -18.4)),
+                terrainValueNoise(
+                    macroRotation*worldXZ*0.0095 + vec2(-14.8, 27.1)));
+
+            vec2 wearPosition = worldXZ*0.0205;
+            vec2 wearWarp = vec2(
+                terrainValueNoise(
+                    wearPosition*0.61 + vec2(7.1, -19.4)),
+                terrainValueNoise(
+                    wearPosition*0.61 + vec2(-23.8, 11.6))) - 0.5;
+            vec2 warpedWear = wearPosition + wearWarp*0.82;
+            float wearBreakup = terrainValueNoise(
+                warpedWear*2.18 + vec2(-8.6, 29.2));
+            vec2 wearFields = vec2(
+                terrainValueNoise(warpedWear + vec2(16.3, 5.7))*0.78 +
+                    wearBreakup*0.22,
+                wearBreakup);
+
+            fragTerrainNoiseA = vec4(macroFields, wearFields);
+            fragTerrainNoiseB.xyz = vec3(
+                terrainValueNoise(worldXZ*0.19 + vec2(12.4, -35.7)),
+                terrainValueNoise(vec2(
+                    worldPosition.x*0.030 + worldPosition.y*0.17,
+                    worldPosition.z*0.041 - worldPosition.y*0.11)),
+                terrainValueNoise(
+                    worldXZ*0.105 + vec2(-27.5, 14.2)));
+        }
+    }
 
     gl_Position =
         instancingEnabled != 0

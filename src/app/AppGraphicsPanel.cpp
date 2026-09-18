@@ -951,41 +951,27 @@ void App::drawGraphicsPanel() {
         if (ui_.drawButton(
                 {contentX, actionY,
                  columnWidth, ButtonHeight},
-                "SAVE TOOL")) {
-            static_cast<void>(saveFirstPersonToolTuning(
-                toolTuningPath(toolPanelPreviewVisual_),
-                activeToolTuning()));
-        }
-        if (ui_.drawButton(
-                {contentX + columnWidth + Gap, actionY,
-                 columnWidth, ButtonHeight},
                 "PLAY SWING")) {
             toolSwingUsesAxe_ =
                 toolPanelPreviewVisual_ == FirstPersonToolVisual::Axe ||
                 toolPanelPreviewVisual_ == FirstPersonToolVisual::Club;
             toolSwingDuration_ = activeToolTuning().swingDuration;
             toolSwingRemaining_ = toolSwingDuration_;
+            chooseHarvestSwingAnimation(toolPanelPreviewVisual_);
+        }
+        if (ui_.drawButton(
+                {contentX + columnWidth + Gap, actionY,
+                 columnWidth, ButtonHeight},
+                "RESET TOOL")) {
+            activeToolTuning() = defaultFirstPersonToolTuning(
+                toolPanelPreviewVisual_);
         }
         const float bottomY =
             actionY + ButtonHeight + Gap;
         if (ui_.drawButton(
-                {contentX, bottomY, columnWidth, ButtonHeight},
-                "RESET TOOL")) {
-            activeToolTuning() = {};
-            static_cast<void>(saveFirstPersonToolTuning(
-                toolTuningPath(toolPanelPreviewVisual_),
-                activeToolTuning()));
-        }
-        if (ui_.drawButton(
-                {contentX + columnWidth + Gap, bottomY,
-                 columnWidth, ButtonHeight},
+                {contentX, bottomY, contentWidth, ButtonHeight},
                 "CLOSE [F2]")) {
             renderer_->setGraphicsPanelVisible(false);
-        }
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-            static_cast<void>(saveFirstPersonToolTuning(
-                toolTuningPath(toolPanelPreviewVisual_),
-                activeToolTuning()));
         }
     }
 

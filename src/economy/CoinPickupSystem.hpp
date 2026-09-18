@@ -48,6 +48,7 @@ class CoinPickupSystem {
   public:
     static constexpr double AttractionRadius = 5.0;
     static constexpr double CollectionRadius = 0.62;
+    static constexpr double MagnetAnticipationDuration = 0.14;
     static constexpr std::size_t MaximumPickups = 768;
 
     void reset();

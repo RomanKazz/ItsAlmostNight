@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/ModularBuildingConstants.hpp"
 #include "combat/IceWandSystem.hpp"
 #include "core/PerformanceStats.hpp"
 #include "economy/CoinPickupSystem.hpp"
@@ -97,6 +98,7 @@ struct WorldMaterialState {
     float coniferHighlightStrength{0.84F};
     float coniferFacetBlend{0.58F};
     float hitFlashAmount{};
+    float enemyWhiteFlashAmount{};
     Vector3 hitFlashPosition{};
     float hitFlashRadius{};
     float selectionAmount{};
@@ -104,6 +106,10 @@ struct WorldMaterialState {
     float ghostAmount{};
     Vector3 ghostTint{0.18F, 0.72F, 1.0F};
     float ghostOpacity{0.46F};
+    // Values above zero replace the automatic terrain/prop/vegetation class
+    // stored in the outline buffer. Short-lived fragments use their own
+    // class so their silhouette remains visible over the source object.
+    float outlineMaterialClassOverride{};
     // The post-process ink mask is carried by the world pass alpha.  This is
     // a material/render-type flag, never an instance-name convention.
     bool inkOutlineEligible{true};
@@ -212,10 +218,24 @@ struct FirstPersonToolTuning {
     float saturation{0.96F};
 };
 
-[[nodiscard]] bool loadFirstPersonToolTuning(
-    std::string_view path, FirstPersonToolTuning& tuning);
-[[nodiscard]] bool saveFirstPersonToolTuning(
-    std::string_view path, const FirstPersonToolTuning& tuning);
+[[nodiscard]] inline FirstPersonToolTuning
+defaultFirstPersonToolTuning(FirstPersonToolVisual visual) {
+    FirstPersonToolTuning tuning;
+    if (visual == FirstPersonToolVisual::Axe ||
+        visual == FirstPersonToolVisual::Club) {
+        tuning.position.x = 0.39473686F;
+    }
+    if (visual == FirstPersonToolVisual::Axe ||
+        visual == FirstPersonToolVisual::Pickaxe ||
+        visual == FirstPersonToolVisual::Club) {
+        constexpr float AnimationFrames = 60.0F;
+        constexpr float ImpactFrame = 20.0F;
+        constexpr float PlaybackSpeed = 1.8F;
+        tuning.swingDuration = AnimationFrames / (60.0F * PlaybackSpeed);
+        tuning.hitProgress = ImpactFrame / AnimationFrames;
+    }
+    return tuning;
+}
 
 struct EnemyDrawInstance {
     EnemyModelVisual modelVisual{EnemyModelVisual::Minion};
@@ -224,6 +244,7 @@ struct EnemyDrawInstance {
     Vector3 position{};
     float yawRadians{};
     Color tint{WHITE};
+    float whiteFlashAmount{};
     float scale{1.0F};
     bool loop{true};
     bool lowDetail{};
@@ -291,7 +312,9 @@ class Renderer {
     void beginUiOnlyFrame(Color clearColor);
     void endFrame();
     void drawScenePreview(Rectangle bounds);
-    [[nodiscard]] bool beginFirstPersonToolPass();
+    [[nodiscard]] bool beginFirstPersonToolPass(
+        const WorldLighting* lighting = nullptr,
+        const Camera3D* worldCamera = nullptr);
     void endFirstPersonToolPass(
         const FirstPersonToolTuning& tuning,
         const WorldLighting* lighting = nullptr);
@@ -334,7 +357,8 @@ class Renderer {
         std::span<const BuildingInstance> buildings,
         Ray ray, double maxDistance,
         float defensiveYaw = 0.0F,
-        float cannonPitch = 0.0F);
+        float cannonPitch = 0.0F,
+        float gateOpenAmount = 1.0F);
     [[nodiscard]] std::optional<double>
     resourceRaycastDistance(
         ResourceType type, Vector3 position,
@@ -350,7 +374,13 @@ class Renderer {
     platformFrameRaycastDistance(
         Vector3 topCenter, float scale,
         const std::array<float, 4>& supportLengths,
-        Ray ray, double maxDistance);
+        Ray ray, double maxDistance,
+        const std::array<bool, 4>& supportVisibility =
+            AllPlatformSupportsVisible);
+    [[nodiscard]] std::optional<double>
+    rampRaycastDistance(
+        Vector3 footprintCenter, float yawRadians,
+        float scale, Ray ray, double maxDistance);
     [[nodiscard]] bool drawCannon(Vector3 position, float yawRadians,
                                   float pitchRadians,
                                   Color tint = WHITE,
@@ -408,7 +438,15 @@ class Renderer {
         float movementPhase, float movementAmount,
         const FirstPersonToolTuning& tuning,
         float iceChargeProgress = 0.0F,
-        float iceRecoilProgress = 0.0F);
+        float iceRecoilProgress = 0.0F,
+        bool alternateHarvestSwing = false);
+    void drawFirstPersonSwingTrail(
+        FirstPersonToolVisual visual, float swingProgress,
+        float movementPhase, float movementAmount,
+        const FirstPersonToolTuning& tuning,
+        const Camera3D& viewModelCamera,
+        bool alternateHarvestSwing = false);
+    [[nodiscard]] bool hasAlternateHarvestSwingAnimation() const;
     void drawIceWandProjectile(
         const IceWandProjectile& projectile,
         Vector3 cameraPosition, float timeSeconds,
@@ -452,9 +490,16 @@ class Renderer {
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,
-        const std::array<float, 4>& supportLengths = {});
+        const std::array<float, 4>& supportLengths = {},
+        const std::array<bool, 4>& supportVisibility =
+            AllPlatformSupportsVisible,
+        const std::array<bool, 4>& edgeVisibility =
+            AllPlatformEdgesVisible);
     [[nodiscard]] bool drawRampModel(
         Vector3 footprintCenter, float yawRadians = 0.0F,
+        Color tint = WHITE, float scale = 1.0F);
+    [[nodiscard]] bool drawRampSupportBeam(
+        Vector3 baseCenter, float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawMine(Vector3 position,
                                 float yawRadians = 0.0F,
@@ -491,6 +536,10 @@ class Renderer {
                                 float yawRadians = 0.0F,
                                 Color tint = WHITE,
                                 float scale = 1.0F);
+    [[nodiscard]] bool drawGate(
+        Vector3 position, float yawRadians,
+        float openAmount = 0.0F,
+        Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawEnemy(
         EnemyModelVisual modelVisual,
         EnemyAnimationVisual animationVisual,
@@ -513,6 +562,14 @@ class Renderer {
         Vector3 position, Vector3 rotationAxis,
         float rotationDegrees, float scale,
         std::size_t variant, Color tint = WHITE);
+    [[nodiscard]] bool drawWoodFragment(
+        Vector3 position, Vector3 rotationAxis,
+        float rotationDegrees, float scale,
+        Color tint = WHITE);
+    [[nodiscard]] bool drawCrystalFragment(
+        Vector3 position, Vector3 rotationAxis,
+        float rotationDegrees, float scale,
+        Color tint = WHITE);
     void drawDecorativeRockAo(
         const Camera3D& camera, float worldLimit,
         std::span<const GrassClearArea> clearAreas = {});
@@ -545,6 +602,7 @@ class Renderer {
         EnemyAnimationVisual animation{};
         int frame{};
         std::uint32_t tint{};
+        std::uint8_t whiteFlashLevel{};
         bool loop{};
         bool lowDetail{};
         bool inkOutlineEligible{};
@@ -662,6 +720,7 @@ class Renderer {
         int coniferHighlightStrength{-1};
         int coniferFacetBlend{-1};
         int hitFlashAmount{-1};
+        int enemyWhiteFlashAmount{-1};
         int hitFlashPosition{-1};
         int hitFlashRadius{-1};
         int selectionAmount{-1};
@@ -669,6 +728,7 @@ class Renderer {
         int ghostAmount{-1};
         int ghostTint{-1};
         int ghostOpacity{-1};
+        int outlineMaterialClassOverride{-1};
         int shadowMap{-1};
         int lightViewProjection{-1};
         int shadowsEnabled{-1};
@@ -731,6 +791,7 @@ class Renderer {
         int inkOutlinesEnabled{-1};
         int outlineStrength{-1};
         int outlineWidth{-1};
+        int outlinePixelScale{-1};
         int outlineFogFadeStrength{-1};
         int outlineFogColor{-1};
         int outlineFogStart{-1};
@@ -814,9 +875,6 @@ class Renderer {
         ghostPreviewRestoreMaterial_;
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
-    int selectionOutlineSceneDepthLocation_{-1};
-    int selectionOutlineInverseProjectionLocation_{-1};
-    int selectionOutlineDepthOcclusionEnabledLocation_{-1};
     int selectionMaskTimeLocation_{-1};
     int selectionMaskWindLocation_{-1};
     int selectionMaskColorLocation_{-1};
@@ -832,8 +890,14 @@ class Renderer {
     int viewModelRimStrengthLocation_{-1};
     int viewModelBrightnessLocation_{-1};
     int viewModelSaturationLocation_{-1};
-    int viewModelEnvironmentTintLocation_{-1};
-    int viewModelEnvironmentBrightnessLocation_{-1};
+    int viewModelSunDirectionLocation_{-1};
+    int viewModelSunColorLocation_{-1};
+    int viewModelSunIntensityLocation_{-1};
+    int viewModelSkyAmbientColorLocation_{-1};
+    int viewModelGroundAmbientColorLocation_{-1};
+    int viewModelAmbientIntensityLocation_{-1};
+    int viewModelDayNightTintLocation_{-1};
+    int viewModelExposureLocation_{-1};
     int grassTintLocation_{-1};
     int grassTimeLocation_{-1};
     int grassCameraPositionLocation_{-1};
@@ -859,7 +923,9 @@ class Renderer {
     int cloudVisibilityLocation_{-1};
     int cloudNightAmountLocation_{-1};
     int waterCameraPositionLocation_{-1};
+    int waterShoreColorLocation_{-1};
     int waterShallowColorLocation_{-1};
+    int waterMidColorLocation_{-1};
     int waterDeepColorLocation_{-1};
     int waterSkyColorLocation_{-1};
     int waterSunDirectionLocation_{-1};
@@ -871,6 +937,12 @@ class Renderer {
     int waterExposureLocation_{-1};
     int waterTimeLocation_{-1};
     int waterWaveSpeedLocation_{-1};
+    int waterShoreWidthLocation_{-1};
+    int waterDepthFalloffLocation_{-1};
+    int waterPatternScaleLocation_{-1};
+    int waterPatternStrengthLocation_{-1};
+    int waterPatternSpeedLocation_{-1};
+    int waterFresnelStrengthLocation_{-1};
     int waterQualityLocation_{-1};
     int upgradeEffectOriginLocation_{-1};
     int upgradeEffectHeightLocation_{-1};
@@ -972,6 +1044,11 @@ class Renderer {
     std::uint64_t enemyBatchFrame_{};
     std::map<EnemyPoseKey, std::vector<Matrix>> enemyBonePoseCache_;
     Model enemyCrowdLodModel_{};
+    Model rampSupportBeamModel_{};
+    static constexpr std::size_t PlatformTopPartCount = 5U;
+    std::array<Mesh, PlatformTopPartCount>
+        platformTopPartMeshes_{};
+    bool platformTopPartMeshesReady_{};
     RendererPerformanceStats performanceStats_{};
     static constexpr std::size_t GpuQueryBufferCount = 4U;
     struct GpuQuerySlot {
@@ -992,6 +1069,8 @@ class Renderer {
     bool gpuTimersInitialized_{};
     void initializeGpuTimers();
     void shutdownGpuTimers();
+    void initializePlatformTopPartMeshes();
+    void shutdownPlatformTopPartMeshes();
     void pollGpuTimers();
     double instancedEnemyMillisecondsThisFrame_{};
     double framePacingMilliseconds_{};

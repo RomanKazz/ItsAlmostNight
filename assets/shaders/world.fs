@@ -5,6 +5,8 @@ in vec3 fragWorldNormal;
 in vec4 fragVertexColor;
 in vec2 fragTexCoord;
 in vec4 fragLightSpacePosition;
+in vec4 fragTerrainNoiseA;
+in vec4 fragTerrainNoiseB;
 
 uniform vec4 baseColor;
 uniform sampler2D texture0;
@@ -81,6 +83,7 @@ uniform float coniferRampSmoothness;
 uniform float coniferHighlightStrength;
 uniform float coniferFacetBlend;
 uniform float hitFlashAmount;
+uniform float enemyWhiteFlashAmount;
 uniform vec3 hitFlashPosition;
 uniform float hitFlashRadius;
 uniform float selectionAmount;
@@ -89,6 +92,7 @@ uniform float ghostAmount;
 uniform vec3 ghostTint;
 uniform float ghostOpacity;
 uniform float inkOutlineEligible;
+uniform float outlineMaterialClassOverride;
 uniform sampler2D shadowMap;
 uniform float shadowsEnabled;
 uniform float constantBias;
@@ -144,37 +148,6 @@ vec2 terrainBiomeFields(vec2 worldPosition)
         valueNoise(warped*0.91 + vec2(-17.5, 8.6)));
 }
 
-vec2 terrainWearFields(vec2 worldPosition)
-{
-    // A separate, warped field keeps exposed earth independent from the
-    // square grass texture. The first channel makes broad clearings; the
-    // second breaks their edges and the soil visible on hillsides.
-    vec2 position = worldPosition*0.0205;
-    vec2 warp = vec2(
-        valueNoise(position*0.61 + vec2(7.1, -19.4)),
-        valueNoise(position*0.61 + vec2(-23.8, 11.6))) - 0.5;
-    vec2 warped = position + warp*0.82;
-    float clearing = valueNoise(warped + vec2(16.3, 5.7));
-    float breakup = valueNoise(
-        warped*2.18 + vec2(-8.6, 29.2));
-    return vec2(clearing*0.78 + breakup*0.22, breakup);
-}
-
-float cloudShadowPattern(vec2 worldPosition)
-{
-    // Large, coherent shapes moving in the same direction as the model
-    // clouds. Two broad octaves keep the terrain alive without noisy speckle.
-    vec2 wind = vec2(2.20, 0.46)*timeSeconds;
-    // Phase chosen so the initial playable area starts across a broad
-    // light/shadow boundary instead of inside a large clear patch.
-    vec2 position =
-        (worldPosition - wind)*0.025 + vec2(6.7, 7.0);
-    float broad = valueNoise(position);
-    float shape = valueNoise(position*1.92 + vec2(17.4, -8.7));
-    float field = broad*0.72 + shape*0.28;
-    return smoothstep(0.48, 0.72, field);
-}
-
 vec3 painterlyGroundMaterial(
     vec3 worldPosition, vec3 normal, vec4 vertexColor, vec2 pathUv)
 {
@@ -218,11 +191,7 @@ vec3 painterlyGroundMaterial(
 
     // Very broad world-space fields create metre-scale composition without
     // replacing or rescaling the approved painterly micro texture.
-    mat2 macroRotation = mat2(0.6, -0.8, 0.8, 0.6);
-    vec2 macroFields = vec2(
-        valueNoise(worldXZ*0.012 + vec2(31.7, -18.4)),
-        valueNoise(
-            macroRotation*worldXZ*0.0095 + vec2(-14.8, 27.1)));
+    vec2 macroFields = fragTerrainNoiseA.xy;
     float macroStrength = clamp(groundMacroVariation, 0.0, 0.10);
     float oliveRegion = smoothstep(0.18, 0.82, macroFields.x);
     float greenerRegion = smoothstep(0.68, 0.90, 1.0 - macroFields.x)*
@@ -247,14 +216,13 @@ vec3 painterlyGroundMaterial(
     // Wide, irregular bare patches give the open field a readable material
     // rhythm. Their scale is measured in world space, so they do not crawl
     // with the camera or reveal the terrain triangles.
-    vec2 wearFields = terrainWearFields(worldXZ);
+    vec2 wearFields = fragTerrainNoiseA.zw;
     float flatGround = 1.0 - smoothstep(0.035, 0.115, slope);
     float barePatch = smoothstep(0.595, 0.715, wearFields.x)*
         flatGround;
     float bareEdge = smoothstep(0.24, 0.74, wearFields.y);
     barePatch *= mix(0.70, 1.0, bareEdge);
-    float earthDetail = valueNoise(
-        worldXZ*0.19 + vec2(12.4, -35.7));
+    float earthDetail = fragTerrainNoiseB.x;
     float grassValue = dot(
         grass, vec3(0.2126, 0.7152, 0.0722));
     vec3 exposedEarth = mix(
@@ -271,11 +239,8 @@ vec3 painterlyGroundMaterial(
     // Slopes expose streaks of warm subsoil, then cooler stone as they get
     // steeper. Two world-space projections prevent a single uniform brown
     // band around every terrace.
-    float slopeField = valueNoise(vec2(
-        worldPosition.x*0.030 + worldPosition.y*0.17,
-        worldPosition.z*0.041 - worldPosition.y*0.11));
-    float slopeDetail = valueNoise(
-        worldXZ*0.105 + vec2(-27.5, 14.2));
+    float slopeField = fragTerrainNoiseB.y;
+    float slopeDetail = fragTerrainNoiseB.z;
     float slopeBreakup = smoothstep(
         0.24, 0.78, slopeField*0.68 + slopeDetail*0.32);
     float soilSlope = smoothstep(0.025, 0.115, slope)*
@@ -553,16 +518,19 @@ float sampleShadow(vec3 normal)
         vec2(-0.24,  0.70));
     float occlusion = 0.0;
     float totalWeight = 0.0;
+    int effectiveSampleCount = terrainAmount > 0.5
+        ? min(shadowSampleCount, 5)
+        : shadowSampleCount;
     for (int sampleIndex = 0; sampleIndex < 9; ++sampleIndex)
     {
-        if (sampleIndex >= shadowSampleCount)
+        if (sampleIndex >= effectiveSampleCount)
         {
             break;
         }
         float centerWeight = sampleIndex == 0 ? 1.55 : 1.0;
-        // A compact kernel keeps the silhouette readable; bilinear depth
-        // sampling supplies the sub-texel transition that removes stair steps.
-        vec2 offset = disc[sampleIndex]*shadowMapTexelSize*2.35;
+        // A one-texel kernel keeps the cast shadow crisp. Bilinear depth
+        // sampling still smooths its sub-texel stair steps.
+        vec2 offset = disc[sampleIndex]*shadowMapTexelSize*1.0;
         float closestDepth = texture(
             shadowMap, projected.xy + offset).r;
         occlusion +=
@@ -661,7 +629,7 @@ void main()
     float cloudLight = 1.0;
     if (terrainAmount > 0.5 && cloudShadowStrength > 0.001)
     {
-        float cloudShadow = cloudShadowPattern(fragWorldPosition.xz);
+        float cloudShadow = fragTerrainNoiseB.w;
         cloudLight -= cloudShadow*
             clamp(cloudShadowStrength, 0.0, 0.50);
     }
@@ -680,14 +648,17 @@ void main()
     vec3 terrainAlbedo = albedo.rgb;
     if (terrainAmount > 0.001)
     {
-        terrainAlbedo = painterlyGroundMaterial(
-            fragWorldPosition, normal, fragVertexColor, fragTexCoord);
         if (mountainSurface > 0.001)
         {
             // Keep the approved painterly grass on playable terrain, while
             // restored backdrop vertices reuse their authored rock/snow masks.
             terrainAlbedo = terrainMaterial(
                 fragWorldPosition, normal, fragVertexColor);
+        }
+        else
+        {
+            terrainAlbedo = painterlyGroundMaterial(
+                fragWorldPosition, normal, fragVertexColor, fragTexCoord);
         }
     }
     albedo.rgb = mix(albedo.rgb, terrainAlbedo,
@@ -1074,6 +1045,9 @@ void main()
     litColor *= exposure;
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(luminance), litColor, saturation);
+    litColor = mix(
+        litColor, vec3(1.0),
+        clamp(enemyWhiteFlashAmount, 0.0, 1.0));
 
     float ghost = clamp(ghostAmount, 0.0, 1.0);
     // Scene opacity and outline eligibility are independent. The outline
@@ -1082,9 +1056,8 @@ void main()
     float outputAlpha = albedo.a;
     if (ghost > 0.001)
     {
-        // A stable world-space hologram: soft cyan body, animated vertical
-        // scan bands, and a view-dependent rim that makes the silhouette
-        // readable against both bright grass and dark terrain.
+        // A restrained world-space hologram: the body stays translucent while
+        // the view-dependent rim carries most of the silhouette definition.
         float fresnel = pow(
             1.0 - clamp(abs(dot(normal, viewDirection)), 0.0, 1.0),
             2.15);
@@ -1098,15 +1071,15 @@ void main()
             (fragWorldPosition.x - fragWorldPosition.z)*3.2 +
             fragWorldPosition.y*4.5 + timeSeconds*2.1);
 
-        vec3 ghostBody = ghostTint*(0.62 + broadWave*0.13);
-        vec3 ghostHighlight = mix(ghostTint, vec3(0.78, 0.96, 1.0), 0.78);
+        vec3 ghostBody = ghostTint*(0.46 + broadWave*0.09);
+        vec3 ghostHighlight = mix(ghostTint, vec3(0.86, 1.0, 0.92), 0.46);
         vec3 hologramColor = ghostBody + ghostHighlight*
-            (fresnel*0.72 + scanLine*0.26 + shimmer*0.055);
+            (fresnel*0.76 + scanLine*0.15 + shimmer*0.03);
         litColor = mix(litColor, hologramColor, ghost);
         outputAlpha = mix(
             outputAlpha,
-            clamp(ghostOpacity*(0.68 + fresnel*0.34 + scanLine*0.16),
-                  0.0, 0.82),
+            clamp(ghostOpacity*(0.74 + fresnel*0.24 + scanLine*0.08),
+                  0.0, 0.58),
             ghost);
     }
 
@@ -1123,6 +1096,10 @@ void main()
     outlineMaterialClass = mix(
         outlineMaterialClass, 3.0,
         step(0.5, max(vegetationAmount, treeAmount)));
+    outlineMaterialClass = mix(
+        outlineMaterialClass,
+        outlineMaterialClassOverride,
+        step(0.5, outlineMaterialClassOverride));
     outlineMaterialClass *= step(0.5, inkOutlineEligible);
     float packedClassAo = outlineMaterialClass*0.25 +
         clamp(screenAoAmount, 0.0, 1.0)*(1.0 - ghost)*

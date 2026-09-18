@@ -10,7 +10,7 @@ namespace ian {
 namespace {
 
 constexpr double BaseRange = 9.0;
-constexpr double CrossbowBaseFireInterval = 1.25;
+constexpr double CrossbowBaseFireInterval = 1.0;
 constexpr double SearchInterval = 0.25;
 constexpr double BaseDamage = 1.0;
 constexpr double TurnSpeed = 12.0;

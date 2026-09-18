@@ -11,8 +11,6 @@ uniform float outlineStrength;
 uniform float rimStrength;
 uniform float brightness;
 uniform float saturation;
-uniform vec3 environmentTint;
-uniform float environmentBrightness;
 
 out vec4 finalColor;
 
@@ -56,21 +54,6 @@ void main()
     }
     float luminance = dot(source.rgb, Luma);
     vec3 color = mix(vec3(luminance), source.rgb, saturation) * brightness;
-    // The viewmodel remains a gameplay-readable overlay pass, but its surface
-    // now follows the same continuously interpolated environment as the world.
-    // The exterior outline branch above is deliberately unaffected.
-    color *= environmentTint * environmentBrightness;
-    // Screen-space key/fill treatment for the isolated viewmodel: a warm
-    // top-left key and a restrained blue-grey lower fill make the tool share
-    // the world's lighting direction without flattening its painted facets.
-    float keyAmount = clamp(
-        (1.0 - fragTexCoord.y) * 0.72 +
-        (1.0 - fragTexCoord.x) * 0.28,
-        0.0, 1.0);
-    vec3 coolFill = vec3(0.88, 0.93, 1.01);
-    vec3 warmKey = vec3(1.07, 1.025, 0.94);
-    color *= mix(coolFill, warmKey, keyAmount);
-    color *= mix(0.93, 1.06, keyAmount);
     // Darken narrow tonal recesses (for example head/handle joints) using the
     // already sampled neighbourhood as a lightweight contact-AO cue.
     float localAverage = neighboringLuminance * 0.25;

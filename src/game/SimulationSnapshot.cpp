@@ -148,11 +148,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .wood = wood_,
         .stone = stone_,
         .crystals = crystals_,
-        .woodCapacity = resourceCapacity(BuildingType::WoodStorage),
-        .stoneCapacity = resourceCapacity(BuildingType::StoneStorage),
-        .crystalCapacity = resourceCapacity(BuildingType::CrystalStorage),
+        .woodCapacity = resourceCapacity(ResourceCapacityType::Wood),
+        .stoneCapacity = resourceCapacity(ResourceCapacityType::Stone),
+        .crystalCapacity = resourceCapacity(ResourceCapacityType::Crystal),
         .crystalStorageFull = !unlimitedResources_ &&
-            crystals_ >= resourceCapacity(BuildingType::CrystalStorage),
+            crystals_ >= resourceCapacity(ResourceCapacityType::Crystal),
         .coins = coins_,
         .coinPickups = coinPickups_.pickups(),
         .aimedChest = aimedChest_,
@@ -285,7 +285,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
             foundations_.raycast(
                 playerPosition_,
                 lookDirection(playerYaw_, playerPitch_),
-                6.0),
+                std::max(
+                    6.0,
+                    worldConfig_.buildPreviewDistance +
+                        modularStoreyHeight(worldConfig_))),
         .aimedEnemy = aimedEnemy_,
         .aimedBuilding = aimedBuilding_,
         .aimedBuildingUpgradeCost = aimedUpgradeCost,
@@ -309,7 +312,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .fireWandChargeDuration = fireWand_.chargeDuration(),
         .fireWandCooldownRemaining = fireWand_.cooldownRemaining(),
         .activeEnemyCount = enemies_.activeCount(),
-        .pendingEnemyCount = waveSpawnQueue_.size() - nextWaveSpawnIndex_,
+        .pendingEnemyCount = waveSpawnQueue_.size() - nextWaveSpawnIndex_ +
+            (waveBossSpawn_ ? 1U : 0U),
         .upcomingEnemyCounts = {
             upcomingComposition.basic,
             upcomingComposition.fast,

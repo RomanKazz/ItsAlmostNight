@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/PlacementLine.hpp"
 
@@ -43,6 +44,19 @@ void runPlacementLineTests() {
                 12.0 + 1e-9,
         "elevated floor drag endpoint respects build distance");
     using ian::PlacementLineAxis;
+
+    require(
+        ian::alignsWithPlacementLine(
+            ian::BuildingType::Wall) &&
+            ian::alignsWithPlacementLine(
+                ian::BuildingType::Gate),
+        "walls and gates share automatic line alignment");
+    require(
+        ian::placementLineRotation(
+            PlacementLineAxis::X) == 0U &&
+            ian::placementLineRotation(
+                PlacementLineAxis::Z) == 1U,
+        "linear barriers rotate along the placement axis");
 
     auto axis = ian::stabilizePlacementLineAxis(
         4, 3, std::nullopt, 2);

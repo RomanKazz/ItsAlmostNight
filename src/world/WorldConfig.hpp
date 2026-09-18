@@ -11,7 +11,7 @@ namespace ian {
 struct WorldConfig {
     double cellSize{1.0};
     double verticalGridStep{1.0};
-    int maxStoreys{3};
+    int maxStoreys{5};
     double maxWoodSupportLength{4.0};
     int terrainResolution{513};
     double terrainWorldSize{384.0};

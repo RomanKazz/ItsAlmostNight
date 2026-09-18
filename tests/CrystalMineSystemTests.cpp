@@ -9,6 +9,8 @@ void runCrystalMineSystemTests() {
     ian::BuildingSystem buildings;
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "mine fixture creates core");
+    require(buildings.upgrade(core->building.id, 0, 0, 50).valid(),
+            "mine fixture reaches required core level");
     const auto mine = buildings.place(ian::BuildingType::CrystalMine, {4, 0}, 0, 20, 10);
     require(mine.has_value(), "mine fixture creates crystals mine");
 
@@ -19,8 +21,6 @@ void runCrystalMineSystemTests() {
     const auto firstProduction = mines.tick(0.1);
     require(firstProduction.size() == 1 && firstProduction[0].amount == 4,
             "mine produces configured crystals");
-    require(buildings.upgrade(core->building.id, 0, 0, 50).valid(),
-            "mine fixture upgrades core");
     const auto upgradedMine = buildings.upgrade(mine->building.id, 10, 5, 10);
     require(upgradedMine.valid(), "mine fixture upgrades mine");
     mines.syncBuildings(buildings.buildings());
@@ -35,7 +35,7 @@ void runCrystalMineSystemTests() {
         ian::BuildingType::Quarry, {10, 0}, 0,
         30, 40, 15);
     require(lumberMill.has_value() && quarry.has_value(),
-            "autonomous resource producers unlock at core level two");
+            "all autonomous resource producers unlock at core level two");
     mines.syncBuildings(buildings.buildings());
     const auto resourceProduction = mines.tick(10.0);
     const auto wood = std::find_if(

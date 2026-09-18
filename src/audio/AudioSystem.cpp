@@ -33,6 +33,13 @@ constexpr std::array<std::string_view, 5> GrassFootstepPaths{
     "assets/audio/footstep_grass_4.ogg",
 };
 
+constexpr std::array<std::string_view, 4> HarvestSwishPaths{
+    "assets/audio/tool_swish_0.wav",
+    "assets/audio/tool_swish_1.wav",
+    "assets/audio/tool_swish_2.wav",
+    "assets/audio/tool_swish_3.wav",
+};
+
 constexpr std::array<std::string_view, 3> MusicPaths{
     "assets/audio/music_day_0.mp3",
     "assets/audio/music_day_1.mp3",
@@ -63,6 +70,9 @@ void AudioSystem::initialize() {
         load(woodHits_[index], WoodHitPaths[index]);
         load(stoneHits_[index], StoneHitPaths[index]);
         load(grassFootsteps_[index], GrassFootstepPaths[index]);
+    }
+    for (std::size_t index = 0; index < harvestSwishes_.size(); ++index) {
+        load(harvestSwishes_[index], HarvestSwishPaths[index]);
     }
     load(woodBreak_, "assets/audio/wood_break.ogg");
     load(stoneBreak_, "assets/audio/stone_hit_4.ogg");
@@ -102,6 +112,9 @@ void AudioSystem::shutdown() {
     for (auto& clip : grassFootsteps_) {
         unload(clip);
     }
+    for (auto& clip : harvestSwishes_) {
+        unload(clip);
+    }
     unload(woodBreak_);
     unload(stoneBreak_);
     unload(critical_);
@@ -126,6 +139,8 @@ void AudioSystem::shutdown() {
     currentMusicTrack_.reset();
     initialized_ = false;
     previousPlayerPosition_.reset();
+    pendingBuildingPlacedSounds_.clear();
+    buildingPlacedSoundCooldown_ = 0.0;
     footstepDistance_ = 0.0;
     iceHitSoundCooldown_ = 0.0;
     lowHealthAmount_ = 0.0F;
@@ -158,6 +173,31 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         (lowHealthTarget - lowHealthAmount_) * lowHealthBlend;
     iceHitSoundCooldown_ = std::max(
         0.0, iceHitSoundCooldown_ - frameSeconds);
+    buildingPlacedSoundCooldown_ = std::max(
+        0.0, buildingPlacedSoundCooldown_ - frameSeconds);
+    for (PendingBuildingPlacedSound& pending :
+         pendingBuildingPlacedSounds_) {
+        pending.delayRemaining -= frameSeconds;
+    }
+    bool playedBuildingPlacedSound = false;
+    while (!pendingBuildingPlacedSounds_.empty() &&
+           pendingBuildingPlacedSounds_.front()
+                   .delayRemaining <= 0.0) {
+        const PendingBuildingPlacedSound pending =
+            pendingBuildingPlacedSounds_.front();
+        pendingBuildingPlacedSounds_.pop_front();
+        if (playedBuildingPlacedSound ||
+            buildingPlacedSoundCooldown_ > 0.0) {
+            // Never retain an overdue placement sound. Dropping it keeps the
+            // rhythm attached to the visual pop instead of creating a tail.
+            continue;
+        }
+        playAt(
+            buildPlace_, pending.position, snapshot, 0.8F,
+            variedPitch(0.05F));
+        buildingPlacedSoundCooldown_ = 0.10;
+        playedBuildingPlacedSound = true;
+    }
     const bool movementAudible =
         snapshot.state != RunState::MainMenu &&
         snapshot.state != RunState::Paused &&
@@ -343,9 +383,7 @@ void AudioSystem::playEvent(
             0.22F, 0.72F * variedPitch(0.02F), 34.0F);
         break;
     case GameEventType::BuildingPlaced:
-        playAt(
-            buildPlace_, event.position, snapshot, 0.8F,
-            variedPitch(0.05F));
+        queueBuildingPlaced(event.position);
         break;
     case GameEventType::BuildingDamaged:
     case GameEventType::ModularBuildingDamaged:
@@ -455,7 +493,9 @@ void AudioSystem::playEvent(
             event.amount != 0 ? 1.05F : 0.92F);
         break;
     case GameEventType::AttackDirectionWarned:
-        play(waveWarning_, 0.52F, 1.0F);
+        play(waveWarning_,
+             event.critical ? 0.88F : 0.52F,
+             event.critical ? 0.74F : 1.0F);
         break;
     case GameEventType::WaveStarted:
         play(waveWarning_, 0.68F, 0.84F);
@@ -510,8 +550,48 @@ void AudioSystem::playEvent(
     }
 }
 
+void AudioSystem::queueBuildingPlaced(
+    Vec3 position, double delaySeconds) {
+    if (!initialized_) {
+        return;
+    }
+    constexpr std::size_t MaximumQueuedSounds = 24U;
+    const PendingBuildingPlacedSound pending{
+        .position = position,
+        .delayRemaining = std::max(0.0, delaySeconds),
+    };
+    if (pendingBuildingPlacedSounds_.size() >=
+        MaximumQueuedSounds) {
+        if (pendingBuildingPlacedSounds_.back()
+                .delayRemaining <= pending.delayRemaining) {
+            return;
+        }
+        pendingBuildingPlacedSounds_.pop_back();
+    }
+    const auto insertion = std::upper_bound(
+        pendingBuildingPlacedSounds_.begin(),
+        pendingBuildingPlacedSounds_.end(),
+        pending.delayRemaining,
+        [](double delay,
+           const PendingBuildingPlacedSound& candidate) {
+            return delay < candidate.delayRemaining;
+        });
+    pendingBuildingPlacedSounds_.insert(insertion, pending);
+}
+
 void AudioSystem::playUiConfirm() {
     play(uiConfirm_, 0.5F, 1.0F, 0.5F, false);
+}
+
+void AudioSystem::playHarvestSwing() {
+    sequence_ = sequence_ * 1664525U + 1013904223U;
+    const std::size_t index =
+        static_cast<std::size_t>(sequence_) % harvestSwishes_.size();
+    constexpr float SlowedPlaybackPitch = 0.70F;
+    play(
+        harvestSwishes_[index], 0.20F,
+        SlowedPlaybackPitch * variedPitch(0.07F),
+        0.5F, false);
 }
 
 void AudioSystem::playUiError() {

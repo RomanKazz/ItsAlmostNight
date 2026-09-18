@@ -93,6 +93,16 @@ SupportSystem::supports() const {
     return supports_;
 }
 
+bool SupportSystem::isPerimeterSupport(
+    std::uint32_t id) const {
+    if (id == 0U || id > supports_.size()) {
+        return false;
+    }
+    const SharedSupport& support = supports_[id - 1U];
+    return support.active && support.id == id &&
+        support.referenceCount < 4U;
+}
+
 std::size_t SupportSystem::activeSupportCount() const {
     return static_cast<std::size_t>(
         std::count_if(

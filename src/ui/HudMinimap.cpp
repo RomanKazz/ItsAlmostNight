@@ -12,12 +12,221 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <ranges>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace ian {
 namespace {
 
 MinimapRenderPerformanceStats minimapPerformanceStats{};
+
+Color objectiveAccent(ObjectiveKind kind) {
+    switch (kind) {
+    case ObjectiveKind::Milestone:
+        return {184, 151, 255, 255};
+    case ObjectiveKind::Challenge:
+        return {255, 190, 73, 255};
+    case ObjectiveKind::WorldEvent:
+        return {79, 220, 207, 255};
+    }
+    return {235, 214, 170, 255};
+}
+
+float fitObjectiveText(
+    std::string_view text, float preferred,
+    float minimum, float maximumWidth) {
+    float size = preferred;
+    while (size > minimum &&
+           measureUiText(text, size).x > maximumWidth) {
+        size -= 0.5F;
+    }
+    return size;
+}
+
+void drawExpandedObjectiveList(
+    const SimulationSnapshot& snapshot,
+    float mapPanelX, float mapPanelY,
+    float mapPanelHeight, float expansion) {
+    const float visibility = std::clamp(
+        (expansion - 0.48F) / 0.30F, 0.0F, 1.0F);
+    if (visibility <= 0.001F) return;
+    const auto withAlpha = [visibility](Color color) {
+        color.a = static_cast<unsigned char>(
+            static_cast<float>(color.a) * visibility);
+        return color;
+    };
+
+    constexpr float PanelWidth = 292.0F;
+    const float panelX = std::max(
+        16.0F, mapPanelX - PanelWidth - 22.0F);
+    const float panelY = std::max(28.0F, mapPanelY + 8.0F);
+    const float availableHeight = std::min(
+        mapPanelHeight - 16.0F,
+        static_cast<float>(GetScreenHeight()) - panelY - 24.0F);
+    constexpr float HeaderHeight = 40.0F;
+    constexpr float RowHeight = 52.0F;
+    constexpr float RowGap = 7.0F;
+    const int maximumRows = std::max(
+        1,
+        static_cast<int>((availableHeight - HeaderHeight - 22.0F) /
+                         (RowHeight + RowGap)));
+
+    std::vector<const ObjectiveStatus*> objectives;
+    objectives.reserve(snapshot.objectives.size());
+    for (const int index : snapshot.recommendedObjectives) {
+        if (index < 0 ||
+            static_cast<std::size_t>(index) >= snapshot.objectives.size()) {
+            continue;
+        }
+        const ObjectiveStatus& objective =
+            snapshot.objectives[static_cast<std::size_t>(index)];
+        if (objective.active && !objective.completed) {
+            objectives.push_back(&objective);
+        }
+    }
+    for (const ObjectiveStatus& objective : snapshot.objectives) {
+        if (!objective.active || objective.completed ||
+            std::ranges::find(objectives, &objective) != objectives.end()) {
+            continue;
+        }
+        objectives.push_back(&objective);
+    }
+
+    const bool hasTutorial = snapshot.tutorialObjective.has_value();
+    const int totalRows = static_cast<int>(objectives.size()) +
+        (hasTutorial ? 1 : 0);
+    const int visibleRows = std::min(totalRows, maximumRows);
+    const bool hasOverflow = totalRows > visibleRows;
+    const float footerHeight = hasOverflow ? 23.0F : 8.0F;
+    const float panelHeight = HeaderHeight +
+        static_cast<float>(visibleRows) * (RowHeight + RowGap) +
+        footerHeight;
+    const Rectangle panel{
+        panelX, panelY, PanelWidth, panelHeight};
+    DrawRectangleRounded(
+        panel, 0.06F, 8,
+        withAlpha({45, 31, 24, 238}));
+    DrawRectangleRoundedLinesEx(
+        panel, 0.06F, 8, 2.0F,
+        withAlpha({126, 72, 43, 255}));
+    drawUiText(
+        "OBJECTIVES",
+        {panel.x + 14.0F, panel.y + 10.0F},
+        16.0F, withAlpha({255, 241, 211, 255}));
+
+    int rowIndex = 0;
+    const auto drawRow = [&](std::string_view title,
+                             double current, double target,
+                             Color accent, int reward) {
+        if (rowIndex >= visibleRows) return;
+        const Rectangle row{
+            panel.x + 8.0F,
+            panel.y + HeaderHeight +
+                static_cast<float>(rowIndex) * (RowHeight + RowGap),
+            panel.width - 16.0F, RowHeight};
+        DrawRectangleRounded(
+            row, 0.12F, 7,
+            withAlpha({70, 49, 37, 245}));
+        const Vector2 iconCenter{row.x + 19.0F, row.y + 20.0F};
+        DrawPoly(iconCenter, 4, 6.5F, 45.0F, withAlpha(accent));
+        DrawPolyLines(
+            iconCenter, 4, 9.0F, 45.0F,
+            withAlpha({255, 239, 196, 190}));
+
+        std::string progress;
+        if (target > 0.0) {
+            progress = std::to_string(static_cast<int>(
+                           std::floor(std::min(current, target)))) +
+                "/" + std::to_string(
+                    static_cast<int>(std::ceil(target)));
+        }
+        const float progressWidth = progress.empty()
+            ? 0.0F
+            : measureUiText(progress, 11.0F).x;
+        const float titleX = row.x + 36.0F;
+        const float titleMaximumWidth =
+            row.x + row.width - 9.0F - titleX -
+            (progress.empty() ? 0.0F : progressWidth + 10.0F);
+        const float titleSize = fitObjectiveText(
+            title, 13.0F, 9.5F, titleMaximumWidth);
+        drawUiText(
+            title, {titleX, row.y + 8.0F}, titleSize,
+            withAlpha({255, 241, 211, 255}));
+        if (!progress.empty()) {
+            drawUiText(
+                progress,
+                {row.x + row.width - progressWidth - 9.0F,
+                 row.y + 8.5F},
+                11.0F, withAlpha({255, 241, 211, 255}));
+            const float fraction = std::clamp(
+                static_cast<float>(current / target), 0.0F, 1.0F);
+            const Rectangle track{
+                titleX, row.y + 36.0F,
+                row.x + row.width - 9.0F - titleX, 5.0F};
+            DrawRectangleRounded(
+                track, 0.8F, 4,
+                withAlpha({104, 60, 37, 210}));
+            if (fraction > 0.001F) {
+                DrawRectangleRounded(
+                    {track.x, track.y, track.width * fraction,
+                     track.height},
+                    0.8F, 4, withAlpha(accent));
+            }
+        } else if (reward > 0) {
+            const std::string rewardText =
+                "+" + std::to_string(reward) + " XP";
+            drawUiText(
+                rewardText, {titleX, row.y + 31.0F}, 10.0F,
+                withAlpha({255, 205, 108, 255}));
+        }
+        ++rowIndex;
+    };
+
+    if (snapshot.tutorialObjective) {
+        switch (*snapshot.tutorialObjective) {
+        case TutorialObjective::MineWood:
+            drawRow(
+                "CHOP TREES", snapshot.wood,
+                snapshot.tutorialWoodTarget,
+                {184, 151, 255, 255}, 0);
+            break;
+        case TutorialObjective::PlaceCore:
+            drawRow(
+                "PLACE THE CORE", 0.0, 0.0,
+                {184, 151, 255, 255}, 0);
+            break;
+        case TutorialObjective::PrepareForNight:
+            drawRow(
+                "BUILD DEFENSES", 0.0, 0.0,
+                {184, 151, 255, 255}, 0);
+            break;
+        case TutorialObjective::SurviveFirstWave:
+            drawRow(
+                "SURVIVE THE NIGHT", 0.0, 0.0,
+                {184, 151, 255, 255}, 0);
+            break;
+        }
+    }
+    for (const ObjectiveStatus* objective : objectives) {
+        drawRow(
+            objective->definition.title,
+            objective->progress,
+            objective->definition.target,
+            objectiveAccent(objective->definition.kind),
+            static_cast<int>(std::lround(
+                objective->definition.insightReward)));
+    }
+    if (hasOverflow) {
+        const int hidden = totalRows - visibleRows;
+        drawUiText(
+            "+" + std::to_string(hidden) + " MORE",
+            {panel.x + 14.0F,
+             panel.y + panel.height - 20.0F},
+            10.0F, withAlpha({214, 184, 148, 255}));
+    }
+}
 
 Vector2 rotateMinimapOffset(
     double worldX, double worldZ, double playerYaw) {
@@ -1213,6 +1422,10 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
              displayMapCenter.y + offset.y * compassRadius},
             snapshot.upcomingAttackDirections[index]);
     }
+    drawExpandedObjectiveList(
+        snapshot, panelX, panelY,
+        displayMapSize + panelPadding * 2.0F + headerHeight,
+        expanded);
     minimapPerformanceStats.labelsMs =
         performanceMilliseconds(minimapSectionStart);
 }

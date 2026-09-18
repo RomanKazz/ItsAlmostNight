@@ -128,28 +128,6 @@ std::vector<DecorationExclusion> makeDecorationExclusions(
 
 using namespace app_detail;
 
-const char* App::toolTuningPath(FirstPersonToolVisual visual) {
-    switch (visual) {
-    case FirstPersonToolVisual::Axe:
-        return "user_settings/first_person_tool_axe.json";
-    case FirstPersonToolVisual::Pickaxe:
-        return "user_settings/first_person_tool_pickaxe.json";
-    case FirstPersonToolVisual::Club:
-        return "user_settings/first_person_tool_club.json";
-    case FirstPersonToolVisual::IceWand:
-        return "user_settings/first_person_tool_ice_wand.json";
-    case FirstPersonToolVisual::FireWand:
-        return "user_settings/first_person_tool_fire_wand.json";
-    case FirstPersonToolVisual::Hammer:
-        return "user_settings/first_person_tool_hammer.json";
-    case FirstPersonToolVisual::Bomb:
-        return "user_settings/first_person_tool_bomb.json";
-    case FirstPersonToolVisual::None:
-        return "user_settings/first_person_tool_axe.json";
-    }
-    return "user_settings/first_person_tool_axe.json";
-}
-
 FirstPersonToolTuning& App::activeToolTuning() {
     FirstPersonToolVisual visual = displayedToolVisual_;
     if (renderer_ && renderer_->graphicsPanelVisible() &&
@@ -197,9 +175,8 @@ App::App()
          visual <= static_cast<int>(FirstPersonToolVisual::Bomb);
          ++visual) {
         const auto toolVisual = static_cast<FirstPersonToolVisual>(visual);
-        static_cast<void>(loadFirstPersonToolTuning(
-            toolTuningPath(toolVisual),
-            toolTunings_[static_cast<std::size_t>(visual)]));
+        toolTunings_[static_cast<std::size_t>(visual)] =
+            defaultFirstPersonToolTuning(toolVisual);
     }
     effects_.reserve(128);
     gameEventBuffer_.reserve(256);
@@ -227,8 +204,14 @@ int App::run() {
     // independently controlled by GraphicsSettings::renderWidth/Height.
     unsigned int windowFlags =
         FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_HIGHDPI;
-    // The world already receives FXAA and UI text uses SDF. Multisampling the
-    // native Retina framebuffer adds a costly full-screen resolve at swap.
+    // On macOS the multisampled default framebuffer also avoids a driver
+    // presentation path that can throttle a single-sample fullscreen
+    // drawable to the ProMotion refresh cadence even with swap interval 0.
+    // The 3D world still renders to its own target; this primarily affects
+    // final HUD geometry and presentation.
+    if (userSettings_.graphics.quality == GraphicsQuality::High) {
+        windowFlags |= FLAG_MSAA_4X_HINT;
+    }
     SetConfigFlags(windowFlags);
     InitWindow(InitialWindowWidth, InitialWindowHeight,
                "FORTBONK");
@@ -250,11 +233,12 @@ int App::run() {
         "assets/vfx/brackeys/explosion_6x5.png"));
     static_cast<void>(vfxElectricRingTexture_.load(
         "assets/vfx/brackeys/electric_ring_6x5.png"));
-    static_cast<void>(stoneCrackTexture_.load(
+    static_cast<void>(resourceImpactTexture_.load(
         "assets/vfx/stone_crack.png"));
     for (TextureResource* texture : {
-             &vfxImpactTexture_, &vfxExplosionTexture_,
-             &vfxElectricRingTexture_, &stoneCrackTexture_}) {
+             &vfxImpactTexture_,
+             &vfxExplosionTexture_,
+             &vfxElectricRingTexture_, &resourceImpactTexture_}) {
         if (texture->valid()) {
             SetTextureFilter(texture->get(), TEXTURE_FILTER_BILINEAR);
         }
@@ -439,15 +423,6 @@ int App::run() {
     static_cast<void>(saveSuspendedRun());
     persistUserSettings(true);
     persistMetaProgression();
-    for (int visual = static_cast<int>(FirstPersonToolVisual::Axe);
-         visual <= static_cast<int>(FirstPersonToolVisual::Bomb);
-         ++visual) {
-        const auto toolVisual = static_cast<FirstPersonToolVisual>(visual);
-        static_cast<void>(saveFirstPersonToolTuning(
-            toolTuningPath(toolVisual),
-            toolTunings_[static_cast<std::size_t>(visual)]));
-    }
-
     uiEditor_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
@@ -455,7 +430,7 @@ int App::run() {
     vfxImpactTexture_.unload();
     vfxExplosionTexture_.unload();
     vfxElectricRingTexture_.unload();
-    stoneCrackTexture_.unload();
+    resourceImpactTexture_.unload();
     modularBuildingRenderer_.setRenderer(nullptr);
     renderer_->shutdown();
     renderer_.reset();

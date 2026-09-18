@@ -1040,6 +1040,9 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         nullptr, "assets/shaders/postprocess.fs");
     fxaaShader_.load(nullptr, "assets/shaders/fxaa.fs");
     ssaoShader_.load(nullptr, "assets/shaders/ssao.fs");
+    viewModelShader_.load(
+        "assets/shaders/viewmodel.vs",
+        "assets/shaders/viewmodel.fs");
     viewModelCompositeShader_.load(
         nullptr, "assets/shaders/viewmodel_composite.fs");
     grassShader_.load("assets/shaders/grass_instanced.vs",
@@ -1097,6 +1100,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coreModel_.load("assets/models/buildings/core.glb");
     axeModel_.load("assets/models/tools/axe.glb");
     pickaxeModel_.load("assets/models/tools/pickaxe.glb");
+    static_cast<void>(pickaxeAnimation_.load(
+        "assets/models/tools/pickaxe.glb", "swing pivot"));
+    static_cast<void>(pickaxeAlternateAnimation_.load(
+        "assets/models/tools/pickaxe_anim2.glb", "swing pivot.001"));
     clubModel_.load("assets/models/tools/club.glb");
     hammerModel_.load("assets/models/tools/hammer.glb");
     iceWandModel_.load("assets/models/weapons/ice_wand/wand.glb");
@@ -1201,6 +1208,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/environment/decor/rock_small_c.glb");
     decorativeRockModels_[3].load(
         "assets/models/environment/decor/rock_small_d.glb");
+    woodFragmentModel_.load(
+        "assets/models/environment/decor/small_log.glb");
+    crystalFragmentModel_.load(
+        "assets/models/environment/decor/little_crystal.glb");
     decorativeBushModels_[0].load(
         "assets/models/environment/decor/bushes/a.glb");
     decorativeBushModels_[1].load(
@@ -1237,6 +1248,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     wallCornerModel_.load("assets/models/construction/walls/corner.glb");
     wallTModel_.load("assets/models/construction/walls/t.glb");
     wallCrossModel_.load("assets/models/construction/walls/cross.glb");
+    gateModel_.load("assets/models/construction/walls/gate.glb");
     grassModelB_.load(
         "assets/models/environment/grass/grass_large.glb");
     grassModelC_.load(
@@ -1502,6 +1514,7 @@ void GraphicsResources::shutdown() {
     grassModelD_.unload();
     grassModelC_.unload();
     grassModelB_.unload();
+    gateModel_.unload();
     wallCrossModel_.unload();
     wallTModel_.unload();
     wallCornerModel_.unload();
@@ -1516,6 +1529,8 @@ void GraphicsResources::shutdown() {
     for (auto& rockModel : decorativeRockModels_) {
         rockModel.unload();
     }
+    woodFragmentModel_.unload();
+    crystalFragmentModel_.unload();
     for (auto& bushModel : decorativeBushModels_) {
         bushModel.unload();
     }
@@ -1564,6 +1579,8 @@ void GraphicsResources::shutdown() {
     breadLootModel_.unload();
     appleLootModel_.unload();
     pickaxeModel_.unload();
+    pickaxeAnimation_.unload();
+    pickaxeAlternateAnimation_.unload();
     axeModel_.unload();
     coreModel_.unload();
     crossbowModel_.unload();
@@ -1591,6 +1608,7 @@ void GraphicsResources::shutdown() {
     fxaaShader_.unload();
     postProcessShader_.unload();
     viewModelCompositeShader_.unload();
+    viewModelShader_.unload();
     selectionOutlineShader_.unload();
     selectionMaskShader_.unload();
     skyShader_.unload();

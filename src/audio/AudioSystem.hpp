@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <optional>
 #include <string_view>
 
@@ -35,6 +36,9 @@ class AudioSystem {
     void update(const SimulationSnapshot& snapshot);
     void playEvent(const GameEvent& event,
                    const SimulationSnapshot& snapshot);
+    void queueBuildingPlaced(
+        Vec3 position, double delaySeconds = 0.0);
+    void playHarvestSwing();
     void playUiConfirm();
     void playUiError();
     [[nodiscard]] AudioSettings& settings();
@@ -49,6 +53,10 @@ class AudioSystem {
     struct MusicTrack {
         Music music{};
         bool loaded{};
+    };
+    struct PendingBuildingPlacedSound {
+        Vec3 position;
+        double delayRemaining{};
     };
 
     void load(Clip& clip, std::string_view path);
@@ -75,6 +83,7 @@ class AudioSystem {
     std::array<Clip, 5> woodHits_;
     std::array<Clip, 5> stoneHits_;
     std::array<Clip, 5> grassFootsteps_;
+    std::array<Clip, 4> harvestSwishes_;
     Clip woodBreak_;
     Clip stoneBreak_;
     Clip critical_;
@@ -96,6 +105,9 @@ class AudioSystem {
     std::array<MusicTrack, 3> musicTracks_;
     std::optional<std::size_t> currentMusicTrack_;
     std::optional<Vec3> previousPlayerPosition_;
+    std::deque<PendingBuildingPlacedSound>
+        pendingBuildingPlacedSounds_;
+    double buildingPlacedSoundCooldown_{};
     double footstepDistance_{};
     double iceHitSoundCooldown_{};
     float lowHealthAmount_{};

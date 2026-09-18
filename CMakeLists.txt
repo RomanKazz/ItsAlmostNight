@@ -185,6 +185,7 @@ target_include_directories(ian_presentation PUBLIC src)
 add_library(ian_graphics
     src/graphics/DecorationExclusionMap.cpp
     src/graphics/EnvironmentSystem.cpp
+    src/graphics/GlbNodeAnimation.cpp
     src/graphics/GraphicsResourceAccessors.cpp
     src/graphics/GraphicsResources.cpp
     src/graphics/InstanceBufferPool.cpp
@@ -198,7 +199,6 @@ add_library(ian_graphics
     src/graphics/RendererSettings.cpp
     src/graphics/RendererShaders.cpp
     src/graphics/RendererTerrain.cpp
-    src/graphics/FirstPersonToolTuning.cpp
     src/graphics/TerrainRenderer.cpp
 )
 target_include_directories(ian_graphics PUBLIC src)
@@ -208,8 +208,10 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 
 add_library(ian_ui
     src/ui/GameUi.cpp
+    src/ui/HudBuildingContextCard.cpp
     src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
+    src/ui/HudRunStateOverlay.cpp
     src/ui/HudMinimap.cpp
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
@@ -234,6 +236,9 @@ add_executable(its_almost_night
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppEventPresentation.cpp
     src/app/AppGraphicsPanel.cpp
+    src/app/AppGameplayInput.cpp
+    src/app/AppGameplayRender.cpp
+    src/app/AppGameplayUi.cpp
     src/app/AppInteractionPrompt.cpp
     src/app/AppMainMenu.cpp
     src/app/AppInput.cpp
@@ -350,6 +355,7 @@ if(BUILD_TESTING)
         tests/GameBalanceTests.cpp
         tests/MapDefinitionTests.cpp
         tests/GlbCollisionTests.cpp
+        tests/GlbNodeAnimationTests.cpp
         tests/TerrainHeightfieldTests.cpp
         tests/SpatialHashTests.cpp
         tests/InsightSystemTests.cpp

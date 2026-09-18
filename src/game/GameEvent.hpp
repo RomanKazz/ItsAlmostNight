@@ -139,6 +139,7 @@ struct GameEvent {
     bool largeDeposit{};
     bool night{};
     bool secondaryImpact{};
+    bool structuralCollapse{};
     std::optional<std::string> objectiveId;
     std::optional<InsightSource> insightSource;
     double insightAmount{};

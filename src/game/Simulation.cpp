@@ -407,6 +407,7 @@ void Simulation::resetRun(GameEventType eventType) {
     collisionWorld_.reset();
     flowField_.reset();
     flowDebugVectors_.clear();
+    flowFieldDirty_ = false;
     aimedEnemy_.reset();
     aimedBuilding_.reset();
     aimedModularBuilding_.reset();
@@ -491,6 +492,8 @@ void Simulation::resetRun(GameEventType eventType) {
     waveSpawnTimeRemaining_ = 0.0;
     waveSpawnGroupsDue_ = 0U;
     waveSpawnCycle_ = 0U;
+    waveBossSpawn_.reset();
+    waveSurgeWarningMask_ = 0U;
     waveHealthScale_ = 1.0;
     waveDamageScale_ = 1.0;
     forceWaveCompletion_ = false;
@@ -585,6 +588,7 @@ void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
                 .ramp = collapsed.ramp,
                 .position = modularBaseCenter(
                     collapsed, worldConfig_),
+                .structuralCollapse = true,
             });
         }
         syncModularStructures();

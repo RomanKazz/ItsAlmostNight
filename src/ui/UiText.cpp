@@ -37,6 +37,8 @@ struct QueuedSdfText {
     Vector2 position{};
     float scaledSize{};
     SdfUiTextStyle style{};
+    float rotationRadians{};
+    Vector2 rotationCenter{};
 };
 std::vector<QueuedSdfText> sdfTextBatch;
 bool sdfTextBatchActive{};
@@ -111,6 +113,8 @@ std::uint64_t sdfTextCacheFrame{};
 RenderTexture2D hudTextBatchTarget{};
 std::size_t hudTextBatchHash{};
 bool hudTextBatchCacheValid{};
+std::size_t hudTextBatchCandidateHash{};
+unsigned int hudTextBatchCandidateFrames{};
 std::vector<Rectangle> hudTextBatchRegions;
 
 class ScopedTextPerformanceSample {
@@ -391,6 +395,19 @@ void emitCachedText(const QueuedSdfText& queued, Font font,
                std::clamp(pass.softness, 0.5F, 1.5F), 0.0F);
     const float inverseWidth = 1.0F / static_cast<float>(font.texture.width);
     const float inverseHeight = 1.0F / static_cast<float>(font.texture.height);
+    const float cosine = std::cos(queued.rotationRadians);
+    const float sine = std::sin(queued.rotationRadians);
+    const auto vertex = [&queued, cosine, sine](float x, float y) {
+        if (queued.rotationRadians == 0.0F) {
+            rlVertex2f(x, y);
+            return;
+        }
+        const float localX = x - queued.rotationCenter.x;
+        const float localY = y - queued.rotationCenter.y;
+        rlVertex2f(
+            queued.rotationCenter.x + localX * cosine - localY * sine,
+            queued.rotationCenter.y + localX * sine + localY * cosine);
+    };
     for (const CachedGlyphQuad& glyph : layout.quads) {
         const float u0 = glyph.source.x * inverseWidth;
         const float v0 = glyph.source.y * inverseHeight;
@@ -400,10 +417,10 @@ void emitCachedText(const QueuedSdfText& queued, Font font,
         const float y0 = queued.position.y + offset.y + glyph.destination.y;
         const float x1 = x0 + glyph.destination.width;
         const float y1 = y0 + glyph.destination.height;
-        rlTexCoord2f(u0, v0); rlVertex2f(x0, y0);
-        rlTexCoord2f(u0, v1); rlVertex2f(x0, y1);
-        rlTexCoord2f(u1, v1); rlVertex2f(x1, y1);
-        rlTexCoord2f(u1, v0); rlVertex2f(x1, y0);
+        rlTexCoord2f(u0, v0); vertex(x0, y0);
+        rlTexCoord2f(u0, v1); vertex(x0, y1);
+        rlTexCoord2f(u1, v1); vertex(x1, y1);
+        rlTexCoord2f(u1, v0); vertex(x1, y0);
     }
 }
 
@@ -844,6 +861,20 @@ bool drawCachedHudTextBatch(
     }
     const std::size_t hash = currentSdfTextBatchHash();
     if (!hudTextBatchCacheValid || hash != hudTextBatchHash) {
+        // Compass labels, counters and animated prompts can change this hash
+        // every frame. Rebuilding a full-screen render target for a value
+        // that will never be reused is slower than submitting the atlas mesh
+        // directly. Promote a batch to the texture cache only after it has
+        // survived for two consecutive frames.
+        if (hash != hudTextBatchCandidateHash) {
+            hudTextBatchCandidateHash = hash;
+            hudTextBatchCandidateFrames = 1U;
+            return false;
+        }
+        ++hudTextBatchCandidateFrames;
+        if (hudTextBatchCandidateFrames < 2U) {
+            return false;
+        }
         BeginTextureMode(hudTextBatchTarget);
         ClearBackground(BLANK);
         rlSetBlendFactorsSeparate(
@@ -858,6 +889,8 @@ bool drawCachedHudTextBatch(
         hudTextBatchHash = hash;
         hudTextBatchCacheValid = true;
     }
+    hudTextBatchCandidateHash = hash;
+    hudTextBatchCandidateFrames = 2U;
     BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
     for (const Rectangle& region : hudTextBatchRegions) {
         DrawTexturePro(
@@ -1214,6 +1247,8 @@ void shutdownUiText() {
     hudTextBatchTarget = {};
     hudTextBatchCacheValid = false;
     hudTextBatchHash = 0U;
+    hudTextBatchCandidateHash = 0U;
+    hudTextBatchCandidateFrames = 0U;
     hudTextBatchRegions.clear();
     cachedSdfTextPixels = 0U;
     sdfTextCacheFrame = 0U;
@@ -1322,6 +1357,77 @@ void drawUiText(std::string_view text, Vector2 position,
         DrawTextEx(
             uiFont(), value, position, scaledSize,
             scaledSize * 0.02F, color);
+    };
+    if (currentLanguage() == Language::English) {
+        withNullTerminatedUiText(text, draw);
+    } else {
+        const std::string localized = localizeText(text);
+        withNullTerminatedUiText(localized, draw);
+    }
+}
+
+void drawRotatedStyledUiText(
+    std::string_view text, Vector2 center,
+    float fontSize, float rotationDegrees,
+    const SdfUiTextStyle& style) {
+    const ScopedTextPerformanceSample performanceSample(text.size());
+    const float scaledSize = fontSize * UiTextScale;
+    const auto draw = [center, scaledSize, rotationDegrees, style](
+                          const char* value) {
+        const Font font = uiFont();
+        const float spacing = scaledSize * 0.02F;
+        const Vector2 measured = MeasureTextEx(
+            font, value, scaledSize, spacing);
+        const Vector2 origin{
+            measured.x * 0.5F, measured.y * 0.5F};
+        if (isSdfTextReady(scaledSize)) {
+            const QueuedSdfText queued{
+                .text = value,
+                .position = {
+                    center.x - origin.x,
+                    center.y - origin.y,
+                },
+                .scaledSize = scaledSize,
+                .style = style,
+                .rotationRadians = rotationDegrees * DEG2RAD,
+                .rotationCenter = center,
+            };
+            const QueuedSdfText* pointer = &queued;
+            drawSdfTextItemsDirect(
+                std::span<const QueuedSdfText* const>{&pointer, 1U});
+            return;
+        }
+        if (style.shadowColor.a > 0U) {
+            DrawTextPro(
+                font, value,
+                {center.x + style.shadowOffsetPixels.x,
+                 center.y + style.shadowOffsetPixels.y},
+                origin, rotationDegrees,
+                scaledSize, spacing, style.shadowColor);
+        }
+        if (style.outlineColor.a > 0U &&
+            style.outlinePixels > 0.0F) {
+            constexpr std::array<Vector2, 8> Directions{{
+                {-1.0F, 0.0F}, {1.0F, 0.0F},
+                {0.0F, -1.0F}, {0.0F, 1.0F},
+                {-0.7071F, -0.7071F},
+                {0.7071F, -0.7071F},
+                {-0.7071F, 0.7071F},
+                {0.7071F, 0.7071F},
+            }};
+            for (const Vector2 direction : Directions) {
+                DrawTextPro(
+                    font, value,
+                    {center.x + direction.x * style.outlinePixels,
+                     center.y + direction.y * style.outlinePixels},
+                    origin, rotationDegrees,
+                    scaledSize, spacing, style.outlineColor);
+            }
+        }
+        DrawTextPro(
+            font, value, center, origin,
+            rotationDegrees, scaledSize, spacing,
+            style.fillColor);
     };
     if (currentLanguage() == Language::English) {
         withNullTerminatedUiText(text, draw);

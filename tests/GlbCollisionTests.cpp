@@ -188,6 +188,20 @@ void runGlbCollisionTests() {
     requireNear(turret.sockets[1].position.x, -0.140388, 1e-4,
                 "second barrel socket must preserve authored position");
 
+    const GlbCollisionAsset gate = loadGlbCollisionAsset(
+        IAN_SOURCE_DIR "/assets/models/construction/walls/gate.glb");
+    require(gate.valid() && gate.colliders.size() == 2U,
+            "gate must expose door and pillar box colliders");
+    require(gate.renderMeshIndices.size() == 2U,
+            "gate collision meshes must stay hidden");
+    require(gate.colliders[0].name == "COL_BOX_DOOR" &&
+                gate.colliders[1].name == "COL_BOX_PILLAR",
+            "gate collider names must preserve door/pillar roles");
+    requireNear(gate.colliders[0].minimum.x, -0.5049, 1e-3,
+                "gate door collider must preserve its authored hinge side");
+    requireNear(gate.colliders[1].maximum.x, 0.5039, 1e-3,
+                "gate pillar collider must preserve its authored right edge");
+
     const GlbCollisionAsset crossbow = loadGlbCollisionAsset(
         IAN_SOURCE_DIR "/assets/models/weapons/crossbow.glb");
     require(crossbow.valid() && crossbow.colliders.size() == 1U,

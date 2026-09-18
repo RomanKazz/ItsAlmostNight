@@ -162,6 +162,14 @@ const ShaderResource& GraphicsResources::ssaoShader() const {
     return ssaoShader_;
 }
 
+ShaderResource& GraphicsResources::viewModelShader() {
+    return viewModelShader_;
+}
+
+const ShaderResource& GraphicsResources::viewModelShader() const {
+    return viewModelShader_;
+}
+
 ShaderResource& GraphicsResources::viewModelCompositeShader() {
     return viewModelCompositeShader_;
 }
@@ -305,6 +313,14 @@ ModelResource& GraphicsResources::axeModel() {
 
 ModelResource& GraphicsResources::pickaxeModel() {
     return pickaxeModel_;
+}
+
+const GlbNodeAnimation& GraphicsResources::pickaxeAnimation() const {
+    return pickaxeAnimation_;
+}
+
+const GlbNodeAnimation& GraphicsResources::pickaxeAlternateAnimation() const {
+    return pickaxeAlternateAnimation_;
 }
 
 ModelResource& GraphicsResources::clubModel() {
@@ -470,6 +486,14 @@ ModelResource& GraphicsResources::decorativeRockModel(
         variant % decorativeRockModels_.size()];
 }
 
+ModelResource& GraphicsResources::woodFragmentModel() {
+    return woodFragmentModel_;
+}
+
+ModelResource& GraphicsResources::crystalFragmentModel() {
+    return crystalFragmentModel_;
+}
+
 ModelResource& GraphicsResources::decorativeBushModel(
     std::size_t variant) {
     return decorativeBushModels_[
@@ -503,6 +527,10 @@ ModelResource& GraphicsResources::wallTModel() {
 
 ModelResource& GraphicsResources::wallCrossModel() {
     return wallCrossModel_;
+}
+
+ModelResource& GraphicsResources::gateModel() {
+    return gateModel_;
 }
 
 ModelResource& GraphicsResources::grassModelB() {

@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "buildings/CoreProgression.hpp"
+#include "buildings/RampPlacementDirection.hpp"
 #include "game/ResourceWorld.hpp"
 
 #include <algorithm>
@@ -76,6 +77,32 @@ const TerrainHeightfield& Simulation::terrain() const {
     return terrain_;
 }
 
+bool Simulation::foundationInsideCoreBuildRadius(
+    GridCoord anchor) const {
+    if (sandboxMode_) {
+        return true;
+    }
+    const auto core = buildings_.core();
+    if (!core) {
+        // God mode historically allows construction before placing Core.
+        // There is no meaningful radius to enforce in that state.
+        return unlimitedResources_;
+    }
+    const Vec3 coreCenter = buildingWorldPosition(*core);
+    const double foundationCenterX =
+        static_cast<double>(anchor.x) +
+        PlatformFrameWidthCells * 0.5;
+    const double foundationCenterZ =
+        static_cast<double>(anchor.z) +
+        PlatformFrameWidthCells * 0.5;
+    const double deltaX = foundationCenterX - coreCenter.x;
+    const double deltaZ = foundationCenterZ - coreCenter.z;
+    const double radius =
+        static_cast<double>(buildings_.coreBuildRadius());
+    return deltaX * deltaX + deltaZ * deltaZ <=
+        radius * radius;
+}
+
 const EnemyPerformanceStats& Simulation::enemyPerformanceStats() const {
     return enemies_.performanceStats();
 }
@@ -134,8 +161,14 @@ PlatformFramePlacement Simulation::previewFoundation(
     Vec3 terrainHit) const {
     PlatformFramePlacement placement =
         foundations_.previewFoundation(
-            terrainHit, playerPosition_);
+            terrainHit, playerPosition_,
+            GroundPlatformHeightStep);
     const double cellSize = worldConfig_.cellSize;
+    if (placement.valid() &&
+        !foundationInsideCoreBuildRadius(placement.anchor)) {
+        placement.error =
+            ModularPlacementError::OutsideCoreArea;
+    }
     if (placement.valid() &&
         rectangleHasDeepWater(
             placement.anchor.x * cellSize,
@@ -197,6 +230,11 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
             terrainHit, floorHeight,
             playerPosition_);
     const double cellSize = worldConfig_.cellSize;
+    if (placement.valid() &&
+        !foundationInsideCoreBuildRadius(placement.anchor)) {
+        placement.error =
+            ModularPlacementError::OutsideCoreArea;
+    }
     if (placement.valid() &&
         rectangleHasDeepWater(
             placement.anchor.x * cellSize,
@@ -306,10 +344,17 @@ Simulation::placeFoundationAtHeight(
 
 PlatformFramePlacement Simulation::previewFloorPlatform(
     GridCoord anchor, int storey, double floorHeight) const {
-    PlatformFramePlacement placement =
+    return validateFloorPlatformPlacement(
         foundations_.previewFloorPlatform(
             anchor, storey, floorHeight,
-            playerPosition_);
+            playerPosition_),
+        true);
+}
+
+PlatformFramePlacement
+Simulation::validateFloorPlatformPlacement(
+    PlatformFramePlacement placement,
+    bool checkResourceCost) const {
     if (placement.valid() &&
         !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
@@ -333,7 +378,8 @@ PlatformFramePlacement Simulation::previewFloorPlatform(
             floorBox.minZ, floorBox.maxZ)) {
         placement.error = ModularPlacementError::Occupied;
     }
-    if (placement.valid() && !unlimitedResources_ &&
+    if (placement.valid() && checkResourceCost &&
+        !unlimitedResources_ &&
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::FloorPlatform)],
@@ -368,6 +414,132 @@ Simulation::placeFloorPlatform(
         processInsightEvent(events_.back());
     }
     return placed;
+}
+
+FloorPlatformFoundationPlacement
+Simulation::previewFloorPlatformWithFoundation(
+    Vec3 terrainHit,
+    std::optional<double> foundationHeight) const {
+    FloorPlatformFoundationPlacement result{
+        .foundation = foundationHeight
+            ? previewFoundationAtHeight(
+                  terrainHit, *foundationHeight)
+            : previewFoundation(terrainHit),
+    };
+    const ModularPlacementError foundationError =
+        result.foundation.error;
+
+    PlatformFramePlacement prospectivePlacement =
+        result.foundation;
+    prospectivePlacement.error =
+        ModularPlacementError::None;
+    FoundationSystem prospectiveFoundations{foundations_};
+    const auto prospectiveFoundation =
+        prospectiveFoundations.placePlatformFrame(
+            prospectivePlacement);
+    if (!prospectiveFoundation) {
+        result.floor = {
+            .error = foundationError ==
+                             ModularPlacementError::None
+                         ? ModularPlacementError::Occupied
+                         : foundationError,
+            .anchor = result.foundation.anchor,
+            .floorHeight =
+                result.foundation.floorHeight +
+                modularStoreyHeight(worldConfig_),
+            .storey = 1,
+        };
+        return result;
+    }
+
+    result.floor = validateFloorPlatformPlacement(
+        prospectiveFoundations.previewFloorPlatform(
+            result.foundation.anchor, 1,
+            result.foundation.floorHeight +
+                modularStoreyHeight(worldConfig_),
+            playerPosition_),
+        false);
+    if (foundationError != ModularPlacementError::None &&
+        result.floor.valid()) {
+        result.floor.error = foundationError;
+    }
+    const ResourceCost combinedCost = addResourceCosts(
+        modularBuildingCosts_[static_cast<std::size_t>(
+            ModularBuildPiece::Foundation)],
+        modularBuildingCosts_[static_cast<std::size_t>(
+            ModularBuildPiece::FloorPlatform)]);
+    if (foundationError == ModularPlacementError::None &&
+        result.floor.valid() && !unlimitedResources_ &&
+        !canAfford(
+            combinedCost, wood_, stone_, crystals_)) {
+        result.foundation.error =
+            ModularPlacementError::InsufficientResources;
+        result.floor.error =
+            ModularPlacementError::InsufficientResources;
+    }
+    if (!result.floor.valid() && result.foundation.valid()) {
+        result.foundation.error = result.floor.error;
+    }
+    return result;
+}
+
+std::optional<FloorPlatformFoundationBuild>
+Simulation::placeFloorPlatformWithFoundation(
+    Vec3 terrainHit,
+    std::optional<double> foundationHeight) {
+    invalidateSnapshotCache();
+    FloorPlatformFoundationPlacement placement =
+        previewFloorPlatformWithFoundation(
+            terrainHit, foundationHeight);
+    if (!placement.valid()) {
+        return std::nullopt;
+    }
+
+    const auto foundation = foundations_.placePlatformFrame(
+        placement.foundation);
+    if (!foundation) {
+        return std::nullopt;
+    }
+    const auto floor = foundations_.placePlatformFrame(
+        placement.floor);
+    if (!floor) {
+        static_cast<void>(foundations_.remove(foundation->id));
+        syncModularStructures();
+        return std::nullopt;
+    }
+
+    if (!unlimitedResources_) {
+        const ResourceCost combinedCost = addResourceCosts(
+            modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Foundation)],
+            modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::FloorPlatform)]);
+        wood_ -= combinedCost.wood;
+        stone_ -= combinedCost.stone;
+        crystals_ -= combinedCost.crystals;
+    }
+    syncModularStructures();
+    raisePlayerOntoGroundFrame(*foundation);
+    events_.push_back({
+        .type = GameEventType::ModularBuildingPlaced,
+        .entityId = foundation->id,
+        .platformFrame = *foundation,
+        .amount = static_cast<int>(
+            ModularBuildPiece::Foundation),
+    });
+    processInsightEvent(events_.back());
+    events_.push_back({
+        .type = GameEventType::ModularBuildingPlaced,
+        .entityId = floor->id,
+        .platformFrame = *floor,
+        .amount = static_cast<int>(
+            ModularBuildPiece::FloorPlatform),
+    });
+    processInsightEvent(events_.back());
+    return FloorPlatformFoundationBuild{
+        .foundation = *foundation,
+        .floor = *floor,
+    };
 }
 
 WallPlacement Simulation::previewWall(
@@ -435,8 +607,15 @@ std::optional<WallInstance> Simulation::placeWall(
 
 RampPlacement Simulation::previewRamp(
     Vec3 terrainHit, Rotation rotation) const {
-    RampPlacement placement = foundations_.previewRamp(
-        terrainHit, playerPosition_, rotation);
+    return validateRampPlacement(
+        foundations_.previewRamp(
+            terrainHit, playerPosition_, rotation),
+        true);
+}
+
+RampPlacement Simulation::validateRampPlacement(
+    RampPlacement placement,
+    bool checkResourceCost) const {
     if (placement.valid() &&
         !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
@@ -499,7 +678,8 @@ RampPlacement Simulation::previewRamp(
                 ModularPlacementError::ResourceBlocked;
         }
     }
-    if (placement.valid() && !unlimitedResources_ &&
+    if (placement.valid() && checkResourceCost &&
+        !unlimitedResources_ &&
         !canAfford(
             modularBuildingCosts_[static_cast<std::size_t>(
                 ModularBuildPiece::Ramp)],
@@ -532,6 +712,191 @@ std::optional<RampInstance> Simulation::placeRamp(
         processInsightEvent(events_.back());
     }
     return placed;
+}
+
+RampFoundationPlacement
+Simulation::previewRampWithFoundation(
+    Vec3 terrainHit, Rotation rotation,
+    std::optional<double> foundationHeight) const {
+    RampFoundationPlacement result{
+        .foundations = {
+            foundationHeight
+                ? previewFoundationAtHeight(
+                      terrainHit, *foundationHeight)
+                : previewFoundation(terrainHit),
+            {},
+        },
+    };
+    const double cellSize = worldConfig_.cellSize;
+    const Vec3 outward =
+        rampSocketOutwardDirection(rotation);
+    GridCoord secondAnchor = result.foundations[0].anchor;
+    secondAnchor.x += static_cast<int>(std::lround(
+        outward.x * PlatformFrameWidthCells));
+    secondAnchor.z += static_cast<int>(std::lround(
+        outward.z * PlatformFrameWidthCells));
+    const Vec3 secondHit{
+        (secondAnchor.x + 1.0) * cellSize,
+        result.foundations[0].floorHeight,
+        (secondAnchor.z + 1.0) * cellSize,
+    };
+    result.foundations[1] = previewFoundationAtHeight(
+        secondHit, result.foundations[0].floorHeight);
+    const std::array foundationErrors{
+        result.foundations[0].error,
+        result.foundations[1].error,
+    };
+
+    FoundationSystem prospectiveFoundations{foundations_};
+    for (std::size_t index = 0;
+         index < result.foundations.size(); ++index) {
+        PlatformFramePlacement prospectivePlacement =
+            result.foundations[index];
+        prospectivePlacement.error =
+            ModularPlacementError::None;
+        if (!prospectiveFoundations.placePlatformFrame(
+                prospectivePlacement)) {
+            result.ramp = {
+                .error = foundationErrors[index] ==
+                                 ModularPlacementError::None
+                             ? ModularPlacementError::Occupied
+                             : foundationErrors[index],
+                .rotation = rotation,
+            };
+            return result;
+        }
+    }
+
+    const Vec3 supportHit{
+        (result.foundations[0].anchor.x + 0.5) * cellSize,
+        result.foundations[0].floorHeight,
+        (result.foundations[0].anchor.z + 0.5) * cellSize,
+    };
+    result.ramp = validateRampPlacement(
+        prospectiveFoundations.previewRamp(
+            supportHit, playerPosition_, rotation),
+        false);
+    for (const ModularPlacementError error :
+         foundationErrors) {
+        if (error != ModularPlacementError::None &&
+            result.ramp.valid()) {
+            result.ramp.error = error;
+        }
+    }
+    const ResourceCost foundationCost =
+        modularBuildingCosts_[static_cast<std::size_t>(
+            ModularBuildPiece::Foundation)];
+    const ResourceCost combinedCost = addResourceCosts(
+        addResourceCosts(foundationCost, foundationCost),
+        modularBuildingCosts_[static_cast<std::size_t>(
+            ModularBuildPiece::Ramp)]);
+    const bool foundationsValid = std::ranges::all_of(
+        result.foundations,
+        [](const PlatformFramePlacement& foundation) {
+            return foundation.valid();
+        });
+    if (foundationsValid &&
+        result.ramp.valid() && !unlimitedResources_ &&
+        !canAfford(
+            combinedCost, wood_, stone_, crystals_)) {
+        for (PlatformFramePlacement& foundation :
+             result.foundations) {
+            foundation.error =
+                ModularPlacementError::InsufficientResources;
+        }
+        result.ramp.error =
+            ModularPlacementError::InsufficientResources;
+    }
+    if (!result.ramp.valid()) {
+        for (PlatformFramePlacement& foundation :
+             result.foundations) {
+            if (foundation.valid()) {
+                foundation.error = result.ramp.error;
+            }
+        }
+    }
+    return result;
+}
+
+std::optional<RampFoundationBuild>
+Simulation::placeRampWithFoundation(
+    Vec3 terrainHit, Rotation rotation,
+    std::optional<double> foundationHeight) {
+    invalidateSnapshotCache();
+    RampFoundationPlacement placement =
+        previewRampWithFoundation(
+            terrainHit, rotation, foundationHeight);
+    if (!placement.valid()) {
+        return std::nullopt;
+    }
+
+    std::array<PlatformFrameInstance, 2> foundations;
+    for (std::size_t index = 0;
+         index < placement.foundations.size(); ++index) {
+        const auto foundation =
+            foundations_.placePlatformFrame(
+                placement.foundations[index]);
+        if (!foundation) {
+            for (std::size_t placedIndex = 0;
+                 placedIndex < index; ++placedIndex) {
+                static_cast<void>(foundations_.remove(
+                    foundations[placedIndex].id));
+            }
+            syncModularStructures();
+            return std::nullopt;
+        }
+        foundations[index] = *foundation;
+    }
+    const auto ramp = foundations_.placeRamp(
+        placement.ramp);
+    if (!ramp) {
+        for (const PlatformFrameInstance& foundation :
+             foundations) {
+            static_cast<void>(
+                foundations_.remove(foundation.id));
+        }
+        syncModularStructures();
+        return std::nullopt;
+    }
+
+    if (!unlimitedResources_) {
+        const ResourceCost foundationCost =
+            modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Foundation)];
+        const ResourceCost combinedCost = addResourceCosts(
+            addResourceCosts(
+                foundationCost, foundationCost),
+            modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Ramp)]);
+        wood_ -= combinedCost.wood;
+        stone_ -= combinedCost.stone;
+        crystals_ -= combinedCost.crystals;
+    }
+    syncModularStructures();
+    for (const PlatformFrameInstance& foundation :
+         foundations) {
+        raisePlayerOntoGroundFrame(foundation);
+        events_.push_back({
+            .type = GameEventType::ModularBuildingPlaced,
+            .entityId = foundation.id,
+            .platformFrame = foundation,
+            .amount = static_cast<int>(
+                ModularBuildPiece::Foundation),
+        });
+        processInsightEvent(events_.back());
+    }
+    events_.push_back({
+        .type = GameEventType::ModularBuildingPlaced,
+        .entityId = ramp->id,
+        .ramp = *ramp,
+        .amount = static_cast<int>(
+            ModularBuildPiece::Ramp),
+    });
+    processInsightEvent(events_.back());
+    return RampFoundationBuild{
+        .foundations = foundations,
+        .ramp = *ramp,
+    };
 }
 
 void Simulation::setStructuralCollapseEnabled(bool enabled) {

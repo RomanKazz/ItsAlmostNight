@@ -43,6 +43,34 @@ bool pondTransformVisible(
         offsetX, offsetZ, view, maximumDistance, objectRadius);
 }
 
+struct ToonWaterMaterial {
+    Vector3 shoreColor;
+    Vector3 shallowColor;
+    Vector3 midColor;
+    Vector3 deepColor;
+    float shoreWidth;
+    float depthFalloff;
+    float patternScale;
+    float patternStrength;
+    float patternSpeed;
+    float fresnelStrength;
+};
+
+// Dedicated water material tuning. Colours are the authored sRGB toon
+// palette; all spatial values are consumed only by the water shader.
+constexpr ToonWaterMaterial WaterMaterial{
+    .shoreColor = {85.0F / 255.0F, 193.0F / 255.0F, 185.0F / 255.0F},
+    .shallowColor = {40.0F / 255.0F, 167.0F / 255.0F, 167.0F / 255.0F},
+    .midColor = {8.0F / 255.0F, 127.0F / 255.0F, 140.0F / 255.0F},
+    .deepColor = {8.0F / 255.0F, 103.0F / 255.0F, 120.0F / 255.0F},
+    .shoreWidth = 0.46F,
+    .depthFalloff = 1.0F,
+    .patternScale = 0.035F,
+    .patternStrength = 0.075F,
+    .patternSpeed = 1.0F,
+    .fresnelStrength = 0.14F,
+};
+
 } // namespace
 
 void Renderer::rebuildTerrain(
@@ -534,16 +562,6 @@ void Renderer::drawWater(
     }
     Shader& shader = resources_.waterShader().get();
     const auto& config = terrainHeightfield_->config();
-    const Vector3 shallowColor{
-        static_cast<float>(config.pondShallowColor[0]),
-        static_cast<float>(config.pondShallowColor[1]),
-        static_cast<float>(config.pondShallowColor[2]),
-    };
-    const Vector3 deepColor{
-        static_cast<float>(config.pondDeepColor[0]),
-        static_cast<float>(config.pondDeepColor[1]),
-        static_cast<float>(config.pondDeepColor[2]),
-    };
     const float timeSeconds = static_cast<float>(GetTime());
     const float waveSpeed =
         static_cast<float>(config.pondWaveSpeed);
@@ -556,10 +574,14 @@ void Renderer::drawWater(
         settings_.fog ? lighting.fogEnd : 1000001.0F;
     SetShaderValue(shader, waterCameraPositionLocation_,
                    &cameraPosition, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterShoreColorLocation_,
+                   &WaterMaterial.shoreColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, waterShallowColorLocation_,
-                   &shallowColor, SHADER_UNIFORM_VEC3);
+                   &WaterMaterial.shallowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(shader, waterMidColorLocation_,
+                   &WaterMaterial.midColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, waterDeepColorLocation_,
-                   &deepColor, SHADER_UNIFORM_VEC3);
+                   &WaterMaterial.deepColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, waterSkyColorLocation_,
                    &lighting.skyAmbientColor, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, waterSunDirectionLocation_,
@@ -580,6 +602,18 @@ void Renderer::drawWater(
                    &timeSeconds, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, waterWaveSpeedLocation_,
                    &waveSpeed, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterShoreWidthLocation_,
+                   &WaterMaterial.shoreWidth, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterDepthFalloffLocation_,
+                   &WaterMaterial.depthFalloff, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterPatternScaleLocation_,
+                   &WaterMaterial.patternScale, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterPatternStrengthLocation_,
+                   &WaterMaterial.patternStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterPatternSpeedLocation_,
+                   &WaterMaterial.patternSpeed, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, waterFresnelStrengthLocation_,
+                   &WaterMaterial.fresnelStrength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, waterQualityLocation_,
                    &qualityLevel, SHADER_UNIFORM_INT);
     terrainRenderer_.drawWater(shader);

@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -80,6 +81,27 @@ void App::update() {
         0.0, insightPointSequenceRemaining_ - frameSeconds);
     objectivePulseRemaining_ = std::max(
         0.0, objectivePulseRemaining_ - frameSeconds);
+    objectiveCompletionRemaining_ = std::max(
+        0.0, objectiveCompletionRemaining_ - frameSeconds);
+    if (objectiveCompletionRemaining_ <= 0.0) {
+        if (!pendingObjectiveCompletionNotices_.empty()) {
+            ObjectiveCompletionNotice notice = std::move(
+                pendingObjectiveCompletionNotices_.front());
+            pendingObjectiveCompletionNotices_.pop_front();
+            objectiveCompletionTitle_ = std::move(notice.title);
+            objectiveCompletionReward_ = notice.reward;
+            objectiveCompletionRemaining_ =
+                objectiveCompletionDuration_;
+        } else {
+            objectiveCompletionTitle_.clear();
+            objectiveCompletionReward_ = 0;
+        }
+    }
+    insightGainRemaining_ = std::max(
+        0.0, insightGainRemaining_ - frameSeconds);
+    if (insightGainRemaining_ <= 0.0) {
+        insightGainAmount_ = 0.0;
+    }
     for (const ObjectiveStatus& objective :
          progressionSnapshot.objectives) {
         auto [progress, inserted] =
@@ -92,6 +114,65 @@ void App::update() {
         }
         progress->second = objective.progress;
     }
+    std::string trackedObjectiveId;
+    double trackedObjectiveProgress = 0.0;
+    if (progressionSnapshot.tutorialObjective) {
+        trackedObjectiveId = "tutorial:" + std::to_string(
+            static_cast<int>(*progressionSnapshot.tutorialObjective));
+        if (*progressionSnapshot.tutorialObjective ==
+            TutorialObjective::MineWood) {
+            trackedObjectiveProgress =
+                static_cast<double>(progressionSnapshot.wood);
+        } else if (*progressionSnapshot.tutorialObjective ==
+                   TutorialObjective::PlaceCore) {
+            trackedObjectiveProgress =
+                progressionSnapshot.coreId ? 1.0 : 0.0;
+        }
+    } else {
+        for (const int index :
+             progressionSnapshot.recommendedObjectives) {
+            if (index < 0 ||
+                static_cast<std::size_t>(index) >=
+                    progressionSnapshot.objectives.size()) {
+                continue;
+            }
+            const ObjectiveStatus& objective =
+                progressionSnapshot.objectives[
+                    static_cast<std::size_t>(index)];
+            if (!objective.active || objective.completed) {
+                continue;
+            }
+            trackedObjectiveId = objective.definition.id;
+            trackedObjectiveProgress = objective.progress;
+            break;
+        }
+    }
+    if (trackedObjectiveId.empty()) {
+        objectiveTrackerId_.clear();
+        objectiveTrackerProgress_ = 0.0;
+        objectiveTrackerExpandedRemaining_ = 0.0;
+    } else if (trackedObjectiveId != objectiveTrackerId_) {
+        objectiveTrackerId_ = std::move(trackedObjectiveId);
+        objectiveTrackerProgress_ = trackedObjectiveProgress;
+        objectiveTrackerExpandedRemaining_ = 4.0;
+    } else {
+        if (trackedObjectiveProgress >
+            objectiveTrackerProgress_ + 1e-6) {
+            objectiveTrackerExpandedRemaining_ = 3.0;
+        }
+        objectiveTrackerProgress_ = trackedObjectiveProgress;
+        objectiveTrackerExpandedRemaining_ = std::max(
+            0.0,
+            objectiveTrackerExpandedRemaining_ - frameSeconds);
+    }
+    const float trackerExpansionTarget =
+        objectiveTrackerExpandedRemaining_ > 0.0 ? 1.0F : 0.0F;
+    const float trackerExpansionBlend =
+        1.0F - std::exp(
+            -10.0F * static_cast<float>(frameSeconds));
+    objectiveTrackerExpansion_ +=
+        (trackerExpansionTarget - objectiveTrackerExpansion_) *
+        trackerExpansionBlend;
     if (displayedInsight_ < 0.0) displayedInsight_ = progressionSnapshot.currentInsight;
     const double insightPointProgress =
         presentation::timelineProgress(
@@ -117,19 +198,18 @@ void App::update() {
                 counter.displayed = static_cast<double>(target);
                 counter.target = target;
                 return;
-            } else if (target < counter.target) {
-                // Spending must remain exact; only gains count upward.
-                counter.displayed = static_cast<double>(target);
-            } else if (target > counter.target) {
+            } else if (target != counter.target) {
                 constexpr double AnimationSeconds = 0.22;
                 constexpr double MinimumUnitsPerSecond = 24.0;
-                constexpr double SequentialGainLimit = 10.0;
-                const double gain = static_cast<double>(target) -
-                    counter.displayed;
+                constexpr double SequentialChangeLimit = 10.0;
+                const double change = std::abs(
+                    static_cast<double>(target) -
+                    counter.displayed);
                 counter.unitsPerSecond = std::max(
                     MinimumUnitsPerSecond,
-                    gain / AnimationSeconds);
-                counter.sequential = gain <= SequentialGainLimit;
+                    change / AnimationSeconds);
+                counter.sequential =
+                    change <= SequentialChangeLimit;
             }
             counter.target = target;
             if (counter.displayed < static_cast<double>(target)) {
@@ -143,7 +223,15 @@ void App::update() {
                     step);
                 counter.displayed += std::max(0.0, step);
             } else if (counter.displayed > static_cast<double>(target)) {
-                counter.displayed = static_cast<double>(target);
+                double step = frameSeconds * counter.unitsPerSecond;
+                if (counter.sequential) {
+                    // Keep every integer visible for at least one frame.
+                    step = std::min(step, 1.0);
+                }
+                step = std::min(
+                    counter.displayed - static_cast<double>(target),
+                    step);
+                counter.displayed -= std::max(0.0, step);
             }
         };
     updateHudResourceCounter(
@@ -254,8 +342,21 @@ void App::update() {
         (buildingTarget -
          buildHotbarSelectionPosition_) *
         hotbarBlend;
+    const ConstructionHotbarLayout constructionLayout =
+        makeConstructionHotbarLayout(
+            hotbarSnapshot.unlockedBuildings,
+            hotbarSnapshot.coreMaxHealth > 0.0,
+            hotbarSnapshot.coreLevel,
+            hotbarSnapshot.sandboxMode ||
+                hotbarSnapshot.unlimitedResources);
+    const float constructionTarget = static_cast<float>(
+        foundationBuildMode_
+            ? constructionLayout.indexOf(modularBuildPiece_)
+                  .value_or(0U)
+            : constructionLayout.indexOf(highlightedBuilding)
+                  .value_or(0U));
     foundationHotbarSelectionPosition_ +=
-        (static_cast<float>(modularBuildPiece_) -
+        (constructionTarget -
          foundationHotbarSelectionPosition_) *
         hotbarBlend;
     const float weaponTarget = static_cast<float>(
@@ -265,13 +366,17 @@ void App::update() {
     weaponHotbarSelectionPosition_ +=
         (weaponTarget - weaponHotbarSelectionPosition_) *
         hotbarBlend;
+    const bool constructionHotbarActive =
+        actionMode_ == ActionMode::Buildings &&
+        buildingHotbarCategory_ ==
+            BuildingHotbarCategory::Modular;
     const float buildAlphaTarget =
-        actionMode_ == ActionMode::Buildings && !foundationBuildMode_
+        actionMode_ == ActionMode::Buildings &&
+                !constructionHotbarActive
             ? 1.0F
             : 0.0F;
     const float foundationAlphaTarget =
-        actionMode_ == ActionMode::Buildings && foundationBuildMode_
-            ? 1.0F : 0.0F;
+        constructionHotbarActive ? 1.0F : 0.0F;
     const float weaponAlphaTarget =
         actionMode_ == ActionMode::Equipment ? 1.0F : 0.0F;
     buildHotbarSelectionAlpha_ +=
@@ -310,6 +415,9 @@ void App::update() {
         std::max(0.0, crosshairHitRemaining_ - frameSeconds);
     invalidActionRemaining_ =
         std::max(0.0, invalidActionRemaining_ - frameSeconds);
+    modularPlacementFailureRepeatWindow_ = std::max(
+        0.0,
+        modularPlacementFailureRepeatWindow_ - frameSeconds);
     placementSnapPulseRemaining_ = std::max(
         0.0, placementSnapPulseRemaining_ - frameSeconds);
     weaponRecoilRemaining_ = std::max(
@@ -326,9 +434,16 @@ void App::update() {
             (toolContactHoldActive
                  ? 0.0
                  : frameSeconds));
-    const double toolContactProgress = std::clamp(
-        static_cast<double>(activeToolTuning().hitProgress),
-        0.25, 0.65);
+    const bool alternateHarvestContact =
+        toolSwingAlternateAnimation_ &&
+        (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
+         displayedToolVisual_ == FirstPersonToolVisual::Pickaxe ||
+         displayedToolVisual_ == FirstPersonToolVisual::Club);
+    const double toolContactProgress = alternateHarvestContact
+        ? 27.0 / 60.0
+        : std::clamp(
+              static_cast<double>(activeToolTuning().hitProgress),
+              0.25, 0.65);
     const double toolContactRemaining =
         toolSwingDuration_ * (1.0 - toolContactProgress);
     if (toolSwingAttackPending_ &&
@@ -479,6 +594,12 @@ void App::update() {
             toolSwingUsesAxe_) {
         toolSwingDuration_ = activeToolTuning().swingDuration;
         toolSwingRemaining_ = toolSwingDuration_;
+        chooseHarvestSwingAnimation(displayedToolVisual_);
+        if (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
+            displayedToolVisual_ == FirstPersonToolVisual::Pickaxe ||
+            displayedToolVisual_ == FirstPersonToolVisual::Club) {
+            audio_.playHarvestSwing();
+        }
         toolSwingAttackPending_ =
             toolQueuedSwingHasAttack_;
         toolQueuedSwingHasAttack_ = false;
@@ -524,6 +645,8 @@ void App::update() {
             : 0.0;
     statusMessageRemaining_ =
         std::max(0.0, statusMessageRemaining_ - frameSeconds);
+    statusMessageShakeRemaining_ = std::max(
+        0.0, statusMessageShakeRemaining_ - frameSeconds);
     lootDescriptionRemaining_ =
         std::max(0.0, lootDescriptionRemaining_ - frameSeconds);
     cameraShakeRemaining_ = std::max(0.0, cameraShakeRemaining_ - frameSeconds);
@@ -559,6 +682,15 @@ void App::update() {
         cameraShakeStrength_ = 0.0;
     }
     presentation::advanceTimeline(effects_, frameSeconds);
+    // Tower damage is simulated when the shot fires, while its visible
+    // projectile reaches the enemy only at the end of this timeline.
+    for (const ArrowVisual& arrow : arrowVisuals_) {
+        if (arrow.flashTarget && arrow.remaining <= frameSeconds) {
+            startEnemyHitFlash(
+                *arrow.flashTarget,
+                simulation_.snapshot().elapsedSeconds);
+        }
+    }
     presentation::advanceTimeline(
         arrowVisuals_, frameSeconds);
     presentation::advanceTimeline(
@@ -819,6 +951,65 @@ void App::update() {
     recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
     refreshDecorationExclusions(eventSnapshot);
+    for (const BuildingInstance& building :
+         eventSnapshot.buildings) {
+        if (building.type != BuildingType::Gate) {
+            continue;
+        }
+        const float target = building.open ? 1.0F : 0.0F;
+        const auto directionAwayFromPlayer = [&]() {
+            const Vec3 center = buildingWorldPosition(building);
+            const float yaw =
+                static_cast<float>(building.rotation) *
+                PI * 0.5F;
+            const double offsetX =
+                eventSnapshot.playerPosition.x - center.x;
+            const double offsetZ =
+                eventSnapshot.playerPosition.z - center.z;
+            const double playerLocalZ =
+                offsetX * std::sin(yaw) +
+                offsetZ * std::cos(yaw);
+            // A negative angle swings the free edge towards local +Z.
+            return playerLocalZ <= 0.0 ? 1.0F : -1.0F;
+        };
+        const auto visual = std::find_if(
+            gateDoorVisuals_.begin(), gateDoorVisuals_.end(),
+            [&building](const GateDoorVisual& candidate) {
+                return candidate.id == building.id;
+            });
+        if (visual == gateDoorVisuals_.end()) {
+            gateDoorVisuals_.push_back({
+                building.id, target,
+                building.open
+                    ? directionAwayFromPlayer()
+                    : 1.0F,
+                building.open});
+            continue;
+        }
+        if (building.open && !visual->wasOpen &&
+            visual->openAmount <= 0.01F) {
+            visual->openDirection =
+                directionAwayFromPlayer();
+        }
+        visual->wasOpen = building.open;
+        const float blend = 1.0F - std::exp(
+            -13.0F * static_cast<float>(frameSeconds));
+        visual->openAmount +=
+            (target - visual->openAmount) * blend;
+        if (std::abs(visual->openAmount - target) < 0.001F) {
+            visual->openAmount = target;
+        }
+    }
+    std::erase_if(
+        gateDoorVisuals_,
+        [&eventSnapshot](const GateDoorVisual& visual) {
+            return std::ranges::none_of(
+                eventSnapshot.buildings,
+                [&visual](const BuildingInstance& building) {
+                    return building.id == visual.id &&
+                           building.type == BuildingType::Gate;
+                });
+        });
     if (eventSnapshot.runUpgradeChoicePending) {
         if (!groundCameraSmoothingInitialized_) {
             smoothedGroundCameraY_ =
@@ -1027,9 +1218,7 @@ void App::update() {
     audio_.update(eventSnapshot);
     updateHoverTarget(eventSnapshot, frameSeconds);
     if (buildingContextCardTarget_ &&
-        (eventSnapshot.selectedBuilding ||
-         eventSnapshot.aimedBuilding !=
-             buildingContextCardTarget_)) {
+        (eventSnapshot.selectedBuilding || foundationBuildMode_)) {
         buildingContextCardTarget_.reset();
         buildingContextCardUpgradeCost_.reset();
         buildingContextCardStats_.reset();
@@ -1056,6 +1245,7 @@ void App::update() {
             placementRotationYaw_ =
                 buildingRotationYaw(
                     preview.type, preview.rotation);
+            placementPreviewEntranceSeconds_ = 0.0;
         } else {
             const float blend =
                 1.0F -
@@ -1077,6 +1267,9 @@ void App::update() {
                 placementRotationYaw_, targetYaw,
                 frameSeconds);
         }
+        placementPreviewEntranceSeconds_ = std::min(
+            0.5,
+            placementPreviewEntranceSeconds_ + frameSeconds);
         if (changedCell && preview.placement.valid()) {
             placementSnapPulseRemaining_ = 0.18;
         }
@@ -1158,11 +1351,13 @@ void App::update() {
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();
         placementPreviewType_.reset();
+        placementPreviewEntranceSeconds_ = 0.0;
     } else {
         modularPreviewVisualOrigin_.reset();
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();
         placementPreviewType_.reset();
+        placementPreviewEntranceSeconds_ = 0.0;
         placementSnapPulseRemaining_ = 0.0;
     }
     processPresentationEvents(events, eventSnapshot);

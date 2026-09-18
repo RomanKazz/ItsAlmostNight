@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/GateModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace ian {
 using namespace renderer_model_detail;
@@ -17,7 +19,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     const BuildingInstance& building,
     std::span<const BuildingInstance> buildings, Ray ray,
     double maxDistance, float defensiveYaw,
-    float cannonPitchRadians) {
+    float cannonPitchRadians, float gateOpenAmount) {
     const Vec3 worldCenter =
         buildingWorldPosition(building);
     Vector3 position{
@@ -174,8 +176,13 @@ std::optional<double> Renderer::buildingRaycastDistance(
         modelScale = 1.0F;
         yaw = defensiveYaw;
         break;
-    case BuildingType::SlowTrap:
     case BuildingType::Gate:
+        resource = &resources_.gateModel();
+        yaw = static_cast<float>(building.rotation) *
+              QuarterTurn;
+        groundOffset = 0.005F;
+        break;
+    case BuildingType::SlowTrap:
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
@@ -191,6 +198,57 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return static_cast<double>(collision.distance);
         };
+    if (building.type == BuildingType::Gate &&
+        resource != nullptr && resource->valid()) {
+        position.y += groundOffset;
+        const Matrix baseTransform = MatrixMultiply(
+            resource->get().transform,
+            MatrixMultiply(
+                MatrixRotateY(yaw),
+                MatrixTranslate(
+                    position.x, position.y, position.z)));
+        const Matrix doorTransform = MatrixMultiply(
+            gate_model_detail::doorHingeTransform(
+                building.open ? gateOpenAmount : 0.0F),
+            baseTransform);
+        std::optional<double> closest;
+        for (const ModelCollider& collider :
+             resource->collisionAsset().colliders) {
+            const BoundingBox localBounds{
+                {static_cast<float>(collider.minimum.x),
+                 static_cast<float>(collider.minimum.y),
+                 static_cast<float>(collider.minimum.z)},
+                {static_cast<float>(collider.maximum.x),
+                 static_cast<float>(collider.maximum.y),
+                 static_cast<float>(collider.maximum.z)}};
+            const bool door = collider.name.find("DOOR") !=
+                std::string::npos;
+            const BoundingBox worldBounds =
+                world_transforms::transformBounds(
+                    localBounds,
+                    door ? doorTransform : baseTransform);
+            const auto distance = acceptCollision(
+                GetRayCollisionBox(ray, worldBounds));
+            if (distance && (!closest || *distance < *closest)) {
+                closest = distance;
+            }
+            // When open, keep an interaction-only target in the doorway.
+            // It makes closing the gate convenient without changing world
+            // collision or hiding the collider on the visible door.
+            if (door && std::abs(gateOpenAmount) > 0.001F) {
+                const BoundingBox closedWorldBounds =
+                    world_transforms::transformBounds(
+                        localBounds, baseTransform);
+                const auto closedDistance = acceptCollision(
+                    GetRayCollisionBox(ray, closedWorldBounds));
+                if (closedDistance &&
+                    (!closest || *closedDistance < *closest)) {
+                    closest = closedDistance;
+                }
+            }
+        }
+        return closest;
+    }
     if (resource != nullptr && resource->valid()) {
         Model& model = resource->get();
         position.y += groundOffset;

@@ -125,8 +125,38 @@ class App {
     static constexpr bool MinimalWorldVisuals = false;
     static constexpr double ToolSwapHideFraction = 0.42;
     static constexpr double ToolSwapDurationScale = 1.35;
+    static constexpr double EnemyHitFlashInterval = 1.0 / 15.0;
+    static constexpr double EnemyHitFlashDuration = 0.18;
+    static constexpr float EnemyHitFlashPeak = 0.62F;
+
+    struct RenderFrameTimings {
+        PerformanceClock::time_point uiStart{};
+        double viewModelMilliseconds{};
+        double worldUiMilliseconds{};
+        double interactionPromptMilliseconds{};
+        double hudCoreMilliseconds{};
+        double hudTargetHealthMilliseconds{};
+        double hudResourcesMilliseconds{};
+        double hudVitalityMilliseconds{};
+        double hudInformationMilliseconds{};
+        double hudObjectivesMilliseconds{};
+        double hudLootMilliseconds{};
+        double hudPhaseMilliseconds{};
+        double hudHotbarMilliseconds{};
+        double hudFeedbackMilliseconds{};
+        double hudTextFlushMilliseconds{};
+        double resourceGainMilliseconds{};
+        double minimapMilliseconds{};
+        double minimapSetupMilliseconds{};
+        double minimapTargetRefreshMilliseconds{};
+        double minimapFrameMilliseconds{};
+        double minimapLabelsMilliseconds{};
+        double uiOverlaysMilliseconds{};
+    };
 
     void processInput();
+    void processGameplayInput(bool controlDown,
+                              bool primaryMouseDown);
     void rebuildTerrainGraphics();
     void refreshDecorationExclusions(
         const SimulationSnapshot& snapshot);
@@ -142,6 +172,23 @@ class App {
     void rebuildModularPlacementLine();
     void update();
     void render();
+    void renderGameplayFrame(
+        const SimulationSnapshot& snapshot,
+        const SimulationSnapshot& presentationSnapshot,
+        const SimulationSnapshot& feedbackSnapshot,
+        std::optional<EntityId> pinnedOrdinaryBuilding,
+        std::optional<EntityId> pinnedModularBuilding,
+        PerformanceClock::time_point renderPreparationStart,
+        RenderFrameTimings& timings);
+    void renderGameplayUi(
+        const SimulationSnapshot& snapshot,
+        const SimulationSnapshot& presentationSnapshot,
+        const SimulationSnapshot& feedbackSnapshot,
+        const SimulationSnapshot& healthBarSnapshot,
+        const Camera3D& camera, const WorldLighting& lighting,
+        std::optional<EntityId> pinnedOrdinaryBuilding,
+        std::optional<EntityId> pinnedModularBuilding,
+        RenderFrameTimings& timings);
     void drawShadowPass(const SimulationSnapshot& snapshot,
                         const WorldLighting& lighting);
     void drawSelectionPass(const SimulationSnapshot& snapshot,
@@ -168,7 +215,7 @@ class App {
         const SimulationSnapshot& snapshot) const;
     void drawPresentationEffects(
         const Camera3D& camera, const WorldLighting& lighting);
-    void drawStoneCrackOverlays(const Camera3D& camera) const;
+    void drawResourceImpactOverlays(const Camera3D& camera) const;
     void drawAtmosphereParticles(
         const Camera3D& camera, float nightAmount);
     void drawChestLootGlow(
@@ -194,6 +241,8 @@ class App {
         const SimulationSnapshot& snapshot) const;
     [[nodiscard]] float productionScaleAt(
         EntityId id) const;
+    [[nodiscard]] float gateOpenAmount(
+        EntityId id, bool open) const;
     [[nodiscard]] Vec3 buildingImpactOffsetAt(
         EntityId id) const;
     [[nodiscard]] Vec3 buildingShotRecoilOffsetAt(
@@ -222,11 +271,11 @@ class App {
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
     [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
     [[nodiscard]] const FirstPersonToolTuning& activeToolTuning() const;
-    [[nodiscard]] static const char* toolTuningPath(
-        FirstPersonToolVisual visual);
     void processPresentationEvents(
         std::span<const GameEvent> events,
         const SimulationSnapshot& snapshot);
+    void startEnemyHitFlash(EntityId id, double elapsedSeconds);
+    void chooseHarvestSwingAnimation(FirstPersonToolVisual visual);
     void drawBuildModePie() const;
     void selectActionMode(
         ActionMode mode,
@@ -240,6 +289,9 @@ class App {
     void selectNextBuildingItem(
         const SimulationSnapshot& snapshot,
         int direction = 1);
+    void selectConstructionHotbarItem(
+        const SimulationSnapshot& snapshot,
+        std::size_t index);
     void resetRunInputState();
     void resetEquipmentActionMode(
         const SimulationSnapshot& snapshot);
@@ -277,7 +329,7 @@ class App {
     TextureResource vfxImpactTexture_;
     TextureResource vfxExplosionTexture_;
     TextureResource vfxElectricRingTexture_;
-    TextureResource stoneCrackTexture_;
+    TextureResource resourceImpactTexture_;
     GameUi ui_;
     UiEditor uiEditor_;
     bool pendingStartFromUi_{};
@@ -318,6 +370,7 @@ class App {
     bool pendingDash_{};
     bool pendingPickaxe_{};
     bool toolSwingUsesAxe_{};
+    bool toolSwingAlternateAnimation_{};
     bool toolSwingQueued_{};
     bool toolQueuedSwingHasAttack_{};
     std::optional<EntityId> toolQueuedResourceTarget_;
@@ -404,6 +457,9 @@ class App {
     bool itemGrantMenuVisible_{};
     bool sandboxCardMenuVisible_{};
     bool coreDefenseMenuVisible_{};
+    bool coreDefenseMenuClosing_{};
+    double coreDefenseMenuEntranceSeconds_{};
+    std::uint8_t coreDefenseMenuAnimatedLevel_{};
     float sandboxCardMenuScroll_{};
     std::size_t selectedDefenseBlueprint_{};
     int debugSpawnCount_{50};
@@ -423,10 +479,15 @@ class App {
         pendingPlacedBuildingRotation_;
     std::string statusMessage_;
     double statusMessageRemaining_{};
+    double statusMessageShakeRemaining_{};
     double lootDescriptionRemaining_{};
     std::vector<PresentationEffect> effects_;
     std::vector<GameEvent> gameEventBuffer_;
-    std::unordered_map<std::uint64_t, float>
+    struct EnemyHitFlashState {
+        double startedAt{};
+        double nextAllowedAt{};
+    };
+    std::unordered_map<std::uint64_t, EnemyHitFlashState>
         enemyHitFlashById_;
     std::unordered_map<std::uint64_t, float>
         enemyBurnAmountById_;
@@ -461,6 +522,7 @@ class App {
     float motionSwayIntensity_{1.0F};
     std::vector<DamageIndicator> damageIndicators_;
     std::vector<FloatingDamageNumber> floatingDamageNumbers_;
+    std::uint32_t floatingDamageSequence_{};
     std::vector<ResourceGainVisual> resourceGainVisuals_;
     std::vector<ProductionVisual> productionVisuals_;
     std::vector<DestroyedResourceVisual>
@@ -497,6 +559,7 @@ class App {
         std::optional<WallInstance> modularWall;
         std::optional<RampInstance> ramp;
         std::uint8_t wallConnections{};
+        bool structuralCollapse{};
         double remaining;
         double duration;
     };
@@ -522,6 +585,13 @@ class App {
     };
     std::vector<BuildingShotRecoilVisual>
         buildingShotRecoilVisuals_;
+    struct GateDoorVisual {
+        EntityId id;
+        float openAmount{};
+        float openDirection{1.0F};
+        bool wasOpen{};
+    };
+    std::vector<GateDoorVisual> gateDoorVisuals_;
     double woodHudBounceRemaining_{};
     double stoneHudBounceRemaining_{};
     double crystalHudBounceRemaining_{};
@@ -549,6 +619,23 @@ class App {
     std::string objectivePulseId_;
     double objectivePulseRemaining_{};
     double objectivePulseDuration_{0.55};
+    std::string objectiveTrackerId_;
+    double objectiveTrackerProgress_{};
+    double objectiveTrackerExpandedRemaining_{4.0};
+    float objectiveTrackerExpansion_{1.0F};
+    struct ObjectiveCompletionNotice {
+        std::string title;
+        int reward{};
+    };
+    std::deque<ObjectiveCompletionNotice>
+        pendingObjectiveCompletionNotices_;
+    std::string objectiveCompletionTitle_;
+    int objectiveCompletionReward_{};
+    double objectiveCompletionRemaining_{};
+    double objectiveCompletionDuration_{2.6};
+    double insightGainAmount_{};
+    double insightGainRemaining_{};
+    double insightGainDuration_{0.9};
     std::optional<EntityId> hoveredResource_;
     std::optional<EntityId> interactionResourceAim_;
     std::optional<EntityId> hoveredBuilding_;
@@ -575,9 +662,11 @@ class App {
     double crosshairHitDuration_{0.18};
     bool crosshairHitCritical_{};
     double invalidActionRemaining_{};
+    double modularPlacementFailureRepeatWindow_{};
     std::optional<Vector2> placementPreviewCenter_;
     std::optional<GridPosition> placementPreviewGrid_;
     std::optional<BuildingType> placementPreviewType_;
+    double placementPreviewEntranceSeconds_{};
     double placementSnapPulseRemaining_{};
     double placementRotationYaw_{};
     struct CancelledPlacementPreview {
@@ -633,6 +722,8 @@ class App {
         ModularBuildPiece::Foundation};
     std::optional<PlatformFramePlacement>
         platformFramePreview_;
+    std::vector<PlatformFramePlacement>
+        modularAutomaticFoundationPreviews_;
     std::optional<WallPlacement> wallPreview_;
     std::optional<RampPlacement> rampPreview_;
     Rotation modularRotation_{Rotation::Deg0};
@@ -657,6 +748,7 @@ class App {
     std::optional<double> modularDragPlaneHeight_;
     std::optional<Rotation> modularDragRotation_;
     std::optional<ModularBuildPiece> modularDragPiece_;
+    bool modularDragUsesAutomaticFoundation_{};
     std::optional<PlacementLineAxis> modularDragAxis_;
     std::optional<GridCoord>
         modularDragCandidateEnd_;

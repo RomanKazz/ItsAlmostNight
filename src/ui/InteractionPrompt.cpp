@@ -39,6 +39,215 @@ void drawText(std::string_view text, Vector2 position,
     drawUiText(text, position, size, withOpacity(color, opacity));
 }
 
+struct WorldPromptPlacement {
+    Vector2 center{};
+    Vector2 right{1.0F, 0.0F};
+    float angle{};
+    float pixelsPerWorldUnit{};
+};
+
+std::optional<WorldPromptPlacement> worldPromptPlacement(
+    const InteractionPrompt& prompt, const Camera3D& camera) {
+    const Vector2 projected = GetWorldToScreen(
+        prompt.worldAnchor, camera);
+    const Vector3 cameraForward = Vector3Normalize(
+        Vector3Subtract(camera.target, camera.position));
+    const Vector3 cameraRight = Vector3Normalize(
+        Vector3CrossProduct(cameraForward, camera.up));
+    const Vector3 cameraUp = Vector3Normalize(
+        Vector3CrossProduct(cameraRight, cameraForward));
+    const Vector2 projectedUp = GetWorldToScreen(
+        Vector3Add(prompt.worldAnchor, cameraUp), camera);
+    // Size world prompts from the camera projection at their anchor depth.
+    const float pixelsPerWorldUnit = std::hypot(
+        projectedUp.x - projected.x,
+        projectedUp.y - projected.y);
+    if (!std::isfinite(pixelsPerWorldUnit) ||
+        pixelsPerWorldUnit <= 0.0F) {
+        return std::nullopt;
+    }
+    const Vector3 surfaceNormal = Vector3Normalize(
+        prompt.surfaceNormal);
+    Vector3 tangentRight = Vector3Subtract(
+        cameraRight,
+        Vector3Scale(surfaceNormal,
+                     Vector3DotProduct(cameraRight, surfaceNormal)));
+    if (Vector3LengthSqr(tangentRight) < 0.01F) {
+        tangentRight = cameraRight;
+    }
+    // Follow the surface tilt without turning edge-on as the camera
+    // walks around the object.
+    const Vector3 rightWorld = Vector3Add(
+        prompt.worldAnchor,
+        Vector3Scale(Vector3Normalize(tangentRight), 0.8F));
+    const Vector2 projectedRight = GetWorldToScreen(
+        rightWorld, camera);
+    Vector2 right{
+        projectedRight.x - projected.x,
+        projectedRight.y - projected.y,
+    };
+    const float rightLength = std::hypot(right.x, right.y);
+    if (std::isfinite(rightLength) && rightLength > 1.0F) {
+        right.x /= rightLength;
+        right.y /= rightLength;
+        if (right.x < 0.0F) {
+            right.x = -right.x;
+            right.y = -right.y;
+        }
+    } else {
+        right = {1.0F, 0.0F};
+    }
+    return WorldPromptPlacement{
+        .center = projected,
+        .right = right,
+        .angle = std::atan2(right.y, right.x) * RAD2DEG,
+        .pixelsPerWorldUnit = pixelsPerWorldUnit,
+    };
+}
+
+void drawChestCostPrompt(
+    const InteractionPrompt& prompt, const Camera3D& camera,
+    const GameUi& ui, float opacity, float scale) {
+    const auto placement = worldPromptPlacement(prompt, camera);
+    if (!placement) {
+        return;
+    }
+    const Vector2 projected = placement->center;
+    const Vector2 right = placement->right;
+    const float angle = placement->angle;
+
+    const int current = prompt.availableCurrency.value_or(0);
+    const int price = prompt.cost ? prompt.cost->crystals : 0;
+    const std::string amount =
+        std::to_string(current) + "/" + std::to_string(price);
+    const float worldScale = placement->pixelsPerWorldUnit * scale;
+    constexpr float UiTextScale = 1.68F;
+    const float iconSize = 0.19F * worldScale;
+    const float amountFontSize = 0.25F * worldScale / UiTextScale;
+    const float gap = 0.025F * worldScale;
+    const float amountWidth = measureUiText(amount, amountFontSize).x;
+    const float totalWidth = iconSize + gap + amountWidth;
+    const Vector2 iconCenter{
+        projected.x + right.x * (-totalWidth * 0.5F + iconSize * 0.5F),
+        projected.y + right.y * (-totalWidth * 0.5F + iconSize * 0.5F),
+    };
+    const Texture2D icon = ui.resourceTexture(UiResourceIcon::Coin);
+    if (IsTextureValid(icon)) {
+        DrawTexturePro(
+            icon,
+            {0.0F, 0.0F, static_cast<float>(icon.width),
+             static_cast<float>(icon.height)},
+            {iconCenter.x, iconCenter.y, iconSize, iconSize},
+            {iconSize * 0.5F, iconSize * 0.5F}, angle,
+            withOpacity(WHITE, opacity));
+    }
+
+    const Vector2 textCenter{
+        projected.x + right.x *
+            (-totalWidth * 0.5F + iconSize + gap + amountWidth * 0.5F),
+        projected.y + right.y *
+            (-totalWidth * 0.5F + iconSize + gap + amountWidth * 0.5F),
+    };
+    SdfUiTextStyle textStyle{};
+    textStyle.fillColor = withOpacity(UiWhite, opacity);
+    textStyle.outlineColor = withOpacity(
+        {49, 49, 49, 255}, opacity);
+    const float hudScale = amountFontSize / (52.0F / UiTextScale);
+    textStyle.outlinePixels = 3.0F * hudScale;
+    textStyle.shadowColor = withOpacity(
+        {82, 82, 82, 255}, opacity);
+    textStyle.shadowOffsetPixels = {0.0F, 4.0F * hudScale};
+    drawRotatedStyledUiText(
+        amount, textCenter, amountFontSize, angle, textStyle);
+}
+
+void drawChallengeKeyPrompt(
+    const InteractionPrompt& prompt, const Camera3D& camera,
+    const ControlSettings& controls, float opacity, float scale) {
+    const auto placement = worldPromptPlacement(prompt, camera);
+    if (!placement) {
+        return;
+    }
+    const std::string key = InputKeycap::label(controls, prompt.input);
+    const float worldScale = placement->pixelsPerWorldUnit * scale;
+    const float size = 0.34F * worldScale;
+    constexpr float UiTextScale = 1.68F;
+    float fontSize = size * 0.55F / UiTextScale;
+    const float width = std::max(
+        size, measureUiText(key, fontSize).x + size * 0.25F);
+    const float labelFontSize = 0.22F * worldScale / UiTextScale;
+    const float labelWidth = measureUiText(
+        prompt.actionText, labelFontSize).x;
+    const float gap = 0.065F * worldScale;
+    const float totalWidth = width + gap + labelWidth;
+    const float keyOffset = -totalWidth * 0.5F + width * 0.5F;
+    const Vector2 keyCenter{
+        placement->center.x + placement->right.x * keyOffset,
+        placement->center.y + placement->right.y * keyOffset,
+    };
+    const float left = keyCenter.x - width * 0.5F;
+    const float top = keyCenter.y - size * 0.5F;
+    const bool pressed = InputKeycap::held(controls, prompt.input);
+    const float faceDrop = pressed ? size * 0.045F : 0.0F;
+    const float inset = size * 0.045F;
+    const float innerWidth = width - inset * 2.0F;
+    const float innerHeight = size - inset * 2.0F;
+    DrawRectangleRounded(
+        {left, top, width, size}, 0.25F, 8,
+        withOpacity({104, 60, 37, 255}, opacity));
+    DrawRectangleRounded(
+        {left + inset, top + inset, innerWidth, innerHeight},
+        0.23F, 8, withOpacity({147, 115, 73, 255}, opacity));
+    const Rectangle face{
+        left + inset,
+        top + inset + faceDrop,
+        innerWidth,
+        innerHeight - size * 0.075F,
+    };
+    DrawRectangleRounded(
+        face, 0.23F, 8,
+        withOpacity(pressed
+                        ? Color{205, 158, 113, 255}
+                        : Color{230, 188, 147, 255},
+                    opacity));
+    DrawRectangleRoundedLinesEx(
+        face, 0.23F, 8, std::max(1.0F, size * 0.007F),
+        withOpacity({246, 215, 177, 255}, opacity));
+
+    while (measureUiText(key, fontSize).x > width * 0.72F &&
+           fontSize > 5.0F) {
+        fontSize -= 1.0F;
+    }
+    SdfUiTextStyle textStyle{};
+    textStyle.fillColor = withOpacity(UiWhite, opacity);
+    textStyle.outlineColor = withOpacity(
+        {61, 39, 26, 255}, opacity);
+    textStyle.outlinePixels = std::clamp(
+        size * 0.042F, 1.0F, 4.0F);
+    drawRotatedStyledUiText(
+        key,
+        {keyCenter.x,
+         keyCenter.y - size * 0.035F + faceDrop},
+        fontSize, 0.0F, textStyle);
+
+    const float labelOffset =
+        -totalWidth * 0.5F + width + gap + labelWidth * 0.5F;
+    const Vector2 labelCenter{
+        placement->center.x + placement->right.x * labelOffset,
+        placement->center.y + placement->right.y * labelOffset,
+    };
+    SdfUiTextStyle labelStyle{};
+    labelStyle.fillColor = withOpacity(UiWhite, opacity);
+    labelStyle.outlineColor = withOpacity({49, 49, 49, 255}, opacity);
+    labelStyle.outlinePixels = std::clamp(
+        size * 0.035F, 1.0F, 3.0F);
+    labelStyle.shadowColor = withOpacity({82, 82, 82, 255}, opacity);
+    labelStyle.shadowOffsetPixels = {0.0F, size * 0.04F};
+    drawRotatedStyledUiText(
+        prompt.actionText, labelCenter, labelFontSize,
+        placement->angle, labelStyle);
+}
+
 } // namespace
 
 InteractionPromptRenderer::TargetKey InteractionPromptRenderer::keyFor(
@@ -191,6 +400,16 @@ void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt, const Camera3D& camera,
     const GameUi& ui, const ControlSettings& controls,
     float opacity, float scale, float liftPixels) {
+    if (prompt.targetKind == InteractionPromptTargetKind::Chest) {
+        drawChestCostPrompt(
+            prompt, camera, ui, opacity, scale);
+        return;
+    }
+    if (prompt.targetKind == InteractionPromptTargetKind::Challenge) {
+        drawChallengeKeyPrompt(
+            prompt, camera, controls, opacity, scale);
+        return;
+    }
     const Vector2 projected = GetWorldToScreen(
         prompt.worldAnchor, camera);
     const std::string keyLabel = InputKeycap::label(

@@ -23,16 +23,16 @@ constexpr double LootProximityPickupRadius = 2.0;
 
 } // namespace
 
-int Simulation::resourceCapacity(BuildingType storageType) const {
+int Simulation::resourceCapacity(ResourceCapacityType resource) const {
     const auto core = buildings_.core();
     int capacity = 0;
     if (core) {
-        capacity = coreResourceCapacity(storageType, core->level);
-    } else if (storageType == BuildingType::WoodStorage) {
+        capacity = coreResourceCapacity(resource, core->level);
+    } else if (resource == ResourceCapacityType::Wood) {
         capacity = 60;
-    } else if (storageType == BuildingType::StoneStorage) {
+    } else if (resource == ResourceCapacityType::Stone) {
         capacity = 30;
-    } else if (storageType == BuildingType::CrystalStorage) {
+    } else if (resource == ResourceCapacityType::Crystal) {
         capacity = 10;
     }
     return capacity;
@@ -44,13 +44,13 @@ void Simulation::clampResourcesToCapacity() {
     }
     wood_ = std::clamp(
         wood_, 0,
-        resourceCapacity(BuildingType::WoodStorage));
+        resourceCapacity(ResourceCapacityType::Wood));
     stone_ = std::clamp(
         stone_, 0,
-        resourceCapacity(BuildingType::StoneStorage));
+        resourceCapacity(ResourceCapacityType::Stone));
     crystals_ = std::clamp(
         crystals_, 0,
-        resourceCapacity(BuildingType::CrystalStorage));
+        resourceCapacity(ResourceCapacityType::Crystal));
 }
 
 void Simulation::addWood(int amount) {
@@ -59,7 +59,7 @@ void Simulation::addWood(int amount) {
         return;
     }
     wood_ = std::min(
-        resourceCapacity(BuildingType::WoodStorage),
+        resourceCapacity(ResourceCapacityType::Wood),
         saturatingAdd(wood_, std::max(0, amount)));
 }
 
@@ -69,7 +69,7 @@ void Simulation::addStone(int amount) {
         return;
     }
     stone_ = std::min(
-        resourceCapacity(BuildingType::StoneStorage),
+        resourceCapacity(ResourceCapacityType::Stone),
         saturatingAdd(stone_, std::max(0, amount)));
 }
 
@@ -79,7 +79,7 @@ void Simulation::addCrystals(int amount) {
         return;
     }
     crystals_ = std::min(
-        resourceCapacity(BuildingType::CrystalStorage),
+        resourceCapacity(ResourceCapacityType::Crystal),
         saturatingAdd(crystals_, std::max(0, amount)));
 }
 
@@ -98,14 +98,14 @@ bool Simulation::hasStorageSpace(ResourceType resource) const {
     }
     if (resource == ResourceType::Wood) {
         return saturatingAdd(wood_, pending) <
-            resourceCapacity(BuildingType::WoodStorage);
+            resourceCapacity(ResourceCapacityType::Wood);
     }
     if (resource == ResourceType::Stone) {
         return saturatingAdd(stone_, pending) <
-            resourceCapacity(BuildingType::StoneStorage);
+            resourceCapacity(ResourceCapacityType::Stone);
     }
     return saturatingAdd(crystals_, pending) <
-        resourceCapacity(BuildingType::CrystalStorage);
+        resourceCapacity(ResourceCapacityType::Crystal);
 }
 
 double Simulation::resourceToolEfficiency(
@@ -143,7 +143,7 @@ void Simulation::updatePlayerActions(
     }
     const auto production = crystalMines_.tick(
         productionDeltaSeconds);
-    if (crystals_ < resourceCapacity(BuildingType::CrystalStorage)) {
+    if (crystals_ < resourceCapacity(ResourceCapacityType::Crystal)) {
         crystalStorageFullNotified_ = false;
     }
     for (const auto& produced : production) {
@@ -252,8 +252,11 @@ void Simulation::updatePlayerActions(
             : playerWeapons_.selectedWeapon() == PlayerWeapon::FireWand
                 ? fireWand_.maximumRange()
                 : gameplay_.pickaxeRange;
-    aimedEnemy_ = enemies_.raycast(
+    const auto aimedEnemyHit = enemies_.raycastHit(
         playerPosition_, direction, enemyAimRange, &terrain_);
+    aimedEnemy_ = aimedEnemyHit
+        ? std::optional<EntityId>{aimedEnemyHit->id}
+        : std::nullopt;
     if (!aimedEnemy_ && isMeleeAttackWeapon(heldTool)) {
         // A first-person ray is too brittle for close combat: animation,
         // uneven arena ground and short enemies can move the capsule just
@@ -381,6 +384,10 @@ void Simulation::updatePlayerActions(
                     .type = GameEventType::PickaxeHit,
                     .entityId = result.id,
                     .position = result.position,
+                    .targetPosition = aimedEnemyHit &&
+                            aimedEnemyHit->id == result.id
+                        ? std::optional<Vec3>{aimedEnemyHit->position}
+                        : std::nullopt,
                     .damage = result.damage,
                     .critical = critical,
                 });
@@ -411,6 +418,10 @@ void Simulation::updatePlayerActions(
                     .type = GameEventType::PickaxeHit,
                     .entityId = result->id,
                     .position = result->position,
+                    .targetPosition = aimedEnemyHit &&
+                            aimedEnemyHit->id == result->id
+                        ? std::optional<Vec3>{aimedEnemyHit->position}
+                        : std::nullopt,
                     .damage = result->damage,
                     .critical = critical,
                 });
@@ -481,7 +492,8 @@ void Simulation::updatePlayerActions(
                         (heldTool == PlayerWeapon::Axe &&
                          hit->type == ResourceType::Wood) ||
                         (heldTool == PlayerWeapon::Pickaxe &&
-                         hit->type == ResourceType::Stone),
+                         (hit->type == ResourceType::Stone ||
+                          hit->type == ResourceType::Crystal)),
                     .largeDeposit = largeDeposit,
                     .night = state_ == RunState::Sunset || state_ == RunState::Wave,
                 });

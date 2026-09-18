@@ -61,7 +61,7 @@ void runWaveDirectorTests() {
         "enemy roles unlock progressively across early waves");
     require(
         firstComposition.groupSize == 3 &&
-            firstComposition.groupInterval == 8.0,
+            firstComposition.groupInterval == 1.6,
         "first timed night uses a manageable spawn cadence");
 
     const auto firstBuild = director.buildWave(4, {3, -2});
@@ -164,7 +164,7 @@ void runWaveDirectorTests() {
             distantWave.spawns.size() <=
                 ian::WaveDirector::MaximumWaveEnemies &&
             distantWave.groupSize <= 10 &&
-            distantWave.groupInterval >= 3.5,
+            distantWave.groupInterval >= 0.8,
         "unbounded wave numbers keep a bounded spawn queue");
 
     const auto groupedWave = director.buildWave(1, {0, 0});
@@ -177,6 +177,15 @@ void runWaveDirectorTests() {
     require(twoFrontWave.spawns[0].position.z < -20.0 &&
                 twoFrontWave.spawns[4].position.x > 20.0,
             "second wave introduces exactly a second attack front");
+    require(
+        std::any_of(
+            twoFrontWave.spawns.begin() + 1,
+            twoFrontWave.spawns.begin() + twoFrontWave.groupSize,
+            [first = twoFrontWave.spawns.front().type](
+                const ian::EnemySpawn& spawn) {
+                return spawn.type != first;
+            }),
+        "unlocked enemy roles mix within a single group");
 
     constexpr std::array<ian::Vec3, 3> Anchors{{
         {0.0, 0.0, -20.0},

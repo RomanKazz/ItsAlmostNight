@@ -30,6 +30,8 @@ class SupportSystem {
 
     [[nodiscard]] std::span<const SharedSupport>
     supports() const;
+    [[nodiscard]] bool isPerimeterSupport(
+        std::uint32_t id) const;
     [[nodiscard]] std::size_t activeSupportCount() const;
 
   private:

@@ -140,8 +140,16 @@ void App::drawWorldEnemies(
     constexpr float EnemyFullDetailDistance = 20.0F;
     constexpr float EnemyFullDetailDistanceSquared =
         EnemyFullDetailDistance * EnemyFullDetailDistance;
-    enemyHitFlashById_.clear();
-    enemyHitFlashById_.reserve(effects_.size());
+    for (auto flash = enemyHitFlashById_.begin();
+         flash != enemyHitFlashById_.end();) {
+        if (snapshot.elapsedSeconds < flash->second.startedAt ||
+            snapshot.elapsedSeconds >
+                flash->second.nextAllowedAt + EnemyHitFlashDuration) {
+            flash = enemyHitFlashById_.erase(flash);
+        } else {
+            ++flash;
+        }
+    }
     enemyBurnAmountById_.clear();
     enemyBurnAmountById_.reserve(effects_.size());
     const auto effectKey = [](EntityId id) {
@@ -158,19 +166,7 @@ void App::drawWorldEnemies(
         const float remainingFraction = std::clamp(
             static_cast<float>(effect.remaining / effect.duration),
             0.0F, 1.0F);
-        if (effect.type == PresentationEffectType::EnemyHitImpact) {
-            const float flashStrength = std::clamp(
-                std::pow(remainingFraction, 0.42F) * effect.scale * 0.48F,
-                0.0F, 1.0F);
-            auto [entry, inserted] =
-                enemyHitFlashById_.try_emplace(
-                    key, flashStrength);
-            if (!inserted) {
-                entry->second = std::max(
-                    entry->second, flashStrength);
-            }
-        } else if (
-            effect.type == PresentationEffectType::EnemyBurn) {
+        if (effect.type == PresentationEffectType::EnemyBurn) {
             const float fade = std::clamp(
                 remainingFraction / 0.28F, 0.0F, 1.0F);
             auto [entry, inserted] =
@@ -212,10 +208,22 @@ void App::drawWorldEnemies(
             enemyDistanceSquared > EnemyFullDetailDistanceSquared;
         const auto flash = enemyHitFlashById_.find(
             effectKey(enemy.id));
-        const float hitFlash =
-            flash != enemyHitFlashById_.end()
-                ? flash->second
-                : 0.0F;
+        float hitFlash = 0.0F;
+        if (flash != enemyHitFlashById_.end()) {
+            const float age = static_cast<float>(
+                snapshot.elapsedSeconds - flash->second.startedAt);
+            constexpr float FlashHoldSeconds = 0.025F;
+            const float fade = std::clamp(
+                (age - FlashHoldSeconds) /
+                    static_cast<float>(
+                        EnemyHitFlashDuration - FlashHoldSeconds),
+                0.0F, 1.0F);
+            hitFlash = EnemyHitFlashPeak *
+                (1.0F - fade * fade * (3.0F - 2.0F * fade));
+        }
+        const float batchedHitFlash = hitFlash > 0.001F
+            ? std::ceil(hitFlash * 8.0F) * 0.125F
+            : 0.0F;
         const float enemyScale =
             enemyVisualScale(enemy.type) * enemyHitScale(enemy) *
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
@@ -271,36 +279,6 @@ void App::drawWorldEnemies(
             modelTint = {255, 181, 78, 255};
         }
         if (!aimed) {
-            if (hitFlash > 0.001F) {
-                const float smoothFlash =
-                    std::clamp(hitFlash, 0.0F, 1.0F);
-                const float batchedFlash =
-                    std::ceil(smoothFlash * 4.0F) / 4.0F;
-                modelTint = {
-                    static_cast<unsigned char>(
-                        std::lround(
-                            static_cast<float>(modelTint.r) +
-                            (255.0F -
-                             static_cast<float>(
-                                 modelTint.r)) *
-                                batchedFlash)),
-                    static_cast<unsigned char>(
-                        std::lround(
-                            static_cast<float>(modelTint.g) +
-                            (244.0F -
-                             static_cast<float>(
-                                 modelTint.g)) *
-                                batchedFlash)),
-                    static_cast<unsigned char>(
-                        std::lround(
-                            static_cast<float>(modelTint.b) +
-                            (205.0F -
-                             static_cast<float>(
-                                 modelTint.b)) *
-                                batchedFlash)),
-                    255,
-                };
-            }
             float animationTime = frozen
                 ? 0.0F
                 : enemyAnimationSeconds(enemy, snapshot.elapsedSeconds);
@@ -325,6 +303,7 @@ void App::drawWorldEnemies(
                 .yawRadians =
                     static_cast<float>(enemy.yaw),
                 .tint = modelTint,
+                .whiteFlashAmount = batchedHitFlash,
                 .scale = enemyScale,
                 .lowDetail = lowDetail,
             });
@@ -332,7 +311,7 @@ void App::drawWorldEnemies(
         }
         WorldMaterialState material{};
         material.bakedAo = 0.82F;
-        material.hitFlashAmount = hitFlash;
+        material.enemyWhiteFlashAmount = hitFlash;
         material.selectionAmount = aimed ? 0.32F : 0.0F;
         material.selectionTint = {1.0F, 0.38F, 0.12F};
         renderer_->setWorldMaterial(material);
@@ -418,6 +397,8 @@ void App::drawWorldEnemies(
                 enemyDrawInstances_)) {
             for (const EnemyDrawInstance& instance :
                  enemyDrawInstances_) {
+                material.enemyWhiteFlashAmount = instance.whiteFlashAmount;
+                renderer_->setWorldMaterial(material);
                 static_cast<void>(renderer_->drawEnemy(
                     instance.modelVisual,
                     instance.animationVisual,

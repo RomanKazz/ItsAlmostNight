@@ -420,7 +420,7 @@ void App::drawWorldEntities(
         material.hitFlashAmount =
             presentation::resourceHitFlash(
                 effects_, node.id);
-        if (node.type == ResourceType::Stone &&
+        if (isHarvestableResource(node.type) &&
             material.hitFlashAmount > 0.001F) {
             if (const auto hitPosition =
                     presentation::resourceHitPosition(
@@ -693,21 +693,38 @@ void App::drawWorldEntities(
         const float magnetStretch = coin.magnetized
             ? 1.0F + std::min(
                   0.18F,
-                  static_cast<float>(coin.magnetTime) * 0.55F)
+                  static_cast<float>(std::max(
+                      0.0,
+                      coin.magnetTime -
+                          CoinPickupSystem::MagnetAnticipationDuration)) *
+                      0.55F)
             : 1.0F;
+        const float anticipationProgress =
+            coin.magnetized && coin.kind == PickupKind::Coin
+                ? std::clamp(
+                      static_cast<float>(
+                          coin.magnetTime /
+                          CoinPickupSystem::MagnetAnticipationDuration),
+                      0.0F, 1.0F)
+                : 1.0F;
+        const float anticipationPop =
+            1.0F + std::sin(anticipationProgress * PI) * 0.12F;
         const Vector3 pickupPosition{
             static_cast<float>(coin.position.x),
             static_cast<float>(coin.position.y),
             static_cast<float>(coin.position.z)};
         const float rotation = static_cast<float>(
-            coin.spinPhase + coin.age * 8.5);
+            coin.spinPhase + coin.age * 8.5 +
+            (coin.magnetized && coin.kind == PickupKind::Coin
+                 ? coin.magnetTime * 17.0
+                 : 0.0));
         if (coin.kind == PickupKind::Heart) {
             renderer_->drawHeart(
                 pickupPosition, rotation, pop * magnetStretch);
         } else {
             renderer_->drawCoin(
                 coin.type, pickupPosition, rotation,
-                pop * magnetStretch);
+                pop * magnetStretch * anticipationPop);
         }
     }
     renderer_->beginWorldShader(lighting);
@@ -903,14 +920,6 @@ void App::drawWorldEntities(
                                2.5F, 2.0F,
                                {219, 151, 60, 255});
             }
-            if (nightAmount > 0.0F) {
-                const unsigned char alpha =
-                    static_cast<unsigned char>(80.0F + 120.0F * nightAmount);
-                DrawSphere(
-                    scaledPosition(0.0F, 2.35F, 0.0F),
-                    0.22F * spawnScale,
-                    {255, 204, 91, alpha});
-            }
         } else if (building.type == BuildingType::Wall) {
             const std::uint8_t connections =
                 wallConnectionMask(
@@ -1034,7 +1043,13 @@ void App::drawWorldEntities(
             drawScaledCube(0.0F, 1.62F, 0.0F, 1.25F,
                            0.24F, 1.25F,
                            {224, 195, 123, 255});
-        } else {
+        } else if (building.type == BuildingType::Gate &&
+                   !renderer_->drawGate(
+                       {x, groundY, z},
+                       static_cast<float>(building.rotation) *
+                           PI * 0.5F,
+                       gateOpenAmount(building.id, building.open),
+                       WHITE, spawnScale)) {
             if ((building.rotation % 2U) == 0U) {
                 drawScaledCube(-0.38F, 1.0F, 0.0F, 0.22F,
                                2.0F, 1.0F,

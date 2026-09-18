@@ -38,6 +38,35 @@ namespace ian {
 
 inline constexpr double ResourcePickupFlightSeconds = 0.78;
 
+struct FloorPlatformFoundationPlacement {
+    PlatformFramePlacement foundation;
+    PlatformFramePlacement floor;
+
+    [[nodiscard]] bool valid() const {
+        return foundation.valid() && floor.valid();
+    }
+};
+
+struct FloorPlatformFoundationBuild {
+    PlatformFrameInstance foundation;
+    PlatformFrameInstance floor;
+};
+
+struct RampFoundationPlacement {
+    std::array<PlatformFramePlacement, 2> foundations;
+    RampPlacement ramp;
+
+    [[nodiscard]] bool valid() const {
+        return foundations[0].valid() &&
+               foundations[1].valid() && ramp.valid();
+    }
+};
+
+struct RampFoundationBuild {
+    std::array<PlatformFrameInstance, 2> foundations;
+    RampInstance ramp;
+};
+
 struct StartWaveEarlyCommand {};
 struct EnableUnlimitedResourcesCommand {};
 struct ToggleWeaponCommand {};
@@ -545,6 +574,17 @@ class Simulation {
     placeFloorPlatform(
         GridCoord anchor, int storey,
         double floorHeight);
+    [[nodiscard]] FloorPlatformFoundationPlacement
+    previewFloorPlatformWithFoundation(
+        Vec3 terrainHit,
+        std::optional<double> foundationHeight =
+            std::nullopt) const;
+    [[nodiscard]] std::optional<
+        FloorPlatformFoundationBuild>
+    placeFloorPlatformWithFoundation(
+        Vec3 terrainHit,
+        std::optional<double> foundationHeight =
+            std::nullopt);
     [[nodiscard]] WallPlacement previewWall(
         Vec3 terrainHit, Rotation rotation) const;
     [[nodiscard]] std::optional<WallInstance>
@@ -553,6 +593,16 @@ class Simulation {
         Vec3 terrainHit, Rotation rotation) const;
     [[nodiscard]] std::optional<RampInstance>
     placeRamp(Vec3 terrainHit, Rotation rotation);
+    [[nodiscard]] RampFoundationPlacement
+    previewRampWithFoundation(
+        Vec3 terrainHit, Rotation rotation,
+        std::optional<double> foundationHeight =
+            std::nullopt) const;
+    [[nodiscard]] std::optional<RampFoundationBuild>
+    placeRampWithFoundation(
+        Vec3 terrainHit, Rotation rotation,
+        std::optional<double> foundationHeight =
+            std::nullopt);
     void beginModularPlacementBatch();
     void endModularPlacementBatch();
     void setStructuralCollapseEnabled(bool enabled);
@@ -639,8 +689,18 @@ class Simulation {
         BuildingType type, GridPosition position,
         std::optional<double> preferredHeight =
             std::nullopt) const;
+    [[nodiscard]] PlatformFramePlacement
+    validateFloorPlatformPlacement(
+        PlatformFramePlacement placement,
+        bool checkResourceCost) const;
+    [[nodiscard]] RampPlacement
+    validateRampPlacement(
+        RampPlacement placement,
+        bool checkResourceCost) const;
     [[nodiscard]] bool foundationAddsPlacementCost(
         const PlatformFramePlacement& placement) const;
+    [[nodiscard]] bool foundationInsideCoreBuildRadius(
+        GridCoord anchor) const;
     [[nodiscard]] bool rectangleHasDeepWater(
         double minimumX, double maximumX,
         double minimumZ, double maximumZ) const;
@@ -653,6 +713,8 @@ class Simulation {
         EntityId id) const;
     void syncBuildingRuntimeSystems();
     void syncWorldStructures();
+    void rebuildFlowField();
+    void rebuildFlowFieldIfDirty();
     void syncModularStructures();
     void removeUnsupportedPlatformBuildings();
     void damagePlayer(
@@ -698,7 +760,7 @@ class Simulation {
     [[nodiscard]] double resourceToolEfficiency(
         PlayerWeapon tool, ResourceType resource) const;
     [[nodiscard]] int resourceCapacity(
-        BuildingType storageType) const;
+        ResourceCapacityType resource) const;
     void clampResourcesToCapacity();
     void addWood(int amount);
     void addStone(int amount);
@@ -842,6 +904,7 @@ class Simulation {
     CollisionWorld collisionWorld_;
     FlowField flowField_;
     std::vector<FlowDebugVector> flowDebugVectors_;
+    bool flowFieldDirty_{};
     std::optional<EntityId> aimedEnemy_;
     std::optional<EntityId> aimedBuilding_;
     std::optional<EntityId> aimedModularBuilding_;
@@ -872,6 +935,8 @@ class Simulation {
     double waveSpawnTimeRemaining_{};
     std::size_t waveSpawnGroupsDue_{};
     std::uint32_t waveSpawnCycle_{};
+    std::optional<EnemySpawn> waveBossSpawn_;
+    std::uint8_t waveSurgeWarningMask_{};
     double waveHealthScale_{1.0};
     double waveDamageScale_{1.0};
     std::optional<AttackDirection> upcomingAttackDirection_;

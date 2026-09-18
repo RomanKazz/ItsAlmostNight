@@ -674,10 +674,7 @@ void App::drawChestLootGlow(
     EndBlendMode();
 }
 
-void App::drawStoneCrackOverlays(const Camera3D& camera) const {
-    if (!stoneCrackTexture_.valid()) {
-        return;
-    }
+void App::drawResourceImpactOverlays(const Camera3D& camera) const {
     Vector3 cameraForward = Vector3Subtract(
         camera.target, camera.position);
     cameraForward = Vector3LengthSqr(cameraForward) > 0.000001F
@@ -688,7 +685,11 @@ void App::drawStoneCrackOverlays(const Camera3D& camera) const {
         BeginBlendMode(glowPass ? BLEND_ADDITIVE : BLEND_ALPHA);
         for (const PresentationEffect& effect : effects_) {
             if (effect.startDelayRemaining > 0.0 ||
-                effect.type != PresentationEffectType::StoneCrack) {
+                effect.type !=
+                    PresentationEffectType::ResourceImpactDecal) {
+                continue;
+            }
+            if (!resourceImpactTexture_.valid()) {
                 continue;
             }
             const Vector3 hitPosition{
@@ -701,37 +702,18 @@ void App::drawStoneCrackOverlays(const Camera3D& camera) const {
                     cameraForward) <= 0.0F) {
                 continue;
             }
-            Vector3 surfaceNormal = Vector3Negate(cameraForward);
-            if (effect.targetPosition) {
-                surfaceNormal = Vector3Subtract(
-                    hitPosition,
-                    {static_cast<float>(effect.targetPosition->x),
-                     static_cast<float>(effect.targetPosition->y),
-                     static_cast<float>(effect.targetPosition->z)});
-            }
-            if (Vector3LengthSqr(surfaceNormal) <= 0.000001F) {
-                surfaceNormal = Vector3Negate(cameraForward);
-            }
-            surfaceNormal = Vector3Normalize(surfaceNormal);
-            Vector3 surfaceUp = Vector3Subtract(
-                {0.0F, 1.0F, 0.0F},
-                Vector3Scale(
-                    surfaceNormal,
-                    Vector3DotProduct(
-                        {0.0F, 1.0F, 0.0F}, surfaceNormal)));
-            if (Vector3LengthSqr(surfaceUp) <= 0.0001F) {
-                surfaceUp = Vector3Subtract(
-                    camera.up,
-                    Vector3Scale(
-                        surfaceNormal,
-                        Vector3DotProduct(camera.up, surfaceNormal)));
-            }
-            if (Vector3LengthSqr(surfaceUp) <= 0.0001F) {
+            // Impact art is a readable screen-facing cue, not a decal glued
+            // to the mesh. Object normals made it squash and tilt heavily on
+            // low-poly facets, especially on tree canopies and crystals.
+            const Vector3 surfaceNormal = Vector3Negate(cameraForward);
+            Vector3 surfaceRight = Vector3CrossProduct(
+                camera.up, surfaceNormal);
+            if (Vector3LengthSqr(surfaceRight) <= 0.0001F) {
                 continue;
             }
-            surfaceUp = Vector3Normalize(surfaceUp);
-            const Vector3 surfaceRight = Vector3Normalize(
-                Vector3CrossProduct(surfaceUp, surfaceNormal));
+            surfaceRight = Vector3Normalize(surfaceRight);
+            const Vector3 surfaceUp = Vector3Normalize(
+                Vector3CrossProduct(surfaceNormal, surfaceRight));
             const float progress = std::clamp(static_cast<float>(
                 1.0 - effect.remaining / effect.duration),
                 0.0F, 1.0F);
@@ -756,20 +738,18 @@ void App::drawStoneCrackOverlays(const Camera3D& camera) const {
             const float size = glowPass
                 ? effect.scale * 0.78F * scaleEnvelope
                 : effect.scale * 0.70F * scaleEnvelope;
-            const int seed = effect.entityId
-                ? static_cast<int>(effect.entityId->index) : 0;
             const auto quad = projectedSurfaceQuad(
                 Vector3Add(
                     hitPosition,
                     Vector3Scale(surfaceNormal, 0.028F)),
                 surfaceRight, surfaceUp, size,
-                static_cast<float>(seed % 9 - 4) * 0.0872665F,
+                0.0F,
                 camera);
             if (!quad) {
                 continue;
             }
             drawScreenTextureQuad(
-                stoneCrackTexture_.get(), *quad,
+                resourceImpactTexture_.get(), *quad,
                 glowPass
                     ? Color{255, 202, 72, atmosphereAlpha(glow)}
                     : Color{255, 248, 220,
@@ -782,6 +762,7 @@ void App::drawStoneCrackOverlays(const Camera3D& camera) const {
     // alpha layer. Neither pass participates in world outline detection.
     drawPass(true);
     drawPass(false);
+
 }
 
 void App::drawPresentationEffects(
@@ -797,21 +778,24 @@ void App::drawPresentationEffects(
     const Vector3 billboardUp = Vector3Normalize(
         Vector3CrossProduct(cameraRight, cameraForward));
 
-    const bool hasStoneChips = std::ranges::any_of(
+    const bool hasResourceFragments = std::ranges::any_of(
         effects_, [](const PresentationEffect& effect) {
             return effect.startDelayRemaining <= 0.0 &&
-                effect.type == PresentationEffectType::StoneChip;
+                effect.type ==
+                    PresentationEffectType::ResourceFragment;
         });
-    if (hasStoneChips) {
+    if (hasResourceFragments) {
         renderer_->beginWorldShader(lighting);
         WorldMaterialState chipMaterial{};
         chipMaterial.bakedAo = 0.86F;
         chipMaterial.screenAoAmount = 0.0F;
         chipMaterial.inkOutlineEligible = true;
+        chipMaterial.outlineMaterialClassOverride = 4.0F;
         renderer_->setWorldMaterial(chipMaterial);
         for (const PresentationEffect& effect : effects_) {
             if (effect.startDelayRemaining > 0.0 ||
-                effect.type != PresentationEffectType::StoneChip ||
+                effect.type !=
+                    PresentationEffectType::ResourceFragment ||
                 !effect.targetPosition) {
                 continue;
             }
@@ -839,20 +823,30 @@ void App::drawPresentationEffects(
             position.y = std::max(position.y, groundHeight + 0.025F);
             const std::uint32_t seed =
                 static_cast<std::uint32_t>(effect.variant);
-            const Vector3 rotationAxis = Vector3Normalize({
-                0.35F + effectUnit(static_cast<int>(seed), 711),
-                0.55F + effectUnit(static_cast<int>(seed), 719),
-                0.25F + effectUnit(static_cast<int>(seed), 727),
-            });
+            const Vector3 rotationAxis =
+                Vector3LengthSqr(velocity) > 0.000001F
+                    ? Vector3Normalize(velocity)
+                    : Vector3{0.0F, 1.0F, 0.0F};
             const float disappearScale =
                 1.0F - smoothstep(0.76F, 1.0F, progress);
-            static_cast<void>(renderer_->drawDecorativeRockFragment(
-                position, rotationAxis,
+            const float rotationDegrees =
                 progress *
-                    (480.0F + effectUnit(
-                        static_cast<int>(seed), 733) * 420.0F),
-                effect.scale * disappearScale,
-                seed % 4U, WHITE));
+                (480.0F + effectUnit(
+                    static_cast<int>(seed), 733) * 420.0F);
+            if (effect.resourceType == ResourceType::Wood) {
+                static_cast<void>(renderer_->drawWoodFragment(
+                    position, rotationAxis, rotationDegrees * 0.60F,
+                    effect.scale * disappearScale, WHITE));
+            } else if (effect.resourceType == ResourceType::Crystal) {
+                static_cast<void>(renderer_->drawCrystalFragment(
+                    position, rotationAxis, rotationDegrees * 0.60F,
+                    effect.scale * disappearScale, WHITE));
+            } else {
+                static_cast<void>(renderer_->drawDecorativeRockFragment(
+                    position, rotationAxis, rotationDegrees,
+                    effect.scale * disappearScale,
+                    seed % 4U, WHITE));
+            }
         }
         renderer_->endWorldShader();
     }
@@ -930,9 +924,8 @@ void App::drawPresentationEffects(
                 (0.095F + progress * 0.055F),
             inner, 6);
 
-        const bool authoredImpactAvailable = style == 5
-            ? vfxElectricRingTexture_.valid()
-            : vfxImpactTexture_.valid();
+        const bool authoredImpactAvailable = enemyImpact ||
+            vfxImpactTexture_.valid();
         if (renderer_->settings().particles &&
             !authoredImpactAvailable) {
             const int streakCount = critical ? 5 : 3;
@@ -1001,6 +994,9 @@ void App::drawPresentationEffects(
                     ? effect.variant & 7 : 2;
                 const bool electric = style == 5;
                 if (electric != (electricPass != 0)) continue;
+                if (enemyImpact && !electric) {
+                    continue;
+                }
                 const float progress = std::clamp(static_cast<float>(
                     1.0 - effect.remaining / effect.duration),
                     0.0F, 1.0F);
@@ -1065,8 +1061,11 @@ void App::drawPresentationEffects(
         };
         if (effect.type == PresentationEffectType::Hit ||
             effect.type == PresentationEffectType::EnemyHitImpact ||
-            effect.type == PresentationEffectType::StoneCrack ||
-            effect.type == PresentationEffectType::StoneChip) {
+            effect.type ==
+                PresentationEffectType::ResourceImpactDecal ||
+            effect.type ==
+                PresentationEffectType::ResourceFragment ||
+            effect.type == PresentationEffectType::ResourceHit) {
             continue;
         }
         if (effect.type == PresentationEffectType::RepairShockwave) {
@@ -1469,112 +1468,6 @@ void App::drawPresentationEffects(
                     effect.scale *
                         (0.035F + fade * 0.045F),
                     {106, 255, 158, alpha});
-            }
-            EndBlendMode();
-            continue;
-        }
-        const bool resourceHit =
-            effect.type ==
-                PresentationEffectType::ResourceHitWood ||
-            effect.type ==
-                PresentationEffectType::ResourceHitStone;
-        const bool resourceDestroyed =
-            effect.type ==
-                PresentationEffectType::ResourceDestroyedWood ||
-            effect.type ==
-                PresentationEffectType::ResourceDestroyedStone;
-        if (resourceHit || resourceDestroyed) {
-            const bool wood =
-                effect.type ==
-                    PresentationEffectType::ResourceHitWood ||
-                effect.type ==
-                    PresentationEffectType::ResourceDestroyedWood;
-            const bool suppressSupersededStoneParticles =
-                resourceHit && !wood && effect.variant == 1;
-            if (suppressSupersededStoneParticles) {
-                continue;
-            }
-            const int particleCount =
-                resourceDestroyed ? 26 : 11;
-            const float fade =
-                1.0F -
-                smoothstep(resourceDestroyed ? 0.48F : 0.34F,
-                           1.0F, progress);
-            BeginBlendMode(BLEND_ADDITIVE);
-            for (int index = 0; index < particleCount;
-                 ++index) {
-                const float seed = std::fmod(
-                    std::sin(
-                        static_cast<float>(index + 1) *
-                        91.731F) *
-                        43758.5453F,
-                    1.0F);
-                const float unit =
-                    seed < 0.0F ? seed + 1.0F : seed;
-                const float second = std::fmod(
-                    unit * 17.137F + 0.319F, 1.0F);
-                const float angle =
-                    unit * 2.0F * PI +
-                    progress * (second - 0.5F);
-                const float speed =
-                    resourceDestroyed
-                        ? 1.2F + second * 1.9F
-                        : 0.48F + second * 0.72F;
-                const float distance =
-                    progress * speed * effect.scale;
-                const float lift =
-                    progress *
-                        (resourceDestroyed
-                             ? 2.3F + unit * 2.1F
-                             : 0.7F + unit * 0.9F) -
-                    progress * progress *
-                        (resourceDestroyed ? 2.1F : 0.72F);
-                const Vector3 particlePosition{
-                    origin.x + std::cos(angle) * distance,
-                    origin.y +
-                        (resourceDestroyed
-                             ? (second - 0.5F) * 1.25F
-                             : 0.0F) +
-                        lift,
-                    origin.z + std::sin(angle) * distance,
-                };
-                const float baseSize =
-                    resourceDestroyed ? 0.065F : 0.035F;
-                const float size =
-                    (baseSize + unit *
-                                    (resourceDestroyed
-                                         ? 0.17F
-                                         : 0.085F)) *
-                    std::sqrt(std::max(0.0F, 1.0F - progress)) *
-                    effect.scale;
-                const auto particleAlpha =
-                    static_cast<unsigned char>(
-                        std::lround(fade * 235.0F));
-                const Color color =
-                    wood
-                        ? (index % 3 == 0
-                               ? Color{255, 211, 92,
-                                       particleAlpha}
-                               : Color{242, 111, 28,
-                                       particleAlpha})
-                        : (index % 3 == 0
-                               ? Color{184, 225, 255,
-                                       particleAlpha}
-                               : Color{104, 145, 190,
-                                       particleAlpha});
-                DrawSphere(particlePosition, size, color);
-            }
-            if (resourceDestroyed) {
-                const auto ringAlpha =
-                    static_cast<unsigned char>(
-                        std::lround(fade * 220.0F));
-                DrawCircle3D(
-                    {origin.x, 0.06F, origin.z},
-                    0.35F + progress * 2.1F,
-                    {1.0F, 0.0F, 0.0F}, 90.0F,
-                    wood
-                        ? Color{255, 158, 42, ringAlpha}
-                        : Color{145, 196, 240, ringAlpha});
             }
             EndBlendMode();
             continue;
@@ -2224,10 +2117,7 @@ void App::drawPresentationEffects(
                      atmosphereAlpha(fade * 0.82F)});
             }
         } else {
-            const Color color =
-                effect.type == PresentationEffectType::ResourceBurst
-                    ? Color{184, 145, 82, 255}
-                    : Color{125, 112, 101, 255};
+            const Color color{125, 112, 101, 255};
             for (int particle = 0; particle < 6; ++particle) {
                 const float angle =
                     static_cast<float>(particle) * 1.04719755F;

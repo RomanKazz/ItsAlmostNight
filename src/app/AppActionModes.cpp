@@ -49,6 +49,10 @@ void App::resetRunInputState() {
     pendingGateToggle_.reset();
     pendingPlacedBuildingRotation_.reset();
     coreDefenseMenuVisible_ = false;
+    coreDefenseMenuClosing_ = false;
+    coreDefenseMenuEntranceSeconds_ = 0.0;
+    coreDefenseMenuAnimatedLevel_ = 0;
+    placementPreviewEntranceSeconds_ = 0.0;
     runUpgradeChoiceWasVisible_ = false;
     runUpgradeChoiceInputDelayRemaining_ = 0.0;
     runUpgradeChoiceInputArmed_ = false;
@@ -80,6 +84,7 @@ void App::resetRunInputState() {
     hoveredBuilding_.reset();
     hoveredEnemy_.reset();
     hoverGraceRemaining_ = 0.0;
+    gateDoorVisuals_.clear();
 }
 
 void App::resetEquipmentActionMode(
@@ -180,14 +185,14 @@ void App::selectNextBuildingCategory(
         const auto candidate =
             static_cast<BuildingHotbarCategory>(category);
         if (candidate == BuildingHotbarCategory::Modular) {
-            if (!snapshot.sandboxMode &&
-                !snapshot.unlimitedResources &&
-                snapshot.coreLevel < 2) {
-                continue;
-            }
-            buildingHotbarCategory_ = candidate;
-            pendingBuildingSelection_.reset();
-            setFoundationBuildMode(true);
+            const ConstructionHotbarLayout layout =
+                makeConstructionHotbarLayout(
+                    snapshot.unlockedBuildings, true,
+                    snapshot.coreLevel,
+                    snapshot.sandboxMode ||
+                        snapshot.unlimitedResources);
+            if (layout.count == 0U) continue;
+            selectConstructionHotbarItem(snapshot, 0U);
             return;
         }
         const BuildingHotbarLayout layout =
@@ -210,11 +215,29 @@ void App::selectNextBuildingItem(
     int direction) {
     if (buildingHotbarCategory_ ==
         BuildingHotbarCategory::Modular) {
-        const int count = static_cast<int>(ModularBuildPieceCount);
-        const int current = static_cast<int>(modularBuildPiece_);
-        const int step = direction < 0 ? -1 : 1;
-        selectModularBuildPiece(static_cast<ModularBuildPiece>(
-            (current + step + count) % count));
+        const ConstructionHotbarLayout layout =
+            makeConstructionHotbarLayout(
+                snapshot.unlockedBuildings,
+                snapshot.coreMaxHealth > 0.0,
+                snapshot.coreLevel,
+                snapshot.sandboxMode ||
+                    snapshot.unlimitedResources);
+        if (layout.count == 0U) return;
+        std::optional<std::size_t> current;
+        if (foundationBuildMode_) {
+            current = layout.indexOf(modularBuildPiece_);
+        } else {
+            current = layout.indexOf(lastBuildingSelection_);
+            if (!current && snapshot.selectedBuilding) {
+                current = layout.indexOf(*snapshot.selectedBuilding);
+            }
+        }
+        const std::size_t next = current
+            ? (direction < 0
+                   ? (*current + layout.count - 1U) % layout.count
+                   : (*current + 1U) % layout.count)
+            : (direction < 0 ? layout.count - 1U : 0U);
+        selectConstructionHotbarItem(snapshot, next);
         return;
     }
     const BuildingHotbarLayout layout =
@@ -238,6 +261,31 @@ void App::selectNextBuildingItem(
         : (currentIndex + 1U) % layout.count;
     lastBuildingSelection_ = layout.types[nextIndex];
     pendingBuildingSelection_ = lastBuildingSelection_;
+}
+
+void App::selectConstructionHotbarItem(
+    const SimulationSnapshot& snapshot,
+    std::size_t index) {
+    const ConstructionHotbarLayout layout =
+        makeConstructionHotbarLayout(
+            snapshot.unlockedBuildings,
+            snapshot.coreMaxHealth > 0.0,
+            snapshot.coreLevel,
+            snapshot.sandboxMode ||
+                snapshot.unlimitedResources);
+    if (index >= layout.count) return;
+    buildingHotbarCategory_ = BuildingHotbarCategory::Modular;
+    const ConstructionHotbarItem& item = layout.items[index];
+    if (item.modularPiece) {
+        setFoundationBuildMode(true);
+        selectModularBuildPiece(*item.modularPiece);
+        return;
+    }
+    if (item.buildingType) {
+        setFoundationBuildMode(false);
+        lastBuildingSelection_ = *item.buildingType;
+        pendingBuildingSelection_ = *item.buildingType;
+    }
 }
 
 void App::selectNextActionModeItem(

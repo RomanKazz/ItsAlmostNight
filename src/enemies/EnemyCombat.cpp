@@ -35,7 +35,17 @@ double knockbackMultiplier(EnemyType type) {
 std::optional<EntityId> EnemySystem::raycast(
     Vec3 origin, Vec3 direction, double maxDistance,
     const TerrainHeightfield* terrain) const {
-    std::optional<EntityId> result;
+    const auto hit = raycastHit(
+        origin, direction, maxDistance, terrain);
+    return hit
+        ? std::optional<EntityId>{hit->id}
+        : std::nullopt;
+}
+
+std::optional<EnemyRaycastHit> EnemySystem::raycastHit(
+    Vec3 origin, Vec3 direction, double maxDistance,
+    const TerrainHeightfield* terrain) const {
+    std::optional<EnemyRaycastHit> result;
     double closestDistance = std::numeric_limits<double>::max();
     for (const auto& enemy : enemies_) {
         if (!enemy.active) {
@@ -57,8 +67,16 @@ std::optional<EntityId> EnemySystem::raycast(
             capsule.radius + AimRadiusPadding,
             capsule.segmentHalfHeight + AimHeightPadding);
         if (distance && *distance <= maxDistance && *distance < closestDistance) {
-            result = enemy.id;
             closestDistance = *distance;
+            result = EnemyRaycastHit{
+                .id = enemy.id,
+                .position = {
+                    origin.x + direction.x * *distance,
+                    origin.y + direction.y * *distance,
+                    origin.z + direction.z * *distance,
+                },
+                .distance = *distance,
+            };
         }
     }
     return result;

@@ -10,12 +10,7 @@ constexpr double Pi = 3.14159265358979323846;
 
 bool targetsResource(
     const PresentationEffect& effect, EntityId id) {
-    const bool resourceHit =
-        effect.type ==
-            PresentationEffectType::ResourceHitWood ||
-        effect.type ==
-            PresentationEffectType::ResourceHitStone;
-    return resourceHit &&
+    return effect.type == PresentationEffectType::ResourceHit &&
            effect.startDelayRemaining <= 0.0 &&
            effect.entityId == id;
 }

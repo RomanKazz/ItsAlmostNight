@@ -2,6 +2,7 @@
 
 #include "combat/PlayerWeaponSystem.hpp"
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/ModularBuildingConstants.hpp"
 #include "progression/RunUpgrade.hpp"
 #include "ui/UiCString.hpp"
 #include "ui/UiText.hpp"
@@ -131,6 +132,19 @@ void GameUi::initialize() {
     smoothHudIcon(coreBuildingIcon_);
     wallBuildingIcon_ = loadTexture("assets/ui/building_wall.png");
     smoothHudIcon(wallBuildingIcon_);
+    gateBuildingIcon_ = loadTexture("assets/ui/building_gate.png");
+    smoothHudIcon(gateBuildingIcon_);
+    constexpr std::array ModularBuildingIconPaths{
+        "assets/ui/building_foundation.png",
+        "assets/ui/building_floor.png",
+        "assets/ui/building_ramp.png",
+    };
+    for (std::size_t index = 0;
+         index < modularBuildingIcons_.size(); ++index) {
+        modularBuildingIcons_[index] =
+            loadTexture(ModularBuildingIconPaths[index]);
+        smoothHudIcon(modularBuildingIcons_[index]);
+    }
     constexpr std::array BuildingIconPaths{
         "assets/ui/building_ballista.png",
         "assets/ui/building_cannon.png",
@@ -175,6 +189,28 @@ void GameUi::initialize() {
     smoothHudIcon(levelUpBanner_);
     levelUpRays_ = loadTexture("assets/ui/levelup_rays.png");
     smoothHudIcon(levelUpRays_);
+    constexpr std::array CoreMenuTexturePaths{
+        "assets/ui/core_menu/core_menu_header.png",
+        "assets/ui/core_menu/core_menu_gear.png",
+        "assets/ui/core_menu/core_menu_heart.png",
+        "assets/ui/core_menu/core_menu_gem.png",
+        "assets/ui/core_menu/core_menu_shield.png",
+        "assets/ui/core_menu/core_menu_rock.png",
+        "assets/ui/core_menu/core_menu_wood.png",
+        "assets/ui/core_menu/core_menu_wrench.png",
+        "assets/ui/core_menu/core_menu_upgrade.png",
+        "assets/ui/core_menu/core_menu_coin.png",
+        "assets/ui/core_menu/core_menu_turret.png",
+        "assets/ui/core_menu/core_menu_ballista.png",
+        "assets/ui/core_menu/core_menu_cannon.png",
+        "assets/ui/core_menu/core_menu_spikes.png",
+    };
+    for (std::size_t index = 0;
+         index < coreMenuTextures_.size(); ++index) {
+        coreMenuTextures_[index] =
+            loadTexture(CoreMenuTexturePaths[index]);
+        smoothHudIcon(coreMenuTextures_[index]);
+    }
     minimapTarget_ = LoadRenderTexture(
         MinimapTargetSize, MinimapTargetSize);
     minimapFrameTarget_ = LoadRenderTexture(
@@ -237,12 +273,17 @@ void GameUi::shutdown() {
     unloadTexture(healthPlayer_);
     unloadTexture(coreBuildingIcon_);
     unloadTexture(wallBuildingIcon_);
+    unloadTexture(gateBuildingIcon_);
+    for (auto& icon : modularBuildingIcons_) unloadTexture(icon);
     unloadTexture(resourceCrystal_);
     unloadTexture(resourceCoin_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
     unloadTexture(levelUpRays_);
     unloadTexture(levelUpBanner_);
+    for (auto& texture : coreMenuTextures_) {
+        unloadTexture(texture);
+    }
     unloadTexture(xpGainUpgradeIcon_);
     unloadTexture(ricochetUpgradeIcon_);
     unloadTexture(pierceUpgradeIcon_);
@@ -579,6 +620,7 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     switch (type) {
     case BuildingType::Core: return coreBuildingIcon_;
     case BuildingType::Wall: return wallBuildingIcon_;
+    case BuildingType::Gate: return gateBuildingIcon_;
     case BuildingType::Turret: return buildingIcons_[0];
     case BuildingType::Cannon: return buildingIcons_[1];
     case BuildingType::Catapult: return buildingIcons_[2];
@@ -586,6 +628,21 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     case BuildingType::GunTurret: return buildingIcons_[4];
     default: return {};
     }
+}
+
+Texture2D GameUi::modularBuildingTexture(
+    ModularBuildPiece piece) const {
+    switch (piece) {
+    case ModularBuildPiece::Foundation:
+        return modularBuildingIcons_[0];
+    case ModularBuildPiece::FloorPlatform:
+        return modularBuildingIcons_[1];
+    case ModularBuildPiece::Ramp:
+        return modularBuildingIcons_[2];
+    case ModularBuildPiece::Wall:
+        return {};
+    }
+    return {};
 }
 
 Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
@@ -628,6 +685,14 @@ Texture2D GameUi::levelUpBannerTexture() const {
 
 Texture2D GameUi::levelUpRaysTexture() const {
     return levelUpRays_;
+}
+
+Texture2D GameUi::coreMenuTexture(
+    CoreMenuTexture texture) const {
+    const auto index = static_cast<std::size_t>(texture);
+    return index < coreMenuTextures_.size()
+        ? coreMenuTextures_[index]
+        : Texture2D{};
 }
 
 void GameUi::drawVitalIcon(Rectangle bounds, bool core) const {

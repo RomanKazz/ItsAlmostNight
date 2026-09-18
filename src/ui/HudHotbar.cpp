@@ -1,6 +1,7 @@
 #include "ui/HudHotbar.hpp"
 
 #include "buildings/BuildingHotbarLayout.hpp"
+#include "buildings/ModularBuildingConstants.hpp"
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/HudFormatting.hpp"
@@ -346,30 +347,67 @@ void drawHotbarSlots(
 
 }
 
-void drawFoundationHotbar(
+void drawConstructionHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const HudViewState& view) {
-    constexpr std::array<std::string_view, 4> Labels{
-        "FOUNDATION", "FLOOR", "WALL", "RAMP"};
-    constexpr std::array<std::string_view, 4> Keys{
-        "1", "2", "3", "4"};
-    std::array<HotbarSlot, 4> slots{};
-    for (std::size_t index = 0;
-         index < slots.size(); ++index) {
-        const ResourceCost cost =
-            snapshot.modularBuildingCosts[index];
-        slots[index] = {
-            .key = Keys[index],
-            .label = Labels[index],
-            .cost = cost,
-            .selected =
-                view.selectedModularBuildPiece == index,
-            .available =
-                snapshot.unlimitedResources ||
-                canAfford(
-                    cost, snapshot.wood,
-                    snapshot.stone, snapshot.crystals),
-        };
+    constexpr std::array<std::string_view,
+                         MaximumBuildingHotbarSlots> Keys{
+        "1", "2", "3", "4", "5", "6", "7", "8"};
+    const ConstructionHotbarLayout layout =
+        makeConstructionHotbarLayout(
+            snapshot.unlockedBuildings,
+            snapshot.coreMaxHealth > 0.0,
+            snapshot.coreLevel,
+            snapshot.sandboxMode || snapshot.unlimitedResources);
+    const auto modularLabel = [](ModularBuildPiece piece) {
+        switch (piece) {
+        case ModularBuildPiece::Foundation: return "FOUNDATION";
+        case ModularBuildPiece::FloorPlatform: return "FLOOR";
+        case ModularBuildPiece::Ramp: return "RAMP";
+        case ModularBuildPiece::Wall: return "WALL";
+        }
+        return "";
+    };
+    std::vector<HotbarSlot> slots;
+    slots.reserve(layout.count);
+    for (std::size_t index = 0; index < layout.count; ++index) {
+        const ConstructionHotbarItem& item = layout.items[index];
+        if (item.modularPiece) {
+            const ModularBuildPiece piece = *item.modularPiece;
+            const ResourceCost cost = snapshot.modularBuildingCosts[
+                static_cast<std::size_t>(piece)];
+            slots.push_back({
+                .key = Keys[index],
+                .label = modularLabel(piece),
+                .cost = cost,
+                .selected = view.foundationBuildMode &&
+                    view.selectedModularBuildPiece ==
+                        modularBuildHotbarIndex(piece).value_or(0U),
+                .available = snapshot.unlimitedResources ||
+                    canAfford(
+                        cost, snapshot.wood,
+                        snapshot.stone, snapshot.crystals),
+                .icon = ui.modularBuildingTexture(piece),
+            });
+            continue;
+        }
+        if (item.buildingType) {
+            const BuildingType type = *item.buildingType;
+            const ResourceCost cost = snapshot.buildingCosts[
+                static_cast<std::size_t>(type)];
+            slots.push_back({
+                .key = Keys[index],
+                .label = buildingDisplayName(type),
+                .cost = cost,
+                .selected = !view.foundationBuildMode &&
+                    snapshot.selectedBuilding == type,
+                .available = snapshot.unlimitedResources ||
+                    canAfford(
+                        cost, snapshot.wood,
+                        snapshot.stone, snapshot.crystals),
+                .icon = ui.buildingTexture(type),
+            });
+        }
     }
     drawHotbarSlots(
         ui, slots,
@@ -383,8 +421,9 @@ void drawFoundationHotbar(
 void drawBuildHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const HudViewState& view) {
-    if (view.foundationBuildMode) {
-        drawFoundationHotbar(ui, snapshot, view);
+    if (view.buildingHotbarCategory ==
+        BuildingHotbarCategory::Modular) {
+        drawConstructionHotbar(ui, snapshot, view);
         return;
     }
     constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
@@ -772,6 +811,40 @@ void drawCompactInsight(
         {x + (LevelSlotWidth - statusSize.x) * 0.5F,
          y + (OuterHeight - statusSize.y) * 0.5F},
         statusFontSize, statusStyle);
+
+    if (view.insightGainAmount >= 0.5) {
+        const float progress = std::clamp(
+            static_cast<float>(view.insightGainProgress),
+            0.0F, 1.0F);
+        const float visibility = std::min(
+            std::clamp(progress / 0.12F, 0.0F, 1.0F),
+            std::clamp((1.0F - progress) / 0.28F,
+                       0.0F, 1.0F));
+        const std::string gain = "+" +
+            std::to_string(static_cast<int>(
+                std::lround(view.insightGainAmount))) + " XP";
+        constexpr float GainFontSize = 14.0F;
+        const Vector2 gainSize =
+            measureUiText(gain, GainFontSize);
+        SdfUiTextStyle gainStyle{};
+        gainStyle.fillColor = {
+            134, 226, 255,
+            static_cast<unsigned char>(255.0F * visibility)};
+        gainStyle.outlineColor = {
+            31, 49, 61,
+            static_cast<unsigned char>(255.0F * visibility)};
+        gainStyle.shadowColor = {
+            18, 27, 32,
+            static_cast<unsigned char>(210.0F * visibility)};
+        gainStyle.shadowOffsetPixels = {0.0F, 2.0F};
+        gainStyle.outlinePixels = 2.0F;
+        drawStyledSdfUiText(
+            gain,
+            {outerBounds.x + outerBounds.width - gainSize.x,
+             outerBounds.y + outerBounds.height + 4.0F -
+                 progress * 8.0F},
+            GainFontSize, gainStyle);
+    }
 }
 
 void drawWeaponHotbar(

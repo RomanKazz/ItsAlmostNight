@@ -37,6 +37,7 @@ void runDeterministicRandomTests();
 void runDecorationExclusionMapTests();
 void runPlacementLineTests();
 void runGlbCollisionTests();
+void runGlbNodeAnimationTests();
 void runSaturatingArithmeticTests();
 void runGeometryTests();
 void runResourceCostTests();
@@ -110,6 +111,7 @@ int main() {
     runDecorationExclusionMapTests();
     runPlacementLineTests();
     runGlbCollisionTests();
+    runGlbNodeAnimationTests();
     runInsightSystemTests();
     runObjectiveSystemTests();
     runBuildingSystemTests();

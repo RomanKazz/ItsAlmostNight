@@ -184,7 +184,7 @@ void runCollisionWorldTests() {
             "thin wall collider leaves free space beside fence");
 
     const auto turret = buildings.place(
-        ian::BuildingType::Turret, {6, 0}, 0, 25, 15);
+        ian::BuildingType::GunTurret, {6, 0}, 0, 35, 25, 10);
     require(turret.has_value(),
             "collision fixture creates turret");
     collision.syncBuildings(buildings.buildings());

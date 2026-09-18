@@ -178,6 +178,28 @@ void Simulation::syncWorldStructures() {
     }
     collisionWorld_.syncBuildings(buildings_.buildings());
     syncBuildingRuntimeSystems();
+
+    const auto core = buildings_.core();
+    if (!core) {
+        flowField_.reset();
+        flowDebugVectors_.clear();
+        flowFieldDirty_ = false;
+        return;
+    }
+
+    // Building several pieces during the preparation phase used to rebuild
+    // the complete 96x96 navigation grid after every placement. Keep the
+    // existing field usable and collapse those rebuilds into one operation
+    // when the night starts. The first Core still builds a field immediately.
+    if (state_ == RunState::BuildPhase && flowField_.ready()) {
+        flowFieldDirty_ = true;
+        return;
+    }
+
+    rebuildFlowField();
+}
+
+void Simulation::rebuildFlowField() {
     const auto core = buildings_.core();
     if (core) {
         flowField_.rebuild(core->gridPosition, buildings_.buildings());
@@ -185,6 +207,13 @@ void Simulation::syncWorldStructures() {
     } else {
         flowField_.reset();
         flowDebugVectors_.clear();
+    }
+    flowFieldDirty_ = false;
+}
+
+void Simulation::rebuildFlowFieldIfDirty() {
+    if (flowFieldDirty_) {
+        rebuildFlowField();
     }
 }
 
@@ -268,6 +297,7 @@ void Simulation::removeUnsupportedPlatformBuildings() {
             .building = *removed,
             .position =
                 buildingWorldPosition(*removed),
+            .structuralCollapse = true,
         });
     }
     aimedBuilding_.reset();

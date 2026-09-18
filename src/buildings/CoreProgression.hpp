@@ -7,7 +7,7 @@
 
 namespace ian {
 
-inline constexpr int ModularBuildingRequiredCoreLevel = 2;
+inline constexpr int ModularBuildingRequiredCoreLevel = 1;
 
 [[nodiscard]] constexpr int playerWeaponRequiredCoreLevel(
     PlayerWeapon weapon) {
@@ -37,15 +37,16 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 2;
     switch (type) {
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
-    case BuildingType::Turret:
-    case BuildingType::SlowTrap:
-    case BuildingType::SpikeTrap:
-        return 2;
     case BuildingType::CrystalMine:
-    case BuildingType::Cannon:
+    case BuildingType::SlowTrap:
+        return 2;
+    case BuildingType::Turret:
+    case BuildingType::SpikeTrap:
         return 3;
-    case BuildingType::Catapult:
+    case BuildingType::Cannon:
         return 4;
+    case BuildingType::Catapult:
+        return 5;
     case BuildingType::Core:
     case BuildingType::Wall:
     case BuildingType::Gate:
@@ -62,13 +63,17 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 2;
     int level) {
     switch (level) {
     case 2:
-        return "UNLOCKS  RIFLE · CROSSBOW · LUMBER MILL · QUARRY · TRAPS · MODULAR";
+        return "UNLOCKS  RIFLE · PRODUCTION · SLOW TRAP";
     case 3:
-        return "UNLOCKS  BOMBS · CRYSTAL MINE · CANNON";
+        return "UNLOCKS  BOMBS · CROSSBOW · SPIKE TRAP";
     case 4:
-        return "UNLOCKS  ICE WAND · CATAPULT";
+        return "UNLOCKS  ICE WAND · CANNON";
     case 5:
-        return "UNLOCKS  FIRE WAND";
+        return "UNLOCKS  FIRE WAND · CATAPULT";
+    case 6:
+    case 7:
+    case 8:
+        return "EXPANDS  DEFENSES · PRODUCERS · STORAGE";
     default:
         return {};
     }

@@ -17,7 +17,7 @@ void runPresentationEffectQueryTests() {
         {
             .type =
                 ian::PresentationEffectType::
-                    ResourceHitWood,
+                    ResourceHit,
             .entityId = tree,
             .position = {0.1, 0.0, 0.0},
             .remaining = 0.3,
@@ -51,9 +51,9 @@ void runPresentationEffectQueryTests() {
         offset.x < 0.0 && offset.z == 0.0,
         "resource offset follows its own impact direction");
 
-    const std::array<ian::PresentationEffect, 1> stoneHit{{
+    const std::array<ian::PresentationEffect, 1> resourceHit{{
         {
-            .type = ian::PresentationEffectType::ResourceHitStone,
+            .type = ian::PresentationEffectType::ResourceHit,
             .entityId = tree,
             .position = {0.1, 0.0, 0.0},
             .remaining = 0.3,
@@ -63,8 +63,8 @@ void runPresentationEffectQueryTests() {
     }};
     require(
         ian::presentation::resourceHitFlash(
-            stoneHit, tree) > 0.0F &&
+            resourceHit, tree) > 0.0F &&
             ian::presentation::resourceHitScale(
-                stoneHit, tree) < 1.0F,
-        "stone crack keeps the shared resource flash and deformation");
+                resourceHit, tree) < 1.0F,
+        "resource impact keeps the shared flash and deformation");
 }

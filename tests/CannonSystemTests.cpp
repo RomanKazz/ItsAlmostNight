@@ -10,6 +10,8 @@ void runCannonSystemTests() {
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "cannon fixture creates core");
     buildings.upgrade(core->building.id, 0, 0, 50);
+    buildings.upgrade(core->building.id, 0, 0, 100);
+    buildings.upgrade(core->building.id, 0, 0, 150);
     const auto cannon = buildings.place(ian::BuildingType::Cannon, {0, -4}, 0, 40, 30, 25);
     require(cannon.has_value(), "cannon fixture creates cannon");
     const ian::ResourceCost cannonBlueprintCost =

@@ -64,7 +64,7 @@
 - cellSize = 2.0;
 - verticalGridStep = 0.5;
 - storeyHeight = 2.5;
-- maxStoreys = 3;
+- maxStoreys = 5;
 - maxWoodSupportLength = 4.0;
 - minimumGroundClearance = 0.1–0.15;
 - buildPreviewDistance = 8–10 метров.

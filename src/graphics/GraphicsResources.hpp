@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assets/GlbCollision.hpp"
+#include "graphics/GlbNodeAnimation.hpp"
 #include "graphics/GraphicsSettings.hpp"
 #include "resources/ResourceSystem.hpp"
 
@@ -232,6 +233,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& fxaaShader() const;
     [[nodiscard]] ShaderResource& ssaoShader();
     [[nodiscard]] const ShaderResource& ssaoShader() const;
+    [[nodiscard]] ShaderResource& viewModelShader();
+    [[nodiscard]] const ShaderResource& viewModelShader() const;
     [[nodiscard]] ShaderResource& viewModelCompositeShader();
     [[nodiscard]] const ShaderResource& viewModelCompositeShader() const;
     [[nodiscard]] ShaderResource& grassShader();
@@ -269,6 +272,8 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& coreModel();
     [[nodiscard]] ModelResource& axeModel();
     [[nodiscard]] ModelResource& pickaxeModel();
+    [[nodiscard]] const GlbNodeAnimation& pickaxeAnimation() const;
+    [[nodiscard]] const GlbNodeAnimation& pickaxeAlternateAnimation() const;
     [[nodiscard]] ModelResource& clubModel();
     [[nodiscard]] ModelResource& hammerModel();
     [[nodiscard]] ModelResource& iceWandModel();
@@ -313,6 +318,8 @@ class GraphicsResources {
         std::size_t variant = 0U);
     [[nodiscard]] ModelResource& decorativeRockModel(
         std::size_t variant);
+    [[nodiscard]] ModelResource& woodFragmentModel();
+    [[nodiscard]] ModelResource& crystalFragmentModel();
     [[nodiscard]] ModelResource& decorativeBushModel(
         std::size_t variant);
     [[nodiscard]] ModelResource& pondDecorModel(
@@ -323,6 +330,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& wallCornerModel();
     [[nodiscard]] ModelResource& wallTModel();
     [[nodiscard]] ModelResource& wallCrossModel();
+    [[nodiscard]] ModelResource& gateModel();
     [[nodiscard]] ModelResource& grassModelB();
     [[nodiscard]] ModelResource& grassModelC();
     [[nodiscard]] ModelResource& grassModelD();
@@ -379,6 +387,7 @@ class GraphicsResources {
     ShaderResource postProcessShader_;
     ShaderResource fxaaShader_;
     ShaderResource ssaoShader_;
+    ShaderResource viewModelShader_;
     ShaderResource viewModelCompositeShader_;
     ShaderResource grassShader_;
     ShaderResource upgradeEffectShader_;
@@ -404,6 +413,8 @@ class GraphicsResources {
     ModelResource coreModel_;
     ModelResource axeModel_;
     ModelResource pickaxeModel_;
+    GlbNodeAnimation pickaxeAnimation_;
+    GlbNodeAnimation pickaxeAlternateAnimation_;
     ModelResource clubModel_;
     ModelResource hammerModel_;
     ModelResource iceWandModel_;
@@ -443,6 +454,8 @@ class GraphicsResources {
     std::array<ModelResource, 9> treeModels_;
     std::array<ModelResource, 2> boundaryTreeModels_;
     std::array<ModelResource, 4> decorativeRockModels_;
+    ModelResource woodFragmentModel_;
+    ModelResource crystalFragmentModel_;
     std::array<ModelResource, 9> decorativeBushModels_;
     std::array<ModelResource, 5> pondDecorModels_;
     std::array<ModelResource, 2> cloudModels_;
@@ -451,6 +464,7 @@ class GraphicsResources {
     ModelResource wallCornerModel_;
     ModelResource wallTModel_;
     ModelResource wallCrossModel_;
+    ModelResource gateModel_;
     ModelResource grassModelB_;
     ModelResource grassModelC_;
     ModelResource grassModelD_;

@@ -95,17 +95,19 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 aimedPlatformSurface
                     ? aimedPlatformSurface->y
                     : placementPlaneHeight);
-        BuildingPlatformSurface surface =
+        const std::optional<double> preferredSurfaceHeight =
             aimedPlatformSurface
+                ? std::optional<double>{
+                      aimedPlatformSurface->y}
+                : standingOnFoundation
+                    ? standingSurface
+                    : std::nullopt;
+        BuildingPlatformSurface surface =
+            preferredSurfaceHeight
                 ? placementSurfaceWithPreferredHeight(
                       *selectedBuilding_,
                       gridPosition,
-                      aimedPlatformSurface->y)
-            : standingOnFoundation
-                ? placementSurfaceWithPreferredHeight(
-                      *selectedBuilding_,
-                      gridPosition,
-                      *standingSurface)
+                      *preferredSurfaceHeight)
                 : placementSurface(
                       *selectedBuilding_,
                       gridPosition);
@@ -114,13 +116,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             needsAutomaticFoundation
                 ? automaticFoundationPlacement(
                       *selectedBuilding_, gridPosition,
-                      aimedPlatformSurface
-                          ? std::optional<double>{
-                                aimedPlatformSurface->y}
-                          : standingOnFoundation
-                              ? std::optional<double>{
-                                    *standingSurface}
-                              : std::nullopt)
+                      preferredSurfaceHeight)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {
@@ -189,9 +185,16 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
 
     if (command.placeBuilding) {
         const BuildingPlatformSurface naturalSurface =
-            placementSurface(
-                command.placeBuilding->type,
-                command.placeBuilding->gridPosition);
+            command.placeBuilding->lockHeight &&
+                    command.placeBuilding
+                            ->platformStorey >= 0
+                ? placementSurfaceWithPreferredHeight(
+                      command.placeBuilding->type,
+                      command.placeBuilding->gridPosition,
+                      command.placeBuilding->baseHeight)
+                : placementSurface(
+                      command.placeBuilding->type,
+                      command.placeBuilding->gridPosition);
         BuildingPlatformSurface surface = naturalSurface;
         if (command.placeBuilding->lockHeight &&
             command.placeBuilding->platformStorey < 0) {

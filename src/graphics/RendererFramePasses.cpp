@@ -19,25 +19,6 @@
 namespace ian {
 namespace {
 
-float smoothUnit(float value) {
-    value = std::clamp(value, 0.0F, 1.0F);
-    return value * value * (3.0F - 2.0F * value);
-}
-
-Vector3 normalizedViewModelTint(Vector3 color) {
-    constexpr Vector3 Luma{0.2126F, 0.7152F, 0.0722F};
-    const float luminance = std::max(Vector3DotProduct(color, Luma), 0.001F);
-    return {
-        std::clamp(color.x / luminance, 0.78F, 1.18F),
-        std::clamp(color.y / luminance, 0.78F, 1.18F),
-        std::clamp(color.z / luminance, 0.78F, 1.18F),
-    };
-}
-
-Vector3 mixViewModelTint(Vector3 from, Vector3 to, float amount) {
-    return Vector3Lerp(from, to, std::clamp(amount, 0.0F, 1.0F));
-}
-
 } // namespace
 
 void Renderer::beginWorldPass(
@@ -495,7 +476,7 @@ void Renderer::drawSsaoPass() {
     float bias = 0.045F;
     float fadeStart = 30.0F;
     float fadeEnd = 50.0F;
-    int sampleCount = 12;
+    int sampleCount = 8;
     if (settings_.quality == GraphicsQuality::Low) {
         radius = 0.65F;
         bias = 0.055F;
@@ -507,7 +488,7 @@ void Renderer::drawSsaoPass() {
         bias = 0.05F;
         fadeStart = 26.0F;
         fadeEnd = 42.0F;
-        sampleCount = 8;
+        sampleCount = 6;
     }
     BeginTextureMode(target);
     ClearBackground(BLACK);
@@ -552,19 +533,67 @@ void Renderer::drawSsaoPass() {
     ssaoFrameReady_ = true;
 }
 
-bool Renderer::beginFirstPersonToolPass() {
+bool Renderer::beginFirstPersonToolPass(
+    const WorldLighting* lighting,
+    const Camera3D* worldCamera) {
     resources_.updateViewModelTarget(settings_);
     if (!resources_.viewModelTargetValid()) {
         return false;
     }
     BeginTextureMode(resources_.viewModelTarget());
     ClearBackground(BLANK);
+    if (resources_.viewModelShader().valid()) {
+        Shader& shader = resources_.viewModelShader().get();
+        const WorldLighting fallbackLighting{};
+        const WorldLighting& source = lighting != nullptr
+            ? *lighting
+            : fallbackLighting;
+        Vector3 viewSunDirection = source.sunDirection;
+        if (worldCamera != nullptr) {
+            const Vector3 forward = Vector3Normalize(Vector3Subtract(
+                worldCamera->target, worldCamera->position));
+            const Vector3 right = Vector3Normalize(
+                Vector3CrossProduct(forward, worldCamera->up));
+            const Vector3 up = Vector3Normalize(
+                Vector3CrossProduct(right, forward));
+            viewSunDirection = {
+                Vector3DotProduct(source.sunDirection, right),
+                Vector3DotProduct(source.sunDirection, up),
+                -Vector3DotProduct(source.sunDirection, forward),
+            };
+        }
+        viewSunDirection = Vector3Normalize(viewSunDirection);
+        SetShaderValue(
+            shader, viewModelSunDirectionLocation_,
+            &viewSunDirection, SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, viewModelSunColorLocation_,
+            &source.sunColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, viewModelSunIntensityLocation_,
+            &source.sunIntensity, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(
+            shader, viewModelSkyAmbientColorLocation_,
+            &source.skyAmbientColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, viewModelGroundAmbientColorLocation_,
+            &source.groundAmbientColor, SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, viewModelAmbientIntensityLocation_,
+            &source.ambientIntensity, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(
+            shader, viewModelDayNightTintLocation_,
+            &source.dayNightTint, SHADER_UNIFORM_VEC3);
+        SetShaderValue(
+            shader, viewModelExposureLocation_,
+            &source.exposure, SHADER_UNIFORM_FLOAT);
+    }
     return true;
 }
 
 void Renderer::endFirstPersonToolPass(
     const FirstPersonToolTuning& tuning,
-    const WorldLighting* lighting) {
+    const WorldLighting*) {
     if (!resources_.viewModelTargetValid()) {
         return;
     }
@@ -581,28 +610,6 @@ void Renderer::endFirstPersonToolPass(
         static_cast<float>(GetScreenWidth()),
         static_cast<float>(GetScreenHeight()),
     };
-    // Gameplay tools occupy the lower-right screen region. Scissoring only
-    // the composite keeps the full-resolution source and identical camera,
-    // while avoiding expensive outline samples over empty pixels. Main-menu
-    // showcase rendering passes no world lighting and remains full-screen.
-    const bool cropGameplayComposite = lighting != nullptr;
-    const int compositeLeft = cropGameplayComposite
-        ? static_cast<int>(std::floor(
-              static_cast<float>(GetScreenWidth()) * 0.30F))
-        : 0;
-    const int compositeTop = cropGameplayComposite
-        ? static_cast<int>(std::floor(
-              static_cast<float>(GetScreenHeight()) * 0.12F))
-        : 0;
-    const int compositeWidth = std::max(
-        GetScreenWidth() - compositeLeft, 1);
-    const int compositeHeight = std::max(
-        GetScreenHeight() - compositeTop, 1);
-    if (cropGameplayComposite) {
-        BeginScissorMode(
-            compositeLeft, compositeTop,
-            compositeWidth, compositeHeight);
-    }
     if (resources_.viewModelCompositeShader().valid()) {
         Shader& shader =
             resources_.viewModelCompositeShader().get();
@@ -619,34 +626,6 @@ void Renderer::endFirstPersonToolPass(
             static_cast<float>(std::max(GetRenderWidth(), 1));
         const float scaledOutlineWidth =
             tuning.outlineWidth * targetScale;
-        Vector3 environmentTint{1.0F, 1.0F, 1.0F};
-        float environmentBrightness = 1.0F;
-        if (lighting != nullptr) {
-            // Red falls continuously only as the interpolated environment
-            // enters night. This avoids a second time-of-day state machine.
-            const float nightAmount = smoothUnit(
-                (1.0F - lighting->dayNightTint.x - 0.02F) / 0.24F);
-            const float sunsetAmount = smoothUnit(
-                (lighting->dayNightTint.x -
-                 lighting->dayNightTint.z - 0.10F) / 0.14F) *
-                (1.0F - nightAmount);
-            const Vector3 ambientColor = Vector3Lerp(
-                lighting->groundAmbientColor,
-                lighting->skyAmbientColor, 0.72F);
-            const Vector3 ambientTint =
-                normalizedViewModelTint(ambientColor);
-            const Vector3 sunTint =
-                normalizedViewModelTint(lighting->sunColor);
-            const Vector3 sunsetTint = mixViewModelTint(
-                sunTint, ambientTint, 0.35F);
-            environmentTint = mixViewModelTint(
-                environmentTint, sunsetTint, sunsetAmount * 0.20F);
-            environmentTint = mixViewModelTint(
-                environmentTint, ambientTint, nightAmount * 0.55F);
-            constexpr float FirstPersonNightBrightness = 0.64F;
-            environmentBrightness = 1.0F -
-                nightAmount * (1.0F - FirstPersonNightBrightness);
-        }
         SetShaderValue(shader, viewModelTexelSizeLocation_,
                        &texelSize, SHADER_UNIFORM_VEC2);
         SetShaderValue(shader, viewModelOutlineEnabledLocation_,
@@ -661,24 +640,14 @@ void Renderer::endFirstPersonToolPass(
                        &tuning.brightness, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelSaturationLocation_,
                        &tuning.saturation, SHADER_UNIFORM_FLOAT);
-        SetShaderValue(shader, viewModelEnvironmentTintLocation_,
-                       &environmentTint, SHADER_UNIFORM_VEC3);
-        SetShaderValue(shader, viewModelEnvironmentBrightnessLocation_,
-                       &environmentBrightness, SHADER_UNIFORM_FLOAT);
         BeginShaderMode(shader);
         DrawTexturePro(target.texture, source, destination,
                        {}, 0.0F, WHITE);
         EndShaderMode();
-        if (cropGameplayComposite) {
-            EndScissorMode();
-        }
         return;
     }
     DrawTexturePro(target.texture, source, destination,
                    {}, 0.0F, WHITE);
-    if (cropGameplayComposite) {
-        EndScissorMode();
-    }
 }
 
 void Renderer::drawScenePreview(Rectangle bounds) {
@@ -784,17 +753,38 @@ bool Renderer::beginShadowPass(const WorldLighting& lighting, Vector3 focus) {
         return false;
     }
     shadowFrameValid_ = false;
-    const Vector3 lightPosition =
-        Vector3Subtract(focus, Vector3Scale(sunDirection, shadowDistance));
     const Vector3 worldUp{0.0F, 1.0F, 0.0F};
     const Vector3 fallbackUp{0.0F, 0.0F, 1.0F};
     const Vector3 up =
         std::abs(Vector3DotProduct(sunDirection, worldUp)) > 0.95F
             ? fallbackUp
             : worldUp;
+    // Lock the orthographic projection to shadow-map texels. A sharper PCF
+    // edge would otherwise crawl over static geometry as the player moves.
+    const Vector3 lightRight = Vector3Normalize(
+        Vector3CrossProduct(sunDirection, up));
+    const Vector3 lightUp = Vector3Normalize(
+        Vector3CrossProduct(lightRight, sunDirection));
+    const float worldUnitsPerTexel =
+        2.0F * shadowDistance / static_cast<float>(shadowMapSize);
+    const float rightOffset =
+        std::round(Vector3DotProduct(focus, lightRight) /
+                   worldUnitsPerTexel) * worldUnitsPerTexel -
+        Vector3DotProduct(focus, lightRight);
+    const float upOffset =
+        std::round(Vector3DotProduct(focus, lightUp) /
+                   worldUnitsPerTexel) * worldUnitsPerTexel -
+        Vector3DotProduct(focus, lightUp);
+    const Vector3 snappedFocus = Vector3Add(
+        focus,
+        Vector3Add(Vector3Scale(lightRight, rightOffset),
+                   Vector3Scale(lightUp, upOffset)));
+    const Vector3 lightPosition = Vector3Subtract(
+        snappedFocus,
+        Vector3Scale(sunDirection, shadowDistance));
     const Camera3D lightCamera{
         .position = lightPosition,
-        .target = focus,
+        .target = snappedFocus,
         .up = up,
         .fovy = shadowDistance * 2.0F,
         .projection = CAMERA_ORTHOGRAPHIC,
@@ -1034,11 +1024,6 @@ void Renderer::drawSelectionOutline() {
         static_cast<float>(GetScreenWidth()),
         static_cast<float>(GetScreenHeight()),
     };
-    const bool depthOcclusionEnabled =
-        usingOffscreenTarget_ && resources_.sceneTargetValid() &&
-        resources_.sceneScreenSpaceBuffers();
-    const float depthOcclusionAmount =
-        depthOcclusionEnabled ? 1.0F : 0.0F;
     BeginBlendMode(BLEND_ALPHA);
     if (selectionOutlineBounds_) {
         const Rectangle bounds = *selectionOutlineBounds_;
@@ -1055,17 +1040,6 @@ void Renderer::drawSelectionOutline() {
                 std::ceil(bounds.height * boundsScaleY))));
     }
     BeginShaderMode(shader);
-    SetShaderValue(shader,
-                   selectionOutlineDepthOcclusionEnabledLocation_,
-                   &depthOcclusionAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValueMatrix(
-        shader, selectionOutlineInverseProjectionLocation_,
-        ssaoInverseProjection_);
-    if (depthOcclusionEnabled) {
-        SetShaderValueTexture(
-            shader, selectionOutlineSceneDepthLocation_,
-            resources_.sceneTarget().depth);
-    }
     const auto brightness =
         static_cast<unsigned char>(
             std::lround(242.0F + pulse * 7.0F));
@@ -1213,6 +1187,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.coniferFacetBlend ==
             worldMaterial_.coniferFacetBlend &&
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
+        material.enemyWhiteFlashAmount ==
+            worldMaterial_.enemyWhiteFlashAmount &&
         sameVector3(material.hitFlashPosition,
                     worldMaterial_.hitFlashPosition) &&
         material.hitFlashRadius == worldMaterial_.hitFlashRadius &&
@@ -1225,6 +1201,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.ghostTint.y == worldMaterial_.ghostTint.y &&
         material.ghostTint.z == worldMaterial_.ghostTint.z &&
         material.ghostOpacity == worldMaterial_.ghostOpacity &&
+        material.outlineMaterialClassOverride ==
+            worldMaterial_.outlineMaterialClassOverride &&
         material.inkOutlineEligible == worldMaterial_.inkOutlineEligible) {
         return;
     }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/PlacementLine.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +24,17 @@ inline constexpr double PiRadians = 3.14159265358979323846;
     return isDirectionalDefense(type) ||
            type == BuildingType::Wall ||
            type == BuildingType::Gate;
+}
+
+[[nodiscard]] inline bool alignsWithPlacementLine(
+    BuildingType type) {
+    return type == BuildingType::Wall ||
+           type == BuildingType::Gate;
+}
+
+[[nodiscard]] inline std::uint8_t placementLineRotation(
+    PlacementLineAxis axis) {
+    return axis == PlacementLineAxis::X ? 0U : 1U;
 }
 
 [[nodiscard]] inline std::uint8_t buildingRotationStepCount(

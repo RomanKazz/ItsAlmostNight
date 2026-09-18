@@ -49,6 +49,35 @@ double Renderer::frameSwapMilliseconds() const {
 }
 
 void Renderer::resolveAuxiliaryShaderLocations() {
+    if (resources_.viewModelShader().valid()) {
+        Shader& shader = resources_.viewModelShader().get();
+        shader.locs[SHADER_LOC_MATRIX_MVP] =
+            GetShaderLocation(shader, "mvp");
+        shader.locs[SHADER_LOC_MATRIX_MODEL] =
+            GetShaderLocation(shader, "matModel");
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] =
+            GetShaderLocation(shader, "matNormal");
+        shader.locs[SHADER_LOC_MAP_DIFFUSE] =
+            GetShaderLocation(shader, "texture0");
+        shader.locs[SHADER_LOC_COLOR_DIFFUSE] =
+            GetShaderLocation(shader, "colDiffuse");
+        viewModelSunDirectionLocation_ =
+            GetShaderLocation(shader, "sunDirection");
+        viewModelSunColorLocation_ =
+            GetShaderLocation(shader, "sunColor");
+        viewModelSunIntensityLocation_ =
+            GetShaderLocation(shader, "sunIntensity");
+        viewModelSkyAmbientColorLocation_ =
+            GetShaderLocation(shader, "skyAmbientColor");
+        viewModelGroundAmbientColorLocation_ =
+            GetShaderLocation(shader, "groundAmbientColor");
+        viewModelAmbientIntensityLocation_ =
+            GetShaderLocation(shader, "ambientIntensity");
+        viewModelDayNightTintLocation_ =
+            GetShaderLocation(shader, "dayNightTint");
+        viewModelExposureLocation_ =
+            GetShaderLocation(shader, "exposure");
+    }
     if (resources_.iceMagicShader().valid()) {
         Shader& shader = resources_.iceMagicShader().get();
         shader.locs[SHADER_LOC_MATRIX_MVP] =
@@ -77,10 +106,6 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             GetShaderLocation(shader, "brightness");
         viewModelSaturationLocation_ =
             GetShaderLocation(shader, "saturation");
-        viewModelEnvironmentTintLocation_ =
-            GetShaderLocation(shader, "environmentTint");
-        viewModelEnvironmentBrightnessLocation_ =
-            GetShaderLocation(shader, "environmentBrightness");
     }
     if (resources_.cloudShader().valid()) {
         Shader& shader = resources_.cloudShader().get();
@@ -113,8 +138,12 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             GetShaderLocation(shader, "mvp");
         waterCameraPositionLocation_ =
             GetShaderLocation(shader, "cameraPosition");
+        waterShoreColorLocation_ =
+            GetShaderLocation(shader, "shoreColor");
         waterShallowColorLocation_ =
             GetShaderLocation(shader, "shallowColor");
+        waterMidColorLocation_ =
+            GetShaderLocation(shader, "midColor");
         waterDeepColorLocation_ =
             GetShaderLocation(shader, "deepColor");
         waterSkyColorLocation_ =
@@ -137,6 +166,18 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             GetShaderLocation(shader, "timeSeconds");
         waterWaveSpeedLocation_ =
             GetShaderLocation(shader, "waveSpeed");
+        waterShoreWidthLocation_ =
+            GetShaderLocation(shader, "shoreWidth");
+        waterDepthFalloffLocation_ =
+            GetShaderLocation(shader, "depthFalloff");
+        waterPatternScaleLocation_ =
+            GetShaderLocation(shader, "patternScale");
+        waterPatternStrengthLocation_ =
+            GetShaderLocation(shader, "patternStrength");
+        waterPatternSpeedLocation_ =
+            GetShaderLocation(shader, "patternSpeed");
+        waterFresnelStrengthLocation_ =
+            GetShaderLocation(shader, "fresnelStrength");
         waterQualityLocation_ =
             GetShaderLocation(shader, "qualityLevel");
     }
@@ -146,14 +187,6 @@ void Renderer::resolveAuxiliaryShaderLocations() {
         selectionOutlineRadiusLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(),
             "outlineRadius");
-        selectionOutlineSceneDepthLocation_ = GetShaderLocation(
-            resources_.selectionOutlineShader().get(), "sceneDepth");
-        selectionOutlineInverseProjectionLocation_ = GetShaderLocation(
-            resources_.selectionOutlineShader().get(),
-            "inverseProjection");
-        selectionOutlineDepthOcclusionEnabledLocation_ = GetShaderLocation(
-            resources_.selectionOutlineShader().get(),
-            "depthOcclusionEnabled");
     }
     if (resources_.selectionMaskShader().valid()) {
         Shader& shader = resources_.selectionMaskShader().get();
@@ -400,6 +433,8 @@ void Renderer::resolveWorldShaderLocations() {
         .coniferFacetBlend =
             GetShaderLocation(shader, "coniferFacetBlend"),
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
+        .enemyWhiteFlashAmount =
+            GetShaderLocation(shader, "enemyWhiteFlashAmount"),
         .hitFlashPosition = GetShaderLocation(shader, "hitFlashPosition"),
         .hitFlashRadius = GetShaderLocation(shader, "hitFlashRadius"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
@@ -407,6 +442,8 @@ void Renderer::resolveWorldShaderLocations() {
         .ghostAmount = GetShaderLocation(shader, "ghostAmount"),
         .ghostTint = GetShaderLocation(shader, "ghostTint"),
         .ghostOpacity = GetShaderLocation(shader, "ghostOpacity"),
+        .outlineMaterialClassOverride = GetShaderLocation(
+            shader, "outlineMaterialClassOverride"),
         .shadowMap = GetShaderLocation(shader, "shadowMap"),
         .lightViewProjection = GetShaderLocation(shader, "lightViewProjection"),
         .shadowsEnabled = GetShaderLocation(shader, "shadowsEnabled"),
@@ -538,6 +575,8 @@ void Renderer::resolvePostProcessLocations() {
             GetShaderLocation(shader, "outlineStrength"),
         .outlineWidth =
             GetShaderLocation(shader, "outlineWidth"),
+        .outlinePixelScale =
+            GetShaderLocation(shader, "outlinePixelScale"),
         .outlineFogFadeStrength =
             GetShaderLocation(shader, "outlineFogFadeStrength"),
         .outlineFogColor =
@@ -656,6 +695,14 @@ void Renderer::uploadPostProcessSettings() {
            settings_.outlineStrength);
     upload(postProcessLocations_.outlineWidth,
            settings_.outlineWidth);
+    const RenderTexture2D& sceneTarget = resources_.sceneTarget();
+    const float outlinePixelScale = std::min(
+        static_cast<float>(sceneTarget.texture.width) /
+            static_cast<float>(std::max(GetScreenWidth(), 1)),
+        static_cast<float>(sceneTarget.texture.height) /
+            static_cast<float>(std::max(GetScreenHeight(), 1)));
+    upload(postProcessLocations_.outlinePixelScale,
+           outlinePixelScale);
     upload(postProcessLocations_.outlineFogFadeStrength,
            settings_.outlineFogFadeStrength);
     SetShaderValue(shader, postProcessLocations_.outlineFogColor,
@@ -907,6 +954,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.coniferFacetBlend, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashAmount,
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.enemyWhiteFlashAmount,
+                   &material.enemyWhiteFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashPosition,
                    &material.hitFlashPosition, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.hitFlashRadius,
@@ -921,6 +970,11 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.ghostTint, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.ghostOpacity,
                    &material.ghostOpacity, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(
+        shader,
+        worldShaderLocations_.outlineMaterialClassOverride,
+        &material.outlineMaterialClassOverride,
+        SHADER_UNIFORM_FLOAT);
     const float inkOutlineEligible = material.inkOutlineEligible
         ? 1.0F : 0.0F;
     SetShaderValue(shader, worldShaderLocations_.inkOutlineEligible,

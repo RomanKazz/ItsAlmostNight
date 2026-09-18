@@ -41,34 +41,25 @@ GridCoord rampAnchorFromSupport(
     return support;
 }
 
-GridCoord rampSupportCell(
-    GridCoord anchor, Rotation rotation) {
-    if (rotation == Rotation::Deg180) {
-        anchor.z += ModularRampRunCells - 1;
-    } else if (rotation == Rotation::Deg90) {
-        anchor.x += ModularRampRunCells - 1;
-    }
-    return anchor;
-}
-
-std::array<GridCoord, ModularRampWidthCells>
+std::array<
+    GridCoord,
+    ModularRampWidthCells * ModularRampRunCells>
 rampSupportCells(
     GridCoord anchor, Rotation rotation) {
-    const GridCoord first =
-        rampSupportCell(anchor, rotation);
-    std::array<GridCoord, ModularRampWidthCells>
+    const int widthCells = rampWidthCells(rotation);
+    const int depthCells = rampDepthCells(rotation);
+    std::array<
+        GridCoord,
+        ModularRampWidthCells * ModularRampRunCells>
         cells{};
-    for (int index = 0;
-         index < ModularRampWidthCells; ++index) {
-        cells[static_cast<std::size_t>(index)] =
-            first;
-        if (rotation == Rotation::Deg0 ||
-            rotation == Rotation::Deg180) {
-            cells[static_cast<std::size_t>(index)].x +=
-                index;
-        } else {
-            cells[static_cast<std::size_t>(index)].z +=
-                index;
+    std::size_t index = 0U;
+    for (int z = 0; z < depthCells; ++z) {
+        for (int x = 0; x < widthCells; ++x) {
+            cells[index++] = {
+                anchor.x + x,
+                anchor.yLevel,
+                anchor.z + z,
+            };
         }
     }
     return cells;
@@ -598,7 +589,7 @@ FoundationSystem::placeRamp(
             sources.push_back(source->id);
         }
     }
-    if (sources.empty() ||
+    if (sources.size() < 2U ||
         !structuralGraph_.add(
             instance.id, false,
             sources)) {

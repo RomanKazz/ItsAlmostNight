@@ -134,6 +134,7 @@ struct TerrainPlateau {
 
 struct TerrainShape {
     double height{};
+    double constructionHeight{};
     double protectedAmount{};
 };
 
@@ -345,6 +346,7 @@ makeTerrainPaths(
         result.protectedAmount =
             std::max(result.protectedAmount, mask);
     }
+    result.constructionHeight = result.height;
     const double detailScale = std::max(
         0.30 / std::max(config.terrainFrequency, 1e-4),
         4.0);
@@ -479,6 +481,9 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
     heights_.resize(
         static_cast<std::size_t>(size) *
         static_cast<std::size_t>(size));
+    constructionHeights_.resize(
+        static_cast<std::size_t>(size) *
+        static_cast<std::size_t>(size));
     minimumHeight_ =
         std::numeric_limits<double>::infinity();
     maximumHeight_ =
@@ -502,11 +507,15 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
                 shapeInteriorTerrain(
                     worldX, worldZ, config_, seed_,
                     plateaus);
-            const double height = interior.height +
-                boundaryRise(
-                    worldX, worldZ, config_, seed_);
+            const double boundary = boundaryRise(
+                worldX, worldZ, config_, seed_);
+            const double height = interior.height + boundary;
+            const double constructionHeight =
+                interior.constructionHeight + boundary;
             heights_[sampleIndex(x, z)] =
                 static_cast<float>(height);
+            constructionHeights_[sampleIndex(x, z)] =
+                static_cast<float>(constructionHeight);
             minimumHeight_ =
                 std::min(minimumHeight_, height);
             maximumHeight_ =
@@ -680,6 +689,8 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
             const double worldX =
                 -halfSize + static_cast<double>(x) * spacing_;
             double height = heights_[sampleIndex(x, z)];
+            double constructionHeight =
+                constructionHeights_[sampleIndex(x, z)];
             double waterDistance = 1000000.0;
             for (const PondDefinition& pond : ponds_) {
                 const double distance =
@@ -699,6 +710,8 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
                         std::max(pond.depth - 0.06, 0.0) *
                             centerAmount;
                     height = interpolate(height, desired, 0.98);
+                    constructionHeight = interpolate(
+                        constructionHeight, desired, 0.98);
                 } else {
                     const double bankAmount = std::clamp(
                         distance / bankWidth, 0.0, 1.0);
@@ -707,12 +720,17 @@ void TerrainHeightfield::generate(std::uint32_t seed) {
                     height = interpolate(
                         height, desired,
                         1.0 - smoother(bankAmount));
+                    constructionHeight = interpolate(
+                        constructionHeight, desired,
+                        1.0 - smoother(bankAmount));
                 }
             }
             waterDistanceCache_[sampleIndex(x, z)] =
                 static_cast<float>(waterDistance);
             heights_[sampleIndex(x, z)] =
                 static_cast<float>(height);
+            constructionHeights_[sampleIndex(x, z)] =
+                static_cast<float>(constructionHeight);
             minimumHeight_ = std::min(minimumHeight_, height);
             maximumHeight_ = std::max(maximumHeight_, height);
         }
@@ -754,6 +772,15 @@ double TerrainHeightfield::getHeight(
         heights_[sampleIndex(x0, z1)],
         heights_[sampleIndex(x1, z1)], amountX);
     return interpolate(north, south, amountZ);
+}
+
+double TerrainHeightfield::getConstructionHeight(
+    double worldX, double worldZ) const {
+    if (constructionHeights_.empty()) {
+        return getHeight(worldX, worldZ);
+    }
+    return sampleCachedField(
+        constructionHeights_, worldX, worldZ);
 }
 
 double TerrainHeightfield::getBackdropHeight(

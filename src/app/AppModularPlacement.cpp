@@ -243,10 +243,15 @@ void App::clearModularPlacementDrag() {
     modularPlatformDragPreviews_.clear();
     modularWallDragPreviews_.clear();
     modularRampDragPreviews_.clear();
+    modularDragUsesAutomaticFoundation_ = false;
+    modularAutomaticFoundationPreviews_.clear();
 }
 
 void App::selectModularBuildPiece(
     ModularBuildPiece piece) {
+    if (!modularBuildHotbarIndex(piece)) {
+        piece = ModularBuildPiece::Foundation;
+    }
     modularBuildPiece_ = piece;
     clearModularPlacementDrag();
     platformFramePreview_.reset();
@@ -320,10 +325,93 @@ void App::updateModularPlacementPreview(
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
 
+    if (!modularDragUsesAutomaticFoundation_) {
+        modularAutomaticFoundationPreviews_.clear();
+    }
+
     modularEdgeHoverFrame_.reset();
     modularEdgeExtensionAnchor_.reset();
 
     if (modularBuildPiece_ == ModularBuildPiece::Ramp) {
+        if (modularDragUsesAutomaticFoundation_ &&
+            modularDragPlaneHeight_ && modularDragStart_) {
+            const auto planeAim = rampSocketAimOnFloor(
+                snapshot.playerPosition, lookDirection,
+                *modularDragPlaneHeight_);
+            if (planeAim) {
+                const Vec3 dragReference =
+                    modularDragReferencePoint(
+                        *modularDragStart_,
+                        *modularDragPiece_,
+                        *modularDragPlaneHeight_,
+                        cellSize);
+                const Vec3 boundedPlaneAim =
+                    stableElevatedDragAim(
+                        *planeAim,
+                        snapshot.playerPosition,
+                        lookDirection, dragReference,
+                        terrain.config()
+                            .buildPreviewDistance);
+                updateModularDragAxis(
+                    boundedPlaneAim, cellSize);
+                GridCoord dragEnd{
+                    snapPlatformFrameAxis(
+                        static_cast<int>(std::floor(
+                            boundedPlaneAim.x /
+                            cellSize))),
+                    0,
+                    snapPlatformFrameAxis(
+                        static_cast<int>(std::floor(
+                            boundedPlaneAim.z /
+                            cellSize))),
+                };
+                if (modularDragAxis_ ==
+                    PlacementLineAxis::X) {
+                    dragEnd.z =
+                        modularDragStart_->z;
+                } else if (modularDragAxis_ ==
+                           PlacementLineAxis::Z) {
+                    dragEnd.x =
+                        modularDragStart_->x;
+                }
+                if (dragEnd.x == modularDragStart_->x &&
+                    dragEnd.z == modularDragStart_->z) {
+                    modularDragCandidateEnd_.reset();
+                    modularDragCandidateFrames_ = 0;
+                } else if (!modularDragExtended_) {
+                    constexpr double
+                        RampDragMinimumLookPixels = 3.0;
+                    if (modularDragLookMovement_ <
+                        RampDragMinimumLookPixels) {
+                        dragEnd = *modularDragStart_;
+                        modularDragCandidateEnd_.reset();
+                        modularDragCandidateFrames_ = 0;
+                    } else if (
+                        modularDragCandidateEnd_ &&
+                        modularDragCandidateEnd_->x ==
+                            dragEnd.x &&
+                        modularDragCandidateEnd_->z ==
+                            dragEnd.z) {
+                        ++modularDragCandidateFrames_;
+                    } else {
+                        modularDragCandidateEnd_ = dragEnd;
+                        modularDragCandidateFrames_ = 1;
+                    }
+                    constexpr int
+                        RampDragConfirmationFrames = 2;
+                    if (modularDragCandidateFrames_ <
+                        RampDragConfirmationFrames) {
+                        dragEnd = *modularDragStart_;
+                    } else {
+                        modularDragExtended_ = true;
+                    }
+                }
+                modularDragEnd_ = dragEnd;
+                foundationTerrainHit_ = boundedPlaneAim;
+                rebuildModularPlacementLine();
+            }
+            return;
+        }
         std::optional<RampEdgeTarget> edgeTarget;
         const PlatformFrameInstance* targetFrame =
             nullptr;
@@ -643,6 +731,32 @@ void App::updateModularPlacementPreview(
             }
         }
         if (!edgeTarget) {
+            const double terrainRayDistance = std::max(
+                12.0,
+                modularStoreyHeight(terrain.config()) *
+                        static_cast<double>(
+                            terrain.config().maxStoreys) +
+                    12.0);
+            const auto terrainHit = terrain.raycast(
+                snapshot.playerPosition, lookDirection,
+                terrainRayDistance);
+            if (terrainHit) {
+                const RampFoundationPlacement composite =
+                    simulation_.previewRampWithFoundation(
+                        *terrainHit, modularRotation_);
+                modularAutomaticFoundationPreviews_.assign(
+                    composite.foundations.begin(),
+                    composite.foundations.end());
+                rampPreview_ = composite.ramp;
+                foundationTerrainHit_ = *terrainHit;
+                modularSnapHit_ = *terrainHit;
+                modularSnapMarker_.reset();
+                modularPreviewAnchor_ =
+                    composite.foundations[0].anchor;
+                platformFramePreview_.reset();
+                wallPreview_.reset();
+                return;
+            }
             rampSocketFrame_.reset();
             rampSocketRotation_.reset();
             rampSocketLostGraceRemaining_ = 0.0;
@@ -983,6 +1097,13 @@ void App::updateModularPlacementPreview(
         if (frame != snapshot.platformFrames.end()) {
             const bool usePlatformEdges =
                 frame->storey > 0;
+            constexpr double PlatformSlabThickness = 0.20;
+            const bool aimingAtUnderside =
+                usePlatformEdges &&
+                snapshot.playerPosition.y <
+                    frame->floorHeight -
+                        PlatformSlabThickness - 0.02 &&
+                lookDirection.y > 0.0;
             if (usePlatformEdges) {
                 modularEdgeHoverFrame_ = frame->id;
             }
@@ -996,7 +1117,8 @@ void App::updateModularPlacementPreview(
                 edge = platformEdgeSnapAtAim(
                     frame->anchor, frame->floorHeight,
                     snapshot.playerPosition,
-                    lookDirection, cellSize);
+                    lookDirection, cellSize,
+                    aimingAtUnderside);
             }
             if (edge) {
                 modularEdgeExtensionAnchor_ =
@@ -1084,6 +1206,22 @@ void App::updateModularPlacementPreview(
 
     if (modularBuildPiece_ ==
         ModularBuildPiece::FloorPlatform) {
+        if (rawHit) {
+            const FloorPlatformFoundationPlacement composite =
+                simulation_.previewFloorPlatformWithFoundation(
+                    *rawHit);
+            modularAutomaticFoundationPreviews_ = {
+                composite.foundation};
+            platformFramePreview_ = composite.floor;
+            foundationTerrainHit_ = *rawHit;
+            modularSnapHit_ = *rawHit;
+            modularSnapMarker_.reset();
+            modularPreviewAnchor_ =
+                composite.foundation.anchor;
+            wallPreview_.reset();
+            rampPreview_.reset();
+            return;
+        }
         platformFramePreview_.reset();
         wallPreview_.reset();
         rampPreview_.reset();
@@ -1269,6 +1407,46 @@ void App::updateModularPlacementPreview(
 }
 
 void App::beginModularPlacementDrag() {
+    if (!modularAutomaticFoundationPreviews_.empty() &&
+        foundationTerrainHit_ &&
+        ((modularBuildPiece_ ==
+              ModularBuildPiece::FloorPlatform &&
+          platformFramePreview_ &&
+          platformFramePreview_->valid()) ||
+         (modularBuildPiece_ ==
+              ModularBuildPiece::Ramp &&
+          rampPreview_ && rampPreview_->valid())) &&
+        std::ranges::all_of(
+            modularAutomaticFoundationPreviews_,
+            [](const PlatformFramePlacement& foundation) {
+                return foundation.valid();
+            })) {
+        modularDragStart_ =
+            modularAutomaticFoundationPreviews_.front().anchor;
+        modularDragEnd_ = modularDragStart_;
+        modularDragOrigin_ = foundationTerrainHit_;
+        modularDragStorey_ =
+            modularBuildPiece_ ==
+                    ModularBuildPiece::FloorPlatform
+                ? platformFramePreview_->storey
+                : rampPreview_->targetStorey;
+        modularDragTargetFloorHeight_ =
+            modularAutomaticFoundationPreviews_
+                .front().floorHeight;
+        modularDragPlaneHeight_ =
+            modularAutomaticFoundationPreviews_
+                .front().floorHeight;
+        modularDragPiece_ = modularBuildPiece_;
+        modularDragRotation_ = modularRotation_;
+        modularDragUsesAutomaticFoundation_ = true;
+        modularDragAxis_.reset();
+        modularDragCandidateEnd_.reset();
+        modularDragCandidateFrames_ = 0;
+        modularDragLookMovement_ = 0.0;
+        modularDragExtended_ = false;
+        rebuildModularPlacementLine();
+        return;
+    }
     if (isPlatformBuildPiece(modularBuildPiece_) &&
         platformFramePreview_ &&
         platformFramePreview_->valid()) {
@@ -1278,9 +1456,16 @@ void App::beginModularPlacementDrag() {
             platformFramePreview_->storey;
         modularDragTargetFloorHeight_ =
             platformFramePreview_->floorHeight;
+        const bool floorFromBelow =
+            modularBuildPiece_ ==
+                ModularBuildPiece::FloorPlatform &&
+            modularEdgeHoverFrame_ &&
+            simulation_.snapshot().playerPosition.y <
+                platformFramePreview_->floorHeight - 0.22;
         modularDragPlaneHeight_ =
             modularBuildPiece_ ==
-                    ModularBuildPiece::FloorPlatform
+                    ModularBuildPiece::FloorPlatform &&
+                !floorFromBelow
                 ? platformFramePreview_->floorHeight -
                       modularStoreyHeight(
                           simulation_.terrain().config())
@@ -1385,7 +1570,7 @@ void App::rebuildModularPlacementLine() {
         return;
     }
 
-    const int spacing =
+    int spacing =
         *modularDragPiece_ ==
                     ModularBuildPiece::Wall
             ? 1
@@ -1394,6 +1579,24 @@ void App::rebuildModularPlacementLine() {
         modularDragEnd_->x - modularDragStart_->x,
         modularDragEnd_->z - modularDragStart_->z,
         modularDragAxis_, spacing);
+    if (*modularDragPiece_ ==
+            ModularBuildPiece::Ramp &&
+        modularDragAxis_) {
+        const Rotation rotation =
+            modularDragRotation_.value_or(
+                modularRotation_);
+        const bool rampRunsAlongZ =
+            rotation == Rotation::Deg0 ||
+            rotation == Rotation::Deg180;
+        spacing = *modularDragAxis_ ==
+                          PlacementLineAxis::X
+                      ? (rampRunsAlongZ
+                             ? ModularRampWidthCells
+                             : ModularRampRunCells)
+                      : (rampRunsAlongZ
+                             ? ModularRampRunCells
+                             : ModularRampWidthCells);
+    }
     const auto& snapshot = simulation_.snapshot();
     std::uint64_t previewKey = 0xcbf29ce484222325ULL;
     const auto addSigned = [&previewKey](int value) {
@@ -1441,12 +1644,52 @@ void App::rebuildModularPlacementLine() {
     modularPlatformDragPreviews_.clear();
     modularWallDragPreviews_.clear();
     modularRampDragPreviews_.clear();
+    if (modularDragUsesAutomaticFoundation_) {
+        modularAutomaticFoundationPreviews_.clear();
+    }
     auto cells = ian::placementLine(
         *modularDragStart_, *modularDragEnd_,
         spacing, modularDragAxis_);
     const TerrainHeightfield& terrain =
         simulation_.terrain();
     const double cellSize = terrain.config().cellSize;
+    if (modularDragUsesAutomaticFoundation_ &&
+        modularDragTargetFloorHeight_) {
+        modularDragHits_.reserve(cells.size());
+        for (const GridCoord cell : cells) {
+            const Vec3 hit = cellHit(
+                cell, terrain, cellSize);
+            if (*modularDragPiece_ ==
+                ModularBuildPiece::FloorPlatform) {
+                const FloorPlatformFoundationPlacement
+                    composite = simulation_
+                        .previewFloorPlatformWithFoundation(
+                            hit,
+                            *modularDragTargetFloorHeight_);
+                modularDragHits_.push_back(hit);
+                modularPlatformDragPreviews_.push_back(
+                    composite.floor);
+                modularAutomaticFoundationPreviews_
+                    .push_back(composite.foundation);
+            } else if (*modularDragPiece_ ==
+                       ModularBuildPiece::Ramp) {
+                const RampFoundationPlacement composite =
+                    simulation_.previewRampWithFoundation(
+                        hit,
+                        modularDragRotation_.value_or(
+                            modularRotation_),
+                        *modularDragTargetFloorHeight_);
+                modularDragHits_.push_back(hit);
+                modularRampDragPreviews_.push_back(
+                    composite.ramp);
+                modularAutomaticFoundationPreviews_.insert(
+                    modularAutomaticFoundationPreviews_.end(),
+                    composite.foundations.begin(),
+                    composite.foundations.end());
+            }
+        }
+        return;
+    }
     if (*modularDragPiece_ ==
             ModularBuildPiece::FloorPlatform &&
         modularDragTargetFloorHeight_) {
@@ -1560,6 +1803,118 @@ bool App::finishModularPlacementDrag() {
         };
     bool placedAny = false;
     simulation_.beginModularPlacementBatch();
+    if (modularDragUsesAutomaticFoundation_ &&
+        modularDragTargetFloorHeight_) {
+        const auto addFoundationFeedback =
+            [this, cellSize, &bounceDelayFor,
+             &placedOrdinal](
+                const PlatformFrameInstance& foundation) {
+                const Vec3 center = platformFrameCenter(
+                    foundation, cellSize);
+                addEffect(
+                    PresentationEffectType::BuildingPlaced,
+                    center, 0.7, 1.25F, std::nullopt,
+                    bounceDelayFor(placedOrdinal++));
+                grassClearAreas_.push_back({
+                    .center = {
+                        static_cast<float>(center.x),
+                        static_cast<float>(center.z),
+                    },
+                    .innerRadius = static_cast<float>(
+                        cellSize * 1.35),
+                    .amount = 1.0F,
+                });
+            };
+        if (*modularDragPiece_ ==
+            ModularBuildPiece::FloorPlatform) {
+            const std::size_t previewCount =
+                modularDragExtended_
+                    ? std::min(
+                          modularDragHits_.size(),
+                          modularPlatformDragPreviews_.size())
+                    : std::min<std::size_t>(
+                          1U,
+                          std::min(
+                              modularDragHits_.size(),
+                              modularPlatformDragPreviews_.size()));
+            for (std::size_t index = 0;
+                 index < previewCount; ++index) {
+                if (!modularPlatformDragPreviews_[index]
+                         .valid()) {
+                    continue;
+                }
+                const auto built = simulation_
+                    .placeFloorPlatformWithFoundation(
+                        modularDragHits_[index],
+                        *modularDragTargetFloorHeight_);
+                if (!built) {
+                    continue;
+                }
+                addFoundationFeedback(built->foundation);
+                const Vec3 floorCenter = platformFrameCenter(
+                    built->floor, cellSize);
+                const double startDelay =
+                    bounceDelayFor(placedOrdinal++);
+                addEffect(
+                    PresentationEffectType::BuildingPlaced,
+                    floorCenter, 0.7, 1.25F,
+                    std::nullopt, startDelay);
+                audio_.queueBuildingPlaced(
+                    floorCenter, startDelay);
+                placedAny = true;
+            }
+        } else if (*modularDragPiece_ ==
+                   ModularBuildPiece::Ramp) {
+            const std::size_t previewCount =
+                modularDragExtended_
+                    ? std::min(
+                          modularDragHits_.size(),
+                          modularRampDragPreviews_.size())
+                    : std::min<std::size_t>(
+                          1U,
+                          std::min(
+                              modularDragHits_.size(),
+                              modularRampDragPreviews_.size()));
+            const Rotation rotation =
+                modularDragRotation_.value_or(
+                    modularRotation_);
+            for (std::size_t index = 0;
+                 index < previewCount; ++index) {
+                if (!modularRampDragPreviews_[index]
+                         .valid()) {
+                    continue;
+                }
+                const auto built =
+                    simulation_.placeRampWithFoundation(
+                        modularDragHits_[index], rotation,
+                        *modularDragTargetFloorHeight_);
+                if (!built) {
+                    continue;
+                }
+                for (const auto& foundation :
+                     built->foundations) {
+                    addFoundationFeedback(foundation);
+                }
+                const Vec3 placedRampCenter =
+                    rampCenter(built->ramp, cellSize);
+                const double startDelay =
+                    bounceDelayFor(placedOrdinal++);
+                addEffect(
+                    PresentationEffectType::BuildingPlaced,
+                    placedRampCenter,
+                    0.7, 1.35F, std::nullopt,
+                    startDelay);
+                audio_.queueBuildingPlaced(
+                    placedRampCenter, startDelay);
+                placedAny = true;
+            }
+        }
+        simulation_.endModularPlacementBatch();
+        clearModularPlacementDrag();
+        modularSnapHit_.reset();
+        modularSnapMarker_.reset();
+        return placedAny;
+    }
     if (isPlatformBuildPiece(
             *modularDragPiece_)) {
         const std::size_t previewCount =
@@ -1621,6 +1976,7 @@ bool App::finishModularPlacementDrag() {
                 PresentationEffectType::BuildingPlaced,
                 center, 0.7, 1.25F,
                 std::nullopt, startDelay);
+            audio_.queueBuildingPlaced(center, startDelay);
             ++placedOrdinal;
             if (frame->storey == 0) {
                 grassClearAreas_.push_back({
@@ -1664,11 +2020,17 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             placedAny = true;
+            const Vec3 placedWallCenter =
+                wallCenter(*wall, cellSize);
+            const double startDelay =
+                bounceDelayFor(placedOrdinal);
             addEffect(
                 PresentationEffectType::BuildingPlaced,
-                wallCenter(*wall, cellSize),
+                placedWallCenter,
                 0.7, 0.78F, std::nullopt,
-                bounceDelayFor(placedOrdinal));
+                startDelay);
+            audio_.queueBuildingPlaced(
+                placedWallCenter, startDelay);
             ++placedOrdinal;
         }
     } else if (
@@ -1701,11 +2063,17 @@ bool App::finishModularPlacementDrag() {
                 continue;
             }
             placedAny = true;
+            const Vec3 placedRampCenter =
+                rampCenter(*ramp, cellSize);
+            const double startDelay =
+                bounceDelayFor(placedOrdinal);
             addEffect(
                 PresentationEffectType::BuildingPlaced,
-                rampCenter(*ramp, cellSize),
+                placedRampCenter,
                 0.7, 1.35F, std::nullopt,
-                bounceDelayFor(placedOrdinal));
+                startDelay);
+            audio_.queueBuildingPlaced(
+                placedRampCenter, startDelay);
             const bool alongZ =
                 ramp->rotation == Rotation::Deg0 ||
                 ramp->rotation == Rotation::Deg180;
@@ -1736,9 +2104,6 @@ bool App::finishModularPlacementDrag() {
     clearModularPlacementDrag();
     modularSnapHit_.reset();
     modularSnapMarker_.reset();
-    if (placedAny) {
-        audio_.playUiConfirm();
-    }
     return placedAny;
 }
 

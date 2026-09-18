@@ -1,5 +1,6 @@
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "graphics/ModularBuildingRenderer.hpp"
 
 #include "ui/UiText.hpp"
 
@@ -528,7 +529,9 @@ bool cannonLoaded(const SimulationSnapshot& snapshot,
 
 std::optional<EntityId> preciseBuildingAim(
     Renderer& renderer,
-    const SimulationSnapshot& snapshot) {
+    const SimulationSnapshot& snapshot,
+    const std::function<float(EntityId, bool)>&
+        gateOpenAmount) {
     constexpr double MaximumDistance = 4.0;
     const double horizontal =
         std::cos(snapshot.playerPitch);
@@ -574,7 +577,12 @@ std::optional<EntityId> preciseBuildingAim(
         const auto distance =
             renderer.buildingRaycastDistance(
                 building, snapshot.buildings, ray,
-                MaximumDistance, yaw, pitch);
+                MaximumDistance, yaw, pitch,
+                building.type == BuildingType::Gate &&
+                        gateOpenAmount
+                    ? gateOpenAmount(
+                          building.id, building.open)
+                    : building.open ? 1.0F : 0.0F);
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
             result = building.id;
@@ -677,18 +685,6 @@ std::optional<EntityId> preciseModularBuildingAim(
     if (!snapshot.aimedModularBuildingCandidate) {
         return std::nullopt;
     }
-    const EntityId candidate =
-        *snapshot.aimedModularBuildingCandidate;
-    const auto frame = std::find_if(
-        snapshot.platformFrames.begin(),
-        snapshot.platformFrames.end(),
-        [candidate](const PlatformFrameInstance& item) {
-            return item.id == candidate;
-        });
-    if (frame == snapshot.platformFrames.end()) {
-        return candidate;
-    }
-
     constexpr double MaximumDistance = 6.0;
     const double horizontal =
         std::cos(snapshot.playerPitch);
@@ -703,33 +699,117 @@ std::optional<EntityId> preciseModularBuildingAim(
          static_cast<float>(
              -std::cos(snapshot.playerYaw) * horizontal)},
     };
-    const double minimumX = std::min(
-        frame->supports[0].top.x,
-        frame->supports[2].top.x);
-    const double maximumX = std::max(
-        frame->supports[1].top.x,
-        frame->supports[3].top.x);
-    const double minimumZ = std::min(
-        frame->supports[0].top.z,
-        frame->supports[1].top.z);
-    const double maximumZ = std::max(
-        frame->supports[2].top.z,
-        frame->supports[3].top.z);
-    std::array<float, 4> supportLengths{};
-    for (std::size_t index = 0;
-         index < frame->supports.size(); ++index) {
-        supportLengths[index] = static_cast<float>(
-            std::max(frame->supports[index].length, 0.0));
+    std::optional<EntityId> result;
+    double closestDistance = MaximumDistance;
+    const auto consider =
+        [&result, &closestDistance](
+            EntityId id, std::optional<double> distance) {
+            if (distance && *distance <= closestDistance) {
+                closestDistance = *distance;
+                result = id;
+            }
+        };
+
+    const auto supportVisibility =
+        platformSupportVisibilityMasks(
+            snapshot.platformFrames,
+            snapshot.sharedSupports);
+    const auto visualSupportLengths =
+        platformSupportVisualLengths(
+            snapshot.platformFrames,
+            snapshot.sharedSupports);
+    for (std::size_t frameIndex = 0;
+         frameIndex < snapshot.platformFrames.size();
+         ++frameIndex) {
+        const PlatformFrameInstance& frame =
+            snapshot.platformFrames[frameIndex];
+        const double minimumX = std::min(
+            frame.supports[0].top.x,
+            frame.supports[2].top.x);
+        const double maximumX = std::max(
+            frame.supports[1].top.x,
+            frame.supports[3].top.x);
+        const double minimumZ = std::min(
+            frame.supports[0].top.z,
+            frame.supports[1].top.z);
+        const double maximumZ = std::max(
+            frame.supports[2].top.z,
+            frame.supports[3].top.z);
+        std::array<float, 4> supportLengths{};
+        for (std::size_t index = 0;
+             index < frame.supports.size(); ++index) {
+            supportLengths[index] = static_cast<float>(
+                std::max(
+                    visualSupportLengths[frameIndex][index],
+                    0.0));
+        }
+        consider(
+            frame.id,
+            renderer.platformFrameRaycastDistance(
+                {static_cast<float>(
+                     (minimumX + maximumX) * 0.5),
+                 static_cast<float>(frame.floorHeight),
+                 static_cast<float>(
+                     (minimumZ + maximumZ) * 0.5)},
+                static_cast<float>(maximumX - minimumX) * 0.5F,
+                supportLengths, ray, closestDistance,
+                supportVisibility[frameIndex]));
     }
-    const auto distance =
-        renderer.platformFrameRaycastDistance(
-            {static_cast<float>((minimumX + maximumX) * 0.5),
-             static_cast<float>(frame->floorHeight),
-             static_cast<float>((minimumZ + maximumZ) * 0.5)},
-            static_cast<float>(maximumX - minimumX) * 0.5F,
-            supportLengths, ray, MaximumDistance);
-    return distance ? std::optional<EntityId>{candidate}
-                    : std::nullopt;
+
+    const double cellSize = snapshot.worldCellSize;
+    for (const WallInstance& wall : snapshot.modularWalls) {
+        const bool alongX =
+            wall.rotation == Rotation::Deg0 ||
+            wall.rotation == Rotation::Deg180;
+        const float centerX = static_cast<float>(
+            (wall.anchor.x + 0.5) * cellSize);
+        const float centerZ = static_cast<float>(
+            (wall.anchor.z + 0.5) * cellSize);
+        const float halfLength =
+            static_cast<float>(cellSize * 0.5);
+        constexpr float HalfThickness = 0.09F;
+        const BoundingBox bounds{
+            {centerX - (alongX ? halfLength : HalfThickness),
+             static_cast<float>(wall.bottomHeight),
+             centerZ - (alongX ? HalfThickness : halfLength)},
+            {centerX + (alongX ? halfLength : HalfThickness),
+             static_cast<float>(wall.topHeight),
+             centerZ + (alongX ? HalfThickness : halfLength)},
+        };
+        const RayCollision hit = GetRayCollisionBox(ray, bounds);
+        consider(
+            wall.id,
+            hit.hit && hit.distance >= 0.0F
+                ? std::optional<double>{hit.distance}
+                : std::nullopt);
+    }
+
+    for (const RampInstance& ramp : snapshot.ramps) {
+        const bool alongZ =
+            ramp.rotation == Rotation::Deg0 ||
+            ramp.rotation == Rotation::Deg180;
+        const int widthCells =
+            alongZ ? ModularRampWidthCells
+                   : ModularRampRunCells;
+        const int depthCells =
+            alongZ ? ModularRampRunCells
+                   : ModularRampWidthCells;
+        const Vector3 center{
+            static_cast<float>(
+                (ramp.anchor.x + widthCells * 0.5) * cellSize),
+            static_cast<float>(ramp.bottomHeight),
+            static_cast<float>(
+                (ramp.anchor.z + depthCells * 0.5) * cellSize),
+        };
+        const float yaw =
+            -static_cast<float>(ramp.rotation) * PI * 0.5F;
+        consider(
+            ramp.id,
+            renderer.rampRaycastDistance(
+                center, yaw, static_cast<float>(cellSize),
+                ray, closestDistance));
+    }
+    return result;
 }
 
 Vector3 colorToVector(Color color) {
@@ -885,11 +965,11 @@ void drawBuildGrid(
 Color placementColor(
     PlacementError error, bool border) {
     const unsigned char alpha =
-        border ? 245 : 74;
+        border ? 205 : 48;
     switch (error) {
     case PlacementError::None:
-        return border ? Color{106, 255, 146, 235}
-                      : Color{57, 224, 109, 64};
+        return border ? Color{106, 255, 146, 205}
+                      : Color{57, 224, 109, 42};
     case PlacementError::InsufficientResources:
         return {255, 176, 62, alpha};
     case PlacementError::OutsideCoreArea:

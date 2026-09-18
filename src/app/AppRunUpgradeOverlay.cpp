@@ -14,6 +14,7 @@ namespace {
 constexpr float CardWidth = 360.0F;
 constexpr float CardHeight = 520.0F;
 constexpr float CardGap = 64.0F;
+constexpr float UpgradeUiScale = 0.80F;
 constexpr Color CardBrown{0x6E, 0x37, 0x21, 255};
 constexpr Color CardBlack{0, 0, 0, 255};
 constexpr Color CardShadowBlack{0, 0, 0, 64};
@@ -84,7 +85,8 @@ float cardLayoutScale(std::size_t count) {
         (CardWidth * static_cast<float>(count) +
          CardGap * static_cast<float>(count - 1U));
     const float vertical = (screenHeight - 350.0F) / CardHeight;
-    return std::clamp(std::min(horizontal, vertical), 0.50F, 1.0F);
+    return UpgradeUiScale *
+        std::clamp(std::min(horizontal, vertical), 0.50F, 1.0F);
 }
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
@@ -155,9 +157,9 @@ float smoothUnit(float value) {
     return clamped * clamped * (3.0F - 2.0F * clamped);
 }
 
-float cardEntranceScale(float value) {
-    const float t = std::clamp(value, 0.0F, 1.0F);
-    constexpr float Overshoot = 1.70158F;
+float popEntranceScale(float value) {
+    const float t = smoothUnit(value);
+    constexpr float Overshoot = 1.35F;
     constexpr float ShiftedOvershoot = Overshoot + 1.0F;
     const float shifted = t - 1.0F;
     return 1.0F + ShiftedOvershoot * shifted * shifted * shifted +
@@ -376,11 +378,10 @@ void drawRunUpgradeOverlay(
         entranceSeconds / 0.20)) * backgroundExitFade;
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                   {30, 30, 30, static_cast<unsigned char>(
-                      std::lround(242.0F * screenFade))});
+                      std::lround(170.0F * screenFade))});
     const float headingEntrance = std::clamp(static_cast<float>(
-        (entranceSeconds - 0.01) / 0.25), 0.0F, 1.0F);
-    const float headingMotion = cardEntranceScale(headingEntrance);
-    const float headingFade = smoothUnit(headingEntrance) * overlayFade;
+        (entranceSeconds - 0.01) / 0.23), 0.0F, 1.0F);
+    const float headingMotion = popEntranceScale(headingEntrance);
     const Rectangle firstCard = runUpgradeCardBounds(
         0U, snapshot.runUpgradeChoiceCount);
     const float cardTop = firstCard.y;
@@ -410,7 +411,7 @@ void drawRunUpgradeOverlay(
     if (IsTextureValid(levelUpBanner)) {
         const float maximumBannerWidth = std::max(
             180.0F, (cardTop - 64.0F) * 3.0F);
-        const float bannerWidth = std::min({
+        const float bannerWidth = UpgradeUiScale * std::min({
             940.0F,
             static_cast<float>(GetScreenWidth()) - 60.0F,
             maximumBannerWidth,
@@ -419,8 +420,7 @@ void drawRunUpgradeOverlay(
             static_cast<float>(levelUpBanner.height) /
             static_cast<float>(levelUpBanner.width);
         const float bannerScale =
-            (0.80F + headingMotion * 0.20F) *
-            (1.0F - exitEase * 0.06F);
+            headingMotion * (1.0F - exitEase * 0.06F);
         const Rectangle bannerBase{
             (static_cast<float>(GetScreenWidth()) - bannerWidth) * 0.5F,
             cardTop - bannerHeight - 64.0F -
@@ -430,12 +430,14 @@ void drawRunUpgradeOverlay(
         };
         const Rectangle banner = scaleRectangle(
             bannerBase, bannerScale, 0.0F);
-        DrawTexturePro(
-            levelUpBanner,
-            {0.0F, 0.0F, static_cast<float>(levelUpBanner.width),
-             static_cast<float>(levelUpBanner.height)},
-            banner, {0.0F, 0.0F}, 0.0F,
-            fadedColor(WHITE, headingFade));
+        if (bannerScale > 0.001F) {
+            DrawTexturePro(
+                levelUpBanner,
+                {0.0F, 0.0F, static_cast<float>(levelUpBanner.width),
+                 static_cast<float>(levelUpBanner.height)},
+                banner, {0.0F, 0.0F}, 0.0F,
+                fadedColor(WHITE, overlayFade));
+        }
     }
 
     const Vector2 mouse = GetMousePosition();
@@ -455,8 +457,9 @@ void drawRunUpgradeOverlay(
         const double cardDelay = 0.055 +
             static_cast<double>(index) * 0.055;
         const float entrance = std::clamp(static_cast<float>(
-            (entranceSeconds - cardDelay) / 0.30), 0.0F, 1.0F);
-        if (entrance <= 0.0F) continue;
+            (entranceSeconds - cardDelay) / 0.26), 0.0F, 1.0F);
+        const float entranceScale = popEntranceScale(entrance);
+        if (entranceScale <= 0.001F) continue;
         const float entranceFade = smoothUnit(entrance);
         const bool selectedForExit = selectedChoice &&
             *selectedChoice == index;
@@ -464,14 +467,13 @@ void drawRunUpgradeOverlay(
             ? 1.0F - smoothUnit(std::clamp(
                   (exitProgress - 0.62F) / 0.38F, 0.0F, 1.0F))
             : overlayFade;
-        const float cardFade = entranceFade * cardExitFade;
+        const float cardFade =
+            smoothUnit(entrance * 2.5F) * cardExitFade;
         const float exitScale = selectedForExit
             ? 1.0F + exitEase * 0.13F
             : 1.0F - exitEase * 0.10F;
-        const float animationScale = std::max(
-            0.001F,
-            cardEntranceScale(entrance) *
-                (1.0F + hover * 0.045F) * exitScale);
+        const float animationScale = entranceScale *
+            (1.0F + hover * 0.045F) * exitScale;
         const float layoutScale = baseBounds.height / CardHeight;
         const float lift =
             ((1.0F - entranceFade) * -55.0F + hover * 10.0F +

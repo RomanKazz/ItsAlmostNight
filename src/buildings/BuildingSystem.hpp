@@ -25,6 +25,9 @@ enum class BuildingType {
     LumberMill,
     Quarry,
     SpikeTrap,
+    // Reserved for compatibility with suspended runs created before
+    // resource storage was folded into Core progression. These values are
+    // never exposed or placeable.
     WoodStorage,
     StoneStorage,
     CrystalStorage,
@@ -36,8 +39,14 @@ enum class BuildingLimitCategory {
     None,
     Defense,
     Producer,
-    Storage,
 };
+
+[[nodiscard]] constexpr bool isRemovedStorageBuilding(
+    BuildingType type) {
+    return type == BuildingType::WoodStorage ||
+           type == BuildingType::StoneStorage ||
+           type == BuildingType::CrystalStorage;
+}
 
 enum WallConnection : std::uint8_t {
     WallConnectionNorth = 1U << 0U,
@@ -288,10 +297,8 @@ class BuildingSystem {
     BuildingType type, std::uint8_t coreLevel);
 [[nodiscard]] bool buildingBlocksMovement(BuildingType type);
 [[nodiscard]] bool buildingBlocksMovement(const BuildingInstance& building);
-[[nodiscard]] int buildingStorageCapacityPerLevel(
-    BuildingType type);
 [[nodiscard]] int coreResourceCapacity(
-    BuildingType storageType, std::uint8_t coreLevel);
+    ResourceCapacityType resource, std::uint8_t coreLevel);
 [[nodiscard]] double buildingFootprintHalfExtent(
     BuildingType type);
 [[nodiscard]] Vec3 buildingWorldPosition(

@@ -4,6 +4,12 @@
 
 namespace ian {
 
+enum class ResourceCapacityType {
+    Wood,
+    Stone,
+    Crystal,
+};
+
 struct ResourceCost {
     int wood{};
     int stone{};

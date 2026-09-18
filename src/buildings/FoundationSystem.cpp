@@ -85,9 +85,66 @@ FoundationSystem::frameAt(
 PlatformFramePlacement
 FoundationSystem::previewFoundation(
     Vec3 terrainHit, Vec3 playerPosition) const {
+    return previewFoundation(
+        terrainHit, playerPosition,
+        grid_.config().verticalGridStep);
+}
+
+PlatformFramePlacement
+FoundationSystem::previewFoundation(
+    Vec3 terrainHit, Vec3 playerPosition,
+    double heightStep) const {
     GridCoord anchor = grid_.worldToGrid(terrainHit);
     anchor.x = snapPlatformFrameAxis(anchor.x);
     anchor.z = snapPlatformFrameAxis(anchor.z);
+
+    const PlacementValidator validator{terrain_, grid_};
+    const double baseHeight =
+        validator.stableGroundPlatformHeight(
+            anchor, heightStep);
+    const double neighbourSnapTolerance = std::max(
+        heightStep * 2.0,
+        grid_.config().terrainSurfaceNoiseAmplitude * 2.0 +
+            heightStep);
+    return previewGroundPlatformAtAnchor(
+        anchor, baseHeight, neighbourSnapTolerance,
+        playerPosition, false);
+}
+
+PlatformFramePlacement
+FoundationSystem::previewAutomaticBuildingFoundation(
+    GridCoord anchor, Vec3 playerPosition,
+    double heightStep) const {
+    const PlacementValidator validator{terrain_, grid_};
+    const double baseHeight =
+        validator.stableGroundPlatformHeight(
+            anchor, heightStep);
+    const double neighbourSnapTolerance = std::max(
+        heightStep * 2.0,
+        grid_.config().terrainSurfaceNoiseAmplitude * 2.0 +
+            heightStep);
+    return previewGroundPlatformAtAnchor(
+        anchor, baseHeight, neighbourSnapTolerance,
+        playerPosition, true);
+}
+
+PlatformFramePlacement
+FoundationSystem::previewGroundPlatformAtAnchor(
+    GridCoord anchor, double baseHeight,
+    double neighbourSnapTolerance,
+    Vec3 playerPosition, bool preserveAnchor) const {
+    const PlacementValidator validator{terrain_, grid_};
+    const auto validateAtHeight =
+        [&validator, anchor, playerPosition,
+         preserveAnchor](double height) {
+            return preserveAnchor
+                ? validator.validateAutomaticBuildingFoundationAt(
+                      anchor, height, playerPosition)
+                : validator.validateGroundPlatformFrameAt(
+                      anchor, height, playerPosition);
+        };
+    const PlatformFramePlacement basePlacement =
+        validateAtHeight(baseHeight);
 
     constexpr std::array<GridCoord, 4> NeighbourOffsets{{
         {-PlatformFrameWidthCells, 0, 0},
@@ -119,46 +176,26 @@ FoundationSystem::previewFoundation(
         }
     }
 
-    const PlacementValidator validator{terrain_, grid_};
     if (neighbourLevels.empty()) {
-        return validator.validateGroundPlatformFrame(
-            terrainHit, playerPosition);
+        return basePlacement;
     }
 
-    std::sort(neighbourLevels.begin(),
-              neighbourLevels.end());
-    std::optional<PlatformFramePlacement> bestValid;
-    std::optional<PlatformFramePlacement> bestInvalid;
-    const double desiredHeight =
-        terrainHit.y +
-        grid_.config().minimumGroundClearance;
-    const auto distanceToTerrain =
-        [desiredHeight](
-            const PlatformFramePlacement& placement) {
-            return std::abs(
-                placement.floorHeight - desiredHeight);
-        };
+    std::sort(
+        neighbourLevels.begin(), neighbourLevels.end(),
+        [baseHeight](double left, double right) {
+            return std::abs(left - baseHeight) <
+                   std::abs(right - baseHeight);
+        });
     for (const double neighbourLevel : neighbourLevels) {
-        PlatformFramePlacement candidate =
-            validator.validateGroundPlatformFrameAt(
-                anchor, neighbourLevel,
-                playerPosition);
-        if (candidate.valid()) {
-            if (!bestValid ||
-                distanceToTerrain(candidate) <
-                    distanceToTerrain(*bestValid)) {
-                bestValid = candidate;
-            }
-        } else if (!bestInvalid ||
-                   distanceToTerrain(candidate) <
-                       distanceToTerrain(*bestInvalid)) {
-            bestInvalid = candidate;
+        if (std::abs(neighbourLevel - baseHeight) >
+            neighbourSnapTolerance + 1e-6) {
+            continue;
         }
+        PlatformFramePlacement candidate =
+            validateAtHeight(neighbourLevel);
+        if (candidate.valid()) return candidate;
     }
-    if (bestValid) {
-        return *bestValid;
-    }
-    return *bestInvalid;
+    return basePlacement;
 }
 
 PlatformFramePlacement
@@ -364,7 +401,8 @@ FoundationSystem::topFloorAtCell(
 std::optional<BuildingPlatformSurface>
 FoundationSystem::buildingSurface(
     int minimumCellX, int minimumCellZ,
-    int widthCells) const {
+    int widthCells,
+    std::optional<double> preferredHeight) const {
     if (widthCells <= 0) {
         return std::nullopt;
     }
@@ -374,6 +412,14 @@ FoundationSystem::buildingSurface(
          platformFrames_) {
         if (candidate.supportState !=
             StructuralSupportState::Supported) {
+            continue;
+        }
+        constexpr double PreferredHeightTolerance = 0.05;
+        if (preferredHeight &&
+            std::abs(
+                candidate.floorHeight -
+                *preferredHeight) >
+                PreferredHeightTolerance) {
             continue;
         }
         bool fullySupported = true;

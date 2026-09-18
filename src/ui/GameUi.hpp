@@ -7,6 +7,7 @@
 
 namespace ian {
 enum class BuildingType;
+enum class ModularBuildPiece;
 enum class PlayerWeapon;
 enum class RunUpgradeEffect;
 
@@ -23,6 +24,23 @@ enum class UiResourceIcon {
     Stone,
     Crystal,
     Coin,
+};
+
+enum class CoreMenuTexture {
+    Header,
+    Gear,
+    Heart,
+    Gem,
+    Shield,
+    Rock,
+    Wood,
+    Wrench,
+    Upgrade,
+    Coin,
+    Turret,
+    Ballista,
+    Cannon,
+    Spikes,
 };
 
 class GameUi {
@@ -53,11 +71,15 @@ class GameUi {
     [[nodiscard]] Texture2D resourceTexture(
         UiResourceIcon icon) const;
     [[nodiscard]] Texture2D buildingTexture(BuildingType type) const;
+    [[nodiscard]] Texture2D modularBuildingTexture(
+        ModularBuildPiece piece) const;
     [[nodiscard]] Texture2D weaponTexture(PlayerWeapon weapon) const;
     [[nodiscard]] Texture2D runUpgradeTexture(
         RunUpgradeEffect effect) const;
     [[nodiscard]] Texture2D levelUpBannerTexture() const;
     [[nodiscard]] Texture2D levelUpRaysTexture() const;
+    [[nodiscard]] Texture2D coreMenuTexture(
+        CoreMenuTexture texture) const;
     bool drawButton(Rectangle bounds, std::string_view text) const;
     bool drawToggleButton(Rectangle bounds, std::string_view text,
                           bool active) const;
@@ -128,6 +150,8 @@ class GameUi {
     Texture2D healthCore_{};
     Texture2D coreBuildingIcon_{};
     Texture2D wallBuildingIcon_{};
+    Texture2D gateBuildingIcon_{};
+    std::array<Texture2D, 3> modularBuildingIcons_{};
     std::array<Texture2D, 5> buildingIcons_{};
     std::array<Texture2D, 3> weaponIcons_{};
     Texture2D armorUpgradeIcon_{};
@@ -141,6 +165,7 @@ class GameUi {
     Texture2D xpGainUpgradeIcon_{};
     Texture2D levelUpBanner_{};
     Texture2D levelUpRays_{};
+    std::array<Texture2D, 14> coreMenuTextures_{};
     SliceInsets panelInsets_{16, 16, 16, 18};
     SliceInsets insetInsets_{9, 9, 9, 9};
     SliceInsets buttonInsets_{12, 10, 12, 14};

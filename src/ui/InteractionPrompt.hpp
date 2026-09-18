@@ -38,6 +38,7 @@ struct InteractionPrompt {
         InteractionPromptTargetKind::Resource};
     EntityId targetId{};
     Vector3 worldAnchor{};
+    Vector3 surfaceNormal{0.0F, 1.0F, 0.0F};
     std::string objectName;
     std::string actionText;
     ControlAction input{ControlAction::Interact};

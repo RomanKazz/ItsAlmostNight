@@ -5,6 +5,7 @@
 #include "world/WorldConfig.hpp"
 
 #include <array>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -87,7 +88,9 @@ void drawCentered(
     const BuildingInstance& building);
 [[nodiscard]] std::optional<EntityId> preciseBuildingAim(
     Renderer& renderer,
-    const SimulationSnapshot& snapshot);
+    const SimulationSnapshot& snapshot,
+    const std::function<float(EntityId, bool)>&
+        gateOpenAmount = {});
 [[nodiscard]] std::optional<EntityId> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot);

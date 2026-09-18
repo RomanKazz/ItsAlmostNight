@@ -9,15 +9,40 @@ void runBuildingSystemTests() {
     {
         std::array<bool, ian::GameBalance::BuildingTypeCount> allUnlocked;
         allUnlocked.fill(true);
-        for (const auto category : {ian::BuildingHotbarCategory::Defense,
-                                    ian::BuildingHotbarCategory::Economy}) {
-            const auto creative = ian::makeBuildingHotbarLayout(
-                allUnlocked, category, true, 1, true);
-            require(
-                creative.count == 6U,
-                "creative catalog exposes every defense and economy "
-                "structure at core level one");
-        }
+        const auto creativeDefense = ian::makeBuildingHotbarLayout(
+            allUnlocked, ian::BuildingHotbarCategory::Defense,
+            true, 1, true);
+        require(
+            creativeDefense.count == 6U,
+            "creative catalog exposes every defense structure");
+        const auto creativeEconomy = ian::makeBuildingHotbarLayout(
+            allUnlocked, ian::BuildingHotbarCategory::Economy,
+            true, 1, true);
+        const auto creativeConstruction =
+            ian::makeConstructionHotbarLayout(
+                allUnlocked, true, 1, true);
+        const auto levelOneConstruction =
+            ian::makeConstructionHotbarLayout(
+                allUnlocked, true, 1, false);
+        require(
+            creativeEconomy.count == 0U &&
+                creativeConstruction.count == 8U &&
+                creativeConstruction.items[0].modularPiece ==
+                    ian::ModularBuildPiece::Foundation &&
+                creativeConstruction.items[3].buildingType ==
+                    ian::BuildingType::Wall &&
+                creativeConstruction.items[7].buildingType ==
+                    ian::BuildingType::CrystalMine,
+            "creative construction catalog combines modular, perimeter, and production structures");
+        require(
+            levelOneConstruction.count == 3U &&
+                levelOneConstruction.items[0].buildingType ==
+                    ian::BuildingType::Wall &&
+                levelOneConstruction.items[1].buildingType ==
+                    ian::BuildingType::Gate &&
+                levelOneConstruction.items[2].buildingType ==
+                    ian::BuildingType::CrystalMine,
+            "level-one construction catalog keeps unlocked buildings available before modular pieces");
     }
     std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
@@ -27,9 +52,15 @@ void runBuildingSystemTests() {
         unlocked, ian::BuildingHotbarCategory::Base,
         true, 1);
     require(
+        hotbar.count == 0U,
+        "base category is empty after the core is placed");
+    hotbar = ian::makeBuildingHotbarLayout(
+        unlocked, ian::BuildingHotbarCategory::Modular,
+        true, 1);
+    require(
         hotbar.count == 1U &&
             hotbar.types[0] == ian::BuildingType::Wall,
-        "building hotbar only shows unlocked buildings in its category");
+        "wall moves into the combined construction category");
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Defense,
         true, 1);
@@ -69,20 +100,67 @@ void runBuildingSystemTests() {
         unlocked, ian::BuildingHotbarCategory::Economy,
         true, 1, true);
     require(
-        hotbar.count == 3U &&
-            hotbar.types[0] == ian::BuildingType::WoodStorage &&
-            hotbar.types[1] == ian::BuildingType::StoneStorage &&
-            hotbar.types[2] == ian::BuildingType::CrystalStorage,
-        "sandbox catalog exposes legacy storage buildings for testing");
+        hotbar.count == 0U,
+        "sandbox catalog also excludes removed storage buildings");
+
+    ian::BuildingSystem removedStorageBuildings;
+    removedStorageBuildings.setSandboxMode(true);
+    require(
+        !removedStorageBuildings.place(
+            ian::BuildingType::WoodStorage, {0, 0}, 0,
+            1000, 1000, 1000),
+        "removed storage cannot be placed through the building system");
+    std::array<std::uint8_t, ian::GameBalance::BuildingTypeCount>
+        legacyBlueprintLevels{};
+    legacyBlueprintLevels.fill(1U);
+    const std::array legacyBuildings{
+        ian::BuildingInstance{
+            .id = {1000U, 1U},
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+            .health = 500.0,
+            .maxHealth = 500.0,
+        },
+        ian::BuildingInstance{
+            .id = {1001U, 1U},
+            .type = ian::BuildingType::StoneStorage,
+            .gridPosition = {4, 0},
+            .health = 200.0,
+            .maxHealth = 200.0,
+        },
+    };
+    require(
+        removedStorageBuildings.restoreBuildings(
+            legacyBuildings, legacyBlueprintLevels, 10) &&
+            removedStorageBuildings.buildings().size() == 1U &&
+            removedStorageBuildings.buildings().front().type ==
+                ian::BuildingType::Core,
+        "loading an old run silently removes legacy storage entities");
+
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Modular,
         true, 8);
     require(
-        hotbar.count == 0U &&
+        hotbar.count == 1U &&
+            hotbar.types[0] == ian::BuildingType::Wall &&
             ian::BuildingHotbarCategoryCount == 4U &&
             ian::buildingHotbarCategoryName(
                 ian::BuildingHotbarCategory::Modular) == "MODULAR",
-        "modular construction is a dedicated building category");
+        "combined construction remains a dedicated building category");
+    const auto combinedHotbar =
+        ian::makeConstructionHotbarLayout(
+            unlocked, true, 8);
+    require(
+        combinedHotbar.count == 4U &&
+            combinedHotbar.items[0].modularPiece ==
+                ian::ModularBuildPiece::Foundation &&
+            combinedHotbar.items[1].modularPiece ==
+                ian::ModularBuildPiece::FloorPlatform &&
+            combinedHotbar.items[2].modularPiece ==
+                ian::ModularBuildPiece::Ramp &&
+            combinedHotbar.items[3].buildingType ==
+                ian::BuildingType::Wall,
+        "combined construction preserves its visible slot order");
 
     ian::BuildingSystem radiusBuildings;
     radiusBuildings.setCoreBuildRadius(5);
@@ -96,8 +174,12 @@ void runBuildingSystemTests() {
         starterCore.has_value() &&
             starterDefense.validate(
                 ian::BuildingType::GunTurret, {4, 0},
-                35, 25, 10).valid(),
-        "starter turret is buildable with a level-one core");
+                35, 25, 10).valid() &&
+            starterDefense.validate(
+                ian::BuildingType::Turret, {4, 0},
+                25, 15).error ==
+                ian::PlacementError::CoreLevelRequired,
+        "starter turret is available before the crossbow unlock");
 
     ian::BuildingSystem buildings;
 
@@ -160,11 +242,12 @@ void runBuildingSystemTests() {
             "lethal building damage destroys instance");
     require(buildings.buildings().size() == 1, "destroyed building leaves active list");
 
-    const auto turretCost = ian::buildingCost(ian::BuildingType::Turret);
-    require(turretCost.wood == 25 && turretCost.stone == 15,
-            "turret has configured mixed resource cost");
+    const auto turretCost = ian::buildingCost(ian::BuildingType::GunTurret);
+    require(turretCost.wood == 35 && turretCost.stone == 25 &&
+                turretCost.crystals == 10,
+            "starter turret has configured mixed resource cost");
     const auto turret = buildings.place(
-        ian::BuildingType::Turret, {4, 1}, 0, 25, 15);
+        ian::BuildingType::GunTurret, {4, 1}, 0, 35, 25, 10);
     require(turret.has_value(),
             "turret follows normal core-area placement rules");
     const auto rotatedTurret =
@@ -184,7 +267,7 @@ void runBuildingSystemTests() {
             "core upgrade requires crystals");
     require(
         ian::coreResourceCapacity(
-            ian::BuildingType::CrystalStorage,
+            ian::ResourceCapacityType::Crystal,
             core->building.level) >=
             buildings.upgradeCost(core->building).crystals,
         "level-one core can store its next upgrade cost");
@@ -194,7 +277,7 @@ void runBuildingSystemTests() {
     require(levelTwo.building->maxHealth == 575.0, "core upgrade increases max health");
     require(
         ian::coreResourceCapacity(
-            ian::BuildingType::CrystalStorage,
+            ian::ResourceCapacityType::Crystal,
             levelTwo.building->level) >=
             buildings.upgradeCost(*levelTwo.building).crystals,
         "level-two core can store its next upgrade cost");
@@ -213,13 +296,13 @@ void runBuildingSystemTests() {
         const auto cost = buildings.upgradeCost(*currentCore);
         require(
             ian::coreResourceCapacity(
-                ian::BuildingType::WoodStorage,
+                ian::ResourceCapacityType::Wood,
                 currentCore->level) >= cost.wood &&
                 ian::coreResourceCapacity(
-                    ian::BuildingType::StoneStorage,
+                    ian::ResourceCapacityType::Stone,
                     currentCore->level) >= cost.stone &&
                 ian::coreResourceCapacity(
-                    ian::BuildingType::CrystalStorage,
+                    ian::ResourceCapacityType::Crystal,
                     currentCore->level) >= cost.crystals,
             "every core level can store its next upgrade cost");
         const auto upgraded = buildings.upgrade(
@@ -242,26 +325,26 @@ void runBuildingSystemTests() {
             "defense limit fixture creates core");
     require(
         limitedDefense.place(
-            ian::BuildingType::Turret, {-4, -4}, 0,
-            25, 15).has_value() &&
+            ian::BuildingType::GunTurret, {-4, -4}, 0,
+            35, 25, 10).has_value() &&
             limitedDefense.place(
-                ian::BuildingType::Turret, {-4, 0}, 0,
-                25, 15).has_value() &&
+                ian::BuildingType::GunTurret, {-4, 0}, 0,
+                35, 25, 10).has_value() &&
             limitedDefense.place(
-                ian::BuildingType::Turret, {-4, 4}, 0,
-                25, 15).has_value(),
+                ian::BuildingType::GunTurret, {-4, 4}, 0,
+                35, 25, 10).has_value(),
         "core level one allows three defenses");
     require(
         limitedDefense.validate(
-            ian::BuildingType::Turret, {0, -4}, 25, 15)
+            ian::BuildingType::GunTurret, {0, -4}, 35, 25, 10)
                 .error == ian::PlacementError::LimitReached,
         "turrets share the core defense limit");
     require(
         limitedDefense.upgrade(
             limitedCore->building.id, 0, 0, 50).valid() &&
             limitedDefense.place(
-                ian::BuildingType::Cannon, {0, -4}, 0,
-                40, 30, 25).has_value(),
+                ian::BuildingType::GunTurret, {0, -4}, 0,
+                35, 25, 10).has_value(),
         "upgrading the core expands the shared defense limit");
     require(
         limitedDefense.placementCount(
@@ -276,11 +359,18 @@ void runBuildingSystemTests() {
     require(cannonCore.has_value(), "cannon fixture creates core");
     require(cannonBuildings.validate(ian::BuildingType::Cannon, {4, 0}, 40, 30, 25).error ==
                 ian::PlacementError::CoreLevelRequired,
-            "cannon requires core level two");
+            "cannon is locked before the heavy-defense tier");
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 50);
+    cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 100);
+    require(cannonBuildings.validate(
+                ian::BuildingType::Cannon, {4, 0},
+                40, 30, 25).error ==
+                ian::PlacementError::CoreLevelRequired,
+            "cannon remains locked at core level three");
+    cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 150);
     const auto cannon =
         cannonBuildings.place(ian::BuildingType::Cannon, {4, 0}, 0, 40, 30, 25);
-    require(cannon.has_value(), "core level two unlocks cannon");
+    require(cannon.has_value(), "core level four unlocks cannon");
     require(
         cannonBuildings.upgradeCost(cannon->building) ==
             ian::buildingUpgradeCost(cannon->building),
@@ -310,11 +400,6 @@ void runBuildingSystemTests() {
             "upgraded cannon remains in the world");
     requireNear(upgradedCannon->maxHealth, 207.0, 1e-9,
                 "blueprint upgrade gives gradual health increase");
-    require(cannonBuildings.validateBlueprintUpgrade(
-                ian::BuildingType::Cannon, 1000, 1000, 1000).error ==
-                ian::UpgradeError::CoreLevelRequired,
-            "blueprint level cannot exceed core level");
-    cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 100);
     const ian::ResourceCost levelThreeCost =
         cannonBuildings.blueprintUpgradeCost(
             ian::BuildingType::Cannon);
@@ -340,6 +425,20 @@ void runBuildingSystemTests() {
         ian::BuildingType::Cannon, {4, -2}, 0, 1000, 1000, 1000);
     require(secondCannon && secondCannon->building.level == 3,
             "new defenses inherit the current blueprint level");
+    const ian::ResourceCost levelFourCost =
+        cannonBuildings.blueprintUpgradeCost(
+            ian::BuildingType::Cannon);
+    const auto cannonLevelFour = cannonBuildings.upgradeBlueprint(
+        ian::BuildingType::Cannon,
+        levelFourCost.wood, levelFourCost.stone,
+        levelFourCost.crystals);
+    require(
+        cannonLevelFour.valid() && cannonLevelFour.level == 4 &&
+            cannonBuildings.validateBlueprintUpgrade(
+                ian::BuildingType::Cannon,
+                1000, 1000, 1000).error ==
+                ian::UpgradeError::CoreLevelRequired,
+        "blueprint level cannot exceed core level");
     require(cannonBuildings.place(ian::BuildingType::SlowTrap, {4, 2}, 0, 15, 20, 10).has_value(),
             "core level two unlocks slow trap");
     require(!ian::buildingBlocksMovement(ian::BuildingType::SlowTrap),
@@ -508,14 +607,8 @@ void runBuildingSystemTests() {
             ian::buildingFootprintHalfExtent(
                 ian::BuildingType::Turret) == 1.0 &&
             ian::buildingFootprintHalfExtent(
-                ian::BuildingType::Cannon) == 1.0 &&
-            ian::buildingFootprintHalfExtent(
-                ian::BuildingType::WoodStorage) == 1.0 &&
-            ian::buildingFootprintHalfExtent(
-                ian::BuildingType::StoneStorage) == 1.0 &&
-            ian::buildingFootprintHalfExtent(
-                ian::BuildingType::CrystalStorage) == 1.0,
-        "producers use one-cell footprints and storages use two-by-two footprints");
+                ian::BuildingType::Cannon) == 1.0,
+        "producers use one-cell footprints and combat buildings keep theirs");
     const ian::Vec3 turretCenter =
         ian::buildingWorldPosition(
             ian::BuildingType::Turret, {2, 6});

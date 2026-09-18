@@ -12,7 +12,7 @@ void runTowerSystemTests() {
     requireNear(
         ian::TowerSystem::fireInterval(
             ian::BuildingType::Turret, 1),
-        1.25, 1e-9,
+        1.0, 1e-9,
         "crossbow trades fire rate for piercing damage");
     require(
         ian::TowerSystem::piercingCount(
@@ -25,14 +25,17 @@ void runTowerSystemTests() {
                 ian::BuildingType::GunTurret, 8) == 0,
         "crossbow gains one piercing target every two levels");
     ian::BuildingSystem buildings;
-    require(buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
+    const auto placedCore = buildings.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(placedCore.has_value(),
             "tower fixture creates core");
+    require(buildings.upgrade(
+                placedCore->building.id, 0, 0, 50).valid() &&
+                buildings.upgrade(
+                    placedCore->building.id, 0, 0, 100).valid(),
+            "tower fixture unlocks crossbow");
     const auto turret = buildings.place(ian::BuildingType::Turret, {0, -4}, 0, 25, 15);
     require(turret.has_value(), "tower fixture creates turret");
-    const auto core = buildings.core();
-    require(core.has_value(), "tower fixture finds core");
-    require(buildings.upgrade(core->id, 0, 0, 50).valid(),
-            "tower fixture upgrades core");
     const ian::ResourceCost turretBlueprintCost =
         buildings.blueprintUpgradeCost(ian::BuildingType::Turret);
     require(buildings.upgradeBlueprint(
@@ -67,10 +70,15 @@ void runTowerSystemTests() {
     require(enemies.activeCount() == 0, "tower damage updates enemy system");
 
     ian::BuildingSystem piercingBuildings;
-    require(piercingBuildings.place(
-                ian::BuildingType::Core, {0, 0}, 0,
-                30, 0).has_value(),
+    const auto piercingCore = piercingBuildings.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(piercingCore.has_value(),
             "piercing fixture creates core");
+    require(piercingBuildings.upgrade(
+                piercingCore->building.id, 0, 0, 50).valid() &&
+                piercingBuildings.upgrade(
+                    piercingCore->building.id, 0, 0, 100).valid(),
+            "piercing fixture unlocks crossbow");
     require(piercingBuildings.place(
                 ian::BuildingType::Turret, {0, -4}, 0,
                 25, 15).has_value(),
@@ -119,9 +127,6 @@ void runTowerSystemTests() {
         ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(gunCore.has_value(),
             "gun turret fixture creates core");
-    require(gunBuildings.upgrade(
-                gunCore->building.id, 0, 0, 50).valid(),
-            "gun turret fixture reaches required core level");
     const auto gunTurret = gunBuildings.place(
         ian::BuildingType::GunTurret, {0, -4}, 0, 35, 25, 10);
     require(gunTurret.has_value(), "2x2 gun turret can be placed at authored scale");
@@ -214,9 +219,6 @@ void runTowerSystemTests() {
         ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(elevatedGunCore.has_value(),
             "elevated gun turret fixture creates core");
-    require(elevatedGunBuildings.upgrade(
-                elevatedGunCore->building.id, 0, 0, 50).valid(),
-            "elevated gun turret fixture reaches required core level");
     require(elevatedGunBuildings.place(
                 ian::BuildingType::GunTurret, {0, -4}, 0,
                 35, 25, 10, 4.0, 1).has_value(),

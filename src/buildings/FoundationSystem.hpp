@@ -125,6 +125,14 @@ class FoundationSystem {
     previewFoundation(
         Vec3 terrainHit, Vec3 playerPosition) const;
     [[nodiscard]] PlatformFramePlacement
+    previewFoundation(
+        Vec3 terrainHit, Vec3 playerPosition,
+        double heightStep) const;
+    [[nodiscard]] PlatformFramePlacement
+    previewAutomaticBuildingFoundation(
+        GridCoord anchor, Vec3 playerPosition,
+        double heightStep) const;
+    [[nodiscard]] PlatformFramePlacement
     previewFoundationAtHeight(
         Vec3 terrainHit, double floorHeight,
         Vec3 playerPosition) const;
@@ -165,7 +173,9 @@ class FoundationSystem {
     [[nodiscard]] std::optional<BuildingPlatformSurface>
     buildingSurface(
         int minimumCellX, int minimumCellZ,
-        int widthCells) const;
+        int widthCells,
+        std::optional<double> preferredHeight =
+            std::nullopt) const;
     [[nodiscard]] bool buildingFootprintIntersectsPlatform(
         int minimumCellX, int minimumCellZ,
         int widthCells) const;
@@ -200,6 +210,11 @@ class FoundationSystem {
     topFloorAtCell(int x, int z) const;
     [[nodiscard]] const PlatformFrameInstance*
     frameAt(GridCoord anchor, int storey) const;
+    [[nodiscard]] PlatformFramePlacement
+    previewGroundPlatformAtAnchor(
+        GridCoord anchor, double baseHeight,
+        double neighbourSnapTolerance,
+        Vec3 playerPosition, bool preserveAnchor) const;
     void syncStructuralStates();
     [[nodiscard]] bool eraseInstance(
         EntityId id, bool releaseFoundationSupports);

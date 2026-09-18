@@ -21,6 +21,7 @@ enum class ModularPlacementError {
     ResourceBlocked,
     InsufficientResources,
     CoreLevelRequired,
+    OutsideCoreArea,
 };
 
 struct FoundationSupport {
@@ -59,6 +60,8 @@ class PlacementValidator {
     validateAutomaticBuildingFoundationAt(
         GridCoord anchor, double floorHeight,
         Vec3 playerPosition) const;
+    [[nodiscard]] double stableGroundPlatformHeight(
+        GridCoord anchor, double heightStep) const;
 
   private:
     [[nodiscard]] PlatformFramePlacement

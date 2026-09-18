@@ -558,6 +558,18 @@ void runEnemySystemTests() {
 
     const auto centralEnemy = enemies.raycast({0.0, 0.8, -9.0}, {0.0, 0.0, 1.0}, 6.0);
     require(centralEnemy.has_value(), "enemy raycast finds target");
+    const auto centralHit = enemies.raycastHit(
+        {0.0, 0.8, -9.0}, {0.0, 0.0, 1.0}, 6.0);
+    require(
+        centralHit.has_value() && centralHit->id == *centralEnemy &&
+            centralHit->distance >= 0.0 &&
+            centralHit->distance <= 6.0 &&
+            std::abs(centralHit->position.x) < 1e-9 &&
+            std::abs(centralHit->position.y - 0.8) < 1e-9 &&
+            std::abs(
+                centralHit->position.z -
+                (-9.0 + centralHit->distance)) < 1e-9,
+        "enemy raycast preserves the exact surface contact point");
 
     ian::EnemySystem capsuleAimEnemies;
     constexpr std::array<ian::Vec3, 1> CapsuleAimSpawn{{

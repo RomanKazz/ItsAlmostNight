@@ -10,6 +10,30 @@ namespace {
 
 constexpr double EnemyMedkitDropChance = 0.06;
 
+double coinDropChance(EnemyType type, bool elite) {
+    if (elite || type == EnemyType::Boss) {
+        return 1.0;
+    }
+    switch (type) {
+    case EnemyType::Basic:
+    case EnemyType::Fast:
+        return 0.30;
+    case EnemyType::Heavy:
+        return 0.70;
+    case EnemyType::Ranged:
+    case EnemyType::Flying:
+        return 0.45;
+    case EnemyType::Sapper:
+    case EnemyType::Splitter:
+        return 0.55;
+    case EnemyType::Splitling:
+        return 0.15;
+    case EnemyType::Boss:
+        return 1.0;
+    }
+    return 0.30;
+}
+
 int coinDropAmount(EnemyType type) {
     switch (type) {
     case EnemyType::Basic:
@@ -40,6 +64,23 @@ std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
 } // namespace
 
 void Simulation::updateCoinPickups(double deltaSeconds) {
+    const auto maybeDropCoins = [this](
+        EntityId id, Vec3 position, EnemyType type,
+        bool elite) {
+        const std::uint64_t seed = coinSeed(id, tick_);
+        constexpr std::uint64_t DropRollSalt =
+            0xd1b54a32d192ed03ULL;
+        if (unitRandom(seed ^ DropRollSalt) >=
+            coinDropChance(type, elite)) {
+            return;
+        }
+        const int baseCoins = coinDropAmount(type);
+        coinPickups_.spawnValue(
+            position,
+            baseCoins +
+                (elite ? std::max(2, baseCoins / 2) : 0),
+            seed, terrain_);
+    };
     const auto maybeDropMedkit = [this](
         EntityId id, Vec3 position, EnemyType type,
         bool elite) {
@@ -79,11 +120,8 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             ? event.enemyEliteAffixes != 0U
             : enemy != enemies_.enemies().end() &&
                 enemy->eliteAffixes != 0U;
-        const int baseCoins = coinDropAmount(type);
-        coinPickups_.spawnValue(
-            event.position,
-            baseCoins + (elite ? std::max(2, baseCoins / 2) : 0),
-            coinSeed(*event.entityId, tick_), terrain_);
+        maybeDropCoins(
+            *event.entityId, event.position, type, elite);
         maybeDropMedkit(
             *event.entityId, event.position, type, elite);
     }
@@ -98,12 +136,9 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
                 rewardedEnemyCoins_, enemy.id)) {
             continue;
         }
-        const int baseCoins = coinDropAmount(enemy.type);
-        coinPickups_.spawnValue(
-            enemy.position,
-            baseCoins + (enemy.eliteAffixes != 0U
-                ? std::max(2, baseCoins / 2) : 0),
-            coinSeed(enemy.id, tick_), terrain_);
+        maybeDropCoins(
+            enemy.id, enemy.position, enemy.type,
+            enemy.eliteAffixes != 0U);
         maybeDropMedkit(
             enemy.id, enemy.position, enemy.type,
             enemy.eliteAffixes != 0U);

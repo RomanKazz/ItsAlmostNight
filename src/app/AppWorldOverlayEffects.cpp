@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "game/ModularCombat.hpp"
 #include "graphics/CameraCulling.hpp"
 
 #include <raylib.h>
@@ -24,16 +25,47 @@ void App::drawSoldBuildingVisuals() {
                 1.0 -
                 visual.remaining / visual.duration),
             0.0F, 1.0F);
-        const float collapse =
-            1.0F - smoothstep(0.08F, 1.0F, progress);
-        const float scale =
-            collapse *
-            (1.0F +
-             std::sin(progress * PI) * 0.09F);
-        const float sink =
-            progress * progress * 0.42F;
-        const float fade =
-            1.0F - smoothstep(0.45F, 1.0F, progress);
+        float scale{};
+        float sink{};
+        float fade{};
+        if (visual.structuralCollapse) {
+            Vec3 center{};
+            const WorldConfig& worldConfig =
+                simulation_.terrain().config();
+            if (visual.building) {
+                center = buildingWorldPosition(*visual.building);
+            } else if (visual.platformFrame) {
+                center = modularBaseCenter(
+                    *visual.platformFrame, worldConfig);
+            } else if (visual.modularWall) {
+                center = modularBaseCenter(
+                    *visual.modularWall, worldConfig);
+            } else if (visual.ramp) {
+                center = modularBaseCenter(*visual.ramp, worldConfig);
+            }
+            const float terrainHeight = static_cast<float>(
+                simulation_.terrain().getHeight(
+                    center.x, center.z));
+            const float fallDistance = std::max(
+                2.6F,
+                static_cast<float>(center.y) -
+                    terrainHeight + 1.35F);
+            sink = progress * progress * fallDistance;
+            scale = 1.0F -
+                smoothstep(0.76F, 1.0F, progress) * 0.16F;
+            fade = 1.0F -
+                smoothstep(0.72F, 1.0F, progress);
+        } else {
+            const float collapse =
+                1.0F - smoothstep(0.08F, 1.0F, progress);
+            scale =
+                collapse *
+                (1.0F +
+                 std::sin(progress * PI) * 0.09F);
+            sink = progress * progress * 0.42F;
+            fade =
+                1.0F - smoothstep(0.45F, 1.0F, progress);
+        }
         const auto alpha = static_cast<unsigned char>(
             std::lround(fade * 230.0F));
         const Color tint{255, 222, 174, alpha};
@@ -243,6 +275,12 @@ void App::drawSoldBuildingVisuals() {
                          2.0F, 1.0F,
                          {126, 86, 54, alpha});
             }
+        } else if (building.type == BuildingType::Gate &&
+                   renderer_->drawGate(
+                       {x, baseY - sink, z}, yaw,
+                       gateOpenAmount(building.id, building.open),
+                       {255, 255, 255, alpha}, scale)) {
+            // The imported door and stationary pillar were submitted.
         } else if ((building.rotation % 2U) == 0U) {
             drawCube(-0.38F, 1.0F, 0.0F, 0.22F,
                      2.0F, 1.0F,
@@ -413,6 +451,7 @@ void App::drawBlobShadows(
         }
         for (const SharedSupport& support : snapshot.sharedSupports) {
             if (!support.active || support.length <= 0.05 ||
+                support.referenceCount >= 4U ||
                 !withinAoDistance(
                     support.bottom.x, support.bottom.z)) {
                 continue;

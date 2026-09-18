@@ -64,6 +64,32 @@ void runCoinPickupSystemTests() {
             "magnetic coins reach player and grant their full value");
 
     coins.reset();
+    coins.spawnValue({0.0, 0.0, 0.0}, 1, 81U, terrain, 0.0);
+    bool recoiledBeforePull = false;
+    for (int frame = 0; frame < 90 && !coins.pickups().empty(); ++frame) {
+        static_cast<void>(coins.tick(
+            1.0 / 60.0, {1.5, 1.7, 0.0}, terrain, collision));
+        if (!coins.pickups().empty() &&
+            coins.pickups().front().magnetized &&
+            coins.pickups().front().magnetTime <
+                ian::CoinPickupSystem::MagnetAnticipationDuration) {
+            const ian::CoinPickup& coin = coins.pickups().front();
+            const ian::Vec3 toPlayer{
+                1.5 - coin.position.x,
+                1.7 - 0.72 - coin.position.y,
+                -coin.position.z,
+            };
+            recoiledBeforePull =
+                coin.velocity.x * toPlayer.x +
+                    coin.velocity.z * toPlayer.z < 0.0;
+            break;
+        }
+    }
+    require(
+        recoiledBeforePull,
+        "magnetized coins recoil away before flying to the player");
+
+    coins.reset();
     coins.spawnValue({0.0, 0.0, 0.0}, 16, 123U, terrain);
     require(
         coins.pickups().size() == 3 &&

@@ -1,6 +1,8 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 
+#include <raylib.h>
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -115,6 +117,28 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
     }
 }
 
+void App::startEnemyHitFlash(EntityId id, double elapsedSeconds) {
+    const std::uint64_t key =
+        (static_cast<std::uint64_t>(id.generation) << 32U) |
+        static_cast<std::uint64_t>(id.index);
+    auto [flash, inserted] = enemyHitFlashById_.try_emplace(key);
+    if (inserted || elapsedSeconds >= flash->second.nextAllowedAt) {
+        flash->second.startedAt = elapsedSeconds;
+        flash->second.nextAllowedAt =
+            elapsedSeconds + EnemyHitFlashInterval;
+    }
+}
+
+void App::chooseHarvestSwingAnimation(FirstPersonToolVisual visual) {
+    toolSwingAlternateAnimation_ =
+        renderer_ &&
+        (visual == FirstPersonToolVisual::Axe ||
+         visual == FirstPersonToolVisual::Pickaxe ||
+         visual == FirstPersonToolVisual::Club) &&
+        renderer_->hasAlternateHarvestSwingAnimation() &&
+        GetRandomValue(0, 1) != 0;
+}
+
 void App::addEffect(PresentationEffectType type, Vec3 position,
                     double duration, float scale,
                     std::optional<EntityId> entityId,
@@ -227,15 +251,41 @@ void App::addFloatingDamageNumber(
         floatingDamageNumbers_.erase(
             floatingDamageNumbers_.begin());
     }
-    constexpr double Duration = 0.85;
+    std::uint32_t randomState =
+        (++floatingDamageSequence_) * 0x9e3779b9U;
+    randomState ^= static_cast<std::uint32_t>(
+        std::lround((position.x + 256.0) * 47.0));
+    randomState ^= static_cast<std::uint32_t>(
+        std::lround((position.z + 256.0) * 71.0)) << 1U;
+    const auto random01 = [&randomState]() {
+        randomState ^= randomState << 13U;
+        randomState ^= randomState >> 17U;
+        randomState ^= randomState << 5U;
+        return static_cast<float>(randomState & 0xffffU) /
+            65535.0F;
+    };
     const float direction =
-        (floatingDamageNumbers_.size() % 2U) == 0U ? -1.0F : 1.0F;
+        (floatingDamageSequence_ % 2U) == 0U ? -1.0F : 1.0F;
+    const double duration = critical
+        ? 0.62 + static_cast<double>(random01()) * 0.10
+        : 0.50 + static_cast<double>(random01()) * 0.10;
+    const float initialRotation =
+        direction * (3.0F + random01() * 6.0F);
+    const float rotationTravel =
+        -direction * (7.0F + random01() * 8.0F);
     floatingDamageNumbers_.push_back({
         .position = position,
         .damage = damage,
-        .remaining = Duration,
-        .duration = Duration,
-        .horizontalDrift = direction * (critical ? 22.0F : 14.0F),
+        .remaining = duration,
+        .duration = duration,
+        .horizontalDrift = direction *
+            ((critical ? 23.0F : 15.0F) + random01() * 14.0F),
+        .verticalRise =
+            (critical ? 0.82F : 0.64F) + random01() * 0.20F,
+        .initialRotationDegrees = initialRotation,
+        .rotationTravelDegrees = rotationTravel,
+        .scaleVariation = 0.90F + random01() * 0.20F,
+        .popOvershoot = 1.15F + random01() * 0.45F,
         .critical = critical,
     });
 }

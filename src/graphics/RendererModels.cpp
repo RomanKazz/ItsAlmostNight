@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/GateModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -16,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <ranges>
 #include <tuple>
@@ -53,6 +55,13 @@ struct EnemyAnimationSource {
 constexpr int PlatformLegCount = 4;
 constexpr int PlatformTopMeshIndex = 4;
 constexpr int PlatformMeshCount = PlatformTopMeshIndex + 1;
+constexpr std::size_t PlatformDeckPart = 0U;
+constexpr std::size_t PlatformMinimumXPart = 1U;
+constexpr std::size_t PlatformMaximumXPart = 2U;
+constexpr std::size_t PlatformMinimumZPart = 3U;
+constexpr std::size_t PlatformMaximumZPart = 4U;
+constexpr std::array<std::size_t, 4>
+    RotatedPlatformEdgeIndices{1U, 0U, 3U, 2U};
 constexpr float PlatformLegTopY = -0.12480831F;
 constexpr float PlatformLegSpan = 3.87519169F;
 // Authoring/import scale is shared by regular enemy rendering, instancing,
@@ -61,6 +70,17 @@ constexpr float PlatformLegSpan = 3.87519169F;
 constexpr float EnemyImportScale = 0.82F;
 constexpr std::array<std::size_t, PlatformLegCount>
     RotatedPlatformSupportIndices{1U, 0U, 3U, 2U};
+
+Matrix transformMatrix(const Transform& transform) {
+    return MatrixMultiply(
+        MatrixMultiply(
+            MatrixScale(transform.scale.x, transform.scale.y,
+                        transform.scale.z),
+            QuaternionToMatrix(transform.rotation)),
+        MatrixTranslate(transform.translation.x,
+                        transform.translation.y,
+                        transform.translation.z));
+}
 
 BoundingBox transformedBoundingBox(
     const BoundingBox& bounds, Matrix transform) {
@@ -673,6 +693,129 @@ renderer_model_detail::modelColliderRaycastDistance(
 
 using namespace renderer_model_detail;
 
+void Renderer::shutdownPlatformTopPartMeshes() {
+    for (Mesh& mesh : platformTopPartMeshes_) {
+        if (mesh.vertexCount > 0) {
+            UnloadMesh(mesh);
+        }
+        mesh = {};
+    }
+    platformTopPartMeshesReady_ = false;
+}
+
+void Renderer::initializePlatformTopPartMeshes() {
+    shutdownPlatformTopPartMeshes();
+    auto& resource = resources_.platformModel();
+    if (!resource.valid() ||
+        resource.get().meshCount <= PlatformTopMeshIndex) {
+        return;
+    }
+    const Mesh& source =
+        resource.get().meshes[PlatformTopMeshIndex];
+    if (source.vertices == nullptr || source.triangleCount <= 0) {
+        return;
+    }
+
+    // PlatformTop contains eleven disconnected wooden pieces in one authored
+    // mesh: the deck/cross-beams and four deep perimeter rails. Split those
+    // rails once so adjacent 2x2 tiles can omit the two internal copies while
+    // retaining the original textured material.
+    std::array<std::vector<int>, PlatformTopPartCount>
+        sourceVertices;
+    const auto vertexIndex = [&source](int indexOffset) {
+        return source.indices != nullptr
+            ? static_cast<int>(source.indices[indexOffset])
+            : indexOffset;
+    };
+    for (int triangle = 0; triangle < source.triangleCount;
+         ++triangle) {
+        std::array<int, 3> indices{};
+        Vector3 center{};
+        float maximumY = -std::numeric_limits<float>::infinity();
+        for (int corner = 0; corner < 3; ++corner) {
+            const int index = vertexIndex(triangle * 3 + corner);
+            indices[static_cast<std::size_t>(corner)] = index;
+            const int coordinate = index * 3;
+            center.x += source.vertices[coordinate];
+            center.y += source.vertices[coordinate + 1];
+            center.z += source.vertices[coordinate + 2];
+            maximumY = std::max(
+                maximumY, source.vertices[coordinate + 1]);
+        }
+        center = Vector3Scale(center, 1.0F / 3.0F);
+        std::size_t part = PlatformDeckPart;
+        if (maximumY < -0.28F) {
+            if (std::abs(center.x) > std::abs(center.z)) {
+                part = center.x < 0.0F
+                    ? PlatformMinimumXPart
+                    : PlatformMaximumXPart;
+            } else {
+                part = center.z < 0.0F
+                    ? PlatformMinimumZPart
+                    : PlatformMaximumZPart;
+            }
+        }
+        sourceVertices[part].insert(
+            sourceVertices[part].end(),
+            indices.begin(), indices.end());
+    }
+
+    const auto copyAttribute = [](float* destination,
+                                  const float* sourceAttribute,
+                                  int sourceIndex,
+                                  int componentCount) {
+        for (int component = 0; component < componentCount;
+             ++component) {
+            destination[component] =
+                sourceAttribute[sourceIndex * componentCount + component];
+        }
+    };
+    for (std::size_t part = 0; part < sourceVertices.size(); ++part) {
+        const std::vector<int>& indices = sourceVertices[part];
+        if (indices.empty()) {
+            shutdownPlatformTopPartMeshes();
+            return;
+        }
+        Mesh& mesh = platformTopPartMeshes_[part];
+        mesh.vertexCount = static_cast<int>(indices.size());
+        mesh.triangleCount = mesh.vertexCount / 3;
+        mesh.vertices = static_cast<float*>(MemAlloc(
+            static_cast<unsigned int>(
+                static_cast<std::size_t>(mesh.vertexCount) *
+                3U * sizeof(float))));
+        if (source.normals != nullptr) {
+            mesh.normals = static_cast<float*>(MemAlloc(
+                static_cast<unsigned int>(
+                    static_cast<std::size_t>(mesh.vertexCount) *
+                    3U * sizeof(float))));
+        }
+        if (source.texcoords != nullptr) {
+            mesh.texcoords = static_cast<float*>(MemAlloc(
+                static_cast<unsigned int>(
+                    static_cast<std::size_t>(mesh.vertexCount) *
+                    2U * sizeof(float))));
+        }
+        for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
+            const int sourceIndex = indices[static_cast<std::size_t>(vertex)];
+            copyAttribute(
+                &mesh.vertices[vertex * 3], source.vertices,
+                sourceIndex, 3);
+            if (mesh.normals != nullptr) {
+                copyAttribute(
+                    &mesh.normals[vertex * 3], source.normals,
+                    sourceIndex, 3);
+            }
+            if (mesh.texcoords != nullptr) {
+                copyAttribute(
+                    &mesh.texcoords[vertex * 2], source.texcoords,
+                    sourceIndex, 2);
+            }
+        }
+        UploadMesh(&mesh, false);
+    }
+    platformTopPartMeshesReady_ = true;
+}
+
 void Renderer::drawTerrainAlignedModel(
     Model& model, Vector3 position, float yawRadians,
     Vector3 scale, Color tint) const {
@@ -703,17 +846,26 @@ Color lootRarityColor(LootRarity rarity) {
     return {185, 225, 255, 255};
 }
 
+bool Renderer::hasAlternateHarvestSwingAnimation() const {
+    return resources_.pickaxeAlternateAnimation().valid();
+}
+
 bool Renderer::drawFirstPersonTool(
     FirstPersonToolVisual visual, float swingProgress,
     float movementPhase, float movementAmount,
     const FirstPersonToolTuning& tuning,
-    float iceChargeProgress, float iceRecoilProgress) {
+    float iceChargeProgress, float iceRecoilProgress,
+    bool alternateHarvestSwing) {
     ModelResource* resource = nullptr;
     const bool iceWand = visual == FirstPersonToolVisual::IceWand;
     const bool fireWand = visual == FirstPersonToolVisual::FireWand;
     const bool wand = iceWand || fireWand;
     const bool bomb = visual == FirstPersonToolVisual::Bomb;
+    const bool axe = visual == FirstPersonToolVisual::Axe;
     const bool pickaxe = visual == FirstPersonToolVisual::Pickaxe;
+    const bool club = visual == FirstPersonToolVisual::Club;
+    const bool axeLike = axe || club;
+    const bool authoredHarvestSwing = axeLike || pickaxe;
     switch (visual) {
     case FirstPersonToolVisual::None:
         break;
@@ -747,15 +899,16 @@ bool Renderer::drawFirstPersonTool(
     };
     float swingPitch = 0.0F;
     float swingPush = 0.0F;
-    if (progress > 0.0F && progress < 0.22F) {
+    if (!authoredHarvestSwing && progress > 0.0F && progress < 0.22F) {
         const float phase = smoothStep(progress / 0.22F);
         swingPitch = tuning.windupDegrees * phase;
-    } else if (progress >= 0.22F && progress < 0.53F) {
+    } else if (!authoredHarvestSwing && progress >= 0.22F &&
+               progress < 0.53F) {
         const float phase = smoothStep((progress - 0.22F) / 0.31F);
         swingPitch = tuning.windupDegrees +
                      (tuning.strikeDegrees - tuning.windupDegrees) * phase;
         swingPush = std::sin(phase * PI) * tuning.depthPush;
-    } else if (progress >= 0.53F) {
+    } else if (!authoredHarvestSwing && progress >= 0.53F) {
         const float phase = smoothStep((progress - 0.53F) / 0.47F);
         swingPitch = tuning.strikeDegrees * (1.0F - phase);
     }
@@ -769,38 +922,103 @@ bool Renderer::drawFirstPersonTool(
     const float recoil = std::sin(
         std::clamp(iceRecoilProgress, 0.0F, 1.0F) * PI);
     rlPushMatrix();
-    const float wandX = wand
-        ? tuning.position.x + 0.035F + bobX
-        : tuning.position.x + bobX;
-    const float wandY = wand
-        ? tuning.position.y - bobY + charge * 0.045F
-        : tuning.position.y - bobY;
-    const float wandZ = wand
-        ? tuning.position.z + recoil * 0.075F
-        : tuning.position.z + swingPush;
-    rlTranslatef(wandX, wandY - (pickaxe ? 0.035F : 0.0F), wandZ);
+    constexpr Vector3 LegacyPickaxePosition{
+        0.55401313F, -0.349843F, -0.7427701F};
+    constexpr Vector3 LegacyAxePosition{
+        0.39473686F, -0.349843F, -0.7427701F};
+    constexpr Vector3 LegacyPickaxeRotation{22.0F, -60.0F, 7.0F};
+    constexpr float LegacyPickaxeScale = 0.74F;
+    const Vector3 authoredPosition = axeLike
+        ? LegacyAxePosition : LegacyPickaxePosition;
+    const float wandX = authoredHarvestSwing
+        ? tuning.position.x - authoredPosition.x + bobX
+        : (wand ? tuning.position.x + 0.035F + bobX
+                : tuning.position.x + bobX);
+    const float wandY = authoredHarvestSwing
+        ? tuning.position.y - authoredPosition.y - bobY
+        : (wand ? tuning.position.y - bobY + charge * 0.045F
+                : tuning.position.y - bobY);
+    const float wandZ = authoredHarvestSwing
+        ? tuning.position.z - authoredPosition.z
+        : (wand ? tuning.position.z + recoil * 0.075F
+                : tuning.position.z + swingPush);
+    rlTranslatef(wandX, wandY, wandZ);
     // Swing in camera space. Applying this before the model's local pose
     // keeps the strike aimed forward even when the tool is yawed in-hand.
-    rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
+    if (!authoredHarvestSwing) {
+        rlRotatef(swingPitch, 1.0F, 0.0F, 0.0F);
+    }
     // Blender exports the handle along local +Y. With the origin at the
     // grip, these rotations move the head without making the hand slide.
-    rlRotatef(tuning.rotation.x, 1.0F, 0.0F, 0.0F);
-    rlRotatef(tuning.rotation.y, 0.0F, 1.0F, 0.0F);
-    rlRotatef(tuning.rotation.z, 0.0F, 0.0F, 1.0F);
+    rlRotatef(authoredHarvestSwing
+                  ? tuning.rotation.x - LegacyPickaxeRotation.x
+                  : tuning.rotation.x,
+              1.0F, 0.0F, 0.0F);
+    rlRotatef(authoredHarvestSwing
+                  ? tuning.rotation.y - LegacyPickaxeRotation.y
+                  : tuning.rotation.y,
+              0.0F, 1.0F, 0.0F);
+    rlRotatef(authoredHarvestSwing
+                  ? tuning.rotation.z - LegacyPickaxeRotation.z
+                  : tuning.rotation.z,
+              0.0F, 0.0F, 1.0F);
     const float modelScale = bomb
         ? tuning.scale / 1.5F
-        : tuning.scale * (pickaxe ? 0.88F : 1.0F);
+        : (authoredHarvestSwing
+               ? tuning.scale / LegacyPickaxeScale
+               : tuning.scale);
     rlScalef(modelScale, modelScale, modelScale);
+    Shader* viewModelShader = resources_.viewModelShader().valid()
+        ? &resources_.viewModelShader().get()
+        : nullptr;
     if (bomb) {
+        if (viewModelShader != nullptr) {
+            BeginShaderMode(*viewModelShader);
+        }
         DrawSphereEx({}, 0.27F, 12, 12, {49, 55, 63, 255});
         DrawCylinder({0.0F, 0.29F, 0.0F}, 0.055F, 0.04F,
                      0.16F, 8, {124, 80, 39, 255});
         DrawSphere({0.0F, 0.39F, 0.0F}, 0.035F,
                    {255, 152, 38, 255});
+        if (viewModelShader != nullptr) {
+            EndShaderMode();
+        }
     } else {
         Model& model = resource->get();
+        if (viewModelShader != nullptr) {
+            for (int index = 0; index < model.materialCount; ++index) {
+                model.materials[index].shader = *viewModelShader;
+            }
+        }
+        const Matrix originalTransform = model.transform;
+        const GlbNodeAnimation& animation =
+            alternateHarvestSwing &&
+                    resources_.pickaxeAlternateAnimation().valid()
+                ? resources_.pickaxeAlternateAnimation()
+                : resources_.pickaxeAnimation();
+        if (authoredHarvestSwing && animation.valid()) {
+            const Matrix animated = transformMatrix(
+                animation.sample(progress));
+            if (pickaxe) {
+                const Matrix base = transformMatrix(
+                    animation.baseTransform());
+                model.transform = MatrixMultiply(
+                    MatrixInvert(base), animated);
+            } else {
+                // The pickaxe mesh has this Blender child-object scale baked
+                // into its vertices. Apply it to the standalone axe mesh so
+                // both tools share the authored pivot and camera space.
+                constexpr float AuthoredChildScale = 5.307597F;
+                model.transform = MatrixMultiply(
+                    MatrixScale(AuthoredChildScale,
+                                AuthoredChildScale,
+                                AuthoredChildScale),
+                    animated);
+            }
+        }
         DrawModel(model, {}, 1.0F,
                   fireWand ? Color{255, 193, 150, 255} : WHITE);
+        model.transform = originalTransform;
     }
     if (wand) {
         constexpr float CrystalHeight = 0.365F;
@@ -832,6 +1050,130 @@ bool Renderer::drawFirstPersonTool(
     }
     rlPopMatrix();
     return true;
+}
+
+void Renderer::drawFirstPersonSwingTrail(
+    FirstPersonToolVisual visual, float swingProgress,
+    float movementPhase, float movementAmount,
+    const FirstPersonToolTuning& tuning,
+    const Camera3D& viewModelCamera,
+    bool alternateHarvestSwing) {
+    const bool axe = visual == FirstPersonToolVisual::Axe;
+    const bool club = visual == FirstPersonToolVisual::Club;
+    const bool axeLike = axe || club;
+    if (!axeLike && visual != FirstPersonToolVisual::Pickaxe) return;
+    const GlbNodeAnimation& animation =
+        alternateHarvestSwing &&
+                resources_.pickaxeAlternateAnimation().valid()
+            ? resources_.pickaxeAlternateAnimation()
+            : resources_.pickaxeAnimation();
+    if (!animation.valid()) return;
+
+    const float progress = std::clamp(swingProgress, 0.0F, 1.0F);
+    const float trailProgress = progress -
+        (alternateHarvestSwing ? 10.0F / 60.0F : 0.0F);
+    if (trailProgress < 0.14F || trailProgress > 0.60F) return;
+    const auto smoothStep = [](float value) {
+        value = std::clamp(value, 0.0F, 1.0F);
+        return value * value * (3.0F - 2.0F * value);
+    };
+    const float visibility =
+        smoothStep((trailProgress - 0.14F) / 0.09F) *
+        (1.0F - smoothStep((trailProgress - 0.39F) / 0.21F));
+    if (visibility <= 0.001F) return;
+
+    // Match the outer transform used by drawFirstPersonTool. The sampled
+    // pivot moves the blade; its recent positions form the translucent arc.
+    const Vector3 legacyPosition = axeLike
+        ? Vector3{0.39473686F, -0.349843F, -0.7427701F}
+        : Vector3{0.55401313F, -0.349843F, -0.7427701F};
+    constexpr Vector3 LegacyRotation{22.0F, -60.0F, 7.0F};
+    constexpr float ChildScale = 5.307597F;
+    constexpr float LegacyScale = 0.74F;
+    const float bob = std::clamp(movementAmount, 0.0F, 1.0F) *
+        std::max(tuning.movementBob, 0.0F);
+    const Vector3 offset{
+        tuning.position.x - legacyPosition.x +
+            std::sin(movementPhase) * 0.012F * bob,
+        tuning.position.y - legacyPosition.y -
+            std::abs(std::cos(movementPhase)) * 0.014F * bob,
+        tuning.position.z - legacyPosition.z,
+    };
+    const float scale = tuning.scale / LegacyScale;
+    Matrix outer = MatrixScale(scale, scale, scale);
+    outer = MatrixMultiply(outer, MatrixRotateZ(
+        (tuning.rotation.z - LegacyRotation.z) * DEG2RAD));
+    outer = MatrixMultiply(outer, MatrixRotateY(
+        (tuning.rotation.y - LegacyRotation.y) * DEG2RAD));
+    outer = MatrixMultiply(outer, MatrixRotateX(
+        (tuning.rotation.x - LegacyRotation.x) * DEG2RAD));
+    outer = MatrixMultiply(outer, MatrixTranslate(
+        offset.x, offset.y, offset.z));
+
+    const Vector3 bladeEdge = axeLike
+        ? Vector3{-0.21F, 0.35F, 0.0F}
+        : Vector3{-0.36F, 0.52F, 0.0F};
+    const Vector3 bladeInsideFullWidth = axeLike
+        ? Vector3{-0.02F, 0.24F, 0.0F}
+        : Vector3{-0.13F, 0.37F, 0.0F};
+    const Vector3 bladeInside = Vector3Lerp(
+        bladeEdge, bladeInsideFullWidth, 0.5F);
+    const auto projectedBlade = [&](float sampleProgress,
+                                    Vector3 localPoint) {
+        const Matrix pivot = transformMatrix(
+            animation.sample(sampleProgress));
+        const Vector3 point = Vector3Transform(
+            Vector3Scale(localPoint, ChildScale), pivot);
+        return GetWorldToScreen(
+            Vector3Transform(point, outer), viewModelCamera);
+    };
+    const auto colorFor = [visibility](float age) {
+        const float fade = std::pow(
+            std::clamp(1.0F - age, 0.0F, 1.0F), 1.25F);
+        const float shade = 1.0F - std::clamp(age, 0.0F, 1.0F);
+        return Color{
+            static_cast<unsigned char>(std::lround(246.0F - 80.0F * shade)),
+            static_cast<unsigned char>(std::lround(237.0F - 78.0F * shade)),
+            static_cast<unsigned char>(std::lround(221.0F - 72.0F * shade)),
+            static_cast<unsigned char>(std::lround(
+                std::clamp(visibility * fade * 92.0F, 0.0F, 255.0F))),
+        };
+    };
+    const auto emit = [](Vector2 point, Color color) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex2f(point.x, point.y);
+    };
+
+    constexpr int Segments = 18;
+    constexpr float History = 0.22F;
+    constexpr float HeadLag = 0.012F;
+    rlDrawRenderBatchActive();
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableBackfaceCulling();
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    for (int segment = 0; segment < Segments; ++segment) {
+        const float age0 = static_cast<float>(segment) / Segments;
+        const float age1 = static_cast<float>(segment + 1) / Segments;
+        const float time0 = progress - HeadLag - age0 * History;
+        const float time1 = progress - HeadLag - age1 * History;
+        if (time1 < 0.0F) break;
+        const Vector2 edge0 = projectedBlade(time0, bladeEdge);
+        const Vector2 inside0 = projectedBlade(time0, bladeInside);
+        const Vector2 edge1 = projectedBlade(time1, bladeEdge);
+        const Vector2 inside1 = projectedBlade(time1, bladeInside);
+        const Color color0 = colorFor(age0);
+        const Color color1 = colorFor(age1);
+        emit(edge0, color0);
+        emit(inside0, color0);
+        emit(inside1, color1);
+        emit(edge0, color0);
+        emit(inside1, color1);
+        emit(edge1, color1);
+    }
+    rlEnd();
+    rlEnableBackfaceCulling();
+    EndBlendMode();
 }
 
 void Renderer::drawIceMagicSphere(
@@ -1046,7 +1388,8 @@ std::optional<double>
 Renderer::platformFrameRaycastDistance(
     Vector3 topCenter, float scale,
     const std::array<float, 4>& supportLengths,
-    Ray ray, double maxDistance) {
+    Ray ray, double maxDistance,
+    const std::array<bool, 4>& supportVisibility) {
     auto& resource = resources_.platformModel();
     if (!resource.valid() || maxDistance <= 0.0 ||
         resource.get().meshCount <= PlatformTopMeshIndex) {
@@ -1063,6 +1406,12 @@ Renderer::platformFrameRaycastDistance(
     std::optional<double> closest;
     for (int meshIndex = 0; meshIndex < PlatformMeshCount;
          ++meshIndex) {
+        if (meshIndex < PlatformLegCount &&
+            !supportVisibility[
+                RotatedPlatformSupportIndices[
+                    static_cast<std::size_t>(meshIndex)]]) {
+            continue;
+        }
         const Matrix transform = MatrixMultiply(
             model.transform,
             transforms[static_cast<std::size_t>(meshIndex)]);
@@ -1082,6 +1431,94 @@ Renderer::platformFrameRaycastDistance(
         }
     }
     return closest;
+}
+
+std::optional<double> Renderer::rampRaycastDistance(
+    Vector3 footprintCenter, float yawRadians,
+    float scale, Ray ray, double maxDistance) {
+    auto& resource = resources_.rampModel();
+    if (!resource.valid() || maxDistance <= 0.0) {
+        return std::nullopt;
+    }
+    const Model& model = resource.get();
+    const Matrix transform = MatrixMultiply(
+        model.transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(scale, scale, scale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(
+                footprintCenter.x,
+                footprintCenter.y,
+                footprintCenter.z)));
+    const Matrix inverse = MatrixInvert(transform);
+    const Vector3 localOrigin =
+        Vector3Transform(ray.position, inverse);
+    const Vector3 localEnd = Vector3Transform(
+        Vector3Add(ray.position, ray.direction), inverse);
+    const Vector3 localDirection =
+        Vector3Subtract(localEnd, localOrigin);
+
+    bool hasSlopeCollider = false;
+    for (const ModelCollider& collider :
+         resource.collisionAsset().colliders) {
+        if (collider.type != ModelColliderType::Slope) {
+            continue;
+        }
+        hasSlopeCollider = true;
+        double nearDistance = 0.0;
+        double farDistance = maxDistance;
+        const auto clip =
+            [&nearDistance, &farDistance](
+                double value, double delta,
+                double minimum, double maximum) {
+                constexpr double Epsilon = 1e-9;
+                if (std::abs(delta) <= Epsilon) {
+                    return value >= minimum && value <= maximum;
+                }
+                double first = (minimum - value) / delta;
+                double second = (maximum - value) / delta;
+                if (first > second) {
+                    std::swap(first, second);
+                }
+                nearDistance = std::max(nearDistance, first);
+                farDistance = std::min(farDistance, second);
+                return nearDistance <= farDistance;
+            };
+        if (!clip(
+                localOrigin.x, localDirection.x,
+                collider.minimum.x, collider.maximum.x) ||
+            !clip(
+                localOrigin.z, localDirection.z,
+                collider.minimum.z, collider.maximum.z)) {
+            continue;
+        }
+
+        const double run =
+            collider.maximum.z - collider.minimum.z;
+        if (run <= 1e-9) {
+            continue;
+        }
+        const double rise = collider.maximum.y;
+        const double progressOrigin =
+            (localOrigin.z - collider.minimum.z) / run;
+        const double progressDirection =
+            localDirection.z / run;
+        const double surfaceGapOrigin =
+            localOrigin.y - rise * progressOrigin;
+        const double surfaceGapDirection =
+            localDirection.y - rise * progressDirection;
+        if (clip(
+                surfaceGapOrigin, surfaceGapDirection,
+                collider.minimum.y, 0.0)) {
+            return nearDistance;
+        }
+    }
+    if (hasSlopeCollider) {
+        return std::nullopt;
+    }
+    return modelColliderRaycastDistance(
+        resource, transform, ray, maxDistance);
 }
 
 bool Renderer::drawCannon(Vector3 position, float yawRadians,
@@ -1756,7 +2193,9 @@ bool Renderer::drawMine(Vector3 position, float yawRadians,
 
 bool Renderer::drawPlatformFrameModel(
     Vector3 topCenter, Color tint, float scale,
-    const std::array<float, 4>& supportLengths) {
+    const std::array<float, 4>& supportLengths,
+    const std::array<bool, 4>& supportVisibility,
+    const std::array<bool, 4>& edgeVisibility) {
     auto& resource = resources_.platformModel();
     if (!resource.valid()) {
         return false;
@@ -1782,29 +2221,61 @@ bool Renderer::drawPlatformFrameModel(
             model.materials[index].shader = *shader;
         }
     }
-    const auto drawMesh = [&model, tint](
-                              int meshIndex,
-                              Matrix transform) {
-        const int materialIndex =
-            model.meshMaterial[meshIndex];
+    const auto drawSpecificMesh = [&model, tint](
+                                      const Mesh& mesh,
+                                      int materialIndex,
+                                      Matrix transform) {
         Material& material = model.materials[materialIndex];
         const Color original =
             material.maps[MATERIAL_MAP_DIFFUSE].color;
         material.maps[MATERIAL_MAP_DIFFUSE].color =
             ColorTint(original, tint);
         DrawMesh(
-            model.meshes[meshIndex], material,
+            mesh, material,
             MatrixMultiply(model.transform, transform));
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+    const auto drawMesh = [&model, &drawSpecificMesh](
+                              int meshIndex,
+                              Matrix transform) {
+        drawSpecificMesh(
+            model.meshes[meshIndex],
+            model.meshMaterial[meshIndex], transform);
     };
 
     const auto transforms = platformMeshTransforms(
         topCenter, scale, supportLengths);
-    drawMesh(
-        PlatformTopMeshIndex,
-        transforms[PlatformTopMeshIndex]);
+    if (platformTopPartMeshesReady_) {
+        const int topMaterial =
+            model.meshMaterial[PlatformTopMeshIndex];
+        drawSpecificMesh(
+            platformTopPartMeshes_[PlatformDeckPart],
+            topMaterial, transforms[PlatformTopMeshIndex]);
+        constexpr std::array<std::size_t, 4> EdgeParts{
+            PlatformMinimumXPart, PlatformMaximumXPart,
+            PlatformMinimumZPart, PlatformMaximumZPart};
+        for (std::size_t localEdge = 0;
+             localEdge < EdgeParts.size(); ++localEdge) {
+            if (!edgeVisibility[
+                    RotatedPlatformEdgeIndices[localEdge]]) {
+                continue;
+            }
+            drawSpecificMesh(
+                platformTopPartMeshes_[EdgeParts[localEdge]],
+                topMaterial, transforms[PlatformTopMeshIndex]);
+        }
+    } else {
+        drawMesh(
+            PlatformTopMeshIndex,
+            transforms[PlatformTopMeshIndex]);
+    }
     for (int legIndex = 0; legIndex < PlatformLegCount;
          ++legIndex) {
+        if (!supportVisibility[
+                RotatedPlatformSupportIndices[
+                    static_cast<std::size_t>(legIndex)]]) {
+            continue;
+        }
         drawMesh(
             legIndex,
             transforms[static_cast<std::size_t>(legIndex)]);
@@ -1842,6 +2313,60 @@ bool Renderer::drawRampModel(
         model, footprintCenter,
         {0.0F, 1.0F, 0.0F}, yawRadians * RAD2DEG,
         {scale, scale, scale}, tint);
+    return true;
+}
+
+bool Renderer::drawRampSupportBeam(
+    Vector3 baseCenter, float yawRadians,
+    Color tint, float scale) {
+    auto& resource = resources_.rampModel();
+    if (!resource.valid() ||
+        !IsModelValid(rampSupportBeamModel_) ||
+        scale <= 0.0F) {
+        return false;
+    }
+    Model& ramp = resource.get();
+    if (ramp.meshCount <= 0 ||
+        ramp.materialCount <= 0) {
+        return false;
+    }
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (
+        shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+    const int rampMeshIndex = ramp.meshCount - 1;
+    const int materialIndex =
+        ramp.meshMaterial[rampMeshIndex];
+    if (materialIndex < 0 ||
+        materialIndex >= ramp.materialCount) {
+        return false;
+    }
+    Material& material = ramp.materials[materialIndex];
+    if (shader != nullptr) {
+        material.shader = *shader;
+    }
+    const Color original =
+        material.maps[MATERIAL_MAP_DIFFUSE].color;
+    material.maps[MATERIAL_MAP_DIFFUSE].color =
+        ColorTint(original, tint);
+    const Matrix transform = MatrixMultiply(
+        MatrixScale(scale, scale, scale),
+        MatrixMultiply(
+            MatrixRotateY(yawRadians),
+            MatrixTranslate(
+                baseCenter.x, baseCenter.y,
+                baseCenter.z)));
+    DrawMesh(
+        rampSupportBeamModel_.meshes[0],
+        material, transform);
+    material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     return true;
 }
 
@@ -2475,6 +3000,74 @@ bool Renderer::drawWall(Vector3 position,
     return true;
 }
 
+bool Renderer::drawGate(
+    Vector3 position, float yawRadians, float openAmount,
+    Color tint, float scale) {
+    ModelResource& resource = resources_.gateModel();
+    if (!resource.valid()) {
+        return false;
+    }
+    Model& model = resource.get();
+    if (model.meshes == nullptr || model.meshMaterial == nullptr ||
+        model.materials == nullptr || model.meshCount < 2) {
+        return false;
+    }
+
+    Shader* shader = nullptr;
+    if (selectionMaskPassOpen_ &&
+        resources_.selectionMaskShader().valid()) {
+        shader = &resources_.selectionMaskShader().get();
+    } else if (
+        shadowPassOpen_ && resources_.shadowShader().valid()) {
+        shader = &resources_.shadowShader().get();
+    } else if (
+        worldShaderActive_ && resources_.worldShader().valid()) {
+        shader = &resources_.worldShader().get();
+    }
+
+    position.y += 0.005F;
+    const Matrix baseTransform = MatrixMultiply(
+        model.transform,
+        MatrixMultiply(
+            MatrixMultiply(
+                MatrixScale(scale, scale, scale),
+                MatrixRotateY(yawRadians)),
+            MatrixTranslate(position.x, position.y, position.z)));
+    const Matrix doorTransform = MatrixMultiply(
+        gate_model_detail::doorHingeTransform(openAmount),
+        baseTransform);
+
+    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        if (!resource.meshValid(
+                static_cast<std::size_t>(meshIndex))) {
+            continue;
+        }
+        const int materialIndex = model.meshMaterial[meshIndex];
+        if (materialIndex < 0 ||
+            materialIndex >= model.materialCount) {
+            continue;
+        }
+        Material material = model.materials[materialIndex];
+        if (shader != nullptr) {
+            material.shader = *shader;
+        }
+        const Color original =
+            material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color =
+            ColorTint(original, tint);
+        DrawMesh(
+            model.meshes[meshIndex], material,
+            meshIndex == gate_model_detail::DoorMeshIndex
+                ? doorTransform
+                : baseTransform);
+        // Material is a shallow copy: its map array still belongs to the
+        // shared gate model. Restore the tint so translucent sale/preview
+        // draws cannot leak into every subsequently rendered gate.
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    return true;
+}
+
 const std::vector<int>& Renderer::enemyBoneMapping(
     EnemyModelVisual visual, const Model& model,
     const std::array<const char*, 23>& sourceBones) {
@@ -2774,9 +3367,13 @@ bool Renderer::drawEnemiesInstanced(
             : instance.animationVisual;
         const int batchFrame = lowDetail ? 0 : frame;
         const bool batchLoop = lowDetail ? true : instance.loop;
+        const std::uint8_t whiteFlashLevel =
+            static_cast<std::uint8_t>(std::clamp(
+                std::lround(instance.whiteFlashAmount * 8.0F),
+                0L, 8L));
         const EnemyBatchKey key{
             instance.modelVisual, batchAnimation, batchFrame,
-            tint, batchLoop, lowDetail,
+            tint, whiteFlashLevel, batchLoop, lowDetail,
             instance.inkOutlineEligible};
         EnemyBatch& batch = enemyBatches_[key];
         batch.lastUsedFrame = enemyBatchFrame_;
@@ -2839,8 +3436,7 @@ bool Renderer::drawEnemiesInstanced(
     };
 
     std::size_t nonEmptyBatchCount = 0U;
-    const bool originalInkOutlineEligible =
-        worldMaterial_.inkOutlineEligible;
+    const WorldMaterialState originalMaterial = worldMaterial_;
     for (int detailPass = 0; detailPass < 2; ++detailPass) {
         const bool lowDetailPass = detailPass == 0;
         for (EnemyBatch* batchPointer : activeEnemyBatches_) {
@@ -2859,6 +3455,8 @@ bool Renderer::drawEnemiesInstanced(
             WorldMaterialState batchMaterial = worldMaterial_;
             batchMaterial.inkOutlineEligible =
                 representative.inkOutlineEligible;
+            batchMaterial.enemyWhiteFlashAmount =
+                representative.whiteFlashAmount;
             setWorldMaterial(batchMaterial);
             if (lowDetailPass) {
                 setSkinningEnabled(shader, false);
@@ -3007,9 +3605,7 @@ bool Renderer::drawEnemiesInstanced(
 
     setInstancing(false);
     setSkinningEnabled(shader, false);
-    WorldMaterialState restoredMaterial = worldMaterial_;
-    restoredMaterial.inkOutlineEligible = originalInkOutlineEligible;
-    setWorldMaterial(restoredMaterial);
+    setWorldMaterial(originalMaterial);
     instancedEnemyMillisecondsThisFrame_ +=
         performanceMilliseconds(drawStart);
     const std::size_t lowDetailCount = static_cast<std::size_t>(

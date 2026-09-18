@@ -1,7 +1,7 @@
 {
   "cellSize": 1.0,
   "verticalGridStep": 1.0,
-  "maxStoreys": 3,
+  "maxStoreys": 5,
   "maxWoodSupportLength": 4.0,
   "terrainResolution": 513,
   "terrainWorldSize": 384.0,

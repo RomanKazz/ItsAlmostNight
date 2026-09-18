@@ -162,6 +162,8 @@ struct GameplayBalanceDefinition {
     double betweenWaveSeconds;
     double sunsetSeconds;
     double nightDurationSeconds;
+    double firstNightDurationSeconds;
+    double nightDurationGrowthSeconds;
     double dawnSeconds;
     double minimumPlacementDistance;
     double maximumPlacementDistance;

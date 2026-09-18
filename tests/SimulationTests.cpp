@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/CoreProgression.hpp"
+#include "buildings/PlacementValidator.hpp"
 #include "game/Simulation.hpp"
 #include "progression/RunUpgrade.hpp"
 
@@ -151,11 +152,15 @@ void runSimulationTests() {
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
         timedNight.tick(1.0 / 60.0, unlimited);
-        require(std::ranges::all_of(
-                    timedNight.snapshot().unlockedBuildings,
-                    [](bool unlocked) { return unlocked; }),
-                "godmode unlocks every structure including storage "
-                "without core levels");
+        const auto& unlocked = timedNight.snapshot().unlockedBuildings;
+        require(
+            !unlocked[static_cast<std::size_t>(
+                ian::BuildingType::WoodStorage)] &&
+                !unlocked[static_cast<std::size_t>(
+                    ian::BuildingType::StoneStorage)] &&
+                !unlocked[static_cast<std::size_t>(
+                    ian::BuildingType::CrystalStorage)],
+            "godmode does not restore removed storage buildings");
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
@@ -171,14 +176,132 @@ void runSimulationTests() {
         timedNight.tick(8.0);
         require(
             timedNight.snapshot().state == ian::RunState::Wave &&
-                timedNight.snapshot().activeEnemyCount >= 3U &&
-                timedNight.snapshot().activeEnemyCount <= 6U,
-            "first timed night starts with a manageable spawn cadence");
+                timedNight.snapshot().activeEnemyCount >= 8U &&
+                timedNight.snapshot().activeEnemyCount <= 16U,
+            "first timed night builds continuous pressure without overcrowding");
         timedNight.tick(4.0);
         require(
             timedNight.snapshot().state == ian::RunState::WaveComplete &&
                 timedNight.snapshot().activeEnemyCount == 0U,
             "dawn ends the fixed night and banishes remaining enemies");
+    }
+    {
+        ian::GameBalance balance = ian::GameBalance::defaults();
+        balance.gameplay.nightDurationSeconds = 20.0;
+        ian::WorldConfig world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        ian::Simulation fastClearNight{
+            balance, ian::MapDefinition::defaults(), world};
+        fastClearNight.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        fastClearNight.tick(0.0, unlimited);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        fastClearNight.tick(0.0, placeCore);
+        resolveLevelUps(fastClearNight);
+        ian::PlayerCommand startNight;
+        startNight.startWaveEarly = ian::StartWaveEarlyCommand{};
+        fastClearNight.tick(0.0, startNight);
+        require(fastClearNight.snapshot().activeEnemyCount == 3U &&
+                    fastClearNight.snapshot().pendingEnemyCount == 12U,
+                "fast-clear night starts with the configured group");
+
+        const auto killEnemies = [&](int count) {
+            const auto enemies = fastClearNight.snapshot().enemies;
+            const auto target = std::ranges::find_if(
+                enemies, [](const ian::EnemyInstance& enemy) {
+                    return enemy.active;
+                });
+            require(target != enemies.end(),
+                    "fast-clear fixture has a live target");
+            ian::PlayerCommand lightning;
+            lightning.castChainLightning =
+                ian::CastChainLightningCommand{
+                    .firstTarget = target->id,
+                    .damage = 1'000'000.0,
+                    .jumpRadius = 50.0,
+                    .damageFalloff = 1.0,
+                    .maximumTargets = count,
+                };
+            fastClearNight.tick(0.0, lightning);
+        };
+        killEnemies(3);
+        require(fastClearNight.snapshot().activeEnemyCount == 0U,
+                "opening group can be cleared before reinforcements");
+        fastClearNight.tick(1.61);
+        require(fastClearNight.snapshot().activeEnemyCount >= 3U &&
+                    fastClearNight.snapshot().pendingEnemyCount < 12U,
+                "clearing a group does not leave a long empty night");
+        fastClearNight.takeEvents();
+        fastClearNight.tick(5.61);
+        const auto firstWarning = fastClearNight.takeEvents();
+        require(
+            std::ranges::any_of(
+                firstWarning, [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::AttackDirectionWarned &&
+                           event.critical;
+                }),
+            "first horde peak warns the player before it starts");
+        fastClearNight.tick(8.01);
+        const auto secondWarning = fastClearNight.takeEvents();
+        require(
+            std::ranges::any_of(
+                secondWarning, [](const ian::GameEvent& event) {
+                    return event.type ==
+                               ian::GameEventType::AttackDirectionWarned &&
+                           event.critical;
+                }),
+            "final horde peak has its own warning");
+    }
+    {
+        ian::GameBalance balance = ian::GameBalance::defaults();
+        balance.gameplay.nightDurationSeconds = 1.0;
+        ian::WorldConfig world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        ian::Simulation bossNight{
+            balance, ian::MapDefinition::defaults(), world};
+        bossNight.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        bossNight.tick(0.0, unlimited);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        bossNight.tick(0.0, placeCore);
+        ian::PlayerCommand startNight;
+        startNight.startWaveEarly = ian::StartWaveEarlyCommand{};
+        ian::PlayerCommand clearNight;
+        clearNight.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
+        for (int wave = 1; wave < 6; ++wave) {
+            resolveLevelUps(bossNight);
+            bossNight.tick(0.0, startNight);
+            bossNight.tick(0.0, clearNight);
+            require(bossNight.snapshot().state == ian::RunState::WaveComplete,
+                    "boss timing fixture advances through early nights");
+            resolveLevelUps(bossNight);
+            bossNight.tick(bossNight.snapshot().phaseDuration);
+        }
+        bossNight.tick(0.0, startNight);
+        const auto hasActiveBoss = [&bossNight] {
+            return std::ranges::any_of(
+                bossNight.snapshot().enemies,
+                [](const ian::EnemyInstance& enemy) {
+                    return enemy.active && enemy.type == ian::EnemyType::Boss;
+                });
+        };
+        require(!hasActiveBoss(),
+                "boss waits for the final pressure peak");
+        bossNight.tick(0.79);
+        require(!hasActiveBoss(),
+                "boss stays hidden before final pressure peak");
+        bossNight.tick(0.02);
+        require(hasActiveBoss(),
+                "boss joins the final pressure peak");
     }
     {
         ian::Simulation defenseProgression;
@@ -212,13 +335,13 @@ void runSimulationTests() {
         resolveLevelUps(rotationSimulation);
         ian::PlayerCommand placeTurret;
         placeTurret.placeBuilding = ian::PlaceBuildingCommand{
-            .type = ian::BuildingType::Turret,
+            .type = ian::BuildingType::GunTurret,
             .gridPosition = {0, -4},
         };
         rotationSimulation.tick(1.0 / 60.0, placeTurret);
         const auto placed = rotationSimulation.snapshot();
         const auto turret = std::ranges::find(
-            placed.buildings, ian::BuildingType::Turret,
+            placed.buildings, ian::BuildingType::GunTurret,
             &ian::BuildingInstance::type);
         require(turret != placed.buildings.end(),
                 "rotation fixture places directional defense");
@@ -318,6 +441,228 @@ void runSimulationTests() {
                            building.platformStorey == 0;
                 }),
             "every dragged wall remains attached to the shared foundation");
+    }
+    {
+        ian::MapDefinition map = ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 8.0;
+        world.terrainFeatureSize = 12.0;
+        world.terrainSlopeWidth = 2.0;
+        world.terrainBuildPlateauRadius = 2.0;
+        world.coreFlatRadius = 0.0;
+        world.buildPreviewDistance = 100.0;
+        world.pondMinimumCount = 0;
+        world.pondMaximumCount = 0;
+        world.pondMaximumAreaFraction = 0.0;
+        ian::GameBalance balance = ian::GameBalance::defaults();
+        balance.gameplay.maximumPlacementDistance = 100.0;
+        constexpr std::uint32_t TerrainSeed = 0x53544142U;
+        const auto makeSimulation = [&]() {
+            auto simulation = std::make_unique<ian::Simulation>(
+                balance, map, world);
+            simulation->startSandboxRun();
+            simulation->regenerateTerrain(TerrainSeed);
+            ian::PlayerCommand placeCore;
+            placeCore.placeBuilding = ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core,
+                .gridPosition = {0, 0},
+            };
+            simulation->tick(1.0 / 60.0, placeCore);
+            return simulation;
+        };
+        auto heightProbe = makeSimulation();
+        ian::BuildGrid heightGrid{world};
+        ian::PlacementValidator heightValidator{
+            heightProbe->terrain(), heightGrid};
+
+        std::optional<ian::GridCoord> targetAnchor;
+        std::optional<ian::GridCoord> neighborAnchor;
+        double targetHeight = 0.0;
+        double neighborHeight = 0.0;
+        for (int z = -40; z <= 40 && !targetAnchor; z += 2) {
+            for (int x = -40; x <= 38; x += 2) {
+                const ian::Vec3 targetHit{
+                    static_cast<double>(x) + 1.0, 0.0,
+                    static_cast<double>(z) + 1.0};
+                const ian::Vec3 neighborHit{
+                    static_cast<double>(x) + 3.0, 0.0,
+                    static_cast<double>(z) + 1.0};
+                const auto target = heightProbe->previewFoundation(targetHit);
+                const auto neighbor = heightProbe->previewFoundation(neighborHit);
+                const double stableTargetHeight =
+                    heightValidator.stableGroundPlatformHeight(
+                        target.anchor, 0.05);
+                const double stableNeighborHeight =
+                    heightValidator.stableGroundPlatformHeight(
+                        neighbor.anchor, 0.05);
+                if (target.valid() && neighbor.valid() &&
+                    std::abs(stableTargetHeight -
+                             stableNeighborHeight) > 0.051) {
+                    targetAnchor = target.anchor;
+                    neighborAnchor = neighbor.anchor;
+                    targetHeight = stableTargetHeight;
+                    neighborHeight = stableNeighborHeight;
+                    break;
+                }
+            }
+        }
+        require(
+            targetAnchor.has_value() && neighborAnchor.has_value(),
+            "terrain fixture finds adjacent valid cells on different construction planes");
+
+        std::optional<ian::Vec3> flatSourceHit;
+        std::optional<ian::Vec3> flatTargetHit;
+        for (int z = -40; z <= 40 && !flatSourceHit; z += 2) {
+            for (int x = -40; x <= 38; x += 2) {
+                const std::array hits{
+                    ian::Vec3{
+                        static_cast<double>(x) + 1.0, 0.0,
+                        static_cast<double>(z) + 1.0},
+                    ian::Vec3{
+                        static_cast<double>(x) + 3.0, 0.0,
+                        static_cast<double>(z) + 1.0},
+                };
+                const std::array previews{
+                    heightProbe->previewFoundation(hits[0]),
+                    heightProbe->previewFoundation(hits[1]),
+                };
+                const double difference = std::abs(
+                    previews[0].floorHeight -
+                    previews[1].floorHeight);
+                if (!previews[0].valid() ||
+                    !previews[1].valid() ||
+                    difference < 1e-6 || difference > 0.21) {
+                    continue;
+                }
+                const std::size_t sourceIndex =
+                    previews[0].floorHeight >=
+                            previews[1].floorHeight
+                        ? 0U
+                        : 1U;
+                const std::size_t targetIndex = 1U - sourceIndex;
+                if (!heightProbe->previewFoundationAtHeight(
+                         hits[targetIndex],
+                         previews[sourceIndex].floorHeight)
+                         .valid()) {
+                    continue;
+                }
+                flatSourceHit = hits[sourceIndex];
+                flatTargetHit = hits[targetIndex];
+                break;
+            }
+        }
+        require(
+            flatSourceHit.has_value() && flatTargetHit.has_value(),
+            "terrain fixture finds adjacent cells separated only by surface noise");
+
+        auto flatFoundationPlacement = makeSimulation();
+        const auto placedFlatSource =
+            flatFoundationPlacement->placeFoundation(
+                *flatSourceHit);
+        const auto alignedFlatTarget =
+            flatFoundationPlacement->previewFoundation(
+                *flatTargetHit);
+        require(
+            placedFlatSource && alignedFlatTarget.valid() &&
+                std::abs(
+                    alignedFlatTarget.floorHeight -
+                    placedFlatSource->floorHeight) < 1e-9,
+            "adjacent foundations ignore small terrain height noise");
+
+        auto flatBuildingPlacement = makeSimulation();
+        const auto sourceGrid =
+            flatBuildingPlacement->previewFoundation(
+                *flatSourceHit).anchor;
+        const auto targetGrid =
+            flatBuildingPlacement->previewFoundation(
+                *flatTargetHit).anchor;
+        ian::PlayerCommand placeFlatSourceBuilding;
+        placeFlatSourceBuilding.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Wall,
+                .gridPosition = {
+                    sourceGrid.x, sourceGrid.z},
+            };
+        flatBuildingPlacement->tick(
+            1.0 / 60.0, placeFlatSourceBuilding);
+        ian::PlayerCommand placeFlatTargetBuilding;
+        placeFlatTargetBuilding.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Wall,
+                .gridPosition = {
+                    targetGrid.x, targetGrid.z},
+            };
+        flatBuildingPlacement->tick(
+            1.0 / 60.0, placeFlatTargetBuilding);
+        const auto flatBuildings =
+            flatBuildingPlacement->snapshot().buildings;
+        const auto sourceBuilding = std::ranges::find_if(
+            flatBuildings,
+            [&sourceGrid](const ian::BuildingInstance& building) {
+                return building.type == ian::BuildingType::Wall &&
+                    building.gridPosition.x == sourceGrid.x &&
+                    building.gridPosition.z == sourceGrid.z;
+            });
+        const auto targetBuilding = std::ranges::find_if(
+            flatBuildings,
+            [&targetGrid](const ian::BuildingInstance& building) {
+                return building.type == ian::BuildingType::Wall &&
+                    building.gridPosition.x == targetGrid.x &&
+                    building.gridPosition.z == targetGrid.z;
+            });
+        require(
+            sourceBuilding != flatBuildings.end() &&
+                targetBuilding != flatBuildings.end() &&
+                std::abs(
+                    sourceBuilding->baseHeight -
+                    targetBuilding->baseHeight) < 1e-9,
+            "adjacent automatic building foundations share a flat construction plane");
+
+        auto directPlacement = makeSimulation();
+        ian::PlayerCommand placeTarget;
+        placeTarget.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Wall,
+            .gridPosition = {
+                targetAnchor->x, targetAnchor->z},
+        };
+        directPlacement->tick(1.0 / 60.0, placeTarget);
+        const auto directTargetWall = std::ranges::find_if(
+            directPlacement->snapshot().buildings,
+            [&targetAnchor](const ian::BuildingInstance& building) {
+                return building.type == ian::BuildingType::Wall &&
+                    building.gridPosition.x == targetAnchor->x &&
+                    building.gridPosition.z == targetAnchor->z;
+            });
+        require(
+            directTargetWall != directPlacement->snapshot().buildings.end(),
+            "stable-height fixture can place the target directly");
+        const double directTargetHeight = directTargetWall->baseHeight;
+
+        auto placementAfterNeighbor = makeSimulation();
+        ian::PlayerCommand placeNeighbor;
+        placeNeighbor.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Wall,
+            .gridPosition = {
+                neighborAnchor->x, neighborAnchor->z},
+        };
+        placementAfterNeighbor->tick(1.0 / 60.0, placeNeighbor);
+        placementAfterNeighbor->tick(1.0 / 60.0, placeTarget);
+        const auto targetWall = std::ranges::find_if(
+            placementAfterNeighbor->snapshot().buildings,
+            [&targetAnchor](const ian::BuildingInstance& building) {
+                return building.type == ian::BuildingType::Wall &&
+                    building.gridPosition.x == targetAnchor->x &&
+                    building.gridPosition.z == targetAnchor->z;
+            });
+        require(
+            targetWall !=
+                    placementAfterNeighbor->snapshot().buildings.end() &&
+                std::abs(directTargetHeight - targetHeight) < 1e-9 &&
+                std::abs(targetWall->baseHeight - directTargetHeight) < 1e-9 &&
+                std::abs(targetWall->baseHeight - neighborHeight) > 0.051,
+            "placing a neighbour does not change a ground cell's construction height");
     }
     {
         auto sawBalance = ian::GameBalance::defaults();
@@ -478,7 +823,7 @@ void runSimulationTests() {
             "defeat fixture carries both currencies");
         ian::PlayerCommand spawnEnemy;
         spawnEnemy.spawnEnemy = ian::SpawnEnemyCommand{
-            ian::EnemyType::Basic, 5};
+            ian::EnemyType::Boss, 1};
         defeatSimulation.tick(1.0 / 60.0, spawnEnemy);
         ian::PlayerCommand defeatEnemies;
         defeatEnemies.defeatAllEnemies =
@@ -1149,9 +1494,14 @@ void runSimulationTests() {
         require(
             producerUnlocks.snapshot().unlockedWeapons[
                 static_cast<std::size_t>(ian::PlayerWeapon::Club)] &&
+                !producerUnlocks.snapshot().unlockedBuildings[
+                    static_cast<std::size_t>(ian::BuildingType::Turret)] &&
+                producerUnlocks.snapshot().unlockedBuildings[
+                    static_cast<std::size_t>(ian::BuildingType::GunTurret)] &&
+                ian::ModularBuildingRequiredCoreLevel == 1 &&
                 !producerUnlocks.snapshot().unlockedWeapons[
                     static_cast<std::size_t>(ian::PlayerWeapon::Rifle)],
-            "Core level one guarantees the Club but keeps ranged weapons locked");
+            "Core level one gives modular building and starter turret defense");
         const auto coreId = producerUnlocks.snapshot().coreId;
         require(coreId.has_value(), "progression fixture places the Core");
         ian::PlayerCommand upgradeCore;
@@ -1165,7 +1515,7 @@ void runSimulationTests() {
                     ian::BuildingType::LumberMill)] &&
                 levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Quarry)] &&
-                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Turret)] &&
                 levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::SlowTrap)] &&
@@ -1174,27 +1524,33 @@ void runSimulationTests() {
                 !levelTwo.unlockedWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::Bomb)] &&
                 !levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::SpikeTrap)] &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::GunTurret)] &&
+                levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::CrystalMine)] &&
                 !levelTwo.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Cannon)],
-            "Core level two unlocks basic economy, crossbow and traps");
+            "Core level two unlocks all production, rifle and slow trap");
         producerUnlocks.tick(1.0 / 60.0, upgradeCore);
         const auto levelThree = producerUnlocks.snapshot();
         require(
             levelThree.coreLevel == 3 &&
                 levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::CrystalMine)] &&
+                    ian::BuildingType::Turret)] &&
                 levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Cannon)] &&
+                    ian::BuildingType::SpikeTrap)] &&
                 levelThree.unlockedWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::Bomb)] &&
                 !levelThree.unlockedWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::IceWand)] &&
                 !levelThree.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Cannon)] &&
+                !levelThree.unlockedBuildings[static_cast<std::size_t>(
                     ian::BuildingType::Catapult)] &&
                 ian::buildingRequiredCoreLevel(
-                    ian::BuildingType::Catapult) == 4,
-            "Core level three unlocks crystal mining and cannons; catapults require four");
+                    ian::BuildingType::Catapult) == 5,
+            "Core level three unlocks explosives, spikes and crossbows");
         ian::PlayerCommand toggleUnlimited;
         toggleUnlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
@@ -1206,9 +1562,13 @@ void runSimulationTests() {
             levelFour.coreLevel == 4 &&
                 levelFour.unlockedWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::IceWand)] &&
+                levelFour.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Cannon)] &&
+                !levelFour.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Catapult)] &&
                 !levelFour.unlockedWeapons[static_cast<std::size_t>(
                     ian::PlayerWeapon::FireWand)],
-            "Core level four guarantees the Ice Wand");
+            "Core level four unlocks cannon and Ice Wand");
         producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
         producerUnlocks.tick(1.0 / 60.0, upgradeCore);
         producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
@@ -1216,8 +1576,10 @@ void runSimulationTests() {
         require(
             levelFive.coreLevel == 5 &&
                 levelFive.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::FireWand)],
-            "Core level five guarantees the Fire Wand");
+                    ian::PlayerWeapon::FireWand)] &&
+                levelFive.unlockedBuildings[static_cast<std::size_t>(
+                    ian::BuildingType::Catapult)],
+            "Core level five unlocks siege and Fire Wand");
         require(
             ian::playerWeaponRequiredCoreLevel(
                 ian::PlayerWeapon::Rifle) == 2 &&
@@ -1257,7 +1619,7 @@ void runSimulationTests() {
         const auto terrainSurface =
             foundationLifecycle
                 .previewPlacementSurface(
-                    ian::BuildingType::Turret,
+                    ian::BuildingType::GunTurret,
                     turretPosition);
         const double playerHeightBefore =
             foundationLifecycle.snapshot()
@@ -1265,7 +1627,7 @@ void runSimulationTests() {
         ian::PlayerCommand placeRaisedTurret;
         placeRaisedTurret.placeBuilding =
             ian::PlaceBuildingCommand{
-                .type = ian::BuildingType::Turret,
+                .type = ian::BuildingType::GunTurret,
                 .gridPosition = turretPosition,
                 .rotation = 0,
                 .baseHeight =
@@ -1282,8 +1644,8 @@ void runSimulationTests() {
             raisedSnapshot.buildings.end(),
             [turretPosition](
                 const ian::BuildingInstance& building) {
-                return building.type ==
-                           ian::BuildingType::Turret &&
+                    return building.type ==
+                           ian::BuildingType::GunTurret &&
                        building.gridPosition ==
                            turretPosition;
             });
@@ -1345,7 +1707,7 @@ void runSimulationTests() {
         ian::PlayerCommand replaceTurret;
         replaceTurret.placeBuilding =
             ian::PlaceBuildingCommand{
-                .type = ian::BuildingType::Turret,
+                .type = ian::BuildingType::GunTurret,
                 .gridPosition = turretPosition,
                 .rotation = 0,
                 .baseHeight = retainedPlatform->floorHeight,
@@ -1386,11 +1748,12 @@ void runSimulationTests() {
                            event.building &&
                            event.building->type ==
                                ian::BuildingType::
-                                   Turret;
+                                   GunTurret;
                 });
         require(
             destroyedBuilding !=
-                collapseEvents.end(),
+                    collapseEvents.end() &&
+                destroyedBuilding->structuralCollapse,
             "platform collapse event retains building visual snapshot");
     }
 
@@ -1505,11 +1868,7 @@ void runSimulationTests() {
         world.terrainAmplitude = 0.0;
         ian::Simulation elevatedBuilding{
             ian::GameBalance::defaults(), map, world};
-        elevatedBuilding.startRun();
-        ian::PlayerCommand unlimited;
-        unlimited.enableUnlimitedResources =
-            ian::EnableUnlimitedResourcesCommand{};
-        elevatedBuilding.tick(1.0 / 60.0, unlimited);
+        elevatedBuilding.startSandboxRun();
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding =
             ian::PlaceBuildingCommand{
@@ -1533,6 +1892,48 @@ void runSimulationTests() {
         const ian::GridPosition turretPosition{
             upper->anchor.x + 1,
             upper->anchor.z + 1};
+        const auto lowerSurface =
+            elevatedBuilding.previewPlacementSurface(
+                ian::BuildingType::Cannon,
+                turretPosition,
+                ground->floorHeight);
+        require(
+            lowerSurface.storey == ground->storey &&
+                std::abs(
+                    lowerSurface.height -
+                    ground->floorHeight) < 1e-9,
+            "ordinary building can target a lower foundation beneath a floor");
+        const auto lowerCannonPreview =
+            elevatedBuilding.previewPlacement(
+                ian::BuildingType::Cannon,
+                turretPosition,
+                ground->floorHeight);
+        require(
+            lowerCannonPreview.valid(),
+            "ordinary building fits between a foundation and floor");
+        ian::PlayerCommand placeLowerCannon;
+        placeLowerCannon.placeBuilding =
+            ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Cannon,
+                .gridPosition = turretPosition,
+                .baseHeight = ground->floorHeight,
+                .platformStorey = ground->storey,
+                .lockHeight = true,
+            };
+        elevatedBuilding.tick(
+            1.0 / 60.0, placeLowerCannon);
+        require(
+            std::ranges::any_of(
+                elevatedBuilding.snapshot().buildings,
+                [turretPosition](
+                    const ian::BuildingInstance& building) {
+                    return building.type ==
+                               ian::BuildingType::Cannon &&
+                           building.gridPosition ==
+                               turretPosition &&
+                           building.platformStorey == 0;
+                }),
+            "ordinary building is placed below an existing floor");
         require(
             elevatedBuilding
                 .previewPlacement(
@@ -1568,6 +1969,153 @@ void runSimulationTests() {
     {
         ian::MapDefinition map =
             ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+
+        ian::Simulation automaticFloor{
+            ian::GameBalance::defaults(), map, world};
+        automaticFloor.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        automaticFloor.tick(1.0 / 60.0, unlimited);
+        const ian::Vec3 floorHit{0.2, 0.0, 4.2};
+        const auto floorPreview =
+            automaticFloor
+                .previewFloorPlatformWithFoundation(
+                    floorHit);
+        require(
+            floorPreview.valid() &&
+                floorPreview.foundation.storey == 0 &&
+                floorPreview.floor.storey == 1 &&
+                floorPreview.floor.floorHeight >
+                    floorPreview.foundation.floorHeight,
+            "floor preview includes a valid automatic foundation");
+        const auto floorBuild =
+            automaticFloor.placeFloorPlatformWithFoundation(
+                floorHit);
+        require(
+            floorBuild &&
+                automaticFloor.snapshot()
+                        .platformFrames.size() == 2,
+            "floor and automatic foundation are placed together");
+
+        ian::Simulation automaticRamp{
+            ian::GameBalance::defaults(), map, world};
+        automaticRamp.startRun();
+        automaticRamp.tick(1.0 / 60.0, unlimited);
+        const ian::Vec3 rampHit{0.2, 0.0, 4.2};
+        const auto rampPreview =
+            automaticRamp.previewRampWithFoundation(
+                rampHit, ian::Rotation::Deg180);
+        require(
+            rampPreview.valid() &&
+                rampPreview.foundations[0].storey == 0 &&
+                rampPreview.foundations[1].storey == 0 &&
+                rampPreview.ramp.targetStorey == 1,
+            "ramp preview includes two valid automatic foundations");
+        const auto rampBuild =
+            automaticRamp.placeRampWithFoundation(
+                rampHit, ian::Rotation::Deg180);
+        require(
+            rampBuild &&
+                automaticRamp.snapshot()
+                        .platformFrames.size() == 2 &&
+                automaticRamp.snapshot().ramps.size() == 1,
+            "ramp and both automatic foundations are placed together");
+    }
+
+    {
+        ian::MapDefinition map = ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        world.pondMinimumCount = 0;
+        world.pondMaximumCount = 0;
+        world.pondMaximumAreaFraction = 0.0;
+        ian::Simulation sharedGroundLevel{
+            ian::GameBalance::defaults(), map, world};
+        sharedGroundLevel.startSandboxRun();
+        const ian::Vec3 foundationHit{4.2, 0.0, 0.2};
+        const auto beforeCore =
+            sharedGroundLevel.previewFoundation(foundationHit);
+
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+        };
+        sharedGroundLevel.tick(1.0 / 60.0, placeCore);
+        const auto afterCore =
+            sharedGroundLevel.previewFoundation(foundationHit);
+        const auto core = std::ranges::find(
+            sharedGroundLevel.snapshot().buildings,
+            ian::BuildingType::Core,
+            &ian::BuildingInstance::type);
+        require(
+            beforeCore.valid() && afterCore.valid() &&
+                core != sharedGroundLevel.snapshot().buildings.end() &&
+                std::abs(beforeCore.floorHeight - core->baseHeight) < 1e-9 &&
+                std::abs(afterCore.floorHeight - beforeCore.floorHeight) < 1e-9,
+            "ground foundation stays level with Core before and after Core placement");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        ian::WorldConfig world =
+            ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        world.buildPreviewDistance = 64.0;
+        ian::Simulation foundationRadius{
+            ian::GameBalance::defaults(), map, world};
+        foundationRadius.startRun();
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources =
+            ian::EnableUnlimitedResourcesCommand{};
+        foundationRadius.tick(1.0 / 60.0, unlimited);
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            ian::BuildingType::Core, {0, 0}, 0};
+        foundationRadius.tick(1.0 / 60.0, placeCore);
+        require(
+            foundationRadius.snapshot().coreMaxHealth > 0.0,
+            "foundation radius fixture places Core");
+
+        const double outsideX = static_cast<double>(
+            foundationRadius.snapshot().coreBuildRadius + 3);
+        const ian::Vec3 outsideHit{
+            outsideX,
+            foundationRadius.terrain().getHeight(outsideX, 0.2),
+            0.2,
+        };
+        const auto outsidePreview =
+            foundationRadius.previewFoundation(outsideHit);
+        require(
+            outsidePreview.error ==
+                ian::ModularPlacementError::OutsideCoreArea &&
+                !foundationRadius.placeFoundation(outsideHit),
+            "foundation cannot be placed outside Core build radius");
+
+        const ian::Vec3 insideHit{
+            4.2,
+            foundationRadius.terrain().getHeight(4.2, 0.2),
+            0.2,
+        };
+        require(
+            foundationRadius.previewFoundation(insideHit).valid(),
+            "foundation remains placeable inside Core build radius");
+    }
+
+    {
+        ian::MapDefinition map =
+            ian::MapDefinition::defaults();
         map.resources = {
             {
                 .type = ian::ResourceType::Wood,
@@ -1592,39 +2140,22 @@ void runSimulationTests() {
                 0.2, 4.2),
             4.2,
         };
-        const auto groundFrame =
-            raisedRampResources.placeFoundation(
-                supportHit);
+        const auto groundRampPreview = raisedRampResources
+            .previewRampWithFoundation(
+                supportHit, ian::Rotation::Deg180);
         require(
-            groundFrame.has_value(),
-            "raised ramp resource fixture creates ground frame");
-        const auto groundRampPreview =
-            raisedRampResources.previewRamp(
-                supportHit,
-                ian::Rotation::Deg180);
-        require(
-            groundRampPreview.error ==
+            !groundRampPreview.valid() &&
+                groundRampPreview.ramp.error ==
                 ian::ModularPlacementError::
                     ResourceBlocked,
-            "ground ramp remains blocked by resource");
-        const auto upperFrame =
-            raisedRampResources.placeFloorPlatform(
-                groundFrame->anchor, 1,
-                groundFrame->floorHeight +
-                    ian::modularStoreyHeight(
-                        raisedRampResources
-                            .terrain()
-                            .config()));
+            "automatic ramp foundations remain blocked by resources");
         require(
-            upperFrame.has_value(),
-            "raised ramp resource fixture creates upper frame");
-        const auto raisedRampPreview =
-            raisedRampResources.previewRamp(
-                supportHit,
-                ian::Rotation::Deg180);
-        require(
-            raisedRampPreview.valid(),
-            "resource below raised ramp does not block placement");
+            !raisedRampResources
+                 .placeRampWithFoundation(
+                     supportHit,
+                     ian::Rotation::Deg180)
+                 .has_value(),
+            "automatic ramp and foundations are placed atomically");
     }
 
     {
@@ -1645,8 +2176,9 @@ void runSimulationTests() {
         autoJumpSimulation.tick(
             1.0 / 60.0, unlimited);
         const auto frame =
-            autoJumpSimulation.placeFoundation(
-                {0.2, 0.0, 2.2});
+            autoJumpSimulation.placeFoundationAtHeight(
+                {0.2, 0.0, 2.2},
+                world.verticalGridStep);
         require(
             frame && frame->storey == 0 &&
                 frame->floorHeight > 0.65,
@@ -1687,8 +2219,9 @@ void runSimulationTests() {
         edgeBiasSimulation.tick(
             1.0 / 60.0, unlimited);
         const auto edgeBiasFrame =
-            edgeBiasSimulation.placeFoundation(
-                {0.2, 0.0, 2.2});
+            edgeBiasSimulation.placeFoundationAtHeight(
+                {0.2, 0.0, 2.2},
+                edgeBiasWorld.verticalGridStep);
         require(
             edgeBiasFrame &&
                 std::abs(
@@ -1739,8 +2272,9 @@ void runSimulationTests() {
         tapAutoJumpSimulation.tick(
             1.0 / 60.0, unlimited);
         const auto tapFrame =
-            tapAutoJumpSimulation.placeFoundation(
-                {0.2, 0.0, 2.2});
+            tapAutoJumpSimulation.placeFoundationAtHeight(
+                {0.2, 0.0, 2.2},
+                world.verticalGridStep);
         require(
             tapFrame.has_value(),
             "tap auto-jump fixture creates platform");
@@ -1792,8 +2326,9 @@ void runSimulationTests() {
         shortJumpSimulation.tick(
             1.0 / 60.0, unlimited);
         const auto highFrame =
-            shortJumpSimulation.placeFoundation(
-                {0.2, 0.0, 2.2});
+            shortJumpSimulation.placeFoundationAtHeight(
+                {0.2, 0.0, 2.2},
+                world.verticalGridStep);
         require(
             highFrame &&
                 std::abs(highFrame->floorHeight - 1.5) <
@@ -2528,7 +3063,7 @@ void runSimulationTests() {
     const auto coreId = *simulation.snapshot().coreId;
     ian::PlayerCommand placementUpgradeConflict;
     placementUpgradeConflict.selectBuilding =
-        ian::BuildingType::Turret;
+        ian::BuildingType::GunTurret;
     placementUpgradeConflict.upgradeBuilding =
         ian::UpgradeBuildingCommand{coreId};
     simulation.tick(1.0 / 60.0, placementUpgradeConflict);
@@ -2684,19 +3219,23 @@ void runSimulationTests() {
                 simulation.snapshot().activeEnemyCount == 3 &&
                 simulation.snapshot().pendingEnemyCount == 12,
             "first wave starts with configured enemy group");
+    requireNear(simulation.snapshot().phaseDuration, 60.0, 1e-12,
+                "first night leaves room for early base expansion");
     require(simulation.snapshot().enemies.front().position.z > 20.0,
             "first group enters from outside initial player view");
     require(simulation.snapshot().tutorialObjective ==
                 ian::TutorialObjective::SurviveFirstWave,
             "tutorial switches to first-night survival");
     simulation.tick(8.0);
-    require(simulation.snapshot().activeEnemyCount == 6 &&
-                simulation.snapshot().pendingEnemyCount == 9,
-            "next enemy group arrives after configured interval");
+    require(simulation.snapshot().activeEnemyCount >= 9,
+            "night builds pressure through regular reinforcements");
+    const std::size_t activeBeforeDebugSpawn =
+        simulation.snapshot().activeEnemyCount;
     ian::PlayerCommand spawnDebugEnemy;
     spawnDebugEnemy.spawnEnemy = ian::SpawnEnemyCommand{ian::EnemyType::Boss};
     simulation.tick(1.0 / 60.0, spawnDebugEnemy);
-    require(simulation.snapshot().activeEnemyCount == 7,
+    require(simulation.snapshot().activeEnemyCount ==
+                activeBeforeDebugSpawn + 1U,
             "debug command spawns selected enemy during wave");
     phaseEvents = simulation.takeEvents();
 
@@ -2764,6 +3303,8 @@ void runSimulationTests() {
     requireNear(simulation.snapshot().phaseTimeRemaining,
                 simulation.snapshot().phaseDuration, 1e-12,
                 "new day receives full preparation timer");
+    requireNear(simulation.snapshot().phaseDuration, 60.0, 1e-12,
+                "day reserves a full minute for gathering and building");
 
     for (int expectedWave = 2; expectedWave < ian::Simulation::StageClearWave;
          ++expectedWave) {
@@ -2773,6 +3314,26 @@ void runSimulationTests() {
                     ian::RunState::Wave &&
                 simulation.snapshot().wave == expectedWave,
             "infinite cycle starts the next numbered wave");
+        requireNear(
+            simulation.snapshot().phaseDuration,
+            static_cast<double>(
+                std::min(75, 60 + 5 * (expectedWave - 1))),
+            1e-12,
+            "night duration grows to seventy-five seconds by wave four");
+        const auto& portals =
+            simulation.snapshot().attackPortalPositions;
+        for (std::size_t left = 0; left < portals.size(); ++left) {
+            if (!portals[left]) continue;
+            for (std::size_t right = left + 1U;
+                 right < portals.size(); ++right) {
+                if (!portals[right]) continue;
+                require(
+                    std::hypot(
+                        portals[right]->x - portals[left]->x,
+                        portals[right]->z - portals[left]->z) >= 5.19,
+                    "simultaneous attack portals do not overlap");
+            }
+        }
         const int crystalsBeforeReward =
             simulation.snapshot().crystals;
         simulation.tick(1.0 / 60.0, defeatWave);

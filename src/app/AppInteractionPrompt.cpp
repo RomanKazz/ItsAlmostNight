@@ -56,7 +56,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         return std::nullopt;
     }
     if (renderer_->graphicsPanelVisible() ||
-        enemySpawnMenuVisible_ || itemGrantMenuVisible_) {
+        enemySpawnMenuVisible_ || itemGrantMenuVisible_ ||
+        coreDefenseMenuVisible_) {
         return std::nullopt;
     }
 
@@ -80,15 +81,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetId = column->id,
                 .worldAnchor = {
                     static_cast<float>(column->position.x),
-                    static_cast<float>(column->position.y + 2.65),
+                    static_cast<float>(column->position.y + 1.72),
                     static_cast<float>(column->position.z),
                 },
-                .objectName = "Skull Trial",
-                .actionText = "Begin Challenge",
+                .actionText = "BEGIN TRIAL",
                 .input = ControlAction::Interact,
                 .state = InteractionState::Available,
-                .hint = "SEALED ARENA  ·  DEFEAT ALL ENEMIES",
-                .accentColor = Color{132, 206, 255, 255},
+                .accentColor = Color{230, 188, 147, 255},
             });
         }
     }
@@ -217,9 +216,17 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetKind = InteractionPromptTargetKind::Chest,
                 .targetId = chest->id,
                 .worldAnchor = {
-                    static_cast<float>(chest->position.x),
-                    static_cast<float>(chest->position.y + 1.42),
-                    static_cast<float>(chest->position.z),
+                    static_cast<float>(chest->position.x +
+                        chest->surfaceNormal.x * 1.42),
+                    static_cast<float>(chest->position.y +
+                        chest->surfaceNormal.y * 1.42),
+                    static_cast<float>(chest->position.z +
+                        chest->surfaceNormal.z * 1.42),
+                },
+                .surfaceNormal = {
+                    static_cast<float>(chest->surfaceNormal.x),
+                    static_cast<float>(chest->surfaceNormal.y),
+                    static_cast<float>(chest->surfaceNormal.z),
                 },
                 .actionText = std::string("Open ") +
                     (chest->type == LootChestType::Stone
@@ -231,8 +238,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                                     : InteractionState::Warning,
                 .cost = cost,
                 .availableCurrency = snapshot.unlimitedResources
-                    ? std::nullopt
-                    : std::optional<int>{snapshot.coins},
+                    ? 99 : snapshot.coins,
                 .recentFailure = invalidActionRemaining_ > 0.0,
                 .accentColor = affordable
                     ? Color{214, 203, 181, 255}
@@ -283,7 +289,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     static_cast<float>(anchor.z),
                 },
                 .actionText = core
-                    ? "Manage Defenses"
+                    ? "Open Core"
                     : std::string("Repair ") +
                           std::string(buildingDisplayName(
                               building->type)),
@@ -325,12 +331,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         ? "Repair Foundation"
                         : "Repair Floor"
                     : "Repair",
-                .input = ControlAction::Attack,
+                .input = ControlAction::Repair,
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
                 .hint = buildingManagementActive
-                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    ? std::optional<std::string>{
+                          "Q COPY · X SELL · E CLOSE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -351,12 +358,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         (wall->anchor.z + 0.5) * snapshot.worldCellSize),
                 },
                 .actionText = "Repair Wall",
-                .input = ControlAction::Attack,
+                .input = ControlAction::Repair,
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
                 .hint = buildingManagementActive
-                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    ? std::optional<std::string>{
+                          "Q COPY · X SELL · E CLOSE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });
@@ -385,12 +393,13 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                         snapshot.worldCellSize),
                 },
                 .actionText = "Repair Ramp",
-                .input = ControlAction::Attack,
+                .input = ControlAction::Repair,
                 .state = buildingManagementActive
                     ? InteractionState::Available
                     : InteractionState::Unavailable,
                 .hint = buildingManagementActive
-                    ? std::optional<std::string>{"Q COPY · X SELL"}
+                    ? std::optional<std::string>{
+                          "Q COPY · X SELL · E CLOSE"}
                     : std::nullopt,
                 .accentColor = {238, 229, 207, 255},
             });

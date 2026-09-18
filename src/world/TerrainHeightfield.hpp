@@ -54,6 +54,10 @@ class TerrainHeightfield {
 
     [[nodiscard]] double getHeight(
         double worldX, double worldZ) const;
+    // Terrain plane before decorative surface noise. Placement systems use
+    // it to keep structures level while the visible ground retains detail.
+    [[nodiscard]] double getConstructionHeight(
+        double worldX, double worldZ) const;
     // Height used by the visual mountain backdrop outside the playable
     // terrain. It is intentionally not part of collision or raycast space.
     [[nodiscard]] double getBackdropHeight(
@@ -122,6 +126,7 @@ class TerrainHeightfield {
     std::uint32_t seed_{};
     double spacing_{};
     std::vector<float> heights_;
+    std::vector<float> constructionHeights_;
     std::vector<float> waterDistanceCache_;
     std::vector<float> pathAmountCache_;
     std::vector<PondDefinition> ponds_;

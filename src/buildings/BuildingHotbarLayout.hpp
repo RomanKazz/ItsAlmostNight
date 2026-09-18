@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/ModularBuildingConstants.hpp"
 #include "game/GameBalance.hpp"
 
 #include <array>
@@ -20,12 +21,10 @@ enum class BuildingHotbarCategory : std::uint8_t {
 };
 
 inline constexpr std::size_t BuildingHotbarCategoryCount = 4U;
-inline constexpr std::size_t MaximumBuildingHotbarSlots = 6U;
+inline constexpr std::size_t MaximumBuildingHotbarSlots = 8U;
 
-inline constexpr std::array<BuildingType, 3> BaseBuildingOrder{
+inline constexpr std::array<BuildingType, 1> BaseBuildingOrder{
         BuildingType::Core,
-        BuildingType::Wall,
-        BuildingType::Gate,
     };
 inline constexpr std::array<BuildingType, 6> DefenseBuildingOrder{
         BuildingType::GunTurret,
@@ -35,25 +34,26 @@ inline constexpr std::array<BuildingType, 6> DefenseBuildingOrder{
         BuildingType::SpikeTrap,
         BuildingType::SlowTrap,
     };
-inline constexpr std::array<BuildingType, 6> EconomyBuildingOrder{
+inline constexpr std::array<BuildingType, 0> EconomyBuildingOrder{};
+inline constexpr std::array<BuildingType, 5> ModularBuildingOrder{
+    BuildingType::Wall,
+    BuildingType::Gate,
     BuildingType::LumberMill,
     BuildingType::Quarry,
     BuildingType::CrystalMine,
-    BuildingType::WoodStorage,
-    BuildingType::StoneStorage,
-    BuildingType::CrystalStorage,
-    };
+};
 
 [[nodiscard]] constexpr BuildingHotbarCategory buildingHotbarCategory(
     BuildingType type) {
     switch (type) {
     case BuildingType::Core:
+        return BuildingHotbarCategory::Base;
     case BuildingType::Wall:
     case BuildingType::Gate:
-        return BuildingHotbarCategory::Base;
     case BuildingType::LumberMill:
     case BuildingType::Quarry:
     case BuildingType::CrystalMine:
+        return BuildingHotbarCategory::Modular;
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
@@ -111,12 +111,6 @@ struct BuildingHotbarLayout {
             if (type == BuildingType::Core) continue;
             const std::size_t index = static_cast<std::size_t>(type);
             if (!unlocked[index]) continue;
-            if (!bypassCoreRestrictions &&
-                (type == BuildingType::WoodStorage ||
-                 type == BuildingType::StoneStorage ||
-                 type == BuildingType::CrystalStorage)) {
-                continue;
-            }
             if (!bypassCoreRestrictions && coreLevel < 2U &&
                 (type == BuildingType::SlowTrap ||
                  type == BuildingType::SpikeTrap ||
@@ -138,9 +132,58 @@ struct BuildingHotbarLayout {
         appendUnlocked(EconomyBuildingOrder);
         break;
     case BuildingHotbarCategory::Modular:
+        appendUnlocked(ModularBuildingOrder);
         break;
     }
     return layout;
+}
+
+struct ConstructionHotbarItem {
+    std::optional<ModularBuildPiece> modularPiece;
+    std::optional<BuildingType> buildingType;
+};
+
+struct ConstructionHotbarLayout {
+    std::array<ConstructionHotbarItem,
+               MaximumBuildingHotbarSlots> items{};
+    std::size_t count{};
+
+    [[nodiscard]] std::optional<std::size_t> indexOf(
+        ModularBuildPiece piece) const {
+        for (std::size_t index = 0; index < count; ++index) {
+            if (items[index].modularPiece == piece) return index;
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<std::size_t> indexOf(
+        BuildingType type) const {
+        for (std::size_t index = 0; index < count; ++index) {
+            if (items[index].buildingType == type) return index;
+        }
+        return std::nullopt;
+    }
+};
+
+[[nodiscard]] inline ConstructionHotbarLayout
+makeConstructionHotbarLayout(
+    const std::array<bool, GameBalance::BuildingTypeCount>& unlocked,
+    bool corePlaced, std::uint8_t coreLevel,
+    bool bypassCoreRestrictions = false) {
+    ConstructionHotbarLayout result;
+    if (!corePlaced) return result;
+    if (bypassCoreRestrictions || coreLevel >= 2U) {
+        for (const ModularBuildPiece piece : ModularBuildHotbarOrder) {
+            result.items[result.count++].modularPiece = piece;
+        }
+    }
+    const BuildingHotbarLayout buildings = makeBuildingHotbarLayout(
+        unlocked, BuildingHotbarCategory::Modular,
+        corePlaced, coreLevel, bypassCoreRestrictions);
+    for (const BuildingType type : buildings.visible()) {
+        result.items[result.count++].buildingType = type;
+    }
+    return result;
 }
 
 } // namespace ian

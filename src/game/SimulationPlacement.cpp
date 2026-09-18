@@ -11,12 +11,8 @@
 namespace ian {
 
 bool Simulation::buildingUnlocked(BuildingType type) const {
+    if (isRemovedStorageBuilding(type)) return false;
     if (sandboxMode_ || unlimitedResources_) return true;
-    if (type == BuildingType::WoodStorage ||
-        type == BuildingType::StoneStorage ||
-        type == BuildingType::CrystalStorage) {
-        return false;
-    }
     if (type == BuildingType::Core) return true;
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;
@@ -224,6 +220,21 @@ BuildingPlatformSurface
 Simulation::placementSurfaceWithPreferredHeight(
     BuildingType type, GridPosition position,
     double preferredHeight) const {
+    const bool twoByTwo =
+        buildingFootprintHalfExtent(type) > 0.75;
+    const int widthCells = twoByTwo ? 2 : 1;
+    const int minimumX = twoByTwo
+        ? position.x - 1
+        : position.x;
+    const int minimumZ = twoByTwo
+        ? position.z - 1
+        : position.z;
+    if (const auto preferredSurface =
+            foundations_.buildingSurface(
+                minimumX, minimumZ, widthCells,
+                preferredHeight)) {
+        return *preferredSurface;
+    }
     BuildingPlatformSurface surface =
         placementSurface(type, position);
     if (surface.storey >= 0) {
@@ -264,29 +275,6 @@ Simulation::automaticFoundationPlacement(
             (anchor.z + 0.5) * cellSize),
         (anchor.z + 0.5) * cellSize,
     };
-    // Adjacent ground frames define a shared construction plane. This keeps
-    // separately clicked neighbouring buildings perfectly level.
-    std::optional<double> adjacentFoundationHeight;
-    for (const PlatformFrameInstance& frame :
-         foundations_.platformFrames()) {
-        if (frame.storey != 0 ||
-            frame.supportState !=
-                StructuralSupportState::Supported) {
-            continue;
-        }
-        const int deltaX = std::abs(
-            frame.anchor.x - anchor.x);
-        const int deltaZ = std::abs(
-            frame.anchor.z - anchor.z);
-        if ((deltaX == PlatformFrameWidthCells &&
-             deltaZ == 0) ||
-            (deltaZ == PlatformFrameWidthCells &&
-             deltaX == 0)) {
-            adjacentFoundationHeight = frame.floorHeight;
-            break;
-        }
-    }
-
     PlatformFramePlacement placement;
     const auto previewAtHeight =
         [this, anchor, terrainHit, twoByTwo](double height) {
@@ -299,45 +287,14 @@ Simulation::automaticFoundationPlacement(
         };
     if (preferredHeight) {
         placement = previewAtHeight(*preferredHeight);
-    } else if (adjacentFoundationHeight) {
-        placement = previewAtHeight(
-            *adjacentFoundationHeight);
     } else {
-        // Automatic building foundations are compact ground plinths, not a
-        // full one-metre storey. Sample the complete 2x2 footprint and leave
-        // only the pallet top visible above its highest terrain point.
-        constexpr int SamplesPerAxis = 5;
-        constexpr double CompactHeightStep = 0.05;
-        const double minimumX = anchor.x * cellSize;
-        const double minimumZ = anchor.z * cellSize;
-        const double maximumX =
-            (anchor.x + PlatformFrameWidthCells) * cellSize;
-        const double maximumZ =
-            (anchor.z + PlatformFrameWidthCells) * cellSize;
-        double highestTerrain =
-            -std::numeric_limits<double>::infinity();
-        for (int z = 0; z < SamplesPerAxis; ++z) {
-            for (int x = 0; x < SamplesPerAxis; ++x) {
-                const double amountX =
-                    static_cast<double>(x) /
-                    static_cast<double>(SamplesPerAxis - 1);
-                const double amountZ =
-                    static_cast<double>(z) /
-                    static_cast<double>(SamplesPerAxis - 1);
-                highestTerrain = std::max(
-                    highestTerrain,
-                    terrain_.getHeight(
-                        minimumX +
-                            (maximumX - minimumX) * amountX,
-                        minimumZ +
-                            (maximumZ - minimumZ) * amountZ));
-            }
-        }
-        const double compactHeight = std::ceil(
-            (highestTerrain +
-             worldConfig_.minimumGroundClearance) /
-            CompactHeightStep) * CompactHeightStep;
-        placement = previewAtHeight(compactHeight);
+        // Keep nearby construction on one visual plane when the difference
+        // only comes from the terrain surface noise. Real slopes remain on
+        // their own plane once the neighbouring height is outside tolerance.
+        placement = foundations_
+            .previewAutomaticBuildingFoundation(
+                anchor, playerPosition_,
+                GroundPlatformHeightStep);
     }
     if (placement.error ==
             ModularPlacementError::InsufficientResources ||

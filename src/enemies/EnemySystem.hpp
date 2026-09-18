@@ -213,6 +213,12 @@ struct EnemyDamageResult {
     bool killed;
 };
 
+struct EnemyRaycastHit {
+    EntityId id;
+    Vec3 position;
+    double distance{};
+};
+
 struct EnemyPlayerAttack {
     EntityId enemyId;
     double damage;
@@ -291,6 +297,9 @@ class EnemySystem {
                                       bool prioritizePlayerTarget = false);
 
     [[nodiscard]] std::optional<EntityId> raycast(
+        Vec3 origin, Vec3 direction, double maxDistance,
+        const TerrainHeightfield* terrain = nullptr) const;
+    [[nodiscard]] std::optional<EnemyRaycastHit> raycastHit(
         Vec3 origin, Vec3 direction, double maxDistance,
         const TerrainHeightfield* terrain = nullptr) const;
     std::optional<EnemyDamageResult> damage(EntityId id, double amount);

@@ -61,6 +61,7 @@ void runTrapSystemTests() {
     require(spikeCore.has_value(),
             "spike trap fixture creates core");
     spikeBuildings.upgrade(spikeCore->building.id, 0, 0, 50);
+    spikeBuildings.upgrade(spikeCore->building.id, 0, 0, 100);
     const auto spike = spikeBuildings.place(
         ian::BuildingType::SpikeTrap, {0, -4}, 0,
         20, 25, 15);

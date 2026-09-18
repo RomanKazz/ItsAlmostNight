@@ -704,6 +704,62 @@ bool Renderer::drawDecorativeRockFragment(
     return true;
 }
 
+bool Renderer::drawWoodFragment(
+    Vector3 position, Vector3 rotationAxis,
+    float rotationDegrees, float scale, Color tint) {
+    ModelResource& resource = resources_.woodFragmentModel();
+    if (!resource.valid() || scale <= 0.001F) {
+        return false;
+    }
+    if (worldShaderActive_ && resources_.worldShader().valid()) {
+        Model& model = resource.get();
+        for (int material = 0; material < model.materialCount;
+             ++material) {
+            model.materials[material].shader =
+                resources_.worldShader().get();
+        }
+    }
+    if (Vector3LengthSqr(rotationAxis) <= 0.000001F) {
+        rotationAxis = {0.0F, 1.0F, 0.0F};
+    } else {
+        rotationAxis = Vector3Normalize(rotationAxis);
+    }
+    constexpr float AuthoredScaleCompensation = 1.6F;
+    scale *= AuthoredScaleCompensation;
+    DrawModelEx(
+        resource.get(), position, rotationAxis, rotationDegrees,
+        {scale, scale, scale}, tint);
+    return true;
+}
+
+bool Renderer::drawCrystalFragment(
+    Vector3 position, Vector3 rotationAxis,
+    float rotationDegrees, float scale, Color tint) {
+    ModelResource& resource = resources_.crystalFragmentModel();
+    if (!resource.valid() || scale <= 0.001F) {
+        return false;
+    }
+    if (worldShaderActive_ && resources_.worldShader().valid()) {
+        Model& model = resource.get();
+        for (int material = 0; material < model.materialCount;
+             ++material) {
+            model.materials[material].shader =
+                resources_.worldShader().get();
+        }
+    }
+    if (Vector3LengthSqr(rotationAxis) <= 0.000001F) {
+        rotationAxis = {0.0F, 1.0F, 0.0F};
+    } else {
+        rotationAxis = Vector3Normalize(rotationAxis);
+    }
+    constexpr float AuthoredScaleCompensation = 2.30F;
+    scale *= AuthoredScaleCompensation;
+    DrawModelEx(
+        resource.get(), position, rotationAxis, rotationDegrees,
+        {scale, scale, scale}, tint);
+    return true;
+}
+
 void Renderer::drawDecorativeRockAo(
     const Camera3D& camera, float worldLimit,
     std::span<const GrassClearArea> clearAreas) {

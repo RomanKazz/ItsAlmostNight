@@ -112,8 +112,15 @@ std::optional<EntityId> FoundationSystem::raycast(
         consider(frameBox(
             frame.id, frame.anchor,
             frame.floorHeight));
-        for (const FoundationSupport& support :
-             frame.supports) {
+        for (std::size_t supportIndex = 0;
+             supportIndex < frame.supports.size();
+             ++supportIndex) {
+            if (!supports_.isPerimeterSupport(
+                    frame.supportIds[supportIndex])) {
+                continue;
+            }
+            const FoundationSupport& support =
+                frame.supports[supportIndex];
             // Conservative proxy. Renderer confirms the exact
             // visual leg hit before accepting the selection.
             constexpr double HalfSupportWidth = 0.18;
@@ -241,31 +248,10 @@ FoundationSystem::raycastPlatformSurface(
                 },
             },
             closestDistance));
-        for (const FoundationSupport& support :
-             frame.supports) {
-            constexpr double HalfSupportWidth =
-                0.10;
-            considerDistance(rayBoxDistance(
-                origin, direction,
-                {
-                    .id = frame.id,
-                    .minimum = {
-                        support.top.x -
-                            HalfSupportWidth,
-                        support.bottom.y,
-                        support.top.z -
-                            HalfSupportWidth,
-                    },
-                    .maximum = {
-                        support.top.x +
-                            HalfSupportWidth,
-                        support.top.y,
-                        support.top.z +
-                            HalfSupportWidth,
-                    },
-                },
-                closestDistance));
-        }
+        // This query chooses a construction plane, not an interaction target.
+        // A ray that merely crosses a vertical support on its way to terrain
+        // must not be promoted to the platform's top height. The ordinary
+        // FoundationSystem::raycast still includes supports for interaction.
     }
     if (!closestFrame) {
         return std::nullopt;

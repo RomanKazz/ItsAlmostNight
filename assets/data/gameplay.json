@@ -22,9 +22,11 @@
   "axeStoneEfficiency": 0.25,
   "pickaxeWoodEfficiency": 0.30,
   "firstBuildPhaseSeconds": 60.0,
-  "betweenWaveSeconds": 45.0,
+  "betweenWaveSeconds": 60.0,
   "sunsetSeconds": 15.0,
-  "nightDurationSeconds": 90.0,
+  "nightDurationSeconds": 75.0,
+  "firstNightDurationSeconds": 60.0,
+  "nightDurationGrowthSeconds": 5.0,
   "dawnSeconds": 5.0,
   "minimumPlacementDistance": 1.0,
   "maximumPlacementDistance": 10.0

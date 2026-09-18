@@ -28,11 +28,11 @@ BuildingStats buildingStatsAtLevel(
             buildingLimitForCoreLevel(
                 BuildingType::CrystalMine, level));
         stats.woodCapacity = static_cast<double>(
-            coreResourceCapacity(BuildingType::WoodStorage, level));
+            coreResourceCapacity(ResourceCapacityType::Wood, level));
         stats.stoneCapacity = static_cast<double>(
-            coreResourceCapacity(BuildingType::StoneStorage, level));
+            coreResourceCapacity(ResourceCapacityType::Stone, level));
         stats.crystalCapacity = static_cast<double>(
-            coreResourceCapacity(BuildingType::CrystalStorage, level));
+            coreResourceCapacity(ResourceCapacityType::Crystal, level));
     } else if (building.type == BuildingType::Turret ||
                building.type == BuildingType::GunTurret) {
         const double towerBonus = building.anvilStacks > 0
@@ -82,13 +82,6 @@ BuildingStats buildingStatsAtLevel(
         stats.attackDamage = TrapSystem::spikeDamage(level);
         stats.effectRadius = TrapSystem::spikeTriggerRadius(level);
         stats.cooldown = TrapSystem::spikeCooldown(level);
-    } else if (
-        building.type == BuildingType::WoodStorage ||
-        building.type == BuildingType::StoneStorage ||
-        building.type == BuildingType::CrystalStorage) {
-        stats.storageCapacity = static_cast<double>(
-            buildingStorageCapacityPerLevel(building.type) *
-            static_cast<int>(level));
     }
     return stats;
 }

@@ -131,6 +131,36 @@ bool validReference(const PixelBounds& bounds) {
         bounds.top < bounds.bottom;
 }
 
+bool rotatedTextUsesSdfStyle() {
+    RenderTexture2D target = LoadRenderTexture(256, 256);
+    if (!IsRenderTextureValid(target)) {
+        return false;
+    }
+    BeginTextureMode(target);
+    ClearBackground(BLANK);
+    ian::SdfUiTextStyle style{};
+    style.fillColor = ian::UiWhite;
+    style.outlineColor = {49, 49, 49, 255};
+    style.shadowColor = {82, 82, 82, 255};
+    style.shadowOffsetPixels = {0.0F, 4.0F};
+    style.outlinePixels = 3.0F;
+    ian::drawRotatedStyledUiText(
+        "0/20", {128.0F, 128.0F}, 52.0F / 1.68F,
+        90.0F, style);
+    EndTextureMode();
+
+    Image image = LoadImageFromTexture(target.texture);
+    ImageFlipVertical(&image);
+    const PixelBounds bounds = inspectTextRegion(image);
+    UnloadImage(image);
+    UnloadRenderTexture(target);
+    return bounds.visiblePixels > 100 &&
+        bounds.fillPixels > 50 &&
+        bounds.outlinePixels > 50 &&
+        bounds.shadowPixels > 20 &&
+        bounds.bottom - bounds.top > bounds.right - bounds.left;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -163,7 +193,8 @@ int main(int argc, char** argv) {
         std::abs(width1080 - width1440) <= 1 &&
         std::abs(height1080 - height1440) <= 1;
     const bool valid = validReference(bounds1080) &&
-        validReference(bounds1440) && stableBounds;
+        validReference(bounds1440) && stableBounds &&
+        rotatedTextUsesSdfStyle();
     if (!valid) {
         std::cerr << "SDF text validation failed: 1080="
                   << bounds1080.visiblePixels << "/"

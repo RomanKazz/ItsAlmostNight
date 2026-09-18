@@ -124,6 +124,37 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
     append(EnemyType::Splitter, composition.splitter, corePosition,
            composition.groupSize, healthMultiplier, damageMultiplier);
+    // Keep the existing spawn slots/fronts, but distribute roles across
+    // groups instead of sending a long block of each enemy type.
+    if (!spawnBuffer_.empty()) {
+        constexpr std::size_t RoleCount =
+            static_cast<std::size_t>(EnemyType::Splitling) + 1U;
+        std::array<std::vector<EnemySpawn>, RoleCount> roles;
+        for (const EnemySpawn& spawn : spawnBuffer_) {
+            roles[static_cast<std::size_t>(spawn.type)].push_back(spawn);
+        }
+        std::array<std::size_t, RoleCount> used{};
+        const std::vector<EnemySpawn> slots = spawnBuffer_;
+        for (std::size_t slot = 0; slot < slots.size(); ++slot) {
+            std::size_t chosen = 0U;
+            double greatestDeficit = -1e9;
+            for (std::size_t role = 0; role < roles.size(); ++role) {
+                if (used[role] >= roles[role].size()) continue;
+                const double deficit =
+                    static_cast<double>((slot + 1U) * roles[role].size()) /
+                        static_cast<double>(slots.size()) -
+                    static_cast<double>(used[role]);
+                if (deficit > greatestDeficit) {
+                    greatestDeficit = deficit;
+                    chosen = role;
+                }
+            }
+            EnemySpawn spawn = roles[chosen][used[chosen]++];
+            spawn.position.x = slots[slot].position.x;
+            spawn.position.z = slots[slot].position.z;
+            spawnBuffer_[slot] = spawn;
+        }
+    }
     if (composition.boss) {
         const int bossCycle = normalizedWave / ConfiguredWaveCount;
         const double bossHealthMultiplier =
@@ -229,7 +260,7 @@ WaveDefinition WaveDirector::composition(int wave) const {
     result.groupSize = std::min(
         10, definitions_.back().groupSize + extraWaves / 4);
     result.groupInterval = std::max(
-        3.5, definitions_.back().groupInterval -
+        0.8, definitions_.back().groupInterval -
                  0.05 * static_cast<double>(extraWaves));
     result.budget =
         result.basic * enemyBudgetCost(EnemyType::Basic) +

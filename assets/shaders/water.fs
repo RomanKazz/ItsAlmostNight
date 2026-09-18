@@ -3,10 +3,11 @@
 in vec3 fragWorldPosition;
 in float fragWaterDepth;
 in float fragShoreDistance;
-in float fragWaveHeight;
 
 uniform vec3 cameraPosition;
+uniform vec3 shoreColor;
 uniform vec3 shallowColor;
+uniform vec3 midColor;
 uniform vec3 deepColor;
 uniform vec3 skyColor;
 uniform vec3 sunDirection;
@@ -18,6 +19,12 @@ uniform float fogEnd;
 uniform float exposure;
 uniform float timeSeconds;
 uniform float waveSpeed;
+uniform float shoreWidth;
+uniform float depthFalloff;
+uniform float patternScale;
+uniform float patternStrength;
+uniform float patternSpeed;
+uniform float fresnelStrength;
 uniform int qualityLevel;
 
 layout(location = 0) out vec4 finalColor;
@@ -53,124 +60,75 @@ void main()
         discard;
     }
     float edgeCoverage = 1.0 - smoothstep(
-        -0.035, 0.145, fragShoreDistance);
+        0.015, 0.15, fragShoreDistance);
 
-    float time = timeSeconds*waveSpeed;
-    // Reach the deep lake colour reasonably close to shore. Keeping most of
-    // the surface translucent exposed the saturated green terrain beneath it
-    // and made the lake read as a swamp.
-    float depth = smoothstep(0.025, 0.72, fragWaterDepth);
-    float variation =
-        sin(fragWorldPosition.x*0.071 + fragWorldPosition.z*0.053)*0.018;
-    if (qualityLevel >= 2)
-    {
-        variation +=
-            sin(fragWorldPosition.x*0.031 -
-                fragWorldPosition.z*0.089)*0.012;
-    }
-    float colorDepth = clamp(depth + variation, 0.0, 1.0);
-    vec3 water = mix(shallowColor, deepColor, colorDepth);
+    vec2 world = fragWorldPosition.xz;
 
-    // Three extremely broad, slow fields add painterly surface grouping while
-    // leaving the authored shallow-to-deep gradient as the dominant structure.
-    // Their non-parallel axes and different drift rates avoid visible scrolling.
-    float broadA = sin(
-        fragWorldPosition.x*0.035 + fragWorldPosition.z*0.021 + time*0.055);
-    float broadB = sin(
-        fragWorldPosition.z*0.028 - fragWorldPosition.x*0.017 - time*0.041);
-    float broadC = sin(
-        (fragWorldPosition.x - fragWorldPosition.z)*0.013 + time*0.026);
-    float broadField = broadA*0.46 + broadB*0.34 + broadC*0.20;
-    float broadTone =
-        smoothstep(-0.55, -0.12, broadField)*0.5 +
-        smoothstep(0.18, 0.62, broadField)*0.5;
-    float broadVariation = (broadTone - 0.5)*0.05;
+    // Depth supplies only the broad shallow-to-deep trend. Two large static
+    // world-space fields bend it enough that no colour boundary follows the
+    // shoreline or reads as a concentric depth contour.
+    float depth = clamp(fragWaterDepth*depthFalloff, 0.0, 1.0);
+    float depthNoise1 = valueNoise(world*(patternScale*1.285714));
+    float depthNoise2 = valueNoise(
+        world*(patternScale*2.571429) + vec2(13.7, 4.2));
+    float depthDistortion =
+        depthNoise1*0.70 + depthNoise2*0.30 - 0.5;
+    float distortedDepth = clamp(
+        depth + depthDistortion*0.20, 0.0, 1.0);
+    float shallow = smoothstep(0.08, 0.32, distortedDepth);
+    float deep = smoothstep(0.42, 0.85, distortedDepth);
+    vec3 water = mix(
+        shallowColor, midColor, shallow);
+    water = mix(water, deepColor, deep);
+
+    // signedDistance is normalized by the authored shoreline width. This is
+    // a shallow-water colour band, deliberately not a white foam contour.
+    float inward = max(-fragShoreDistance, 0.0);
+    float shoreAmount = 1.0 - smoothstep(
+        shoreWidth*0.08, shoreWidth, inward);
+    water = mix(water, shoreColor, shoreAmount*0.86);
+
+    // An independent, even broader moving field creates hand-painted surface
+    // patches unrelated to both depth and distance from shore.
+    float driftTime = timeSeconds*patternSpeed;
+    float surfaceNoise = valueNoise(
+        world*patternScale +
+        driftTime*vec2(0.004, 0.002));
+    float patch = smoothstep(0.40, 0.65, surfaceNoise);
+    float patchShift = (patch - 0.5)*2.0*patternStrength*
+        (1.0 - shoreAmount*0.35);
     water *= vec3(
-        1.0 + broadVariation*0.45,
-        1.0 + broadVariation*0.85,
-        1.0 + broadVariation);
+        1.0 + patchShift*0.68,
+        1.0 + patchShift*0.94,
+        1.0 + patchShift);
 
-    float waveDetail = 0.0;
-    if (qualityLevel > 0)
-    {
-        waveDetail = cos(
-            fragWorldPosition.x*0.19 +
-            fragWorldPosition.z*0.14 + time*1.9);
-    }
-    float waveX =
-        cos(fragWorldPosition.x*0.092 +
-            fragWorldPosition.z*0.027 + time*1.35)*0.060 +
-        waveDetail*0.020;
-    float waveZ =
-        cos(fragWorldPosition.z*0.118 -
-            fragWorldPosition.x*0.021 - time*1.05)*0.068 +
-        waveDetail*0.015;
-    vec3 normal = normalize(vec3(
-        -waveX, 1.0, -waveZ));
+    // Almost-flat geometric motion only perturbs the Fresnel very slightly.
+    float waveTime = timeSeconds*waveSpeed;
+    float waveX = cos(
+        world.x*0.092 + world.y*0.027 + waveTime*0.12)*0.00075;
+    float waveZ = cos(
+        world.y*0.118 - world.x*0.021 - waveTime*0.09)*0.00085;
+    vec3 normal = normalize(vec3(-waveX, 1.0, -waveZ));
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
-    float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 2.15);
-    vec3 clearSkyReflection = mix(skyColor, vec3(0.12, 0.48, 0.72), 0.24);
-    water = mix(water, clearSkyReflection, 0.12 + fresnel*0.48);
+    float fresnel = pow(
+        1.0 - clamp(dot(normal, viewDirection), 0.0, 1.0), 3.0);
+    vec3 fresnelColor = mix(vec3(0.30, 0.72, 0.76), skyColor, 0.08);
+    water = mix(water, fresnelColor, fresnel*fresnelStrength);
 
-    // Broad moving blue highlights break up the flat surface without making
-    // it noisy or realistic enough to clash with the toon world.
-    float longRipple = sin(
-        fragWorldPosition.x*0.23 + fragWorldPosition.z*0.11 + time*1.7);
-    float crossRipple = longRipple;
-    if (qualityLevel >= 2)
-    {
-        crossRipple = sin(
-            fragWorldPosition.z*0.31 -
-            fragWorldPosition.x*0.08 - time*1.25);
-    }
-    float rippleLine = smoothstep(0.72, 0.96,
-        longRipple*0.58 + crossRipple*0.42);
-    water += vec3(0.055, 0.13, 0.18)*rippleLine*(0.35 + fresnel*0.65);
+    // Rare broad highlights share the same field so they remain soft and do
+    // not turn into a layer of small realistic sparkles.
+    float softHighlight = smoothstep(0.76, 0.92, surfaceNoise)*
+        (0.45 + (1.0 - depth)*0.55);
+    water = mix(
+        water, vec3(0.42, 0.82, 0.80),
+        softHighlight*0.075);
+    vec3 halfDirection = normalize(
+        viewDirection - normalize(sunDirection));
+    float sunHighlight = pow(
+        max(dot(normal, halfDirection), 0.0), 72.0);
+    water += sunColor*sunHighlight*softHighlight*0.055;
 
-    vec3 halfDirection = normalize(viewDirection - normalize(sunDirection));
-    float sparkle = pow(max(dot(normal, halfDirection), 0.0), 88.0);
-    float sparkleNoise = 0.35;
-    if (qualityLevel >= 2)
-    {
-        sparkleNoise = smoothstep(
-            0.72, 0.96,
-            sin(fragWorldPosition.x*1.37 + time*3.1)*0.5 +
-            sin(fragWorldPosition.z*1.71 - time*2.4)*0.5);
-    }
-    water += sunColor*sparkle*(0.28 + sparkleNoise*0.42);
-
-    float inward = clamp(-fragShoreDistance, 0.0, 2.0);
-    float shoreWidth = mix(0.53, 0.62, broadTone);
-    float shoreFade = 1.0 - smoothstep(0.0, shoreWidth, inward);
-    float foam = 0.0;
-    if (shoreFade > 0.001)
-    {
-        // Noise and wave bands are expensive and have exactly zero effect
-        // outside the narrow shoreline. Avoid evaluating four hashes and
-        // both bands across the entire pond surface.
-        float pattern = 0.09;
-        if (qualityLevel >= 2)
-        {
-            pattern = valueNoise(fragWorldPosition.xz*0.18)*0.22;
-        }
-        else if (qualityLevel == 1)
-        {
-            pattern = (sin(
-                fragWorldPosition.x*0.21 +
-                fragWorldPosition.z*0.17)*0.5 + 0.5)*0.18;
-        }
-        float travel = fract(inward*0.82 + time*0.27 + pattern);
-        float bandA = 1.0 - smoothstep(
-            0.025, 0.075, abs(travel - 0.18));
-        float bandB = 1.0 - smoothstep(
-            0.022, 0.065, abs(fract(travel + 0.51) - 0.18));
-        foam = max(bandA, bandB*0.58)*shoreFade*
-               (1.0 - depth*0.72)*edgeCoverage;
-    }
-    water = mix(water, vec3(0.62, 0.86, 0.92), foam*0.31);
-
-    float alpha = mix(0.82, 0.96, depth);
-    alpha = max(alpha, foam*0.88)*edgeCoverage;
+    float alpha = mix(0.94, 0.985, depth)*edgeCoverage;
     water *= dayNightTint*exposure;
     float nightAmount = smoothstep(
         0.02, 0.26, 1.0 - dayNightTint.r);

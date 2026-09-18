@@ -151,9 +151,12 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             static_cast<float>(resource.visualScale);
         const float AnchorHeight = resource.type == ResourceType::Wood
             ? 1.95F * visualScale * TreeVisualHeightScale
-            : isDestructibleProp(resource.type)
-                ? 0.82F * visualScale + 0.58F
-                : 1.45F * visualScale;
+            : resource.type == ResourceType::Barrel
+                ? 1.04F * visualScale
+                : resource.type == ResourceType::Crate ||
+                      resource.type == ResourceType::ItemCrate
+                    ? 0.94F * visualScale
+                    : 1.45F * visualScale;
         // Resource meshes are placed on the current terrain surface at
         // render time; simulation Y can contain a stale authored offset.
         const float ground = static_cast<float>(terrain.getHeight(

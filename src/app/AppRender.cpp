@@ -19,40 +19,6 @@
 namespace ian {
 namespace {
 
-const char* modularPlacementMessage(
-    std::optional<ModularPlacementError> error) {
-    if (!error) {
-        return "AIM AT TERRAIN";
-    }
-    switch (*error) {
-    case ModularPlacementError::None:
-        return "LMB BUILD";
-    case ModularPlacementError::Occupied:
-        return "PLACE OCCUPIED";
-    case ModularPlacementError::OutOfBounds:
-        return "OUTSIDE MAP";
-    case ModularPlacementError::TooFar:
-        return "TOO FAR";
-    case ModularPlacementError::SupportTooLong:
-        return "SUPPORTS TOO LONG";
-    case ModularPlacementError::PlayerOverlap:
-        return "PLAYER IN THE WAY";
-    case ModularPlacementError::TerrainIntersection:
-        return "TERRAIN INTERSECTION";
-    case ModularPlacementError::MaximumStorey:
-        return "MAXIMUM STOREY";
-    case ModularPlacementError::NoSupport:
-        return "NO STRUCTURAL SUPPORT";
-    case ModularPlacementError::ResourceBlocked:
-        return "CLEAR RESOURCE FIRST";
-    case ModularPlacementError::InsufficientResources:
-        return "NOT ENOUGH RESOURCES";
-    case ModularPlacementError::CoreLevelRequired:
-        return "UPGRADE CORE TO LEVEL 2";
-    }
-    return "CANNOT BUILD";
-}
-
 void drawFpsCounter() {
     constexpr float FontSize = 16.0F;
     constexpr float HorizontalPadding = 10.0F;
@@ -97,29 +63,69 @@ void App::render() {
         renderer_->settings().performanceLogging ||
         performanceOverlayVisible_);
     const auto renderPreparationStart = PerformanceClock::now();
-    auto uiStart = renderPreparationStart;
-    double viewModelMilliseconds = 0.0;
-    double worldUiMilliseconds = 0.0;
-    double interactionPromptMilliseconds = 0.0;
-    double hudCoreMilliseconds = 0.0;
-    double hudTargetHealthMilliseconds = 0.0;
-    double hudResourcesMilliseconds = 0.0;
-    double hudVitalityMilliseconds = 0.0;
-    double hudInformationMilliseconds = 0.0;
-    double hudObjectivesMilliseconds = 0.0;
-    double hudLootMilliseconds = 0.0;
-    double hudPhaseMilliseconds = 0.0;
-    double hudHotbarMilliseconds = 0.0;
-    double hudFeedbackMilliseconds = 0.0;
-    double hudTextFlushMilliseconds = 0.0;
-    double resourceGainMilliseconds = 0.0;
-    double minimapMilliseconds = 0.0;
-    double minimapSetupMilliseconds = 0.0;
-    double minimapTargetRefreshMilliseconds = 0.0;
-    double minimapFrameMilliseconds = 0.0;
-    double minimapLabelsMilliseconds = 0.0;
-    double uiOverlaysMilliseconds = 0.0;
+    RenderFrameTimings timings{
+        .uiStart = renderPreparationStart,
+    };
+    auto& uiStart = timings.uiStart;
+    auto& viewModelMilliseconds = timings.viewModelMilliseconds;
+    auto& worldUiMilliseconds = timings.worldUiMilliseconds;
+    auto& interactionPromptMilliseconds =
+        timings.interactionPromptMilliseconds;
+    auto& hudCoreMilliseconds = timings.hudCoreMilliseconds;
+    auto& hudTargetHealthMilliseconds =
+        timings.hudTargetHealthMilliseconds;
+    auto& hudResourcesMilliseconds = timings.hudResourcesMilliseconds;
+    auto& hudVitalityMilliseconds = timings.hudVitalityMilliseconds;
+    auto& hudInformationMilliseconds =
+        timings.hudInformationMilliseconds;
+    auto& hudObjectivesMilliseconds = timings.hudObjectivesMilliseconds;
+    auto& hudLootMilliseconds = timings.hudLootMilliseconds;
+    auto& hudPhaseMilliseconds = timings.hudPhaseMilliseconds;
+    auto& hudHotbarMilliseconds = timings.hudHotbarMilliseconds;
+    auto& hudFeedbackMilliseconds = timings.hudFeedbackMilliseconds;
+    auto& hudTextFlushMilliseconds = timings.hudTextFlushMilliseconds;
+    auto& resourceGainMilliseconds = timings.resourceGainMilliseconds;
+    auto& minimapMilliseconds = timings.minimapMilliseconds;
+    auto& minimapSetupMilliseconds = timings.minimapSetupMilliseconds;
+    auto& minimapTargetRefreshMilliseconds =
+        timings.minimapTargetRefreshMilliseconds;
+    auto& minimapFrameMilliseconds = timings.minimapFrameMilliseconds;
+    auto& minimapLabelsMilliseconds = timings.minimapLabelsMilliseconds;
+    auto& uiOverlaysMilliseconds = timings.uiOverlaysMilliseconds;
     const auto& snapshot = simulation_.snapshot();
+    std::optional<EntityId> pinnedOrdinaryBuilding;
+    std::optional<EntityId> pinnedModularBuilding;
+    if (buildingContextCardTarget_) {
+        const EntityId target = *buildingContextCardTarget_;
+        if (std::ranges::any_of(
+                snapshot.buildings,
+                [target](const BuildingInstance& building) {
+                    return building.id == target;
+                })) {
+            pinnedOrdinaryBuilding = target;
+        } else if (
+            std::ranges::any_of(
+                snapshot.platformFrames,
+                [target](const PlatformFrameInstance& frame) {
+                    return frame.id == target;
+                }) ||
+            std::ranges::any_of(
+                snapshot.modularWalls,
+                [target](const WallInstance& wall) {
+                    return wall.id == target;
+                }) ||
+            std::ranges::any_of(
+                snapshot.ramps,
+                [target](const RampInstance& ramp) {
+                    return ramp.id == target;
+                })) {
+            pinnedModularBuilding = target;
+        } else {
+            buildingContextCardTarget_.reset();
+            buildingContextCardUpgradeCost_.reset();
+            buildingContextCardStats_.reset();
+        }
+    }
     structuralRiskIds_.clear();
     std::vector<EntityId> structuralRiskRoots;
     const auto addStructuralRiskRoot =
@@ -177,20 +183,39 @@ void App::render() {
         hoveredBuildingUpgradeCost_;
     presentationSnapshot.aimedBuildingStats =
         hoveredBuildingStats_;
+    if (pinnedOrdinaryBuilding) {
+        presentationSnapshot.aimedBuilding =
+            pinnedOrdinaryBuilding;
+        presentationSnapshot.aimedModularBuilding.reset();
+        presentationSnapshot.aimedBuildingUpgradeCost =
+            buildingContextCardUpgradeCost_;
+        presentationSnapshot.aimedBuildingStats =
+            buildingContextCardStats_;
+    } else if (pinnedModularBuilding) {
+        presentationSnapshot.aimedBuilding.reset();
+        presentationSnapshot.aimedModularBuilding =
+            pinnedModularBuilding;
+    }
     if (snapshot.selectedBuilding || foundationBuildMode_) {
         presentationSnapshot.aimedBuilding.reset();
         presentationSnapshot.aimedModularBuilding.reset();
     }
-    if (presentationSnapshot.aimedEnemy) {
+    if (presentationSnapshot.aimedEnemy &&
+        !pinnedOrdinaryBuilding && !pinnedModularBuilding) {
         presentationSnapshot.aimedResource.reset();
         presentationSnapshot.aimedBuilding.reset();
         presentationSnapshot.aimedModularBuilding.reset();
     }
-    // Enemy feedback uses the same short hover grace as its health bar.
-    // Fast animation and movement must not make outline/prompt flicker.
+    // Selection feedback and tactical overlays must use the same presented
+    // target. Otherwise the outline disappears on the exact ray miss while
+    // the range indicator remains visible during hover grace.
     auto feedbackSnapshot = snapshot;
     feedbackSnapshot.aimedEnemy = hoveredEnemy_
         ? hoveredEnemy_ : snapshot.aimedEnemy;
+    feedbackSnapshot.aimedBuilding =
+        presentationSnapshot.aimedBuilding;
+    feedbackSnapshot.aimedModularBuilding =
+        presentationSnapshot.aimedModularBuilding;
     feedbackSnapshot.aimedBuildingUpgradeCost =
         snapshot.aimedBuildingUpgradeCost;
     feedbackSnapshot.aimedBuildingStats =
@@ -199,7 +224,8 @@ void App::render() {
         feedbackSnapshot.aimedBuilding.reset();
         feedbackSnapshot.aimedModularBuilding.reset();
     }
-    if (feedbackSnapshot.aimedEnemy) {
+    if (feedbackSnapshot.aimedEnemy &&
+        !pinnedOrdinaryBuilding && !pinnedModularBuilding) {
         feedbackSnapshot.aimedResource.reset();
         feedbackSnapshot.aimedBuilding.reset();
         feedbackSnapshot.aimedModularBuilding.reset();
@@ -210,1101 +236,10 @@ void App::render() {
         drawMainMenuWorld(snapshot);
         drawMainMenu(snapshot);
     } else {
-        const double visualYaw = snapshot.playerYaw;
-        const double visualPitch = snapshot.playerPitch;
-        const double cosPitch = std::cos(visualPitch);
-        Vector3 position = {
-            static_cast<float>(snapshot.playerPosition.x),
-            static_cast<float>(
-                groundCameraSmoothingInitialized_
-                    ? smoothedGroundCameraY_
-                    : snapshot.playerPosition.y),
-            static_cast<float>(snapshot.playerPosition.z),
-        };
-        position.y += static_cast<float>(playerSpawnDropHeight_);
-        Vector3 forward = {
-            static_cast<float>(std::sin(visualYaw) * cosPitch),
-            static_cast<float>(std::sin(visualPitch)),
-            static_cast<float>(-std::cos(visualYaw) * cosPitch),
-        };
-        const float cameraMotionScale =
-            snapshot.runUpgradeChoicePending ? 0.0F : 1.0F;
-        const float bobAmount =
-            static_cast<float>(cameraBobAmount_) *
-            (input_.sprint ? 1.12F : 1.0F) *
-            motionBobIntensity_ * cameraMotionScale;
-        const float bobSide =
-            static_cast<float>(
-                std::sin(cameraBobPhase_)) *
-            0.012F * bobAmount;
-        const float bobVertical =
-            -static_cast<float>(
-                std::abs(std::sin(cameraBobPhase_))) *
-            0.024F * bobAmount;
-        const Vector3 bobRight = {
-            static_cast<float>(
-                std::cos(visualYaw)),
-            0.0F,
-            static_cast<float>(
-                std::sin(visualYaw)),
-        };
-        position = Vector3Add(
-            position,
-            Vector3Scale(
-                bobRight,
-                static_cast<float>(cameraLookYawLag_ * 0.42) *
-                    motionSwayIntensity_ * cameraMotionScale));
-        position.y += static_cast<float>(
-            cameraLookPitchLag_ * 0.32) *
-            motionSwayIntensity_ * cameraMotionScale;
-        position = Vector3Add(
-            position,
-            Vector3Scale(bobRight, bobSide));
-        position.y += bobVertical;
-        Vector3 bobCameraUp = Vector3Normalize(
-            Vector3Add(
-                {0.0F, 1.0F, 0.0F},
-                Vector3Scale(
-                    bobRight,
-                    (-static_cast<float>(
-                         std::sin(cameraBobPhase_)) *
-                         0.0045F * bobAmount -
-                     static_cast<float>(
-                         cameraStrafeLean_) *
-                         motionSwayIntensity_ * cameraMotionScale))));
-        if (cameraMotionScale > 0.0F &&
-            landingResponseRemaining_ > 0.0 &&
-            landingResponseDuration_ > 0.0) {
-            const double progress = std::clamp(
-                1.0 - landingResponseRemaining_ /
-                          landingResponseDuration_,
-                0.0, 1.0);
-            const float landingCurve = static_cast<float>(
-                std::sin(progress * PI) *
-                landingResponseStrength_) *
-                motionLandingIntensity_;
-            position.y -= landingCurve * 0.052F;
-            forward.y -= landingCurve * 0.012F;
-            forward = Vector3Normalize(forward);
-        }
-        position = Vector3Add(
-            position,
-            Vector3Scale(
-                bobRight,
-                static_cast<float>(cameraImpulseOffset_.x) *
-                    motionShakeIntensity_ * cameraMotionScale));
-        position.y +=
-            static_cast<float>(cameraImpulseOffset_.y) *
-            motionShakeIntensity_ * cameraMotionScale;
-        position = Vector3Add(
-            position,
-            Vector3Scale(
-                forward,
-                static_cast<float>(cameraImpulseOffset_.z) *
-                    motionShakeIntensity_ * cameraMotionScale));
-        if (cameraMotionScale > 0.0F &&
-            weaponRecoilRemaining_ > 0.0 &&
-            weaponRecoilDuration_ > 0.0) {
-            const float progress = std::clamp(
-                static_cast<float>(
-                    1.0 -
-                    weaponRecoilRemaining_ /
-                        weaponRecoilDuration_),
-                0.0F, 1.0F);
-            const float recoil =
-                std::sin(progress * PI) *
-                weaponRecoilStrength_;
-            position = Vector3Subtract(
-                position, Vector3Scale(forward, recoil));
-            forward.y += recoil * 0.38F;
-            forward = Vector3Normalize(forward);
-        }
-        if (cameraMotionScale > 0.0F &&
-            cameraShakeRemaining_ > 0.0) {
-            const double visualTime = GetTime();
-            const float shake =
-                static_cast<float>(cameraShakeStrength_ * cameraShakeRemaining_ / 0.35) *
-                motionShakeIntensity_;
-            position.x += static_cast<float>(std::sin(visualTime * 83.0)) * shake;
-            position.y += static_cast<float>(std::cos(visualTime * 97.0)) * shake * 0.7F;
-            position.z += static_cast<float>(std::sin(visualTime * 71.0)) * shake * 0.5F;
-        }
-        const Camera3D camera = {
-            .position = position,
-            .target = Vector3Add(position, forward),
-            .up = bobCameraUp,
-            .fovy = cameraFov_,
-            .projection = CAMERA_PERSPECTIVE,
-        };
-        constexpr Color DayGround{66, 112, 67, 255};
-        constexpr Color NightGround{28, 52, 50, 255};
-
-        float automaticTime = environment_.timeOfDay();
-        if (snapshot.state == RunState::Gathering ||
-            snapshot.state == RunState::BuildPhase) {
-            automaticTime = 0.25F;
-        } else if (snapshot.state == RunState::Sunset) {
-            const double duration = std::max(snapshot.phaseDuration, 0.001);
-            const float progress = static_cast<float>(
-                1.0 - snapshot.phaseTimeRemaining / duration);
-            automaticTime = 0.25F + std::clamp(progress, 0.0F, 1.0F) * 0.5F;
-        } else if (snapshot.state == RunState::Wave ||
-                   snapshot.state == RunState::StageClear) {
-            automaticTime = 0.75F;
-        } else if (snapshot.state == RunState::WaveComplete ||
-                   snapshot.state == RunState::Victory) {
-            const double duration = std::max(snapshot.phaseDuration, 0.001);
-            const float progress = static_cast<float>(
-                1.0 - snapshot.phaseTimeRemaining / duration);
-            automaticTime = 0.75F + std::clamp(progress, 0.0F, 1.0F) * 0.5F;
-        }
-        environment_.setAutomaticTime(automaticTime);
-        const EnvironmentState environment = environment_.state();
-        const float nightAmount = environment.nightFactor;
-        const Color ground = {
-            static_cast<unsigned char>(
-                static_cast<float>(DayGround.r) +
-                (static_cast<float>(NightGround.r) -
-                 static_cast<float>(DayGround.r)) *
-                    nightAmount),
-            static_cast<unsigned char>(
-                static_cast<float>(DayGround.g) +
-                (static_cast<float>(NightGround.g) -
-                 static_cast<float>(DayGround.g)) *
-                    nightAmount),
-            static_cast<unsigned char>(
-                static_cast<float>(DayGround.b) +
-                (static_cast<float>(NightGround.b) -
-                 static_cast<float>(DayGround.b)) *
-                    nightAmount),
-            255,
-        };
-        const Vector3 lightDirection =
-            Vector3Scale(environment.celestialDirection, -1.0F);
-        const WorldLighting lighting{
-            .cameraPosition = camera.position,
-            .sunDirection = lightDirection,
-            .sunColor = environment.sunColor,
-            .sunIntensity = environment.sunIntensity,
-            .skyAmbientColor = environment.skyAmbientColor,
-            .groundAmbientColor = environment.groundAmbientColor,
-            .ambientIntensity = environment.ambientIntensity,
-            .cloudShadowStrength = 0.18F * (1.0F - nightAmount),
-            .fogColor = colorToVector(environment.fogColor),
-            .fogStart = environment.fogStart,
-            .fogEnd = environment.fogEnd,
-            .dayNightTint = environment.dayNightTint,
-            .exposure = environment.exposure,
-            .saturation = environment.saturation,
-        };
-        const Vector3 cameraRight =
-            Vector3Normalize(Vector3CrossProduct(forward, {0.0F, 1.0F, 0.0F}));
-        const Vector3 cameraUp =
-            Vector3Normalize(Vector3CrossProduct(cameraRight, forward));
-        const SkyState skyState{
-            .cameraForward = forward,
-            .cameraRight = cameraRight,
-            .cameraUp = cameraUp,
-            .verticalFovDegrees = camera.fovy,
-            .zenithColor = colorToVector(environment.skyTop),
-            .horizonColor = colorToVector(environment.skyHorizon),
-            .lowerSkyColor = colorToVector(environment.lowerSky),
-            .celestialDirection = environment.celestialDirection,
-            .celestialColor = environment.celestialColor,
-            .celestialIntensity = environment.sunIntensity,
-            .nightAmount = nightAmount,
-            .timeSeconds = static_cast<float>(GetTime()),
-            .exposure = environment.exposure,
-            .saturation = environment.saturation,
-        };
-
-        renderer_->setWorldReveal(
-            worldRevealOrigin_,
-            static_cast<float>(worldRevealElapsed_));
-        performanceStats_.renderPreparation.sample(
-            performanceMilliseconds(renderPreparationStart));
-
-        renderer_->beginGpuTimer(RendererGpuStage::World);
-        const auto shadowStart = PerformanceClock::now();
-        drawShadowPass(snapshot, lighting);
-        performanceStats_.shadowPass.sample(
-            performanceMilliseconds(shadowStart));
-
-        const auto selectionStart = PerformanceClock::now();
-        if constexpr (!MinimalWorldVisuals) {
-            drawSelectionPass(feedbackSnapshot, camera);
-        }
-        performanceStats_.selectionPass.sample(
-            performanceMilliseconds(selectionStart));
-
-        const auto terrainStart = PerformanceClock::now();
-        renderer_->beginWorldPass(environment.skyHorizon, camera);
-        renderer_->drawSky(skyState);
-        BeginMode3D(camera);
-        renderer_->beginWorldShader(lighting);
-        WorldMaterialState terrainMaterial{};
-        terrainMaterial.terrainAmount = 1.0F;
-        terrainMaterial.bakedAo = 0.9F;
-        terrainMaterial.distantFadeAmount = 1.0F;
-        renderer_->setWorldMaterial(terrainMaterial);
-        renderer_->drawTerrain(
-            ground, camera.position,
-            showTerrainWireframe_);
-        performanceStats_.terrainRender.sample(
-            performanceMilliseconds(terrainStart));
-
-        const auto worldEntitiesStart = PerformanceClock::now();
-        drawWorldEntities(presentationSnapshot, camera, nightAmount,
-                          lighting,
-                          static_cast<float>(fixedStep_.interpolationAlpha()));
-        performanceStats_.worldEntitiesRender.sample(
-            performanceMilliseconds(worldEntitiesStart));
-
-        const auto environmentStart = PerformanceClock::now();
-        if constexpr (!MinimalWorldVisuals) {
-        const auto pondDecorStart = PerformanceClock::now();
-        renderer_->beginWorldShader(lighting);
-        WorldMaterialState pondRockMaterial{};
-        pondRockMaterial.bakedAo = 0.76F;
-        pondRockMaterial.screenAoAmount = 0.0F;
-        renderer_->setWorldMaterial(pondRockMaterial);
-        renderer_->drawPondShoreRocks(camera);
-        WorldMaterialState pondPlantMaterial{};
-        pondPlantMaterial.bakedAo = 0.82F;
-        pondPlantMaterial.screenAoAmount = 0.0F;
-        pondPlantMaterial.windAmount = 0.32F;
-        pondPlantMaterial.localWindHeight = 1.0F;
-        pondPlantMaterial.distantFadeAmount = 0.9F;
-        pondPlantMaterial.vegetationAmount = 1.0F;
-        pondPlantMaterial.inkOutlineEligible = false;
-        renderer_->setWorldMaterial(pondPlantMaterial);
-        renderer_->drawPondDecor(camera);
-        renderer_->endWorldShader();
-        double pondDecorMilliseconds =
-            performanceMilliseconds(pondDecorStart);
-        const auto waterStart = PerformanceClock::now();
-        renderer_->drawWater(camera.position, lighting);
-        performanceStats_.waterRender.sample(
-            performanceMilliseconds(waterStart));
-        const auto pondSurfaceStart = PerformanceClock::now();
-        renderer_->beginWorldShader(lighting);
-        WorldMaterialState pondSurfaceMaterial{};
-        pondSurfaceMaterial.bakedAo = 0.82F;
-        pondSurfaceMaterial.screenAoAmount = 0.0F;
-        pondSurfaceMaterial.inkOutlineEligible = false;
-        renderer_->setWorldMaterial(pondSurfaceMaterial);
-        renderer_->drawPondSurfaceDecor(camera);
-        renderer_->endWorldShader();
-        pondDecorMilliseconds +=
-            performanceMilliseconds(pondSurfaceStart);
-        performanceStats_.pondDecorRender.sample(
-            pondDecorMilliseconds);
-        const auto cloudStart = PerformanceClock::now();
-        renderer_->drawClouds(
-            camera, nightAmount, lighting);
-        performanceStats_.cloudRender.sample(
-            performanceMilliseconds(cloudStart));
-        const auto atmosphereStart = PerformanceClock::now();
-        drawAtmosphereParticles(camera, nightAmount);
-        performanceStats_.atmosphereRender.sample(
-            performanceMilliseconds(atmosphereStart));
-        performanceStats_.environmentRender.sample(
-            performanceMilliseconds(environmentStart));
-        }
-
-        const auto overlayStart = PerformanceClock::now();
-        drawBlobShadows(snapshot, camera);
-        if constexpr (!MinimalWorldVisuals) {
-            drawWorldOverlays(presentationSnapshot, lighting);
-            drawPresentationEffects(camera, lighting);
-        }
-        EndMode3D();
-        performanceStats_.overlayRender.sample(
-            performanceMilliseconds(overlayStart));
-
-        auto healthBarSnapshot = feedbackSnapshot;
-        if (!healthBarSnapshot.aimedBuilding &&
-            recentlyDamagedBuilding_ &&
-            damagedBuildingHealthBarRemaining_ > 0.0) {
-            const bool isBuilding =
-                std::any_of(
-                    healthBarSnapshot.buildings.begin(),
-                    healthBarSnapshot.buildings.end(),
-                    [this](
-                        const BuildingInstance& building) {
-                        return building.id ==
-                               *recentlyDamagedBuilding_;
-                    });
-            if (isBuilding) {
-                healthBarSnapshot.aimedBuilding =
-                    recentlyDamagedBuilding_;
-            } else {
-                const bool isModular =
-                    std::any_of(
-                        healthBarSnapshot.platformFrames.begin(),
-                        healthBarSnapshot.platformFrames.end(),
-                        [this](
-                            const PlatformFrameInstance& frame) {
-                            return frame.id ==
-                                   *recentlyDamagedBuilding_;
-                        }) ||
-                    std::any_of(
-                        healthBarSnapshot.modularWalls.begin(),
-                        healthBarSnapshot.modularWalls.end(),
-                        [this](const WallInstance& wall) {
-                            return wall.id ==
-                                   *recentlyDamagedBuilding_;
-                        }) ||
-                    std::any_of(
-                        healthBarSnapshot.ramps.begin(),
-                        healthBarSnapshot.ramps.end(),
-                        [this](const RampInstance& ramp) {
-                            return ramp.id ==
-                                   *recentlyDamagedBuilding_;
-                        });
-                if (isModular) {
-                    healthBarSnapshot
-                        .aimedModularBuilding =
-                        recentlyDamagedBuilding_;
-                }
-            }
-        }
-        renderer_->endGpuTimer(RendererGpuStage::World);
-        renderer_->beginGpuTimer(RendererGpuStage::PostProcess);
-        const auto postProcessStart = PerformanceClock::now();
-        renderer_->endWorldPass();
-        performanceStats_.postProcess.sample(
-            performanceMilliseconds(postProcessStart));
-
-        // Selection is a readability overlay. Composite it after the world
-        // ink pass so black contours from background objects cannot overwrite
-        // the white interaction silhouette.
-        if constexpr (!MinimalWorldVisuals) {
-            renderer_->drawSelectionOutline();
-            // Crack sprites are projected from their world-space tangent
-            // planes after ink/selection composition. They therefore cannot
-            // inherit world outlines while the viewmodel still covers them.
-            drawStoneCrackOverlays(camera);
-        }
-        renderer_->endGpuTimer(RendererGpuStage::PostProcess);
-
-        uiStart = PerformanceClock::now();
-
-        const bool tuningPreview =
-            renderer_->graphicsPanelVisible() &&
-            graphicsPanelTab_ == ToolSettingsTab;
-        const bool showFirstPersonTool =
-            (tuningPreview ||
-             displayedToolVisual_ != FirstPersonToolVisual::None) &&
-            (tuningPreview || actionModeUsesEquipment(actionMode_)) &&
-            !hudHidden_ &&
-            !snapshot.selectedBuilding &&
-            !foundationBuildMode_ &&
-            !snapshot.playerRespawning;
-        const auto viewModelStart = PerformanceClock::now();
-        if (showFirstPersonTool) {
-            FirstPersonToolVisual toolVisual =
-                displayedToolVisual_;
-            const float swingProgress =
-                toolSwingRemaining_ > 0.0 &&
-                        toolSwingDuration_ > 0.0
-                    ? std::clamp(
-                          static_cast<float>(
-                              1.0 - toolSwingRemaining_ /
-                                        toolSwingDuration_),
-                          0.0F, 1.0F)
-                    : 0.0F;
-            const bool fireWand =
-                toolVisual == FirstPersonToolVisual::FireWand;
-            const bool elementalWand = fireWand ||
-                toolVisual == FirstPersonToolVisual::IceWand;
-            const double wandChargeDuration = fireWand
-                ? snapshot.fireWandChargeDuration
-                : snapshot.iceWandChargeDuration;
-            const double wandChargeRemaining = fireWand
-                ? snapshot.fireWandChargeRemaining
-                : snapshot.iceWandChargeRemaining;
-            const float iceChargeProgress =
-                elementalWand && wandChargeDuration > 0.0
-                    ? std::clamp(static_cast<float>(
-                          1.0 - wandChargeRemaining /
-                              wandChargeDuration), 0.0F, 1.0F)
-                    : 0.0F;
-            const float iceRecoilProgress =
-                elementalWand &&
-                        iceWandRecoilDuration_ > 0.0
-                    ? std::clamp(static_cast<float>(
-                          iceWandRecoilRemaining_ /
-                              iceWandRecoilDuration_), 0.0F, 1.0F)
-                    : 0.0F;
-            const Camera3D viewModelCamera{
-                .position = {},
-                .target = {0.0F, 0.0F, -1.0F},
-                .up = {0.0F, 1.0F, 0.0F},
-                .fovy = 58.0F,
-                .projection = CAMERA_PERSPECTIVE,
-            };
-            FirstPersonToolTuning renderTuning = activeToolTuning();
-            if (toolSwapRemaining_ > 0.0 &&
-                toolSwapDuration_ > 0.0) {
-                const float progress = std::clamp(
-                    static_cast<float>(
-                        1.0 - toolSwapRemaining_ /
-                                  toolSwapDuration_),
-                    0.0F, 1.0F);
-                const float hideFraction =
-                    static_cast<float>(ToolSwapHideFraction);
-                const float phase = progress < hideFraction
-                    ? progress / hideFraction
-                    : (1.0F - progress) /
-                          (1.0F - hideFraction);
-                const float clampedPhase =
-                    std::clamp(phase, 0.0F, 1.0F);
-                const float smooth =
-                    clampedPhase * clampedPhase *
-                    clampedPhase *
-                    (clampedPhase *
-                         (clampedPhase * 6.0F - 15.0F) +
-                     10.0F);
-                renderTuning.position.y -=
-                    activeToolTuning().swapDrop * smooth;
-            }
-            if (renderer_->beginFirstPersonToolPass()) {
-                BeginMode3D(viewModelCamera);
-                renderer_->beginGpuTimer(
-                    RendererGpuStage::ViewModelTarget);
-                static_cast<void>(renderer_->drawFirstPersonTool(
-                    toolVisual,
-                    swingProgress,
-                    static_cast<float>(cameraBobPhase_),
-                    static_cast<float>(cameraBobAmount_),
-                    renderTuning,
-                    iceChargeProgress,
-                    iceRecoilProgress));
-                renderer_->endGpuTimer(
-                    RendererGpuStage::ViewModelTarget);
-                EndMode3D();
-                renderer_->beginGpuTimer(
-                    RendererGpuStage::ViewModelComposite);
-                renderer_->endFirstPersonToolPass(
-                    activeToolTuning(), &lighting);
-                renderer_->endGpuTimer(
-                    RendererGpuStage::ViewModelComposite);
-            }
-        }
-        viewModelMilliseconds =
-            performanceMilliseconds(viewModelStart);
-        renderer_->beginGpuTimer(RendererGpuStage::Ui);
-
-        // World-space UI is composited after post-processing so health bars,
-        // levels and production rewards remain crisp above pixelization.
-        const auto worldUiStart = PerformanceClock::now();
-        if (!hudHidden_) {
-            BeginMode3D(camera);
-            // These are overlays. Keeping them out of the depth buffer also
-            // prevents the viewmodel's independent camera depth from affecting
-            // their visibility.
-            rlDisableDepthTest();
-            targetHealthBar_.draw(
-                healthBarSnapshot, camera,
-                simulation_.terrain(),
-                [this](const EnemyInstance& enemy)
-                    -> std::optional<BoundingBox> {
-                    Vector3 position = enemyRenderPosition(enemy);
-                    position.y += static_cast<float>(
-                        simulation_.terrain().getHeight(
-                            enemy.position.x, enemy.position.z));
-                    const BoundingBox bounds = renderer_->enemyWorldBounds(
-                        enemyModelVisual(enemy.type), position,
-                        static_cast<float>(enemy.yaw),
-                        enemyVisualScale(enemy.type) *
-                            (enemy.eliteAffixes != 0U
-                                ? 1.08F : 1.0F));
-                    return world_transforms::finite(bounds)
-                        ? std::optional<BoundingBox>{bounds}
-                        : std::nullopt;
-                });
-            drawProductionVisuals(camera);
-            rlEnableDepthTest();
-            EndMode3D();
-        }
-        worldUiMilliseconds =
-            performanceMilliseconds(worldUiStart);
-
-        if (iceImpactFlashRemaining_ > 0.0 &&
-            !userSettings_.accessibility.reduceFlashes) {
-            const auto alpha = static_cast<unsigned char>(
-                std::clamp(95.0 * iceImpactFlashRemaining_ / 0.10,
-                           0.0, 95.0));
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                          {142, 229, 255, alpha});
-        }
-        if (!hudHidden_) drawFloatingDamageNumbers(camera);
-        if (showTerrainWireframe_) {
-            drawUiText(
-                TextFormat(
-                    "TERRAIN SEED: %u  CTRL+F7 SAME  CTRL+F9 NEW",
-                    snapshot.terrainSeed),
-                {24.0F,
-                 static_cast<float>(
-                     GetScreenHeight()) -
-                     44.0F},
-                16.0F, {245, 224, 154, 235});
-        }
-        if (showColliders_) {
-            for (const SharedSupport& support :
-                 snapshot.sharedSupports) {
-                if (!support.active) {
-                    continue;
-                }
-                const Vector2 screen =
-                    GetWorldToScreen(
-                        {
-                            static_cast<float>(
-                                support.top.x),
-                            static_cast<float>(
-                                support.top.y + 0.18),
-                            static_cast<float>(
-                                support.top.z),
-                        },
-                        camera);
-                if (screen.x < 0.0F ||
-                    screen.y < 0.0F ||
-                    screen.x >
-                        static_cast<float>(
-                            GetScreenWidth()) ||
-                    screen.y >
-                        static_cast<float>(
-                            GetScreenHeight())) {
-                    continue;
-                }
-                drawUiText(
-                    TextFormat(
-                        "S%u x%u", support.id,
-                        support.referenceCount),
-                    screen, 12.0F,
-                    {255, 213, 91, 235});
-            }
-        }
-
-        // Interaction prompts use a world anchor but are composited in
-        // screen space after the 3D/post-process passes.
-        const auto interactionPromptStart = PerformanceClock::now();
-        if (!hudHidden_) {
-            interactionPromptRenderer_.draw(
-                buildInteractionPrompt(feedbackSnapshot, camera), camera,
-                ui_, userSettings_.controls);
-        }
-        interactionPromptMilliseconds =
-            performanceMilliseconds(interactionPromptStart);
-
-        auto hudSnapshot = presentationSnapshot;
-        bool showBuildingContextCard =
-            buildingContextCardTarget_.has_value();
-        if (buildingContextCardTarget_) {
-            const auto pinned = std::find_if(
-                snapshot.buildings.begin(),
-                snapshot.buildings.end(),
-                [this](const BuildingInstance& candidate) {
-                    return candidate.id ==
-                           *buildingContextCardTarget_;
-                });
-            if (pinned == snapshot.buildings.end()) {
-                buildingContextCardTarget_.reset();
-                buildingContextCardUpgradeCost_.reset();
-                buildingContextCardStats_.reset();
-                showBuildingContextCard = false;
-            } else {
-                hudSnapshot.aimedBuilding =
-                    buildingContextCardTarget_;
-                hudSnapshot.aimedBuildingUpgradeCost =
-                    buildingContextCardUpgradeCost_;
-                hudSnapshot.aimedBuildingStats =
-                    buildingContextCardStats_;
-            }
-        }
-        const auto hudCoreStart = PerformanceClock::now();
-        if (!hudHidden_) {
-            beginSdfUiTextBatch();
-            const auto targetHealthStart = PerformanceClock::now();
-            targetHealthBar_.drawScreenOverlay();
-            hudTargetHealthMilliseconds =
-                performanceMilliseconds(targetHealthStart);
-            drawHud(ui_, hudSnapshot,
-            {
-                    .damageIndicators = damageIndicators_,
-                    .statusMessage = statusMessage_,
-                    .statusMessageRemaining = statusMessageRemaining_,
-                    .actionMode = actionMode_,
-                    .foundationBuildMode =
-                        foundationBuildMode_,
-                    .selectedModularBuildPiece =
-                        static_cast<std::size_t>(
-                            modularBuildPiece_),
-                    .buildingHotbarCategory =
-                        buildingHotbarCategory_,
-                    .buildHotbarSelectionPosition =
-                        buildHotbarSelectionPosition_,
-                    .buildHotbarSelectionAlpha =
-                        buildHotbarSelectionAlpha_,
-                    .foundationHotbarSelectionPosition =
-                        foundationHotbarSelectionPosition_,
-                    .foundationHotbarSelectionAlpha =
-                        foundationHotbarSelectionAlpha_,
-                    .weaponHotbarSelectionPosition =
-                        weaponHotbarSelectionPosition_,
-                    .weaponHotbarSelectionAlpha =
-                        weaponHotbarSelectionAlpha_,
-                    .informationExpansion =
-                        minimapExpansion_,
-                    .mapOverlayOpen =
-                        minimapExpansion_ > 0.01F,
-                    .minimapHidden = false,
-                    .showFps =
-                        userSettings_.accessibility.showFps,
-                    .showCoreHealth =
-                        presentationSnapshot.state == RunState::Wave ||
-                        presentationSnapshot.state == RunState::Sunset ||
-                        (presentationSnapshot.coreMaxHealth > 0.0 &&
-                         presentationSnapshot.coreHealth <
-                             presentationSnapshot.coreMaxHealth) ||
-                        (presentationSnapshot.coreId &&
-                         recentlyDamagedBuilding_ ==
-                             presentationSnapshot.coreId &&
-                         damagedBuildingHealthBarRemaining_ > 0.0),
-                    .playerHealthTrail =
-                        displayedPlayerHealthTrail_,
-                    .playerDamagePulse = static_cast<float>(
-                        std::clamp(
-                            playerDamageFlashRemaining_ / 0.18,
-                            0.0, 1.0)),
-                    .showBuildingContextCard =
-                        showBuildingContextCard,
-                    .repairSweepActive =
-                        repairSweepActive_,
-                    .woodResourcePop =
-                        woodHudBounceRemaining_ > 0.0
-                            ? static_cast<float>(
-                                  std::sin(
-                                      (1.0 -
-                                       woodHudBounceRemaining_ /
-                                           0.28) *
-                                      PI))
-                            : 0.0F,
-                    .stoneResourcePop =
-                        stoneHudBounceRemaining_ > 0.0
-                            ? static_cast<float>(
-                                  std::sin(
-                                      (1.0 -
-                                       stoneHudBounceRemaining_ /
-                                           0.28) *
-                                      PI))
-                            : 0.0F,
-                    .crystalResourcePop =
-                        crystalHudBounceRemaining_ > 0.0
-                            ? static_cast<float>(
-                                  std::sin(
-                                      (1.0 -
-                                       crystalHudBounceRemaining_ /
-                                           0.28) *
-                                      PI))
-                            : 0.0F,
-                    .coinResourcePop =
-                        coinHudBounceRemaining_ > 0.0
-                            ? static_cast<float>(
-                                  std::sin(
-                                      (1.0 -
-                                       coinHudBounceRemaining_ /
-                                           0.32) *
-                                      PI))
-                            : 0.0F,
-                    .displayedWood = woodHudCounter_.displayed,
-                    .displayedStone = stoneHudCounter_.displayed,
-                    .displayedCrystals = crystalHudCounter_.displayed,
-                    .displayedCoins = coinHudCounter_.displayed,
-                    .displayedInsight = displayedInsight_,
-                    .insightPulse = insightPulseRemaining_ > 0.0
-                        ? insightPulseRemaining_ / insightPulseDuration_ : 0.0,
-                    .treePointPulse = insightPointSequenceRemaining_ > 0.0
-                        ? std::sin((1.0 - insightPointSequenceRemaining_ /
-                            insightPointSequenceDuration_) * PI) : 0.0,
-                    .objectivePulseId = objectivePulseId_,
-                    .objectivePulse = objectivePulseRemaining_ > 0.0
-                        ? objectivePulseRemaining_ /
-                              objectivePulseDuration_
-                        : 0.0,
-                    .crosshairHitRemaining =
-                        crosshairHitRemaining_,
-                    .crosshairHitDuration =
-                        crosshairHitDuration_,
-                    .crosshairHitCritical =
-                        crosshairHitCritical_,
-                    .invalidActionRemaining =
-                        invalidActionRemaining_,
-                    .weaponRecoilAmount =
-                        weaponRecoilRemaining_ > 0.0 &&
-                                weaponRecoilDuration_ > 0.0
-                            ? std::sin(
-                                  static_cast<float>(
-                                      (1.0 -
-                                       weaponRecoilRemaining_ /
-                                           weaponRecoilDuration_) *
-                                      PI)) *
-                                  weaponRecoilStrength_ /
-                                  0.11F
-                            : 0.0F,
-                    .buildingStatsUpgradeEntity =
-                        buildingStatsUpgradeEntity_,
-                    .buildingStatsUpgradeRemaining =
-                        buildingStatsUpgradeRemaining_,
-                    .buildingStatsUpgradeDuration =
-                        buildingStatsUpgradeDuration_,
-            },
-                camera, userSettings_.controls);
-            const auto& hudTimings = hudRenderPerformanceStats();
-            hudResourcesMilliseconds = hudTimings.resourcesMs;
-            hudVitalityMilliseconds = hudTimings.vitalityMs;
-            hudInformationMilliseconds = hudTimings.informationMs;
-            hudObjectivesMilliseconds = hudTimings.objectivesMs;
-            hudLootMilliseconds = hudTimings.lootMs;
-            hudPhaseMilliseconds = hudTimings.phaseMs;
-            hudHotbarMilliseconds = hudTimings.hotbarMs;
-            hudFeedbackMilliseconds = hudTimings.feedbackMs;
-            const auto textFlushStart = PerformanceClock::now();
-            endSdfUiTextBatch();
-            hudTextFlushMilliseconds =
-                performanceMilliseconds(textFlushStart);
-        }
-        hudCoreMilliseconds =
-            performanceMilliseconds(hudCoreStart);
-        if (!hudHidden_ && foundationBuildMode_) {
-            const char* pieceName = "FOUNDATION 2x2";
-            int previewStorey = 0;
-            bool previewValid = false;
-            std::size_t plannedCount = 1U;
-            std::optional<ModularPlacementError>
-                previewError;
-            switch (modularBuildPiece_) {
-            case ModularBuildPiece::Foundation:
-            case ModularBuildPiece::FloorPlatform:
-                pieceName =
-                    modularBuildPiece_ ==
-                            ModularBuildPiece::Foundation
-                        ? "FOUNDATION 2x2"
-                        : "FLOOR PLATFORM 2x2";
-                if (platformFramePreview_) {
-                    previewValid =
-                        platformFramePreview_->valid();
-                    previewError =
-                        platformFramePreview_->error;
-                    previewStorey =
-                        platformFramePreview_->storey;
-                }
-                if (!modularPlatformDragPreviews_.empty()) {
-                    plannedCount =
-                        modularPlatformDragPreviews_.size();
-                    previewStorey =
-                        modularPlatformDragPreviews_
-                            .front()
-                            .storey;
-                    const auto invalid = std::find_if(
-                        modularPlatformDragPreviews_.begin(),
-                        modularPlatformDragPreviews_.end(),
-                        [](const PlatformFramePlacement&
-                               placement) {
-                            return !placement.valid();
-                        });
-                    previewValid =
-                        invalid ==
-                        modularPlatformDragPreviews_.end();
-                    previewError =
-                        previewValid
-                            ? ModularPlacementError::None
-                            : invalid->error;
-                }
-                break;
-            case ModularBuildPiece::Wall:
-                pieceName = "WALL";
-                if (wallPreview_) {
-                    previewValid =
-                        wallPreview_->valid();
-                    previewError =
-                        wallPreview_->error;
-                    previewStorey =
-                        wallPreview_->storey;
-                }
-                if (!modularWallDragPreviews_.empty()) {
-                    plannedCount =
-                        modularWallDragPreviews_.size();
-                    previewStorey =
-                        modularWallDragPreviews_
-                            .front()
-                            .storey;
-                    const auto invalid = std::find_if(
-                        modularWallDragPreviews_.begin(),
-                        modularWallDragPreviews_.end(),
-                        [](const WallPlacement& placement) {
-                            return !placement.valid();
-                        });
-                    previewValid =
-                        invalid ==
-                        modularWallDragPreviews_.end();
-                    previewError =
-                        previewValid
-                            ? ModularPlacementError::None
-                            : invalid->error;
-                }
-                break;
-            case ModularBuildPiece::Ramp:
-                pieceName = "RAMP";
-                if (rampPreview_) {
-                    previewValid =
-                        rampPreview_->valid();
-                    previewError =
-                        rampPreview_->error;
-                    previewStorey =
-                        rampPreview_->targetStorey;
-                }
-                if (!modularRampDragPreviews_.empty()) {
-                    plannedCount =
-                        modularRampDragPreviews_.size();
-                    previewStorey =
-                        modularRampDragPreviews_
-                            .front()
-                            .targetStorey;
-                    const auto invalid = std::find_if(
-                        modularRampDragPreviews_.begin(),
-                        modularRampDragPreviews_.end(),
-                        [](const RampPlacement& placement) {
-                            return !placement.valid();
-                        });
-                    previewValid =
-                        invalid ==
-                        modularRampDragPreviews_.end();
-                    previewError =
-                        previewValid
-                            ? ModularPlacementError::None
-                            : invalid->error;
-                }
-                break;
-            }
-            std::string pieceLabel = pieceName;
-            if (modularDragPiece_) {
-                pieceLabel += " x" +
-                    std::to_string(plannedCount);
-            }
-            std::string foundationHint =
-                pieceLabel + "   LEVEL " +
-                std::to_string(previewStorey);
-            const Color messageColor =
-                previewValid
-                    ? Color{126, 239, 151, 255}
-                    : Color{246, 112, 94, 255};
-            drawCenteredUiText(
-                foundationHint,
-                static_cast<float>(
-                    GetScreenHeight() / 2 + 76),
-                18.0F, {245, 235, 214, 245});
-            drawCenteredUiText(
-                modularBuildPiece_ ==
-                            ModularBuildPiece::
-                                FloorPlatform &&
-                        !previewError
-                    ? "AIM AT PLATFORM OR RAMP"
-                    : modularPlacementMessage(
-                          previewError),
-                static_cast<float>(
-                    GetScreenHeight() / 2 + 102),
-                18.0F, messageColor);
-            if (modularDragPiece_) {
-                const ResourceCost cost =
-                    snapshot.modularBuildingCosts[
-                        static_cast<std::size_t>(
-                            *modularDragPiece_)];
-                const int count =
-                    static_cast<int>(plannedCount);
-                const std::string lineCost =
-                    std::to_string(count) +
-                    " PIECES    W:" +
-                    std::to_string(cost.wood * count) +
-                    "  S:" +
-                    std::to_string(cost.stone * count) +
-                    "  C:" +
-                    std::to_string(cost.crystals * count);
-                constexpr float Width = 470.0F;
-                const float x =
-                    static_cast<float>(GetScreenWidth()) *
-                        0.5F -
-                    Width * 0.5F;
-                const float y =
-                    static_cast<float>(GetScreenHeight()) *
-                        0.5F +
-                    130.0F;
-                ui_.drawPanel(
-                    {x, y, Width, 54.0F}, 230);
-                const float fontSize = fitUiTextSize(
-                    lineCost, 15.0F, 9.0F, Width - 24.0F);
-                const float textWidth =
-                    measureUiText(lineCost, fontSize).x;
-                drawUiText(
-                    lineCost,
-                    {x + (Width - textWidth) * 0.5F,
-                     y + 12.0F},
-                    fontSize, {255, 235, 184, 255});
-            }
-        }
-        if (!hudHidden_ && wallDragStart_ && wallDragEnd_ &&
-            placementDragType_) {
-            const auto cells =
-                placementLine(
-                    *placementDragType_, *wallDragStart_,
-                    *wallDragEnd_, placementDragAxis_);
-            const ResourceCost buildingCost =
-                snapshot.buildingCosts[
-                    static_cast<std::size_t>(
-                        *placementDragType_)];
-            const int count =
-                static_cast<int>(cells.size());
-            const std::string lineCost =
-                std::to_string(count) +
-                " BUILDINGS    W:" +
-                std::to_string(buildingCost.wood * count) +
-                "  S:" +
-                std::to_string(buildingCost.stone * count) +
-                "  C:" +
-                std::to_string(buildingCost.crystals * count);
-            constexpr float Width = 470.0F;
-            const float x =
-                static_cast<float>(GetScreenWidth()) * 0.5F -
-                Width * 0.5F;
-            const float y =
-                static_cast<float>(GetScreenHeight()) * 0.5F +
-                104.0F;
-            ui_.drawPanel({x, y, Width, 58.0F}, 230);
-            const float fontSize = fitUiTextSize(
-                lineCost, 15.0F, 9.0F, Width - 24.0F);
-            const float textWidth =
-                measureUiText(lineCost, fontSize).x;
-            drawUiText(
-                lineCost,
-                {x + (Width - textWidth) * 0.5F,
-                 y + 14.0F},
-                fontSize, {255, 235, 184, 255});
-        }
-        if (!hudHidden_ && removalDragActive_) {
-            const std::string removalHint =
-                "REMOVE x" +
-                std::to_string(
-                    removalDragTargets_.size()) +
-                "   RELEASE X TO CONFIRM";
-            drawCenteredUiText(
-                removalHint,
-                static_cast<float>(
-                    GetScreenHeight() / 2 + 76),
-                20.0F, {255, 104, 91, 255});
-        }
-        if (!hudHidden_ && removalDragActive_ &&
-            !structuralRiskIds_.empty()) {
-            drawCenteredUiText(
-                "COLLAPSE RISK: " +
-                    std::to_string(
-                        structuralRiskIds_.size()) +
-                    " DEPENDENT PARTS",
-                static_cast<float>(
-                    GetScreenHeight() / 2 +
-                    (removalDragActive_ ? 106 : 132)),
-                17.0F, {255, 197, 82, 255});
-        }
-        const auto resourceGainStart = PerformanceClock::now();
-        if (!hudHidden_) drawResourceGainVisuals(camera);
-        resourceGainMilliseconds =
-            performanceMilliseconds(resourceGainStart);
-
-        const auto minimapStart = PerformanceClock::now();
-        if (!hudHidden_) {
-            drawMinimapHud(
-                ui_, presentationSnapshot,
-                minimapExpansion_,
-                userSettings_.accessibility.showFps ? 56.0F : 20.0F);
-            const auto& minimapTimings =
-                minimapRenderPerformanceStats();
-            minimapSetupMilliseconds = minimapTimings.setupMs;
-            minimapTargetRefreshMilliseconds =
-                minimapTimings.targetRefreshMs;
-            minimapFrameMilliseconds = minimapTimings.frameMs;
-            minimapLabelsMilliseconds = minimapTimings.labelsMs;
-        }
-        minimapMilliseconds =
-            performanceMilliseconds(minimapStart);
-
-        const auto uiOverlaysStart = PerformanceClock::now();
-        const bool unobscuredColorPreview =
-            renderer_->graphicsPanelVisible() &&
-            graphicsPanelTab_ == ColorSettingsTab;
-        if (!unobscuredColorPreview) {
-            drawRunStateOverlay(snapshot);
-        }
-        drawRunUpgradeOverlay(
-            ui_, snapshot,
-            runUpgradeOverlayEntranceSeconds_,
-            runUpgradeOverlayExitSeconds_,
-            runUpgradePendingChoice_,
-            runUpgradeCardHoverAmounts_);
-        if (snapshot.state == RunState::Paused &&
-            !renderer_->graphicsPanelVisible()) {
-            const float centerX =
-                static_cast<float>(GetScreenWidth()) * 0.5F;
-            const float centerY =
-                static_cast<float>(GetScreenHeight()) * 0.5F;
-            ui_.drawPanel(
-                {centerX - 260.0F, centerY - 252.0F,
-                 520.0F, 504.0F}, 250);
-            float menuY = centerY - 144.0F;
-            pendingResumeFromUi_ =
-                ui_.drawButton(
-                    {centerX - 190.0F, menuY,
-                     380.0F, 58.0F},
-                    "RESUME") ||
-                pendingResumeFromUi_;
-            menuY += 70.0F;
-            if (ui_.drawButton(
-                    {centerX - 190.0F, menuY,
-                     380.0F, 58.0F},
-                    "SETTINGS")) {
-                renderer_->setGraphicsPanelVisible(true);
-            }
-            menuY += 70.0F;
-            pendingRestartFromUi_ =
-                ui_.drawButton(
-                    {centerX - 190.0F, menuY,
-                     380.0F, 58.0F},
-                    "RESTART RUN") ||
-                pendingRestartFromUi_;
-            menuY += 70.0F;
-            pendingReturnToMenuFromUi_ =
-                ui_.drawButton(
-                    {centerX - 190.0F, menuY,
-                     380.0F, 58.0F},
-                    snapshot.sandboxMode
-                        ? "MAIN MENU"
-                        : "SAVE & MAIN MENU") ||
-                pendingReturnToMenuFromUi_;
-            menuY += 70.0F;
-            if (ui_.drawButton(
-                    {centerX - 190.0F, menuY,
-                     380.0F, 58.0F},
-                    snapshot.sandboxMode
-                        ? "EXIT"
-                        : "SAVE & EXIT")) {
-                if (snapshot.sandboxMode || saveSuspendedRun()) {
-                    exitRequested_ = true;
-                } else {
-                    audio_.playUiError();
-                }
-            }
-        }
-        uiOverlaysMilliseconds +=
-            performanceMilliseconds(uiOverlaysStart);
+        renderGameplayFrame(
+            snapshot, presentationSnapshot, feedbackSnapshot,
+            pinnedOrdinaryBuilding, pinnedModularBuilding,
+            renderPreparationStart, timings);
     }
 
     const auto commonUiOverlaysStart = PerformanceClock::now();

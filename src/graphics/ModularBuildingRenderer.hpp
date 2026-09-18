@@ -4,8 +4,21 @@
 
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace ian {
+
+[[nodiscard]] std::vector<std::array<bool, 4>>
+platformSupportVisibilityMasks(
+    std::span<const PlatformFrameInstance> platformFrames,
+    std::span<const SharedSupport> sharedSupports);
+[[nodiscard]] std::vector<std::array<double, 4>>
+platformSupportVisualLengths(
+    std::span<const PlatformFrameInstance> platformFrames,
+    std::span<const SharedSupport> sharedSupports);
+[[nodiscard]] std::vector<std::array<bool, 4>>
+platformEdgeVisibilityMasks(
+    std::span<const PlatformFrameInstance> platformFrames);
 
 class Renderer;
 
@@ -47,6 +60,11 @@ struct ModularBuildingView {
     std::optional<Vec3> cameraPosition;
     Vec3 cameraForward{};
     double maximumDrawDistance{};
+    // A selection pass may draw only one frame, but its silhouette still
+    // depends on neighbours and shared supports from the complete structure.
+    std::span<const PlatformFrameInstance>
+        platformVisibilityContext;
+    std::span<const SharedSupport> sharedSupportVisibilityContext;
 };
 
 struct ModularBuildingPreviewView {
@@ -61,6 +79,7 @@ struct ModularBuildingPreviewView {
     double maximumWoodSupportLength{2.4};
     std::optional<float> rotationYaw;
     const Vec3* visualOrigin{};
+    const Vec3* visualOffset{};
 };
 
 class ModularBuildingRenderer {

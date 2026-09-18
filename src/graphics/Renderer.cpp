@@ -68,7 +68,66 @@ void Renderer::initialize() {
     shutdown();
     enemyCrowdLodModel_ = LoadModelFromMesh(
         GenMeshSphere(0.5F, 6, 4));
+    Mesh rampSupportBeamMesh =
+        GenMeshCube(0.16F, 4.0F, 0.16F);
+    for (int vertex = 0;
+         vertex < rampSupportBeamMesh.vertexCount;
+         ++vertex) {
+        const int coordinate = vertex * 3;
+        float& y = rampSupportBeamMesh
+                       .vertices[coordinate + 1];
+        const float z = rampSupportBeamMesh
+                            .vertices[coordinate + 2];
+        if (y > 0.0F) {
+            // Match the 1:1 ramp slope and leave a narrow seam below
+            // the deck instead of letting a flat post pierce it.
+            y = 3.82F + z;
+            if (rampSupportBeamMesh
+                    .normals[coordinate + 1] > 0.5F) {
+                rampSupportBeamMesh.normals[coordinate] =
+                    0.0F;
+                rampSupportBeamMesh
+                    .normals[coordinate + 1] =
+                    0.70710678F;
+                rampSupportBeamMesh
+                    .normals[coordinate + 2] =
+                    -0.70710678F;
+            }
+        } else {
+            y += 2.0F;
+        }
+        // The ramp atlas is a palette strip. Sampling its middle wood
+        // swatch makes the posts use exactly the same material as the deck.
+        rampSupportBeamMesh.texcoords[vertex * 2] =
+            0.59375F;
+        rampSupportBeamMesh.texcoords[vertex * 2 + 1] =
+            0.875F;
+    }
+    UpdateMeshBuffer(
+        rampSupportBeamMesh,
+        RL_DEFAULT_SHADER_ATTRIB_LOCATION_POSITION,
+        rampSupportBeamMesh.vertices,
+        rampSupportBeamMesh.vertexCount * 3 *
+            static_cast<int>(sizeof(float)),
+        0);
+    UpdateMeshBuffer(
+        rampSupportBeamMesh,
+        RL_DEFAULT_SHADER_ATTRIB_LOCATION_TEXCOORD,
+        rampSupportBeamMesh.texcoords,
+        rampSupportBeamMesh.vertexCount * 2 *
+            static_cast<int>(sizeof(float)),
+        0);
+    UpdateMeshBuffer(
+        rampSupportBeamMesh,
+        RL_DEFAULT_SHADER_ATTRIB_LOCATION_NORMAL,
+        rampSupportBeamMesh.normals,
+        rampSupportBeamMesh.vertexCount * 3 *
+            static_cast<int>(sizeof(float)),
+        0);
+    rampSupportBeamModel_ = LoadModelFromMesh(
+        rampSupportBeamMesh);
     resources_.initialize(settings_);
+    initializePlatformTopPartMeshes();
     resolveWorldShaderLocations();
     resolveSkyShaderLocations();
     resolvePostProcessLocations();
@@ -170,6 +229,11 @@ void Renderer::shutdown() {
         UnloadModel(enemyCrowdLodModel_);
     }
     enemyCrowdLodModel_ = {};
+    if (IsModelValid(rampSupportBeamModel_)) {
+        UnloadModel(rampSupportBeamModel_);
+    }
+    rampSupportBeamModel_ = {};
+    shutdownPlatformTopPartMeshes();
     instanceBuffers_.shutdown();
     terrainRenderer_.shutdown();
     resources_.shutdown();

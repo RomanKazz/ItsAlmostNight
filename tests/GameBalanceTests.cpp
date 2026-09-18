@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "buildings/CoreProgression.hpp"
 #include "combat/BombSystem.hpp"
 #include "combat/PlayerWeaponSystem.hpp"
 #include "economy/CrystalMineSystem.hpp"
@@ -20,6 +21,32 @@ void runGameBalanceTests() {
             assetBalance.balance.modularBuildings[1].stone == 10 &&
             assetBalance.balance.modularBuildings[2].wood == 16,
         "asset balance exposes modular construction prices");
+    constexpr std::array ActiveProgressionBuildings{
+        ian::BuildingType::Wall,
+        ian::BuildingType::Turret,
+        ian::BuildingType::CrystalMine,
+        ian::BuildingType::Cannon,
+        ian::BuildingType::SlowTrap,
+        ian::BuildingType::Gate,
+        ian::BuildingType::LumberMill,
+        ian::BuildingType::Quarry,
+        ian::BuildingType::SpikeTrap,
+        ian::BuildingType::GunTurret,
+        ian::BuildingType::Catapult,
+    };
+    for (const auto type : ActiveProgressionBuildings) {
+        require(
+            assetBalance.balance.buildings[static_cast<std::size_t>(type)]
+                    .unlockCoreLevel ==
+                ian::buildingRequiredCoreLevel(type),
+            "asset and runtime building unlock levels stay synchronized");
+    }
+    require(
+        assetBalance.balance.buildings[static_cast<std::size_t>(
+            ian::BuildingType::LumberMill)].crystals == 0 &&
+            assetBalance.balance.buildings[static_cast<std::size_t>(
+                ian::BuildingType::Quarry)].crystals == 0,
+        "level-two producers remain affordable after the Core upgrade");
     require(
         assetBalance.balance.enemies[static_cast<std::size_t>(
             ian::EnemyType::Basic)].damage == 15.0 &&
@@ -31,7 +58,10 @@ void runGameBalanceTests() {
     require(
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
             assetBalance.balance.gameplay.pickaxeRange == 4.0 &&
-            assetBalance.balance.gameplay.nightDurationSeconds == 90.0 &&
+            assetBalance.balance.gameplay.nightDurationSeconds == 75.0 &&
+            assetBalance.balance.gameplay.firstNightDurationSeconds == 60.0 &&
+            assetBalance.balance.gameplay.nightDurationGrowthSeconds == 5.0 &&
+            assetBalance.balance.gameplay.betweenWaveSeconds == 60.0 &&
             assetBalance.balance.gameplay.resourceToolDamageMultiplier ==
                 0.65,
         "resource gathering range is tuned separately from melee range");

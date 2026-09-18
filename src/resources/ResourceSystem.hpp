@@ -18,7 +18,7 @@ inline constexpr std::size_t TreeVisualVariantCount =
 inline constexpr std::size_t StoneVisualVariantCount = 3U;
 inline constexpr float TreeVisualHeightScale = 0.92F;
 inline constexpr double StoneVisualModelScale = 0.60;
-inline constexpr double CrystalVisualModelScale = 1.55;
+inline constexpr double CrystalVisualModelScale = 1.7825;
 // The authored crystal origin already sits on its bottom surface.
 inline constexpr double CrystalVisualGroundOffset = 0.0;
 inline constexpr std::array<double, StoneVisualVariantCount>

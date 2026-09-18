@@ -2,6 +2,7 @@
 
 #include "core/Types.hpp"
 #include "game/LootChestSystem.hpp"
+#include "resources/ResourceSystem.hpp"
 
 #include <optional>
 
@@ -29,13 +30,9 @@ actionModeLabel(ActionMode mode) {
 enum class PresentationEffectType {
     Hit,
     EnemyHitImpact,
-    ResourceBurst,
-    ResourceHitWood,
-    ResourceHitStone,
-    StoneCrack,
-    StoneChip,
-    ResourceDestroyedWood,
-    ResourceDestroyedStone,
+    ResourceHit,
+    ResourceImpactDecal,
+    ResourceFragment,
     Explosion,
     EnemyBurn,
     SplitBurst,
@@ -69,6 +66,7 @@ struct PresentationEffect {
     int variant{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
+    std::optional<ResourceType> resourceType;
 };
 
 struct DamageIndicator {
@@ -85,6 +83,7 @@ struct ArrowVisual {
     double remaining;
     double duration;
     bool turretBullet{};
+    std::optional<EntityId> flashTarget;
 };
 
 struct FloatingDamageNumber {
@@ -93,6 +92,11 @@ struct FloatingDamageNumber {
     double remaining;
     double duration;
     float horizontalDrift;
+    float verticalRise;
+    float initialRotationDegrees;
+    float rotationTravelDegrees;
+    float scaleVariation;
+    float popOvershoot;
     bool critical;
 };
 

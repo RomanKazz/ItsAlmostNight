@@ -6,6 +6,7 @@
 
 #include <raylib.h>
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -21,6 +22,7 @@ struct HudViewState {
     std::span<const DamageIndicator> damageIndicators;
     std::string_view statusMessage;
     double statusMessageRemaining{};
+    double statusMessageShakeRemaining{};
     ActionMode actionMode{ActionMode::Equipment};
     bool foundationBuildMode{};
     std::size_t selectedModularBuildPiece{};
@@ -54,6 +56,12 @@ struct HudViewState {
     double treePointPulse{};
     std::string_view objectivePulseId;
     double objectivePulse{};
+    float objectiveTrackerExpansion{};
+    std::string_view objectiveCompletionTitle;
+    int objectiveCompletionReward{};
+    double objectiveCompletionProgress{};
+    double insightGainAmount{};
+    double insightGainProgress{};
     double crosshairHitRemaining{};
     double crosshairHitDuration{};
     bool crosshairHitCritical{};
@@ -84,6 +92,8 @@ struct MinimapRenderPerformanceStats {
 
 [[nodiscard]] const HudRenderPerformanceStats&
 hudRenderPerformanceStats() noexcept;
+[[nodiscard]] std::array<Vector2, 4>
+hudResourceIconCenters() noexcept;
 [[nodiscard]] const MinimapRenderPerformanceStats&
 minimapRenderPerformanceStats() noexcept;
 

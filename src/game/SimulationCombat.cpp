@@ -19,6 +19,15 @@ int remainingTimeUnits(double seconds) {
         std::max(0.0, seconds) / SecondsPerReward));
 }
 
+double nightDurationForWave(
+    const GameplayBalanceDefinition& gameplay, int wave) {
+    const double rampedDuration =
+        gameplay.firstNightDurationSeconds +
+        gameplay.nightDurationGrowthSeconds *
+            static_cast<double>(std::max(0, wave - 1));
+    return std::min(gameplay.nightDurationSeconds, rampedDuration);
+}
+
 } // namespace
 
 int Simulation::earlyWaveBonus() const {
@@ -31,7 +40,7 @@ int Simulation::earlyWaveBonus() const {
     return std::min(
         reward,
         std::max(0,
-            resourceCapacity(BuildingType::CrystalStorage) - crystals_));
+            resourceCapacity(ResourceCapacityType::Crystal) - crystals_));
 }
 
 int Simulation::earlyWaveCoinBonus() const {
@@ -68,6 +77,9 @@ void Simulation::updateRunPhase(
         if (((!sandboxMode_ && phaseTimeRemaining_ <= 0.0) ||
              command.startWaveEarly) &&
             buildings_.hasCore()) {
+            // Apply all daytime navigation changes once before enemies can
+            // start using the field.
+            rebuildFlowFieldIfDirty();
             // Preserve the last pre-wave state. Saving during combat returns
             // this checkpoint, so replay cannot keep rewards already earned
             // from the same wave.
@@ -127,7 +139,7 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseTimeRemaining_ = gameplay_.nightDurationSeconds;
+                phaseTimeRemaining_ = nightDurationForWave(gameplay_, wave_);
                 phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,
@@ -149,7 +161,7 @@ void Simulation::updateRunPhase(
                 applyPotionWaveStart();
                 beginPreparedWave();
                 state_ = RunState::Wave;
-                phaseTimeRemaining_ = gameplay_.nightDurationSeconds;
+                phaseTimeRemaining_ = nightDurationForWave(gameplay_, wave_);
                 phaseDuration_ = phaseTimeRemaining_;
                 events_.push_back({
                     .type = GameEventType::WaveStarted,

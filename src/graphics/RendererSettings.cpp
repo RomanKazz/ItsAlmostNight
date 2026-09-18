@@ -4,7 +4,9 @@
 #include <array>
 
 #if defined(__APPLE__)
+#define GL_SILENCE_DEPRECATION
 #include <mach/mach_time.h>
+#include <OpenGL/OpenGL.h>
 #endif
 
 namespace ian {
@@ -61,6 +63,24 @@ void Renderer::applyFrameRateLimit() {
     // Renderer owns presentation pacing. Disable raylib's usleep limiter.
     SetTargetFPS(0);
     ClearWindowState(FLAG_VSYNC_HINT);
+    // FLAG_VSYNC_HINT is primarily a window-creation hint. On macOS,
+    // changing it after InitWindow() does not reliably update the active
+    // CGL swap interval, which can leave Unlimited pinned to ProMotion's
+    // 120 Hz cadence. Set the current context explicitly; finite limits are
+    // still handled by paceFrame() below.
+    if (CGLContextObj context = CGLGetCurrentContext();
+        context != nullptr) {
+        GLint swapInterval = 0;
+        static_cast<void>(CGLSetParameter(
+            context, kCGLCPSwapInterval, &swapInterval));
+        GLint appliedSwapInterval = -1;
+        static_cast<void>(CGLGetParameter(
+            context, kCGLCPSwapInterval, &appliedSwapInterval));
+        TraceLog(
+            LOG_INFO,
+            "DISPLAY: CGL swap interval applied: %d",
+            static_cast<int>(appliedSwapInterval));
+    }
     pacedFrameRate_ = 0;
     frameDeadline_ = 0U;
 #else

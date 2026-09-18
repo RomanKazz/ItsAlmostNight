@@ -2,6 +2,7 @@
 #include "buildings/PlacementValidator.hpp"
 
 #include <algorithm>
+#include <limits>
 
 void runPlacementValidatorTests() {
     ian::WorldConfig config =
@@ -30,6 +31,52 @@ void runPlacementValidatorTests() {
             frame.anchor.z == 4 &&
             frame.storey == 0,
         "ground PlatformFrame snaps to the 2x2 frame grid");
+
+    ian::WorldConfig noisyFlatConfig = config;
+    noisyFlatConfig.terrainAmplitude = 0.0;
+    noisyFlatConfig.coreFlatRadius = 0.0;
+    noisyFlatConfig.terrainBuildPlateauRadius = 2.0;
+    noisyFlatConfig.terrainSurfaceNoiseAmplitude = 0.08;
+    noisyFlatConfig.pondMinimumCount = 0;
+    noisyFlatConfig.pondMaximumCount = 0;
+    noisyFlatConfig.pondMaximumAreaFraction = 0.0;
+    ian::TerrainHeightfield noisyFlatTerrain{
+        noisyFlatConfig};
+    ian::BuildGrid noisyFlatGrid{noisyFlatConfig};
+    ian::PlacementValidator noisyFlatValidator{
+        noisyFlatTerrain, noisyFlatGrid};
+    double lowestVisibleHeight =
+        std::numeric_limits<double>::infinity();
+    double highestVisibleHeight =
+        -std::numeric_limits<double>::infinity();
+    for (int z = -16; z <= 16; z += 2) {
+        for (int x = -16; x <= 16; x += 2) {
+            const double sampleX =
+                static_cast<double>(x) + 0.7;
+            const double sampleZ =
+                static_cast<double>(z) + 1.3;
+            const double visibleHeight =
+                noisyFlatTerrain.getHeight(sampleX, sampleZ);
+            lowestVisibleHeight = std::min(
+                lowestVisibleHeight, visibleHeight);
+            highestVisibleHeight = std::max(
+                highestVisibleHeight, visibleHeight);
+            requireNear(
+                noisyFlatTerrain.getConstructionHeight(
+                    sampleX, sampleZ),
+                0.0, 1e-9,
+                "construction terrain excludes decorative surface noise");
+            requireNear(
+                noisyFlatValidator
+                    .stableGroundPlatformHeight(
+                        {x, 0, z}, 0.05),
+                0.20, 1e-9,
+                "surface noise does not split one flat terrace into different construction heights");
+        }
+    }
+    require(
+        highestVisibleHeight - lowestVisibleHeight > 0.01,
+        "decorative surface noise remains visible on flat terrain");
     require(
         frame.supports[0].top.y ==
                 frame.floorHeight &&

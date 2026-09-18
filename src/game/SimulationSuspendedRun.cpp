@@ -502,6 +502,8 @@ bool Simulation::loadSuspendedRunState(
     waveSpawnTimeRemaining_ = 0.0;
     waveSpawnGroupsDue_ = 0U;
     waveSpawnCycle_ = 0U;
+    waveBossSpawn_.reset();
+    waveSurgeWarningMask_ = 0U;
     waveHealthScale_ = 1.0;
     waveDamageScale_ = 1.0;
     forceWaveCompletion_ = false;

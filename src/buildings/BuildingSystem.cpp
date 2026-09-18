@@ -268,7 +268,6 @@ BuildingLimitCategory buildingLimitCategory(
     case BuildingType::WoodStorage:
     case BuildingType::StoneStorage:
     case BuildingType::CrystalStorage:
-        return BuildingLimitCategory::Storage;
     case BuildingType::Core:
     case BuildingType::Wall:
     case BuildingType::Gate:
@@ -289,7 +288,6 @@ int buildingLimitForCoreLevel(
     case BuildingLimitCategory::Defense:
         return DefenseLimits[index];
     case BuildingLimitCategory::Producer:
-    case BuildingLimitCategory::Storage:
         return PerTypeLimits[index];
     case BuildingLimitCategory::None:
         return std::numeric_limits<int>::max();
@@ -325,21 +323,8 @@ bool buildingBlocksMovement(const BuildingInstance& building) {
            !(building.type == BuildingType::Gate && building.open);
 }
 
-int buildingStorageCapacityPerLevel(BuildingType type) {
-    switch (type) {
-    case BuildingType::WoodStorage:
-        return 150;
-    case BuildingType::StoneStorage:
-        return 120;
-    case BuildingType::CrystalStorage:
-        return 80;
-    default:
-        return 0;
-    }
-}
-
 int coreResourceCapacity(
-    BuildingType storageType, std::uint8_t coreLevel) {
+    ResourceCapacityType resource, std::uint8_t coreLevel) {
     // Each level has enough room to pay for the following Core upgrade.
     // The player inventory before placing the Core remains deliberately
     // smaller and is handled by Simulation::resourceCapacity().
@@ -351,9 +336,12 @@ int coreResourceCapacity(
         75, 150, 230, 320, 420, 540, 680, 850};
     const std::size_t index = static_cast<std::size_t>(
         std::clamp<int>(coreLevel, 1, MaxBuildingLevel) - 1);
-    if (storageType == BuildingType::WoodStorage) return Wood[index];
-    if (storageType == BuildingType::StoneStorage) return Stone[index];
-    if (storageType == BuildingType::CrystalStorage) {
+    switch (resource) {
+    case ResourceCapacityType::Wood:
+        return Wood[index];
+    case ResourceCapacityType::Stone:
+        return Stone[index];
+    case ResourceCapacityType::Crystal:
         return Crystal[index];
     }
     return 0;
@@ -562,7 +550,13 @@ bool BuildingSystem::restoreBuildings(
         return false;
     }
 
-    buildings_.assign(buildings.begin(), buildings.end());
+    buildings_.clear();
+    buildings_.reserve(buildings.size());
+    std::ranges::copy_if(
+        buildings, std::back_inserter(buildings_),
+        [](const BuildingInstance& building) {
+            return !isRemovedStorageBuilding(building.type);
+        });
     nextIndex_ = nextIndex;
     blueprintLevels_.fill(1U);
     const std::size_t count = std::min(
@@ -672,6 +666,9 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
                                          int stone, int crystals,
                                          double baseHeight) const {
     const ResourceCost requiredCost = configuredCost(type);
+    if (isRemovedStorageBuilding(type)) {
+        return {PlacementError::LimitReached, requiredCost};
+    }
     if (type == BuildingType::Core && hasCore()) {
         return {PlacementError::CoreAlreadyPlaced, requiredCost};
     }

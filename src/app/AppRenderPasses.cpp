@@ -367,7 +367,6 @@ void App::drawShadowPass(
                 continue;
             }
             if (building.type == BuildingType::Wall ||
-                building.type == BuildingType::Gate ||
                 building.type == BuildingType::SlowTrap) {
                 continue;
             }
@@ -508,6 +507,15 @@ void App::drawShadowPass(
                 DrawCube({x, groundY + 1.62F, z},
                          1.25F * spawnScale, 0.24F * spawnScale,
                          1.25F * spawnScale, WHITE);
+            } else if (building.type == BuildingType::Gate &&
+                       renderer_->drawGate(
+                           {x, groundY, z},
+                           static_cast<float>(building.rotation) *
+                               PI * 0.5F,
+                           gateOpenAmount(
+                               building.id, building.open),
+                           WHITE, spawnScale)) {
+                // The imported door and stationary pillar were submitted.
             } else if ((building.rotation % 2U) == 0U) {
                 DrawCube({x - 0.38F, groundY + 1.0F, z},
                          0.22F, 2.0F,
@@ -561,27 +569,16 @@ void App::drawSelectionPass(
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
-        // Seed the mask depth with chest geometry, but keep its RGB black so
-        // it never becomes part of the loot silhouette. The outline shader
-        // uses the encoded depth to distinguish a lid in front of the item
-        // from a lid behind it.
+        // Seed mask depth with black occluders. They clip selected geometry
+        // without becoming part of its silhouette.
         renderer_->setSelectionMaskColor(BLACK);
-        const bool aimedGroundResource = snapshot.aimedResource &&
-            std::ranges::any_of(
-                snapshot.resourceNodes,
-                [&snapshot](const ResourceNode& node) {
-                    return node.active &&
-                        node.id == *snapshot.aimedResource &&
-                        (node.type == ResourceType::Stone ||
-                         node.type == ResourceType::Crystal);
-                });
-        if (aimedGroundResource || snapshot.aimedBuilding ||
-            snapshot.aimedWorldLandmark ||
-            snapshot.aimedModularBuilding) {
-            // Seed depth with terrain so the mask contains only geometry
-            // that is actually visible above the ground. This clips buried
-            // rock and automatic-building-foundation geometry from outlines.
-            renderer_->drawTerrain(BLACK, camera.position);
+        // Resources and ground-level modular pieces can extend below the
+        // terrain. Seed the mask depth with terrain so their buried geometry
+        // never contributes to the outline.
+        if (snapshot.aimedResource ||
+            (!foundationBuildMode_ &&
+             snapshot.aimedModularBuilding)) {
+            renderer_->drawTerrain(BLACK, camera.position, false);
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.looseLoot) continue;
@@ -1027,6 +1024,15 @@ void App::drawSelectionPass(
                              1.25F * spawnScale,
                              0.24F * spawnScale,
                              1.25F * spawnScale, WHITE);
+                } else if (building->type == BuildingType::Gate &&
+                           renderer_->drawGate(
+                               {x, groundY, z},
+                               static_cast<float>(building->rotation) *
+                                   PI * 0.5F,
+                               gateOpenAmount(
+                                   building->id, building->open),
+                               WHITE, spawnScale)) {
+                    // The imported door and stationary pillar were submitted.
                 } else if ((building->rotation % 2U) == 0U) {
                     DrawCube({x - 0.38F, groundY + 1.0F, z},
                              0.22F,
@@ -1121,8 +1127,7 @@ void App::drawSelectionPass(
                 [target](const RampInstance& candidate) {
                     return candidate.id == target;
                 });
-            modularBuildingRenderer_.drawWorld(
-                {
+            ModularBuildingView selectionView{
                     !snapshot.selectedBuilding &&
                             frame !=
                                 snapshot.platformFrames.end()
@@ -1144,8 +1149,12 @@ void App::drawSelectionPass(
                     std::nullopt,
                     animationScales,
                     1.0F,
-                },
-                {});
+                };
+            selectionView.platformVisibilityContext =
+                snapshot.platformFrames;
+            selectionView.sharedSupportVisibilityContext =
+                snapshot.sharedSupports;
+            modularBuildingRenderer_.drawWorld(selectionView, {});
         }
         renderer_->endSelectionMaskPass();
     }

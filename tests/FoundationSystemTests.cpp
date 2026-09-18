@@ -345,6 +345,23 @@ void runFoundationSystemTests() {
             {5.0, first->floorHeight + 3.0, 5.0},
             {0.0, -1.0, 0.0}, 5.0),
         "platform surface raycast rejects floor plane outside frame");
+    const ian::FoundationSupport& firstSupport = first->supports[0];
+    require(
+        frames.raycast(
+            {
+                firstSupport.top.x,
+                (firstSupport.top.y + firstSupport.bottom.y) * 0.5,
+                firstSupport.top.z - 2.0,
+            },
+            {0.0, 0.0, 1.0}, 4.0) == first->id &&
+        !frames.raycastPlatformSurface(
+            {
+                firstSupport.top.x,
+                (firstSupport.top.y + firstSupport.bottom.y) * 0.5,
+                firstSupport.top.z - 2.0,
+            },
+            {0.0, 0.0, 1.0}, 4.0),
+        "foundation supports remain selectable but cannot change the construction plane");
     require(
         frames.supportSystem()
                 .activeSupportCount() == 6 &&
@@ -356,6 +373,25 @@ void runFoundationSystemTests() {
                            support.referenceCount == 2U;
                 }) == 2,
         "adjacent PlatformFrames share corner supports");
+    {
+        ian::SupportSystem visualSupports;
+        std::array<std::uint32_t, 4> lastSupportIds{};
+        for (const ian::GridCoord anchor : {
+                 ian::GridCoord{0, 0, 0},
+                 ian::GridCoord{2, 0, 0},
+                 ian::GridCoord{0, 0, 2},
+                 ian::GridCoord{2, 0, 2}}) {
+            ian::PlatformFramePlacement placement{
+                .anchor = anchor,
+                .storey = 0,
+            };
+            lastSupportIds = visualSupports.acquire(placement);
+        }
+        require(
+            !visualSupports.isPerimeterSupport(lastSupportIds[0]) &&
+                visualSupports.isPerimeterSupport(lastSupportIds[1]),
+            "solid platform hides its interior post and keeps perimeter posts");
+    }
     require(
         frames.remove(neighbour->id) &&
             frames.grid().occupiedCellCount() == 4 &&
@@ -453,15 +489,34 @@ void runFoundationSystemTests() {
                            storeyHeight) < 1e-9;
             }),
         "upper frame includes four full-height supports");
+    ian::FoundationSystem fiveStoreyTower{terrain, config};
+    auto fiveStoreyTop = fiveStoreyTower.placePlatformFrame(
+        fiveStoreyTower.previewFoundation(
+            {0.2, 0.0, 0.2}, player));
     require(
-        tower
-                .previewFloorPlatform(
-                    roof->anchor, 3,
-                    roof->floorHeight + storeyHeight,
-                    player)
-                .error ==
-            ian::ModularPlacementError::MaximumStorey,
-        "frame stack respects maximum storeys");
+        fiveStoreyTop.has_value(),
+        "five-storey fixture creates its ground level");
+    for (int storey = 1; storey < config.maxStoreys; ++storey) {
+        fiveStoreyTop = fiveStoreyTower.placePlatformFrame(
+            fiveStoreyTower.previewFloorPlatform(
+                fiveStoreyTop->anchor, storey,
+                fiveStoreyTop->floorHeight + storeyHeight,
+                player));
+        require(
+            fiveStoreyTop.has_value(),
+            "frame stack permits every configured storey");
+    }
+    require(
+        fiveStoreyTop->storey == 4 &&
+            fiveStoreyTower
+                    .previewFloorPlatform(
+                        fiveStoreyTop->anchor,
+                        config.maxStoreys,
+                        fiveStoreyTop->floorHeight + storeyHeight,
+                        player)
+                    .error ==
+                ian::ModularPlacementError::MaximumStorey,
+        "frame stack allows five storeys and rejects the sixth");
     ian::FoundationSystem bridgeFrames{
         terrain, config};
     const auto bridgeGround =
@@ -629,6 +684,19 @@ void runFoundationSystemTests() {
     const auto base = envelope.placePlatformFrame(
         envelope.previewFoundation(
             {0.2, 0.0, 0.2}, player));
+    const auto oneSupportRampPreview =
+        envelope.previewRamp(
+            {0.2, 0.0, 0.2}, player,
+            ian::Rotation::Deg180);
+    const auto rampBaseExtension =
+        envelope.placePlatformFrame(
+            envelope.previewFoundation(
+                {0.2, 0.0, -1.8}, player));
+    require(
+        base &&
+            oneSupportRampPreview.error ==
+                ian::ModularPlacementError::NoSupport,
+        "ramp requires two supporting platform frames");
     ian::FoundationSystem wallEnvelope{
         terrain, config};
     const auto wallBase =
@@ -714,6 +782,18 @@ void runFoundationSystemTests() {
              {1.0, 5.0, -5.0},
              {0.0, -3.0, 6.0}, 1.0),
         "platform center aim does not trigger edge snapping");
+    const auto undersideCenterSnap =
+        ian::platformEdgeSnapAtAim(
+            {0, 0, 0}, 4.0,
+            {1.0, 1.0, -3.0},
+            {0.0, 3.0, 4.0}, 1.0, true);
+    require(
+        undersideCenterSnap &&
+            undersideCenterSnap->extensionAnchor ==
+                ian::GridCoord{0, 0, -2} &&
+            std::abs(
+                undersideCenterSnap->marker.z) < 1e-9,
+        "aiming at a floor from below extends it toward the player");
     bool everySocketWinsAtCrosshair = true;
     const ian::Vec3 socketViewer{1.0, 5.0, -5.0};
     for (const ian::RampEdgeSocket& socket :
@@ -826,7 +906,7 @@ void runFoundationSystemTests() {
                 {1.0, 2.0, 2.51}, 1.0),
         "ramp edge safe zone spans half a cell on both sides");
     require(
-        base && wallBase && wall && ramp &&
+        base && rampBaseExtension && wallBase && wall && ramp &&
             std::abs(
                 wall->topHeight -
                 wall->bottomHeight -
@@ -843,7 +923,7 @@ void runFoundationSystemTests() {
                     ian::Rotation::Deg180)
                 .error ==
             ian::ModularPlacementError::NoSupport,
-        "two-cell-wide ramp requires support along its full lower edge");
+        "ramp requires support across its full footprint");
     require(
         envelope
                 .previewRamp(
@@ -863,9 +943,14 @@ void runFoundationSystemTests() {
         rampSupportEnvelope.placePlatformFrame(
             rampSupportEnvelope.previewFoundation(
                 {0.2, 0.0, 0.2}, player));
+    const auto platformUnderRampTop =
+        rampSupportEnvelope.placePlatformFrame(
+            rampSupportEnvelope.previewFoundation(
+                {2.2, 0.0, 0.2}, player));
     require(
-        rearPlatform && platformUnderRamp,
-        "ramp dependency fixture creates adjacent platforms");
+        rearPlatform && platformUnderRamp &&
+            platformUnderRampTop,
+        "ramp dependency fixture creates both supporting platforms");
     const auto edgeRampPreview =
         rampSupportEnvelope.previewRamp(
             {0.2, 0.0, 0.2}, player,
@@ -883,8 +968,12 @@ void runFoundationSystemTests() {
                 1U &&
             rampSupportEnvelope.structuralGraph()
                     .dependentCount(
+                        platformUnderRampTop->id, false) ==
+                1U &&
+            rampSupportEnvelope.structuralGraph()
+                    .dependentCount(
                         rearPlatform->id, false) == 0U,
-        "ramp starts over the edge platform and ignores the platform behind it");
+        "ramp depends on both platforms below it and ignores the rear platform");
     require(
         rampSupportEnvelope.remove(
             rearPlatform->id) &&

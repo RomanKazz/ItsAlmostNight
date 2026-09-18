@@ -10,12 +10,21 @@ namespace {
 struct TerrainRange {
     double lowest{std::numeric_limits<double>::infinity()};
     double highest{-std::numeric_limits<double>::infinity()};
+    double total{};
+    int sampleCount{};
+
+    [[nodiscard]] double average() const {
+        return sampleCount > 0
+            ? total / static_cast<double>(sampleCount)
+            : 0.0;
+    }
 };
 
 TerrainRange sampleTerrainFootprint(
     const TerrainHeightfield& terrain,
     double minimumX, double maximumX,
-    double minimumZ, double maximumZ) {
+    double minimumZ, double maximumZ,
+    bool constructionHeight = false) {
     constexpr int SamplesPerAxis = 5;
     TerrainRange range;
     for (int zIndex = 0; zIndex < SamplesPerAxis; ++zIndex) {
@@ -30,12 +39,62 @@ TerrainRange sampleTerrainFootprint(
                 static_cast<double>(SamplesPerAxis - 1);
             const double x = minimumX +
                 (maximumX - minimumX) * xAmount;
-            const double height = terrain.getHeight(x, z);
+            const double height = constructionHeight
+                ? terrain.getConstructionHeight(x, z)
+                : terrain.getHeight(x, z);
             range.lowest = std::min(range.lowest, height);
             range.highest = std::max(range.highest, height);
+            range.total += height;
+            ++range.sampleCount;
         }
     }
     return range;
+}
+
+double snappedPlatformHeight(
+    const TerrainRange& terrainRange,
+    const TerrainRange& constructionRange,
+    const WorldConfig& config, double heightStep) {
+    constexpr double SnapEpsilon = 1e-6;
+    const double safeStep = std::max(heightStep, 0.001);
+    const auto snapUp = [safeStep](double height) {
+        return std::ceil(
+                   (height - SnapEpsilon) / safeStep) *
+            safeStep;
+    };
+    const double requiredHeight =
+        terrainRange.highest +
+        config.minimumGroundClearance;
+
+    // The authored terrain is terraced and then receives a small visual
+    // surface-noise pass. On a flat terrace that noise must not define a new
+    // construction plane for every grid cell. Recover the underlying terrace
+    // level only when the complete footprint is close enough to it; genuine
+    // slopes and transitions keep using their actual highest point.
+    const double terraceStep =
+        std::max(config.terrainTerraceHeight, 0.01);
+    const double terraceHeight =
+        std::round(
+            constructionRange.average() / terraceStep) *
+        terraceStep;
+    const double maximumTerraceDeviation = std::max(
+        std::abs(
+            constructionRange.lowest - terraceHeight),
+        std::abs(
+            constructionRange.highest - terraceHeight));
+    constexpr double FlatConstructionTolerance = 0.04;
+    if (maximumTerraceDeviation <=
+        FlatConstructionTolerance) {
+        const double stableHeight = snapUp(
+            terraceHeight +
+            config.minimumGroundClearance +
+            config.terrainSurfaceNoiseAmplitude);
+        if (stableHeight + SnapEpsilon >=
+            requiredHeight) {
+            return stableHeight;
+        }
+    }
+    return snapUp(requiredHeight);
 }
 
 } // namespace
@@ -94,14 +153,33 @@ PlacementValidator::validateGroundPlatformFrame(
             .anchor = anchor,
         };
     }
-    const double floorHeight =
-        std::ceil(
-            (terrainRange.highest +
-             config.minimumGroundClearance) /
-            config.verticalGridStep) *
-        config.verticalGridStep;
+    const double floorHeight = stableGroundPlatformHeight(
+        anchor, config.verticalGridStep);
     return validateGroundPlatformFrameAt(
         anchor, floorHeight, playerPosition);
+}
+
+double PlacementValidator::stableGroundPlatformHeight(
+    GridCoord anchor, double heightStep) const {
+    const WorldConfig& config = grid_.config();
+    const double minimumX =
+        static_cast<double>(anchor.x) *
+        config.cellSize;
+    const double minimumZ =
+        static_cast<double>(anchor.z) *
+        config.cellSize;
+    const double maximumX = minimumX +
+        PlatformFrameWidthCells * config.cellSize;
+    const double maximumZ = minimumZ +
+        PlatformFrameWidthCells * config.cellSize;
+    return snappedPlatformHeight(
+        sampleTerrainFootprint(
+            terrain_, minimumX, maximumX,
+            minimumZ, maximumZ),
+        sampleTerrainFootprint(
+            terrain_, minimumX, maximumX,
+            minimumZ, maximumZ, true),
+        config, heightStep);
 }
 
 PlatformFramePlacement

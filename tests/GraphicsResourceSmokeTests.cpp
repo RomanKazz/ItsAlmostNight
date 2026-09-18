@@ -1,4 +1,5 @@
 #include "graphics/GraphicsResources.hpp"
+#include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 
 #include <raylib.h>
@@ -35,6 +36,51 @@ bool checkMissingResources() {
     target.unload();
     target.unload();
     return rejected;
+}
+
+bool checkPlatformVisibilityMasks() {
+    const std::array<ian::PlatformFrameInstance, 2> frames{{
+        {.id = ian::EntityId{1U, 0U},
+         .anchor = {0, 0, 0}},
+        {.id = ian::EntityId{2U, 0U},
+         .anchor = {2, 0, 0}},
+    }};
+    const auto edges = ian::platformEdgeVisibilityMasks(frames);
+    if (edges.size() != frames.size() ||
+        !edges[0][0] || edges[0][1] ||
+        edges[1][0] || !edges[1][1] ||
+        !edges[0][2] || !edges[0][3] ||
+        !edges[1][2] || !edges[1][3]) {
+        return false;
+    }
+
+    auto sharedFrames = frames;
+    sharedFrames[0].supportIds[1] = 7U;
+    sharedFrames[1].supportIds[0] = 7U;
+    sharedFrames[0].supports[1] = {
+        .top = {2.0, 3.0, 0.0},
+        .bottom = {2.0, 0.0, 0.0},
+        .length = 3.0,
+    };
+    sharedFrames[1].supports[0] = {
+        .top = {2.0, 4.0, 0.0},
+        .bottom = {2.0, 1.0, 0.0},
+        .length = 3.0,
+    };
+    const std::array<ian::SharedSupport, 1> supports{{
+        {.id = 7U,
+         .referenceCount = 2U,
+         .active = true},
+    }};
+    const auto posts = ian::platformSupportVisibilityMasks(
+        sharedFrames, supports);
+    const auto lengths = ian::platformSupportVisualLengths(
+        sharedFrames, supports);
+    return posts.size() == sharedFrames.size() &&
+        lengths.size() == sharedFrames.size() &&
+        posts[0][1] && posts[1][0] &&
+        std::abs(lengths[0][1] - 3.0) < 1e-9 &&
+        std::abs(lengths[1][0] - 4.0) < 1e-9;
 }
 
 bool hasTexturedRenderableMesh(
@@ -98,6 +144,27 @@ bool animationMovesSkeleton(
     return false;
 }
 
+bool pickaxePivotAnimationMoves(
+    const ian::GlbNodeAnimation& animation) {
+    if (!animation.valid()) return false;
+    const Transform& base = animation.baseTransform();
+    const Transform middle = animation.sample(0.5F);
+    const float translationDistance = std::sqrt(
+        (base.translation.x - middle.translation.x) *
+            (base.translation.x - middle.translation.x) +
+        (base.translation.y - middle.translation.y) *
+            (base.translation.y - middle.translation.y) +
+        (base.translation.z - middle.translation.z) *
+            (base.translation.z - middle.translation.z));
+    const float rotationDot =
+        base.rotation.x * middle.rotation.x +
+        base.rotation.y * middle.rotation.y +
+        base.rotation.z * middle.rotation.z +
+        base.rotation.w * middle.rotation.w;
+    return translationDistance > 0.01F ||
+        std::abs(rotationDot) < 0.999F;
+}
+
 } // namespace
 
 int main() {
@@ -112,6 +179,10 @@ int main() {
 
     int result = 0;
     {
+        if (!checkPlatformVisibilityMasks()) {
+            std::cerr << "platform visibility masks failed\n";
+            result = 1;
+        }
         std::cerr << "graphics smoke: missing resources\n";
         if (!checkMissingResources()) {
             std::cerr << "missing resource fallback failed\n";
@@ -142,6 +213,7 @@ int main() {
             !resources.grassModelB().valid() ||
             !resources.grassModelC().valid() ||
             !resources.grassModelD().valid() ||
+            !resources.gateModel().valid() ||
             resources.enemyPinkBlobAnimations().find("Idle") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Walk") == nullptr ||
             resources.enemyPinkBlobAnimations().find("Death") == nullptr ||
@@ -175,6 +247,10 @@ int main() {
             !animationMovesSkeleton(
                 resources.enemySplitlingModel(),
                 resources.enemySplitlingAnimations(), "Walk") ||
+            !resources.pickaxeModel().valid() ||
+            !pickaxePivotAnimationMoves(resources.pickaxeAnimation()) ||
+            !pickaxePivotAnimationMoves(
+                resources.pickaxeAlternateAnimation()) ||
             !resources.clubModel().valid() ||
             !resources.hammerModel().valid() ||
             !resources.iceWandModel().valid() ||
@@ -239,6 +315,7 @@ int main() {
                 resources.decorativeBushModel(7)) ||
             !hasTexturedRenderableMesh(
                 resources.decorativeBushModel(8)) ||
+            !hasTexturedRenderableMesh(resources.gateModel()) ||
             !hasTexturedRenderableMesh(resources.enemyRogueModel()) ||
             !hasTexturedRenderableMesh(resources.enemyWarriorModel())) {
             std::cerr << "item model has no valid albedo texture\n";
@@ -299,6 +376,16 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        const bool rampSurfaceRaycast =
+            renderer.rampRaycastDistance(
+                {0.0F, 0.0F, 0.0F}, 0.0F, 1.0F,
+                {{0.0F, 5.0F, 0.0F}, {0.0F, -1.0F, 0.0F}},
+                10.0).has_value();
+        const bool rampEmptyVolumeRejected =
+            !renderer.rampRaycastDistance(
+                {0.0F, 0.0F, 0.0F}, 0.0F, 1.0F,
+                {{-3.0F, 0.5F, 0.0F}, {1.0F, 0.0F, 0.0F}},
+                6.0).has_value();
         const Camera3D smokeCamera{
             .position = {0.0F, 2.0F, 4.0F},
             .target = {0.0F, 0.5F, 0.0F},
@@ -376,7 +463,8 @@ int main() {
         EndMode3D();
         EndDrawing();
         renderer.shutdown();
-        if (!instancedTreesDrawn || !woodenDrawn || !stoneDrawn ||
+        if (!rampSurfaceRaycast || !rampEmptyVolumeRejected ||
+            !instancedTreesDrawn || !woodenDrawn || !stoneDrawn ||
             !barrelDrawn ||
             !crateDrawn || !itemCrateDrawn || !portalDrawn) {
             std::cerr << "world prop renderer failed\n";

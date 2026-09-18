@@ -15,6 +15,63 @@ namespace ian {
 
 using namespace app_detail;
 
+namespace {
+
+[[nodiscard]] Color alphaColor(
+    Color color, unsigned char alpha) {
+    color.a = alpha;
+    return color;
+}
+
+[[nodiscard]] SdfUiTextStyle damageNumberStyle(
+    bool critical, unsigned char alpha) {
+    SdfUiTextStyle style{};
+    style.fillColor = alphaColor(
+        critical
+            ? Color{255, 196, 48, 255}
+            : Color{255, 239, 211, 255},
+        alpha);
+    style.outlineColor = alphaColor(
+        critical
+            ? Color{91, 43, 18, 255}
+            : Color{62, 35, 31, 255},
+        alpha);
+    style.shadowColor = alphaColor(
+        {15, 9, 12, 255},
+        static_cast<unsigned char>(
+            static_cast<unsigned int>(alpha) * 4U / 5U));
+    style.shadowOffsetPixels = {3.0F, 4.0F};
+    style.outlinePixels = critical ? 2.8F : 2.5F;
+    style.softness = 0.62F;
+    return style;
+}
+
+[[nodiscard]] SdfUiTextStyle resourceNumberStyle(
+    ResourceType type, unsigned char alpha) {
+    Color fill{255, 190, 82, 255};
+    Color outline{69, 39, 24, 255};
+    if (type == ResourceType::Stone) {
+        fill = {190, 218, 236, 255};
+        outline = {38, 48, 59, 255};
+    } else if (type == ResourceType::Crystal) {
+        fill = {255, 112, 235, 255};
+        outline = {66, 26, 74, 255};
+    }
+    SdfUiTextStyle style{};
+    style.fillColor = alphaColor(fill, alpha);
+    style.outlineColor = alphaColor(outline, alpha);
+    style.shadowColor = alphaColor(
+        {12, 8, 12, 255},
+        static_cast<unsigned char>(
+            static_cast<unsigned int>(alpha) * 4U / 5U));
+    style.shadowOffsetPixels = {3.0F, 4.0F};
+    style.outlinePixels = 2.6F;
+    style.softness = 0.62F;
+    return style;
+}
+
+} // namespace
+
 void App::drawFloatingDamageNumbers(
     const Camera3D& camera) const {
     const Vector3 cameraForward = Vector3Normalize(
@@ -32,40 +89,59 @@ void App::drawFloatingDamageNumbers(
 
         const float progress = static_cast<float>(
             1.0 - number.remaining / number.duration);
+        const float fastMotion =
+            1.0F - std::pow(1.0F - progress, 2.35F);
         const Vector3 animatedPosition{
             static_cast<float>(number.position.x),
             static_cast<float>(number.position.y) +
-                progress * 0.9F,
+                fastMotion * number.verticalRise,
             static_cast<float>(number.position.z),
         };
         Vector2 screenPosition =
             GetWorldToScreen(animatedPosition, camera);
-        screenPosition.x += number.horizontalDrift * progress;
-        const float fade = std::clamp(
-            static_cast<float>(number.remaining /
-                               (number.duration * 0.4)),
-            0.0F, 1.0F);
+        screenPosition.x +=
+            number.horizontalDrift * fastMotion;
+        const float fadeProgress = std::clamp(
+            (progress - 0.56F) / 0.44F, 0.0F, 1.0F);
+        const float fade =
+            1.0F - fadeProgress * fadeProgress *
+                (3.0F - 2.0F * fadeProgress);
         const auto alpha = static_cast<unsigned char>(
             std::lround(fade * 255.0F));
         const float distance = Vector3Length(toNumber);
         const float distanceScale = std::clamp(
             1.18F - (distance - 3.0F) / 42.0F * 0.52F,
             0.66F, 1.18F);
-        const int fontSize = static_cast<int>(std::lround(
-            ((number.critical ? 50.0F : 40.0F) +
-             std::sin(progress * PI) * 7.0F) * distanceScale));
+        const float popProgress =
+            std::clamp(progress / 0.18F, 0.0F, 1.0F);
+        const float shiftedPop = popProgress - 1.0F;
+        const float popScale = 1.0F +
+            (number.popOvershoot + 1.0F) *
+                shiftedPop * shiftedPop * shiftedPop +
+            number.popOvershoot *
+                shiftedPop * shiftedPop;
+        const float entranceScale =
+            0.42F + 0.58F * popScale;
+        const float shrinkProgress = std::clamp(
+            (progress - 0.42F) / 0.58F, 0.0F, 1.0F);
+        const float exitScale =
+            1.0F - 0.25F * shrinkProgress * shrinkProgress;
+        const float fontSize =
+            (number.critical ? 50.0F : 40.0F) *
+            number.scaleVariation * entranceScale *
+            exitScale * distanceScale;
         const char* text = TextFormat("-%.1f", number.damage);
-        const float x =
-            screenPosition.x -
-            measureUiText(text, static_cast<float>(fontSize)).x * 0.5F;
-        const float y = screenPosition.y;
-        drawUiText(text, {x + 2.0F, y + 2.0F},
-                   static_cast<float>(fontSize),
-                   {20, 16, 12, alpha});
-        drawUiText(text, {x, y}, static_cast<float>(fontSize),
-                   number.critical
-                       ? Color{255, 214, 62, alpha}
-                       : Color{255, 255, 255, alpha});
+        const Vector2 textSize =
+            measureUiText(text, fontSize);
+        const float rotation =
+            number.initialRotationDegrees +
+            number.rotationTravelDegrees * fastMotion;
+        drawRotatedStyledUiText(
+            text,
+            {screenPosition.x,
+             screenPosition.y + textSize.y * 0.45F},
+            fontSize, rotation,
+            damageNumberStyle(number.critical, alpha));
     }
 }
 
@@ -102,12 +178,16 @@ void App::drawResourceGainVisuals(
         const Vector2 start{
             projected.x, projected.y - 62.0F,
         };
-        const Vector2 target =
+        const auto resourceTargets =
+            hudResourceIconCenters();
+        const std::size_t resourceIndex =
             gain.type == ResourceType::Wood
-                ? Vector2{70.0F, 66.0F}
+                ? 0U
                 : gain.type == ResourceType::Crystal
-                    ? Vector2{355.0F, 66.0F}
-                    : Vector2{210.0F, 66.0F};
+                    ? 2U
+                    : 1U;
+        const Vector2 target =
+            resourceTargets[resourceIndex];
         constexpr float RiseEnd = 0.3F;
         const float riseProgress =
             std::clamp(activeProgress / RiseEnd, 0.0F, 1.0F);
@@ -120,18 +200,10 @@ void App::drawResourceGainVisuals(
         const float flightProgress = std::clamp(
             (activeProgress - RiseEnd) / (1.0F - RiseEnd),
             0.0F, 1.0F);
-        float eased = 0.0F;
-        if (flightProgress < 0.8F) {
-            const float early = flightProgress / 0.8F;
-            const float smoothEarly =
-                early * early * (3.0F - 2.0F * early);
-            eased = smoothEarly * 0.72F;
-        } else {
-            const float magnet =
-                (flightProgress - 0.8F) / 0.2F;
-            eased =
-                0.72F + 0.28F * magnet * magnet;
-        }
+        // Keep the HUD flight continuous. The previous two-part curve had
+        // zero velocity at its join, which looked like a short stop before
+        // the icon reached the counter.
+        const float eased = flightProgress;
         Vector2 position{
             start.x +
                 (liftedStart.x - start.x) * riseEased,
@@ -165,19 +237,36 @@ void App::drawResourceGainVisuals(
                 : gain.type == ResourceType::Crystal
                     ? UiResourceIcon::Crystal
                     : UiResourceIcon::Stone);
+        rlPopMatrix();
 
         const float textFade = std::clamp(
             (0.7F - activeProgress) / 0.25F, 0.0F, 1.0F);
         if (textFade > 0.0F) {
             const auto alpha = static_cast<unsigned char>(
                 std::lround(textFade * 255.0F));
-            drawUiText(
-                "+" + std::to_string(gain.amount),
-                {position.x + iconSize * 0.62F,
-                 position.y - 36.0F},
-                48.0F, {255, 245, 204, alpha});
+            const std::string text =
+                "+" + std::to_string(gain.amount);
+            const Vector2 baseTextSize =
+                measureUiText(text, 48.0F);
+            const Vector2 localCenter{
+                iconSize * 0.62F + baseTextSize.x * 0.5F,
+                -36.0F + baseTextSize.y * 0.5F};
+            const float angle = rotationDegrees * DEG2RAD;
+            const float sine = std::sin(angle);
+            const float cosine = std::cos(angle);
+            const Vector2 textCenter{
+                position.x + visualScale *
+                    (localCenter.x * cosine -
+                     localCenter.y * sine),
+                position.y + visualScale *
+                    (localCenter.x * sine +
+                     localCenter.y * cosine)};
+            drawRotatedStyledUiText(
+                text, textCenter,
+                48.0F * visualScale,
+                rotationDegrees,
+                resourceNumberStyle(gain.type, alpha));
         }
-        rlPopMatrix();
     }
 }
 
@@ -515,6 +604,17 @@ float App::productionScaleAt(
                    std::exp(-4.2F * t);
     }
     return 1.0F;
+}
+
+float App::gateOpenAmount(EntityId id, bool open) const {
+    const auto visual = std::find_if(
+        gateDoorVisuals_.begin(), gateDoorVisuals_.end(),
+        [id](const GateDoorVisual& candidate) {
+            return candidate.id == id;
+        });
+    return visual != gateDoorVisuals_.end()
+        ? visual->openAmount * visual->openDirection
+        : open ? 1.0F : 0.0F;
 }
 
 } // namespace ian

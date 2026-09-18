@@ -329,7 +329,11 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .betweenWaveSeconds = value.at("betweenWaveSeconds").get<double>(),
         .sunsetSeconds = value.at("sunsetSeconds").get<double>(),
         .nightDurationSeconds =
-            value.value("nightDurationSeconds", 90.0),
+            value.value("nightDurationSeconds", 75.0),
+        .firstNightDurationSeconds =
+            value.value("firstNightDurationSeconds", 60.0),
+        .nightDurationGrowthSeconds =
+            value.value("nightDurationGrowthSeconds", 5.0),
         .dawnSeconds = value.at("dawnSeconds").get<double>(),
         .minimumPlacementDistance = value.at("minimumPlacementDistance").get<double>(),
         .maximumPlacementDistance = value.at("maximumPlacementDistance").get<double>(),
@@ -364,6 +368,8 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         definition.firstBuildPhaseSeconds <= 0.0 ||
         definition.betweenWaveSeconds <= 0.0 || definition.sunsetSeconds <= 0.0 ||
         definition.nightDurationSeconds <= 0.0 ||
+        definition.firstNightDurationSeconds <= 0.0 ||
+        definition.nightDurationGrowthSeconds < 0.0 ||
         definition.dawnSeconds <= 0.0 || definition.minimumPlacementDistance <= 0.0 ||
         definition.maximumPlacementDistance < definition.minimumPlacementDistance) {
         throw std::runtime_error("invalid gameplay definition");
@@ -387,29 +393,29 @@ GameBalance GameBalance::defaults() {
             {3.0, 2.8, 7.0, 0.0, 1.0, 0.0},
         }},
         .waves = {{
-            {15, 15, 0, 0, 0, 0, 0, 0, false, 3, 8.0},
-            {25, 12, 5, 0, 1, 0, 0, 0, false, 4, 8.0},
-            {40, 10, 5, 2, 2, 0, 0, 1, false, 4, 7.0},
-            {55, 11, 8, 2, 2, 2, 0, 1, false, 5, 7.0},
-            {75, 11, 8, 4, 2, 2, 2, 2, false, 5, 6.0},
-            {100, 12, 10, 6, 4, 3, 2, 2, true, 6, 5.5},
+            {15, 15, 0, 0, 0, 0, 0, 0, false, 3, 1.6},
+            {25, 12, 5, 0, 1, 0, 0, 0, false, 4, 1.6},
+            {40, 10, 5, 2, 2, 0, 0, 1, false, 4, 1.4},
+            {55, 11, 8, 2, 2, 2, 0, 1, false, 5, 1.4},
+            {75, 11, 8, 4, 2, 2, 2, 2, false, 5, 1.2},
+            {100, 12, 10, 6, 4, 3, 2, 2, true, 6, 1.1},
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
             {10, 0, 0, 100.0, 1, 256},
-            {25, 15, 0, 120.0, 1, 64},
-            {20, 10, 0, 140.0, 1, 8},
-            {40, 30, 25, 180.0, 2, 64},
+            {25, 15, 0, 120.0, 3, 64},
+            {20, 10, 0, 140.0, 2, 8},
+            {40, 30, 25, 180.0, 4, 64},
             {15, 20, 10, 100.0, 2, 64},
             {15, 5, 0, 130.0, 1, 128},
-            {40, 15, 10, 150.0, 2, 8},
-            {30, 40, 15, 170.0, 2, 8},
-            {20, 25, 15, 100.0, 2, 64},
+            {40, 15, 0, 150.0, 2, 8},
+            {30, 40, 0, 170.0, 2, 8},
+            {20, 25, 15, 100.0, 3, 64},
             {20, 10, 0, 180.0, 1, 8},
             {25, 5, 0, 200.0, 1, 8},
             {30, 25, 0, 160.0, 1, 8},
             {35, 25, 10, 150.0, 1, 64},
-            {50, 45, 35, 210.0, 4, 64},
+            {50, 45, 35, 210.0, 5, 64},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -448,7 +454,7 @@ GameBalance GameBalance::defaults() {
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.65, 0.2, 0.15, 0.45, 0.25, 0.30,
-                     60.0, 45.0, 6.0, 90.0, 5.0, 1.0, 10.0},
+                     60.0, 60.0, 15.0, 75.0, 60.0, 5.0, 5.0, 1.0, 10.0},
     };
 }
 
@@ -526,15 +532,9 @@ GameBalanceLoadResult parseGameBalance(std::string_view enemiesJson,
             buildings.contains("spikeTrap")
                 ? parseBuilding(buildings.at("spikeTrap"))
                 : result.balance.buildings[9],
-            buildings.contains("woodStorage")
-                ? parseBuilding(buildings.at("woodStorage"))
-                : result.balance.buildings[10],
-            buildings.contains("stoneStorage")
-                ? parseBuilding(buildings.at("stoneStorage"))
-                : result.balance.buildings[11],
-            buildings.contains("crystalStorage")
-                ? parseBuilding(buildings.at("crystalStorage"))
-                : result.balance.buildings[12],
+            result.balance.buildings[10],
+            result.balance.buildings[11],
+            result.balance.buildings[12],
             buildings.contains("gunTurret")
                 ? parseBuilding(buildings.at("gunTurret"))
                 : result.balance.buildings[13],
