@@ -14,7 +14,6 @@
 
 #include <raylib.h>
 #include <raymath.h>
-#include <rlgl.h>
 
 #include <algorithm>
 #include <array>
@@ -243,77 +242,6 @@ void drawVitalBar(GameUi& ui, Rectangle bounds, float fraction,
     ui.drawVitalIcon(iconBounds, core);
 }
 
-void drawDayNightBowl(
-    Rectangle bounds, float cornerRadius, Color color) {
-    const float safeCornerRadius = std::clamp(
-        cornerRadius, 0.0F, bounds.height * 0.5F);
-    const float centerY = bounds.y + safeCornerRadius;
-    const float radiusY = bounds.height - safeCornerRadius;
-    if (safeCornerRadius > 0.0F) {
-        const Rectangle topCap{
-            bounds.x, bounds.y, bounds.width,
-            safeCornerRadius * 2.0F};
-        DrawRectangleRounded(
-            topCap,
-            safeCornerRadius * 2.0F /
-                std::max(topCap.height, 1.0F),
-            8, color);
-    }
-    // This is the lower half of an ellipse. Emitting it directly avoids a
-    // scissor-state flush in the middle of the HUD pass.
-    constexpr int HalfEllipseSegments = 24;
-    const Vector2 center{
-        bounds.x + bounds.width * 0.5F, centerY};
-    rlSetTexture(0);
-    rlBegin(RL_TRIANGLES);
-    rlColor4ub(color.r, color.g, color.b, color.a);
-    for (int segment = 0; segment < HalfEllipseSegments; ++segment) {
-        const float start = static_cast<float>(segment) * PI /
-            static_cast<float>(HalfEllipseSegments);
-        const float end = static_cast<float>(segment + 1) * PI /
-            static_cast<float>(HalfEllipseSegments);
-        rlVertex2f(center.x, center.y);
-        rlVertex2f(
-            center.x + std::cos(start) * bounds.width * 0.5F,
-            center.y + std::sin(start) * radiusY);
-        rlVertex2f(
-            center.x + std::cos(end) * bounds.width * 0.5F,
-            center.y + std::sin(end) * radiusY);
-    }
-    rlEnd();
-}
-
-void emitTriangleClippedBelow(
-    Vector2 first, Vector2 second, Vector2 third, float minimumY) {
-    const std::array<Vector2, 3> input{first, second, third};
-    std::array<Vector2, 4> output{};
-    std::size_t outputCount = 0U;
-    auto previous = input.back();
-    bool previousInside = previous.y >= minimumY;
-    for (const Vector2 current : input) {
-        const bool currentInside = current.y >= minimumY;
-        if (currentInside != previousInside) {
-            const float denominator = current.y - previous.y;
-            const float factor = std::abs(denominator) > 0.0001F
-                ? (minimumY - previous.y) / denominator
-                : 0.0F;
-            output[outputCount++] = {
-                previous.x + (current.x - previous.x) * factor,
-                minimumY};
-        }
-        if (currentInside) {
-            output[outputCount++] = current;
-        }
-        previous = current;
-        previousInside = currentInside;
-    }
-    for (std::size_t index = 1U; index + 1U < outputCount; ++index) {
-        rlVertex2f(output[0].x, output[0].y);
-        rlVertex2f(output[index].x, output[index].y);
-        rlVertex2f(output[index + 1U].x, output[index + 1U].y);
-    }
-}
-
 float dayNightCycleAngle(
     const SimulationSnapshot& snapshot) {
     // One continuous phase coordinate rotates the dial through day,
@@ -346,117 +274,6 @@ float dayNightCycleAngle(
     return 0.0F;
 }
 
-void emitDayNightDialSector(
-    Rectangle bounds, float cornerRadius,
-    float centerAngle, float sectorAngle, Color color) {
-    constexpr int SegmentCount = 32;
-    const float safeCornerRadius = std::clamp(
-        cornerRadius, 0.0F, bounds.height * 0.5F);
-    const Vector2 center{
-        bounds.x + bounds.width * 0.5F,
-        bounds.y + safeCornerRadius,
-    };
-    const float radiusX = bounds.width * 0.5F;
-    const float radiusY = bounds.height - safeCornerRadius;
-    const float startAngle = centerAngle - sectorAngle * 0.5F;
-    // The caller owns one shared untextured batch and scissor for all sectors.
-    // Overlap internal edges slightly to avoid colored radial speckles.
-    constexpr float SegmentOverlap = 0.0025F;
-    const float step = sectorAngle / static_cast<float>(SegmentCount);
-    rlColor4ub(color.r, color.g, color.b, color.a);
-    for (int segment = 0; segment < SegmentCount; ++segment) {
-        const float segmentStart = startAngle +
-            static_cast<float>(segment) * step -
-            (segment > 0 ? SegmentOverlap : 0.0F);
-        const float segmentEnd = startAngle +
-            static_cast<float>(segment + 1) * step +
-            (segment + 1 < SegmentCount ? SegmentOverlap : 0.0F);
-        emitTriangleClippedBelow(
-            center,
-            {center.x + std::cos(segmentEnd) * radiusX,
-             center.y + std::sin(segmentEnd) * radiusY},
-            {center.x + std::cos(segmentStart) * radiusX,
-             center.y + std::sin(segmentStart) * radiusY},
-            bounds.y);
-    }
-}
-
-[[maybe_unused]] void drawDayNightIndicator(
-    Rectangle bounds, const SimulationSnapshot& snapshot) {
-    constexpr Color ShadowColor{82, 82, 82, 255};
-    constexpr Color FrameColor{49, 49, 49, 255};
-    constexpr Color NightColor{59, 67, 165, 255};
-    constexpr Color SunsetColor{232, 121, 62, 255};
-    constexpr Color DayColor{224, 177, 39, 255};
-    constexpr float FrameInset = 4.0F;
-    constexpr float DayArc = 2.70F;
-    constexpr float SunsetArc = 0.55F;
-    constexpr float NightArc = 2.70F;
-    constexpr float DawnArc = 2.0F * PI -
-        DayArc - SunsetArc - NightArc;
-
-    const bool urgentPhase = snapshot.phaseDuration > 0.0 &&
-        snapshot.phaseTimeRemaining > 0.0 &&
-        snapshot.phaseTimeRemaining <= 10.0;
-    if (urgentPhase) {
-        const float urgency = 1.0F - std::clamp(
-            static_cast<float>(snapshot.phaseTimeRemaining / 10.0),
-            0.0F, 1.0F);
-        const float wave = 0.5F + 0.5F * std::sin(
-            static_cast<float>(GetTime()) * 8.0F);
-        drawDayNightBowl(
-            {bounds.x - 3.0F, bounds.y - 2.0F,
-             bounds.width + 6.0F, bounds.height + 6.0F},
-            8.0F,
-            {255, 105, 60,
-             static_cast<unsigned char>(
-                 28.0F + urgency * (35.0F + wave * 55.0F))});
-    }
-
-    drawDayNightBowl(
-        {bounds.x, bounds.y + 4.0F,
-         bounds.width, bounds.height},
-        6.0F, ShadowColor);
-    drawDayNightBowl(bounds, 6.0F, FrameColor);
-
-    const Rectangle inner{
-        bounds.x + FrameInset,
-        bounds.y + FrameInset,
-        bounds.width - FrameInset * 2.0F,
-        bounds.height - FrameInset * 2.0F,
-    };
-    constexpr float InnerCornerRadius = 4.0F;
-    drawDayNightBowl(inner, InnerCornerRadius, NightColor);
-
-    // At zero the fixed notch sits exactly on the start of the yellow day
-    // sector. Decreasing the angle rotates the dial counter-clockwise.
-    float sectorStart = PI * 0.5F - dayNightCycleAngle(snapshot);
-    rlSetTexture(0);
-    rlBegin(RL_TRIANGLES);
-    const auto emitRotatingSector =
-        [&](float sectorArc, Color color) {
-            emitDayNightDialSector(
-                inner, InnerCornerRadius,
-                sectorStart + sectorArc * 0.5F,
-                sectorArc, color);
-            sectorStart += sectorArc;
-        };
-    emitRotatingSector(DayArc, DayColor);
-    emitRotatingSector(SunsetArc, SunsetColor);
-    emitRotatingSector(NightArc, NightColor);
-    emitRotatingSector(DawnArc, SunsetColor);
-    rlEnd();
-
-    const Vector2 center{
-        inner.x + inner.width * 0.5F,
-        inner.y + InnerCornerRadius};
-    DrawTriangle(
-        {center.x - 7.0F, inner.y},
-        {center.x, inner.y + 11.0F},
-        {center.x + 7.0F, inner.y},
-        FrameColor);
-}
-
 void drawDayNightTimeline(
     Rectangle bounds, const SimulationSnapshot& snapshot) {
     constexpr Color ShadowColor{43, 38, 35, 125};
@@ -468,12 +285,17 @@ void drawDayNightTimeline(
     constexpr float SunsetArc = 0.55F;
     constexpr float NightArc = 2.70F;
     constexpr float Tau = 2.0F * PI;
+    constexpr float ColorBlendArc = 0.16F;
     constexpr float DayEnd = DayArc / Tau;
     constexpr float SunsetEnd = (DayArc + SunsetArc) / Tau;
+    constexpr float SunsetBlendEnd =
+        (DayArc + ColorBlendArc) / Tau;
     constexpr float NightBlendEnd =
-        (DayArc + SunsetArc + SunsetArc) / Tau;
+        (DayArc + SunsetArc + ColorBlendArc) / Tau;
     constexpr float NightEnd =
         (DayArc + SunsetArc + NightArc) / Tau;
+    constexpr float DawnBlendStart =
+        1.0F - ColorBlendArc / Tau;
 
     DrawRectangleRounded(
         {bounds.x + 1.0F, bounds.y + 3.0F,
@@ -495,12 +317,16 @@ void drawDayNightTimeline(
         if (phase < DayEnd) {
             return DayColor;
         }
-        if (phase < SunsetEnd) {
+        if (phase < SunsetBlendEnd) {
             const float blend = std::clamp(
                 (phase - DayEnd) /
-                    std::max(0.0001F, SunsetEnd - DayEnd),
+                    std::max(0.0001F,
+                             SunsetBlendEnd - DayEnd),
                 0.0F, 1.0F);
             return ColorLerp(DayColor, SunsetColor, blend);
+        }
+        if (phase < SunsetEnd) {
+            return SunsetColor;
         }
         if (phase < NightBlendEnd) {
             const float blend = std::clamp(
@@ -515,9 +341,13 @@ void drawDayNightTimeline(
         if (phase < NightEnd) {
             return NightColor;
         }
+        if (phase < DawnBlendStart) {
+            return NightColor;
+        }
         const float blend = std::clamp(
-            (phase - NightEnd) /
-                std::max(0.0001F, 1.0F - NightEnd),
+            (phase - DawnBlendStart) /
+                std::max(0.0001F,
+                         1.0F - DawnBlendStart),
             0.0F, 1.0F);
         return ColorLerp(NightColor, DayColor, blend);
     };
@@ -1313,6 +1143,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     std::string phaseText;
     std::string phaseSubtext;
+    bool showEarlyBonus = false;
     Color phaseColor{245, 184, 76, 255};
     if (snapshot.state == RunState::BuildPhase) {
         if (snapshot.sandboxMode) {
@@ -1326,21 +1157,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 phaseClock(snapshot.phaseTimeRemaining);
         }
         if (!snapshot.sandboxMode && snapshot.earlyWaveBonus > 0) {
-            phaseSubtext = "N  EARLY  +" +
-                std::to_string(snapshot.earlyWaveBonus) +
-                " CRYSTALS";
-            if (snapshot.earlyWaveCoinBonus > 0) {
-                phaseSubtext += "  +" +
-                    std::to_string(
-                        snapshot.earlyWaveCoinBonus) +
-                    " COINS";
-            }
-            if (snapshot.earlyWaveInsightBonus > 0) {
-                phaseSubtext += "  +" +
-                    std::to_string(
-                        snapshot.earlyWaveInsightBonus) +
-                    " XP";
-            }
+            showEarlyBonus = true;
         }
     } else if (snapshot.state == RunState::Sunset) {
         phaseText = "SUNSET  " +
@@ -1433,13 +1250,40 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
                 phaseSubtext, 160.0F, 9.0F,
                 {221, 210, 187, 225});
         }
+        if (showEarlyBonus) {
+            const std::string bonusText =
+                "+" +
+                std::to_string(snapshot.earlyWaveBonus);
+            constexpr float BonusFontSize = 18.0F;
+            constexpr float CrystalIconSize = 32.0F;
+            constexpr float IconGap = 6.0F;
+            const Vector2 textSize = measureUiText(
+                bonusText, BonusFontSize);
+            const float startX =
+                static_cast<float>(GetScreenWidth()) * 0.5F +
+                102.0F;
+            SdfUiTextStyle bonusStyle{};
+            bonusStyle.fillColor = {255, 236, 184, 255};
+            bonusStyle.outlineColor = {49, 49, 49, 255};
+            bonusStyle.shadowColor = {82, 82, 82, 220};
+            bonusStyle.shadowOffsetPixels = {0.0F, 3.0F};
+            bonusStyle.outlinePixels = 2.5F;
+            drawStyledSdfUiText(
+                bonusText, {startX, 78.0F},
+                BonusFontSize, bonusStyle);
+            ui.drawResourceIcon(
+                {startX + textSize.x + IconGap,
+                 77.0F, CrystalIconSize, CrystalIconSize},
+                UiResourceIcon::Crystal);
+        }
     }
 
     const bool attackWarningVisible =
         snapshot.state == RunState::Sunset &&
         hasAttackDirections(snapshot);
-    float nextCenterHudY = chestCompassVisible ? 216.0F : 190.0F;
     if (attackWarningVisible) {
+        const float attackWarningY =
+            chestCompassVisible ? 213.0F : 162.0F;
         const std::string directions =
             attackDirectionNames(snapshot);
         const float elapsed = static_cast<float>(std::max(
@@ -1466,7 +1310,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         headingStyle.outlinePixels = 1.75F;
         drawCenteredStyledSdfUiText(
             "ATTACK FROM",
-            nextCenterHudY + (1.0F - entrance) * 5.0F,
+            attackWarningY + (1.0F - entrance) * 5.0F,
             10.5F, headingStyle);
 
         const float directionBaseSize = fitUiTextSize(
@@ -1486,7 +1330,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         directionStyle.shadowOffsetPixels = {0.0F, 3.0F};
         directionStyle.outlinePixels = 2.75F;
         drawCenteredStyledSdfUiText(
-            directions, nextCenterHudY + 15.0F,
+            directions, attackWarningY + 23.0F,
             directionBaseSize * overshoot, directionStyle);
     }
 
@@ -1498,13 +1342,24 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
 
     const bool buildModeActive =
         view.actionMode == ActionMode::Buildings;
-    drawCompactInsight(
-        ui, snapshot, view,
-        buildModeActive || view.showCoreHealth);
+    drawCompactInsight(snapshot, view);
+    const float modeBlend = std::clamp(
+        view.hotbarModeBlend, 0.0F, 1.0F);
+    const float easedModeBlend = modeBlend * modeBlend *
+        (3.0F - 2.0F * modeBlend);
+    const float weaponOffset = easedModeBlend * 160.0F;
+    const float buildOffset =
+        (1.0F - easedModeBlend) * 210.0F;
     if (buildModeActive) {
-        drawBuildHotbar(ui, snapshot, view);
+        if (modeBlend < 1.0F) {
+            drawWeaponHotbar(ui, snapshot, view, weaponOffset);
+        }
+        drawBuildHotbar(ui, snapshot, view, buildOffset);
     } else {
-        drawWeaponHotbar(ui, snapshot, view);
+        if (modeBlend > 0.0F) {
+            drawBuildHotbar(ui, snapshot, view, buildOffset);
+        }
+        drawWeaponHotbar(ui, snapshot, view, weaponOffset);
     }
 
     hudPerformanceStats.hotbarMs =

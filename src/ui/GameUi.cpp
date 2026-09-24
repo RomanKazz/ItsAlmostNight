@@ -8,14 +8,11 @@
 #include "ui/UiText.hpp"
 #include "localization/Localization.hpp"
 
-#include <nlohmann/json.hpp>
-
 #define RAYGUI_IMPLEMENTATION
 #include <raygui.h>
 
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <string>
 
 namespace ian {
@@ -151,6 +148,10 @@ void GameUi::initialize() {
         "assets/ui/building_catapult.png",
         "assets/ui/building_spikes.png",
         "assets/ui/building_turret.png",
+        "assets/ui/building_crystal_mine.png",
+        "assets/ui/building_lumber_mill.png",
+        "assets/ui/building_quarry.png",
+        "assets/ui/building_slow_trap.png",
     };
     for (std::size_t index = 0; index < buildingIcons_.size(); ++index) {
         buildingIcons_[index] = loadTexture(BuildingIconPaths[index]);
@@ -160,6 +161,10 @@ void GameUi::initialize() {
         "assets/ui/weapon_axe.png",
         "assets/ui/weapon_pickaxe.png",
         "assets/ui/weapon_club.png",
+        "assets/ui/weapon_rifle.png",
+        "assets/ui/weapon_bomb.png",
+        "assets/ui/weapon_ice_wand.png",
+        "assets/ui/weapon_fire_wand.png",
     };
     for (std::size_t index = 0; index < weaponIcons_.size(); ++index) {
         weaponIcons_[index] = loadTexture(WeaponIconPaths[index]);
@@ -228,7 +233,10 @@ void GameUi::initialize() {
     }
     minimapCircleShader_ = LoadShader(
         nullptr, "assets/shaders/minimap_circle.fs");
-    reloadThemeSlices();
+    panelInsets_ = {16, 16, 16, 18};
+    insetInsets_ = {9, 9, 9, 9};
+    buttonInsets_ = {12, 10, 12, 14};
+    barInsets_ = {12, 4, 12, 4};
     initializeUiText();
     initialized_ = true;
 
@@ -319,51 +327,6 @@ void GameUi::shutdown() {
     unloadTexture(panel_);
     shutdownUiText();
     initialized_ = false;
-}
-
-void GameUi::reloadThemeSlices() {
-    panelInsets_ = {16, 16, 16, 18};
-    insetInsets_ = {9, 9, 9, 9};
-    buttonInsets_ = {12, 10, 12, 14};
-    barInsets_ = {12, 4, 12, 4};
-    std::ifstream input{"assets/ui/ui_editor.json"};
-    if (!input) return;
-    try {
-        const nlohmann::json root = nlohmann::json::parse(input);
-        const auto found = root.find("assets");
-        if (found == root.end() || !found->is_array()) return;
-        for (const auto& item : *found) {
-            const std::string path = item.value("path", "");
-            SliceInsets* insets = nullptr;
-            Texture2D texture{};
-            if (path == "assets/ui/cartoony/panel.png") {
-                insets = &panelInsets_;
-                texture = panel_;
-            } else if (path == "assets/ui/cartoony/inset.png") {
-                insets = &insetInsets_;
-                texture = insetPanel_;
-            } else if (path == "assets/ui/cartoony/button.png") {
-                insets = &buttonInsets_;
-                texture = button_;
-            } else if (path == "assets/ui/cartoony/bar-back.png") {
-                insets = &barInsets_;
-                texture = barBack_;
-            }
-            if (insets == nullptr || !IsTextureValid(texture)) continue;
-            insets->left = std::clamp(
-                item.value("left", insets->left), 0, texture.width - 1);
-            insets->right = std::clamp(
-                item.value("right", insets->right), 0,
-                texture.width - insets->left - 1);
-            insets->top = std::clamp(
-                item.value("top", insets->top), 0, texture.height - 1);
-            insets->bottom = std::clamp(
-                item.value("bottom", insets->bottom), 0,
-                texture.height - insets->top - 1);
-        }
-    } catch (const nlohmann::json::exception&) {
-        // Keep safe defaults when the editor file is incomplete.
-    }
 }
 
 bool GameUi::beginMinimapTarget() const {
@@ -626,6 +589,10 @@ Texture2D GameUi::buildingTexture(BuildingType type) const {
     case BuildingType::Catapult: return buildingIcons_[2];
     case BuildingType::SpikeTrap: return buildingIcons_[3];
     case BuildingType::GunTurret: return buildingIcons_[4];
+    case BuildingType::CrystalMine: return buildingIcons_[5];
+    case BuildingType::LumberMill: return buildingIcons_[6];
+    case BuildingType::Quarry: return buildingIcons_[7];
+    case BuildingType::SlowTrap: return buildingIcons_[8];
     default: return {};
     }
 }
@@ -650,6 +617,10 @@ Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
     case PlayerWeapon::Axe: return weaponIcons_[0];
     case PlayerWeapon::Pickaxe: return weaponIcons_[1];
     case PlayerWeapon::Club: return weaponIcons_[2];
+    case PlayerWeapon::Rifle: return weaponIcons_[3];
+    case PlayerWeapon::Bomb: return weaponIcons_[4];
+    case PlayerWeapon::IceWand: return weaponIcons_[5];
+    case PlayerWeapon::FireWand: return weaponIcons_[6];
     default: return {};
     }
 }
@@ -667,6 +638,7 @@ Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
     case RunUpgradeEffect::BloodHarvest:
         return lifestealUpgradeIcon_;
     case RunUpgradeEffect::Overkill:
+    case RunUpgradeEffect::GunPiercing:
         return pierceUpgradeIcon_;
     case RunUpgradeEffect::Ricochet:
         return ricochetUpgradeIcon_;

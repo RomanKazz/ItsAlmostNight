@@ -30,9 +30,14 @@ enum class RunUpgradeEffect {
     TwinBatteries,
     ClusterPayload,
     ReactiveTraps,
+    GunPiercing,
+    GunShrapnel,
+    GatheringSpeed,
+    LongerDay,
+    RichResources,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 23U;
+inline constexpr std::size_t RunUpgradeEffectCount = 28U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -48,7 +53,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::Damage, "POWER",
          "+10% attack damage"},
         {RunUpgradeEffect::AttackSpeed, "HASTE",
-         "+8% attack speed"},
+         "+15% weapon and tool speed"},
         {RunUpgradeEffect::MoveSpeed, "MOVE",
          "+7% move speed"},
         {RunUpgradeEffect::MaximumHealth, "HP",
@@ -84,18 +89,39 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::RiskyInvestment, "HIGH STAKES",
          "+2 picks, stronger enemies"},
         {RunUpgradeEffect::Salvager, "SALVAGE",
-         "+30% building refund"},
+         "+30% sold or destroyed refund"},
         {RunUpgradeEffect::TwinBatteries, "TWIN SHOT",
          "+1 side shot"},
         {RunUpgradeEffect::ClusterPayload, "CLUSTER",
          "+2 mini explosions"},
         {RunUpgradeEffect::ReactiveTraps, "PULSE",
          "+6 shockwave damage"},
+        {RunUpgradeEffect::GunPiercing, "ARMOR PIERCER",
+         "+1 gun turret pierce target"},
+        {RunUpgradeEffect::GunShrapnel, "SHRAPNEL",
+         "+3 gun turret kill shards"},
+        {RunUpgradeEffect::GatheringSpeed, "QUICK TOOLS",
+         "+15% gathering speed"},
+        {RunUpgradeEffect::LongerDay, "LONG DAY",
+         "+5s build phase"},
+        {RunUpgradeEffect::RichResources, "RICH NODES",
+         "+15% resource node yield"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
     RunUpgradeEffect effect) {
     return static_cast<std::size_t>(effect);
+}
+
+// These IDs remain reserved so suspended runs keep their card indices.
+[[nodiscard]] constexpr bool retiredRunUpgrade(
+    RunUpgradeEffect effect) {
+    return effect == RunUpgradeEffect::LockChoice ||
+           effect == RunUpgradeEffect::GatheringSpeed;
+}
+
+[[nodiscard]] constexpr double runGatheringSpeedMultiplier(int stacks) {
+    return 1.0 + 0.15 * static_cast<double>(stacks > 0 ? stacks : 0);
 }
 
 [[nodiscard]] constexpr const RunUpgradeDefinition&
@@ -114,7 +140,10 @@ runUpgradeDefinition(RunUpgradeEffect effect) {
     case RunUpgradeEffect::RiskyInvestment:
         return 3;
     case RunUpgradeEffect::ClusterPayload:
+    case RunUpgradeEffect::GunShrapnel:
         return 2;
+    case RunUpgradeEffect::GunPiercing:
+        return 3;
     case RunUpgradeEffect::LockChoice:
         return 1;
     default:

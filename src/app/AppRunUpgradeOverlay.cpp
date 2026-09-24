@@ -105,9 +105,14 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::DefenseFireRate:
     case RunUpgradeEffect::ClusterPayload:
     case RunUpgradeEffect::ReactiveTraps:
+    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::GunShrapnel:
         return UpgradeColorClass::Yellow;
     case RunUpgradeEffect::ProductionSpeed:
+    case RunUpgradeEffect::GatheringSpeed:
+    case RunUpgradeEffect::RichResources:
     case RunUpgradeEffect::NightlyBomb:
+    case RunUpgradeEffect::LongerDay:
     case RunUpgradeEffect::Salvager:
         return UpgradeColorClass::Green;
     case RunUpgradeEffect::WiderChoice:
@@ -148,6 +153,11 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::TwinBatteries: return "X2";
     case RunUpgradeEffect::ClusterPayload: return "BURST";
     case RunUpgradeEffect::ReactiveTraps: return "PULSE";
+    case RunUpgradeEffect::GunPiercing: return "PIERCE";
+    case RunUpgradeEffect::GunShrapnel: return "SHARD";
+    case RunUpgradeEffect::GatheringSpeed: return "TOOL";
+    case RunUpgradeEffect::LongerDay: return "DAY";
+    case RunUpgradeEffect::RichResources: return "NODE";
     }
     return "+";
 }
@@ -233,6 +243,12 @@ void drawRasterOutlinedCenteredText(
     const int radius = std::max(
         1, static_cast<int>(std::ceil(outlineRadius)));
     const float radiusSquared = outlineRadius * outlineRadius;
+    // The outline is built from many overlapping text stamps. Fading every
+    // stamp linearly makes their tiny rounded alphas accumulate into an
+    // almost opaque black silhouette after the fill has nearly vanished.
+    // Fade the redundant stamps faster so the complete glyph disappears
+    // cleanly with its card.
+    const float outlineOpacity = opacity * opacity * opacity;
     for (int y = -radius; y <= radius; ++y) {
         for (int x = -radius; x <= radius; ++x) {
             const float distanceSquared =
@@ -242,7 +258,8 @@ void drawRasterOutlinedCenteredText(
                 font, text.c_str(),
                 {position.x + static_cast<float>(x),
                  position.y + static_cast<float>(y)},
-                fontSize, spacing, fadedColor(outline, opacity));
+                fontSize, spacing,
+                fadedColor(outline, outlineOpacity));
         }
     }
     DrawTextEx(
@@ -463,10 +480,9 @@ void drawRunUpgradeOverlay(
         const float entranceFade = smoothUnit(entrance);
         const bool selectedForExit = selectedChoice &&
             *selectedChoice == index;
-        const float cardExitFade = selectedForExit
-            ? 1.0F - smoothUnit(std::clamp(
-                  (exitProgress - 0.62F) / 0.38F, 0.0F, 1.0F))
-            : overlayFade;
+        // Several opaque layers overlap inside each card. Fade them faster
+        // near the end so their combined opacity reaches zero smoothly.
+        const float cardExitFade = overlayFade * overlayFade;
         const float cardFade =
             smoothUnit(entrance * 2.5F) * cardExitFade;
         const float exitScale = selectedForExit

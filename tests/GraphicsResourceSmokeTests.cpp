@@ -3,6 +3,8 @@
 #include "graphics/Renderer.hpp"
 
 #include <raylib.h>
+#include <rlgl.h>
+#include <cstdlib>
 
 #include <algorithm>
 #include <array>
@@ -36,6 +38,36 @@ bool checkMissingResources() {
     target.unload();
     target.unload();
     return rejected;
+}
+
+// A world surface must replace the normal attachment even with alpha blending
+// enabled. Encoding object IDs in its alpha previously leaked background ink.
+bool checkOpaqueNormalAttachment(ian::GraphicsResources& resources) {
+    Shader& shader = resources.worldShader().get();
+    const float eligible = 1.0F;
+    SetShaderValue(shader, GetShaderLocation(shader, "inkOutlineEligible"),
+                   &eligible, SHADER_UNIFORM_FLOAT);
+    const Camera3D camera{{0.0F, 0.0F, 4.0F}, {0.0F, 0.0F, 0.0F},
+                          {0.0F, 1.0F, 0.0F}, 60.0F, CAMERA_PERSPECTIVE};
+    std::array<Color, 2> samples{};
+    const std::array<Color, 2> backgrounds{RED, BLUE};
+    for (std::size_t i = 0; i < backgrounds.size(); ++i) {
+        BeginTextureMode(resources.sceneTarget());
+        rlActiveDrawBuffers(2);
+        ClearBackground(backgrounds[i]);
+        BeginMode3D(camera);
+        BeginShaderMode(shader);
+        DrawCube({0.0F, 0.0F, 0.0F}, 2.0F, 2.0F, 2.0F, WHITE);
+        EndShaderMode();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(resources.sceneNormalTexture());
+        samples[i] = GetImageColor(image, image.width/2, image.height/2);
+        UnloadImage(image);
+    }
+    return samples[0].a == 255 && samples[1].a == 255 &&
+        samples[0].r == samples[1].r && samples[0].g == samples[1].g &&
+        samples[0].b == samples[1].b && samples[0].b >= 127;
 }
 
 bool checkPlatformVisibilityMasks() {
@@ -171,7 +203,10 @@ int main() {
     std::cerr << "graphics smoke: create context\n";
     SetTraceLogLevel(LOG_ERROR);
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
-    InitWindow(64, 64, "IAN graphics resource smoke");
+    const bool captureOutlines = std::getenv("IAN_CAPTURE_OUTLINES") != nullptr;
+    InitWindow(captureOutlines ? 960 : 64,
+               captureOutlines ? 640 : 64,
+               "IAN graphics resource smoke");
     if (!IsWindowReady()) {
         std::cerr << "graphics context unavailable; skipping\n";
         return 77;
@@ -368,6 +403,10 @@ int main() {
             std::cerr << "SSAO enable transition failed\n";
             result = 1;
         }
+        if (!checkOpaqueNormalAttachment(resources)) {
+            std::cerr << "normal attachment leaks background through opaque geometry\n";
+            result = 1;
+        }
         resources.shutdown();
         resources.shutdown();
         std::cerr << "graphics smoke: initialize 2\n";
@@ -376,6 +415,24 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        const ian::BuildingInstance core{
+            .id = {1U, 0U},
+            .type = ian::BuildingType::Core,
+            .gridPosition = {0, 0},
+        };
+        const std::array coreBuildings{core};
+        const auto coreCenterHit = renderer.buildingRaycastDistance(
+            core, coreBuildings,
+            {{0.0F, 1.0F, 3.0F}, {0.0F, 0.0F, -1.0F}},
+            5.0);
+        const auto coreEmptySpaceHit = renderer.buildingRaycastDistance(
+            core, coreBuildings,
+            {{0.0F, 2.0F, 3.0F}, {0.0F, 0.0F, -1.0F}},
+            5.0);
+        if (!coreCenterHit || coreEmptySpaceHit) {
+            std::cerr << "core aim extends beyond visible model\n";
+            result = 1;
+        }
         const bool rampSurfaceRaycast =
             renderer.rampRaycastDistance(
                 {0.0F, 0.0F, 0.0F}, 0.0F, 1.0F,
@@ -387,8 +444,8 @@ int main() {
                 {{-3.0F, 0.5F, 0.0F}, {1.0F, 0.0F, 0.0F}},
                 6.0).has_value();
         const Camera3D smokeCamera{
-            .position = {0.0F, 2.0F, 4.0F},
-            .target = {0.0F, 0.5F, 0.0F},
+            .position = {0.0F, 1.5F, 4.0F},
+            .target = {0.0F, 1.0F, 0.0F},
             .up = {0.0F, 1.0F, 0.0F},
             .fovy = 60.0F,
             .projection = CAMERA_PERSPECTIVE,
@@ -400,6 +457,10 @@ int main() {
         ian::WorldLighting smokeLighting{};
         smokeLighting.cameraPosition = smokeCamera.position;
         renderer.beginWorldShader(smokeLighting);
+        ian::WorldMaterialState treeMaterial{};
+        treeMaterial.treeAmount = 1.0F;
+        treeMaterial.vegetationAmount = 1.0F;
+        renderer.setWorldMaterial(treeMaterial);
         const std::array<ian::TreeDrawInstance, 2> smokeTrees{{
             {.position = {-0.8F, 0.0F, 0.0F},
              .yawRadians = 0.2F,
@@ -413,8 +474,32 @@ int main() {
         const bool instancedTreesDrawn =
             renderer.drawTreesInstanced(smokeTrees);
         renderer.endWorldShader();
+        if (captureOutlines) {
+            // Reproduce a transparent world particle crossing outlined
+            // geometry. It changes scene color/alpha but intentionally does
+            // not replace the normal attachment behind it.
+            rlDrawRenderBatchActive();
+            rlSetBlendFactorsSeparate(
+                RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
+                RL_ZERO, RL_ZERO,
+                RL_FUNC_ADD, RL_FUNC_ADD);
+            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+            rlDisableDepthMask();
+            DrawSphereEx(
+                {0.32F, 2.22F, 1.05F}, 0.22F, 6, 6,
+                {255, 182, 55, 150});
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
+        }
         EndMode3D();
         renderer.endWorldPass();
+        if (captureOutlines) {
+            rlDrawRenderBatchActive();
+            Image frame = LoadImageFromScreen();
+            ExportImage(frame, "/tmp/ian-outline-regression.png");
+            UnloadImage(frame);
+        }
         EndDrawing();
         BeginDrawing();
         ClearBackground(BLACK);

@@ -2,6 +2,7 @@
 #include "buildings/BuildingOrientation.hpp"
 
 #include "combat/CannonSystem.hpp"
+#include "combat/CombatDisplayUnits.hpp"
 #include "combat/TowerSystem.hpp"
 #include "combat/TrapSystem.hpp"
 #include "economy/CrystalMineSystem.hpp"
@@ -40,7 +41,7 @@ BuildingStats buildingStatsAtLevel(
             : building.anvilEnhanced ? 1.10 : 1.0;
         stats.attackDamage = TowerSystem::attackDamage(
             building.type, level) *
-            towerBonus;
+            towerBonus * CombatDisplayScale;
         stats.attackRange = TowerSystem::attackRange(
             building.type, level);
         stats.attackArcDegrees = defenseAttackArcDegrees(level);
@@ -57,7 +58,7 @@ BuildingStats buildingStatsAtLevel(
             : building.anvilEnhanced ? 1.10 : 1.0;
         stats.attackDamage = CannonSystem::explosionDamage(
             building.type, level) *
-            towerBonus;
+            towerBonus * CombatDisplayScale;
         stats.attackRange = CannonSystem::attackRange(
             building.type, level);
         stats.attackArcDegrees = defenseAttackArcDegrees(level);
@@ -79,7 +80,8 @@ BuildingStats buildingStatsAtLevel(
         stats.effectDuration = TrapSystem::slowDuration(level);
         stats.cooldown = TrapSystem::cooldown(level);
     } else if (building.type == BuildingType::SpikeTrap) {
-        stats.attackDamage = TrapSystem::spikeDamage(level);
+        stats.attackDamage = combatDisplayScalar(
+            TrapSystem::spikeDamage(level));
         stats.effectRadius = TrapSystem::spikeTriggerRadius(level);
         stats.cooldown = TrapSystem::spikeCooldown(level);
     }

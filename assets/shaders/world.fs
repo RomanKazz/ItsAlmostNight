@@ -92,6 +92,8 @@ uniform float ghostAmount;
 uniform vec3 ghostTint;
 uniform float ghostOpacity;
 uniform float inkOutlineEligible;
+uniform float inkOccluder;
+uniform float unlitAmount;
 uniform float outlineMaterialClassOverride;
 uniform sampler2D shadowMap;
 uniform float shadowsEnabled;
@@ -1083,6 +1085,9 @@ void main()
             ghost);
     }
 
+    // Glowing projectiles still write the normal/ink target of the world pass.
+    // This prevents old geometry tags from bleeding through their silhouette.
+    litColor = mix(litColor, albedo.rgb, clamp(unlitAmount, 0.0, 1.0));
     finalColor = vec4(litColor, outputAlpha);
     // Pack the outline material class and the SSAO mask together.  Keeping
     // the class separate from scene color alpha is important: alpha is also
@@ -1104,6 +1109,11 @@ void main()
     float packedClassAo = outlineMaterialClass*0.25 +
         clamp(screenAoAmount, 0.0, 1.0)*(1.0 - ghost)*
         (1.0 - terraceWall)*0.125;
+    // Class zero leaves the upper quarter of the packed blue channel free.
+    // Store the foreground-occluder tag there while keeping alpha opaque, so
+    // this MRT attachment fully replaces geometry rendered behind the plant.
+    packedClassAo = mix(
+        packedClassAo, 0.1875, step(0.5, inkOccluder));
     normalAo = vec4(
         encodeOctahedralNormal(normal), packedClassAo, 1.0);
 }

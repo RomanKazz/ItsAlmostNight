@@ -4,9 +4,32 @@
 #include "game/ModularCombat.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace ian {
+namespace {
+
+ResourceCost salvageSaleBonus(ResourceCost cost,
+                              ResourceCost standardRefund,
+                              int stacks) {
+    if (stacks <= 0) return {};
+    const double fraction = std::min(
+        0.90, 0.30 * static_cast<double>(stacks));
+    const auto bonus = [fraction](int paid, int refunded) {
+        return std::min(
+            std::max(0, paid - refunded),
+            static_cast<int>(std::lround(
+                static_cast<double>(paid) * fraction)));
+    };
+    return {
+        bonus(cost.wood, standardRefund.wood),
+        bonus(cost.stone, standardRefund.stone),
+        bonus(cost.crystals, standardRefund.crystals),
+    };
+}
+
+} // namespace
 
 void Simulation::processBuildingActions(
     const PlayerCommand& command) {
@@ -233,14 +256,15 @@ void Simulation::processBuildingActions(
                 activeFortifications_, command.repairBuilding->buildingId,
                 &ActiveFortification::id);
             if (active == activeFortifications_.end())
-                activeFortifications_.push_back({command.repairBuilding->buildingId, 10.0});
+                activeFortifications_.push_back({command.repairBuilding->buildingId,
+                    playerClass_ == PlayerClass::Engineer ? 20.0 : 10.0});
             else
-                active->remaining = 10.0;
+                active->remaining = playerClass_ == PlayerClass::Engineer ? 20.0 : 10.0;
             events_.push_back({.type = GameEventType::BuildingFortified,
                                .entityId = fortifyTarget->id,
                                .buildingType = fortifyTarget->type,
                                .position = buildingWorldPosition(*fortifyTarget),
-                               .amount = 10});
+                               .amount = playerClass_ == PlayerClass::Engineer ? 20 : 10});
             startRepairCooldown(fortifyTarget->id);
             return;
         }
@@ -328,9 +352,18 @@ void Simulation::processBuildingActions(
         const SellResult result = buildings_.sell(command.sellBuilding->buildingId);
         if (result.valid() && result.building) {
             if (!unlimitedResources_) {
-                wood_ = saturatingAdd(wood_, result.refund.wood);
-                stone_ = saturatingAdd(stone_, result.refund.stone);
-                crystals_ = saturatingAdd(crystals_, result.refund.crystals);
+                const ResourceCost bonus = salvageSaleBonus(
+                    buildings_.configuredCost(result.building->type),
+                    result.refund,
+                    runUpgradeStacks_[runUpgradeIndex(
+                        RunUpgradeEffect::Salvager)]);
+                wood_ = saturatingAdd(
+                    wood_, saturatingAdd(result.refund.wood, bonus.wood));
+                stone_ = saturatingAdd(
+                    stone_, saturatingAdd(result.refund.stone, bonus.stone));
+                crystals_ = saturatingAdd(
+                    crystals_, saturatingAdd(
+                        result.refund.crystals, bonus.crystals));
             }
             aimedBuilding_.reset();
             syncWorldStructures();
@@ -354,6 +387,30 @@ void Simulation::processBuildingActions(
         command.removeModularBuilding) {
         const EntityId target =
             command.removeModularBuilding->buildingId;
+        ResourceCost modularCost{};
+        const auto frame = std::ranges::find(
+            foundations_.platformFrames(), target,
+            &PlatformFrameInstance::id);
+        if (frame != foundations_.platformFrames().end()) {
+            modularCost = modularBuildingCosts_[static_cast<std::size_t>(
+                frame->storey == 0
+                    ? ModularBuildPiece::Foundation
+                    : ModularBuildPiece::FloorPlatform)];
+        } else if (std::ranges::any_of(
+                       foundations_.walls(),
+                       [target](const WallInstance& wall) {
+                           return wall.id == target;
+                       })) {
+            modularCost = modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Wall)];
+        } else if (std::ranges::any_of(
+                       foundations_.ramps(),
+                       [target](const RampInstance& ramp) {
+                           return ramp.id == target;
+                       })) {
+            modularCost = modularBuildingCosts_[static_cast<std::size_t>(
+                ModularBuildPiece::Ramp)];
+        }
         if (modularRemovalWouldDestroyCore(
                 target)) {
             events_.push_back({
@@ -368,6 +425,14 @@ void Simulation::processBuildingActions(
                         Unsupported,
             });
         } else if (foundations_.remove(target)) {
+            if (!unlimitedResources_) {
+                const ResourceCost bonus = salvageSaleBonus(
+                    modularCost, {}, runUpgradeStacks_[runUpgradeIndex(
+                        RunUpgradeEffect::Salvager)]);
+                wood_ = saturatingAdd(wood_, bonus.wood);
+                stone_ = saturatingAdd(stone_, bonus.stone);
+                crystals_ = saturatingAdd(crystals_, bonus.crystals);
+            }
             aimedModularBuilding_.reset();
             syncModularStructures();
             removeUnsupportedPlatformBuildings();

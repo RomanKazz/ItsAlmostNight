@@ -24,25 +24,39 @@ void runBuildingSystemTests() {
         const auto levelOneConstruction =
             ian::makeConstructionHotbarLayout(
                 allUnlocked, true, 1, false);
+        const auto levelTwoConstruction =
+            ian::makeConstructionHotbarLayout(
+                allUnlocked, true, 2, false);
+        const auto levelThreeConstruction =
+            ian::makeConstructionHotbarLayout(
+                allUnlocked, true, 3, false);
         require(
             creativeEconomy.count == 0U &&
                 creativeConstruction.count == 8U &&
                 creativeConstruction.items[0].modularPiece ==
                     ian::ModularBuildPiece::Foundation &&
-                creativeConstruction.items[3].buildingType ==
+                creativeConstruction.items[1].buildingType ==
                     ian::BuildingType::Wall &&
-                creativeConstruction.items[7].buildingType ==
-                    ian::BuildingType::CrystalMine,
+                creativeConstruction.items[7].modularPiece ==
+                    ian::ModularBuildPiece::Ramp,
             "creative construction catalog combines modular, perimeter, and production structures");
         require(
-            levelOneConstruction.count == 3U &&
-                levelOneConstruction.items[0].buildingType ==
+            levelOneConstruction.count == 0U &&
+                levelTwoConstruction.count == 4U &&
+                levelTwoConstruction.items[0].modularPiece ==
+                    ian::ModularBuildPiece::Foundation &&
+                levelTwoConstruction.items[1].buildingType ==
                     ian::BuildingType::Wall &&
-                levelOneConstruction.items[1].buildingType ==
+                levelTwoConstruction.items[2].buildingType ==
                     ian::BuildingType::Gate &&
-                levelOneConstruction.items[2].buildingType ==
-                    ian::BuildingType::CrystalMine,
-            "level-one construction catalog keeps unlocked buildings available before modular pieces");
+                levelTwoConstruction.items[3].buildingType ==
+                    ian::BuildingType::CrystalMine &&
+                levelThreeConstruction.count == 6U &&
+                levelThreeConstruction.items[4].buildingType ==
+                    ian::BuildingType::Quarry &&
+                levelThreeConstruction.items[5].buildingType ==
+                    ian::BuildingType::LumberMill,
+            "construction slots append new unlocks on the right");
     }
     std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
@@ -57,10 +71,8 @@ void runBuildingSystemTests() {
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Modular,
         true, 1);
-    require(
-        hotbar.count == 1U &&
-            hotbar.types[0] == ian::BuildingType::Wall,
-        "wall moves into the combined construction category");
+    require(hotbar.count == 0U,
+            "wall stays locked before core level two");
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Defense,
         true, 1);
@@ -71,7 +83,7 @@ void runBuildingSystemTests() {
     unlocked[static_cast<std::size_t>(ian::BuildingType::Turret)] = true;
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Defense,
-        true, 2);
+        true, 3);
     require(
         hotbar.count == 2U &&
             hotbar.types[0] == ian::BuildingType::GunTurret &&
@@ -154,13 +166,13 @@ void runBuildingSystemTests() {
         combinedHotbar.count == 4U &&
             combinedHotbar.items[0].modularPiece ==
                 ian::ModularBuildPiece::Foundation &&
-            combinedHotbar.items[1].modularPiece ==
-                ian::ModularBuildPiece::FloorPlatform &&
+            combinedHotbar.items[1].buildingType ==
+                ian::BuildingType::Wall &&
             combinedHotbar.items[2].modularPiece ==
-                ian::ModularBuildPiece::Ramp &&
-            combinedHotbar.items[3].buildingType ==
-                ian::BuildingType::Wall,
-        "combined construction preserves its visible slot order");
+                ian::ModularBuildPiece::FloorPlatform &&
+            combinedHotbar.items[3].modularPiece ==
+                ian::ModularBuildPiece::Ramp,
+        "combined construction appends later unlocks on the right");
 
     ian::BuildingSystem radiusBuildings;
     radiusBuildings.setCoreBuildRadius(5);
@@ -181,7 +193,12 @@ void runBuildingSystemTests() {
                 ian::PlacementError::CoreLevelRequired,
         "starter turret is available before the crossbow unlock");
 
-    ian::BuildingSystem buildings;
+    auto buildingFixtureBalance = ian::GameBalance::defaults();
+    buildingFixtureBalance.buildings[static_cast<std::size_t>(
+        ian::BuildingType::Wall)].unlockCoreLevel = 1;
+    ian::BuildingSystem buildings{
+        buildingFixtureBalance.buildings,
+        buildingFixtureBalance.economy};
 
     const auto poorCore = buildings.validate(ian::BuildingType::Core, {0, 0}, 29, 0);
     require(poorCore.error == ian::PlacementError::InsufficientResources,
@@ -455,12 +472,19 @@ void runBuildingSystemTests() {
             "building raycast selects gate under crosshair");
 
     ian::BuildingSystem selectionBuildings;
+    selectionBuildings.setSandboxMode(true);
+    const auto selectionCore = selectionBuildings.place(
+        ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(
-        selectionBuildings
-            .place(ian::BuildingType::Core, {0, 0}, 0,
-                   30, 0)
-            .has_value(),
+        selectionCore.has_value(),
         "selection fixture creates core");
+    require(
+        selectionBuildings.raycast(
+            {0.0, 1.0, 3.0}, {0.0, 0.0, -1.0}, 4.0) ==
+            selectionCore->building.id &&
+        !selectionBuildings.raycast(
+            {0.0, 2.0, 3.0}, {0.0, 0.0, -1.0}, 4.0),
+        "core selection does not extend far above its model");
     const auto selectedWall = selectionBuildings.place(
         ian::BuildingType::Wall, {4, 4}, 0, 10, 0);
     const auto diagonalWall = selectionBuildings.place(
@@ -477,6 +501,7 @@ void runBuildingSystemTests() {
         "neighboring building does not steal precise aim");
 
     ian::BuildingSystem elevatedBuildings;
+    elevatedBuildings.setSandboxMode(true);
     require(
         elevatedBuildings
             .place(ian::BuildingType::Core, {0, 0}, 0,

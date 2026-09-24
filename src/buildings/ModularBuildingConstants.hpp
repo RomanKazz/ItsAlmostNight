@@ -39,11 +39,13 @@ inline constexpr int PlatformFrameWidthCells = 2;
 inline constexpr int ModularStoreyHeightCells = 4;
 inline constexpr int ModularRampWidthCells = 2;
 inline constexpr int ModularRampRunCells = 4;
-// Ground platforms follow terrain closely while upper storeys remain locked
-// to modularStoreyHeight(). Core/building plinths and hand-placed foundations
-// must use the same ground quantization so switching build modes cannot lift
-// the construction plane by a full vertical-grid unit.
-inline constexpr double GroundPlatformHeightStep = 0.05;
+// Ground platforms use broad construction planes.  Five-centimetre height
+// steps made one visually flat patch of terrain produce slightly mismatched
+// decks, especially when separate drag rows met later.  A quarter-metre band
+// absorbs those small terrain changes while still allowing real slopes to
+// move foundations onto a new level.  Upper storeys remain locked to
+// modularStoreyHeight().
+inline constexpr double GroundPlatformHeightStep = 0.25;
 inline constexpr std::array<bool, 4> AllPlatformSupportsVisible{
     true, true, true, true};
 // World-space order: minimum X, maximum X, minimum Z, maximum Z.

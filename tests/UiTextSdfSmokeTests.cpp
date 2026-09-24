@@ -144,9 +144,11 @@ bool rotatedTextUsesSdfStyle() {
     style.shadowColor = {82, 82, 82, 255};
     style.shadowOffsetPixels = {0.0F, 4.0F};
     style.outlinePixels = 3.0F;
+    ian::beginSdfUiTextBatch();
     ian::drawRotatedStyledUiText(
         "0/20", {128.0F, 128.0F}, 52.0F / 1.68F,
         90.0F, style);
+    ian::endSdfUiTextBatch();
     EndTextureMode();
 
     Image image = LoadImageFromTexture(target.texture);

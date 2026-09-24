@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "combat/CombatDisplayUnits.hpp"
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
 
@@ -78,6 +79,9 @@ void App::drawFloatingDamageNumbers(
         Vector3Subtract(camera.target, camera.position));
     for (const FloatingDamageNumber& number :
          floatingDamageNumbers_) {
+        if (number.startDelayRemaining > 0.0) {
+            continue;
+        }
         const Vector3 toNumber = Vector3Subtract(
             {static_cast<float>(number.position.x),
              static_cast<float>(number.position.y),
@@ -99,8 +103,6 @@ void App::drawFloatingDamageNumbers(
         };
         Vector2 screenPosition =
             GetWorldToScreen(animatedPosition, camera);
-        screenPosition.x +=
-            number.horizontalDrift * fastMotion;
         const float fadeProgress = std::clamp(
             (progress - 0.56F) / 0.44F, 0.0F, 1.0F);
         const float fade =
@@ -109,9 +111,15 @@ void App::drawFloatingDamageNumbers(
         const auto alpha = static_cast<unsigned char>(
             std::lround(fade * 255.0F));
         const float distance = Vector3Length(toNumber);
+        // Damage text is drawn in screen space, so apply an explicit
+        // perspective scale. The square-root curve preserves readability
+        // while still making distant tower hits visibly smaller.
+        constexpr float ReferenceDistance = 6.0F;
         const float distanceScale = std::clamp(
-            1.18F - (distance - 3.0F) / 42.0F * 0.52F,
-            0.66F, 1.18F);
+            std::sqrt(ReferenceDistance / std::max(distance, 1.0F)),
+            0.38F, 1.45F);
+        screenPosition.x +=
+            number.horizontalDrift * fastMotion * distanceScale;
         const float popProgress =
             std::clamp(progress / 0.18F, 0.0F, 1.0F);
         const float shiftedPop = popProgress - 1.0F;
@@ -130,7 +138,9 @@ void App::drawFloatingDamageNumbers(
             (number.critical ? 50.0F : 40.0F) *
             number.scaleVariation * entranceScale *
             exitScale * distanceScale;
-        const char* text = TextFormat("-%.1f", number.damage);
+        const char* text = number.critical
+            ? TextFormat("%d!", combatDisplayValue(number.damage))
+            : TextFormat("%d", combatDisplayValue(number.damage));
         const Vector2 textSize =
             measureUiText(text, fontSize);
         const float rotation =
@@ -286,8 +296,6 @@ void App::drawProductionVisuals(
     constexpr float FullyVisibleDistance = 15.0F;
     constexpr float MaximumVisibleDistance = 22.0F;
 
-    rlDrawRenderBatchActive();
-    rlDisableDepthTest();
     for (const ProductionVisual& production :
          productionVisuals_) {
         Vector3 worldPosition{
@@ -362,8 +370,6 @@ void App::drawProductionVisuals(
             {IconSize, IconSize}, camera, cameraUp,
             {255, 255, 255, alpha});
     }
-    rlDrawRenderBatchActive();
-    rlEnableDepthTest();
 }
 
 Vec3 App::buildingImpactOffsetAt(EntityId id) const {

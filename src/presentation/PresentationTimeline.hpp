@@ -43,6 +43,44 @@ inline void advanceTimeline(
         });
 }
 
+inline void advanceTimeline(
+    std::vector<ArrowVisual>& visuals,
+    double deltaSeconds) {
+    for (ArrowVisual& visual : visuals) {
+        const double activeDelta = std::max(
+            0.0, deltaSeconds - visual.startDelayRemaining);
+        visual.startDelayRemaining = std::max(
+            0.0, visual.startDelayRemaining - deltaSeconds);
+        visual.remaining = std::max(
+            0.0, visual.remaining - activeDelta);
+    }
+    std::erase_if(
+        visuals,
+        [](const ArrowVisual& visual) {
+            return visual.startDelayRemaining <= 0.0 &&
+                   visual.remaining <= 0.0;
+        });
+}
+
+inline void advanceTimeline(
+    std::vector<FloatingDamageNumber>& numbers,
+    double deltaSeconds) {
+    for (FloatingDamageNumber& number : numbers) {
+        const double activeDelta = std::max(
+            0.0, deltaSeconds - number.startDelayRemaining);
+        number.startDelayRemaining = std::max(
+            0.0, number.startDelayRemaining - deltaSeconds);
+        number.remaining = std::max(
+            0.0, number.remaining - activeDelta);
+    }
+    std::erase_if(
+        numbers,
+        [](const FloatingDamageNumber& number) {
+            return number.startDelayRemaining <= 0.0 &&
+                   number.remaining <= 0.0;
+        });
+}
+
 template <typename Visual>
 void advanceTimeline(
     std::vector<Visual>& visuals, double deltaSeconds) {

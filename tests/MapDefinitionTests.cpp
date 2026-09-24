@@ -86,8 +86,12 @@ void runMapDefinitionTests() {
     ian::BuildingSystem buildings{ian::GameBalance::defaults().buildings,
                                   ian::GameBalance::defaults().economy,
                                   loaded.map.coreBuildRadius};
-    require(buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
+    const auto radiusCore =
+        buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+    require(radiusCore.has_value(),
             "custom-radius fixture creates core");
+    require(buildings.upgrade(radiusCore->building.id, 0, 0, 1000).valid(),
+            "custom-radius fixture unlocks walls");
     require(buildings.validate(ian::BuildingType::Wall, {6, 0}, 10, 0).error ==
                 ian::PlacementError::OutsideCoreArea,
             "building system consumes map build radius");

@@ -48,11 +48,21 @@ void App::resetRunInputState() {
     pendingChainLightning_ = false;
     pendingGateToggle_.reset();
     pendingPlacedBuildingRotation_.reset();
+    selectBuildingAfterCorePlacement_ = false;
     coreDefenseMenuVisible_ = false;
     coreDefenseMenuClosing_ = false;
+    coreMenuPointerActive_ = false;
     coreDefenseMenuEntranceSeconds_ = 0.0;
+    coreMenuLostAimSeconds_ = 0.0;
     coreDefenseMenuAnimatedLevel_ = 0;
     placementPreviewEntranceSeconds_ = 0.0;
+    outgoingBuildingPreview_.reset();
+    outgoingPreviewCenter_.reset();
+    outgoingPlatformPreview_.reset();
+    outgoingWallPreview_.reset();
+    outgoingRampPreview_.reset();
+    outgoingModularPreviewOrigin_.reset();
+    outgoingPreviewRemaining_ = 0.0;
     runUpgradeChoiceWasVisible_ = false;
     runUpgradeChoiceInputDelayRemaining_ = 0.0;
     runUpgradeChoiceInputArmed_ = false;
@@ -92,6 +102,7 @@ void App::resetEquipmentActionMode(
     foundationBuildMode_ = false;
     actionMode_ = ActionMode::Equipment;
     previousActionMode_ = ActionMode::Buildings;
+    hotbarModeBlend_ = 0.0F;
     lastEquipmentSelection_ = snapshot.selectedWeapon;
 }
 
@@ -109,8 +120,68 @@ void App::selectActionMode(
     }
 
     if (mode != actionMode_) {
+        if (actionMode_ == ActionMode::Buildings &&
+            mode == ActionMode::Equipment &&
+            snapshot.buildingPreview) {
+            outgoingBuildingPreview_ = snapshot.buildingPreview;
+            outgoingPreviewCenter_ = placementPreviewCenter_;
+            outgoingPreviewRemaining_ = 0.20;
+        } else if (actionMode_ == ActionMode::Buildings &&
+                   mode == ActionMode::Equipment &&
+                   foundationBuildMode_) {
+            outgoingPlatformPreview_ = platformFramePreview_;
+            outgoingWallPreview_ = wallPreview_;
+            outgoingRampPreview_ = rampPreview_;
+            outgoingModularPreviewOrigin_ =
+                modularPreviewVisualOrigin_;
+            if (outgoingPlatformPreview_ || outgoingWallPreview_ ||
+                outgoingRampPreview_) {
+                outgoingPreviewRemaining_ = 0.20;
+            }
+        } else if (mode == ActionMode::Buildings) {
+            outgoingBuildingPreview_.reset();
+            outgoingPreviewCenter_.reset();
+            outgoingPlatformPreview_.reset();
+            outgoingWallPreview_.reset();
+            outgoingRampPreview_.reset();
+            outgoingModularPreviewOrigin_.reset();
+            outgoingPreviewRemaining_ = 0.0;
+        }
         previousActionMode_ = actionMode_;
         actionMode_ = mode;
+        if (mode == ActionMode::Buildings &&
+            toolViewModelInitialized_ &&
+            displayedToolVisual_ != FirstPersonToolVisual::None) {
+            toolSwapCandidateVisual_ = FirstPersonToolVisual::None;
+            toolSwapDestinationVisual_ = FirstPersonToolVisual::None;
+            toolSwapCandidateSeconds_ = 0.07;
+            toolSwapDuration_ = std::clamp(
+                static_cast<double>(activeToolTuning().swapDuration) *
+                    ToolSwapDurationScale,
+                0.30, 0.58);
+            toolSwapRemaining_ = toolSwapDuration_;
+        } else if (mode == ActionMode::Equipment &&
+                   toolViewModelInitialized_ &&
+                   displayedToolVisual_ ==
+                       FirstPersonToolVisual::None &&
+                   equipment) {
+            const FirstPersonToolVisual visual =
+                toolVisualForWeapon(*equipment);
+            if (visual != FirstPersonToolVisual::None) {
+                displayedToolVisual_ = visual;
+                toolSwapCandidateVisual_ = visual;
+                toolSwapDestinationVisual_ = visual;
+                toolSwapCandidateSeconds_ = 0.07;
+                toolSwapDuration_ = std::clamp(
+                    static_cast<double>(
+                        activeToolTuning().swapDuration) *
+                        ToolSwapDurationScale,
+                    0.30, 0.58);
+                // Start the return partway above the hidden pose so the
+                // weapon is visible as soon as the hotbars begin moving.
+                toolSwapRemaining_ = toolSwapDuration_ * 0.34;
+            }
+        }
         buildingItemWheelAccumulator_ = 0.0;
         buildingItemWheelReleaseRemaining_ = 0.0;
         buildingItemWheelArmed_ = true;
@@ -158,7 +229,7 @@ void App::selectActionMode(
                 lastBuildingSelection_ = layout.types[0];
                 pendingBuildingSelection_ = lastBuildingSelection_;
             } else {
-                pendingBuildingSelection_.reset();
+                selectNextBuildingCategory(snapshot, 1);
             }
         }
         break;

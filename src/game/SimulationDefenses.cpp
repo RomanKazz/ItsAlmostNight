@@ -1,9 +1,5 @@
 #include "game/Simulation.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <vector>
-
 namespace ian {
 
 void Simulation::updateTrapCombat(double deltaSeconds) {
@@ -49,84 +45,6 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
     }
 }
 
-void Simulation::updateTowerCombat(double deltaSeconds) {
-    if (state_ == RunState::Defeat) {
-        return;
-    }
-    const auto shots =
-        towers_.tick(
-            deltaSeconds, buildings_.buildings(), enemies_);
-    ricochetedTowerBuffer_.clear();
-    const int ricochetStacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::Ricochet)];
-    for (const auto& shot : shots) {
-        events_.push_back({
-            .type = GameEventType::ProjectileHit,
-            .entityId = shot.targetId,
-            .sourceId = shot.towerId,
-            .buildingType = shot.type,
-            .position = shot.hitPosition,
-            .amount = static_cast<int>(shot.muzzleIndex),
-            .damage = shot.damage,
-            .secondaryImpact = shot.secondaryImpact,
-        });
-        if (shot.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = shot.targetId,
-                .enemyType = shot.targetType,
-                .enemyEliteAffixes = shot.targetEliteAffixes,
-                .position = shot.hitPosition,
-            });
-        }
-        if (ricochetStacks <= 0 ||
-            std::ranges::find(ricochetedTowerBuffer_, shot.towerId) !=
-                ricochetedTowerBuffer_.end()) {
-            continue;
-        }
-        ricochetedTowerBuffer_.push_back(shot.towerId);
-        const EnemyInstance* nearest = nullptr;
-        double nearestDistance = 6.0;
-        for (const EnemyInstance& enemy : enemies_.enemies()) {
-            if (!enemy.active || enemy.id == shot.targetId) continue;
-            const double distance = std::hypot(
-                enemy.position.x - shot.hitPosition.x,
-                enemy.position.z - shot.hitPosition.z);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearest = &enemy;
-            }
-        }
-        if (!nearest) continue;
-        const double fraction = std::min(
-            0.80, 0.45 + 0.10 * static_cast<double>(ricochetStacks - 1));
-        const auto result = enemies_.damage(
-            nearest->id, shot.damage * fraction);
-        if (!result) continue;
-        events_.push_back({
-            .type = GameEventType::ProjectileHit,
-            .entityId = result->id,
-            .sourceId = shot.towerId,
-            .buildingType = shot.type,
-            .position = result->position,
-            .targetPosition = shot.hitPosition,
-            .damage = result->damage,
-            .intensity = fraction,
-            .secondaryImpact = true,
-        });
-        if (result->killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = result->id,
-                .sourceId = shot.towerId,
-                .enemyType = result->type,
-                .enemyEliteAffixes = result->eliteAffixes,
-                .position = result->position,
-            });
-        }
-    }
-}
-
 void Simulation::updateCannonCombat(double deltaSeconds) {
     if (state_ == RunState::Defeat) {
         return;
@@ -166,6 +84,7 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
                 .type = GameEventType::EnemyKilled,
                 .entityId = hit.result.id,
                 .sourceId = hit.cannonId,
+                .buildingType = hit.type,
                 .enemyType = hit.result.type,
                 .enemyEliteAffixes = hit.result.eliteAffixes,
                 .position = hit.result.position,

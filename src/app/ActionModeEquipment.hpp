@@ -8,6 +8,30 @@
 
 namespace ian::app_detail {
 
+[[nodiscard]] inline FirstPersonToolVisual toolVisualForWeapon(
+    PlayerWeapon weapon) {
+    switch (weapon) {
+    case PlayerWeapon::LegacyBareHands:
+    case PlayerWeapon::Rifle:
+        return FirstPersonToolVisual::None;
+    case PlayerWeapon::Bomb:
+        return FirstPersonToolVisual::Bomb;
+    case PlayerWeapon::Axe:
+        return FirstPersonToolVisual::Axe;
+    case PlayerWeapon::Pickaxe:
+        return FirstPersonToolVisual::Pickaxe;
+    case PlayerWeapon::Club:
+        return FirstPersonToolVisual::Club;
+    case PlayerWeapon::IceWand:
+        return FirstPersonToolVisual::IceWand;
+    case PlayerWeapon::FireWand:
+        return FirstPersonToolVisual::FireWand;
+    case PlayerWeapon::Hammer:
+        return FirstPersonToolVisual::Hammer;
+    }
+    return FirstPersonToolVisual::None;
+}
+
 [[nodiscard]] inline std::span<const PlayerWeapon> equipmentOrder(
     ActionMode mode) {
     if (mode == ActionMode::Equipment) {

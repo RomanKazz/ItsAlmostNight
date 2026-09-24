@@ -213,6 +213,8 @@ void Simulation::processDebugCommands(
                 }
             }
         }
+        buildings_.setSandboxMode(
+            sandboxMode_ || unlimitedResources_);
     }
     if (command.toggleInvulnerability &&
         !unlimitedResources_) {

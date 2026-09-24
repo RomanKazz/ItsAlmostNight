@@ -528,6 +528,16 @@ void ensureMinimapFrameTarget(GameUi& ui) {
     drawRoundedCompassPlate(
         center, mapRadius + lightPadding, lightSpikeLength,
         spikeHalfAngle, 0.0F, {221, 221, 221, 255});
+    // The collapsed border is rotationally symmetric and never changes.
+    // Cache its 64-segment mesh with the compass frame instead of rebuilding
+    // and submitting it every HUD frame.
+    constexpr float borderThickness = 3.0F * frameScale;
+    DrawRing(
+        center,
+        mapRadius - borderThickness,
+        mapRadius,
+        0.0F, 360.0F, 64,
+        {221, 221, 221, 255});
     ui.endMinimapFrameTarget();
 }
 
@@ -539,10 +549,9 @@ minimapRenderPerformanceStats() noexcept {
 }
 
 void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
-                    float expansion, float topInset) {
+                    float expansion) {
     minimapPerformanceStats = {};
     auto minimapSectionStart = PerformanceClock::now();
-    static_cast<void>(topInset);
     if (expansion < 0.0F) return;
     const float rawExpansion = std::clamp(expansion, 0.0F, 1.0F);
     const float expanded =
@@ -1324,12 +1333,14 @@ void drawMinimapHud(GameUi& ui, const SimulationSnapshot& snapshot,
         displayMapCenter,
         std::lerp(1.0F, 1.55F, expanded) * 1.25F,
         playerColor);
-    const float borderThickness = 3.0F * frameScale;
-    DrawRing(
-        displayMapCenter,
-        displayMapSize * 0.5F - borderThickness,
-        displayMapSize * 0.5F, 0.0F, 360.0F, 64,
-        {221, 221, 221, 255});
+    if (expanded > 0.001F) {
+        const float borderThickness = 3.0F * frameScale;
+        DrawRing(
+            displayMapCenter,
+            displayMapSize * 0.5F - borderThickness,
+            displayMapSize * 0.5F, 0.0F, 360.0F, 64,
+            {221, 221, 221, 255});
+    }
     for (std::size_t index = 0;
          index < snapshot.upcomingAttackDirections.size(); ++index) {
         if (!snapshot.upcomingAttackDirections[index]) {

@@ -187,6 +187,15 @@ void Renderer::resolveAuxiliaryShaderLocations() {
         selectionOutlineRadiusLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(),
             "outlineRadius");
+        selectionOutlineSceneDepthLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "sceneDepth");
+        selectionOutlineInverseProjectionLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(),
+            "inverseProjection");
+        selectionOutlineDepthOcclusionEnabledLocation_ =
+            GetShaderLocation(
+                resources_.selectionOutlineShader().get(),
+                "depthOcclusionEnabled");
     }
     if (resources_.selectionMaskShader().valid()) {
         Shader& shader = resources_.selectionMaskShader().get();
@@ -457,6 +466,8 @@ void Renderer::resolveWorldShaderLocations() {
         .instancingEnabled = worldInstancingEnabledLocation_,
         .inkOutlineEligible = GetShaderLocation(
             shader, "inkOutlineEligible"),
+        .inkOccluder = GetShaderLocation(shader, "inkOccluder"),
+        .unlitAmount = GetShaderLocation(shader, "unlitAmount"),
     };
 }
 
@@ -979,6 +990,11 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
         ? 1.0F : 0.0F;
     SetShaderValue(shader, worldShaderLocations_.inkOutlineEligible,
                    &inkOutlineEligible, SHADER_UNIFORM_FLOAT);
+    const float inkOccluder = material.inkOccluder ? 1.0F : 0.0F;
+    SetShaderValue(shader, worldShaderLocations_.inkOccluder,
+                   &inkOccluder, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.unlitAmount,
+                   &material.unlitAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.aoStrength,
                    &settings_.aoStrength, SHADER_UNIFORM_FLOAT);
 }

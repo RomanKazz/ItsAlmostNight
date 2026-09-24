@@ -37,7 +37,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     switch (building.type) {
     case BuildingType::Core:
         resource = &resources_.coreModel();
-        modelScale = 2.0F;
+        modelScale = CoreModelScale;
         yaw = static_cast<float>(building.rotation) *
               QuarterTurn;
         groundOffset = 0.005F;
@@ -264,6 +264,12 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::Core) {
+            const BoundingBox bounds =
+                world_transforms::transformBounds(
+                    resource->visualBounds(), baseTransform);
+            return acceptCollision(GetRayCollisionBox(ray, bounds));
+        }
         return modelColliderRaycastDistance(
             *resource, baseTransform, ray, maxDistance);
     }

@@ -591,7 +591,7 @@ std::optional<EntityId> preciseBuildingAim(
     return result;
 }
 
-std::optional<EntityId> preciseResourceAim(
+std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot) {
     if (snapshot.selectedWeapon == PlayerWeapon::Rifle ||
@@ -611,7 +611,7 @@ std::optional<EntityId> preciseResourceAim(
          static_cast<float>(
              -std::cos(snapshot.playerYaw) * horizontal)},
     };
-    std::optional<EntityId> result;
+    std::optional<ResourceAimHit> result;
     double closestDistance = MaximumDistance;
     for (const ResourceNode& node : snapshot.resourceNodes) {
         if (!node.active) {
@@ -639,7 +639,17 @@ std::optional<EntityId> preciseResourceAim(
             static_cast<float>(node.visualYaw));
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
-            result = node.id;
+            result = ResourceAimHit{
+                .id = node.id,
+                .position = {
+                    static_cast<double>(ray.position.x) +
+                        static_cast<double>(ray.direction.x) * *distance,
+                    static_cast<double>(ray.position.y) +
+                        static_cast<double>(ray.direction.y) * *distance,
+                    static_cast<double>(ray.position.z) +
+                        static_cast<double>(ray.direction.z) * *distance,
+                },
+            };
         }
     }
     return result;
@@ -832,7 +842,7 @@ void drawBuildGrid(
     const TerrainHeightfield& terrain) {
     constexpr float FadeStart = 7.0F;
     constexpr float FadeEnd = 13.0F;
-    constexpr float GridTerrainOffset = 0.025F;
+    constexpr float GridTerrainOffset = 0.045F;
     constexpr float MinorOpacity = 0.10F;
     constexpr float MajorOpacity = 0.20F;
     constexpr int MajorInterval = 5;
@@ -965,11 +975,11 @@ void drawBuildGrid(
 Color placementColor(
     PlacementError error, bool border) {
     const unsigned char alpha =
-        border ? 205 : 48;
+        border ? 165 : 34;
     switch (error) {
     case PlacementError::None:
-        return border ? Color{106, 255, 146, 205}
-                      : Color{57, 224, 109, 42};
+        return border ? Color{62, 218, 119, 165}
+                      : Color{48, 196, 99, 30};
     case PlacementError::InsufficientResources:
         return {255, 176, 62, alpha};
     case PlacementError::OutsideCoreArea:
@@ -1004,35 +1014,108 @@ void drawPlacementFootprint(
     const float z = visualCenter.y;
     const float halfExtent = static_cast<float>(
         buildingFootprintHalfExtent(preview.type));
-    const float size = halfExtent * 2.0F;
-    const Color fill =
-        placementColor(preview.placement.error, false);
     const Color border =
         placementColor(preview.placement.error, true);
     const float height =
         static_cast<float>(preview.baseHeight) +
         0.055F;
+    const float borderHeight = height + 0.018F;
+    constexpr float BorderRadius = 0.006F;
 
-    DrawPlane({x, height, z}, {size, size}, fill);
-    DrawLine3D({x - halfExtent, height, z - halfExtent},
-               {x + halfExtent, height, z - halfExtent},
-               border);
-    DrawLine3D({x + halfExtent, height, z - halfExtent},
-               {x + halfExtent, height, z + halfExtent},
-               border);
-    DrawLine3D({x + halfExtent, height, z + halfExtent},
-               {x - halfExtent, height, z + halfExtent},
-               border);
-    DrawLine3D({x - halfExtent, height, z + halfExtent},
-               {x - halfExtent, height, z - halfExtent},
-               border);
-    if (halfExtent == 1.0F) {
-        DrawLine3D({x, height, z - halfExtent},
-                   {x, height, z + halfExtent}, border);
-        DrawLine3D({x - halfExtent, height, z},
-                   {x + halfExtent, height, z}, border);
+    const auto drawBorder = [&](Vector3 start, Vector3 end) {
+        DrawCylinderEx(
+            start, end, BorderRadius, BorderRadius, 5, border);
+    };
+
+    drawBorder(
+        {x - halfExtent, borderHeight, z - halfExtent},
+        {x + halfExtent, borderHeight, z - halfExtent});
+    drawBorder(
+        {x + halfExtent, borderHeight, z - halfExtent},
+        {x + halfExtent, borderHeight, z + halfExtent});
+    drawBorder(
+        {x + halfExtent, borderHeight, z + halfExtent},
+        {x - halfExtent, borderHeight, z + halfExtent});
+    drawBorder(
+        {x - halfExtent, borderHeight, z + halfExtent},
+        {x - halfExtent, borderHeight, z - halfExtent});
+}
+
+void drawPlacementPreviewGeometry(
+    Renderer& renderer, BuildingType type, Vector3 position,
+    float yawRadians, std::uint8_t rotation,
+    std::uint8_t wallConnections) {
+    const float x = position.x;
+    const float y = position.y;
+    const float z = position.z;
+    if (type == BuildingType::Core) {
+        if (!renderer.drawCore(position, yawRadians)) {
+            DrawCube({x, y + 1.25F, z}, 2.0F, 2.5F, 2.0F, WHITE);
+        }
+    } else if (type == BuildingType::Turret) {
+        if (!renderer.drawCrossbow(position, yawRadians)) {
+            DrawCube({x, y + 0.6F, z}, 1.0F, 1.2F, 1.0F, WHITE);
+            DrawCylinder({x, y + 1.45F, z}, 0.42F, 0.32F,
+                         0.7F, 8, WHITE);
+            DrawCube({x, y + 1.55F, z - 0.55F}, 0.18F,
+                     0.18F, 1.0F, WHITE);
+        }
+    } else if (type == BuildingType::GunTurret) {
+        if (!renderer.drawGunTurret(
+                position, yawRadians, yawRadians)) {
+            DrawCube({x, y + 0.55F, z}, 1.1F, 1.1F, 1.1F, WHITE);
+        }
+    } else if (type == BuildingType::Cannon) {
+        if (!renderer.drawCannon(position, yawRadians, 0.0F)) {
+            DrawCube({x, y + 0.6F, z}, 1.0F, 1.2F, 1.0F, WHITE);
+            DrawSphere({x, y + 1.35F, z}, 0.48F, WHITE);
+            DrawCube({x, y + 1.45F, z - 0.75F}, 0.28F,
+                     0.28F, 1.4F, WHITE);
+        }
+    } else if (type == BuildingType::Catapult) {
+        if (!renderer.drawCatapult(position, yawRadians, 0.0F)) {
+            DrawCube({x, y + 0.45F, z}, 1.2F, 0.9F, 1.2F, WHITE);
+        }
+    } else if (
+        type == BuildingType::CrystalMine ||
+        type == BuildingType::LumberMill ||
+        type == BuildingType::Quarry) {
+        if (!renderer.drawResourceProducer(type, position, yawRadians)) {
+            DrawCube({x, y + 0.275F, z}, 1.0F, 0.55F, 1.0F, WHITE);
+        }
+    } else if (
+        type == BuildingType::WoodStorage ||
+        type == BuildingType::StoneStorage ||
+        type == BuildingType::CrystalStorage) {
+        DrawCube({x, y + 0.75F, z}, 1.8F, 1.5F, 1.8F, WHITE);
+        DrawCube({x, y + 1.62F, z}, 1.25F, 0.24F, 1.25F, WHITE);
+    } else if (type == BuildingType::SlowTrap) {
+        DrawCube({x, y + 0.08F, z}, 1.0F, 0.16F, 1.0F, WHITE);
+    } else if (type == BuildingType::SpikeTrap) {
+        if (!renderer.drawSpikeTrap(position, yawRadians, -1.0F)) {
+            DrawCube({x, y + 0.08F, z}, 1.0F, 0.16F, 1.0F, WHITE);
+        }
+    } else if (type == BuildingType::Wall) {
+        if (!renderer.drawWall(position, wallConnections, yawRadians)) {
+            DrawCube({x, y + 1.0F, z}, 1.0F, 2.0F, 1.0F, WHITE);
+        }
+    } else if (
+        type == BuildingType::Gate &&
+        renderer.drawGate(position, yawRadians, 0.0F)) {
+        // Imported gate model submitted.
+    } else if ((rotation % 2U) == 0U) {
+        DrawCube({x - 0.38F, y + 1.0F, z}, 0.22F, 2.0F,
+                 1.0F, WHITE);
+        DrawCube({x + 0.38F, y + 1.0F, z}, 0.22F, 2.0F,
+                 1.0F, WHITE);
+        DrawCube({x, y + 1.0F, z}, 0.55F, 1.7F, 0.18F, WHITE);
+    } else {
+        DrawCube({x, y + 1.0F, z - 0.38F}, 1.0F, 2.0F,
+                 0.22F, WHITE);
+        DrawCube({x, y + 1.0F, z + 0.38F}, 1.0F, 2.0F,
+                 0.22F, WHITE);
+        DrawCube({x, y + 1.0F, z}, 0.18F, 1.7F, 0.55F, WHITE);
     }
-
 }
 
 std::optional<PlatformFrameInstance>

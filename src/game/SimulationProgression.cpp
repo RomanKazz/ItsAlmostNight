@@ -21,16 +21,8 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
         return true;
     }
     const bool classUnlock =
-        ((playerClass_ == PlayerClass::Vanguard ||
-          playerClass_ == PlayerClass::Berserker) &&
-         weapon == PlayerWeapon::Club) ||
-        ((playerClass_ == PlayerClass::Ranger ||
-          playerClass_ == PlayerClass::Vampire) &&
-         weapon == PlayerWeapon::Rifle) ||
         (playerClass_ == PlayerClass::Alchemist &&
-         weapon == PlayerWeapon::FireWand) ||
-        (playerClass_ == PlayerClass::Chronomancer &&
-         weapon == PlayerWeapon::IceWand);
+         weapon == PlayerWeapon::FireWand);
     if (classUnlock) return true;
     const auto core = buildings_.core();
     const int coreLevel = core ? static_cast<int>(core->level) : 0;
@@ -92,6 +84,10 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 }
 
 void Simulation::refreshRunUpgradeRuntimeEffects() {
+    resources_.setGatheringYieldMultiplier(
+        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
+        (1.0 + 0.15 * static_cast<double>(runUpgradeStacks_[
+            runUpgradeIndex(RunUpgradeEffect::RichResources)])));
     crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
     lootChests_.setCoinCostMultiplier(
@@ -105,7 +101,9 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     towers_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         runUpgradeStacks_[runUpgradeIndex(
-            RunUpgradeEffect::TwinBatteries)]);
+            RunUpgradeEffect::TwinBatteries)],
+        runUpgradeStacks_[runUpgradeIndex(
+            RunUpgradeEffect::GunPiercing)]);
     cannons_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         2 * runUpgradeStacks_[runUpgradeIndex(
@@ -123,7 +121,8 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
         1.0, 1.0, 1.0, 1.0, 0.0);
     fireWand_.setModifiers(
         1.0, 1.0, 1.0, 1.0, 0.0);
-    const double castSpeed = temporaryAttackSpeedMultiplier() *
+    const double castSpeed = playerAttackSpeedMultiplier_ *
+        temporaryAttackSpeedMultiplier() *
         (battlePotionBerserkRemaining_ > 0.0
              ? BattlePotionAttackSpeedMultiplier
              : 1.0);
@@ -150,7 +149,8 @@ void Simulation::generateRunUpgradeChoices() {
     runUpgradeChoiceCount_ = MinimumRunUpgradeChoices + extraChoices;
 
     if (lockedRunUpgrade_ &&
-        (runUpgradeStacks_[runUpgradeIndex(*lockedRunUpgrade_)] >=
+        (retiredRunUpgrade(*lockedRunUpgrade_) ||
+         runUpgradeStacks_[runUpgradeIndex(*lockedRunUpgrade_)] >=
              runUpgradeMaximumLevel(*lockedRunUpgrade_) ||
          (*lockedRunUpgrade_ == RunUpgradeEffect::WiderChoice &&
           runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices))) {
@@ -163,7 +163,7 @@ void Simulation::generateRunUpgradeChoices() {
     for (const RunUpgradeDefinition& definition :
          RunUpgradeDefinitions) {
         const RunUpgradeEffect effect = definition.effect;
-        if (effect == RunUpgradeEffect::LockChoice) continue;
+        if (retiredRunUpgrade(effect)) continue;
         if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
             runUpgradeMaximumLevel(effect)) {
             continue;
@@ -189,6 +189,11 @@ void Simulation::generateRunUpgradeChoices() {
             !unlimitedResources_ && coreLevel < 2) {
             continue;
         }
+        if ((effect == RunUpgradeEffect::GunPiercing ||
+             effect == RunUpgradeEffect::GunShrapnel) &&
+            !unlimitedResources_ && coreLevel < 1) {
+            continue;
+        }
         if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) {
             continue;
         }
@@ -206,6 +211,8 @@ void Simulation::generateRunUpgradeChoices() {
         case RunUpgradeEffect::ClusterPayload:
         case RunUpgradeEffect::ReactiveTraps:
         case RunUpgradeEffect::Ricochet:
+        case RunUpgradeEffect::GunPiercing:
+        case RunUpgradeEffect::GunShrapnel:
             return 6;
         case RunUpgradeEffect::BuildingHealth:
         case RunUpgradeEffect::DefenseDamage:
@@ -265,7 +272,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
         runPlayerDamageMultiplier_ += 0.10;
         break;
     case RunUpgradeEffect::AttackSpeed:
-        playerAttackSpeedMultiplier_ += 0.08;
+        playerAttackSpeedMultiplier_ += 0.15;
         break;
     case RunUpgradeEffect::MoveSpeed:
         runPlayerMoveSpeedMultiplier_ += 0.07;
@@ -308,6 +315,16 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
     case RunUpgradeEffect::TwinBatteries:
     case RunUpgradeEffect::ClusterPayload:
     case RunUpgradeEffect::ReactiveTraps:
+    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::GunShrapnel:
+    case RunUpgradeEffect::GatheringSpeed:
+    case RunUpgradeEffect::RichResources:
+        break;
+    case RunUpgradeEffect::LongerDay:
+        if (state_ == RunState::BuildPhase) {
+            phaseTimeRemaining_ += 5.0;
+            phaseDuration_ += 5.0;
+        }
         break;
     case RunUpgradeEffect::DoubleDown:
         bonusSelectionsNextReward_ += 2;
@@ -326,9 +343,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
     return true;
 }
 
-bool Simulation::grantSandboxRunUpgrade(
+bool Simulation::grantDebugRunUpgrade(
     RunUpgradeEffect effect) {
-    if (!sandboxMode_) return false;
     const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
         rawEffect >= static_cast<int>(RunUpgradeEffectCount)) {

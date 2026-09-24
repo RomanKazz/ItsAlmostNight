@@ -235,6 +235,74 @@ void runFoundationSystemTests() {
         require(
             verifiedInheritedLevel,
             "uneven terrain fixture finds a compatible inherited level");
+
+        bool verifiedIndependentFlatSurface = false;
+        for (int z = -30;
+             z <= 28 && !verifiedIndependentFlatSurface;
+             z += ian::PlatformFrameWidthCells) {
+            for (int x = -30; x <= 28;
+                 x += ian::PlatformFrameWidthCells) {
+                const ian::GridCoord left{x, 0, z};
+                const ian::GridCoord right{
+                    x + ian::PlatformFrameWidthCells,
+                    0, z};
+                const double leftHeight =
+                    isolatedValidator.stableGroundPlatformHeight(
+                        left, ian::GroundPlatformHeightStep);
+                const double rightHeight =
+                    isolatedValidator.stableGroundPlatformHeight(
+                        right, ian::GroundPlatformHeightStep);
+                const double fineLeftHeight =
+                    isolatedValidator.stableGroundPlatformHeight(
+                        left, 0.05);
+                const double fineRightHeight =
+                    isolatedValidator.stableGroundPlatformHeight(
+                        right, 0.05);
+                const double leftCenter =
+                    unevenTerrain.getConstructionHeight(
+                        x + 1.0, z + 1.0);
+                const double rightCenter =
+                    unevenTerrain.getConstructionHeight(
+                        x + 3.0, z + 1.0);
+                const double centerDifference =
+                    std::abs(leftCenter - rightCenter);
+                const double terraceStep =
+                    unevenConfig.terrainTerraceHeight;
+                const bool sameSurfaceBand =
+                    std::lround(leftCenter / terraceStep) ==
+                    std::lround(rightCenter / terraceStep);
+                if (centerDifference <= 1e-4 ||
+                    centerDifference > 0.08 ||
+                    !sameSurfaceBand ||
+                    std::abs(
+                        fineLeftHeight -
+                        fineRightHeight) <= 1e-6 ||
+                    std::abs(
+                        leftHeight - rightHeight) > 1e-6) {
+                    continue;
+                }
+                const auto leftPlacement =
+                    isolatedValidator.validateGroundPlatformFrameAt(
+                        left, leftHeight,
+                        {x + 1.0, 0.0, z + 1.0});
+                const auto rightPlacement =
+                    isolatedValidator.validateGroundPlatformFrameAt(
+                        right, rightHeight,
+                        {x + 3.0, 0.0, z + 1.0});
+                if (!leftPlacement.valid() ||
+                    !rightPlacement.valid()) {
+                    continue;
+                }
+                requireNear(
+                    leftHeight, rightHeight, 1e-9,
+                    "minor terrain variation maps independent adjacent frames to one broad surface plane");
+                verifiedIndependentFlatSurface = true;
+                break;
+            }
+        }
+        require(
+            verifiedIndependentFlatSurface,
+            "uneven terrain fixture contains an adjacent minor-height surface");
     }
     {
         ian::FoundationSystem mixedNeighbours{
@@ -262,6 +330,26 @@ void runFoundationSystemTests() {
                     betweenLevels.floorHeight - 1.0) <
                     1e-9,
             "different neighbouring levels snap only to a terrain-compatible level");
+    }
+    {
+        ian::FoundationSystem diagonalNeighbour{
+            terrain, config};
+        const auto existing =
+            diagonalNeighbour.placePlatformFrame({
+                .anchor = {-2, 1, -2},
+                .floorHeight = 1.0,
+                .storey = 0,
+            });
+        const auto diagonal =
+            diagonalNeighbour.previewFoundation(
+                {0.2, 0.0, 0.2},
+                {0.2, 1.7, 0.2});
+        require(
+            existing && diagonal.valid() &&
+                std::abs(
+                    diagonal.floorHeight -
+                    existing->floorHeight) < 1e-9,
+            "corner-touching ground frames inherit one surface plane");
     }
 
     ian::FoundationSystem frames{terrain, config};

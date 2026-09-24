@@ -1,5 +1,7 @@
 #include "game/Simulation.hpp"
 
+#include "combat/CombatDisplayUnits.hpp"
+
 #include "game/ChallengeArena.hpp"
 
 #include "core/SaturatingArithmetic.hpp"
@@ -104,7 +106,10 @@ const SimulationSnapshot& Simulation::snapshot() const {
         heldDamage = 6.0;
         break;
     case PlayerWeapon::Axe:
-    case PlayerWeapon::Pickaxe: break;
+    case PlayerWeapon::Pickaxe:
+        heldDamage *= meleeEnemyDamageMultiplier(
+            playerWeapons_.selectedWeapon());
+        break;
     }
     heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
         playerClassDamageMultiplier();
@@ -357,7 +362,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             playerWeaponUnlocked(PlayerWeapon::Bomb),
         },
         .selectedWeapon = playerWeapons_.selectedWeapon(),
-        .selectedWeaponDamage = heldDamage,
+        .selectedWeaponDamage = combatDisplayScalar(heldDamage),
         .rifleLevel = playerWeapons_.rifleLevel(),
         .rifleAmmunition = playerWeapons_.ammunition(),
         .rifleMagazineSize = playerWeapons_.magazineSize(),

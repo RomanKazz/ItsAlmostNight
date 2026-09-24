@@ -103,22 +103,12 @@ void emitProjectileBillboard(
 std::span<const GrassClearArea>
 App::activeDecorationClearAreas(
     const SimulationSnapshot& snapshot) const {
-    std::vector<GrassClearArea>& result =
-        activeDecorationClearAreaBuffer_;
-    result.clear();
-    result.reserve(
-        grassClearAreas_.size() +
-        modularPlatformDragPreviews_.size() +
-        modularWallDragPreviews_.size() +
-        modularRampDragPreviews_.size() + 16U);
-    result.insert(
-        result.end(), grassClearAreas_.begin(), grassClearAreas_.end());
     const double cellSize =
         simulation_.terrain().config().cellSize;
-    const auto add = [&result](
-                         double x, double z,
-                         double radius) {
-        result.push_back({
+    const auto add = [](
+                         std::vector<GrassClearArea>& areas,
+                         double x, double z, double radius) {
+        areas.push_back({
             .center = {
                 static_cast<float>(x),
                 static_cast<float>(z),
@@ -128,19 +118,27 @@ App::activeDecorationClearAreas(
             .amount = 1.0F,
         });
     };
-    const auto addPlatform = [&](const auto& placement) {
+    const auto addPlatform = [cellSize, &add](
+                                 std::vector<GrassClearArea>& areas,
+                                 const auto& placement) {
         add(
+            areas,
             (placement.anchor.x + 1.0) * cellSize,
             (placement.anchor.z + 1.0) * cellSize,
             cellSize * 1.35);
     };
-    const auto addWall = [&](const auto& placement) {
+    const auto addWall = [cellSize, &add](
+                             std::vector<GrassClearArea>& areas,
+                             const auto& placement) {
         add(
+            areas,
             (placement.anchor.x + 0.5) * cellSize,
             (placement.anchor.z + 0.5) * cellSize,
             cellSize * 0.72);
     };
-    const auto addRamp = [&](const auto& placement) {
+    const auto addRamp = [cellSize, &add](
+                             std::vector<GrassClearArea>& areas,
+                             const auto& placement) {
         const bool alongZ =
             placement.rotation == Rotation::Deg0 ||
             placement.rotation == Rotation::Deg180;
@@ -151,6 +149,7 @@ App::activeDecorationClearAreas(
             alongZ ? ModularRampRunCells
                    : ModularRampWidthCells;
         add(
+            areas,
             (placement.anchor.x + widthCells * 0.5) *
                 cellSize,
             (placement.anchor.z + depthCells * 0.5) *
@@ -159,27 +158,100 @@ App::activeDecorationClearAreas(
                 std::hypot(widthCells, depthCells));
     };
 
+    // The simulation owns stable vectors. Their address, size and newest
+    // entity id form an O(1) structural key that changes on placement,
+    // removal and save restoration without scanning every item each frame.
+    std::uint64_t fingerprint = 0xcbf29ce484222325ULL;
+    const auto mix = [&fingerprint](std::uint64_t value) {
+        fingerprint ^= value + 0x9e3779b97f4a7c15ULL +
+            (fingerprint << 6U) + (fingerprint >> 2U);
+    };
+    const auto mixCollection = [&mix](const auto& items) {
+        mix(static_cast<std::uint64_t>(
+            reinterpret_cast<std::uintptr_t>(items.data())));
+        mix(static_cast<std::uint64_t>(items.size()));
+        if (!items.empty()) {
+            mix(static_cast<std::uint64_t>(items.back().id.index));
+            mix(static_cast<std::uint64_t>(items.back().id.generation));
+        }
+    };
+    mixCollection(snapshot.buildings);
+    mixCollection(snapshot.platformFrames);
+    mixCollection(snapshot.modularWalls);
+    mixCollection(snapshot.ramps);
+
+    std::vector<GrassClearArea>& persistent =
+        persistentDecorationClearAreaBuffer_;
+    if (fingerprint != grassClearAreaFingerprint_) {
+        grassClearAreaFingerprint_ = fingerprint;
+        persistent.clear();
+        persistent.reserve(
+            snapshot.buildings.size() +
+            snapshot.platformFrames.size() +
+            snapshot.modularWalls.size() +
+            snapshot.ramps.size());
+        for (const BuildingInstance& building : snapshot.buildings) {
+            const Vec3 center = buildingWorldPosition(building);
+            add(
+                persistent, center.x, center.z,
+                buildingFootprintHalfExtent(building.type) + 0.18);
+        }
+        for (const PlatformFrameInstance& frame :
+             snapshot.platformFrames) {
+            addPlatform(persistent, frame);
+        }
+        for (const WallInstance& wall : snapshot.modularWalls) {
+            addWall(persistent, wall);
+        }
+        for (const RampInstance& ramp : snapshot.ramps) {
+            addRamp(persistent, ramp);
+        }
+    }
+
+    const bool hasPortal = std::any_of(
+        snapshot.attackPortalPositions.begin(),
+        snapshot.attackPortalPositions.end(),
+        [](const auto& portal) { return portal.has_value(); });
+    const bool hasDynamicAreas =
+        platformFramePreview_ || wallPreview_ || rampPreview_ ||
+        !modularPlatformDragPreviews_.empty() ||
+        !modularWallDragPreviews_.empty() ||
+        !modularRampDragPreviews_.empty() ||
+        snapshot.buildingPreview || hasPortal;
+    if (!hasDynamicAreas) {
+        return std::span<const GrassClearArea>{persistent};
+    }
+
+    std::vector<GrassClearArea>& result =
+        activeDecorationClearAreaBuffer_;
+    result.assign(persistent.begin(), persistent.end());
+    result.reserve(
+        persistent.size() +
+        modularPlatformDragPreviews_.size() +
+        modularWallDragPreviews_.size() +
+        modularRampDragPreviews_.size() + 16U);
+
     if (platformFramePreview_ &&
         !modularDragPiece_) {
-        addPlatform(*platformFramePreview_);
+        addPlatform(result, *platformFramePreview_);
     }
     for (const auto& placement :
          modularPlatformDragPreviews_) {
-        addPlatform(placement);
+        addPlatform(result, placement);
     }
     if (wallPreview_ && !modularDragPiece_) {
-        addWall(*wallPreview_);
+        addWall(result, *wallPreview_);
     }
     for (const auto& placement :
          modularWallDragPreviews_) {
-        addWall(placement);
+        addWall(result, placement);
     }
     if (rampPreview_ && !modularDragPiece_) {
-        addRamp(*rampPreview_);
+        addRamp(result, *rampPreview_);
     }
     for (const auto& placement :
          modularRampDragPreviews_) {
-        addRamp(placement);
+        addRamp(result, placement);
     }
 
     if (snapshot.buildingPreview) {
@@ -200,12 +272,12 @@ App::activeDecorationClearAreas(
         for (const GridPosition cell : cells) {
             const Vec3 center =
                 buildingWorldPosition(preview.type, cell);
-            add(center.x, center.z, radius);
+            add(result, center.x, center.z, radius);
         }
     }
     for (const auto& portal : snapshot.attackPortalPositions) {
         if (portal) {
-            add(portal->x, portal->z, 2.6);
+            add(result, portal->x, portal->z, 2.6);
         }
     }
     return std::span<const GrassClearArea>{result};
@@ -1141,14 +1213,47 @@ void App::drawWorldEntities(
     }
     EndBlendMode();
 
+    // Render the solid projectile with the world pass so its normal/ink mask
+    // replaces the turret geometry behind it. Additive ribbons follow below.
+    for (const auto& arrow : arrowVisuals_) {
+        if (!arrow.turretBullet || arrow.startDelayRemaining > 0.0) continue;
+        const float progress = std::clamp(static_cast<float>(
+            1.0 - arrow.remaining / arrow.duration), 0.0F, 1.0F);
+        const Vector3 origin{
+            static_cast<float>(arrow.origin.x),
+            static_cast<float>(arrow.origin.y),
+            static_cast<float>(arrow.origin.z),
+        };
+        const Vector3 target{
+            static_cast<float>(arrow.target.x),
+            static_cast<float>(arrow.target.y),
+            static_cast<float>(arrow.target.z),
+        };
+        const Vector3 path = Vector3Subtract(target, origin);
+        if (Vector3LengthSqr(path) <= 0.000001F) continue;
+        const Vector3 head = Vector3Add(origin,
+            Vector3Scale(path, progress));
+        const float fade = std::clamp((1.0F - progress) / 0.22F,
+                                      0.0F, 1.0F);
+        const Color tint = arrow.shrapnel
+            ? Color{255, 220, 150,
+                    static_cast<unsigned char>(255.0F * fade)}
+            : Color{255, 255, 255,
+                    static_cast<unsigned char>(255.0F * fade)};
+        static_cast<void>(renderer_->drawTurretBullet(
+            head, path, tint, arrow.shrapnel ? 0.56F : 1.0F));
+    }
+
     // Every tower projectile is submitted through one rlgl batch.  This keeps
     // hundreds of simultaneous shots cheap: the amount of geometry grows,
     // but draw-call count does not grow per bullet.
+    renderer_->beginColorOnlyWorldEffects();
     BeginBlendMode(BLEND_ADDITIVE);
     rlDisableDepthMask();
     rlDisableBackfaceCulling();
     rlBegin(RL_QUADS);
     for (const auto& arrow : arrowVisuals_) {
+        if (arrow.startDelayRemaining > 0.0) continue;
         const float progress = std::clamp(static_cast<float>(
             1.0 - arrow.remaining / arrow.duration), 0.0F, 1.0F);
         const Vector3 origin{
@@ -1167,7 +1272,9 @@ void App::drawWorldEntities(
         const Vector3 direction = Vector3Scale(path, 1.0F / distance);
         const Vector3 head = Vector3Add(
             origin, Vector3Scale(path, progress));
-        const float trailLength = arrow.turretBullet ? 2.6F : 1.35F;
+        const float visualScale = arrow.shrapnel ? 0.56F : 1.0F;
+        const float trailLength =
+            (arrow.turretBullet ? 0.68F : 1.35F) * visualScale;
         const float visibleLength = std::min(
             trailLength, distance * progress);
         const Vector3 tail = Vector3Subtract(
@@ -1182,14 +1289,20 @@ void App::drawWorldEntities(
             return static_cast<unsigned char>(std::clamp(
                 alpha * smoothFade, 0.0F, 255.0F));
         };
-        const Color outer{
-            238, 246, 255,
-            fadedAlpha(arrow.turretBullet ? 150.0F : 135.0F)};
-        const Color core{
-            255, 255, 255,
-            fadedAlpha(arrow.turretBullet ? 245.0F : 230.0F)};
-        const float outerRadius = arrow.turretBullet ? 0.085F : 0.060F;
-        const float coreRadius = arrow.turretBullet ? 0.027F : 0.020F;
+        const Color outer = arrow.shrapnel
+            ? Color{255, 202, 94, fadedAlpha(82.0F)}
+            : arrow.turretBullet
+            ? Color{255, 105, 17, fadedAlpha(50.0F)}
+            : Color{238, 246, 255, fadedAlpha(135.0F)};
+        const Color core = arrow.shrapnel
+            ? Color{255, 247, 190, fadedAlpha(180.0F)}
+            : arrow.turretBullet
+            ? Color{255, 166, 64, fadedAlpha(70.0F)}
+            : Color{255, 255, 255, fadedAlpha(230.0F)};
+        const float outerRadius =
+            (arrow.turretBullet ? 0.08F : 0.060F) * visualScale;
+        const float coreRadius =
+            (arrow.turretBullet ? 0.022F : 0.020F) * visualScale;
         emitProjectileRibbon(
             tail, head, camera.position,
             outerRadius * 0.65F, outerRadius, outer);
@@ -1198,23 +1311,28 @@ void App::drawWorldEntities(
             coreRadius * 0.55F, coreRadius, core);
         emitProjectileBillboard(
             head, camera,
-            arrow.turretBullet ? 0.115F : 0.085F, outer);
+            (arrow.turretBullet ? 0.144F : 0.085F) * visualScale,
+            outer);
         emitProjectileBillboard(
             head, camera,
-            arrow.turretBullet ? 0.052F : 0.038F, core);
+            (arrow.turretBullet ? 0.044F : 0.038F) * visualScale,
+            core);
 
-        if (progress < 0.30F) {
-            const float flash = 1.0F - progress / 0.30F;
+        const float flashDuration = arrow.turretBullet ? 0.16F : 0.30F;
+        if (progress < flashDuration) {
+            const float flash = 1.0F - progress / flashDuration;
             emitProjectileBillboard(
                 origin, camera,
-                (arrow.turretBullet ? 0.30F : 0.21F) * flash,
+                (arrow.turretBullet ? 0.16F : 0.21F) * flash,
                 {255, 129, 24,
-                 static_cast<unsigned char>(120.0F * flash)});
+                 static_cast<unsigned char>(
+                     (arrow.turretBullet ? 72.0F : 120.0F) * flash)});
             emitProjectileBillboard(
                 origin, camera,
-                (arrow.turretBullet ? 0.13F : 0.09F) * flash,
+                (arrow.turretBullet ? 0.07F : 0.09F) * flash,
                 {255, 246, 190,
-                 static_cast<unsigned char>(245.0F * flash)});
+                 static_cast<unsigned char>(
+                     (arrow.turretBullet ? 138.0F : 245.0F) * flash)});
         }
     }
     rlEnd();
@@ -1222,6 +1340,7 @@ void App::drawWorldEntities(
     rlEnableBackfaceCulling();
     rlEnableDepthMask();
     EndBlendMode();
+    renderer_->endColorOnlyWorldEffects();
     for (const auto& projectile : snapshot.bombProjectiles) {
         if (projectile.active) {
             const Vector3 position{

@@ -180,6 +180,42 @@ std::optional<Vec3> FlowField::directionAt(Vec3 worldPosition) const {
         return Vec3{};
     }
 
+    // A four-neighbour field is useful around obstacles, but following its
+    // raw cells in open ground makes enemies march in right angles. Take the
+    // visible shortcut only when every crossed cell is normally walkable.
+    const double directX =
+        static_cast<double>(target_.x) - worldPosition.x;
+    const double directZ =
+        static_cast<double>(target_.z) - worldPosition.z;
+    const double directLength = std::hypot(directX, directZ);
+    if (directLength > 1e-9) {
+        const int samples = std::max(
+            1, static_cast<int>(std::ceil(directLength * 2.0)));
+        bool clear = true;
+        for (int sample = 1; sample <= samples; ++sample) {
+            const double fraction =
+                static_cast<double>(sample) / samples;
+            const GridPosition crossed{
+                static_cast<int>(std::lround(
+                    worldPosition.x + directX * fraction)),
+                static_cast<int>(std::lround(
+                    worldPosition.z + directZ * fraction)),
+            };
+            const NavCell* cell = cellAt(crossed);
+            if (cell == nullptr || cell->blocked ||
+                !std::isfinite(cell->distanceToCore) ||
+                (crossed != target_ &&
+                 cell->terrainCost > 1.01)) {
+                clear = false;
+                break;
+            }
+        }
+        if (clear) {
+            return Vec3{directX / directLength, 0.0,
+                        directZ / directLength};
+        }
+    }
+
     std::optional<GridPosition> bestNeighbor;
     double bestScore = std::numeric_limits<double>::infinity();
     for (const GridPosition offset : NeighborOffsets) {

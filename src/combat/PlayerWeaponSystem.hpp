@@ -32,10 +32,10 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount - 2U>
         PlayerWeapon::Axe,
         PlayerWeapon::Pickaxe,
         PlayerWeapon::Club,
-        PlayerWeapon::IceWand,
-        PlayerWeapon::FireWand,
         PlayerWeapon::Rifle,
         PlayerWeapon::Bomb,
+        PlayerWeapon::IceWand,
+        PlayerWeapon::FireWand,
     };
 
 [[nodiscard]] inline constexpr bool isPlayerTool(
@@ -52,6 +52,14 @@ inline constexpr std::array<PlayerWeapon, PlayerWeaponCount - 2U>
            weapon == PlayerWeapon::FireWand ||
            weapon == PlayerWeapon::Rifle ||
            weapon == PlayerWeapon::Bomb;
+}
+
+[[nodiscard]] inline constexpr double meleeEnemyDamageMultiplier(
+    PlayerWeapon weapon) {
+    return weapon == PlayerWeapon::Axe ||
+                   weapon == PlayerWeapon::Pickaxe
+        ? 2.0
+        : 1.0;
 }
 
 [[nodiscard]] inline std::size_t playerWeaponVisibleHotbarIndex(

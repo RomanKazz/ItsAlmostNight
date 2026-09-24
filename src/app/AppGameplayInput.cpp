@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -98,38 +99,24 @@ void App::processGameplayInput(bool controlDown,
             resourceAimSnapshot.selectedWeapon =
                 PlayerWeapon::Axe;
         }
-        currentSnapshot.aimedResource =
-            preciseResourceAim(
-                *renderer_, resourceAimSnapshot);
+        const auto preciseResourceHit = preciseResourceAim(
+            *renderer_, resourceAimSnapshot);
+        currentSnapshot.aimedResource = preciseResourceHit
+            ? std::optional<EntityId>{preciseResourceHit->id}
+            : std::nullopt;
 
-        // Looking directly at a harvestable resource while building should be
-        // enough to return to gathering.  Prefer the matching unlocked tool;
-        // the starter tools remain the universal fallback for a new run.
-        if (resourceAutoSwitchMode && currentSnapshot.aimedResource) {
-            const auto resource = std::ranges::find_if(
-                currentSnapshot.resourceNodes,
-                [&](const ResourceNode& node) {
-                    return node.id == *currentSnapshot.aimedResource;
-                });
-            if (resource != currentSnapshot.resourceNodes.end() &&
-                resource->active &&
-                isHarvestableResource(resource->type)) {
-                const PlayerWeapon preferredTool =
-                    resource->type == ResourceType::Wood
-                        ? PlayerWeapon::Axe
-                        : PlayerWeapon::Pickaxe;
-                selectActionMode(
-                    ActionMode::Equipment, currentSnapshot);
-                pendingWeaponSelection_ = preferredTool;
-                lastEquipmentSelection_ = preferredTool;
-                currentSnapshot.selectedWeapon = preferredTool;
-                currentSnapshot.selectedBuilding.reset();
-                currentSnapshot.buildingPreview.reset();
-            }
-        }
         currentSnapshot.aimedModularBuilding =
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
+        if (buildingContextCardTarget_ &&
+            currentSnapshot.aimedBuilding !=
+                buildingContextCardTarget_ &&
+            currentSnapshot.aimedModularBuilding !=
+                buildingContextCardTarget_) {
+            buildingContextCardTarget_.reset();
+            buildingContextCardUpgradeCost_.reset();
+            buildingContextCardStats_.reset();
+        }
         currentSnapshot.aimedWorldLandmark =
             preciseWorldLandmarkAim(
                 *renderer_, currentSnapshot);
@@ -149,22 +136,45 @@ void App::processGameplayInput(bool controlDown,
         if (currentSnapshot.selectedBuilding) {
             currentSnapshot.aimedModularBuilding.reset();
         }
+        if (coreDefenseMenuVisible_ &&
+            !coreDefenseMenuClosing_) {
+            const auto core = currentSnapshot.coreId
+                ? std::ranges::find(
+                      currentSnapshot.buildings,
+                      *currentSnapshot.coreId,
+                      &BuildingInstance::id)
+                : currentSnapshot.buildings.end();
+            double distance =
+                std::numeric_limits<double>::infinity();
+            if (core != currentSnapshot.buildings.end()) {
+                const Vec3 center = buildingWorldPosition(*core);
+                distance = std::hypot(
+                    center.x - currentSnapshot.playerPosition.x,
+                    center.z - currentSnapshot.playerPosition.z);
+            }
+            if (currentSnapshot.aimedBuilding ==
+                currentSnapshot.coreId) {
+                coreMenuLostAimSeconds_ = 0.0;
+            } else {
+                coreMenuLostAimSeconds_ +=
+                    static_cast<double>(GetFrameTime());
+            }
+            if (distance > 4.5 ||
+                coreMenuLostAimSeconds_ > 0.18) {
+                coreDefenseMenuClosing_ = true;
+            }
+        }
         interactionResourceAim_ = currentSnapshot.aimedResource;
         input_.overrideAimedBuilding = true;
-        const bool pinnedOrdinaryBuilding =
-            buildingContextCardTarget_ &&
-            std::ranges::any_of(
-                currentSnapshot.buildings,
-                [this](const BuildingInstance& building) {
-                    return building.id ==
-                        *buildingContextCardTarget_;
-                });
-        input_.aimedBuildingOverride = pinnedOrdinaryBuilding
-            ? buildingContextCardTarget_
-            : currentSnapshot.aimedBuilding;
+        input_.aimedBuildingOverride = currentSnapshot.aimedBuilding;
         input_.overrideAimedResource = true;
         input_.aimedResourceOverride =
             currentSnapshot.aimedResource;
+        input_.aimedResourceHitPositionOverride =
+            preciseResourceHit && currentSnapshot.aimedResource ==
+                    preciseResourceHit->id
+            ? std::optional<Vec3>{preciseResourceHit->position}
+            : std::nullopt;
         input_.overrideAimedModularBuilding = true;
         input_.aimedModularBuildingOverride =
             currentSnapshot.aimedModularBuilding;
@@ -242,6 +252,8 @@ void App::processGameplayInput(bool controlDown,
                         ControlAction::MoveLeft));
         input_.sprint = keyDown(
             userSettings_.controls, ControlAction::Sprint);
+        input_.jumpHeld = keyDown(
+            userSettings_.controls, ControlAction::Jump);
 
         const auto selectBuildingMode =
             [this, &currentSnapshot](BuildingType type) {
@@ -252,7 +264,9 @@ void App::processGameplayInput(bool controlDown,
                 lastBuildingSelection_ = type;
                 pendingBuildingSelection_ = type;
             };
-        const Vector2 mouseDelta = GetMouseDelta();
+        const Vector2 rawMouseDelta = GetMouseDelta();
+        const Vector2 mouseDelta = coreMenuPointerActive_
+            ? Vector2{} : rawMouseDelta;
         const float wheel = GetMouseWheelMove();
         std::optional<EntityId> aimedDirectionalDefense;
         if (buildingManagementActive &&
@@ -278,81 +292,11 @@ void App::processGameplayInput(bool controlDown,
         }
         if (keyPressed(userSettings_.controls,
                        ControlAction::BuildMode)) {
-            buildModePieVisible_ = true;
-            buildModePieDirection_ = {};
-            buildModePieChoice_.reset();
-        }
-        if (buildModePieVisible_) {
-            constexpr float MaximumRadius = 112.0F;
-            constexpr float DeadZoneRadius = 28.0F;
-            buildModePieDirection_.x += mouseDelta.x;
-            buildModePieDirection_.y += mouseDelta.y;
-            const float directionLength =
-                Vector2Length(buildModePieDirection_);
-            if (directionLength > MaximumRadius) {
-                buildModePieDirection_ =
-                    Vector2Scale(
-                        buildModePieDirection_,
-                        MaximumRadius /
-                            directionLength);
-            }
-            if (Vector2Length(
-                    buildModePieDirection_) >=
-                    DeadZoneRadius) {
-                float pieAngle = std::atan2(
-                    buildModePieDirection_.y,
-                    buildModePieDirection_.x) * 57.2957795F;
-                if (pieAngle < 0.0F) {
-                    pieAngle += 360.0F;
-                }
-                if (pieAngle >= 180.0F) {
-                    buildModePieChoice_ = ActionMode::Equipment;
-                } else {
-                    buildModePieChoice_ = ActionMode::Buildings;
-                }
-            } else {
-                buildModePieChoice_.reset();
-                if (keyDown(
-                               userSettings_.controls,
-                               ControlAction::MoveForward)) {
-                    buildModePieChoice_ = ActionMode::Equipment;
-                } else if (keyDown(
-                               userSettings_.controls,
-                               ControlAction::MoveRight)) {
-                    buildModePieChoice_ = ActionMode::Buildings;
-                } else if (keyDown(
-                               userSettings_.controls,
-                               ControlAction::MoveLeft) ||
-                           keyDown(
-                               userSettings_.controls,
-                               ControlAction::MoveBackward)) {
-                    buildModePieChoice_ = ActionMode::Buildings;
-                }
-            }
-
-            input_.moveForward = 0.0;
-            input_.moveRight = 0.0;
-            input_.sprint = false;
-            pendingYaw_ = 0.0;
-            pendingPitch_ = 0.0;
-            pendingJump_ = false;
-            pendingDash_ = false;
-            pendingPickaxe_ = false;
-            pendingRifleShot_ = false;
-            pendingIceWandShot_ = false;
-            pendingFireWandShot_ = false;
-
-            if (keyReleased(userSettings_.controls,
-                            ControlAction::BuildMode)) {
-                selectActionMode(
-                    buildModePieChoice_.value_or(
-                        previousActionMode_),
-                    currentSnapshot);
-                buildModePieVisible_ = false;
-                buildModePieDirection_ = {};
-                buildModePieChoice_.reset();
-            }
-            return;
+            selectActionMode(
+                actionMode_ == ActionMode::Equipment
+                    ? ActionMode::Buildings
+                    : ActionMode::Equipment,
+                currentSnapshot);
         }
         const double sensitivity =
             MouseSensitivity * static_cast<double>(
@@ -368,7 +312,8 @@ void App::processGameplayInput(bool controlDown,
             foundationBuildMode_ ||
             currentSnapshot.buildingPreview.has_value();
         pendingDash_ = pendingDash_ ||
-            (!placementConsumesRightClick &&
+            (!coreMenuPointerActive_ &&
+             !placementConsumesRightClick &&
              keyPressed(
                  userSettings_.controls,
                  ControlAction::Dash));
@@ -670,19 +615,46 @@ void App::processGameplayInput(bool controlDown,
             currentSnapshot.aimedBuilding ==
                 currentSnapshot.coreId;
         const auto openCoreDefenseMenu = [this] {
+            if (coreDefenseMenuVisible_) {
+                coreDefenseMenuClosing_ =
+                    !coreDefenseMenuClosing_;
+                coreMenuLostAimSeconds_ = 0.0;
+                coreMenuPointerAwaySeconds_ = 0.0;
+                audio_.playUiConfirm();
+                return;
+            }
             buildingContextCardTarget_.reset();
             buildingContextCardUpgradeCost_.reset();
             buildingContextCardStats_.reset();
             coreDefenseMenuVisible_ = true;
             coreDefenseMenuClosing_ = false;
+            coreMenuPointerActive_ = true;
+            EnableCursor();
             coreDefenseMenuEntranceSeconds_ = 0.0;
+            coreMenuLostAimSeconds_ = 0.0;
+            coreMenuPointerAwaySeconds_ = 0.0;
             coreDefenseMenuAnimatedLevel_ = 0;
             enemySpawnMenuVisible_ = false;
             itemGrantMenuVisible_ = false;
             sandboxCardMenuVisible_ = false;
-            EnableCursor();
             audio_.playUiConfirm();
         };
+        if (coreDefenseMenuVisible_ &&
+            coreMenuPointerActive_ &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+            currentSnapshot.coreId) {
+            const auto core = std::ranges::find(
+                currentSnapshot.buildings,
+                *currentSnapshot.coreId,
+                &BuildingInstance::id);
+            if (core != currentSnapshot.buildings.end() &&
+                renderer_->buildingRaycastDistance(
+                    *core, currentSnapshot.buildings,
+                    GetMouseRay(GetMousePosition(), gameplayCamera_),
+                    5.0)) {
+                openCoreDefenseMenu();
+            }
+        }
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
             (!aimingCore &&
@@ -755,7 +727,15 @@ void App::processGameplayInput(bool controlDown,
         }
         if (buildingManagementActive && aimingCore &&
             keyPressed(userSettings_.controls, ControlAction::Repair)) {
-            pendingRepairAllBuildings_ = true;
+            const auto core = std::ranges::find(
+                currentSnapshot.buildings,
+                *currentSnapshot.coreId,
+                &BuildingInstance::id);
+            if (core != currentSnapshot.buildings.end() &&
+                core->health < core->maxHealth) {
+                pendingBuildingRepair_ =
+                    RepairBuildingCommand{core->id};
+            }
         }
         if (aimingCore &&
             currentSnapshot.unlockedWeapons[
@@ -1163,6 +1143,7 @@ void App::processGameplayInput(bool controlDown,
             }
         }
         const bool mousePrimaryPressed =
+            !coreMenuPointerActive_ &&
             IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
         // A press always performs one immediate attack. Repeating starts only
         // after an intentional hold, so an ordinary click cannot queue a
@@ -1195,6 +1176,46 @@ void App::processGameplayInput(bool controlDown,
             keyPressed(userSettings_.controls,
                        ControlAction::Attack);
         if (attackPressed) {
+            const bool smartToolCanLeaveBuildMode =
+                actionMode_ == ActionMode::Buildings;
+            if (currentSnapshot.automaticToolSwitch &&
+                (smartToolCanLeaveBuildMode ||
+                 (actionMode_ == ActionMode::Equipment &&
+                  !pendingBuildingSelection_ &&
+                  !currentSnapshot.buildingPreview &&
+                  !foundationBuildMode_)) &&
+                currentSnapshot.aimedResource) {
+                const auto resource = std::ranges::find_if(
+                    currentSnapshot.resourceNodes,
+                    [&currentSnapshot](const ResourceNode& node) {
+                        return node.id ==
+                               *currentSnapshot.aimedResource;
+                    });
+                if (resource != currentSnapshot.resourceNodes.end() &&
+                    resource->active &&
+                    isHarvestableResource(resource->type)) {
+                    const PlayerWeapon desiredTool =
+                        resource->type == ResourceType::Wood
+                            ? PlayerWeapon::Axe
+                            : PlayerWeapon::Pickaxe;
+                    const bool desiredToolUnlocked =
+                        currentSnapshot.unlimitedResources ||
+                        currentSnapshot.unlockedWeapons[
+                            static_cast<std::size_t>(desiredTool)];
+                    if (desiredToolUnlocked) {
+                        if (smartToolCanLeaveBuildMode) {
+                            selectActionMode(
+                                ActionMode::Equipment,
+                                currentSnapshot);
+                            currentSnapshot.selectedBuilding.reset();
+                            currentSnapshot.buildingPreview.reset();
+                        }
+                        pendingWeaponSelection_ = desiredTool;
+                        lastEquipmentSelection_ = desiredTool;
+                        currentSnapshot.selectedWeapon = desiredTool;
+                    }
+                }
+            }
             if (mousePrimaryPressed && foundationBuildMode_) {
                 if (foundationTerrainHit_) {
                     switch (modularBuildPiece_) {
@@ -1324,8 +1345,8 @@ void App::processGameplayInput(bool controlDown,
                     pendingBombThrow_ = true;
                     if (toolSwapRemaining_ <= 0.0 &&
                         toolSwingRemaining_ <= 0.0) {
-                        toolSwingDuration_ =
-                            activeToolTuning().swingDuration;
+                        toolSwingDuration_ = toolSwingDurationFor(
+                            currentSnapshot, displayedToolVisual_);
                         toolSwingRemaining_ = toolSwingDuration_;
                     }
                 }
@@ -1401,8 +1422,8 @@ void App::processGameplayInput(bool controlDown,
                                  FirstPersonToolVisual::Club) &&
                         toolSwapRemaining_ <= 0.0 &&
                         toolSwingRemaining_ <= 0.0) {
-                        toolSwingDuration_ =
-                            activeToolTuning().swingDuration;
+                        toolSwingDuration_ = toolSwingDurationFor(
+                            currentSnapshot, displayedToolVisual_);
                         toolSwingRemaining_ =
                             toolSwingDuration_;
                         chooseHarvestSwingAnimation(displayedToolVisual_);
@@ -1433,12 +1454,10 @@ void App::processGameplayInput(bool controlDown,
         }
     } else {
         interactionResourceAim_.reset();
-        buildModePieVisible_ = false;
-        buildModePieDirection_ = {};
-        buildModePieChoice_.reset();
         input_.moveForward = 0.0;
         input_.moveRight = 0.0;
         input_.sprint = false;
+        input_.jumpHeld = false;
         pendingDash_ = false;
         repairSweepActive_ = false;
         repairSweepTarget_.reset();

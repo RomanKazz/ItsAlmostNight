@@ -19,14 +19,25 @@ void runCrystalMineSystemTests() {
     require(mines.mines().size() == 1, "mine runtime follows building");
     require(mines.tick(7.9).empty(), "mine waits for production interval");
     const auto firstProduction = mines.tick(0.1);
-    require(firstProduction.size() == 1 && firstProduction[0].amount == 4,
+    require(firstProduction.size() == 1 && firstProduction[0].amount == 3,
             "mine produces configured crystals");
     const auto upgradedMine = buildings.upgrade(mine->building.id, 10, 5, 10);
     require(upgradedMine.valid(), "mine fixture upgrades mine");
     mines.syncBuildings(buildings.buildings());
-    const auto upgradedProduction = mines.tick(7.3);
-    require(upgradedProduction.size() == 1 && upgradedProduction[0].amount == 5,
-            "level-two mine gains output and cycle speed");
+    const auto upgradedProduction = mines.tick(6.7);
+    require(upgradedProduction.size() == 1 && upgradedProduction[0].amount == 3,
+            "level-two mine gains a predictable cycle-speed bonus");
+    requireNear(
+        mines.productionInterval(ian::BuildingType::CrystalMine, 2),
+        8.0 / 1.2, 1e-9,
+        "producer level two is twenty percent faster");
+    requireNear(
+        mines.productionInterval(ian::BuildingType::CrystalMine, 3),
+        8.0 / 1.4, 1e-9,
+        "producer levels scale linearly without output rounding spikes");
+
+    require(buildings.upgrade(core->building.id, 0, 0, 100).valid(),
+            "producer fixture reaches core level three");
 
     const auto lumberMill = buildings.place(
         ian::BuildingType::LumberMill, {7, 0}, 0,
@@ -35,7 +46,7 @@ void runCrystalMineSystemTests() {
         ian::BuildingType::Quarry, {10, 0}, 0,
         30, 40, 15);
     require(lumberMill.has_value() && quarry.has_value(),
-            "all autonomous resource producers unlock at core level two");
+            "quarry and lumber mill unlock at core level three");
     mines.syncBuildings(buildings.buildings());
     const auto resourceProduction = mines.tick(10.0);
     const auto wood = std::find_if(

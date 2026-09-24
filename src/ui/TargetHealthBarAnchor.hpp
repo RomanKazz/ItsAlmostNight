@@ -35,7 +35,7 @@ namespace ian {
     const BuildingInstance& building) {
     Vec3 anchor = buildingWorldPosition(building);
     anchor.y += buildingHealthBarHeightOffset(
-        building.type);
+        building.type) + 0.18;
     return anchor;
 }
 

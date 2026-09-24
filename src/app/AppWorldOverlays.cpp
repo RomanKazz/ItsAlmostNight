@@ -32,75 +32,6 @@ float easeOutBack(float progress) {
         Overshoot * shifted * shifted;
 }
 
-void drawPlacementGroundCue(
-    const BuildingPreview& preview,
-    Vector2 visualCenter,
-    double elapsedSeconds,
-    float entranceProgress) {
-    const float fade = smoothstep(0.0F, 0.42F, entranceProgress);
-    if (fade <= 0.001F) {
-        return;
-    }
-
-    const float radius = static_cast<float>(
-        buildingFootprintHalfExtent(preview.type)) + 0.17F;
-    const float height =
-        static_cast<float>(preview.baseHeight) + 0.072F;
-    const Color accent = placementColor(
-        preview.placement.error, true);
-    const auto fadedAlpha =
-        [fade](unsigned char alpha) {
-            return static_cast<unsigned char>(std::lround(
-                static_cast<float>(alpha) * fade));
-        };
-
-    DrawCircle3D(
-        {visualCenter.x, height, visualCenter.y},
-        radius,
-        {1.0F, 0.0F, 0.0F}, 90.0F,
-        {accent.r, accent.g, accent.b, fadedAlpha(82)});
-    DrawCircle3D(
-        {visualCenter.x, height + 0.004F, visualCenter.y},
-        radius + 0.055F,
-        {1.0F, 0.0F, 0.0F}, 90.0F,
-        {accent.r, accent.g, accent.b, fadedAlpha(34)});
-
-    constexpr int SegmentCount = 56;
-    const float phase = std::fmod(
-        static_cast<float>(elapsedSeconds) * 0.20F, 1.0F);
-    for (int segment = 0; segment < SegmentCount; ++segment) {
-        const float midpoint =
-            (static_cast<float>(segment) + 0.5F) /
-            static_cast<float>(SegmentCount);
-        float distance = std::abs(midpoint - phase);
-        distance = std::min(distance, 1.0F - distance);
-        const float strength = 1.0F - std::clamp(
-            distance / 0.14F, 0.0F, 1.0F);
-        if (strength <= 0.01F) {
-            continue;
-        }
-        const float angleA = 2.0F * PI *
-            static_cast<float>(segment) /
-            static_cast<float>(SegmentCount);
-        const float angleB = 2.0F * PI *
-            static_cast<float>(segment + 1) /
-            static_cast<float>(SegmentCount);
-        const Vector3 start{
-            visualCenter.x + std::cos(angleA) * radius,
-            height + 0.009F,
-            visualCenter.y + std::sin(angleA) * radius};
-        const Vector3 end{
-            visualCenter.x + std::cos(angleB) * radius,
-            height + 0.009F,
-            visualCenter.y + std::sin(angleB) * radius};
-        const auto alpha = static_cast<unsigned char>(
-            std::lround((90.0F + strength * 150.0F) * fade));
-        DrawLine3D(
-            start, end,
-            {accent.r, accent.g, accent.b, alpha});
-    }
-}
-
 void drawTerrainTacticalRing(
     const TerrainHeightfield& terrain,
     Vector3 center, float radius, Color color) {
@@ -215,6 +146,23 @@ void App::drawWorldOverlays(
          !modularRampDragPreviews_.empty() ||
          foundationTerrainHit_);
     if (hasModularPreview) {
+        const float entranceProgress = placementEntranceProgress(
+            placementPreviewEntranceSeconds_);
+        const float previewScale = modularDragPiece_
+            ? 1.0F
+            : std::clamp(easeOutBack(entranceProgress),
+                         0.0F, 1.08F);
+        if (previewScale > 0.01F) {
+        const Vec3 pivot = modularPreviewVisualOrigin_.value_or(
+            foundationTerrainHit_.value_or(Vec3{}));
+        rlPushMatrix();
+        rlTranslatef(static_cast<float>(pivot.x),
+                     static_cast<float>(pivot.y),
+                     static_cast<float>(pivot.z));
+        rlScalef(previewScale, previewScale, previewScale);
+        rlTranslatef(-static_cast<float>(pivot.x),
+                     -static_cast<float>(pivot.y),
+                     -static_cast<float>(pivot.z));
         WorldMaterialState material{};
         material.bakedAo = 0.88F;
         material.screenAoAmount = 0.0F;
@@ -335,6 +283,78 @@ void App::drawWorldOverlays(
                     : nullptr,
             });
         renderer_->endWorldShader();
+        rlPopMatrix();
+        }
+    }
+    if (!foundationBuildMode_ &&
+        outgoingPreviewRemaining_ > 0.0 &&
+        (outgoingPlatformPreview_ || outgoingWallPreview_ ||
+         outgoingRampPreview_)) {
+        const float scale = smoothstep(
+            0.0F, 1.0F,
+            static_cast<float>(outgoingPreviewRemaining_ / 0.20));
+        if (scale > 0.01F) {
+            const double cellSize =
+                simulation_.terrain().config().cellSize;
+            Vec3 pivot = outgoingModularPreviewOrigin_.value_or(
+                Vec3{});
+            if (!outgoingModularPreviewOrigin_) {
+                if (outgoingPlatformPreview_) {
+                    pivot = {
+                        (outgoingPlatformPreview_->anchor.x + 1.0) *
+                            cellSize,
+                        outgoingPlatformPreview_->floorHeight,
+                        (outgoingPlatformPreview_->anchor.z + 1.0) *
+                            cellSize};
+                } else if (outgoingWallPreview_) {
+                    pivot = {
+                        (outgoingWallPreview_->anchor.x + 0.5) *
+                            cellSize,
+                        outgoingWallPreview_->bottomHeight,
+                        (outgoingWallPreview_->anchor.z + 0.5) *
+                            cellSize};
+                } else if (outgoingRampPreview_) {
+                    pivot = {
+                        (outgoingRampPreview_->anchor.x + 1.0) *
+                            cellSize,
+                        outgoingRampPreview_->bottomHeight,
+                        (outgoingRampPreview_->anchor.z + 1.0) *
+                            cellSize};
+                }
+            }
+            rlPushMatrix();
+            rlTranslatef(static_cast<float>(pivot.x),
+                         static_cast<float>(pivot.y),
+                         static_cast<float>(pivot.z));
+            rlScalef(scale, scale, scale);
+            rlTranslatef(-static_cast<float>(pivot.x),
+                         -static_cast<float>(pivot.y),
+                         -static_cast<float>(pivot.z));
+            renderer_->beginWorldShader(lighting);
+            WorldMaterialState material{};
+            material.bakedAo = 0.88F;
+            material.screenAoAmount = 0.0F;
+            renderer_->setWorldMaterial(material);
+            modularBuildingRenderer_.drawWorld(
+                {{}, {}, {}, {}, cellSize, std::nullopt, {}, 1.0F},
+                {
+                    .platformFrame = outgoingPlatformPreview_
+                        ? &*outgoingPlatformPreview_ : nullptr,
+                    .wall = outgoingWallPreview_
+                        ? &*outgoingWallPreview_ : nullptr,
+                    .ramp = outgoingRampPreview_
+                        ? &*outgoingRampPreview_ : nullptr,
+                    .maximumWoodSupportLength =
+                        simulation_.terrain().config()
+                            .maxWoodSupportLength,
+                    .rotationYaw = static_cast<float>(
+                        placementRotationYaw_),
+                    .visualOrigin = outgoingModularPreviewOrigin_
+                        ? &*outgoingModularPreviewOrigin_ : nullptr,
+                });
+            renderer_->endWorldShader();
+            rlPopMatrix();
+        }
     }
     if (DrawModularSnapDiagnostics &&
         foundationBuildMode_ &&
@@ -644,12 +664,6 @@ void App::drawWorldOverlays(
             drawPlacementFootprint(
                 *snapshot.buildingPreview, visualCenter,
                 static_cast<float>(placementRotationYaw_));
-            drawPlacementGroundCue(
-                *snapshot.buildingPreview,
-                visualCenter,
-                snapshot.elapsedSeconds,
-                placementEntranceProgress(
-                    placementPreviewEntranceSeconds_));
         }
         if (!wallDragStart_ &&
             !placementPreviewObstructed(
@@ -679,32 +693,6 @@ void App::drawWorldOverlays(
                     ? static_cast<float>(
                           CannonSystem::minimumRange(type, 1))
                     : 0.0F);
-        }
-        if (!wallDragStart_ &&
-            snapshot.buildingPreview->placement.valid() &&
-            placementSnapPulseRemaining_ > 0.0) {
-            const float progress = static_cast<float>(
-                1.0 -
-                placementSnapPulseRemaining_ / 0.18);
-            const float fade =
-                1.0F - std::clamp(progress, 0.0F, 1.0F);
-            const auto alpha =
-                static_cast<unsigned char>(
-                    std::lround(fade * 210.0F));
-            const float radius =
-                static_cast<float>(
-                    buildingFootprintHalfExtent(
-                        snapshot.buildingPreview->type)) +
-                0.12F + progress * 0.48F;
-            DrawCircle3D(
-                {visualCenter.x,
-                 static_cast<float>(
-                     snapshot.buildingPreview
-                         ->baseHeight) +
-                     0.09F,
-                 visualCenter.y},
-                radius, {1.0F, 0.0F, 0.0F}, 90.0F,
-                {103, 255, 145, alpha});
         }
     }
     // Attack coverage is immediate hover feedback. Opening the building
@@ -823,19 +811,55 @@ void App::drawWorldOverlays(
                 {255, 206, 74, 235});
         }
     }
-    if (snapshot.buildingPreview) {
-        const auto& preview = *snapshot.buildingPreview;
+    const bool outgoingPreview =
+        actionMode_ != ActionMode::Buildings &&
+        outgoingBuildingPreview_ &&
+        outgoingPreviewRemaining_ > 0.0;
+    std::optional<BuildingPreview> dragPreviewFallback;
+    if (actionMode_ == ActionMode::Buildings &&
+        wallDragStart_ && placementDragType_ &&
+        (!snapshot.buildingPreview ||
+         snapshot.buildingPreview->type != *placementDragType_)) {
+        const GridPosition cell =
+            wallDragEnd_.value_or(*wallDragStart_);
+        const BuildingPlatformSurface surface =
+            dragPlacementSurface(*placementDragType_, cell);
+        dragPreviewFallback = BuildingPreview{
+            .type = *placementDragType_,
+            .gridPosition = cell,
+            .rotation = 0,
+            .placement = dragPlacement(*placementDragType_, cell),
+            .baseHeight = surface.height,
+            .platformStorey = surface.storey,
+            .foundationBottomHeight =
+                surface.foundationBottomHeight,
+        };
+    }
+    const BuildingPreview* activePreview = outgoingPreview
+        ? &*outgoingBuildingPreview_
+        : actionMode_ == ActionMode::Buildings &&
+                snapshot.buildingPreview &&
+                (!placementDragType_ ||
+                 snapshot.buildingPreview->type ==
+                     *placementDragType_)
+            ? &*snapshot.buildingPreview
+            : dragPreviewFallback
+                ? &*dragPreviewFallback
+                : nullptr;
+    if (activePreview) {
+        const auto& preview = *activePreview;
         BuildingPreview visualPreview = preview;
         std::optional<std::uint8_t>
             automaticLineRotation;
         const Vec3 targetCenter = buildingWorldPosition(
             preview.type, preview.gridPosition);
         Vector2 modelCenter =
-            placementPreviewCenter_.value_or(Vector2{
+            (outgoingPreview ? outgoingPreviewCenter_
+                             : placementPreviewCenter_).value_or(Vector2{
                 static_cast<float>(targetCenter.x),
                 static_cast<float>(targetCenter.z),
             });
-        if (wallDragStart_ && wallDragEnd_ &&
+        if (!outgoingPreview && wallDragStart_ && wallDragEnd_ &&
             placementDragType_ &&
             preview.type == *placementDragType_) {
             const auto cells =
@@ -897,13 +921,31 @@ void App::drawWorldOverlays(
             snapshot.playerPosition);
         const float x = visualCenter.x;
         const float z = visualCenter.y;
-        const float entranceProgress =
-            placementEntranceProgress(
-                placementPreviewEntranceSeconds_);
-        const float entranceFade = smoothstep(
-            0.0F, 0.58F, entranceProgress);
-        const float previewLift = -0.14F *
-            (1.0F - easeOutBack(entranceProgress));
+        const float entranceProgress = outgoingPreview
+            ? std::clamp(static_cast<float>(
+                  outgoingPreviewRemaining_ / 0.20),
+                  0.0F, 1.0F)
+            : placementEntranceProgress(
+                  placementPreviewEntranceSeconds_);
+        const bool draggingLine =
+            !outgoingPreview && wallDragStart_ && wallDragEnd_ &&
+            placementDragType_ &&
+            preview.type == *placementDragType_;
+        const float entranceFade = draggingLine
+            ? 1.0F
+            : outgoingPreview
+            ? smoothstep(0.0F, 1.0F, entranceProgress)
+            : smoothstep(0.0F, 0.58F, entranceProgress);
+        const float previewScale = draggingLine
+            ? 1.0F
+            : outgoingPreview
+            ? entranceFade
+            : std::clamp(easeOutBack(entranceProgress),
+                         0.0F, 1.08F);
+        const float previewLift = draggingLine
+            ? 0.0F
+            : -0.14F * (1.0F -
+                        easeOutBack(entranceProgress));
         const float opacityPulse =
             0.975F + 0.025F * static_cast<float>(
                 std::sin(snapshot.elapsedSeconds * 3.4));
@@ -936,22 +978,26 @@ void App::drawWorldOverlays(
             static_cast<float>(color.g) / 255.0F,
             static_cast<float>(color.b) / 255.0F};
         previewMaterial.ghostOpacity =
-            0.30F * entranceFade * opacityPulse;
+            0.36F * entranceFade * opacityPulse;
         if (visualPreview.placement.valid()) {
             previewMaterial.baseColor = {
                 0.72F, 1.0F, 0.82F,
-                0.38F * entranceFade};
+                0.46F * entranceFade};
             previewMaterial.bakedAo = 1.0F;
             previewMaterial.ghostAmount = 1.0F;
             previewMaterial.ghostTint = {
                 0.18F, 0.90F, 0.48F};
             previewMaterial.ghostOpacity =
-                0.27F * entranceFade * opacityPulse;
+                0.36F * entranceFade * opacityPulse;
         }
-        const bool drawPreviewModel =
-            !placementPreviewObstructed(
+        const bool finalCellObstructed =
+            placementPreviewObstructed(
                 visualPreview.placement.error);
-        if (drawPreviewModel) {
+        // A blocked endpoint must not hide the valid cells already included
+        // in the drag gesture.
+        const bool drawPreviewModel =
+            draggingLine || !finalCellObstructed;
+        if (drawPreviewModel && previewScale > 0.01F) {
             rlDrawRenderBatchActive();
             BeginBlendMode(BLEND_ALPHA);
             rlDisableDepthMask();
@@ -959,20 +1005,26 @@ void App::drawWorldOverlays(
             renderer_->setWorldMaterial(
                 previewMaterial);
         rlPushMatrix();
+        rlTranslatef(x, static_cast<float>(
+            visualPreview.baseHeight), z);
+        rlScalef(previewScale, previewScale, previewScale);
+        rlTranslatef(-x, -static_cast<float>(
+            visualPreview.baseHeight), -z);
         rlTranslatef(0.0F, previewLift, 0.0F);
         const Vec3 visualTargetCenter =
             buildingWorldPosition(
                 visualPreview.type,
                 visualPreview.gridPosition);
         if (const auto foundation =
-                automaticBuildingFoundation(
-                    visualPreview.type,
-                    visualPreview.gridPosition,
-                    visualPreview.baseHeight,
-                    visualPreview
-                        .foundationBottomHeight,
-                    simulation_.terrain()
-                        .config().cellSize)) {
+                !finalCellObstructed
+                    ? automaticBuildingFoundation(
+                          visualPreview.type,
+                          visualPreview.gridPosition,
+                          visualPreview.baseHeight,
+                          visualPreview.foundationBottomHeight,
+                          simulation_.terrain()
+                              .config().cellSize)
+                    : std::nullopt) {
             rlPushMatrix();
             rlTranslatef(
                 x - static_cast<float>(
@@ -1083,6 +1135,11 @@ void App::drawWorldOverlays(
                     static_cast<float>(cellColor.b) / 255.0F,
                     static_cast<float>(cellColor.a) / 255.0F,
                 };
+                cellMaterial.ghostTint = {
+                    static_cast<float>(cellColor.r) / 255.0F,
+                    static_cast<float>(cellColor.g) / 255.0F,
+                    static_cast<float>(cellColor.b) / 255.0F,
+                };
                 renderer_->setWorldMaterial(cellMaterial);
                 const Vec3 center = buildingWorldPosition(
                     preview.type, cells[index]);
@@ -1169,7 +1226,10 @@ void App::drawWorldOverlays(
             renderer_->setWorldMaterial(previewMaterial);
         }
 
-        if (preview.type == BuildingType::Core) {
+        if (draggingLine && finalCellObstructed &&
+            preview.type != BuildingType::Wall) {
+            // Earlier visible cells were drawn above.
+        } else if (preview.type == BuildingType::Core) {
             if (!renderer_->drawCore({x, 0.0F, z}, yaw)) {
                 DrawCube({x, 1.25F, z}, 2.0F, 2.5F, 2.0F,
                          WHITE);
@@ -1282,6 +1342,14 @@ void App::drawWorldOverlays(
                         static_cast<float>(cellColor.b) /
                             255.0F,
                         static_cast<float>(cellColor.a) /
+                            255.0F,
+                    };
+                    cellMaterial.ghostTint = {
+                        static_cast<float>(cellColor.r) /
+                            255.0F,
+                        static_cast<float>(cellColor.g) /
+                            255.0F,
+                        static_cast<float>(cellColor.b) /
                             255.0F,
                     };
                     renderer_->setWorldMaterial(cellMaterial);

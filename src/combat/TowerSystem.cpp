@@ -12,11 +12,13 @@ namespace {
 constexpr double BaseRange = 9.0;
 constexpr double CrossbowBaseFireInterval = 1.0;
 constexpr double SearchInterval = 0.25;
-constexpr double BaseDamage = 1.0;
+constexpr double BaseDamage = 1.2;
+constexpr double GunBaseDamage = 1.08;
 constexpr double TurnSpeed = 12.0;
 constexpr double PitchSpeed = 8.0;
 constexpr double AimTolerance = 0.08726646259971647;
 constexpr double CrossbowPiercingRadius = 0.72;
+constexpr double GunPiercingRadius = 0.42;
 // The gun turret has no pitch pivot. A small tolerance keeps it useful on
 // rolling terrain, while preventing a turret on a modular floor from firing
 // down through an entire storey.
@@ -40,14 +42,15 @@ double attackRange(BuildingType type, std::uint8_t level) {
 }
 
 double attackDamage(BuildingType type, std::uint8_t level) {
-    const double base = type == BuildingType::GunTurret ? 0.42 : BaseDamage;
+    const double base = type == BuildingType::GunTurret
+        ? GunBaseDamage : BaseDamage;
     return base + (type == BuildingType::GunTurret ? 0.08 : 0.2) *
         static_cast<double>(level - 1);
 }
 
 double fireInterval(BuildingType type, std::uint8_t level) {
     const double base = type == BuildingType::GunTurret
-        ? 0.18 : CrossbowBaseFireInterval;
+        ? 0.38 : CrossbowBaseFireInterval;
     const double levelRateBonus = type == BuildingType::GunTurret
         ? 0.05 : 0.03;
     return base / (1.0 + levelRateBonus *
@@ -106,12 +109,14 @@ bool withinRange(Vec3 origin, Vec3 target, double range) {
     return (deltaX * deltaX) + (deltaZ * deltaZ) <= range * range;
 }
 
-std::size_t crossbowTargets(
-    const EnemySystem& enemies, Vec3 origin, Vec3 aimPosition,
-    double range, int maximumTargets,
+std::size_t piercingTargets(
+    const EnemySystem& enemies, BuildingType towerType,
+    double towerSurfaceHeight, Vec3 origin, Vec3 aimPosition,
+    double range, double piercingRadius, int maximumTargets,
     std::array<PiercingCandidate, MaximumCrossbowTargets>& result) {
     const double directionX = aimPosition.x - origin.x;
-    const double directionY = aimPosition.y - origin.y;
+    const double directionY = towerType == BuildingType::GunTurret
+        ? 0.0 : aimPosition.y - origin.y;
     const double directionZ = aimPosition.z - origin.z;
     const double directionLength = std::sqrt(
         directionX * directionX + directionY * directionY +
@@ -130,7 +135,7 @@ std::size_t crossbowTargets(
     std::size_t count = 0;
     for (const EnemyInstance& enemy : enemies.enemies()) {
         if (!enemy.active || !towerCanTarget(
-                BuildingType::Turret, enemy, origin.y)) {
+                towerType, enemy, towerSurfaceHeight)) {
             continue;
         }
         const Vec3 candidatePosition = enemyAimPosition(enemy);
@@ -138,7 +143,8 @@ std::size_t crossbowTargets(
             continue;
         }
         const double relativeX = candidatePosition.x - origin.x;
-        const double relativeY = candidatePosition.y - origin.y;
+        const double relativeY = towerType == BuildingType::GunTurret
+            ? 0.0 : candidatePosition.y - origin.y;
         const double relativeZ = candidatePosition.z - origin.z;
         const double distanceAlongRay =
             relativeX * direction.x + relativeY * direction.y +
@@ -153,7 +159,7 @@ std::size_t crossbowTargets(
             0.0, relativeLengthSquared -
                 distanceAlongRay * distanceAlongRay);
         if (distanceFromRaySquared >
-            CrossbowPiercingRadius * CrossbowPiercingRadius) {
+            piercingRadius * piercingRadius) {
             continue;
         }
         const PiercingCandidate candidate{
@@ -229,12 +235,14 @@ void TowerSystem::reset() {
 
 void TowerSystem::setModifiers(
     double damage, double range, double fireRate,
-    double highGroundDamage, int extraTargetCount) {
+    double highGroundDamage, int extraTargetCount,
+    int gunPiercingCount) {
     damageMultiplier_ = std::max(0.05, damage);
     rangeMultiplier_ = std::max(0.05, range);
     fireRateMultiplier_ = std::max(0.05, fireRate);
     highGroundDamageMultiplier_ = std::max(1.0, highGroundDamage);
     extraTargetCount_ = std::clamp(extraTargetCount, 0, 3);
+    gunPiercingCount_ = std::clamp(gunPiercingCount, 0, 3);
 }
 
 void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
@@ -372,14 +380,21 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         }
         std::array<PiercingCandidate, MaximumCrossbowTargets>
             piercingCandidates{};
-        const std::size_t targetCount =
-            building->type == BuildingType::Turret
-            ? crossbowTargets(
-                  enemies, origin, aimPosition, range,
-                  1 + piercingCount(building->type, building->level),
+        const bool piercing = building->type == BuildingType::Turret ||
+            (building->type == BuildingType::GunTurret &&
+             gunPiercingCount_ > 0);
+        const std::size_t targetCount = piercing
+            ? piercingTargets(
+                  enemies, building->type, building->baseHeight,
+                  origin, aimPosition, range,
+                  building->type == BuildingType::Turret
+                      ? CrossbowPiercingRadius : GunPiercingRadius,
+                  1 + (building->type == BuildingType::Turret
+                      ? piercingCount(building->type, building->level)
+                      : gunPiercingCount_),
                   piercingCandidates)
             : 1;
-        if (building->type != BuildingType::Turret) {
+        if (!piercing) {
             piercingCandidates.front() = {
                 .id = target->id,
                 .hitPosition = aimPosition,
@@ -407,6 +422,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 .hitPosition = candidate.hitPosition,
                 .type = building->type,
                 .damage = damageResult->damage,
+                .payloadDamage = damage,
                 .muzzleIndex = tower.nextMuzzle,
                 .secondaryImpact = index + 1 < targetCount,
                 .killed = damageResult->killed,
@@ -419,6 +435,9 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             if (!enemy.active || !towerCanTarget(
                     building->type, enemy,
                     building->baseHeight) ||
+                !directionInsideDefenseArc(
+                    origin, enemy.position, tower.restYaw,
+                    building->level) ||
                 std::ranges::any_of(
                     std::span{piercingCandidates}.first(targetCount),
                     [&enemy](const PiercingCandidate& candidate) {
@@ -476,6 +495,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
                 .hitPosition = enemyAimPosition(*extraTarget),
                 .type = building->type,
                 .damage = damageResult->damage,
+                .payloadDamage = damage * damageFraction,
                 .muzzleIndex = static_cast<std::uint8_t>(
                     tower.nextMuzzle + 1U +
                     static_cast<std::uint8_t>(extraIndex)),

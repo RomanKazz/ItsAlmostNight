@@ -243,7 +243,6 @@ void App::render() {
     }
 
     const auto commonUiOverlaysStart = PerformanceClock::now();
-    if (!hudHidden_) drawBuildModePie();
     if (renderer_->graphicsPanelVisible()) {
         drawGraphicsPanel();
     }
@@ -252,7 +251,6 @@ void App::render() {
     drawSandboxCardMenu(snapshot);
     drawCoreDefenseMenu();
     drawObjectiveDebugMenu(snapshot);
-    uiEditor_.draw(ui_);
     if (!hudHidden_ && performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
     }
@@ -266,7 +264,7 @@ void App::render() {
         snapshot.state == RunState::Victory ||
         renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
         itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
-        coreDefenseMenuVisible_ || uiEditor_.visible();
+        (coreDefenseMenuVisible_ && coreMenuPointerActive_);
     if (uiCursorVisible) {
         HideCursor();
         ui_.drawCursor();

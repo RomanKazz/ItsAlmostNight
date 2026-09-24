@@ -137,6 +137,7 @@ void App::processPresentationEvents(
             (*event.buildingType == BuildingType::Turret ||
              *event.buildingType == BuildingType::GunTurret);
         bool towerShotVisualScheduled = false;
+        double towerDamageNumberDelay = 0.0;
         const bool enemyHit =
             (event.type == GameEventType::ProjectileHit &&
              !event.sourceId) ||
@@ -149,11 +150,10 @@ void App::processPresentationEvents(
             event.type == GameEventType::ChainLightningHit ||
             event.type == GameEventType::OverkillHit;
         if (enemyHit && event.entityId) {
-            targetHealthBar_.notifyEnemyHit(*event.entityId);
+            targetHealthBar_.notifyEnemyHit(
+                *event.entityId, event.damage);
             if (!towerHit) {
-                startEnemyHitFlash(
-                    *event.entityId,
-                    eventSnapshot.elapsedSeconds);
+                startEnemyHitFlash(*event.entityId);
             }
         }
         if ((event.type == GameEventType::ResourceHit ||
@@ -250,7 +250,7 @@ void App::processPresentationEvents(
                 *event.sourceId, 0.18, 0.13F);
         } else if (
             event.type == GameEventType::ProjectileHit &&
-            event.sourceId) {
+            event.sourceId && !event.secondaryImpact) {
             addBuildingShotRecoil(
                 *event.sourceId, 0.12, 0.075F);
         }
@@ -561,6 +561,7 @@ void App::processPresentationEvents(
                         .flashTarget = event.entityId,
                     });
                     towerShotVisualScheduled = true;
+                    towerDamageNumberDelay = duration;
                 }
             }
         } else if (event.type == GameEventType::ProjectileHit &&
@@ -583,22 +584,45 @@ void App::processPresentationEvents(
             if (arrowVisuals_.size() < MaximumShotVisuals) {
                 const double duration = std::clamp(
                     distance / 24.0, 0.10, 0.28);
+                double startDelay = 0.0;
+                // Secondary projectiles are simulated immediately, but each
+                // visible segment starts when the previous one reaches this
+                // enemy. This makes ricochets read as one travelling chain.
+                for (auto previous = arrowVisuals_.rbegin();
+                     previous != arrowVisuals_.rend(); ++previous) {
+                    const double linkX = previous->target.x - origin.x;
+                    const double linkZ = previous->target.z - origin.z;
+                    if (linkX * linkX + linkZ * linkZ <
+                        0.75 * 0.75) {
+                        startDelay = previous->startDelayRemaining +
+                            previous->remaining;
+                        break;
+                    }
+                }
                 arrowVisuals_.push_back({
                     .origin = origin,
                     .target = target,
                     .direction = {deltaX, deltaY, deltaZ},
                     .remaining = duration,
                     .duration = duration,
-                    .turretBullet = true,
+                    .startDelayRemaining = startDelay,
+                    .turretBullet =
+                        event.buildingType == BuildingType::GunTurret,
+                    .shrapnel = event.amount < 0,
                     .flashTarget = event.entityId,
                 });
                 towerShotVisualScheduled = true;
+                towerDamageNumberDelay = startDelay + duration;
             }
+        }
+        if (towerHit && event.entityId && event.damage > 0.0) {
+            addFloatingDamageNumber(
+                enemyDamageAnchor(*event.entityId, event.position),
+                event.damage, false, towerDamageNumberDelay);
         }
         if (towerHit && event.entityId &&
             !towerShotVisualScheduled) {
-            startEnemyHitFlash(
-                *event.entityId, eventSnapshot.elapsedSeconds);
+            startEnemyHitFlash(*event.entityId);
         }
         if (event.type == GameEventType::CannonFired &&
             event.buildingType != BuildingType::Catapult) {
@@ -618,20 +642,6 @@ void App::processPresentationEvents(
             event.resourceType &&
             isHarvestableResource(*event.resourceType);
         if (harvestResourceImpact) {
-            const std::uint32_t resourceImpactSeed =
-                (event.entityId
-                     ? event.entityId->index * 0x9e3779b9U ^
-                           event.entityId->generation * 0x85ebca6bU
-                     : 0x27d4eb2fU) ^
-                static_cast<std::uint32_t>(
-                    eventSnapshot.elapsedSeconds * 1000.0);
-            addEffect(
-                PresentationEffectType::ResourceImpactDecal,
-                event.position, 0.30,
-                event.critical ? 1.14F : 1.0F,
-                event.entityId);
-            effects_.back().targetPosition = event.targetPosition;
-            effects_.back().resourceType = event.resourceType;
             // One shared response drives localized flash, compression and
             // recoil for wood, stone and crystal. Type is retained so the
             // temporary rock fragments can be replaced with authored assets.
@@ -642,6 +652,13 @@ void App::processPresentationEvents(
                 event.entityId);
             effects_.back().resourceType = event.resourceType;
             if (renderer_->settings().particles) {
+                const std::uint32_t resourceImpactSeed =
+                    (event.entityId
+                         ? event.entityId->index * 0x9e3779b9U ^
+                               event.entityId->generation * 0x85ebca6bU
+                         : 0x27d4eb2fU) ^
+                    static_cast<std::uint32_t>(
+                        eventSnapshot.elapsedSeconds * 1000.0);
                 const Vector3 hitPosition{
                     static_cast<float>(event.position.x),
                     static_cast<float>(event.position.y),
@@ -659,6 +676,30 @@ void App::processPresentationEvents(
                     impactNormal = {0.0F, 1.0F, 0.0F};
                 }
                 impactNormal = Vector3Normalize(impactNormal);
+                if (event.resourceType == ResourceType::Crystal) {
+                    // A low crystal deposit can miss the spherical impact
+                    // proxy and report its center. Use the player-facing
+                    // side so its shared fragment burst is not vertical.
+                    Vector3 outward{
+                        impactNormal.x, 0.0F, impactNormal.z};
+                    if (Vector3LengthSqr(outward) <= 0.000001F) {
+                        outward = {
+                            static_cast<float>(
+                                eventSnapshot.playerPosition.x -
+                                event.position.x),
+                            0.0F,
+                            static_cast<float>(
+                                eventSnapshot.playerPosition.z -
+                                event.position.z),
+                        };
+                    }
+                    if (Vector3LengthSqr(outward) <= 0.000001F) {
+                        outward = {0.0F, 0.0F, 1.0F};
+                    }
+                    outward = Vector3Normalize(outward);
+                    impactNormal = Vector3Normalize({
+                        outward.x, 0.18F, outward.z});
+                }
                 Vector3 tangent = Vector3CrossProduct(
                     impactNormal, {0.0F, 1.0F, 0.0F});
                 if (Vector3LengthSqr(tangent) <= 0.0001F) {
@@ -710,12 +751,12 @@ void App::processPresentationEvents(
                         (1.05F +
                          randomUnit(seed ^ 0x1b56c4e9U) * 0.85F) *
                         burstSpeed;
+                    const float durationRoll =
+                        randomUnit(seed ^ 0x63d83595U);
                     const double duration =
                         resourceDestroyed
-                            ? 0.58 +
-                                  randomUnit(seed ^ 0x63d83595U) * 0.20
-                            : 0.44 +
-                                  randomUnit(seed ^ 0x63d83595U) * 0.18;
+                            ? 0.58 + durationRoll * 0.20
+                            : 0.44 + durationRoll * 0.18;
                     addEffect(
                         PresentationEffectType::ResourceFragment,
                         {event.position.x + impactNormal.x * 0.06,
@@ -737,11 +778,6 @@ void App::processPresentationEvents(
             }
         }
         if (event.type == GameEventType::ResourceHit) {
-            if (!harvestResourceImpact) {
-                addEffect(PresentationEffectType::Hit,
-                          event.position, 0.34, 1.0F,
-                          event.entityId);
-            }
             if (event.resourceType && !harvestResourceImpact) {
                 addEffect(
                     PresentationEffectType::ResourceHit,
@@ -1007,20 +1043,10 @@ void App::processPresentationEvents(
                               0.0});
         } else if (event.type == GameEventType::BuildingPlaced &&
                    event.buildingType) {
-            grassClearAreas_.push_back({
-                .center = {
-                    static_cast<float>(event.position.x),
-                    static_cast<float>(event.position.z),
-                },
-                .innerRadius = static_cast<float>(
-                    buildingFootprintHalfExtent(
-                        *event.buildingType) +
-                    0.18),
-                .amount = 1.0F,
-            });
             float effectScale = 1.0F;
             if (*event.buildingType == BuildingType::Core) {
                 effectScale = 1.45F;
+                selectBuildingAfterCorePlacement_ = true;
             } else if (*event.buildingType == BuildingType::Wall ||
                        *event.buildingType == BuildingType::Gate) {
                 effectScale = 0.78F;

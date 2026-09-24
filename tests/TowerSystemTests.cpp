@@ -174,14 +174,39 @@ void runTowerSystemTests() {
     require(muzzles[0] == 0 && muzzles[1] == 1,
             "gun turret must alternate authored muzzle sockets");
 
+    ian::EnemySystem gunPiercingEnemies;
+    gunPiercingEnemies.spawnWave(PiercingSpawn);
+    ian::TowerSystem gunPiercingTowers;
+    gunPiercingTowers.setModifiers(1.0, 1.0, 1.0, 1.0, 0, 2);
+    gunPiercingTowers.syncBuildings(gunBuildings.buildings());
+    std::span<const ian::TowerShot> gunPiercingShots;
+    for (int tick = 0;
+         tick < 120 && gunPiercingShots.empty(); ++tick) {
+        gunPiercingShots = gunPiercingTowers.tick(
+            1.0 / 60.0, gunBuildings.buildings(),
+            gunPiercingEnemies);
+    }
+    require(
+        gunPiercingShots.size() == 3 &&
+            gunPiercingShots[0].targetId !=
+                gunPiercingShots[1].targetId &&
+            gunPiercingShots[1].targetId !=
+                gunPiercingShots[2].targetId &&
+            gunPiercingShots[0].secondaryImpact &&
+            gunPiercingShots[1].secondaryImpact &&
+            !gunPiercingShots[2].secondaryImpact,
+        "gun armor piercing hits three lined-up enemies with one bullet");
+
     ian::EnemySystem twinBatteryEnemies;
-    constexpr std::array<ian::EnemySpawn, 3> TwinBatterySpawn{{
+    constexpr std::array<ian::EnemySpawn, 4> TwinBatterySpawn{{
         {.type = ian::EnemyType::Basic,
          .position = {0.0, 0.0, -8.0}},
         {.type = ian::EnemyType::Basic,
          .position = {-1.8, 0.0, -8.0}},
         {.type = ian::EnemyType::Basic,
          .position = {1.8, 0.0, -8.0}},
+        {.type = ian::EnemyType::Basic,
+         .position = {0.0, 0.0, -2.0}},
     }};
     twinBatteryEnemies.spawnWave(TwinBatterySpawn);
     ian::TowerSystem twinBatteryTowers;
@@ -197,8 +222,10 @@ void runTowerSystemTests() {
     require(
         twinShots.size() == 2U &&
             twinShots[0].targetId != twinShots[1].targetId &&
-            !twinShots[1].secondaryImpact,
-        "Twin Batteries creates a visible shot toward another target");
+            !twinShots[1].secondaryImpact &&
+            twinShots[0].hitPosition.z < -4.0 &&
+            twinShots[1].hitPosition.z < -4.0,
+        "Twin Batteries stays inside the turret firing arc");
 
     ian::EnemySystem flyingGunEnemies;
     flyingGunEnemies.spawnWave(FlyingSpawn);

@@ -41,7 +41,7 @@ void runUiLabelsTests() {
     require(
         std::abs(
             healthBarAnchor.y -
-            (elevatedTurret.baseHeight + 1.52)) <
+            (elevatedTurret.baseHeight + 1.70)) <
             1e-9,
         "building health bar follows elevated base height");
     const ian::Vec3 productionAnchor =
@@ -60,7 +60,7 @@ void runUiLabelsTests() {
     };
     requireNear(
         ian::buildingHealthBarWorldAnchor(compactQuarry).y,
-        4.56, 1e-9,
+        4.74, 1e-9,
         "one-cell quarry health bar follows uniform half scale");
     requireNear(
         ian::buildingProductionVisualWorldAnchor(compactQuarry).y,

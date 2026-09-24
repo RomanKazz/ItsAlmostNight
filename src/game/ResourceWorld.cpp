@@ -13,7 +13,7 @@ namespace {
 constexpr double ResourcePlacementClearance = 0.08;
 constexpr double PropPlacementClearance = 0.80;
 constexpr double StarterCrystalMaximumDistance = 11.0;
-constexpr int StarterCrystalMinimumYield = 10;
+constexpr int StarterCrystalMinimumYield = 12;
 
 std::size_t clusteredTreeVariant(
     std::size_t cluster, std::size_t member,
@@ -259,7 +259,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
                     type, {}, 0.9, 4.0, 12, 15.0};
             }
             return ResourceNodeDefinition{
-                type, {}, 0.72, 12.0, 10, 28.0};
+                type, {}, 0.72, 12.0, 12, 28.0};
         };
 
     constexpr std::size_t TreesPerCluster = 5;

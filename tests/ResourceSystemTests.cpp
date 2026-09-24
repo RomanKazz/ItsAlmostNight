@@ -57,7 +57,48 @@ void runResourceSystemTests() {
     require(
         respawnHit.has_value() &&
             respawnHit->amount == expectedRespawnGrant,
-            "respawn restores full resource capacity");
+        "respawn restores full resource capacity");
+
+    const std::vector<ian::ResourceNodeDefinition> yieldDefinitions{
+        {ian::ResourceType::Wood, {0.0, 1.0, 0.0},
+         1.0, 3.0, 15, 1.0},
+        {ian::ResourceType::Stone, {6.0, 0.8, 0.0},
+         0.9, 4.0, 12, 1.0},
+        {ian::ResourceType::Crystal, {12.0, 0.0, 0.0},
+         0.72, 12.0, 12, 1.0},
+        {ian::ResourceType::Crate, {18.0, 0.0, 0.0},
+         0.8, 3.0, 5, 1.0},
+    };
+    ian::ResourceSystem normalYield(yieldDefinitions);
+    ian::ResourceSystem richYield(yieldDefinitions);
+    const auto partialWood = richYield.damage(
+        richYield.nodes()[0].id, 1.0);
+    require(partialWood.has_value() && !partialWood->collected,
+            "rich node fixture can be partially harvested");
+    richYield.setGatheringYieldMultiplier(1.15);
+    for (std::size_t index = 0; index < 3; ++index) {
+        const auto& normal = normalYield.nodes()[index];
+        const auto& rich = richYield.nodes()[index];
+        require(rich.yield == static_cast<int>(std::lround(
+                    static_cast<double>(normal.yield) * 1.15)),
+                "rich nodes increase wood, stone and crystal yield");
+    }
+    require(
+        richYield.nodes()[0].yieldRemaining ==
+            richYield.nodes()[0].yield - partialWood->amount,
+        "yield upgrade preserves resources already harvested");
+    require(richYield.nodes()[3].yield == normalYield.nodes()[3].yield,
+            "yield upgrade does not affect other destructible props");
+    const ian::EntityId stoneId = richYield.nodes()[1].id;
+    require(richYield.damage(stoneId, 100.0)->collected &&
+                normalYield.damage(stoneId, 100.0)->collected,
+            "stone fixtures deplete before respawn");
+    richYield.tick(1.0);
+    normalYield.tick(1.0);
+    require(
+        richYield.nodes()[1].yield == static_cast<int>(std::lround(
+            static_cast<double>(normalYield.nodes()[1].yield) * 1.15)),
+        "rich node bonus applies again after resource respawn");
 
     const auto slopedGround = [](double x, double z) {
         return 2.0 + x * 0.15 - z * 0.08;
@@ -140,6 +181,27 @@ void runResourceSystemTests() {
     require(
         gainRateIsStable,
         "rich nodes require more hits without increasing gain per damage");
+
+    std::vector<ian::ResourceNodeDefinition> crystalDefinitions;
+    for (int index = 0; index < 32; ++index) {
+        crystalDefinitions.push_back({
+            ian::ResourceType::Crystal,
+            {static_cast<double>(index) * 3.0, 0.0, 0.0},
+            0.72, 12.0, 12, 28.0});
+    }
+    const ian::ResourceSystem variedCrystals{
+        std::move(crystalDefinitions)};
+    const bool hasRichCrystal = std::ranges::any_of(
+        variedCrystals.nodes(), [](const ian::ResourceNode& node) {
+            return node.yield > 12;
+        });
+    const bool hasStandardCrystal = std::ranges::any_of(
+        variedCrystals.nodes(), [](const ian::ResourceNode& node) {
+            return node.yield == 12;
+        });
+    require(
+        hasRichCrystal && hasStandardCrystal,
+        "crystal deposits vary between standard and rich yields");
 
     ian::BuildingSystem buildings;
     require(

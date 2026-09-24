@@ -48,7 +48,7 @@ Footprint footprint(BuildingType type) {
 SelectionBounds selectionBounds(BuildingType type) {
     switch (type) {
     case BuildingType::Core:
-        return {0.9, 0.9, 0.0, 2.6};
+        return {0.88, 0.88, 0.0, 1.5};
     case BuildingType::Wall:
         return {0.42, 0.42, 0.0, 2.05};
     case BuildingType::Turret:

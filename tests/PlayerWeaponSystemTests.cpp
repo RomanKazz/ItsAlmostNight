@@ -11,13 +11,21 @@ void runPlayerWeaponSystemTests() {
                     ian::PlayerWeapon::Axe,
                     ian::PlayerWeapon::Pickaxe,
                     ian::PlayerWeapon::Club,
-                    ian::PlayerWeapon::IceWand,
-                    ian::PlayerWeapon::FireWand,
                     ian::PlayerWeapon::Rifle,
-                    ian::PlayerWeapon::Bomb} &&
+                    ian::PlayerWeapon::Bomb,
+                    ian::PlayerWeapon::IceWand,
+                    ian::PlayerWeapon::FireWand} &&
             ian::isPlayerTool(ian::PlayerWeapon::Pickaxe) &&
             !ian::isPlayerTool(ian::PlayerWeapon::Rifle),
         "tools and combat weapons share one canonical hotbar");
+    require(
+        ian::meleeEnemyDamageMultiplier(
+            ian::PlayerWeapon::Axe) == 2.0 &&
+        ian::meleeEnemyDamageMultiplier(
+            ian::PlayerWeapon::Pickaxe) == 2.0 &&
+        ian::meleeEnemyDamageMultiplier(
+            ian::PlayerWeapon::Club) == 1.0,
+        "axe and pickaxe double only their enemy damage");
 
     std::array<bool, ian::PlayerWeaponCount> categoryUnlocks{};
     categoryUnlocks[static_cast<std::size_t>(

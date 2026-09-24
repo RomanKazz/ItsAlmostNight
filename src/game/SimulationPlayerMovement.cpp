@@ -11,6 +11,8 @@ constexpr double DashDuration = 0.18;
 constexpr double DashCooldown = 0.90;
 constexpr double DashStartSpeed = 19.5;
 constexpr double DashEndSpeed = 10.5;
+constexpr double FlightDoubleTapSeconds = 0.30;
+constexpr double FlightVerticalSpeed = 8.0;
 
 double clampAxis(double value) {
     return std::clamp(value, -1.0, 1.0);
@@ -47,7 +49,25 @@ void Simulation::updatePlayer(double deltaSeconds,
         edgeSupportGraceRemaining_ - deltaSeconds);
     dashCooldownRemaining_ = std::max(
         0.0, dashCooldownRemaining_ - deltaSeconds);
-    if (command.jump) {
+    flightTapRemaining_ = std::max(
+        0.0, flightTapRemaining_ - deltaSeconds);
+    bool toggledFlight = false;
+    if (sandboxMode_ && command.jump) {
+        if (flightTapRemaining_ > 0.0) {
+            playerFlying_ = !playerFlying_;
+            toggledFlight = true;
+            flightTapRemaining_ = 0.0;
+            verticalVelocity_ = 0.0;
+            jumpBufferRemaining_ = 0.0;
+            autoJumpAssistRemaining_ = 0.0;
+            if (playerFlying_) {
+                playerGrounded_ = false;
+            }
+        } else {
+            flightTapRemaining_ = FlightDoubleTapSeconds;
+        }
+    }
+    if (command.jump && !toggledFlight && !playerFlying_) {
         jumpBufferRemaining_ = JumpBufferTime;
     } else {
         jumpBufferRemaining_ = std::max(
@@ -76,17 +96,18 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionX = (sinYaw * forward) + (cosYaw * right);
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
-        (command.sprint ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
+        ((!playerFlying_ && command.sprint)
+             ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
         playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ *
         (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) *
-        terrain_.waterMovementMultiplier(
-            playerPosition_.x, playerPosition_.z);
+        (playerFlying_ ? 1.0 : terrain_.waterMovementMultiplier(
+            playerPosition_.x, playerPosition_.z));
     const bool hasMovementInput =
         std::hypot(directionX, directionZ) > 1e-6;
 
     constexpr double dashSpeedMultiplier = 1.0;
     constexpr double dashRecoveryMultiplier = 1.0;
-    if (command.dash &&
+    if (command.dash && !playerFlying_ &&
         dashCooldownRemaining_ <= 0.0 &&
         dashRemaining_ <= 0.0) {
         dashDirection_ = hasMovementInput
@@ -109,6 +130,10 @@ void Simulation::updatePlayer(double deltaSeconds,
             .position = playerPosition_,
             .intensity = 1.0,
         });
+        if (playerClass_ == PlayerClass::Chronomancer) {
+            enemies_.applySlowInRadius(
+                playerPosition_, 6.0, 0.25, 2.5);
+        }
     }
 
     const bool dashing = dashRemaining_ > 0.0;
@@ -142,7 +167,7 @@ void Simulation::updatePlayer(double deltaSeconds,
         velocityChangeRate =
             gameplay_.playerDeceleration;
     }
-    if (!playerGrounded_) {
+    if (!playerGrounded_ && !playerFlying_) {
         velocityChangeRate *=
             hasMovementInput ? 0.55 : 0.35;
     }
@@ -172,7 +197,7 @@ void Simulation::updatePlayer(double deltaSeconds,
             playerHorizontalVelocity_, targetVelocity,
             velocityChangeRate * deltaSeconds);
     }
-    if (autoJumpAssistRemaining_ > 0.0) {
+    if (autoJumpAssistRemaining_ > 0.0 && !playerFlying_) {
         const double inputAlongAssist =
             directionX * autoJumpAssistDirection_.x +
             directionZ * autoJumpAssistDirection_.z;
@@ -203,7 +228,7 @@ void Simulation::updatePlayer(double deltaSeconds,
         playerHorizontalVelocity_.z * deltaSeconds,
     };
     const bool autoJump =
-        playerGrounded_ &&
+        !playerFlying_ && playerGrounded_ &&
         shouldAutoJumpGroundFrame(movement);
 
     constexpr double MaximumStepUp = 0.65;
@@ -226,7 +251,7 @@ void Simulation::updatePlayer(double deltaSeconds,
         playerPosition_, movement,
         CollisionWorld::PlayerRadius,
         maximumWalkableSurfaceHeight);
-    if (!playerGrounded_) {
+    if (!playerGrounded_ && !playerFlying_) {
         const auto edgeCatchSurface =
             collisionWorld_.playerSupportHeight(
                 playerPosition_.x,
@@ -271,136 +296,160 @@ void Simulation::updatePlayer(double deltaSeconds,
                 actualZ / deltaSeconds;
         }
     }
-    const double terrainSurface =
-        terrain_.getHeight(
-            playerPosition_.x,
-            playerPosition_.z);
-    double standingSurface = terrainSurface;
-    const auto modularSurface =
-        collisionWorld_.playerSupportHeight(
-            playerPosition_.x,
-            playerPosition_.z,
-            CollisionWorld::PlayerRadius,
-            currentFeetHeight + MaximumStepUp);
-    if (modularSurface) {
-        standingSurface =
-            std::max(standingSurface, *modularSurface);
-    }
-    const double standingHeight =
-        standingSurface + gameplay_.eyeHeight;
-    const bool hasStandingSupport =
-        standingSurface >=
-        currentFeetHeight - groundSnapDown;
-    if (playerGrounded_) {
-        if (hasStandingSupport) {
-            playerPosition_.y = standingHeight;
-            constexpr double EdgeSupportGraceSeconds =
-                0.085;
-            edgeSupportGraceRemaining_ =
-                EdgeSupportGraceSeconds;
-            lastGroundSurfaceHeight_ = standingSurface;
-        } else if (edgeSupportGraceRemaining_ > 0.0) {
-            playerPosition_.y =
-                lastGroundSurfaceHeight_ +
-                gameplay_.eyeHeight;
-        } else {
-            playerGrounded_ = false;
-            verticalVelocity_ = 0.0;
-        }
-    }
-
-    const bool bufferedJump =
-        jumpBufferRemaining_ > 0.0 &&
-        (playerGrounded_ || coyoteTimeRemaining_ > 0.0);
-    if (bufferedJump || autoJump) {
-        if (autoJump) {
-            constexpr double AutoJumpAssistSeconds = 0.65;
-            const double horizontalSpeed = std::hypot(
-                movement.x, movement.z);
-            if (horizontalSpeed > 1e-9) {
-                autoJumpAssistDirection_ = {
-                    movement.x / horizontalSpeed,
-                    0.0,
-                    movement.z / horizontalSpeed,
-                };
-            }
-            autoJumpAssistRemaining_ =
-                AutoJumpAssistSeconds;
-        }
-        verticalVelocity_ = gameplay_.jumpSpeed;
-        playerGrounded_ = false;
-        edgeSupportGraceRemaining_ = 0.0;
-        coyoteTimeRemaining_ = 0.0;
-        jumpBufferRemaining_ = 0.0;
-    }
-
-    if (!playerGrounded_) {
+    if (playerFlying_) {
         constexpr double HeadAboveEye = 0.15;
-        const double previousEyeHeight =
-            playerPosition_.y;
-        const double previousFeetHeight =
-            previousEyeHeight - gameplay_.eyeHeight;
-        verticalVelocity_ -= gameplay_.gravity * deltaSeconds;
-        const double nextEyeHeight =
+        const double verticalInput =
+            static_cast<double>(command.jumpHeld) -
+            static_cast<double>(command.sprint);
+        const double previousEyeHeight = playerPosition_.y;
+        const double nextEyeHeight = std::max(
+            terrain_.getHeight(playerPosition_.x, playerPosition_.z) +
+                gameplay_.eyeHeight,
             previousEyeHeight +
-            verticalVelocity_ * deltaSeconds;
-        if (verticalVelocity_ > 0.0) {
-            const auto ceiling =
-                collisionWorld_.modularCeilingHeight(
-                    playerPosition_.x,
-                    playerPosition_.z,
-                    previousEyeHeight + HeadAboveEye,
-                    nextEyeHeight + HeadAboveEye);
-            if (ceiling) {
-                playerPosition_.y =
-                    *ceiling - HeadAboveEye;
-                verticalVelocity_ = 0.0;
-            } else {
-                playerPosition_.y = nextEyeHeight;
-            }
+                verticalInput * FlightVerticalSpeed * deltaSeconds);
+        if (nextEyeHeight > previousEyeHeight) {
+            const auto ceiling = collisionWorld_.modularCeilingHeight(
+                playerPosition_.x, playerPosition_.z,
+                previousEyeHeight + HeadAboveEye,
+                nextEyeHeight + HeadAboveEye);
+            playerPosition_.y = ceiling
+                ? *ceiling - HeadAboveEye : nextEyeHeight;
         } else {
             playerPosition_.y = nextEyeHeight;
         }
-        double landingSurface = terrainSurface;
-        if (verticalVelocity_ <= 0.0) {
-            const auto sweptLanding =
-                collisionWorld_.sweptPlayerLanding(
-                    movementOrigin, playerPosition_,
-                    CollisionWorld::PlayerRadius,
-                    previousFeetHeight,
-                    playerPosition_.y -
-                        gameplay_.eyeHeight);
-            if (sweptLanding) {
-                playerPosition_.x =
-                    sweptLanding->position.x;
-                playerPosition_.z =
-                    sweptLanding->position.z;
-                landingSurface = std::max(
-                    terrain_.getHeight(
-                        playerPosition_.x,
-                        playerPosition_.z),
-                    sweptLanding->surfaceHeight);
+        verticalVelocity_ = 0.0;
+    } else {
+        const double terrainSurface =
+            terrain_.getHeight(
+                playerPosition_.x,
+                playerPosition_.z);
+        double standingSurface = terrainSurface;
+        const auto modularSurface =
+            collisionWorld_.playerSupportHeight(
+                playerPosition_.x,
+                playerPosition_.z,
+                CollisionWorld::PlayerRadius,
+                currentFeetHeight + MaximumStepUp);
+        if (modularSurface) {
+            standingSurface =
+                std::max(standingSurface, *modularSurface);
+        }
+        const double standingHeight =
+            standingSurface + gameplay_.eyeHeight;
+        const bool hasStandingSupport =
+            standingSurface >=
+            currentFeetHeight - groundSnapDown;
+        if (playerGrounded_) {
+            if (hasStandingSupport) {
+                playerPosition_.y = standingHeight;
+                constexpr double EdgeSupportGraceSeconds =
+                    0.085;
+                edgeSupportGraceRemaining_ =
+                    EdgeSupportGraceSeconds;
+                lastGroundSurfaceHeight_ = standingSurface;
+            } else if (edgeSupportGraceRemaining_ > 0.0) {
+                playerPosition_.y =
+                    lastGroundSurfaceHeight_ +
+                    gameplay_.eyeHeight;
+            } else {
+                playerGrounded_ = false;
+                verticalVelocity_ = 0.0;
             }
         }
-        const double landingHeight =
-            landingSurface + gameplay_.eyeHeight;
-        if (verticalVelocity_ <= 0.0 &&
-            playerPosition_.y <= landingHeight) {
-            const double landingSpeed = -verticalVelocity_;
-            landingSpeedThisFrame = std::max(
-                landingSpeedThisFrame,
-                landingSpeed);
-            playerPosition_.y = landingHeight;
-            verticalVelocity_ = 0.0;
-            playerGrounded_ = true;
-            constexpr double EdgeSupportGraceSeconds =
-                0.085;
-            edgeSupportGraceRemaining_ =
-                EdgeSupportGraceSeconds;
-            lastGroundSurfaceHeight_ = landingSurface;
-        }
-    }
 
+        const bool bufferedJump =
+            jumpBufferRemaining_ > 0.0 &&
+            (playerGrounded_ || coyoteTimeRemaining_ > 0.0);
+        if (bufferedJump || autoJump) {
+            if (autoJump) {
+                constexpr double AutoJumpAssistSeconds = 0.65;
+                const double horizontalSpeed = std::hypot(
+                    movement.x, movement.z);
+                if (horizontalSpeed > 1e-9) {
+                    autoJumpAssistDirection_ = {
+                        movement.x / horizontalSpeed,
+                        0.0,
+                        movement.z / horizontalSpeed,
+                    };
+                }
+                autoJumpAssistRemaining_ =
+                    AutoJumpAssistSeconds;
+            }
+            verticalVelocity_ = gameplay_.jumpSpeed;
+            playerGrounded_ = false;
+            edgeSupportGraceRemaining_ = 0.0;
+            coyoteTimeRemaining_ = 0.0;
+            jumpBufferRemaining_ = 0.0;
+        }
+
+        if (!playerGrounded_) {
+            constexpr double HeadAboveEye = 0.15;
+            const double previousEyeHeight =
+                playerPosition_.y;
+            const double previousFeetHeight =
+                previousEyeHeight - gameplay_.eyeHeight;
+            verticalVelocity_ -= gameplay_.gravity * deltaSeconds;
+            const double nextEyeHeight =
+                previousEyeHeight +
+                verticalVelocity_ * deltaSeconds;
+            if (verticalVelocity_ > 0.0) {
+                const auto ceiling =
+                    collisionWorld_.modularCeilingHeight(
+                        playerPosition_.x,
+                        playerPosition_.z,
+                        previousEyeHeight + HeadAboveEye,
+                        nextEyeHeight + HeadAboveEye);
+                if (ceiling) {
+                    playerPosition_.y =
+                        *ceiling - HeadAboveEye;
+                    verticalVelocity_ = 0.0;
+                } else {
+                    playerPosition_.y = nextEyeHeight;
+                }
+            } else {
+                playerPosition_.y = nextEyeHeight;
+            }
+            double landingSurface = terrainSurface;
+            if (verticalVelocity_ <= 0.0) {
+                const auto sweptLanding =
+                    collisionWorld_.sweptPlayerLanding(
+                        movementOrigin, playerPosition_,
+                        CollisionWorld::PlayerRadius,
+                        previousFeetHeight,
+                        playerPosition_.y -
+                            gameplay_.eyeHeight);
+                if (sweptLanding) {
+                    playerPosition_.x =
+                        sweptLanding->position.x;
+                    playerPosition_.z =
+                        sweptLanding->position.z;
+                    landingSurface = std::max(
+                        terrain_.getHeight(
+                            playerPosition_.x,
+                            playerPosition_.z),
+                        sweptLanding->surfaceHeight);
+                }
+            }
+            const double landingHeight =
+                landingSurface + gameplay_.eyeHeight;
+            if (verticalVelocity_ <= 0.0 &&
+                playerPosition_.y <= landingHeight) {
+                const double landingSpeed = -verticalVelocity_;
+                landingSpeedThisFrame = std::max(
+                    landingSpeedThisFrame,
+                    landingSpeed);
+                playerPosition_.y = landingHeight;
+                verticalVelocity_ = 0.0;
+                playerGrounded_ = true;
+                constexpr double EdgeSupportGraceSeconds =
+                    0.085;
+                edgeSupportGraceRemaining_ =
+                    EdgeSupportGraceSeconds;
+                lastGroundSurfaceHeight_ = landingSurface;
+            }
+        }
+
+    }
     if (landingSpeedThisFrame > 1.0) {
         applyFallDamage(landingSpeedThisFrame);
     }

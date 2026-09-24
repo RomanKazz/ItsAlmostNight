@@ -125,11 +125,13 @@ struct PlayerCommand {
     std::optional<EntityId> aimedBuildingOverride;
     bool overrideAimedResource{};
     std::optional<EntityId> aimedResourceOverride;
+    std::optional<Vec3> aimedResourceHitPositionOverride;
     bool overrideAimedModularBuilding{};
     std::optional<EntityId> aimedModularBuildingOverride;
     bool overrideAimedWorldLandmark{};
     std::optional<EntityId> aimedWorldLandmarkOverride;
     bool jump{};
+    bool jumpHeld{};
     bool sprint{};
     bool dash{};
     bool usePickaxe{};
@@ -613,7 +615,7 @@ class Simulation {
     [[nodiscard]] std::size_t clearModularBuildings();
     void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
-    [[nodiscard]] bool grantSandboxRunUpgrade(
+    [[nodiscard]] bool grantDebugRunUpgrade(
         RunUpgradeEffect effect);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
@@ -650,6 +652,7 @@ class Simulation {
     void triggerAnvilShockwave(EntityId sourceId, Vec3 position);
     void updatePlayerActions(double deltaSeconds,
                              const PlayerCommand& command);
+    void advanceBuildingProduction(double deltaSeconds);
     void updatePendingResourceGrants(double deltaSeconds);
     void launchSawSplinters(EntityId sourceId, Vec3 origin,
                             int chainDepth = 0);
@@ -750,6 +753,7 @@ class Simulation {
     void syncWorldLandmarkColliders();
     void updateWorldLandmarks(
         double deltaSeconds, const PlayerCommand& command);
+    void advanceWorldLandmarkProduction(double deltaSeconds);
     void updateChallengeColumns(
         double deltaSeconds, const PlayerCommand& command);
     void activateChallengeColumn(EntityId id);
@@ -824,6 +828,8 @@ class Simulation {
     double verticalVelocity_{};
     double coyoteTimeRemaining_{};
     double jumpBufferRemaining_{};
+    double flightTapRemaining_{};
+    bool playerFlying_{};
     double dashRemaining_{};
     double dashCooldownRemaining_{};
     Vec3 dashDirection_{};
@@ -878,7 +884,6 @@ class Simulation {
         double damage{};
     };
     std::vector<RecentPlayerHit> recentPlayerHitBuffer_;
-    std::vector<EntityId> ricochetedTowerBuffer_;
     bool unlimitedResources_{};
     bool playerInvulnerable_{};
     std::uint64_t debugSpawnSequence_{};

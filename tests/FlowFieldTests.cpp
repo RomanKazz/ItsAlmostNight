@@ -8,6 +8,7 @@
 
 void runFlowFieldTests() {
     ian::BuildingSystem buildings;
+    buildings.setSandboxMode(true);
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "flow field fixture creates core");
 
@@ -16,6 +17,12 @@ void runFlowFieldTests() {
     const auto openDirection = openField.directionAt({5.0, 0.0, 0.0});
     require(openDirection.has_value() && openDirection->x < 0.0,
             "open field points toward core");
+    const auto diagonalDirection =
+        openField.directionAt({12.0, 0.0, 9.0});
+    require(
+        diagonalDirection && diagonalDirection->x < -0.5 &&
+            diagonalDirection->z < -0.4,
+        "open ground routes diagonally toward the core");
     requireNear(openField.distanceAt({0, 0}), 0.0, 1e-12, "core distance is zero");
     const auto distantDirection =
         openField.directionAt({24.0, 0.0, 0.0});
@@ -44,6 +51,7 @@ void runFlowFieldTests() {
             "wall raises route cost");
 
     ian::BuildingSystem gateBuildings;
+    gateBuildings.setSandboxMode(true);
     require(gateBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
             "gate flow fixture creates core");
     const auto gate =

@@ -38,15 +38,22 @@ void drawBuildingContextCard(
     GameUi& ui, const SimulationSnapshot& snapshot,
     const BuildingInstance& building, const HudViewState& view,
     const Camera3D& camera, const ControlSettings& controls) {
-    constexpr float CardWidth = 760.0F;
-    constexpr float CardHeight = 520.0F;
     const Vec3 buildingCenter =
         buildingWorldPosition(building);
+    const float dx = static_cast<float>(buildingCenter.x) -
+        camera.position.x;
+    const float dz = static_cast<float>(buildingCenter.z) -
+        camera.position.z;
+    const float distance = std::sqrt(dx * dx + dz * dz);
+    const float cardScale = std::clamp(
+        3.0F / std::max(distance, 0.1F), 0.68F, 1.0F);
+    const float CardWidth = 760.0F * cardScale;
+    const float CardHeight = 520.0F * cardScale;
     const Vector2 buildingScreen = GetWorldToScreen(
         {static_cast<float>(buildingCenter.x), 1.15F,
          static_cast<float>(buildingCenter.z)},
         camera);
-    constexpr float HorizontalGap = 150.0F;
+    const float HorizontalGap = 150.0F * cardScale;
     float x = buildingScreen.x + HorizontalGap;
     if (x + CardWidth >
         static_cast<float>(GetScreenWidth()) - 24.0F) {
@@ -64,13 +71,21 @@ void drawBuildingContextCard(
                      CardHeight - 24.0F));
     ui.drawPanel({x, y, CardWidth, CardHeight}, 242);
 
-    drawSdfUiText(buildingDisplayName(building.type), {x + 24.0F, y + 18.0F},
-               26.0F, {255, 235, 174, 255});
-    drawSdfUiText("LEVEL " + std::to_string(building.level),
-               {x + 24.0F, y + 62.0F}, 19.0F, UiWhite);
+    const auto point = [x, y, cardScale](float localX, float localY) {
+        return Vector2{x + localX * cardScale,
+                       y + localY * cardScale};
+    };
+    const auto font = [cardScale](float size) {
+        return size * cardScale;
+    };
 
-    drawSdfUiText("STATS", {x + 24.0F, y + 105.0F},
-               16.0F, {245, 184, 76, 255});
+    drawSdfUiText(buildingDisplayName(building.type), point(24.0F, 18.0F),
+               font(26.0F), {255, 235, 174, 255});
+    drawSdfUiText("LEVEL " + std::to_string(building.level),
+               point(24.0F, 62.0F), font(19.0F), UiWhite);
+
+    drawSdfUiText("STATS", point(24.0F, 105.0F),
+               font(16.0F), {245, 184, 76, 255});
 
     struct StatRow {
         const char* label;
@@ -237,9 +252,9 @@ void drawBuildingContextCard(
          index < rows.size() && index < 6; ++index) {
         const StatRow& row = rows[index];
         const float rowY =
-            y + 141.0F + static_cast<float>(index) * 31.0F;
+            141.0F + static_cast<float>(index) * 31.0F;
         drawSdfUiText(
-            row.label, {x + 24.0F, rowY}, 15.0F,
+            row.label, point(24.0F, rowY), font(15.0F),
             {205, 197, 184, 255});
         double displayedCurrent = row.current;
         if (animatingUpgrade && row.previous) {
@@ -251,22 +266,22 @@ void drawBuildingContextCard(
         drawSdfUiText(
             formatValue(
                 displayedCurrent, row.decimals, row.suffix),
-            {x + 265.0F, rowY - numberPulse * 0.5F},
-            18.0F + numberPulse, currentColor);
+            point(265.0F, rowY - numberPulse * 0.5F),
+            font(18.0F + numberPulse), currentColor);
         if (row.next) {
             drawSdfUiText(
-                ">", {x + 390.0F, rowY}, 18.0F,
+                ">", point(390.0F, rowY), font(18.0F),
                 {245, 184, 76, 255});
             drawSdfUiText(
                 formatValue(*row.next, row.decimals, row.suffix),
-                {x + 435.0F, rowY}, 18.0F,
+                point(435.0F, rowY), font(18.0F),
                 {105, 231, 132, 255});
             const double delta = *row.next - row.current;
             if (std::abs(delta) > 0.0001) {
                 drawSdfUiText(
                     "+" + formatValue(
                               delta, row.decimals, row.suffix),
-                    {x + 565.0F, rowY}, 14.0F,
+                    point(565.0F, rowY), font(14.0F),
                     {105, 231, 132, 220});
             }
         }
@@ -292,7 +307,7 @@ void drawBuildingContextCard(
     const std::string actionPrefix = coreActions
         ? "F  REPAIR ALL    "
         : "Q  COPY    F  REPAIR    ";
-    constexpr float ActionFontSize = 14.0F;
+    const float ActionFontSize = font(14.0F);
     if (upgradeAffordable) {
         const float glowPulse =
             0.5F +
@@ -300,12 +315,13 @@ void drawBuildingContextCard(
                 std::sin(
                     static_cast<float>(GetTime()) * 4.2F);
         const float upgradeX =
-            x + 24.0F +
+            x + 24.0F * cardScale +
             measureUiText(
                 actionPrefix, ActionFontSize).x -
-            7.0F;
+            7.0F * cardScale;
         const Rectangle glowBounds{
-            upgradeX, y + 332.0F, 150.0F, 34.0F};
+            upgradeX, y + 332.0F * cardScale,
+            150.0F * cardScale, 34.0F * cardScale};
         DrawRectangleRounded(
             glowBounds, 0.24F, 8,
             {
@@ -316,7 +332,7 @@ void drawBuildingContextCard(
             });
         DrawRectangleRoundedLinesEx(
             glowBounds, 0.24F, 8,
-            1.5F + glowPulse,
+            (1.5F + glowPulse) * cardScale,
             {
                 255, 220, 115,
                 static_cast<unsigned char>(
@@ -340,7 +356,7 @@ void drawBuildingContextCard(
     }
     drawSdfUiText(
                primaryActions,
-               {x + 24.0F, y + 340.0F}, 14.0F,
+               point(24.0F, 340.0F), font(14.0F),
                {222, 210, 194, 255});
     std::string actions;
     if (building.type != BuildingType::Core) {
@@ -372,8 +388,8 @@ void drawBuildingContextCard(
             "  CLOSE";
     }
     if (!actions.empty()) {
-        drawSdfUiText(actions, {x + 24.0F, y + 371.0F},
-                   14.0F, {222, 210, 194, 255});
+        drawSdfUiText(actions, point(24.0F, 371.0F),
+                   font(14.0F), {222, 210, 194, 255});
     }
 
     const ResourceCost repairCost = buildingRepairCost(building);
@@ -384,12 +400,12 @@ void drawBuildingContextCard(
                 std::to_string(static_cast<int>(std::ceil(
                     std::max(0.0, building.maxHealth - building.health)))) +
                 " HP",
-            {x + 24.0F, y + 399.0F}, 13.0F,
+            point(24.0F, 399.0F), font(13.0F),
             {255, 210, 126, 235});
     } else if (building.health >= building.maxHealth) {
         drawSdfUiText(
             "REPAIR  FULL HEALTH",
-            {x + 24.0F, y + 399.0F}, 13.0F,
+            point(24.0F, 399.0F), font(13.0F),
             {145, 218, 159, 225});
     }
 
@@ -398,36 +414,39 @@ void drawBuildingContextCard(
             "GLOBAL BLUEPRINT LEVEL " +
                 std::to_string(building.level) +
                 "  -  MANAGE AT CORE",
-            {x + 24.0F, y + 424.0F}, 17.0F,
+            point(24.0F, 424.0F), font(17.0F),
             {245, 184, 76, 255});
         return;
     }
     if (!snapshot.aimedBuildingUpgradeCost) {
-        drawSdfUiText("MAX LEVEL", {x + 24.0F, y + 424.0F},
-                   19.0F, {245, 184, 76, 255});
+        drawSdfUiText("MAX LEVEL", point(24.0F, 424.0F),
+                   font(19.0F), {245, 184, 76, 255});
         return;
     }
 
-    drawSdfUiText("UPGRADE", {x + 24.0F, y + 427.0F}, 16.0F,
+    drawSdfUiText("UPGRADE", point(24.0F, 427.0F), font(16.0F),
                {245, 184, 76, 255});
     const ResourceCost cost =
         *snapshot.aimedBuildingUpgradeCost;
-    float itemX = x + 190.0F;
+    float itemX = x + 190.0F * cardScale;
     const auto drawCost =
-        [&ui, &itemX, y](UiResourceIcon icon, int amount,
-                         int available) {
+        [&ui, &itemX, y, cardScale](
+            UiResourceIcon icon, int amount, int available) {
             if (amount <= 0) {
                 return;
             }
             ui.drawResourceIcon(
-                {itemX, y + 413.0F, 48.0F, 48.0F}, icon);
+                {itemX, y + 413.0F * cardScale,
+                 48.0F * cardScale, 48.0F * cardScale}, icon);
             drawSdfUiText(
                 std::to_string(amount),
-                {itemX + 54.0F, y + 420.0F}, 18.0F,
+                {itemX + 54.0F * cardScale,
+                 y + 420.0F * cardScale},
+                18.0F * cardScale,
                 available >= amount
                     ? Color{238, 238, 226, 255}
                     : Color{242, 103, 83, 255});
-            itemX += 142.0F;
+            itemX += 142.0F * cardScale;
         };
     drawCost(UiResourceIcon::Wood, cost.wood, snapshot.wood);
     drawCost(UiResourceIcon::Stone, cost.stone, snapshot.stone);
@@ -437,7 +456,7 @@ void drawBuildingContextCard(
         const std::string_view unlocks = coreLevelUnlockSummary(
             static_cast<int>(building.level) + 1);
         if (!unlocks.empty()) {
-            drawSdfUiText(unlocks, {x + 24.0F, y + 470.0F}, 13.0F,
+            drawSdfUiText(unlocks, point(24.0F, 470.0F), font(13.0F),
                        {105, 231, 132, 245});
         }
     }

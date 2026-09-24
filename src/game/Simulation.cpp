@@ -181,7 +181,6 @@ Simulation::Simulation(
     sawChainLaunchBuffer_.reserve(16U);
     sawCandidateBuffer_.reserve(256U);
     recentPlayerHitBuffer_.reserve(128U);
-    ricochetedTowerBuffer_.reserve(64U);
     activeFortifications_.reserve(64U);
     activeRepairCooldowns_.reserve(64U);
     modularTargetBuffer_.reserve(512U);
@@ -305,6 +304,8 @@ void Simulation::resetRun(GameEventType eventType) {
     verticalVelocity_ = 0.0;
     coyoteTimeRemaining_ = 0.0;
     jumpBufferRemaining_ = 0.0;
+    flightTapRemaining_ = 0.0;
+    playerFlying_ = false;
     dashRemaining_ = 0.0;
     dashCooldownRemaining_ = 0.0;
     dashDirection_ = {};
@@ -449,11 +450,11 @@ void Simulation::resetRun(GameEventType eventType) {
             playerClass->productionSpeedMultiplier;
         switch (playerClass_) {
         case PlayerClass::Vanguard:
-            playerWeapons_.selectWeapon(PlayerWeapon::Club);
+            playerMaxRecoverableArmor_ = 25.0;
+            playerRecoverableArmor_ = 25.0;
+            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             break;
         case PlayerClass::Ranger:
-            playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
-            break;
         case PlayerClass::Engineer:
             playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             break;
@@ -461,10 +462,8 @@ void Simulation::resetRun(GameEventType eventType) {
             playerWeapons_.selectWeapon(PlayerWeapon::Pickaxe);
             break;
         case PlayerClass::Berserker:
-            playerWeapons_.selectWeapon(PlayerWeapon::Club);
-            break;
         case PlayerClass::Vampire:
-            playerWeapons_.selectWeapon(PlayerWeapon::Rifle);
+            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             break;
         case PlayerClass::Alchemist:
             playerWeapons_.selectWeapon(PlayerWeapon::FireWand);
@@ -472,7 +471,7 @@ void Simulation::resetRun(GameEventType eventType) {
             grantLootUpgrade(LootUpgradeEffect::Potion);
             break;
         case PlayerClass::Chronomancer:
-            playerWeapons_.selectWeapon(PlayerWeapon::IceWand);
+            playerWeapons_.selectWeapon(PlayerWeapon::Axe);
             grantLootUpgrade(LootUpgradeEffect::Hourglass);
             grantLootUpgrade(LootUpgradeEffect::Rope);
             break;
@@ -702,14 +701,16 @@ double Simulation::repairCooldownRemaining(EntityId id) const {
 
 void Simulation::startRepairCooldown(EntityId id) {
     if (economy_.repairCooldownSeconds <= 0.0) return;
+    const double duration = economy_.repairCooldownSeconds *
+        (playerClass_ == PlayerClass::Engineer ? 0.5 : 1.0);
     auto cooldown = std::ranges::find(
         activeRepairCooldowns_, id,
         &ActiveRepairCooldown::id);
     if (cooldown == activeRepairCooldowns_.end()) {
         activeRepairCooldowns_.push_back(
-            {id, economy_.repairCooldownSeconds});
+            {id, duration});
     } else {
-        cooldown->remaining = economy_.repairCooldownSeconds;
+        cooldown->remaining = duration;
     }
 }
 

@@ -21,6 +21,7 @@ namespace ian {
 
 class TerrainHeightfield;
 class CollisionWorld;
+class MultiLevelNavigation;
 
 enum class EnemyType : std::uint8_t {
     Basic,
@@ -362,6 +363,21 @@ class EnemySystem {
         double remaining{};
     };
 
+    void trackPlayerVelocity(
+        double deltaSeconds, std::optional<Vec3> playerPosition);
+    void updateProjectiles(
+        double deltaSeconds,
+        const std::vector<BuildingInstance>& buildings,
+        std::optional<Vec3> playerPosition,
+        std::span<const EnemyStructureTarget> additionalStructures,
+        const TerrainHeightfield* terrain);
+    [[nodiscard]] bool refreshStructureTargets(
+        const std::vector<BuildingInstance>& buildings,
+        std::span<const EnemyStructureTarget> additionalStructures);
+    void updateEnemyTimers(EnemyInstance& enemy, double deltaSeconds);
+    [[nodiscard]] bool advanceBossAbility(
+        EnemyInstance& enemy, double deltaSeconds,
+        std::optional<Vec3> playerPosition);
     void appendEnemy(const EnemySpawn& spawn,
                      bool allowActiveOverflow = false);
     void spawnSplitlings(
@@ -409,7 +425,7 @@ class EnemySystem {
     bool spatialHashDirty_{};
     std::size_t spatialRebuildsThisTick_{};
     double spatialRebuildMillisecondsThisTick_{};
-    std::shared_ptr<void> navigationCache_;
+    std::shared_ptr<MultiLevelNavigation> navigationCache_;
     std::uint64_t cachedNavigationRevision_{
         std::numeric_limits<std::uint64_t>::max()};
 };

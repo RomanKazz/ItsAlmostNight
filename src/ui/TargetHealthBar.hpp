@@ -26,7 +26,7 @@ class TargetHealthBar {
               EnemyBoundsProvider enemyBoundsProvider = {});
     void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
-    void notifyEnemyHit(EntityId id);
+    void notifyEnemyHit(EntityId id, double damage = 0.0);
     void notifyResourceHit(EntityId id);
     void reset();
 
@@ -43,6 +43,20 @@ class TargetHealthBar {
         EntityId id;
 
         bool operator==(const Target&) const = default;
+    };
+
+    struct TargetHash {
+        std::size_t operator()(const Target& target) const noexcept {
+            std::uint64_t value =
+                (static_cast<std::uint64_t>(target.id.generation) << 32U) |
+                static_cast<std::uint64_t>(target.id.index);
+            value ^= (static_cast<std::uint64_t>(target.kind) + 1U) *
+                0x9e3779b97f4a7c15ULL;
+            value ^= value >> 30U;
+            value *= 0xbf58476d1ce4e5b9ULL;
+            value ^= value >> 27U;
+            return static_cast<std::size_t>(value);
+        }
     };
 
     void drawBillboard(Target target, Vector3 anchorPosition,
@@ -65,6 +79,12 @@ class TargetHealthBar {
     struct HealthVisibility {
         double remaining{};
         std::uint64_t lastSeenFrame{};
+        double pendingDamage{};
+    };
+
+    struct HealthAnimation {
+        double displayedHealth{};
+        std::uint64_t lastSeenFrame{};
     };
 
     struct ScreenHealthText {
@@ -74,8 +94,6 @@ class TargetHealthBar {
         float opacity{};
     };
 
-    std::optional<Target> target_;
-    double displayedHealth_{};
     std::optional<Visual> activeVisual_;
     float opacity_{};
     std::optional<EntityId> repairTarget_;
@@ -87,7 +105,11 @@ class TargetHealthBar {
     std::unordered_map<std::uint64_t, HealthVisibility>
         resourceHealthVisibility_;
     std::uint64_t resourceHealthFrame_{};
+    std::unordered_map<Target, HealthAnimation, TargetHash>
+        healthAnimations_;
+    std::uint64_t healthAnimationFrame_{};
     std::optional<ScreenHealthText> screenHealthText_;
+    std::optional<ScreenHealthText> screenLevelText_;
 };
 
 } // namespace ian

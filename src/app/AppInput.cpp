@@ -36,48 +36,19 @@ bool keyPressed(const ControlSettings& settings,
 }
 
 void App::processInput() {
-    if (uiEditorWasVisible_ && !uiEditor_.visible() &&
-        simulation_.snapshot().state != RunState::MainMenu &&
-        simulation_.snapshot().state != RunState::Paused) {
-        DisableCursor();
-    }
-    uiEditorWasVisible_ = uiEditor_.visible();
-    const bool editorShortcut =
-        (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) &&
-        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
-        IsKeyPressed(KEY_U);
-    if (editorShortcut) {
-        uiEditor_.toggle();
-        uiEditorWasVisible_ = uiEditor_.visible();
-        renderer_->setGraphicsPanelVisible(false);
-        if (uiEditor_.visible()) {
-            EnableCursor();
-        } else if (simulation_.snapshot().state != RunState::MainMenu &&
-                   simulation_.snapshot().state != RunState::Paused) {
-            DisableCursor();
-        }
-    }
-    if (uiEditor_.visible()) {
-        if (IsKeyPressed(KEY_ESCAPE)) {
-            uiEditor_.close();
-            if (simulation_.snapshot().state != RunState::MainMenu &&
-                simulation_.snapshot().state != RunState::Paused) {
-                DisableCursor();
-            }
-        }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        return;
-    }
+    input_.jumpHeld = false;
     renderer_->processInput();
     const auto snapshot = simulation_.snapshot();
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
+    if (!coreDefenseMenuVisible_ && coreMenuPointerActive_) {
+        coreMenuPointerActive_ = false;
+        if (acceptsGameplayInput(snapshot.state) &&
+            !graphicsPanelVisible && !enemySpawnMenuVisible_ &&
+            !itemGrantMenuVisible_ && !sandboxCardMenuVisible_) {
+            DisableCursor();
+        }
+    }
     const bool primaryMouseDown =
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     if (primaryMouseDown &&
@@ -87,6 +58,7 @@ void App::processInput() {
         !itemGrantMenuVisible_ &&
         !sandboxCardMenuVisible_ &&
         !coreDefenseMenuVisible_ &&
+        !coreMenuPointerActive_ &&
         !pendingControlRebind_) {
         primaryAttackHoldSeconds_ +=
             static_cast<double>(GetFrameTime());
@@ -322,6 +294,23 @@ void App::processInput() {
         audio_.playUiConfirm();
         return;
     }
+    const bool shiftHeld =
+        IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+    if (snapshot.state != RunState::MainMenu && shiftHeld &&
+        IsKeyPressed(KEY_F5)) {
+        sandboxCardMenuVisible_ = !sandboxCardMenuVisible_;
+        itemGrantMenuVisible_ = false;
+        if (sandboxCardMenuVisible_) {
+            enemySpawnMenuVisible_ = false;
+            coreDefenseMenuVisible_ = false;
+            coreDefenseMenuClosing_ = false;
+            coreDefenseMenuEntranceSeconds_ = 0.0;
+            EnableCursor();
+        } else if (snapshot.state != RunState::Paused) {
+            DisableCursor();
+        }
+        audio_.playUiConfirm();
+    }
     if (snapshot.state != RunState::MainMenu &&
         !IsKeyDown(KEY_LEFT_SHIFT) &&
         !IsKeyDown(KEY_RIGHT_SHIFT) &&
@@ -345,7 +334,7 @@ void App::processInput() {
         audio_.playUiConfirm();
     }
     if (sandboxCardMenuVisible_) {
-        if (!snapshot.sandboxMode || IsKeyPressed(KEY_ESCAPE)) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
             sandboxCardMenuVisible_ = false;
             if (snapshot.state != RunState::Paused) {
                 DisableCursor();
@@ -360,25 +349,10 @@ void App::processInput() {
         return;
     }
     if (coreDefenseMenuVisible_) {
-        if (IsKeyPressed(KEY_ESCAPE) ||
-            keyPressed(userSettings_.controls,
-                       ControlAction::Interact)) {
-            if (!coreDefenseMenuClosing_) {
-                coreDefenseMenuClosing_ = true;
-                coreDefenseMenuEntranceSeconds_ = std::min(
-                    coreDefenseMenuEntranceSeconds_, 0.40);
-                audio_.playUiConfirm();
-            }
+        if (!coreMenuPointerActive_) {
+            coreMenuPointerActive_ = true;
+            EnableCursor();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        pendingPickaxe_ = false;
-        return;
     }
     if (itemGrantMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -542,96 +516,7 @@ void App::processInput() {
         };
         worldRevealElapsed_ = 0.0;
         audio_.playUiConfirm();
-        fixedStep_.reset();
-        statusMessage_.clear();
-        statusMessageRemaining_ = 0.0;
-        statusMessageShakeRemaining_ = 0.0;
-        effects_.clear();
-        arrowVisuals_.clear();
-        floatingDamageNumbers_.clear();
-        resourceGainVisuals_.clear();
-        productionVisuals_.clear();
-        destroyedResourceVisuals_.clear();
-        soldBuildingVisuals_.clear();
-        destroyedEnemyVisuals_.clear();
-        enemyDrawInstances_.clear();
-        destroyedEnemyDrawInstances_.clear();
-        pendingSoldBuildingVisual_.reset();
-        pendingSoldModularVisual_.reset();
-        pendingSoldWallConnections_ = 0U;
-        queuedBuildingSales_.clear();
-        queuedModularBuildingRemovals_.clear();
-        removalDragActive_ = false;
-        removalDragTargets_.clear();
-        grassClearAreas_.clear();
-        buildingRotationWheelAccumulator_ = 0.0;
-        buildingRotationCooldownRemaining_ = 0.0;
-        cameraShakeRemaining_ = 0.0;
-        cameraShakeStrength_ = 0.0;
-        explosionShakeCooldownRemaining_ = 0.0;
-        cameraLookYawLag_ = 0.0;
-        cameraLookPitchLag_ = 0.0;
-        cameraStrafeLean_ = 0.0;
-        cameraImpulseOffset_ = {};
-        landingResponseRemaining_ = 0.0;
-        cameraInertiaInitialized_ = false;
-        groundCameraSmoothingInitialized_ = false;
-        groundCameraWasGrounded_ = false;
-        cameraBobPositionInitialized_ = false;
-        damageIndicators_.clear();
-        woodHudBounceRemaining_ = 0.0;
-        stoneHudBounceRemaining_ = 0.0;
-        crystalHudBounceRemaining_ = 0.0;
-        coinHudBounceRemaining_ = 0.0;
-        playerDamageFlashRemaining_ = 0.0;
-        recentlyDamagedBuilding_.reset();
-        damagedBuildingHealthBarRemaining_ = 0.0;
-        toolContactHoldRemaining_ = 0.0;
-        crosshairHitRemaining_ = 0.0;
-        invalidActionRemaining_ = 0.0;
-        modularPlacementFailureRepeatWindow_ = 0.0;
-        buildingHoverSeconds_ = 0.0;
-        buildingContextCardTarget_.reset();
-        buildingContextCardUpgradeCost_.reset();
-        buildingContextCardStats_.reset();
-        buildingImpactVisuals_.clear();
-        placementPreviewCenter_.reset();
-        placementPreviewGrid_.reset();
-        placementPreviewType_.reset();
-        placementSnapPulseRemaining_ = 0.0;
-        weaponRecoilRemaining_ = 0.0;
-        weaponRecoilStrength_ = 0.0F;
-        cameraFov_ = 75.0F;
-        cancelledPlacementPreview_.reset();
-        buildingShotRecoilVisuals_.clear();
-        buildingStatsUpgradeEntity_.reset();
-        buildingStatsUpgradeRemaining_ = 0.0;
-        wallDragStart_.reset();
-        wallDragEnd_.reset();
-        placementDragType_.reset();
-        placementDragSurface_.reset();
-        placementDragAxis_.reset();
-        placementDragCandidateEnd_.reset();
-        placementDragCandidateFrames_ = 0;
-        placementDragLookMovement_ = 0.0;
-        placementDragExtended_ = false;
-        pendingWallPlacements_.clear();
-        clearModularPlacementDrag();
-        modularSnapHit_.reset();
-        modularSnapMarker_.reset();
-        modularEdgeHoverFrame_.reset();
-        modularEdgeExtensionAnchor_.reset();
-        rampSocketFrame_.reset();
-        rampSocketRotation_.reset();
-        rampSocketLostGraceRemaining_ = 0.0;
-        rampSocketManualOverrideRemaining_ = 0.0;
-        modularPreviewAnchor_.reset();
-        buildModePieVisible_ = false;
-        buildModePieDirection_ = {};
-        buildModePieChoice_.reset();
-        resetRunInputState();
-        resetEquipmentActionMode(startedSnapshot);
-        DisableCursor();
+        resetRunClientState(startedSnapshot);
     }
     if (snapshot.state != RunState::Defeat &&
         snapshot.state != RunState::Victory &&
@@ -664,96 +549,7 @@ void App::processInput() {
                 restartedSnapshot.playerPosition.z),
         };
         worldRevealElapsed_ = 0.0;
-        fixedStep_.reset();
-        statusMessage_.clear();
-        statusMessageRemaining_ = 0.0;
-        statusMessageShakeRemaining_ = 0.0;
-        effects_.clear();
-        arrowVisuals_.clear();
-        floatingDamageNumbers_.clear();
-        resourceGainVisuals_.clear();
-        productionVisuals_.clear();
-        destroyedResourceVisuals_.clear();
-        soldBuildingVisuals_.clear();
-        destroyedEnemyVisuals_.clear();
-        enemyDrawInstances_.clear();
-        destroyedEnemyDrawInstances_.clear();
-        pendingSoldBuildingVisual_.reset();
-        pendingSoldModularVisual_.reset();
-        pendingSoldWallConnections_ = 0U;
-        queuedBuildingSales_.clear();
-        queuedModularBuildingRemovals_.clear();
-        removalDragActive_ = false;
-        removalDragTargets_.clear();
-        grassClearAreas_.clear();
-        buildingRotationWheelAccumulator_ = 0.0;
-        buildingRotationCooldownRemaining_ = 0.0;
-        cameraShakeRemaining_ = 0.0;
-        cameraShakeStrength_ = 0.0;
-        explosionShakeCooldownRemaining_ = 0.0;
-        cameraLookYawLag_ = 0.0;
-        cameraLookPitchLag_ = 0.0;
-        cameraStrafeLean_ = 0.0;
-        cameraImpulseOffset_ = {};
-        landingResponseRemaining_ = 0.0;
-        cameraInertiaInitialized_ = false;
-        groundCameraSmoothingInitialized_ = false;
-        groundCameraWasGrounded_ = false;
-        cameraBobPositionInitialized_ = false;
-        damageIndicators_.clear();
-        woodHudBounceRemaining_ = 0.0;
-        stoneHudBounceRemaining_ = 0.0;
-        crystalHudBounceRemaining_ = 0.0;
-        coinHudBounceRemaining_ = 0.0;
-        playerDamageFlashRemaining_ = 0.0;
-        recentlyDamagedBuilding_.reset();
-        damagedBuildingHealthBarRemaining_ = 0.0;
-        toolContactHoldRemaining_ = 0.0;
-        crosshairHitRemaining_ = 0.0;
-        invalidActionRemaining_ = 0.0;
-        modularPlacementFailureRepeatWindow_ = 0.0;
-        buildingHoverSeconds_ = 0.0;
-        buildingContextCardTarget_.reset();
-        buildingContextCardUpgradeCost_.reset();
-        buildingContextCardStats_.reset();
-        buildingImpactVisuals_.clear();
-        placementPreviewCenter_.reset();
-        placementPreviewGrid_.reset();
-        placementPreviewType_.reset();
-        placementSnapPulseRemaining_ = 0.0;
-        weaponRecoilRemaining_ = 0.0;
-        weaponRecoilStrength_ = 0.0F;
-        cameraFov_ = 75.0F;
-        cancelledPlacementPreview_.reset();
-        buildingShotRecoilVisuals_.clear();
-        buildingStatsUpgradeEntity_.reset();
-        buildingStatsUpgradeRemaining_ = 0.0;
-        wallDragStart_.reset();
-        wallDragEnd_.reset();
-        placementDragType_.reset();
-        placementDragSurface_.reset();
-        placementDragAxis_.reset();
-        placementDragCandidateEnd_.reset();
-        placementDragCandidateFrames_ = 0;
-        placementDragLookMovement_ = 0.0;
-        placementDragExtended_ = false;
-        pendingWallPlacements_.clear();
-        clearModularPlacementDrag();
-        modularSnapHit_.reset();
-        modularSnapMarker_.reset();
-        modularEdgeHoverFrame_.reset();
-        modularEdgeExtensionAnchor_.reset();
-        rampSocketFrame_.reset();
-        rampSocketRotation_.reset();
-        rampSocketLostGraceRemaining_ = 0.0;
-        rampSocketManualOverrideRemaining_ = 0.0;
-        modularPreviewAnchor_.reset();
-        buildModePieVisible_ = false;
-        buildModePieDirection_ = {};
-        buildModePieChoice_.reset();
-        resetRunInputState();
-        resetEquipmentActionMode(restartedSnapshot);
-        DisableCursor();
+        resetRunClientState(restartedSnapshot);
     }
     if ((snapshot.state == RunState::Defeat ||
          snapshot.state == RunState::Victory) &&

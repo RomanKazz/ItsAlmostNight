@@ -153,6 +153,7 @@ void App::renderGameplayFrame(
         .fovy = cameraFov_,
         .projection = CAMERA_PERSPECTIVE,
     };
+    gameplayCamera_ = camera;
     constexpr Color DayGround{66, 112, 67, 255};
     constexpr Color NightGround{28, 52, 50, 255};
 

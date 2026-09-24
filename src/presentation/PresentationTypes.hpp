@@ -82,7 +82,9 @@ struct ArrowVisual {
     Vec3 direction;
     double remaining;
     double duration;
+    double startDelayRemaining{};
     bool turretBullet{};
+    bool shrapnel{};
     std::optional<EntityId> flashTarget;
 };
 
@@ -91,6 +93,7 @@ struct FloatingDamageNumber {
     double damage;
     double remaining;
     double duration;
+    double startDelayRemaining{};
     float horizontalDrift;
     float verticalRise;
     float initialRotationDegrees;

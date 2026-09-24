@@ -380,9 +380,25 @@ makeTerrainPaths(
     if (riseWidth <= 0.0) {
         return 0.0;
     }
-    const double distanceToBoundary =
-        halfSize - std::max(
-            std::abs(worldX), std::abs(worldZ));
+    // Preserve the square boundary along its sides, but replace the last few
+    // metres of each hard corner with a small circular arc. This keeps the
+    // established mountain layout while removing the visible 90-degree ridge.
+    const double cornerRadius = std::min(
+        riseWidth * 0.45, halfSize * 0.12);
+    const double straightHalfExtent = halfSize - cornerRadius;
+    const double cornerX =
+        std::abs(worldX) - straightHalfExtent;
+    const double cornerZ =
+        std::abs(worldZ) - straightHalfExtent;
+    const double outsideCorner = std::hypot(
+        std::max(cornerX, 0.0),
+        std::max(cornerZ, 0.0));
+    const double insideSide = std::min(
+        std::max(cornerX, cornerZ),
+        0.0);
+    const double roundedBoundaryDistance =
+        outsideCorner + insideSide - cornerRadius;
+    const double distanceToBoundary = -roundedBoundaryDistance;
     const double amount = smoother(
         1.0 - distanceToBoundary /
                   riseWidth);

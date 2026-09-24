@@ -329,11 +329,11 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .betweenWaveSeconds = value.at("betweenWaveSeconds").get<double>(),
         .sunsetSeconds = value.at("sunsetSeconds").get<double>(),
         .nightDurationSeconds =
-            value.value("nightDurationSeconds", 75.0),
+            value.value("nightDurationSeconds", 60.0),
         .firstNightDurationSeconds =
             value.value("firstNightDurationSeconds", 60.0),
         .nightDurationGrowthSeconds =
-            value.value("nightDurationGrowthSeconds", 5.0),
+            value.value("nightDurationGrowthSeconds", 0.0),
         .dawnSeconds = value.at("dawnSeconds").get<double>(),
         .minimumPlacementDistance = value.at("minimumPlacementDistance").get<double>(),
         .maximumPlacementDistance = value.at("maximumPlacementDistance").get<double>(),
@@ -402,15 +402,15 @@ GameBalance GameBalance::defaults() {
         }},
         .buildings = {{
             {30, 0, 0, 500.0, 0, 1},
-            {10, 0, 0, 100.0, 1, 256},
+            {10, 0, 0, 100.0, 2, 256},
             {25, 15, 0, 120.0, 3, 64},
             {20, 10, 0, 140.0, 2, 8},
             {40, 30, 25, 180.0, 4, 64},
-            {15, 20, 10, 100.0, 2, 64},
-            {15, 5, 0, 130.0, 1, 128},
-            {40, 15, 0, 150.0, 2, 8},
-            {30, 40, 0, 170.0, 2, 8},
-            {20, 25, 15, 100.0, 3, 64},
+            {15, 20, 10, 100.0, 4, 64},
+            {15, 5, 0, 130.0, 2, 128},
+            {40, 15, 0, 150.0, 3, 8},
+            {30, 40, 0, 170.0, 3, 8},
+            {20, 25, 15, 100.0, 4, 64},
             {20, 10, 0, 180.0, 1, 8},
             {25, 5, 0, 200.0, 1, 8},
             {30, 25, 0, 160.0, 1, 8},
@@ -433,9 +433,9 @@ GameBalance GameBalance::defaults() {
         },
         .economy = {
             .crystalMineInterval = 8.0,
-            .crystalMineAmount = 4,
-            .waveRewardBase = 10,
-            .waveRewardPerWave = 5,
+            .crystalMineAmount = 3,
+            .waveRewardBase = 15,
+            .waveRewardPerWave = 6,
             .bombPurchaseCoinCost = 30,
             .bombPurchaseCoinCostPerWave = 3,
             .bombPurchaseAmount = 2,
@@ -454,7 +454,7 @@ GameBalance GameBalance::defaults() {
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.65, 0.2, 0.15, 0.45, 0.25, 0.30,
-                     60.0, 60.0, 15.0, 75.0, 60.0, 5.0, 5.0, 1.0, 10.0},
+                     75.0, 75.0, 15.0, 60.0, 60.0, 0.0, 5.0, 1.0, 10.0},
     };
 }
 

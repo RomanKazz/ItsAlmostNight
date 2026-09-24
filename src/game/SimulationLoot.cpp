@@ -136,9 +136,11 @@ void Simulation::tryConsumeApple() {
         return;
     }
     const double healing = std::min({
-        AppleMaximumHealing,
-        AppleBaseHealing + AppleHealingPerExtraStack *
-            static_cast<double>(stacks - 1),
+        AppleMaximumHealing *
+            (playerClass_ == PlayerClass::Alchemist ? 1.5 : 1.0),
+        (AppleBaseHealing + AppleHealingPerExtraStack *
+            static_cast<double>(stacks - 1)) *
+            (playerClass_ == PlayerClass::Alchemist ? 1.5 : 1.0),
         maximumHealth - playerHealth_,
     });
     appleAvailable_ = false;
@@ -161,6 +163,11 @@ double Simulation::temporaryAttackSpeedMultiplier() const {
 }
 
 double Simulation::playerClassDamageMultiplier() const {
+    if (playerClass_ == PlayerClass::Ranger) {
+        return std::hypot(playerHorizontalVelocity_.x,
+                          playerHorizontalVelocity_.z) >= 3.0
+            ? 1.20 : 1.0;
+    }
     if (playerClass_ != PlayerClass::Berserker) return 1.0;
     const double maximumHealth = std::max(1.0, playerPermanentMaxHealth());
     const double missingHealthFraction = std::clamp(
@@ -179,10 +186,18 @@ void Simulation::updatePlayerClassEffects(
          index < events_.size(); ++index) {
         if (events_[index].type == GameEventType::EnemyKilled) ++kills;
     }
-    if (kills <= 0) return;
-    playerHealth_ = std::min(
-        playerPermanentMaxHealth() + playerTemporaryHealth_,
-        playerHealth_ + static_cast<double>(kills * 2));
+    for (int kill = 0; kill < kills; ++kill) {
+        const double maximumHealth =
+            playerPermanentMaxHealth() + playerTemporaryHealth_;
+        const double healing = std::min(
+            2.0, std::max(0.0, maximumHealth - playerHealth_));
+        playerHealth_ += healing;
+        if (healing < 2.0 && playerTemporaryHealth_ < 15.0) {
+            const double shield = std::min(1.0, 15.0 - playerTemporaryHealth_);
+            playerTemporaryHealth_ += shield;
+            playerHealth_ += shield;
+        }
+    }
 }
 
 double Simulation::playerPermanentMaxHealth() const {
@@ -300,10 +315,12 @@ void Simulation::updateLootEffects(
             playerHealth_ / maximumHealth <= BerserkHealthThreshold) {
             battlePotionAvailable_ = false;
             battlePotionBerserkDuration_ = std::min(
-                BerserkMaximumDuration,
+                BerserkMaximumDuration +
+                    (playerClass_ == PlayerClass::Alchemist ? 3.0 : 0.0),
                 BerserkBaseDuration +
                     static_cast<double>(potionStacks - 1) *
-                        BerserkDurationPerExtraStack);
+                        BerserkDurationPerExtraStack +
+                    (playerClass_ == PlayerClass::Alchemist ? 3.0 : 0.0));
             battlePotionBerserkRemaining_ =
                 battlePotionBerserkDuration_;
             battlePotionLifestealRemaining_ = std::min(

@@ -1,5 +1,7 @@
 #include "ui/TargetHealthBar.hpp"
 
+#include "combat/CombatDisplayUnits.hpp"
+
 #include "game/Simulation.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiText.hpp"
@@ -7,8 +9,6 @@
 #include "world/TerrainHeightfield.hpp"
 
 #include <raymath.h>
-#include <rlgl.h>
-
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -59,6 +59,13 @@ Color scaledColor(Color color, float scale) {
     };
 }
 
+bool visibleScreenPoint(Vector2 point) {
+    return std::isfinite(point.x) && std::isfinite(point.y) &&
+           point.x >= 0.0F && point.y >= 0.0F &&
+           point.x <= static_cast<float>(GetScreenWidth()) &&
+           point.y <= static_cast<float>(GetScreenHeight());
+}
+
 Color resourceHealthColor(ResourceType type) {
     switch (type) {
     case ResourceType::Wood:
@@ -98,6 +105,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const TerrainHeightfield& terrain,
                            EnemyBoundsProvider enemyBoundsProvider) {
     screenHealthText_.reset();
+    screenLevelText_.reset();
+    ++healthAnimationFrame_;
     const double frameSeconds = static_cast<double>(std::clamp(
         GetFrameTime(), 0.0F, 0.10F));
     repairPulseRemaining_ = std::max(
@@ -425,13 +434,16 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                        candidate.id == *snapshot.aimedEnemy;
         });
         if (enemy != snapshot.enemies.end()) {
+            const bool showExactHealth =
+                enemy->type == EnemyType::Boss ||
+                enemy->eliteAffixes != 0U;
             candidate = Visual{
                 .target = {TargetKind::Enemy, enemy->id},
                 .anchorPosition = enemyAnchor(*enemy),
                 .health = enemy->health,
                 .maxHealth = enemy->maxHealth,
                 .fillColor = enemyHealthColor(*enemy),
-                .showHealthText = true,
+                .showHealthText = showExactHealth,
             };
         }
     }
@@ -443,7 +455,6 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             !activeVisual_ || activeVisual_->target != candidate->target;
         if (targetChanged) {
             activeVisual_ = candidate;
-            target_.reset();
             opacity_ = 0.0F;
         } else {
             *activeVisual_ = *candidate;
@@ -461,22 +472,27 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             visual.target, visual.anchorPosition,
             visual.health, visual.maxHealth,
             visual.fillColor, camera,
-            visual.buildingLevel, opacity_, visual.showHealthText);
+            candidate ? visual.buildingLevel : 0,
+            opacity_, visual.showHealthText);
     }
     if (!candidate && opacity_ <= 0.005F) {
         activeVisual_.reset();
-        target_.reset();
     }
+    std::erase_if(
+        healthAnimations_, [this](const auto& entry) {
+            return entry.second.lastSeenFrame != healthAnimationFrame_;
+        });
 }
 
 void TargetHealthBar::reset() {
-    target_.reset();
     activeVisual_.reset();
     opacity_ = 0.0F;
     enemyHealthVisibility_.clear();
     enemyHealthFrame_ = 0;
     resourceHealthVisibility_.clear();
     resourceHealthFrame_ = 0;
+    healthAnimations_.clear();
+    healthAnimationFrame_ = 0;
 }
 
 void TargetHealthBar::notifyRepair(EntityId id) {
@@ -484,14 +500,15 @@ void TargetHealthBar::notifyRepair(EntityId id) {
     repairPulseRemaining_ = repairPulseDuration_;
 }
 
-void TargetHealthBar::notifyEnemyHit(EntityId id) {
+void TargetHealthBar::notifyEnemyHit(EntityId id, double damage) {
     auto [entry, inserted] = enemyHealthVisibility_.try_emplace(
         entityKey(id),
         HealthVisibility{
             .remaining = TargetHealthBarDuration,
             .lastSeenFrame = enemyHealthFrame_,
-        });
+    });
     entry->second.remaining = TargetHealthBarDuration;
+    entry->second.pendingDamage += std::max(0.0, damage);
     (void)inserted;
 }
 
@@ -517,10 +534,26 @@ void TargetHealthBar::drawBillboard(
     const bool primaryEnemy =
         target.kind == TargetKind::Enemy && showHealthText;
 
-    if (!target_ || *target_ != target) {
-        target_ = target;
-        displayedHealth_ = health;
-    } else {
+    double initialDisplayedHealth = health;
+    if (target.kind == TargetKind::Enemy) {
+        const auto visibility = enemyHealthVisibility_.find(
+            entityKey(target.id));
+        if (visibility != enemyHealthVisibility_.end()) {
+            initialDisplayedHealth = std::min(
+                maxHealth,
+                health + visibility->second.pendingDamage);
+            visibility->second.pendingDamage = 0.0;
+        }
+    }
+    auto [animation, inserted] = healthAnimations_.try_emplace(
+        target,
+        HealthAnimation{
+            .displayedHealth = initialDisplayedHealth,
+            .lastSeenFrame = healthAnimationFrame_,
+        });
+    HealthAnimation& healthAnimation = animation->second;
+    healthAnimation.lastSeenFrame = healthAnimationFrame_;
+    if (!inserted) {
         const bool repairing =
             repairTarget_ && *repairTarget_ == target.id &&
             repairPulseRemaining_ > 0.0;
@@ -528,14 +561,20 @@ void TargetHealthBar::drawBillboard(
             1.0 - std::exp(
                 -(repairing ? 28.0 : 3.2) *
                 static_cast<double>(GetFrameTime()));
-        displayedHealth_ += (health - displayedHealth_) * blend;
-        if (std::abs(displayedHealth_ - health) < 0.01) {
-            displayedHealth_ = health;
+        healthAnimation.displayedHealth +=
+            (health - healthAnimation.displayedHealth) * blend;
+        if (std::abs(healthAnimation.displayedHealth - health) < 0.01) {
+            healthAnimation.displayedHealth = health;
         }
     }
 
     const Vector3 viewForward = Vector3Normalize(
         Vector3Subtract(camera.target, camera.position));
+    const Vector3 cameraToAnchor = Vector3Subtract(
+        anchorPosition, camera.position);
+    if (Vector3DotProduct(cameraToAnchor, viewForward) <= 0.01F) {
+        return;
+    }
     const Vector3 cameraRight = Vector3Normalize(
         Vector3CrossProduct(viewForward, camera.up));
     const Vector3 cameraUp = Vector3Normalize(
@@ -581,7 +620,8 @@ void TargetHealthBar::drawBillboard(
     const float fillRadius = FillRadius * pulseScale;
     const float layerOffset = LayerOffset;
     const float displayedFraction = static_cast<float>(
-        std::clamp(displayedHealth_ / maxHealth, 0.0, 1.0));
+        std::clamp(
+            healthAnimation.displayedHealth / maxHealth, 0.0, 1.0));
     const float actualFraction = static_cast<float>(
         std::clamp(health / maxHealth, 0.0, 1.0));
     if (target.kind == TargetKind::Building ||
@@ -607,8 +647,6 @@ void TargetHealthBar::drawBillboard(
         : ColorLerp(fillColor, WHITE, 0.32F);
     const Color trailColor = ColorLerp(fillColor, WHITE, 0.68F);
 
-    rlDrawRenderBatchActive();
-    rlDisableDepthTest();
     const Vector3 barAnchor = anchorPosition;
     const Vector3 outerCenter = Vector3Add(
         barAnchor,
@@ -653,10 +691,14 @@ void TargetHealthBar::drawBillboard(
     drawFill(actualFraction, activeColor, 2.0F);
 
     if (primaryEnemy) {
+        const int roundedHealth = health > 0.0
+            ? std::max(1, combatDisplayValue(health))
+            : 0;
+        const int roundedMaxHealth = std::max(
+            1, combatDisplayValue(maxHealth));
         const std::string healthText =
-            std::to_string(static_cast<int>(std::lround(
-                std::max(0.0, health)))) + "/" +
-            std::to_string(static_cast<int>(std::lround(maxHealth)));
+            std::to_string(roundedHealth) + "/" +
+            std::to_string(roundedMaxHealth);
         const Vector2 screenCenter = GetWorldToScreen(
             barAnchor, camera);
         const Vector2 screenTop = GetWorldToScreen(
@@ -676,12 +718,14 @@ void TargetHealthBar::drawBillboard(
         const float fontSize = std::clamp(
             pixelHeight * (24.0F / 36.0F) / 1.68F,
             7.0F, 22.0F);
-        screenHealthText_ = ScreenHealthText{
-            .text = healthText,
-            .center = screenCenter,
-            .fontSize = fontSize,
-            .opacity = opacity,
-        };
+        if (visibleScreenPoint(screenCenter)) {
+            screenHealthText_ = ScreenHealthText{
+                .text = healthText,
+                .center = screenCenter,
+                .fontSize = fontSize,
+                .opacity = opacity,
+            };
+        }
     }
 
     if (buildingLevel > 0) {
@@ -694,21 +738,46 @@ void TargetHealthBar::drawBillboard(
                              outerHeight * 0.5F +
                                  0.16F)),
             Vector3Scale(towardCamera, layerOffset * 4.0F));
-        rlDrawRenderBatchActive();
-        drawWorldBillboardText(
-            levelText, labelCenter,
-            0.14F, camera,
-            cameraRight, cameraUp,
-            withOpacity({255, 235, 174, 255}, opacity));
+        const Vector2 screenCenter = GetWorldToScreen(
+            labelCenter, camera);
+        const Vector2 screenTop = GetWorldToScreen(
+            Vector3Add(labelCenter,
+                       Vector3Scale(cameraUp, 0.14F)), camera);
+        const float pixelHeight = Vector2Distance(
+            screenCenter, screenTop) * 2.0F;
+        if (visibleScreenPoint(screenCenter)) {
+            screenLevelText_ = ScreenHealthText{
+                .text = levelText,
+                .center = screenCenter,
+                .fontSize = std::clamp(
+                    pixelHeight / 1.68F, 9.0F, 25.0F),
+                .opacity = opacity,
+            };
+        }
     }
-    rlDrawRenderBatchActive();
-    rlEnableDepthTest();
 }
 
 void TargetHealthBar::drawScreenOverlay() const {
-    if (!screenHealthText_) {
-        return;
+    if (screenLevelText_) {
+        const ScreenHealthText& level = *screenLevelText_;
+        const Vector2 measured = measureUiText(
+            level.text, level.fontSize);
+        SdfUiTextStyle style{};
+        style.fillColor = withOpacity(
+            {255, 235, 174, 255}, level.opacity);
+        style.outlineColor = withOpacity(
+            {49, 36, 28, 255}, level.opacity);
+        style.shadowColor = withOpacity(
+            {20, 16, 14, 210}, level.opacity);
+        style.shadowOffsetPixels = {0.0F, 3.0F};
+        style.outlinePixels = 2.0F;
+        drawStyledSdfUiText(
+            level.text,
+            {level.center.x - measured.x * 0.5F,
+             level.center.y - measured.y * 0.5F},
+            level.fontSize, style);
     }
+    if (!screenHealthText_) return;
     const ScreenHealthText& text = *screenHealthText_;
     const Vector2 measured = measureUiText(
         text.text, text.fontSize);

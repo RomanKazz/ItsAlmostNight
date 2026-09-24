@@ -791,7 +791,7 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 const float patchField =
                     broadPatch * 0.74F + patchDetail * 0.26F;
                 const float patchThreshold =
-                    0.55F + (regionalVariation - 0.5F) * 0.14F;
+                    0.53F + (regionalVariation - 0.5F) * 0.14F;
                 if (patchField <= patchThreshold) {
                     continue;
                 }
@@ -809,15 +809,15 @@ void Renderer::drawGrassInstances(Vector3 cameraPosition,
                 // sparse budget reads as several nearby clumps instead of a
                 // uniform scatter.
                 float clusterDensity =
-                    (0.12F + patchStrength * 0.88F) * 0.70F *
+                    (0.12F + patchStrength * 0.88F) * 0.78F *
                     (0.18F + shoreRecovery * 0.82F);
                 const float pathGrass = std::clamp(
                     (pathAmount - 0.04F) / 0.78F, 0.0F, 1.0F);
                 // Retain a few isolated tufts in the packed core: shoulders
                 // keep roughly 50--70% of ordinary patch density, while a
-                // fully worn center keeps 15%: clearly trampled, but without
+                // fully worn center keeps 20%: clearly trampled, but without
                 // turning the whole route into a completely empty corridor.
-                clusterDensity *= 1.0F - pathGrass * 0.85F;
+                clusterDensity *= 1.0F - pathGrass * 0.80F;
                 if (randomChannel(hash, 0xb5297a4dU) >
                     clusterDensity) {
                     continue;

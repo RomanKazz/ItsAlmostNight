@@ -53,7 +53,6 @@ class GameUi {
 
     void initialize();
     void shutdown();
-    void reloadThemeSlices();
 
     void drawPanel(Rectangle bounds, unsigned char alpha = 245) const;
     void drawInsetPanel(Rectangle bounds,
@@ -152,8 +151,8 @@ class GameUi {
     Texture2D wallBuildingIcon_{};
     Texture2D gateBuildingIcon_{};
     std::array<Texture2D, 3> modularBuildingIcons_{};
-    std::array<Texture2D, 5> buildingIcons_{};
-    std::array<Texture2D, 3> weaponIcons_{};
+    std::array<Texture2D, 9> buildingIcons_{};
+    std::array<Texture2D, 7> weaponIcons_{};
     Texture2D armorUpgradeIcon_{};
     Texture2D extraUpgradeIcon_{};
     Texture2D heartUpgradeIcon_{};

@@ -70,6 +70,20 @@ void Simulation::updateRunPhase(
         const int earlyInsightBonus = command.startWaveEarly
             ? earlyWaveInsightBonus()
             : 0;
+        if (command.startWaveEarly && buildings_.hasCore() &&
+            !unlimitedResources_) {
+            // The player has declared preparation complete. Resolve the
+            // production that waiting through the rest of daytime and sunset
+            // would have provided, so starting combat early is never an
+            // economic penalty.
+            const double skippedProductionSeconds = std::max(
+                0.0, phaseTimeRemaining_ - deltaSeconds) +
+                gameplay_.sunsetSeconds;
+            advanceBuildingProduction(skippedProductionSeconds);
+            advanceWorldLandmarkProduction(
+                skippedProductionSeconds * productionSpeedMultiplier_ *
+                runProductionSpeedMultiplier_);
+        }
         if (!sandboxMode_) {
             phaseTimeRemaining_ = std::max(
                 0.0, phaseTimeRemaining_ - deltaSeconds);
@@ -153,6 +167,14 @@ void Simulation::updateRunPhase(
             }
         }
     } else if (state_ == RunState::Sunset) {
+        if (command.startWaveEarly && !unlimitedResources_) {
+            const double skippedProductionSeconds = std::max(
+                0.0, phaseTimeRemaining_ - deltaSeconds);
+            advanceBuildingProduction(skippedProductionSeconds);
+            advanceWorldLandmarkProduction(
+                skippedProductionSeconds * productionSpeedMultiplier_ *
+                runProductionSpeedMultiplier_);
+        }
         phaseTimeRemaining_ = std::max(0.0, phaseTimeRemaining_ - deltaSeconds);
         if (phaseTimeRemaining_ <= 0.0 || command.startWaveEarly) {
             const auto core = buildings_.core();
@@ -183,7 +205,9 @@ void Simulation::updateRunPhase(
                 0, lootStacks_[lootUpgradeIndex(
                        LootUpgradeEffect::Key)] - 1);
             phaseTimeRemaining_ =
-                gameplay_.betweenWaveSeconds;
+                gameplay_.betweenWaveSeconds +
+                5.0 * static_cast<double>(runUpgradeStacks_[
+                    runUpgradeIndex(RunUpgradeEffect::LongerDay)]);
             phaseDuration_ = phaseTimeRemaining_;
         }
     }

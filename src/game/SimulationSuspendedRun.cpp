@@ -426,7 +426,9 @@ bool Simulation::loadSuspendedRunState(
         !foundations_.restoreStructures(
             saved.platformFrames, saved.modularWalls, saved.ramps) ||
         !resources_.restoreNodes(
-            saved.resourceNodes, saved.woodYieldMultiplier) ||
+            saved.resourceNodes, saved.woodYieldMultiplier,
+            1.0 + 0.15 * static_cast<double>(saved.runUpgradeStacks[
+                runUpgradeIndex(RunUpgradeEffect::RichResources)])) ||
         !lootChests_.restoreChests(saved.lootChests)) {
         return failLoad();
     }
@@ -519,6 +521,14 @@ bool Simulation::loadSuspendedRunState(
     runUpgradeSelectionsRemaining_ =
         saved.runUpgradeSelectionsRemaining;
     runUpgradeOfferGeneration_ = saved.runUpgradeOfferGeneration;
+    if (runUpgradeChoicePending_ &&
+        std::ranges::any_of(
+            runUpgradeChoices_.begin(),
+            runUpgradeChoices_.begin() +
+                static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
+            retiredRunUpgrade)) {
+        generateRunUpgradeChoices();
+    }
     stageCleared_ = saved.stageCleared;
     finalNight_ = false;
     waveStartCheckpoint_.reset();

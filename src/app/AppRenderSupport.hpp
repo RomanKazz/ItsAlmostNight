@@ -18,6 +18,11 @@ struct LootItemVisual {
     Color tint{WHITE};
 };
 
+struct ResourceAimHit {
+    EntityId id;
+    Vec3 position;
+};
+
 [[nodiscard]] LootItemVisual lootItemVisual(
     const SimulationSnapshot& snapshot,
     const LootChestInstance& chest);
@@ -91,7 +96,7 @@ void drawCentered(
     const SimulationSnapshot& snapshot,
     const std::function<float(EntityId, bool)>&
         gateOpenAmount = {});
-[[nodiscard]] std::optional<EntityId> preciseResourceAim(
+[[nodiscard]] std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
     const SimulationSnapshot& snapshot);
 [[nodiscard]] std::optional<EntityId>
@@ -116,6 +121,10 @@ void drawBuildGrid(
 void drawPlacementFootprint(
     const BuildingPreview& preview, Vector2 visualCenter,
     float visualYaw);
+void drawPlacementPreviewGeometry(
+    Renderer& renderer, BuildingType type, Vector3 position,
+    float yawRadians, std::uint8_t rotation,
+    std::uint8_t wallConnections = 0U);
 void drawTacticalGroundSector(
     Vector3 center, float radius, float yawRadians,
     float arcDegrees, Color color, float innerRadius = 0.0F);

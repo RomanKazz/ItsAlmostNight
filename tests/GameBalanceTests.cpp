@@ -58,10 +58,11 @@ void runGameBalanceTests() {
     require(
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&
             assetBalance.balance.gameplay.pickaxeRange == 4.0 &&
-            assetBalance.balance.gameplay.nightDurationSeconds == 75.0 &&
+            assetBalance.balance.gameplay.nightDurationSeconds == 60.0 &&
             assetBalance.balance.gameplay.firstNightDurationSeconds == 60.0 &&
-            assetBalance.balance.gameplay.nightDurationGrowthSeconds == 5.0 &&
-            assetBalance.balance.gameplay.betweenWaveSeconds == 60.0 &&
+            assetBalance.balance.gameplay.nightDurationGrowthSeconds == 0.0 &&
+            assetBalance.balance.gameplay.firstBuildPhaseSeconds == 75.0 &&
+            assetBalance.balance.gameplay.betweenWaveSeconds == 75.0 &&
             assetBalance.balance.gameplay.resourceToolDamageMultiplier ==
                 0.65,
         "resource gathering range is tuned separately from melee range");

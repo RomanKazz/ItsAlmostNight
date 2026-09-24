@@ -350,7 +350,9 @@ void AudioSystem::playEvent(
         playAt(
             event.sourceId ? turretHit_ : enemyHit_,
             event.position, snapshot,
-            event.sourceId ? 0.34F : 0.48F,
+            event.sourceId
+                ? (event.secondaryImpact ? 0.12F : 0.34F)
+                : 0.48F,
             variedPitch(0.06F));
         break;
     case GameEventType::Explosion:

@@ -110,8 +110,10 @@ class ResourceSystem {
     void reset();
     [[nodiscard]] bool restoreNodes(
         std::span<const ResourceNode> nodes,
-        double woodYieldMultiplier);
+        double woodYieldMultiplier,
+        double gatheringYieldMultiplier = 1.0);
     void setWoodYieldMultiplier(double multiplier);
+    void setGatheringYieldMultiplier(double multiplier);
     void tick(
         double deltaSeconds,
         std::span<const BuildingInstance> buildings = {},
@@ -150,6 +152,7 @@ class ResourceSystem {
     std::vector<ResourceNode> nodes_;
     bool collisionGeometryDirty_{true};
     double woodYieldMultiplier_{1.0};
+    double gatheringYieldMultiplier_{1.0};
 };
 
 } // namespace ian

@@ -1,4 +1,5 @@
 #include "app/App.hpp"
+#include "app/ActionModeEquipment.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "buildings/BuildingHotbarLayout.hpp"
@@ -36,7 +37,6 @@ void App::update() {
         renderer_->settings().fullscreen != fullscreenApplied_) {
         applyFullscreenSetting(renderer_->settings().fullscreen);
     }
-    if (uiEditor_.visible()) return;
     if (pendingLootGrant_) {
         for (int index = 0; index < pendingLootGrant_->count; ++index) {
             simulation_.grantLootUpgrade(
@@ -46,7 +46,7 @@ void App::update() {
         pendingLootGrant_.reset();
     }
     if (pendingSandboxCardGrant_) {
-        const bool granted = simulation_.grantSandboxRunUpgrade(
+        const bool granted = simulation_.grantDebugRunUpgrade(
             *pendingSandboxCardGrant_);
         statusMessage_ = granted
             ? "SANDBOX CARD GRANTED"
@@ -324,6 +324,21 @@ void App::update() {
         1.0F - std::exp(
                    -14.0F *
                    static_cast<float>(frameSeconds));
+    outgoingPreviewRemaining_ = std::max(
+        0.0, outgoingPreviewRemaining_ - frameSeconds);
+    if (outgoingPreviewRemaining_ <= 0.0) {
+        outgoingBuildingPreview_.reset();
+        outgoingPreviewCenter_.reset();
+        outgoingPlatformPreview_.reset();
+        outgoingWallPreview_.reset();
+        outgoingRampPreview_.reset();
+        outgoingModularPreviewOrigin_.reset();
+    }
+    hotbarModeBlend_ = std::clamp(
+        hotbarModeBlend_ +
+            (actionMode_ == ActionMode::Buildings ? 1.0F : -1.0F) *
+                static_cast<float>(frameSeconds / 0.28),
+        0.0F, 1.0F);
     const BuildingHotbarLayout buildingLayout =
         makeBuildingHotbarLayout(
             hotbarSnapshot.unlockedBuildings,
@@ -481,36 +496,13 @@ void App::update() {
     if (renderer_ && renderer_->graphicsPanelVisible() &&
         graphicsPanelTab_ == ToolSettingsTab) {
         desiredToolVisual = toolPanelPreviewVisual_;
+    } else if (actionMode_ == ActionMode::Buildings) {
+        desiredToolVisual = FirstPersonToolVisual::None;
     } else if (contextualHammerRemaining_ > 0.0) {
         desiredToolVisual = FirstPersonToolVisual::Hammer;
     } else {
-        switch (hotbarSnapshot.selectedWeapon) {
-        case PlayerWeapon::LegacyBareHands:
-        case PlayerWeapon::Rifle:
-            desiredToolVisual = FirstPersonToolVisual::None;
-            break;
-        case PlayerWeapon::Bomb:
-            desiredToolVisual = FirstPersonToolVisual::Bomb;
-            break;
-        case PlayerWeapon::Axe:
-            desiredToolVisual = FirstPersonToolVisual::Axe;
-            break;
-        case PlayerWeapon::Pickaxe:
-            desiredToolVisual = FirstPersonToolVisual::Pickaxe;
-            break;
-        case PlayerWeapon::Club:
-            desiredToolVisual = FirstPersonToolVisual::Club;
-            break;
-        case PlayerWeapon::IceWand:
-            desiredToolVisual = FirstPersonToolVisual::IceWand;
-            break;
-        case PlayerWeapon::FireWand:
-            desiredToolVisual = FirstPersonToolVisual::FireWand;
-            break;
-        case PlayerWeapon::Hammer:
-            desiredToolVisual = FirstPersonToolVisual::Hammer;
-            break;
-        }
+        desiredToolVisual = toolVisualForWeapon(
+            hotbarSnapshot.selectedWeapon);
     }
     contextualHammerRemaining_ = std::max(
         0.0, contextualHammerRemaining_ - frameSeconds);
@@ -554,7 +546,7 @@ void App::update() {
             toolSwapDuration_ = std::clamp(
                 static_cast<double>(activeToolTuning().swapDuration) *
                     ToolSwapDurationScale,
-                0.40, 1.20);
+                0.30, 0.58);
             toolSwapRemaining_ = toolSwapDuration_;
         }
     }
@@ -592,7 +584,8 @@ void App::update() {
         (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
          displayedToolVisual_ == FirstPersonToolVisual::Club) ==
             toolSwingUsesAxe_) {
-        toolSwingDuration_ = activeToolTuning().swingDuration;
+        toolSwingDuration_ = toolSwingDurationFor(
+            hotbarSnapshot, displayedToolVisual_);
         toolSwingRemaining_ = toolSwingDuration_;
         chooseHarvestSwingAnimation(displayedToolVisual_);
         if (displayedToolVisual_ == FirstPersonToolVisual::Axe ||
@@ -685,10 +678,11 @@ void App::update() {
     // Tower damage is simulated when the shot fires, while its visible
     // projectile reaches the enemy only at the end of this timeline.
     for (const ArrowVisual& arrow : arrowVisuals_) {
-        if (arrow.flashTarget && arrow.remaining <= frameSeconds) {
-            startEnemyHitFlash(
-                *arrow.flashTarget,
-                simulation_.snapshot().elapsedSeconds);
+        const double activeSeconds = std::max(
+            0.0, frameSeconds - arrow.startDelayRemaining);
+        if (arrow.flashTarget && activeSeconds > 0.0 &&
+            arrow.remaining <= activeSeconds) {
+            startEnemyHitFlash(*arrow.flashTarget);
         }
     }
     presentation::advanceTimeline(
@@ -950,6 +944,36 @@ void App::update() {
     const std::span<const GameEvent> events = gameEventBuffer_;
     recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
+    if (actionMode_ == ActionMode::Buildings &&
+        buildingHotbarCategory_ == BuildingHotbarCategory::Base &&
+        eventSnapshot.coreId) {
+        selectNextBuildingCategory(eventSnapshot, 1);
+    }
+    if (selectBuildingAfterCorePlacement_) {
+        if (actionMode_ != ActionMode::Buildings) {
+            selectBuildingAfterCorePlacement_ = false;
+        } else if (eventSnapshot.selectedBuilding ||
+                   foundationBuildMode_) {
+            selectBuildingAfterCorePlacement_ = false;
+        } else {
+            const BuildingHotbarLayout layout =
+                makeBuildingHotbarLayout(
+                    eventSnapshot.unlockedBuildings,
+                    buildingHotbarCategory_, true,
+                    eventSnapshot.coreLevel,
+                    eventSnapshot.sandboxMode ||
+                        eventSnapshot.unlimitedResources);
+            if (layout.count > 0U) {
+                const BuildingType building =
+                    layout.indexOf(lastBuildingSelection_)
+                        ? lastBuildingSelection_
+                        : layout.types[0];
+                lastBuildingSelection_ = building;
+                pendingBuildingCancel_ = false;
+                pendingBuildingSelection_ = building;
+            }
+        }
+    }
     refreshDecorationExclusions(eventSnapshot);
     for (const BuildingInstance& building :
          eventSnapshot.buildings) {
@@ -1351,7 +1375,8 @@ void App::update() {
         placementPreviewCenter_.reset();
         placementPreviewGrid_.reset();
         placementPreviewType_.reset();
-        placementPreviewEntranceSeconds_ = 0.0;
+        placementPreviewEntranceSeconds_ = std::min(
+            0.5, placementPreviewEntranceSeconds_ + frameSeconds);
     } else {
         modularPreviewVisualOrigin_.reset();
         placementPreviewCenter_.reset();

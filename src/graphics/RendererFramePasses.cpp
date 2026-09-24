@@ -963,6 +963,15 @@ void Renderer::setSelectionOutlineTint(Color tint) {
     selectionOutlineTint_ = tint;
 }
 
+void Renderer::setSelectionOutlineRadius(float radiusPixels) {
+    selectionOutlineRadiusPixels_ = std::clamp(
+        radiusPixels, 1.0F, 12.0F);
+}
+
+void Renderer::setSelectionOutlineDepthOcclusion(bool enabled) {
+    selectionOutlineDepthOcclusion_ = enabled;
+}
+
 void Renderer::endSelectionMaskPass() {
     if (!selectionMaskPassOpen_) {
         return;
@@ -980,6 +989,8 @@ void Renderer::clearSelectionOutline() {
     selectionMaskReady_ = false;
     selectionOutlineBounds_.reset();
     selectionOutlineTint_ = WHITE;
+    selectionOutlineRadiusPixels_ = 6.0F;
+    selectionOutlineDepthOcclusion_ = true;
 }
 
 void Renderer::drawSelectionOutline() {
@@ -1011,9 +1022,21 @@ void Renderer::drawSelectionOutline() {
             std::sin(
                 static_cast<float>(GetTime()) * 3.2F);
     const int outlineRadius = std::clamp(
-        static_cast<int>(std::ceil(6.0F / outputScale)), 1, 12);
+        static_cast<int>(std::ceil(
+            selectionOutlineRadiusPixels_ / outputScale)),
+        1, 12);
     SetShaderValue(shader, selectionOutlineRadiusLocation_,
                    &outlineRadius, SHADER_UNIFORM_INT);
+    const float depthOcclusionEnabled =
+        selectionOutlineDepthOcclusion_ && usingOffscreenTarget_ &&
+                resources_.sceneTargetValid()
+            ? 1.0F : 0.0F;
+    SetShaderValue(
+        shader, selectionOutlineDepthOcclusionEnabledLocation_,
+        &depthOcclusionEnabled, SHADER_UNIFORM_FLOAT);
+    SetShaderValueMatrix(
+        shader, selectionOutlineInverseProjectionLocation_,
+        ssaoInverseProjection_);
     const Rectangle source{
         0.0F, 0.0F,
         static_cast<float>(target.texture.width),
@@ -1040,6 +1063,11 @@ void Renderer::drawSelectionOutline() {
                 std::ceil(bounds.height * boundsScaleY))));
     }
     BeginShaderMode(shader);
+    if (depthOcclusionEnabled > 0.5F) {
+        SetShaderValueTexture(
+            shader, selectionOutlineSceneDepthLocation_,
+            resources_.sceneTarget().depth);
+    }
     const auto brightness =
         static_cast<unsigned char>(
             std::lround(242.0F + pulse * 7.0F));
@@ -1091,6 +1119,20 @@ void Renderer::beginWorldShader(const WorldLighting& lighting) {
     bindShadowMap();
 }
 
+void Renderer::beginColorOnlyWorldEffects() {
+    if (!usingOffscreenTarget_ ||
+        !resources_.sceneScreenSpaceBuffers()) return;
+    rlDrawRenderBatchActive();
+    rlActiveDrawBuffers(1);
+}
+
+void Renderer::endColorOnlyWorldEffects() {
+    if (!usingOffscreenTarget_ ||
+        !resources_.sceneScreenSpaceBuffers()) return;
+    rlDrawRenderBatchActive();
+    rlActiveDrawBuffers(2);
+}
+
 void Renderer::setWorldMaterial(const WorldMaterialState& material) {
     if (!worldShaderActive_) {
         return;
@@ -1103,6 +1145,7 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.baseColor.y == worldMaterial_.baseColor.y &&
         material.baseColor.z == worldMaterial_.baseColor.z &&
         material.baseColor.w == worldMaterial_.baseColor.w &&
+        material.unlitAmount == worldMaterial_.unlitAmount &&
         material.bakedAo == worldMaterial_.bakedAo &&
         material.vertexAoAmount == worldMaterial_.vertexAoAmount &&
         material.screenAoAmount == worldMaterial_.screenAoAmount &&
@@ -1203,7 +1246,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.ghostOpacity == worldMaterial_.ghostOpacity &&
         material.outlineMaterialClassOverride ==
             worldMaterial_.outlineMaterialClassOverride &&
-        material.inkOutlineEligible == worldMaterial_.inkOutlineEligible) {
+        material.inkOutlineEligible == worldMaterial_.inkOutlineEligible &&
+        material.inkOccluder == worldMaterial_.inkOccluder) {
         return;
     }
 

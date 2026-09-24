@@ -199,10 +199,12 @@ const bool tuningPreview =
 const bool showFirstPersonTool =
     (tuningPreview ||
      displayedToolVisual_ != FirstPersonToolVisual::None) &&
-    (tuningPreview || actionModeUsesEquipment(actionMode_)) &&
+    (tuningPreview || actionModeUsesEquipment(actionMode_) ||
+     toolSwapRemaining_ > 0.0) &&
     !hudHidden_ &&
-    !snapshot.selectedBuilding &&
-    !foundationBuildMode_ &&
+    (tuningPreview || actionMode_ == ActionMode::Buildings ||
+     toolSwapRemaining_ > 0.0 ||
+     (!snapshot.selectedBuilding && !foundationBuildMode_)) &&
     !snapshot.playerRespawning;
 const auto viewModelStart = PerformanceClock::now();
 if (showFirstPersonTool) {
@@ -276,10 +278,7 @@ if (showFirstPersonTool) {
             std::clamp(phase, 0.0F, 1.0F);
         const float smooth =
             clampedPhase * clampedPhase *
-            clampedPhase *
-            (clampedPhase *
-                 (clampedPhase * 6.0F - 15.0F) +
-             10.0F);
+            (3.0F - 2.0F * clampedPhase);
         renderTuning.position.y -=
             activeToolTuning().swapDrop * smooth;
     }
@@ -346,6 +345,9 @@ if (!hudHidden_) {
                 : std::nullopt;
         });
     drawProductionVisuals(camera);
+    // Submit every world-space overlay while depth testing is still disabled.
+    // Individual bars and production rewards intentionally share this flush.
+    rlDrawRenderBatchActive();
     rlEnableDepthTest();
     EndMode3D();
 }
@@ -360,8 +362,10 @@ if (iceImpactFlashRemaining_ > 0.0 &&
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                   {142, 229, 255, alpha});
 }
-if (!hudHidden_ && !coreDefenseMenuVisible_) {
+if (!hudHidden_) {
+    beginSdfUiTextBatch();
     drawFloatingDamageNumbers(camera);
+    endSdfUiTextBatch();
 }
 if (showTerrainWireframe_) {
     drawUiText(
@@ -413,7 +417,7 @@ if (showColliders_) {
 // Interaction prompts use a world anchor but are composited in
 // screen space after the 3D/post-process passes.
 const auto interactionPromptStart = PerformanceClock::now();
-if (!hudHidden_ && !coreDefenseMenuVisible_) {
+if (!hudHidden_) {
     auto interactionSnapshot = feedbackSnapshot;
     // Hovering is intentionally quiet. Ordinary buildings use the
     // pinned stats card, while modular pieces reuse their compact
@@ -446,7 +450,7 @@ if (showBuildingContextCard) {
         buildingContextCardStats_;
 }
 const auto hudCoreStart = PerformanceClock::now();
-if (!hudHidden_ && !coreDefenseMenuVisible_) {
+if (!hudHidden_) {
     beginSdfUiTextBatch();
     const auto targetHealthStart = PerformanceClock::now();
     targetHealthBar_.drawScreenOverlay();
@@ -460,6 +464,7 @@ if (!hudHidden_ && !coreDefenseMenuVisible_) {
             .statusMessageShakeRemaining =
                 statusMessageShakeRemaining_,
             .actionMode = actionMode_,
+            .hotbarModeBlend = hotbarModeBlend_,
             .foundationBuildMode =
                 foundationBuildMode_,
             .selectedModularBuildPiece =
@@ -874,10 +879,7 @@ resourceGainMilliseconds =
 
 const auto minimapStart = PerformanceClock::now();
 if (!hudHidden_) {
-    drawMinimapHud(
-        ui_, presentationSnapshot,
-        minimapExpansion_,
-        userSettings_.accessibility.showFps ? 56.0F : 20.0F);
+    drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_);
     const auto& minimapTimings =
         minimapRenderPerformanceStats();
     minimapSetupMilliseconds = minimapTimings.setupMs;
@@ -893,6 +895,11 @@ const auto uiOverlaysStart = PerformanceClock::now();
 const bool unobscuredColorPreview =
     renderer_->graphicsPanelVisible() &&
     graphicsPanelTab_ == ColorSettingsTab;
+// Run-state and level-up overlays contain several animated SDF labels. Draw
+// them as one atlas batch: rendering every label separately is especially
+// expensive while the level-up cards animate and their scale/alpha changes
+// every frame, preventing the per-label texture cache from being reused.
+beginSdfUiTextBatch();
 if (!unobscuredColorPreview) {
     drawRunStateOverlay(snapshot);
 }
@@ -902,6 +909,7 @@ drawRunUpgradeOverlay(
     runUpgradeOverlayExitSeconds_,
     runUpgradePendingChoice_,
     runUpgradeCardHoverAmounts_);
+endSdfUiTextBatch();
 if (snapshot.state == RunState::Paused &&
     !renderer_->graphicsPanelVisible()) {
     const float centerX =

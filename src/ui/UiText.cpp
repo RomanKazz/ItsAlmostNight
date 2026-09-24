@@ -39,6 +39,7 @@ struct QueuedSdfText {
     SdfUiTextStyle style{};
     float rotationRadians{};
     Vector2 rotationCenter{};
+    bool cacheable{true};
 };
 std::vector<QueuedSdfText> sdfTextBatch;
 bool sdfTextBatchActive{};
@@ -446,7 +447,10 @@ SdfUiTextStyle textLayerStyle(const SdfUiTextStyle& style,
 }
 
 bool queueSdfText(std::string_view text, Vector2 position,
-                  float scaledSize, const SdfUiTextStyle& style) {
+                  float scaledSize, const SdfUiTextStyle& style,
+                  float rotationRadians = 0.0F,
+                  Vector2 rotationCenter = {},
+                  bool cacheable = true) {
     if (!sdfTextBatchActive || !isSdfTextReady(scaledSize) ||
         isStandaloneInfinity(text) || isStandaloneCheck(text)) {
         return false;
@@ -463,6 +467,9 @@ bool queueSdfText(std::string_view text, Vector2 position,
         .position = position,
         .scaledSize = scaledSize,
         .style = style,
+        .rotationRadians = rotationRadians,
+        .rotationCenter = rotationCenter,
+        .cacheable = cacheable,
     });
     return true;
 }
@@ -704,6 +711,11 @@ struct CachedSdfTextDraw {
     Rectangle destination{};
 };
 
+// Text is rendered on the main thread. Retain these buffers between frames so
+// ordinary HUD and combat batches do not allocate temporary pointer arrays.
+std::vector<const QueuedSdfText*> sdfTextPointerScratch;
+std::vector<CachedSdfTextDraw> sdfTextCachedDrawScratch;
+
 std::size_t currentSdfTextBatchHash() {
     std::size_t hash = sdfTextBatch.size();
     hashCombine(hash, static_cast<std::size_t>(GetScreenWidth()));
@@ -724,6 +736,12 @@ std::size_t currentSdfTextBatchHash() {
             queued.style.outlinePixels));
         hashCombine(hash, std::bit_cast<std::uint32_t>(
             queued.style.softness));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.rotationRadians));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.rotationCenter.x));
+        hashCombine(hash, std::bit_cast<std::uint32_t>(
+            queued.rotationCenter.y));
     }
     return hash;
 }
@@ -910,36 +928,44 @@ void drawSdfTextBatch() {
     // than as many separately cached text textures and texture switches.
     constexpr std::size_t DirectAtlasBatchThreshold = 8U;
     if (sdfTextBatch.size() >= DirectAtlasBatchThreshold) {
-        std::vector<const QueuedSdfText*> items;
-        items.reserve(sdfTextBatch.size());
+        sdfTextPointerScratch.clear();
+        sdfTextPointerScratch.reserve(sdfTextBatch.size());
         for (const QueuedSdfText& queued : sdfTextBatch) {
-            items.push_back(&queued);
+            sdfTextPointerScratch.push_back(&queued);
         }
-        if (rlGetActiveFramebuffer() == 0U &&
-            drawCachedHudTextBatch(items)) {
+        const bool cacheable = std::ranges::all_of(
+            sdfTextBatch,
+            [](const QueuedSdfText& queued) {
+                return queued.cacheable;
+            });
+        if (cacheable && rlGetActiveFramebuffer() == 0U &&
+            drawCachedHudTextBatch(sdfTextPointerScratch)) {
             return;
         }
-        drawSdfTextItemsDirect(items);
+        drawSdfTextItemsDirect(sdfTextPointerScratch);
         return;
     }
 
-    std::vector<const QueuedSdfText*> directItems;
-    directItems.reserve(sdfTextBatch.size());
-    std::vector<CachedSdfTextDraw> cachedDraws;
-    cachedDraws.reserve(sdfTextBatch.size());
+    sdfTextPointerScratch.clear();
+    sdfTextPointerScratch.reserve(sdfTextBatch.size());
+    sdfTextCachedDrawScratch.clear();
+    sdfTextCachedDrawScratch.reserve(sdfTextBatch.size());
 
     // On-demand cache rendering temporarily changes the framebuffer. Keep
     // nested render-texture users on the direct path so their target remains
     // untouched.
     const bool mayBuildCache = rlGetActiveFramebuffer() == 0U;
     for (const QueuedSdfText& queued : sdfTextBatch) {
-        CachedSdfTextTexture* cached = mayBuildCache
+        // Rotated text uses a screen-space pivot, so caching it into a small
+        // local texture would change the pivot and produce incorrect output.
+        CachedSdfTextTexture* cached =
+            mayBuildCache && queued.cacheable
             ? cachedSdfTextTexture(queued) : nullptr;
         if (cached == nullptr) {
-            directItems.push_back(&queued);
+            sdfTextPointerScratch.push_back(&queued);
             continue;
         }
-        cachedDraws.push_back({
+        sdfTextCachedDrawScratch.push_back({
             .texture = cached->target.texture,
             .destination = {
                 queued.position.x + cached->drawOffset.x,
@@ -950,10 +976,10 @@ void drawSdfTextBatch() {
         });
     }
 
-    drawSdfTextItemsDirect(directItems);
-    if (!cachedDraws.empty()) {
+    drawSdfTextItemsDirect(sdfTextPointerScratch);
+    if (!sdfTextCachedDrawScratch.empty()) {
         BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
-        for (const CachedSdfTextDraw& draw : cachedDraws) {
+        for (const CachedSdfTextDraw& draw : sdfTextCachedDrawScratch) {
             DrawTexturePro(
                 draw.texture,
                 {0.0F, 0.0F,
@@ -1176,6 +1202,10 @@ void initializeUiText() {
     if (initialized) {
         return;
     }
+    constexpr std::size_t ExpectedHudTextItems = 128U;
+    sdfTextBatch.reserve(ExpectedHudTextItems);
+    sdfTextPointerScratch.reserve(ExpectedHudTextItems);
+    sdfTextCachedDrawScratch.reserve(ExpectedHudTextItems);
     std::array<int, GlyphCount> codepoints{};
     int index = 0;
     for (int codepoint = AsciiFirst; codepoint <= AsciiLast;
@@ -1372,6 +1402,18 @@ void drawRotatedStyledUiText(
     const SdfUiTextStyle& style) {
     const ScopedTextPerformanceSample performanceSample(text.size());
     const float scaledSize = fontSize * UiTextScale;
+    if (sdfTextBatchActive) {
+        const Vector2 measured = measureUiText(text, fontSize);
+        const Vector2 position{
+            center.x - measured.x * 0.5F,
+            center.y - measured.y * 0.5F,
+        };
+        if (queueSdfText(
+                text, position, scaledSize, style,
+                rotationDegrees * DEG2RAD, center, false)) {
+            return;
+        }
+    }
     const auto draw = [center, scaledSize, rotationDegrees, style](
                           const char* value) {
         const Font font = uiFont();

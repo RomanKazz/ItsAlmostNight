@@ -324,7 +324,8 @@ void Simulation::updateChallengeColumns(
     if (!activeChallengeColumn_) {
         return;
     }
-    if (enemies_.activeCount() == 0U) {
+    if (enemies_.activeCount() == 0U &&
+        !enemies_.hasPendingSplits()) {
         ChallengeColumnInstance& column =
             challengeColumns_[*activeChallengeColumn_];
         column.state = ChallengeColumnState::Completed;

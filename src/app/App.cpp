@@ -152,6 +152,22 @@ const FirstPersonToolTuning& App::activeToolTuning() const {
     return toolTunings_[index];
 }
 
+double App::toolSwingDurationFor(
+    const SimulationSnapshot& snapshot,
+    FirstPersonToolVisual visual) const {
+    const bool quickTool = visual == FirstPersonToolVisual::Axe ||
+        visual == FirstPersonToolVisual::Pickaxe;
+    const double speed =
+        runGatheringSpeedMultiplier(snapshot.runUpgradeStacks[
+            runUpgradeIndex(RunUpgradeEffect::AttackSpeed)]) *
+        (quickTool
+             ? runGatheringSpeedMultiplier(
+                   snapshot.runUpgradeStacks[runUpgradeIndex(
+                       RunUpgradeEffect::GatheringSpeed)])
+             : 1.0);
+    return static_cast<double>(activeToolTuning().swingDuration) / speed;
+}
+
 App::App()
     : simulation_(
       loadAppBalance(), loadAppMap(),
@@ -246,7 +262,6 @@ int App::run() {
     modularBuildingRenderer_.setRenderer(&*renderer_);
     rebuildTerrainGraphics();
     ui_.initialize();
-    uiEditor_.initialize();
     audio_.initialize();
     performanceLoggingApplied_ =
         renderer_->settings().performanceLogging;
@@ -423,7 +438,6 @@ int App::run() {
     static_cast<void>(saveSuspendedRun());
     persistUserSettings(true);
     persistMetaProgression();
-    uiEditor_.shutdown();
     ui_.shutdown();
     audio_.shutdown();
     vfxImpactShader_.unload();
@@ -722,188 +736,5 @@ void App::drawPerformanceOverlay(
         16, "  COMPOSITE", rendererStats.gpuViewModelComposite);
     detailMetricLine(17, "GPU UI", rendererStats.gpuUi);
 }
-
-void App::drawBuildModePie() const {
-    if (!buildModePieVisible_) {
-        return;
-    }
-
-    constexpr float OuterRadius = 168.0F;
-    constexpr float InnerRadius = 58.0F;
-    constexpr float LabelRadius = 116.0F;
-    constexpr Color FrameColor{104, 60, 37, 255};
-    constexpr Color FrameHighlight{230, 188, 147, 255};
-    constexpr Color SurfaceColor{117, 76, 52, 250};
-    constexpr Color SelectedSurface{230, 188, 147, 255};
-    const Vector2 center{
-        static_cast<float>(GetScreenWidth()) * 0.5F,
-        static_cast<float>(GetScreenHeight()) * 0.5F,
-    };
-    struct Segment {
-        ActionMode mode;
-        float startAngle;
-        float endAngle;
-        Vector2 direction;
-        const char* subtitle;
-        Color accent;
-    };
-    constexpr std::array<Segment, 2> Segments{{
-        {ActionMode::Equipment, 180.0F, 360.0F, {0.0F, -1.0F},
-         "GATHER & COMBAT", {104, 220, 148, 255}},
-        {ActionMode::Buildings, 0.0F, 180.0F, {0.0F, 1.0F},
-         "STRUCTURES & MODULAR", {236, 190, 91, 255}},
-    }};
-
-    DrawCircleV(
-        {center.x + 3.0F, center.y + 5.0F},
-        OuterRadius + 9.0F, {49, 30, 22, 115});
-    DrawCircleV(center, OuterRadius + 7.0F, FrameColor);
-    DrawCircleV(center, OuterRadius + 3.0F, FrameHighlight);
-    DrawCircleV(center, OuterRadius, SurfaceColor);
-
-    for (const Segment& segment : Segments) {
-        const bool selected =
-            buildModePieChoice_ == segment.mode;
-        const bool active = actionMode_ == segment.mode;
-        const Color fill = selected
-            ? SelectedSurface
-            : active
-                ? Color{151, 104, 70, 252}
-                : SurfaceColor;
-        DrawRing(
-            center, InnerRadius + 5.0F,
-            OuterRadius - (selected ? 1.0F : 5.0F),
-            segment.startAngle, segment.endAngle,
-            64, fill);
-        if (selected || active) {
-            DrawRing(
-                center, OuterRadius - 8.0F,
-                OuterRadius - 3.0F,
-                segment.startAngle, segment.endAngle,
-                64, selected
-                    ? UiWhite
-                    : segment.accent);
-        }
-
-        const Vector2 labelCenter{
-            center.x + segment.direction.x * LabelRadius,
-            center.y + segment.direction.y * LabelRadius,
-        };
-        SdfUiTextStyle labelStyle{};
-        labelStyle.fillColor = UiWhite;
-        labelStyle.outlineColor = {49, 49, 49, 255};
-        labelStyle.shadowColor = {82, 58, 39, 220};
-        labelStyle.shadowOffsetPixels = {0.0F, 2.0F};
-        labelStyle.outlinePixels = 2.0F;
-        const std::string_view label =
-            actionModeLabel(segment.mode);
-        const Vector2 labelSize = measureUiText(label, 17.0F);
-        drawStyledSdfUiText(
-            label,
-            {labelCenter.x - labelSize.x * 0.5F,
-             labelCenter.y - 13.0F},
-            17.0F, labelStyle);
-        const std::string_view subtitle = segment.subtitle;
-        const Vector2 subtitleSize =
-            measureUiText(subtitle, 9.0F);
-        SdfUiTextStyle subtitleStyle = labelStyle;
-        subtitleStyle.fillColor = selected
-            ? Color{112, 69, 45, 255}
-            : Color{238, 218, 183, 245};
-        subtitleStyle.outlinePixels = selected ? 0.8F : 1.2F;
-        subtitleStyle.shadowOffsetPixels = {0.0F, 1.0F};
-        drawStyledSdfUiText(
-            subtitle,
-            {labelCenter.x - subtitleSize.x * 0.5F,
-             labelCenter.y + 10.0F},
-            9.0F, subtitleStyle);
-        if (active) {
-            DrawCircleV(
-                {labelCenter.x,
-                 labelCenter.y + 31.0F},
-                4.0F,
-                selected
-                    ? FrameColor
-                    : segment.accent);
-        }
-    }
-
-    DrawRectangleRec(
-        {center.x - OuterRadius, center.y - 2.0F,
-         OuterRadius - InnerRadius - 3.0F, 4.0F},
-        FrameColor);
-    DrawRectangleRec(
-        {center.x + InnerRadius + 3.0F, center.y - 2.0F,
-         OuterRadius - InnerRadius - 3.0F, 4.0F},
-        FrameColor);
-    DrawCircleV(center, InnerRadius + 5.0F, FrameColor);
-    DrawCircleV(center, InnerRadius + 1.0F, FrameHighlight);
-    DrawCircleV(center, InnerRadius - 4.0F,
-                {76, 54, 43, 255});
-    const ActionMode centerMode =
-        buildModePieChoice_.value_or(actionMode_);
-    const std::string_view centerCaption =
-        buildModePieChoice_ ? "SELECT" : "CURRENT";
-    const Vector2 captionSize =
-        measureUiText(centerCaption, 9.0F);
-    SdfUiTextStyle centerStyle{};
-    centerStyle.fillColor = {242, 222, 190, 255};
-    centerStyle.outlineColor = {49, 49, 49, 255};
-    centerStyle.shadowColor = {31, 24, 20, 210};
-    centerStyle.shadowOffsetPixels = {0.0F, 2.0F};
-    centerStyle.outlinePixels = 1.5F;
-    drawStyledSdfUiText(
-        centerCaption,
-        {center.x - captionSize.x * 0.5F,
-         center.y - 22.0F},
-        9.0F, centerStyle);
-    const std::string_view centerLabel =
-        actionModeLabel(centerMode);
-    const float centerFont = centerLabel.size() > 7U
-        ? 13.0F : 15.0F;
-    const Vector2 centerLabelSize =
-        measureUiText(centerLabel, centerFont);
-    centerStyle.fillColor = {255, 239, 199, 255};
-    centerStyle.outlinePixels = 2.0F;
-    drawStyledSdfUiText(
-        centerLabel,
-        {center.x - centerLabelSize.x * 0.5F,
-         center.y - 5.0F},
-        centerFont, centerStyle);
-
-    const float length =
-        Vector2Length(buildModePieDirection_);
-    if (length > 8.0F) {
-        const Vector2 direction =
-            Vector2Scale(
-                buildModePieDirection_,
-                1.0F / length);
-        const Vector2 pointer =
-            Vector2Add(
-                center,
-                Vector2Scale(direction, InnerRadius - 13.0F));
-        DrawCircleV(pointer, 8.0F,
-                    {255, 213, 112, 255});
-        DrawCircleLines(
-            static_cast<int>(pointer.x),
-            static_cast<int>(pointer.y),
-            11.0F, {244, 240, 223, 190});
-    }
-
-    const std::string key = keyboardKeyName(controlKey(
-        userSettings_.controls, ControlAction::BuildMode));
-    const std::string hint =
-        "HOLD " + key + "   CHOOSE   RELEASE";
-    const float hintWidth = measureUiText(hint, 12.0F).x;
-    SdfUiTextStyle hintStyle = centerStyle;
-    hintStyle.fillColor = {255, 239, 207, 245};
-    hintStyle.outlinePixels = 1.7F;
-    drawStyledSdfUiText(
-        hint,
-        {center.x - hintWidth * 0.5F,
-         center.y + OuterRadius + 22.0F},
-        12.0F, hintStyle);
-}
-
 
 } // namespace ian

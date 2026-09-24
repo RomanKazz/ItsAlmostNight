@@ -32,6 +32,7 @@ struct TowerShot {
     Vec3 hitPosition;
     BuildingType type{BuildingType::Turret};
     double damage{};
+    double payloadDamage{};
     std::uint8_t muzzleIndex{};
     bool secondaryImpact{};
     bool killed;
@@ -56,7 +57,8 @@ class TowerSystem {
     void reset();
     void setModifiers(double damage, double range,
                            double fireRate, double highGroundDamage,
-                           int extraTargetCount = 0);
+                           int extraTargetCount = 0,
+                           int gunPiercingCount = 0);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const TowerShot> tick(double deltaSeconds,
                                     const std::vector<BuildingInstance>& buildings,
@@ -72,6 +74,7 @@ class TowerSystem {
     double fireRateMultiplier_{1.0};
     double highGroundDamageMultiplier_{1.0};
     int extraTargetCount_{};
+    int gunPiercingCount_{};
 };
 
 } // namespace ian

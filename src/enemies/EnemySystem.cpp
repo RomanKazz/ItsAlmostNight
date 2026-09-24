@@ -1,4 +1,5 @@
 #include "enemies/EnemySystem.hpp"
+#include "enemies/EnemyNavigation.hpp"
 
 #include "core/Geometry.hpp"
 
@@ -9,12 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <chrono>
 #include <limits>
-#include <map>
-#include <queue>
-#include <tuple>
-#include <utility>
 
 namespace ian {
 namespace {
@@ -37,363 +33,17 @@ constexpr double Pi = 3.14159265358979323846;
 constexpr double BuildingGridCellSize = 2.0;
 constexpr double BuildingGridMinimum = -192.0;
 constexpr double SplitWindupDuration = 0.38;
-constexpr double BossPhaseTransitionDuration = 1.05;
-constexpr double BossSlamWindupDuration = 1.25;
-constexpr double BossWarCryWindupDuration = 1.35;
-constexpr double BossSlamRadius = 5.25;
-constexpr double BossPhaseTwoSlamDamage = 28.0;
-constexpr double BossPhaseThreeSlamDamage = 36.0;
 constexpr int BuildingGridSize = 192;
 constexpr int BuildingGridCellCount =
     BuildingGridSize * BuildingGridSize;
 
-double pointSegmentDistanceSquared(
-    Vec3 point, Vec3 start, Vec3 end) {
-    const Vec3 segment{
-        end.x - start.x,
-        end.y - start.y,
-        end.z - start.z};
-    const Vec3 offset{
-        point.x - start.x,
-        point.y - start.y,
-        point.z - start.z};
-    const double lengthSquared =
-        segment.x * segment.x + segment.y * segment.y +
-        segment.z * segment.z;
-    const double projection = lengthSquared > 1e-12
-        ? std::clamp(
-              (offset.x * segment.x + offset.y * segment.y +
-               offset.z * segment.z) / lengthSquared,
-              0.0, 1.0)
-        : 0.0;
-    const double dx = offset.x - segment.x * projection;
-    const double dy = offset.y - segment.y * projection;
-    const double dz = offset.z - segment.z * projection;
-    return dx * dx + dy * dy + dz * dz;
+[[nodiscard]] double roundedEnemyHealth(double rawHealth) {
+    const double safeHealth = std::max(rawHealth, 1.0);
+    const double step = safeHealth < 20.0
+        ? 1.0
+        : safeHealth < 100.0 ? 5.0 : 10.0;
+    return std::max(step, std::round(safeHealth / step) * step);
 }
-
-struct TraversalEdge {
-    int to{-1};
-    const RampInstance* ramp{};
-};
-
-struct RampEndpoints {
-    Vec3 lowInside;
-    Vec3 highInside;
-    Vec3 lowConnection;
-    Vec3 highConnection;
-};
-
-RampEndpoints rampEndpoints(
-    const RampInstance& ramp, double cellSize) {
-    const bool alongZ =
-        ramp.rotation == Rotation::Deg0 ||
-        ramp.rotation == Rotation::Deg180;
-    const double minimumX = ramp.anchor.x * cellSize;
-    const double maximumX =
-        (ramp.anchor.x +
-         (alongZ ? ModularRampWidthCells
-                 : ModularRampRunCells)) * cellSize;
-    const double minimumZ = ramp.anchor.z * cellSize;
-    const double maximumZ =
-        (ramp.anchor.z +
-         (alongZ ? ModularRampRunCells
-                 : ModularRampWidthCells)) * cellSize;
-    const double inset = std::min(0.18, cellSize * 0.18);
-    const double connection = std::min(0.12, cellSize * 0.12);
-    const double centerX = (minimumX + maximumX) * 0.5;
-    const double centerZ = (minimumZ + maximumZ) * 0.5;
-    switch (ramp.rotation) {
-    case Rotation::Deg0:
-        return {
-            {centerX, ramp.bottomHeight, minimumZ + inset},
-            {centerX, ramp.topHeight, maximumZ - inset},
-            {centerX, ramp.bottomHeight, minimumZ - connection},
-            {centerX, ramp.topHeight, maximumZ + connection},
-        };
-    case Rotation::Deg90:
-        return {
-            {maximumX - inset, ramp.bottomHeight, centerZ},
-            {minimumX + inset, ramp.topHeight, centerZ},
-            {maximumX + connection, ramp.bottomHeight, centerZ},
-            {minimumX - connection, ramp.topHeight, centerZ},
-        };
-    case Rotation::Deg180:
-        return {
-            {centerX, ramp.bottomHeight, maximumZ - inset},
-            {centerX, ramp.topHeight, minimumZ + inset},
-            {centerX, ramp.bottomHeight, maximumZ + connection},
-            {centerX, ramp.topHeight, minimumZ - connection},
-        };
-    case Rotation::Deg270:
-        return {
-            {minimumX + inset, ramp.bottomHeight, centerZ},
-            {maximumX - inset, ramp.topHeight, centerZ},
-            {minimumX - connection, ramp.bottomHeight, centerZ},
-            {maximumX + connection, ramp.topHeight, centerZ},
-        };
-    }
-    return {};
-}
-
-class MultiLevelNavigation {
-  public:
-    MultiLevelNavigation(
-        EnemyNavigationView view, Vec3 corePosition,
-        int coreStorey)
-        : view_(view), groundNode_(
-              static_cast<int>(view.platformFrames.size())) {
-        if (coreStorey < 0 || view.platformFrames.empty()) {
-            return;
-        }
-        edges_.resize(view.platformFrames.size() + 1U);
-        for (std::size_t index = 0;
-             index < view.platformFrames.size(); ++index) {
-            const PlatformFrameInstance& frame =
-                view.platformFrames[index];
-            if (frame.supportState !=
-                StructuralSupportState::Supported) {
-                continue;
-            }
-            frameIndex_.emplace(
-                std::tuple{
-                    frame.storey,
-                    frame.anchor.x,
-                    frame.anchor.z},
-                static_cast<int>(index));
-            maximumStorey_ = std::max(
-                maximumStorey_, frame.storey);
-        }
-        for (std::size_t left = 0;
-             left < view.platformFrames.size(); ++left) {
-            const PlatformFrameInstance& a =
-                view.platformFrames[left];
-            if (a.supportState !=
-                StructuralSupportState::Supported) {
-                continue;
-            }
-            if (a.storey == 0) {
-                connect(groundNode_, static_cast<int>(left), nullptr);
-            }
-            constexpr std::array<GridCoord, 2> ForwardNeighbours{{
-                {PlatformFrameWidthCells, 0, 0},
-                {0, 0, PlatformFrameWidthCells},
-            }};
-            for (const GridCoord offset : ForwardNeighbours) {
-                const auto neighbour = frameIndex_.find(
-                    std::tuple{
-                        a.storey,
-                        a.anchor.x + offset.x,
-                        a.anchor.z + offset.z});
-                if (neighbour == frameIndex_.end()) {
-                    continue;
-                }
-                const PlatformFrameInstance& b =
-                    view.platformFrames[
-                        static_cast<std::size_t>(neighbour->second)];
-                if (std::abs(a.floorHeight - b.floorHeight) <= 1e-4) {
-                    connect(
-                        static_cast<int>(left),
-                        neighbour->second, nullptr);
-                }
-            }
-        }
-        goalNode_ = frameAt(
-            corePosition, coreStorey, corePosition.y);
-        if (goalNode_ < 0) {
-            return;
-        }
-        for (const RampInstance& ramp : view.ramps) {
-            if (ramp.supportState !=
-                StructuralSupportState::Supported) {
-                continue;
-            }
-            const RampEndpoints endpoints =
-                rampEndpoints(ramp, view.cellSize);
-            const int low = frameAt(
-                endpoints.lowConnection,
-                ramp.targetStorey - 1,
-                ramp.bottomHeight);
-            const int high = frameAt(
-                endpoints.highConnection,
-                ramp.targetStorey,
-                ramp.topHeight);
-            if (low >= 0 && high >= 0) {
-                connect(low, high, &ramp);
-            }
-        }
-        buildRoutes();
-    }
-
-    [[nodiscard]] std::optional<Vec3> waypoint(
-        const EnemyInstance& enemy, double terrainHeight,
-        Vec3 corePosition) const {
-        if (!valid()) {
-            return std::nullopt;
-        }
-        const double surfaceHeight =
-            terrainHeight + enemy.surfaceHeightOffset;
-        for (const RampInstance& ramp : view_.ramps) {
-            const RampEndpoints endpoints =
-                rampEndpoints(ramp, view_.cellSize);
-            if (!insideRamp(enemy.position, ramp) ||
-                std::abs(surfaceHeight - ramp.bottomHeight) >
-                    std::abs(ramp.topHeight - ramp.bottomHeight) + 0.6) {
-                continue;
-            }
-            const int high = frameAt(
-                endpoints.highConnection,
-                ramp.targetStorey, ramp.topHeight);
-            if (high >= 0 &&
-                distance_[static_cast<std::size_t>(high)] >= 0) {
-                return endpoints.highInside;
-            }
-        }
-
-        int current = groundNode_;
-        for (int storey = 0;
-             storey <= maximumStorey_; ++storey) {
-            const int frame = frameAt(
-                enemy.position, storey, surfaceHeight);
-            if (frame >= 0) {
-                current = frame;
-                break;
-            }
-        }
-        if (current == goalNode_) {
-            return corePosition;
-        }
-        if (current < 0 ||
-            current >= static_cast<int>(next_.size()) ||
-            !next_[static_cast<std::size_t>(current)]) {
-            return std::nullopt;
-        }
-        const TraversalEdge edge =
-            *next_[static_cast<std::size_t>(current)];
-        if (edge.ramp) {
-            return rampEndpoints(*edge.ramp, view_.cellSize).lowInside;
-        }
-        if (edge.to == groundNode_) {
-            return std::nullopt;
-        }
-        return frameCenter(
-            view_.platformFrames[static_cast<std::size_t>(edge.to)]);
-    }
-
-    [[nodiscard]] bool valid() const {
-        return goalNode_ >= 0 &&
-            groundNode_ < static_cast<int>(distance_.size()) &&
-            distance_[static_cast<std::size_t>(groundNode_)] >= 0;
-    }
-
-  private:
-    [[nodiscard]] Vec3 frameCenter(
-        const PlatformFrameInstance& frame) const {
-        return {
-            (frame.anchor.x + PlatformFrameWidthCells * 0.5) *
-                view_.cellSize,
-            frame.floorHeight,
-            (frame.anchor.z + PlatformFrameWidthCells * 0.5) *
-                view_.cellSize,
-        };
-    }
-
-    [[nodiscard]] bool contains(
-        const PlatformFrameInstance& frame,
-        Vec3 point, double margin = 0.0) const {
-        const double minimumX = frame.anchor.x * view_.cellSize;
-        const double maximumX =
-            (frame.anchor.x + PlatformFrameWidthCells) * view_.cellSize;
-        const double minimumZ = frame.anchor.z * view_.cellSize;
-        const double maximumZ =
-            (frame.anchor.z + PlatformFrameWidthCells) * view_.cellSize;
-        return point.x >= minimumX - margin &&
-            point.x <= maximumX + margin &&
-            point.z >= minimumZ - margin &&
-            point.z <= maximumZ + margin;
-    }
-
-    [[nodiscard]] int frameAt(
-        Vec3 point, int storey, double height) const {
-        const int cellX = static_cast<int>(
-            std::floor(point.x / view_.cellSize));
-        const int cellZ = static_cast<int>(
-            std::floor(point.z / view_.cellSize));
-        const auto candidate = frameIndex_.find(
-            std::tuple{
-                storey,
-                snapPlatformFrameAxis(cellX),
-                snapPlatformFrameAxis(cellZ)});
-        if (candidate == frameIndex_.end()) {
-            return -1;
-        }
-        const PlatformFrameInstance& frame =
-            view_.platformFrames[
-                static_cast<std::size_t>(candidate->second)];
-        return std::abs(frame.floorHeight - height) < 0.65 &&
-                contains(frame, point, 0.18)
-            ? candidate->second
-            : -1;
-    }
-
-    [[nodiscard]] bool insideRamp(
-        Vec3 point, const RampInstance& ramp) const {
-        const bool alongZ =
-            ramp.rotation == Rotation::Deg0 ||
-            ramp.rotation == Rotation::Deg180;
-        const double minimumX = ramp.anchor.x * view_.cellSize;
-        const double maximumX =
-            (ramp.anchor.x +
-             (alongZ ? ModularRampWidthCells
-                     : ModularRampRunCells)) * view_.cellSize;
-        const double minimumZ = ramp.anchor.z * view_.cellSize;
-        const double maximumZ =
-            (ramp.anchor.z +
-             (alongZ ? ModularRampRunCells
-                     : ModularRampWidthCells)) * view_.cellSize;
-        return point.x >= minimumX - 0.08 &&
-            point.x <= maximumX + 0.08 &&
-            point.z >= minimumZ - 0.08 &&
-            point.z <= maximumZ + 0.08;
-    }
-
-    void connect(int left, int right, const RampInstance* ramp) {
-        edges_[static_cast<std::size_t>(left)].push_back({right, ramp});
-        edges_[static_cast<std::size_t>(right)].push_back({left, ramp});
-    }
-
-    void buildRoutes() {
-        distance_.assign(edges_.size(), -1);
-        next_.assign(edges_.size(), std::nullopt);
-        std::queue<int> pending;
-        distance_[static_cast<std::size_t>(goalNode_)] = 0;
-        pending.push(goalNode_);
-        while (!pending.empty()) {
-            const int node = pending.front();
-            pending.pop();
-            for (const TraversalEdge& edge :
-                 edges_[static_cast<std::size_t>(node)]) {
-                if (distance_[static_cast<std::size_t>(edge.to)] >= 0) {
-                    continue;
-                }
-                distance_[static_cast<std::size_t>(edge.to)] =
-                    distance_[static_cast<std::size_t>(node)] + 1;
-                next_[static_cast<std::size_t>(edge.to)] =
-                    TraversalEdge{node, edge.ramp};
-                pending.push(edge.to);
-            }
-        }
-    }
-
-    EnemyNavigationView view_;
-    int groundNode_{};
-    int goalNode_{-1};
-    std::vector<std::vector<TraversalEdge>> edges_;
-    std::vector<int> distance_;
-    std::vector<std::optional<TraversalEdge>> next_;
-    std::map<std::tuple<int, int, int>, int> frameIndex_;
-    int maximumStorey_{};
-};
 
 std::optional<double> lockedAttackSurfaceHeight(
     const EnemyInstance& enemy,
@@ -807,11 +457,158 @@ bool structureIsVerticallyReachable(
         structure.minimumEnemySurfaceHeight) {
         return false;
     }
+    if (enemy.worldSurfaceHeight - 1e-6 >
+        structure.maximumEnemySurfaceHeight) {
+        return false;
+    }
     const double maximumAttackHeight =
         maximumGroundStructureInteractionHeight(
             enemy.type,
             enemy.position.y + enemy.surfaceHeightOffset);
     return structure.position.y <= maximumAttackHeight;
+}
+
+struct StructureTargetSelection {
+    const EnemyStructureTarget* target{};
+    double contactDistance{};
+};
+
+StructureTargetSelection selectStructureTarget(
+    const EnemyInstance& enemy,
+    const BuildingQueryGrid& buildingGrid,
+    double directionX, double directionZ) {
+    const EnemyStructureTarget* blocker = nullptr;
+    double closestContactDistance = std::numeric_limits<double>::max();
+    std::size_t greatestStructuralImpact = 0U;
+    // Ranged enemies should acquire a structure anywhere inside their
+    // firing radius. The narrow forward corridor below is suitable for
+    // melee path blockers, but made ranged units walk almost into the
+    // target whenever steering was even slightly off-center.
+    if (enemy.type == EnemyType::Ranged) {
+        buildingGrid.forEachNearby(
+            enemy.position,
+            attackRange(enemy.type) +
+                enemyRadius(enemy.type) + 1.6,
+            [&](const EnemyStructureTarget& building) {
+                if (!structureIsVerticallyReachable(
+                        enemy, building)) {
+                    return;
+                }
+                const double offsetX =
+                    building.position.x - enemy.position.x;
+                const double offsetZ =
+                    building.position.z - enemy.position.z;
+                const double contactDistance = std::max(
+                    0.0,
+                    std::hypot(offsetX, offsetZ) -
+                        building.radius -
+                        enemyRadius(enemy.type));
+                if (contactDistance <= attackRange(enemy.type) &&
+                    contactDistance < closestContactDistance) {
+                    blocker = &building;
+                    closestContactDistance = contactDistance;
+                }
+            });
+    }
+    if (enemy.type == EnemyType::Sapper) {
+        buildingGrid.forEachNearby(
+            enemy.position,
+            SapperStructureSearchRadius,
+            [&](const EnemyStructureTarget& building) {
+                if (!structureIsVerticallyReachable(
+                        enemy, building)) {
+                    return;
+                }
+                if (building.structuralImpact == 0U) {
+                    return;
+                }
+                const double offsetX =
+                    building.position.x -
+                    enemy.position.x;
+                const double offsetZ =
+                    building.position.z -
+                    enemy.position.z;
+                const double distance =
+                    std::hypot(offsetX, offsetZ);
+                if (distance >
+                    SapperStructureSearchRadius +
+                        building.radius) {
+                    return;
+                }
+                if (building.structuralImpact >
+                        greatestStructuralImpact ||
+                    (building.structuralImpact ==
+                         greatestStructuralImpact &&
+                     distance <
+                         closestContactDistance)) {
+                    blocker = &building;
+                    greatestStructuralImpact =
+                        building.structuralImpact;
+                    closestContactDistance =
+                        std::max(
+                            0.0,
+                            distance -
+                                building.radius -
+                                enemyRadius(
+                                    enemy.type));
+                }
+            });
+    }
+    buildingGrid.forEachNearby(
+        enemy.position,
+        BuildingLookAhead +
+            attackRange(enemy.type) + 1.6,
+        [&](const EnemyStructureTarget& building) {
+        if (!structureIsVerticallyReachable(
+                enemy, building)) {
+            return;
+        }
+        const Vec3 center = building.position;
+        const double offsetX =
+            center.x - enemy.position.x;
+        const double offsetZ =
+            center.z - enemy.position.z;
+        const double projection = (offsetX * directionX) + (offsetZ * directionZ);
+        const double lookAhead =
+            std::max(BuildingLookAhead,
+                     attackRange(enemy.type) + 0.75);
+        if (projection < 0.0 ||
+            projection > lookAhead + building.radius) {
+            return;
+        }
+
+        const double perpendicularX = offsetX - directionX * projection;
+        const double perpendicularZ = offsetZ - directionZ * projection;
+        const double perpendicularDistance =
+            std::sqrt((perpendicularX * perpendicularX) + (perpendicularZ * perpendicularZ));
+        const double combinedRadius =
+            building.radius + enemyRadius(enemy.type);
+        if (perpendicularDistance > combinedRadius) {
+            return;
+        }
+
+        const double contactDistance = std::max(0.0, projection - combinedRadius);
+        const bool sapperPriority =
+            enemy.type == EnemyType::Sapper &&
+            building.structuralImpact >
+                greatestStructuralImpact;
+        const bool equalSapperPriority =
+            (enemy.type != EnemyType::Sapper &&
+             enemy.type != EnemyType::Ranged) ||
+            building.structuralImpact ==
+                greatestStructuralImpact;
+        if (sapperPriority ||
+            (equalSapperPriority &&
+             contactDistance <
+                 closestContactDistance)) {
+            blocker = &building;
+            closestContactDistance = contactDistance;
+            greatestStructuralImpact =
+                building.structuralImpact;
+        }
+    });
+
+    return {blocker, closestContactDistance};
 }
 
 bool buildingIsInAttackRange(
@@ -1080,161 +877,9 @@ void EnemySystem::constrainToArena(
     }
 }
 
-std::span<const EnemyAttack> EnemySystem::tick(
-    double deltaSeconds, const std::vector<BuildingInstance>& buildings,
-    const FlowField& flowField, std::optional<Vec3> playerPosition,
-    std::span<const EnemyStructureTarget> additionalStructures,
-    const TerrainHeightfield* terrain,
-    EnemyNavigationView navigation,
-    bool prioritizePlayerTarget) {
-    const auto tickStart = PerformanceClock::now();
-    spatialRebuildsThisTick_ = 0U;
-    spatialRebuildMillisecondsThisTick_ = 0.0;
-    profilingTick_ = true;
-    const auto finishTelemetry = [this, tickStart]() {
-        profilingTick_ = false;
-        performanceStats_.tick.sample(
-            performanceMilliseconds(tickStart));
-        performanceStats_.spatialRebuild.sample(
-            spatialRebuildMillisecondsThisTick_);
-        performanceStats_.activeEnemies = activeCount_;
-        performanceStats_.spatialRebuilds =
-            spatialRebuildsThisTick_;
-    };
-    attackBuffer_.clear();
-    playerAttackBuffer_.clear();
-    performanceStats_.fullAiUpdates = 0U;
-    performanceStats_.throttledAiMoves = 0U;
-    if (playerPosition) {
-        if (previousPlayerPosition_ && deltaSeconds > 1e-6) {
-            const double rawX =
-                (playerPosition->x - previousPlayerPosition_->x) /
-                deltaSeconds;
-            const double rawZ =
-                (playerPosition->z - previousPlayerPosition_->z) /
-                deltaSeconds;
-            constexpr double MaximumTrackedPlayerSpeed = 12.0;
-            const double rawSpeed = std::hypot(rawX, rawZ);
-            const double clampScale = rawSpeed > MaximumTrackedPlayerSpeed
-                ? MaximumTrackedPlayerSpeed / rawSpeed
-                : 1.0;
-            const double response = std::clamp(
-                deltaSeconds * 10.0, 0.0, 1.0);
-            estimatedPlayerVelocity_.x +=
-                (rawX * clampScale - estimatedPlayerVelocity_.x) *
-                response;
-            estimatedPlayerVelocity_.z +=
-                (rawZ * clampScale - estimatedPlayerVelocity_.z) *
-                response;
-        } else {
-            estimatedPlayerVelocity_ = {};
-        }
-        previousPlayerPosition_ = *playerPosition;
-    } else {
-        previousPlayerPosition_.reset();
-        estimatedPlayerVelocity_ = {};
-    }
-    for (EnemyProjectile& projectile : projectiles_) {
-        if (!projectile.active) continue;
-        const Vec3 previousPosition = projectile.position;
-        projectile.position.x += projectile.velocity.x * deltaSeconds;
-        projectile.position.y += projectile.velocity.y * deltaSeconds;
-        projectile.position.z += projectile.velocity.z * deltaSeconds;
-        projectile.lifetimeRemaining -= deltaSeconds;
-        if (projectile.lifetimeRemaining <= 0.0) {
-            projectile.active = false;
-            continue;
-        }
-        if (projectile.targetsPlayer) {
-            if (playerPosition) {
-                const Vec3 playerCenter{
-                    playerPosition->x, playerPosition->y - 0.62,
-                    playerPosition->z};
-                constexpr double PlayerHitRadius = 0.42;
-                const double hitRadius =
-                    projectile.radius + PlayerHitRadius;
-                if (pointSegmentDistanceSquared(
-                        playerCenter, previousPosition,
-                        projectile.position) <=
-                    hitRadius * hitRadius) {
-                    playerAttackBuffer_.push_back(
-                        {projectile.ownerId, projectile.damage});
-                    projectile.active = false;
-                }
-            }
-        } else if (projectile.targetId) {
-            const bool targetExists =
-                std::ranges::any_of(
-                    buildings, [&projectile](const BuildingInstance& building) {
-                        return building.id == *projectile.targetId;
-                    }) ||
-                std::ranges::any_of(
-                    additionalStructures,
-                    [&projectile](const EnemyStructureTarget& structure) {
-                        return structure.id == *projectile.targetId;
-                    });
-            if (!targetExists) {
-                projectile.active = false;
-            } else {
-                const double hitRadius =
-                    projectile.radius + projectile.targetRadius;
-                if (pointSegmentDistanceSquared(
-                        projectile.targetPosition, previousPosition,
-                        projectile.position) <=
-                    hitRadius * hitRadius) {
-                    attackBuffer_.push_back({
-                        projectile.ownerId, *projectile.targetId,
-                        projectile.damage, false});
-                    projectile.active = false;
-                }
-            }
-        }
-        if (projectile.active && terrain &&
-            projectile.position.y <=
-                terrain->getHeight(
-                    projectile.position.x,
-                    projectile.position.z) + 0.12) {
-            projectile.active = false;
-        }
-    }
-    std::erase_if(projectiles_, [](const EnemyProjectile& projectile) {
-        return !projectile.active;
-    });
-    const auto core =
-        std::find_if(buildings.begin(), buildings.end(), [](const BuildingInstance& building) {
-            return building.type == BuildingType::Core;
-        });
-    if (core == buildings.end() &&
-        (!prioritizePlayerTarget || !playerPosition)) {
-        updatePendingSplits(deltaSeconds);
-        if (spatialHashDirty_) {
-            rebuildSpatialIndex();
-        }
-        finishTelemetry();
-        return attackBuffer_;
-    }
-    const Vec3 coreWorldPosition =
-        prioritizePlayerTarget && playerPosition
-            ? *playerPosition
-            : buildingWorldPosition(*core);
-    std::shared_ptr<MultiLevelNavigation> multiLevelNavigation;
-    if (navigation.revision != 0U &&
-        navigationCache_ &&
-        cachedNavigationRevision_ == navigation.revision) {
-        multiLevelNavigation =
-            std::static_pointer_cast<MultiLevelNavigation>(
-                navigationCache_);
-    } else {
-        multiLevelNavigation =
-            std::make_shared<MultiLevelNavigation>(
-                navigation, coreWorldPosition,
-                core == buildings.end() ? -1 : core->platformStorey);
-        if (navigation.revision != 0U) {
-            navigationCache_ = multiLevelNavigation;
-            cachedNavigationRevision_ = navigation.revision;
-        }
-    }
-
+bool EnemySystem::refreshStructureTargets(
+    const std::vector<BuildingInstance>& buildings,
+    std::span<const EnemyStructureTarget> additionalStructures) {
     incomingStructureBuffer_.clear();
     incomingStructureBuffer_.reserve(
         buildings.size() + additionalStructures.size());
@@ -1261,6 +906,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
                 building.platformStorey >= 0
                     ? building.baseHeight - 0.45
                     : -std::numeric_limits<double>::infinity(),
+            .maximumEnemySurfaceHeight =
+                building.baseHeight +
+                    (building.platformStorey >= 0 ? 1.0 : 1.6),
             .attackSurfaceHeight =
                 building.platformStorey >= 0
                     ? std::optional<double>{building.baseHeight}
@@ -1279,6 +927,117 @@ std::span<const EnemyAttack> EnemySystem::tick(
         structureBuffer_.swap(incomingStructureBuffer_);
     }
 
+    return structureLayoutChanged;
+}
+
+void EnemySystem::updateEnemyTimers(
+    EnemyInstance& enemy, double deltaSeconds) {
+    const double eliteActionSpeed =
+        berserkerActive(enemy) ? 1.35 : 1.0;
+    enemy.attackCooldownRemaining =
+        std::max(
+            0.0,
+            enemy.attackCooldownRemaining -
+                deltaSeconds * eliteActionSpeed);
+    enemy.hitAnimationRemaining =
+        std::max(
+            0.0,
+            enemy.hitAnimationRemaining - deltaSeconds);
+    enemy.spawnAnimationRemaining = std::max(
+        0.0,
+        enemy.spawnAnimationRemaining - deltaSeconds);
+    enemy.ramCooldownRemaining =
+        std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
+    enemy.bossAbilityCooldownRemaining = std::max(
+        0.0,
+        enemy.bossAbilityCooldownRemaining - deltaSeconds);
+    enemy.aiUpdateRemaining = std::max(
+        0.0, enemy.aiUpdateRemaining - deltaSeconds);
+    enemy.slowRemaining = std::max(0.0, enemy.slowRemaining - deltaSeconds);
+    if (enemy.slowRemaining <= 0.0) {
+        enemy.movementMultiplier = 1.0;
+    }
+    for (EnemyStatusEffect& status : enemy.statusEffects) {
+        status.immunityRemaining = std::max(
+            0.0, status.immunityRemaining - deltaSeconds);
+        if (status.remaining > 0.0) {
+            status.remaining = std::max(
+                0.0, status.remaining - deltaSeconds);
+            status.visualParameter = 1.0;
+            if (status.remaining <= 0.0) {
+                status.visualParameter = 0.92;
+            }
+        } else {
+            status.visualParameter = std::max(
+                0.0, status.visualParameter - deltaSeconds * 4.5);
+        }
+    }
+}
+
+std::span<const EnemyAttack> EnemySystem::tick(
+    double deltaSeconds, const std::vector<BuildingInstance>& buildings,
+    const FlowField& flowField, std::optional<Vec3> playerPosition,
+    std::span<const EnemyStructureTarget> additionalStructures,
+    const TerrainHeightfield* terrain,
+    EnemyNavigationView navigation,
+    bool prioritizePlayerTarget) {
+    const auto tickStart = PerformanceClock::now();
+    spatialRebuildsThisTick_ = 0U;
+    spatialRebuildMillisecondsThisTick_ = 0.0;
+    profilingTick_ = true;
+    const auto finishTelemetry = [this, tickStart]() {
+        profilingTick_ = false;
+        performanceStats_.tick.sample(
+            performanceMilliseconds(tickStart));
+        performanceStats_.spatialRebuild.sample(
+            spatialRebuildMillisecondsThisTick_);
+        performanceStats_.activeEnemies = activeCount_;
+        performanceStats_.spatialRebuilds =
+            spatialRebuildsThisTick_;
+    };
+    attackBuffer_.clear();
+    playerAttackBuffer_.clear();
+    performanceStats_.fullAiUpdates = 0U;
+    performanceStats_.throttledAiMoves = 0U;
+    trackPlayerVelocity(deltaSeconds, playerPosition);
+    updateProjectiles(
+        deltaSeconds, buildings, playerPosition,
+        additionalStructures, terrain);
+    const auto core =
+        std::find_if(buildings.begin(), buildings.end(), [](const BuildingInstance& building) {
+            return building.type == BuildingType::Core;
+        });
+    if (core == buildings.end() &&
+        (!prioritizePlayerTarget || !playerPosition)) {
+        updatePendingSplits(deltaSeconds);
+        if (spatialHashDirty_) {
+            rebuildSpatialIndex();
+        }
+        finishTelemetry();
+        return attackBuffer_;
+    }
+    const Vec3 coreWorldPosition =
+        prioritizePlayerTarget && playerPosition
+            ? *playerPosition
+            : buildingWorldPosition(*core);
+    std::shared_ptr<MultiLevelNavigation> multiLevelNavigation;
+    if (navigation.revision != 0U &&
+        navigationCache_ &&
+        cachedNavigationRevision_ == navigation.revision) {
+        multiLevelNavigation = navigationCache_;
+    } else {
+        multiLevelNavigation = makeMultiLevelNavigation(
+            navigation, coreWorldPosition,
+            core == buildings.end() ? -1 : core->platformStorey);
+        if (navigation.revision != 0U) {
+            navigationCache_ = multiLevelNavigation;
+            cachedNavigationRevision_ = navigation.revision;
+        }
+    }
+
+    const bool structureLayoutChanged = refreshStructureTargets(
+        buildings, additionalStructures);
+
     if (spatialHashDirty_) {
         rebuildSpatialIndex();
     }
@@ -1296,46 +1055,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             lockedAttackSurfaceHeight(
                 enemy, structureBuffer_));
 
-        const double eliteActionSpeed =
-            berserkerActive(enemy) ? 1.35 : 1.0;
-        enemy.attackCooldownRemaining =
-            std::max(
-                0.0,
-                enemy.attackCooldownRemaining -
-                    deltaSeconds * eliteActionSpeed);
-        enemy.hitAnimationRemaining =
-            std::max(
-                0.0,
-                enemy.hitAnimationRemaining - deltaSeconds);
-        enemy.spawnAnimationRemaining = std::max(
-            0.0,
-            enemy.spawnAnimationRemaining - deltaSeconds);
-        enemy.ramCooldownRemaining =
-            std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
-        enemy.bossAbilityCooldownRemaining = std::max(
-            0.0,
-            enemy.bossAbilityCooldownRemaining - deltaSeconds);
-        enemy.aiUpdateRemaining = std::max(
-            0.0, enemy.aiUpdateRemaining - deltaSeconds);
-        enemy.slowRemaining = std::max(0.0, enemy.slowRemaining - deltaSeconds);
-        if (enemy.slowRemaining <= 0.0) {
-            enemy.movementMultiplier = 1.0;
-        }
-        for (EnemyStatusEffect& status : enemy.statusEffects) {
-            status.immunityRemaining = std::max(
-                0.0, status.immunityRemaining - deltaSeconds);
-            if (status.remaining > 0.0) {
-                status.remaining = std::max(
-                    0.0, status.remaining - deltaSeconds);
-                status.visualParameter = 1.0;
-                if (status.remaining <= 0.0) {
-                    status.visualParameter = 0.92;
-                }
-            } else {
-                status.visualParameter = std::max(
-                    0.0, status.visualParameter - deltaSeconds * 4.5);
-            }
-        }
+        updateEnemyTimers(enemy, deltaSeconds);
         if (enemyHasStatus(enemy, StatusEffectType::Freeze)) {
             enemy.knockbackVelocity = {};
             continue;
@@ -1355,108 +1075,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
             (berserkerActive(enemy) ? 1.28 : 1.0) *
             bossPhaseSpeed;
 
-        if (enemy.type == EnemyType::Boss) {
-            const double healthRatio = enemy.maxHealth > 0.0
-                ? enemy.health / enemy.maxHealth
-                : 0.0;
-            const int desiredPhase = healthRatio <= 1.0 / 3.0
-                ? 3
-                : healthRatio <= 2.0 / 3.0 ? 2 : 1;
-            if (desiredPhase > enemy.bossPhase &&
-                enemy.state != EnemyState::BossPhaseTransition) {
-                enemy.bossPhase = desiredPhase;
-                enemy.state = EnemyState::BossPhaseTransition;
-                enemy.target.reset();
-                enemy.ramWindupRemaining = 0.0;
-                enemy.bossAbilityWindupRemaining =
-                    BossPhaseTransitionDuration;
-                enemy.bossAbilityCooldownRemaining = 0.0;
-                enemy.bossWarCryNext = desiredPhase >= 3;
-                bossActionEventBuffer_.push_back({
-                    .type = BossActionType::PhaseChanged,
-                    .bossId = enemy.id,
-                    .position = enemy.position,
-                    .phase = desiredPhase,
-                });
-            }
-
-            if (enemy.state == EnemyState::BossPhaseTransition) {
-                enemy.bossAbilityWindupRemaining = std::max(
-                    0.0,
-                    enemy.bossAbilityWindupRemaining - deltaSeconds);
-                if (enemy.bossAbilityWindupRemaining <= 0.0) {
-                    if (enemy.bossPhase >= 3) {
-                        enemy.state = EnemyState::BossWarCryWindup;
-                        enemy.bossAbilityWindupRemaining =
-                            BossWarCryWindupDuration;
-                    } else {
-                        enemy.state = EnemyState::MoveToCore;
-                    }
-                }
-                continue;
-            }
-            if (enemy.state == EnemyState::BossSlamWindup) {
-                enemy.bossAbilityWindupRemaining = std::max(
-                    0.0,
-                    enemy.bossAbilityWindupRemaining - deltaSeconds);
-                if (enemy.bossAbilityWindupRemaining <= 0.0) {
-                    bossActionEventBuffer_.push_back({
-                        .type = BossActionType::GroundSlam,
-                        .bossId = enemy.id,
-                        .position = enemy.position,
-                        .phase = enemy.bossPhase,
-                        .radius = BossSlamRadius,
-                        .damage = enemy.bossPhase >= 3
-                            ? BossPhaseThreeSlamDamage
-                            : BossPhaseTwoSlamDamage,
-                    });
-                    enemy.state = EnemyState::MoveToCore;
-                    enemy.bossAbilityCooldownRemaining =
-                        enemy.bossPhase >= 3 ? 6.5 : 8.0;
-                    enemy.bossWarCryNext = enemy.bossPhase >= 3;
-                }
-                continue;
-            }
-            if (enemy.state == EnemyState::BossWarCryWindup) {
-                enemy.bossAbilityWindupRemaining = std::max(
-                    0.0,
-                    enemy.bossAbilityWindupRemaining - deltaSeconds);
-                if (enemy.bossAbilityWindupRemaining <= 0.0) {
-                    bossActionEventBuffer_.push_back({
-                        .type = BossActionType::WarCry,
-                        .bossId = enemy.id,
-                        .position = enemy.position,
-                        .phase = enemy.bossPhase,
-                        .radius = 3.5,
-                    });
-                    enemy.state = EnemyState::MoveToCore;
-                    enemy.bossAbilityCooldownRemaining = 9.5;
-                    enemy.bossWarCryNext = false;
-                }
-                continue;
-            }
-
-            if (enemy.bossPhase >= 2 &&
-                enemy.bossAbilityCooldownRemaining <= 0.0) {
-                const double playerDistance = playerPosition
-                    ? std::hypot(
-                          playerPosition->x - enemy.position.x,
-                          playerPosition->z - enemy.position.z)
-                    : std::numeric_limits<double>::infinity();
-                if (enemy.bossPhase >= 3 &&
-                    enemy.bossWarCryNext) {
-                    enemy.state = EnemyState::BossWarCryWindup;
-                    enemy.bossAbilityWindupRemaining =
-                        BossWarCryWindupDuration;
-                    continue;
-                }
-                if (playerDistance <= BossSlamRadius + 1.25) {
-                    enemy.state = EnemyState::BossSlamWindup;
-                    enemy.bossAbilityWindupRemaining =
-                        BossSlamWindupDuration;
-                    continue;
-                }
-            }
+        if (advanceBossAbility(enemy, deltaSeconds, playerPosition)) {
+            continue;
         }
         const double knockbackSpeed = std::hypot(
             enemy.knockbackVelocity.x,
@@ -1487,9 +1107,9 @@ std::span<const EnemyAttack> EnemySystem::tick(
         const auto navigationWaypoint =
             prioritizePlayerTarget || enemy.type == EnemyType::Flying
                 ? std::optional<Vec3>{}
-                : multiLevelNavigation->waypoint(
-                      enemy, terrainHeight,
-                      coreWorldPosition);
+                : multiLevelWaypoint(
+                      *multiLevelNavigation, enemy,
+                      terrainHeight, coreWorldPosition);
         const double aiInterval = navigationWaypoint
             ? 0.0
             : aiUpdateInterval(
@@ -1850,139 +1470,17 @@ std::span<const EnemyAttack> EnemySystem::tick(
         turnToward(
             enemy, std::atan2(directionX, directionZ),
             aiTurnDeltaSeconds);
-        directionX = std::sin(enemy.yaw);
-        directionZ = std::cos(enemy.yaw);
-
-        const EnemyStructureTarget* blocker = nullptr;
-        double closestContactDistance = std::numeric_limits<double>::max();
-        std::size_t greatestStructuralImpact = 0U;
-        // Ranged enemies should acquire a structure anywhere inside their
-        // firing radius. The narrow forward corridor below is suitable for
-        // melee path blockers, but made ranged units walk almost into the
-        // target whenever steering was even slightly off-center.
-        if (enemy.type == EnemyType::Ranged) {
-            buildingGrid.forEachNearby(
-                enemy.position,
-                attackRange(enemy.type) +
-                    enemyRadius(enemy.type) + 1.6,
-                [&](const EnemyStructureTarget& building) {
-                    if (!structureIsVerticallyReachable(
-                            enemy, building)) {
-                        return;
-                    }
-                    const double offsetX =
-                        building.position.x - enemy.position.x;
-                    const double offsetZ =
-                        building.position.z - enemy.position.z;
-                    const double contactDistance = std::max(
-                        0.0,
-                        std::hypot(offsetX, offsetZ) -
-                            building.radius -
-                            enemyRadius(enemy.type));
-                    if (contactDistance <= attackRange(enemy.type) &&
-                        contactDistance < closestContactDistance) {
-                        blocker = &building;
-                        closestContactDistance = contactDistance;
-                    }
-                });
+        if (!navigationWaypoint) {
+            directionX = std::sin(enemy.yaw);
+            directionZ = std::cos(enemy.yaw);
         }
-        if (enemy.type == EnemyType::Sapper) {
-            buildingGrid.forEachNearby(
-                enemy.position,
-                SapperStructureSearchRadius,
-                [&](const EnemyStructureTarget& building) {
-                    if (!structureIsVerticallyReachable(
-                            enemy, building)) {
-                        return;
-                    }
-                    if (building.structuralImpact == 0U) {
-                        return;
-                    }
-                    const double offsetX =
-                        building.position.x -
-                        enemy.position.x;
-                    const double offsetZ =
-                        building.position.z -
-                        enemy.position.z;
-                    const double distance =
-                        std::hypot(offsetX, offsetZ);
-                    if (distance >
-                        SapperStructureSearchRadius +
-                            building.radius) {
-                        return;
-                    }
-                    if (building.structuralImpact >
-                            greatestStructuralImpact ||
-                        (building.structuralImpact ==
-                             greatestStructuralImpact &&
-                         distance <
-                             closestContactDistance)) {
-                        blocker = &building;
-                        greatestStructuralImpact =
-                            building.structuralImpact;
-                        closestContactDistance =
-                            std::max(
-                                0.0,
-                                distance -
-                                    building.radius -
-                                    enemyRadius(
-                                        enemy.type));
-                    }
-                });
-        }
-        buildingGrid.forEachNearby(
-            enemy.position,
-            BuildingLookAhead +
-                attackRange(enemy.type) + 1.6,
-            [&](const EnemyStructureTarget& building) {
-            if (!structureIsVerticallyReachable(
-                    enemy, building)) {
-                return;
-            }
-            const Vec3 center = building.position;
-            const double offsetX =
-                center.x - enemy.position.x;
-            const double offsetZ =
-                center.z - enemy.position.z;
-            const double projection = (offsetX * directionX) + (offsetZ * directionZ);
-            const double lookAhead =
-                std::max(BuildingLookAhead,
-                         attackRange(enemy.type) + 0.75);
-            if (projection < 0.0 ||
-                projection > lookAhead + building.radius) {
-                return;
-            }
 
-            const double perpendicularX = offsetX - directionX * projection;
-            const double perpendicularZ = offsetZ - directionZ * projection;
-            const double perpendicularDistance =
-                std::sqrt((perpendicularX * perpendicularX) + (perpendicularZ * perpendicularZ));
-            const double combinedRadius =
-                building.radius + enemyRadius(enemy.type);
-            if (perpendicularDistance > combinedRadius) {
-                return;
-            }
-
-            const double contactDistance = std::max(0.0, projection - combinedRadius);
-            const bool sapperPriority =
-                enemy.type == EnemyType::Sapper &&
-                building.structuralImpact >
-                    greatestStructuralImpact;
-            const bool equalSapperPriority =
-                (enemy.type != EnemyType::Sapper &&
-                 enemy.type != EnemyType::Ranged) ||
-                building.structuralImpact ==
-                    greatestStructuralImpact;
-            if (sapperPriority ||
-                (equalSapperPriority &&
-                 contactDistance <
-                     closestContactDistance)) {
-                blocker = &building;
-                closestContactDistance = contactDistance;
-                greatestStructuralImpact =
-                    building.structuralImpact;
-            }
-        });
+        const StructureTargetSelection targetSelection =
+            selectStructureTarget(
+                enemy, buildingGrid, directionX, directionZ);
+        const EnemyStructureTarget* blocker = targetSelection.target;
+        double closestContactDistance =
+            targetSelection.contactDistance;
 
         if (blocker == nullptr) {
             enemy.state = EnemyState::MoveToCore;
@@ -2152,6 +1650,8 @@ void EnemySystem::appendEnemy(
     const double damageMultiplier =
         std::max(0.01, spawn.damageMultiplier) *
         (elite ? 1.1 : 1.0);
+    const double maximumHealth = roundedEnemyHealth(
+        stats.health * healthMultiplier);
     const auto reusable = std::find_if(
         enemies_.begin(), enemies_.end(),
         [this](const EnemyInstance& enemy) {
@@ -2205,8 +1705,8 @@ void EnemySystem::appendEnemy(
         .id = id,
         .type = type,
         .position = position,
-        .health = stats.health * healthMultiplier,
-        .maxHealth = stats.health * healthMultiplier,
+        .health = maximumHealth,
+        .maxHealth = maximumHealth,
         .speed = stats.speed,
         .damage = stats.damage * damageMultiplier,
         .attackCooldownRemaining = 0.0,

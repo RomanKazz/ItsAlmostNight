@@ -35,6 +35,9 @@ int Simulation::resourceCapacity(ResourceCapacityType resource) const {
     } else if (resource == ResourceCapacityType::Crystal) {
         capacity = 10;
     }
+    if (playerClass_ == PlayerClass::Prospector) {
+        capacity += (capacity + 3) / 4;
+    }
     return capacity;
 }
 
@@ -132,17 +135,8 @@ double Simulation::resourceToolEfficiency(
     return 0.0;
 }
 
-void Simulation::updatePlayerActions(
-    double deltaSeconds, const PlayerCommand& command) {
-    double productionDeltaSeconds = deltaSeconds;
-    if (challengeActive()) {
-        productionDeltaSeconds = 0.0;
-    }
-    if (state_ == RunState::Wave) {
-        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
-    }
-    const auto production = crystalMines_.tick(
-        productionDeltaSeconds);
+void Simulation::advanceBuildingProduction(double deltaSeconds) {
+    const auto production = crystalMines_.tick(deltaSeconds);
     if (crystals_ < resourceCapacity(ResourceCapacityType::Crystal)) {
         crystalStorageFullNotified_ = false;
     }
@@ -201,6 +195,18 @@ void Simulation::updatePlayerActions(
             });
         }
     }
+}
+
+void Simulation::updatePlayerActions(
+    double deltaSeconds, const PlayerCommand& command) {
+    double productionDeltaSeconds = deltaSeconds;
+    if (challengeActive()) {
+        productionDeltaSeconds = 0.0;
+    }
+    if (state_ == RunState::Wave) {
+        productionDeltaSeconds *= unlimitedResources_ ? 1.0 : 0.0;
+    }
+    advanceBuildingProduction(productionDeltaSeconds);
 
     const Vec3 direction = lookDirection(playerYaw_, playerPitch_);
     aimedBuilding_ = buildings_.raycast(playerPosition_, direction, 4.0);
@@ -221,10 +227,9 @@ void Simulation::updatePlayerActions(
     if (command.overrideAimedResource) {
         aimedResource_ = command.aimedResourceOverride;
     }
-    constexpr bool automaticToolSwitch = true;
-    // Smart Tools chooses the matching unlocked tool. When the player holds
-    // another tool, switch to the matching starter tool.
-    if (automaticToolSwitch && !command.selectWeapon &&
+    // Smart Tools reacts to an attack, never to hover alone. This prevents a
+    // resource behind an enemy from replacing the combat weapon mid-fight.
+    if (command.usePickaxe && !command.selectWeapon &&
         !selectedBuilding_ && aimedResource_) {
         const auto node = std::ranges::find(
             resources_.nodes(), *aimedResource_,
@@ -235,10 +240,9 @@ void Simulation::updatePlayerActions(
                 node->type == ResourceType::Wood
                     ? PlayerWeapon::Axe
                     : PlayerWeapon::Pickaxe;
-            const PlayerWeapon smartTool = desiredTool;
-            if (heldTool != smartTool) {
-                playerWeapons_.selectWeapon(smartTool);
-                heldTool = smartTool;
+            if (heldTool != desiredTool) {
+                playerWeapons_.selectWeapon(desiredTool);
+                heldTool = desiredTool;
                 selectedBuilding_.reset();
                 buildingPreview_.reset();
             }
@@ -337,10 +341,18 @@ void Simulation::updatePlayerActions(
         meleeTool &&
         !selectedBuilding_ && pickaxeCooldownRemaining_ <= 0.0) {
         pickaxeInputBufferRemaining_ = 0.0;
+        const bool quickTool = heldTool == PlayerWeapon::Axe ||
+            heldTool == PlayerWeapon::Pickaxe;
+        const double toolSpeed = quickTool
+            ? runGatheringSpeedMultiplier(runUpgradeStacks_[
+                  runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)])
+            : 1.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown /
             std::max(
                 0.05, playerAttackSpeedMultiplier_ *
-                    temporaryAttackSpeedMultiplier());
+                    temporaryAttackSpeedMultiplier() * toolSpeed *
+                    (playerClass_ == PlayerClass::Berserker
+                         ? playerClassDamageMultiplier() : 1.0));
         const std::uint64_t attackSeed = mixBits64(
             tick_ ^ (pickaxeAttackSequence_++ *
                      0x9e3779b97f4a7c15ULL));
@@ -362,6 +374,8 @@ void Simulation::updatePlayerActions(
             toolMultiplier *
             gameplay_.pickaxeDamage * (1.0 + variation) *
             (critical ? 2.0 : 1.0);
+        const double enemyDamage = damage *
+            meleeEnemyDamageMultiplier(heldTool);
         if (clubAttack) {
             Vec3 impactPosition{
                 playerPosition_.x + direction.x * gameplay_.pickaxeRange,
@@ -412,7 +426,8 @@ void Simulation::updatePlayerActions(
                 }
             }
         } else if (aimedEnemy_) {
-            const auto result = enemies_.damage(*aimedEnemy_, damage);
+            const auto result = enemies_.damage(
+                *aimedEnemy_, enemyDamage);
             if (result) {
                 events_.push_back({
                     .type = GameEventType::PickaxeHit,
@@ -460,9 +475,13 @@ void Simulation::updatePlayerActions(
                     });
                     continue;
                 }
-                Vec3 impactPosition = resourceImpactPosition(
-                    resources_.nodes(), targetId,
-                    playerPosition_, direction);
+                Vec3 impactPosition =
+                    targetId == primaryTarget &&
+                            command.aimedResourceHitPositionOverride
+                    ? *command.aimedResourceHitPositionOverride
+                    : resourceImpactPosition(
+                          resources_.nodes(), targetId,
+                          playerPosition_, direction);
                 const std::optional<Vec3> resourceCenter =
                     targetBeforeHit != resources_.nodes().end()
                     ? std::optional<Vec3>{targetBeforeHit->position}

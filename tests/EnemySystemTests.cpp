@@ -120,6 +120,7 @@ void runEnemySystemTests() {
             "volatile death is preserved for delayed explosion");
     }
     ian::BuildingSystem buildings;
+    buildings.setSandboxMode(true);
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "enemy fixture creates core");
     std::optional<ian::PlacedBuilding> frontWall;
@@ -374,7 +375,8 @@ void runEnemySystemTests() {
             traversalRamps,
             1.0,
         });
-        ian::BuildingSystem elevatedBuildings;
+    ian::BuildingSystem elevatedBuildings;
+    elevatedBuildings.setSandboxMode(true);
         const auto elevatedCore = elevatedBuildings.place(
             ian::BuildingType::Core, {1, 11}, 0,
             1000, 1000, 1000,
@@ -491,6 +493,144 @@ void runEnemySystemTests() {
         require(
             sustainedCoreAttacks > 0,
             "elevated core attack continues while height is locked");
+
+    ian::BuildingSystem underFloorBuildings;
+    underFloorBuildings.setSandboxMode(true);
+        const double underFloorHeight =
+            traversalTerrain.getHeight(1.0, 8.0);
+        const auto underFloorCore = underFloorBuildings.place(
+            ian::BuildingType::Core, {1, 8}, 0,
+            1000, 1000, 1000, underFloorHeight);
+        require(underFloorCore.has_value(),
+                "vertical attack fixture creates a core below the floor");
+        ian::FlowField underFloorFlow{{}, &traversalTerrain};
+        underFloorFlow.rebuild(
+            underFloorCore->building.gridPosition,
+            underFloorBuildings.buildings());
+        int upperFloorChecks = 0;
+        for (int tick = 0; tick < 45; ++tick) {
+            const auto attacks = climbingEnemies.tick(
+                1.0 / 60.0,
+                underFloorBuildings.buildings(),
+                underFloorFlow, std::nullopt, {},
+                &traversalTerrain,
+                {
+                    traversalFrames,
+                    traversalRamps,
+                    1.0,
+                    &traversalCollision,
+                });
+            if (climbingEnemies.enemies().front()
+                    .worldSurfaceHeight <=
+                underFloorHeight + 1.6) {
+                continue;
+            }
+            ++upperFloorChecks;
+            require(
+                std::ranges::none_of(
+                    attacks,
+                    [&](const ian::EnemyAttack& attack) {
+                        return attack.targetId ==
+                            underFloorCore->building.id;
+                    }),
+                "enemy cannot attack a core through the floor");
+        }
+        require(upperFloorChecks > 0,
+                "vertical attack fixture stays above the core");
+
+    ian::BuildingSystem groundBuildings;
+    groundBuildings.setSandboxMode(true);
+        const double groundCoreHeight =
+            traversalTerrain.getHeight(1.0, -4.0);
+        const auto groundCore = groundBuildings.place(
+            ian::BuildingType::Core, {1, -4}, 0,
+            1000, 1000, 1000, groundCoreHeight);
+        require(groundCore.has_value(),
+                "descent fixture creates a ground core");
+        ian::FlowField groundFlow{{}, &traversalTerrain};
+        groundFlow.rebuild(
+            groundCore->building.gridPosition,
+            groundBuildings.buildings());
+        bool descendedRamp = false;
+        bool attackedGroundCore = false;
+        for (int tick = 0;
+             tick < 1500 && !attackedGroundCore; ++tick) {
+            const auto attacks = climbingEnemies.tick(
+                1.0 / 60.0, groundBuildings.buildings(),
+                groundFlow, std::nullopt, {}, &traversalTerrain,
+                {
+                    traversalFrames,
+                    traversalRamps,
+                    1.0,
+                    &traversalCollision,
+                });
+            const ian::EnemyInstance& descending =
+                climbingEnemies.enemies().front();
+            descendedRamp |=
+                descending.position.z > 2.0 &&
+                descending.position.z < 6.0 &&
+                descending.surfaceHeightOffset > 0.5 &&
+                descending.surfaceHeightOffset < 3.5;
+            for (const ian::EnemyAttack& attack : attacks) {
+                if (attack.targetId !=
+                    groundCore->building.id) {
+                    continue;
+                }
+                require(
+                    descending.worldSurfaceHeight <=
+                        groundCoreHeight + 1.6,
+                    "upper-storey enemy cannot hit the core below");
+                attackedGroundCore = true;
+            }
+        }
+        require(
+            descendedRamp && attackedGroundCore,
+            "upper-storey enemy descends the ramp to a ground core");
+
+    ian::BuildingSystem farGroundBuildings;
+    farGroundBuildings.setSandboxMode(true);
+        const auto farGroundCore = farGroundBuildings.place(
+            ian::BuildingType::Core, {1, 11}, 0,
+            1000, 1000, 1000,
+            traversalTerrain.getHeight(1.0, 11.0));
+        require(farGroundCore.has_value(),
+                "ground detour fixture creates a core");
+        ian::FlowField farGroundFlow{{}, &traversalTerrain};
+        farGroundFlow.rebuild(
+            farGroundCore->building.gridPosition,
+            farGroundBuildings.buildings());
+        ian::EnemySystem groundRouteEnemies;
+        groundRouteEnemies.spawnWave(
+            std::array<ian::Vec3, 1>{{{1.0, 0.8, 0.4}}});
+        bool groundRouteAttacked = false;
+        double groundRouteMaximumOffset = 0.0;
+        for (int tick = 0;
+             tick < 1200 && !groundRouteAttacked; ++tick) {
+            const auto attacks = groundRouteEnemies.tick(
+                1.0 / 60.0,
+                farGroundBuildings.buildings(),
+                farGroundFlow, std::nullopt, {},
+                &traversalTerrain,
+                {
+                    traversalFrames,
+                    traversalRamps,
+                    1.0,
+                    &traversalCollision,
+                });
+            groundRouteMaximumOffset = std::max(
+                groundRouteMaximumOffset,
+                groundRouteEnemies.enemies().front()
+                    .surfaceHeightOffset);
+            groundRouteAttacked |= std::ranges::any_of(
+                attacks, [&](const ian::EnemyAttack& attack) {
+                    return attack.targetId ==
+                        farGroundCore->building.id;
+                });
+        }
+        require(
+            groundRouteAttacked &&
+                groundRouteMaximumOffset < 1.5,
+            "ground route bypasses an unnecessary ramp");
     }
 
     std::vector<ian::EnemyInstance> modularOverlap{
@@ -723,7 +863,7 @@ void runEnemySystemTests() {
         }
         require(
             enemy.type == ian::EnemyType::Splitling &&
-                std::abs(enemy.maxHealth - 4.5) < 1e-9 &&
+                std::abs(enemy.maxHealth - 5.0) < 1e-9 &&
                 std::abs(enemy.damage - 8.75) < 1e-9 &&
                 std::hypot(enemy.knockbackVelocity.x,
                            enemy.knockbackVelocity.z) > 2.7,
@@ -765,9 +905,22 @@ void runEnemySystemTests() {
     }};
     scaledEnemy.spawnWave(ScaledSpawn);
     require(
-        scaledEnemy.enemies().front().health == 12.5 &&
+        scaledEnemy.enemies().front().health == 13.0 &&
             scaledEnemy.enemies().front().damage == 17.5,
         "wave multipliers scale enemy health and damage");
+
+    ian::EnemySystem roundedEnemy;
+    constexpr std::array<ian::EnemySpawn, 1> RoundedSpawn{{
+        {
+            .type = ian::EnemyType::Basic,
+            .position = {0.0, 0.8, -8.0},
+            .healthMultiplier = 8.8,
+        },
+    }};
+    roundedEnemy.spawnWave(RoundedSpawn);
+    require(
+        roundedEnemy.enemies().front().maxHealth == 45.0,
+        "scaled enemy health uses readable five-point steps");
 
     ian::EnemySystem rangedEnemy;
     constexpr std::array<ian::EnemySpawn, 1> RangedSpawn{{
@@ -797,6 +950,7 @@ void runEnemySystemTests() {
             "ranged enemy projectile reaches blocker from stand-off distance");
 
     ian::BuildingSystem sideTargetBuildings;
+    sideTargetBuildings.setSandboxMode(true);
     const auto sideCore = sideTargetBuildings.place(
         ian::BuildingType::Core, {6, -6}, 0, 30, 0);
     require(sideCore.has_value(),
@@ -859,6 +1013,7 @@ void runEnemySystemTests() {
             "flying enemy bypasses walls and attacks core");
 
     ian::BuildingSystem ramBuildings;
+    ramBuildings.setSandboxMode(true);
     require(ramBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
             "boss ram fixture creates core");
     ian::FlowField ramFlowField;
@@ -995,6 +1150,7 @@ void runEnemySystemTests() {
             "debug defeat clears all active enemies");
 
     ian::BuildingSystem projectileBuildings;
+    projectileBuildings.setSandboxMode(true);
     require(projectileBuildings.place(
                 ian::BuildingType::Core, {20, 20}, 0, 30, 0).has_value(),
             "ranged projectile fixture creates distant core");

@@ -400,10 +400,6 @@ void Renderer::processInput() {
     if (IsKeyPressed(KEY_F4)) {
         settings_.fog = !settings_.fog;
     }
-    // Plain F5 belongs to the in-game item grant menu.
-    if (shiftDown && IsKeyPressed(KEY_F5)) {
-        settings_.postProcessing = !settings_.postProcessing;
-    }
     if (!controlDown && IsKeyPressed(KEY_F6)) {
         settings_.particles = !settings_.particles;
     }

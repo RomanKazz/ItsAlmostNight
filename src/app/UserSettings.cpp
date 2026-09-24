@@ -614,7 +614,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::Upgrade: return "UPGRADE BUILDING";
     case ControlAction::Sell: return "SELL / REMOVE";
     case ControlAction::UpgradeWeapon: return "UPGRADE WEAPON";
-    case ControlAction::BuildMode: return "MODE WHEEL";
+    case ControlAction::BuildMode: return "SWITCH HOTBAR";
     case ControlAction::Pause: return "PAUSE";
     case ControlAction::Map: return "MAP";
     case ControlAction::StartWave: return "START WAVE";

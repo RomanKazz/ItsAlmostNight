@@ -266,7 +266,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 };
                 managementHint = core
                     ? keyName(ControlAction::Attack) + " REPAIR · " +
-                          keyName(ControlAction::Repair) + " REPAIR ALL · " +
+                          keyName(ControlAction::Repair) + " REPAIR CORE · " +
                           keyName(ControlAction::Upgrade) + " UPGRADE"
                     : keyName(ControlAction::Copy) + " COPY · " +
                           keyName(ControlAction::Upgrade) + " UPGRADE · " +

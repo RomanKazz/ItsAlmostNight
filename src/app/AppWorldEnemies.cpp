@@ -140,11 +140,11 @@ void App::drawWorldEnemies(
     constexpr float EnemyFullDetailDistance = 20.0F;
     constexpr float EnemyFullDetailDistanceSquared =
         EnemyFullDetailDistance * EnemyFullDetailDistance;
+    const double presentationSeconds = GetTime();
     for (auto flash = enemyHitFlashById_.begin();
          flash != enemyHitFlashById_.end();) {
-        if (snapshot.elapsedSeconds < flash->second.startedAt ||
-            snapshot.elapsedSeconds >
-                flash->second.nextAllowedAt + EnemyHitFlashDuration) {
+        if (presentationSeconds >
+            flash->second.startedAt + EnemyHitFlashDuration) {
             flash = enemyHitFlashById_.erase(flash);
         } else {
             ++flash;
@@ -211,8 +211,8 @@ void App::drawWorldEnemies(
         float hitFlash = 0.0F;
         if (flash != enemyHitFlashById_.end()) {
             const float age = static_cast<float>(
-                snapshot.elapsedSeconds - flash->second.startedAt);
-            constexpr float FlashHoldSeconds = 0.025F;
+                presentationSeconds - flash->second.startedAt);
+            constexpr float FlashHoldSeconds = 0.012F;
             const float fade = std::clamp(
                 (age - FlashHoldSeconds) /
                     static_cast<float>(

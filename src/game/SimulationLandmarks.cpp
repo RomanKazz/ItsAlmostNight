@@ -307,6 +307,11 @@ void Simulation::updateWorldLandmarks(
     }
     productionDeltaSeconds *= productionSpeedMultiplier_ *
         runProductionSpeedMultiplier_;
+    advanceWorldLandmarkProduction(productionDeltaSeconds);
+}
+
+void Simulation::advanceWorldLandmarkProduction(
+    double productionDeltaSeconds) {
     if (!std::isfinite(productionDeltaSeconds) ||
         productionDeltaSeconds <= 0.0) {
         return;

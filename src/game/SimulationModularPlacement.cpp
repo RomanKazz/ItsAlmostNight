@@ -14,10 +14,12 @@ namespace {
 constexpr double ResourcePlacementClearance = 0.08;
 
 bool modularBuildingUnlocked(
-    const BuildingSystem& buildings, bool unlimitedResources) {
+    const BuildingSystem& buildings, bool unlimitedResources,
+    ModularBuildPiece piece) {
     if (unlimitedResources) return true;
     const auto core = buildings.core();
-    return core && core->level >= ModularBuildingRequiredCoreLevel;
+    return core && core->level >=
+        modularBuildPieceRequiredCoreLevel(piece);
 }
 
 bool resourceOverlapsBox(
@@ -125,6 +127,10 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
             return resourceGroundPositionIsSafe(x, z, radius);
         });
     resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
+    resources_.setGatheringYieldMultiplier(
+        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
+        (1.0 + 0.15 * static_cast<double>(runUpgradeStacks_[
+            runUpgradeIndex(RunUpgradeEffect::RichResources)])));
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,
@@ -217,7 +223,8 @@ PlatformFramePlacement Simulation::previewFoundation(
             ModularPlacementError::InsufficientResources;
     }
     if (placement.valid() &&
-        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        !modularBuildingUnlocked(buildings_, unlimitedResources_,
+                                 ModularBuildPiece::Foundation)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
     }
     return placement;
@@ -283,7 +290,8 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
             ModularPlacementError::InsufficientResources;
     }
     if (placement.valid() &&
-        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        !modularBuildingUnlocked(buildings_, unlimitedResources_,
+                                 ModularBuildPiece::Foundation)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
     }
     return placement;
@@ -356,7 +364,8 @@ Simulation::validateFloorPlatformPlacement(
     PlatformFramePlacement placement,
     bool checkResourceCost) const {
     if (placement.valid() &&
-        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        !modularBuildingUnlocked(buildings_, unlimitedResources_,
+                                 ModularBuildPiece::FloorPlatform)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
     }
     const double cellSize = worldConfig_.cellSize;
@@ -547,7 +556,8 @@ WallPlacement Simulation::previewWall(
     WallPlacement placement = foundations_.previewWall(
         terrainHit, playerPosition_, rotation);
     if (placement.valid() &&
-        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        !modularBuildingUnlocked(buildings_, unlimitedResources_,
+                                 ModularBuildPiece::Wall)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
     }
     const double cellSize = worldConfig_.cellSize;
@@ -617,7 +627,8 @@ RampPlacement Simulation::validateRampPlacement(
     RampPlacement placement,
     bool checkResourceCost) const {
     if (placement.valid() &&
-        !modularBuildingUnlocked(buildings_, unlimitedResources_)) {
+        !modularBuildingUnlocked(buildings_, unlimitedResources_,
+                                 ModularBuildPiece::Ramp)) {
         placement.error = ModularPlacementError::CoreLevelRequired;
     }
     const double cellSize = worldConfig_.cellSize;

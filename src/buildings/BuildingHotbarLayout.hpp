@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/CoreProgression.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 #include "game/GameBalance.hpp"
 
@@ -29,18 +30,18 @@ inline constexpr std::array<BuildingType, 1> BaseBuildingOrder{
 inline constexpr std::array<BuildingType, 6> DefenseBuildingOrder{
         BuildingType::GunTurret,
         BuildingType::Turret,
+        BuildingType::SlowTrap,
+        BuildingType::SpikeTrap,
         BuildingType::Cannon,
         BuildingType::Catapult,
-        BuildingType::SpikeTrap,
-        BuildingType::SlowTrap,
     };
 inline constexpr std::array<BuildingType, 0> EconomyBuildingOrder{};
 inline constexpr std::array<BuildingType, 5> ModularBuildingOrder{
     BuildingType::Wall,
     BuildingType::Gate,
-    BuildingType::LumberMill,
-    BuildingType::Quarry,
     BuildingType::CrystalMine,
+    BuildingType::Quarry,
+    BuildingType::LumberMill,
 };
 
 [[nodiscard]] constexpr BuildingHotbarCategory buildingHotbarCategory(
@@ -111,11 +112,8 @@ struct BuildingHotbarLayout {
             if (type == BuildingType::Core) continue;
             const std::size_t index = static_cast<std::size_t>(type);
             if (!unlocked[index]) continue;
-            if (!bypassCoreRestrictions && coreLevel < 2U &&
-                (type == BuildingType::SlowTrap ||
-                 type == BuildingType::SpikeTrap ||
-                 type == BuildingType::LumberMill ||
-                 type == BuildingType::Quarry)) {
+            if (!bypassCoreRestrictions &&
+                coreLevel < buildingRequiredCoreLevel(type)) {
                 continue;
             }
             layout.types[layout.count++] = type;
@@ -172,16 +170,25 @@ makeConstructionHotbarLayout(
     bool bypassCoreRestrictions = false) {
     ConstructionHotbarLayout result;
     if (!corePlaced) return result;
-    if (bypassCoreRestrictions || coreLevel >= 2U) {
-        for (const ModularBuildPiece piece : ModularBuildHotbarOrder) {
-            result.items[result.count++].modularPiece = piece;
-        }
+    if (bypassCoreRestrictions ||
+        coreLevel >= modularBuildPieceRequiredCoreLevel(
+                         ModularBuildPiece::Foundation)) {
+        result.items[result.count++].modularPiece =
+            ModularBuildPiece::Foundation;
     }
     const BuildingHotbarLayout buildings = makeBuildingHotbarLayout(
         unlocked, BuildingHotbarCategory::Modular,
         corePlaced, coreLevel, bypassCoreRestrictions);
     for (const BuildingType type : buildings.visible()) {
         result.items[result.count++].buildingType = type;
+    }
+    for (const ModularBuildPiece piece : {
+             ModularBuildPiece::FloorPlatform,
+             ModularBuildPiece::Ramp}) {
+        if (bypassCoreRestrictions ||
+            coreLevel >= modularBuildPieceRequiredCoreLevel(piece)) {
+            result.items[result.count++].modularPiece = piece;
+        }
     }
     return result;
 }

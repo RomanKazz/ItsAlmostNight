@@ -146,11 +146,22 @@ FoundationSystem::previewGroundPlatformAtAnchor(
     const PlatformFramePlacement basePlacement =
         validateAtHeight(baseHeight);
 
-    constexpr std::array<GridCoord, 4> NeighbourOffsets{{
+    // Corner-touching frames belong to the same visual platform surface too.
+    // Considering all eight neighbours keeps separately dragged rows on one
+    // plane when they meet diagonally or are filled in later.
+    constexpr std::array<GridCoord, 8> NeighbourOffsets{{
         {-PlatformFrameWidthCells, 0, 0},
         {PlatformFrameWidthCells, 0, 0},
         {0, 0, -PlatformFrameWidthCells},
         {0, 0, PlatformFrameWidthCells},
+        {-PlatformFrameWidthCells, 0,
+         -PlatformFrameWidthCells},
+        {-PlatformFrameWidthCells, 0,
+         PlatformFrameWidthCells},
+        {PlatformFrameWidthCells, 0,
+         -PlatformFrameWidthCells},
+        {PlatformFrameWidthCells, 0,
+         PlatformFrameWidthCells},
     }};
     std::vector<double> neighbourLevels;
     for (const GridCoord offset : NeighbourOffsets) {

@@ -1,5 +1,6 @@
 #include "ui/HudRenderer.hpp"
 
+#include "combat/CombatDisplayUnits.hpp"
 #include "game/Simulation.hpp"
 #include "ui/UiText.hpp"
 
@@ -131,7 +132,7 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
             {255, 177, 84, 255});
         drawSummaryCard(
             cardX + cardWidth + cardGap, "TOTAL DAMAGE",
-            compactAmount(static_cast<int>(std::lround(totalDamage))),
+            compactAmount(combatDisplayValue(totalDamage)),
             {239, 116, 88, 255});
 
         const float detailsY = cardY + 118.0F;
@@ -149,12 +150,12 @@ void drawRunStateOverlay(const SimulationSnapshot& snapshot) {
                 18.0F, valueColor);
         };
         drawStat(leftX, detailsY, "PLAYER DAMAGE",
-                 compactAmount(static_cast<int>(std::lround(
-                     snapshot.runStatistics.playerDamageDealt))),
+                 compactAmount(combatDisplayValue(
+                     snapshot.runStatistics.playerDamageDealt)),
                  {242, 204, 119, 255});
         drawStat(leftX, detailsY + 38.0F, "DEFENSE DAMAGE",
-                 compactAmount(static_cast<int>(std::lround(
-                     snapshot.runStatistics.defenseDamageDealt))),
+                 compactAmount(combatDisplayValue(
+                     snapshot.runStatistics.defenseDamageDealt)),
                  {115, 199, 239, 255});
         drawStat(leftX, detailsY + 76.0F, "STRUCTURES BUILT",
                  std::to_string(snapshot.runStatistics.structuresBuilt),

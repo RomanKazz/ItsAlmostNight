@@ -5,6 +5,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -143,7 +144,7 @@ void App::drawItemGrantMenu() {
 
 void App::drawSandboxCardMenu(
     const SimulationSnapshot& snapshot) {
-    if (!sandboxCardMenuVisible_ || !snapshot.sandboxMode) {
+    if (!sandboxCardMenuVisible_) {
         return;
     }
 
@@ -160,7 +161,7 @@ void App::drawSandboxCardMenu(
 
     ui_.drawPanel({x, y, width, height}, 252);
     drawUiText(
-        "SANDBOX CARDS",
+        "GRANT UPGRADES",
         {x + Padding, y + 22.0F}, 25.0F,
         {250, 224, 151, 255});
     drawUiText(
@@ -174,7 +175,14 @@ void App::drawSandboxCardMenu(
     const Rectangle viewport{
         x + Padding, viewportY,
         width - Padding * 2.0F, viewportHeight};
-    const std::size_t cardCount = RunUpgradeDefinitions.size();
+    std::array<std::size_t, RunUpgradeEffectCount> activeCards{};
+    std::size_t cardCount = 0U;
+    for (std::size_t index = 0;
+         index < RunUpgradeDefinitions.size(); ++index) {
+        if (!retiredRunUpgrade(RunUpgradeDefinitions[index].effect)) {
+            activeCards[cardCount++] = index;
+        }
+    }
     const float contentHeight = static_cast<float>(cardCount) *
         (RowHeight + RowGap) - RowGap;
     const float maximumScroll = std::max(
@@ -208,7 +216,7 @@ void App::drawSandboxCardMenu(
         RunUpgradeEffect card{};
         bool grantable = true;
         const RunUpgradeDefinition& definition =
-            RunUpgradeDefinitions[index];
+            RunUpgradeDefinitions[activeCards[index]];
         card = definition.effect;
         title = std::string(definition.name);
         description = std::string(definition.description);
@@ -258,7 +266,8 @@ void App::drawSandboxCardMenu(
     if (ui_.drawButton(
             {x + width - Padding - 220.0F,
              y + height - 58.0F, 220.0F, 42.0F},
-            "CLOSE [F5]")) {
+            snapshot.sandboxMode
+                ? "CLOSE [F5]" : "CLOSE [SHIFT+F5]")) {
         sandboxCardMenuVisible_ = false;
         if (snapshot.state != RunState::Paused) {
             DisableCursor();

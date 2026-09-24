@@ -16,7 +16,6 @@
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
 #include "ui/TargetHealthBar.hpp"
-#include "ui/UiEditor.hpp"
 
 #include <optional>
 #include <array>
@@ -124,10 +123,10 @@ class App {
     // compile-time diagnostic for future isolated rendering work.
     static constexpr bool MinimalWorldVisuals = false;
     static constexpr double ToolSwapHideFraction = 0.42;
-    static constexpr double ToolSwapDurationScale = 1.35;
-    static constexpr double EnemyHitFlashInterval = 1.0 / 15.0;
-    static constexpr double EnemyHitFlashDuration = 0.18;
-    static constexpr float EnemyHitFlashPeak = 0.62F;
+    static constexpr double ToolSwapDurationScale = 0.90;
+    static constexpr double EnemyHitFlashInterval = 1.0 / 30.0;
+    static constexpr double EnemyHitFlashDuration = 0.105;
+    static constexpr float EnemyHitFlashPeak = 0.92F;
 
     struct RenderFrameTimings {
         PerformanceClock::time_point uiStart{};
@@ -271,12 +270,14 @@ class App {
     void drawObjectiveDebugMenu(const SimulationSnapshot& snapshot);
     [[nodiscard]] FirstPersonToolTuning& activeToolTuning();
     [[nodiscard]] const FirstPersonToolTuning& activeToolTuning() const;
+    [[nodiscard]] double toolSwingDurationFor(
+        const SimulationSnapshot& snapshot,
+        FirstPersonToolVisual visual) const;
     void processPresentationEvents(
         std::span<const GameEvent> events,
         const SimulationSnapshot& snapshot);
-    void startEnemyHitFlash(EntityId id, double elapsedSeconds);
+    void startEnemyHitFlash(EntityId id);
     void chooseHarvestSwingAnimation(FirstPersonToolVisual visual);
-    void drawBuildModePie() const;
     void selectActionMode(
         ActionMode mode,
         const SimulationSnapshot& snapshot);
@@ -293,6 +294,7 @@ class App {
         const SimulationSnapshot& snapshot,
         std::size_t index);
     void resetRunInputState();
+    void resetRunClientState(const SimulationSnapshot& snapshot);
     void resetEquipmentActionMode(
         const SimulationSnapshot& snapshot);
     void addEffect(PresentationEffectType type, Vec3 position,
@@ -310,7 +312,8 @@ class App {
     void addDamageIndicator(Vec3 sourcePosition,
                             const SimulationSnapshot& snapshot, bool severe);
     void addFloatingDamageNumber(Vec3 position, double damage,
-                                 bool critical);
+                                 bool critical,
+                                 double startDelay = 0.0);
     void addResourceGainVisual(ResourceType type, Vec3 position,
                                int amount);
 
@@ -331,7 +334,6 @@ class App {
     TextureResource vfxElectricRingTexture_;
     TextureResource resourceImpactTexture_;
     GameUi ui_;
-    UiEditor uiEditor_;
     bool pendingStartFromUi_{};
     bool pendingContinueFromUi_{};
     bool classSelectionVisible_{};
@@ -345,7 +347,6 @@ class App {
     bool exitRequested_{};
     mutable std::optional<bool> suspendedRunAvailabilityCache_;
     bool graphicsPanelWasVisible_{};
-    bool uiEditorWasVisible_{};
     bool runUpgradeChoiceWasVisible_{};
     double runUpgradeChoiceInputDelayRemaining_{};
     bool runUpgradeChoiceInputArmed_{};
@@ -363,6 +364,7 @@ class App {
     int toolPanelPage_{};
     TargetHealthBar targetHealthBar_;
     InteractionPromptRenderer interactionPromptRenderer_;
+    Camera3D gameplayCamera_{};
     PlayerCommand input_;
     double pendingYaw_{};
     double pendingPitch_{};
@@ -458,10 +460,12 @@ class App {
     bool sandboxCardMenuVisible_{};
     bool coreDefenseMenuVisible_{};
     bool coreDefenseMenuClosing_{};
+    bool coreMenuPointerActive_{};
     double coreDefenseMenuEntranceSeconds_{};
+    double coreMenuLostAimSeconds_{};
+    double coreMenuPointerAwaySeconds_{};
     std::uint8_t coreDefenseMenuAnimatedLevel_{};
     float sandboxCardMenuScroll_{};
-    std::size_t selectedDefenseBlueprint_{};
     int debugSpawnCount_{50};
     LootUpgradeEffect debugGrantLootEffect_{
         LootUpgradeEffect::Apple};
@@ -550,6 +554,9 @@ class App {
         modularAnimationScaleBuffer_;
     mutable std::vector<GrassClearArea>
         activeDecorationClearAreaBuffer_;
+    mutable std::vector<GrassClearArea>
+        persistentDecorationClearAreaBuffer_;
+    mutable std::uint64_t grassClearAreaFingerprint_{};
     std::vector<std::pair<float, std::size_t>>
         shadowCandidateBuffer_;
     struct SoldBuildingVisual {
@@ -566,7 +573,6 @@ class App {
     std::vector<SoldBuildingVisual> soldBuildingVisuals_;
     std::optional<SoldBuildingVisual>
         pendingSoldModularVisual_;
-    std::vector<GrassClearArea> grassClearAreas_;
     std::uint64_t decorationExclusionFingerprint_{};
     Vector2 worldRevealOrigin_{};
     double worldRevealElapsed_{1000.0};
@@ -649,6 +655,7 @@ class App {
         buildingContextCardUpgradeCost_;
     std::optional<BuildingStatComparison>
         buildingContextCardStats_;
+    bool selectBuildingAfterCorePlacement_{};
     std::optional<EntityId> recentlyDamagedBuilding_;
     double damagedBuildingHealthBarRemaining_{};
     double playerDamageFlashRemaining_{};
@@ -667,6 +674,13 @@ class App {
     std::optional<GridPosition> placementPreviewGrid_;
     std::optional<BuildingType> placementPreviewType_;
     double placementPreviewEntranceSeconds_{};
+    std::optional<BuildingPreview> outgoingBuildingPreview_;
+    std::optional<Vector2> outgoingPreviewCenter_;
+    std::optional<PlatformFramePlacement> outgoingPlatformPreview_;
+    std::optional<WallPlacement> outgoingWallPreview_;
+    std::optional<RampPlacement> outgoingRampPreview_;
+    std::optional<Vec3> outgoingModularPreviewOrigin_;
+    double outgoingPreviewRemaining_{};
     double placementSnapPulseRemaining_{};
     double placementRotationYaw_{};
     struct CancelledPlacementPreview {
@@ -699,12 +713,9 @@ class App {
     PerformanceRecorder performanceRecorder_{};
     bool performanceLoggingApplied_{};
     std::uint64_t performanceFrameIndex_{};
-    bool buildModePieVisible_{};
-    Vector2 buildModePieDirection_{};
-    std::optional<ActionMode>
-        buildModePieChoice_;
     ActionMode actionMode_{ActionMode::Equipment};
     ActionMode previousActionMode_{ActionMode::Buildings};
+    float hotbarModeBlend_{};
     PlayerWeapon lastEquipmentSelection_{PlayerWeapon::Axe};
     BuildingType lastBuildingSelection_{
         BuildingType::Wall};

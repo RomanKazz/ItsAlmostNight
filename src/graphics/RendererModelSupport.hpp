@@ -11,6 +11,7 @@
 namespace ian::renderer_model_detail {
 
 inline constexpr float TreeModelScale = 1.0F;
+inline constexpr float CoreModelScale = 1.76F;
 inline constexpr float RockModelScale =
     static_cast<float>(StoneVisualModelScale);
 

@@ -5,6 +5,7 @@
 
 #include <raylib.h>
 #include <raymath.h>
+#include <rlgl.h>
 
 #include <algorithm>
 #include <cmath>
@@ -560,8 +561,14 @@ void App::drawSelectionPass(
         [](const EnemyInstance& enemy) {
             return enemy.active && enemy.eliteAffixes != 0U;
         });
+    const bool hasPlacementPreview =
+        snapshot.buildingPreview &&
+        !wallDragStart_ &&
+        !placementPreviewObstructed(
+            snapshot.buildingPreview->placement.error);
     if (!removalDragActive_ &&
         (hasVisibleLoot || hasEliteEnemies ||
+         hasPlacementPreview ||
          snapshot.aimedChest || snapshot.aimedResource ||
          snapshot.aimedChallengeColumn ||
          snapshot.aimedWorldLandmark ||
@@ -569,13 +576,25 @@ void App::drawSelectionPass(
          (!foundationBuildMode_ &&
           snapshot.aimedModularBuilding)) &&
         renderer_->beginSelectionMaskPass(camera)) {
+        if (!foundationBuildMode_ &&
+            snapshot.aimedModularBuilding) {
+            // A selected modular section must retain its complete perimeter
+            // when an adjacent section is closer to the camera. This is a
+            // readability overlay, so draw it above the assembled structure.
+            renderer_->setSelectionOutlineDepthOcclusion(false);
+        }
+        if (hasPlacementPreview) {
+            renderer_->setSelectionOutlineRadius(2.0F);
+            renderer_->setSelectionOutlineTint(
+                {255, 255, 255, 145});
+        }
         // Seed mask depth with black occluders. They clip selected geometry
         // without becoming part of its silhouette.
         renderer_->setSelectionMaskColor(BLACK);
         // Resources and ground-level modular pieces can extend below the
         // terrain. Seed the mask depth with terrain so their buried geometry
         // never contributes to the outline.
-        if (snapshot.aimedResource ||
+        if (hasPlacementPreview || snapshot.aimedResource ||
             (!foundationBuildMode_ &&
              snapshot.aimedModularBuilding)) {
             renderer_->drawTerrain(BLACK, camera.position, false);
@@ -596,6 +615,74 @@ void App::drawSelectionPass(
                 static_cast<float>(chest.yaw),
                 static_cast<float>(chest.openingProgress),
                 WHITE));
+        }
+        if (hasPlacementPreview) {
+            const BuildingPreview& preview =
+                *snapshot.buildingPreview;
+            const Vec3 targetCenter = buildingWorldPosition(
+                preview.type, preview.gridPosition);
+            const Vector2 visualCenter = repelInvalidPreview(
+                placementPreviewCenter_.value_or(Vector2{
+                    static_cast<float>(targetCenter.x),
+                    static_cast<float>(targetCenter.z),
+                }),
+                preview, snapshot.playerPosition);
+            const float entranceProgress = std::clamp(
+                static_cast<float>(
+                    placementPreviewEntranceSeconds_ / 0.34),
+                0.0F, 1.0F);
+            constexpr float Overshoot = 1.35F;
+            const float shifted = entranceProgress - 1.0F;
+            const float easedEntrance = 1.0F +
+                (Overshoot + 1.0F) * shifted * shifted * shifted +
+                Overshoot * shifted * shifted;
+            const float previewScale = std::clamp(
+                easedEntrance, 0.0F, 1.08F);
+            if (previewScale > 0.01F) {
+            const float previewLift =
+                -0.14F * (1.0F - easedEntrance);
+            const float yaw = static_cast<float>(
+                placementRotationYaw_);
+            Color outlineColor = placementColor(
+                preview.placement.error, true);
+            outlineColor.a = 255;
+            renderer_->setSelectionMaskColor(outlineColor);
+            const float halfExtent = static_cast<float>(
+                buildingFootprintHalfExtent(preview.type));
+            const float baseHeight = static_cast<float>(
+                preview.baseHeight) + previewLift;
+            renderer_->setSelectionOutlineBounds({
+                {visualCenter.x -
+                     (halfExtent + 0.45F) * previewScale,
+                 baseHeight - 0.08F,
+                 visualCenter.y -
+                     (halfExtent + 0.45F) * previewScale},
+                {visualCenter.x +
+                     (halfExtent + 0.45F) * previewScale,
+                 baseHeight + 4.5F * previewScale,
+                 visualCenter.y +
+                     (halfExtent + 0.45F) * previewScale},
+            });
+            const std::uint8_t connections =
+                preview.type == BuildingType::Wall
+                    ? wallConnectionMask(
+                          snapshot.buildings,
+                          preview.gridPosition,
+                          preview.baseHeight)
+                    : 0U;
+            rlPushMatrix();
+            rlTranslatef(visualCenter.x, baseHeight,
+                         visualCenter.y);
+            rlScalef(previewScale, previewScale,
+                     previewScale);
+            rlTranslatef(-visualCenter.x, -baseHeight,
+                         -visualCenter.y);
+            drawPlacementPreviewGeometry(
+                *renderer_, preview.type,
+                {visualCenter.x, baseHeight, visualCenter.y},
+                yaw, preview.rotation, connections);
+            rlPopMatrix();
+            }
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.loot.revealProgress <= 0.0 ||
@@ -1150,10 +1237,10 @@ void App::drawSelectionPass(
                     animationScales,
                     1.0F,
                 };
-            selectionView.platformVisibilityContext =
-                snapshot.platformFrames;
-            selectionView.sharedSupportVisibilityContext =
-                snapshot.sharedSupports;
+            // The selection mask needs the complete standalone mesh. The
+            // regular visibility contexts deliberately hide shared edges and
+            // supports, which makes adjacent platforms merge into one mask
+            // and removes the outline along their common boundary.
             modularBuildingRenderer_.drawWorld(selectionView, {});
         }
         renderer_->endSelectionMaskPass();

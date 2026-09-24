@@ -76,4 +76,37 @@ void runPresentationTimelineTests() {
         delayed.front().remaining, 0.65, 1e-9,
         "presentation timeline applies frame time"
         " remaining after delay");
+
+    std::vector<ian::ArrowVisual> chainedProjectile{{
+        .origin = {},
+        .target = {1.0, 0.0, 0.0},
+        .direction = {1.0, 0.0, 0.0},
+        .remaining = 0.2,
+        .duration = 0.2,
+        .startDelayRemaining = 0.15,
+    }};
+    ian::presentation::advanceTimeline(chainedProjectile, 0.1);
+    requireNear(
+        chainedProjectile.front().remaining, 0.2, 1e-9,
+        "ricochet segment waits for the previous segment");
+    ian::presentation::advanceTimeline(chainedProjectile, 0.1);
+    requireNear(
+        chainedProjectile.front().remaining, 0.15, 1e-9,
+        "ricochet segment uses frame time left after its delay");
+
+    std::vector<ian::FloatingDamageNumber> delayedNumber{{
+        .position = {},
+        .damage = 4.0,
+        .remaining = 0.5,
+        .duration = 0.5,
+        .startDelayRemaining = 0.15,
+    }};
+    ian::presentation::advanceTimeline(delayedNumber, 0.1);
+    requireNear(
+        delayedNumber.front().remaining, 0.5, 1e-9,
+        "tower damage number waits for projectile impact");
+    ian::presentation::advanceTimeline(delayedNumber, 0.1);
+    requireNear(
+        delayedNumber.front().remaining, 0.45, 1e-9,
+        "tower damage number starts when projectile arrives");
 }

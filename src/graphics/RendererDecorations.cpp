@@ -657,6 +657,7 @@ void Renderer::drawDecorativeRocks(
     // family as clean color shapes without a post-process silhouette.
     WorldMaterialState smallPlantMaterial = worldMaterial_;
     smallPlantMaterial.inkOutlineEligible = false;
+    smallPlantMaterial.inkOccluder = true;
     uploadWorldMaterial(smallPlantMaterial);
     for (std::size_t variant = FirstSmallPlantVariant;
          variant <= LastSmallPlantVariant; ++variant) {
@@ -752,7 +753,7 @@ bool Renderer::drawCrystalFragment(
     } else {
         rotationAxis = Vector3Normalize(rotationAxis);
     }
-    constexpr float AuthoredScaleCompensation = 2.30F;
+    constexpr float AuthoredScaleCompensation = 3.10F;
     scale *= AuthoredScaleCompensation;
     DrawModelEx(
         resource.get(), position, rotationAxis, rotationDegrees,

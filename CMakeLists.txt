@@ -111,6 +111,9 @@ add_library(ian_simulation
     src/economy/CoinPickupSystem.cpp
     src/enemies/EnemyCombat.cpp
     src/enemies/EnemyCollision.cpp
+    src/enemies/EnemyBoss.cpp
+    src/enemies/EnemyNavigation.cpp
+    src/enemies/EnemyProjectiles.cpp
     src/enemies/EnemySystem.cpp
     src/game/Simulation.cpp
     src/game/SimulationCombat.cpp
@@ -121,6 +124,7 @@ add_library(ian_simulation
     src/game/SimulationBuildingCommands.cpp
     src/game/SimulationDebug.cpp
     src/game/SimulationDefenses.cpp
+    src/game/SimulationTowerCombat.cpp
     src/game/SimulationLoot.cpp
     src/game/SimulationLandmarks.cpp
     src/game/SimulationModularPlacement.cpp
@@ -191,11 +195,15 @@ add_library(ian_graphics
     src/graphics/InstanceBufferPool.cpp
     src/graphics/ModularBuildingRenderer.cpp
     src/graphics/Renderer.cpp
+    src/graphics/RendererBuildingModels.cpp
     src/graphics/RendererDecorations.cpp
+    src/graphics/RendererEnemyModels.cpp
+    src/graphics/RendererEnvironmentModels.cpp
     src/graphics/RendererFramePasses.cpp
     src/graphics/RendererLootModels.cpp
     src/graphics/RendererModelRaycasts.cpp
     src/graphics/RendererModels.cpp
+    src/graphics/RendererToolModels.cpp
     src/graphics/RendererSettings.cpp
     src/graphics/RendererShaders.cpp
     src/graphics/RendererTerrain.cpp
@@ -216,7 +224,6 @@ add_library(ian_ui
     src/ui/InputKeycap.cpp
     src/ui/InteractionPrompt.cpp
     src/ui/TargetHealthBar.cpp
-    src/ui/UiEditor.cpp
     src/ui/WorldBillboard.cpp
 )
 target_include_directories(ian_ui PUBLIC src)
@@ -230,9 +237,11 @@ add_executable(its_almost_night
     src/core/PerformanceRecorder.cpp
     src/app/App.cpp
     src/app/AppRunSave.cpp
+    src/app/AppRunLifecycle.cpp
     src/app/AppActionModes.cpp
     src/app/AppCoreDefenseMenu.cpp
     src/app/AppEffects.cpp
+    src/app/AppAtmosphereEffects.cpp
     src/app/AppEnemySpawnMenu.cpp
     src/app/AppEventPresentation.cpp
     src/app/AppGraphicsPanel.cpp
@@ -244,6 +253,7 @@ add_executable(its_almost_night
     src/app/AppInput.cpp
     src/app/AppItemGrantMenu.cpp
     src/app/AppModularPlacement.cpp
+    src/app/AppModularPlacementCommit.cpp
     src/app/AppObjectiveDebugMenu.cpp
     src/app/AppPresentationState.cpp
     src/app/AppPresentationEffects.cpp

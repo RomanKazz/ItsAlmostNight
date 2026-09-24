@@ -64,22 +64,19 @@ std::uint64_t coinSeed(EntityId id, std::uint64_t tick) {
 } // namespace
 
 void Simulation::updateCoinPickups(double deltaSeconds) {
-    const auto maybeDropCoins = [this](
-        EntityId id, Vec3 position, EnemyType type,
-        bool elite) {
+    const auto rolledCoinValue = [this](
+        EntityId id, EnemyType type,
+        bool elite) -> int {
         const std::uint64_t seed = coinSeed(id, tick_);
         constexpr std::uint64_t DropRollSalt =
             0xd1b54a32d192ed03ULL;
         if (unitRandom(seed ^ DropRollSalt) >=
             coinDropChance(type, elite)) {
-            return;
+            return 0;
         }
         const int baseCoins = coinDropAmount(type);
-        coinPickups_.spawnValue(
-            position,
-            baseCoins +
-                (elite ? std::max(2, baseCoins / 2) : 0),
-            seed, terrain_);
+        return baseCoins +
+            (elite ? std::max(2, baseCoins / 2) : 0);
     };
     const auto maybeDropMedkit = [this](
         EntityId id, Vec3 position, EnemyType type,
@@ -93,6 +90,9 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             coinPickups_.spawnHeart(position, seed, terrain_);
         }
     };
+    int automaticallyCollectedCoins = 0;
+    int automaticCollectionCount = 0;
+    Vec3 automaticCollectionPosition = playerPosition_;
     // Explicit kill events preserve the death position even when the enemy
     // slot is reused by wave spawning later in the same simulation tick.
     for (const GameEvent& event : events_) {
@@ -120,14 +120,28 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
             ? event.enemyEliteAffixes != 0U
             : enemy != enemies_.enemies().end() &&
                 enemy->eliteAffixes != 0U;
-        maybeDropCoins(
-            *event.entityId, event.position, type, elite);
+        const int coinValue = rolledCoinValue(
+            *event.entityId, type, elite);
+        const bool killedByTurret =
+            event.buildingType == BuildingType::Turret ||
+            event.buildingType == BuildingType::GunTurret ||
+            event.buildingType == BuildingType::Cannon ||
+            event.buildingType == BuildingType::Catapult;
+        if (coinValue > 0 && killedByTurret) {
+            automaticallyCollectedCoins = saturatingAdd(
+                automaticallyCollectedCoins, coinValue);
+            ++automaticCollectionCount;
+            automaticCollectionPosition = event.position;
+        } else if (coinValue > 0) {
+            coinPickups_.spawnValue(
+                event.position, coinValue,
+                coinSeed(*event.entityId, tick_), terrain_);
+        }
         maybeDropMedkit(
             *event.entityId, event.position, type, elite);
     }
 
-    // Area systems such as cannons only report an aggregate kill count.
-    // Dead-state scanning covers those deaths without relying on event shape.
+    // Fallback for deaths that do not emit a source-aware kill event.
     for (const EnemyInstance& enemy : enemies_.enemies()) {
         if (enemy.active || enemy.state != EnemyState::Dead) {
             continue;
@@ -136,12 +150,27 @@ void Simulation::updateCoinPickups(double deltaSeconds) {
                 rewardedEnemyCoins_, enemy.id)) {
             continue;
         }
-        maybeDropCoins(
-            enemy.id, enemy.position, enemy.type,
+        const int coinValue = rolledCoinValue(
+            enemy.id, enemy.type,
             enemy.eliteAffixes != 0U);
+        if (coinValue > 0) {
+            coinPickups_.spawnValue(
+                enemy.position, coinValue,
+                coinSeed(enemy.id, tick_), terrain_);
+        }
         maybeDropMedkit(
             enemy.id, enemy.position, enemy.type,
             enemy.eliteAffixes != 0U);
+    }
+
+    if (automaticallyCollectedCoins > 0) {
+        coins_ = saturatingAdd(coins_, automaticallyCollectedCoins);
+        events_.push_back({
+            .type = GameEventType::CoinCollected,
+            .position = automaticCollectionPosition,
+            .amount = automaticallyCollectedCoins,
+            .intensity = static_cast<double>(automaticCollectionCount),
+        });
     }
 
     const CoinCollection collected = coinPickups_.tick(

@@ -12,6 +12,7 @@ namespace ian {
 void App::updateHoverTarget(const SimulationSnapshot& snapshot,
                             double frameSeconds) {
     constexpr double HoverGraceSeconds = 0.2;
+    constexpr double BuildingHoverGraceSeconds = 0.05;
     const auto clearHover = [this]() {
         hoveredResource_.reset();
         interactionResourceAim_.reset();
@@ -84,7 +85,7 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
             buildingContextCardStats_ =
                 snapshot.aimedBuildingStats;
         }
-        hoverGraceRemaining_ = HoverGraceSeconds;
+        hoverGraceRemaining_ = BuildingHoverGraceSeconds;
         return;
     }
     hoverGraceRemaining_ =
@@ -117,15 +118,17 @@ void App::updateHoverTarget(const SimulationSnapshot& snapshot,
     }
 }
 
-void App::startEnemyHitFlash(EntityId id, double elapsedSeconds) {
+void App::startEnemyHitFlash(EntityId id) {
+    const double presentationSeconds = GetTime();
     const std::uint64_t key =
         (static_cast<std::uint64_t>(id.generation) << 32U) |
         static_cast<std::uint64_t>(id.index);
     auto [flash, inserted] = enemyHitFlashById_.try_emplace(key);
-    if (inserted || elapsedSeconds >= flash->second.nextAllowedAt) {
-        flash->second.startedAt = elapsedSeconds;
+    if (inserted ||
+        presentationSeconds >= flash->second.nextAllowedAt) {
+        flash->second.startedAt = presentationSeconds;
         flash->second.nextAllowedAt =
-            elapsedSeconds + EnemyHitFlashInterval;
+            presentationSeconds + EnemyHitFlashInterval;
     }
 }
 
@@ -245,7 +248,8 @@ void App::addDamageIndicator(Vec3 sourcePosition,
 }
 
 void App::addFloatingDamageNumber(
-    Vec3 position, double damage, bool critical) {
+    Vec3 position, double damage, bool critical,
+    double startDelay) {
     constexpr std::size_t MaximumNumbers = 32;
     if (floatingDamageNumbers_.size() >= MaximumNumbers) {
         floatingDamageNumbers_.erase(
@@ -278,6 +282,7 @@ void App::addFloatingDamageNumber(
         .damage = damage,
         .remaining = duration,
         .duration = duration,
+        .startDelayRemaining = std::max(0.0, startDelay),
         .horizontalDrift = direction *
             ((critical ? 23.0F : 15.0F) + random01() * 14.0F),
         .verticalRise =

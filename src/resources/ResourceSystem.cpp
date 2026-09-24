@@ -26,7 +26,7 @@ std::vector<ResourceNodeDefinition> defaultDefinitions() {
         {ResourceType::Stone, {3.0, 0.8, 4.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {8.0, 0.8, -1.0}, 0.9, 4.0, 12, 15.0},
         {ResourceType::Stone, {-6.0, 0.8, -5.0}, 0.9, 4.0, 12, 15.0},
-        {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 10, 28.0},
+        {ResourceType::Crystal, {10.0, 0.0, 6.0}, 0.72, 12.0, 12, 28.0},
     };
 }
 
@@ -74,19 +74,29 @@ std::size_t resourceVisualVariant(
 }
 
 ResourceCapacity variedCapacity(
-    double baseHealth, int baseYield, EntityId id,
+    ResourceType type, double baseHealth, int baseYield, EntityId id,
     std::uint32_t respawnGeneration) {
     const std::uint64_t seed =
         (static_cast<std::uint64_t>(id.index) << 32U) ^
         static_cast<std::uint64_t>(respawnGeneration);
     const double roll = unitRandom(seed);
     double extraHealth = 0.0;
-    if (roll >= 0.95) {
-        extraHealth = 4.0;
-    } else if (roll >= 0.84) {
-        extraHealth = 2.0;
-    } else if (roll >= 0.62) {
-        extraHealth = 1.0;
+    if (type == ResourceType::Crystal) {
+        if (roll >= 0.90) {
+            extraHealth = 4.0;
+        } else if (roll >= 0.70) {
+            extraHealth = 2.0;
+        } else if (roll >= 0.35) {
+            extraHealth = 1.0;
+        }
+    } else {
+        if (roll >= 0.95) {
+            extraHealth = 4.0;
+        } else if (roll >= 0.84) {
+            extraHealth = 2.0;
+        } else if (roll >= 0.62) {
+            extraHealth = 1.0;
+        }
     }
     const double health = baseHealth + extraHealth;
     const int yield = baseYield <= 0
@@ -121,7 +131,7 @@ std::vector<ResourceNode> ResourceSystem::makeNodes() const {
             runGeneration_};
         const ResourceCapacity capacity =
             variedCapacity(
-                definition.health, definition.yield,
+                definition.type, definition.health, definition.yield,
                 id, 0);
         const auto [visualYaw, visualScale] =
             resourceVisualTransform(
@@ -163,16 +173,21 @@ void ResourceSystem::reset() {
         ++runGeneration_;
     }
     woodYieldMultiplier_ = 1.0;
+    gatheringYieldMultiplier_ = 1.0;
     nodes_ = makeNodes();
     collisionGeometryDirty_ = true;
 }
 
 bool ResourceSystem::restoreNodes(
     std::span<const ResourceNode> nodes,
-    double woodYieldMultiplier) {
+    double woodYieldMultiplier,
+    double gatheringYieldMultiplier) {
     if (nodes.size() != definitions_.size() ||
         !std::isfinite(woodYieldMultiplier) ||
-        woodYieldMultiplier < 0.0 || woodYieldMultiplier > 1000.0) {
+        woodYieldMultiplier < 0.0 || woodYieldMultiplier > 1000.0 ||
+        !std::isfinite(gatheringYieldMultiplier) ||
+        gatheringYieldMultiplier < 0.0 ||
+        gatheringYieldMultiplier > 1000.0) {
         return false;
     }
     std::uint32_t generation = 0U;
@@ -215,6 +230,7 @@ bool ResourceSystem::restoreNodes(
         runGeneration_ = generation;
     }
     woodYieldMultiplier_ = woodYieldMultiplier;
+    gatheringYieldMultiplier_ = gatheringYieldMultiplier;
     collisionGeometryDirty_ = true;
     return true;
 }
@@ -241,6 +257,31 @@ void ResourceSystem::setWoodYieldMultiplier(double multiplier) {
             0, nextYield);
     }
     woodYieldMultiplier_ = next;
+}
+
+void ResourceSystem::setGatheringYieldMultiplier(double multiplier) {
+    const double next = std::max(0.0, multiplier);
+    if (std::abs(next - gatheringYieldMultiplier_) <= 1e-9) {
+        return;
+    }
+    const double ratio = gatheringYieldMultiplier_ > 0.0
+        ? next / gatheringYieldMultiplier_ : next;
+    for (ResourceNode& node : nodes_) {
+        if (node.type != ResourceType::Wood &&
+            node.type != ResourceType::Stone &&
+            node.type != ResourceType::Crystal) {
+            continue;
+        }
+        const int previousYield = node.yield;
+        const int nextYield = std::max(
+            1, static_cast<int>(std::lround(
+                static_cast<double>(previousYield) * ratio)));
+        node.yield = nextYield;
+        node.yieldRemaining = std::clamp(
+            node.yieldRemaining + nextYield - previousYield,
+            0, nextYield);
+    }
+    gatheringYieldMultiplier_ = next;
 }
 
 void ResourceSystem::tick(
@@ -288,18 +329,22 @@ void ResourceSystem::tick(
                     definitions_[definitionIndex];
                 const ResourceCapacity capacity =
                     variedCapacity(
-                        definition.health,
+                        definition.type, definition.health,
                         definition.yield, node.id,
                         node.respawnGeneration);
                 node.maxHealth = capacity.health;
-                node.yield = capacity.yield;
-                if (node.type == ResourceType::Wood) {
-                    node.yield = std::max(
-                        1,
-                        static_cast<int>(std::lround(
-                            static_cast<double>(node.yield) *
-                            woodYieldMultiplier_)));
-                }
+                const double woodMultiplier =
+                    node.type == ResourceType::Wood
+                        ? woodYieldMultiplier_ : 1.0;
+                const double gatheringMultiplier =
+                    node.type == ResourceType::Wood ||
+                            node.type == ResourceType::Stone ||
+                            node.type == ResourceType::Crystal
+                        ? gatheringYieldMultiplier_ : 1.0;
+                node.yield = std::max(
+                    1, static_cast<int>(std::lround(
+                        static_cast<double>(capacity.yield) *
+                        woodMultiplier * gatheringMultiplier)));
             }
             node.health = node.maxHealth;
             node.yieldRemaining = node.yield;

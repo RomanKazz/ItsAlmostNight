@@ -172,6 +172,10 @@ void buildModularEnemyTargets(
             .modular = true,
             .structuralImpact = 0U,
             .traversable = false,
+            .minimumEnemySurfaceHeight =
+                wall.bottomHeight - 0.45,
+            .maximumEnemySurfaceHeight =
+                wall.bottomHeight + 1.6,
         });
     }
 

@@ -120,15 +120,14 @@ std::span<const CrystalProduced> CrystalMineSystem::tick(double deltaSeconds) {
 }
 
 int CrystalMineSystem::productionAmount(
-    std::uint8_t level, BuildingType type) const {
+    std::uint8_t, BuildingType type) const {
     int baseAmount = definition_.crystalMineAmount;
     if (type == BuildingType::LumberMill) {
         baseAmount = 3;
     } else if (type == BuildingType::Quarry) {
         baseAmount = 2;
     }
-    double amount = static_cast<double>(baseAmount) *
-        (1.0 + 0.15 * static_cast<double>(level - 1));
+    double amount = static_cast<double>(baseAmount);
     if (type == BuildingType::LumberMill) {
         amount *= woodYieldMultiplier_;
     }
@@ -139,7 +138,7 @@ double CrystalMineSystem::productionInterval(
     BuildingType type, std::uint8_t level,
     double healthEfficiency) const {
     const double levelSpeed = 1.0 +
-        0.10 * static_cast<double>(std::max<int>(1, level) - 1);
+        0.20 * static_cast<double>(std::max<int>(1, level) - 1);
     const double effectiveSpeed = productionSpeedMultiplier_ *
         levelSpeed * std::clamp(healthEfficiency, 0.01, 1.0);
     if (type == BuildingType::LumberMill) {

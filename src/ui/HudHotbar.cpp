@@ -37,11 +37,9 @@ void drawHotbarSlots(
     bool showSelectedInfo = true,
     std::string_view categoryLabel = {},
     float verticalOffset = 0.0F,
-    float selectedInfoOffset = 0.0F,
     double invalidActionRemaining = 0.0,
     bool showSwitchLabel = false) {
     if (slots.empty()) return;
-    static_cast<void>(ui);
 
     const bool iconLayout = std::ranges::any_of(
         slots, [](const HotbarSlot& slot) {
@@ -301,7 +299,7 @@ void drawHotbarSlots(
         const float costWidth = resourceCostRowWidth(selected->cost);
         const float infoWidth = std::max(titleWidth, costWidth) + 40.0F;
         const float infoX = (screenWidth - infoWidth) * 0.5F;
-        const float infoY = slotY - 68.0F + selectedInfoOffset;
+        const float infoY = slotY - 68.0F;
         drawSdfUiText(
             title,
             {infoX + (infoWidth - titleWidth) * 0.5F,
@@ -349,7 +347,7 @@ void drawHotbarSlots(
 
 void drawConstructionHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view) {
+    const HudViewState& view, float transitionOffset) {
     constexpr std::array<std::string_view,
                          MaximumBuildingHotbarSlots> Keys{
         "1", "2", "3", "4", "5", "6", "7", "8"};
@@ -415,15 +413,16 @@ void drawConstructionHotbar(
         view.foundationHotbarSelectionAlpha,
         false, true,
         {},
-        0.0F, 0.0F, view.invalidActionRemaining);
+        transitionOffset, view.invalidActionRemaining);
 }
 
 void drawBuildHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view) {
+    const HudViewState& view, float transitionOffset) {
     if (view.buildingHotbarCategory ==
         BuildingHotbarCategory::Modular) {
-        drawConstructionHotbar(ui, snapshot, view);
+        drawConstructionHotbar(ui, snapshot, view,
+                               transitionOffset);
         return;
     }
     constexpr std::array<const char*, MaximumBuildingHotbarSlots> Keys{
@@ -465,7 +464,7 @@ void drawBuildHotbar(
         view.buildHotbarSelectionPosition,
         view.buildHotbarSelectionAlpha,
         false, true, {},
-        0.0F, -28.0F, view.invalidActionRemaining);
+        transitionOffset, view.invalidActionRemaining);
 }
 
 void drawLootInventory(
@@ -732,9 +731,8 @@ const char* weaponLabel(PlayerWeapon weapon) {
 }
 
 void drawCompactInsight(
-    GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view, bool /*raised*/) {
-    static_cast<void>(ui);
+    const SimulationSnapshot& snapshot,
+    const HudViewState& view) {
 
     constexpr float y = 20.0F;
     constexpr float OuterHeight = 24.0F;
@@ -849,7 +847,7 @@ void drawCompactInsight(
 
 void drawWeaponHotbar(
     GameUi& ui, const SimulationSnapshot& snapshot,
-    const HudViewState& view) {
+    const HudViewState& view, float transitionOffset) {
     std::array<HotbarSlot, PlayerWeaponCount> slots{};
     std::array<std::string, PlayerWeaponCount> keys{};
     std::array<std::string, PlayerWeaponCount> labels{};
@@ -894,7 +892,7 @@ void drawWeaponHotbar(
         ui, std::span<const HotbarSlot>{slots.data(), slotCount},
         view.weaponHotbarSelectionPosition,
         view.weaponHotbarSelectionAlpha,
-        true, false, {}, 0.0F, 0.0F,
+        true, false, {}, transitionOffset,
         view.invalidActionRemaining, true);
 }
 

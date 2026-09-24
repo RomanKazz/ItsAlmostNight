@@ -47,6 +47,7 @@ struct WorldLighting {
 
 struct WorldMaterialState {
     Vector4 baseColor{1.0F, 1.0F, 1.0F, 1.0F};
+    float unlitAmount{};
     float bakedAo{1.0F};
     float vertexAoAmount{};
     float screenAoAmount{1.0F};
@@ -113,6 +114,9 @@ struct WorldMaterialState {
     // The post-process ink mask is carried by the world pass alpha.  This is
     // a material/render-type flag, never an instance-name convention.
     bool inkOutlineEligible{true};
+    // Thin foreground geometry can hide ink belonging to outlined surfaces
+    // behind it without receiving a contour of its own.
+    bool inkOccluder{};
 };
 
 struct RendererPerformanceStats {
@@ -326,6 +330,8 @@ class Renderer {
     void setSelectionMaskWind(float amount);
     void setSelectionMaskColor(Color color);
     void setSelectionOutlineTint(Color tint);
+    void setSelectionOutlineRadius(float radiusPixels);
+    void setSelectionOutlineDepthOcclusion(bool enabled);
     void setSelectionOutlineBounds(BoundingBox worldBounds);
     void endSelectionMaskPass();
     void clearSelectionOutline();
@@ -335,6 +341,8 @@ class Renderer {
 
     void beginWorldShader(const WorldLighting& lighting);
     void setWorldMaterial(const WorldMaterialState& material);
+    void beginColorOnlyWorldEffects();
+    void endColorOnlyWorldEffects();
     void beginGhostPreviewMaterial();
     void endGhostPreviewMaterial();
     void endWorldShader();
@@ -406,7 +414,7 @@ class Renderer {
         Vec3 barrelRecoilOffset = {});
     [[nodiscard]] bool drawTurretBullet(
         Vector3 position, Vector3 direction,
-        Color tint = WHITE);
+        Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] Vec3 gunTurretMuzzlePosition(
         Vec3 position, float yawRadians,
         std::size_t muzzleIndex);
@@ -739,6 +747,8 @@ class Renderer {
         int shadowSampleCount{-1};
         int instancingEnabled{-1};
         int inkOutlineEligible{-1};
+        int inkOccluder{-1};
+        int unlitAmount{-1};
     };
 
     struct SkyShaderLocations {
@@ -875,6 +885,9 @@ class Renderer {
         ghostPreviewRestoreMaterial_;
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
+    int selectionOutlineSceneDepthLocation_{-1};
+    int selectionOutlineInverseProjectionLocation_{-1};
+    int selectionOutlineDepthOcclusionEnabledLocation_{-1};
     int selectionMaskTimeLocation_{-1};
     int selectionMaskWindLocation_{-1};
     int selectionMaskColorLocation_{-1};
@@ -963,6 +976,8 @@ class Renderer {
     Camera3D selectionMaskCamera_{};
     std::optional<Rectangle> selectionOutlineBounds_;
     Color selectionOutlineTint_{WHITE};
+    float selectionOutlineRadiusPixels_{6.0F};
+    bool selectionOutlineDepthOcclusion_{true};
     bool showDebugPanel_{};
     bool showShadowMap_{};
     bool frameOpen_{};

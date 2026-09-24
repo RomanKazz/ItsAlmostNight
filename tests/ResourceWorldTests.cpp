@@ -180,11 +180,11 @@ void runResourceWorldTests() {
                     std::hypot(
                         resource.position.x,
                         resource.position.z) >= 5.0 &&
-                    resource.yield >= 10;
+                    resource.yield >= 12;
             });
         require(
             starterCrystal != starterResources.end(),
-            "every run places a ten-yield crystal near spawn and clear of the Core");
+            "every run places a twelve-yield crystal near spawn and clear of the Core");
     }
     int nearbyTreePairs = 0;
     for (std::size_t left = clusterInput.size();

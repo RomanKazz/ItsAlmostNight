@@ -168,7 +168,7 @@ vec4 normalPixel(ivec2 coordinate)
 
 float inkDifference(
     float centerDepth, float centerMaterialClass,
-    float depthTolerance, vec3 centerPosition,
+    vec3 centerPosition,
     float centerIsObject, float centerIsTerrain,
     ivec2 centerCoordinate, ivec2 coordinate,
     float directionWeight)
@@ -181,66 +181,123 @@ float inkDifference(
     vec4 neighborPackedNormal = normalPixel(coordinate);
     float neighborMaterialClass =
         materialClassOf(neighborPackedNormal);
-    float neighborSceneAlpha = texelFetch(
-        texture0,
-        clamp(coordinate, ivec2(0), textureSize(texture0, 0) - ivec2(1)),
-        0).a;
-    float neighborIsGrass =
-        1.0 - step(0.02, abs(neighborSceneAlpha - 0.125));
-    float neighborIsOpaqueNoInk =
-        (1.0 - step(0.5, neighborMaterialClass))*
-        step(0.98, neighborSceneAlpha);
     float neighborIsObject = step(1.5, neighborMaterialClass);
     float neighborIsBackground =
         1.0 - step(0.5, neighborMaterialClass);
+
+    // Terrain only receives ink against the sky. It covers most screen
+    // pixels, so return before the object-contact and slope calculations.
+    if (centerIsTerrain > 0.5)
+    {
+        return neighborIsBackground*step(0.9999, neighborDepth)*
+            directionWeight;
+    }
+
+    float neighborHasDepth = 1.0 - step(0.999999, neighborDepth);
+    vec2 bufferSize = vec2(depthSize);
+    vec3 neighborPosition = reconstructViewPosition(
+        (vec2(coordinate) + 0.5)/bufferSize, neighborDepth);
+
+    // Object-to-terrain and object-to-sky edges do not use the expensive
+    // same-class slope test. Keep their contact suppression on this path.
+    if (neighborIsObject < 0.5)
+    {
+        float neighborSceneAlpha = texelFetch(
+            texture0,
+            clamp(
+                coordinate, ivec2(0), textureSize(texture0, 0) - ivec2(1)),
+            0).a;
+        float neighborSceneTag =
+            1.0 - step(0.02, abs(neighborSceneAlpha - 0.125));
+        float neighborNormalTag =
+            1.0 - step(0.02, abs(neighborPackedNormal.b - 0.1875));
+        float neighborIsForegroundInkOccluder = max(
+            neighborSceneTag, neighborNormalTag);
+        float neighborIsOpaqueNoInk =
+            (1.0 - step(0.5, neighborMaterialClass))*
+            step(0.98, neighborSceneAlpha);
+        float neighborIsInFront = step(neighborDepth, centerDepth);
 
     // Material tags can be absent beneath late ground overlays. Determine
     // actual ground contact from the separation of the two visible surfaces
     // in view space as well: adjacent contact pixels are close, while terrain
     // seen behind an object's outer side is substantially farther away.
-    float neighborHasDepth = 1.0 - step(0.999999, neighborDepth);
-    vec2 bufferSize = vec2(depthSize);
-    vec3 neighborPosition = reconstructViewPosition(
-        (vec2(coordinate) + 0.5)/bufferSize, neighborDepth);
-    float surfaceSeparation = length(neighborPosition - centerPosition);
-    float closeSurface = 1.0 - smoothstep(0.16, 0.52, surfaceSeparation);
-    // Foreground grass must always mask ink from geometry behind it. Opaque
-    // no-ink surfaces only suppress nearby contact edges so they do not erase
-    // unrelated silhouettes across a large depth gap.
-    float neighborSuppressesInk = max(
-        neighborIsGrass,
-        neighborIsOpaqueNoInk * closeSurface);
-    float groundContact = (1.0 - neighborIsObject)*neighborHasDepth*
-        closeSurface;
+        float surfaceSeparation = length(neighborPosition - centerPosition);
+        float closeSurface =
+            1.0 - smoothstep(0.16, 0.52, surfaceSeparation);
+        // Foreground grass and thin plants must always mask ink from geometry
+        // behind them. Opaque no-ink surfaces only suppress nearby contact
+        // edges so they do not erase silhouettes across a large depth gap.
+        float neighborSuppressesInk = max(
+            neighborIsForegroundInkOccluder*neighborHasDepth*
+                neighborIsInFront,
+            neighborIsOpaqueNoInk * closeSurface);
+        float groundContact =
+            (1.0 - neighborIsObject)*neighborHasDepth*closeSurface;
 
-    // Keep the exterior silhouette against water and sky, but leave the
-    // object-to-terrain contact clean. Contact AO grounds props without the
-    // dark sticker-like seam that an ink line creates along their base.
-    // Grass and opaque no-ink props suppress this side of the boundary too.
-    float materialBoundary = centerIsObject*
-        (1.0 - neighborIsObject)*(1.0 - groundContact)*
-        (1.0 - neighborSuppressesInk);
-    // Preserve separation between overlapping props of the same class.
-    float objectDepthBoundary = centerIsObject*neighborIsObject*smoothstep(
-        depthTolerance * 8.0,
-        depthTolerance * 32.0,
+        // Keep the exterior silhouette against water and sky, but leave the
+        // object-to-terrain contact clean. Contact AO grounds props without
+        // the dark sticker-like seam along their base.
+        return centerIsObject*
+            (1.0 - neighborIsObject)*(1.0 - groundContact)*
+            (1.0 - neighborSuppressesInk)*directionWeight;
+    }
+
+    // Preserve separation between overlapping props of the same class. A
+    // screen-space derivative of depth is unstable exactly on silhouettes:
+    // neighboring 2x2 fragment groups can produce very different fwidth
+    // values and turn one continuous overlap into a dotted line. Compare the
+    // surfaces in view space instead, with a tolerance that grows gently at
+    // distance to avoid outlining low-poly facets.
+    float frontSurfaceGap = max(
+        centerPosition.z - neighborPosition.z, 0.0);
+    float viewDistance = length(centerPosition);
+    // Adjacent shells and inset faces inside low-poly props can be several
+    // centimetres apart even though they belong to one visual object. Treat
+    // only a clearly separated rear surface as an overlap silhouette; the
+    // old two-centimetre threshold produced short black scratches on rocks
+    // and tree crowns.
+    float separateSurfaceDistance =
+        0.080 + viewDistance*0.0015;
+    // Hardware depth is affine across a projected planar face. Compare the
+    // candidate jump with the one-sided slopes INSIDE each surface. Unlike
+    // fwidth, these samples never straddle the candidate edge in 2x2 quads.
+    // This rejects steep facets while preserving separate crown silhouettes.
+    ivec2 offset = coordinate - centerCoordinate;
+    float innerDepth = texelFetch(sceneDepth,
+        clamp(centerCoordinate - offset, ivec2(0), depthSize - ivec2(1)), 0).r;
+    float outerDepth = texelFetch(sceneDepth,
+        clamp(coordinate + offset, ivec2(0), depthSize - ivec2(1)), 0).r;
+    float innerSlope = abs(centerDepth - innerDepth);
+    float outerSlope = abs(neighborDepth - outerDepth);
+    // If an extra sample reaches sky, it cannot estimate this surface's slope.
+    innerSlope *= 1.0 - step(0.999999, innerDepth);
+    outerSlope *= 1.0 - step(0.999999, outerDepth);
+    float surfaceSlope = max(innerSlope, outerSlope);
+    float depthDiscontinuity = smoothstep(
+        surfaceSlope*1.5 + 0.0000001,
+        surfaceSlope*3.0 + 0.0000002,
         neighborDepth - centerDepth);
-    // Effect fragments carry class 4. A class boundary keeps their contour
-    // visible even when the fragment is directly in front of its parent
-    // tree, rock or crystal and the two depths nearly coincide.
+    float objectDepthBoundary = centerIsObject*neighborIsObject*smoothstep(
+        separateSurfaceDistance,
+        separateSurfaceDistance * 3.0,
+        frontSurfaceGap)*depthDiscontinuity;
+    // Depth already assigns an overlapping-object edge to the front surface.
+    // Drawing a plain class boundary on both surfaces doubles the visible
+    // stroke whenever vegetation overlaps a rock or another prop. Class 4 is
+    // reserved for impact fragments, which still need their own contour when
+    // they sit almost flush with the source object.
+    float centerIsEffect = step(3.5, centerMaterialClass);
+    float frontClassBoundary = smoothstep(
+        separateSurfaceDistance * 0.08,
+        separateSurfaceDistance * 0.30,
+        frontSurfaceGap);
     float objectClassBoundary = centerIsObject*neighborIsObject*
+        max(centerIsEffect, frontClassBoundary)*
         step(0.5, abs(centerMaterialClass - neighborMaterialClass));
-    // Terrain receives ink only against actual sky.  This keeps a fine
-    // mountain skyline without outlining every blade of grass on the ground.
-    float terrainSkyBoundary = centerIsTerrain*
-        neighborIsBackground*step(0.9999, neighborDepth);
-    float silhouette = max(
-        materialBoundary,
-        max(objectClassBoundary,
-            max(objectDepthBoundary, terrainSkyBoundary)));
     // Deliberately ignore color and normal changes inside one surface.
     // Low-poly facets belong to the fill; ink is reserved for silhouettes.
-    return silhouette * directionWeight;
+    return max(objectClassBoundary, objectDepthBoundary)*directionWeight;
 }
 
 float bayer4(vec2 pixel)
@@ -406,8 +463,13 @@ void main()
             max(selectionColor.r,
                 max(selectionColor.g, selectionColor.b)));
     }
-    float impactSpriteMask =
-        1.0 - step(0.025, abs(source.a - 0.375));
+    // Opaque world geometry leaves scene alpha at one. Transparent world
+    // overlays (leaves, pollen, grass and authored impact sprites) change or
+    // explicitly tag that channel without replacing the geometry normal and
+    // depth behind them. Do not composite the rear object's ink over those
+    // foreground pixels.
+    float foregroundOverlayMask =
+        step(0.025, abs(source.a - 1.0));
     vec2 texel = 1.0/vec2(sourceSize);
     float menuDofAmount = menuDepthOfFieldAmount(pixelUv);
     source.rgb = menuDepthOfFieldSample(
@@ -488,15 +550,14 @@ void main()
         color += dither/255.0*6.0;
     }
 
-    float centerMaterialClass = materialClassOf(
-        normalPixel(sourceCoordinate));
+    vec4 centerPackedNormal = normalPixel(sourceCoordinate);
+    float centerMaterialClass = materialClassOf(centerPackedNormal);
     float effectFragment = step(3.5, centerMaterialClass);
     if (inkOutlinesEnabled > 0.5 && centerMaterialClass > 0.5 &&
-        impactSpriteMask < 0.5 &&
+        foregroundOverlayMask < 0.5 &&
         (selectedSurface < 0.5 || effectFragment > 0.5))
     {
         float centerDepth = texture(sceneDepth, pixelUv).r;
-        float depthTolerance = max(fwidth(centerDepth) * 1.5, 0.000002);
         vec3 centerPosition = reconstructViewPosition(
             pixelUv, centerDepth);
         float viewDistance = centerDepth < 0.999999
@@ -510,7 +571,6 @@ void main()
         // Distant silhouettes stay solid enough to survive FXAA instead of
         // breaking into short dashes along thin tree crowns and branches.
         float outlineDistance = mix(0.56, 1.0, nearDistance);
-        outlineDistance *= 1.0 - menuDofAmount;
         // The auxiliary normal/AO target marks trees and sizeable plants.
         // Their ink disappears earlier than prop/enemy ink, including the
         // terrain-side half of an edge, so distant foliage becomes a clean
@@ -554,30 +614,26 @@ void main()
         // instead of jumping directly between hard one- and two-pixel lines.
         // Six rings cover the largest 2x scene target without clipping the
         // configured three-pixel contour.
-        int pixelWidth = int(ceil(effectiveWidth));
-        for (int ring = 1; ring <= 6; ++ring)
+        int pixelWidth = min(int(ceil(effectiveWidth)), 6);
+        for (int ring = 1; ring <= pixelWidth; ++ring)
         {
-            if (ring > pixelWidth)
-            {
-                continue;
-            }
             ivec2 horizontal = ivec2(ring, 0);
             ivec2 vertical = ivec2(0, ring);
             float ringEdge = 0.0;
             ringEdge = max(ringEdge, inkDifference(
-                centerDepth, centerMaterialClass, depthTolerance,
+                centerDepth, centerMaterialClass,
                 centerPosition, sourceObject, sourceTerrain,
                 sourceCoordinate, sourceCoordinate + horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                centerDepth, centerMaterialClass, depthTolerance,
+                centerDepth, centerMaterialClass,
                 centerPosition, sourceObject, sourceTerrain,
                 sourceCoordinate, sourceCoordinate - horizontal, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                centerDepth, centerMaterialClass, depthTolerance,
+                centerDepth, centerMaterialClass,
                 centerPosition, sourceObject, sourceTerrain,
                 sourceCoordinate, sourceCoordinate + vertical, 1.0));
             ringEdge = max(ringEdge, inkDifference(
-                centerDepth, centerMaterialClass, depthTolerance,
+                centerDepth, centerMaterialClass,
                 centerPosition, sourceObject, sourceTerrain,
                 sourceCoordinate, sourceCoordinate - vertical, 1.0));
             float ringCoverage = clamp(

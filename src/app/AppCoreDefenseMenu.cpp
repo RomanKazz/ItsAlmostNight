@@ -6,6 +6,7 @@
 #include "ui/UiText.hpp"
 
 #include <raylib.h>
+#include <raymath.h>
 
 #include <algorithm>
 #include <array>
@@ -18,16 +19,15 @@
 namespace ian {
 namespace {
 
-constexpr float DesignWidth = 1920.0F;
-constexpr float DesignHeight = 1080.0F;
 // UiText accepts logical sizes and applies this project-wide multiplier
 // internally. Figma measurements are already physical pixels.
 constexpr float UiTextScale = 1.68F;
 
-constexpr Color BodyColor{251, 229, 189, 255};
-constexpr Color InsetColor{241, 224, 197, 255};
-constexpr Color InsetWarmColor{251, 229, 189, 255};
-constexpr Color InsetBorderColor{222, 199, 163, 255};
+constexpr Color BodyColor{255, 228, 192, 255};
+constexpr Color InsetColor{255, 236, 207, 255};
+constexpr Color UnlockInsetColor{247, 219, 186, 255};
+constexpr Color InsetWarmColor{255, 237, 210, 255};
+constexpr Color InsetBorderColor{239, 207, 167, 255};
 constexpr Color BrownColor{108, 61, 39, 255};
 constexpr Color MutedTextColor{213, 197, 179, 255};
 constexpr Color GreenTextColor{0, 241, 123, 255};
@@ -76,20 +76,71 @@ float intervalProgress(float seconds, float start, float end) {
     return smooth01((seconds - start) / std::max(end - start, 0.001F));
 }
 
-MenuTransform menuTransform(float animatedScale = 1.0F,
-                            float slideY = 0.0F) {
+MenuTransform menuTransform(Vector2 coreScreen,
+                            float pixelsPerWorldUnit,
+                            float animatedScale,
+                            float slideY) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
     const float screenHeight = static_cast<float>(GetScreenHeight());
-    const float baseScale = std::min(
-        screenWidth / DesignWidth, screenHeight / DesignHeight);
-    const float scale = baseScale * animatedScale;
+    constexpr float PanelLeft = 407.0F;
+    constexpr float PanelTop = 284.0F;
+    constexpr float PanelWidth = 920.0F;
+    constexpr float PanelHeight = 630.0F;
+    constexpr float PanelScaleWidth = 1100.0F;
+    constexpr float PanelScaleWorldWidth = 3.12F;
+    constexpr float CoreHalfWidth = 1.0F;
+    constexpr float WorldGap = 0.015F;
+    constexpr float Margin = 18.0F;
+    const float worldScale =
+        pixelsPerWorldUnit * PanelScaleWorldWidth /
+        PanelScaleWidth;
+    const float attachmentOffset =
+        pixelsPerWorldUnit * (CoreHalfWidth + WorldGap);
+    const float rightX = coreScreen.x + attachmentOffset;
+    const float leftEdge = coreScreen.x - attachmentOffset;
+    const float rightSpace =
+        std::max(0.0F, screenWidth - Margin - rightX);
+    const float leftSpace =
+        std::max(0.0F, leftEdge - Margin);
+    const float desiredWidth = PanelWidth * worldScale;
+    const bool rightFits =
+        desiredWidth <= rightSpace;
+    const bool leftFits = desiredWidth <= leftSpace;
+    const bool placeRight = rightFits ||
+        (!leftFits && rightSpace >= leftSpace);
+    const float sideSpace =
+        placeRight ? rightSpace : leftSpace;
+    const float usableScreenWidth = std::max(
+        0.0F, screenWidth - 2.0F * Margin);
+    const float minimumWidth = std::min(
+        desiredWidth, usableScreenWidth * 0.35F);
+    const float screenScale = std::min(
+        std::min(usableScreenWidth,
+                 std::max(sideSpace, minimumWidth)) /
+            PanelWidth,
+        std::max(0.0F, screenHeight - 2.0F * Margin) /
+            PanelHeight);
+    const float settledScale = std::max(
+        0.0F, std::min(worldScale, screenScale));
+    const float settledWidth = PanelWidth * settledScale;
+    const float panelX = std::clamp(
+        placeRight ? rightX : leftEdge - settledWidth,
+        Margin,
+        std::max(Margin, screenWidth - Margin - settledWidth));
+    const float scale = std::min(
+        settledScale * std::max(0.0F, animatedScale),
+        std::min(screenScale,
+                 (screenWidth - Margin - panelX) / PanelWidth));
+    const float panelHeight = PanelHeight * scale;
+    const float panelY = std::clamp(
+        coreScreen.y - panelHeight * 0.5F +
+            pixelsPerWorldUnit * 0.18F + slideY * scale,
+        Margin,
+        std::max(Margin, screenHeight - Margin - panelHeight));
     return {
         .scale = scale,
-        .offsetX = (screenWidth - DesignWidth * baseScale) * 0.5F +
-            DesignWidth * 0.5F * (baseScale - scale),
-        .offsetY = (screenHeight - DesignHeight * baseScale) * 0.5F +
-            DesignHeight * 0.5F * (baseScale - scale) +
-            slideY * baseScale,
+        .offsetX = panelX - PanelLeft * scale,
+        .offsetY = panelY - PanelTop * scale,
     };
 }
 
@@ -118,12 +169,86 @@ void drawRoundedPanel(Rectangle bounds, float border,
         inner, roundness, 20, withOpacity(fill, opacity));
 }
 
-void drawMenuText(std::string_view text, const MenuTransform& transform,
-                  float x, float y, float size, Color color,
-                  float opacity = 1.0F) {
-    drawSdfUiText(text, transform.point(x, y),
-                  size * transform.scale / UiTextScale,
-                  withOpacity(color, opacity));
+void drawCoreCardFrame(const MenuTransform& transform,
+                       float opacity) {
+    const float scale = transform.scale;
+    // The small dark rim and the warm body form one continuous card.
+    drawRoundedPanel(
+        transform.rect(407.0F, 284.0F, 920.0F, 630.0F),
+        4.0F * scale, 0.09F,
+        BodyColor, {50, 34, 24, 255}, opacity);
+
+    const Rectangle header = transform.rect(
+        411.0F, 288.0F, 912.0F, 93.0F);
+    DrawRectangleRounded(
+        {header.x + 1.0F * scale,
+         header.y + 8.0F * scale,
+         header.width - 2.0F * scale,
+         header.height},
+        0.50F, 32,
+        withOpacity({179, 91, 24, 95}, opacity));
+    DrawRectangleRounded(
+        {header.x, header.y + 4.0F * scale,
+         header.width, header.height},
+        0.50F, 32,
+        withOpacity({219, 125, 30, 165}, opacity));
+    DrawRectangleRounded(
+        header, 0.50F, 32,
+        withOpacity({250, 158, 33, 255}, opacity));
+    const float cornerHeight = 23.0F * scale;
+    DrawRectangleRounded(
+        {header.x, header.y, header.width,
+         cornerHeight * 2.0F},
+        1.0F, 32,
+        withOpacity({255, 190, 62, 255}, opacity));
+    DrawRectangleGradientV(
+        static_cast<int>(std::round(header.x)),
+        static_cast<int>(std::round(header.y + cornerHeight)),
+        static_cast<int>(std::round(header.width)),
+        static_cast<int>(std::round(header.height -
+                                    2.0F * cornerHeight)),
+        withOpacity({255, 188, 59, 255}, opacity),
+        withOpacity({250, 158, 33, 255}, opacity));
+    DrawRectangleRoundedLinesEx(
+        {header.x + 2.0F * scale,
+         header.y + 2.0F * scale,
+         header.width - 4.0F * scale,
+         header.height - 5.0F * scale},
+        0.50F, 32, 1.5F * scale,
+        withOpacity({255, 222, 132, 110}, opacity));
+}
+
+void drawCenteredMenuText(std::string_view value,
+                          const MenuTransform& transform,
+                          Rectangle designBounds, float size,
+                          Color color, float opacity) {
+    const Rectangle bounds = transform.rect(
+        designBounds.x, designBounds.y,
+        designBounds.width, designBounds.height);
+    const float fontSize =
+        size * transform.scale / UiTextScale;
+    const Vector2 measured = measureUiText(value, fontSize);
+    drawSdfUiText(
+        value,
+        {bounds.x + (bounds.width - measured.x) * 0.5F,
+         bounds.y + (bounds.height - measured.y) * 0.5F},
+        fontSize, withOpacity(color, opacity));
+}
+
+void drawRowText(std::string_view value,
+                 const MenuTransform& transform,
+                 float x, float rowTop, float rowHeight,
+                 float size, Color color, float opacity) {
+    const float fontSize =
+        size * transform.scale / UiTextScale;
+    const Vector2 measured = measureUiText(value, fontSize);
+    const Vector2 topLeft = transform.point(x, rowTop);
+    drawSdfUiText(
+        value,
+        {topLeft.x,
+         topLeft.y +
+             (rowHeight * transform.scale - measured.y) * 0.5F},
+        fontSize, withOpacity(color, opacity));
 }
 
 void drawArrow(const MenuTransform& transform, float centerX,
@@ -135,22 +260,22 @@ void drawArrow(const MenuTransform& transform, float centerX,
     // Two convex primitives avoid the self-intersection artifacts produced
     // by a triangle fan over the arrow's concave silhouette.
     DrawRectangleRounded(
-        {center.x - 16.0F * scale, center.y - 7.0F * scale,
-         18.0F * scale, 14.0F * scale},
+        {center.x - 13.0F * scale, center.y - 6.0F * scale,
+         15.0F * scale, 12.0F * scale},
         0.35F, 8, outline);
     DrawTriangle(
-        {center.x + 17.0F * scale, center.y},
-        {center.x - 1.0F * scale, center.y - 14.0F * scale},
-        {center.x - 1.0F * scale, center.y + 14.0F * scale},
+        {center.x + 14.0F * scale, center.y},
+        {center.x - 1.0F * scale, center.y - 12.0F * scale},
+        {center.x - 1.0F * scale, center.y + 12.0F * scale},
         outline);
     DrawRectangleRounded(
-        {center.x - 12.0F * scale, center.y - 4.0F * scale,
-         16.0F * scale, 8.0F * scale},
+        {center.x - 10.0F * scale, center.y - 3.0F * scale,
+         13.0F * scale, 6.0F * scale},
         0.35F, 8, fill);
     DrawTriangle(
-        {center.x + 11.0F * scale, center.y},
-        {center.x + 1.0F * scale, center.y - 8.0F * scale},
-        {center.x + 1.0F * scale, center.y + 8.0F * scale},
+        {center.x + 9.0F * scale, center.y},
+        {center.x + 1.0F * scale, center.y - 7.0F * scale},
+        {center.x + 1.0F * scale, center.y + 7.0F * scale},
         fill);
 }
 
@@ -169,26 +294,31 @@ void drawStatRow(const GameUi& ui, const MenuTransform& transform,
         (1.0F - reveal) * 10.0F * transform.scale;
     drawTexture(ui.coreMenuTexture(row.icon),
                 contentTransform.rect(
-                    462.0F, y - 4.0F, 45.0F, 45.0F),
+                    447.0F, y - 2.0F, 37.0F, 37.0F),
                 withOpacity(WHITE, reveal));
-    drawMenuText(row.label, contentTransform, 519.0F, y, 40.0F,
-                 MutedTextColor, reveal);
-    drawMenuText(std::to_string(row.current), contentTransform,
-                 768.0F, y, 40.0F, UiWhite, reveal);
+    const float rowTop = y - 2.0F;
+    constexpr float RowHeight = 37.0F;
+    drawRowText(row.label, contentTransform,
+                490.0F, rowTop, RowHeight, 34.0F,
+                MutedTextColor, reveal);
+    drawRowText(std::to_string(row.current), contentTransform,
+                712.0F, rowTop, RowHeight, 34.0F,
+                UiWhite, reveal);
     if (!hasNextLevel) {
-        drawMenuText("MAX", contentTransform, 917.0F, y, 40.0F,
-                     GreenTextColor, reveal);
+        drawRowText("MAX", contentTransform,
+                    825.0F, rowTop, RowHeight, 34.0F,
+                    GreenTextColor, reveal);
         return;
     }
-    drawArrow(contentTransform, 887.0F, y + 18.0F, reveal);
+    drawArrow(contentTransform, 795.0F, y + 16.5F, reveal);
     const int animatedNext = static_cast<int>(std::lround(
         static_cast<float>(row.current) +
         static_cast<float>(row.next - row.current) * numberProgress));
     const float numberScale =
         0.88F + 0.12F * easeOutBack(numberProgress);
-    drawMenuText(std::to_string(animatedNext), contentTransform,
-                 934.0F, y - 4.0F + (1.0F - numberScale) * 20.0F,
-                 48.0F * numberScale, GreenTextColor, reveal);
+    drawRowText(std::to_string(animatedNext), contentTransform,
+                827.0F, rowTop, RowHeight,
+                40.0F * numberScale, GreenTextColor, reveal);
 }
 
 bool drawActionButton(
@@ -196,11 +326,12 @@ bool drawActionButton(
     Rectangle designBounds, CoreMenuTexture actionIcon,
     std::string_view label, CoreMenuTexture costIcon, int cost,
     bool enabled, Color darkFill, Color lightFill,
-    float opacity) {
+    float opacity, bool pointerActive) {
     Rectangle bounds = transform.rect(
         designBounds.x, designBounds.y,
         designBounds.width, designBounds.height);
-    const bool hovered = enabled && opacity >= 0.98F &&
+    const bool hovered = pointerActive && enabled &&
+        opacity >= 0.98F &&
         CheckCollisionPointRec(GetMousePosition(), bounds);
     const bool pressed = hovered &&
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
@@ -208,18 +339,18 @@ bool drawActionButton(
     const float pressOffset = pressed ? 3.0F * scale : 0.0F;
     bounds.y += pressOffset;
 
-    DrawRectangleRounded(bounds, 0.18F, 16,
+    DrawRectangleRounded(bounds, 0.28F, 20,
                          withOpacity(
-                             enabled ? Color{8, 16, 45, 255}
-                                     : Color{48, 46, 43, 255},
+                             enabled ? Color{43, 40, 39, 255}
+                                     : Color{65, 62, 58, 255},
                              opacity));
     Rectangle inner{
-        bounds.x + 5.0F * scale,
-        bounds.y + 5.0F * scale,
-        bounds.width - 10.0F * scale,
-        bounds.height - 10.0F * scale,
+        bounds.x + 3.0F * scale,
+        bounds.y + 3.0F * scale,
+        bounds.width - 6.0F * scale,
+        bounds.height - 6.0F * scale,
     };
-    DrawRectangleRounded(inner, 0.16F, 16,
+    DrawRectangleRounded(inner, 0.26F, 20,
                          withOpacity(
                              enabled ? darkFill
                                      : Color{110, 103, 91, 255},
@@ -227,13 +358,13 @@ bool drawActionButton(
     Rectangle highlight = inner;
     highlight.height = std::max(
         0.0F, highlight.height - 10.0F * scale);
-    DrawRectangleRounded(highlight, 0.16F, 16,
+    DrawRectangleRounded(highlight, 0.26F, 20,
                          withOpacity(
                              enabled ? lightFill
                                      : Color{142, 134, 118, 255},
                              opacity));
     if (hovered) {
-        DrawRectangleRounded(inner, 0.16F, 16,
+        DrawRectangleRounded(inner, 0.26F, 20,
                              withOpacity(
                                  {255, 255, 255, 24}, opacity));
     }
@@ -241,24 +372,28 @@ bool drawActionButton(
     const Color tint = withOpacity(
         enabled ? WHITE : Color{190, 184, 170, 235}, opacity);
     drawTexture(ui.coreMenuTexture(actionIcon),
-                {bounds.x + 15.0F * scale,
-                 bounds.y + 16.0F * scale,
-                 78.0F * scale, 78.0F * scale}, tint);
+                {bounds.x + 17.0F * scale,
+                 bounds.y + 18.0F * scale,
+                 67.0F * scale, 67.0F * scale}, tint);
     drawSdfUiText(label,
-                  {bounds.x + 105.0F * scale,
-                   bounds.y + 35.0F * scale},
-                  46.0F * scale / UiTextScale,
+                  {bounds.x + 91.0F * scale,
+                   bounds.y + 34.0F * scale},
+                  38.0F * scale / UiTextScale,
                   withOpacity(
                       enabled ? WHITE : Color{220, 214, 199, 255},
                       opacity));
+    const std::string costText = std::to_string(cost);
+    const float costFontSize = 39.0F * scale / UiTextScale;
+    const float costWidth = measureUiText(costText, costFontSize).x;
+    const float costRight = bounds.x + bounds.width - 18.0F * scale;
+    const float costX = costRight - costWidth;
     drawTexture(ui.coreMenuTexture(costIcon),
-                {bounds.x + 386.0F * scale,
+                {costX - 48.0F * scale,
                  bounds.y + 31.0F * scale,
-                 49.0F * scale, 49.0F * scale}, tint);
-    drawSdfUiText(std::to_string(cost),
-                  {bounds.x + 434.0F * scale,
-                   bounds.y + 35.0F * scale},
-                  46.0F * scale / UiTextScale,
+                 43.0F * scale, 43.0F * scale}, tint);
+    drawSdfUiText(costText,
+                  {costX, bounds.y + 34.0F * scale},
+                  costFontSize,
                   withOpacity(
                       enabled ? WHITE : WarningTextColor, opacity));
 
@@ -266,72 +401,66 @@ bool drawActionButton(
 }
 
 struct UnlockCard {
-    CoreMenuTexture icon;
+    Texture2D icon;
     std::string_view label;
 };
 
-std::vector<UnlockCard> unlockCardsForLevel(std::uint8_t level) {
+std::vector<UnlockCard> unlockCardsForLevel(
+    const GameUi& ui, std::uint8_t level) {
     std::vector<UnlockCard> cards;
     const auto addBuilding = [&](BuildingType type,
-                                 CoreMenuTexture icon,
                                  std::string_view label) {
         if (buildingRequiredCoreLevel(type) == level) {
-            cards.push_back({icon, label});
+            cards.push_back({ui.buildingTexture(type), label});
         }
     };
-    addBuilding(BuildingType::Turret,
-                CoreMenuTexture::Ballista, "CROSSBOW");
-    addBuilding(BuildingType::GunTurret,
-                CoreMenuTexture::Turret, "TURRET");
-    addBuilding(BuildingType::CrystalMine,
-                CoreMenuTexture::Gem, "CRYSTAL MINE");
-    addBuilding(BuildingType::Cannon,
-                CoreMenuTexture::Cannon, "CANNON");
-    addBuilding(BuildingType::SlowTrap,
-                CoreMenuTexture::Spikes, "SLOW TRAP");
-    addBuilding(BuildingType::LumberMill,
-                CoreMenuTexture::Wood, "LUMBER MILL");
-    addBuilding(BuildingType::Quarry,
-                CoreMenuTexture::Rock, "QUARRY");
-    addBuilding(BuildingType::SpikeTrap,
-                CoreMenuTexture::Spikes, "SPIKE TRAP");
-    addBuilding(BuildingType::Catapult,
-                CoreMenuTexture::Cannon, "CATAPULT");
-
-    constexpr std::array Weapons{
-        PlayerWeapon::Rifle,
-        PlayerWeapon::Bomb,
-        PlayerWeapon::IceWand,
-        PlayerWeapon::FireWand,
+    const auto addWeapon = [&](PlayerWeapon weapon,
+                               std::string_view label) {
+        if (playerWeaponRequiredCoreLevel(weapon) == level) {
+            cards.push_back({ui.weaponTexture(weapon), label});
+        }
     };
-    for (const PlayerWeapon weapon : Weapons) {
-        if (playerWeaponRequiredCoreLevel(weapon) != level) {
-            continue;
+    const auto addPiece = [&](ModularBuildPiece piece,
+                              std::string_view label) {
+        if (modularBuildPieceRequiredCoreLevel(piece) == level) {
+            cards.push_back({ui.modularBuildingTexture(piece), label});
         }
-        switch (weapon) {
-        case PlayerWeapon::Rifle:
-            cards.push_back({CoreMenuTexture::Turret, "RIFLE"});
-            break;
-        case PlayerWeapon::Bomb:
-            cards.push_back({CoreMenuTexture::Upgrade, "BOMBS"});
-            break;
-        case PlayerWeapon::IceWand:
-            cards.push_back({CoreMenuTexture::Gem, "ICE WAND"});
-            break;
-        case PlayerWeapon::FireWand:
-            cards.push_back({CoreMenuTexture::Upgrade, "FIRE WAND"});
-            break;
-        default:
-            break;
-        }
-    }
-    if (level == ModularBuildingRequiredCoreLevel) {
-        cards.push_back({CoreMenuTexture::Gear, "MODULAR"});
+    };
+    switch (level) {
+    case 2:
+        addBuilding(BuildingType::Gate, "GATE");
+        addBuilding(BuildingType::Wall, "WALLS");
+        addBuilding(BuildingType::CrystalMine, "CRYSTAL MINE");
+        addWeapon(PlayerWeapon::Club, "CLUB");
+        break;
+    case 3:
+        addBuilding(BuildingType::Quarry, "QUARRY");
+        addBuilding(BuildingType::LumberMill, "LUMBER MILL");
+        addBuilding(BuildingType::Turret, "CROSSBOW");
+        addWeapon(PlayerWeapon::Rifle, "RIFLE");
+        break;
+    case 4:
+        addBuilding(BuildingType::SlowTrap, "SLOW TRAP");
+        addBuilding(BuildingType::SpikeTrap, "SPIKE TRAP");
+        addBuilding(BuildingType::Cannon, "CANNON");
+        addWeapon(PlayerWeapon::Bomb, "BOMBS");
+        break;
+    case 5:
+        addPiece(ModularBuildPiece::FloorPlatform, "FLOOR");
+        addPiece(ModularBuildPiece::Ramp, "RAMP");
+        addBuilding(BuildingType::Catapult, "CATAPULT");
+        addWeapon(PlayerWeapon::IceWand, "ICE WAND");
+        break;
+    default:
+        break;
     }
     if (level > 5U && level <= MaxBuildingLevel) {
-        cards.push_back({CoreMenuTexture::Ballista, "MORE DEFENSES"});
-        cards.push_back({CoreMenuTexture::Gear, "MORE PRODUCERS"});
-        cards.push_back({CoreMenuTexture::Gem, "MORE STORAGE"});
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Ballista),
+                         "MORE DEFENSES"});
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gear),
+                         "MORE PRODUCERS"});
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gem),
+                         "MORE STORAGE"});
     }
     return cards;
 }
@@ -346,42 +475,42 @@ Rectangle scaledAroundCenter(Rectangle bounds, float scale) {
     };
 }
 
-void drawUnlockCard(const GameUi& ui, const MenuTransform& transform,
+void drawUnlockCard(const MenuTransform& transform,
                     float x, float y, float width, float height,
                     const UnlockCard& unlock, float reveal) {
     const float popScale = 0.84F + 0.16F * easeOutBack(reveal);
     const Rectangle card = scaledAroundCenter(
         transform.rect(x, y, width, height), popScale);
-    drawRoundedPanel(card, 6.0F * transform.scale, 0.16F,
+    drawRoundedPanel(card, 3.0F * transform.scale, 0.24F,
                      InsetWarmColor, InsetBorderColor, reveal);
     const bool compact = height < 120.0F;
     const float iconSize = compact
-        ? std::min(card.height - 14.0F * transform.scale,
-                   68.0F * transform.scale)
-        : 150.0F * transform.scale * popScale;
+        ? std::min(card.height - 12.0F * transform.scale,
+                   58.0F * transform.scale)
+        : 120.0F * transform.scale * popScale;
     drawTexture(
-        ui.coreMenuTexture(unlock.icon),
-        {card.x + (compact ? 7.0F : 15.0F) * transform.scale,
-         card.y + (compact ? 7.0F : 7.0F) * transform.scale,
+        unlock.icon,
+        {card.x + (compact ? 6.0F : 15.0F) * transform.scale,
+         card.y + (compact ? 6.0F : 8.0F) * transform.scale,
          iconSize, iconSize},
         withOpacity(WHITE, reveal));
     const Rectangle pill = compact
         ? Rectangle{
-              card.x + 70.0F * transform.scale,
-              card.y + 24.0F * transform.scale,
+              card.x + 63.0F * transform.scale,
+              card.y + 21.0F * transform.scale,
               std::max(0.0F,
-                       card.width - 77.0F * transform.scale),
-              38.0F * transform.scale}
+                       card.width - 69.0F * transform.scale),
+              34.0F * transform.scale}
         : Rectangle{
-              card.x + 18.0F * transform.scale,
-              card.y + 153.0F * transform.scale * popScale,
-              144.0F * transform.scale * popScale,
-              35.0F * transform.scale * popScale};
+              card.x + 12.0F * transform.scale,
+              card.y + 127.0F * transform.scale * popScale,
+              126.0F * transform.scale * popScale,
+              29.0F * transform.scale * popScale};
     DrawRectangleRounded(
-        pill, 0.8F, 12, withOpacity(BrownColor, reveal));
+        pill, 1.0F, 16, withOpacity(BrownColor, reveal));
     const float size = fitUiTextSize(
         unlock.label,
-        (compact ? 20.0F : 24.0F) * transform.scale /
+        (compact ? 18.0F : 20.0F) * transform.scale /
             UiTextScale,
         11.0F * transform.scale / UiTextScale,
         pill.width - 12.0F * transform.scale,
@@ -389,7 +518,7 @@ void drawUnlockCard(const GameUi& ui, const MenuTransform& transform,
     const Vector2 measured = measureUiText(unlock.label, size);
     drawSdfUiText(unlock.label,
                   {pill.x + (pill.width - measured.x) * 0.5F,
-                   pill.y + (pill.height - measured.y) * 0.43F},
+                   pill.y + (pill.height - measured.y) * 0.5F},
                   size, withOpacity(UiWhite, reveal));
 }
 
@@ -402,6 +531,10 @@ void App::drawCoreDefenseMenu() {
         coreDefenseMenuVisible_ = false;
         coreDefenseMenuClosing_ = false;
         coreDefenseMenuEntranceSeconds_ = 0.0;
+        if (coreMenuPointerActive_) {
+            coreMenuPointerActive_ = false;
+            DisableCursor();
+        }
         return;
     }
 
@@ -414,6 +547,10 @@ void App::drawCoreDefenseMenu() {
         coreDefenseMenuVisible_ = false;
         coreDefenseMenuClosing_ = false;
         coreDefenseMenuEntranceSeconds_ = 0.0;
+        if (coreMenuPointerActive_) {
+            coreMenuPointerActive_ = false;
+            DisableCursor();
+        }
         return;
     }
     const BuildingInstance& core = *coreIt;
@@ -430,9 +567,11 @@ void App::drawCoreDefenseMenu() {
             coreDefenseMenuVisible_ = false;
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuAnimatedLevel_ = 0;
-            if (snapshot.state != RunState::Paused) {
+            if (coreMenuPointerActive_ &&
+                snapshot.state != RunState::Paused) {
                 DisableCursor();
             }
+            coreMenuPointerActive_ = false;
             return;
         }
     } else {
@@ -442,8 +581,6 @@ void App::drawCoreDefenseMenu() {
     }
     const float entranceSeconds = static_cast<float>(
         coreDefenseMenuEntranceSeconds_);
-    const float dimProgress = intervalProgress(
-        entranceSeconds, 0.0F, 0.18F);
     const float panelProgress = intervalProgress(
         entranceSeconds, 0.0F, 0.28F);
     const float panelScale = easeOutBack(panelProgress);
@@ -455,56 +592,107 @@ void App::drawCoreDefenseMenu() {
         entranceSeconds, 0.04F, 0.18F);
     const float buttonReveal = intervalProgress(
         entranceSeconds, 0.11F, 0.27F);
+    const Vec3 corePosition = buildingWorldPosition(core);
+    const Vector3 coreAnchor{
+        static_cast<float>(corePosition.x),
+        static_cast<float>(corePosition.y + 0.95),
+        static_cast<float>(corePosition.z),
+    };
+    const Vector2 coreScreen = GetWorldToScreen(
+        coreAnchor, gameplayCamera_);
+    const Vector3 cameraRight = Vector3Normalize(
+        Vector3CrossProduct(
+            Vector3Subtract(
+                gameplayCamera_.target,
+                gameplayCamera_.position),
+            gameplayCamera_.up));
+    const Vector2 unitScreen = GetWorldToScreen(
+        Vector3Add(coreAnchor, cameraRight),
+        gameplayCamera_);
+    const float pixelsPerWorldUnit = std::max(
+        1.0F, Vector2Distance(coreScreen, unitScreen));
     const MenuTransform transform = menuTransform(
-        panelScale, (1.0F - panelProgress) * 18.0F);
-    const Rectangle menuBounds = transform.rect(
-        276.0F, 39.0F, 1284.0F, 972.0F);
-    if (!coreDefenseMenuClosing_ &&
-        entranceSeconds > 0.05F &&
-        IsMouseButtonReleased(MOUSE_BUTTON_LEFT) &&
-        !CheckCollisionPointRec(GetMousePosition(), menuBounds)) {
-        coreDefenseMenuClosing_ = true;
-        audio_.playUiConfirm();
-    }
+        coreScreen, pixelsPerWorldUnit, panelScale,
+        (1.0F - panelProgress) * 18.0F);
     const bool hasNextLevel = core.level < MaxBuildingLevel;
     const std::uint8_t nextLevel = hasNextLevel
         ? static_cast<std::uint8_t>(core.level + 1)
         : core.level;
 
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
-                  {4, 8, 10, static_cast<unsigned char>(
-                                  std::lround(175.0F * dimProgress))});
     if (panelScale <= 0.001F) {
         return;
     }
 
-    drawRoundedPanel(transform.rect(407.0F, 375.0F,
-                                    1100.0F, 636.0F),
-                     10.0F * transform.scale, 0.07F,
-                     BodyColor, BLACK, panelOpacity);
-    drawTexture(ui_.coreMenuTexture(CoreMenuTexture::Header),
-                transform.rect(276.0F, 39.0F, 1284.0F, 428.0F),
-                withOpacity(WHITE, panelOpacity));
+    if (coreMenuPointerActive_ &&
+        !coreDefenseMenuClosing_ &&
+        entranceSeconds > 0.15F) {
+        const Rectangle panel = transform.rect(
+            407.0F, 284.0F, 920.0F, 630.0F);
+        const float coreReach = pixelsPerWorldUnit * 1.1F;
+        const float left = std::min(
+            panel.x, coreScreen.x - coreReach);
+        const float top = std::min(
+            panel.y, coreScreen.y - coreReach);
+        const float right = std::max(
+            panel.x + panel.width,
+            coreScreen.x + coreReach);
+        const float bottom = std::max(
+            panel.y + panel.height,
+            coreScreen.y + coreReach);
+        constexpr float PointerMargin = 20.0F;
+        const Rectangle interactionArea{
+            left - PointerMargin,
+            top - PointerMargin,
+            right - left + 2.0F * PointerMargin,
+            bottom - top + 2.0F * PointerMargin};
+        if (CheckCollisionPointRec(
+                GetMousePosition(), interactionArea)) {
+            coreMenuPointerAwaySeconds_ = 0.0;
+        } else {
+            coreMenuPointerAwaySeconds_ += frameSeconds;
+            if (coreMenuPointerAwaySeconds_ > 0.30) {
+                coreDefenseMenuClosing_ = true;
+            }
+        }
+    }
 
-    drawMenuText("CORE", transform, 695.0F, 198.0F,
-                 106.0F, Color{254, 247, 229, 255}, titleReveal);
+    drawCoreCardFrame(transform, panelOpacity);
+    const auto drawHeaderLabel =
+        [&transform, titleReveal](
+            std::string_view label, float x, float width,
+            float designSize) {
+            const Rectangle bounds = transform.rect(
+                x, 288.0F, width, 93.0F);
+            const float fontSize =
+                designSize * transform.scale / UiTextScale;
+            const Vector2 measured = measureUiText(
+                label, fontSize);
+            drawSdfUiText(
+                label,
+                {bounds.x + (bounds.width - measured.x) * 0.5F,
+                 bounds.y + (bounds.height - measured.y) * 0.5F},
+                fontSize,
+                withOpacity(
+                    {254, 247, 229, 255}, titleReveal));
+        };
+    drawHeaderLabel("CORE", 425.0F, 190.0F, 53.0F);
     const Rectangle levelPill = transform.rect(
-        689.0F, 297.0F, 250.0F, 60.0F);
+        620.0F, 309.0F, 202.0F, 50.0F);
     DrawRectangleRounded(
-        levelPill, 0.8F, 16,
+        levelPill, 1.0F, 20,
         withOpacity(BrownColor, titleReveal));
-    drawMenuText("LEVEL " + std::to_string(core.level), transform,
-                 723.0F, 307.0F, 48.0F,
-                 Color{254, 247, 229, 255}, titleReveal);
-
-    drawRoundedPanel(transform.rect(445.0F, 410.0F,
-                                    598.0F, 445.0F),
-                     6.0F * transform.scale, 0.08F,
+    drawCenteredMenuText(
+        "LEVEL " + std::to_string(core.level),
+        transform, {620.0F, 309.0F, 202.0F, 50.0F},
+        36.0F, {254, 247, 229, 255}, titleReveal);
+    drawRoundedPanel(transform.rect(432.0F, 397.0F,
+                                    506.0F, 367.0F),
+                     3.0F * transform.scale, 0.12F,
                      InsetColor, InsetBorderColor, bodyReveal);
-    drawRoundedPanel(transform.rect(1066.0F, 410.0F,
-                                    403.0F, 445.0F),
-                     6.0F * transform.scale, 0.08F,
-                     InsetColor, InsetBorderColor, bodyReveal);
+    drawRoundedPanel(transform.rect(952.0F, 397.0F,
+                                    350.0F, 367.0F),
+                     3.0F * transform.scale, 0.12F,
+                     UnlockInsetColor, InsetBorderColor, bodyReveal);
 
     const double healthStep = hasNextLevel
         ? core.maxHealth *
@@ -542,7 +730,7 @@ void App::drawCoreDefenseMenu() {
                                      nextLevel)},
     };
     constexpr std::array RowY{
-        451.0F, 516.0F, 582.0F, 647.0F, 712.0F, 777.0F};
+        412.0F, 470.0F, 528.0F, 586.0F, 644.0F, 702.0F};
     for (std::size_t index = 0; index < rows.size(); ++index) {
         const float rowReveal = intervalProgress(
             entranceSeconds,
@@ -557,39 +745,39 @@ void App::drawCoreDefenseMenu() {
     }
 
     const Rectangle unlockPill = transform.rect(
-        1086.0F, 400.0F, 364.0F, 49.0F);
+        965.0F, 386.0F, 324.0F, 42.0F);
     DrawRectangleRounded(
-        unlockPill, 0.8F, 16,
+        unlockPill, 1.0F, 20,
         withOpacity(BrownColor, bodyReveal));
-    drawMenuText(hasNextLevel
-                     ? "LVL " + std::to_string(nextLevel) +
-                           (nextLevel > 5U ? " EXPANDS" : " UNLOCKS")
-                     : "MAX LEVEL",
-                 transform, hasNextLevel ? 1122.0F : 1166.0F,
-                 407.0F, 40.0F,
-                 Color{254, 247, 229, 255}, bodyReveal);
+    drawCenteredMenuText(
+        hasNextLevel
+            ? "LVL " + std::to_string(nextLevel) +
+                  (nextLevel > 5U ? " EXPANDS" : " UNLOCKS")
+            : "MAX LEVEL",
+        transform, {965.0F, 386.0F, 324.0F, 42.0F},
+        32.0F, {254, 247, 229, 255}, bodyReveal);
 
     if (hasNextLevel) {
         const std::vector<UnlockCard> unlocks =
-            unlockCardsForLevel(nextLevel);
+            unlockCardsForLevel(ui_, nextLevel);
         const bool compact = unlocks.size() > 4U;
-        const float cardHeight = compact ? 84.0F : 175.0F;
-        const float rowStep = compact ? 95.0F : 195.0F;
+        const float cardHeight = compact ? 75.0F : 150.0F;
+        const float rowStep = compact ? 80.0F : 160.0F;
         for (std::size_t index = 0; index < unlocks.size(); ++index) {
             const bool centeredLast =
                 index + 1U == unlocks.size() &&
                 unlocks.size() % 2U != 0U;
             const float x = centeredLast
-                ? 1176.0F
-                : (index % 2U == 0U ? 1082.0F : 1270.0F);
-            const float y = 459.0F +
+                ? 1049.0F
+                : (index % 2U == 0U ? 965.0F : 1132.0F);
+            const float y = 438.0F +
                 static_cast<float>(index / 2U) * rowStep;
             const float reveal = intervalProgress(
                 entranceSeconds,
                 0.10F + static_cast<float>(index) * 0.018F,
                 0.24F + static_cast<float>(index) * 0.018F);
             drawUnlockCard(
-                ui_, transform, x, y, 180.0F, cardHeight,
+                transform, x, y, 150.0F, cardHeight,
                 unlocks[index], reveal);
         }
     }
@@ -626,22 +814,24 @@ void App::drawCoreDefenseMenu() {
 
     const bool repairClicked = drawActionButton(
             ui_, transform,
-            {445.0F, 866.0F, 504.0F, 119.0F},
+            {432.0F, 780.0F, 420.0F, 102.0F},
             CoreMenuTexture::Wrench, "REPAIR ALL",
             CoreMenuTexture::Coin, snapshot.repairAllCoinCost,
             canRepair, Color{29, 80, 208, 255},
-            Color{51, 146, 242, 255}, buttonReveal);
+            Color{51, 146, 242, 255}, buttonReveal,
+            coreMenuPointerActive_);
     if (!coreDefenseMenuClosing_ && repairClicked) {
         pendingRepairAllBuildings_ = true;
         audio_.playUiConfirm();
     }
     const bool upgradeClicked = drawActionButton(
             ui_, transform,
-            {968.0F, 866.0F, 504.0F, 119.0F},
+            {872.0F, 780.0F, 430.0F, 102.0F},
             CoreMenuTexture::Upgrade, "UPGRADE",
             CoreMenuTexture::Gem, coreUpgradeCost,
             canUpgrade, Color{16, 163, 70, 255},
-            Color{64, 206, 90, 255}, buttonReveal);
+            Color{64, 206, 90, 255}, buttonReveal,
+            coreMenuPointerActive_);
     if (!coreDefenseMenuClosing_ && upgradeClicked) {
         pendingBuildingUpgrade_ = UpgradeBuildingCommand{core.id};
         audio_.playUiConfirm();

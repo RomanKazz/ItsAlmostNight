@@ -9,6 +9,7 @@
 
 void runTrapSystemTests() {
     ian::BuildingSystem buildings;
+    buildings.setSandboxMode(true);
     const auto core = buildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(core.has_value(), "trap fixture creates core");
     buildings.upgrade(core->building.id, 0, 0, 50);
@@ -56,6 +57,7 @@ void runTrapSystemTests() {
         "Reactive Traps turns a slow activation into a damaging pulse");
 
     ian::BuildingSystem spikeBuildings;
+    spikeBuildings.setSandboxMode(true);
     const auto spikeCore = spikeBuildings.place(
         ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(spikeCore.has_value(),
