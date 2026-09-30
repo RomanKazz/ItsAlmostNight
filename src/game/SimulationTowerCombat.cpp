@@ -13,10 +13,8 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
     const auto shots =
         towers_.tick(
             deltaSeconds, buildings_.buildings(), enemies_);
-    const int ricochetStacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::Ricochet)];
-    const int shrapnelStacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::GunShrapnel)];
+    const int ricochetStacks = runUpgradeCount(RunUpgradeEffect::Ricochet);
+    const int shrapnelStacks = runUpgradeCount(RunUpgradeEffect::GunShrapnel);
     const auto emitSecondaryHit = [this](
         const TowerShot& shot, EntityId targetId, Vec3 origin,
         double damage, double intensity, int visualSequence)

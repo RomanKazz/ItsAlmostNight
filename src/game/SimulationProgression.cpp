@@ -86,8 +86,7 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 void Simulation::refreshRunUpgradeRuntimeEffects() {
     resources_.setGatheringYieldMultiplier(
         (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
-        (1.0 + 0.15 * static_cast<double>(runUpgradeStacks_[
-            runUpgradeIndex(RunUpgradeEffect::RichResources)])));
+        (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
     crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
     lootChests_.setCoinCostMultiplier(
@@ -100,18 +99,14 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     const double defenseDamage = defenseDamageMultiplier_;
     towers_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
-        runUpgradeStacks_[runUpgradeIndex(
-            RunUpgradeEffect::TwinBatteries)],
-        runUpgradeStacks_[runUpgradeIndex(
-            RunUpgradeEffect::GunPiercing)]);
+        runUpgradeCount(RunUpgradeEffect::TwinBatteries),
+        runUpgradeCount(RunUpgradeEffect::GunPiercing));
     cannons_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
-        2 * runUpgradeStacks_[runUpgradeIndex(
-            RunUpgradeEffect::ClusterPayload)]);
+        2 * runUpgradeCount(RunUpgradeEffect::ClusterPayload));
     traps_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
-        6.0 * static_cast<double>(runUpgradeStacks_[
-            runUpgradeIndex(RunUpgradeEffect::ReactiveTraps)]));
+        6.0 * runUpgradePower(RunUpgradeEffect::ReactiveTraps));
     playerWeapons_.setRifleModifiers(
         1.0, 1.0,
         playerAttackSpeedMultiplier_ *
@@ -165,7 +160,8 @@ void Simulation::generateRunUpgradeChoices() {
         const RunUpgradeEffect effect = definition.effect;
         if (retiredRunUpgrade(effect)) continue;
         if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
-            runUpgradeMaximumLevel(effect)) {
+                runUpgradeMaximumLevel(effect) ||
+            runUpgradePower(effect) >= runUpgradePowerLimit(effect)) {
             continue;
         }
         if (definition.effect == RunUpgradeEffect::WiderChoice &&
@@ -259,52 +255,69 @@ void Simulation::generateRunUpgradeChoices() {
          index < runUpgradeChoiceCount_; ++index) {
         const std::size_t selected = chooseWeighted(pool);
         runUpgradeChoices_[index] = pool[selected];
+        randomState = mixBits64(randomState + 0xa0761d6478bd642fULL);
+        const double roll = static_cast<double>(randomState >> 11U) *
+            (1.0 / 9007199254740992.0);
+        runUpgradeRarities_[index] = fixedRunUpgradePower(pool[selected])
+            ? fixedRunUpgradeRarity(pool[selected])
+            : rollRunUpgradeRarity(0.10 * runUpgradePower(RunUpgradeEffect::Luck), roll);
         pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(selected));
     }
 }
 
-bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
+double Simulation::runUpgradePower(RunUpgradeEffect effect) const {
+    return runUpgradePower_[runUpgradeIndex(effect)];
+}
+
+int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
+    return static_cast<int>(std::round(runUpgradePower(effect)));
+}
+
+bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
-    if (stacks >= runUpgradeMaximumLevel(effect)) return false;
+    const double power = std::min(runUpgradePowerGain(effect, rarity),
+        std::max(0.0, runUpgradePowerLimit(effect) - runUpgradePower(effect)));
+    if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
     ++stacks;
+    runUpgradePower_[runUpgradeIndex(effect)] += power;
     switch (effect) {
     case RunUpgradeEffect::Damage:
-        runPlayerDamageMultiplier_ += 0.10;
+        runPlayerDamageMultiplier_ += 0.10 * power;
         break;
     case RunUpgradeEffect::AttackSpeed:
-        playerAttackSpeedMultiplier_ += 0.15;
+        playerAttackSpeedMultiplier_ += 0.15 * power;
         break;
     case RunUpgradeEffect::MoveSpeed:
-        runPlayerMoveSpeedMultiplier_ += 0.07;
+        runPlayerMoveSpeedMultiplier_ += 0.07 * power;
         break;
     case RunUpgradeEffect::MaximumHealth:
-        playerBonusMaxHealth_ += 12.0;
+        playerBonusMaxHealth_ += 12.0 * power;
         playerHealth_ = std::min(
             playerPermanentMaxHealth() + playerTemporaryHealth_,
-            playerHealth_ + 12.0);
+            playerHealth_ + 12.0 * power);
         break;
     case RunUpgradeEffect::RecoverableArmor:
-        playerMaxRecoverableArmor_ += 8.0;
-        playerRecoverableArmor_ += 8.0;
+        playerMaxRecoverableArmor_ += 8.0 * power;
+        playerRecoverableArmor_ += 8.0 * power;
         break;
     case RunUpgradeEffect::BuildingHealth:
-        runBuildingMaxHealthMultiplier_ += 0.12;
+        runBuildingMaxHealthMultiplier_ += 0.12 * power;
         break;
     case RunUpgradeEffect::BuildRadius:
         buildings_.setCoreBuildRadius(
-            buildings_.coreBuildRadius() + 3);
+            buildings_.coreBuildRadius() + static_cast<int>(std::round(3.0 * power)));
         break;
     case RunUpgradeEffect::DefenseDamage:
-        defenseDamageMultiplier_ += 0.12;
+        defenseDamageMultiplier_ += 0.12 * power;
         break;
     case RunUpgradeEffect::DefenseFireRate:
-        defenseFireRateMultiplier_ += 0.10;
+        defenseFireRateMultiplier_ += 0.10 * power;
         break;
     case RunUpgradeEffect::ProductionSpeed:
-        runProductionSpeedMultiplier_ += 0.15;
+        runProductionSpeedMultiplier_ += 0.15 * power;
         break;
     case RunUpgradeEffect::NightlyBomb:
-        ++runNightlyBombBonus_;
+        runNightlyBombBonus_ += static_cast<int>(power);
         break;
     case RunUpgradeEffect::WiderChoice:
         break;
@@ -319,11 +332,12 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
     case RunUpgradeEffect::GunShrapnel:
     case RunUpgradeEffect::GatheringSpeed:
     case RunUpgradeEffect::RichResources:
+    case RunUpgradeEffect::Luck:
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {
-            phaseTimeRemaining_ += 5.0;
-            phaseDuration_ += 5.0;
+            phaseTimeRemaining_ += 5.0 * power;
+            phaseDuration_ += 5.0 * power;
         }
         break;
     case RunUpgradeEffect::DoubleDown:
@@ -344,14 +358,15 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect) {
 }
 
 bool Simulation::grantDebugRunUpgrade(
-    RunUpgradeEffect effect) {
+    RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
-        rawEffect >= static_cast<int>(RunUpgradeEffectCount)) {
+        rawEffect >= static_cast<int>(RunUpgradeEffectCount) ||
+        static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) {
         return false;
     }
     invalidateSnapshotCache();
-    return applyRunUpgradeEffect(effect);
+    return applyRunUpgradeEffect(effect, rarity);
 }
 
 bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
@@ -362,7 +377,7 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
     invalidateSnapshotCache();
     const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
     if (lockedRunUpgrade_ == effect) lockedRunUpgrade_.reset();
-    if (!applyRunUpgradeEffect(effect)) return false;
+    if (!applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex])) return false;
     --runUpgradeSelectionsRemaining_;
     if (runUpgradeSelectionsRemaining_ > 0) {
         generateRunUpgradeChoices();
@@ -419,8 +434,7 @@ void Simulation::salvageDestroyedModularBuilding(
 
 void Simulation::salvageDestroyedCost(
     ResourceCost cost, Vec3 position) {
-    const int stacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::Salvager)];
+    const double stacks = runUpgradePower(RunUpgradeEffect::Salvager);
     if (stacks <= 0) return;
     const double fraction = std::min(
         0.90, 0.30 * static_cast<double>(stacks));

@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -12,7 +14,7 @@ namespace ian::app_detail {
 namespace {
 
 constexpr float CardWidth = 360.0F;
-constexpr float CardHeight = 520.0F;
+constexpr float CardHeight = 548.0F;
 constexpr float CardGap = 64.0F;
 constexpr float UpgradeUiScale = 0.80F;
 constexpr Color CardBrown{0x6E, 0x37, 0x21, 255};
@@ -77,16 +79,22 @@ constexpr UpgradePalette upgradePalette(UpgradeColorClass colorClass) {
     return upgradePalette(UpgradeColorClass::Blue);
 }
 
+float upgradeStatsPanelWidth() {
+    return std::clamp(static_cast<float>(GetScreenWidth()) * 0.19F, 220.0F, 340.0F);
+}
+
+float upgradeCardsAreaWidth() {
+    return static_cast<float>(GetScreenWidth()) - upgradeStatsPanelWidth() - 48.0F;
+}
+
 float cardLayoutScale(std::size_t count) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
     const float screenHeight = static_cast<float>(GetScreenHeight());
     const float horizontal =
-        (screenWidth - 72.0F) /
+        (upgradeCardsAreaWidth() - 48.0F) /
         (CardWidth * static_cast<float>(count) +
          CardGap * static_cast<float>(count - 1U));
     const float vertical = (screenHeight - 350.0F) / CardHeight;
-    return UpgradeUiScale *
-        std::clamp(std::min(horizontal, vertical), 0.50F, 1.0F);
+    return std::clamp(std::min(horizontal, vertical), 0.30F, UpgradeUiScale);
 }
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
@@ -97,6 +105,7 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::BloodHarvest:
         return UpgradeColorClass::Red;
     case RunUpgradeEffect::MoveSpeed:
+    case RunUpgradeEffect::Luck:
         return UpgradeColorClass::Blue;
     case RunUpgradeEffect::RecoverableArmor:
     case RunUpgradeEffect::BuildingHealth:
@@ -133,6 +142,7 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::Damage: return "DMG";
     case RunUpgradeEffect::AttackSpeed: return "SPD";
     case RunUpgradeEffect::MoveSpeed: return "MOVE";
+    case RunUpgradeEffect::Luck: return "LUCK";
     case RunUpgradeEffect::MaximumHealth: return "HP";
     case RunUpgradeEffect::RecoverableArmor: return "DEF";
     case RunUpgradeEffect::BuildingHealth: return "BASE";
@@ -320,6 +330,90 @@ struct UpgradeValueCopy {
     std::string label;
 };
 
+std::string statNumber(double value, int precision = 1) {
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(precision) << value;
+    std::string result = text.str();
+    if (result.find('.') != std::string::npos) {
+        while (result.back() == '0') result.pop_back();
+        if (result.back() == '.') result.pop_back();
+    }
+    return result;
+}
+
+std::string upgradeDescription(const SimulationSnapshot& snapshot,
+    RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+    std::string description{runUpgradeDefinition(effect).description};
+    if (fixedRunUpgradePower(effect)) return description;
+    const std::size_t numberEnd = description.find_first_not_of("0123456789.", 1);
+    if (numberEnd == std::string::npos || numberEnd <= 1) return description;
+    const double power = std::min(runUpgradePowerGain(effect, rarity),
+        std::max(0.0, runUpgradePowerLimit(effect) - snapshot.runUpgradePower[runUpgradeIndex(effect)]));
+    double amount = std::stod(description.substr(1, numberEnd - 1)) * power;
+    if (effect == RunUpgradeEffect::BuildRadius) amount = std::round(amount);
+    description.replace(1, numberEnd - 1, statNumber(amount));
+    return description;
+}
+
+UpgradePalette rarityPalette(RunUpgradeRarity rarity) {
+    switch (rarity) {
+    case RunUpgradeRarity::Common: return upgradePalette(UpgradeColorClass::Green);
+    case RunUpgradeRarity::Uncommon: return upgradePalette(UpgradeColorClass::Blue);
+    case RunUpgradeRarity::Rare: return upgradePalette(UpgradeColorClass::Purple);
+    case RunUpgradeRarity::Epic: return upgradePalette(UpgradeColorClass::Red);
+    case RunUpgradeRarity::Legendary: return upgradePalette(UpgradeColorClass::Yellow);
+    }
+    return upgradePalette(UpgradeColorClass::Green);
+}
+
+void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
+    const Rectangle bounds = runUpgradeStatsPanelBounds(snapshot.runUpgradeChoiceCount);
+    DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
+    DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
+        fadedColor({126, 112, 85, 255}, fade));
+    const float scale = bounds.height / 630.0F;
+    const float fontSize = std::min(21.0F * scale, bounds.width * 0.062F) / UiTextRasterScale;
+    const float left = bounds.x + 18.0F;
+    const float right = bounds.x + bounds.width - 18.0F;
+    float y = bounds.y + 18.0F * scale;
+    drawUiText("STATS", {left, y}, 28.0F / UiTextRasterScale * scale, fadedColor(UiWhite, fade));
+    y += 45.0F * scale;
+    const auto section = [&](std::string_view name) {
+        y += 8.0F * scale;
+        drawUiText(name, {left, y}, fontSize, fadedColor({255, 198, 94, 255}, fade));
+        y += 30.0F * scale;
+    };
+    const auto row = [&](std::string_view label, const std::string& value) {
+        const float labelSize = fitUiTextSize(label, fontSize, fontSize * 0.72F,
+            bounds.width - 36.0F - measureUiText(value, fontSize).x - 14.0F);
+        drawUiText(label, {left, y}, labelSize, fadedColor({205, 207, 196, 255}, fade));
+        drawUiText(value, {right - measureUiText(value, fontSize).x, y}, fontSize,
+            fadedColor(UiWhite, fade));
+        y += 27.0F * scale;
+    };
+    const auto multiplier = [](double value) { return statNumber(value, 2) + "x"; };
+    const RunUpgradeStats& stats = snapshot.upgradeStats;
+    section("DEFENSE");
+    row("Defense damage", multiplier(stats.defenseDamage));
+    row("Fire rate", multiplier(stats.defenseFireRate));
+    row("Building HP", multiplier(stats.buildingHealth));
+    row("Side shots", std::to_string(stats.sideShots));
+    row("Gun piercing", std::to_string(stats.gunPiercing));
+    row("Shot bounces", std::to_string(stats.ricochets));
+    row("Cluster blasts", std::to_string(stats.clusterExplosions));
+    section("ECONOMY");
+    row("Production", multiplier(stats.productionSpeed));
+    row("Resource yield", multiplier(stats.resourceYield));
+    row("Build range", std::to_string(snapshot.coreBuildRadius) + "m");
+    row("Luck", statNumber(stats.luck * 100.0) + "%");
+    section("PLAYER");
+    row("Max HP", statNumber(snapshot.playerMaxHealth));
+    row("Shield", statNumber(snapshot.playerMaxRecoverableArmor));
+    row("Player damage", multiplier(snapshot.playerDamageMultiplier));
+    row("Attack speed", multiplier(stats.playerAttackSpeed));
+    row("Move speed", multiplier(snapshot.playerMoveSpeedMultiplier));
+}
+
 UpgradeValueCopy upgradeValueCopy(
     std::string_view description, std::string_view fallback) {
     if (description.size() >= 2U &&
@@ -342,7 +436,7 @@ UpgradeValueCopy upgradeValueCopy(
 } // namespace
 
 Rectangle runUpgradeCardBounds(std::size_t index, std::size_t count) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenWidth = upgradeCardsAreaWidth();
     const float screenHeight = static_cast<float>(GetScreenHeight());
     const float layoutScale = cardLayoutScale(count);
     const float cardWidth = CardWidth * layoutScale;
@@ -360,6 +454,16 @@ Rectangle runUpgradeCardBounds(std::size_t index, std::size_t count) {
         cardWidth,
         cardHeight,
     };
+}
+
+Rectangle runUpgradeStatsPanelBounds(std::size_t count) {
+    const float width = upgradeStatsPanelWidth();
+    const float height = std::min(630.0F, static_cast<float>(GetScreenHeight()) - 80.0F);
+    const Rectangle card = runUpgradeCardBounds(0, count);
+    const float center = card.y + card.height * 0.5F;
+    return {static_cast<float>(GetScreenWidth()) - width - 24.0F,
+        std::clamp(center - height * 0.5F, 40.0F,
+            static_cast<float>(GetScreenHeight()) - height - 40.0F), width, height};
 }
 
 std::optional<std::size_t> hoveredRunUpgradeChoice(
@@ -384,7 +488,8 @@ void drawRunUpgradeOverlay(
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts) {
-    if (!snapshot.runUpgradeChoicePending) return;
+    if (!snapshot.runUpgradeChoicePending ||
+        snapshot.runUpgradeChoiceCount == 0U) return;
     const float exitProgress = std::clamp(static_cast<float>(
         exitSeconds / RunUpgradeOverlayExitDuration), 0.0F, 1.0F);
     const float exitEase = smoothUnit(exitProgress);
@@ -396,6 +501,7 @@ void drawRunUpgradeOverlay(
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                   {30, 30, 30, static_cast<unsigned char>(
                       std::lround(170.0F * screenFade))});
+    drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade);
     const float headingEntrance = std::clamp(static_cast<float>(
         (entranceSeconds - 0.01) / 0.23), 0.0F, 1.0F);
     const float headingMotion = popEntranceScale(headingEntrance);
@@ -439,7 +545,7 @@ void drawRunUpgradeOverlay(
         const float bannerScale =
             headingMotion * (1.0F - exitEase * 0.06F);
         const Rectangle bannerBase{
-            (static_cast<float>(GetScreenWidth()) - bannerWidth) * 0.5F,
+            (upgradeCardsAreaWidth() - bannerWidth) * 0.5F,
             cardTop - bannerHeight - 64.0F -
                 (1.0F - smoothUnit(headingEntrance)) * 44.0F -
                 exitEase * 28.0F,
@@ -461,9 +567,9 @@ void drawRunUpgradeOverlay(
     for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
         ++index) {
         const RunUpgradeEffect effect = snapshot.runUpgradeChoices[index];
+        const RunUpgradeRarity rarity = snapshot.runUpgradeRarities[index];
         const std::string_view title = runUpgradeDefinition(effect).name;
-        const std::string_view description =
-            runUpgradeDefinition(effect).description;
+        const std::string description = upgradeDescription(snapshot, effect, rarity);
         const Rectangle baseBounds = runUpgradeCardBounds(
             index, snapshot.runUpgradeChoiceCount);
         const bool hovered = CheckCollisionPointRec(mouse, baseBounds);
@@ -511,13 +617,12 @@ void drawRunUpgradeOverlay(
             const float selectedCenterX =
                 bounds.x + bounds.width * 0.5F;
             bounds.x +=
-                (static_cast<float>(GetScreenWidth()) * 0.5F -
+                (upgradeCardsAreaWidth() * 0.5F -
                  selectedCenterX) * exitEase;
         }
         const float scale = layoutScale * animationScale;
         const bool locked = snapshot.lockedRunUpgrade == effect;
-        const UpgradePalette palette = upgradePalette(
-            upgradeColorClass(effect));
+        const UpgradePalette palette = rarityPalette(rarity);
         const Color accent = palette.accent;
         const Rectangle colorBounds = expandedRectangle(
             bounds, 10.0F * scale);
@@ -621,7 +726,7 @@ void drawRunUpgradeOverlay(
                 fadedColor(CardInk, cardFade));
             DrawCircleV(
                 emblemCenter, emblemRadius,
-                fadedColor(accent, cardFade));
+                fadedColor(upgradePalette(upgradeColorClass(effect)).accent, cardFade));
             DrawCircleV(
                 {emblemCenter.x - 18.0F * scale,
                  emblemCenter.y - 19.0F * scale},
@@ -814,6 +919,12 @@ void drawRunUpgradeOverlay(
             nextLevelY, levelFontSize,
             palette.accent, cardFade, scale,
             LevelOutline, 3.0F, false);
+        drawOutlinedCenteredText(
+            runUpgradeRarityName(rarity), centerX,
+            bounds.y + 516.0F * scale,
+            22.0F / UiTextRasterScale * scale,
+            palette.accent, cardFade, scale,
+            CardInk, 2.0F, false);
     }
     std::string controls;
     if (snapshot.runUpgradeRerollTokens > 0) {

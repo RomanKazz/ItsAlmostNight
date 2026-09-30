@@ -256,6 +256,20 @@ struct RunCombatStatistics {
     int structuresLost{};
 };
 
+struct RunUpgradeStats {
+    double defenseDamage{1.0};
+    double defenseFireRate{1.0};
+    double buildingHealth{1.0};
+    double productionSpeed{1.0};
+    double resourceYield{1.0};
+    double playerAttackSpeed{1.0};
+    double luck{};
+    int sideShots{};
+    int gunPiercing{};
+    int ricochets{};
+    int clusterExplosions{};
+};
+
 struct SimulationSnapshot {
     RunState state;
     bool sandboxMode{};
@@ -424,6 +438,9 @@ struct SimulationSnapshot {
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
+    std::array<double, RunUpgradeEffectCount> runUpgradePower{};
+    std::array<RunUpgradeRarity, MaximumRunUpgradeChoices> runUpgradeRarities{};
+    RunUpgradeStats upgradeStats;
     int runUpgradeSelectionsRemaining{};
     int runUpgradeRerollTokens{};
     bool runUpgradeLockUnlocked{};
@@ -460,6 +477,7 @@ struct SuspendedRunState {
     int rifleLevel{1};
     std::array<int, LootUpgradeEffectCount> lootStacks{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks{};
+    std::array<double, RunUpgradeEffectCount> runUpgradePower{};
     std::vector<BuildingInstance> buildings;
     std::vector<PlatformFrameInstance> platformFrames;
     std::vector<WallInstance> modularWalls;
@@ -508,6 +526,7 @@ struct SuspendedRunState {
     std::size_t runUpgradeChoiceCount{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
+    std::array<RunUpgradeRarity, MaximumRunUpgradeChoices> runUpgradeRarities{};
     int runUpgradeSelectionsRemaining{};
     std::uint32_t runUpgradeOfferGeneration{};
     bool stageCleared{};
@@ -616,7 +635,7 @@ class Simulation {
     void takeEvents(std::vector<GameEvent>& destination);
     std::vector<GameEvent> takeEvents();
     [[nodiscard]] bool grantDebugRunUpgrade(
-        RunUpgradeEffect effect);
+        RunUpgradeEffect effect, RunUpgradeRarity rarity = RunUpgradeRarity::Common);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
     [[nodiscard]] bool lockRunUpgrade(std::size_t choiceIndex);
@@ -794,7 +813,9 @@ class Simulation {
     void prepareRunUpgradeChoices(int selections = 1);
     void generateRunUpgradeChoices();
     [[nodiscard]] bool applyRunUpgradeEffect(
-        RunUpgradeEffect effect);
+        RunUpgradeEffect effect, RunUpgradeRarity rarity);
+    [[nodiscard]] double runUpgradePower(RunUpgradeEffect effect) const;
+    [[nodiscard]] int runUpgradeCount(RunUpgradeEffect effect) const;
     void processRunUpgradeCombatEffects(std::size_t firstGameplayEvent);
     void salvageDestroyedBuilding(BuildingType type, Vec3 position);
     void salvageDestroyedModularBuilding(
@@ -988,6 +1009,8 @@ class Simulation {
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices_{};
     std::array<int, RunUpgradeEffectCount> runUpgradeStacks_{};
+    std::array<double, RunUpgradeEffectCount> runUpgradePower_{};
+    std::array<RunUpgradeRarity, MaximumRunUpgradeChoices> runUpgradeRarities_{};
     int runNightlyBombBonus_{};
     int runUpgradeSelectionsRemaining_{};
     int runUpgradeRerollTokens_{};

@@ -206,8 +206,7 @@ void Simulation::updateRunPhase(
                        LootUpgradeEffect::Key)] - 1);
             phaseTimeRemaining_ =
                 gameplay_.betweenWaveSeconds +
-                5.0 * static_cast<double>(runUpgradeStacks_[
-                    runUpgradeIndex(RunUpgradeEffect::LongerDay)]);
+                5.0 * runUpgradePower(RunUpgradeEffect::LongerDay);
             phaseDuration_ = phaseTimeRemaining_;
         }
     }

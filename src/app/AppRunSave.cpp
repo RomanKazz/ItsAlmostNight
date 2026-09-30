@@ -13,7 +13,7 @@ namespace {
 using Json = nlohmann::json;
 constexpr std::string_view SuspendedRunPath =
     "user_settings/suspended_run.json";
-constexpr int SuspendedRunVersion = 5;
+constexpr int SuspendedRunVersion = 7;
 constexpr std::uintmax_t MaximumSuspendedRunBytes = 4U * 1024U * 1024U;
 
 Json entityJson(EntityId id) {
@@ -568,6 +568,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"rifleLevel", saved.rifleLevel},
         {"lootStacks", saved.lootStacks},
         {"runUpgradeStacks", saved.runUpgradeStacks},
+        {"runUpgradePower", saved.runUpgradePower},
         {"buildings", std::move(buildings)},
         {"modularStructures", {
             {"platformFrames", std::move(platformFrames)},
@@ -623,6 +624,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"pending", saved.runUpgradeChoicePending},
             {"count", saved.runUpgradeChoiceCount},
             {"choices", std::move(upgradeChoices)},
+            {"rarities", saved.runUpgradeRarities},
             {"selectionsRemaining", saved.runUpgradeSelectionsRemaining},
             {"generation", saved.runUpgradeOfferGeneration},
         }},
@@ -681,6 +683,10 @@ SuspendedRunState readSuspendedRun(const Json& document) {
         !readFixedArray(document, "buildingBlueprintLevels",
                         saved.buildingBlueprintLevels)) {
         throw Json::type_error::create(302, "invalid checkpoint array", &document);
+    }
+    if (document.contains("runUpgradePower") && !readExpandableFixedArray(
+            document, "runUpgradePower", saved.runUpgradePower)) {
+        throw Json::type_error::create(302, "invalid run upgrade power", &document);
     }
     for (const Json& building : document.at("buildings")) {
         saved.buildings.push_back(readBuilding(building));
@@ -755,6 +761,10 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     }
     saved.runUpgradeSelectionsRemaining =
         upgradeOffer.at("selectionsRemaining").get<int>();
+    if (upgradeOffer.contains("rarities") && !readFixedArray(
+            upgradeOffer, "rarities", saved.runUpgradeRarities)) {
+        throw Json::type_error::create(302, "invalid run upgrade rarities", &upgradeOffer);
+    }
     saved.runUpgradeOfferGeneration =
         upgradeOffer.at("generation").get<std::uint32_t>();
     const Json& progression = document.at("progression");
@@ -802,8 +812,9 @@ std::optional<SuspendedRunState> readSuspendedRunFile(
         if (!stream) return std::nullopt;
         Json document;
         stream >> document;
+        const int version = document.value("version", 0);
         if (!stream || !document.is_object() ||
-            document.value("version", 0) != SuspendedRunVersion) {
+            (version != 5 && version != 6 && version != SuspendedRunVersion)) {
             return std::nullopt;
         }
         return readSuspendedRun(document);

@@ -68,6 +68,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .rifleLevel = playerWeapons_.rifleLevel(),
         .lootStacks = lootStacks_,
         .runUpgradeStacks = runUpgradeStacks_,
+        .runUpgradePower = runUpgradePower_,
         .buildings = buildings_.buildings(),
         .resourceNodes = resources_.nodes(),
         .lootChests = lootChests_.chests(),
@@ -111,6 +112,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,
+        .runUpgradeRarities = runUpgradeRarities_,
         .runUpgradeSelectionsRemaining = runUpgradeSelectionsRemaining_,
         .runUpgradeOfferGeneration = runUpgradeOfferGeneration_,
         .stageCleared = stageCleared_,
@@ -183,6 +185,8 @@ bool Simulation::loadSuspendedRunState(
     const bool invalidStacks =
         std::ranges::any_of(saved.lootStacks, invalidStack) ||
         std::ranges::any_of(saved.runUpgradeStacks, invalidStack);
+    const bool invalidUpgradePower = std::ranges::any_of(saved.runUpgradePower,
+        [](double power) { return !std::isfinite(power) || power < 0.0 || power > MaximumSavedStack * 2.0; });
     const double coordinateLimit = map_.worldLimit +
         static_cast<double>(ModularRampRunCells) * worldConfig_.cellSize;
     std::size_t coreCount = 0U;
@@ -234,6 +238,7 @@ bool Simulation::loadSuspendedRunState(
         const RunUpgradeEffect card = saved.runUpgradeChoices[index];
         invalidChoices = invalidChoices ||
             !validRunUpgrade(card) ||
+            static_cast<std::size_t>(saved.runUpgradeRarities[index]) >= RunUpgradeRarityCount ||
             !offeredUpgrades.insert(card).second;
     }
     if (saved.runUpgradeChoicePending) {
@@ -303,7 +308,7 @@ bool Simulation::loadSuspendedRunState(
         saved.rifleLevel < 1 || saved.rifleLevel > MaximumSavedStack ||
         selectedWeapon < 0 ||
         selectedWeapon >= static_cast<int>(PlayerWeaponCount) ||
-        invalidStacks || invalidBuildings || invalidLockedUpgrade ||
+        invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
         invalidChoices || invalidStatistics || invalidWorldCollections ||
         invalidPhase || saved.coreBuildRadius < map_.coreBuildRadius ||
         saved.coreBuildRadius >
@@ -364,6 +369,13 @@ bool Simulation::loadSuspendedRunState(
     coins_ = saved.coins;
     lootStacks_ = saved.lootStacks;
     runUpgradeStacks_ = saved.runUpgradeStacks;
+    runUpgradePower_ = saved.runUpgradePower;
+    // Checkpoints from before rarities contain only selection counts.
+    for (std::size_t index = 0; index < runUpgradePower_.size(); ++index) {
+        if (runUpgradePower_[index] == 0.0 && runUpgradeStacks_[index] > 0) {
+            runUpgradePower_[index] = static_cast<double>(runUpgradeStacks_[index]);
+        }
+    }
     insight_ = std::move(insightValidation);
     objectives_ = std::move(objectiveValidation);
     std::fill(insightRewardedEnemyIds_.begin(),
@@ -427,8 +439,7 @@ bool Simulation::loadSuspendedRunState(
             saved.platformFrames, saved.modularWalls, saved.ramps) ||
         !resources_.restoreNodes(
             saved.resourceNodes, saved.woodYieldMultiplier,
-            1.0 + 0.15 * static_cast<double>(saved.runUpgradeStacks[
-                runUpgradeIndex(RunUpgradeEffect::RichResources)])) ||
+            1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)) ||
         !lootChests_.restoreChests(saved.lootChests)) {
         return failLoad();
     }
@@ -518,6 +529,7 @@ bool Simulation::loadSuspendedRunState(
     runUpgradeChoicePending_ = saved.runUpgradeChoicePending;
     runUpgradeChoiceCount_ = saved.runUpgradeChoiceCount;
     runUpgradeChoices_ = saved.runUpgradeChoices;
+    runUpgradeRarities_ = saved.runUpgradeRarities;
     runUpgradeSelectionsRemaining_ =
         saved.runUpgradeSelectionsRemaining;
     runUpgradeOfferGeneration_ = saved.runUpgradeOfferGeneration;

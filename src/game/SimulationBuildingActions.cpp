@@ -12,7 +12,7 @@ namespace {
 
 ResourceCost salvageSaleBonus(ResourceCost cost,
                               ResourceCost standardRefund,
-                              int stacks) {
+                              double stacks) {
     if (stacks <= 0) return {};
     const double fraction = std::min(
         0.90, 0.30 * static_cast<double>(stacks));
@@ -355,8 +355,7 @@ void Simulation::processBuildingActions(
                 const ResourceCost bonus = salvageSaleBonus(
                     buildings_.configuredCost(result.building->type),
                     result.refund,
-                    runUpgradeStacks_[runUpgradeIndex(
-                        RunUpgradeEffect::Salvager)]);
+                    runUpgradePower(RunUpgradeEffect::Salvager));
                 wood_ = saturatingAdd(
                     wood_, saturatingAdd(result.refund.wood, bonus.wood));
                 stone_ = saturatingAdd(
@@ -427,8 +426,7 @@ void Simulation::processBuildingActions(
         } else if (foundations_.remove(target)) {
             if (!unlimitedResources_) {
                 const ResourceCost bonus = salvageSaleBonus(
-                    modularCost, {}, runUpgradeStacks_[runUpgradeIndex(
-                        RunUpgradeEffect::Salvager)]);
+                    modularCost, {}, runUpgradePower(RunUpgradeEffect::Salvager));
                 wood_ = saturatingAdd(wood_, bonus.wood);
                 stone_ = saturatingAdd(stone_, bonus.stone);
                 crystals_ = saturatingAdd(crystals_, bonus.crystals);

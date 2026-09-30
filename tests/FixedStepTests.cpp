@@ -5,6 +5,7 @@
 #include <limits>
 
 void runSimulationTests();
+void runRunUpgradeTests();
 void runResourceSystemTests();
 void runBuildingSystemTests();
 void runEnemySystemTests();
@@ -132,5 +133,6 @@ int main() {
     runLootChestSystemTests();
     runResourceSystemTests();
     runSimulationTests();
+    runRunUpgradeTests();
     return 0;
 }

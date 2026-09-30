@@ -362,6 +362,7 @@ if(BUILD_TESTING)
         tests/PlayerWeaponSystemTests.cpp
         tests/ResourceSystemTests.cpp
         tests/SimulationTests.cpp
+        tests/RunUpgradeTests.cpp
         tests/GameBalanceTests.cpp
         tests/MapDefinitionTests.cpp
         tests/GlbCollisionTests.cpp
@@ -427,4 +428,22 @@ if(BUILD_TESTING)
         SKIP_RETURN_CODE 77
         TIMEOUT 30
         LABELS "graphics;ui;integration")
+
+    add_executable(ian_run_upgrade_ui_smoke
+        tests/RunUpgradeOverlaySmokeTests.cpp
+        src/app/AppRunUpgradeOverlay.cpp)
+    target_link_libraries(ian_run_upgrade_ui_smoke PRIVATE ian_ui)
+    target_include_directories(ian_run_upgrade_ui_smoke SYSTEM PRIVATE
+        "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_run_upgrade_ui_smoke)
+    add_test(NAME ian_run_upgrade_ui_smoke COMMAND ian_run_upgrade_ui_smoke)
+    set_tests_properties(ian_run_upgrade_ui_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 30 LABELS "graphics;ui;integration")
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke)
+            target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+        endforeach()
+    endif()
 endif()

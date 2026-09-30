@@ -383,6 +383,8 @@ void Simulation::resetRun(GameEventType eventType) {
     runUpgradeChoiceCount_ = 0U;
     runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
     runUpgradeStacks_.fill(0);
+    runUpgradePower_.fill(0.0);
+    runUpgradeRarities_.fill(RunUpgradeRarity::Common);
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
     runUpgradeRerollTokens_ = 0;

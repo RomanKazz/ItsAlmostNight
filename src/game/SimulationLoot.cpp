@@ -451,10 +451,8 @@ void Simulation::processRunUpgradeCombatEffects(
         }
     }
 
-    const int harvestStacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::BloodHarvest)];
-    const int overkillStacks = runUpgradeStacks_[runUpgradeIndex(
-        RunUpgradeEffect::Overkill)];
+    const double harvestStacks = runUpgradePower(RunUpgradeEffect::BloodHarvest);
+    const int overkillStacks = runUpgradeCount(RunUpgradeEffect::Overkill);
     for (std::size_t index = firstGameplayEvent;
          index < eventLimit; ++index) {
         const GameEvent killedEvent = events_[index];

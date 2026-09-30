@@ -129,8 +129,7 @@ void Simulation::regenerateTerrain(std::uint32_t seed) {
     resources_.setWoodYieldMultiplier(woodYieldMultiplier_);
     resources_.setGatheringYieldMultiplier(
         (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
-        (1.0 + 0.15 * static_cast<double>(runUpgradeStacks_[
-            runUpgradeIndex(RunUpgradeEffect::RichResources)])));
+        (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
     if (resources_.consumeCollisionGeometryDirty()) {
         collisionWorld_.syncResourceCylinders(
             resources_.nodes(), treeCollisionAssets_,

@@ -415,6 +415,23 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,
         .runUpgradeStacks = runUpgradeStacks_,
+        .runUpgradePower = runUpgradePower_,
+        .runUpgradeRarities = runUpgradeRarities_,
+        .upgradeStats = {
+            .defenseDamage = defenseDamageMultiplier_,
+            .defenseFireRate = defenseFireRateMultiplier_,
+            .buildingHealth = buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_,
+            .productionSpeed = productionSpeedMultiplier_ * runProductionSpeedMultiplier_,
+            .resourceYield = (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
+                (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)),
+            .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
+                (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
+            .luck = 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
+            .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),
+            .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
+            .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),
+            .clusterExplosions = 2 * runUpgradeCount(RunUpgradeEffect::ClusterPayload),
+        },
         .runUpgradeSelectionsRemaining =
             runUpgradeSelectionsRemaining_,
         .runUpgradeRerollTokens = runUpgradeRerollTokens_,

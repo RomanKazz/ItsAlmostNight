@@ -14,6 +14,7 @@ inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
 
 [[nodiscard]] Rectangle runUpgradeCardBounds(
     std::size_t index, std::size_t count);
+[[nodiscard]] Rectangle runUpgradeStatsPanelBounds(std::size_t count);
 [[nodiscard]] std::optional<std::size_t> hoveredRunUpgradeChoice(
     const SimulationSnapshot& snapshot, Vector2 mousePosition);
 void drawRunUpgradeOverlay(
