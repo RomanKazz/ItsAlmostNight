@@ -14,7 +14,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
         towers_.tick(
             deltaSeconds, buildings_.buildings(), enemies_);
     const int ricochetStacks = runUpgradeCount(RunUpgradeEffect::Ricochet);
-    const int shrapnelStacks = runUpgradeCount(RunUpgradeEffect::GunShrapnel);
+    const int shrapnelShards = runUpgradeCount(RunUpgradeEffect::GunShrapnel);
     const auto emitSecondaryHit = [this](
         const TowerShot& shot, EntityId targetId, Vec3 origin,
         double damage, double intensity, int visualSequence)
@@ -62,7 +62,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
         const auto fireShrapnel = [&](EntityId killedId,
                                       Vec3 impactPosition,
                                       double impactDamage) {
-            if (shrapnelStacks <= 0 ||
+            if (shrapnelShards <= 0 ||
                 shot.type != BuildingType::GunTurret) return;
             constexpr std::size_t MaximumShards = 6;
             constexpr double ShrapnelRadius = 5.0;
@@ -71,7 +71,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             distances.fill(ShrapnelRadius * ShrapnelRadius);
             const std::size_t shardCount = std::min<std::size_t>(
                 MaximumShards,
-                3U * static_cast<std::size_t>(shrapnelStacks));
+                static_cast<std::size_t>(shrapnelShards));
             for (const EnemyInstance& enemy : enemies_.enemies()) {
                 if (!validSecondaryTarget(enemy) ||
                     enemy.id == killedId) continue;

@@ -148,7 +148,7 @@ inline constexpr std::size_t RunUpgradeRarityCount = 5;
 }
 
 [[nodiscard]] constexpr double runUpgradeRarityMultiplier(RunUpgradeRarity rarity) {
-    constexpr std::array<double, RunUpgradeRarityCount> Values{1.0, 1.2, 1.4, 1.6, 2.0};
+    constexpr std::array<double, RunUpgradeRarityCount> Values{1.0, 1.5, 2.0, 2.5, 3.0};
     return Values[static_cast<std::size_t>(rarity)];
 }
 
@@ -190,10 +190,25 @@ runUpgradeRarityProbabilities(double luck) {
         effect == RunUpgradeEffect::NightlyBomb;
 }
 
+// Power is stored in common-card units. Round the actual count, not those
+// units: +2 explosions at 1.5x must grant +3 explosions, not +4.
+[[nodiscard]] constexpr int runUpgradeCountPerPower(RunUpgradeEffect effect) {
+    if (effect == RunUpgradeEffect::ClusterPayload) return 2;
+    if (effect == RunUpgradeEffect::GunShrapnel) return 3;
+    return 1;
+}
+
+[[nodiscard]] inline int runUpgradeDiscreteAmount(RunUpgradeEffect effect, double power) {
+    return static_cast<int>(std::round(runUpgradeCountPerPower(effect) * power));
+}
+
 [[nodiscard]] inline double runUpgradePowerGain(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (fixedRunUpgradePower(effect)) return 1.0;
     const double multiplier = runUpgradeRarityMultiplier(rarity);
-    return discreteRunUpgradePower(effect) ? std::round(multiplier) : multiplier;
+    return discreteRunUpgradePower(effect)
+        ? static_cast<double>(runUpgradeDiscreteAmount(effect, multiplier)) /
+            runUpgradeCountPerPower(effect)
+        : multiplier;
 }
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
@@ -226,7 +241,14 @@ runUpgradeRarityProbabilities(double luck) {
     if (effect == RunUpgradeEffect::Salvager) return 3.0;
     const double maximum = static_cast<double>(runUpgradeMaximumLevel(effect));
     return discreteRunUpgradePower(effect) || fixedRunUpgradePower(effect)
-        ? maximum : maximum * 2.0;
+        ? maximum : maximum * runUpgradeRarityMultiplier(RunUpgradeRarity::Legendary);
+}
+
+// Both the card preview and the simulation apply this remaining-cap check.
+[[nodiscard]] inline double runUpgradeAppliedPowerGain(
+    RunUpgradeEffect effect, RunUpgradeRarity rarity, double currentPower) {
+    return std::min(runUpgradePowerGain(effect, rarity),
+        std::max(0.0, runUpgradePowerLimit(effect) - currentPower));
 }
 
 } // namespace ian

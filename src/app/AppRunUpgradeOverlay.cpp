@@ -339,8 +339,8 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
     if (fixedRunUpgradePower(effect)) return description;
     const std::size_t numberEnd = description.find_first_not_of("0123456789.", 1);
     if (numberEnd == std::string::npos || numberEnd <= 1) return description;
-    const double power = std::min(runUpgradePowerGain(effect, rarity),
-        std::max(0.0, runUpgradePowerLimit(effect) - snapshot.runUpgradePower[runUpgradeIndex(effect)]));
+    const double power = runUpgradeAppliedPowerGain(
+        effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
     double amount = std::stod(description.substr(1, numberEnd - 1)) * power;
     if (effect == RunUpgradeEffect::BuildRadius) amount = std::round(amount);
     description.replace(1, numberEnd - 1, statNumber(amount));

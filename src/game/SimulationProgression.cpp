@@ -103,7 +103,7 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
         runUpgradeCount(RunUpgradeEffect::GunPiercing));
     cannons_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
-        2 * runUpgradeCount(RunUpgradeEffect::ClusterPayload));
+        runUpgradeCount(RunUpgradeEffect::ClusterPayload));
     traps_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         6.0 * runUpgradePower(RunUpgradeEffect::ReactiveTraps));
@@ -270,13 +270,12 @@ double Simulation::runUpgradePower(RunUpgradeEffect effect) const {
 }
 
 int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
-    return static_cast<int>(std::round(runUpgradePower(effect)));
+    return runUpgradeDiscreteAmount(effect, runUpgradePower(effect));
 }
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
-    const double power = std::min(runUpgradePowerGain(effect, rarity),
-        std::max(0.0, runUpgradePowerLimit(effect) - runUpgradePower(effect)));
+    const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
     if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
     ++stacks;
     runUpgradePower_[runUpgradeIndex(effect)] += power;

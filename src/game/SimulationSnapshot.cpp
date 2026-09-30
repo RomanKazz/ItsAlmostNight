@@ -430,7 +430,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),
             .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
             .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),
-            .clusterExplosions = 2 * runUpgradeCount(RunUpgradeEffect::ClusterPayload),
+            .clusterExplosions = runUpgradeCount(RunUpgradeEffect::ClusterPayload),
         },
         .runUpgradeSelectionsRemaining =
             runUpgradeSelectionsRemaining_,
