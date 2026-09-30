@@ -2,6 +2,7 @@
 #include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
 
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -15,6 +16,45 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    const auto basicBullet = ian::presentation::bulletAppearance(1.0);
+    const auto doubleBullet = ian::presentation::bulletAppearance(2.0);
+    const auto heavyBullet = ian::presentation::bulletAppearance(4.0);
+    const auto powerfulBullet = ian::presentation::bulletAppearance(8.0);
+    const auto maximumBullet = ian::presentation::bulletAppearance(16.0);
+    requireNear(basicBullet.scale, 1.0, 1e-6,
+                "level-one gun bullet retains its normal size");
+    require(basicBullet.scale < doubleBullet.scale &&
+                doubleBullet.scale < heavyBullet.scale &&
+                heavyBullet.scale < powerfulBullet.scale &&
+                powerfulBullet.scale < maximumBullet.scale,
+            "higher outgoing damage visibly grows bullets");
+    require(basicBullet.color.g > doubleBullet.color.g &&
+                doubleBullet.color.g > heavyBullet.color.g &&
+                powerfulBullet.color.b > heavyBullet.color.b &&
+                maximumBullet.color.g > powerfulBullet.color.g,
+            "bullet palette progresses from amber through red and violet to blue");
+    const auto intermediateBullet = ian::presentation::bulletAppearance(1.12);
+    require(intermediateBullet.scale > basicBullet.scale &&
+                intermediateBullet.scale < doubleBullet.scale &&
+                intermediateBullet.color.g < basicBullet.color.g &&
+                intermediateBullet.color.g > doubleBullet.color.g,
+            "percentage upgrades interpolate bullet color and size smoothly");
+    const auto extremeBullet = ian::presentation::bulletAppearance(1e12);
+    requireNear(extremeBullet.scale, 2.4, 1e-6,
+                "very high damage cannot cover the screen with an unbounded bullet");
+    require(extremeBullet.color.r == maximumBullet.color.r &&
+                extremeBullet.color.g == maximumBullet.color.g &&
+                extremeBullet.color.b == maximumBullet.color.b,
+            "extreme damage safely saturates the final palette color");
+    const auto shardBullet = ian::presentation::bulletAppearance(0.45);
+    require(shardBullet.scale < basicBullet.scale && shardBullet.scale >= 0.72F,
+            "weaker ricochets and shards stay smaller and readable");
+    for (const double invalidDamage : {0.0, -1.0,
+             std::numeric_limits<double>::infinity(),
+             std::numeric_limits<double>::quiet_NaN()}) {
+        requireNear(ian::presentation::bulletAppearance(invalidDamage).scale,
+                    1.0, 1e-6, "invalid bullet damage keeps a finite default appearance");
+    }
     requireNear(
         ian::presentation::timelineProgress(0.48, 0.48),
         0.0, 1e-9,

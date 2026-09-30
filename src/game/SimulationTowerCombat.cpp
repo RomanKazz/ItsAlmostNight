@@ -30,6 +30,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .targetPosition = origin,
             .amount = visualSequence,
             .damage = result->damage,
+            .projectileDamage = damage,
             .intensity = intensity,
             .secondaryImpact = true,
         });
@@ -110,6 +111,7 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .position = shot.hitPosition,
             .amount = static_cast<int>(shot.muzzleIndex),
             .damage = shot.damage,
+            .projectileDamage = shot.payloadDamage,
             .secondaryImpact = shot.secondaryImpact,
         });
         if (shot.killed) {

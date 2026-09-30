@@ -2,6 +2,7 @@
 
 #include "core/Types.hpp"
 #include "game/LootChestSystem.hpp"
+#include "presentation/BulletAppearance.hpp"
 #include "resources/ResourceSystem.hpp"
 
 #include <optional>
@@ -63,6 +64,7 @@ struct PresentationEffect {
     double duration;
     double startDelayRemaining{};
     float scale{1.0F};
+    presentation::BulletAppearance bulletAppearance{};
     int variant{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
@@ -83,6 +85,7 @@ struct ArrowVisual {
     double remaining;
     double duration;
     double startDelayRemaining{};
+    presentation::BulletAppearance bulletAppearance{};
     bool turretBullet{};
     bool shrapnel{};
     std::optional<EntityId> flashTarget;

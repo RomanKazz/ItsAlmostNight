@@ -557,6 +557,8 @@ void App::processPresentationEvents(
                             deltaX, deltaY, deltaZ}),
                         .remaining = duration,
                         .duration = duration,
+                        .bulletAppearance = presentation::bulletAppearance(
+                            event.projectileDamage),
                         .turretBullet = gunTurret,
                         .flashTarget = event.entityId,
                     });
@@ -606,6 +608,8 @@ void App::processPresentationEvents(
                     .remaining = duration,
                     .duration = duration,
                     .startDelayRemaining = startDelay,
+                    .bulletAppearance = presentation::bulletAppearance(
+                        event.projectileDamage),
                     .turretBullet =
                         event.buildingType == BuildingType::GunTurret,
                     .shrapnel = event.amount < 0,

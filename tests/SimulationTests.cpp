@@ -3772,9 +3772,18 @@ void runSimulationTests() {
              tick < 900 && (!sawShard || !sawAutomaticTurretCoins);
              ++tick) {
             resolveLevelUps(shardRun);
+            const double shotDamage =
+                ian::TowerSystem::attackDamage(ian::BuildingType::GunTurret, 1) *
+                shardRun.snapshot().upgradeStats.defenseDamage;
             shardRun.tick(1.0 / 30.0, {});
             for (const ian::GameEvent& event :
                  shardRun.takeEvents()) {
+                if (event.type == ian::GameEventType::ProjectileHit &&
+                    event.buildingType == ian::BuildingType::GunTurret) {
+                    requireNear(event.projectileDamage,
+                        shotDamage * (event.amount < 0 ? 0.45 : 1.0), 1e-9,
+                        "main shots and shrapnel carry their outgoing damage for presentation");
+                }
                 sawShard = sawShard ||
                     (event.type ==
                          ian::GameEventType::ProjectileHit &&

@@ -133,6 +133,9 @@ struct GameEvent {
     int amount{};
     int coinAmount{};
     double damage{};
+    // Outgoing shot damage before enemy mitigation and remaining-health
+    // clipping. Presentation must not shrink a finishing projectile.
+    double projectileDamage{};
     double intensity{};
     bool critical{};
     bool matchingTool{};
