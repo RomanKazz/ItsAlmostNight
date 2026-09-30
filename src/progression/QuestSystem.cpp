@@ -261,19 +261,40 @@ std::vector<QuestStatus> QuestSystem::statuses(const MetaProgression& progressio
             status.completed = found->second.completed;
             std::copy_n(found->second.values.begin(), std::min(status.progress.size(), found->second.values.size()), status.progress.begin());
         }
+        std::size_t positiveGoals = 0;
         for (std::size_t index = 0; index < definition.conditions.size(); ++index) {
             const auto& condition = definition.conditions[index];
-            status.fraction += condition.comparison == QuestComparison::AtMost
-                ? (satisfied(status.progress[index], condition) ? 1.0 : 0.0)
-                : std::clamp(status.progress[index] / condition.target, 0.0, 1.0);
+            if (condition.comparison == QuestComparison::AtMost) {
+                status.failedThisRun = status.failedThisRun || !satisfied(status.progress[index], condition);
+            } else {
+                status.fraction += std::clamp(status.progress[index] / condition.target, 0.0, 1.0);
+                ++positiveGoals;
+            }
         }
-        status.fraction /= static_cast<double>(definition.conditions.size());
+        status.fraction /= static_cast<double>(positiveGoals);
         if (status.completed) status.fraction = 1.0;
         status.unlockAvailable = status.completed && !definition.reward.unlockId.empty();
         status.unlockOwned = ownsUnlock(progression, definition.reward.unlockId);
         result.push_back(std::move(status));
     }
-    if (completedLast) std::stable_sort(result.begin(), result.end(), [](const auto& a, const auto& b) { return a.completed < b.completed; });
+    if (completedLast) std::stable_sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+        if (a.completed != b.completed) return a.completed < b.completed;
+        if (a.completed) return false;
+        const bool aAvailable = a.prerequisitesMet && !a.failedThisRun;
+        const bool bAvailable = b.prerequisitesMet && !b.failedThisRun;
+        if (aAvailable != bAvailable) return aAvailable;
+        return a.fraction > b.fraction;
+    });
+    return result;
+}
+
+std::vector<QuestStatus> QuestSystem::recommendedStatuses(
+    const MetaProgression& progression, std::size_t limit) const {
+    auto result = statuses(progression);
+    std::erase_if(result, [](const auto& status) {
+        return status.completed || !status.prerequisitesMet || status.failedThisRun;
+    });
+    if (result.size() > limit) result.resize(limit);
     return result;
 }
 

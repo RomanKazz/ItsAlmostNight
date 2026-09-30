@@ -219,6 +219,7 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 
 add_library(ian_ui
     src/ui/GameUi.cpp
+    src/ui/QuestMenu.cpp
     src/ui/HudBuildingContextCard.cpp
     src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
@@ -444,8 +445,16 @@ if(BUILD_TESTING)
     set_tests_properties(ian_run_upgrade_ui_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 30 LABELS "graphics;ui;integration")
+    add_executable(ian_quest_menu_smoke tests/QuestMenuSmokeTests.cpp)
+    target_link_libraries(ian_quest_menu_smoke PRIVATE ian_ui)
+    target_include_directories(ian_quest_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_quest_menu_smoke)
+    add_test(NAME ian_quest_menu_smoke COMMAND ian_quest_menu_smoke)
+    set_tests_properties(ian_quest_menu_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke)
+        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke)
             target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
         endforeach()

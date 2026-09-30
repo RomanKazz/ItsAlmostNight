@@ -120,6 +120,7 @@ void GameUi::initialize() {
     resourceCrystal_ =
         loadTexture("assets/ui/resource_crystal.png");
     resourceCoin_ = loadTexture("assets/ui/resource_coin.png");
+    resourceSilver_ = loadTexture("assets/ui/resource_silver.png");
     healthPlayer_ = loadTexture("assets/ui/health_player.png");
     healthCore_ = loadTexture("assets/ui/health_core.png");
     const auto smoothHudIcon = [](Texture2D& texture) {
@@ -295,6 +296,7 @@ void GameUi::shutdown() {
     for (auto& icon : modularBuildingIcons_) unloadTexture(icon);
     unloadTexture(resourceCrystal_);
     unloadTexture(resourceCoin_);
+    unloadTexture(resourceSilver_);
     unloadTexture(resourceStone_);
     unloadTexture(resourceWood_);
     unloadTexture(levelUpRays_);
@@ -700,6 +702,9 @@ Texture2D GameUi::resourceTexture(
     }
     if (icon == UiResourceIcon::Coin) {
         return resourceCoin_;
+    }
+    if (icon == UiResourceIcon::Silver) {
+        return resourceSilver_;
     }
     return resourceWood_;
 }

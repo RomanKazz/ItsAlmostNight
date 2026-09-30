@@ -92,61 +92,6 @@ void drawOutlinedTitle(
     });
 }
 
-void drawObjectiveCard(
-    const GameUi& ui, const MenuLayout& layout,
-    Rectangle bounds, const ObjectiveStatus& objective,
-    std::size_t index) {
-    ui.drawInsetPanel(bounds, 242);
-    const std::array<Color, 4> iconColors{{
-        {219, 76, 78, 255}, {91, 167, 222, 255},
-        {238, 184, 57, 255}, {116, 190, 103, 255},
-    }};
-    const float iconSize = 40.0F * layout.scale;
-    const Vector2 iconCenter{
-        bounds.x + 31.0F * layout.scale,
-        bounds.y + 34.0F * layout.scale,
-    };
-    DrawPoly(
-        iconCenter, 6, iconSize * 0.5F, 30.0F,
-        {26, 31, 34, 255});
-    DrawPoly(
-        iconCenter, 6, iconSize * 0.39F, 30.0F,
-        iconColors[index % iconColors.size()]);
-
-    const float textX = bounds.x + 62.0F * layout.scale;
-    const float textWidth = bounds.width - 78.0F * layout.scale;
-    const float titleSize = fitUiTextSize(
-        objective.definition.title, 13.0F * layout.scale,
-        8.0F * layout.scale, textWidth,
-        25.0F * layout.scale);
-    drawUiText(
-        objective.definition.title,
-        {textX, bounds.y + 10.0F * layout.scale},
-        titleSize, {250, 216, 100, 255});
-
-    const int progress = static_cast<int>(std::floor(
-        std::min(objective.progress, objective.definition.target)));
-    const int target = std::max(
-        1, static_cast<int>(std::ceil(objective.definition.target)));
-    const std::string counter =
-        std::to_string(progress) + " / " + std::to_string(target);
-    drawUiText(
-        counter,
-        {textX, bounds.y + 39.0F * layout.scale},
-        10.0F * layout.scale, {226, 226, 210, 255});
-    const float fraction = objective.completed
-        ? 1.0F
-        : static_cast<float>(std::clamp(
-              objective.progress / objective.definition.target,
-              0.0, 1.0));
-    ui.drawProgressBar(
-        {textX, bounds.y + 65.0F * layout.scale,
-         textWidth, 12.0F * layout.scale},
-        fraction,
-        objective.completed ? UiBarColor::Yellow
-                            : UiBarColor::Green);
-}
-
 void drawStatRow(
     const MenuLayout& layout, float x, float y,
     float width, std::string_view label,
@@ -336,11 +281,28 @@ void App::drawMainMenuWorld(
     }
 }
 
-void App::drawMainMenu(const SimulationSnapshot& snapshot) {
+void App::drawMainMenu(const SimulationSnapshot&) {
     if (renderer_->graphicsPanelVisible()) {
         return;
     }
     const MenuLayout layout = menuLayout();
+    if (mainMenuPage_ == MainMenuPage::Quests) {
+        const bool reverseTab = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        const QuestMenuInput questInput{
+            .pointer = GetMousePosition(),
+            .wheel = GetMouseWheelMove(),
+            .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+            .pointerDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
+            .selectionStep = IsKeyPressed(KEY_DOWN) ? 1 : IsKeyPressed(KEY_UP) ? -1 : 0,
+            .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
+        };
+        const auto result = drawQuestMenu(ui_, questSystem_, metaProgression_, questMenuState_,
+            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, questInput);
+        if (result.purchase) persistMetaProgression();
+        if (result.close) mainMenuPage_ = MainMenuPage::None;
+        if (result.interaction || result.close) audio_.playUiConfirm();
+        return;
+    }
 
     drawOutlinedTitle(
         "FORTBONK", layout,
@@ -350,39 +312,29 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         layout.point(782.0F, 190.0F),
         14.0F * layout.scale, {231, 210, 157, 235});
 
-    std::vector<const ObjectiveStatus*> featured;
-    featured.reserve(4);
-    for (const int objectiveIndex : snapshot.recommendedObjectives) {
-        if (objectiveIndex < 0 ||
-            static_cast<std::size_t>(objectiveIndex) >=
-                snapshot.objectives.size()) {
-            continue;
-        }
-        featured.push_back(
-            &snapshot.objectives[
-                static_cast<std::size_t>(objectiveIndex)]);
-    }
-    for (const ObjectiveStatus& objective : snapshot.objectives) {
-        if (featured.size() >= 4U) {
-            break;
-        }
-        if (!objective.active || objective.completed ||
-            std::ranges::find(featured, &objective) != featured.end()) {
-            continue;
-        }
-        featured.push_back(&objective);
-    }
-
+    const auto featured = questSystem_.recommendedStatuses(metaProgression_);
     drawUiText(
-        "ACTIVE OBJECTIVES", layout.point(38.0F, 35.0F),
+        "QUESTS", layout.point(38.0F, 35.0F),
         16.0F * layout.scale, {250, 224, 151, 255});
     for (std::size_t index = 0; index < featured.size(); ++index) {
-        drawObjectiveCard(
-            ui_, layout,
-            layout.rect(
-                30.0F, 72.0F + static_cast<float>(index) * 112.0F,
-                382.0F, 98.0F),
-            *featured[index], index);
+        if (drawQuestSummaryCard(
+                ui_, featured[index],
+                layout.rect(
+                    30.0F, 72.0F + static_cast<float>(index) * 112.0F,
+                    382.0F, 98.0F),
+                layout.scale, GetMousePosition(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
+            questMenuState_ = {};
+            questMenuState_.selectedId = featured[index].definition->id;
+            mainMenuPage_ = MainMenuPage::Quests;
+            audio_.playUiConfirm();
+        }
+    }
+    if (featured.empty()) {
+        const ScopedUiFontRole body(UiFontRole::BodyBold);
+        const auto rows = questSystem_.statuses(metaProgression_);
+        const bool allCompleted = std::ranges::all_of(rows, [](const auto& row) { return row.completed; });
+        drawUiText(allCompleted ? "ALL QUESTS COMPLETED" : "NO AVAILABLE QUESTS", layout.point(58.0F, 110.0F),
+            14.0F * layout.scale, {250, 241, 211, 255});
     }
 
     if (classSelectionVisible_) {
@@ -591,6 +543,11 @@ void App::drawMainMenu(const SimulationSnapshot& snapshot) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = true;
         sandboxClassSelection_ = false;
+        audio_.playUiConfirm();
+    }
+    menuButtonY += 84.0F;
+    if (ui_.drawButton(layout.rect(775.0F, menuButtonY, 370.0F, 70.0F), "QUESTS")) {
+        mainMenuPage_ = MainMenuPage::Quests;
         audio_.playUiConfirm();
     }
     if (ui_.drawButton(

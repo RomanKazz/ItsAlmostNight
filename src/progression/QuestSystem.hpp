@@ -33,6 +33,7 @@ struct QuestStatus {
     std::vector<double> progress;
     double fraction{};
     bool prerequisitesMet{};
+    bool failedThisRun{};
     bool completed{};
     bool unlockAvailable{};
     bool unlockOwned{};
@@ -66,6 +67,10 @@ class QuestSystem {
                                    std::string_view unlockId) const;
     [[nodiscard]] std::vector<QuestStatus> statuses(
         const MetaProgression& progression, bool completedLast = true) const;
+    // Available unfinished goals, closest to completion first. Ties retain
+    // catalog order, so the main menu and full quest list agree.
+    [[nodiscard]] std::vector<QuestStatus> recommendedStatuses(
+        const MetaProgression& progression, std::size_t limit = 4) const;
     [[nodiscard]] QuestCategoryProgress categoryProgress(
         const MetaProgression& progression, QuestCategory category) const;
     [[nodiscard]] std::span<const QuestDefinition> definitions() const;

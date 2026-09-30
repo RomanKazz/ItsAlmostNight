@@ -24,6 +24,7 @@ enum class UiResourceIcon {
     Stone,
     Crystal,
     Coin,
+    Silver,
 };
 
 enum class CoreMenuTexture {
@@ -145,6 +146,7 @@ class GameUi {
     Texture2D resourceStone_{};
     Texture2D resourceCrystal_{};
     Texture2D resourceCoin_{};
+    Texture2D resourceSilver_{};
     Texture2D healthPlayer_{};
     Texture2D healthCore_{};
     Texture2D coreBuildingIcon_{};

@@ -307,6 +307,55 @@ void gameplayAdapter() {
             "unchanged frames produce no quest updates");
 }
 
+void closestQuestRecommendations() {
+    auto locked = goal("locked", QuestMetric::ResourcesGathered, 100);
+    locked.prerequisites = {"far"};
+    auto failed = goal("failed", QuestMetric::ResourcesGathered, 100, QuestScope::Run);
+    failed.conditions.push_back({QuestMetric::ChestsOpened, QuestScope::Run, 0,
+        QuestComparison::AtMost, {}, {}});
+    auto untouched = goal("untouched", QuestMetric::StageClears, 1, QuestScope::Run);
+    untouched.conditions.push_back({QuestMetric::ChestsOpened, QuestScope::Run, 5,
+        QuestComparison::AtMost, {}, {}});
+    QuestSystem system({
+        goal("far", QuestMetric::CoinsCollected, 1000),
+        goal("completed", QuestMetric::WaveReached, 1), locked,
+        goal("near", QuestMetric::EnemiesDefeated, 4),
+        goal("tie", QuestMetric::BuildingsPlaced, 4),
+        goal("closest", QuestMetric::ResourcesGathered, 100), failed, untouched,
+    });
+    MetaProgression profile;
+    system.beginRun(profile);
+    static_cast<void>(send(system, profile, {
+        {QuestMetric::CoinsCollected, 90}, {QuestMetric::WaveReached, 1},
+        {QuestMetric::EnemiesDefeated, 3}, {QuestMetric::BuildingsPlaced, 3},
+        {QuestMetric::ResourcesGathered, 90}, {QuestMetric::ChestsOpened, 1},
+    }));
+    const auto recommended = system.recommendedStatuses(profile);
+    require(recommended.size() == 4 && recommended[0].definition->id == "closest" &&
+        recommended[1].definition->id == "near" && recommended[2].definition->id == "tie" &&
+        recommended[3].definition->id == "far",
+        "recommendations rank normalized progress, preserve ties and exclude completed, locked and failed goals");
+    const auto rows = system.statuses(profile);
+    for (std::size_t index = 0; index < recommended.size(); ++index) {
+        require(rows[index].definition->id == recommended[index].definition->id &&
+            rows[index].progress == recommended[index].progress && rows[index].fraction == recommended[index].fraction,
+            "featured quests and full screen use identical order and progress");
+    }
+    const auto catalog = system.statuses(profile, false);
+    require(catalog.front().definition->id == "far" && catalog[6].failedThisRun && catalog[7].fraction == 0,
+        "catalog order remains available; absence restrictions do not create artificial progress");
+    require(system.recommendedStatuses(profile, 2).size() == 2 && system.recommendedStatuses(profile, 0).empty(),
+        "recommendations respect requested count");
+    static_cast<void>(send(system, profile, {{QuestMetric::ResourcesGathered, 10}}));
+    require(system.recommendedStatuses(profile).front().definition->id == "near",
+        "completed featured goal is immediately replaced by the next closest unfinished goal");
+    for (auto& [id, progress] : profile.quests.progress) {
+        static_cast<void>(id);
+        progress.completed = true;
+    }
+    require(system.recommendedStatuses(profile).empty(), "fully completed profile has no stale featured goals");
+}
+
 } // namespace
 
 void runQuestSystemTests() {
@@ -319,4 +368,5 @@ void runQuestSystemTests() {
     profileRoundTripAndCatalog();
     gameplayAdapter();
     legacyResumeAndTrapAttribution();
+    closestQuestRecommendations();
 }

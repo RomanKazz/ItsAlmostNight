@@ -436,6 +436,14 @@ void App::processInput() {
         return;
     }
     if (snapshot.state == RunState::MainMenu &&
+        mainMenuPage_ != MainMenuPage::None) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            mainMenuPage_ = MainMenuPage::None;
+            audio_.playUiConfirm();
+        }
+        return;
+    }
+    if (snapshot.state == RunState::MainMenu &&
         classSelectionVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             classSelectionVisible_ = false;
