@@ -28,6 +28,11 @@ struct QuestUpdate {
     std::vector<QuestCompletion> completed;
 };
 
+struct QuestClaimResult {
+    bool claimed{};
+    int silverGranted{};
+};
+
 struct QuestStatus {
     const QuestDefinition* definition{};
     std::vector<double> progress;
@@ -35,6 +40,8 @@ struct QuestStatus {
     bool prerequisitesMet{};
     bool failedThisRun{};
     bool completed{};
+    bool rewardClaimed{};
+    bool rewardAvailable{};
     bool unlockAvailable{};
     bool unlockOwned{};
 };
@@ -61,14 +68,16 @@ class QuestSystem {
     [[nodiscard]] QuestUpdate record(MetaProgression& progression,
                                      std::span<const QuestSignal> signals) const;
     [[nodiscard]] QuestUpdate refresh(MetaProgression& progression) const;
+    [[nodiscard]] QuestClaimResult claimReward(
+        MetaProgression& progression, std::string_view questId) const;
     [[nodiscard]] QuestPurchaseResult purchaseUnlock(
         MetaProgression& progression, std::string_view unlockId) const;
     [[nodiscard]] bool ownsUnlock(const MetaProgression& progression,
                                    std::string_view unlockId) const;
     [[nodiscard]] std::vector<QuestStatus> statuses(
         const MetaProgression& progression, bool completedLast = true) const;
-    // Available unfinished goals, closest to completion first. Ties retain
-    // catalog order, so the main menu and full quest list agree.
+    // Unclaimed rewards first, then available unfinished goals closest to
+    // completion. Ties retain catalog order in both menus.
     [[nodiscard]] std::vector<QuestStatus> recommendedStatuses(
         const MetaProgression& progression, std::size_t limit = 4) const;
     [[nodiscard]] QuestCategoryProgress categoryProgress(
@@ -77,7 +86,7 @@ class QuestSystem {
 
   private:
     struct Subscription { std::size_t quest; std::size_t condition; };
-    [[nodiscard]] QuestUpdate collect(MetaProgression& progression, bool payRewards) const;
+    [[nodiscard]] QuestUpdate collect(MetaProgression& progression, bool createPendingRewards) const;
     [[nodiscard]] bool prerequisitesMet(const QuestDefinition& definition,
                                         const QuestState& state) const;
     std::vector<QuestDefinition> definitions_;

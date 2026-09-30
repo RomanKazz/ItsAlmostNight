@@ -28,7 +28,7 @@ bool validQuestState(const QuestState& state) {
         state.purchasedUnlocks.size() > 4096) return false;
     const auto validId = [](const std::string& id) { return !id.empty() && id.size() <= 128; };
     for (const auto& [id, progress] : state.progress) {
-        if (!validId(id) || progress.values.size() > 64) return false;
+        if (!validId(id) || progress.values.size() > 64 || (progress.rewardClaimed && !progress.completed)) return false;
         for (const double value : progress.values) {
             if (!std::isfinite(value) || value < 0.0 ||
                 value > static_cast<double>(std::numeric_limits<int>::max()) + 1.0) return false;
@@ -129,7 +129,9 @@ static bool readMetaProgressionFile(
         loaded.resourcesGathered = nonNegative(root, "resourcesGathered");
         if (root.contains("quests")) {
             const auto& quests = root.at("quests");
-            if (!quests.is_object() || quests.at("version").get<int>() != 1) return false;
+            if (!quests.is_object()) return false;
+            const int questVersion = quests.at("version").get<int>();
+            if (questVersion < 1 || questVersion > 2) return false;
             loaded.quests.initialized = quests.at("initialized").get<bool>();
             loaded.quests.runActive = quests.at("runActive").get<bool>();
             loaded.quests.ownedUnlocks = quests.at("ownedUnlocks").get<decltype(loaded.quests.ownedUnlocks)>();
@@ -140,6 +142,10 @@ static bool readMetaProgressionFile(
                 loaded.quests.progress.emplace(id, QuestSavedProgress{
                     .values = saved.at("values").get<std::vector<double>>(),
                     .completed = saved.at("completed").get<bool>(),
+                    // Version 1 paid automatically, or intentionally skipped
+                    // rewards during legacy migration. Neither may pay again.
+                    .rewardClaimed = questVersion == 1 ? saved.at("completed").get<bool>()
+                        : saved.at("rewardClaimed").get<bool>(),
                 });
             }
             if (!validQuestState(loaded.quests)) return false;
@@ -167,7 +173,7 @@ bool saveMetaProgression(
         }
         nlohmann::json progress = nlohmann::json::object();
         for (const auto& [id, saved] : progression.quests.progress) {
-            progress[id] = {{"values", saved.values}, {"completed", saved.completed}};
+            progress[id] = {{"values", saved.values}, {"completed", saved.completed}, {"rewardClaimed", saved.rewardClaimed}};
         }
         const nlohmann::json root{
             {"version", 3},
@@ -178,7 +184,7 @@ bool saveMetaProgression(
             {"enemiesDefeated", std::max(0, progression.enemiesDefeated)},
             {"lootCollected", std::max(0, progression.lootCollected)},
             {"resourcesGathered", std::max(0, progression.resourcesGathered)},
-            {"quests", {{"version", 1}, {"initialized", progression.quests.initialized},
+            {"quests", {{"version", 2}, {"initialized", progression.quests.initialized},
                 {"runActive", progression.quests.runActive}, {"progress", progress},
                 {"ownedUnlocks", progression.quests.ownedUnlocks},
                 {"purchasedUnlocks", progression.quests.purchasedUnlocks}}},

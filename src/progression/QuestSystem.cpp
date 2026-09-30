@@ -183,7 +183,7 @@ QuestUpdate QuestSystem::record(MetaProgression& progression, std::span<const Qu
     return update;
 }
 
-QuestUpdate QuestSystem::collect(MetaProgression& progression, bool payRewards) const {
+QuestUpdate QuestSystem::collect(MetaProgression& progression, bool createPendingRewards) const {
     QuestUpdate update;
     bool changed;
     do {
@@ -207,13 +207,13 @@ QuestUpdate QuestSystem::collect(MetaProgression& progression, bool payRewards) 
             }
             if (!qualifies) continue;
             progress.completed = true;
+            progress.rewardClaimed = !createPendingRewards || definition.reward.silver == 0;
             changed = true;
             update.changed = true;
             if (!definition.reward.unlockId.empty() && definition.reward.purchaseCost == 0) {
                 progression.quests.ownedUnlocks.insert(definition.reward.unlockId);
             }
-            if (payRewards) {
-                progression.silver = saturatingAdd(std::max(0, progression.silver), definition.reward.silver);
+            if (createPendingRewards) {
                 update.completed.push_back({definition.id, definition.reward});
             }
         }
@@ -224,6 +224,18 @@ QuestUpdate QuestSystem::collect(MetaProgression& progression, bool payRewards) 
 QuestUpdate QuestSystem::refresh(MetaProgression& progression) const {
     initialize(progression);
     return collect(progression, true);
+}
+
+QuestClaimResult QuestSystem::claimReward(MetaProgression& progression, std::string_view questId) const {
+    const auto found = std::ranges::find(definitions_, questId, &QuestDefinition::id);
+    if (found == definitions_.end()) return {};
+    initialize(progression);
+    auto& progress = progression.quests.progress.at(found->id);
+    if (!progress.completed || progress.rewardClaimed) return {};
+    const int balance = std::max(0, progression.silver);
+    progression.silver = saturatingAdd(balance, found->reward.silver);
+    progress.rewardClaimed = true;
+    return {.claimed = true, .silverGranted = progression.silver - balance};
 }
 
 QuestPurchaseResult QuestSystem::purchaseUnlock(MetaProgression& progression, std::string_view unlockId) const {
@@ -259,6 +271,7 @@ std::vector<QuestStatus> QuestSystem::statuses(const MetaProgression& progressio
             .prerequisitesMet = prerequisitesMet(definition, progression.quests)};
         if (found != progression.quests.progress.end()) {
             status.completed = found->second.completed;
+            status.rewardClaimed = found->second.rewardClaimed;
             std::copy_n(found->second.values.begin(), std::min(status.progress.size(), found->second.values.size()), status.progress.begin());
         }
         std::size_t positiveGoals = 0;
@@ -273,11 +286,13 @@ std::vector<QuestStatus> QuestSystem::statuses(const MetaProgression& progressio
         }
         status.fraction /= static_cast<double>(positiveGoals);
         if (status.completed) status.fraction = 1.0;
+        status.rewardAvailable = status.completed && !status.rewardClaimed && definition.reward.silver > 0;
         status.unlockAvailable = status.completed && !definition.reward.unlockId.empty();
         status.unlockOwned = ownsUnlock(progression, definition.reward.unlockId);
         result.push_back(std::move(status));
     }
     if (completedLast) std::stable_sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+        if (a.rewardAvailable != b.rewardAvailable) return a.rewardAvailable;
         if (a.completed != b.completed) return a.completed < b.completed;
         if (a.completed) return false;
         const bool aAvailable = a.prerequisitesMet && !a.failedThisRun;
@@ -292,7 +307,7 @@ std::vector<QuestStatus> QuestSystem::recommendedStatuses(
     const MetaProgression& progression, std::size_t limit) const {
     auto result = statuses(progression);
     std::erase_if(result, [](const auto& status) {
-        return status.completed || !status.prerequisitesMet || status.failedThisRun;
+        return !status.rewardAvailable && (status.completed || !status.prerequisitesMet || status.failedThisRun);
     });
     if (result.size() > limit) result.resize(limit);
     return result;

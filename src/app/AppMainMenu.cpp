@@ -295,10 +295,11 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             .pointerDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
             .selectionStep = IsKeyPressed(KEY_DOWN) ? 1 : IsKeyPressed(KEY_UP) ? -1 : 0,
             .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
+            .deltaTime = GetFrameTime(),
         };
         const auto result = drawQuestMenu(ui_, questSystem_, metaProgression_, questMenuState_,
             {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, questInput);
-        if (result.purchase) persistMetaProgression();
+        if (result.purchase || result.rewardClaimed) persistMetaProgression();
         if (result.close) mainMenuPage_ = MainMenuPage::None;
         if (result.interaction || result.close) audio_.playUiConfirm();
         return;

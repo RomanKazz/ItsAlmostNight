@@ -5,8 +5,17 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ian {
+
+struct QuestRewardFlight {
+    Vector2 start{};
+    Vector2 burst{};
+    float age{};
+    float delay{};
+    int silver{};
+};
 
 struct QuestMenuState {
     std::optional<QuestCategory> category;
@@ -14,6 +23,8 @@ struct QuestMenuState {
     std::string selectedId;
     float scroll{};
     bool draggingScroll{};
+    std::vector<QuestRewardFlight> rewardFlights;
+    float counterPulse{};
 };
 
 struct QuestMenuInput {
@@ -24,9 +35,10 @@ struct QuestMenuInput {
     bool close{};
     int selectionStep{};
     int categoryStep{};
+    float deltaTime{};
 };
 
-struct QuestMenuResult { bool close{}; bool purchase{}; bool interaction{}; };
+struct QuestMenuResult { bool close{}; bool purchase{}; bool rewardClaimed{}; bool interaction{}; };
 
 [[nodiscard]] Rectangle questMenuPanelBounds(Vector2 viewport);
 [[nodiscard]] bool drawQuestSummaryCard(

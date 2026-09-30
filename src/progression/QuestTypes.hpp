@@ -50,6 +50,7 @@ struct QuestDefinition {
 struct QuestSavedProgress {
     std::vector<double> values;
     bool completed{};
+    bool rewardClaimed{};
     bool operator==(const QuestSavedProgress&) const = default;
 };
 

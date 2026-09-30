@@ -5,6 +5,7 @@
 #include "progression/MetaProgression.hpp"
 #include "progression/QuestSystem.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -36,19 +37,27 @@ void lifetimeAndRunProgress() {
                         goal("run", QuestMetric::EnemiesDefeated, 4, QuestScope::Run, 2)});
     MetaProgression profile;
     system.beginRun(profile);
+    require(!system.claimReward(profile, "lifetime").claimed && !system.claimReward(profile, "unknown").claimed &&
+            profile.silver == 0, "unfinished and unknown goals cannot award silver");
     static_cast<void>(send(system, profile, {{QuestMetric::EnemiesDefeated, 3}}));
     system.endRun(profile);
     system.beginRun(profile);
     auto update = send(system, profile, {{QuestMetric::EnemiesDefeated, 2}});
     require(completed(profile, "lifetime") && !completed(profile, "run"),
             "lifetime progress persists, run goals cannot combine failed runs");
-    require(profile.silver == 1 && update.completed.size() == 1,
-            "completion awards exactly one reward");
+    require(profile.silver == 0 && update.completed.size() == 1,
+            "completion queues a reward without paying automatically");
+    require(system.claimReward(profile, "lifetime").silverGranted == 1 && profile.silver == 1,
+            "manual claim credits a completed lifetime goal");
+    require(!system.claimReward(profile, "lifetime").claimed && profile.silver == 1,
+            "repeated claim leaves wallet unchanged");
     static_cast<void>(send(system, profile, {{QuestMetric::EnemiesDefeated, 2}}));
-    require(completed(profile, "run") && profile.silver == 3, "run goal awards when achieved in one run");
+    require(completed(profile, "run") && profile.silver == 1, "run goal completes without automatic payout");
     system.endRun(profile);
     system.beginRun(profile);
     require(completed(profile, "run"), "completed run goals remain permanent");
+    require(system.claimReward(profile, "run").silverGranted == 2 && profile.silver == 3,
+            "pending run reward survives a new run and pays on claim");
     require(send(system, profile, {{QuestMetric::EnemiesDefeated, 999}}).completed.empty() &&
             profile.silver == 3, "completed quest cannot pay twice");
 }
@@ -91,8 +100,12 @@ void combinedConditionsAndDependencies() {
             "all conditions in batch are checked before awards and prerequisites gate completion");
     system.beginRun(profile);
     const auto update = send(system, profile, {{QuestMetric::StageClears}});
-    require(update.completed.size() == 3 && completed(profile, "mastery") && profile.silver == 6,
+    require(update.completed.size() == 3 && completed(profile, "mastery") && profile.silver == 0,
             "prerequisites and quest-count milestones resolve cascading completions once");
+    for (const auto& completion : update.completed) {
+        require(system.claimReward(profile, completion.id).claimed, "cascading rewards can be claimed independently");
+    }
+    require(profile.silver == 6, "claiming all chained rewards credits the expected total");
     require(system.categoryProgress(profile, QuestCategory::General).completed == 3,
             "category counters derive from actual completed definitions");
 }
@@ -109,14 +122,20 @@ void purchasesAreSeparate() {
     require(system.purchaseUnlock(profile, "meta.test") == QuestPurchaseResult::RequirementsNotMet,
             "locked purchase rejects before quest completion");
     static_cast<void>(send(system, profile, {{QuestMetric::EnemiesDefeated, 2}}));
-    require(!system.ownsUnlock(profile, "meta.test") && system.statuses(profile)[1].completed,
+    const auto rows = system.statuses(profile);
+    const auto unlockedGoal = std::ranges::find_if(rows, [](const auto& row) { return row.definition->id == "unlock"; });
+    require(!system.ownsUnlock(profile, "meta.test") && unlockedGoal != rows.end() && unlockedGoal->completed,
             "quest completion grants eligibility rather than buying an unlock");
     require(system.purchaseUnlock(profile, "meta.test") == QuestPurchaseResult::InsufficientSilver &&
-            profile.silver == 1, "insufficient purchase leaves balance unchanged");
+            profile.silver == 0, "unclaimed rewards cannot fund a purchase");
+    require(system.claimReward(profile, "unlock").silverGranted == 1 && profile.silver == 1,
+            "quest reward collection is separate from unlock purchase");
     profile.silver = 10;
     require(system.purchaseUnlock(profile, "meta.test") == QuestPurchaseResult::Purchased &&
-            profile.silver == 7 && completed(profile, "buyer"),
+            profile.silver == 5 && completed(profile, "buyer"),
             "purchase deducts cost, grants ownership and resolves purchase-count quest");
+    require(system.claimReward(profile, "buyer").silverGranted == 2 && profile.silver == 7,
+            "purchase-count quest also requires manual reward collection");
     require(system.purchaseUnlock(profile, "meta.test") == QuestPurchaseResult::AlreadyOwned &&
             profile.silver == 7, "repeated purchase cannot deduct or award again");
 }
@@ -145,8 +164,10 @@ void migrationKeepsExistingUnlocks() {
     system.initialize(newcomer);
     system.beginRun(newcomer);
     static_cast<void>(send(system, newcomer, {{QuestMetric::WaveReached, 6}}));
-    require(newcomer.silver == 2 && isPlayerClassUnlocked(PlayerClass::Berserker, newcomer),
-            "newly achieved class quest pays silver and unlocks class through registry");
+    require(newcomer.silver == 0 && isPlayerClassUnlocked(PlayerClass::Berserker, newcomer),
+            "newly achieved class quest unlocks class while silver awaits collection");
+    require(system.claimReward(newcomer, "class_berserker").silverGranted == 2,
+            "class quest silver can be collected once");
 }
 
 void validationAndBounds() {
@@ -176,8 +197,9 @@ void validationAndBounds() {
         {QuestMetric::Count, 999}}).changed, "invalid signals do not alter progress");
     profile.silver = std::numeric_limits<int>::max();
     static_cast<void>(send(system, profile, {{QuestMetric::EnemiesDefeated, 1e100}}));
+    const auto cappedClaim = system.claimReward(profile, "bounded");
     require(profile.silver == std::numeric_limits<int>::max() &&
-            profile.quests.progress.at("bounded").values[0] == 2,
+            profile.quests.progress.at("bounded").values[0] == 2 && cappedClaim.claimed && cappedClaim.silverGranted == 0,
             "large values saturate progress and currency without overflow");
 }
 
@@ -201,6 +223,13 @@ void profileRoundTripAndCatalog() {
             "reload cannot replay a completion reward");
     system.resumeRun(loaded);
     require(loaded == profile, "resuming preserves recorded run progress and ownership");
+    require(system.claimReward(loaded, "class_berserker").silverGranted == 2,
+            "pending reward remains collectable after reloading a profile");
+    require(saveMetaProgression(path.string(), loaded), "claimed reward flag saves with its wallet credit");
+    MetaProgression claimed;
+    require(loadMetaProgression(path.string(), claimed) && claimed == loaded &&
+            !system.claimReward(claimed, "class_berserker").claimed,
+            "reload cannot collect the same reward again");
     loaded.silver = 88;
     require(saveMetaProgression(path.string(), loaded), "atomic save replaces an existing profile");
     MetaProgression replaced;
@@ -219,6 +248,11 @@ void profileRoundTripAndCatalog() {
     system.initialize(replaced);
     require(replaced.silver == 9 && isPlayerClassUnlocked(PlayerClass::Vampire, replaced),
             "old persisted data migrates without losing currency or class access");
+    { std::ofstream file(path); file << R"({"version":3,"silver":23,"quests":{"version":1,"initialized":true,"runActive":false,"ownedUnlocks":[],"purchasedUnlocks":[],"progress":{"legacy":{"values":[1],"completed":true}}}})"; }
+    QuestSystem oldRewards({goal("legacy", QuestMetric::EnemiesDefeated, 1)});
+    require(loadMetaProgression(path.string(), replaced) && replaced.quests.progress.at("legacy").rewardClaimed &&
+            !oldRewards.claimReward(replaced, "legacy").claimed && replaced.silver == 23,
+            "automatic payouts from quest schema 1 migrate as already claimed without duplicating currency");
     auto catalog = loadQuestDefinitions(std::filesystem::path(IAN_SOURCE_DIR) / "assets/data/meta_quests.json");
     const auto defaults = system.definitions();
     require(catalog.size() == defaults.size() && catalog.size() == 36, "data catalog loads all 36 quests");
@@ -330,6 +364,9 @@ void closestQuestRecommendations() {
         {QuestMetric::EnemiesDefeated, 3}, {QuestMetric::BuildingsPlaced, 3},
         {QuestMetric::ResourcesGathered, 90}, {QuestMetric::ChestsOpened, 1},
     }));
+    require(system.recommendedStatuses(profile).front().definition->id == "completed",
+            "unclaimed reward is surfaced before unfinished goals");
+    require(system.claimReward(profile, "completed").claimed, "claim removes a ready reward from recommendations");
     const auto recommended = system.recommendedStatuses(profile);
     require(recommended.size() == 4 && recommended[0].definition->id == "closest" &&
         recommended[1].definition->id == "near" && recommended[2].definition->id == "tie" &&
@@ -347,11 +384,16 @@ void closestQuestRecommendations() {
     require(system.recommendedStatuses(profile, 2).size() == 2 && system.recommendedStatuses(profile, 0).empty(),
         "recommendations respect requested count");
     static_cast<void>(send(system, profile, {{QuestMetric::ResourcesGathered, 10}}));
+    require(system.recommendedStatuses(profile).front().definition->id == "closest" &&
+            system.recommendedStatuses(profile).front().rewardAvailable,
+            "newly completed goal stays visible until its reward is collected");
+    require(system.claimReward(profile, "closest").claimed, "closest goal reward claims successfully");
     require(system.recommendedStatuses(profile).front().definition->id == "near",
-        "completed featured goal is immediately replaced by the next closest unfinished goal");
+        "claimed featured goal is replaced by the next closest unfinished goal");
     for (auto& [id, progress] : profile.quests.progress) {
         static_cast<void>(id);
         progress.completed = true;
+        progress.rewardClaimed = true;
     }
     require(system.recommendedStatuses(profile).empty(), "fully completed profile has no stale featured goals");
 }

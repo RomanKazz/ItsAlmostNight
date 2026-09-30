@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <vector>
 
 namespace ian {
@@ -134,6 +135,82 @@ void silver(const GameUi& ui, const Layout& layout, float x, float y, int amount
         Cream, UiFontRole::BodyBold);
 }
 
+bool rewardButton(const GameUi& ui, Rectangle bounds, const Layout& layout,
+                  const QuestMenuInput& input, int amount) {
+    const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
+    panel(bounds, layout.scale, hovered ? Color{230, 64, 127, 255} : Color{184, 36, 94, 255},
+        hovered ? Color{255, 181, 211, 255} : Color{104, 24, 60, 255});
+    text("COLLECT", {bounds.x + 8 * layout.scale, bounds.y, 100 * layout.scale, bounds.height},
+        14 * layout.scale, Cream, UiFontRole::BodyBold, 1);
+    ui.drawResourceIcon({bounds.x + 116 * layout.scale, bounds.y + 8 * layout.scale,
+        28 * layout.scale, 28 * layout.scale}, UiResourceIcon::Silver);
+    text(std::to_string(amount), {bounds.x + 148 * layout.scale, bounds.y, 28 * layout.scale, bounds.height},
+        18 * layout.scale, Cream, UiFontRole::BodyBold, 1);
+    return hovered && input.click;
+}
+
+void startRewardFlight(QuestMenuState& state, Vector2 source, int silverAmount) {
+    if (silverAmount <= 0) return;
+    const int count = std::clamp(silverAmount, 3, 8);
+    for (int index = 0; index < count; ++index) {
+        const float angle = static_cast<float>(index) * 2.399963F;
+        state.rewardFlights.push_back({
+            .start = source,
+            .burst = {source.x + std::cos(angle) * (35 + static_cast<float>(index) * 4),
+                      source.y - 44 - std::abs(std::sin(angle)) * 34},
+            .delay = static_cast<float>(index) * 0.035F,
+            .silver = silverAmount / count + (index < silverAmount % count ? 1 : 0),
+        });
+    }
+}
+
+constexpr float RewardFlightDuration = 0.82F;
+
+void updateRewardFlights(QuestMenuState& state, float deltaTime) {
+    const float step = std::isfinite(deltaTime) ? std::max(0.0F, deltaTime) : 0.0F;
+    state.counterPulse = std::max(0.0F, state.counterPulse - step);
+    for (auto& coin : state.rewardFlights) coin.age += step;
+    std::erase_if(state.rewardFlights, [&](const auto& coin) {
+        if (coin.age < coin.delay + RewardFlightDuration) return false;
+        state.counterPulse = 0.18F;
+        return true;
+    });
+}
+
+Vector2 rewardCoinPosition(const QuestRewardFlight& coin) {
+    const float age = std::max(0.0F, coin.age - coin.delay);
+    if (age < 0.18F) {
+        const float phase = age / 0.18F;
+        const float ease = 1 - (1 - phase) * (1 - phase);
+        return {coin.start.x + (coin.burst.x - coin.start.x) * ease,
+                coin.start.y + (coin.burst.y - coin.start.y) * ease};
+    }
+    const float phase = std::clamp((age - 0.18F) / (RewardFlightDuration - 0.18F), 0.0F, 1.0F);
+    const float t = phase * phase;
+    const Vector2 target{1489, 141};
+    const Vector2 control{coin.burst.x - 65, std::min(coin.burst.y, target.y) - 70};
+    const float inverse = 1 - t;
+    return {inverse * inverse * coin.burst.x + 2 * inverse * t * control.x + t * t * target.x,
+            inverse * inverse * coin.burst.y + 2 * inverse * t * control.y + t * t * target.y};
+}
+
+void drawRewardFlights(const GameUi& ui, const Layout& layout, const QuestMenuState& state) {
+    const auto texture = ui.resourceTexture(UiResourceIcon::Silver);
+    if (texture.id == 0) return;
+    for (const auto& coin : state.rewardFlights) {
+        if (coin.age < coin.delay) continue;
+        const Vector2 position = rewardCoinPosition(coin);
+        const float phase = std::clamp((coin.age - coin.delay) / RewardFlightDuration, 0.0F, 1.0F);
+        const float size = 25 + std::sin(phase * 3.141593F) * 8;
+        const auto center = layout.rect(position.x, position.y, 0, 0);
+        DrawCircleV({center.x, center.y}, size * 0.64F * layout.scale, {175, 224, 247, 25});
+        DrawTexturePro(texture, {0, 0, static_cast<float>(texture.width), static_cast<float>(texture.height)},
+            {center.x, center.y, size * layout.scale, size * layout.scale},
+            {size * layout.scale * 0.5F, size * layout.scale * 0.5F},
+            std::sin(phase * 6.283185F) * 24, WHITE);
+    }
+}
+
 std::string number(double value) {
     if (value == std::floor(value)) return std::to_string(static_cast<int>(std::min(value, 2147483647.0)));
     std::array<char, 40> buffer{};
@@ -204,6 +281,8 @@ bool drawQuestSummaryCard(
     }
     text(counter(status), {x, bounds.y + 61 * scale, width, 16 * scale},
         12 * scale, Green, UiFontRole::BodyBold, 2);
+    if (status.rewardAvailable) text("COLLECT REWARD", {x, bounds.y + 61 * scale, width * 0.65F, 16 * scale},
+        12 * scale, Gold, UiFontRole::BodyBold);
     bar({x, bounds.y + bounds.height - 14 * scale, width, 7 * scale}, status.fraction, Green);
     return hovered && click;
 }
@@ -212,6 +291,7 @@ QuestMenuResult drawQuestMenu(
     const GameUi& ui, const QuestSystem& quests, MetaProgression& profile,
     QuestMenuState& state, Vector2 viewport, const QuestMenuInput& input) {
     const auto layout = layoutFor(viewport);
+    updateRewardFlights(state, input.deltaTime);
     QuestMenuResult result{.close = input.close};
     if (input.categoryStep != 0) {
         const int index = (static_cast<int>(tabIndex(state)) + input.categoryStep + 9) % 9;
@@ -232,7 +312,17 @@ QuestMenuResult drawQuestMenu(
     text("COMPLETED", layout.rect(590, 115, 220, 28), 13 * layout.scale, Muted, UiFontRole::BodyBold);
     text(summary, layout.rect(810, 114, 230, 30), 17 * layout.scale, Cream, UiFontRole::BodyBold, 2);
     bar(layout.rect(590, 158, 450, 8), total == 0 ? 0 : static_cast<double>(done) / static_cast<double>(total), Green);
-    silver(ui, layout, 1470, 122, profile.silver, 38);
+    // Wallet writes happen on claim; only its presentation waits for arrivals.
+    // Closing the screen or quitting mid-flight cannot lose a claimed reward.
+    std::int64_t inFlightSilver = 0;
+    for (const auto& coin : state.rewardFlights) inFlightSilver += coin.silver;
+    if (state.counterPulse > 0) {
+        const auto center = layout.rect(1489, 141, 0, 0);
+        DrawCircleV({center.x, center.y}, (25 + state.counterPulse * 55) * layout.scale,
+            ColorAlpha(Color{173, 235, 255, 255}, state.counterPulse * 1.3F));
+    }
+    const int displayedSilver = static_cast<int>(std::max<std::int64_t>(0, profile.silver - inFlightSilver));
+    silver(ui, layout, 1470, 122, displayedSilver, 38);
     if (button(layout.rect(1653, 118, 52, 52), "X", layout, input)) result.close = true;
 
     for (std::size_t i = 0; i < TabNames.size(); ++i) {
@@ -318,7 +408,16 @@ QuestMenuResult drawQuestMenu(
         text(counter(row), layout.rect(1140, y + 4, 265, 36), 17 * layout.scale,
             row.completed ? Green : Cream, UiFontRole::BodyBold, 1);
         bar(layout.rect(1140, y + 44, 265, 6), row.fraction, row.completed ? Green : Color{90, 179, 178, 255});
-        if (row.completed) check({layout.rect(1628, y + 31, 0, 0).x, layout.rect(1628, y + 31, 0, 0).y}, 28 * layout.scale, Green);
+        if (row.rewardAvailable) {
+            if (rewardButton(ui, layout.rect(1496, y + 8, 184, 44), layout, input, row.definition->reward.silver) && hovered) {
+                const auto claim = quests.claimReward(profile, row.definition->id);
+                if (claim.claimed) {
+                    startRewardFlight(state, {1630, y + 30}, claim.silverGranted);
+                    result.rewardClaimed = true;
+                    result.interaction = true;
+                }
+            }
+        } else if (row.completed) check({layout.rect(1628, y + 31, 0, 0).x, layout.rect(1628, y + 31, 0, 0).y}, 28 * layout.scale, Green);
         else {
             silver(ui, layout, 1540, y + 16, row.definition->reward.silver);
             if (!row.prerequisitesMet) text("LOCKED", layout.rect(1430, y + 17, 95, 26), 11 * layout.scale, Muted, UiFontRole::BodyBold, 1);
@@ -346,7 +445,8 @@ QuestMenuResult drawQuestMenu(
             : runGoal ? "IN ONE RUN. UNFINISHED PROGRESS RESETS ON A NEW RUN."
                       : "LIFETIME GOAL. PROGRESS IS SAVED BETWEEN RUNS.";
         text(description, layout.rect(342, 858, 1060, 27), 13 * layout.scale, Cream);
-        std::string detail = row.completed ? localizeText("COMPLETED — REWARD RECEIVED")
+        std::string detail = row.rewardAvailable ? localizeText("COMPLETED — COLLECT REWARD")
+            : row.completed ? localizeText("COMPLETED — REWARD RECEIVED")
             : localizeText(runGoal ? "ONE RUN" : "ALL RUNS") + "   " + counter(row);
         if (!row.prerequisitesMet) {
             detail = localizeText("REQUIRES") + ": ";
@@ -379,11 +479,17 @@ QuestMenuResult drawQuestMenu(
             text("UNLOCKED", layout.rect(1428, 873, 261, 30), 16 * layout.scale, Green, UiFontRole::BodyBold, 1);
         } else {
             const auto label = !definition.reward.unlockId.empty() ? unlockName(definition.reward.unlockId)
+                : row.rewardAvailable ? std::string_view{"COLLECT REWARD"}
                 : row.completed ? std::string_view{"REWARD RECEIVED"} : std::string_view{"REWARD"};
             text(label, layout.rect(1428, 822, 261, 30),
                 12 * layout.scale, row.completed ? Green : Muted, UiFontRole::BodyBold, 1);
             silver(ui, layout, 1505, 871, definition.reward.silver, 38);
         }
+    }
+    drawRewardFlights(ui, layout, state);
+    if (result.close) {
+        state.rewardFlights.clear();
+        state.counterPulse = 0;
     }
     return result;
 }
