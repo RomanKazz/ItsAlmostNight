@@ -317,14 +317,6 @@ void drawLevelArrow(Vector2 center, float scale, Color color,
         fill);
 }
 
-std::string uppercaseAscii(std::string_view text) {
-    std::string result{text};
-    std::ranges::transform(result, result.begin(), [](unsigned char value) {
-        return static_cast<char>(std::toupper(value));
-    });
-    return result;
-}
-
 struct UpgradeValueCopy {
     std::string value;
     std::string label;
@@ -372,11 +364,14 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
         fadedColor({126, 112, 85, 255}, fade));
     const float scale = bounds.height / 630.0F;
-    const float fontSize = std::min(21.0F * scale, bounds.width * 0.062F) / UiTextRasterScale;
+    const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
     const float left = bounds.x + 18.0F;
     const float right = bounds.x + bounds.width - 18.0F;
     float y = bounds.y + 18.0F * scale;
-    drawUiText("STATS", {left, y}, 28.0F / UiTextRasterScale * scale, fadedColor(UiWhite, fade));
+    const float titleSize = fitUiTextSize("STATS",
+        28.0F / UiTextRasterScale * scale, 16.0F / UiTextRasterScale * scale,
+        right - left);
+    drawUiText("STATS", {left, y}, titleSize, fadedColor(UiWhite, fade));
     y += 45.0F * scale;
     const auto section = [&](std::string_view name) {
         y += 8.0F * scale;
@@ -384,11 +379,17 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
         y += 30.0F * scale;
     };
     const auto row = [&](std::string_view label, const std::string& value) {
+        float valueWidth{};
+        {
+            const ScopedUiFontRole valueFont(UiFontRole::BodyBold);
+            valueWidth = measureUiText(value, fontSize).x;
+            drawUiText(value, {right - valueWidth, y}, fontSize,
+                fadedColor(UiWhite, fade));
+        }
+        const ScopedUiFontRole labelFont(UiFontRole::Body);
         const float labelSize = fitUiTextSize(label, fontSize, fontSize * 0.72F,
-            bounds.width - 36.0F - measureUiText(value, fontSize).x - 14.0F);
+            bounds.width - 36.0F - valueWidth - 14.0F);
         drawUiText(label, {left, y}, labelSize, fadedColor({205, 207, 196, 255}, fade));
-        drawUiText(value, {right - measureUiText(value, fontSize).x, y}, fontSize,
-            fadedColor(UiWhite, fade));
         y += 27.0F * scale;
     };
     const auto multiplier = [](double value) { return statNumber(value, 2) + "x"; };
@@ -421,8 +422,9 @@ UpgradeValueCopy upgradeValueCopy(
         std::isdigit(static_cast<unsigned char>(description[1]))) {
         const std::size_t separator = description.find(' ');
         if (separator != std::string_view::npos) {
-            std::string label = uppercaseAscii(
-                description.substr(separator + 1U));
+            std::string label{description.substr(separator + 1U)};
+            if (!label.empty()) label.front() = static_cast<char>(
+                std::toupper(static_cast<unsigned char>(label.front())));
             if (!label.empty() && label.back() == '.') label.pop_back();
             return {
                 std::string{description.substr(0U, separator)},
@@ -430,7 +432,7 @@ UpgradeValueCopy upgradeValueCopy(
             };
         }
     }
-    return {std::string{fallback}, "SPECIAL UPGRADE"};
+    return {std::string{fallback}, "Special upgrade"};
 }
 
 } // namespace
@@ -836,17 +838,24 @@ void drawRunUpgradeOverlay(
             valueCopy.value, centerX, valuePanel.y + 5.0F * scale,
             valueSize, accent, cardFade, scale,
             CardInk, 4.0F, false);
-        const float labelPreferredSize =
-            36.0F / UiTextRasterScale * scale;
-        const float labelSize = fitUiTextSize(
-            valueCopy.label, labelPreferredSize,
-            20.0F / UiTextRasterScale * scale,
-            valuePanel.width - 24.0F * scale);
-        drawOutlinedCenteredText(
-            valueCopy.label, centerX,
-            valuePanel.y + 63.0F * scale,
-            labelSize, CardValueCream, cardFade, scale,
-            CardInk, 4.0F, false);
+        {
+            const ScopedUiFontRole descriptionFont(UiFontRole::Body);
+            const float labelSize = fitUiTextSize(
+                valueCopy.label, 30.0F / UiTextRasterScale * scale,
+                18.0F / UiTextRasterScale * scale,
+                valuePanel.width - 24.0F * scale);
+            const Vector2 measured = measureUiText(valueCopy.label, labelSize);
+            const SdfUiTextStyle style{
+                .fillColor = fadedColor(CardValueCream, cardFade),
+                .outlineColor = BLANK,
+                .shadowColor = fadedColor({0, 0, 0, 140}, cardFade),
+                .shadowOffsetPixels = {0.0F, scale},
+                .outlinePixels = 0.0F,
+            };
+            drawStyledSdfUiText(valueCopy.label,
+                {centerX - measured.x * 0.5F, valuePanel.y + 63.0F * scale},
+                labelSize, style);
+        }
         const int currentLevel =
             snapshot.runUpgradeStacks[runUpgradeIndex(effect)];
         const int maximumLevel = runUpgradeMaximumLevel(effect);

@@ -1,10 +1,12 @@
 #include "ui/UiText.hpp"
+#include "localization/Localization.hpp"
 
 #include <raylib.h>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <cstdint>
 #include <iostream>
 #include <string>
 
@@ -163,11 +165,81 @@ bool rotatedTextUsesSdfStyle() {
         bounds.bottom - bounds.top > bounds.right - bounds.left;
 }
 
+
+std::uint64_t renderFontSample(ian::UiFontRole role, bool queued) {
+    RenderTexture2D target = LoadRenderTexture(640, 360);
+    if (!IsRenderTextureValid(target)) return 0;
+    // Warm the HUD cache, then change only the font on the next invocation.
+    for (int frame = 0; frame < 8; ++frame) {
+        BeginTextureMode(target);
+        ClearBackground(BLANK);
+        if (queued) ian::beginSdfUiTextBatch();
+        {
+            const ian::ScopedUiFontRole font(role);
+            const ian::SdfUiTextStyle style{
+                .fillColor = ian::UiWhite,
+                .outlineColor = BLANK,
+                .outlinePixels = 0.0F,
+            };
+            ian::drawStyledSdfUiText("Defense damage / Урон Ёж", {24, 24}, 18, style);
+        }
+        // The role must survive until a later batch flush.
+        if (queued) ian::endSdfUiTextBatch();
+        EndTextureMode();
+    }
+    Image image = LoadImageFromTexture(target.texture);
+    const PixelBounds bounds = inspectTextRegion(image);
+    Color* pixels = LoadImageColors(image);
+    std::uint64_t hash = 14695981039346656037ULL;
+    if (pixels != nullptr) {
+        for (int i = 0; i < image.width * image.height; ++i) {
+            // RGB and alpha both matter: a substituted face changes the glyphs.
+            for (unsigned char channel : {pixels[i].r, pixels[i].g, pixels[i].b, pixels[i].a}) {
+                hash = (hash ^ channel) * 1099511628211ULL;
+            }
+        }
+        UnloadImageColors(pixels);
+    }
+    UnloadImage(image);
+    UnloadRenderTexture(target);
+    return bounds.visiblePixels > 100 ? hash : 0;
+}
+
+bool bodyFontsRenderAndRestore() {
+    const unsigned int display = ian::uiFont().texture.id;
+    unsigned int regular{};
+    {
+        const ian::ScopedUiFontRole body(ian::UiFontRole::Body);
+        const Font font = ian::uiFont();
+        regular = font.texture.id;
+        for (int codepoint : {0x401, 0x410, 0x44F, 0x451}) {
+            const int index = GetGlyphIndex(font, codepoint);
+            if (index < 0 || font.glyphs[index].value != codepoint ||
+                font.glyphs[index].advanceX <= 0) return false;
+        }
+        {
+            const ian::ScopedUiFontRole bold(ian::UiFontRole::BodyBold);
+            if (ian::uiFont().texture.id == regular ||
+                ian::uiFont().texture.id == display) return false;
+        }
+        if (ian::uiFont().texture.id != regular) return false;
+    }
+    if (regular == display || ian::uiFont().texture.id != display) return false;
+    SetWindowSize(640, 360);
+    PollInputEvents();
+    const auto regularQueued = renderFontSample(ian::UiFontRole::Body, true);
+    const auto boldQueued = renderFontSample(ian::UiFontRole::BodyBold, true);
+    const auto regularDirect = renderFontSample(ian::UiFontRole::Body, false);
+    const auto boldDirect = renderFontSample(ian::UiFontRole::BodyBold, false);
+    return regularQueued != 0 && boldQueued != 0 && regularQueued != boldQueued &&
+        regularQueued == regularDirect && boldQueued == boldDirect;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     SetTraceLogLevel(LOG_ERROR);
-    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_HIGHDPI);
     InitWindow(64, 64, "IAN SDF UI text smoke");
     if (!IsWindowReady()) {
         std::cerr << "graphics context unavailable; skipping\n";
@@ -196,7 +268,7 @@ int main(int argc, char** argv) {
         std::abs(height1080 - height1440) <= 1;
     const bool valid = validReference(bounds1080) &&
         validReference(bounds1440) && stableBounds &&
-        rotatedTextUsesSdfStyle();
+        rotatedTextUsesSdfStyle() && bodyFontsRenderAndRestore();
     if (!valid) {
         std::cerr << "SDF text validation failed: 1080="
                   << bounds1080.visiblePixels << "/"

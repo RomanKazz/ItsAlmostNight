@@ -11,6 +11,20 @@ namespace ian {
 
 inline constexpr Color UiWhite{244, 240, 223, 255};
 
+enum class UiFontRole { Display, Body, BodyBold };
+
+// Measurements and draws use the same face. Queued SDF draws retain this role.
+class ScopedUiFontRole {
+public:
+    explicit ScopedUiFontRole(UiFontRole role) noexcept;
+    ~ScopedUiFontRole();
+    ScopedUiFontRole(const ScopedUiFontRole&) = delete;
+    ScopedUiFontRole& operator=(const ScopedUiFontRole&) = delete;
+
+private:
+    UiFontRole previous_;
+};
+
 struct SdfUiTextStyle {
     Color fillColor{UiWhite};
     Color outlineColor{48, 50, 56, 255};

@@ -131,6 +131,8 @@ void App::drawGraphicsPanel() {
          contentWidth - 32.0F, headerHeight - 16.0F},
         "SETTINGS", 1);
 
+    const ScopedUiFontRole bodyText(UiFontRole::Body);
+
     const float TabY = compact ? 108.0F : 150.0F;
     const float TabHeight = compact ? 40.0F : 52.0F;
     const float tabWidth =

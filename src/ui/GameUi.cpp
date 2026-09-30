@@ -18,6 +18,16 @@
 namespace ian {
 namespace {
 
+class ScopedRayguiFont {
+public:
+    ScopedRayguiFont() : previous_(GuiGetFont()) { GuiSetFont(uiFont()); }
+    ~ScopedRayguiFont() { GuiSetFont(previous_); }
+    ScopedRayguiFont(const ScopedRayguiFont&) = delete;
+    ScopedRayguiFont& operator=(const ScopedRayguiFont&) = delete;
+private:
+    Font previous_;
+};
+
 constexpr float UiTextScale = 1.68F;
 constexpr int MinimapTargetSize = 512;
 constexpr int MaximumMinimapTargetSize = 768;
@@ -504,6 +514,7 @@ void GameUi::drawCardPanel(Rectangle bounds, Color accent,
 
 void GameUi::drawLabel(Rectangle bounds, std::string_view text,
                        int alignment) const {
+    const ScopedRayguiFont fontScope;
     GuiSetStyle(LABEL, TEXT_ALIGNMENT, alignment);
     const std::string localized = localizedCopy(text);
     const int previousSize = GuiGetStyle(DEFAULT, TEXT_SIZE);
@@ -734,6 +745,7 @@ bool GameUi::drawButton(Rectangle bounds,
 bool GameUi::drawToggleButton(Rectangle bounds,
                               std::string_view text,
                               bool active) const {
+    const ScopedRayguiFont fontScope;
     const bool hovered = CheckCollisionPointRec(
         GetMousePosition(), bounds);
     const bool pressed = hovered &&

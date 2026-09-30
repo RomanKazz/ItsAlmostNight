@@ -22,6 +22,13 @@
 namespace ian {
 namespace {
 
+UiFontRole currentFontRole{UiFontRole::Display};
+std::array<Font, 2> bodyFonts{};
+std::array<Font, 2> bodySdfFonts{};
+std::array<Font, 2> bodySmallSdfFonts{};
+constexpr std::array BodyFontPaths{
+    "assets/ui/BalsamiqSans-Regular.ttf", "assets/ui/BalsamiqSans-Bold.ttf"};
+
 Font primaryFont{};
 Font cyrillicFallbackFont{};
 Font primarySdfFont{};
@@ -37,6 +44,7 @@ struct QueuedSdfText {
     Vector2 position{};
     float scaledSize{};
     SdfUiTextStyle style{};
+    UiFontRole fontRole{UiFontRole::Display};
     float rotationRadians{};
     Vector2 rotationCenter{};
     bool cacheable{true};
@@ -240,8 +248,15 @@ Font loadSdfFont(const char* path, const int* codepoints,
     return font;
 }
 
-Font activeSdfFont(float scaledSize) {
+Font activeSdfFont(float scaledSize, UiFontRole role) {
     const bool preferSmall = scaledSize <= SmallSdfMaximumDrawSize;
+    if (role != UiFontRole::Display) {
+        const std::size_t index = role == UiFontRole::BodyBold ? 1U : 0U;
+        if (preferSmall && isDrawableFont(bodySmallSdfFonts[index])) {
+            return bodySmallSdfFonts[index];
+        }
+        if (isDrawableFont(bodySdfFonts[index])) return bodySdfFonts[index];
+    }
     if (currentLanguage() == Language::English) {
         if (preferSmall && isDrawableFont(primarySmallSdfFont)) {
             return primarySmallSdfFont;
@@ -271,7 +286,7 @@ Font activeSdfFont(float scaledSize) {
 
 bool isSdfTextReady(float scaledSize) {
     return IsShaderValid(sdfTextShader) &&
-        isDrawableFont(activeSdfFont(scaledSize)) &&
+        isDrawableFont(activeSdfFont(scaledSize, currentFontRole)) &&
         sdfFramebufferScaleLocation >= 0;
 }
 
@@ -467,6 +482,7 @@ bool queueSdfText(std::string_view text, Vector2 position,
         .position = position,
         .scaledSize = scaledSize,
         .style = style,
+        .fontRole = currentFontRole,
         .rotationRadians = rotationRadians,
         .rotationCenter = rotationCenter,
         .cacheable = cacheable,
@@ -506,7 +522,7 @@ void drawSdfTextItemsDirect(
             if (!textLayerVisible(queued->style, layer)) {
                 continue;
             }
-            const Font font = activeSdfFont(queued->scaledSize);
+            const Font font = activeSdfFont(queued->scaledSize, queued->fontRole);
             const auto submittedEnd = submittedTextures.begin() +
                 static_cast<std::ptrdiff_t>(submittedTextureCount);
             if (std::find(
@@ -522,7 +538,7 @@ void drawSdfTextItemsDirect(
                     continue;
                 }
                 const Font candidateFont = activeSdfFont(
-                    candidate->scaledSize);
+                    candidate->scaledSize, candidate->fontRole);
                 if (candidateFont.texture.id != font.texture.id) {
                     continue;
                 }
@@ -687,7 +703,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
 
 CachedSdfTextTexture* cachedSdfTextTexture(
     const QueuedSdfText& queued) {
-    const Font font = activeSdfFont(queued.scaledSize);
+    const Font font = activeSdfFont(queued.scaledSize, queued.fontRole);
     SdfTextTextureKey key = sdfTextTextureKey(queued, font);
     auto found = sdfTextTextureCache.find(key);
     if (found != sdfTextTextureCache.end()) {
@@ -722,6 +738,7 @@ std::size_t currentSdfTextBatchHash() {
     hashCombine(hash, static_cast<std::size_t>(GetScreenHeight()));
     for (const QueuedSdfText& queued : sdfTextBatch) {
         hashCombine(hash, std::hash<std::string>{}(queued.text));
+        hashCombine(hash, static_cast<std::size_t>(queued.fontRole));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.x));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.position.y));
         hashCombine(hash, std::bit_cast<std::uint32_t>(queued.scaledSize));
@@ -780,7 +797,7 @@ std::vector<Rectangle> buildHudTextBatchRegions(
         static_cast<std::size_t>(columnCount * rowCount), 0U);
 
     for (const QueuedSdfText* queued : items) {
-        const Font font = activeSdfFont(queued->scaledSize);
+        const Font font = activeSdfFont(queued->scaledSize, queued->fontRole);
         const CachedGlyphLayout& layout = cachedGlyphLayout(
             queued->text, font, queued->scaledSize);
         if (layout.quads.empty()) continue;
@@ -1005,6 +1022,7 @@ void drawSdfTextValue(const char* value, Vector2 position,
         .position = position,
         .scaledSize = scaledSize,
         .style = style,
+        .fontRole = currentFontRole,
     });
     drawSdfTextBatch();
     sdfTextBatch.clear();
@@ -1234,6 +1252,15 @@ void initializeUiText() {
     cyrillicFallbackFont = LoadFontEx(
         "assets/ui/FredokaOneCyrillic-Regular.ttf", 64,
         codepoints.data(), GlyphCount);
+    for (std::size_t face = 0; face < BodyFontPaths.size(); ++face) {
+        bodyFonts[face] = LoadFontEx(BodyFontPaths[face], 64,
+            codepoints.data(), GlyphCount);
+        configureFontFiltering(bodyFonts[face]);
+        bodySdfFonts[face] = loadSdfFont(BodyFontPaths[face],
+            codepoints.data(), GlyphCount, SdfBaseGlyphSize);
+        bodySmallSdfFonts[face] = loadSdfFont(BodyFontPaths[face],
+            codepoints.data(), GlyphCount, SmallSdfBaseGlyphSize);
+    }
     configureFontFiltering(primaryFont);
     configureFontFiltering(cyrillicFallbackFont);
     primarySdfFont = loadSdfFont(
@@ -1302,6 +1329,15 @@ void shutdownUiText() {
     if (IsFontValid(cyrillicFallbackFont)) {
         UnloadFont(cyrillicFallbackFont);
     }
+    for (std::size_t face = 0; face < BodyFontPaths.size(); ++face) {
+        if (IsFontValid(bodyFonts[face])) UnloadFont(bodyFonts[face]);
+        if (isDrawableFont(bodySdfFonts[face])) UnloadFont(bodySdfFonts[face]);
+        if (isDrawableFont(bodySmallSdfFonts[face])) UnloadFont(bodySmallSdfFonts[face]);
+    }
+    bodyFonts = {};
+    bodySdfFonts = {};
+    bodySmallSdfFonts = {};
+    currentFontRole = UiFontRole::Display;
     primaryFont = {};
     cyrillicFallbackFont = {};
     primarySdfFont = {};
@@ -1313,7 +1349,20 @@ void shutdownUiText() {
     initialized = false;
 }
 
+ScopedUiFontRole::ScopedUiFontRole(UiFontRole role) noexcept
+    : previous_(currentFontRole) {
+    currentFontRole = role;
+}
+
+ScopedUiFontRole::~ScopedUiFontRole() {
+    currentFontRole = previous_;
+}
+
 Font uiFont() {
+    if (currentFontRole != UiFontRole::Display) {
+        const std::size_t index = currentFontRole == UiFontRole::BodyBold ? 1U : 0U;
+        if (IsFontValid(bodyFonts[index])) return bodyFonts[index];
+    }
     if (currentLanguage() == Language::English &&
         IsFontValid(primaryFont)) {
         return primaryFont;
@@ -1367,22 +1416,24 @@ void drawUiText(std::string_view text, Vector2 position,
                 float fontSize, Color color) {
     const ScopedTextPerformanceSample performanceSample(text.size());
     const float scaledSize = fontSize * UiTextScale;
+    const bool body = currentFontRole != UiFontRole::Display;
+    const Vector2 shadowOffset = body ? Vector2{0.0F, 1.0F} : Vector2{1.5F, 2.0F};
     const Color shadow{
         7, 9, 11,
         static_cast<unsigned char>(
-            static_cast<unsigned int>(color.a) * 3U / 4U),
+            static_cast<unsigned int>(color.a) * (body ? 2U : 3U) / 4U),
     };
-    const auto draw = [position, scaledSize, shadow, color](
+    const auto draw = [position, scaledSize, shadow, shadowOffset, color](
                           const char* value) {
         if (drawStandaloneSpecialGlyph(
-                value, {position.x + 1.5F, position.y + 2.0F},
+                value, {position.x + shadowOffset.x, position.y + shadowOffset.y},
                 scaledSize, shadow)) {
             drawStandaloneSpecialGlyph(value, position, scaledSize, color);
             return;
         }
         DrawTextEx(
             uiFont(), value,
-            {position.x + 1.5F, position.y + 2.0F},
+            {position.x + shadowOffset.x, position.y + shadowOffset.y},
             scaledSize, scaledSize * 0.02F, shadow);
         DrawTextEx(
             uiFont(), value, position, scaledSize,
@@ -1431,6 +1482,7 @@ void drawRotatedStyledUiText(
                 },
                 .scaledSize = scaledSize,
                 .style = style,
+                .fontRole = currentFontRole,
                 .rotationRadians = rotationDegrees * DEG2RAD,
                 .rotationCenter = center,
             };
