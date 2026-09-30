@@ -1,18 +1,21 @@
 #pragma once
 
 #include "game/PlayerClass.hpp"
+#include "progression/QuestTypes.hpp"
 
 #include <string_view>
 
 namespace ian {
 
 struct MetaProgression {
+    int silver{};
     int runsPlayed{};
     int stageClears{};
     int bestWave{};
     int enemiesDefeated{};
     int lootCollected{};
     int resourcesGathered{};
+    QuestState quests;
 
     bool operator==(const MetaProgression&) const = default;
 };

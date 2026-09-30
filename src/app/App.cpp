@@ -13,6 +13,7 @@
 #include <bit>
 #include <cmath>
 #include <limits>
+#include <exception>
 #include <string>
 #include <utility>
 
@@ -25,6 +26,15 @@ constexpr std::string_view UserSettingsPath =
     "user_settings/game_settings.json";
 constexpr std::string_view MetaProgressionPath =
     "user_settings/meta_progression.json";
+
+QuestSystem loadAppQuests() {
+    try {
+        return QuestSystem(loadQuestDefinitions("assets/data/meta_quests.json"));
+    } catch (const std::exception& error) {
+        TraceLog(LOG_WARNING, "QUESTS: using built-in catalog: %s", error.what());
+        return QuestSystem{};
+    }
+}
 
 std::uint64_t mixDecorationFingerprint(
     std::uint64_t hash, std::uint64_t value) {
@@ -173,13 +183,16 @@ App::App()
       loadAppBalance(), loadAppMap(),
           loadAppWorldConfig(),
           loadAppInsightConfig(), loadAppObjectives()),
-      environment_(loadAppEnvironment()) {
+      environment_(loadAppEnvironment()),
+      questSystem_(loadAppQuests()) {
     static_cast<void>(loadUserSettings(
         UserSettingsPath, userSettings_));
     static_cast<void>(loadMetaProgression(
         MetaProgressionPath, metaProgression_));
     persistedUserSettings_ = userSettings_;
     persistedMetaProgression_ = metaProgression_;
+    questSystem_.initialize(metaProgression_);
+    persistMetaProgression();
     initializeLocalization();
     setLanguage(userSettings_.language);
     audio_.settings() = userSettings_.audio;
@@ -525,8 +538,9 @@ void App::persistMetaProgression() {
     }
 }
 
-void App::recordMetaProgression(std::span<const GameEvent> events) {
-    if (simulation_.snapshot().sandboxMode) {
+void App::recordMetaProgression(std::span<const GameEvent> events,
+                                const SimulationSnapshot& snapshot) {
+    if (snapshot.sandboxMode) {
         return;
     }
     std::array<bool, PlayerClassDefinitions.size()> unlockedBefore{};
@@ -535,44 +549,15 @@ void App::recordMetaProgression(std::span<const GameEvent> events) {
         unlockedBefore[index] = isPlayerClassUnlocked(
             PlayerClassDefinitions[index].type, metaProgression_);
     }
-    const auto add = [](int& value, int amount = 1) {
-        if (amount <= 0) return;
-        value = value > std::numeric_limits<int>::max() - amount
-            ? std::numeric_limits<int>::max()
-            : value + amount;
-    };
-    bool saveNow = false;
-    for (const GameEvent& event : events) {
-        switch (event.type) {
-        case GameEventType::RunStarted:
-        case GameEventType::RunRestarted:
-            add(metaProgression_.runsPlayed);
-            break;
-        case GameEventType::EnemyKilled:
-            add(metaProgression_.enemiesDefeated);
-            break;
-        case GameEventType::LootCollected:
-            add(metaProgression_.lootCollected);
-            break;
-        case GameEventType::ResourceGranted:
-            add(metaProgression_.resourcesGathered, event.amount);
-            break;
-        case GameEventType::WaveStarted:
-        case GameEventType::WaveCompleted:
-            metaProgression_.bestWave = std::max(
-                metaProgression_.bestWave, event.amount);
-            break;
-        case GameEventType::StageCleared:
-            add(metaProgression_.stageClears);
-            saveNow = true;
-            break;
-        case GameEventType::RunEnded:
-            saveNow = true;
-            break;
-        default:
-            break;
-        }
-    }
+    const auto update = questGameplayTracker_.record(
+        questSystem_, metaProgression_, events, snapshot);
+    const bool runBoundary = std::ranges::any_of(events, [](const auto& event) {
+        return event.type == GameEventType::RunStarted ||
+            event.type == GameEventType::RunRestarted ||
+            event.type == GameEventType::RunEnded ||
+            event.type == GameEventType::StageCleared;
+    });
+    bool saveNow = runBoundary || !update.completed.empty();
     for (std::size_t index = 0;
          index < PlayerClassDefinitions.size(); ++index) {
         if (unlockedBefore[index] || !isPlayerClassUnlocked(

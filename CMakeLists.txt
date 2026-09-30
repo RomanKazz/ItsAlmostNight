@@ -85,6 +85,8 @@ target_link_libraries(ian_assets PRIVATE
 add_library(ian_progression
     src/progression/InsightSystem.cpp
     src/progression/MetaProgression.cpp
+    src/progression/QuestSystem.cpp
+    src/progression/QuestCatalog.cpp
     src/progression/ObjectiveSystem.cpp
 )
 target_include_directories(ian_progression PUBLIC src)
@@ -119,6 +121,7 @@ add_library(ian_simulation
     src/game/SimulationCombat.cpp
     src/game/SimulationCoins.cpp
     src/game/SimulationChallenges.cpp
+    src/game/QuestGameplayTracker.cpp
     src/game/LootChestSystem.cpp
     src/game/SimulationBuildingActions.cpp
     src/game/SimulationBuildingCommands.cpp
@@ -371,6 +374,7 @@ if(BUILD_TESTING)
         tests/SpatialHashTests.cpp
         tests/InsightSystemTests.cpp
         tests/ObjectiveSystemTests.cpp
+        tests/QuestSystemTests.cpp
         tests/UserSettingsTests.cpp
         tests/TowerSystemTests.cpp
         tests/TrapSystemTests.cpp

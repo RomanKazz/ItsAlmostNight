@@ -6,6 +6,7 @@
 #include "core/FixedStep.hpp"
 #include "core/PerformanceRecorder.hpp"
 #include "game/Simulation.hpp"
+#include "game/QuestGameplayTracker.hpp"
 #include "graphics/EnvironmentSystem.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
@@ -261,7 +262,8 @@ class App {
     [[nodiscard]] bool suspendedRunAvailable() const;
     [[nodiscard]] std::optional<std::uint32_t>
     suspendedRunTerrainSeed() const;
-    void recordMetaProgression(std::span<const GameEvent> events);
+    void recordMetaProgression(std::span<const GameEvent> events,
+                               const SimulationSnapshot& snapshot);
     void applyFullscreenSetting(bool fullscreen);
     void drawEnemySpawnMenu();
     void drawItemGrantMenu();
@@ -323,6 +325,8 @@ class App {
     AudioSystem audio_;
     UserSettings userSettings_;
     UserSettings persistedUserSettings_;
+    QuestSystem questSystem_;
+    QuestGameplayTracker questGameplayTracker_;
     MetaProgression metaProgression_;
     MetaProgression persistedMetaProgression_;
     ModularBuildingRenderer modularBuildingRenderer_;

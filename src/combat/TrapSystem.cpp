@@ -119,7 +119,7 @@ std::span<const TrapActivation> TrapSystem::tick(
                     heightBonus);
             affectedCount = static_cast<int>(hits.size());
             for (const EnemyDamageResult& hit : hits) {
-                hitBuffer_.push_back({trap.buildingId, hit});
+                hitBuffer_.push_back({trap.buildingId, hit, building->type});
             }
             if (affectedCount == 0) {
                 continue;
@@ -154,7 +154,7 @@ std::span<const TrapActivation> TrapSystem::tick(
                     heightBonus,
                 1.5);
             for (const EnemyDamageResult& hit : shockHits) {
-                hitBuffer_.push_back({trap.buildingId, hit});
+                hitBuffer_.push_back({trap.buildingId, hit, building->type});
             }
         }
         activationBuffer_.push_back({

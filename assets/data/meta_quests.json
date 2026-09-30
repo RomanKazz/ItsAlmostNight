@@ -1,0 +1,715 @@
+{
+  "version": 1,
+  "quests": [
+    {
+      "id": "class_berserker",
+      "title": "Reach wave 6",
+      "description": "Reach wave 6",
+      "category": "characters",
+      "conditions": [
+        {
+          "metric": "wave_reached",
+          "scope": "lifetime",
+          "target": 6
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "class.berserker",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "class_vampire",
+      "title": "Defeat 250 enemies",
+      "description": "Defeat 250 enemies",
+      "category": "characters",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 250
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "class.vampire",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "class_alchemist",
+      "title": "Collect 20 items",
+      "description": "Collect 20 items",
+      "category": "characters",
+      "conditions": [
+        {
+          "metric": "items_collected",
+          "scope": "lifetime",
+          "target": 20
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "class.alchemist",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "class_chronomancer",
+      "title": "Clear the stage",
+      "description": "Clear the stage",
+      "category": "characters",
+      "conditions": [
+        {
+          "metric": "stage_clears",
+          "scope": "lifetime",
+          "target": 1
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "class.chronomancer",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "kills_100",
+      "title": "Defeat 100 enemies",
+      "description": "Defeat 100 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 100
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "kills_1000",
+      "title": "Defeat 1000 enemies",
+      "description": "Defeat 1000 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 1000
+        }
+      ],
+      "prerequisites": [
+        "kills_100"
+      ],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "kills_5000",
+      "title": "Defeat 5000 enemies",
+      "description": "Defeat 5000 enemies",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 5000
+        }
+      ],
+      "prerequisites": [
+        "kills_1000"
+      ],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "gun_turret_kills",
+      "title": "Defeat 250 enemies with gun turret",
+      "description": "Defeat 250 enemies with gun turret",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 250,
+          "subject": "gun_turret"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "cannon_kills",
+      "title": "Defeat 150 enemies with cannon",
+      "description": "Defeat 150 enemies with cannon",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 150,
+          "subject": "cannon"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "turret_kills",
+      "title": "Defeat 250 enemies with turret",
+      "description": "Defeat 250 enemies with turret",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 250,
+          "subject": "turret"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "trap_kills",
+      "title": "Defeat 100 enemies with trap",
+      "description": "Defeat 100 enemies with trap",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "lifetime",
+          "target": 100,
+          "subject": "spike_trap"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "build_25",
+      "title": "Place 25 buildings",
+      "description": "Place 25 buildings",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "buildings_placed",
+          "scope": "lifetime",
+          "target": 25
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "build_100",
+      "title": "Place 100 buildings",
+      "description": "Place 100 buildings",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "buildings_placed",
+          "scope": "lifetime",
+          "target": 100
+        }
+      ],
+      "prerequisites": [
+        "build_25"
+      ],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "gun_run",
+      "title": "Defeat 100 enemies with gun turrets in one run",
+      "description": "Defeat 100 enemies with gun turrets in one run",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "enemies_defeated",
+          "scope": "run",
+          "target": 100,
+          "subject": "gun_turret"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "engineer_run",
+      "title": "Repair 15 structures as Engineer in one run",
+      "description": "Repair 15 structures as Engineer in one run",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "structures_repaired",
+          "scope": "run",
+          "target": 15,
+          "playerClass": "engineer"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "upgrade_buildings",
+      "title": "Upgrade 20 buildings",
+      "description": "Upgrade 20 buildings",
+      "category": "buildings",
+      "conditions": [
+        {
+          "metric": "buildings_upgraded",
+          "scope": "lifetime",
+          "target": 20
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "upgrade_tower_power",
+      "title": "Get Tower Power to level 5",
+      "description": "Get Tower Power to level 5",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "subject": "defense_damage"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "upgrade_rapid_fire",
+      "title": "Get Rapid Fire to level 5",
+      "description": "Get Rapid Fire to level 5",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 5,
+          "subject": "defense_fire_rate"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "upgrade_ricochet",
+      "title": "Get Ricochet to level 3",
+      "description": "Get Ricochet to level 3",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 3,
+          "subject": "ricochet"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "upgrade_cluster",
+      "title": "Get Cluster to level 2",
+      "description": "Get Cluster to level 2",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "upgrade_level",
+          "scope": "run",
+          "target": 2,
+          "subject": "cluster_payload"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "defense_double",
+      "title": "Reach 2x defense damage in one run",
+      "description": "Reach 2x defense damage in one run",
+      "category": "upgrades",
+      "conditions": [
+        {
+          "metric": "defense_damage",
+          "scope": "run",
+          "target": 2
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "hp_200",
+      "title": "Reach 200 maximum HP in one run",
+      "description": "Reach 200 maximum HP in one run",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "maximum_health",
+          "scope": "run",
+          "target": 200
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "level_20",
+      "title": "Reach player level 20",
+      "description": "Reach player level 20",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "player_level",
+          "scope": "run",
+          "target": 20
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "chests_10",
+      "title": "Open 10 chests",
+      "description": "Open 10 chests",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "chests_opened",
+          "scope": "lifetime",
+          "target": 10
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "items_50",
+      "title": "Collect 50 items",
+      "description": "Collect 50 items",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "items_collected",
+          "scope": "lifetime",
+          "target": 50
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "items_run",
+      "title": "Collect 10 items in one run",
+      "description": "Collect 10 items in one run",
+      "category": "items",
+      "conditions": [
+        {
+          "metric": "items_collected",
+          "scope": "run",
+          "target": 10
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "resources_1000",
+      "title": "Gather 1000 resources",
+      "description": "Gather 1000 resources",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "resources_gathered",
+          "scope": "lifetime",
+          "target": 1000
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "coins_500",
+      "title": "Pick up 500 gold",
+      "description": "Pick up 500 gold",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "coins_collected",
+          "scope": "lifetime",
+          "target": 500
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "clear_without_chests",
+      "title": "Clear a stage without opening chests",
+      "description": "Clear a stage without opening chests",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "stage_clears",
+          "scope": "run",
+          "target": 1
+        },
+        {
+          "metric": "chests_opened",
+          "scope": "run",
+          "target": 0,
+          "comparison": "at_most"
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 4,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "challenges_1",
+      "title": "Complete a portal challenge",
+      "description": "Complete a portal challenge",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 1
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "challenges_5",
+      "title": "Complete 5 portal challenges",
+      "description": "Complete 5 portal challenges",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 5
+        }
+      ],
+      "prerequisites": [
+        "challenges_1"
+      ],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "challenges_20",
+      "title": "Complete 20 portal challenges",
+      "description": "Complete 20 portal challenges",
+      "category": "challenges",
+      "conditions": [
+        {
+          "metric": "challenges_completed",
+          "scope": "lifetime",
+          "target": 20
+        }
+      ],
+      "prerequisites": [
+        "challenges_5"
+      ],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    },
+    {
+      "id": "quests_10",
+      "title": "Complete 10 quests",
+      "description": "Complete 10 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 10
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "meta.refresh",
+        "purchaseCost": 10
+      }
+    },
+    {
+      "id": "quests_20",
+      "title": "Complete 20 quests",
+      "description": "Complete 20 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 20
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "meta.skip",
+        "purchaseCost": 15
+      }
+    },
+    {
+      "id": "quests_30",
+      "title": "Complete 30 quests",
+      "description": "Complete 30 quests",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "quests_completed",
+          "scope": "lifetime",
+          "target": 30
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 1,
+        "unlockId": "meta.banish",
+        "purchaseCost": 20
+      }
+    },
+    {
+      "id": "purchases_3",
+      "title": "Purchase 3 permanent unlocks",
+      "description": "Purchase 3 permanent unlocks",
+      "category": "general",
+      "conditions": [
+        {
+          "metric": "unlocks_purchased",
+          "scope": "lifetime",
+          "target": 3
+        }
+      ],
+      "prerequisites": [],
+      "reward": {
+        "silver": 2,
+        "unlockId": "",
+        "purchaseCost": 0
+      }
+    }
+  ]
+}

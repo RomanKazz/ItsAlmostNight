@@ -942,8 +942,8 @@ void App::update() {
     }
     simulation_.takeEvents(gameEventBuffer_);
     const std::span<const GameEvent> events = gameEventBuffer_;
-    recordMetaProgression(events);
     const auto& eventSnapshot = simulation_.snapshot();
+    recordMetaProgression(events, eventSnapshot);
     if (actionMode_ == ActionMode::Buildings &&
         buildingHotbarCategory_ == BuildingHotbarCategory::Base &&
         eventSnapshot.coreId) {

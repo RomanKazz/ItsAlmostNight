@@ -2,6 +2,7 @@
 
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/FoundationSystem.hpp"
+#include "combat/PlayerWeaponSystem.hpp"
 #include "core/Types.hpp"
 #include "resources/ResourceSystem.hpp"
 #include "game/LootChestSystem.hpp"
@@ -110,6 +111,7 @@ enum class GameEventType {
     WorldLandmarkActivated,
     CrystalStorageFull,
     LootCollected,
+    ChallengeCompleted,
 };
 
 struct GameEvent {

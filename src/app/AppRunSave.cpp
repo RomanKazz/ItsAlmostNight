@@ -942,6 +942,11 @@ bool App::loadSuspendedRun() {
         const bool terrainGraphicsAlreadyMatch =
             simulation_.terrain().seed() == saved.terrainSeed;
         if (!simulation_.loadSuspendedRunState(saved)) return false;
+        if (!simulation_.snapshot().sandboxMode) {
+            questSystem_.resumeRun(metaProgression_);
+            questGameplayTracker_ = QuestGameplayTracker{};
+            persistMetaProgression();
+        }
         selectedPlayerClass_ = saved.playerClass;
         fixedStep_.reset();
         resetRunInputState();

@@ -330,6 +330,11 @@ void Simulation::updateChallengeColumns(
             challengeColumns_[*activeChallengeColumn_];
         column.state = ChallengeColumnState::Completed;
         column.completionProgress = 0.0;
+        events_.push_back({
+            .type = GameEventType::ChallengeCompleted,
+            .entityId = column.id,
+            .position = column.position,
+        });
         lootChests_.spawnRewardChest(
             column.position, terrain_, LootChestType::Stone);
         activeChallengeColumn_.reset();

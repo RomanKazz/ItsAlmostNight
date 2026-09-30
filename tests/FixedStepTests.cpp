@@ -46,6 +46,7 @@ void runUserSettingsTests();
 void runLootChestSystemTests();
 void runInsightSystemTests();
 void runObjectiveSystemTests();
+void runQuestSystemTests();
 
 namespace {
 
@@ -115,6 +116,7 @@ int main() {
     runGlbNodeAnimationTests();
     runInsightSystemTests();
     runObjectiveSystemTests();
+    runQuestSystemTests();
     runBuildingSystemTests();
     runCollisionWorldTests();
     runEnemySystemTests();

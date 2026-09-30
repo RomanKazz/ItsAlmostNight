@@ -29,6 +29,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             .type = GameEventType::TrapHit,
             .entityId = hit.result.id,
             .sourceId = hit.trapId,
+            .buildingType = hit.type,
             .position = hit.result.position,
             .damage = hit.result.damage,
         });
@@ -37,6 +38,7 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
                 .type = GameEventType::EnemyKilled,
                 .entityId = hit.result.id,
                 .sourceId = hit.trapId,
+                .buildingType = hit.type,
                 .enemyType = hit.result.type,
                 .enemyEliteAffixes = hit.result.eliteAffixes,
                 .position = hit.result.position,

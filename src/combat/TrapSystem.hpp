@@ -25,6 +25,7 @@ struct TrapActivation {
 struct TrapHit {
     EntityId trapId;
     EnemyDamageResult result;
+    BuildingType type{BuildingType::SpikeTrap};
 };
 
 class TrapSystem {
