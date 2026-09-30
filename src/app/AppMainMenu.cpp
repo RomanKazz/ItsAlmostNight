@@ -305,6 +305,33 @@ void App::drawMainMenu(const SimulationSnapshot&) {
         return;
     }
 
+    if (mainMenuPage_ == MainMenuPage::Unlocks) {
+        const bool reverseTab = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        const UnlockMenuInput input{
+            .pointer = GetMousePosition(),
+            .wheel = GetMouseWheelMove(),
+            .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+            .pointerDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT),
+            .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
+                : IsKeyPressed(KEY_DOWN) ? 9 : IsKeyPressed(KEY_UP) ? -9 : 0,
+            .categoryStep = IsKeyPressed(KEY_TAB) ? reverseTab ? -1 : 1 : 0,
+        };
+        const auto result = drawUnlockMenu(ui_, questSystem_, metaProgression_, unlockMenuState_,
+            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, input);
+        if (result.purchase) persistMetaProgression();
+        if (result.close) mainMenuPage_ = MainMenuPage::None;
+        if (!result.questId.empty()) {
+            questMenuState_ = {};
+            questMenuState_.selectedId = result.questId;
+            for (const auto& quest : questSystem_.definitions()) {
+                if (quest.id == result.questId) questMenuState_.category = quest.category;
+            }
+            mainMenuPage_ = MainMenuPage::Quests;
+        }
+        if (result.interaction || result.close) audio_.playUiConfirm();
+        return;
+    }
+
     drawOutlinedTitle(
         "FORTBONK", layout,
         960.0F, 76.0F, 58.0F, 720.0F);
@@ -540,10 +567,8 @@ void App::drawMainMenu(const SimulationSnapshot&) {
     menuButtonY += 84.0F;
     const Rectangle collectionButton =
         layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
-    if (ui_.drawButton(collectionButton, "COLLECTION")) {
-        classSelectionVisible_ = true;
-        classCollectionOnly_ = true;
-        sandboxClassSelection_ = false;
+    if (ui_.drawButton(collectionButton, "UNLOCKS")) {
+        mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
     }
     menuButtonY += 84.0F;

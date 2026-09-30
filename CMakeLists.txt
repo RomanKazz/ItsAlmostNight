@@ -220,6 +220,7 @@ target_link_libraries(ian_graphics PUBLIC raylib ian_text
 add_library(ian_ui
     src/ui/GameUi.cpp
     src/ui/QuestMenu.cpp
+    src/ui/UnlockMenu.cpp
     src/ui/HudBuildingContextCard.cpp
     src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
@@ -235,7 +236,7 @@ target_include_directories(ian_ui SYSTEM PRIVATE
     "${raylib_SOURCE_DIR}/src"
     "${raygui_SOURCE_DIR}/src")
 target_link_libraries(ian_ui PUBLIC raylib ian_text ian_progression
-    PRIVATE nlohmann_json::nlohmann_json lunasvg::lunasvg)
+    PRIVATE nlohmann_json::nlohmann_json lunasvg::lunasvg ian_simulation)
 
 add_executable(its_almost_night
     src/core/PerformanceRecorder.cpp
@@ -273,7 +274,7 @@ add_executable(its_almost_night
     src/app/main.cpp
 )
 target_link_libraries(its_almost_night PRIVATE
-    ian_simulation ian_graphics ian_ui ian_audio
+    ian_graphics ian_ui ian_simulation ian_audio
     ian_presentation ian_settings nlohmann_json::nlohmann_json
 )
 target_include_directories(its_almost_night SYSTEM PRIVATE
@@ -453,8 +454,16 @@ if(BUILD_TESTING)
     set_tests_properties(ian_quest_menu_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
+    add_executable(ian_unlock_menu_smoke tests/UnlockMenuSmokeTests.cpp)
+    target_link_libraries(ian_unlock_menu_smoke PRIVATE ian_ui)
+    target_include_directories(ian_unlock_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_unlock_menu_smoke)
+    add_test(NAME ian_unlock_menu_smoke COMMAND ian_unlock_menu_smoke)
+    set_tests_properties(ian_unlock_menu_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke)
+        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke)
             target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
         endforeach()

@@ -15,6 +15,7 @@
 #include "progression/MetaProgression.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/QuestMenu.hpp"
+#include "ui/UnlockMenu.hpp"
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
 #include "ui/TargetHealthBar.hpp"
@@ -130,7 +131,7 @@ class App {
     static constexpr double EnemyHitFlashDuration = 0.105;
     static constexpr float EnemyHitFlashPeak = 0.92F;
 
-    enum class MainMenuPage : std::uint8_t { None, Quests, Shop, Credits };
+    enum class MainMenuPage : std::uint8_t { None, Quests, Unlocks, Shop, Credits };
 
     struct RenderFrameTimings {
         PerformanceClock::time_point uiStart{};
@@ -348,6 +349,7 @@ class App {
     bool classCollectionOnly_{};
     MainMenuPage mainMenuPage_{MainMenuPage::None};
     QuestMenuState questMenuState_;
+    UnlockMenuState unlockMenuState_;
     PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};
