@@ -85,6 +85,7 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 
 void Simulation::refreshRunUpgradeRuntimeEffects() {
     resources_.setGatheringYieldMultiplier(
+        activeMetaBonuses_.resourceYield *
         (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
         (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
     crystalMines_.setProductionSpeedMultiplier(
@@ -260,7 +261,7 @@ void Simulation::generateRunUpgradeChoices() {
             (1.0 / 9007199254740992.0);
         runUpgradeRarities_[index] = fixedRunUpgradePower(pool[selected])
             ? fixedRunUpgradeRarity(pool[selected])
-            : rollRunUpgradeRarity(0.10 * runUpgradePower(RunUpgradeEffect::Luck), roll);
+            : rollRunUpgradeRarity(activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck), roll);
         pool.erase(pool.begin() + static_cast<std::ptrdiff_t>(selected));
     }
 }

@@ -187,6 +187,12 @@ Simulation::Simulation(
     pendingEliteExplosions_.reserve(64U);
 }
 
+bool Simulation::configureNextRunBonuses(const MetaRunBonuses& bonuses) {
+    if (!validMetaRunBonuses(bonuses)) return false;
+    nextRunMetaBonuses_ = bonuses;
+    return true;
+}
+
 void Simulation::startRun(PlayerClass playerClass) {
     if (state_ != RunState::MainMenu) {
         return;
@@ -357,12 +363,13 @@ void Simulation::resetRun(GameEventType eventType) {
     runPlayerMoveSpeedMultiplier_ = 1.0;
     playerArmorMultiplier_ = 1.0;
     playerMaxHealthMultiplier_ = 1.0;
-    buildingMaxHealthMultiplier_ = 1.0;
+    activeMetaBonuses_ = nextRunMetaBonuses_;
+    buildingMaxHealthMultiplier_ = activeMetaBonuses_.buildingHealth;
     runBuildingMaxHealthMultiplier_ = 1.0;
-    productionSpeedMultiplier_ = 1.0;
+    productionSpeedMultiplier_ = activeMetaBonuses_.productionSpeed;
     runProductionSpeedMultiplier_ = 1.0;
-    defenseDamageMultiplier_ = 1.0;
-    defenseFireRateMultiplier_ = 1.0;
+    defenseDamageMultiplier_ = activeMetaBonuses_.defenseDamage;
+    defenseFireRateMultiplier_ = activeMetaBonuses_.defenseFireRate;
     woodYieldMultiplier_ = 1.0;
     chestOpeningCostMultiplier_ = 1.0;
     playerBonusMaxHealth_ = 0.0;
@@ -387,7 +394,7 @@ void Simulation::resetRun(GameEventType eventType) {
     runUpgradeRarities_.fill(RunUpgradeRarity::Common);
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
-    runUpgradeRerollTokens_ = 0;
+    runUpgradeRerollTokens_ = activeMetaBonuses_.rerolls;
     runUpgradeLockUnlocked_ = true;
     lockedRunUpgrade_.reset();
     bonusSelectionsNextReward_ = 0;

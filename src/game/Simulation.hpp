@@ -21,6 +21,7 @@
 #include "progression/InsightSystem.hpp"
 #include "progression/ObjectiveSystem.hpp"
 #include "progression/RunUpgrade.hpp"
+#include "progression/MetaShop.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
 #include "world/TerrainHeightfield.hpp"
@@ -456,6 +457,7 @@ struct ProgressionRunState {
 // included; loading resumes at the start of a build phase.
 struct SuspendedRunState {
     PlayerClass playerClass{PlayerClass::None};
+    MetaRunBonuses metaBonuses;
     std::uint32_t terrainSeed{};
     RunState resumeState{RunState::BuildPhase};
     std::uint64_t tick{};
@@ -549,6 +551,7 @@ class Simulation {
                         std::vector<ObjectiveDefinition> objectives =
                             ObjectiveSystem::defaultDefinitions());
 
+    [[nodiscard]] bool configureNextRunBonuses(const MetaRunBonuses& bonuses);
     void startRun(PlayerClass playerClass = PlayerClass::None);
     void startSandboxRun(PlayerClass playerClass = PlayerClass::None);
     void startRunFromSeed(PlayerClass playerClass, std::uint32_t terrainSeed);
@@ -984,6 +987,8 @@ class Simulation {
     double playerMaxHealthMultiplier_{1.0};
     double buildingMaxHealthMultiplier_{1.0};
     double runBuildingMaxHealthMultiplier_{1.0};
+    MetaRunBonuses nextRunMetaBonuses_;
+    MetaRunBonuses activeMetaBonuses_;
     double productionSpeedMultiplier_{1.0};
     double runProductionSpeedMultiplier_{1.0};
     double defenseDamageMultiplier_{1.0};

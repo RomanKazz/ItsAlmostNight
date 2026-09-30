@@ -422,11 +422,11 @@ const SimulationSnapshot& Simulation::snapshot() const {
             .defenseFireRate = defenseFireRateMultiplier_,
             .buildingHealth = buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_,
             .productionSpeed = productionSpeedMultiplier_ * runProductionSpeedMultiplier_,
-            .resourceYield = (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
+            .resourceYield = activeMetaBonuses_.resourceYield * (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
                 (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)),
             .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
                 (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
-            .luck = 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
+            .luck = activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
             .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),
             .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
             .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),

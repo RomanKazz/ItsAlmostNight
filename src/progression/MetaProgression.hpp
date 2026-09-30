@@ -2,6 +2,7 @@
 
 #include "game/PlayerClass.hpp"
 #include "progression/QuestTypes.hpp"
+#include "progression/MetaShop.hpp"
 
 #include <string_view>
 
@@ -16,6 +17,8 @@ struct MetaProgression {
     int lootCollected{};
     int resourcesGathered{};
     QuestState quests;
+    std::array<int, MetaShopUpgradeCount> shopLevels{};
+    int silverRewardRemainder{};
 
     bool operator==(const MetaProgression&) const = default;
 };

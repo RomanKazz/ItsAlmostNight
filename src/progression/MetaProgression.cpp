@@ -117,8 +117,8 @@ static bool readMetaProgressionFile(
         const nlohmann::json root = nlohmann::json::parse(input);
         if (!root.is_object()) return false;
         const int version = root.value("version", 1);
-        if (version < 1 || version > 3) return false;
-        if (version == 3 && !root.contains("quests")) return false;
+        if (version < 1 || version > 4) return false;
+        if (version >= 3 && !root.contains("quests")) return false;
         MetaProgression loaded;
         loaded.silver = nonNegative(root, "silver");
         loaded.runsPlayed = nonNegative(root, "runsPlayed");
@@ -150,6 +150,26 @@ static bool readMetaProgressionFile(
             }
             if (!validQuestState(loaded.quests)) return false;
         }
+        if (version >= 4) {
+            const auto& shop = root.at("shop");
+            if (shop.at("version").get<int>() != 1) return false;
+            const auto& levels = shop.at("levels");
+            if (!levels.is_object() || levels.size() > MetaShopUpgradeCount) return false;
+            for (const auto& [id, level] : levels.items()) {
+                const auto d = std::ranges::find(MetaShopDefinitions, id, &MetaShopDefinition::id);
+                if (d == MetaShopDefinitions.end() || !level.is_number_integer()) return false;
+                const int value = level.get<int>();
+                if (value < 0 || value > d->maximumLevel) return false;
+                loaded.shopLevels[static_cast<std::size_t>(d->upgrade)] = value;
+            }
+            if (!shop.at("silverRemainder").is_number_integer()) return false;
+            for (const auto& d : MetaShopDefinitions) {
+                if (loaded.shopLevels[static_cast<std::size_t>(d.upgrade)] > 0 &&
+                    !metaShopAvailable(loaded, d.upgrade)) return false;
+            }
+            loaded.silverRewardRemainder = shop.at("silverRemainder").get<int>();
+            if (loaded.silverRewardRemainder < 0 || loaded.silverRewardRemainder >= 100) return false;
+        }
         progression = loaded;
         return true;
     } catch (...) {
@@ -175,8 +195,16 @@ bool saveMetaProgression(
         for (const auto& [id, saved] : progression.quests.progress) {
             progress[id] = {{"values", saved.values}, {"completed", saved.completed}, {"rewardClaimed", saved.rewardClaimed}};
         }
+        nlohmann::json levels = nlohmann::json::object();
+        for (const auto& d : MetaShopDefinitions) {
+            const int level = progression.shopLevels[static_cast<std::size_t>(d.upgrade)];
+            if (level < 0 || level > d.maximumLevel || (level > 0 && !metaShopAvailable(progression, d.upgrade))) return false;
+            levels[std::string(d.id)] = level;
+        }
+        if (progression.silverRewardRemainder < 0 || progression.silverRewardRemainder >= 100) return false;
         const nlohmann::json root{
-            {"version", 3},
+            {"version", 4},
+            {"shop", {{"version", 1}, {"levels", levels}, {"silverRemainder", progression.silverRewardRemainder}}},
             {"silver", std::max(0, progression.silver)},
             {"runsPlayed", std::max(0, progression.runsPlayed)},
             {"stageClears", std::max(0, progression.stageClears)},

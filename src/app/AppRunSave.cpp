@@ -629,6 +629,15 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"generation", saved.runUpgradeOfferGeneration},
         }},
         {"progression", {
+            {"metaBonuses", {
+                {"luck", saved.metaBonuses.luck},
+                {"defenseDamage", saved.metaBonuses.defenseDamage},
+                {"defenseFireRate", saved.metaBonuses.defenseFireRate},
+                {"buildingHealth", saved.metaBonuses.buildingHealth},
+                {"productionSpeed", saved.metaBonuses.productionSpeed},
+                {"resourceYield", saved.metaBonuses.resourceYield},
+                {"rerolls", saved.metaBonuses.rerolls},
+            }},
             {"insight", insightJson(saved.insight)},
             {"objectives", objectivesJson(saved.objectives)},
         }},
@@ -768,6 +777,18 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.runUpgradeOfferGeneration =
         upgradeOffer.at("generation").get<std::uint32_t>();
     const Json& progression = document.at("progression");
+    if (progression.contains("metaBonuses")) {
+        const auto& meta = progression.at("metaBonuses");
+        saved.metaBonuses = {
+            .luck = meta.at("luck").get<double>(),
+            .defenseDamage = meta.at("defenseDamage").get<double>(),
+            .defenseFireRate = meta.at("defenseFireRate").get<double>(),
+            .buildingHealth = meta.at("buildingHealth").get<double>(),
+            .productionSpeed = meta.at("productionSpeed").get<double>(),
+            .resourceYield = meta.at("resourceYield").get<double>(),
+            .rerolls = meta.at("rerolls").get<int>(),
+        };
+    }
     saved.insight = readInsight(progression.at("insight"));
     saved.objectives = readObjectives(progression.at("objectives"));
     const Json& statistics = document.at("statistics");

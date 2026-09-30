@@ -47,6 +47,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
     }
     SuspendedRunState saved{
         .playerClass = playerClass_,
+        .metaBonuses = activeMetaBonuses_,
         .terrainSeed = terrain_.seed(),
         .resumeState = activeState,
         .tick = tick_,
@@ -159,6 +160,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
 
 bool Simulation::loadSuspendedRunState(
     const SuspendedRunState& saved) {
+    if (!validMetaRunBonuses(saved.metaBonuses)) return false;
     const auto invalidMultiplier = [](double value) {
         return !std::isfinite(value) || value <= 0.0 || value > 1000.0;
     };
@@ -343,6 +345,7 @@ bool Simulation::loadSuspendedRunState(
         !objectiveValidation.loadState(saved.objectives)) {
         return false;
     }
+    static_cast<void>(configureNextRunBonuses(saved.metaBonuses));
     startRunFromSeed(saved.playerClass, saved.terrainSeed);
     const auto failLoad = [this]() {
         enemies_.reset();

@@ -125,7 +125,7 @@ const std::vector<Entry>& catalog() {
             result.push_back({"item:" + std::to_string(i), UnlockCategory::Items, static_cast<int>(i),
                 lootUpgradeName(effect), lootUpgradeDescription(effect), {}, {}});
         }
-        result.push_back({"meta.refresh", UnlockCategory::Meta, 0, "CARD REFRESH", "Complete 10 quests", {}, "meta.refresh"});
+        result.push_back({"meta.refresh", UnlockCategory::Meta, 0, "CARD REFRESH", "Start each run with one free card reroll.", {}, "meta.refresh"});
         result.push_back({"meta.skip", UnlockCategory::Meta, 1, "CARD SKIP", "Complete 20 quests", {}, "meta.skip"});
         result.push_back({"meta.banish", UnlockCategory::Meta, 2, "CARD BANISH", "Complete 30 quests", {}, "meta.banish"});
         return result;
@@ -395,10 +395,10 @@ UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, Met
             const auto source = e.category == UnlockCategory::Buildings ? "Unlocked in runs through Core upgrades and blueprints."
                 : e.category == UnlockCategory::Weapons ? "Available through run progression and class loadouts."
                 : e.category == UnlockCategory::Upgrades ? "Available when choosing a level-up upgrade."
-                : e.category == UnlockCategory::Items ? "Available from chests and crate drops." : "Saved unlock; its run effects will be added later.";
+                : e.category == UnlockCategory::Items ? "Available from chests and crate drops." : e.unlockId == "meta.refresh" ? "Applies from your next run." : "Saved unlock; its run effects will be added later.";
             text(source, l.rect(410, 887, 970, 36), 15 * l.scale, Muted);
         }
-        if (e.category == UnlockCategory::Meta) text("Run effects coming later", l.rect(410, 933, 970, 20), 12 * l.scale, Muted);
+        if (e.category == UnlockCategory::Meta && e.unlockId != "meta.refresh") text("Run effects coming later", l.rect(410, 933, 970, 20), 12 * l.scale, Muted);
         if (a.owned) {
             text("UNLOCKED", l.rect(1415, 841, 230, 40), 20 * l.scale, Green, UiFontRole::BodyBold, 1);
         } else if (a.eligible && a.price > 0) {

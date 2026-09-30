@@ -505,6 +505,7 @@ void App::processInput() {
         pendingStartFromUi_ = false;
         classSelectionVisible_ = false;
         classCollectionOnly_ = false;
+        static_cast<void>(simulation_.configureNextRunBonuses(metaRunBonuses(metaProgression_)));
         if (sandboxClassSelection_) {
             simulation_.startSandboxRun(selectedPlayerClass_);
         } else {
@@ -546,6 +547,7 @@ void App::processInput() {
               userSettings_.controls,
               ControlAction::Restart)))) {
         automaticRunRestartPending_ = false;
+        static_cast<void>(simulation_.configureNextRunBonuses(metaRunBonuses(metaProgression_)));
         simulation_.restartRun();
         const auto restartedSnapshot = simulation_.snapshot();
         discardSuspendedRun();

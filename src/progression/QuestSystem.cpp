@@ -232,10 +232,9 @@ QuestClaimResult QuestSystem::claimReward(MetaProgression& progression, std::str
     initialize(progression);
     auto& progress = progression.quests.progress.at(found->id);
     if (!progress.completed || progress.rewardClaimed) return {};
-    const int balance = std::max(0, progression.silver);
-    progression.silver = saturatingAdd(balance, found->reward.silver);
+    const int granted = creditMetaSilver(progression, found->reward.silver);
     progress.rewardClaimed = true;
-    return {.claimed = true, .silverGranted = progression.silver - balance};
+    return {.claimed = true, .silverGranted = granted};
 }
 
 QuestPurchaseResult QuestSystem::purchaseUnlock(MetaProgression& progression, std::string_view unlockId) const {

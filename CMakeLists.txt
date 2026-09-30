@@ -85,6 +85,7 @@ target_link_libraries(ian_assets PRIVATE
 add_library(ian_progression
     src/progression/InsightSystem.cpp
     src/progression/MetaProgression.cpp
+    src/progression/MetaShop.cpp
     src/progression/QuestSystem.cpp
     src/progression/QuestCatalog.cpp
     src/progression/ObjectiveSystem.cpp
@@ -221,6 +222,7 @@ add_library(ian_ui
     src/ui/GameUi.cpp
     src/ui/QuestMenu.cpp
     src/ui/UnlockMenu.cpp
+    src/ui/ShopMenu.cpp
     src/ui/HudBuildingContextCard.cpp
     src/ui/HudHotbar.cpp
     src/ui/HudRenderer.cpp
@@ -454,6 +456,19 @@ if(BUILD_TESTING)
     set_tests_properties(ian_quest_menu_smoke PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
+    add_executable(ian_meta_shop_tests tests/MetaShopTests.cpp)
+    target_link_libraries(ian_meta_shop_tests PRIVATE ian_simulation ian_progression nlohmann_json::nlohmann_json)
+    ian_set_warnings(ian_meta_shop_tests)
+    add_test(NAME ian_meta_shop_tests COMMAND ian_meta_shop_tests)
+    set_tests_properties(ian_meta_shop_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+    add_executable(ian_shop_menu_smoke tests/ShopMenuSmokeTests.cpp)
+    target_link_libraries(ian_shop_menu_smoke PRIVATE ian_ui)
+    target_include_directories(ian_shop_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_shop_menu_smoke)
+    add_test(NAME ian_shop_menu_smoke COMMAND ian_shop_menu_smoke)
+    set_tests_properties(ian_shop_menu_smoke PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     add_executable(ian_unlock_menu_smoke tests/UnlockMenuSmokeTests.cpp)
     target_link_libraries(ian_unlock_menu_smoke PRIVATE ian_ui)
     target_include_directories(ian_unlock_menu_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
@@ -463,7 +478,7 @@ if(BUILD_TESTING)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         SKIP_RETURN_CODE 77 TIMEOUT 45 LABELS "graphics;ui;integration")
     if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
-        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke)
+        foreach(target ian_ui_text_sdf_smoke ian_run_upgrade_ui_smoke ian_quest_menu_smoke ian_unlock_menu_smoke ian_shop_menu_smoke ian_meta_shop_tests)
             target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=address,undefined)
         endforeach()

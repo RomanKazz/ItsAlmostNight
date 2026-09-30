@@ -33,9 +33,10 @@ Other existing content is displayed as available in the collection, with its
 run acquisition route explained. This screen introduces no new gameplay gates
 or changes to chest/card drop pools.
 
-`meta.refresh`, `meta.skip`, and `meta.banish` currently persist ownership only;
-card behavior for these permanent unlocks has not been implemented. The UI
-states this limitation next to these entries. Class portraits and some item
+`meta.refresh` grants one free card reroll at the start of each new run and
+unlocks additional reroll purchases in SHOP. `meta.skip` and `meta.banish`
+currently persist ownership only; their card behavior has not been implemented.
+The UI states this limitation next to these entries. Class portraits and some item
 art are represented by emblems until dedicated collection art is available.
 
 ## Verification

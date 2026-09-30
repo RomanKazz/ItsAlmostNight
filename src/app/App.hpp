@@ -16,6 +16,7 @@
 #include "ui/GameUi.hpp"
 #include "ui/QuestMenu.hpp"
 #include "ui/UnlockMenu.hpp"
+#include "ui/ShopMenu.hpp"
 #include "ui/HudRenderer.hpp"
 #include "ui/InteractionPrompt.hpp"
 #include "ui/TargetHealthBar.hpp"
@@ -350,6 +351,7 @@ class App {
     MainMenuPage mainMenuPage_{MainMenuPage::None};
     QuestMenuState questMenuState_;
     UnlockMenuState unlockMenuState_;
+    ShopMenuState shopMenuState_;
     PlayerClass selectedPlayerClass_{PlayerClass::Vanguard};
     bool pendingResumeFromUi_{};
     bool pendingRestartFromUi_{};

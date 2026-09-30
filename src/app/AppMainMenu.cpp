@@ -305,6 +305,28 @@ void App::drawMainMenu(const SimulationSnapshot&) {
         return;
     }
 
+    if (mainMenuPage_ == MainMenuPage::Shop) {
+        const ShopMenuInput input{
+            .pointer = GetMousePosition(),
+            .click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+            .confirm = IsKeyPressed(KEY_ENTER),
+            .selectionStep = IsKeyPressed(KEY_RIGHT) ? 1 : IsKeyPressed(KEY_LEFT) ? -1
+                : IsKeyPressed(KEY_DOWN) ? 5 : IsKeyPressed(KEY_UP) ? -5 : 0,
+        };
+        const auto result = drawShopMenu(ui_, metaProgression_, shopMenuState_,
+            {static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())}, input);
+        if (result.purchase) persistMetaProgression();
+        if (result.close) mainMenuPage_ = MainMenuPage::None;
+        if (result.openUnlocks) {
+            unlockMenuState_ = {};
+            unlockMenuState_.category = UnlockCategory::Meta;
+            unlockMenuState_.selectedId = "meta.refresh";
+            mainMenuPage_ = MainMenuPage::Unlocks;
+        }
+        if (result.interaction || result.close) audio_.playUiConfirm();
+        return;
+    }
+
     if (mainMenuPage_ == MainMenuPage::Unlocks) {
         const bool reverseTab = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
         const UnlockMenuInput input{
@@ -574,6 +596,11 @@ void App::drawMainMenu(const SimulationSnapshot&) {
     menuButtonY += 84.0F;
     if (ui_.drawButton(layout.rect(775.0F, menuButtonY, 370.0F, 70.0F), "QUESTS")) {
         mainMenuPage_ = MainMenuPage::Quests;
+        audio_.playUiConfirm();
+    }
+    menuButtonY += 84.0F;
+    if (ui_.drawButton(layout.rect(775.0F, menuButtonY, 370.0F, 70.0F), "SHOP")) {
+        mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
     }
     if (ui_.drawButton(
