@@ -15,6 +15,15 @@ inline Vec3 platformFrameCenter(
     };
 }
 
+// Foundation previews consume a lower-corner target, while the camera aims
+// at the visible center of the 2x2 frame, just like a large building.
+inline Vec3 foundationPlacementHit(Vec3 aimHit, double cellSize) {
+    const double halfWidth = PlatformFrameWidthCells * 0.5 * cellSize;
+    aimHit.x -= halfWidth;
+    aimHit.z -= halfWidth;
+    return aimHit;
+}
+
 inline Vec3 wallCenter(
     const WallInstance& wall, double cellSize) {
     return {

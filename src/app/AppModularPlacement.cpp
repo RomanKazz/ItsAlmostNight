@@ -853,6 +853,10 @@ void App::updateModularPlacementPreview(
             terrainRayDistance);
     }
 
+    if (rawHit && modularBuildPiece_ == ModularBuildPiece::Foundation) {
+        rawHit = foundationPlacementHit(*rawHit, cellSize);
+    }
+
     if (rawHit &&
         isPlatformBuildPiece(
             modularBuildPiece_) &&
@@ -1317,6 +1321,11 @@ void App::updateModularPlacementPreview(
     if (chosenValid) {
         modularSnapHit_ = chosenHit;
         modularSnapMarker_ = chosenHit;
+        if (modularBuildPiece_ == ModularBuildPiece::Foundation) {
+            const double halfWidth = PlatformFrameWidthCells * 0.5 * cellSize;
+            modularSnapMarker_->x += halfWidth;
+            modularSnapMarker_->z += halfWidth;
+        }
     } else {
         modularSnapHit_.reset();
         modularSnapMarker_.reset();
@@ -1475,10 +1484,13 @@ void App::beginModularPlacementDrag() {
     modularDragOrigin_ = foundationTerrainHit_;
     if (modularDragPlaneHeight_ &&
         modularDragStorey_ && *modularDragStorey_ > 0) {
+        const double cellSize = simulation_.terrain().config().cellSize;
         modularDragOrigin_ = modularDragReferencePoint(
             *modularDragStart_, modularBuildPiece_,
-            *modularDragPlaneHeight_,
-            simulation_.terrain().config().cellSize);
+            *modularDragPlaneHeight_, cellSize);
+        if (modularBuildPiece_ == ModularBuildPiece::Foundation) {
+            modularDragOrigin_ = foundationPlacementHit(*modularDragOrigin_, cellSize);
+        }
     } else if (modularDragPlaneHeight_) {
         const auto& snapshot = simulation_.snapshot();
         const double cosPitch =
@@ -1491,7 +1503,9 @@ void App::beginModularPlacementDrag() {
         if (const auto planeAim = rampSocketAimOnFloor(
                 snapshot.playerPosition, lookDirection,
                 *modularDragPlaneHeight_)) {
-            modularDragOrigin_ = *planeAim;
+            modularDragOrigin_ = modularBuildPiece_ == ModularBuildPiece::Foundation
+                ? foundationPlacementHit(*planeAim, simulation_.terrain().config().cellSize)
+                : *planeAim;
         }
     }
     modularDragPiece_ = modularBuildPiece_;

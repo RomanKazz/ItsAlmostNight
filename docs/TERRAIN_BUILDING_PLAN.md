@@ -35,7 +35,9 @@ at cell midpoints. Compact buildings retain cell-centered placement. Automatic
 foundation previews derive their lower corner from the building footprint. Manual
 foundation aim snaps to the nearest anchor at cell midpoints; valid foundation
 previews bypass the valid-cell magnet and hysteresis. Dragging uses the same
-thresholds. Exact midpoint ties retain the lower anchor.
+thresholds. Exact midpoint ties retain the lower anchor. The standalone tool
+converts camera hits at the frame center to lower-corner targets before preview
+and drag snapping, matching the center used by large buildings.
 
 Each frame owns its floor, four terrain- or floor-reaching supports and
 perimeter beams. Frames above ground depend directly on the frame below.
