@@ -485,17 +485,9 @@ GridPosition aimedBuildingGridPosition(
     const double aimedZ =
         playerPosition.z - std::cos(yaw) * distance;
     if (buildingFootprintHalfExtent(type) == 1.0) {
-        const auto snapAxis =
-            [](double coordinate) {
-                const int cell =
-                    static_cast<int>(
-                        std::floor(coordinate));
-                return snapPlatformFrameAxis(cell) +
-                       PlatformFrameWidthCells / 2;
-            };
         return {
-            snapAxis(aimedX),
-            snapAxis(aimedZ),
+            static_cast<int>(std::round(aimedX)),
+            static_cast<int>(std::round(aimedZ)),
         };
     }
     return {

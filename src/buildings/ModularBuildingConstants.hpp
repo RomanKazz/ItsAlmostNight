@@ -36,6 +36,8 @@ modularBuildHotbarIndex(ModularBuildPiece piece) {
     return std::nullopt;
 }
 inline constexpr int PlatformFrameWidthCells = 2;
+// Placement advances one cell even when a piece occupies several cells.
+inline constexpr int PlacementGridStepCells = 1;
 inline constexpr int ModularStoreyHeightCells = 4;
 inline constexpr int ModularRampWidthCells = 2;
 inline constexpr int ModularRampRunCells = 4;
@@ -58,11 +60,11 @@ inline constexpr double ModularRampMaxHealth = 260.0;
 [[nodiscard]] inline int snapPlatformFrameAxis(
     int cell) {
     const int quotient =
-        cell / PlatformFrameWidthCells;
+        cell / PlacementGridStepCells;
     const int remainder =
-        cell % PlatformFrameWidthCells;
+        cell % PlacementGridStepCells;
     return (remainder < 0 ? quotient - 1 : quotient) *
-           PlatformFrameWidthCells;
+           PlacementGridStepCells;
 }
 
 [[nodiscard]] inline double modularStoreyHeight(

@@ -11,6 +11,8 @@ namespace {
 constexpr double MaxMovementStep = 0.15;
 constexpr double WallColliderWidth = 0.20;
 constexpr double WallJumpClearanceEyeHeight = 2.15;
+constexpr double FenceTopHeight = 0.50;
+constexpr double PlayerEyeOffset = 1.70;
 
 std::vector<CollisionBox> defaultStaticColliders() {
     return {
@@ -58,7 +60,7 @@ void appendWallColliders(
         colliders.push_back({
             minimumX, maximumX, minimumZ, maximumZ,
             wall.baseHeight +
-                WallJumpClearanceEyeHeight,
+                FenceTopHeight + PlayerEyeOffset,
             wall.baseHeight,
         });
     };
@@ -438,8 +440,24 @@ void CollisionWorld::syncBuildings(const std::vector<BuildingInstance>& building
             continue;
         }
         if (building.type == BuildingType::Wall) {
+            const std::size_t firstCollider = buildingColliders_.size();
             appendWallColliders(
                 buildingColliders_, building, buildings);
+            // Use the same thin segments for landing and side collisions,
+            // including corners and junctions. The fence model is 0.5m tall.
+            for (std::size_t index = firstCollider;
+                 index < buildingColliders_.size(); ++index) {
+                const CollisionBox& box = buildingColliders_[index];
+                buildingSurfaces_.push_back({
+                    .minX = box.minX,
+                    .maxX = box.maxX,
+                    .minZ = box.minZ,
+                    .maxZ = box.maxZ,
+                    .bottomHeight = building.baseHeight,
+                    .topHeight = building.baseHeight + FenceTopHeight,
+                    .kind = SurfaceKind::Flat,
+                });
+            }
         } else {
             buildingColliders_.push_back(
                 buildingCollisionBox(
@@ -530,7 +548,6 @@ void CollisionWorld::syncModularBuildings(
             frame.anchor, frame.floorHeight);
     }
     constexpr double WallThickness = 0.14;
-    constexpr double PlayerEyeOffset = 1.7;
     for (const WallInstance& wall : buildings.walls) {
         const bool alongX =
             wall.rotation == Rotation::Deg0 ||

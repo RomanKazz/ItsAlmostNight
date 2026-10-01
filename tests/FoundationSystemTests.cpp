@@ -381,7 +381,7 @@ void runFoundationSystemTests() {
                 ian::GridCoord{0, first->anchor.yLevel, 0} &&
             neighbour->anchor.x == 2 &&
             frames.platformFrames().size() == 2,
-        "only 2x2 PlatformFrames place on frame grid");
+        "2x2 PlatformFrames retain their footprint on the one-cell placement grid");
     const auto occupiedFoundation =
         frames.previewFoundation(
             {0.2, 0.0, 0.2}, player);
@@ -814,9 +814,10 @@ void runFoundationSystemTests() {
             {2.2, 0.0, 0.2}, player,
             ian::Rotation::Deg180);
     require(
-        rampSnapA.anchor == rampSnapB.anchor &&
-            rampSnapA.anchor != rampSnapC.anchor,
-        "ramp anchor snaps in two-cell platform steps");
+        rampSnapB.anchor.x == rampSnapA.anchor.x + 1 &&
+            rampSnapB.anchor.z == rampSnapA.anchor.z + 1 &&
+            rampSnapC.anchor.x == rampSnapA.anchor.x + 2,
+        "ramp anchor advances in one-cell placement steps");
     require(
         rampPreview.anchor.x == 0 &&
             rampPreview.anchor.z ==
@@ -947,21 +948,20 @@ void runFoundationSystemTests() {
         ian::rampSupportAnchorAtAim(
             {1.0, 2.0, 0.99},
             {0.0, -0.4, 1.0}, 1.0) ==
-                ian::GridCoord{0, 0, -2} &&
+                ian::GridCoord{1, 0, -1} &&
             ian::rampSupportAnchorAtAim(
                 {1.0, 2.0, 1.01},
                 {0.0, -0.4, 1.0}, 1.0) ==
-                ian::GridCoord{0, 0, 0} &&
+                ian::GridCoord{1, 0, 0} &&
             ian::rampSupportAnchorAtAim(
                 {1.0, 2.0, 3.01},
                 {0.0, -0.4, 1.0}, 1.0) ==
-                ian::GridCoord{0, 0, 2} &&
+                ian::GridCoord{1, 0, 2} &&
             ian::rampSupportAnchorAtAim(
                 {1.01, 2.0, 1.0},
                 {-1.0, -0.4, 0.0}, 1.0) ==
-                ian::GridCoord{2, 0, 0},
-        "ramp support selection switches at platform"
-        " half-way boundaries one platform closer");
+                ian::GridCoord{2, 0, 1},
+        "ramp support selection uses one-cell boundaries with a half-platform view offset");
     require(
         ian::rampTopPlatformAnchor(
             {0, 0, 0}, ian::Rotation::Deg0) ==

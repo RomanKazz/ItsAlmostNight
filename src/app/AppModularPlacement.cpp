@@ -1011,14 +1011,14 @@ void App::updateModularPlacementPreview(
                 lookDirection, cellSize);
             if (edge) {
                 const Vec3 targetHit{
-                    (edge->extensionAnchor.x + 1.0) *
+                    (edge->extensionAnchor.x + 0.5) *
                         cellSize,
                     terrain.getHeight(
-                        (edge->extensionAnchor.x + 1.0) *
+                        (edge->extensionAnchor.x + 0.5) *
                             cellSize,
-                        (edge->extensionAnchor.z + 1.0) *
+                        (edge->extensionAnchor.z + 0.5) *
                             cellSize),
-                    (edge->extensionAnchor.z + 1.0) *
+                    (edge->extensionAnchor.z + 0.5) *
                         cellSize,
                 };
                 modularEdgeHoverFrame_ = frame->id;

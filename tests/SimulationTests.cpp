@@ -2391,6 +2391,45 @@ void runSimulationTests() {
         ian::WorldConfig world =
             ian::WorldConfig::defaults();
         world.terrainAmplitude = 0.0;
+        {
+            auto fenceMap = map;
+            fenceMap.playerSpawn = {3.5, 0.0, 1.7};
+            auto fenceWorld = world;
+            fenceWorld.terrainSurfaceNoiseAmplitude = 0.0;
+            fenceWorld.pondMinimumCount = 0;
+            fenceWorld.pondMaximumCount = 0;
+            auto fenceJump = std::make_unique<ian::Simulation>(
+                ian::GameBalance::defaults(), fenceMap, fenceWorld);
+            fenceJump->startRun();
+            ian::PlayerCommand setup;
+            setup.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+            setup.placeBuilding = ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Core, .gridPosition = {0, 0}};
+            fenceJump->tick(1.0 / 60.0, setup);
+            setup = {};
+            setup.placeBuilding = ian::PlaceBuildingCommand{
+                .type = ian::BuildingType::Wall, .gridPosition = {3, 0}};
+            fenceJump->tick(1.0 / 60.0, setup);
+            resolveLevelUps(*fenceJump);
+            const auto beforeJump = fenceJump->snapshot();
+            const auto fence = std::ranges::find(beforeJump.buildings,
+                ian::BuildingType::Wall, &ian::BuildingInstance::type);
+            require(fence != beforeJump.buildings.end(), "jump fixture places a fence");
+            const double fenceTop = fence->baseHeight + 0.5;
+            bool landed = false;
+            for (int tick = 0; tick < 100; ++tick) {
+                ian::PlayerCommand movement;
+                movement.jump = tick == 0;
+                movement.moveForward = fenceJump->snapshot().playerPosition.z > 0.6 ? 0.4 : 0.0;
+                fenceJump->tick(1.0 / 60.0, movement);
+                const auto after = fenceJump->snapshot();
+                landed = landed || (tick > 5 && after.playerGrounded &&
+                    std::abs(after.playerPosition.y - 1.7 - fenceTop) < 1e-6);
+            }
+            require(landed, "normal jump lands on the fence through full player movement");
+            requireNear(fenceJump->snapshot().playerPosition.y, fenceTop + 1.7, 1e-6,
+                        "player remains standing on fence after the jump");
+        }
         ian::Simulation autoJumpSimulation{
             ian::GameBalance::defaults(),
             map, world};

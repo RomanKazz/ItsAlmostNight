@@ -746,9 +746,9 @@ Simulation::previewRampWithFoundation(
     secondAnchor.z += static_cast<int>(std::lround(
         outward.z * PlatformFrameWidthCells));
     const Vec3 secondHit{
-        (secondAnchor.x + 1.0) * cellSize,
+        (secondAnchor.x + 0.5) * cellSize,
         result.foundations[0].floorHeight,
-        (secondAnchor.z + 1.0) * cellSize,
+        (secondAnchor.z + 0.5) * cellSize,
     };
     result.foundations[1] = previewFoundationAtHeight(
         secondHit, result.foundations[0].floorHeight);

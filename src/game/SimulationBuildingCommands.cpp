@@ -79,7 +79,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                           aimedPlatformSurface->z -
                               playerPosition_.z))
                 : 0.0;
-        const GridPosition gridPosition =
+        GridPosition gridPosition =
             aimedBuildingGridPosition(
                 playerPosition_, playerYaw_,
                 playerPitch_,
@@ -111,6 +111,29 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 : placementSurface(
                       *selectedBuilding_,
                       gridPosition);
+        if (aimedPlatformSurface && surface.storey < 0) {
+            // At a deck edge, keep the complete footprint on the aimed
+            // surface instead of snapping its center outside the support.
+            double bestDistance = std::numeric_limits<double>::infinity();
+            const GridPosition aimedGrid = gridPosition;
+            for (int z = -1; z <= 1; ++z) {
+                for (int x = -1; x <= 1; ++x) {
+                    const GridPosition candidate{aimedGrid.x + x, aimedGrid.z + z};
+                    const auto supported = placementSurfaceWithPreferredHeight(
+                        *selectedBuilding_, candidate, *preferredSurfaceHeight);
+                    if (supported.storey < 0 ||
+                        std::abs(supported.height - *preferredSurfaceHeight) > 1e-6) continue;
+                    const Vec3 center = buildingWorldPosition(*selectedBuilding_, candidate);
+                    const double distance = std::hypot(center.x - aimedPlatformSurface->x,
+                                                       center.z - aimedPlatformSurface->z);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        gridPosition = candidate;
+                        surface = supported;
+                    }
+                }
+            }
+        }
         const bool needsAutomaticFoundation = surface.storey < 0;
         const auto automaticFoundation =
             needsAutomaticFoundation

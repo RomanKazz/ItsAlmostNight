@@ -120,7 +120,7 @@ FoundationSystem::previewAutomaticBuildingFoundation(
         validator.stableGroundPlatformHeight(
             anchor, heightStep);
     const double neighbourSnapTolerance = std::max(
-        heightStep * 2.0,
+        heightStep,
         grid_.config().terrainSurfaceNoiseAmplitude * 2.0 +
             heightStep);
     return previewGroundPlatformAtAnchor(
@@ -237,7 +237,7 @@ FoundationSystem::previewFloorPlatform(
     Vec3 playerPosition) const {
     // Automatic foundations follow the building's exact footprint and may
     // therefore use an odd anchor. Preserve it when stacking on a real frame;
-    // only free/manual placement is snapped to the modular two-cell grid.
+    // free/manual placement uses the same one-cell placement step.
     if (storey <= 0 || !frameAt(anchor, storey - 1)) {
         anchor.x = snapPlatformFrameAxis(anchor.x);
         anchor.z = snapPlatformFrameAxis(anchor.z);

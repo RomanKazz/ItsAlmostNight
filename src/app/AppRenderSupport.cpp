@@ -1130,14 +1130,12 @@ automaticBuildingFoundation(
     }
     const Vec3 worldCenter =
         buildingWorldPosition(type, position);
-    const int anchorX =
-        snapPlatformFrameAxis(
-            static_cast<int>(std::floor(
-                worldCenter.x / cellSize)));
-    const int anchorZ =
-        snapPlatformFrameAxis(
-            static_cast<int>(std::floor(
-                worldCenter.z / cellSize)));
+    const double halfExtent = buildingFootprintHalfExtent(type);
+    // Foundation anchors describe the lower corner, not the building center.
+    const int anchorX = static_cast<int>(std::floor(
+        (worldCenter.x - halfExtent) / cellSize));
+    const int anchorZ = static_cast<int>(std::floor(
+        (worldCenter.z - halfExtent) / cellSize));
     const double minimumX =
         anchorX * cellSize;
     const double maximumX =

@@ -2,6 +2,8 @@
 #include "buildings/PlacementValidator.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <limits>
 
 void runPlacementValidatorTests() {
@@ -30,7 +32,14 @@ void runPlacementValidatorTests() {
             frame.anchor.x == 4 &&
             frame.anchor.z == 4 &&
             frame.storey == 0,
-        "ground PlatformFrame snaps to the 2x2 frame grid");
+        "ground PlatformFrame uses the one-cell placement grid");
+
+    for (const auto point : std::array<ian::Vec3, 2>{{{5.2, 0.0, 3.2}, {-3.2, 0.0, -1.2}}}) {
+        const auto shifted = validator.validateGroundPlatformFrame(point, player);
+        require(shifted.valid() && shifted.anchor.x == static_cast<int>(std::floor(point.x)) &&
+                    shifted.anchor.z == static_cast<int>(std::floor(point.z)),
+                "manual foundations accept odd and negative one-cell anchors");
+    }
 
     ian::WorldConfig noisyFlatConfig = config;
     noisyFlatConfig.terrainAmplitude = 0.0;

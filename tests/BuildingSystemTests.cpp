@@ -582,16 +582,16 @@ void runBuildingSystemTests() {
     const ian::Vec3 player{0.0, 1.7, 6.0};
     const auto closeAim =
         ian::aimedBuildingGridPosition(player, 0.0, -std::numbers::pi / 4.0);
-    require(closeAim == ian::GridPosition{1, 5},
-            "two-cell building snaps to PlatformFrame center");
+    require(closeAim == ian::GridPosition{0, 4},
+            "large building snaps to the nearest one-cell intersection");
     const auto farAim = ian::aimedBuildingGridPosition(player, 0.0, -0.01);
-    require(farAim == ian::GridPosition{1, -3},
+    require(farAim == ian::GridPosition{0, -4},
             "shallow aim clamps placement to maximum distance");
     const auto rightAim = ian::aimedBuildingGridPosition(
         player, std::numbers::pi / 2.0, -std::numbers::pi / 4.0);
     require(
-        rightAim == ian::GridPosition{1, 7},
-        "yaw keeps two-cell placement on PlatformFrame lattice");
+        rightAim == ian::GridPosition{2, 6},
+        "yaw places large buildings on the one-cell lattice");
     const auto wallAim = ian::aimedBuildingGridPosition(
         player, std::numbers::pi / 2.0,
         -std::numbers::pi / 4.0,
@@ -618,10 +618,8 @@ void runBuildingSystemTests() {
     const ian::Vec3 coreCenter = ian::buildingWorldPosition(
         ian::BuildingType::Core, rightAim);
     require(
-        coreCenter.x == 1.0 && coreCenter.z == 7.0 &&
-            (rightAim.x - 1) % 2 == 0 &&
-            (rightAim.z - 1) % 2 == 0,
-        "two-cell core center matches an even PlatformFrame anchor");
+        coreCenter.x == 2.0 && coreCenter.z == 6.0,
+        "large building centers may use either parity without changing footprint");
     require(
         ian::buildingFootprintHalfExtent(
             ian::BuildingType::CrystalMine) == 0.5 &&
@@ -640,6 +638,27 @@ void runBuildingSystemTests() {
     require(
         turretCenter.x == 2.0 && turretCenter.z == 6.0,
         "two-cell combat building remains centered on grid intersection");
+
+    for (std::size_t index = 0; index < ian::GameBalance::BuildingTypeCount; ++index) {
+        const auto type = static_cast<ian::BuildingType>(index);
+        const auto first = ian::aimedBuildingGridPosition(
+            {0.2, 1.7, 0.2}, 0.0, 0.0, 1.0, 1.0, type);
+        const auto adjacent = ian::aimedBuildingGridPosition(
+            {1.2, 1.7, 0.2}, 0.0, 0.0, 1.0, 1.0, type);
+        const auto negative = ian::aimedBuildingGridPosition(
+            {-0.8, 1.7, 0.2}, 0.0, 0.0, 1.0, 1.0, type);
+        require(adjacent.x == first.x + 1 && negative.x == first.x - 1,
+                "every building advances exactly one cell including negative coordinates");
+        if (ian::buildingFootprintHalfExtent(type) == 1.0) {
+            const auto snapAt = [type](double x) {
+                return ian::aimedBuildingGridPosition(
+                    {x, 1.7, 0.0}, 0.0, 0.0, 1.0, 1.0, type).x;
+            };
+            require(snapAt(0.49) == 0 && snapAt(0.51) == 1 &&
+                        snapAt(-0.49) == 0 && snapAt(-0.51) == -1,
+                    "large building snapping changes at cell midpoints in both directions");
+        }
+    }
 
     std::vector<ian::BuildingInstance> wallModules{
         {.id = {5000, 1}, .type = ian::BuildingType::Wall, .gridPosition = {0, 0}},

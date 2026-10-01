@@ -173,6 +173,33 @@ void runCollisionWorldTests() {
                              ian::CollisionWorld::PlayerRadius);
     require(jumpedOverWall.z < 0.0,
             "jumping player can cross wall");
+    requireNear(collision.playerSupportHeight(3.5, 0.5, 0.35, 0.6).value_or(-1.0),
+                0.5, 1e-9, "fence top supports a player after jumping");
+    require(!collision.playerSupportHeight(3.5, 0.5, 0.35, 0.4),
+            "fence cannot catch a player below its top");
+    const auto fenceLanding = collision.sweptPlayerLanding(
+        {3.5, 2.6, 0.5}, {3.5, 1.8, 0.5}, 0.35, 0.9, 0.1);
+    require(fenceLanding.has_value(), "descending jump lands on thin fence");
+    requireNear(fenceLanding->surfaceHeight, 0.5, 1e-9,
+                "fence landing matches the model height");
+    const auto walkAlongFence = collision.moveCircle(
+        {3.5, 2.2, 0.5}, {0.2, 0.0, 0.0}, 0.35, 0.5);
+    requireNear(walkAlongFence.x, 3.7, 1e-9,
+                "standing on fence can move along its top");
+    ian::CollisionWorld junction{48.0, {}};
+    junction.syncBuildings({
+        {.id = {1000, 1}, .type = ian::BuildingType::Wall,
+         .gridPosition = {0, 0}, .baseHeight = 3.0, .foundationBottomHeight = 3.0},
+        {.id = {1001, 1}, .type = ian::BuildingType::Wall,
+         .gridPosition = {1, 0}, .baseHeight = 3.0, .foundationBottomHeight = 3.0},
+        {.id = {1002, 1}, .type = ian::BuildingType::Wall,
+         .gridPosition = {0, 1}, .baseHeight = 3.0, .foundationBottomHeight = 3.0},
+    });
+    requireNear(junction.playerSupportHeight(0.9, 0.5, 0.05, 3.6).value_or(-1.0),
+                3.5, 1e-9, "elevated connected fence arm remains walkable");
+    require(!junction.playerSupportHeight(0.9, 0.9, 0.05, 3.6),
+            "fence corner does not add invisible support in its empty quadrant");
+
     const auto escapedWall =
         collision.moveCircle({3.5, 1.7, 0.5}, {0.0, 0.0, 1.5},
                              ian::CollisionWorld::PlayerRadius);

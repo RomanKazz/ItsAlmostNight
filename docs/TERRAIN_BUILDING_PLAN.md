@@ -23,11 +23,16 @@
   entity ownership.
 
 The simulation floor entity is `PlatformFrame`. It always occupies a 2x2
-block whose anchor is aligned to the even frame grid. Placement exposes
+block; its anchor advances on the one-cell placement grid, including odd and
+negative coordinates. Placement exposes
 separate foundation and upper-floor tools: foundations validate terrain at
 storey zero, while floor platforms require an existing supported frame below.
-The one-cell unit remains an internal `BuildGrid` detail for walls, stairs and
-occupancy calculations.
+The one-cell placement step is shared by buildings, platforms, walls and ramps.
+Footprints retain their original size: buildings up to 2x2, platforms 2x2 and
+ramps 2x4. Occupancy prevents overlaps.
+Large buildings snap their centers to the nearest grid intersection, switching
+at cell midpoints. Compact buildings retain cell-centered placement. Automatic
+foundation previews derive their lower corner from the building footprint.
 
 Each frame owns its floor, four terrain- or floor-reaching supports and
 perimeter beams. Frames above ground depend directly on the frame below.
@@ -48,3 +53,7 @@ height is always derived from `4 * cellSize`.
 8. Add serialization DTOs after the runtime representation stabilizes.
 
 Legacy defensive buildings are not removed during these phases.
+
+Fence tops use thin walkable segments matching their side colliders (0.5m above
+the building base), including junctions and elevated fences. Player support and
+swept landing queries use these segments; jumps can land on and move along them.

@@ -260,51 +260,40 @@ Simulation::automaticFoundationPlacement(
         0,
         twoByTwo ? position.z - 1 : position.z,
     };
-    // A 2x2 building is centred on its grid position, so its exact lower
-    // corner can be odd or even. Keep that anchor exact. A 1x1 building uses
-    // the containing modular 2x2 frame so nearby small buildings can share it.
-    if (!twoByTwo) {
-        anchor.x = snapPlatformFrameAxis(anchor.x);
-        anchor.z = snapPlatformFrameAxis(anchor.z);
-    }
-    const double cellSize = worldConfig_.cellSize;
-    const Vec3 terrainHit{
-        (anchor.x + 0.5) * cellSize,
-        terrain_.getHeight(
-            (anchor.x + 0.5) * cellSize,
-            (anchor.z + 0.5) * cellSize),
-        (anchor.z + 0.5) * cellSize,
-    };
-    PlatformFramePlacement placement;
-    const auto previewAtHeight =
-        [this, anchor, terrainHit, twoByTwo](double height) {
-            return twoByTwo
-                ? foundations_
-                      .previewAutomaticBuildingFoundationAtHeight(
-                          anchor, height, playerPosition_)
-                : previewFoundationAtHeight(
-                      terrainHit, height);
-        };
-    if (preferredHeight) {
-        placement = previewAtHeight(*preferredHeight);
-    } else {
-        // Keep nearby construction on one visual plane when the difference
-        // only comes from the terrain surface noise. Real slopes remain on
-        // their own plane once the neighbouring height is outside tolerance.
-        placement = foundations_
-            .previewAutomaticBuildingFoundation(
-                anchor, playerPosition_,
-                GroundPlatformHeightStep);
-    }
-    if (placement.error ==
-            ModularPlacementError::InsufficientResources ||
-        placement.error ==
-            ModularPlacementError::CoreLevelRequired) {
-        // Combined affordability is checked after adding building cost.
-        placement.error = ModularPlacementError::None;
-    }
-    if (!placement.valid() || placement.storey != 0) {
+    // Preserve exact anchors on the one-cell grid. Compact buildings can
+    // choose any of the four 2x2 supports containing their occupied cell.
+    const auto previewAtAnchor = [this, preferredHeight, twoByTwo](GridCoord candidate) {
+        PlatformFramePlacement placement;
+        if (preferredHeight) {
+            if (twoByTwo) {
+                placement = foundations_.previewAutomaticBuildingFoundationAtHeight(
+                    candidate, *preferredHeight, playerPosition_);
+            } else {
+                const double cellSize = worldConfig_.cellSize;
+                placement = previewFoundationAtHeight(
+                    {(candidate.x + 0.5) * cellSize, *preferredHeight,
+                     (candidate.z + 0.5) * cellSize}, *preferredHeight);
+            }
+        } else {
+            placement = foundations_.previewAutomaticBuildingFoundation(
+                candidate, playerPosition_, GroundPlatformHeightStep);
+        }
+        if (placement.error == ModularPlacementError::InsufficientResources ||
+            placement.error == ModularPlacementError::CoreLevelRequired) {
+            // Combined affordability is checked after adding building cost.
+            placement.error = ModularPlacementError::None;
+        }
         return placement;
+    };
+    const auto placement = previewAtAnchor(anchor);
+    if (placement.valid() || twoByTwo) return placement;
+    constexpr std::array<GridCoord, 3> AlternativeAnchors{{
+        {-1, 0, 0}, {0, 0, -1}, {-1, 0, -1},
+    }};
+    for (const auto offset : AlternativeAnchors) {
+        const auto alternative = previewAtAnchor(
+            {anchor.x + offset.x, 0, anchor.z + offset.z});
+        if (alternative.valid()) return alternative;
     }
     return placement;
 }
