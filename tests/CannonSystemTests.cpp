@@ -33,8 +33,14 @@ void runCannonSystemTests() {
     enemies.spawnWave(Cluster);
 
     ian::CannonSystem cannons;
+    cannons.setTypeBonuses(ian::BuildingType::Cannon, 1.3, 1.5);
     cannons.syncBuildings(buildings.buildings());
     cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    requireNear(cannons.projectiles().front().explosionDamage, 3.9, 1e-12,
+        "starting cannon perk scales actual projectile damage");
+    requireNear(cannons.cannons().front().fireCooldownRemaining,
+        ian::CannonSystem::fireInterval(ian::BuildingType::Cannon, 2) / 1.5, 1e-12,
+        "type-specific fire rate scales cannon cooldown");
     const ian::EntityId firstRunProjectile =
         cannons.projectiles().front().id;
     cannons.reset();

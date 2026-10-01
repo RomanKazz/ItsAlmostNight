@@ -411,6 +411,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .totalInsightEarned = insight_.progress().totalInsightEarned,
         .objectives = objectives_.statuses(),
         .recommendedObjectives = recommendedObjectives,
+        .buildingArsenalCount = runBuildingArsenalCount(),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,

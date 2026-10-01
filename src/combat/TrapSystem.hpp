@@ -48,6 +48,7 @@ class TrapSystem {
     [[nodiscard]] static double spikeCooldown(std::uint8_t level);
 
     void reset();
+    void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double radius,
                            double fireRate, double highGroundDamage,
                            double reactiveShockDamage = 0.0);
@@ -62,6 +63,9 @@ class TrapSystem {
     std::vector<TrapRuntime> traps_;
     std::vector<TrapActivation> activationBuffer_;
     std::vector<TrapHit> hitBuffer_;
+    BuildingType bonusType_{BuildingType::Core};
+    double typeDamageMultiplier_{1.0};
+    double typeFireRateMultiplier_{1.0};
     double damageMultiplier_{1.0};
     double radiusMultiplier_{1.0};
     double fireRateMultiplier_{1.0};

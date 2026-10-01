@@ -434,6 +434,7 @@ struct SimulationSnapshot {
     double totalInsightEarned;
     std::span<const ObjectiveStatus> objectives;
     std::array<int, 3> recommendedObjectives;
+    std::size_t buildingArsenalCount{};
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
@@ -456,6 +457,7 @@ struct ProgressionRunState {
 // Fast, safe resume checkpoint. Transient combat state is intentionally not
 // included; loading resumes at the start of a build phase.
 struct SuspendedRunState {
+    int buildingArsenalVersion{};
     PlayerClass playerClass{PlayerClass::None};
     MetaRunBonuses metaBonuses;
     std::uint32_t terrainSeed{};
@@ -700,6 +702,9 @@ class Simulation {
         BuildingType type, GridPosition position,
         std::optional<double> preferredHeight) const;
     [[nodiscard]] bool buildingUnlocked(BuildingType type) const;
+    [[nodiscard]] bool ownsRunBuilding(BuildingType type) const;
+    [[nodiscard]] std::size_t runBuildingArsenalCount() const;
+    [[nodiscard]] bool runUpgradeAvailable(RunUpgradeEffect effect) const;
     [[nodiscard]] bool playerWeaponUnlocked(PlayerWeapon weapon) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,

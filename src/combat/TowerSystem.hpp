@@ -55,6 +55,7 @@ class TowerSystem {
                                            std::uint8_t level);
 
     void reset();
+    void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double range,
                            double fireRate, double highGroundDamage,
                            int extraTargetCount = 0,
@@ -69,6 +70,9 @@ class TowerSystem {
   private:
     std::vector<TowerRuntime> towers_;
     std::vector<TowerShot> shotBuffer_;
+    BuildingType bonusType_{BuildingType::Core};
+    double typeDamageMultiplier_{1.0};
+    double typeFireRateMultiplier_{1.0};
     double damageMultiplier_{1.0};
     double rangeMultiplier_{1.0};
     double fireRateMultiplier_{1.0};

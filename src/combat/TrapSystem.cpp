@@ -47,9 +47,16 @@ double TrapSystem::spikeCooldown(std::uint8_t level) {
 }
 
 void TrapSystem::reset() {
+    setTypeBonuses(BuildingType::Core, 1.0, 1.0);
     traps_.clear();
     activationBuffer_.clear();
     hitBuffer_.clear();
+}
+
+void TrapSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
+    bonusType_ = type;
+    typeDamageMultiplier_ = std::max(0.05, damage);
+    typeFireRateMultiplier_ = std::max(0.05, fireRate);
 }
 
 void TrapSystem::setModifiers(
@@ -116,7 +123,7 @@ std::span<const TrapActivation> TrapSystem::tick(
                 position, spikeTriggerRadius(building->level) *
                     radiusMultiplier_,
                 spikeDamage(building->level) * damageMultiplier_ *
-                    heightBonus);
+                    heightBonus * (building->type == bonusType_ ? typeDamageMultiplier_ : 1.0));
             affectedCount = static_cast<int>(hits.size());
             for (const EnemyDamageResult& hit : hits) {
                 hitBuffer_.push_back({trap.buildingId, hit, building->type});
@@ -126,7 +133,7 @@ std::span<const TrapActivation> TrapSystem::tick(
             }
             trap.activationRemaining = SpikeAnimationDuration;
             trap.cooldownRemaining = spikeCooldown(building->level) /
-                fireRateMultiplier_;
+                (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
         } else {
             const double multiplier =
                 1.0 - slowPercent(building->level) / 100.0;
@@ -139,7 +146,7 @@ std::span<const TrapActivation> TrapSystem::tick(
                 continue;
             }
             trap.cooldownRemaining = cooldown(building->level) /
-                fireRateMultiplier_;
+                (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
         }
         if (reactiveShockDamage_ > 0.0) {
             const double heightBonus = building->platformStorey > 0
@@ -151,7 +158,7 @@ std::span<const TrapActivation> TrapSystem::tick(
                     spikeTriggerRadius(building->level)) *
                     radiusMultiplier_ * 1.25,
                 reactiveShockDamage_ * damageMultiplier_ *
-                    heightBonus,
+                    heightBonus * (building->type == bonusType_ ? typeDamageMultiplier_ : 1.0),
                 1.5);
             for (const EnemyDamageResult& hit : shockHits) {
                 hitBuffer_.push_back({trap.buildingId, hit, building->type});

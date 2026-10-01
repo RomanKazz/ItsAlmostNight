@@ -10,13 +10,24 @@
 
 namespace ian {
 
+bool Simulation::ownsRunBuilding(BuildingType type) const {
+    const auto effect = buildingRunUpgrade(type);
+    if (!effect) return true;
+    const auto* playerClass = playerClassDefinition(playerClass_);
+    const BuildingType starting = playerClass ? playerClass->startingBuilding : BuildingType::GunTurret;
+    return type == starting || runUpgradeStacks_[runUpgradeIndex(*effect)] > 0;
+}
+
+std::size_t Simulation::runBuildingArsenalCount() const {
+    return static_cast<std::size_t>(std::count_if(RunBuildingTypes.begin(), RunBuildingTypes.end(),
+        [this](BuildingType type) { return ownsRunBuilding(type); }));
+}
+
 bool Simulation::buildingUnlocked(BuildingType type) const {
     if (isRemovedStorageBuilding(type)) return false;
     if (sandboxMode_ || unlimitedResources_) return true;
     if (type == BuildingType::Core) return true;
-    const auto core = buildings_.core();
-    const int coreLevel = core ? static_cast<int>(core->level) : 0;
-    return coreLevel >= buildingRequiredCoreLevel(type);
+    return buildings_.core().has_value() && ownsRunBuilding(type);
 }
 
 PlacementResult Simulation::validatePlacement(
@@ -32,7 +43,7 @@ PlacementResult Simulation::validatePlacement(
     if (!buildingUnlocked(type)) {
         const bool corePlaced = buildings_.core().has_value();
         return {
-            corePlaced ? PlacementError::CoreLevelRequired
+            corePlaced ? PlacementError::BlueprintRequired
                        : PlacementError::CoreRequired,
             buildings_.configuredCost(type),
         };

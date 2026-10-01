@@ -46,6 +46,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         return *waveStartCheckpoint_;
     }
     SuspendedRunState saved{
+        .buildingArsenalVersion = 1,
         .playerClass = playerClass_,
         .metaBonuses = activeMetaBonuses_,
         .terrainSeed = terrain_.seed(),
@@ -189,6 +190,13 @@ bool Simulation::loadSuspendedRunState(
         std::ranges::any_of(saved.runUpgradeStacks, invalidStack);
     const bool invalidUpgradePower = std::ranges::any_of(saved.runUpgradePower,
         [](double power) { return !std::isfinite(power) || power < 0.0 || power > MaximumSavedStack * 2.0; });
+    const bool invalidArsenal = saved.buildingArsenalVersion < 0 || saved.buildingArsenalVersion > 1 ||
+        std::ranges::any_of(RunBuildingTypes, [&](BuildingType type) {
+            const auto index = runUpgradeIndex(*buildingRunUpgrade(type));
+            return saved.runUpgradeStacks[index] > 1 || saved.runUpgradePower[index] > 1.0 ||
+                (saved.runUpgradePower[index] != 0.0 &&
+                 saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
+        });
     const double coordinateLimit = map_.worldLimit +
         static_cast<double>(ModularRampRunCells) * worldConfig_.cellSize;
     std::size_t coreCount = 0U;
@@ -310,7 +318,7 @@ bool Simulation::loadSuspendedRunState(
         saved.rifleLevel < 1 || saved.rifleLevel > MaximumSavedStack ||
         selectedWeapon < 0 ||
         selectedWeapon >= static_cast<int>(PlayerWeaponCount) ||
-        invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
+        invalidArsenal || invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
         invalidChoices || invalidStatistics || invalidWorldCollections ||
         invalidPhase || saved.coreBuildRadius < map_.coreBuildRadius ||
         saved.coreBuildRadius >
@@ -377,6 +385,15 @@ bool Simulation::loadSuspendedRunState(
     for (std::size_t index = 0; index < runUpgradePower_.size(); ++index) {
         if (runUpgradePower_[index] == 0.0 && runUpgradeStacks_[index] > 0) {
             runUpgradePower_[index] = static_cast<double>(runUpgradeStacks_[index]);
+        }
+    }
+    // Preserve combat types already constructed in checkpoints from before the arsenal.
+    if (saved.buildingArsenalVersion == 0) {
+        for (const auto& building : saved.buildings) {
+            const auto effect = buildingRunUpgrade(building.type);
+            if (!effect || ownsRunBuilding(building.type)) continue;
+            runUpgradeStacks_[runUpgradeIndex(*effect)] = 1;
+            runUpgradePower_[runUpgradeIndex(*effect)] = 1.0;
         }
     }
     insight_ = std::move(insightValidation);
@@ -541,7 +558,11 @@ bool Simulation::loadSuspendedRunState(
             runUpgradeChoices_.begin(),
             runUpgradeChoices_.begin() +
                 static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
-            retiredRunUpgrade)) {
+            [this, &saved](RunUpgradeEffect effect) {
+                return retiredRunUpgrade(effect) ||
+                    ((saved.buildingArsenalVersion == 0 || runUpgradeBuilding(effect)) &&
+                     !runUpgradeAvailable(effect));
+            })) {
         generateRunUpgradeChoices();
     }
     stageCleared_ = saved.stageCleared;

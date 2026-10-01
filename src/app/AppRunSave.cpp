@@ -542,6 +542,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
     }
     return {
         {"version", SuspendedRunVersion},
+        {"buildingArsenalVersion", saved.buildingArsenalVersion},
         {"playerClass", static_cast<int>(saved.playerClass)},
         {"terrainSeed", saved.terrainSeed},
         {"resume", {
@@ -658,6 +659,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
 
 SuspendedRunState readSuspendedRun(const Json& document) {
     SuspendedRunState saved;
+    saved.buildingArsenalVersion = document.value("buildingArsenalVersion", 0);
     saved.playerClass = static_cast<PlayerClass>(
         document.at("playerClass").get<int>());
     saved.terrainSeed = document.at("terrainSeed").get<std::uint32_t>();

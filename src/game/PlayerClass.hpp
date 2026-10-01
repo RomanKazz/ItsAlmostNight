@@ -1,5 +1,7 @@
 #pragma once
 
+#include "buildings/BuildingSystem.hpp"
+
 #include <array>
 #include <string_view>
 
@@ -31,6 +33,9 @@ struct PlayerClassDefinition {
     double buildingHealthMultiplier{1.0};
     double defenseDamageMultiplier{1.0};
     double productionSpeedMultiplier{1.0};
+    BuildingType startingBuilding{BuildingType::GunTurret};
+    double startingBuildingDamageMultiplier{1.0};
+    double startingBuildingFireRateMultiplier{1.0};
 };
 
 inline constexpr std::array<PlayerClassDefinition, 8>
@@ -40,74 +45,98 @@ inline constexpr std::array<PlayerClassDefinition, 8>
             .name = "VANGUARD",
             .role = "Hold the line",
             .traits = {"25 RECHARGING ARMOR", "ARMOR BREAK PUSHES ENEMIES", "-10% DAMAGE"},
-            .startingLoadoutLabel = "RECHARGING ARMOR",
+            .startingLoadoutLabel = "GUN TURRET: +15% FIRE RATE",
             .damageMultiplier = 0.90,
             .maxHealthMultiplier = 1.35,
             .armorMultiplier = 1.25,
+            .startingBuilding = BuildingType::GunTurret,
+            .startingBuildingDamageMultiplier = 1.0,
+            .startingBuildingFireRateMultiplier = 1.15,
         },
         {
             .type = PlayerClass::Ranger,
             .name = "RANGER",
             .role = "Fight on the move",
             .traits = {"MOVING: +20% DAMAGE", "+25% BASE DAMAGE", "-20% MAX HEALTH"},
-            .startingLoadoutLabel = "MOMENTUM DAMAGE",
+            .startingLoadoutLabel = "CROSSBOW: +25% FIRE RATE",
             .damageMultiplier = 1.25,
             .moveSpeedMultiplier = 1.12,
             .maxHealthMultiplier = 0.80,
+            .startingBuilding = BuildingType::Turret,
+            .startingBuildingDamageMultiplier = 1.0,
+            .startingBuildingFireRateMultiplier = 1.25,
         },
         {
             .type = PlayerClass::Engineer,
             .name = "ENGINEER",
             .role = "Keep the fort alive",
             .traits = {"REPAIR FORTIFIES LONGER", "REPAIR COOLDOWN -50%", "-10% PLAYER DAMAGE"},
-            .startingLoadoutLabel = "LONGER FORTIFICATION",
+            .startingLoadoutLabel = "CANNON: +30% DAMAGE",
             .damageMultiplier = 0.90,
             .buildingHealthMultiplier = 1.35,
             .defenseDamageMultiplier = 1.25,
+            .startingBuilding = BuildingType::Cannon,
+            .startingBuildingDamageMultiplier = 1.3,
+            .startingBuildingFireRateMultiplier = 1.0,
         },
         {
             .type = PlayerClass::Prospector,
             .name = "PROSPECTOR",
             .role = "Harvest and build",
             .traits = {"+35% GATHERING YIELD", "+25% CARRY CAPACITY", "-15% PLAYER DAMAGE"},
-            .startingLoadoutLabel = "LARGER RESOURCE PACK",
+            .startingLoadoutLabel = "CROSSBOW: +15% DAMAGE",
             .damageMultiplier = 0.85,
             .productionSpeedMultiplier = 1.20,
+            .startingBuilding = BuildingType::Turret,
+            .startingBuildingDamageMultiplier = 1.15,
+            .startingBuildingFireRateMultiplier = 1.0,
         },
         {
             .type = PlayerClass::Berserker,
             .name = "BERSERKER",
             .role = "Pain becomes power",
             .traits = {"LOST HP: UP TO +75% DAMAGE", "LOW HP: FASTER MELEE", "-15% MAX HEALTH"},
-            .startingLoadoutLabel = "MISSING HEALTH FUELS RAGE",
+            .startingLoadoutLabel = "SPIKES: +50% DAMAGE",
             .maxHealthMultiplier = 0.85,
+            .startingBuilding = BuildingType::SpikeTrap,
+            .startingBuildingDamageMultiplier = 1.5,
+            .startingBuildingFireRateMultiplier = 1.0,
         },
         {
             .type = PlayerClass::Vampire,
             .name = "VAMPIRE",
             .role = "Feed on the horde",
             .traits = {"KILLS HEAL OR BUILD A SHIELD", "+10% DAMAGE", "-25% MAX HEALTH"},
-            .startingLoadoutLabel = "OVERHEAL SHIELD",
+            .startingLoadoutLabel = "GUN TURRET: +25% DAMAGE",
             .damageMultiplier = 1.10,
             .maxHealthMultiplier = 0.75,
+            .startingBuilding = BuildingType::GunTurret,
+            .startingBuildingDamageMultiplier = 1.25,
+            .startingBuildingFireRateMultiplier = 1.0,
         },
         {
             .type = PlayerClass::Alchemist,
             .name = "ALCHEMIST",
             .role = "Turn danger into medicine",
             .traits = {"APPLE +50%, POTION +3S", "STARTS WITH FIRE WAND", "-10% MOVE SPEED"},
-            .startingLoadoutLabel = "FIRE WAND + APPLE + POTION",
+            .startingLoadoutLabel = "CATAPULT: +25% DAMAGE",
             .attackSpeedMultiplier = 1.10,
             .moveSpeedMultiplier = 0.90,
+            .startingBuilding = BuildingType::Catapult,
+            .startingBuildingDamageMultiplier = 1.25,
+            .startingBuildingFireRateMultiplier = 1.0,
         },
         {
             .type = PlayerClass::Chronomancer,
             .name = "CHRONOMANCER",
             .role = "Make every second dangerous",
             .traits = {"DASH SLOWS NEARBY ENEMIES", "HOURGLASS + ROPE", "-15% MAX HEALTH"},
-            .startingLoadoutLabel = "SLOWING DASH",
+            .startingLoadoutLabel = "SLOW TRAP: +35% TRIGGER RATE",
             .moveSpeedMultiplier = 1.10,
             .maxHealthMultiplier = 0.85,
+            .startingBuilding = BuildingType::SlowTrap,
+            .startingBuildingDamageMultiplier = 1.0,
+            .startingBuildingFireRateMultiplier = 1.35,
         },
     }};
 

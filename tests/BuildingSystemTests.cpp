@@ -40,23 +40,11 @@ void runBuildingSystemTests() {
                 creativeConstruction.items[7].modularPiece ==
                     ian::ModularBuildPiece::Ramp,
             "creative construction catalog combines modular, perimeter, and production structures");
-        require(
-            levelOneConstruction.count == 0U &&
-                levelTwoConstruction.count == 4U &&
-                levelTwoConstruction.items[0].modularPiece ==
-                    ian::ModularBuildPiece::Foundation &&
-                levelTwoConstruction.items[1].buildingType ==
-                    ian::BuildingType::Wall &&
-                levelTwoConstruction.items[2].buildingType ==
-                    ian::BuildingType::Gate &&
-                levelTwoConstruction.items[3].buildingType ==
-                    ian::BuildingType::CrystalMine &&
-                levelThreeConstruction.count == 6U &&
-                levelThreeConstruction.items[4].buildingType ==
-                    ian::BuildingType::Quarry &&
-                levelThreeConstruction.items[5].buildingType ==
-                    ian::BuildingType::LumberMill,
-            "construction slots append new unlocks on the right");
+        require(levelOneConstruction.count == 8U && levelTwoConstruction.count == 8U &&
+                levelThreeConstruction.count == 8U &&
+                levelOneConstruction.items[0].modularPiece == ian::ModularBuildPiece::Foundation &&
+                levelOneConstruction.items[7].modularPiece == ian::ModularBuildPiece::Ramp,
+            "all construction tools are available at Core level one");
     }
     std::array<bool, ian::GameBalance::BuildingTypeCount> unlocked{};
     unlocked[static_cast<std::size_t>(ian::BuildingType::Core)] = true;
@@ -71,8 +59,8 @@ void runBuildingSystemTests() {
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Modular,
         true, 1);
-    require(hotbar.count == 0U,
-            "wall stays locked before core level two");
+    require(hotbar.count == 1U,
+            "wall is a basic tool at Core level one");
     hotbar = ian::makeBuildingHotbarLayout(
         unlocked, ian::BuildingHotbarCategory::Defense,
         true, 1);
@@ -189,9 +177,8 @@ void runBuildingSystemTests() {
                 35, 25, 10).valid() &&
             starterDefense.validate(
                 ian::BuildingType::Turret, {4, 0},
-                25, 15).error ==
-                ian::PlacementError::CoreLevelRequired,
-        "starter turret is available before the crossbow unlock");
+                25, 15).valid(),
+        "low-level placement does not enforce run arsenal ownership");
 
     auto buildingFixtureBalance = ian::GameBalance::defaults();
     buildingFixtureBalance.buildings[static_cast<std::size_t>(
@@ -374,16 +361,14 @@ void runBuildingSystemTests() {
     const auto cannonCore =
         cannonBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
     require(cannonCore.has_value(), "cannon fixture creates core");
-    require(cannonBuildings.validate(ian::BuildingType::Cannon, {4, 0}, 40, 30, 25).error ==
-                ian::PlacementError::CoreLevelRequired,
-            "cannon is locked before the heavy-defense tier");
+    require(cannonBuildings.validate(ian::BuildingType::Cannon, {4, 0}, 40, 30, 25).valid(),
+            "acquired cannon can be placed at Core level one");
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 50);
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 100);
     require(cannonBuildings.validate(
                 ian::BuildingType::Cannon, {4, 0},
-                40, 30, 25).error ==
-                ian::PlacementError::CoreLevelRequired,
-            "cannon remains locked at core level three");
+                40, 30, 25).valid(),
+            "Core tiers do not gate cannon placement");
     cannonBuildings.upgrade(cannonCore->building.id, 0, 0, 150);
     const auto cannon =
         cannonBuildings.place(ian::BuildingType::Cannon, {4, 0}, 0, 40, 30, 25);

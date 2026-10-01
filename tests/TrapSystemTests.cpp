@@ -24,6 +24,7 @@ void runTrapSystemTests() {
     enemies.spawnWave(Spawn);
 
     ian::TrapSystem traps;
+    traps.setTypeBonuses(ian::BuildingType::SlowTrap, 1.0, 1.35);
     traps.syncBuildings(buildings.buildings());
     const auto activation = traps.tick(1.0 / 60.0, buildings.buildings(), enemies);
     require(activation.size() == 1 && activation[0].affectedCount == 1,
@@ -32,6 +33,9 @@ void runTrapSystemTests() {
                 "upgraded trap wears more slowly");
     requireNear(enemies.enemies()[0].movementMultiplier, 0.42, 1e-12,
                 "upgraded trap applies stronger slow");
+    requireNear(traps.traps().front().cooldownRemaining,
+        ian::TrapSystem::cooldown(2) / 1.35, 1e-12,
+        "Chronomancer trap perk reduces the actual trigger cooldown");
     ian::FlowField flow;
     flow.rebuild({0, 0}, buildings.buildings());
     const ian::Vec3 startPosition = enemies.enemies()[0].position;
@@ -96,4 +100,17 @@ void runTrapSystemTests() {
             0.2, spikeBuildings.buildings(), spikeEnemies)
             .empty(),
         "spike trap cooldown prevents retriggering");
+    ian::EnemySystem perkEnemies;
+    constexpr std::array<ian::EnemySpawn, 1> PerkSpawn{{
+        {.type = ian::EnemyType::Basic, .position = {0, 0.8, -4}, .healthMultiplier = 10},
+    }};
+    perkEnemies.spawnWave(PerkSpawn);
+    ian::TrapSystem perkTraps;
+    perkTraps.setTypeBonuses(ian::BuildingType::SpikeTrap, 1.5, 1.0);
+    perkTraps.syncBuildings(spikeBuildings.buildings());
+    perkTraps.tick(1.0 / 60.0, spikeBuildings.buildings(), perkEnemies);
+    require(!perkTraps.hits().empty(), "starting spike trap hits a healthy enemy");
+    requireNear(perkTraps.hits().front().result.damage, ian::TrapSystem::spikeDamage(1) * 1.5,
+        1e-12, "Berserker trap perk changes actual damage");
+
 }

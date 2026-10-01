@@ -69,6 +69,8 @@ constexpr std::array<std::string_view, RunUpgradeEffectCount> UpgradeIds{{
     "ricochet", "double_down", "lock_choice", "reroll_token", "risky_investment",
     "salvager", "twin_batteries", "cluster_payload", "reactive_traps", "gun_piercing",
     "gun_shrapnel", "gathering_speed", "longer_day", "rich_resources", "luck",
+    "unlock_gun_turret", "unlock_turret", "unlock_cannon", "unlock_catapult",
+    "unlock_spike_trap", "unlock_slow_trap",
 }};
 
 } // namespace

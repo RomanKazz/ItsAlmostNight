@@ -150,4 +150,120 @@ void runRunUpgradeTests() {
     simulation->startRunFromSeed(PlayerClass::Vanguard, 12345);
     requireNear(simulation->snapshot().upgradeStats.luck, 0, 1e-12,
         "new runs reset luck and rarity power");
+
+    // The run arsenal counts types, independently of constructed instances.
+    auto arsenal = std::make_unique<Simulation>();
+    for (const auto& character : PlayerClassDefinitions) {
+        arsenal->returnToMainMenu();
+        arsenal->startRunFromSeed(character.type, 4321);
+        require(arsenal->snapshot().buildingArsenalCount == 1 &&
+            !arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)),
+            "every character owns its starter once, without spending another slot");
+    }
+    arsenal->returnToMainMenu();
+    arsenal->startRunFromSeed(PlayerClass::Vanguard, 4321);
+    require(arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon, RunUpgradeRarity::Legendary) &&
+        arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockTurret) &&
+        arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockSpikeTrap) &&
+        arsenal->snapshot().buildingArsenalCount == RunBuildingSlotCount &&
+        !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCatapult) &&
+        !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon),
+        "acquisition is unique and stops at four types, regardless of rarity");
+    const auto arsenalSave = arsenal->saveSuspendedRunState();
+    restored->returnToMainMenu();
+    require(arsenalSave.buildingArsenalVersion == 1 && restored->loadSuspendedRunState(arsenalSave) &&
+        restored->snapshot().buildingArsenalCount == 4 &&
+        restored->snapshot().runUpgradeStacks == arsenal->snapshot().runUpgradeStacks,
+        "unbuilt blueprints survive save and resume");
+    auto invalidArsenal = arsenalSave;
+    invalidArsenal.buildingArsenalVersion = 2;
+    restored->returnToMainMenu();
+    require(!restored->loadSuspendedRunState(invalidArsenal), "future arsenal formats rejected");
+    invalidArsenal = arsenalSave;
+    invalidArsenal.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 2;
+    require(!restored->loadSuspendedRunState(invalidArsenal), "duplicate blueprint counts rejected");
+
+    auto balance = GameBalance::defaults();
+    balance.buildings[static_cast<std::size_t>(BuildingType::Core)].wood = 0;
+    auto world = WorldConfig::defaults();
+    world.terrainAmplitude = 0;
+    auto map = MapDefinition::defaults();
+    map.resources.clear();
+    map.obstacles.clear();
+    auto fastInsight = InsightConfig::defaults();
+    fastInsight.baseRequirement = 1.0;
+    fastInsight.requirementGrowth = 0.0;
+    auto normal = std::make_unique<Simulation>(balance, map, world, fastInsight);
+    normal->returnToMainMenu();
+    normal->startRunFromSeed(PlayerClass::Engineer, 4321);
+    PlayerCommand placeCore;
+    placeCore.placeBuilding = PlaceBuildingCommand{BuildingType::Core, {0, 0}, 0};
+    normal->tick(1.0 / 60.0, placeCore);
+    const auto unlocked = normal->snapshot().unlockedBuildings;
+    for (auto type : RunBuildingTypes) {
+        require(unlocked[static_cast<std::size_t>(type)] == (type == BuildingType::Cannon),
+            "construction catalog uses the character starter");
+    }
+    require(normal->previewPlacement(BuildingType::Turret, {4, 0}).error == PlacementError::BlueprintRequired &&
+        normal->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::LumberMill)],
+        "unowned combat placement rejected while economy remains available");
+    require(normal->snapshot().runUpgradeChoicePending,
+        "normal construction XP produces level-up cards");
+    const auto offer = normal->snapshot();
+    require(runUpgradeBuilding(offer.runUpgradeChoices[0]).has_value(),
+        "free arsenal slot guarantees a new-building option");
+    for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
+        const auto offeredEffect = offer.runUpgradeChoices[index];
+        require(offeredEffect != RunUpgradeEffect::GunPiercing && offeredEffect != RunUpgradeEffect::GunShrapnel &&
+            offeredEffect != RunUpgradeEffect::TwinBatteries && offeredEffect != RunUpgradeEffect::ReactiveTraps,
+            "family-specific cards require a compatible owned building");
+        if (const auto building = runUpgradeBuilding(offeredEffect)) {
+            require(*building != BuildingType::Cannon && offer.runUpgradeRarities[index] == RunUpgradeRarity::Common,
+                "starter is absent from acquisition offers and acquisition has fixed power");
+        }
+    }
+    const auto pendingArsenal = normal->saveSuspendedRunState();
+    auto normalRestored = std::make_unique<Simulation>(balance, map, world, fastInsight);
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(pendingArsenal) &&
+        normalRestored->snapshot().runUpgradeChoices == offer.runUpgradeChoices &&
+        normalRestored->snapshot().runUpgradeRarities == offer.runUpgradeRarities &&
+        normalRestored->selectRunUpgrade(0) && normalRestored->snapshot().buildingArsenalCount == 2,
+        "resume preserves exact normal offers and selection acquires a second type");
+    require(normal->selectRunUpgrade(0), "normal acquisition selected");
+    for (auto blueprintEffect : {RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret,
+                        RunUpgradeEffect::UnlockSpikeTrap, RunUpgradeEffect::UnlockSlowTrap,
+                        RunUpgradeEffect::UnlockCatapult}) {
+        if (normal->snapshot().buildingArsenalCount < 4) (void)normal->grantDebugRunUpgrade(blueprintEffect);
+    }
+    require(normal->grantDebugRunUpgrade(RunUpgradeEffect::RerollToken) && normal->rerollRunUpgrades(),
+        "full arsenal offer regenerated");
+    for (std::size_t index = 0; index < normal->snapshot().runUpgradeChoiceCount; ++index) {
+        require(!runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]),
+            "full arsenal replaces all acquisition cards with improvements");
+    }
+
+    auto legacyArsenal = arsenalSave;
+    legacyArsenal.buildingArsenalVersion = 0;
+    legacyArsenal.runUpgradeStacks.fill(0);
+    legacyArsenal.runUpgradePower.fill(0);
+    legacyArsenal.buildings = {
+        {.id = {1000, 1}, .type = BuildingType::Core, .gridPosition = {0, 0}, .health = 500, .maxHealth = 500},
+        {.id = {1001, 1}, .type = BuildingType::Catapult, .gridPosition = {4, 0}, .health = 210, .maxHealth = 210},
+    };
+    legacyArsenal.resumeState = RunState::BuildPhase;
+    restored->returnToMainMenu();
+    require(restored->loadSuspendedRunState(legacyArsenal) && restored->snapshot().buildingArsenalCount == 2 &&
+        restored->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::Catapult)],
+        "legacy checkpoints retain combat types already built");
+    arsenal->returnToMainMenu();
+    arsenal->startRunFromSeed(PlayerClass::Vanguard, 4321);
+    require(arsenal->snapshot().buildingArsenalCount == 1 &&
+        arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] == 0,
+        "next run clears acquired blueprints");
+    arsenal->returnToMainMenu();
+    arsenal->startSandboxRun();
+    for (auto type : RunBuildingTypes) require(arsenal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
+        "sandbox keeps all construction types available");
+
 }

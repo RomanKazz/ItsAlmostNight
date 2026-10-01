@@ -98,6 +98,7 @@ float cardLayoutScale(std::size_t count) {
 }
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
+    if (runUpgradeBuilding(effect)) return UpgradeColorClass::Yellow;
     switch (effect) {
     case RunUpgradeEffect::Damage:
     case RunUpgradeEffect::AttackSpeed:
@@ -133,11 +134,19 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::Ricochet:
     case RunUpgradeEffect::TwinBatteries:
         return UpgradeColorClass::Purple;
+    case RunUpgradeEffect::UnlockGunTurret:
+    case RunUpgradeEffect::UnlockTurret:
+    case RunUpgradeEffect::UnlockCannon:
+    case RunUpgradeEffect::UnlockCatapult:
+    case RunUpgradeEffect::UnlockSpikeTrap:
+    case RunUpgradeEffect::UnlockSlowTrap:
+        break;
     }
     return UpgradeColorClass::Blue;
 }
 
 std::string_view upgradeMark(RunUpgradeEffect effect) {
+    if (runUpgradeBuilding(effect)) return "NEW";
     switch (effect) {
     case RunUpgradeEffect::Damage: return "DMG";
     case RunUpgradeEffect::AttackSpeed: return "SPD";
@@ -168,6 +177,13 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::GatheringSpeed: return "TOOL";
     case RunUpgradeEffect::LongerDay: return "DAY";
     case RunUpgradeEffect::RichResources: return "NODE";
+    case RunUpgradeEffect::UnlockGunTurret:
+    case RunUpgradeEffect::UnlockTurret:
+    case RunUpgradeEffect::UnlockCannon:
+    case RunUpgradeEffect::UnlockCatapult:
+    case RunUpgradeEffect::UnlockSpikeTrap:
+    case RunUpgradeEffect::UnlockSlowTrap:
+        break;
     }
     return "+";
 }
@@ -363,7 +379,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
     DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
         fadedColor({126, 112, 85, 255}, fade));
-    const float scale = bounds.height / 630.0F;
+    const float scale = bounds.height / 657.0F;
     const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
     const float left = bounds.x + 18.0F;
     const float right = bounds.x + bounds.width - 18.0F;
@@ -395,6 +411,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
     const auto multiplier = [](double value) { return statNumber(value, 2) + "x"; };
     const RunUpgradeStats& stats = snapshot.upgradeStats;
     section("DEFENSE");
+    row("Arsenal", std::to_string(snapshot.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount));
     row("Defense damage", multiplier(stats.defenseDamage));
     row("Fire rate", multiplier(stats.defenseFireRate));
     row("Building HP", multiplier(stats.buildingHealth));
@@ -708,7 +725,8 @@ void drawRunUpgradeOverlay(
             centerX, bounds.y + 140.0F * scale};
 
         const std::string_view mark = upgradeMark(effect);
-        const Texture2D cardIcon = ui.runUpgradeTexture(effect);
+        const Texture2D cardIcon = runUpgradeBuilding(effect)
+            ? ui.buildingTexture(*runUpgradeBuilding(effect)) : ui.runUpgradeTexture(effect);
         const bool drawUpgradeIcon = IsTextureValid(cardIcon);
         if (drawUpgradeIcon) {
             const float iconSize = 320.0F * scale;
@@ -828,7 +846,8 @@ void drawRunUpgradeOverlay(
             8,
             fadedColor(CardInset, cardFade));
         const UpgradeValueCopy valueCopy =
-            upgradeValueCopy(description, mark);
+            runUpgradeBuilding(effect) ? UpgradeValueCopy{"NEW", "Building blueprint"}
+                : upgradeValueCopy(description, mark);
         const float valueSize = fitUiTextSize(
             valueCopy.value,
             56.0F / UiTextRasterScale * scale,
@@ -890,9 +909,11 @@ void drawRunUpgradeOverlay(
         const float levelFontSize =
             32.0F / UiTextRasterScale * scale;
         const std::string currentLevelText =
-            "LVL " + std::to_string(currentLevel);
-        const std::string nextLevelText = std::to_string(
-            std::min(currentLevel + 1, maximumLevel));
+            runUpgradeBuilding(effect) ? std::to_string(snapshot.buildingArsenalCount) + "/4"
+                : "LVL " + std::to_string(currentLevel);
+        const std::string nextLevelText = runUpgradeBuilding(effect)
+            ? std::to_string(snapshot.buildingArsenalCount + 1U) + "/4"
+            : std::to_string(std::min(currentLevel + 1, maximumLevel));
         const Vector2 currentLevelSize = measureUiText(
             currentLevelText, levelFontSize);
         const Vector2 nextLevelSize = measureUiText(
@@ -929,7 +950,7 @@ void drawRunUpgradeOverlay(
             palette.accent, cardFade, scale,
             LevelOutline, 3.0F, false);
         drawOutlinedCenteredText(
-            runUpgradeRarityName(rarity), centerX,
+            runUpgradeBuilding(effect) ? "NEW BUILDING" : runUpgradeRarityName(rarity), centerX,
             bounds.y + 516.0F * scale,
             22.0F / UiTextRasterScale * scale,
             palette.accent, cardFade, scale,

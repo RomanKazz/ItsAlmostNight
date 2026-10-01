@@ -989,6 +989,7 @@ Color placementColor(
     case PlacementError::PlayerOverlap:
         return {255, 222, 82, alpha};
     case PlacementError::CoreRequired:
+    case PlacementError::BlueprintRequired:
     case PlacementError::CoreLevelRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:

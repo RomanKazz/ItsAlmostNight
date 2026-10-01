@@ -91,6 +91,7 @@ enum class PlacementError {
     OutOfRange,
     CoreLevelRequired,
     ResourceBlocked,
+    BlueprintRequired,
 };
 
 struct PlacementResult {

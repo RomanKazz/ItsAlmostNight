@@ -670,13 +670,6 @@ PlacementResult BuildingSystem::validate(BuildingType type, GridPosition positio
     if (!sandboxMode_ && placementCount(type) >= placementLimit(type)) {
         return {PlacementError::LimitReached, requiredCost};
     }
-    if (type != BuildingType::Core && !sandboxMode_) {
-        const auto coreBuilding = core();
-        if (!coreBuilding ||
-            static_cast<int>(coreBuilding->level) < definition(type).unlockCoreLevel) {
-            return {PlacementError::CoreLevelRequired, requiredCost};
-        }
-    }
     if (overlaps(type, position, baseHeight)) {
         return {PlacementError::Occupied, requiredCost};
     }

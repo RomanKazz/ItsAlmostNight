@@ -51,6 +51,8 @@ const char* placementMessage(
         return "Building limit reached";
     case PlacementError::OutOfRange:
         return "Placement is too far";
+    case PlacementError::BlueprintRequired:
+        return "Choose this building on level-up";
     case PlacementError::CoreLevelRequired:
         return "Upgrade Core to unlock";
     case PlacementError::ResourceBlocked:
@@ -72,6 +74,7 @@ Color placementMessageColor(PlacementError error) {
     case PlacementError::PlayerOverlap:
         return {255, 222, 82, 255};
     case PlacementError::CoreRequired:
+    case PlacementError::BlueprintRequired:
     case PlacementError::CoreLevelRequired:
     case PlacementError::CoreAlreadyPlaced:
     case PlacementError::LimitReached:

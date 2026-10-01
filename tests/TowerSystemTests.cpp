@@ -56,6 +56,38 @@ void runTowerSystemTests() {
     towers.syncBuildings(buildings.buildings());
     require(towers.towers().size() == 1, "tower runtime follows turret building");
 
+    {
+        ian::EnemySystem perkEnemies;
+        perkEnemies.spawnWave(Spawn);
+        ian::TowerSystem perkTowers;
+        perkTowers.setTypeBonuses(ian::BuildingType::Turret, 1.25, 1.5);
+        perkTowers.syncBuildings(buildings.buildings());
+        std::span<const ian::TowerShot> perkShots;
+        for (int tick = 0; tick < 120 && perkShots.empty(); ++tick) {
+            perkShots = perkTowers.tick(1.0 / 60.0, buildings.buildings(), perkEnemies);
+        }
+        require(!perkShots.empty(), "character tower fires a real shot");
+        requireNear(perkShots.front().payloadDamage,
+            ian::TowerSystem::attackDamage(ian::BuildingType::Turret, 2) * 1.25, 1e-12,
+            "tower character perk changes payload damage");
+        requireNear(perkTowers.towers().front().fireCooldownRemaining,
+            ian::TowerSystem::fireInterval(ian::BuildingType::Turret, 2) / 1.5, 1e-12,
+            "tower character perk changes cooldown");
+        perkTowers.reset();
+        perkEnemies.reset();
+        perkEnemies.spawnWave(Spawn);
+        perkTowers.setTypeBonuses(ian::BuildingType::GunTurret, 2.0, 2.0);
+        perkTowers.syncBuildings(buildings.buildings());
+        perkShots = {};
+        for (int tick = 0; tick < 120 && perkShots.empty(); ++tick) {
+            perkShots = perkTowers.tick(1.0 / 60.0, buildings.buildings(), perkEnemies);
+        }
+        require(!perkShots.empty(), "non-starter tower fires");
+        requireNear(perkShots.front().payloadDamage,
+            ian::TowerSystem::attackDamage(ian::BuildingType::Turret, 2), 1e-12,
+            "starter perk does not affect another tower type");
+    }
+
     int shotCount = 0;
     bool killed = false;
     for (int tick = 0; tick < 600 && !killed; ++tick) {

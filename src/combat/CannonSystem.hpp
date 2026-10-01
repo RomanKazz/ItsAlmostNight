@@ -80,6 +80,7 @@ class CannonSystem {
         BuildingType type, std::uint8_t level);
 
     void reset();
+    void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double radius,
                            double fireRate, double highGroundDamage,
                            int clusterExplosionCount = 0);
@@ -105,6 +106,9 @@ class CannonSystem {
     std::vector<CannonShot> shotBuffer_;
     std::vector<CannonHit> hitBuffer_;
     std::uint32_t nextProjectileIndex_{4000};
+    BuildingType bonusType_{BuildingType::Core};
+    double typeDamageMultiplier_{1.0};
+    double typeFireRateMultiplier_{1.0};
     double damageMultiplier_{1.0};
     double radiusMultiplier_{1.0};
     double fireRateMultiplier_{1.0};

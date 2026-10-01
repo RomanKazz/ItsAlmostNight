@@ -112,11 +112,18 @@ double CannonSystem::explosionDamage(
 }
 
 void CannonSystem::reset() {
+    setTypeBonuses(BuildingType::Core, 1.0, 1.0);
     cannons_.clear();
     projectiles_.clear();
     explosionBuffer_.clear();
     shotBuffer_.clear();
     hitBuffer_.clear();
+}
+
+void CannonSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
+    bonusType_ = type;
+    typeDamageMultiplier_ = std::max(0.05, damage);
+    typeFireRateMultiplier_ = std::max(0.05, fireRate);
 }
 
 void CannonSystem::setModifiers(
@@ -201,7 +208,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
             building->type, building->level);
         const double shotInterval = fireInterval(
             building->type, building->level) /
-            fireRateMultiplier_;
+            (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
         cannon.baseYaw = smoothBuildingAngle(
             cannon.baseYaw, cannon.restYaw, deltaSeconds);
 
@@ -420,7 +427,8 @@ void CannonSystem::launch(const BuildingInstance& cannon,
         ? highGroundDamageMultiplier_ : 1.0;
     projectile->explosionDamage = explosionDamage(
         cannon.type, cannon.level) *
-        towerBonus * damageMultiplier_ * heightBonus;
+        towerBonus * damageMultiplier_ * heightBonus *
+        (cannon.type == bonusType_ ? typeDamageMultiplier_ : 1.0);
     projectile->explosionImpulse =
         BaseExplosionImpulse + 0.35 * levelBonus;
     projectile->active = true;

@@ -15,7 +15,12 @@
 namespace {
 void resolveLevelUps(ian::Simulation& simulation) {
     while (simulation.snapshot().runUpgradeChoicePending) {
-        require(simulation.selectRunUpgrade(0U),
+        std::size_t choice = 0U;
+        const auto& offer = simulation.snapshot();
+        for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
+            if (!ian::runUpgradeBuilding(offer.runUpgradeChoices[index])) { choice = index; break; }
+        }
+        require(simulation.selectRunUpgrade(choice),
                 "test fixture resolves queued level-up cards");
     }
 }
@@ -1016,9 +1021,9 @@ void runSimulationTests() {
             ian::LootUpgradeEffect::Blueprint,
             ian::LootRarity::Rare);
         require(
-            !blueprintSimulation.snapshot().unlockedBuildings[
+            blueprintSimulation.snapshot().unlockedBuildings[
                 static_cast<std::size_t>(ian::BuildingType::Wall)],
-            "Core level one keeps walls locked");
+            "basic walls are available without combat blueprint acquisition");
         requireNear(
             blueprintSimulation.snapshot().totalInsightEarned,
             beforeBlueprint + blueprintSimulation
@@ -1604,136 +1609,46 @@ void runSimulationTests() {
         ian::WorldConfig producerUnlockWorld =
             ian::WorldConfig::defaults();
         producerUnlockWorld.terrainAmplitude = 0.0;
-        ian::Simulation producerUnlocks{
-            producerUnlockBalance,
-            ian::MapDefinition::defaults(),
-            producerUnlockWorld};
+        auto producerFixture = std::make_unique<ian::Simulation>(
+            producerUnlockBalance, ian::MapDefinition::defaults(), producerUnlockWorld);
+        auto& producerUnlocks = *producerFixture;
         producerUnlocks.startRun();
         ian::PlayerCommand placeCore;
         placeCore.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::Core, {0, 0}, 0};
         producerUnlocks.tick(1.0 / 60.0, placeCore);
         resolveLevelUps(producerUnlocks);
-        require(
-            producerUnlocks.previewPlacement(
-                ian::BuildingType::LumberMill, {3, 3}).error ==
-                    ian::PlacementError::CoreLevelRequired &&
-            producerUnlocks.previewPlacement(
-                ian::BuildingType::Quarry, {5, 3}).error ==
-                    ian::PlacementError::CoreLevelRequired &&
-            producerUnlocks.previewPlacement(
-                ian::BuildingType::CrystalMine, {7, 3}).error ==
-                    ian::PlacementError::CoreLevelRequired,
-            "Core level one keeps advanced production locked");
-        require(
-            !producerUnlocks.snapshot().unlockedWeapons[
-                static_cast<std::size_t>(ian::PlayerWeapon::Club)] &&
-                !producerUnlocks.snapshot().unlockedBuildings[
-                    static_cast<std::size_t>(ian::BuildingType::Turret)] &&
-                producerUnlocks.snapshot().unlockedBuildings[
-                    static_cast<std::size_t>(ian::BuildingType::GunTurret)] &&
-                ian::ModularBuildingRequiredCoreLevel == 2 &&
-                !producerUnlocks.snapshot().unlockedWeapons[
-                    static_cast<std::size_t>(ian::PlayerWeapon::Rifle)],
-            "Core level one gives only the starter turret defense");
-        const auto coreId = producerUnlocks.snapshot().coreId;
+        const auto initial = producerUnlocks.snapshot();
+        for (auto type : {ian::BuildingType::LumberMill, ian::BuildingType::Quarry,
+                          ian::BuildingType::CrystalMine, ian::BuildingType::Wall, ian::BuildingType::Gate}) {
+            require(initial.unlockedBuildings[static_cast<std::size_t>(type)],
+                "economy and perimeter are basic tools at Core level one");
+        }
+        require(ian::ModularBuildingRequiredCoreLevel == 1 && initial.buildingArsenalCount == 1,
+            "foundation access does not consume a combat slot");
+        const auto coreId = initial.coreId;
         require(coreId.has_value(), "progression fixture places the Core");
         ian::PlayerCommand upgradeCore;
-        upgradeCore.upgradeBuilding =
-            ian::UpgradeBuildingCommand{*coreId};
-        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
-        const auto levelTwo = producerUnlocks.snapshot();
-        require(
-            levelTwo.coreLevel == 2 &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::LumberMill)] &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Quarry)] &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Turret)] &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::SlowTrap)] &&
-                !levelTwo.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Rifle)] &&
-                levelTwo.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Club)] &&
-                levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Wall)] &&
-                levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Gate)] &&
-                !levelTwo.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Bomb)] &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::SpikeTrap)] &&
-                levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::GunTurret)] &&
-                levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::CrystalMine)] &&
-                !levelTwo.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Cannon)],
-            "Core level two unlocks perimeter, crystal mine and club");
-        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
-        const auto levelThree = producerUnlocks.snapshot();
-        require(
-            levelThree.coreLevel == 3 &&
-                levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Turret)] &&
-                !levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::SpikeTrap)] &&
-                !levelThree.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Bomb)] &&
-                levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Quarry)] &&
-                levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::LumberMill)] &&
-                levelThree.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Rifle)] &&
-                !levelThree.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::IceWand)] &&
-                !levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Cannon)] &&
-                !levelThree.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Catapult)] &&
-                ian::buildingRequiredCoreLevel(
-                    ian::BuildingType::Catapult) == 5,
-            "Core level three unlocks producers, crossbow and rifle");
+        upgradeCore.upgradeBuilding = ian::UpgradeBuildingCommand{*coreId};
         ian::PlayerCommand toggleUnlimited;
-        toggleUnlimited.enableUnlimitedResources =
-            ian::EnableUnlimitedResourcesCommand{};
-        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
-        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
-        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
-        const auto levelFour = producerUnlocks.snapshot();
-        require(
-            levelFour.coreLevel == 4 &&
-                !levelFour.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::IceWand)] &&
-                levelFour.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::Bomb)] &&
-                levelFour.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::SlowTrap)] &&
-                levelFour.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::SpikeTrap)] &&
-                levelFour.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Cannon)] &&
-                !levelFour.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Catapult)] &&
-                !levelFour.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::FireWand)],
-            "Core level four unlocks traps, cannon and bombs");
-        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
-        producerUnlocks.tick(1.0 / 60.0, upgradeCore);
-        producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
-        const auto levelFive = producerUnlocks.snapshot();
-        require(
-            levelFive.coreLevel == 5 &&
-                levelFive.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::IceWand)] &&
-                !levelFive.unlockedWeapons[static_cast<std::size_t>(
-                    ian::PlayerWeapon::FireWand)] &&
-                levelFive.unlockedBuildings[static_cast<std::size_t>(
-                    ian::BuildingType::Catapult)],
-            "Core level five unlocks catapult and Ice Wand");
+        toggleUnlimited.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+        for (int level = 2; level <= 5; ++level) {
+            producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+            producerUnlocks.tick(1.0 / 60.0, upgradeCore);
+            producerUnlocks.tick(1.0 / 60.0, toggleUnlimited);
+            const auto upgraded = producerUnlocks.snapshot();
+            require(upgraded.coreLevel == level && upgraded.buildingArsenalCount == 1,
+                "Core upgrades expand capacity without acquiring combat types");
+            for (auto type : ian::RunBuildingTypes) {
+                require(upgraded.unlockedBuildings[static_cast<std::size_t>(type)] ==
+                    (type == ian::BuildingType::GunTurret), "only the starter remains in the arsenal");
+            }
+            require(upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Club)] &&
+                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Rifle)] == (level >= 3) &&
+                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Bomb)] == (level >= 4) &&
+                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::IceWand)] == (level >= 5),
+                "weapon progression keeps its Core gates");
+        }
         require(
             ian::playerWeaponRequiredCoreLevel(
                 ian::PlayerWeapon::Rifle) == 3 &&

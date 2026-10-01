@@ -108,6 +108,13 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     traps_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         6.0 * runUpgradePower(RunUpgradeEffect::ReactiveTraps));
+    const auto* character = playerClassDefinition(playerClass_);
+    const auto starting = character ? character->startingBuilding : BuildingType::GunTurret;
+    const double startingDamage = character ? character->startingBuildingDamageMultiplier : 1.0;
+    const double startingRate = character ? character->startingBuildingFireRateMultiplier : 1.0;
+    towers_.setTypeBonuses(starting, startingDamage, startingRate);
+    cannons_.setTypeBonuses(starting, startingDamage, startingRate);
+    traps_.setTypeBonuses(starting, startingDamage, startingRate);
     playerWeapons_.setRifleModifiers(
         1.0, 1.0,
         playerAttackSpeedMultiplier_ *
@@ -136,6 +143,32 @@ void Simulation::prepareRunUpgradeChoices(int selections) {
     invalidateSnapshotCache();
 }
 
+bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
+    if (retiredRunUpgrade(effect) ||
+        runUpgradeStacks_[runUpgradeIndex(effect)] >= runUpgradeMaximumLevel(effect) ||
+        runUpgradePower(effect) >= runUpgradePowerLimit(effect)) return false;
+    if (const auto building = runUpgradeBuilding(effect)) {
+        return !sandboxMode_ && !unlimitedResources_ && !ownsRunBuilding(*building) &&
+            runBuildingArsenalCount() < RunBuildingSlotCount;
+    }
+    if (sandboxMode_ || unlimitedResources_) return true;
+    switch (effect) {
+    case RunUpgradeEffect::NightlyBomb:
+        return playerWeaponUnlocked(PlayerWeapon::Bomb);
+    case RunUpgradeEffect::ClusterPayload:
+        return ownsRunBuilding(BuildingType::Cannon) || ownsRunBuilding(BuildingType::Catapult);
+    case RunUpgradeEffect::ReactiveTraps:
+        return ownsRunBuilding(BuildingType::SpikeTrap) || ownsRunBuilding(BuildingType::SlowTrap);
+    case RunUpgradeEffect::TwinBatteries:
+        return ownsRunBuilding(BuildingType::GunTurret) || ownsRunBuilding(BuildingType::Turret);
+    case RunUpgradeEffect::GunPiercing:
+    case RunUpgradeEffect::GunShrapnel:
+        return ownsRunBuilding(BuildingType::GunTurret);
+    default:
+        return true;
+    }
+}
+
 void Simulation::generateRunUpgradeChoices() {
     const std::size_t extraChoices = std::min<std::size_t>(
         MaximumRunUpgradeChoices - MinimumRunUpgradeChoices,
@@ -154,46 +187,11 @@ void Simulation::generateRunUpgradeChoices() {
     }
     std::vector<RunUpgradeEffect> pool;
     pool.reserve(RunUpgradeEffectCount);
-    const auto core = buildings_.core();
-    const int coreLevel = core ? static_cast<int>(core->level) : 0;
-    for (const RunUpgradeDefinition& definition :
-         RunUpgradeDefinitions) {
-        const RunUpgradeEffect effect = definition.effect;
-        if (retiredRunUpgrade(effect)) continue;
-        if (runUpgradeStacks_[runUpgradeIndex(effect)] >=
-                runUpgradeMaximumLevel(effect) ||
-            runUpgradePower(effect) >= runUpgradePowerLimit(effect)) {
-            continue;
-        }
+    for (const RunUpgradeDefinition& definition : RunUpgradeDefinitions) {
+        if (!runUpgradeAvailable(definition.effect)) continue;
         if (definition.effect == RunUpgradeEffect::WiderChoice &&
-            runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::NightlyBomb &&
-            !unlimitedResources_ &&
-            !playerWeaponUnlocked(PlayerWeapon::Bomb)) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::ProductionSpeed &&
-            !unlimitedResources_ && coreLevel < 2) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::ClusterPayload &&
-            !unlimitedResources_ && coreLevel < 3) {
-            continue;
-        }
-        if (effect == RunUpgradeEffect::ReactiveTraps &&
-            !unlimitedResources_ && coreLevel < 2) {
-            continue;
-        }
-        if ((effect == RunUpgradeEffect::GunPiercing ||
-             effect == RunUpgradeEffect::GunShrapnel) &&
-            !unlimitedResources_ && coreLevel < 1) {
-            continue;
-        }
-        if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) {
-            continue;
-        }
+            runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) continue;
+        if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) continue;
         pool.push_back(definition.effect);
     }
     std::uint64_t randomState = mixBits64(
@@ -254,7 +252,18 @@ void Simulation::generateRunUpgradeChoices() {
         runUpgradeChoiceCount_, firstRandomIndex + pool.size());
     for (std::size_t index = firstRandomIndex;
          index < runUpgradeChoiceCount_; ++index) {
-        const std::size_t selected = chooseWeighted(pool);
+        std::size_t selected = chooseWeighted(pool);
+        // Give players a route to expand their arsenal on every level-up.
+        if (index == 0U) {
+            std::vector<RunUpgradeEffect> blueprints;
+            for (const auto effect : pool) {
+                if (runUpgradeBuilding(effect)) blueprints.push_back(effect);
+            }
+            if (!blueprints.empty()) {
+                const auto effect = blueprints[chooseWeighted(blueprints)];
+                selected = static_cast<std::size_t>(std::find(pool.begin(), pool.end(), effect) - pool.begin());
+            }
+        }
         runUpgradeChoices_[index] = pool[selected];
         randomState = mixBits64(randomState + 0xa0761d6478bd642fULL);
         const double roll = static_cast<double>(randomState >> 11U) *
@@ -275,6 +284,9 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 }
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+    if (const auto building = runUpgradeBuilding(effect)) {
+        if (ownsRunBuilding(*building) || runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
+    }
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
     if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
@@ -333,6 +345,12 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::GatheringSpeed:
     case RunUpgradeEffect::RichResources:
     case RunUpgradeEffect::Luck:
+    case RunUpgradeEffect::UnlockGunTurret:
+    case RunUpgradeEffect::UnlockTurret:
+    case RunUpgradeEffect::UnlockCannon:
+    case RunUpgradeEffect::UnlockCatapult:
+    case RunUpgradeEffect::UnlockSpikeTrap:
+    case RunUpgradeEffect::UnlockSlowTrap:
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {

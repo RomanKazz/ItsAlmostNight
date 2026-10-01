@@ -229,8 +229,15 @@ int TowerSystem::piercingCount(BuildingType type, std::uint8_t level) {
 }
 
 void TowerSystem::reset() {
+    setTypeBonuses(BuildingType::Core, 1.0, 1.0);
     towers_.clear();
     shotBuffer_.clear();
+}
+
+void TowerSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
+    bonusType_ = type;
+    typeDamageMultiplier_ = std::max(0.05, damage);
+    typeFireRateMultiplier_ = std::max(0.05, fireRate);
 }
 
 void TowerSystem::setModifiers(
@@ -309,9 +316,10 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const double heightBonus = building->platformStorey > 0
             ? highGroundDamageMultiplier_ : 1.0;
         const double damage = attackDamage(building->type, building->level) *
-            towerBonus * damageMultiplier_ * heightBonus;
+            towerBonus * damageMultiplier_ * heightBonus *
+            (building->type == bonusType_ ? typeDamageMultiplier_ : 1.0);
         const double shotInterval = fireInterval(building->type, building->level) /
-            fireRateMultiplier_;
+            (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
         tower.baseYaw = smoothBuildingAngle(
             tower.baseYaw, tower.restYaw, deltaSeconds);
 

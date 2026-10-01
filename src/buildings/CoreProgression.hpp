@@ -7,19 +7,12 @@
 
 namespace ian {
 
-inline constexpr int ModularBuildingRequiredCoreLevel = 2;
+inline constexpr int ModularBuildingRequiredCoreLevel = 1;
 
 [[nodiscard]] constexpr int modularBuildPieceRequiredCoreLevel(
     ModularBuildPiece piece) {
-    switch (piece) {
-    case ModularBuildPiece::Foundation:
-    case ModularBuildPiece::Wall:
-        return 2;
-    case ModularBuildPiece::FloorPlatform:
-    case ModularBuildPiece::Ramp:
-        return 5;
-    }
-    return MaxBuildingLevel + 1;
+    (void)piece;
+    return 1;
 }
 
 [[nodiscard]] constexpr int playerWeaponRequiredCoreLevel(
@@ -46,28 +39,7 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 2;
 
 [[nodiscard]] constexpr int buildingRequiredCoreLevel(
     BuildingType type) {
-    switch (type) {
-    case BuildingType::LumberMill:
-    case BuildingType::Quarry:
-    case BuildingType::Turret:
-        return 3;
-    case BuildingType::CrystalMine:
-    case BuildingType::Wall:
-    case BuildingType::Gate:
-        return 2;
-    case BuildingType::SlowTrap:
-    case BuildingType::SpikeTrap:
-    case BuildingType::Cannon:
-        return 4;
-    case BuildingType::Catapult:
-        return 5;
-    case BuildingType::Core:
-    case BuildingType::GunTurret:
-    case BuildingType::WoodStorage:
-    case BuildingType::StoneStorage:
-    case BuildingType::CrystalStorage:
-        return 1;
-    }
+    (void)type;
     return 1;
 }
 
@@ -75,13 +47,13 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 2;
     int level) {
     switch (level) {
     case 2:
-        return "UNLOCKS  WALLS · GATE · CRYSTAL MINE · CLUB";
+        return "UNLOCKS  CLUB · EXPANDS CAPACITY";
     case 3:
-        return "UNLOCKS  QUARRY · LUMBER MILL · CROSSBOW · RIFLE";
+        return "UNLOCKS  RIFLE · EXPANDS CAPACITY";
     case 4:
-        return "UNLOCKS  SLOW TRAP · SPIKES · CANNON · BOMBS";
+        return "UNLOCKS  BOMBS · EXPANDS CAPACITY";
     case 5:
-        return "UNLOCKS  FLOOR · RAMP · CATAPULT · ICE WAND";
+        return "UNLOCKS  ICE WAND · EXPANDS CAPACITY";
     case 6:
     case 7:
     case 8:

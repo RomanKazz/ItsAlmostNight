@@ -1,11 +1,14 @@
 #pragma once
 
+#include "buildings/BuildingSystem.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <optional>
 
 namespace ian {
 
@@ -39,9 +42,16 @@ enum class RunUpgradeEffect {
     LongerDay,
     RichResources,
     Luck,
+    // Append IDs: existing suspended runs store upgrade indices.
+    UnlockGunTurret,
+    UnlockTurret,
+    UnlockCannon,
+    UnlockCatapult,
+    UnlockSpikeTrap,
+    UnlockSlowTrap,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 29U;
+inline constexpr std::size_t RunUpgradeEffectCount = 35U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -112,11 +122,43 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+15% resource node yield"},
         {RunUpgradeEffect::Luck, "LUCK",
          "+10% upgrade luck"},
+        {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Unlock gun turret construction"},
+        {RunUpgradeEffect::UnlockTurret, "CROSSBOW", "Unlock crossbow construction"},
+        {RunUpgradeEffect::UnlockCannon, "CANNON", "Unlock cannon construction"},
+        {RunUpgradeEffect::UnlockCatapult, "CATAPULT", "Unlock catapult construction"},
+        {RunUpgradeEffect::UnlockSpikeTrap, "SPIKES", "Unlock spike trap construction"},
+        {RunUpgradeEffect::UnlockSlowTrap, "SLOW TRAP", "Unlock slow trap construction"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
     RunUpgradeEffect effect) {
     return static_cast<std::size_t>(effect);
+}
+
+inline constexpr std::size_t RunBuildingSlotCount = 4U;
+inline constexpr std::array<BuildingType, 6> RunBuildingTypes{
+    BuildingType::GunTurret, BuildingType::Turret, BuildingType::Cannon,
+    BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap};
+
+[[nodiscard]] constexpr std::optional<BuildingType> runUpgradeBuilding(RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::UnlockGunTurret: return BuildingType::GunTurret;
+    case RunUpgradeEffect::UnlockTurret: return BuildingType::Turret;
+    case RunUpgradeEffect::UnlockCannon: return BuildingType::Cannon;
+    case RunUpgradeEffect::UnlockCatapult: return BuildingType::Catapult;
+    case RunUpgradeEffect::UnlockSpikeTrap: return BuildingType::SpikeTrap;
+    case RunUpgradeEffect::UnlockSlowTrap: return BuildingType::SlowTrap;
+    default: return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<RunUpgradeEffect> buildingRunUpgrade(BuildingType type) {
+    for (std::size_t index = runUpgradeIndex(RunUpgradeEffect::UnlockGunTurret);
+         index < RunUpgradeEffectCount; ++index) {
+        const auto effect = static_cast<RunUpgradeEffect>(index);
+        if (runUpgradeBuilding(effect) == type) return effect;
+    }
+    return std::nullopt;
 }
 
 // These IDs remain reserved so suspended runs keep their card indices.
@@ -178,7 +220,7 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr bool fixedRunUpgradePower(RunUpgradeEffect effect) {
-    return effect == RunUpgradeEffect::DoubleDown ||
+    return runUpgradeBuilding(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
         effect == RunUpgradeEffect::RiskyInvestment ||
         effect == RunUpgradeEffect::RerollToken;
 }
@@ -212,11 +254,13 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
+    if (runUpgradeBuilding(effect)) return RunUpgradeRarity::Common;
     return effect == RunUpgradeEffect::RerollToken ? RunUpgradeRarity::Rare : RunUpgradeRarity::Epic;
 }
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
+    if (runUpgradeBuilding(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:
         return 2;

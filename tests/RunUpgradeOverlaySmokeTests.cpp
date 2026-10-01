@@ -19,11 +19,12 @@ int main(int argc, char** argv) {
     snapshot.runUpgradeChoicePending = true;
     snapshot.runUpgradeChoiceCount = 4;
     snapshot.runUpgradeChoices = {
-        ian::RunUpgradeEffect::DefenseDamage, ian::RunUpgradeEffect::MaximumHealth,
+        ian::RunUpgradeEffect::UnlockCannon, ian::RunUpgradeEffect::MaximumHealth,
         ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::Luck};
     snapshot.runUpgradeRarities = {
         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Uncommon,
         ian::RunUpgradeRarity::Rare, ian::RunUpgradeRarity::Legendary};
+    snapshot.buildingArsenalCount = 1;
     snapshot.playerMaxHealth = 135;
     snapshot.playerMaxRecoverableArmor = 25;
     snapshot.playerDamageMultiplier = 1.25;
