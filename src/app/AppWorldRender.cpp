@@ -1171,9 +1171,10 @@ void App::drawWorldEntities(
             };
             const bool drawn = projectile.type == BuildingType::Catapult
                 ? renderer_->drawCatapultBall(projectilePosition)
-                : renderer_->drawCannonball(projectilePosition);
+                : renderer_->drawCannonball(projectilePosition, WHITE,
+                    static_cast<float>(projectile.visualScale));
             if (!drawn) {
-                DrawSphere(projectilePosition, 0.2F,
+                DrawSphere(projectilePosition, 0.2F * static_cast<float>(projectile.visualScale),
                            {36, 39, 43, 255});
             }
         }
@@ -1192,6 +1193,7 @@ void App::drawWorldEntities(
             static_cast<float>(projectile.position.y),
             static_cast<float>(projectile.position.z),
         };
+        const float shellScale = static_cast<float>(projectile.visualScale);
         Vector3 velocity{
             static_cast<float>(projectile.velocity.x),
             static_cast<float>(projectile.velocity.y),
@@ -1200,15 +1202,15 @@ void App::drawWorldEntities(
         if (Vector3LengthSqr(velocity) > 0.0001F) {
             velocity = Vector3Normalize(velocity);
             const Vector3 tail = Vector3Subtract(
-                position, Vector3Scale(velocity, 1.15F));
-            DrawCylinderEx(tail, position, 0.13F, 0.20F, 6,
+                position, Vector3Scale(velocity, 1.15F * shellScale));
+            DrawCylinderEx(tail, position, 0.13F * shellScale, 0.20F * shellScale, 6,
                            {255, 103, 20, 90});
-            DrawCylinderEx(tail, position, 0.042F, 0.075F, 6,
+            DrawCylinderEx(tail, position, 0.042F * shellScale, 0.075F * shellScale, 6,
                            {255, 226, 132, 230});
         }
-        DrawSphereEx(position, 0.25F, 7, 5,
+        DrawSphereEx(position, 0.25F * shellScale, 7, 5,
                      {255, 121, 25, 105});
-        DrawSphereEx(position, 0.115F, 6, 4,
+        DrawSphereEx(position, 0.115F * shellScale, 6, 4,
                      {255, 244, 184, 245});
     }
     EndBlendMode();

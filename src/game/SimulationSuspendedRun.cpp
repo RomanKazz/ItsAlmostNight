@@ -197,6 +197,16 @@ bool Simulation::loadSuspendedRunState(
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
         });
+    int cannonStyles = 0;
+    bool invalidCannonStyle = false;
+    for (const auto& definition : RunUpgradeDefinitions) {
+        if (!runUpgradeCannonStyle(definition.effect)) continue;
+        const auto index = runUpgradeIndex(definition.effect);
+        cannonStyles += saved.runUpgradeStacks[index] > 0 ? 1 : 0;
+        invalidCannonStyle = invalidCannonStyle || saved.runUpgradeStacks[index] > 1 ||
+            saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]);
+    }
+    invalidCannonStyle = invalidCannonStyle || cannonStyles > 1;
     const double coordinateLimit = map_.worldLimit +
         static_cast<double>(ModularRampRunCells) * worldConfig_.cellSize;
     std::size_t coreCount = 0U;
@@ -318,7 +328,7 @@ bool Simulation::loadSuspendedRunState(
         saved.rifleLevel < 1 || saved.rifleLevel > MaximumSavedStack ||
         selectedWeapon < 0 ||
         selectedWeapon >= static_cast<int>(PlayerWeaponCount) ||
-        invalidArsenal || invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
+        invalidCannonStyle || invalidArsenal || invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
         invalidChoices || invalidStatistics || invalidWorldCollections ||
         invalidPhase || saved.coreBuildRadius < map_.coreBuildRadius ||
         saved.coreBuildRadius >
@@ -560,7 +570,7 @@ bool Simulation::loadSuspendedRunState(
                 static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
             [this, &saved](RunUpgradeEffect effect) {
                 return retiredRunUpgrade(effect) ||
-                    ((saved.buildingArsenalVersion == 0 || runUpgradeBuilding(effect)) &&
+                    ((saved.buildingArsenalVersion == 0 || runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) &&
                      !runUpgradeAvailable(effect));
             })) {
         generateRunUpgradeChoices();

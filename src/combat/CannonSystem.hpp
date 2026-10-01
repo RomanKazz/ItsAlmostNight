@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/CannonAttack.hpp"
 #include "core/Types.hpp"
 #include "enemies/EnemySystem.hpp"
 
@@ -36,6 +37,8 @@ struct CannonProjectile {
     double explosionRadius{};
     double explosionDamage{};
     double explosionImpulse{};
+    double visualScale{1.0};
+    int clusterExplosionCount{};
     bool active{};
 };
 
@@ -80,6 +83,7 @@ class CannonSystem {
         BuildingType type, std::uint8_t level);
 
     void reset();
+    void setAttackStyle(CannonAttackStyle style);
     void setTypeBonuses(BuildingType type, double damage, double fireRate);
     void setModifiers(double damage, double radius,
                            double fireRate, double highGroundDamage,
@@ -98,6 +102,8 @@ class CannonSystem {
   private:
     void launch(const BuildingInstance& cannon, Vec3 targetPosition,
                 double yawRadians, double pitchRadians);
+    void launchProjectile(const BuildingInstance& cannon, Vec3 origin,
+                          Vec3 targetPosition, const CannonAttackProfile& profile, bool recordShot);
     void explode(CannonProjectile& projectile, EnemySystem& enemies);
 
     std::vector<CannonRuntime> cannons_;
@@ -106,6 +112,7 @@ class CannonSystem {
     std::vector<CannonShot> shotBuffer_;
     std::vector<CannonHit> hitBuffer_;
     std::uint32_t nextProjectileIndex_{4000};
+    CannonAttackStyle attackStyle_{CannonAttackStyle::Standard};
     BuildingType bonusType_{BuildingType::Core};
     double typeDamageMultiplier_{1.0};
     double typeFireRateMultiplier_{1.0};

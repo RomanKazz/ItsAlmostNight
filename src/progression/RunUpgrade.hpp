@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "combat/CannonAttack.hpp"
 
 #include <algorithm>
 #include <array>
@@ -49,9 +50,12 @@ enum class RunUpgradeEffect {
     UnlockCatapult,
     UnlockSpikeTrap,
     UnlockSlowTrap,
+    CannonHeavyShell,
+    CannonScattershot,
+    CannonClusterShell,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 35U;
+inline constexpr std::size_t RunUpgradeEffectCount = 38U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -128,6 +132,9 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockCatapult, "CATAPULT", "Unlock catapult construction"},
         {RunUpgradeEffect::UnlockSpikeTrap, "SPIKES", "Unlock spike trap construction"},
         {RunUpgradeEffect::UnlockSlowTrap, "SLOW TRAP", "Unlock slow trap construction"},
+        {RunUpgradeEffect::CannonHeavyShell, "HEAVY SHELL", "Cannon: x5 damage, fires 3x slower"},
+        {RunUpgradeEffect::CannonScattershot, "SCATTERSHOT", "Cannon: 5 shells at 40% damage, smaller blasts"},
+        {RunUpgradeEffect::CannonClusterShell, "CLUSTER SHELL", "Cannon: 80% damage, +3 mini explosions"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -159,6 +166,24 @@ inline constexpr std::array<BuildingType, 6> RunBuildingTypes{
         if (runUpgradeBuilding(effect) == type) return effect;
     }
     return std::nullopt;
+}
+
+[[nodiscard]] constexpr std::optional<CannonAttackStyle> runUpgradeCannonStyle(RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::CannonHeavyShell: return CannonAttackStyle::Heavy;
+    case RunUpgradeEffect::CannonScattershot: return CannonAttackStyle::Scatter;
+    case RunUpgradeEffect::CannonClusterShell: return CannonAttackStyle::Cluster;
+    default: return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr CannonAttackStyle runCannonAttackStyle(
+    const std::array<int, RunUpgradeEffectCount>& stacks) {
+    for (const auto& definition : RunUpgradeDefinitions) {
+        if (const auto style = runUpgradeCannonStyle(definition.effect);
+            style && stacks[runUpgradeIndex(definition.effect)] > 0) return *style;
+    }
+    return CannonAttackStyle::Standard;
 }
 
 // These IDs remain reserved so suspended runs keep their card indices.
@@ -220,7 +245,7 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr bool fixedRunUpgradePower(RunUpgradeEffect effect) {
-    return runUpgradeBuilding(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
+    return runUpgradeBuilding(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
         effect == RunUpgradeEffect::RiskyInvestment ||
         effect == RunUpgradeEffect::RerollToken;
 }
@@ -255,12 +280,13 @@ runUpgradeRarityProbabilities(double luck) {
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
     if (runUpgradeBuilding(effect)) return RunUpgradeRarity::Common;
+    if (runUpgradeCannonStyle(effect)) return RunUpgradeRarity::Rare;
     return effect == RunUpgradeEffect::RerollToken ? RunUpgradeRarity::Rare : RunUpgradeRarity::Epic;
 }
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect)) return 1;
+    if (runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:
         return 2;

@@ -109,6 +109,8 @@ void runRunUpgradeTests() {
     requireNear(tierSimulation->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Damage)],
         15.0, 1e-12, "numeric power cap matches the highest rarity");
 
+    require(simulation->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon),
+        "checkpoint fixture owns its cannon specialization options");
     PlayerCommand xp;
     xp.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
     xp.grantInsight = GrantInsightCommand{1000.0};
@@ -265,5 +267,57 @@ void runRunUpgradeTests() {
     arsenal->startSandboxRun();
     for (auto type : RunBuildingTypes) require(arsenal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
         "sandbox keeps all construction types available");
+
+    auto cannonRun = std::make_unique<Simulation>();
+    auto resumedCannonRun = std::make_unique<Simulation>();
+    for (auto cannonEffect : {RunUpgradeEffect::CannonHeavyShell, RunUpgradeEffect::CannonScattershot,
+                        RunUpgradeEffect::CannonClusterShell}) {
+        cannonRun->returnToMainMenu();
+        cannonRun->startRunFromSeed(PlayerClass::Vanguard, 4321);
+        require(!cannonRun->grantDebugRunUpgrade(cannonEffect), "cannon specialization requires an owned cannon");
+        require(cannonRun->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon) &&
+                cannonRun->grantDebugRunUpgrade(cannonEffect, RunUpgradeRarity::Legendary),
+            "acquired cannon accepts one specialization");
+        require(cannonRun->snapshot().upgradeStats.cannonAttackStyle == *runUpgradeCannonStyle(cannonEffect) &&
+                cannonRun->snapshot().runUpgradePower[runUpgradeIndex(cannonEffect)] == 1.0,
+            "specialization has fixed power across rarities and appears in stats");
+        for (auto other : {RunUpgradeEffect::CannonHeavyShell, RunUpgradeEffect::CannonScattershot,
+                           RunUpgradeEffect::CannonClusterShell}) {
+            require(!cannonRun->grantDebugRunUpgrade(other),
+                "specialization cannot stack, repeat or combine with another attack style");
+        }
+        auto checkpoint = cannonRun->saveSuspendedRunState();
+        resumedCannonRun->returnToMainMenu();
+        require(resumedCannonRun->loadSuspendedRunState(checkpoint) &&
+                resumedCannonRun->snapshot().upgradeStats.cannonAttackStyle == *runUpgradeCannonStyle(cannonEffect),
+            "resume restores chosen cannon specialization");
+        const auto other = cannonEffect == RunUpgradeEffect::CannonHeavyShell
+            ? RunUpgradeEffect::CannonScattershot : RunUpgradeEffect::CannonHeavyShell;
+        checkpoint.runUpgradeStacks[runUpgradeIndex(other)] = 1;
+        checkpoint.runUpgradePower[runUpgradeIndex(other)] = 1.0;
+        resumedCannonRun->returnToMainMenu();
+        require(!resumedCannonRun->loadSuspendedRunState(checkpoint),
+            "incompatible saved cannon styles rejected");
+        checkpoint.runUpgradeStacks[runUpgradeIndex(cannonEffect)] = std::numeric_limits<int>::max();
+        checkpoint.runUpgradeStacks[runUpgradeIndex(other)] = std::numeric_limits<int>::max();
+        require(!resumedCannonRun->loadSuspendedRunState(checkpoint),
+            "malformed huge saved style counts rejected without integer overflow");
+    }
+    cannonRun->returnToMainMenu();
+    cannonRun->startRunFromSeed(PlayerClass::Engineer, 4321);
+    require(cannonRun->snapshot().upgradeStats.cannonAttackStyle == CannonAttackStyle::Standard,
+        "next run resets cannon specialization");
+
+    require(normal->grantDebugRunUpgrade(RunUpgradeEffect::CannonScattershot),
+        "normal run chooses a cannon attack style");
+    for (int reroll = 0; reroll < 3; ++reroll) {
+        require(normal->grantDebugRunUpgrade(RunUpgradeEffect::RerollToken) && normal->rerollRunUpgrades(),
+            "specialized arsenal rerolls its remaining upgrades");
+        const auto specializedOffers = normal->snapshot();
+        for (std::size_t choice = 0; choice < specializedOffers.runUpgradeChoiceCount; ++choice) {
+            require(!runUpgradeCannonStyle(specializedOffers.runUpgradeChoices[choice]),
+                "chosen cannon specialization removes all other styles from the card pool");
+        }
+    }
 
 }

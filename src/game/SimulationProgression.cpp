@@ -102,6 +102,7 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         runUpgradeCount(RunUpgradeEffect::TwinBatteries),
         runUpgradeCount(RunUpgradeEffect::GunPiercing));
+    cannons_.setAttackStyle(runCannonAttackStyle(runUpgradeStacks_));
     cannons_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
         runUpgradeCount(RunUpgradeEffect::ClusterPayload));
@@ -150,6 +151,10 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     if (const auto building = runUpgradeBuilding(effect)) {
         return !sandboxMode_ && !unlimitedResources_ && !ownsRunBuilding(*building) &&
             runBuildingArsenalCount() < RunBuildingSlotCount;
+    }
+    if (runUpgradeCannonStyle(effect)) {
+        return runCannonAttackStyle(runUpgradeStacks_) == CannonAttackStyle::Standard &&
+            (sandboxMode_ || unlimitedResources_ || ownsRunBuilding(BuildingType::Cannon));
     }
     if (sandboxMode_ || unlimitedResources_) return true;
     switch (effect) {
@@ -287,6 +292,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     if (const auto building = runUpgradeBuilding(effect)) {
         if (ownsRunBuilding(*building) || runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
     }
+    if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
     if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
@@ -351,6 +357,9 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockCatapult:
     case RunUpgradeEffect::UnlockSpikeTrap:
     case RunUpgradeEffect::UnlockSlowTrap:
+    case RunUpgradeEffect::CannonHeavyShell:
+    case RunUpgradeEffect::CannonScattershot:
+    case RunUpgradeEffect::CannonClusterShell:
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {

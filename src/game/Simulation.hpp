@@ -269,6 +269,7 @@ struct RunUpgradeStats {
     int gunPiercing{};
     int ricochets{};
     int clusterExplosions{};
+    CannonAttackStyle cannonAttackStyle{CannonAttackStyle::Standard};
 };
 
 struct SimulationSnapshot {

@@ -220,7 +220,7 @@ bool Renderer::drawCannon(Vector3 position, float yawRadians,
     return true;
 }
 
-bool Renderer::drawCannonball(Vector3 position, Color tint) {
+bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
     auto& resource = resources_.cannonballModel();
     if (!resource.valid()) {
         return false;
@@ -245,7 +245,7 @@ bool Renderer::drawCannonball(Vector3 position, Color tint) {
         }
     }
     DrawModelEx(model, position, {0.0F, 1.0F, 0.0F}, 0.0F,
-                {1.0F, 1.0F, 1.0F}, tint);
+                {scale, scale, scale}, tint);
     return true;
 }
 

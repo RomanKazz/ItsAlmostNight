@@ -112,12 +112,17 @@ double CannonSystem::explosionDamage(
 }
 
 void CannonSystem::reset() {
+    setAttackStyle(CannonAttackStyle::Standard);
     setTypeBonuses(BuildingType::Core, 1.0, 1.0);
     cannons_.clear();
     projectiles_.clear();
     explosionBuffer_.clear();
     shotBuffer_.clear();
     hitBuffer_.clear();
+}
+
+void CannonSystem::setAttackStyle(CannonAttackStyle style) {
+    attackStyle_ = style;
 }
 
 void CannonSystem::setTypeBonuses(BuildingType type, double damage, double fireRate) {
@@ -206,7 +211,9 @@ std::span<const CannonExplosion> CannonSystem::tick(
         const double range = attackRange(building->type, building->level);
         const double deadZone = minimumRange(
             building->type, building->level);
-        const double shotInterval = fireInterval(
+        const auto profile = cannonAttackProfile(building->type == BuildingType::Cannon
+            ? attackStyle_ : CannonAttackStyle::Standard);
+        const double shotInterval = profile.interval * fireInterval(
             building->type, building->level) /
             (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
         cannon.baseYaw = smoothBuildingAngle(
@@ -377,6 +384,30 @@ std::span<const CannonHit> CannonSystem::hits() const {
 void CannonSystem::launch(const BuildingInstance& cannon,
                           Vec3 targetPosition, double yawRadians,
                           double pitchRadians) {
+    const Vec3 origin = cannon.type == BuildingType::Catapult
+        ? catapultMuzzleWorldPosition(
+            buildingWorldPosition(cannon), yawRadians, pitchRadians)
+        : cannonMuzzleWorldPosition(
+            buildingWorldPosition(cannon), yawRadians, pitchRadians);
+    const auto profile = cannonAttackProfile(cannon.type == BuildingType::Cannon
+        ? attackStyle_ : CannonAttackStyle::Standard);
+    for (int index = 0; index < profile.projectileCount; ++index) {
+        Vec3 impact = targetPosition;
+        if (index > 0) {
+            // Four pellets fan out around the aimed shell. Separate impact
+            // points and trajectories keep the volley legible in the world.
+            constexpr double HalfPi = 1.5707963267948966;
+            const double angle = yawRadians + HalfPi * static_cast<double>(index - 1);
+            const double spread = 1.4;
+            impact.x += std::cos(angle) * spread;
+            impact.z += std::sin(angle) * spread;
+        }
+        launchProjectile(cannon, origin, impact, profile, index == 0);
+    }
+}
+
+void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
+                                    Vec3 targetPosition, const CannonAttackProfile& profile, bool recordShot) {
     CannonProjectile* projectile = nullptr;
     for (auto& candidate : projectiles_) {
         if (!candidate.active) {
@@ -394,11 +425,6 @@ void CannonSystem::launch(const BuildingInstance& cannon,
         projectile->id = {nextProjectileIndex_++, 1};
     }
 
-    const Vec3 origin = cannon.type == BuildingType::Catapult
-        ? catapultMuzzleWorldPosition(
-            buildingWorldPosition(cannon), yawRadians, pitchRadians)
-        : cannonMuzzleWorldPosition(
-            buildingWorldPosition(cannon), yawRadians, pitchRadians);
     const double deltaX = targetPosition.x - origin.x;
     const double deltaZ = targetPosition.z - origin.z;
     const double horizontalDistance = std::sqrt((deltaX * deltaX) + (deltaZ * deltaZ));
@@ -419,7 +445,7 @@ void CannonSystem::launch(const BuildingInstance& cannon,
     const double levelBonus = static_cast<double>(cannon.level - 1);
     projectile->explosionRadius = explosionRadius(
         cannon.type, cannon.level) *
-        radiusMultiplier_;
+        radiusMultiplier_ * profile.radius;
     const double towerBonus = cannon.anvilStacks > 0
         ? 1.0 + 0.10 * cannon.anvilStacks
         : cannon.anvilEnhanced ? 1.10 : 1.0;
@@ -427,12 +453,14 @@ void CannonSystem::launch(const BuildingInstance& cannon,
         ? highGroundDamageMultiplier_ : 1.0;
     projectile->explosionDamage = explosionDamage(
         cannon.type, cannon.level) *
-        towerBonus * damageMultiplier_ * heightBonus *
+        towerBonus * damageMultiplier_ * heightBonus * profile.damage *
         (cannon.type == bonusType_ ? typeDamageMultiplier_ : 1.0);
     projectile->explosionImpulse =
         BaseExplosionImpulse + 0.35 * levelBonus;
+    projectile->visualScale = profile.visualScale;
+    projectile->clusterExplosionCount = clusterExplosionCount_ + profile.clusterCount;
     projectile->active = true;
-    shotBuffer_.push_back({
+    if (recordShot) shotBuffer_.push_back({
         .cannonId = cannon.id,
         .projectileId = projectile->id,
         .position = origin,
@@ -464,11 +492,11 @@ void CannonSystem::explode(CannonProjectile& projectile, EnemySystem& enemies) {
     });
     constexpr double FullCircle = 6.283185307179586;
     for (int clusterIndex = 0;
-         clusterIndex < clusterExplosionCount_; ++clusterIndex) {
+         clusterIndex < projectile.clusterExplosionCount; ++clusterIndex) {
         const double angle = FullCircle *
             (static_cast<double>(clusterIndex) /
                  static_cast<double>(
-                     std::max(1, clusterExplosionCount_)) +
+                     std::max(1, projectile.clusterExplosionCount)) +
              static_cast<double>(projectile.id.index % 17U) /
                  17.0);
         const double offset = projectile.explosionRadius * 0.72;

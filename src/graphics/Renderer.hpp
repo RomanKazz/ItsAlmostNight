@@ -394,7 +394,7 @@ class Renderer {
                                   Color tint = WHITE,
                                   float scale = 1.0F);
     [[nodiscard]] bool drawCannonball(Vector3 position,
-                                      Color tint = WHITE);
+                                      Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawCatapult(
         Vector3 position, float yawRadians, float armPitchRadians,
         bool loaded = true, Color tint = WHITE,

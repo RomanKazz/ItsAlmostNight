@@ -432,6 +432,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
             .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),
             .clusterExplosions = runUpgradeCount(RunUpgradeEffect::ClusterPayload),
+            .cannonAttackStyle = runCannonAttackStyle(runUpgradeStacks_),
         },
         .runUpgradeSelectionsRemaining =
             runUpgradeSelectionsRemaining_,

@@ -640,6 +640,10 @@ Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
 
 Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
     switch (effect) {
+    case RunUpgradeEffect::CannonHeavyShell:
+    case RunUpgradeEffect::CannonScattershot:
+    case RunUpgradeEffect::CannonClusterShell:
+        return buildingTexture(BuildingType::Cannon);
     case RunUpgradeEffect::MoveSpeed:
         return moveUpgradeIcon_;
     case RunUpgradeEffect::MaximumHealth:

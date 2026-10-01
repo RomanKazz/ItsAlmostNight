@@ -113,6 +113,9 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::BuildRadius:
     case RunUpgradeEffect::DefenseDamage:
     case RunUpgradeEffect::DefenseFireRate:
+    case RunUpgradeEffect::CannonHeavyShell:
+    case RunUpgradeEffect::CannonScattershot:
+    case RunUpgradeEffect::CannonClusterShell:
     case RunUpgradeEffect::ClusterPayload:
     case RunUpgradeEffect::ReactiveTraps:
     case RunUpgradeEffect::GunPiercing:
@@ -170,6 +173,9 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::RiskyInvestment: return "RISK";
     case RunUpgradeEffect::Salvager: return "SCRAP";
     case RunUpgradeEffect::TwinBatteries: return "X2";
+    case RunUpgradeEffect::CannonHeavyShell: return "HEAVY";
+    case RunUpgradeEffect::CannonScattershot: return "SPREAD";
+    case RunUpgradeEffect::CannonClusterShell: return "BURST";
     case RunUpgradeEffect::ClusterPayload: return "BURST";
     case RunUpgradeEffect::ReactiveTraps: return "PULSE";
     case RunUpgradeEffect::GunPiercing: return "PIERCE";
@@ -379,7 +385,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
     DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
         fadedColor({126, 112, 85, 255}, fade));
-    const float scale = bounds.height / 657.0F;
+    const float scale = bounds.height / 684.0F;
     const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
     const float left = bounds.x + 18.0F;
     const float right = bounds.x + bounds.width - 18.0F;
@@ -419,6 +425,16 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
     row("Gun piercing", std::to_string(stats.gunPiercing));
     row("Shot bounces", std::to_string(stats.ricochets));
     row("Cluster blasts", std::to_string(stats.clusterExplosions));
+    const auto cannonStyleName = [&] {
+        switch (stats.cannonAttackStyle) {
+        case CannonAttackStyle::Heavy: return "HEAVY";
+        case CannonAttackStyle::Scatter: return "SPREAD";
+        case CannonAttackStyle::Cluster: return "CLUSTER";
+        case CannonAttackStyle::Standard: return "STANDARD";
+        }
+        return "STANDARD";
+    };
+    row("Cannon attack", cannonStyleName());
     section("ECONOMY");
     row("Production", multiplier(stats.productionSpeed));
     row("Resource yield", multiplier(stats.resourceYield));
@@ -847,6 +863,9 @@ void drawRunUpgradeOverlay(
             fadedColor(CardInset, cardFade));
         const UpgradeValueCopy valueCopy =
             runUpgradeBuilding(effect) ? UpgradeValueCopy{"NEW", "Building blueprint"}
+                : effect == RunUpgradeEffect::CannonHeavyShell ? UpgradeValueCopy{"x5 DAMAGE", "Cannon fires 3x slower"}
+                : effect == RunUpgradeEffect::CannonScattershot ? UpgradeValueCopy{"5 SHELLS", "40% damage each / smaller blasts"}
+                : effect == RunUpgradeEffect::CannonClusterShell ? UpgradeValueCopy{"+3 BLASTS", "80% main damage / 36% mini"}
                 : upgradeValueCopy(description, mark);
         const float valueSize = fitUiTextSize(
             valueCopy.value,

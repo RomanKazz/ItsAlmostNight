@@ -85,6 +85,57 @@ void runCannonSystemTests() {
                 clusterExplosions[0].radius,
         "Cluster Payload adds two smaller secondary explosions");
 
+    // Actual launch payloads, cooldowns and impacts for each specialization.
+    for (auto style : {ian::CannonAttackStyle::Heavy, ian::CannonAttackStyle::Scatter,
+                       ian::CannonAttackStyle::Cluster}) {
+        ian::EnemySystem targets;
+        targets.spawnWave(Cluster);
+        ian::CannonSystem specialized;
+        specialized.setAttackStyle(style);
+        specialized.setTypeBonuses(ian::BuildingType::Cannon, 1.3, 1.5);
+        specialized.setModifiers(1.2, 1.1, 1.4, 1.0, 2);
+        specialized.syncBuildings(buildings.buildings());
+        specialized.tick(1.0 / 60.0, buildings.buildings(), targets);
+        const auto profile = ian::cannonAttackProfile(style);
+        require(specialized.projectiles().size() == static_cast<std::size_t>(profile.projectileCount),
+            "specialization emits the expected shell volley");
+        require(specialized.shots().size() == 1, "scatter volley emits one fire sound and shot event");
+        requireNear(specialized.cannons().front().fireCooldownRemaining,
+            ian::CannonSystem::fireInterval(2) * profile.interval / (1.5 * 1.4), 1e-12,
+            "specialization cooldown combines with class and global fire rate");
+        for (const auto& shell : specialized.projectiles()) {
+            requireNear(shell.explosionDamage, 3.0 * 1.3 * 1.2 * profile.damage, 1e-12,
+                "specialization damage combines with class and global damage");
+            requireNear(shell.explosionRadius, 2.6 * 1.1 * profile.radius, 1e-12,
+                "scatter shells have smaller actual explosion radii");
+            require(shell.clusterExplosionCount == 2 + profile.clusterCount &&
+                    shell.visualScale == profile.visualScale,
+                "shell captures its cluster payload and visible size");
+        }
+        if (style == ian::CannonAttackStyle::Scatter) {
+            require(specialized.projectiles()[0].targetPosition.x != specialized.projectiles()[1].targetPosition.x ||
+                specialized.projectiles()[0].targetPosition.z != specialized.projectiles()[1].targetPosition.z,
+                "scatter pellets use different ballistic trajectories");
+        }
+        // Changing runtime modifiers cannot rewrite shells already in flight.
+        specialized.setAttackStyle(ian::CannonAttackStyle::Standard);
+        specialized.setModifiers(1.0, 1.0, 1.0, 1.0, 0);
+        int totalExplosions = 0;
+        for (int tick = 0; tick < 90; ++tick) {
+            totalExplosions += static_cast<int>(specialized.tick(
+                1.0 / 60.0, buildings.buildings(), targets).size());
+        }
+        require(totalExplosions == profile.projectileCount * (1 + 2 + profile.clusterCount),
+            "every shell produces its captured main and secondary explosions");
+        specialized.reset();
+        specialized.syncBuildings(buildings.buildings());
+        targets.reset();
+        targets.spawnWave(Cluster);
+        specialized.tick(1.0 / 60.0, buildings.buildings(), targets);
+        require(specialized.projectiles().size() == 1 && specialized.projectiles()[0].visualScale == 1.0,
+            "new run resets specialization to a standard single shell");
+    }
+
     ian::EnemySystem angledEnemies;
     constexpr std::array<ian::Vec3, 3> AngledCluster{{
         {5.0, 0.8, -8.0},
@@ -117,6 +168,7 @@ void runCannonSystemTests() {
     }};
     catapultEnemies.spawnWave(CatapultTargets);
     ian::CannonSystem catapults;
+    catapults.setAttackStyle(ian::CannonAttackStyle::Scatter);
     catapults.syncBuildings(catapultBuildings);
     catapults.tick(1.0 / 60.0, catapultBuildings, catapultEnemies);
     require(catapults.projectiles().empty() &&
@@ -134,7 +186,9 @@ void runCannonSystemTests() {
         catapults.tick(1.0 / 60.0, catapultBuildings,
                        catapultEnemies);
     }
-    require(!catapults.projectiles().empty() &&
+    require(catapults.projectiles().size() == 1 &&
+                catapults.projectiles().front().explosionDamage == 4.0 &&
+                catapults.projectiles().front().visualScale == 1.0 &&
                 catapults.projectiles().front().type ==
                     ian::BuildingType::Catapult &&
                 !catapults.cannons().front().loaded &&
