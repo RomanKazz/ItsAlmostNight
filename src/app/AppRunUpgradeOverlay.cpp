@@ -23,8 +23,6 @@ constexpr Color CardShadowBlack{0, 0, 0, 64};
 constexpr Color CardInset{0x34, 0x22, 0x15, 255};
 constexpr Color CardInk{20, 21, 20, 255};
 constexpr Color CardValueCream{0xF9, 0xE8, 0xCD, 255};
-constexpr Color LevelHighlight{0x98, 0x6D, 0x47, 255};
-constexpr Color LevelShadow{0x2E, 0x24, 0x19, 255};
 constexpr Color LevelText{0xBF, 0xAD, 0x9D, 255};
 constexpr Color LevelOutline{0x3A, 0x25, 0x14, 255};
 constexpr float UiTextRasterScale = 1.68F;
@@ -380,12 +378,23 @@ UpgradePalette rarityPalette(RunUpgradeRarity rarity) {
     return upgradePalette(UpgradeColorClass::Green);
 }
 
-void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
+void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
+                      std::optional<std::size_t> hoveredChoice) {
+    const auto projected = hoveredChoice ? previewRunUpgrade(snapshot, *hoveredChoice) : snapshot;
+    const bool cannonPreview = hoveredChoice &&
+        runUpgradeCannonStyle(snapshot.runUpgradeChoices[*hoveredChoice]).has_value();
+    const auto hoveredEffect = hoveredChoice ? snapshot.runUpgradeChoices[*hoveredChoice] : RunUpgradeEffect::Damage;
+    const bool contextualPreview = hoveredChoice && (
+        hoveredEffect == RunUpgradeEffect::ReactiveTraps || hoveredEffect == RunUpgradeEffect::GunShrapnel ||
+        hoveredEffect == RunUpgradeEffect::BloodHarvest || hoveredEffect == RunUpgradeEffect::Overkill ||
+        hoveredEffect == RunUpgradeEffect::Salvager || hoveredEffect == RunUpgradeEffect::NightlyBomb ||
+        hoveredEffect == RunUpgradeEffect::LongerDay || hoveredEffect == RunUpgradeEffect::DoubleDown ||
+        hoveredEffect == RunUpgradeEffect::RiskyInvestment || hoveredEffect == RunUpgradeEffect::RerollToken);
     const Rectangle bounds = runUpgradeStatsPanelBounds(snapshot.runUpgradeChoiceCount);
     DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
         fadedColor({126, 112, 85, 255}, fade));
-    const float scale = bounds.height / 684.0F;
+    const float scale = bounds.height / 738.0F;
     const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
     const float left = bounds.x + 18.0F;
     const float right = bounds.x + bounds.width - 18.0F;
@@ -394,39 +403,72 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
         28.0F / UiTextRasterScale * scale, 16.0F / UiTextRasterScale * scale,
         right - left);
     drawUiText("STATS", {left, y}, titleSize, fadedColor(UiWhite, fade));
+    if (hoveredChoice) {
+        const ScopedUiFontRole body(UiFontRole::BodyBold);
+        const float previewSize = fitUiTextSize("PREVIEW", fontSize, fontSize * 0.8F, bounds.width * 0.43F);
+        const float previewWidth = measureUiText("PREVIEW", previewSize).x;
+        drawUiText("PREVIEW", {right - previewWidth, y + 28.0F * scale}, previewSize,
+            fadedColor({110, 229, 164, 255}, fade));
+    }
     y += 45.0F * scale;
     const auto section = [&](std::string_view name) {
         y += 8.0F * scale;
         drawUiText(name, {left, y}, fontSize, fadedColor({255, 198, 94, 255}, fade));
         y += 30.0F * scale;
     };
-    const auto row = [&](std::string_view label, const std::string& value) {
+    const auto row = [&](std::string_view label, const std::string& value,
+                         const std::string& nextValue, bool positive = true) {
+        const bool changed = value != nextValue;
+        const Color changeColor = positive ? Color{110, 229, 164, 255} : Color{255, 173, 105, 255};
         float valueWidth{};
         {
             const ScopedUiFontRole valueFont(UiFontRole::BodyBold);
-            valueWidth = measureUiText(value, fontSize).x;
-            drawUiText(value, {right - valueWidth, y}, fontSize,
-                fadedColor(UiWhite, fade));
+            float valueSize = fontSize;
+            const auto width = [&](float size) {
+                return measureUiText(value, size).x + (changed
+                    ? measureUiText(" > ", size).x + measureUiText(nextValue, size).x : 0.0F);
+            };
+            const float available = (right - left) * (changed ? 0.53F : 0.46F);
+            if (width(valueSize) > available) valueSize *= available / width(valueSize);
+            valueWidth = width(valueSize);
+            if (changed) {
+                DrawRectangleRounded({left - 5.0F, y - 3.0F * scale,
+                    right - left + 10.0F, 26.0F * scale}, 0.20F, 4,
+                    fadedColor({48, 67, 53, 150}, fade));
+                const float nextWidth = measureUiText(nextValue, valueSize).x;
+                const float arrowWidth = measureUiText(" > ", valueSize).x;
+                drawUiText(value, {right - valueWidth, y}, valueSize,
+                    fadedColor({169, 178, 169, 255}, fade));
+                drawUiText(" > ", {right - nextWidth - arrowWidth, y}, valueSize,
+                    fadedColor({173, 187, 172, 255}, fade));
+                drawUiText(nextValue, {right - nextWidth, y}, valueSize,
+                    fadedColor(changeColor, fade));
+            } else {
+                drawUiText(value, {right - valueWidth, y}, valueSize, fadedColor(UiWhite, fade));
+            }
         }
         const ScopedUiFontRole labelFont(UiFontRole::Body);
         const float labelSize = fitUiTextSize(label, fontSize, fontSize * 0.72F,
             bounds.width - 36.0F - valueWidth - 14.0F);
-        drawUiText(label, {left, y}, labelSize, fadedColor({205, 207, 196, 255}, fade));
+        drawUiText(label, {left, y}, labelSize,
+            fadedColor(changed ? changeColor : Color{205, 207, 196, 255}, fade));
         y += 27.0F * scale;
     };
     const auto multiplier = [](double value) { return statNumber(value, 2) + "x"; };
     const RunUpgradeStats& stats = snapshot.upgradeStats;
+    const RunUpgradeStats& next = projected.upgradeStats;
     section("DEFENSE");
-    row("Arsenal", std::to_string(snapshot.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount));
-    row("Defense damage", multiplier(stats.defenseDamage));
-    row("Fire rate", multiplier(stats.defenseFireRate));
-    row("Building HP", multiplier(stats.buildingHealth));
-    row("Side shots", std::to_string(stats.sideShots));
-    row("Gun piercing", std::to_string(stats.gunPiercing));
-    row("Shot bounces", std::to_string(stats.ricochets));
-    row("Cluster blasts", std::to_string(stats.clusterExplosions));
-    const auto cannonStyleName = [&] {
-        switch (stats.cannonAttackStyle) {
+    row("Arsenal", std::to_string(snapshot.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount),
+        std::to_string(projected.buildingArsenalCount) + "/" + std::to_string(RunBuildingSlotCount));
+    row("Defense damage", multiplier(stats.defenseDamage), multiplier(next.defenseDamage));
+    row("Fire rate", multiplier(stats.defenseFireRate), multiplier(next.defenseFireRate));
+    row("Building HP", multiplier(stats.buildingHealth), multiplier(next.buildingHealth));
+    row("Side shots", std::to_string(stats.sideShots), std::to_string(next.sideShots));
+    row("Gun piercing", std::to_string(stats.gunPiercing), std::to_string(next.gunPiercing));
+    row("Shot bounces", std::to_string(stats.ricochets), std::to_string(next.ricochets));
+    row("Cluster blasts", std::to_string(stats.clusterExplosions), std::to_string(next.clusterExplosions));
+    const auto cannonStyleName = [](CannonAttackStyle style) {
+        switch (style) {
         case CannonAttackStyle::Heavy: return "HEAVY";
         case CannonAttackStyle::Scatter: return "SPREAD";
         case CannonAttackStyle::Cluster: return "CLUSTER";
@@ -434,18 +476,59 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade) {
         }
         return "STANDARD";
     };
-    row("Cannon attack", cannonStyleName());
+    row("Cannon attack", cannonStyleName(stats.cannonAttackStyle), cannonStyleName(next.cannonAttackStyle));
     section("ECONOMY");
-    row("Production", multiplier(stats.productionSpeed));
-    row("Resource yield", multiplier(stats.resourceYield));
-    row("Build range", std::to_string(snapshot.coreBuildRadius) + "m");
-    row("Luck", statNumber(stats.luck * 100.0) + "%");
+    row("Production", multiplier(stats.productionSpeed), multiplier(next.productionSpeed));
+    row("Resource yield", multiplier(stats.resourceYield), multiplier(next.resourceYield));
+    row("Build range", std::to_string(snapshot.coreBuildRadius) + "m", std::to_string(projected.coreBuildRadius) + "m");
+    row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
-    row("Max HP", statNumber(snapshot.playerMaxHealth));
-    row("Shield", statNumber(snapshot.playerMaxRecoverableArmor));
-    row("Player damage", multiplier(snapshot.playerDamageMultiplier));
-    row("Attack speed", multiplier(stats.playerAttackSpeed));
-    row("Move speed", multiplier(snapshot.playerMoveSpeedMultiplier));
+    row("Max HP", statNumber(snapshot.playerMaxHealth), statNumber(projected.playerMaxHealth));
+    row("Shield", statNumber(snapshot.playerMaxRecoverableArmor), statNumber(projected.playerMaxRecoverableArmor));
+    row("Player damage", multiplier(snapshot.playerDamageMultiplier), multiplier(projected.playerDamageMultiplier));
+    row("Attack speed", multiplier(stats.playerAttackSpeed), multiplier(next.playerAttackSpeed));
+    row("Move speed", multiplier(snapshot.playerMoveSpeedMultiplier), multiplier(projected.playerMoveSpeedMultiplier));
+    if (cannonPreview) {
+        const auto before = cannonAttackProfile(stats.cannonAttackStyle);
+        const auto after = cannonAttackProfile(next.cannonAttackStyle);
+        const auto* character = playerClassDefinition(snapshot.playerClass);
+        const double damage = stats.defenseDamage * (character && character->startingBuilding == BuildingType::Cannon
+            ? character->startingBuildingDamageMultiplier : 1.0);
+        const double rate = stats.defenseFireRate * (character && character->startingBuilding == BuildingType::Cannon
+            ? character->startingBuildingFireRateMultiplier : 1.0);
+        row("Cannon shell damage", multiplier(damage * before.damage), multiplier(damage * after.damage), after.damage >= before.damage);
+        if (next.cannonAttackStyle == CannonAttackStyle::Scatter) {
+            row("Shells per shot", std::to_string(before.projectileCount), std::to_string(after.projectileCount));
+        } else if (next.cannonAttackStyle == CannonAttackStyle::Cluster) {
+            row("Cannon mini blasts", std::to_string(before.clusterCount + stats.clusterExplosions),
+                std::to_string(after.clusterCount + next.clusterExplosions));
+        } else {
+            row("Cannon fire rate", multiplier(rate / before.interval), multiplier(rate / after.interval), after.interval <= before.interval);
+        }
+    }
+    if (contextualPreview) {
+        const auto index = runUpgradeIndex(hoveredEffect);
+        const double before = snapshot.runUpgradePower[index];
+        const double after = projected.runUpgradePower[index];
+        const auto bonus = [&](std::string_view label, double step, std::string_view suffix = "") {
+            row(label, statNumber(before * step) + std::string(suffix), statNumber(after * step) + std::string(suffix));
+        };
+        switch (hoveredEffect) {
+        case RunUpgradeEffect::ReactiveTraps: bonus("Trap pulse", 6.0); break;
+        case RunUpgradeEffect::GunShrapnel: bonus("Kill shards", 3.0); break;
+        case RunUpgradeEffect::BloodHarvest: bonus("HP per 10 kills", 8.0); break;
+        case RunUpgradeEffect::Overkill: bonus("Damage transfers", 1.0); break;
+        case RunUpgradeEffect::Salvager: bonus("Salvage bonus", 30.0, "%"); break;
+        case RunUpgradeEffect::NightlyBomb: bonus("Bombs per night", 1.0); break;
+        case RunUpgradeEffect::LongerDay: bonus("Day extension", 5.0, "s"); break;
+        case RunUpgradeEffect::DoubleDown: row("Next-level bonus", "-", "+2"); break;
+        case RunUpgradeEffect::RiskyInvestment: row("Enemy difficulty", "-", "INCREASED", false); break;
+        case RunUpgradeEffect::RerollToken: row("Rerolls", std::to_string(snapshot.runUpgradeRerollTokens),
+            std::to_string(snapshot.runUpgradeRerollTokens + 1)); break;
+        default: break;
+        }
+    }
+
 }
 
 UpgradeValueCopy upgradeValueCopy(
@@ -516,13 +599,60 @@ std::optional<std::size_t> hoveredRunUpgradeChoice(
     return std::nullopt;
 }
 
+SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::size_t choiceIndex) {
+    SimulationSnapshot projected = snapshot;
+    if (choiceIndex >= snapshot.runUpgradeChoiceCount || choiceIndex >= MaximumRunUpgradeChoices) return projected;
+    const auto effect = snapshot.runUpgradeChoices[choiceIndex];
+    const auto index = runUpgradeIndex(effect);
+    if (index >= RunUpgradeEffectCount ||
+        static_cast<std::size_t>(snapshot.runUpgradeRarities[choiceIndex]) >= RunUpgradeRarityCount) return projected;
+    const double current = snapshot.runUpgradePower[index];
+    const double gain = runUpgradeAppliedPowerGain(effect, snapshot.runUpgradeRarities[choiceIndex], current);
+    if (gain <= 0.0) return projected;
+    projected.runUpgradePower[index] += gain;
+    ++projected.runUpgradeStacks[index];
+    const auto* character = playerClassDefinition(snapshot.playerClass);
+    const auto ratio = [&](double base, double step) {
+        return (base + step * (current + gain)) / (base + step * current);
+    };
+    if (runUpgradeBuilding(effect)) ++projected.buildingArsenalCount;
+    if (const auto style = runUpgradeCannonStyle(effect)) projected.upgradeStats.cannonAttackStyle = *style;
+    switch (effect) {
+    case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage += 0.12 * gain; break;
+    case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate += 0.10 * gain; break;
+    case RunUpgradeEffect::BuildingHealth:
+        projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.12); break;
+    case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.15); break;
+    case RunUpgradeEffect::RichResources: projected.upgradeStats.resourceYield *= ratio(1.0, 0.15); break;
+    case RunUpgradeEffect::AttackSpeed:
+        projected.upgradeStats.playerAttackSpeed *= ratio(character ? character->attackSpeedMultiplier : 1.0, 0.15); break;
+    case RunUpgradeEffect::Damage: projected.playerDamageMultiplier *= ratio(1.0, 0.10); break;
+    case RunUpgradeEffect::MoveSpeed:
+        projected.playerMoveSpeedMultiplier *= ratio(character ? character->moveSpeedMultiplier : 1.0, 0.07); break;
+    case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth += 12.0 * gain; break;
+    case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
+    case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::round(3.0 * gain)); break;
+    case RunUpgradeEffect::Luck: projected.upgradeStats.luck += 0.10 * gain; break;
+    case RunUpgradeEffect::TwinBatteries:
+        projected.upgradeStats.sideShots = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::GunPiercing:
+        projected.upgradeStats.gunPiercing = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::Ricochet:
+        projected.upgradeStats.ricochets = runUpgradeDiscreteAmount(effect, current + gain); break;
+    case RunUpgradeEffect::ClusterPayload:
+        projected.upgradeStats.clusterExplosions = runUpgradeDiscreteAmount(effect, current + gain); break;
+    default: break;
+    }
+    return projected;
+}
+
 void drawRunUpgradeOverlay(
     GameUi& ui,
     const SimulationSnapshot& snapshot,
     double entranceSeconds,
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
-    std::span<const float> hoverAmounts) {
+    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition) {
     if (!snapshot.runUpgradeChoicePending ||
         snapshot.runUpgradeChoiceCount == 0U) return;
     const float exitProgress = std::clamp(static_cast<float>(
@@ -536,7 +666,9 @@ void drawRunUpgradeOverlay(
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                   {30, 30, 30, static_cast<unsigned char>(
                       std::lround(170.0F * screenFade))});
-    drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade);
+    const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
+    const auto hoveredChoice = exitSeconds > 0.0 ? std::nullopt : hoveredRunUpgradeChoice(snapshot, mouse);
+    drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade, hoveredChoice);
     const float headingEntrance = std::clamp(static_cast<float>(
         (entranceSeconds - 0.01) / 0.23), 0.0F, 1.0F);
     const float headingMotion = popEntranceScale(headingEntrance);
@@ -569,7 +701,7 @@ void drawRunUpgradeOverlay(
     if (IsTextureValid(levelUpBanner)) {
         const float maximumBannerWidth = std::max(
             180.0F, (cardTop - 64.0F) * 3.0F);
-        const float bannerWidth = UpgradeUiScale * std::min({
+        const float bannerWidth = UpgradeUiScale * 0.82F * std::min({
             940.0F,
             static_cast<float>(GetScreenWidth()) - 60.0F,
             maximumBannerWidth,
@@ -598,7 +730,6 @@ void drawRunUpgradeOverlay(
         }
     }
 
-    const Vector2 mouse = GetMousePosition();
     for (std::size_t index = 0; index < snapshot.runUpgradeChoiceCount;
         ++index) {
         const RunUpgradeEffect effect = snapshot.runUpgradeChoices[index];
@@ -671,7 +802,7 @@ void drawRunUpgradeOverlay(
         cardDropShadowBounds.y += 6.0F * scale;
 
         const float glowStrength = cardFade *
-            (1.0F + hover * 0.55F +
+            (0.50F + hover * 0.65F +
              (selectedForExit ? exitEase * 0.35F : 0.0F));
         const auto drawCardGlowLayer = [&](float expansion,
                                            float opacity) {
@@ -738,14 +869,14 @@ void drawRunUpgradeOverlay(
 
         const float centerX = bounds.x + bounds.width * 0.5F;
         const Vector2 emblemCenter{
-            centerX, bounds.y + 140.0F * scale};
+            centerX, bounds.y + 128.0F * scale};
 
         const std::string_view mark = upgradeMark(effect);
         const Texture2D cardIcon = runUpgradeBuilding(effect)
             ? ui.buildingTexture(*runUpgradeBuilding(effect)) : ui.runUpgradeTexture(effect);
         const bool drawUpgradeIcon = IsTextureValid(cardIcon);
         if (drawUpgradeIcon) {
-            const float iconSize = 320.0F * scale;
+            const float iconSize = 256.0F * scale;
             DrawTexturePro(
                 cardIcon,
                 {0.0F, 0.0F, static_cast<float>(cardIcon.width),
@@ -756,7 +887,7 @@ void drawRunUpgradeOverlay(
                 {0.0F, 0.0F}, 0.0F,
                 fadedColor(WHITE, cardFade));
         } else {
-            const float emblemRadius = 93.0F * scale;
+            const float emblemRadius = 85.0F * scale;
             DrawCircleV(
                 emblemCenter, emblemRadius + 8.0F * scale,
                 fadedColor(CardInk, cardFade));
@@ -826,35 +957,42 @@ void drawRunUpgradeOverlay(
             displayTitle = mark;
         }
         const std::string displayTitleText{displayTitle};
-        const float titleSize = fitRasterTextSize(
-            displayTitleText, 64.0F * scale, 32.0F * scale,
-            bounds.width - 54.0F * scale);
-        const Vector2 titleMeasured = MeasureTextEx(
-            uiFont(), displayTitleText.c_str(), titleSize,
-            titleSize * 0.02F);
-        const float titlePillWidth = std::min(
-            bounds.width - 40.0F * scale,
-            titleMeasured.x + 72.0F * scale);
-        const Rectangle titlePill{
-            centerX - titlePillWidth * 0.5F,
-            bounds.y + 261.0F * scale,
-            titlePillWidth,
-            50.0F * scale,
+        const float titleSize = 50.0F * scale;
+        const float titleWidth = bounds.width - 40.0F * scale;
+        const auto rasterWidth = [&](std::string_view value) {
+            const std::string copy{value};
+            return MeasureTextEx(uiFont(), copy.c_str(), titleSize, titleSize * 0.02F).x;
         };
-        DrawRectangleRounded(
-            titlePill, 1.0F, 8,
-            fadedColor({0x34, 0x22, 0x15, 255}, cardFade));
-        drawRasterOutlinedCenteredText(
-            displayTitleText,
-            {centerX, bounds.y + 280.0F * scale},
-            titleSize, 7.0F * scale,
-            WHITE, CardBlack, cardFade);
+        std::size_t split = std::string::npos;
+        if (rasterWidth(displayTitleText) > titleWidth) {
+            float bestWidth = rasterWidth(displayTitleText);
+            for (auto space = displayTitleText.find(' '); space != std::string::npos;
+                 space = displayTitleText.find(' ', space + 1)) {
+                const float lineWidth = std::max(rasterWidth(displayTitle.substr(0, space)),
+                    rasterWidth(displayTitle.substr(space + 1)));
+                if (lineWidth < bestWidth) { bestWidth = lineWidth; split = space; }
+            }
+        }
+        if (split != std::string::npos) {
+            const std::string firstLine = displayTitleText.substr(0, split);
+            const std::string secondLine = displayTitleText.substr(split + 1);
+            const float commonSize = std::min(fitRasterTextSize(firstLine, titleSize, 38.0F * scale, titleWidth),
+                fitRasterTextSize(secondLine, titleSize, 38.0F * scale, titleWidth));
+            drawRasterOutlinedCenteredText(firstLine, {centerX, bounds.y + 258.0F * scale},
+                commonSize, 5.0F * scale, WHITE, CardBlack, cardFade);
+            drawRasterOutlinedCenteredText(secondLine, {centerX, bounds.y + 298.0F * scale},
+                commonSize, 5.0F * scale, WHITE, CardBlack, cardFade);
+        } else {
+            drawRasterOutlinedCenteredText(displayTitleText, {centerX, bounds.y + 278.0F * scale},
+                fitRasterTextSize(displayTitleText, titleSize, 38.0F * scale, titleWidth),
+                5.0F * scale, WHITE, CardBlack, cardFade);
+        }
 
         const Rectangle valuePanel{
             bounds.x + 20.0F * scale,
-            bounds.y + 327.0F * scale,
+            bounds.y + 340.0F * scale,
             bounds.width - 40.0F * scale,
-            105.0F * scale};
+            100.0F * scale};
         DrawRectangleRounded(
             valuePanel,
             roundedRectangleRoundness(
@@ -899,75 +1037,58 @@ void drawRunUpgradeOverlay(
         const int maximumLevel = runUpgradeMaximumLevel(effect);
         const Rectangle levelBadge{
             centerX - 100.0F * scale,
-            bounds.y + 448.0F * scale,
+            bounds.y + 462.0F * scale,
             200.0F * scale,
-            54.0F * scale};
-        Rectangle upperShadow = levelBadge;
-        upperShadow.y -= 2.0F * scale;
-        Rectangle lowerShadow = levelBadge;
-        lowerShadow.y += 2.0F * scale;
-        Rectangle upperOutline = expandedRectangle(
-            upperShadow, 3.0F * scale);
-        Rectangle lowerOutline = expandedRectangle(
-            lowerShadow, 3.0F * scale);
-        DrawRectangleRounded(
-            upperOutline, 1.0F, 8,
-            fadedColor(CardBlack, cardFade));
-        DrawRectangleRounded(
-            lowerOutline, 1.0F, 8,
-            fadedColor(CardBlack, cardFade));
-        DrawRectangleRounded(
-            lowerShadow, 1.0F, 8,
-            fadedColor(LevelShadow, cardFade));
-        DrawRectangleRounded(
-            upperShadow, 1.0F, 8,
-            fadedColor(LevelHighlight, cardFade));
-        DrawRectangleRounded(
-            levelBadge, 1.0F, 8,
-            fadedColor(CardBrown, cardFade));
+            34.0F * scale};
         const float levelFontSize =
-            32.0F / UiTextRasterScale * scale;
-        const std::string currentLevelText =
-            runUpgradeBuilding(effect) ? std::to_string(snapshot.buildingArsenalCount) + "/4"
-                : "LVL " + std::to_string(currentLevel);
-        const std::string nextLevelText = runUpgradeBuilding(effect)
-            ? std::to_string(snapshot.buildingArsenalCount + 1U) + "/4"
-            : std::to_string(std::min(currentLevel + 1, maximumLevel));
-        const Vector2 currentLevelSize = measureUiText(
-            currentLevelText, levelFontSize);
-        const Vector2 nextLevelSize = measureUiText(
-            nextLevelText, levelFontSize);
-        const float currentLevelY = levelBadge.y +
-            (levelBadge.height -
-             currentLevelSize.y) * 0.5F;
-        const float nextLevelY = levelBadge.y +
-            (levelBadge.height - nextLevelSize.y) * 0.5F;
-        const float arrowWidth = 32.0F * scale;
-        const float contentGap = 12.0F * scale;
-        const float contentWidth = currentLevelSize.x +
-            contentGap + arrowWidth + contentGap + nextLevelSize.x;
-        const float contentX = centerX - contentWidth * 0.5F;
-        const float currentLevelCenterX =
-            contentX + currentLevelSize.x * 0.5F;
-        const float arrowCenterX = contentX + currentLevelSize.x +
-            contentGap + arrowWidth * 0.5F;
-        const float nextLevelCenterX =
-            contentX + currentLevelSize.x + contentGap +
-            arrowWidth + contentGap + nextLevelSize.x * 0.5F;
-        drawOutlinedCenteredText(
-            currentLevelText, currentLevelCenterX,
-            currentLevelY, levelFontSize,
-            LevelText, cardFade, scale,
-            LevelOutline, 3.0F, false);
-        drawLevelArrow(
-            {arrowCenterX,
-             levelBadge.y + levelBadge.height * 0.5F},
-            scale, palette.accent, cardFade);
-        drawOutlinedCenteredText(
-            nextLevelText, nextLevelCenterX,
-            nextLevelY, levelFontSize,
-            palette.accent, cardFade, scale,
-            LevelOutline, 3.0F, false);
+            28.0F / UiTextRasterScale * scale;
+        const bool oneTime = fixedRunUpgradePower(effect) && !runUpgradeBuilding(effect);
+        if (oneTime) {
+            drawOutlinedCenteredText("ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
+                levelFontSize, LevelText, cardFade, scale, LevelOutline, 2.0F, false);
+        } else {
+            const std::string currentLevelText =
+                runUpgradeBuilding(effect) ? std::to_string(snapshot.buildingArsenalCount) + "/4"
+                    : "LVL " + std::to_string(currentLevel);
+            const std::string nextLevelText = runUpgradeBuilding(effect)
+                ? std::to_string(snapshot.buildingArsenalCount + 1U) + "/4"
+                : std::to_string(std::min(currentLevel + 1, maximumLevel));
+            const Vector2 currentLevelSize = measureUiText(
+                currentLevelText, levelFontSize);
+            const Vector2 nextLevelSize = measureUiText(
+                nextLevelText, levelFontSize);
+            const float currentLevelY = levelBadge.y +
+                (levelBadge.height -
+                 currentLevelSize.y) * 0.5F;
+            const float nextLevelY = levelBadge.y +
+                (levelBadge.height - nextLevelSize.y) * 0.5F;
+            const float arrowWidth = 32.0F * scale;
+            const float contentGap = 12.0F * scale;
+            const float contentWidth = currentLevelSize.x +
+                contentGap + arrowWidth + contentGap + nextLevelSize.x;
+            const float contentX = centerX - contentWidth * 0.5F;
+            const float currentLevelCenterX =
+                contentX + currentLevelSize.x * 0.5F;
+            const float arrowCenterX = contentX + currentLevelSize.x +
+                contentGap + arrowWidth * 0.5F;
+            const float nextLevelCenterX =
+                contentX + currentLevelSize.x + contentGap +
+                arrowWidth + contentGap + nextLevelSize.x * 0.5F;
+            drawOutlinedCenteredText(
+                currentLevelText, currentLevelCenterX,
+                currentLevelY, levelFontSize,
+                LevelText, cardFade, scale,
+                LevelOutline, 3.0F, false);
+            drawLevelArrow(
+                {arrowCenterX,
+                 levelBadge.y + levelBadge.height * 0.5F},
+                scale, palette.accent, cardFade);
+            drawOutlinedCenteredText(
+                nextLevelText, nextLevelCenterX,
+                nextLevelY, levelFontSize,
+                palette.accent, cardFade, scale,
+                LevelOutline, 3.0F, false);
+        }
         drawOutlinedCenteredText(
             runUpgradeBuilding(effect) ? "NEW BUILDING" : runUpgradeRarityName(rarity), centerX,
             bounds.y + 516.0F * scale,
