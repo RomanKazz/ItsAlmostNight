@@ -108,8 +108,8 @@ PlatformFramePlacement
 PlacementValidator::validateGroundPlatformFrame(
     Vec3 terrainHit, Vec3 playerPosition) const {
     GridCoord anchor = grid_.worldToGrid(terrainHit);
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    anchor.x = snapPlatformFrameWorldAxis(terrainHit.x, grid_.config().cellSize);
+    anchor.z = snapPlatformFrameWorldAxis(terrainHit.z, grid_.config().cellSize);
     const WorldConfig& config = grid_.config();
     const double minimumX =
         static_cast<double>(anchor.x) *

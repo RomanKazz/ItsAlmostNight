@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 void runPlacementValidatorTests() {
     ian::WorldConfig config =
@@ -34,11 +35,21 @@ void runPlacementValidatorTests() {
             frame.storey == 0,
         "ground PlatformFrame uses the one-cell placement grid");
 
-    for (const auto point : std::array<ian::Vec3, 2>{{{5.2, 0.0, 3.2}, {-3.2, 0.0, -1.2}}}) {
+    for (const auto& [point, expected] :
+         std::array<std::pair<ian::Vec3, ian::GridCoord>, 2>{{
+             {{5.2, 0.0, 3.2}, {5, 0, 3}},
+             {{-3.2, 0.0, -1.2}, {-3, 0, -1}}}}) {
         const auto shifted = validator.validateGroundPlatformFrame(point, player);
-        require(shifted.valid() && shifted.anchor.x == static_cast<int>(std::floor(point.x)) &&
-                    shifted.anchor.z == static_cast<int>(std::floor(point.z)),
+        require(shifted.valid() && shifted.anchor.x == expected.x &&
+                    shifted.anchor.z == expected.z,
                 "manual foundations accept odd and negative one-cell anchors");
+    }
+
+    for (const auto [aim, expected] : std::array<std::pair<double, int>, 4>{{
+             {0.49, 0}, {0.51, 1}, {-0.49, 0}, {-0.51, -1}}}) {
+        const auto snapped = validator.validateGroundPlatformFrame({aim, 0.0, aim}, player);
+        require(snapped.anchor.x == expected && snapped.anchor.z == expected,
+                "ground foundation validator uses midpoint snapping in both directions");
     }
 
     ian::WorldConfig noisyFlatConfig = config;

@@ -368,6 +368,18 @@ void runFoundationSystemTests() {
             afterReset && afterReset->id != beforeReset->id,
             "foundation reset never aliases a previous run ID");
     }
+    for (const auto [aim, expected] : std::array<std::pair<double, int>, 4>{{
+             {0.49, 0}, {0.51, 1}, {-0.49, 0}, {-0.51, -1}}}) {
+        const auto manual = frames.previewFoundation({aim, 0.0, aim}, player);
+        const auto fixedHeight = frames.previewFoundationAtHeight(
+            {aim, 0.0, aim}, manual.floorHeight, player);
+        require(manual.anchor.x == expected && manual.anchor.z == expected &&
+                    fixedHeight.anchor.x == expected && fixedHeight.anchor.z == expected,
+                "manual foundation switches at cell midpoints on both axes and signs");
+    }
+    const auto syntheticHit = frames.previewFoundation({2.5, 0.0, -1.5}, player);
+    require(syntheticHit.anchor.x == 2 && syntheticHit.anchor.z == -2,
+            "foundation drag cell-center hits preserve explicit anchors at midpoint ties");
     const auto first = frames.placePlatformFrame(
         frames.previewFoundation(
             {0.2, 0.0, 0.2}, player));

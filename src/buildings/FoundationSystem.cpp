@@ -95,8 +95,8 @@ FoundationSystem::previewFoundation(
     Vec3 terrainHit, Vec3 playerPosition,
     double heightStep) const {
     GridCoord anchor = grid_.worldToGrid(terrainHit);
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    anchor.x = snapPlatformFrameWorldAxis(terrainHit.x, grid_.config().cellSize);
+    anchor.z = snapPlatformFrameWorldAxis(terrainHit.z, grid_.config().cellSize);
 
     const PlacementValidator validator{terrain_, grid_};
     const double baseHeight =
@@ -214,8 +214,8 @@ FoundationSystem::previewFoundationAtHeight(
     Vec3 terrainHit, double floorHeight,
     Vec3 playerPosition) const {
     GridCoord anchor = grid_.worldToGrid(terrainHit);
-    anchor.x = snapPlatformFrameAxis(anchor.x);
-    anchor.z = snapPlatformFrameAxis(anchor.z);
+    anchor.x = snapPlatformFrameWorldAxis(terrainHit.x, grid_.config().cellSize);
+    anchor.z = snapPlatformFrameWorldAxis(terrainHit.z, grid_.config().cellSize);
     return PlacementValidator{terrain_, grid_}
         .validateGroundPlatformFrameAt(
             anchor, floorHeight, playerPosition);

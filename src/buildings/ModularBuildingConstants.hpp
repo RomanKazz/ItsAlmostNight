@@ -67,6 +67,15 @@ inline constexpr double ModularRampMaxHealth = 260.0;
            PlacementGridStepCells;
 }
 
+// Snap manual foundation aim to the nearest anchor. At an exact midpoint,
+// retain the lower anchor so synthetic cell-center hits still round-trip.
+[[nodiscard]] inline int snapPlatformFrameWorldAxis(
+    double coordinate, double cellSize) {
+    const double step = cellSize * PlacementGridStepCells;
+    return static_cast<int>(std::ceil(coordinate / step - 0.5)) *
+           PlacementGridStepCells;
+}
+
 [[nodiscard]] inline double modularStoreyHeight(
     const WorldConfig& config) {
     return static_cast<double>(ModularStoreyHeightCells) *

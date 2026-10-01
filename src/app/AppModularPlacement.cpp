@@ -865,17 +865,20 @@ void App::updateModularPlacementPreview(
         // grid directly. The general valid-cell magnet may choose
         // opposite sides of an exact grid edge on press/release,
         // turning a stationary click into a two-platform drag.
+        const bool foundationDrag =
+            modularBuildPiece_ == ModularBuildPiece::Foundation;
         GridCoord dragEnd{
-            snapPlatformFrameAxis(
-                static_cast<int>(std::floor(
-                    rawHit->x / cellSize))),
+            foundationDrag
+                ? snapPlatformFrameWorldAxis(rawHit->x, cellSize)
+                : snapPlatformFrameAxis(static_cast<int>(std::floor(rawHit->x / cellSize))),
             0,
-            snapPlatformFrameAxis(
-                static_cast<int>(std::floor(
-                    rawHit->z / cellSize))),
+            foundationDrag
+                ? snapPlatformFrameWorldAxis(rawHit->z, cellSize)
+                : snapPlatformFrameAxis(static_cast<int>(std::floor(rawHit->z / cellSize))),
         };
-        if (dragEnd.x != modularDragStart_->x ||
-            dragEnd.z != modularDragStart_->z) {
+        if (!foundationDrag &&
+            (dragEnd.x != modularDragStart_->x ||
+             dragEnd.z != modularDragStart_->z)) {
             const double startCenterX =
                 (modularDragStart_->x + 1.0) *
                 cellSize;
@@ -1249,7 +1252,8 @@ void App::updateModularPlacementPreview(
         const auto previous =
             evaluate(*modularSnapHit_);
         constexpr double HysteresisCells = 0.62;
-        if (previous.second &&
+        if (modularBuildPiece_ != ModularBuildPiece::Foundation &&
+            previous.second &&
             deltaX * deltaX + deltaZ * deltaZ <=
                 cellSize * cellSize *
                     HysteresisCells *
@@ -1260,7 +1264,8 @@ void App::updateModularPlacementPreview(
             keptPrevious = true;
         }
     }
-    if (!keptPrevious) {
+    if (!keptPrevious &&
+        (!chosenValid || modularBuildPiece_ != ModularBuildPiece::Foundation)) {
         const int rawX = static_cast<int>(
             std::floor(rawHit->x / cellSize));
         const int rawZ = static_cast<int>(
