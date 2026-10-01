@@ -72,6 +72,8 @@ constexpr std::array<std::string_view, RunUpgradeEffectCount> UpgradeIds{{
     "unlock_gun_turret", "unlock_turret", "unlock_cannon", "unlock_catapult",
     "unlock_spike_trap", "unlock_slow_trap",
     "cannon_heavy_shell", "cannon_scattershot", "cannon_cluster_shell",
+    "unlock_lumber_mill", "unlock_quarry", "unlock_crystal_mine",
+    "lumber_mill_production", "quarry_production", "crystal_mine_production",
 }};
 
 } // namespace

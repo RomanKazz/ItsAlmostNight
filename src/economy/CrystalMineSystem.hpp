@@ -30,6 +30,7 @@ class CrystalMineSystem {
 
     void reset();
     void setProductionSpeedMultiplier(double multiplier);
+    void setTypeProductionSpeedMultipliers(double lumberMill, double quarry, double crystalMine);
     void setWoodYieldMultiplier(double multiplier);
     void syncBuildings(const std::vector<BuildingInstance>& buildings);
     std::span<const CrystalProduced> tick(double deltaSeconds);
@@ -48,6 +49,9 @@ class CrystalMineSystem {
     std::vector<CrystalProduced> productionBuffer_;
     EconomyBalanceDefinition definition_;
     double productionSpeedMultiplier_{1.0};
+    double lumberMillSpeedMultiplier_{1.0};
+    double quarrySpeedMultiplier_{1.0};
+    double crystalMineSpeedMultiplier_{1.0};
     double woodYieldMultiplier_{1.0};
 };
 

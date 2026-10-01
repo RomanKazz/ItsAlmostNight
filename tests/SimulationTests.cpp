@@ -360,6 +360,8 @@ void runSimulationTests() {
         upgradeCore.upgradeBuilding =
             ian::UpgradeBuildingCommand{*coreId};
         earlyStart.tick(0.0, upgradeCore);
+        require(earlyStart.grantDebugRunUpgrade(ian::RunUpgradeEffect::UnlockCrystalMine),
+            "early-start fixture acquires its producer blueprint");
         ian::PlayerCommand placeMine;
         placeMine.placeBuilding = ian::PlaceBuildingCommand{
             ian::BuildingType::CrystalMine, {7, 3}, 0};
@@ -1619,10 +1621,13 @@ void runSimulationTests() {
         producerUnlocks.tick(1.0 / 60.0, placeCore);
         resolveLevelUps(producerUnlocks);
         const auto initial = producerUnlocks.snapshot();
-        for (auto type : {ian::BuildingType::LumberMill, ian::BuildingType::Quarry,
-                          ian::BuildingType::CrystalMine, ian::BuildingType::Wall, ian::BuildingType::Gate}) {
+        for (auto type : {ian::BuildingType::Wall, ian::BuildingType::Gate}) {
             require(initial.unlockedBuildings[static_cast<std::size_t>(type)],
-                "economy and perimeter are basic tools at Core level one");
+                "perimeter remains available at Core level one");
+        }
+        for (auto type : ian::RunEconomyBuildingTypes) {
+            require(!initial.unlockedBuildings[static_cast<std::size_t>(type)],
+                "producer construction requires its level-up blueprint");
         }
         require(ian::ModularBuildingRequiredCoreLevel == 1 && initial.buildingArsenalCount == 1,
             "foundation access does not consume a combat slot");

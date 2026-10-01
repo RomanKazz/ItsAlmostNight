@@ -97,6 +97,7 @@ float cardLayoutScale(std::size_t count) {
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     if (runUpgradeBuilding(effect)) return UpgradeColorClass::Yellow;
+    if (runUpgradeProductionBuilding(effect)) return UpgradeColorClass::Green;
     switch (effect) {
     case RunUpgradeEffect::Damage:
     case RunUpgradeEffect::AttackSpeed:
@@ -141,6 +142,12 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::UnlockCatapult:
     case RunUpgradeEffect::UnlockSpikeTrap:
     case RunUpgradeEffect::UnlockSlowTrap:
+    case RunUpgradeEffect::UnlockLumberMill:
+    case RunUpgradeEffect::UnlockQuarry:
+    case RunUpgradeEffect::UnlockCrystalMine:
+    case RunUpgradeEffect::LumberMillProduction:
+    case RunUpgradeEffect::QuarryProduction:
+    case RunUpgradeEffect::CrystalMineProduction:
         break;
     }
     return UpgradeColorClass::Blue;
@@ -187,6 +194,12 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::UnlockCatapult:
     case RunUpgradeEffect::UnlockSpikeTrap:
     case RunUpgradeEffect::UnlockSlowTrap:
+    case RunUpgradeEffect::UnlockLumberMill:
+    case RunUpgradeEffect::UnlockQuarry:
+    case RunUpgradeEffect::UnlockCrystalMine:
+    case RunUpgradeEffect::LumberMillProduction:
+    case RunUpgradeEffect::QuarryProduction:
+    case RunUpgradeEffect::CrystalMineProduction:
         break;
     }
     return "+";
@@ -506,6 +519,13 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
             row("Cannon fire rate", multiplier(rate / before.interval), multiplier(rate / after.interval), after.interval <= before.interval);
         }
     }
+    if (hoveredChoice && runUpgradeProductionBuilding(hoveredEffect)) {
+        const auto index = runUpgradeIndex(hoveredEffect);
+        const auto label = hoveredEffect == RunUpgradeEffect::LumberMillProduction ? "Lumber mill speed"
+            : hoveredEffect == RunUpgradeEffect::QuarryProduction ? "Quarry speed" : "Crystal mine speed";
+        row(label, multiplier(stats.productionSpeed * (1.0 + 0.20 * snapshot.runUpgradePower[index])),
+            multiplier(next.productionSpeed * (1.0 + 0.20 * projected.runUpgradePower[index])));
+    }
     if (contextualPreview) {
         const auto index = runUpgradeIndex(hoveredEffect);
         const double before = snapshot.runUpgradePower[index];
@@ -615,7 +635,8 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     const auto ratio = [&](double base, double step) {
         return (base + step * (current + gain)) / (base + step * current);
     };
-    if (runUpgradeBuilding(effect)) ++projected.buildingArsenalCount;
+    if (const auto building = runUpgradeBuilding(effect); building && runCombatBuilding(*building))
+        ++projected.buildingArsenalCount;
     if (const auto style = runUpgradeCannonStyle(effect)) projected.upgradeStats.cannonAttackStyle = *style;
     switch (effect) {
     case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage += 0.12 * gain; break;
@@ -872,8 +893,9 @@ void drawRunUpgradeOverlay(
             centerX, bounds.y + 128.0F * scale};
 
         const std::string_view mark = upgradeMark(effect);
-        const Texture2D cardIcon = runUpgradeBuilding(effect)
-            ? ui.buildingTexture(*runUpgradeBuilding(effect)) : ui.runUpgradeTexture(effect);
+        const auto iconBuilding = runUpgradeBuilding(effect) ? runUpgradeBuilding(effect)
+            : runUpgradeProductionBuilding(effect);
+        const Texture2D cardIcon = iconBuilding ? ui.buildingTexture(*iconBuilding) : ui.runUpgradeTexture(effect);
         const bool drawUpgradeIcon = IsTextureValid(cardIcon);
         if (drawUpgradeIcon) {
             const float iconSize = 256.0F * scale;
@@ -1042,9 +1064,11 @@ void drawRunUpgradeOverlay(
             34.0F * scale};
         const float levelFontSize =
             28.0F / UiTextRasterScale * scale;
-        const bool oneTime = fixedRunUpgradePower(effect) && !runUpgradeBuilding(effect);
+        const auto blueprint = runUpgradeBuilding(effect);
+        const bool economyBlueprint = blueprint && !runCombatBuilding(*blueprint);
+        const bool oneTime = (fixedRunUpgradePower(effect) && !blueprint) || economyBlueprint;
         if (oneTime) {
-            drawOutlinedCenteredText("ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
+            drawOutlinedCenteredText(economyBlueprint ? "UNLOCK" : "ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
                 levelFontSize, LevelText, cardFade, scale, LevelOutline, 2.0F, false);
         } else {
             const std::string currentLevelText =

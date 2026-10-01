@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
                     {card.x + card.width * 0.5F, card.y + card.height * 0.5F}) == index,
                     "resized card hit areas track their visible bounds");
             }
-            for (int scene = 0; scene < 3; ++scene) {
+            for (int scene = 0; scene < 4; ++scene) {
                 auto display = snapshot;
                 std::array<float, 4> displayHovers{};
                 Vector2 pointer{-100, -100};
@@ -103,8 +103,17 @@ int main(int argc, char** argv) {
                         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Epic, ian::RunUpgradeRarity::Uncommon};
                     display.upgradeStats.luck = 0;
                 }
+                if (scene == 3) {
+                    display.runUpgradeChoices = {ian::RunUpgradeEffect::UnlockLumberMill,
+                        ian::RunUpgradeEffect::UnlockQuarry, ian::RunUpgradeEffect::UnlockCrystalMine,
+                        ian::RunUpgradeEffect::LumberMillProduction};
+                    display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
+                        ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Rare};
+                    require(ian::app_detail::previewRunUpgrade(display, 0).buildingArsenalCount == display.buildingArsenalCount,
+                        "economy blueprint preview leaves combat slots unchanged");
+                }
                 if (scene > 0) {
-                    const std::size_t choice = scene == 1 ? 3U : 1U;
+                    const std::size_t choice = scene == 1 || scene == 3 ? 3U : 1U;
                     const auto card = ian::app_detail::runUpgradeCardBounds(choice, 4);
                     pointer = {card.x + card.width * 0.5F, card.y + card.height * 0.5F};
                     displayHovers[choice] = 1.0F;
@@ -120,7 +129,7 @@ int main(int argc, char** argv) {
                     ImageFlipVertical(&capture);
                     const std::string path = std::string(argv[1]) + "/ian_upgrades_" +
                         std::to_string(height) + (language == ian::Language::Russian ? "_ru" : "") +
-                        (scene == 0 ? "" : scene == 1 ? "_luck" : "_heavy") + ".png";
+                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : "_economy") + ".png";
                     require(ExportImage(capture, path.c_str()), "upgrade screenshot exported");
                     UnloadImage(capture);
                 }

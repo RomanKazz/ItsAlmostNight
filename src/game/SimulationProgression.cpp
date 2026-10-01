@@ -90,6 +90,10 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
         (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
     crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
+    crystalMines_.setTypeProductionSpeedMultipliers(
+        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::LumberMillProduction),
+        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::QuarryProduction),
+        1.0 + 0.20 * runUpgradePower(RunUpgradeEffect::CrystalMineProduction));
     lootChests_.setCoinCostMultiplier(
         chestOpeningCostMultiplier_);
     buildings_.setMaxHealthMultiplier(
@@ -150,14 +154,18 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
         runUpgradePower(effect) >= runUpgradePowerLimit(effect)) return false;
     if (const auto building = runUpgradeBuilding(effect)) {
         return !sandboxMode_ && !unlimitedResources_ && !ownsRunBuilding(*building) &&
-            runBuildingArsenalCount() < RunBuildingSlotCount;
+            (!runCombatBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount);
     }
     if (runUpgradeCannonStyle(effect)) {
         return runCannonAttackStyle(runUpgradeStacks_) == CannonAttackStyle::Standard &&
             (sandboxMode_ || unlimitedResources_ || ownsRunBuilding(BuildingType::Cannon));
     }
     if (sandboxMode_ || unlimitedResources_) return true;
+    if (const auto producer = runUpgradeProductionBuilding(effect)) return ownsRunBuilding(*producer);
     switch (effect) {
+    case RunUpgradeEffect::ProductionSpeed:
+        return std::ranges::any_of(RunEconomyBuildingTypes,
+            [this](BuildingType type) { return ownsRunBuilding(type); });
     case RunUpgradeEffect::NightlyBomb:
         return playerWeaponUnlocked(PlayerWeapon::Bomb);
     case RunUpgradeEffect::ClusterPayload:
@@ -218,6 +226,9 @@ void Simulation::generateRunUpgradeChoices() {
         case RunUpgradeEffect::DefenseDamage:
         case RunUpgradeEffect::DefenseFireRate:
         case RunUpgradeEffect::ProductionSpeed:
+        case RunUpgradeEffect::LumberMillProduction:
+        case RunUpgradeEffect::QuarryProduction:
+        case RunUpgradeEffect::CrystalMineProduction:
             return 4;
         case RunUpgradeEffect::Damage:
         case RunUpgradeEffect::AttackSpeed:
@@ -258,11 +269,12 @@ void Simulation::generateRunUpgradeChoices() {
     for (std::size_t index = firstRandomIndex;
          index < runUpgradeChoiceCount_; ++index) {
         std::size_t selected = chooseWeighted(pool);
-        // Give players a route to expand their arsenal on every level-up.
-        if (index == 0U) {
+        // Offer combat and economic blueprints early, independently of combat slots.
+        if (index < 2U) {
             std::vector<RunUpgradeEffect> blueprints;
             for (const auto effect : pool) {
-                if (runUpgradeBuilding(effect)) blueprints.push_back(effect);
+                if (const auto building = runUpgradeBuilding(effect);
+                    building && runCombatBuilding(*building) == (index == 0U)) blueprints.push_back(effect);
             }
             if (!blueprints.empty()) {
                 const auto effect = blueprints[chooseWeighted(blueprints)];
@@ -290,7 +302,8 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (const auto building = runUpgradeBuilding(effect)) {
-        if (ownsRunBuilding(*building) || runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
+        if (ownsRunBuilding(*building) ||
+            (runCombatBuilding(*building) && runBuildingArsenalCount() >= RunBuildingSlotCount)) return false;
     }
     if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
@@ -360,6 +373,12 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::CannonHeavyShell:
     case RunUpgradeEffect::CannonScattershot:
     case RunUpgradeEffect::CannonClusterShell:
+    case RunUpgradeEffect::UnlockLumberMill:
+    case RunUpgradeEffect::UnlockQuarry:
+    case RunUpgradeEffect::UnlockCrystalMine:
+    case RunUpgradeEffect::LumberMillProduction:
+    case RunUpgradeEffect::QuarryProduction:
+    case RunUpgradeEffect::CrystalMineProduction:
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {

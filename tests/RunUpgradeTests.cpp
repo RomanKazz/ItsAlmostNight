@@ -173,12 +173,12 @@ void runRunUpgradeTests() {
         "acquisition is unique and stops at four types, regardless of rarity");
     const auto arsenalSave = arsenal->saveSuspendedRunState();
     restored->returnToMainMenu();
-    require(arsenalSave.buildingArsenalVersion == 1 && restored->loadSuspendedRunState(arsenalSave) &&
+    require(arsenalSave.buildingArsenalVersion == 2 && restored->loadSuspendedRunState(arsenalSave) &&
         restored->snapshot().buildingArsenalCount == 4 &&
         restored->snapshot().runUpgradeStacks == arsenal->snapshot().runUpgradeStacks,
         "unbuilt blueprints survive save and resume");
     auto invalidArsenal = arsenalSave;
-    invalidArsenal.buildingArsenalVersion = 2;
+    invalidArsenal.buildingArsenalVersion = 3;
     restored->returnToMainMenu();
     require(!restored->loadSuspendedRunState(invalidArsenal), "future arsenal formats rejected");
     invalidArsenal = arsenalSave;
@@ -207,8 +207,8 @@ void runRunUpgradeTests() {
             "construction catalog uses the character starter");
     }
     require(normal->previewPlacement(BuildingType::Turret, {4, 0}).error == PlacementError::BlueprintRequired &&
-        normal->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::LumberMill)],
-        "unowned combat placement rejected while economy remains available");
+        normal->previewPlacement(BuildingType::LumberMill, {4, 0}).error == PlacementError::BlueprintRequired,
+        "combat and economy placement require their blueprint");
     require(normal->snapshot().runUpgradeChoicePending,
         "normal construction XP produces level-up cards");
     const auto offer = normal->snapshot();
@@ -223,6 +223,14 @@ void runRunUpgradeTests() {
             require(*building != BuildingType::Cannon && offer.runUpgradeRarities[index] == RunUpgradeRarity::Common,
                 "starter is absent from acquisition offers and acquisition has fixed power");
         }
+    }
+    require(runUpgradeBuilding(offer.runUpgradeChoices[1]).has_value() &&
+        !runCombatBuilding(*runUpgradeBuilding(offer.runUpgradeChoices[1])),
+        "opening level offers an economy blueprint independently of combat");
+    for (std::size_t index = 0; index < offer.runUpgradeChoiceCount; ++index) {
+        require(!runUpgradeProductionBuilding(offer.runUpgradeChoices[index]) &&
+            offer.runUpgradeChoices[index] != RunUpgradeEffect::ProductionSpeed,
+            "production improvements are absent before owning a producer");
     }
     const auto pendingArsenal = normal->saveSuspendedRunState();
     auto normalRestored = std::make_unique<Simulation>(balance, map, world, fastInsight);
@@ -241,9 +249,74 @@ void runRunUpgradeTests() {
     require(normal->grantDebugRunUpgrade(RunUpgradeEffect::RerollToken) && normal->rerollRunUpgrades(),
         "full arsenal offer regenerated");
     for (std::size_t index = 0; index < normal->snapshot().runUpgradeChoiceCount; ++index) {
-        require(!runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]),
-            "full arsenal replaces all acquisition cards with improvements");
+        const auto building = runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]);
+        require(!building || !runCombatBuilding(*building),
+            "full combat arsenal still allows economic acquisitions");
     }
+
+    for (auto type : RunEconomyBuildingTypes) {
+        require(normal->grantDebugRunUpgrade(*buildingRunUpgrade(type), RunUpgradeRarity::Legendary) &&
+            !normal->grantDebugRunUpgrade(*buildingRunUpgrade(type)),
+            "every economy blueprint is unique and available with a full combat arsenal");
+        require(normal->snapshot().buildingArsenalCount == 4 &&
+            normal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
+            "economic construction does not consume a combat slot");
+    }
+    require(normal->grantDebugRunUpgrade(RunUpgradeEffect::LumberMillProduction, RunUpgradeRarity::Rare),
+        "producer-specific improvements use rarity power");
+    requireNear(normal->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::LumberMillProduction)],
+        2.0, 1e-12, "rare producer upgrade grants forty percent speed");
+    const auto economySave = normal->saveSuspendedRunState();
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(economySave) &&
+        normalRestored->snapshot().runUpgradeStacks == normal->snapshot().runUpgradeStacks &&
+        normalRestored->snapshot().buildingArsenalCount == 4,
+        "unbuilt economy blueprints and type improvements survive resume");
+    auto invalidEconomy = economySave;
+    invalidEconomy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockLumberMill)] = 2;
+    normalRestored->returnToMainMenu();
+    require(!normalRestored->loadSuspendedRunState(invalidEconomy), "duplicate economic blueprint rejected");
+    normalRestored->startRunFromSeed(PlayerClass::Engineer, 4321);
+    for (auto type : RunEconomyBuildingTypes) require(!normalRestored->snapshot().unlockedBuildings[static_cast<std::size_t>(type)] &&
+        normalRestored->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(type))] == 0,
+        "new runs clear economic acquisitions");
+
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(pendingArsenal) && normalRestored->selectRunUpgrade(1),
+        "normal card selection acquires an economic type");
+    auto oneProducer = normalRestored->saveSuspendedRunState();
+    oneProducer.runUpgradeRerollTokens = 32;
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(oneProducer), "single-producer offer fixture resumes");
+    const BuildingType ownedProducer = *runUpgradeBuilding(offer.runUpgradeChoices[1]);
+    bool sawProducerImprovement = false;
+    bool sawGlobalProduction = false;
+    for (int roll = 0; roll < 32; ++roll) {
+        require(normalRestored->rerollRunUpgrades(), "single-producer choices rerolled");
+        const auto candidates = normalRestored->snapshot();
+        for (std::size_t index = 0; index < candidates.runUpgradeChoiceCount; ++index) {
+            const auto effect = candidates.runUpgradeChoices[index];
+            if (const auto producer = runUpgradeProductionBuilding(effect)) {
+                require(*producer == ownedProducer, "only the acquired producer receives improvement cards");
+                sawProducerImprovement = true;
+            }
+            sawGlobalProduction = sawGlobalProduction || effect == RunUpgradeEffect::ProductionSpeed;
+        }
+    }
+    require(sawProducerImprovement && sawGlobalProduction,
+        "acquiring a producer adds its specific and global speed improvements to normal offers");
+
+    auto legacyEconomy = arsenalSave;
+    legacyEconomy.buildingArsenalVersion = 1;
+    legacyEconomy.buildings = {
+        {.id = {1000, 1}, .type = BuildingType::Core, .gridPosition = {0, 0}, .health = 500, .maxHealth = 500},
+        {.id = {1001, 1}, .type = BuildingType::Quarry, .gridPosition = {4, 0}, .health = 210, .maxHealth = 210},
+    };
+    legacyEconomy.resumeState = RunState::BuildPhase;
+    restored->returnToMainMenu();
+    require(restored->loadSuspendedRunState(legacyEconomy) && restored->snapshot().buildingArsenalCount == 4 &&
+        restored->snapshot().unlockedBuildings[static_cast<std::size_t>(BuildingType::Quarry)],
+        "old checkpoints retain producers already built without consuming combat slots");
 
     auto legacyArsenal = arsenalSave;
     legacyArsenal.buildingArsenalVersion = 0;
@@ -265,6 +338,8 @@ void runRunUpgradeTests() {
         "next run clears acquired blueprints");
     arsenal->returnToMainMenu();
     arsenal->startSandboxRun();
+    for (auto type : RunEconomyBuildingTypes) require(arsenal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
+        "sandbox retains all economic types");
     for (auto type : RunBuildingTypes) require(arsenal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
         "sandbox keeps all construction types available");
 

@@ -88,6 +88,19 @@ void runCrystalMineSystemTests() {
             largeDeltaMines.tick(-1.0).empty(),
         "production rejects invalid delta times without poisoning timers");
 
+    ian::CrystalMineSystem specialized;
+    specialized.setProductionSpeedMultiplier(1.5);
+    const double unchangedQuarry = specialized.productionInterval(ian::BuildingType::Quarry);
+    specialized.setTypeProductionSpeedMultipliers(1.4, 1.0, 1.0);
+    requireNear(specialized.productionInterval(ian::BuildingType::LumberMill), 3.75, 1e-9,
+        "type production bonuses combine with global speed");
+    requireNear(specialized.productionInterval(ian::BuildingType::Quarry), unchangedQuarry, 1e-9,
+        "lumber mill card does not change quarry production");
+    specialized.syncBuildings(buildings.buildings());
+    const auto specializedOutput = specialized.tick(3.75);
+    require(specializedOutput.size() == 1 && specializedOutput.front().buildingType == ian::BuildingType::LumberMill,
+        "specialized production changes actual cycles, not only UI");
+
     buildings.damage(lumberMill->building.id, 1.0);
     mines.syncBuildings(buildings.buildings());
     const auto damagedProduction = mines.tick(8.0);

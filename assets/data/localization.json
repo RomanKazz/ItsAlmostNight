@@ -3,6 +3,18 @@
   "languages": {
     "en": {},
     "ru": {
+      "SAW POWER": "МОЩЬ ПИЛЫ",
+      "DEEP CUT": "ГЛУБОКАЯ ВЫРАБОТКА",
+      "CRYSTAL FLOW": "ПОТОК КРИСТАЛЛОВ",
+      "Unlock lumber mill construction": "Открывает строительство лесопилки",
+      "Unlock quarry construction": "Открывает строительство каменоломни",
+      "Unlock crystal mine construction": "Открывает строительство кристальной шахты",
+      "Lumber mill production speed": "Производительность лесопилки",
+      "Quarry production speed": "Производительность каменоломни",
+      "Crystal mine production speed": "Производительность кристальной шахты",
+      "Lumber mill speed": "Скорость лесопилки",
+      "Quarry speed": "Скорость каменоломни",
+      "Crystal mine speed": "Скорость шахты",
       "Shells per shot": "Снарядов за выстрел",
       "Cannon mini blasts": "Малые взрывы пушки",
       "Trap pulse": "Ударная волна ловушек",

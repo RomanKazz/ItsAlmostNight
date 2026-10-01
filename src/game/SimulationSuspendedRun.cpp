@@ -46,7 +46,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         return *waveStartCheckpoint_;
     }
     SuspendedRunState saved{
-        .buildingArsenalVersion = 1,
+        .buildingArsenalVersion = 2,
         .playerClass = playerClass_,
         .metaBonuses = activeMetaBonuses_,
         .terrainSeed = terrain_.seed(),
@@ -190,9 +190,10 @@ bool Simulation::loadSuspendedRunState(
         std::ranges::any_of(saved.runUpgradeStacks, invalidStack);
     const bool invalidUpgradePower = std::ranges::any_of(saved.runUpgradePower,
         [](double power) { return !std::isfinite(power) || power < 0.0 || power > MaximumSavedStack * 2.0; });
-    const bool invalidArsenal = saved.buildingArsenalVersion < 0 || saved.buildingArsenalVersion > 1 ||
-        std::ranges::any_of(RunBuildingTypes, [&](BuildingType type) {
-            const auto index = runUpgradeIndex(*buildingRunUpgrade(type));
+    const bool invalidArsenal = saved.buildingArsenalVersion < 0 || saved.buildingArsenalVersion > 2 ||
+        std::ranges::any_of(RunUpgradeDefinitions, [&](const RunUpgradeDefinition& definition) {
+            if (!runUpgradeBuilding(definition.effect)) return false;
+            const auto index = runUpgradeIndex(definition.effect);
             return saved.runUpgradeStacks[index] > 1 || saved.runUpgradePower[index] > 1.0 ||
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
@@ -397,11 +398,12 @@ bool Simulation::loadSuspendedRunState(
             runUpgradePower_[index] = static_cast<double>(runUpgradeStacks_[index]);
         }
     }
-    // Preserve combat types already constructed in checkpoints from before the arsenal.
-    if (saved.buildingArsenalVersion == 0) {
+    // Preserve constructed types from before their blueprint gating was introduced.
+    if (saved.buildingArsenalVersion < 2) {
         for (const auto& building : saved.buildings) {
             const auto effect = buildingRunUpgrade(building.type);
-            if (!effect || ownsRunBuilding(building.type)) continue;
+            if (!effect || ownsRunBuilding(building.type) ||
+                (saved.buildingArsenalVersion == 1 && runCombatBuilding(building.type))) continue;
             runUpgradeStacks_[runUpgradeIndex(*effect)] = 1;
             runUpgradePower_[runUpgradeIndex(*effect)] = 1.0;
         }
@@ -570,7 +572,7 @@ bool Simulation::loadSuspendedRunState(
                 static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
             [this, &saved](RunUpgradeEffect effect) {
                 return retiredRunUpgrade(effect) ||
-                    ((saved.buildingArsenalVersion == 0 || runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) &&
+                    ((saved.buildingArsenalVersion < 2 || runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) &&
                      !runUpgradeAvailable(effect));
             })) {
         generateRunUpgradeChoices();

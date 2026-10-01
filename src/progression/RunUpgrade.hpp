@@ -53,9 +53,15 @@ enum class RunUpgradeEffect {
     CannonHeavyShell,
     CannonScattershot,
     CannonClusterShell,
+    UnlockLumberMill,
+    UnlockQuarry,
+    UnlockCrystalMine,
+    LumberMillProduction,
+    QuarryProduction,
+    CrystalMineProduction,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 38U;
+inline constexpr std::size_t RunUpgradeEffectCount = 44U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -135,6 +141,12 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::CannonHeavyShell, "HEAVY SHELL", "Cannon: x5 damage, fires 3x slower"},
         {RunUpgradeEffect::CannonScattershot, "SCATTERSHOT", "Cannon: 5 shells at 40% damage, smaller blasts"},
         {RunUpgradeEffect::CannonClusterShell, "CLUSTER SHELL", "Cannon: 80% damage, +3 mini explosions"},
+        {RunUpgradeEffect::UnlockLumberMill, "LUMBER MILL", "Unlock lumber mill construction"},
+        {RunUpgradeEffect::UnlockQuarry, "QUARRY", "Unlock quarry construction"},
+        {RunUpgradeEffect::UnlockCrystalMine, "CRYSTAL MINE", "Unlock crystal mine construction"},
+        {RunUpgradeEffect::LumberMillProduction, "SAW POWER", "+20% lumber mill production speed"},
+        {RunUpgradeEffect::QuarryProduction, "DEEP CUT", "+20% quarry production speed"},
+        {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL FLOW", "+20% crystal mine production speed"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -147,6 +159,22 @@ inline constexpr std::array<BuildingType, 6> RunBuildingTypes{
     BuildingType::GunTurret, BuildingType::Turret, BuildingType::Cannon,
     BuildingType::Catapult, BuildingType::SpikeTrap, BuildingType::SlowTrap};
 
+inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
+    BuildingType::LumberMill, BuildingType::Quarry, BuildingType::CrystalMine};
+
+[[nodiscard]] constexpr bool runCombatBuilding(BuildingType type) {
+    return std::find(RunBuildingTypes.begin(), RunBuildingTypes.end(), type) != RunBuildingTypes.end();
+}
+
+[[nodiscard]] constexpr std::optional<BuildingType> runUpgradeProductionBuilding(RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::LumberMillProduction: return BuildingType::LumberMill;
+    case RunUpgradeEffect::QuarryProduction: return BuildingType::Quarry;
+    case RunUpgradeEffect::CrystalMineProduction: return BuildingType::CrystalMine;
+    default: return std::nullopt;
+    }
+}
+
 [[nodiscard]] constexpr std::optional<BuildingType> runUpgradeBuilding(RunUpgradeEffect effect) {
     switch (effect) {
     case RunUpgradeEffect::UnlockGunTurret: return BuildingType::GunTurret;
@@ -155,6 +183,9 @@ inline constexpr std::array<BuildingType, 6> RunBuildingTypes{
     case RunUpgradeEffect::UnlockCatapult: return BuildingType::Catapult;
     case RunUpgradeEffect::UnlockSpikeTrap: return BuildingType::SpikeTrap;
     case RunUpgradeEffect::UnlockSlowTrap: return BuildingType::SlowTrap;
+    case RunUpgradeEffect::UnlockLumberMill: return BuildingType::LumberMill;
+    case RunUpgradeEffect::UnlockQuarry: return BuildingType::Quarry;
+    case RunUpgradeEffect::UnlockCrystalMine: return BuildingType::CrystalMine;
     default: return std::nullopt;
     }
 }

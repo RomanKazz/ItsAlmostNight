@@ -22,6 +22,13 @@ void CrystalMineSystem::setProductionSpeedMultiplier(
     productionSpeedMultiplier_ = std::max(0.01, multiplier);
 }
 
+void CrystalMineSystem::setTypeProductionSpeedMultipliers(
+    double lumberMill, double quarry, double crystalMine) {
+    lumberMillSpeedMultiplier_ = std::max(0.01, lumberMill);
+    quarrySpeedMultiplier_ = std::max(0.01, quarry);
+    crystalMineSpeedMultiplier_ = std::max(0.01, crystalMine);
+}
+
 void CrystalMineSystem::setWoodYieldMultiplier(double multiplier) {
     woodYieldMultiplier_ = std::max(0.0, multiplier);
 }
@@ -139,7 +146,9 @@ double CrystalMineSystem::productionInterval(
     double healthEfficiency) const {
     const double levelSpeed = 1.0 +
         0.20 * static_cast<double>(std::max<int>(1, level) - 1);
-    const double effectiveSpeed = productionSpeedMultiplier_ *
+    const double typeSpeed = type == BuildingType::LumberMill ? lumberMillSpeedMultiplier_
+        : type == BuildingType::Quarry ? quarrySpeedMultiplier_ : crystalMineSpeedMultiplier_;
+    const double effectiveSpeed = productionSpeedMultiplier_ * typeSpeed *
         levelSpeed * std::clamp(healthEfficiency, 0.01, 1.0);
     if (type == BuildingType::LumberMill) {
         return 8.0 / effectiveSpeed;
