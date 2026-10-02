@@ -78,6 +78,10 @@ void main()
     const vec3 grassLight = vec3(0.490875, 0.644875, 0.216125);
     vec3 litColor = mix(grassShadow, grassMid, shadowToMid);
     litColor = mix(litColor, grassLight, midToLight);
+    // Match the calmer ground without changing lighting or the detail pattern.
+    float paletteLuminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
+    litColor = mix(vec3(paletteLuminance), litColor, 0.88);
+    litColor *= vec3(0.97, 1.0, 1.04);
 
     // Preserve restrained authored variation and green contact shading. The
     // texture no longer drives bright lime highlights.
@@ -107,7 +111,7 @@ void main()
     float fogDistance =
         clamp((horizontalDistance - fogStart)/fogRange, 0.0, 1.0);
     float fogAmount =
-        (1.0 - exp(-2.15*fogDistance*fogDistance))*0.74;
+        (1.0 - exp(-2.15*fogDistance*fogDistance))*0.64;
     if (fogBandsEnabled > 0.5)
     {
         float bands = max(round(fogBandCount), 2.0);

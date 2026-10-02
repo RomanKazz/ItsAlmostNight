@@ -57,9 +57,9 @@ struct WorldMaterialState {
     // World-space terrain texture controls. Scale is texture repeats/metre.
     float groundTextureScale{0.050F};
     float groundTextureStrength{1.0F};
-    float groundSaturation{0.70F};
+    float groundSaturation{0.60F};
     float groundBrightness{0.91F};
-    Vector3 groundTextureTint{0.90F, 1.0F, 1.06F};
+    Vector3 groundTextureTint{0.87F, 1.0F, 1.10F};
     float groundTextureContrast{0.80F};
     float groundHighlightCompression{0.18F};
     float groundSecondaryBlend{0.18F};

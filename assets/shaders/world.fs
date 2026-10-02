@@ -916,7 +916,7 @@ void main()
     // altitude color, while sunset contributes only a luminance-preserving
     // trace of warmth near the distant horizon.
     vec3 atmosphereColor = mix(
-        fogColor, skyAmbientColor, 0.18 + hazeCurve*0.10);
+        fogColor, skyAmbientColor, 0.14 + hazeCurve*0.08);
     float sunsetAmount = smoothstep(
         0.10, 0.24, dayNightTint.r - dayNightTint.b);
     float viewRelativeHeight =
@@ -1004,11 +1004,11 @@ void main()
     float lowerWorld =
         1.0 - smoothstep(1.0, 12.0, max(viewRelativeHeight, 0.0));
     float distanceFog =
-        (1.0 - exp(-2.10*hazeCurve*hazeCurve))*0.72;
+        (1.0 - exp(-2.10*hazeCurve*hazeCurve))*0.62;
     float heightFogScale =
         1.0 + lowerWorld*0.06 - peakClarity*0.14;
     float fogAmount = clamp(
-        distanceFog*heightFogScale, 0.0, 0.72);
+        distanceFog*heightFogScale, 0.0, 0.62);
     // Keep nearby tree silhouettes distinct from the mountain backdrop.
     float forestClarity = clamp(treeAmount, 0.0, 1.0)*
         (1.0 - smoothstep(0.28, 0.68, fogDistance));
