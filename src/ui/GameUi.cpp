@@ -645,6 +645,7 @@ Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
 }
 
 Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
+    if (const auto weapon = runUpgradeWeapon(effect)) return weaponTexture(*weapon);
     switch (effect) {
     case RunUpgradeEffect::CannonHeavyShell:
     case RunUpgradeEffect::CannonScattershot:

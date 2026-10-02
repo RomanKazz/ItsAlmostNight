@@ -985,6 +985,9 @@ UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int crys
                                        });
     const double previousMaxHealth = iterator->maxHealth;
     ++iterator->level;
+    if (iterator->type == BuildingType::Core) {
+        setCoreBuildRadius(coreBuildRadius() + CoreBuildRadiusPerLevel);
+    }
     iterator->maxHealth =
         definition(iterator->type).maxHealth *
         (1.0 + 0.15 * static_cast<double>(iterator->level - 1)) *

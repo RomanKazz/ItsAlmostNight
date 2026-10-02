@@ -40,3 +40,27 @@ image without sampling outside the texture's UV range.
 - Suspended-run `buildingArsenalVersion` is 2. Older checkpoints preserve already
   built producers by acquiring their blueprint during migration. New checkpoints
   preserve unbuilt blueprints as well. Starting a new run clears them.
+
+## Core build range and retired utility hammers
+
+REACH HAMMER and SALVAGE HAMMER no longer appear in new card offers. Their IDs
+and already acquired effects remain valid for suspended runs. Each successful
+core upgrade now adds 3 meters to construction range: a normal run starts at
+9 meters and reaches 30 meters at level 8. The core menu compares the current
+and next range alongside capacity upgrades. Failed upgrades never add range.
+
+Suspended runs record `coreBuildRadiusLevel` to avoid adding the level bonus
+again after loading. Saves without that field start at accounted level 1 and
+receive the missing core-level range once, in addition to their saved bonuses.
+
+## Player weapon blueprints
+
+Club, rifle, bombs, ice wand and fire wand are now one-time common acquisition
+cards. A selected card adds the weapon to the run hotbar without occupying a
+building slot; repeat offers disappear. Axe and pickaxe stay available, and
+Alchemist retains its starting fire wand. Bomb acquisition supplies one bundle.
+Core levels no longer unlock weapons. Sandbox/unlimited mode retains all tools.
+
+Weapon card IDs are appended after existing effects. Suspended runs record
+`playerWeaponArsenalVersion` (1); old saves without it retain weapons unlocked
+by their historical core level. Ownership resets on a new run.

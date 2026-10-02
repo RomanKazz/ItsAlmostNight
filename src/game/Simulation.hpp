@@ -495,6 +495,8 @@ struct SuspendedRunState {
     std::array<std::uint8_t, GameBalance::BuildingTypeCount>
         buildingBlueprintLevels{};
     int coreBuildRadius{};
+    int coreBuildRadiusLevel{1};
+    int playerWeaponArsenalVersion{};
     double playerDamageMultiplier{1.0};
     double runPlayerDamageMultiplier{1.0};
     double playerAttackSpeedMultiplier{1.0};

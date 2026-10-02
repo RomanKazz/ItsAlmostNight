@@ -24,12 +24,8 @@ bool Simulation::playerWeaponUnlocked(PlayerWeapon weapon) const {
         (playerClass_ == PlayerClass::Alchemist &&
          weapon == PlayerWeapon::FireWand);
     if (classUnlock) return true;
-    const auto core = buildings_.core();
-    const int coreLevel = core ? static_cast<int>(core->level) : 0;
-    if (coreLevel >= playerWeaponRequiredCoreLevel(weapon)) {
-        return true;
-    }
-    return false;
+    const auto unlock = weaponRunUpgrade(weapon);
+    return unlock && runUpgradeStacks_[runUpgradeIndex(*unlock)] > 0;
 }
 namespace {
 
@@ -152,6 +148,9 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     if (retiredRunUpgrade(effect) ||
         runUpgradeStacks_[runUpgradeIndex(effect)] >= runUpgradeMaximumLevel(effect) ||
         runUpgradePower(effect) >= runUpgradePowerLimit(effect)) return false;
+    if (const auto weapon = runUpgradeWeapon(effect)) {
+        return !sandboxMode_ && !unlimitedResources_ && !playerWeaponUnlocked(*weapon);
+    }
     if (const auto building = runUpgradeBuilding(effect)) {
         return !sandboxMode_ && !unlimitedResources_ && !ownsRunBuilding(*building) &&
             (!runCombatBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount);
@@ -305,6 +304,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         if (ownsRunBuilding(*building) ||
             (runCombatBuilding(*building) && runBuildingArsenalCount() >= RunBuildingSlotCount)) return false;
     }
+    if (const auto weapon = runUpgradeWeapon(effect); weapon && playerWeaponUnlocked(*weapon)) return false;
     if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
@@ -380,6 +380,13 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
     case RunUpgradeEffect::Regeneration:
+    case RunUpgradeEffect::UnlockClub:
+    case RunUpgradeEffect::UnlockRifle:
+    case RunUpgradeEffect::UnlockIceWand:
+    case RunUpgradeEffect::UnlockFireWand:
+        break;
+    case RunUpgradeEffect::UnlockBomb:
+        bombs_.addBombs(economy_.bombPurchaseAmount);
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {

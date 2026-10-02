@@ -162,6 +162,26 @@ void runBuildingSystemTests() {
                 ian::ModularBuildPiece::Ramp,
         "combined construction appends later unlocks on the right");
 
+    {
+        ian::BuildingSystem expandingRadius;
+        expandingRadius.setCoreBuildRadius(9);
+        const auto core = expandingRadius.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+        require(core.has_value(), "core range fixture places its core");
+        require(!expandingRadius.upgrade(core->building.id, 0, 0, 0).valid() &&
+            expandingRadius.coreBuildRadius() == 9, "failed upgrade never expands range");
+        require(!expandingRadius.validate(ian::BuildingType::Wall, {10, 0}, 100, 100, 100).valid(),
+            "construction outside level-one range is rejected");
+        for (int level = 2; level <= ian::MaxBuildingLevel; ++level) {
+            require(expandingRadius.upgrade(core->building.id, 100000, 100000, 100000).valid() &&
+                expandingRadius.coreBuildRadius() == 9 + 3 * (level - 1),
+                "each core level adds exactly three meters of build range");
+        }
+        require(expandingRadius.validate(ian::BuildingType::Wall, {10, 0}, 100, 100, 100).valid(),
+            "core expansion permits placement in the new range");
+        require(!expandingRadius.upgrade(core->building.id, 100000, 100000, 100000).valid() &&
+            expandingRadius.coreBuildRadius() == 30, "max core cannot gain more range");
+    }
+
     ian::BuildingSystem radiusBuildings;
     radiusBuildings.setCoreBuildRadius(5);
     require(radiusBuildings.coreBuildRadius() == 5,

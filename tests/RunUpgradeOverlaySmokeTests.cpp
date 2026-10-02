@@ -41,11 +41,14 @@ int main(int argc, char** argv) {
          ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::BuildingHealth,
          ian::RunUpgradeEffect::DefenseDamage, ian::RunUpgradeEffect::DefenseFireRate,
          ian::RunUpgradeEffect::ProductionSpeed, ian::RunUpgradeEffect::RichResources,
-         ian::RunUpgradeEffect::BuildRadius, ian::RunUpgradeEffect::Luck,
+         ian::RunUpgradeEffect::Luck,
          ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::GunPiercing,
          ian::RunUpgradeEffect::Ricochet, ian::RunUpgradeEffect::ClusterPayload,
          ian::RunUpgradeEffect::Damage, ian::RunUpgradeEffect::BuildingHealth,
-         ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::Regeneration, ian::RunUpgradeEffect::CannonHeavyShell}) {
+         ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::Regeneration, ian::RunUpgradeEffect::CannonHeavyShell,
+         ian::RunUpgradeEffect::UnlockClub, ian::RunUpgradeEffect::UnlockRifle,
+         ian::RunUpgradeEffect::UnlockBomb, ian::RunUpgradeEffect::UnlockIceWand,
+         ian::RunUpgradeEffect::UnlockFireWand}) {
         auto before = simulation->snapshot();
         before.runUpgradeChoiceCount = 1;
         before.runUpgradeChoices[0] = effect;
@@ -66,6 +69,8 @@ int main(int argc, char** argv) {
         requireNear(projected.upgradeStats.defenseFireRate, actual.upgradeStats.defenseFireRate, 1e-9, "defense rate preview matches simulation");
         requireNear(projected.upgradeStats.luck, actual.upgradeStats.luck, 1e-9, "luck preview matches simulation");
         requireNear(projected.upgradeStats.healthRegeneration, actual.upgradeStats.healthRegeneration, 1e-9, "regen hammer preview matches simulation");
+        require(projected.unlockedWeapons == actual.unlockedWeapons &&
+            projected.bombsRemaining == actual.bombsRemaining, "weapon blueprint preview matches actual acquisition");
         require(projected.coreBuildRadius == actual.coreBuildRadius && projected.runUpgradePower == actual.runUpgradePower &&
             projected.upgradeStats.sideShots == actual.upgradeStats.sideShots &&
             projected.upgradeStats.clusterExplosions == actual.upgradeStats.clusterExplosions &&
@@ -92,7 +97,7 @@ int main(int argc, char** argv) {
                     {card.x + card.width * 0.5F, card.y + card.height * 0.5F}) == index,
                     "resized card hit areas track their visible bounds");
             }
-            for (int scene = 0; scene < 6; ++scene) {
+            for (int scene = 0; scene < 7; ++scene) {
                 auto display = snapshot;
                 std::array<float, 4> displayHovers{};
                 Vector2 pointer{-100, -100};
@@ -127,10 +132,16 @@ int main(int argc, char** argv) {
                 }
                 if (scene == 5) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::AttackSpeed,
-                        ian::RunUpgradeEffect::Salvager, ian::RunUpgradeEffect::LongerDay,
+                        ian::RunUpgradeEffect::Luck, ian::RunUpgradeEffect::LongerDay,
                         ian::RunUpgradeEffect::Overkill};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Uncommon, ian::RunUpgradeRarity::Rare, ian::RunUpgradeRarity::Epic};
+                }
+                if (scene == 6) {
+                    display.runUpgradeChoices = {ian::RunUpgradeEffect::UnlockRifle,
+                        ian::RunUpgradeEffect::UnlockBomb, ian::RunUpgradeEffect::UnlockIceWand,
+                        ian::RunUpgradeEffect::UnlockFireWand};
+                    display.runUpgradeRarities.fill(ian::RunUpgradeRarity::Common);
                 }
                 if (scene > 0) {
                     const std::size_t choice = scene == 2 ? 1U : 3U;
@@ -149,7 +160,7 @@ int main(int argc, char** argv) {
                     ImageFlipVertical(&capture);
                     const std::string path = std::string(argv[1]) + "/ian_upgrades_" +
                         std::to_string(height) + (language == ian::Language::Russian ? "_ru" : "") +
-                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : scene == 3 ? "_economy" : scene == 4 ? "_hammers" : "_numeric_hammers") + ".png";
+                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : scene == 3 ? "_economy" : scene == 4 ? "_hammers" : scene == 5 ? "_numeric_hammers" : "_weapons") + ".png";
                     require(ExportImage(capture, path.c_str()), "upgrade screenshot exported");
                     UnloadImage(capture);
                 }

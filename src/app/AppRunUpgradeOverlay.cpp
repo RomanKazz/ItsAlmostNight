@@ -97,7 +97,7 @@ float cardLayoutScale(std::size_t count) {
 }
 
 UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect)) return UpgradeColorClass::Yellow;
+    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return UpgradeColorClass::Yellow;
     if (runUpgradeProductionBuilding(effect)) return UpgradeColorClass::Green;
     switch (effect) {
     case RunUpgradeEffect::Damage:
@@ -150,13 +150,18 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
     case RunUpgradeEffect::Regeneration:
+    case RunUpgradeEffect::UnlockClub:
+    case RunUpgradeEffect::UnlockRifle:
+    case RunUpgradeEffect::UnlockBomb:
+    case RunUpgradeEffect::UnlockIceWand:
+    case RunUpgradeEffect::UnlockFireWand:
         break;
     }
     return UpgradeColorClass::Blue;
 }
 
 std::string_view upgradeMark(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect)) return "NEW";
+    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return "NEW";
     switch (effect) {
     case RunUpgradeEffect::Damage: return "DMG";
     case RunUpgradeEffect::AttackSpeed: return "SPD";
@@ -203,6 +208,11 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
     case RunUpgradeEffect::Regeneration:
+    case RunUpgradeEffect::UnlockClub:
+    case RunUpgradeEffect::UnlockRifle:
+    case RunUpgradeEffect::UnlockBomb:
+    case RunUpgradeEffect::UnlockIceWand:
+    case RunUpgradeEffect::UnlockFireWand:
         break;
     }
     return "+";
@@ -641,6 +651,10 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     };
     if (const auto building = runUpgradeBuilding(effect); building && runCombatBuilding(*building))
         ++projected.buildingArsenalCount;
+    if (const auto weapon = runUpgradeWeapon(effect)) {
+        projected.unlockedWeapons[static_cast<std::size_t>(*weapon)] = true;
+        if (*weapon == PlayerWeapon::Bomb) projected.bombsRemaining += snapshot.bombPurchaseAmount;
+    }
     if (const auto style = runUpgradeCannonStyle(effect)) projected.upgradeStats.cannonAttackStyle = *style;
     switch (effect) {
     case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage += 0.12 * gain; break;
@@ -1033,7 +1047,8 @@ void drawRunUpgradeOverlay(
             8,
             fadedColor(CardInset, cardFade));
         const UpgradeValueCopy valueCopy =
-            runUpgradeBuilding(effect) ? UpgradeValueCopy{"NEW", "Building blueprint"}
+            runUpgradeWeapon(effect) ? UpgradeValueCopy{"NEW", "Player weapon"}
+                : runUpgradeBuilding(effect) ? UpgradeValueCopy{"NEW", "Building blueprint"}
                 : effect == RunUpgradeEffect::CannonHeavyShell ? UpgradeValueCopy{"x5 DAMAGE", "Cannon fires 3x slower"}
                 : effect == RunUpgradeEffect::CannonScattershot ? UpgradeValueCopy{"5 SHELLS", "40% damage each / smaller blasts"}
                 : effect == RunUpgradeEffect::CannonClusterShell ? UpgradeValueCopy{"+3 BLASTS", "80% main damage / 36% mini"}
@@ -1079,7 +1094,7 @@ void drawRunUpgradeOverlay(
         const bool economyBlueprint = blueprint && !runCombatBuilding(*blueprint);
         const bool oneTime = (fixedRunUpgradePower(effect) && !blueprint) || economyBlueprint;
         if (oneTime) {
-            drawOutlinedCenteredText(economyBlueprint ? "UNLOCK" : "ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
+            drawOutlinedCenteredText((economyBlueprint || runUpgradeWeapon(effect)) ? "UNLOCK" : "ONE-TIME", centerX, levelBadge.y + 4.0F * scale,
                 levelFontSize, LevelText, cardFade, scale, LevelOutline, 2.0F, false);
         } else {
             const std::string currentLevelText =
@@ -1125,7 +1140,8 @@ void drawRunUpgradeOverlay(
                 LevelOutline, 3.0F, false);
         }
         drawOutlinedCenteredText(
-            runUpgradeBuilding(effect) ? "NEW BUILDING" : runUpgradeRarityName(rarity), centerX,
+            runUpgradeWeapon(effect) ? "NEW WEAPON"
+                : runUpgradeBuilding(effect) ? "NEW BUILDING" : runUpgradeRarityName(rarity), centerX,
             bounds.y + 516.0F * scale,
             22.0F / UiTextRasterScale * scale,
             palette.accent, cardFade, scale,

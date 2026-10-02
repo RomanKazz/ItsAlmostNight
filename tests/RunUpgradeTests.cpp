@@ -31,6 +31,108 @@ void runRunUpgradeTests() {
         rollRunUpgradeRarity(0, 0.995) == RunUpgradeRarity::Legendary,
         "rarity sampling honors chance intervals");
 
+    {
+        auto legacyRun = std::make_unique<Simulation>();
+        legacyRun->startRunFromSeed(PlayerClass::Engineer, 12345);
+        PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        legacyRun->tick(1.0 / 60.0, unlimited);
+        PlayerCommand placeCore;
+        placeCore.placeBuilding = PlaceBuildingCommand{.type = BuildingType::Core, .gridPosition = {0, 0}};
+        legacyRun->tick(1.0 / 60.0, placeCore);
+        require(legacyRun->snapshot().coreId.has_value(), "saved radius fixture has a core");
+        auto legacy = legacyRun->saveSuspendedRunState();
+        auto core = std::ranges::find(legacy.buildings, BuildingType::Core, &BuildingInstance::type);
+        core->level = 3;
+        core->maxHealth = buildingMaxHealthAtLevel(500.0, 3);
+        core->health = core->maxHealth;
+        legacy.coreBuildRadius = 14; // Legacy base radius plus an acquired range bonus.
+        legacy.coreBuildRadiusLevel = 1;
+        legacy.playerWeaponArsenalVersion = 0;
+        legacy.selectedWeapon = PlayerWeapon::Rifle;
+        legacy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::BuildRadius)] = 1;
+        legacy.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::BuildRadius)] = 1.5;
+        legacyRun->returnToMainMenu();
+        require(legacyRun->loadSuspendedRunState(legacy), "legacy core radius migrates");
+        auto resumed = legacyRun->saveSuspendedRunState();
+        require(resumed.coreBuildRadius == 20 && resumed.coreBuildRadiusLevel == 3 &&
+            resumed.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::BuildRadius)] == 1.5,
+            "migration adds core progression on top of old hammer bonuses");
+        require(legacyRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Club)] &&
+            legacyRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Rifle)] &&
+            !legacyRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Bomb)] &&
+            legacyRun->snapshot().selectedWeapon == PlayerWeapon::Rifle,
+            "old core-level unlocks migrate without removing the equipped weapon");
+        legacyRun->returnToMainMenu();
+        require(legacyRun->loadSuspendedRunState(resumed) &&
+            legacyRun->saveSuspendedRunState().coreBuildRadius == 20,
+            "repeated load never applies radius progression twice");
+        resumed.coreBuildRadiusLevel = 4;
+        legacyRun->returnToMainMenu();
+        require(!legacyRun->loadSuspendedRunState(resumed), "save rejects an accounted level above its core");
+    }
+
+    {
+        auto weaponRun = std::make_unique<Simulation>();
+        weaponRun->startRunFromSeed(PlayerClass::Engineer, 13579);
+        require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Axe)] &&
+            weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Pickaxe)],
+            "gathering tools remain available without cards or core");
+        for (const auto weapon : {PlayerWeapon::Club, PlayerWeapon::Rifle, PlayerWeapon::Bomb,
+                PlayerWeapon::IceWand, PlayerWeapon::FireWand}) {
+            require(!weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)],
+                "combat weapons start locked until their acquisition card");
+            const auto effect = *weaponRunUpgrade(weapon);
+            require(runUpgradeMaximumLevel(effect) == 1 && fixedRunUpgradePower(effect) &&
+                fixedRunUpgradeRarity(effect) == RunUpgradeRarity::Common,
+                "weapon blueprints are one-time acquisitions with fixed power");
+            // Exercise the normal selection command through a saved pending offer.
+            auto offer = weaponRun->saveSuspendedRunState();
+            offer.runUpgradeChoicePending = true;
+            offer.runUpgradeChoiceCount = 4;
+            offer.runUpgradeSelectionsRemaining = 1;
+            offer.runUpgradeChoices = {effect, RunUpgradeEffect::Damage,
+                RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
+            offer.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+            weaponRun->returnToMainMenu();
+            require(weaponRun->loadSuspendedRunState(offer) && weaponRun->selectRunUpgrade(0),
+                "normal card selection acquires a player weapon");
+            require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)] &&
+                weaponRun->snapshot().buildingArsenalCount == 1 &&
+                !weaponRun->grantDebugRunUpgrade(effect),
+                "weapon acquisition does not consume a building slot and cannot repeat");
+            PlayerCommand equip;
+            equip.selectWeapon = SelectWeaponCommand{weapon};
+            weaponRun->tick(1.0 / 60.0, equip);
+            require(weaponRun->snapshot().selectedWeapon == weapon,
+                "newly acquired weapon can be equipped without upgrading the core");
+        }
+        require(weaponRun->snapshot().bombsRemaining > 0,
+            "bomb blueprint provides its first usable bundle");
+        auto acquired = weaponRun->saveSuspendedRunState();
+        require(acquired.playerWeaponArsenalVersion == 1, "weapon ownership uses the new save version");
+        weaponRun->returnToMainMenu();
+        require(weaponRun->loadSuspendedRunState(acquired), "acquired player weapons resume");
+        for (const auto weapon : {PlayerWeapon::Club, PlayerWeapon::Rifle, PlayerWeapon::Bomb,
+                PlayerWeapon::IceWand, PlayerWeapon::FireWand})
+            require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)],
+                "all acquired weapons survive saving");
+        auto invalid = acquired;
+        invalid.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockRifle)] = 2;
+        weaponRun->returnToMainMenu();
+        require(!weaponRun->loadSuspendedRunState(invalid), "duplicate saved weapon acquisition is rejected");
+        weaponRun->startRunFromSeed(PlayerClass::Alchemist, 13579);
+        require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::FireWand)] &&
+            !weaponRun->grantDebugRunUpgrade(RunUpgradeEffect::UnlockFireWand) &&
+            !weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Rifle)],
+            "Alchemist retains its starter while a new run clears other weapon acquisitions");
+        PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        weaponRun->tick(1.0 / 60.0, unlimited);
+        require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(PlayerWeapon::Rifle)],
+            "unlimited mode continues to bypass weapon acquisitions");
+    }
+
     auto simulation = std::make_unique<Simulation>();
     simulation->returnToMainMenu();
     simulation->startRunFromSeed(PlayerClass::Vanguard, 12345);
@@ -58,7 +160,6 @@ void runRunUpgradeTests() {
 
     constexpr std::array expectedDamageBonus{0.10, 0.15, 0.20, 0.25, 0.30};
     constexpr std::array expectedHealthBonus{12.0, 18.0, 24.0, 30.0, 36.0};
-    constexpr std::array expectedBuildRangeBonus{3, 5, 6, 8, 9};
     auto tierSimulation = std::make_unique<Simulation>();
     for (std::size_t tierIndex = 0; tierIndex < RunUpgradeRarityCount; ++tierIndex) {
         tierSimulation->returnToMainMenu();
@@ -67,8 +168,7 @@ void runRunUpgradeTests() {
         const auto initial = tierSimulation->snapshot();
         require(tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::Damage, tier) &&
             tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::MaximumHealth, tier) &&
-            tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, tier) &&
-            tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::BuildRadius, tier),
+            tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, tier),
             "each rarity grants its numeric upgrades");
         const auto& actual = tierSimulation->snapshot();
         requireNear(actual.playerDamageMultiplier / initial.playerDamageMultiplier,
@@ -79,8 +179,9 @@ void runRunUpgradeTests() {
         requireNear(actual.upgradeStats.defenseDamage - initial.upgradeStats.defenseDamage,
             expectedDamageBonus[tierIndex] * 1.2, 1e-12,
             "defense damage follows the same rarity scale");
-        require(actual.coreBuildRadius - initial.coreBuildRadius == expectedBuildRangeBonus[tierIndex],
-            "build range uses the displayed integer bonus");
+        require(actual.coreBuildRadius == initial.coreBuildRadius &&
+            !tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::BuildRadius, tier),
+            "retired range hammer cannot compete with core progression");
     }
 
     tierSimulation->returnToMainMenu();
@@ -271,7 +372,8 @@ void runRunUpgradeTests() {
     // Already-acquired cards remain valid in old runs after being retired.
     auto legacyNumericCards = normal->saveSuspendedRunState();
     for (auto retiredEffect : {RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction,
-            RunUpgradeEffect::CrystalMineProduction, RunUpgradeEffect::DoubleDown, RunUpgradeEffect::RerollToken}) {
+            RunUpgradeEffect::CrystalMineProduction, RunUpgradeEffect::DoubleDown, RunUpgradeEffect::RerollToken,
+            RunUpgradeEffect::BuildRadius, RunUpgradeEffect::Salvager}) {
         require(retiredRunUpgrade(retiredEffect) && !normal->grantDebugRunUpgrade(retiredEffect),
             "retired numeric and selection cards cannot be newly granted");
         legacyNumericCards.runUpgradeStacks[runUpgradeIndex(retiredEffect)] = 1;
@@ -449,7 +551,7 @@ void runRunUpgradeTests() {
             if (runHammerDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 37 && activeHammers == 15, "trimmed rotation retains 37 types and 15 hammers");
+    require(activeCount == 40 && activeHammers == 13, "trimmed rotation retains 40 types and 13 hammers");
     require(!retiredRunUpgrade(RunUpgradeEffect::LongerDay) &&
             !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and high stakes remain available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
@@ -457,10 +559,8 @@ void runRunUpgradeTests() {
         "daylight hammer grants the existing day bonus");
     requireNear(hammers->snapshot().phaseTimeRemaining, phaseBeforeHammer + 10.0, 1e-9,
         "daylight rarity still scales the day extension");
-    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager, RunUpgradeRarity::Common) &&
-            hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager, RunUpgradeRarity::Rare) &&
-            !hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager),
-        "salvage hammer retains its refund power cap");
+    require(!hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager),
+        "retired salvage hammer cannot be newly granted");
     const double originalDefense = hammers->snapshot().upgradeStats.defenseDamage;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Rare),
         "first might hammer acquired");
@@ -479,6 +579,8 @@ void runRunUpgradeTests() {
         "uncommon regen hammer grants fractional HP per second");
     auto woundedHammerSave = hammers->saveSuspendedRunState();
     woundedHammerSave.playerHealth = 20.0;
+    woundedHammerSave.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Salvager)] = 2;
+    woundedHammerSave.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Salvager)] = 3.0;
     hammers->returnToMainMenu();
     require(hammers->loadSuspendedRunState(woundedHammerSave), "hammer levels and power resume");
     require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Salvager)] == 2 &&

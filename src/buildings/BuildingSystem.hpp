@@ -13,6 +13,7 @@
 namespace ian {
 
 inline constexpr std::uint8_t MaxBuildingLevel = 8;
+inline constexpr int CoreBuildRadiusPerLevel = 3;
 
 enum class BuildingType {
     Core,

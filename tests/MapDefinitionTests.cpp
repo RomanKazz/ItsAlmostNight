@@ -92,9 +92,9 @@ void runMapDefinitionTests() {
             "custom-radius fixture creates core");
     require(buildings.upgrade(radiusCore->building.id, 0, 0, 1000).valid(),
             "custom-radius fixture unlocks walls");
-    require(buildings.validate(ian::BuildingType::Wall, {6, 0}, 10, 0).error ==
+    require(buildings.validate(ian::BuildingType::Wall, {9, 0}, 10, 0).error ==
                 ian::PlacementError::OutsideCoreArea,
-            "building system consumes map build radius");
+            "building system adds core growth to the custom map build radius");
 
     ian::WaveDirector waves{ian::GameBalance::defaults().waves,
                             loaded.map.enemySpawnAnchors};

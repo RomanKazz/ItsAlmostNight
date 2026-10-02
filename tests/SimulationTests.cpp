@@ -1648,28 +1648,18 @@ void runSimulationTests() {
                 require(upgraded.unlockedBuildings[static_cast<std::size_t>(type)] ==
                     (type == ian::BuildingType::GunTurret), "only the starter remains in the arsenal");
             }
-            require(upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Club)] &&
-                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Rifle)] == (level >= 3) &&
-                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::Bomb)] == (level >= 4) &&
-                upgraded.unlockedWeapons[static_cast<std::size_t>(ian::PlayerWeapon::IceWand)] == (level >= 5),
-                "weapon progression keeps its Core gates");
+            for (const auto weapon : {ian::PlayerWeapon::Club, ian::PlayerWeapon::Rifle,
+                    ian::PlayerWeapon::Bomb, ian::PlayerWeapon::IceWand, ian::PlayerWeapon::FireWand}) {
+                require(!upgraded.unlockedWeapons[static_cast<std::size_t>(weapon)],
+                    "Core upgrades never acquire player weapons");
+            }
         }
-        require(
-            ian::playerWeaponRequiredCoreLevel(
-                ian::PlayerWeapon::Rifle) == 3 &&
-                ian::playerWeaponRequiredCoreLevel(
-                    ian::PlayerWeapon::Bomb) == 4 &&
-                ian::playerWeaponRequiredCoreLevel(
-                    ian::PlayerWeapon::IceWand) == 5 &&
-                ian::playerWeaponRequiredCoreLevel(
-                    ian::PlayerWeapon::FireWand) ==
-                        ian::MaxBuildingLevel + 1,
-            "player weapon Core gates stay explicit and ordered");
+
     }
 
     {
         ian::Simulation foundationLifecycle;
-        foundationLifecycle.startRun();
+        foundationLifecycle.startRun(ian::PlayerClass::Engineer);
         ian::PlayerCommand unlimited;
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
@@ -1754,16 +1744,19 @@ void runSimulationTests() {
             "raised building foundation matches its footprint");
         const ian::EntityId foundationId =
             raisedFoundation->id;
-        require(foundationLifecycle.grantDebugRunUpgrade(
-                    ian::RunUpgradeEffect::Salvager),
-                "salvage card can be granted before a sale");
-        foundationLifecycle.tick(1.0 / 60.0, unlimited);
+        const ian::ResourceCost standardRefund =
+            ian::buildingSellRefund(*raisedTurret);
+        auto legacySalvage = foundationLifecycle.saveSuspendedRunState();
+        legacySalvage.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::Salvager)] = 1;
+        legacySalvage.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::Salvager)] = 1.0;
+        foundationLifecycle.returnToMainMenu();
+        require(foundationLifecycle.loadSuspendedRunState(legacySalvage),
+                "legacy salvage bonus resumes before a sale");
+        foundationLifecycle.tick(1.0 / 60.0);
         const auto resourcesBeforeSale =
             foundationLifecycle.snapshot();
         const ian::ResourceCost saleCost =
             ian::buildingCost(ian::BuildingType::GunTurret);
-        const ian::ResourceCost standardRefund =
-            ian::buildingSellRefund(*raisedTurret);
         const auto expectedSaleAmount = [](int cost, int refund) {
             return refund + std::min(
                 cost - refund,
@@ -1865,7 +1858,7 @@ void runSimulationTests() {
 
     {
         ian::Simulation modularSalvage;
-        modularSalvage.startRun();
+        modularSalvage.startRun(ian::PlayerClass::Engineer);
         ian::PlayerCommand unlimited;
         unlimited.enableUnlimitedResources =
             ian::EnableUnlimitedResourcesCommand{};
@@ -1875,10 +1868,13 @@ void runSimulationTests() {
              4.2});
         require(frame.has_value(),
                 "modular salvage fixture creates a foundation");
-        require(modularSalvage.grantDebugRunUpgrade(
-                    ian::RunUpgradeEffect::Salvager),
-                "modular salvage fixture grants the card");
-        modularSalvage.tick(1.0 / 60.0, unlimited);
+        auto legacySalvage = modularSalvage.saveSuspendedRunState();
+        legacySalvage.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::Salvager)] = 1;
+        legacySalvage.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::Salvager)] = 1.0;
+        modularSalvage.returnToMainMenu();
+        require(modularSalvage.loadSuspendedRunState(legacySalvage),
+                "modular salvage fixture retains an old acquired bonus");
+        modularSalvage.tick(1.0 / 60.0);
         const auto beforeRemoval = modularSalvage.snapshot();
         ian::PlayerCommand removeFoundation;
         removeFoundation.removeModularBuilding =

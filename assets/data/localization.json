@@ -3,6 +3,15 @@
   "languages": {
     "en": {},
     "ru": {
+      "MORE RANGE": "РАДИУС +",
+      "Player weapon": "Оружие игрока",
+      "NEW WEAPON": "НОВОЕ ОРУЖИЕ",
+      "Unlock club for this run": "Открывает дубину в этом забеге",
+      "Unlock rifle for this run": "Открывает винтовку в этом забеге",
+      "Unlock bombs for this run": "Открывает бомбы в этом забеге",
+      "Unlock ice wand for this run": "Открывает ледяной жезл в этом забеге",
+      "Unlock fire wand for this run": "Открывает огненный жезл в этом забеге",
+      "EXPANDS  BUILD RANGE · CAPACITY": "УВЕЛИЧИВАЕТ РАДИУС И ВМЕСТИМОСТЬ",
       "OVERKILL": "ДОБИВАНИЕ",
       "SALVAGE HAMMER": "МОЛОТ УТИЛИЗАЦИИ",
       "DAYLIGHT HAMMER": "МОЛОТ ДНЯ",

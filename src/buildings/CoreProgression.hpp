@@ -15,6 +15,7 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 1;
     return 1;
 }
 
+// Historical gates are retained only to migrate pre-blueprint saved runs.
 [[nodiscard]] constexpr int playerWeaponRequiredCoreLevel(
     PlayerWeapon weapon) {
     switch (weapon) {
@@ -45,22 +46,8 @@ inline constexpr int ModularBuildingRequiredCoreLevel = 1;
 
 [[nodiscard]] constexpr std::string_view coreLevelUnlockSummary(
     int level) {
-    switch (level) {
-    case 2:
-        return "UNLOCKS  CLUB · EXPANDS CAPACITY";
-    case 3:
-        return "UNLOCKS  RIFLE · EXPANDS CAPACITY";
-    case 4:
-        return "UNLOCKS  BOMBS · EXPANDS CAPACITY";
-    case 5:
-        return "UNLOCKS  ICE WAND · EXPANDS CAPACITY";
-    case 6:
-    case 7:
-    case 8:
-        return "EXPANDS  DEFENSES · PRODUCERS · STORAGE";
-    default:
-        return {};
-    }
+    return level > 1 && level <= MaxBuildingLevel
+        ? "EXPANDS  BUILD RANGE · CAPACITY" : std::string_view{};
 }
 
 } // namespace ian

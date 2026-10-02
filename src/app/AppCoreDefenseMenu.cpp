@@ -408,59 +408,10 @@ struct UnlockCard {
 std::vector<UnlockCard> unlockCardsForLevel(
     const GameUi& ui, std::uint8_t level) {
     std::vector<UnlockCard> cards;
-    const auto addBuilding = [&](BuildingType type,
-                                 std::string_view label) {
-        if (buildingRequiredCoreLevel(type) == level) {
-            cards.push_back({ui.buildingTexture(type), label});
-        }
-    };
-    const auto addWeapon = [&](PlayerWeapon weapon,
-                               std::string_view label) {
-        if (playerWeaponRequiredCoreLevel(weapon) == level) {
-            cards.push_back({ui.weaponTexture(weapon), label});
-        }
-    };
-    const auto addPiece = [&](ModularBuildPiece piece,
-                              std::string_view label) {
-        if (modularBuildPieceRequiredCoreLevel(piece) == level) {
-            cards.push_back({ui.modularBuildingTexture(piece), label});
-        }
-    };
-    switch (level) {
-    case 2:
-        addBuilding(BuildingType::Gate, "GATE");
-        addBuilding(BuildingType::Wall, "WALLS");
-        addBuilding(BuildingType::CrystalMine, "CRYSTAL MINE");
-        addWeapon(PlayerWeapon::Club, "CLUB");
-        break;
-    case 3:
-        addBuilding(BuildingType::Quarry, "QUARRY");
-        addBuilding(BuildingType::LumberMill, "LUMBER MILL");
-        addBuilding(BuildingType::Turret, "CROSSBOW");
-        addWeapon(PlayerWeapon::Rifle, "RIFLE");
-        break;
-    case 4:
-        addBuilding(BuildingType::SlowTrap, "SLOW TRAP");
-        addBuilding(BuildingType::SpikeTrap, "SPIKE TRAP");
-        addBuilding(BuildingType::Cannon, "CANNON");
-        addWeapon(PlayerWeapon::Bomb, "BOMBS");
-        break;
-    case 5:
-        addPiece(ModularBuildPiece::FloorPlatform, "FLOOR");
-        addPiece(ModularBuildPiece::Ramp, "RAMP");
-        addBuilding(BuildingType::Catapult, "CATAPULT");
-        addWeapon(PlayerWeapon::IceWand, "ICE WAND");
-        break;
-    default:
-        break;
-    }
-    if (level > 5U && level <= MaxBuildingLevel) {
-        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Ballista),
-                         "MORE DEFENSES"});
-        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gear),
-                         "MORE PRODUCERS"});
-        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gem),
-                         "MORE STORAGE"});
+    if (level > 1U && level <= MaxBuildingLevel) {
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gear), "MORE RANGE"});
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Ballista), "MORE DEFENSES"});
+        cards.push_back({ui.coreMenuTexture(CoreMenuTexture::Gem), "MORE STORAGE"});
     }
     return cards;
 }
@@ -699,10 +650,13 @@ void App::drawCoreDefenseMenu() {
               ((1.0 + 0.15 * static_cast<double>(core.level)) /
                (1.0 + 0.15 * static_cast<double>(core.level - 1)))
         : core.maxHealth;
-    const std::array<StatRow, 6> rows{
+    const std::array<StatRow, 7> rows{
         StatRow{CoreMenuTexture::Heart, "HEALTH",
                 static_cast<int>(std::lround(core.maxHealth)),
                 static_cast<int>(std::lround(healthStep))},
+        StatRow{CoreMenuTexture::Gear, "RANGE",
+                snapshot.coreBuildRadius,
+                snapshot.coreBuildRadius + (hasNextLevel ? CoreBuildRadiusPerLevel : 0)},
         StatRow{CoreMenuTexture::Shield, "DEFENSES",
                 buildingLimitForCoreLevel(BuildingType::Turret,
                                           core.level),
@@ -730,7 +684,7 @@ void App::drawCoreDefenseMenu() {
                                      nextLevel)},
     };
     constexpr std::array RowY{
-        412.0F, 470.0F, 528.0F, 586.0F, 644.0F, 702.0F};
+        409.0F, 458.0F, 507.0F, 556.0F, 605.0F, 654.0F, 703.0F};
     for (std::size_t index = 0; index < rows.size(); ++index) {
         const float rowReveal = intervalProgress(
             entranceSeconds,
@@ -752,7 +706,7 @@ void App::drawCoreDefenseMenu() {
     drawCenteredMenuText(
         hasNextLevel
             ? "LVL " + std::to_string(nextLevel) +
-                  (nextLevel > 5U ? " EXPANDS" : " UNLOCKS")
+                  " EXPANDS"
             : "MAX LEVEL",
         transform, {965.0F, 386.0F, 324.0F, 42.0F},
         32.0F, {254, 247, 229, 255}, bodyReveal);

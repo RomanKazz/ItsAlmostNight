@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/CoreProgression.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -78,6 +79,8 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .worldLandmarks = worldLandmarks_,
         .buildingBlueprintLevels = buildings_.blueprintLevels(),
         .coreBuildRadius = buildings_.coreBuildRadius(),
+        .coreBuildRadiusLevel = buildings_.core() ? buildings_.core()->level : 1,
+        .playerWeaponArsenalVersion = 1,
         .playerDamageMultiplier = playerDamageMultiplier_,
         .runPlayerDamageMultiplier = runPlayerDamageMultiplier_,
         .playerAttackSpeedMultiplier = playerAttackSpeedMultiplier_,
@@ -198,6 +201,14 @@ bool Simulation::loadSuspendedRunState(
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
         });
+    const bool invalidWeapons = saved.playerWeaponArsenalVersion < 0 || saved.playerWeaponArsenalVersion > 1 ||
+        std::ranges::any_of(RunUpgradeDefinitions, [&](const RunUpgradeDefinition& definition) {
+            if (!runUpgradeWeapon(definition.effect)) return false;
+            const auto index = runUpgradeIndex(definition.effect);
+            return saved.runUpgradeStacks[index] > 1 || saved.runUpgradePower[index] > 1.0 ||
+                (saved.runUpgradePower[index] != 0.0 &&
+                 saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
+        });
     int cannonStyles = 0;
     bool invalidCannonStyle = false;
     for (const auto& definition : RunUpgradeDefinitions) {
@@ -241,6 +252,13 @@ bool Simulation::loadSuspendedRunState(
                     std::abs(building.foundationBottomHeight) > 1000.0;
             }) ||
         coreCount > 1U;
+    const auto savedCore = std::ranges::find(
+        saved.buildings, BuildingType::Core, &BuildingInstance::type);
+    const int savedCoreLevel = savedCore != saved.buildings.end() ? savedCore->level : 1;
+    const bool invalidRadiusLevel = saved.coreBuildRadiusLevel < 1 ||
+        saved.coreBuildRadiusLevel > savedCoreLevel;
+    const long long restoredBuildRadius = static_cast<long long>(saved.coreBuildRadius) +
+        CoreBuildRadiusPerLevel * (static_cast<long long>(savedCoreLevel) - saved.coreBuildRadiusLevel);
     const int selectedWeapon = static_cast<int>(saved.selectedWeapon);
     const bool invalidLockedUpgrade = saved.lockedRunUpgrade &&
         !validRunUpgrade(*saved.lockedRunUpgrade);
@@ -329,9 +347,10 @@ bool Simulation::loadSuspendedRunState(
         saved.rifleLevel < 1 || saved.rifleLevel > MaximumSavedStack ||
         selectedWeapon < 0 ||
         selectedWeapon >= static_cast<int>(PlayerWeaponCount) ||
-        invalidCannonStyle || invalidArsenal || invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
+        invalidWeapons || invalidCannonStyle || invalidArsenal || invalidStacks || invalidUpgradePower || invalidBuildings || invalidLockedUpgrade ||
         invalidChoices || invalidStatistics || invalidWorldCollections ||
-        invalidPhase || saved.coreBuildRadius < map_.coreBuildRadius ||
+        invalidPhase || invalidRadiusLevel || saved.coreBuildRadius < map_.coreBuildRadius ||
+        restoredBuildRadius > static_cast<long long>(std::ceil(map_.worldLimit * 2.0)) ||
         saved.coreBuildRadius >
             static_cast<int>(std::ceil(map_.worldLimit * 2.0)) ||
         std::ranges::any_of(multipliers, invalidMultiplier) ||
@@ -392,6 +411,16 @@ bool Simulation::loadSuspendedRunState(
     lootStacks_ = saved.lootStacks;
     runUpgradeStacks_ = saved.runUpgradeStacks;
     runUpgradePower_ = saved.runUpgradePower;
+    if (saved.playerWeaponArsenalVersion == 0) {
+        for (const auto& definition : RunUpgradeDefinitions) {
+            const auto weapon = runUpgradeWeapon(definition.effect);
+            if (weapon && savedCoreLevel >= playerWeaponRequiredCoreLevel(*weapon)) {
+                const auto index = runUpgradeIndex(definition.effect);
+                runUpgradeStacks_[index] = 1;
+                runUpgradePower_[index] = 1.0;
+            }
+        }
+    }
     // Checkpoints from before rarities contain only selection counts.
     for (std::size_t index = 0; index < runUpgradePower_.size(); ++index) {
         if (runUpgradePower_[index] == 0.0 && runUpgradeStacks_[index] > 0) {
@@ -466,7 +495,7 @@ bool Simulation::loadSuspendedRunState(
     refreshRunUpgradeRuntimeEffects();
     if (!buildings_.restoreBuildings(
             saved.buildings, saved.buildingBlueprintLevels,
-            saved.coreBuildRadius) ||
+            static_cast<int>(restoredBuildRadius)) ||
         !foundations_.restoreStructures(
             saved.platformFrames, saved.modularWalls, saved.ramps) ||
         !resources_.restoreNodes(
@@ -572,7 +601,7 @@ bool Simulation::loadSuspendedRunState(
                 static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
             [this, &saved](RunUpgradeEffect effect) {
                 return retiredRunUpgrade(effect) ||
-                    ((saved.buildingArsenalVersion < 2 || runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) &&
+                    ((saved.buildingArsenalVersion < 2 || runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) &&
                      !runUpgradeAvailable(effect));
             })) {
         generateRunUpgradeChoices();

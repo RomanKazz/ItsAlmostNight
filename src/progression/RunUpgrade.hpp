@@ -2,6 +2,7 @@
 
 #include "buildings/BuildingSystem.hpp"
 #include "combat/CannonAttack.hpp"
+#include "combat/PlayerWeaponSystem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -60,9 +61,14 @@ enum class RunUpgradeEffect {
     QuarryProduction,
     CrystalMineProduction,
     Regeneration,
+    UnlockClub,
+    UnlockRifle,
+    UnlockBomb,
+    UnlockIceWand,
+    UnlockFireWand,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 45U;
+inline constexpr std::size_t RunUpgradeEffectCount = 50U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -184,6 +190,11 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::QuarryProduction, runHammerDefinition(RunUpgradeEffect::QuarryProduction)->name, "+20% quarry production speed"},
         {RunUpgradeEffect::CrystalMineProduction, runHammerDefinition(RunUpgradeEffect::CrystalMineProduction)->name, "+20% crystal mine production speed"},
         {RunUpgradeEffect::Regeneration, runHammerDefinition(RunUpgradeEffect::Regeneration)->name, "+0.5 HP per second"},
+        {RunUpgradeEffect::UnlockClub, "CLUB", "Unlock club for this run"},
+        {RunUpgradeEffect::UnlockRifle, "RIFLE", "Unlock rifle for this run"},
+        {RunUpgradeEffect::UnlockBomb, "BOMBS", "Unlock bombs for this run"},
+        {RunUpgradeEffect::UnlockIceWand, "ICE WAND", "Unlock ice wand for this run"},
+        {RunUpgradeEffect::UnlockFireWand, "FIRE WAND", "Unlock fire wand for this run"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -236,6 +247,24 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     return std::nullopt;
 }
 
+[[nodiscard]] constexpr std::optional<PlayerWeapon> runUpgradeWeapon(RunUpgradeEffect effect) {
+    switch (effect) {
+    case RunUpgradeEffect::UnlockClub: return PlayerWeapon::Club;
+    case RunUpgradeEffect::UnlockRifle: return PlayerWeapon::Rifle;
+    case RunUpgradeEffect::UnlockBomb: return PlayerWeapon::Bomb;
+    case RunUpgradeEffect::UnlockIceWand: return PlayerWeapon::IceWand;
+    case RunUpgradeEffect::UnlockFireWand: return PlayerWeapon::FireWand;
+    default: return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<RunUpgradeEffect> weaponRunUpgrade(PlayerWeapon weapon) {
+    for (const auto& definition : RunUpgradeDefinitions) {
+        if (runUpgradeWeapon(definition.effect) == weapon) return definition.effect;
+    }
+    return std::nullopt;
+}
+
 [[nodiscard]] constexpr std::optional<CannonAttackStyle> runUpgradeCannonStyle(RunUpgradeEffect effect) {
     switch (effect) {
     case RunUpgradeEffect::CannonHeavyShell: return CannonAttackStyle::Heavy;
@@ -257,7 +286,9 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
 // These IDs remain reserved so suspended runs keep their card indices.
 [[nodiscard]] constexpr bool retiredRunUpgrade(
     RunUpgradeEffect effect) {
-    return effect == RunUpgradeEffect::LockChoice ||
+    return effect == RunUpgradeEffect::BuildRadius ||
+           effect == RunUpgradeEffect::Salvager ||
+           effect == RunUpgradeEffect::LockChoice ||
            effect == RunUpgradeEffect::GatheringSpeed ||
            effect == RunUpgradeEffect::LumberMillProduction ||
            effect == RunUpgradeEffect::QuarryProduction ||
@@ -318,7 +349,7 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr bool fixedRunUpgradePower(RunUpgradeEffect effect) {
-    return runUpgradeBuilding(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
+    return runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value() || runUpgradeCannonStyle(effect).has_value() || effect == RunUpgradeEffect::DoubleDown ||
         effect == RunUpgradeEffect::RiskyInvestment ||
         effect == RunUpgradeEffect::RerollToken;
 }
@@ -352,14 +383,14 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr RunUpgradeRarity fixedRunUpgradeRarity(RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect)) return RunUpgradeRarity::Common;
+    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect)) return RunUpgradeRarity::Common;
     if (runUpgradeCannonStyle(effect)) return RunUpgradeRarity::Rare;
     return effect == RunUpgradeEffect::RerollToken ? RunUpgradeRarity::Rare : RunUpgradeRarity::Epic;
 }
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
-    if (runUpgradeBuilding(effect) || runUpgradeCannonStyle(effect)) return 1;
+    if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:
         return 2;

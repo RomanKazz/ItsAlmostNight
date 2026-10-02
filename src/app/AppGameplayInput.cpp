@@ -66,6 +66,17 @@ void App::processGameplayInput(bool controlDown,
                 currentSnapshot.buildingPreview.reset();
             }
         }
+        // Reconcile the building hotbar with simulation selection after a
+        // mode transition, including a frame before the next fixed tick.
+        if (actionMode_ == ActionMode::Buildings && !currentSnapshot.coreId &&
+            !currentSnapshot.activeChallengeCenter &&
+            currentSnapshot.selectedBuilding != BuildingType::Core) {
+            setFoundationBuildMode(false);
+            buildingHotbarCategory_ = BuildingHotbarCategory::Base;
+            lastBuildingSelection_ = BuildingType::Core;
+            pendingBuildingCancel_ = false;
+            pendingBuildingSelection_ = BuildingType::Core;
+        }
         if (currentSnapshot.activeChallengeCenter) {
             foundationBuildMode_ = false;
             pendingBuildingCancel_ = true;

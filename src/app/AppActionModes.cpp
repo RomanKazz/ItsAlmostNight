@@ -212,6 +212,7 @@ void App::selectActionMode(
         pendingBuildingCancel_ = false;
         if (snapshot.coreMaxHealth <= 0.0) {
             buildingHotbarCategory_ = BuildingHotbarCategory::Base;
+            lastBuildingSelection_ = BuildingType::Core;
             pendingBuildingSelection_ = BuildingType::Core;
         } else {
             buildingHotbarCategory_ =
