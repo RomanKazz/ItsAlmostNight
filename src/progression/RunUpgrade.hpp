@@ -136,7 +136,7 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+1 card choice"},
         {RunUpgradeEffect::BloodHarvest, "LIFESTEAL",
          "+8 HP per 10 kills"},
-        {RunUpgradeEffect::Overkill, "PIERCE",
+        {RunUpgradeEffect::Overkill, "OVERKILL",
          "+1 damage transfer"},
         {RunUpgradeEffect::Ricochet, "RICOCHET",
          "+1 shot bounce"},
@@ -258,7 +258,12 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
 [[nodiscard]] constexpr bool retiredRunUpgrade(
     RunUpgradeEffect effect) {
     return effect == RunUpgradeEffect::LockChoice ||
-           effect == RunUpgradeEffect::GatheringSpeed;
+           effect == RunUpgradeEffect::GatheringSpeed ||
+           effect == RunUpgradeEffect::LumberMillProduction ||
+           effect == RunUpgradeEffect::QuarryProduction ||
+           effect == RunUpgradeEffect::CrystalMineProduction ||
+           effect == RunUpgradeEffect::RerollToken ||
+           effect == RunUpgradeEffect::DoubleDown;
 }
 
 [[nodiscard]] constexpr double runGatheringSpeedMultiplier(int stacks) {

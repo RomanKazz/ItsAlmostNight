@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
                 Vector2 pointer{-100, -100};
                 if (scene < 2) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::ReactiveTraps,
-                        ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::DoubleDown,
+                        ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::RiskyInvestment,
                         ian::RunUpgradeEffect::Luck};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Epic, ian::RunUpgradeRarity::Uncommon};
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
                 if (scene == 3) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::UnlockLumberMill,
                         ian::RunUpgradeEffect::UnlockQuarry, ian::RunUpgradeEffect::UnlockCrystalMine,
-                        ian::RunUpgradeEffect::LumberMillProduction};
+                        ian::RunUpgradeEffect::ProductionSpeed};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Rare};
                     require(ian::app_detail::previewRunUpgrade(display, 0).buildingArsenalCount == display.buildingArsenalCount,
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
                 if (scene == 5) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::AttackSpeed,
                         ian::RunUpgradeEffect::Salvager, ian::RunUpgradeEffect::LongerDay,
-                        ian::RunUpgradeEffect::QuarryProduction};
+                        ian::RunUpgradeEffect::Overkill};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Uncommon, ian::RunUpgradeRarity::Rare, ian::RunUpgradeRarity::Epic};
                 }

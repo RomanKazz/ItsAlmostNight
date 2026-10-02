@@ -10,14 +10,14 @@ While economic blueprints remain, each level-up offers one in the second card
 position. A combat blueprint remains guaranteed in the first position while a
 combat slot is free. Remaining cards use the existing weighted pool.
 
-Each producer has a production-speed card: SAW POWER, DEEP CUT, CRYSTAL FLOW.
-Common gives +20%, Uncommon +30%, Rare +40%, Epic +50%, Legendary +60%.
-Bonuses accumulate for that type and multiply the existing global production
-speed, level speed and health efficiency. The producer system retains its
-quarter-second cycle rounding and minimum interval. These cards enter the pool
-only after owning their producer blueprint. WORKSHOP requires any producer;
-RICH NODES still improves manual gathering and stays available from the start.
-Cards reuse existing building icons and show a type-specific hover preview.
+Economic production now uses the shared INDUSTRY HAMMER (+15% for a Common
+card, scaled by rarity). It enters the pool after owning any producer blueprint.
+HARVEST HAMMER improves manual gathering and stays available from the start.
+
+The three type-specific speed cards are retired from new offers. Their stable
+IDs and production modifiers remain for compatibility: old runs retain acquired
+bonuses, which multiply global speed, level speed and health efficiency. The
+producer system retains quarter-second cycle rounding and its minimum interval.
 
 ## Interfaces and persistence
 

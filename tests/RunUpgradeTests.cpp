@@ -7,6 +7,12 @@
 
 void runRunUpgradeTests() {
     using namespace ian;
+    const auto rerollWithSavedToken = [](Simulation& run) {
+        auto checkpoint = run.saveSuspendedRunState();
+        ++checkpoint.runUpgradeRerollTokens;
+        run.returnToMainMenu();
+        return run.loadSuspendedRunState(checkpoint) && run.rerollRunUpgrades();
+    };
     const auto base = runUpgradeRarityProbabilities(0.0);
     requireNear(base[0], 0.60, 1e-12, "common base chance");
     requireNear(base[4], 0.01, 1e-12, "legendary base chance");
@@ -246,7 +252,7 @@ void runRunUpgradeTests() {
                         RunUpgradeEffect::UnlockCatapult}) {
         if (normal->snapshot().buildingArsenalCount < 4) (void)normal->grantDebugRunUpgrade(blueprintEffect);
     }
-    require(normal->grantDebugRunUpgrade(RunUpgradeEffect::RerollToken) && normal->rerollRunUpgrades(),
+    require(rerollWithSavedToken(*normal),
         "full arsenal offer regenerated");
     for (std::size_t index = 0; index < normal->snapshot().runUpgradeChoiceCount; ++index) {
         const auto building = runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]);
@@ -262,11 +268,23 @@ void runRunUpgradeTests() {
             normal->snapshot().unlockedBuildings[static_cast<std::size_t>(type)],
             "economic construction does not consume a combat slot");
     }
-    require(normal->grantDebugRunUpgrade(RunUpgradeEffect::LumberMillProduction, RunUpgradeRarity::Rare),
-        "producer-specific improvements use rarity power");
-    requireNear(normal->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::LumberMillProduction)],
-        2.0, 1e-12, "rare producer upgrade grants forty percent speed");
+    // Already-acquired cards remain valid in old runs after being retired.
+    auto legacyNumericCards = normal->saveSuspendedRunState();
+    for (auto retiredEffect : {RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction,
+            RunUpgradeEffect::CrystalMineProduction, RunUpgradeEffect::DoubleDown, RunUpgradeEffect::RerollToken}) {
+        require(retiredRunUpgrade(retiredEffect) && !normal->grantDebugRunUpgrade(retiredEffect),
+            "retired numeric and selection cards cannot be newly granted");
+        legacyNumericCards.runUpgradeStacks[runUpgradeIndex(retiredEffect)] = 1;
+        legacyNumericCards.runUpgradePower[runUpgradeIndex(retiredEffect)] = fixedRunUpgradePower(retiredEffect) ? 1.0 : 2.0;
+    }
+    legacyNumericCards.runUpgradeRerollTokens = 3;
+    legacyNumericCards.bonusSelectionsNextReward = 2;
+    normal->returnToMainMenu();
+    require(normal->loadSuspendedRunState(legacyNumericCards), "old acquired cards remain compatible");
     const auto economySave = normal->saveSuspendedRunState();
+    require(economySave.runUpgradePower == legacyNumericCards.runUpgradePower &&
+            economySave.runUpgradeRerollTokens == 3 && economySave.bonusSelectionsNextReward == 2,
+        "retiring cards preserves existing power, rerolls and deferred selections");
     normalRestored->returnToMainMenu();
     require(normalRestored->loadSuspendedRunState(economySave) &&
         normalRestored->snapshot().runUpgradeStacks == normal->snapshot().runUpgradeStacks &&
@@ -288,23 +306,32 @@ void runRunUpgradeTests() {
     oneProducer.runUpgradeRerollTokens = 32;
     normalRestored->returnToMainMenu();
     require(normalRestored->loadSuspendedRunState(oneProducer), "single-producer offer fixture resumes");
-    const BuildingType ownedProducer = *runUpgradeBuilding(offer.runUpgradeChoices[1]);
-    bool sawProducerImprovement = false;
+
     bool sawGlobalProduction = false;
     for (int roll = 0; roll < 32; ++roll) {
         require(normalRestored->rerollRunUpgrades(), "single-producer choices rerolled");
         const auto candidates = normalRestored->snapshot();
         for (std::size_t index = 0; index < candidates.runUpgradeChoiceCount; ++index) {
             const auto producerEffect = candidates.runUpgradeChoices[index];
-            if (const auto producer = runUpgradeProductionBuilding(producerEffect)) {
-                require(*producer == ownedProducer, "only the acquired producer receives improvement cards");
-                sawProducerImprovement = true;
-            }
+            require(!retiredRunUpgrade(producerEffect) && !runUpgradeProductionBuilding(producerEffect),
+                "retired cards stay absent across repeated normal offers");
             sawGlobalProduction = sawGlobalProduction || producerEffect == RunUpgradeEffect::ProductionSpeed;
         }
     }
-    require(sawProducerImprovement && sawGlobalProduction,
-        "acquiring a producer adds its specific and global speed improvements to normal offers");
+    require(sawGlobalProduction,
+        "acquiring a producer retains the shared production hammer in normal offers");
+    auto retiredPending = pendingArsenal;
+    retiredPending.runUpgradeChoices = {RunUpgradeEffect::RerollToken, RunUpgradeEffect::DoubleDown,
+        RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction};
+    retiredPending.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+    normalRestored->returnToMainMenu();
+    require(normalRestored->loadSuspendedRunState(retiredPending), "old pending retired cards resume");
+    const auto refreshedPending = normalRestored->snapshot();
+    require(refreshedPending.runUpgradeChoicePending && refreshedPending.runUpgradeSelectionsRemaining ==
+        retiredPending.runUpgradeSelectionsRemaining, "replacement offers preserve pending selections");
+    for (std::size_t index = 0; index < refreshedPending.runUpgradeChoiceCount; ++index)
+        require(!retiredRunUpgrade(refreshedPending.runUpgradeChoices[index]),
+            "old pending retired cards are replaced with current choices");
 
     auto legacyEconomy = arsenalSave;
     legacyEconomy.buildingArsenalVersion = 1;
@@ -386,7 +413,7 @@ void runRunUpgradeTests() {
     require(normal->grantDebugRunUpgrade(RunUpgradeEffect::CannonScattershot),
         "normal run chooses a cannon attack style");
     for (int reroll = 0; reroll < 3; ++reroll) {
-        require(normal->grantDebugRunUpgrade(RunUpgradeEffect::RerollToken) && normal->rerollRunUpgrades(),
+        require(rerollWithSavedToken(*normal),
             "specialized arsenal rerolls its remaining upgrades");
         const auto specializedOffers = normal->snapshot();
         for (std::size_t choice = 0; choice < specializedOffers.runUpgradeChoiceCount; ++choice) {
@@ -414,6 +441,17 @@ void runRunUpgradeTests() {
             RunUpgradeEffect::Ricochet, RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::BloodHarvest})
         require(!runHammerDefinition(mechanic), "blueprints and mechanical perks stay separate from hammers");
     require(retiredRunUpgrade(RunUpgradeEffect::GatheringSpeed), "retired quick tools does not duplicate haste offers");
+    std::size_t activeCount = 0;
+    std::size_t activeHammers = 0;
+    for (const auto& card : RunUpgradeDefinitions) {
+        if (!retiredRunUpgrade(card.effect)) {
+            ++activeCount;
+            if (runHammerDefinition(card.effect)) ++activeHammers;
+        }
+    }
+    require(activeCount == 37 && activeHammers == 15, "trimmed rotation retains 37 types and 15 hammers");
+    require(!retiredRunUpgrade(RunUpgradeEffect::LongerDay) &&
+            !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and high stakes remain available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::LongerDay, RunUpgradeRarity::Rare),
         "daylight hammer grants the existing day bonus");
