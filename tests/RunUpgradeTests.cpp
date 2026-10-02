@@ -406,6 +406,23 @@ void runRunUpgradeTests() {
             require(hammer.effect != RunHammerDefinitions[other].effect,
                 "each hammer owns one stable effect rather than a duplicate bonus");
     }
+    for (auto numericEffect : {RunUpgradeEffect::Salvager, RunUpgradeEffect::LongerDay,
+            RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction,
+            RunUpgradeEffect::CrystalMineProduction})
+        require(runHammerDefinition(numericEffect), "remaining numeric bonuses use hammer cards");
+    for (auto mechanic : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::CannonHeavyShell,
+            RunUpgradeEffect::Ricochet, RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::BloodHarvest})
+        require(!runHammerDefinition(mechanic), "blueprints and mechanical perks stay separate from hammers");
+    require(retiredRunUpgrade(RunUpgradeEffect::GatheringSpeed), "retired quick tools does not duplicate haste offers");
+    const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
+    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::LongerDay, RunUpgradeRarity::Rare),
+        "daylight hammer grants the existing day bonus");
+    requireNear(hammers->snapshot().phaseTimeRemaining, phaseBeforeHammer + 10.0, 1e-9,
+        "daylight rarity still scales the day extension");
+    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager, RunUpgradeRarity::Common) &&
+            hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager, RunUpgradeRarity::Rare) &&
+            !hammers->grantDebugRunUpgrade(RunUpgradeEffect::Salvager),
+        "salvage hammer retains its refund power cap");
     const double originalDefense = hammers->snapshot().upgradeStats.defenseDamage;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Rare),
         "first might hammer acquired");
@@ -426,6 +443,10 @@ void runRunUpgradeTests() {
     woundedHammerSave.playerHealth = 20.0;
     hammers->returnToMainMenu();
     require(hammers->loadSuspendedRunState(woundedHammerSave), "hammer levels and power resume");
+    require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::Salvager)] == 2 &&
+            hammers->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::Salvager)] == 3.0 &&
+            hammers->snapshot().runUpgradePower[runUpgradeIndex(RunUpgradeEffect::LongerDay)] == 2.0,
+        "converted numeric cards resume on their original IDs without extra bonuses");
     for (int tick = 0; tick < 120; ++tick) hammers->tick(1.0 / 60.0);
     requireNear(hammers->snapshot().playerHealth, 21.5, 1e-9,
         "regen hammer heals during fixed-step gameplay");

@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
                     {card.x + card.width * 0.5F, card.y + card.height * 0.5F}) == index,
                     "resized card hit areas track their visible bounds");
             }
-            for (int scene = 0; scene < 5; ++scene) {
+            for (int scene = 0; scene < 6; ++scene) {
                 auto display = snapshot;
                 std::array<float, 4> displayHovers{};
                 Vector2 pointer{-100, -100};
@@ -125,6 +125,13 @@ int main(int argc, char** argv) {
                     }
                     display.upgradeStats.healthRegeneration = 1.5;
                 }
+                if (scene == 5) {
+                    display.runUpgradeChoices = {ian::RunUpgradeEffect::AttackSpeed,
+                        ian::RunUpgradeEffect::Salvager, ian::RunUpgradeEffect::LongerDay,
+                        ian::RunUpgradeEffect::QuarryProduction};
+                    display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
+                        ian::RunUpgradeRarity::Uncommon, ian::RunUpgradeRarity::Rare, ian::RunUpgradeRarity::Epic};
+                }
                 if (scene > 0) {
                     const std::size_t choice = scene == 2 ? 1U : 3U;
                     const auto card = ian::app_detail::runUpgradeCardBounds(choice, 4);
@@ -142,7 +149,7 @@ int main(int argc, char** argv) {
                     ImageFlipVertical(&capture);
                     const std::string path = std::string(argv[1]) + "/ian_upgrades_" +
                         std::to_string(height) + (language == ian::Language::Russian ? "_ru" : "") +
-                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : scene == 3 ? "_economy" : "_hammers") + ".png";
+                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : scene == 3 ? "_economy" : scene == 4 ? "_hammers" : "_numeric_hammers") + ".png";
                     require(ExportImage(capture, path.c_str()), "upgrade screenshot exported");
                     UnloadImage(capture);
                 }

@@ -3,6 +3,11 @@
   "languages": {
     "en": {},
     "ru": {
+      "SALVAGE HAMMER": "МОЛОТ УТИЛИЗАЦИИ",
+      "DAYLIGHT HAMMER": "МОЛОТ ДНЯ",
+      "SAWMILL HAMMER": "МОЛОТ ЛЕСОПИЛКИ",
+      "QUARRY HAMMER": "МОЛОТ КАМЕНОЛОМНИ",
+      "CRYSTAL HAMMER": "МОЛОТ КРИСТАЛЬНОЙ ШАХТЫ",
       "MIGHT HAMMER": "МОЛОТ МОЩИ",
       "RAPID HAMMER": "МОЛОТ СКОРОСТРЕЛЬНОСТИ",
       "FORTITUDE HAMMER": "МОЛОТ ПРОЧНОСТИ",

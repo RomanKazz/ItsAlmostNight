@@ -983,9 +983,10 @@ void drawRunUpgradeOverlay(
         }
 
         std::string_view displayTitle = title;
-        if (effect == RunUpgradeEffect::MoveSpeed ||
-            effect == RunUpgradeEffect::MaximumHealth ||
-            effect == RunUpgradeEffect::RecoverableArmor) {
+        if (!runHammerDefinition(effect) &&
+            (effect == RunUpgradeEffect::MoveSpeed ||
+             effect == RunUpgradeEffect::MaximumHealth ||
+             effect == RunUpgradeEffect::RecoverableArmor)) {
             displayTitle = mark;
         }
         const std::string displayTitleText{displayTitle};

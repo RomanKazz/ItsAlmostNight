@@ -3,25 +3,32 @@
 Hammers are persistent stat items acquired through level-up cards. The first
 selection acquires a hammer at level 1; further cards upgrade that same item.
 Rarity scales each individual bonus using the existing Common-to-Legendary
-multipliers. A hammer accepts five level selections under the existing power
-caps. There is currently no limit on the number of distinct hammers owned;
+multipliers. Most hammers accept five level selections under the existing power
+caps; Salvage retains its three-level/three-power cap. There is currently no
+limit on the number of distinct hammers owned;
 they do not consume combat building slots.
 
-The thirteen types are defense damage, defense fire rate, building HP,
+The eighteen types are defense damage, defense fire rate, building HP,
 production speed, luck, build range, resource yield, maximum HP, shield,
-movement speed, weapon/tool speed, player damage, and health regeneration.
+movement speed, weapon/tool speed, player damage, health regeneration, salvage
+refunds, day extension, and
+production speed for each of the three economic building types.
 Existing bonuses are represented by their original stable RunUpgradeEffect IDs,
 with new hammer names and shared card/HUD glyphs. Old saves therefore retain
 both the level and accumulated rarity power without adding the bonus again.
-Blueprints, building-specific improvements, cannon styles and special cards
-remain separate upgrade types.
+Blueprints, cannon styles and mechanical perks (lifesteal on kills, piercing,
+ricochets, additional shots, cluster explosions and reactive shockwaves) remain
+separate upgrade types. Economic speed hammers still require acquiring their
+building type first. No extra cards or duplicate percentage bonuses are added.
+The retired Quick Tools card stays out of rotation; Haste covers tool speed.
 
 The new regeneration effect is appended to the ID list and provides +0.5 HP/s
 per Common-card power unit. It heals during active gameplay, stacks with existing
 healing, stops while paused/choosing cards or respawning, and clamps to maximum
 HP. It does not recharge the shield. New runs clear all hammer levels and power.
 
-Owned hammers appear beneath the resource counters in the HUD and level-up
+Owned hammers wrap into rows of up to thirteen icons and appear beneath the
+resource counters in the HUD and level-up
 menu. Their type color is stable; card borders continue to indicate offered
 rarity. Hovering an inventory glyph while the cursor is visible shows its name
 and level. Level-up hover previews show projected stats, including fractional

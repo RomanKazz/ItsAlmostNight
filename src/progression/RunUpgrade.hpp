@@ -81,7 +81,7 @@ struct RunHammerDefinition {
     std::uint32_t colorRgb;
 };
 
-inline constexpr std::array<RunHammerDefinition, 13> RunHammerDefinitions{{
+inline constexpr std::array<RunHammerDefinition, 18> RunHammerDefinitions{{
     {RunUpgradeEffect::DefenseDamage, "MIGHT HAMMER", "DMG", 0xFFAD43},
     {RunUpgradeEffect::DefenseFireRate, "RAPID HAMMER", "RATE", 0x4DDCF2},
     {RunUpgradeEffect::BuildingHealth, "FORTITUDE HAMMER", "DEF", 0x78A7FF},
@@ -95,6 +95,11 @@ inline constexpr std::array<RunHammerDefinition, 13> RunHammerDefinitions{{
     {RunUpgradeEffect::AttackSpeed, "HASTE HAMMER", "SPD", 0xF69ED6},
     {RunUpgradeEffect::Damage, "POWER HAMMER", "ATK", 0xF77E56},
     {RunUpgradeEffect::Regeneration, "REGEN HAMMER", "REGEN", 0x8BDA66},
+    {RunUpgradeEffect::Salvager, "SALVAGE HAMMER", "SCRAP", 0xD8B072},
+    {RunUpgradeEffect::LongerDay, "DAYLIGHT HAMMER", "DAY", 0xFFE078},
+    {RunUpgradeEffect::LumberMillProduction, "SAWMILL HAMMER", "WOOD", 0xA9D96D},
+    {RunUpgradeEffect::QuarryProduction, "QUARRY HAMMER", "ROCK", 0x9DB7D6},
+    {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL HAMMER", "GEM", 0xCD87F6},
 }};
 
 [[nodiscard]] constexpr const RunHammerDefinition* runHammerDefinition(RunUpgradeEffect effect) {
@@ -143,7 +148,7 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+1 free reroll"},
         {RunUpgradeEffect::RiskyInvestment, "HIGH STAKES",
          "+2 picks, stronger enemies"},
-        {RunUpgradeEffect::Salvager, "SALVAGE",
+        {RunUpgradeEffect::Salvager, runHammerDefinition(RunUpgradeEffect::Salvager)->name,
          "+30% sold or destroyed refund"},
         {RunUpgradeEffect::TwinBatteries, "TWIN SHOT",
          "+1 side shot"},
@@ -157,7 +162,7 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+3 gun turret kill shards"},
         {RunUpgradeEffect::GatheringSpeed, "QUICK TOOLS",
          "+15% gathering speed"},
-        {RunUpgradeEffect::LongerDay, "LONG DAY",
+        {RunUpgradeEffect::LongerDay, runHammerDefinition(RunUpgradeEffect::LongerDay)->name,
          "+5s build phase"},
         {RunUpgradeEffect::RichResources, runHammerDefinition(RunUpgradeEffect::RichResources)->name,
          "+15% resource node yield"},
@@ -175,9 +180,9 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockLumberMill, "LUMBER MILL", "Unlock lumber mill construction"},
         {RunUpgradeEffect::UnlockQuarry, "QUARRY", "Unlock quarry construction"},
         {RunUpgradeEffect::UnlockCrystalMine, "CRYSTAL MINE", "Unlock crystal mine construction"},
-        {RunUpgradeEffect::LumberMillProduction, "SAW POWER", "+20% lumber mill production speed"},
-        {RunUpgradeEffect::QuarryProduction, "DEEP CUT", "+20% quarry production speed"},
-        {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL FLOW", "+20% crystal mine production speed"},
+        {RunUpgradeEffect::LumberMillProduction, runHammerDefinition(RunUpgradeEffect::LumberMillProduction)->name, "+20% lumber mill production speed"},
+        {RunUpgradeEffect::QuarryProduction, runHammerDefinition(RunUpgradeEffect::QuarryProduction)->name, "+20% quarry production speed"},
+        {RunUpgradeEffect::CrystalMineProduction, runHammerDefinition(RunUpgradeEffect::CrystalMineProduction)->name, "+20% crystal mine production speed"},
         {RunUpgradeEffect::Regeneration, runHammerDefinition(RunUpgradeEffect::Regeneration)->name, "+0.5 HP per second"},
     }};
 

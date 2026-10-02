@@ -57,7 +57,9 @@ inline void drawRunHammerInventory(const SimulationSnapshot& snapshot, Rectangle
     for (const auto& hammer : RunHammerDefinitions)
         if (snapshot.runUpgradeStacks[runUpgradeIndex(hammer.effect)] > 0) ++count;
     if (count == 0) return;
-    const float cellSize = std::min(bounds.height, bounds.width / static_cast<float>(count));
+    // Keep level badges legible as the inventory grows; additional items wrap.
+    const std::size_t columns = std::min(count, std::size_t{13});
+    const float cellSize = std::min(bounds.height, bounds.width / static_cast<float>(columns));
     const Vector2 mouse = pointer.value_or(GetMousePosition());
     const RunHammerDefinition* hovered = nullptr;
     std::size_t position = 0;
@@ -68,8 +70,10 @@ inline void drawRunHammerInventory(const SimulationSnapshot& snapshot, Rectangle
     for (const auto& hammer : RunHammerDefinitions) {
         const int level = snapshot.runUpgradeStacks[runUpgradeIndex(hammer.effect)];
         if (level <= 0) continue;
-        const Rectangle cell{bounds.x + static_cast<float>(position++) * cellSize,
-            bounds.y, cellSize - 3.0F, cellSize};
+        const Rectangle cell{bounds.x + static_cast<float>(position % columns) * cellSize,
+            bounds.y + static_cast<float>(position / columns) * (cellSize + 3.0F),
+            cellSize - 3.0F, cellSize};
+        ++position;
         DrawRectangleRounded(cell, 0.18F, 4, fade({24, 29, 27, 160}));
         drawRunHammerIcon({cell.x + 2.0F, cell.y + 1.0F, cell.width - 4.0F, cell.height - 6.0F}, hammer, opacity);
         const std::string levelText = std::to_string(level);
@@ -84,7 +88,7 @@ inline void drawRunHammerInventory(const SimulationSnapshot& snapshot, Rectangle
         const std::string level = "LVL " + std::to_string(snapshot.runUpgradeStacks[runUpgradeIndex(hovered->effect)]);
         const float width = std::min(300.0F, static_cast<float>(GetScreenWidth()) - 24.0F);
         const float left = std::clamp(mouse.x, 12.0F, static_cast<float>(GetScreenWidth()) - width - 12.0F);
-        const Rectangle tooltip{left, bounds.y + cellSize + 6.0F, width, 62.0F};
+        const Rectangle tooltip{left, bounds.y + static_cast<float>((count + columns - 1) / columns) * (cellSize + 3.0F) + 6.0F, width, 62.0F};
         DrawRectangleRounded(tooltip, 0.12F, 4, fade({24, 29, 27, 245}));
         const float fontSize = fitUiTextSize(hovered->name, 17.0F, 11.0F, width - 20.0F);
         drawUiText(hovered->name, {left + 10.0F, tooltip.y + 8.0F}, fontSize, fade(UiWhite));
