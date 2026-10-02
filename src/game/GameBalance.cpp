@@ -432,8 +432,8 @@ GameBalance GameBalance::defaults() {
                          0.5, 0.14, 0.4},
         },
         .economy = {
-            .crystalMineInterval = 8.0,
-            .crystalMineAmount = 3,
+            .crystalMineInterval = 12.0,
+            .crystalMineAmount = 2,
             .waveRewardBase = 15,
             .waveRewardPerWave = 6,
             .bombPurchaseCoinCost = 30,

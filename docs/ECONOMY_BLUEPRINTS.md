@@ -19,6 +19,17 @@ IDs and production modifiers remain for compatibility: old runs retain acquired
 bonuses, which multiply global speed, level speed and health efficiency. The
 producer system retains quarter-second cycle rounding and its minimum interval.
 
+## Crystal mine balance and storage labels
+
+The base crystal mine produces 2 crystals every 12 seconds (10 per minute),
+down from 3 every 8 seconds (22.5 per minute). Its existing level, hammer and
+health modifiers still apply. Lumber mill and quarry production is unchanged.
+Local storage capacities and building costs remain compatible with saved runs.
+
+Every full producer displays a world-space FULL label. Its render-target source
+rectangle starts at the texture's height and uses negative height to flip the
+image without sampling outside the texture's UV range.
+
 ## Interfaces and persistence
 
 - New upgrade IDs are appended; existing IDs keep their values.

@@ -1,6 +1,6 @@
 {
-  "crystalMineInterval": 8.0,
-  "crystalMineAmount": 3,
+  "crystalMineInterval": 12.0,
+  "crystalMineAmount": 2,
   "waveRewardBase": 15,
   "waveRewardPerWave": 6,
   "bombPurchaseCoinCost": 30,
