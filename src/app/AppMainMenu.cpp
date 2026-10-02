@@ -128,6 +128,51 @@ bool drawMenuButton(
     return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }
 
+bool drawMainMenuButton(
+    Texture2D texture, Rectangle bounds, std::string_view label,
+    const MenuLayout& layout, float designFontSize = 56.0F) {
+    const bool hovered = CheckCollisionPointRec(GetMousePosition(), bounds);
+    const bool pressed = hovered && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    Rectangle artwork = bounds;
+    artwork.y += pressed ? 2.0F * layout.scale : 0.0F;
+    if (IsTextureValid(texture)) {
+        DrawTexturePro(texture,
+            {0.0F, 0.0F, static_cast<float>(texture.width),
+             static_cast<float>(texture.height)},
+            artwork, {}, 0.0F,
+            pressed ? Color{210, 210, 210, 255} : WHITE);
+        if (hovered && !pressed) {
+            DrawTexturePro(texture,
+                {0.0F, 0.0F, static_cast<float>(texture.width),
+                 static_cast<float>(texture.height)},
+                artwork, {}, 0.0F, {255, 239, 204, 36});
+        }
+    } else {
+        return drawMenuButton(bounds, label, layout);
+    }
+
+    const ScopedUiFontRole display(UiFontRole::Display);
+    // UiText applies its existing 1.68 scale; Figma specifies actual pixels.
+    const float fontSize = fitUiTextSize(label,
+        designFontSize / 1.68F * layout.scale,
+        14.0F * layout.scale, bounds.width - 44.0F * layout.scale,
+        bounds.height - 28.0F * layout.scale);
+    const Vector2 measured = measureUiText(label, fontSize);
+    SdfUiTextStyle style{};
+    style.fillColor = {254, 247, 229, 255};
+    style.outlineColor = {20, 20, 16, 255};
+    style.outlinePixels = 3.5F * layout.scale;
+    style.shadowColor = {8, 9, 10, 230};
+    style.shadowOffsetPixels = {0.0F, 2.5F * layout.scale};
+    style.softness = 0.6F;
+    drawStyledSdfUiText(label,
+        {artwork.x + (artwork.width - measured.x) * 0.5F,
+         artwork.y + (artwork.height - measured.y) * 0.5F +
+             artwork.height * (5.44F / 101.76F)},
+        fontSize, style);
+    return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+}
+
 void drawOutlinedTitle(
     std::string_view sourceText, const MenuLayout& layout,
     float centerX, float y, float preferredSize,
@@ -425,20 +470,17 @@ void App::drawMainMenu(const SimulationSnapshot&) {
         return;
     }
 
-    drawOutlinedTitle(
-        "FORTBONK", layout,
-        960.0F, 82.0F, 62.0F, 820.0F);
-    const std::string subtitle = localizeText(
-        "BUILD. DEFEND. BONK.");
-    const float subtitleSize = 12.0F * layout.scale;
-    const Vector2 subtitleBounds = measureUiText(
-        subtitle, subtitleSize);
-    drawUiText(
-        subtitle,
-        {layout.origin.x + 960.0F * layout.scale -
-             subtitleBounds.x * 0.5F,
-         layout.origin.y + 208.0F * layout.scale},
-        subtitleSize, {244, 213, 151, 255});
+    const Texture2D logo = ui_.mainMenuLogoTexture();
+    if (IsTextureValid(logo)) {
+        DrawTexturePro(logo,
+            {0.0F, 0.0F, static_cast<float>(logo.width),
+             static_cast<float>(logo.height)},
+            layout.rect(618.0F, 24.0F, 684.0F, 235.0F),
+            {}, 0.0F, WHITE);
+    } else {
+        drawOutlinedTitle("FORTBONK", layout,
+            960.0F, 82.0F, 62.0F, 820.0F);
+    }
 
     const auto featured = questSystem_.recommendedStatuses(metaProgression_);
 
@@ -635,44 +677,46 @@ void App::drawMainMenu(const SimulationSnapshot&) {
             layout.topPoint(34.0F, 38.0F), 17.0F * layout.scale, MenuCream);
     }
 
+    const Texture2D menuButton = ui_.mainMenuButtonTexture();
     if (canContinue) {
-        pendingContinueFromUi_ = drawMenuButton(
-            layout.rect(805.0F, 360.0F, 310.0F, 48.0F),
-            "CONTINUE RUN", layout, false, true) || pendingContinueFromUi_;
+        pendingContinueFromUi_ = drawMainMenuButton(menuButton,
+            layout.rect(815.208F, 320.972F, 285.184F, 81.408F),
+            "CONTINUE RUN", layout, 34.0F) || pendingContinueFromUi_;
     }
-    if (drawMenuButton(layout.rect(795.0F, 428.0F, 330.0F, 78.0F), "PLAY", layout, true)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(781.56F, 414.38F, 356.48F, 101.76F), "PLAY", layout)) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
         sandboxClassSelection_ = false;
         audio_.playUiConfirm();
     }
-    if (drawMenuButton(layout.rect(805.0F, 532.0F, 310.0F, 62.0F), "UNLOCKS", layout)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(781.56F, 528.14F, 356.48F, 101.76F), "UNLOCKS", layout)) {
         mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
     }
-    if (drawMenuButton(layout.rect(805.0F, 616.0F, 310.0F, 62.0F), "QUESTS", layout)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(781.56F, 641.90F, 356.48F, 101.76F), "QUESTS", layout)) {
         mainMenuPage_ = MainMenuPage::Quests;
         audio_.playUiConfirm();
     }
-    if (drawMenuButton(layout.rect(805.0F, 700.0F, 310.0F, 62.0F), "SHOP", layout)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(781.56F, 755.66F, 356.48F, 101.76F), "SHOP", layout)) {
         mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
     }
 
-    if (drawMenuButton(layout.rect(30.0F, 802.0F, 218.0F, 48.0F), "SETTINGS", layout, false, true)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(39.0F, 785.0F, 285.184F, 81.408F), "SETTINGS", layout, 44.8F)) {
         renderer_->setGraphicsPanelVisible(true);
     }
-    if (drawMenuButton(layout.rect(30.0F, 864.0F, 218.0F, 48.0F),
-            languageName(userSettings_.language), layout, false, true)) {
-        userSettings_.language = userSettings_.language == Language::English ? Language::Russian : Language::English;
-        setLanguage(userSettings_.language);
-        persistUserSettings(true);
-    }
-    if (drawMenuButton(layout.rect(30.0F, 926.0F, 218.0F, 48.0F), "CREDITS", layout, false, true)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(39.0F, 876.008F, 285.184F, 81.408F), "CREDITS", layout, 44.8F)) {
         mainMenuPage_ = MainMenuPage::Credits;
         audio_.playUiConfirm();
     }
-    if (drawMenuButton(layout.rect(30.0F, 988.0F, 218.0F, 48.0F), "EXIT GAME", layout, false, true)) {
+    if (drawMainMenuButton(menuButton,
+            layout.rect(39.0F, 967.016F, 285.184F, 81.408F), "EXIT", layout, 44.8F)) {
         exitRequested_ = true;
     }
 

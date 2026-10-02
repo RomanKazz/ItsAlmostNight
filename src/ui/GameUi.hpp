@@ -78,6 +78,8 @@ class GameUi {
         RunUpgradeEffect effect) const;
     [[nodiscard]] Texture2D levelUpBannerTexture() const;
     [[nodiscard]] Texture2D levelUpRaysTexture() const;
+    [[nodiscard]] Texture2D mainMenuLogoTexture() const;
+    [[nodiscard]] Texture2D mainMenuButtonTexture() const;
     [[nodiscard]] Texture2D coreMenuTexture(
         CoreMenuTexture texture) const;
     bool drawButton(Rectangle bounds, std::string_view text) const;
@@ -166,6 +168,8 @@ class GameUi {
     Texture2D xpGainUpgradeIcon_{};
     Texture2D levelUpBanner_{};
     Texture2D levelUpRays_{};
+    Texture2D mainMenuLogo_{};
+    Texture2D mainMenuButton_{};
     std::array<Texture2D, 14> coreMenuTextures_{};
     SliceInsets panelInsets_{16, 16, 16, 18};
     SliceInsets insetInsets_{9, 9, 9, 9};

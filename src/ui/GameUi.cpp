@@ -136,6 +136,10 @@ void GameUi::initialize() {
     smoothHudIcon(resourceCoin_);
     smoothHudIcon(healthPlayer_);
     smoothHudIcon(healthCore_);
+    mainMenuLogo_ = loadTexture("assets/ui/main_menu/logo.png");
+    mainMenuButton_ = loadTexture("assets/ui/main_menu/button.png");
+    smoothHudIcon(mainMenuLogo_);
+    smoothHudIcon(mainMenuButton_);
     coreBuildingIcon_ = loadTexture("assets/ui/building_core.png");
     smoothHudIcon(coreBuildingIcon_);
     wallBuildingIcon_ = loadTexture("assets/ui/building_wall.png");
@@ -301,6 +305,8 @@ void GameUi::shutdown() {
     unloadTexture(resourceWood_);
     unloadTexture(levelUpRays_);
     unloadTexture(levelUpBanner_);
+    unloadTexture(mainMenuLogo_);
+    unloadTexture(mainMenuButton_);
     for (auto& texture : coreMenuTextures_) {
         unloadTexture(texture);
     }
@@ -674,6 +680,14 @@ Texture2D GameUi::levelUpBannerTexture() const {
 
 Texture2D GameUi::levelUpRaysTexture() const {
     return levelUpRays_;
+}
+
+Texture2D GameUi::mainMenuLogoTexture() const {
+    return mainMenuLogo_;
+}
+
+Texture2D GameUi::mainMenuButtonTexture() const {
+    return mainMenuButton_;
 }
 
 Texture2D GameUi::coreMenuTexture(
