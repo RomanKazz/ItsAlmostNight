@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
          ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::GunPiercing,
          ian::RunUpgradeEffect::Ricochet, ian::RunUpgradeEffect::ClusterPayload,
          ian::RunUpgradeEffect::Damage, ian::RunUpgradeEffect::BuildingHealth,
-         ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::CannonHeavyShell}) {
+         ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::Regeneration, ian::RunUpgradeEffect::CannonHeavyShell}) {
         auto before = simulation->snapshot();
         before.runUpgradeChoiceCount = 1;
         before.runUpgradeChoices[0] = effect;
@@ -65,6 +65,7 @@ int main(int argc, char** argv) {
         requireNear(projected.upgradeStats.defenseDamage, actual.upgradeStats.defenseDamage, 1e-9, "defense damage preview matches simulation");
         requireNear(projected.upgradeStats.defenseFireRate, actual.upgradeStats.defenseFireRate, 1e-9, "defense rate preview matches simulation");
         requireNear(projected.upgradeStats.luck, actual.upgradeStats.luck, 1e-9, "luck preview matches simulation");
+        requireNear(projected.upgradeStats.healthRegeneration, actual.upgradeStats.healthRegeneration, 1e-9, "regen hammer preview matches simulation");
         require(projected.coreBuildRadius == actual.coreBuildRadius && projected.runUpgradePower == actual.runUpgradePower &&
             projected.upgradeStats.sideShots == actual.upgradeStats.sideShots &&
             projected.upgradeStats.clusterExplosions == actual.upgradeStats.clusterExplosions &&
@@ -91,7 +92,7 @@ int main(int argc, char** argv) {
                     {card.x + card.width * 0.5F, card.y + card.height * 0.5F}) == index,
                     "resized card hit areas track their visible bounds");
             }
-            for (int scene = 0; scene < 4; ++scene) {
+            for (int scene = 0; scene < 5; ++scene) {
                 auto display = snapshot;
                 std::array<float, 4> displayHovers{};
                 Vector2 pointer{-100, -100};
@@ -112,8 +113,20 @@ int main(int argc, char** argv) {
                     require(ian::app_detail::previewRunUpgrade(display, 0).buildingArsenalCount == display.buildingArsenalCount,
                         "economy blueprint preview leaves combat slots unchanged");
                 }
+                if (scene == 4) {
+                    display.runUpgradeChoices = {ian::RunUpgradeEffect::DefenseDamage,
+                        ian::RunUpgradeEffect::DefenseFireRate, ian::RunUpgradeEffect::BuildingHealth,
+                        ian::RunUpgradeEffect::Regeneration};
+                    display.runUpgradeRarities = {ian::RunUpgradeRarity::Rare,
+                        ian::RunUpgradeRarity::Uncommon, ian::RunUpgradeRarity::Epic, ian::RunUpgradeRarity::Legendary};
+                    for (const auto& hammer : ian::RunHammerDefinitions) {
+                        display.runUpgradeStacks[ian::runUpgradeIndex(hammer.effect)] = 2;
+                        display.runUpgradePower[ian::runUpgradeIndex(hammer.effect)] = 3.0;
+                    }
+                    display.upgradeStats.healthRegeneration = 1.5;
+                }
                 if (scene > 0) {
-                    const std::size_t choice = scene == 1 || scene == 3 ? 3U : 1U;
+                    const std::size_t choice = scene == 2 ? 1U : 3U;
                     const auto card = ian::app_detail::runUpgradeCardBounds(choice, 4);
                     pointer = {card.x + card.width * 0.5F, card.y + card.height * 0.5F};
                     displayHovers[choice] = 1.0F;
@@ -129,7 +142,7 @@ int main(int argc, char** argv) {
                     ImageFlipVertical(&capture);
                     const std::string path = std::string(argv[1]) + "/ian_upgrades_" +
                         std::to_string(height) + (language == ian::Language::Russian ? "_ru" : "") +
-                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : "_economy") + ".png";
+                        (scene == 0 ? "" : scene == 1 ? "_luck" : scene == 2 ? "_heavy" : scene == 3 ? "_economy" : "_hammers") + ".png";
                     require(ExportImage(capture, path.c_str()), "upgrade screenshot exported");
                     UnloadImage(capture);
                 }

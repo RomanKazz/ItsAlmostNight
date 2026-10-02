@@ -59,9 +59,10 @@ enum class RunUpgradeEffect {
     LumberMillProduction,
     QuarryProduction,
     CrystalMineProduction,
+    Regeneration,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 44U;
+inline constexpr std::size_t RunUpgradeEffectCount = 45U;
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -71,28 +72,58 @@ struct RunUpgradeDefinition {
     std::string_view description;
 };
 
+// A hammer is a persistent run stat item. Its level/power use the existing
+// stable upgrade ID, so a renamed card never applies the bonus a second time.
+struct RunHammerDefinition {
+    RunUpgradeEffect effect;
+    std::string_view name;
+    std::string_view mark;
+    std::uint32_t colorRgb;
+};
+
+inline constexpr std::array<RunHammerDefinition, 13> RunHammerDefinitions{{
+    {RunUpgradeEffect::DefenseDamage, "MIGHT HAMMER", "DMG", 0xFFAD43},
+    {RunUpgradeEffect::DefenseFireRate, "RAPID HAMMER", "RATE", 0x4DDCF2},
+    {RunUpgradeEffect::BuildingHealth, "FORTITUDE HAMMER", "DEF", 0x78A7FF},
+    {RunUpgradeEffect::ProductionSpeed, "INDUSTRY HAMMER", "PROD", 0x72DA92},
+    {RunUpgradeEffect::Luck, "FORTUNE HAMMER", "LUCK", 0xA36CEF},
+    {RunUpgradeEffect::BuildRadius, "REACH HAMMER", "AREA", 0x58C2BB},
+    {RunUpgradeEffect::RichResources, "HARVEST HAMMER", "YIELD", 0xD3B061},
+    {RunUpgradeEffect::MaximumHealth, "VITALITY HAMMER", "HP", 0xFF647F},
+    {RunUpgradeEffect::RecoverableArmor, "GUARD HAMMER", "SHLD", 0x68DBFF},
+    {RunUpgradeEffect::MoveSpeed, "SWIFT HAMMER", "MOVE", 0x73D1CC},
+    {RunUpgradeEffect::AttackSpeed, "HASTE HAMMER", "SPD", 0xF69ED6},
+    {RunUpgradeEffect::Damage, "POWER HAMMER", "ATK", 0xF77E56},
+    {RunUpgradeEffect::Regeneration, "REGEN HAMMER", "REGEN", 0x8BDA66},
+}};
+
+[[nodiscard]] constexpr const RunHammerDefinition* runHammerDefinition(RunUpgradeEffect effect) {
+    for (const auto& hammer : RunHammerDefinitions) if (hammer.effect == effect) return &hammer;
+    return nullptr;
+}
+
 inline constexpr std::array<RunUpgradeDefinition,
                             RunUpgradeEffectCount>
     RunUpgradeDefinitions{{
-        {RunUpgradeEffect::Damage, "POWER",
+        {RunUpgradeEffect::Damage, runHammerDefinition(RunUpgradeEffect::Damage)->name,
          "+10% attack damage"},
-        {RunUpgradeEffect::AttackSpeed, "HASTE",
+        {RunUpgradeEffect::AttackSpeed, runHammerDefinition(RunUpgradeEffect::AttackSpeed)->name,
          "+15% weapon and tool speed"},
-        {RunUpgradeEffect::MoveSpeed, "MOVE",
+        {RunUpgradeEffect::MoveSpeed, runHammerDefinition(RunUpgradeEffect::MoveSpeed)->name,
          "+7% move speed"},
-        {RunUpgradeEffect::MaximumHealth, "HP",
+        {RunUpgradeEffect::MaximumHealth, runHammerDefinition(RunUpgradeEffect::MaximumHealth)->name,
          "+12 max HP"},
-        {RunUpgradeEffect::RecoverableArmor, "DEF",
+        {RunUpgradeEffect::RecoverableArmor, runHammerDefinition(RunUpgradeEffect::RecoverableArmor)->name,
          "+8 armor"},
-        {RunUpgradeEffect::BuildingHealth, "FORTIFY",
+        {RunUpgradeEffect::BuildingHealth, runHammerDefinition(RunUpgradeEffect::BuildingHealth)->name,
          "+12% building HP"},
-        {RunUpgradeEffect::BuildRadius, "BUILD AREA",
+        {RunUpgradeEffect::BuildRadius, runHammerDefinition(RunUpgradeEffect::BuildRadius)->name,
          "+3m build range"},
-        {RunUpgradeEffect::DefenseDamage, "TOWER POWER",
+        {RunUpgradeEffect::DefenseDamage, runHammerDefinition(RunUpgradeEffect::DefenseDamage)->name,
          "+12% defense damage"},
-        {RunUpgradeEffect::DefenseFireRate, "RAPID FIRE",
+        {RunUpgradeEffect::DefenseFireRate, runHammerDefinition(RunUpgradeEffect::DefenseFireRate)->name,
          "+10% defense speed"},
-        {RunUpgradeEffect::ProductionSpeed, "WORKSHOP",
+        {RunUpgradeEffect::ProductionSpeed, runHammerDefinition(RunUpgradeEffect::ProductionSpeed)->name,
          "+15% production speed"},
         {RunUpgradeEffect::NightlyBomb, "BOMBS",
          "+1 bomb each night"},
@@ -128,9 +159,9 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+15% gathering speed"},
         {RunUpgradeEffect::LongerDay, "LONG DAY",
          "+5s build phase"},
-        {RunUpgradeEffect::RichResources, "RICH NODES",
+        {RunUpgradeEffect::RichResources, runHammerDefinition(RunUpgradeEffect::RichResources)->name,
          "+15% resource node yield"},
-        {RunUpgradeEffect::Luck, "LUCK",
+        {RunUpgradeEffect::Luck, runHammerDefinition(RunUpgradeEffect::Luck)->name,
          "+10% upgrade luck"},
         {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Unlock gun turret construction"},
         {RunUpgradeEffect::UnlockTurret, "CROSSBOW", "Unlock crossbow construction"},
@@ -147,6 +178,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::LumberMillProduction, "SAW POWER", "+20% lumber mill production speed"},
         {RunUpgradeEffect::QuarryProduction, "DEEP CUT", "+20% quarry production speed"},
         {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL FLOW", "+20% crystal mine production speed"},
+        {RunUpgradeEffect::Regeneration, runHammerDefinition(RunUpgradeEffect::Regeneration)->name, "+0.5 HP per second"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(

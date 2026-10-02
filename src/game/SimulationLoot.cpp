@@ -377,6 +377,11 @@ void Simulation::updateLootEffects(
             refreshRunUpgradeRuntimeEffects();
         }
     }
+    if (!playerRespawning_ && playerHealth_ > 0.0) {
+        const double regeneration = 0.5 * runUpgradePower(RunUpgradeEffect::Regeneration);
+        playerHealth_ = std::min(playerPermanentMaxHealth() + playerTemporaryHealth_,
+            playerHealth_ + regeneration * deltaSeconds);
+    }
     const double previousSeconds = secondsSincePlayerDamage_;
     secondsSincePlayerDamage_ += deltaSeconds;
     if (playerRecoverableArmor_ < playerMaxRecoverableArmor_ &&

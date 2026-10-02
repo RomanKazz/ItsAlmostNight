@@ -265,6 +265,7 @@ struct RunUpgradeStats {
     double resourceYield{1.0};
     double playerAttackSpeed{1.0};
     double luck{};
+    double healthRegeneration{};
     int sideShots{};
     int gunPiercing{};
     int ricochets{};

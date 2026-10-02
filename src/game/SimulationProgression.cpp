@@ -379,6 +379,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::LumberMillProduction:
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
+    case RunUpgradeEffect::Regeneration:
         break;
     case RunUpgradeEffect::LongerDay:
         if (state_ == RunState::BuildPhase) {

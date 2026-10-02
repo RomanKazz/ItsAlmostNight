@@ -11,6 +11,7 @@
 #include "ui/HudHotbar.hpp"
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
+#include "ui/RunHammerUi.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -649,6 +650,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         1U, snapshot.stoneCapacity > 0 &&
                 snapshot.stone >= snapshot.stoneCapacity);
     drawFullResourceGlint(2U, snapshot.crystalStorageFull);
+    drawRunHammerInventory(snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F});
     if (!snapshot.unlimitedResources &&
         snapshot.coins >= snapshot.chestRevealCoinCost &&
         !snapshot.nearestChestPosition) {

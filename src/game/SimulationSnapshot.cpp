@@ -428,6 +428,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
                 (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
             .luck = activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
+            .healthRegeneration = 0.5 * runUpgradePower(RunUpgradeEffect::Regeneration),
             .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),
             .gunPiercing = runUpgradeCount(RunUpgradeEffect::GunPiercing),
             .ricochets = runUpgradeCount(RunUpgradeEffect::Ricochet),

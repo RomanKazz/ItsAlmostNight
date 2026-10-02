@@ -295,12 +295,12 @@ void runRunUpgradeTests() {
         require(normalRestored->rerollRunUpgrades(), "single-producer choices rerolled");
         const auto candidates = normalRestored->snapshot();
         for (std::size_t index = 0; index < candidates.runUpgradeChoiceCount; ++index) {
-            const auto effect = candidates.runUpgradeChoices[index];
-            if (const auto producer = runUpgradeProductionBuilding(effect)) {
+            const auto producerEffect = candidates.runUpgradeChoices[index];
+            if (const auto producer = runUpgradeProductionBuilding(producerEffect)) {
                 require(*producer == ownedProducer, "only the acquired producer receives improvement cards");
                 sawProducerImprovement = true;
             }
-            sawGlobalProduction = sawGlobalProduction || effect == RunUpgradeEffect::ProductionSpeed;
+            sawGlobalProduction = sawGlobalProduction || producerEffect == RunUpgradeEffect::ProductionSpeed;
         }
     }
     require(sawProducerImprovement && sawGlobalProduction,
@@ -394,5 +394,57 @@ void runRunUpgradeTests() {
                 "chosen cannon specialization removes all other styles from the card pool");
         }
     }
+
+    auto hammers = std::make_unique<Simulation>();
+    hammers->startRunFromSeed(PlayerClass::Engineer, 12345);
+    for (std::size_t index = 0; index < RunHammerDefinitions.size(); ++index) {
+        const auto& hammer = RunHammerDefinitions[index];
+        require(runHammerDefinition(hammer.effect) == &hammer &&
+            runUpgradeDefinition(hammer.effect).name == hammer.name,
+            "hammer cards share the persistent stat item definition");
+        for (std::size_t other = index + 1; other < RunHammerDefinitions.size(); ++other)
+            require(hammer.effect != RunHammerDefinitions[other].effect,
+                "each hammer owns one stable effect rather than a duplicate bonus");
+    }
+    const double originalDefense = hammers->snapshot().upgradeStats.defenseDamage;
+    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Rare),
+        "first might hammer acquired");
+    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense + 0.24, 1e-12,
+        "hammer acquisition applies its rarity bonus exactly once");
+    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::DefenseDamage, RunUpgradeRarity::Common),
+        "repeat might hammer advances its level");
+    requireNear(hammers->snapshot().upgradeStats.defenseDamage, originalDefense + 0.36, 1e-12,
+        "hammer upgrades add only the new card bonus");
+    require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)] == 2 &&
+        hammers->snapshot().buildingArsenalCount == 1,
+        "passive hammers have levels independently of the combat arsenal");
+    require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::Regeneration, RunUpgradeRarity::Uncommon),
+        "regen hammer accepts rarity scaling");
+    requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.75, 1e-12,
+        "uncommon regen hammer grants fractional HP per second");
+    auto woundedHammerSave = hammers->saveSuspendedRunState();
+    woundedHammerSave.playerHealth = 20.0;
+    hammers->returnToMainMenu();
+    require(hammers->loadSuspendedRunState(woundedHammerSave), "hammer levels and power resume");
+    for (int tick = 0; tick < 120; ++tick) hammers->tick(1.0 / 60.0);
+    requireNear(hammers->snapshot().playerHealth, 21.5, 1e-9,
+        "regen hammer heals during fixed-step gameplay");
+    const double pausedHealth = hammers->snapshot().playerHealth;
+    hammers->togglePause();
+    hammers->tick(2.0);
+    requireNear(hammers->snapshot().playerHealth, pausedHealth, 1e-12, "regen pauses with simulation");
+    woundedHammerSave.playerHealth = hammers->snapshot().playerMaxHealth - 0.25;
+    hammers->returnToMainMenu();
+    require(hammers->loadSuspendedRunState(woundedHammerSave), "nearly full hammer fixture resumes");
+    hammers->tick(1.0);
+    requireNear(hammers->snapshot().playerHealth, hammers->snapshot().playerMaxHealth, 1e-9,
+        "regen clamps to maximum health");
+    hammers->returnToMainMenu();
+    hammers->startRunFromSeed(PlayerClass::Engineer, 12345);
+    for (const auto& hammer : RunHammerDefinitions)
+        require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(hammer.effect)] == 0,
+            "new run clears owned hammers");
+    requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.0, 1e-12,
+        "new run resets passive regen");
 
 }

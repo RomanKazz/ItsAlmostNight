@@ -1,6 +1,7 @@
 #include "app/AppRunUpgradeOverlay.hpp"
 
 #include "ui/UiText.hpp"
+#include "ui/RunHammerUi.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -148,6 +149,7 @@ UpgradeColorClass upgradeColorClass(RunUpgradeEffect effect) {
     case RunUpgradeEffect::LumberMillProduction:
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
+    case RunUpgradeEffect::Regeneration:
         break;
     }
     return UpgradeColorClass::Blue;
@@ -200,6 +202,7 @@ std::string_view upgradeMark(RunUpgradeEffect effect) {
     case RunUpgradeEffect::LumberMillProduction:
     case RunUpgradeEffect::QuarryProduction:
     case RunUpgradeEffect::CrystalMineProduction:
+    case RunUpgradeEffect::Regeneration:
         break;
     }
     return "+";
@@ -376,7 +379,7 @@ std::string upgradeDescription(const SimulationSnapshot& snapshot,
         effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
     double amount = std::stod(description.substr(1, numberEnd - 1)) * power;
     if (effect == RunUpgradeEffect::BuildRadius) amount = std::round(amount);
-    description.replace(1, numberEnd - 1, statNumber(amount));
+    description.replace(1, numberEnd - 1, statNumber(amount, effect == RunUpgradeEffect::Regeneration ? 2 : 1));
     return description;
 }
 
@@ -407,7 +410,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
         fadedColor({126, 112, 85, 255}, fade));
-    const float scale = bounds.height / 738.0F;
+    const float scale = bounds.height / 765.0F;
     const float fontSize = std::min(23.0F * scale, bounds.width * 0.068F) / UiTextRasterScale;
     const float left = bounds.x + 18.0F;
     const float right = bounds.x + bounds.width - 18.0F;
@@ -497,6 +500,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
     row("Max HP", statNumber(snapshot.playerMaxHealth), statNumber(projected.playerMaxHealth));
+    row("HP regen", statNumber(stats.healthRegeneration, 2) + "/s", statNumber(next.healthRegeneration, 2) + "/s");
     row("Shield", statNumber(snapshot.playerMaxRecoverableArmor), statNumber(projected.playerMaxRecoverableArmor));
     row("Player damage", multiplier(snapshot.playerDamageMultiplier), multiplier(projected.playerDamageMultiplier));
     row("Attack speed", multiplier(stats.playerAttackSpeed), multiplier(next.playerAttackSpeed));
@@ -654,6 +658,7 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
     case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::round(3.0 * gain)); break;
     case RunUpgradeEffect::Luck: projected.upgradeStats.luck += 0.10 * gain; break;
+    case RunUpgradeEffect::Regeneration: projected.upgradeStats.healthRegeneration += 0.5 * gain; break;
     case RunUpgradeEffect::TwinBatteries:
         projected.upgradeStats.sideShots = runUpgradeDiscreteAmount(effect, current + gain); break;
     case RunUpgradeEffect::GunPiercing:
@@ -688,6 +693,7 @@ void drawRunUpgradeOverlay(
                   {30, 30, 30, static_cast<unsigned char>(
                       std::lround(170.0F * screenFade))});
     const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
+    drawRunHammerInventory(snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F}, overlayFade, mouse);
     const auto hoveredChoice = exitSeconds > 0.0 ? std::nullopt : hoveredRunUpgradeChoice(snapshot, mouse);
     drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade, hoveredChoice);
     const float headingEntrance = std::clamp(static_cast<float>(
@@ -897,7 +903,11 @@ void drawRunUpgradeOverlay(
             : runUpgradeProductionBuilding(effect);
         const Texture2D cardIcon = iconBuilding ? ui.buildingTexture(*iconBuilding) : ui.runUpgradeTexture(effect);
         const bool drawUpgradeIcon = IsTextureValid(cardIcon);
-        if (drawUpgradeIcon) {
+        if (const auto* hammer = runHammerDefinition(effect)) {
+            const float iconSize = 235.0F * scale;
+            drawRunHammerIcon({centerX - iconSize * 0.5F, bounds.y + 16.0F * scale,
+                iconSize, iconSize}, *hammer, cardFade);
+        } else if (drawUpgradeIcon) {
             const float iconSize = 256.0F * scale;
             DrawTexturePro(
                 cardIcon,
@@ -1073,7 +1083,7 @@ void drawRunUpgradeOverlay(
         } else {
             const std::string currentLevelText =
                 runUpgradeBuilding(effect) ? std::to_string(snapshot.buildingArsenalCount) + "/4"
-                    : "LVL " + std::to_string(currentLevel);
+                    : runHammerDefinition(effect) && currentLevel == 0 ? "NEW" : "LVL " + std::to_string(currentLevel);
             const std::string nextLevelText = runUpgradeBuilding(effect)
                 ? std::to_string(snapshot.buildingArsenalCount + 1U) + "/4"
                 : std::to_string(std::min(currentLevel + 1, maximumLevel));
