@@ -225,6 +225,13 @@ void App::drawGraphicsPanel() {
             "Preset applies instantly. Fine-tune any option in Display, Color, Style or Motion.",
             {contentX, noteY}, compact ? 14.0F : 17.0F,
             {53, 76, 94, 255});
+        if (simulation_.snapshot().state == RunState::MainMenu &&
+            ui_.drawButton({contentX, noteY + 38.0F,
+                contentWidth, compact ? 38.0F : 42.0F}, "CHOOSE BACKGROUND")) {
+            renderer_->setGraphicsPanelVisible(false);
+            beginMenuBackgroundEdit(simulation_.snapshot());
+            audio_.playUiConfirm();
+        }
     } else if (graphicsPanelTab_ == DisplayPage) {
     float y = panelY + ControlStartY;
     if (ui_.drawToggleButton(

@@ -249,41 +249,45 @@ bool drawQuestSummaryCard(
     const GameUi& ui, const QuestStatus& status, Rectangle bounds, float scale,
     Vector2 pointer, bool click) {
     const bool hovered = CheckCollisionPointRec(pointer, bounds);
-    panel(bounds, scale, hovered ? Color{62, 69, 68, 250} : Color{53, 58, 59, 245},
-        hovered ? Gold : Color{124, 98, 71, 255});
+    panel(bounds, scale, hovered ? Color{43, 51, 50, 247} : Color{27, 34, 36, 230},
+        hovered ? Gold : Color{124, 98, 71, 220});
     icon(ui, *status.definition,
-        {bounds.x + 9 * scale, bounds.y + 17 * scale, 42 * scale, 42 * scale}, scale);
-    const float x = bounds.x + 62 * scale;
-    const float width = bounds.width - 76 * scale;
-    const auto heading = status.definition->reward.unlockId.starts_with("class.")
-        ? unlockName(status.definition->reward.unlockId)
-        : TabNames[static_cast<std::size_t>(status.definition->category) + 1];
-    text(heading, {x, bounds.y + 6 * scale, width, 20 * scale},
-        13 * scale, Gold, UiFontRole::BodyBold);
-
-    // Split long descriptions at a word boundary into two balanced lines.
-    const ScopedUiFontRole body(UiFontRole::Body);
-    const std::string title = localizeText(status.definition->title);
+        {bounds.x + 10 * scale, bounds.y + 14 * scale, 48 * scale, 48 * scale}, scale);
+    const float x = bounds.x + 72 * scale;
+    const float width = bounds.width - 86 * scale;
+    const bool hasUnlock = !status.definition->reward.unlockId.empty();
+    const std::string heading = localizeText(hasUnlock
+        ? unlockName(status.definition->reward.unlockId) : std::string_view{status.definition->title});
+    const ScopedUiFontRole body(UiFontRole::BodyBold);
     std::size_t split = std::string::npos;
-    float longest = measureUiText(title, 12 * scale).x;
+    float longest = measureUiText(heading, 17 * scale).x;
     if (longest > width) {
-        for (std::size_t at = title.find(' '); at != std::string::npos; at = title.find(' ', at + 1)) {
-            const float candidate = std::max(measureUiText(title.substr(0, at), 12 * scale).x,
-                measureUiText(title.substr(at + 1), 12 * scale).x);
+        for (std::size_t at = heading.find(' '); at != std::string::npos; at = heading.find(' ', at + 1)) {
+            const float candidate = std::max(measureUiText(heading.substr(0, at), 17 * scale).x,
+                measureUiText(heading.substr(at + 1), 17 * scale).x);
             if (candidate < longest) { longest = candidate; split = at; }
         }
     }
+    const Color headingColor = status.rewardAvailable ? Gold : Cream;
     if (split == std::string::npos) {
-        text(title, {x, bounds.y + 27 * scale, width, 28 * scale}, 12 * scale, Cream);
+        text(heading, {x, bounds.y + 7 * scale, width, 22 * scale}, 17 * scale, headingColor, UiFontRole::BodyBold);
     } else {
-        text(title.substr(0, split), {x, bounds.y + 26 * scale, width, 16 * scale}, 12 * scale, Cream);
-        text(title.substr(split + 1), {x, bounds.y + 42 * scale, width, 16 * scale}, 12 * scale, Cream);
+        text(heading.substr(0, split), {x, bounds.y + 5 * scale, width, 20 * scale}, 17 * scale, headingColor, UiFontRole::BodyBold);
+        text(heading.substr(split + 1), {x, bounds.y + 24 * scale, width, 20 * scale}, 17 * scale, headingColor, UiFontRole::BodyBold);
     }
-    text(counter(status), {x, bounds.y + 61 * scale, width, 16 * scale},
-        12 * scale, Green, UiFontRole::BodyBold, 2);
-    if (status.rewardAvailable) text("COLLECT REWARD", {x, bounds.y + 61 * scale, width * 0.65F, 16 * scale},
-        12 * scale, Gold, UiFontRole::BodyBold);
-    bar({x, bounds.y + bounds.height - 14 * scale, width, 7 * scale}, status.fraction, Green);
+    if (hasUnlock) {
+        text(status.definition->title, {x, bounds.y + 30 * scale, width, 22 * scale}, 14 * scale, Muted);
+    }
+    const float captionY = bounds.y + bounds.height - 31 * scale;
+    if (status.rewardAvailable) {
+        text("COLLECT REWARD", {x, captionY, width * 0.57F, 18 * scale}, 12 * scale, Gold, UiFontRole::BodyBold);
+    } else if (!hasUnlock && status.definition->reward.silver > 0) {
+        ui.drawResourceIcon({x, captionY, 17 * scale, 17 * scale}, UiResourceIcon::Silver);
+        text("+" + std::to_string(status.definition->reward.silver),
+            {x + 23 * scale, captionY, width * 0.4F, 18 * scale}, 13 * scale, Muted);
+    }
+    text(counter(status), {x, captionY, width, 18 * scale}, 13 * scale, Green, UiFontRole::BodyBold, 2);
+    bar({x, bounds.y + bounds.height - 10 * scale, width, 5 * scale}, status.fraction, Green);
     return hovered && click;
 }
 

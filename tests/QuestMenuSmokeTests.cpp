@@ -67,8 +67,8 @@ int main(int argc, char** argv) {
                 "clipped part of a reward button cannot collect outside the visible list");
             ClearBackground({61, 82, 66, 255});
             for (std::size_t index = 0; index < featured.size(); ++index) {
-                const Rectangle card{origin.x + 47 * scale, origin.y + (349 + static_cast<float>(index) * 109) * scale,
-                    396 * scale, 98 * scale};
+                const Rectangle card{origin.x + 30 * scale, (30 + static_cast<float>(index) * 96) * scale,
+                    440 * scale, 84 * scale};
                 const Vector2 pointer{card.x + card.width * 0.5F, card.y + card.height * 0.5F};
                 require(ian::drawQuestSummaryCard(ui, featured[index], card, scale, pointer, true),
                     "featured quest card opens on a click within its bounds");

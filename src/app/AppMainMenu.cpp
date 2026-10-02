@@ -35,6 +35,18 @@ struct MenuLayout {
     [[nodiscard]] Vector2 point(float x, float y) const {
         return {origin.x + x * scale, origin.y + y * scale};
     }
+
+    [[nodiscard]] Rectangle topRect(
+        float x, float y, float width, float height) const {
+        return {
+            origin.x + x * scale, y * scale,
+            width * scale, height * scale,
+        };
+    }
+
+    [[nodiscard]] Vector2 topPoint(float x, float y) const {
+        return {origin.x + x * scale, y * scale};
+    }
 };
 
 MenuLayout menuLayout() {
@@ -52,6 +64,68 @@ MenuLayout menuLayout() {
             (screenHeight - DesignHeight * scale) * 0.5F,
         },
     };
+}
+
+constexpr Color MenuPanelFill{29, 34, 38, 228};
+constexpr Color MenuPanelBorder{116, 79, 48, 255};
+constexpr Color MenuCream{250, 241, 211, 255};
+constexpr Color MenuGold{255, 205, 105, 255};
+void drawMenuPanel(Rectangle bounds, const MenuLayout& layout) {
+    DrawRectangleRounded(
+        {bounds.x + 3.0F * layout.scale,
+         bounds.y + 5.0F * layout.scale,
+         bounds.width, bounds.height},
+        0.07F, 8, {9, 12, 15, 135});
+    DrawRectangleRounded(bounds, 0.07F, 8, MenuPanelFill);
+    DrawRectangleRoundedLinesEx(
+        bounds, 0.07F, 8, 3.0F * layout.scale,
+        MenuPanelBorder);
+}
+
+bool drawMenuButton(
+    Rectangle bounds, std::string_view label,
+    const MenuLayout& layout, bool primary = false, bool secondary = false) {
+    const bool hovered = CheckCollisionPointRec(
+        GetMousePosition(), bounds);
+    const bool pressed = hovered &&
+        IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    const Color fill = primary
+        ? pressed ? Color{174, 92, 35, 255}
+                  : hovered ? Color{233, 143, 56, 255}
+                            : Color{211, 116, 46, 255}
+        : pressed ? Color{54, 65, 70, 255}
+                  : hovered ? Color{75, 87, 90, 255}
+                            : Color{45, 54, 58, 255};
+    const Color edge = primary
+        ? Color{103, 50, 27, 255}
+        : Color{17, 21, 24, 255};
+    DrawRectangleRounded(
+        {bounds.x, bounds.y + 4.0F * layout.scale,
+         bounds.width, bounds.height},
+        0.18F, 8, edge);
+    DrawRectangleRounded(
+        {bounds.x, bounds.y,
+         bounds.width, bounds.height - 3.0F * layout.scale},
+        0.18F, 8, fill);
+    DrawRectangleRoundedLinesEx(
+        bounds, 0.18F, 8, 3.0F * layout.scale,
+        primary ? Color{255, 204, 111, 255}
+                : Color{129, 101, 72, 255});
+    const ScopedUiFontRole font(secondary ? UiFontRole::BodyBold : UiFontRole::Display);
+    const std::string localized = localizeText(label);
+    const float size = fitUiTextSize(
+        label, (secondary ? 17.0F : primary ? 25.0F : 19.0F) * layout.scale,
+        11.0F * layout.scale,
+        bounds.width - 22.0F * layout.scale,
+        bounds.height - 13.0F * layout.scale);
+    const Vector2 measured = measureUiText(localized, size);
+    drawUiText(
+        localized,
+        {bounds.x + (bounds.width - measured.x) * 0.5F,
+         bounds.y + (bounds.height - measured.y) * 0.5F -
+             2.0F * layout.scale},
+        size, MenuCream);
+    return hovered && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }
 
 void drawOutlinedTitle(
@@ -96,20 +170,17 @@ void drawStatRow(
     const MenuLayout& layout, float x, float y,
     float width, std::string_view label,
     std::string value, Color valueColor) {
-    DrawRectangleRec(
-        layout.rect(x, y, width, 46.0F),
-        {25, 31, 31, 178});
-    drawUiText(
-        label, layout.point(x + 14.0F, y + 10.0F),
-        12.0F * layout.scale, {216, 219, 200, 255});
-    const Vector2 measured = measureUiText(
-        value, 13.0F * layout.scale);
-    drawUiText(
-        value,
-        {layout.origin.x + (x + width - 14.0F) * layout.scale -
-             measured.x,
-         layout.origin.y + (y + 9.0F) * layout.scale},
-        13.0F * layout.scale, valueColor);
+    const ScopedUiFontRole body(UiFontRole::BodyBold);
+    const float valueSize = 18.0F * layout.scale;
+    const Vector2 measured = measureUiText(value, valueSize);
+    const float labelSize = fitUiTextSize(label, 17.0F * layout.scale,
+        12.0F * layout.scale, width * layout.scale - measured.x - 44.0F * layout.scale);
+    drawUiText(label, layout.point(x + 8.0F, y + 10.0F),
+        labelSize, {216, 219, 200, 255});
+    drawUiText(value,
+        {layout.point(x + width - 8.0F, y + 9.0F).x - measured.x,
+         layout.point(x + width - 8.0F, y + 9.0F).y},
+        valueSize, valueColor);
 }
 
 } // namespace
@@ -147,7 +218,7 @@ void App::drawMainMenuWorld(
     // The live landscape is the deliberately soft backdrop. The hero prop
     // is rendered in a separate transparent foreground pass below, so it
     // can never disappear behind random world generation.
-    renderer_->setMenuDepthOfField(true, 0.1F, 0.1F, 3.5F);
+    renderer_->setMenuDepthOfField(true, 0.1F, 0.1F, 8.5F);
     const WorldLighting lighting{
         .cameraPosition = camera.position,
         .sunDirection = Vector3Scale(
@@ -220,7 +291,7 @@ void App::drawMainMenuWorld(
     // preserving the live world behind the menu.
     DrawRectangle(
         0, 0, GetScreenWidth(), GetScreenHeight(),
-        {8, 43, 52, 46});
+        {12, 18, 24, 60});
     DrawRectangleGradientH(
         0, 0, GetScreenWidth() / 3, GetScreenHeight(),
         {8, 17, 20, 82}, {8, 17, 20, 0});
@@ -356,36 +427,20 @@ void App::drawMainMenu(const SimulationSnapshot&) {
 
     drawOutlinedTitle(
         "FORTBONK", layout,
-        960.0F, 76.0F, 58.0F, 720.0F);
+        960.0F, 82.0F, 62.0F, 820.0F);
+    const std::string subtitle = localizeText(
+        "BUILD. DEFEND. BONK.");
+    const float subtitleSize = 12.0F * layout.scale;
+    const Vector2 subtitleBounds = measureUiText(
+        subtitle, subtitleSize);
     drawUiText(
-        "BUILD. DEFEND. BONK.",
-        layout.point(782.0F, 190.0F),
-        14.0F * layout.scale, {231, 210, 157, 235});
+        subtitle,
+        {layout.origin.x + 960.0F * layout.scale -
+             subtitleBounds.x * 0.5F,
+         layout.origin.y + 208.0F * layout.scale},
+        subtitleSize, {244, 213, 151, 255});
 
     const auto featured = questSystem_.recommendedStatuses(metaProgression_);
-    drawUiText(
-        "QUESTS", layout.point(38.0F, 35.0F),
-        16.0F * layout.scale, {250, 224, 151, 255});
-    for (std::size_t index = 0; index < featured.size(); ++index) {
-        if (drawQuestSummaryCard(
-                ui_, featured[index],
-                layout.rect(
-                    30.0F, 72.0F + static_cast<float>(index) * 112.0F,
-                    382.0F, 98.0F),
-                layout.scale, GetMousePosition(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
-            questMenuState_ = {};
-            questMenuState_.selectedId = featured[index].definition->id;
-            mainMenuPage_ = MainMenuPage::Quests;
-            audio_.playUiConfirm();
-        }
-    }
-    if (featured.empty()) {
-        const ScopedUiFontRole body(UiFontRole::BodyBold);
-        const auto rows = questSystem_.statuses(metaProgression_);
-        const bool allCompleted = std::ranges::all_of(rows, [](const auto& row) { return row.completed; });
-        drawUiText(allCompleted ? "ALL QUESTS COMPLETED" : "NO AVAILABLE QUESTS", layout.point(58.0F, 110.0F),
-            14.0F * layout.scale, {250, 241, 211, 255});
-    }
 
     if (classSelectionVisible_) {
         DrawRectangle(
@@ -562,105 +617,87 @@ void App::drawMainMenu(const SimulationSnapshot&) {
     }
 
     const bool canContinue = suspendedRunAvailable();
-    float menuButtonY = canContinue ? 286.0F : 360.0F;
-    if (canContinue) {
-        pendingContinueFromUi_ = ui_.drawButton(
-            layout.rect(775.0F, menuButtonY, 370.0F, 70.0F),
-            "CONTINUE RUN") || pendingContinueFromUi_;
-        menuButtonY += 84.0F;
+    for (std::size_t index = 0; index < featured.size(); ++index) {
+        if (drawQuestSummaryCard(ui_, featured[index],
+                layout.topRect(30.0F, 30.0F + static_cast<float>(index) * 96.0F, 440.0F, 84.0F),
+                layout.scale, GetMousePosition(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
+            questMenuState_ = {};
+            questMenuState_.selectedId = featured[index].definition->id;
+            mainMenuPage_ = MainMenuPage::Quests;
+            audio_.playUiConfirm();
+        }
     }
-    const Rectangle playButton =
-        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
-    if (ui_.drawButton(playButton, "START RUN")) {
+    if (featured.empty()) {
+        const ScopedUiFontRole body(UiFontRole::BodyBold);
+        const auto rows = questSystem_.statuses(metaProgression_);
+        const bool allCompleted = std::ranges::all_of(rows, [](const auto& row) { return row.completed; });
+        drawUiText(allCompleted ? "ALL QUESTS COMPLETED" : "NO AVAILABLE QUESTS",
+            layout.topPoint(34.0F, 38.0F), 17.0F * layout.scale, MenuCream);
+    }
+
+    if (canContinue) {
+        pendingContinueFromUi_ = drawMenuButton(
+            layout.rect(805.0F, 360.0F, 310.0F, 48.0F),
+            "CONTINUE RUN", layout, false, true) || pendingContinueFromUi_;
+    }
+    if (drawMenuButton(layout.rect(795.0F, 428.0F, 330.0F, 78.0F), "PLAY", layout, true)) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
         sandboxClassSelection_ = false;
         audio_.playUiConfirm();
     }
-    menuButtonY += 84.0F;
-    const Rectangle sandboxButton =
-        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
-    if (ui_.drawButton(sandboxButton, "SANDBOX")) {
-        classSelectionVisible_ = true;
-        classCollectionOnly_ = false;
-        sandboxClassSelection_ = true;
-        audio_.playUiConfirm();
-    }
-    menuButtonY += 84.0F;
-    const Rectangle collectionButton =
-        layout.rect(775.0F, menuButtonY, 370.0F, 70.0F);
-    if (ui_.drawButton(collectionButton, "UNLOCKS")) {
+    if (drawMenuButton(layout.rect(805.0F, 532.0F, 310.0F, 62.0F), "UNLOCKS", layout)) {
         mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
     }
-    menuButtonY += 84.0F;
-    if (ui_.drawButton(layout.rect(775.0F, menuButtonY, 370.0F, 70.0F), "QUESTS")) {
+    if (drawMenuButton(layout.rect(805.0F, 616.0F, 310.0F, 62.0F), "QUESTS", layout)) {
         mainMenuPage_ = MainMenuPage::Quests;
         audio_.playUiConfirm();
     }
-    menuButtonY += 84.0F;
-    if (ui_.drawButton(layout.rect(775.0F, menuButtonY, 370.0F, 70.0F), "SHOP")) {
+    if (drawMenuButton(layout.rect(805.0F, 700.0F, 310.0F, 62.0F), "SHOP", layout)) {
         mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
     }
-    if (ui_.drawButton(
-            layout.rect(775.0F, menuButtonY + 84.0F, 370.0F, 70.0F),
-            "SETTINGS")) {
+
+    if (drawMenuButton(layout.rect(30.0F, 802.0F, 218.0F, 48.0F), "SETTINGS", layout, false, true)) {
         renderer_->setGraphicsPanelVisible(true);
     }
-
-    if (ui_.drawButton(
-            layout.rect(30.0F, 720.0F, 230.0F, 62.0F),
-            std::string("LANGUAGE: ") +
-                std::string(languageName(userSettings_.language)))) {
-        userSettings_.language =
-            userSettings_.language == Language::English
-                ? Language::Russian
-                : Language::English;
+    if (drawMenuButton(layout.rect(30.0F, 864.0F, 218.0F, 48.0F),
+            languageName(userSettings_.language), layout, false, true)) {
+        userSettings_.language = userSettings_.language == Language::English ? Language::Russian : Language::English;
         setLanguage(userSettings_.language);
         persistUserSettings(true);
     }
-    if (ui_.drawButton(
-            layout.rect(30.0F, 798.0F, 230.0F, 62.0F),
-            "EXIT GAME")) {
+    if (drawMenuButton(layout.rect(30.0F, 926.0F, 218.0F, 48.0F), "CREDITS", layout, false, true)) {
+        mainMenuPage_ = MainMenuPage::Credits;
+        audio_.playUiConfirm();
+    }
+    if (drawMenuButton(layout.rect(30.0F, 988.0F, 218.0F, 48.0F), "EXIT GAME", layout, false, true)) {
         exitRequested_ = true;
     }
 
-    const Rectangle records =
-        layout.rect(1515.0F, 350.0F, 375.0F, 408.0F);
-    ui_.drawPanel(records, 240);
-    drawUiText(
-        "RUN RECORDS", layout.point(1550.0F, 374.0F),
-        19.0F * layout.scale, {250, 224, 151, 255});
-    DrawLineEx(
-        layout.point(1540.0F, 420.0F),
-        layout.point(1865.0F, 420.0F),
-        2.0F * layout.scale, {170, 146, 105, 210});
-    drawStatRow(
-        layout, 1540.0F, 444.0F, 325.0F,
-        "BEST WAVE", std::to_string(metaProgression_.bestWave),
-        {250, 206, 71, 255});
-    drawStatRow(
-        layout, 1540.0F, 500.0F, 325.0F,
-        "STAGE CLEARS", std::to_string(metaProgression_.stageClears),
-        {188, 150, 255, 255});
-    drawStatRow(
-        layout, 1540.0F, 556.0F, 325.0F,
-        "ENEMIES DEFEATED", std::to_string(metaProgression_.enemiesDefeated),
-        {121, 213, 124, 255});
-    drawStatRow(
-        layout, 1540.0F, 612.0F, 325.0F,
-        "ITEMS COLLECTED", std::to_string(metaProgression_.lootCollected),
-        {136, 204, 245, 255});
-    drawUiText(
-        "YOUR PROGRESS IS SAVED BETWEEN RUNS",
-        layout.point(1543.0F, 688.0F),
-        10.0F * layout.scale, {197, 193, 169, 220});
+    drawMenuPanel(layout.rect(1500.0F, 744.0F, 390.0F, 292.0F), layout);
+    drawUiText("RUN RECORDS", layout.point(1524.0F, 765.0F), 16.0F * layout.scale, MenuGold);
+    DrawLineEx(layout.point(1524.0F, 803.0F), layout.point(1866.0F, 803.0F),
+        1.5F * layout.scale, {155, 116, 75, 180});
+    drawStatRow(layout, 1524.0F, 816.0F, 342.0F, "BEST WAVE",
+        std::to_string(metaProgression_.bestWave), {250, 206, 71, 255});
+    drawStatRow(layout, 1524.0F, 860.0F, 342.0F, "STAGE CLEARS",
+        std::to_string(metaProgression_.stageClears), {188, 150, 255, 255});
+    drawStatRow(layout, 1524.0F, 904.0F, 342.0F, "ENEMIES DEFEATED",
+        std::to_string(metaProgression_.enemiesDefeated), {121, 213, 124, 255});
+    drawStatRow(layout, 1524.0F, 948.0F, 342.0F, "ITEMS COLLECTED",
+        std::to_string(metaProgression_.lootCollected), {136, 204, 245, 255});
 
-    drawUiText(
-        "ENTER  PLAY     F2  SETTINGS",
-        layout.point(754.0F, 1018.0F),
-        11.0F * layout.scale, {222, 217, 191, 225});
+    {
+        const ScopedUiFontRole body(UiFontRole::Body);
+        const std::string hint = localizeText("ENTER  PLAY     F2  SETTINGS");
+        const float fontSize = 15.0F * layout.scale;
+        const Vector2 measured = measureUiText(hint, fontSize);
+        drawUiText(hint, {layout.point(960.0F, 1032.0F).x - measured.x * 0.5F,
+            layout.point(960.0F, 1032.0F).y}, fontSize, {219, 218, 201, 200});
+    }
+
 }
 
 } // namespace ian
