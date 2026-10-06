@@ -824,6 +824,41 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (std::getenv("IAN_PROFILE_FIRST_SHOT")) {
+            const auto target = LoadRenderTexture(64, 64);
+            const Camera3D camera{{0, 0, 5}, {0, 0, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+            for (int frame = 0; frame < 8; ++frame) {
+                const double start = GetTime();
+                BeginTextureMode(target);
+                ClearBackground(BLACK);
+                BeginMode3D(camera);
+                renderer.beginWorldShader({});
+                ian::WorldMaterialState material{};
+                material.unlitAmount = 1;
+                material.screenAoAmount = 0;
+                material.inkOutlineEligible = false;
+                renderer.setWorldMaterial(material);
+                rlDisableDepthMask();
+                rlDisableBackfaceCulling();
+                BeginBlendMode(BLEND_ALPHA);
+                DrawTriangle3D({-1, -1, 0}, {1, -1, 0}, {0, 1, 0}, {255, 180, 30, 180});
+                rlDrawRenderBatchActive();
+                EndBlendMode();
+                BeginBlendMode(BLEND_ADDITIVE);
+                DrawTriangle3D({-1, -1, 0}, {1, -1, 0}, {0, 1, 0}, {255, 180, 30, 180});
+                rlDrawRenderBatchActive();
+                EndBlendMode();
+                rlEnableDepthMask();
+                rlEnableBackfaceCulling();
+                renderer.endWorldShader();
+                EndMode3D();
+                EndTextureMode();
+                Image image = LoadImageFromTexture(target.texture);
+                UnloadImage(image);
+                std::cerr << "first-shot render " << frame << " ms " << (GetTime() - start) * 1000 << '\n';
+            }
+            UnloadRenderTexture(target);
+        }
         if (!checkCoreOrbitRendering(renderer)) {
             std::cerr << "rendered core satellites remain static\n";
             result = 1;

@@ -1083,6 +1083,7 @@ class Renderer {
     std::size_t activeGpuQueryIndex_{};
     bool gpuProfilingEnabled_{};
     bool gpuTimersInitialized_{};
+    void warmCombatRendering();
     void initializeGpuTimers();
     void shutdownGpuTimers();
     void initializePlatformTopPartMeshes();
