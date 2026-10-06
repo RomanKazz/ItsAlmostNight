@@ -51,6 +51,31 @@ float terrainValueNoise(vec2 position)
                mix(topLeft, topRight, blend.x), blend.y);
 }
 
+uniform float vegetationAmount;
+uniform float treeAmount;
+uniform float bushAmount;
+uniform float coniferAmount;
+
+uniform vec2 worldBiomeCenters[4];
+uniform vec4 worldBiomeShape;
+out vec4 fragBiomeWeights;
+
+// Shared with visual_biomes::weights. Evaluate per vertex, not per screen pixel.
+vec4 visualBiomeWeights(vec2 position)
+{
+    if (worldBiomeShape.x <= 0.0) return vec4(1.0, 0.0, 0.0, 0.0);
+    vec2 q = position/worldBiomeShape.x;
+    position += vec2(
+        sin(q.y*11.0 + worldBiomeShape.z) + 0.45*sin((q.x + q.y)*19.0 + worldBiomeShape.w),
+        sin(q.x*12.0 + worldBiomeShape.w) + 0.45*sin((q.y - q.x)*17.0 + worldBiomeShape.z))*worldBiomeShape.x*0.018;
+    vec4 distances = vec4(
+        length(position - worldBiomeCenters[0]), length(position - worldBiomeCenters[1]),
+        length(position - worldBiomeCenters[2]), length(position - worldBiomeCenters[3]));
+    float closest = min(min(distances.x, distances.y), min(distances.z, distances.w));
+    vec4 weights = 1.0 - smoothstep(vec4(0.0), vec4(worldBiomeShape.y), distances - closest);
+    return weights/dot(weights, vec4(1.0));
+}
+
 void main()
 {
     mat4 skinMatrix = mat4(1.0);
@@ -94,6 +119,10 @@ void main()
         (primaryWave + detailWave)*windHeight;
     worldPosition = modelMatrix*localPosition;
 
+    fragBiomeWeights = vec4(1.0, 0.0, 0.0, 0.0);
+    if (terrainAmount > 0.001 || vegetationAmount > 0.001 ||
+        treeAmount > 0.001 || bushAmount > 0.001 || coniferAmount > 0.001)
+        fragBiomeWeights = visualBiomeWeights(worldPosition.xz);
     fragWorldPosition = worldPosition.xyz;
     vec3 localNormal = vertexNormal;
     if (skinningEnabled != 0 && skinWeight > 0.0001) {

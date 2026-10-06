@@ -2,12 +2,65 @@
 #include "game/Simulation.hpp"
 #include "world/TerrainHeightfield.hpp"
 #include "world/WorldConfig.hpp"
+#include "world/VisualBiomes.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 void runTerrainHeightfieldTests() {
+    {
+        using namespace ian::visual_biomes;
+        constexpr Rgb original{.86F, .43F, .63F};
+        const auto unchanged = shiftPalette(original, 0, 0, 0);
+        for (std::size_t c = 0; c < 3; ++c) requireNear(unchanged[c], original[c], 1e-6,
+            "zero palette variation preserves the original hue exactly");
+        for (std::uint32_t seed = 0; seed < 32; ++seed) {
+            const auto layout = generate(seed, 384);
+            const auto restored = generate(seed, 384);
+            require(layout.centers == restored.centers && layout.ground == restored.ground &&
+                layout.leaves == restored.leaves && layout.shape == restored.shape,
+                "restoring a seed reproduces both biome geography and its entire palette");
+            require(weights(layout, 0, 0)[0] > .99F,
+                "every world's spawn remains inside the green biome");
+            require(layout.leaves[1][0] > layout.leaves[1][1] + .2F &&
+                layout.leaves[2][0] > layout.leaves[2][1] + .2F &&
+                layout.leaves[3][2] > layout.leaves[3][0] + .15F,
+                "small random variations retain the pink, autumn and cold biome identities");
+            std::array<int, Count> coverage{};
+            for (int z = -192; z < 192; z += 6) {
+                for (int x = -192; x < 192; x += 6) {
+                    const auto blend = weights(layout, static_cast<float>(x), static_cast<float>(z));
+                    float total = 0;
+                    for (float weight : blend) {
+                        require(std::isfinite(weight) && weight >= 0 && weight <= 1,
+                            "biome weights remain finite and bounded throughout the map");
+                        total += weight;
+                    }
+                    requireNear(total, 1, 1e-6, "blending never creates uncolored or overbright seams");
+                    const auto dominant = static_cast<std::size_t>(std::max_element(blend.begin(), blend.end()) - blend.begin());
+                    ++coverage[dominant];
+                    const auto neighbor = weights(layout, static_cast<float>(x) + .25F, static_cast<float>(z));
+                    for (std::size_t i = 0; i < Count; ++i)
+                        require(std::abs(blend[i] - neighbor[i]) < .1F,
+                            "biome boundaries fade continuously instead of following terrain cells");
+                }
+            }
+            for (int cells : coverage) require(cells > 250,
+                "all four biomes occupy substantial regions rather than scattered tiny patches");
+            for (std::size_t i = 0; i < Count; ++i) {
+                for (float channel : layout.ground[i]) require(channel >= 0 && channel <= 1,
+                    "seed variations keep ground colors in their valid range");
+                for (float channel : layout.leaves[i]) require(channel >= 0 && channel <= 1,
+                    "seed variations keep foliage colors in their valid range");
+            }
+        }
+        const auto first = generate(42, 384), second = generate(43, 384);
+        require(first.centers != second.centers && first.leaves != second.leaves,
+            "different runs vary both region placement and their coherent palettes");
+        require(weights(first, std::numeric_limits<float>::quiet_NaN(), 0)[0] == 1,
+            "invalid visual sample positions safely fall back to the green biome");
+    }
     ian::WorldConfig config =
         ian::WorldConfig::defaults();
     config.terrainResolution = 33;

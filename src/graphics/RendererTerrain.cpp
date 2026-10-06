@@ -5,6 +5,7 @@
 #include "buildings/BuildingSystem.hpp"
 #include "ui/UiText.hpp"
 #include "world/PondDecorationLayout.hpp"
+#include "world/VisualBiomes.hpp"
 
 #include <raymath.h>
 #include <rlgl.h>
@@ -77,6 +78,19 @@ void Renderer::rebuildTerrain(
     const TerrainHeightfield& terrain,
     std::span<const DecorationExclusion> exclusions) {
     terrainHeightfield_ = &terrain;
+    const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
+    const auto uploadBiomes = [&](Shader shader) {
+        SetShaderValueV(shader, GetShaderLocation(shader, "worldBiomeCenters[0]"),
+            biomes.centers.data(), SHADER_UNIFORM_VEC2, static_cast<int>(visual_biomes::Count));
+        SetShaderValueV(shader, GetShaderLocation(shader, "worldBiomeGround[0]"),
+            biomes.ground.data(), SHADER_UNIFORM_VEC3, static_cast<int>(visual_biomes::Count));
+        SetShaderValueV(shader, GetShaderLocation(shader, "worldBiomeLeaves[0]"),
+            biomes.leaves.data(), SHADER_UNIFORM_VEC3, static_cast<int>(visual_biomes::Count));
+        SetShaderValue(shader, GetShaderLocation(shader, "worldBiomeShape"),
+            biomes.shape.data(), SHADER_UNIFORM_VEC4);
+    };
+    if (resources_.worldShader().valid()) uploadBiomes(resources_.worldShader().get());
+    if (resources_.grassShader().valid()) uploadBiomes(resources_.grassShader().get());
     grassClearAreaCells_.clear();
     indexedGrassClearAreaData_ = nullptr;
     indexedGrassClearAreaCount_ = 0U;

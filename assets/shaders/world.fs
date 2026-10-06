@@ -106,6 +106,25 @@ uniform int shadowSampleCount;
 layout(location = 0) out vec4 finalColor;
 layout(location = 1) out vec4 normalAo;
 
+in vec4 fragBiomeWeights;
+uniform vec4 worldBiomeShape;
+uniform vec3 worldBiomeGround[4];
+
+vec3 visualBiomeColor(vec3 source, vec3 palette[4], vec3 greenReference)
+{
+    if (worldBiomeShape.x <= 0.0) return source;
+    vec4 weights = max(fragBiomeWeights, vec4(0.0));
+    weights /= max(dot(weights, vec4(1.0)), 0.0001);
+    const vec3 luminance = vec3(0.2126, 0.7152, 0.0722);
+    float detail = clamp(dot(source, luminance)/dot(greenReference, luminance), 0.35, 1.55);
+    // Retain the approved green material and its shading; other zones replace
+    // hue while preserving the same painted details and light/shadow ramp.
+    return source*(palette[0]/greenReference)*weights.x + detail*(
+        palette[1]*weights.y + palette[2]*weights.z + palette[3]*weights.w);
+}
+
+uniform vec3 worldBiomeLeaves[4];
+
 float toonRamp(float value, float steps)
 {
     float levelCount = max(round(steps), 2.0);
@@ -309,7 +328,8 @@ vec3 painterlyGroundMaterial(
 
     float textureWeight = clamp(
         terrainTextureEnabled*groundTextureStrength, 0.0, 1.0);
-    return mix(terrainGrassTint, grass, textureWeight);
+    return visualBiomeColor(mix(terrainGrassTint, grass, textureWeight),
+        worldBiomeGround, vec3(0.44, 0.50, 0.24));
 }
 
 vec3 terrainMaterial(
@@ -763,6 +783,7 @@ void main()
         float greenDominance =
             albedo.g - max(albedo.r, albedo.b);
         float leafMask = smoothstep(-0.015, 0.075, greenDominance);
+        leafColor = visualBiomeColor(leafColor, worldBiomeLeaves, vec3(0.400, 0.553, 0.243));
         vec3 treeColor = mix(trunkColor, leafColor, leafMask);
         float sourceLuminance = dot(
             albedo.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -827,6 +848,7 @@ void main()
         float leafMask = smoothstep(-0.015, 0.075, greenDominance);
         float bushDirectAmount =
             smoothstep(0.30, 0.88, bushRamp)*shadowVisibility;
+        bushColor = visualBiomeColor(bushColor, worldBiomeLeaves, vec3(0.400, 0.553, 0.243));
         vec3 integratedBush = applyStylizedWorldLight(
             bushColor, bushDirectAmount, hemisphere, 1.0);
         integratedBush *= mix(0.86, 1.0, ao);
@@ -887,6 +909,7 @@ void main()
         float foliageMask = smoothstep(-0.015, 0.075, greenDominance);
         float coniferDirectAmount =
             smoothstep(0.30, 0.90, coniferRamp)*shadowVisibility;
+        coniferColor = visualBiomeColor(coniferColor, worldBiomeLeaves, vec3(0.400, 0.553, 0.243));
         vec3 integratedConifer = applyStylizedWorldLight(
             coniferColor, coniferDirectAmount,
             coniferNormal.y*0.5 + 0.5, 1.0);

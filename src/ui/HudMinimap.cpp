@@ -1,6 +1,7 @@
 #include "ui/HudRenderer.hpp"
 
 #include "game/Simulation.hpp"
+#include "world/VisualBiomes.hpp"
 #include "core/PerformanceStats.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/UiText.hpp"
@@ -374,10 +375,21 @@ void drawRoundedPlayerMarker(
         4.9F * scale, fill);
 }
 
+Color minimapBiomeColor(const SimulationSnapshot& snapshot,
+    const visual_biomes::Layout& biomes, double x, double z) {
+    const Color original = minimapHeightColor(minimapTerrainHeight(snapshot, x, z));
+    const auto color = visual_biomes::groundColor(biomes, static_cast<float>(x), static_cast<float>(z),
+        {original.r / 255.0F, original.g / 255.0F, original.b / 255.0F});
+    return {static_cast<unsigned char>(std::clamp(color[0] * 255, 0.0F, 255.0F)),
+        static_cast<unsigned char>(std::clamp(color[1] * 255, 0.0F, 255.0F)),
+        static_cast<unsigned char>(std::clamp(color[2] * 255, 0.0F, 255.0F)), 255};
+}
+
 void drawMinimapTerrain(
     const SimulationSnapshot& snapshot,
     Rectangle mapBounds, float mapScale,
     double viewRadius, float expanded, double mapYaw) {
+    const auto biomes = visual_biomes::generate(snapshot.terrainSeed, snapshot.terrainWorldSize);
     const int cells = expanded > 0.55F ? 64 : 28;
     const double cellWorld = viewRadius * 2.0 /
         static_cast<double>(cells);
@@ -392,8 +404,7 @@ void drawMinimapTerrain(
             colors[static_cast<std::size_t>(z) *
                        static_cast<std::size_t>(verticesPerAxis) +
                    static_cast<std::size_t>(x)] =
-                minimapHeightColor(
-                    minimapTerrainHeight(snapshot, worldX, worldZ));
+                minimapBiomeColor(snapshot, biomes, worldX, worldZ);
         }
     }
     const auto emit = [&](int x, int z) {
@@ -439,6 +450,7 @@ void drawMinimapPonds(
             snapshot.playerPosition.x,
             snapshot.playerPosition.z, x, z);
     };
+    const auto biomes = visual_biomes::generate(snapshot.terrainSeed, snapshot.terrainWorldSize);
     const int segments = expanded > 0.55F ? 40 : 24;
     const Color water{53, 158, 181, 225};
     const Color shore{127, 215, 207, 205};
@@ -495,8 +507,7 @@ void drawMinimapPonds(
             DrawCircleV(
                 island,
                 static_cast<float>(pond.islandRadius) * mapScale,
-                minimapHeightColor(minimapTerrainHeight(
-                    snapshot, pond.islandX, pond.islandZ)));
+                minimapBiomeColor(snapshot, biomes, pond.islandX, pond.islandZ));
             DrawCircleLinesV(
                 island,
                 static_cast<float>(pond.islandRadius) * mapScale,

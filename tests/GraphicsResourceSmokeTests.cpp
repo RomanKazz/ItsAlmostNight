@@ -3,6 +3,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
+#include "world/VisualBiomes.hpp"
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -113,6 +114,100 @@ bool checkSequentialMountainRendering(ian::Renderer& renderer) {
     renderer.shutdown();
     renderer.initialize();
     return valid;
+}
+
+bool checkVisualBiomeRendering(ian::Renderer& renderer) {
+    auto config = ian::WorldConfig::defaults();
+    config.terrainResolution = 129;
+    config.terrainAmplitude = 0;
+    config.terrainBoundaryRiseHeight = 0;
+    config.terrainSurfaceNoiseAmplitude = 0;
+    config.pondMinimumCount = config.pondMaximumCount = 0;
+    ian::TerrainHeightfield terrain{config};
+    terrain.generate(42);
+    renderer.rebuildTerrain(terrain);
+    renderer.setWorldReveal({0, 0}, 1000);
+    const auto biomes = ian::visual_biomes::generate(terrain.seed(), config.terrainWorldSize);
+    const auto target = LoadRenderTexture(384, 288);
+    std::array<Vector3, 4> groundColors{};
+    std::array<Color, 4> propColors{};
+    for (std::size_t region = 0; region < 4; ++region) {
+        const float x = biomes.centers[region][0], z = biomes.centers[region][1];
+        const Camera3D camera{{x, 4.5F, z + 12}, {x, 1, z - 1}, {0, 1, 0}, 55, CAMERA_PERSPECTIVE};
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        lighting.sunColor = {1, 1, 1};
+        lighting.cloudShadowStrength = 0;
+        lighting.fogStart = 500;
+        lighting.fogEnd = 700;
+        BeginTextureMode(target);
+        ClearBackground({100, 170, 220, 255});
+        BeginMode3D(camera);
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.terrainAmount = 1;
+        renderer.setWorldMaterial(material);
+        renderer.drawTerrain(WHITE, camera.position);
+        material.terrainAmount = 0;
+        material.treeAmount = material.vegetationAmount = 1;
+        renderer.setWorldMaterial(material);
+        static_cast<void>(renderer.drawTree({x - 2.8F, 0, z - 1}, WHITE, 1, 0));
+        static_cast<void>(renderer.drawTree({x + 2.8F, 0, z - 2}, WHITE, 1, 3));
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawRock({x, 0, z - 4}, WHITE, .8F));
+        renderer.drawDecorativeRocks(camera, 192);
+        renderer.drawGrassInstances(camera.position, 192, 0, lighting);
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image scene = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&scene);
+        Vector3 average{};
+        for (int py = 212; py < 274; ++py) {
+            for (int px = 155; px < 229; ++px) {
+                const auto color = GetImageColor(scene, px, py);
+                average.x += color.r; average.y += color.g; average.z += color.b;
+            }
+        }
+        groundColors[region] = Vector3Scale(average, 1.0F / (62 * 74));
+        if (const char* directory = std::getenv("IAN_CAPTURE_BIOMES")) {
+            std::filesystem::create_directories(directory);
+            constexpr std::array names{"forest", "pink-grove", "autumn", "cold"};
+            ExportImage(scene, (std::filesystem::path{directory} / (std::string{names[region]} + ".png")).string().c_str());
+        }
+        UnloadImage(scene);
+        // The same ordinary prop must retain its authored color in every zone.
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        renderer.beginWorldShader(lighting);
+        material = {};
+        material.unlitAmount = 1;
+        renderer.setWorldMaterial(material);
+        DrawCube({x, 1, z - 1}, 3, 3, 3, {100, 130, 190, 255});
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image prop = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&prop);
+        propColors[region] = GetImageColor(prop, 192, 144);
+        UnloadImage(prop);
+    }
+    const bool distinct = groundColors[0].y > groundColors[0].x &&
+        groundColors[1].x > groundColors[1].y + 12 &&
+        groundColors[2].x > groundColors[2].z + 12 &&
+        groundColors[3].z > groundColors[3].x + 8;
+    bool unchangedProps = true;
+    for (std::size_t i = 1; i < 4; ++i)
+        unchangedProps = unchangedProps && propColors[i].r == propColors[0].r &&
+            propColors[i].g == propColors[0].g && propColors[i].b == propColors[0].b;
+    if (!distinct) {
+        for (const auto color : groundColors) std::cerr << "biome RGB " << color.x << ' ' << color.y << ' ' << color.z << '\n';
+    }
+    UnloadRenderTexture(target);
+    renderer.shutdown();
+    renderer.initialize();
+    return distinct && unchangedProps;
 }
 
 bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
@@ -615,6 +710,10 @@ int main() {
         }
         if (!checkSequentialMountainRendering(renderer)) {
             std::cerr << "lower/upper mountain rendering stages fail\n";
+            result = 1;
+        }
+        if (!checkVisualBiomeRendering(renderer)) {
+            std::cerr << "biome palettes fail to recolor the ground or leak onto ordinary props\n";
             result = 1;
         }
         const ian::BuildingInstance core{
