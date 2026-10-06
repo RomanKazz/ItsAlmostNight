@@ -286,7 +286,7 @@ void runBuildingSystemTests() {
             core->building.id, 1),
         "non-directional buildings reject post-placement rotation");
 
-    const auto poorUpgrade = buildings.validateUpgrade(core->building.id, 0, 0, 49);
+    const auto poorUpgrade = buildings.validateUpgrade(core->building.id, 0, 0, 29);
     require(poorUpgrade.error == ian::UpgradeError::InsufficientResources,
             "core upgrade requires crystals");
     require(
@@ -295,8 +295,9 @@ void runBuildingSystemTests() {
             core->building.level) >=
             buildings.upgradeCost(core->building).crystals,
         "level-one core can store its next upgrade cost");
-    const auto levelTwo = buildings.upgrade(core->building.id, 0, 0, 50);
-    require(levelTwo.valid() && levelTwo.building->level == 2,
+    const auto levelTwo = buildings.upgrade(core->building.id, 0, 0, 30);
+    require(levelTwo.valid() && levelTwo.building->level == 2 &&
+                levelTwo.cost.crystals == 30,
             "first core upgrade reaches level two");
     require(levelTwo.building->maxHealth == 575.0, "core upgrade increases max health");
     require(
@@ -305,10 +306,11 @@ void runBuildingSystemTests() {
             levelTwo.building->level) >=
             buildings.upgradeCost(*levelTwo.building).crystals,
         "level-two core can store its next upgrade cost");
-    const auto levelThree = buildings.upgrade(core->building.id, 0, 0, 100);
-    require(levelThree.valid() && levelThree.building->level == 3,
+    const auto levelThree = buildings.upgrade(core->building.id, 0, 0, 50);
+    require(levelThree.valid() && levelThree.building->level == 3 &&
+                levelThree.cost.crystals == 50,
             "second core upgrade reaches level three");
-    require(buildings.validateUpgrade(core->building.id, 0, 0, 149).error ==
+    require(buildings.validateUpgrade(core->building.id, 0, 0, 74).error ==
                 ian::UpgradeError::InsufficientResources,
             "higher core levels use progressive upgrade costs");
     for (int expectedLevel = 4;

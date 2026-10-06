@@ -131,8 +131,9 @@ struct EconomyBalanceDefinition {
     double repairCooldownSeconds;
     double sellRefundFraction;
     std::array<double, 2> buildingUpgradeCostMultiplier;
-    std::array<int, 2> buildingUpgradeCrystalBonus;
-    std::array<int, 2> coreUpgradeCrystals;
+    // One price per transition: level 1 -> 2 through level 7 -> 8.
+    std::array<int, 7> buildingUpgradeCrystalBonus;
+    std::array<int, 7> coreUpgradeCrystals;
 };
 
 struct GameplayBalanceDefinition {

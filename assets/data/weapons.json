@@ -9,7 +9,7 @@
     "reloadReductionPerLevel": 0.25,
     "magazineSize": 8,
     "magazineBonusPerLevel": 2,
-    "upgradeCrystal": [40, 80]
+    "upgradeCrystal": [25, 50]
   },
   "bomb": {
     "startingBombs": 0,

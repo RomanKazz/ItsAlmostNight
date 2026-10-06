@@ -142,53 +142,37 @@ const auto& defaultBuildingDefinitions() {
 ResourceCost upgradeCostFor(
     const BuildingInstance& building, ResourceCost base,
     const EconomyBalanceDefinition& economy) {
-    if (building.type == BuildingType::Core) {
-        if (building.level >= 1 && building.level <= 2) {
-            return {
-                0, 0,
-                economy.coreUpgradeCrystals[building.level - 1],
-            };
-        }
-        if (building.level < MaxBuildingLevel) {
-            return {
-                0, 0, 50 * static_cast<int>(building.level),
-            };
-        }
+    static_assert(MaxBuildingLevel - 1 ==
+                  std::tuple_size_v<decltype(economy.coreUpgradeCrystals)>);
+    static_assert(MaxBuildingLevel - 1 ==
+                  std::tuple_size_v<decltype(economy.buildingUpgradeCrystalBonus)>);
+    if (building.level < 1 || building.level >= MaxBuildingLevel) {
         return {};
     }
-    if (building.level >= 1 && building.level <= 2) {
-        const auto index =
-            static_cast<std::size_t>(building.level - 1);
-        const double multiplier =
-            economy.buildingUpgradeCostMultiplier[index];
-        return {
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.wood) * multiplier)),
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.stone) * multiplier)),
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.crystals) * multiplier)) +
-                economy.buildingUpgradeCrystalBonus[index],
-        };
+    if (building.type == BuildingType::Core) {
+        return {0, 0, economy.coreUpgradeCrystals[building.level - 1]};
     }
-    if (building.level < MaxBuildingLevel) {
-        const double multiplier =
-            1.0 +
-            0.25 * static_cast<double>(building.level - 2);
-        const int crystalBonus =
-            economy.buildingUpgradeCrystalBonus.back() +
-            10 * static_cast<int>(building.level - 2);
-        return {
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.wood) * multiplier)),
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.stone) * multiplier)),
-            static_cast<int>(std::ceil(
-                static_cast<double>(base.crystals) * multiplier)) +
-                crystalBonus,
-        };
-    }
-    return {};
+    const int step = static_cast<int>(building.level) - 2;
+    const double multiplier = building.level <= 2
+        ? economy.buildingUpgradeCostMultiplier[building.level - 1]
+        : economy.buildingUpgradeCostMultiplier.back() +
+              0.45 * step + 0.10 * step * step;
+    const bool structural = building.type == BuildingType::Wall ||
+                            building.type == BuildingType::Gate;
+    const int crystalBonus = structural
+        ? 0 : economy.buildingUpgradeCrystalBonus[building.level - 1];
+    const auto roundedCost = [multiplier](int amount) {
+        if (amount <= 0) return 0;
+        // A value such as 25 * 4.4 can land one ULP above 110.
+        // Do not charge an extra five resources at that exact boundary.
+        return 5 * static_cast<int>(std::ceil(
+            std::nextafter(static_cast<double>(amount) * multiplier / 5.0, 0.0)));
+    };
+    return {
+        roundedCost(base.wood),
+        roundedCost(base.stone),
+        structural ? 0 : roundedCost(base.crystals) + crystalBonus,
+    };
 }
 
 ResourceCost repairCostFor(
@@ -211,7 +195,7 @@ ResourceCost repairCostFor(
     return {
         scaled(base.wood),
         scaled(base.stone),
-        scaled(base.crystals),
+        0,
     };
 }
 

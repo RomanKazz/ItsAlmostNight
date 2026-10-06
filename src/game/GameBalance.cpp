@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -231,6 +232,29 @@ WeaponBalanceDefinition parseWeapons(const Json& document) {
 }
 
 EconomyBalanceDefinition parseEconomy(const Json& value) {
+    const auto crystalCurve = [](const Json& prices, bool core) {
+        std::array<int, 7> result{};
+        if (!prices.is_array() ||
+            (prices.size() != 2 && prices.size() != result.size())) {
+            throw std::runtime_error("crystal upgrade prices require 2 or 7 entries");
+        }
+        for (std::size_t index = 0; index < prices.size(); ++index) {
+            result[index] = prices[index].get<int>();
+        }
+        // Preserve the old extrapolation for custom two-entry configs.
+        if (prices.size() == 2) {
+            for (std::size_t index = 2; index < result.size(); ++index) {
+                const int increment = 10 * static_cast<int>(index - 1);
+                if (!core && result[1] > std::numeric_limits<int>::max() - increment) {
+                    throw std::runtime_error("crystal upgrade price overflow");
+                }
+                result[index] = core
+                    ? 50 * static_cast<int>(index + 1)
+                    : result[1] + increment;
+            }
+        }
+        return result;
+    };
     const EconomyBalanceDefinition definition{
         .crystalMineInterval = value.at("crystalMineInterval").get<double>(),
         .crystalMineAmount = value.at("crystalMineAmount").get<int>(),
@@ -255,8 +279,8 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         .buildingUpgradeCostMultiplier =
             value.at("buildingUpgradeCostMultiplier").get<std::array<double, 2>>(),
         .buildingUpgradeCrystalBonus =
-            value.at("buildingUpgradeCrystalBonus").get<std::array<int, 2>>(),
-        .coreUpgradeCrystals = value.at("coreUpgradeCrystals").get<std::array<int, 2>>(),
+            crystalCurve(value.at("buildingUpgradeCrystalBonus"), false),
+        .coreUpgradeCrystals = crystalCurve(value.at("coreUpgradeCrystals"), true),
     };
     if (definition.crystalMineInterval <= 0.0 || definition.crystalMineAmount <= 0 ||
         definition.waveRewardBase < 0 || definition.waveRewardPerWave < 0 ||
@@ -277,9 +301,10 @@ EconomyBalanceDefinition parseEconomy(const Json& value) {
         definition.sellRefundFraction > 1.0 ||
         definition.buildingUpgradeCostMultiplier[0] <= 0.0 ||
         definition.buildingUpgradeCostMultiplier[1] <= 0.0 ||
-        definition.buildingUpgradeCrystalBonus[0] < 0 ||
-        definition.buildingUpgradeCrystalBonus[1] < 0 ||
-        definition.coreUpgradeCrystals[0] < 0 || definition.coreUpgradeCrystals[1] < 0) {
+        std::ranges::any_of(definition.buildingUpgradeCrystalBonus,
+                            [](int cost) { return cost < 0; }) ||
+        std::ranges::any_of(definition.coreUpgradeCrystals,
+                            [](int cost) { return cost < 0; })) {
         throw std::runtime_error("invalid economy definition");
     }
     return definition;
@@ -405,17 +430,17 @@ GameBalance GameBalance::defaults() {
             {10, 0, 0, 100.0, 1, 256},
             {25, 15, 0, 120.0, 1, 64},
             {20, 10, 0, 140.0, 1, 8},
-            {40, 30, 25, 180.0, 1, 64},
-            {15, 20, 10, 100.0, 1, 64},
+            {40, 30, 15, 180.0, 1, 64},
+            {15, 20, 5, 100.0, 1, 64},
             {15, 5, 0, 130.0, 1, 128},
             {40, 15, 0, 150.0, 1, 8},
             {30, 40, 0, 170.0, 1, 8},
-            {20, 25, 15, 100.0, 1, 64},
+            {20, 25, 5, 100.0, 1, 64},
             {20, 10, 0, 180.0, 1, 8},
             {25, 5, 0, 200.0, 1, 8},
             {30, 25, 0, 160.0, 1, 8},
             {35, 25, 10, 150.0, 1, 64},
-            {50, 45, 35, 210.0, 1, 64},
+            {50, 45, 25, 210.0, 1, 64},
         }},
         .modularBuildings = {{
             {20, 5, 0},
@@ -423,7 +448,7 @@ GameBalance GameBalance::defaults() {
             {16, 4, 0},
         }},
         .weapons = {
-            .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {40, 80}},
+            .rifle = {30.0, 2.0, 1.5, 0.25, 0.2, 1.5, 0.25, 8, 2, {25, 50}},
             .bomb = {0, 6.0, 4.0, 9.8, 2.2, 0.28, 4.0, 6.0, 8.0},
             .club = {1.35, 1.25, 0.0, 4.0},
             .iceWand = {0.95, 11.0, 18.0, 0.22, 2.5, 2.8, 1.4, 0.65,
@@ -448,8 +473,8 @@ GameBalance GameBalance::defaults() {
             .repairCooldownSeconds = 3.0,
             .sellRefundFraction = 0.5,
             .buildingUpgradeCostMultiplier = {0.5, 1.0},
-            .buildingUpgradeCrystalBonus = {10, 25},
-            .coreUpgradeCrystals = {50, 100},
+            .buildingUpgradeCrystalBonus = {5, 10, 15, 20, 30, 40, 55},
+            .coreUpgradeCrystals = {30, 50, 75, 110, 150, 200, 260},
         },
         .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,

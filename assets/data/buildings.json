@@ -16,11 +16,11 @@
     "maxHealth": 140, "unlockCoreLevel": 1, "maxCount": 8
   },
   "cannon": {
-    "wood": 40, "stone": 30, "crystals": 25,
+    "wood": 40, "stone": 30, "crystals": 15,
     "maxHealth": 180, "unlockCoreLevel": 1, "maxCount": 64
   },
   "slowTrap": {
-    "wood": 15, "stone": 20, "crystals": 10,
+    "wood": 15, "stone": 20, "crystals": 5,
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 64
   },
   "gate": {
@@ -36,7 +36,7 @@
     "maxHealth": 170, "unlockCoreLevel": 1, "maxCount": 8
   },
   "spikeTrap": {
-    "wood": 20, "stone": 25, "crystals": 15,
+    "wood": 20, "stone": 25, "crystals": 5,
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 64
   },
   "gunTurret": {
@@ -44,7 +44,7 @@
     "maxHealth": 150, "unlockCoreLevel": 1, "maxCount": 64
   },
   "catapult": {
-    "wood": 50, "stone": 45, "crystals": 35,
+    "wood": 50, "stone": 45, "crystals": 25,
     "maxHealth": 210, "unlockCoreLevel": 1, "maxCount": 64
   },
   "modular": {

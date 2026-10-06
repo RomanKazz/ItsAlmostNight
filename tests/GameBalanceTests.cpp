@@ -9,6 +9,8 @@
 #include "waves/WaveDirector.hpp"
 
 #include <array>
+#include <limits>
+#include <nlohmann/json.hpp>
 
 void runGameBalanceTests() {
     const auto assetBalance =
@@ -40,6 +42,89 @@ void runGameBalanceTests() {
                     .unlockCoreLevel ==
                 ian::buildingRequiredCoreLevel(type),
             "asset and runtime building unlock levels stay synchronized");
+        require(assetBalance.balance.buildings[static_cast<std::size_t>(type)].crystals ==
+                    ian::GameBalance::defaults().buildings[static_cast<std::size_t>(type)].crystals,
+                "asset and fallback crystal construction prices stay synchronized");
+    }
+    const auto defaults = ian::GameBalance::defaults();
+    require(assetBalance.balance.economy.coreUpgradeCrystals ==
+                defaults.economy.coreUpgradeCrystals &&
+            assetBalance.balance.economy.buildingUpgradeCrystalBonus ==
+                defaults.economy.buildingUpgradeCrystalBonus &&
+            assetBalance.balance.weapons.rifle.upgradeCrystal ==
+                defaults.weapons.rifle.upgradeCrystal,
+            "asset and fallback crystal upgrade curves stay synchronized");
+    {
+        ian::BuildingSystem economyBuildings{
+            assetBalance.balance.buildings, assetBalance.balance.economy};
+        constexpr std::array CorePrices{30, 50, 75, 110, 150, 200, 260};
+        constexpr std::array CannonPrices{15, 25, 40, 55, 80, 110, 145};
+        constexpr std::array CatapultPrices{20, 35, 55, 80, 115, 150, 200};
+        constexpr std::array BasicPrices{5, 10, 15, 20, 30, 40, 55};
+        for (std::uint8_t level = 1; level < ian::MaxBuildingLevel; ++level) {
+            const auto priceAt = [&](ian::BuildingType type) {
+                return economyBuildings.upgradeCost({.type = type, .level = level});
+            };
+            const auto corePrice = priceAt(ian::BuildingType::Core);
+            require(corePrice == ian::ResourceCost{0, 0, CorePrices[level - 1]} &&
+                        corePrice.crystals <= ian::coreResourceCapacity(
+                            ian::ResourceCapacityType::Crystal, level),
+                    "each Core upgrade uses the affordable full crystal curve");
+            require(priceAt(ian::BuildingType::Cannon).crystals == CannonPrices[level - 1] &&
+                        priceAt(ian::BuildingType::Catapult).crystals == CatapultPrices[level - 1],
+                    "heavy weapon upgrades retain progressively higher crystal prices");
+            for (const auto type : {ian::BuildingType::Turret,
+                                    ian::BuildingType::CrystalMine,
+                                    ian::BuildingType::Quarry,
+                                    ian::BuildingType::LumberMill}) {
+                require(priceAt(type).crystals == BasicPrices[level - 1],
+                        "basic defense and production share the lower upgrade curve");
+            }
+            require(priceAt(ian::BuildingType::Wall).crystals == 0 &&
+                        priceAt(ian::BuildingType::Gate).crystals == 0,
+                    "perimeter upgrades do not compete for progression crystals");
+        }
+        for (const auto type : ActiveProgressionBuildings) {
+            const auto definition = assetBalance.balance.buildings[static_cast<std::size_t>(type)];
+            for (const double missingHealth : {1.0, definition.maxHealth * 0.5,
+                                               definition.maxHealth - 1.0}) {
+                const ian::BuildingInstance damaged{
+                    .type = type,
+                    .health = definition.maxHealth - missingHealth,
+                    .maxHealth = definition.maxHealth,
+                };
+                const auto repair = ian::buildingRepairCost(damaged);
+                require(repair.crystals == 0 && repair.wood > 0,
+                        "both small and extensive repairs only consume common materials");
+                require(ian::buildingSellRefund(damaged).crystals <= definition.crystals,
+                        "selling cannot create more crystals than construction consumed");
+            }
+        }
+        const auto repairCore = economyBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0);
+        require(repairCore.has_value(), "repair budget fixture creates its Core");
+        const auto paidDefense = economyBuildings.place(
+            ian::BuildingType::Cannon, {4, 0}, 0, 1000, 1000, 15);
+        require(paidDefense.has_value(), "Cannon accepts its reduced construction budget");
+        economyBuildings.damage(paidDefense->building.id, 90.0);
+        const auto repaired = economyBuildings.repair(paidDefense->building.id, 10, 8, 0);
+        require(repaired.valid() && repaired.cost == ian::ResourceCost{10, 8, 0},
+                "a crystal-funded defense can be repaired with zero crystals available");
+        const int firstWaveReward = defaults.economy.waveRewardBase +
+                                    defaults.economy.waveRewardPerWave;
+        require(firstWaveReward + ian::coreResourceCapacity(
+                    ian::ResourceCapacityType::Crystal, 0) >= CorePrices[0] &&
+                    firstWaveReward >= ian::buildingCost(ian::BuildingType::Cannon).crystals,
+                "first wave and starter deposit allow progression or a heavy defense");
+        ian::CrystalMineSystem dayIncome{assetBalance.balance.economy};
+        const ian::BuildingInstance earlyMine{
+            .id = {1001, 0}, .type = ian::BuildingType::CrystalMine,
+            .health = 140.0, .maxHealth = 140.0,
+        };
+        dayIncome.syncBuildings({earlyMine});
+        static_cast<void>(dayIncome.tick(assetBalance.balance.gameplay.firstBuildPhaseSeconds));
+        const int collected = dayIncome.collect(earlyMine.id, 100);
+        require(collected == 12 && collected + firstWaveReward >= CorePrices[0],
+                "one full first-day mine cycle budget funds the first Core upgrade after wave one");
     }
     require(
         assetBalance.balance.buildings[static_cast<std::size_t>(
@@ -166,6 +251,46 @@ void runGameBalanceTests() {
     const auto loaded =
         ian::parseGameBalance(Enemies, Waves, Buildings, Weapons, Economy, Gameplay);
     require(loaded.valid(), "valid JSON balance parses");
+    require(loaded.balance.economy.coreUpgradeCrystals ==
+                std::array<int, 7>{20, 30, 150, 200, 250, 300, 350} &&
+            loaded.balance.economy.buildingUpgradeCrystalBonus ==
+                std::array<int, 7>{3, 4, 14, 24, 34, 44, 54},
+            "legacy two-entry balance preserves its previous late-level prices");
+    {
+        auto fullEconomy = nlohmann::json::parse(Economy);
+        const std::array<int, 7> customCore{11, 22, 33, 44, 55, 66, 77};
+        const std::array<int, 7> customBonus{1, 2, 3, 4, 5, 6, 7};
+        fullEconomy["coreUpgradeCrystals"] = customCore;
+        fullEconomy["buildingUpgradeCrystalBonus"] = customBonus;
+        const auto customBalance = ian::parseGameBalance(
+            Enemies, Waves, Buildings, Weapons, fullEconomy.dump(), Gameplay);
+        require(customBalance.valid(), "full custom crystal curves parse");
+        ian::BuildingSystem customBuildings{
+            customBalance.balance.buildings, customBalance.balance.economy};
+        for (std::uint8_t level = 1; level < ian::MaxBuildingLevel; ++level) {
+            require(customBuildings.upgradeCost({.type = ian::BuildingType::Core,
+                                                .level = level}).crystals == customCore[level - 1] &&
+                        customBuildings.upgradeCost({.type = ian::BuildingType::Turret,
+                                                     .level = level}).crystals == customBonus[level - 1],
+                    "runtime honors configured prices through the final upgrade");
+        }
+        for (const auto field : {"coreUpgradeCrystals", "buildingUpgradeCrystalBonus"}) {
+            auto invalidEconomy = fullEconomy;
+            invalidEconomy[field][6] = -1;
+            require(!ian::parseGameBalance(Enemies, Waves, Buildings, Weapons,
+                                           invalidEconomy.dump(), Gameplay).valid(),
+                    "negative late-level crystal prices are rejected");
+            invalidEconomy[field] = std::array<int, 3>{1, 2, 3};
+            require(!ian::parseGameBalance(Enemies, Waves, Buildings, Weapons,
+                                           invalidEconomy.dump(), Gameplay).valid(),
+                    "incomplete crystal price curves are rejected");
+        }
+        fullEconomy["buildingUpgradeCrystalBonus"] =
+            std::array<int, 2>{1, std::numeric_limits<int>::max()};
+        require(!ian::parseGameBalance(Enemies, Waves, Buildings, Weapons,
+                                       fullEconomy.dump(), Gameplay).valid(),
+                "legacy crystal extrapolation cannot overflow its price type");
+    }
     require(
         loaded.balance.gameplay.resourceGatherRange ==
             loaded.balance.gameplay.pickaxeRange &&

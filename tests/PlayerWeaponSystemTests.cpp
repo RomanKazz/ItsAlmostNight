@@ -90,14 +90,14 @@ void runPlayerWeaponSystemTests() {
             "reload restores full magazine");
 
     ian::PlayerWeaponSystem upgradedWeapon;
-    require(upgradedWeapon.validateUpgrade(1, 40).error ==
+    require(upgradedWeapon.validateUpgrade(1, 25).error ==
                 ian::WeaponUpgradeError::CoreLevelRequired,
             "rifle cannot exceed core level");
-    require(upgradedWeapon.validateUpgrade(2, 39).error ==
+    require(upgradedWeapon.validateUpgrade(2, 24).error ==
                 ian::WeaponUpgradeError::InsufficientCrystals,
             "rifle upgrade validates crystals");
-    const auto levelTwo = upgradedWeapon.upgrade(2, 40);
-    require(levelTwo.valid() && levelTwo.level == 2 && levelTwo.crystalCost == 40,
+    const auto levelTwo = upgradedWeapon.upgrade(2, 25);
+    require(levelTwo.valid() && levelTwo.level == 2 && levelTwo.crystalCost == 25,
             "rifle reaches level two");
     require(upgradedWeapon.magazineSize() == 10 && upgradedWeapon.ammunition() == 10,
             "rifle upgrade expands current magazine");
@@ -113,7 +113,12 @@ void runPlayerWeaponSystemTests() {
     const auto upgradedShot = upgradedWeapon.fireRifle(origin, direction, upgradedTargets);
     require(upgradedShot.has_value() && !upgradedShot->killed,
             "stronger enemy survives one upgraded rifle shot");
-    require(upgradedWeapon.upgrade(3, 80).valid(), "rifle reaches level three");
+    require(upgradedWeapon.validateUpgrade(3, 49).error ==
+                ian::WeaponUpgradeError::InsufficientCrystals,
+            "second rifle upgrade rejects an incomplete crystal budget");
+    const auto levelThree = upgradedWeapon.upgrade(3, 50);
+    require(levelThree.valid() && levelThree.crystalCost == 50,
+            "rifle reaches level three at its configured price");
     require(upgradedWeapon.validateUpgrade(3, 0).error == ian::WeaponUpgradeError::MaxLevel,
             "rifle cannot exceed level three");
 
