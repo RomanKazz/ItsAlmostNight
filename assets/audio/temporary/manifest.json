@@ -10,14 +10,6 @@
       "channels": 2
     },
     {
-      "cue": "ui_hover",
-      "file": "ui_hover.ogg",
-      "source": "118. menu Move.ogg",
-      "duration": 0.047891,
-      "sample_rate": 44100,
-      "channels": 1
-    },
-    {
       "cue": "ui_error",
       "file": "ui_error.ogg",
       "source": "067. Error.ogg",
@@ -47,14 +39,6 @@
       "source": "022. bomb Explosion.ogg",
       "duration": 0.602268,
       "sample_rate": 44100,
-      "channels": 1
-    },
-    {
-      "cue": "build_place",
-      "file": "build_place.ogg",
-      "source": "103. Impact2.ogg",
-      "duration": 0.422667,
-      "sample_rate": 48000,
       "channels": 1
     },
     {
@@ -471,6 +455,22 @@
       "source": "007. Ambience Forest.ogg",
       "duration": 42.489333,
       "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "ui_select_0",
+      "file": "ui_select_0.ogg",
+      "source": "242. Select.ogg",
+      "duration": 0.114649,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "ui_select_1",
+      "file": "ui_select_1.ogg",
+      "source": "243. Select2.ogg",
+      "duration": 0.088526,
+      "sample_rate": 44100,
       "channels": 2
     }
   ]

@@ -23,12 +23,15 @@ This folder does not alter resource costs, combat timing or drop probabilities.
 
 ## Cue groups
 
-- `ui_hover`, `ui_confirm`, `ui_error`: pointer and keyboard focus, activation,
-  rejected actions. Focus sounds trigger on changes, not every rendered frame.
+- `ui_confirm`, `ui_error`: clicks, keyboard confirmation and rejected actions.
+  Hovering is silent; confirmation uses `066. Enter5.ogg`.
+- `ui_select_0`, `ui_select_1`: `242. Select.ogg` and `243. Select2.ogg` for
+  changing a selection by keyboard or clicking a different tab/item. A clamped
+  navigation step that leaves the selection unchanged stays silent.
 - `purchase`, `achievement`, `challenge_complete`, `level_up`, `loot_take`:
   shop purchases, completed quests/challenges, upgrade choices and collected loot.
 - `chest_open`, `chest_reroll`, `consume`, `heal`, `potion`: chests and consumables.
-- `build_place`, `structure_hit`, `structure_break`, `repair`, `upgrade`, `gate`:
+- `structure_hit`, `structure_break`, `repair`, `upgrade`, `gate`:
   buildings and gates. Placement remains synchronized with the placement pop.
 - `critical`, `rifle_shot`, `explosion`, `enemy_hit`, `turret_hit`,
   `player_hit`, `enemy_death`, `ice_*`, `fire_*`, `lightning`, `bow_shot`,
@@ -43,8 +46,8 @@ This folder does not alter resource costs, combat timing or drop probabilities.
   with a short crossfade; pauses/upgrade choices lower the music level.
 - `forest_ambience`: low-level forest ambience, controlled by effects volume.
 
-Original grass footsteps and weapon/tool sweeps are preserved, including their
-volume and playback speed.
+Original grass footsteps, weapon/tool sweeps and building placement sound are
+preserved, including their volume and playback speed.
 
 Dense repeated impacts/pickups are throttled; positional effects retain distance
 attenuation and stereo panning. Footsteps pause with gameplay. The pack is a first
