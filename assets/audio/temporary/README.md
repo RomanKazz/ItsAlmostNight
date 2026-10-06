@@ -45,6 +45,9 @@ This folder does not alter resource costs, combat timing or drop probabilities.
 - `music_menu`, `music_day`, `music_night`, `music_boss`: looping contextual music
   with a short crossfade; pauses/upgrade choices lower the music level.
 - `forest_ambience`: low-level forest ambience, controlled by effects volume.
+- `levelup_ambience`: `113. Levelup Ambience.ogg`, looping only while the upgrade
+  window is visible. Its volume follows that window's appearance/disappearance
+  and the effects volume slider; it stops on closing or leaving the run.
 
 Original grass footsteps, weapon/tool sweeps and building placement sound are
 preserved, including their volume and playback speed.
