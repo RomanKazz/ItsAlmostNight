@@ -1,3 +1,4 @@
+#include "ui/UiRenderLayer.hpp"
 #include "ui/GameUi.hpp"
 
 #include "combat/PlayerWeaponSystem.hpp"
@@ -358,6 +359,7 @@ bool GameUi::beginMinimapTarget() const {
 
 void GameUi::endMinimapTarget() const {
     EndTextureMode();
+    restoreUiRenderLayer();
 }
 
 void GameUi::drawMinimapTarget(
@@ -435,6 +437,7 @@ bool GameUi::beginMinimapFrameTarget() const {
 
 void GameUi::endMinimapFrameTarget() {
     EndTextureMode();
+    restoreUiRenderLayer();
     if (IsTextureValid(minimapFrameTarget_.texture)) {
         GenTextureMipmaps(&minimapFrameTarget_.texture);
         SetTextureFilter(

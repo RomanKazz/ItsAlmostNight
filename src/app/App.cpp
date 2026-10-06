@@ -451,6 +451,7 @@ int App::run() {
     static_cast<void>(saveSuspendedRun());
     persistUserSettings(true);
     persistMetaProgression();
+    arrivalHudLayer_.unload();
     ui_.shutdown();
     audio_.shutdown();
     vfxImpactShader_.unload();

@@ -8,9 +8,11 @@ namespace ian::presentation {
 // A visual drop only: the simulation stays at its safe spawn position.
 class PlayerArrival {
 public:
-    static constexpr double FallSeconds = 1.05;
+    static constexpr double FallSeconds = 1.05 / 1.6;
     static constexpr double SettleSeconds = 0.50;
-    static constexpr double Duration = FallSeconds + SettleSeconds;
+    static constexpr double MotionSeconds = FallSeconds + SettleSeconds;
+    static constexpr double HudRevealSeconds = 0.32;
+    static constexpr double Duration = MotionSeconds + HudRevealSeconds;
 
     struct CameraMotion {
         double height{};
@@ -24,6 +26,17 @@ public:
     void reset() { elapsed_ = Duration; }
     [[nodiscard]] bool active() const { return elapsed_ < Duration; }
 
+    [[nodiscard]] float hudOpacity() const {
+        const double progress = std::clamp(
+            (elapsed_ - MotionSeconds) / HudRevealSeconds, 0.0, 1.0);
+        return static_cast<float>(progress * progress * (3.0 - 2.0 * progress));
+    }
+
+    [[nodiscard]] float mountainGrowth() const {
+        const double progress = std::clamp(elapsed_ / MotionSeconds, 0.0, 1.0);
+        return static_cast<float>(progress * progress * (3.0 - 2.0 * progress));
+    }
+
     // Crossing the impact boundary emits exactly one puff, even on a long frame.
     [[nodiscard]] bool advance(double seconds) {
         const double previous = elapsed_;
@@ -32,7 +45,7 @@ public:
     }
 
     [[nodiscard]] CameraMotion cameraMotion() const {
-        if (!active()) return {};
+        if (elapsed_ >= MotionSeconds) return {};
         constexpr double Pi = 3.14159265358979323846;
         if (elapsed_ < FallSeconds) {
             const double progress = elapsed_ / FallSeconds;

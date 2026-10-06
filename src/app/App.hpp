@@ -377,6 +377,7 @@ class App {
         FirstPersonToolVisual::Axe};
     int toolPanelPage_{};
     TargetHealthBar targetHealthBar_;
+    RenderTextureResource arrivalHudLayer_;
     InteractionPromptRenderer interactionPromptRenderer_;
     Camera3D gameplayCamera_{};
     PlayerCommand input_;

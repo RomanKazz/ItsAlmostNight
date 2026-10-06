@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CrystalMineModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -264,6 +265,18 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::CrystalMine && model.meshCount == 2) {
+            std::optional<double> closest;
+            const double seconds = GetTime();
+            for (int index = 0; index < model.meshCount; ++index) {
+                const Matrix transform = MatrixMultiply(
+                    crystal_mine_model_detail::meshTransform(index, seconds), baseTransform);
+                const auto distance = acceptCollision(
+                    GetRayCollisionMesh(ray, model.meshes[index], transform));
+                if (distance && (!closest || *distance < *closest)) closest = distance;
+            }
+            return closest;
+        }
         if (building.type == BuildingType::Core) {
             const BoundingBox bounds =
                 world_transforms::transformBounds(

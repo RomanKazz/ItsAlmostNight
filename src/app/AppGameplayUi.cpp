@@ -1,3 +1,4 @@
+#include "ui/UiRenderLayer.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
@@ -192,7 +193,9 @@ void App::renderGameplayUi(
     auto& minimapLabelsMilliseconds = timings.minimapLabelsMilliseconds;
     auto& uiOverlaysMilliseconds = timings.uiOverlaysMilliseconds;
 uiStart = PerformanceClock::now();
-const bool showGameplayHud = !hudHidden_ && !playerArrival_.active();
+const float arrivalHudOpacity = playerArrival_.hudOpacity();
+const bool showGameplayHud = !hudHidden_ && arrivalHudOpacity > 0.0F;
+const bool showWorldHud = showGameplayHud && arrivalHudOpacity >= 1.0F;
 
 const bool tuningPreview =
     renderer_->graphicsPanelVisible() &&
@@ -262,6 +265,8 @@ if (showFirstPersonTool) {
         viewModelCamera.fovy = 25.4F;
     }
     FirstPersonToolTuning renderTuning = activeToolTuning();
+    renderTuning.position.y -= activeToolTuning().swapDrop *
+        (1.0F - arrivalHudOpacity);
     if (toolSwapRemaining_ > 0.0 &&
         toolSwapDuration_ > 0.0) {
         const float progress = std::clamp(
@@ -320,7 +325,7 @@ renderer_->beginGpuTimer(RendererGpuStage::Ui);
 // World-space UI is composited after post-processing so health bars,
 // levels and production rewards remain crisp above pixelization.
 const auto worldUiStart = PerformanceClock::now();
-if (showGameplayHud) {
+if (showWorldHud) {
     BeginMode3D(camera);
     // These are overlays. Keeping them out of the depth buffer also
     // prevents the viewmodel's independent camera depth from affecting
@@ -354,6 +359,22 @@ if (showGameplayHud) {
 }
 worldUiMilliseconds =
     performanceMilliseconds(worldUiStart);
+
+std::optional<ScopedUiRenderLayer> arrivalHudPass;
+if (showGameplayHud && arrivalHudOpacity < 1.0F) {
+    const int width = GetScreenWidth();
+    const int height = GetScreenHeight();
+    if (!arrivalHudLayer_.valid() ||
+        arrivalHudLayer_.get().texture.width != width ||
+        arrivalHudLayer_.get().texture.height != height) {
+        static_cast<void>(arrivalHudLayer_.load(width, height));
+    }
+    if (arrivalHudLayer_.valid()) {
+        arrivalHudPass.emplace(arrivalHudLayer_.get());
+    }
+} else if (arrivalHudLayer_.valid()) {
+    arrivalHudLayer_.unload();
+}
 
 if (iceImpactFlashRemaining_ > 0.0 &&
     !userSettings_.accessibility.reduceFlashes) {
@@ -892,6 +913,20 @@ if (showGameplayHud) {
 minimapMilliseconds =
     performanceMilliseconds(minimapStart);
 
+if (arrivalHudPass) {
+    arrivalHudPass.reset();
+    const Texture2D texture = arrivalHudLayer_.get().texture;
+    const auto alpha = static_cast<unsigned char>(std::lround(arrivalHudOpacity * 255.0F));
+    // The transparent layer stores premultiplied RGB. Fade RGB and alpha
+    // together so text and icons retain their brightness as they appear.
+    BeginBlendMode(BLEND_ALPHA_PREMULTIPLY);
+    DrawTexturePro(texture,
+        {0, 0, static_cast<float>(texture.width), -static_cast<float>(texture.height)},
+        {0, 0, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())},
+        {}, 0.0F, {alpha, alpha, alpha, alpha});
+    EndBlendMode();
+}
+
 const auto uiOverlaysStart = PerformanceClock::now();
 const bool unobscuredColorPreview =
     renderer_->graphicsPanelVisible() &&
@@ -901,7 +936,7 @@ const bool unobscuredColorPreview =
 // expensive while the level-up cards animate and their scale/alpha changes
 // every frame, preventing the per-label texture cache from being reused.
 beginSdfUiTextBatch();
-if (!unobscuredColorPreview) {
+if (showWorldHud && !unobscuredColorPreview) {
     drawRunStateOverlay(snapshot);
 }
 drawRunUpgradeOverlay(

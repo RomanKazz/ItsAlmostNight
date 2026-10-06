@@ -1,3 +1,4 @@
+#include "ui/UiRenderLayer.hpp"
 #include "ui/UiText.hpp"
 #include "ui/UiCString.hpp"
 #include "core/PerformanceStats.hpp"
@@ -693,6 +694,7 @@ std::optional<CachedSdfTextTexture> buildCachedSdfTextTexture(
         1.0F);
     EndBlendMode();
     EndTextureMode();
+    restoreUiRenderLayer();
     return CachedSdfTextTexture{
         .target = target,
         .drawOffset = {drawOffsetX, drawOffsetY},
@@ -920,6 +922,7 @@ bool drawCachedHudTextBatch(
         drawSdfTextItemsDirect(items, 1.0F);
         EndBlendMode();
         EndTextureMode();
+    restoreUiRenderLayer();
         hudTextBatchRegions = buildHudTextBatchRegions(items);
         hudTextBatchHash = hash;
         hudTextBatchCacheValid = true;

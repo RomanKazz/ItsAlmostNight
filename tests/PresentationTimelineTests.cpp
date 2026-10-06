@@ -19,12 +19,20 @@ struct TimedVisual {
 void runPresentationTimelineTests() {
     ian::presentation::PlayerArrival arrival;
     require(!arrival.active(), "arrival is inactive when loading an existing run");
+    requireNear(arrival.mountainGrowth(), 1.0, 1e-9, "existing runs show full-size mountains");
     arrival.start();
+    requireNear(arrival.mountainGrowth(), 0.0, 1e-9, "new world's mountains begin below the horizon");
+    float previousGrowth = 0.0F;
     require(arrival.active(), "new run hides HUD and locks actions during arrival");
+    requireNear(arrival.hudOpacity(), 0.0, 1e-9, "arrival begins with HUD hidden");
     double previousHeight = arrival.cameraMotion().height;
     int impacts = 0;
     for (int frame = 0; frame < 240; ++frame) {
         impacts += arrival.advance(1.0 / 120.0) ? 1 : 0;
+        const float growth = arrival.mountainGrowth();
+        require(growth >= previousGrowth && growth <= 1.0F,
+                "mountains rise monotonically without overshooting");
+        previousGrowth = growth;
         const auto camera = arrival.cameraMotion();
         require(camera.height >= 0.0 && camera.height <= previousHeight,
                 "arrival falls monotonically without sinking below its spawn");
@@ -38,6 +46,18 @@ void runPresentationTimelineTests() {
                 "landing restores camera height after its crouch");
     requireNear(arrival.cameraMotion().pitch, 0.0, 1e-9,
                 "landing restores the player's aim");
+    requireNear(arrival.hudOpacity(), 1.0, 1e-9, "completed arrival restores full HUD opacity");
+    arrival.start();
+    static_cast<void>(arrival.advance(ian::presentation::PlayerArrival::MotionSeconds));
+    requireNear(arrival.hudOpacity(), 0.0, 1e-6,
+                "HUD remains hidden until the camera finishes settling");
+    requireNear(arrival.mountainGrowth(), 1.0, 1e-9,
+                "mountains reach full height before HUD becomes visible");
+    static_cast<void>(arrival.advance(ian::presentation::PlayerArrival::HudRevealSeconds * 0.5));
+    requireNear(arrival.hudOpacity(), 0.5, 1e-6,
+                "HUD passes through half opacity instead of popping in");
+    requireNear(arrival.cameraMotion().pitch, 0.0, 1e-9,
+                "HUD fade does not restart the landing camera animation");
     arrival.start();
     require(arrival.advance(3.0) && !arrival.advance(0.5),
             "long frames cannot miss or repeat the landing effect");

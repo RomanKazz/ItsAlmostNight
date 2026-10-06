@@ -303,7 +303,7 @@ void App::update() {
                                 landingPosition.x,
                                 landingPosition.z) + 0.04;
         addEffect(PresentationEffectType::PlayerArrivalDust,
-                  landingPosition, 0.95, 1.0F);
+                  landingPosition, 0.62, 1.0F);
         addCameraShake(0.18, 0.025);
         audio_.playEvent({.type = GameEventType::PlayerLanded,
                          .position = landingPosition,

@@ -1,3 +1,4 @@
+#include "graphics/CrystalMineModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
@@ -13,6 +14,38 @@
 #include <vector>
 
 namespace {
+
+bool checkCrystalMineOrbit(ian::ModelResource& resource) {
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    if (model.meshCount != 2 || model.meshes[0].triangleCount != 232 ||
+        model.meshes[1].triangleCount != 204) return false;
+    const Vector3 center{0.07254255F, 0.0F, -0.00784531F};
+    const Matrix staticPose = ian::crystal_mine_model_detail::meshTransform(0, 2.0);
+    const Matrix orbit = ian::crystal_mine_model_detail::meshTransform(1, 2.0);
+    if (Vector3Distance(Vector3Transform(center, orbit), center) > 0.00001F) return false;
+    float largestMotion = 0.0F;
+    for (int part = 0; part < model.meshCount; ++part) {
+        const Mesh& mesh = model.meshes[part];
+        // Only indexed vertices belong to this part: the GLB primitives share
+        // attribute buffers, so unused vertices must not affect the test.
+        for (int index = 0; index < mesh.triangleCount * 3; ++index) {
+            const int vertex = mesh.indices ? mesh.indices[index] : index;
+            const Vector3 point{mesh.vertices[vertex * 3], mesh.vertices[vertex * 3 + 1],
+                                mesh.vertices[vertex * 3 + 2]};
+            const Vector3 animated = Vector3Transform(point, part == 0 ? staticPose : orbit);
+            if (part == 0 && Vector3Distance(point, animated) > 0.00001F) return false;
+            if (part == 1) {
+                if (std::abs(point.y - animated.y) > 0.00001F ||
+                    std::abs(Vector3Distance(point, center) - Vector3Distance(animated, center)) > 0.00001F)
+                    return false;
+                largestMotion = std::max(largestMotion, Vector3Distance(point, animated));
+            }
+        }
+    }
+    return largestMotion > 0.20F;
+}
+
 
 bool checkMissingResources() {
     ian::ShaderResource shader;
@@ -230,6 +263,10 @@ int main() {
         ian::GraphicsResources resources;
         std::cerr << "graphics smoke: initialize 1\n";
         resources.initialize(settings);
+        if (!checkCrystalMineOrbit(resources.mineModel())) {
+            std::cerr << "crystal mine orbit or fixed core/base failed\n";
+            result = 1;
+        }
         if (!resources.sceneTargetValid() ||
             !resources.sceneScreenSpaceBuffers() ||
             !IsTextureValid(resources.sceneTarget().depth) ||

@@ -21,9 +21,9 @@ class TerrainRenderer {
     void rebuild(const TerrainHeightfield& terrain);
     void draw(
         Shader shader, Color tint,
-        Vector3 focusPosition);
+        Vector3 focusPosition, float mountainGrowth = 1.0F);
     void drawWater(Shader shader) const;
-    void drawWireframe(Color tint) const;
+    void drawWireframe(Color tint, float mountainGrowth = 1.0F) const;
     void shutdown();
 
     [[nodiscard]] bool ready() const;

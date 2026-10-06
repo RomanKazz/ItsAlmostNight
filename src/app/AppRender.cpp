@@ -19,7 +19,7 @@
 namespace ian {
 namespace {
 
-void drawFpsCounter() {
+void drawFpsCounter(float opacity = 1.0F) {
     constexpr float FontSize = 16.0F;
     constexpr float HorizontalPadding = 10.0F;
     constexpr float VerticalPadding = 5.0F;
@@ -42,14 +42,14 @@ void drawFpsCounter() {
         textSize.x + HorizontalPadding * 2.0F,
         textSize.y + VerticalPadding * 2.0F,
     };
-    DrawRectangleRounded(bounds, 0.22F, 6, {7, 10, 14, 215});
+    DrawRectangleRounded(bounds, 0.22F, 6, Fade({7, 10, 14, 215}, opacity));
     DrawRectangleRoundedLinesEx(
-        bounds, 0.22F, 6, 1.0F, {103, 139, 130, 220});
+        bounds, 0.22F, 6, 1.0F, Fade({103, 139, 130, 220}, opacity));
     drawUiText(
         label,
         {bounds.x + HorizontalPadding,
          bounds.y + VerticalPadding},
-        FontSize, {235, 245, 238, 255});
+        FontSize, Fade({235, 245, 238, 255}, opacity));
 }
 
 } // namespace
@@ -254,8 +254,8 @@ void App::render() {
     if (!hudHidden_ && !playerArrival_.active() && performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
     }
-    if (!hudHidden_ && !playerArrival_.active() && userSettings_.accessibility.showFps) {
-        drawFpsCounter();
+    if (!hudHidden_ && playerArrival_.hudOpacity() > 0.0F && userSettings_.accessibility.showFps) {
+        drawFpsCounter(playerArrival_.hudOpacity());
     }
     const bool uiCursorVisible =
         snapshot.state == RunState::MainMenu ||

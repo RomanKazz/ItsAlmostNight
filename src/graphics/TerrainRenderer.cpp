@@ -821,7 +821,7 @@ void TerrainRenderer::buildChunks() {
 
 void TerrainRenderer::draw(
     Shader shader, Color tint,
-    Vector3 focusPosition) {
+    Vector3 focusPosition, float mountainGrowth) {
     if (!ready_) {
         return;
     }
@@ -905,9 +905,10 @@ void TerrainRenderer::draw(
              index < mountainBackdropModel_.materialCount; ++index) {
             mountainBackdropModel_.materials[index].shader = shader;
         }
-        DrawModel(
-            mountainBackdropModel_, {0.0F, 0.0F, 0.0F},
-            1.0F, tint);
+        const float growth = std::clamp(mountainGrowth, 0.001F, 1.0F);
+        DrawModelEx(
+            mountainBackdropModel_, {0.0F, -12.0F * (1.0F - growth), 0.0F},
+            {0.0F, 1.0F, 0.0F}, 0.0F, {1.0F, growth, 1.0F}, tint);
     }
 }
 
@@ -929,7 +930,7 @@ void TerrainRenderer::drawWater(Shader shader) const {
     EndBlendMode();
 }
 
-void TerrainRenderer::drawWireframe(Color tint) const {
+void TerrainRenderer::drawWireframe(Color tint, float mountainGrowth) const {
     if (!ready_) {
         return;
     }
@@ -939,9 +940,10 @@ void TerrainRenderer::drawWireframe(Color tint) const {
             1.0F, tint);
     }
     if (IsModelValid(mountainBackdropModel_)) {
-        DrawModelWires(
-            mountainBackdropModel_, {0.0F, 0.0F, 0.0F},
-            1.0F, tint);
+        const float growth = std::clamp(mountainGrowth, 0.001F, 1.0F);
+        DrawModelWiresEx(
+            mountainBackdropModel_, {0.0F, -12.0F * (1.0F - growth), 0.0F},
+            {0.0F, 1.0F, 0.0F}, 0.0F, {1.0F, growth, 1.0F}, tint);
     }
 }
 

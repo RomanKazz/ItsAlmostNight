@@ -353,7 +353,7 @@ class Renderer {
         std::span<const DecorationExclusion> exclusions);
     void drawTerrain(
         Color tint, Vector3 focusPosition,
-        bool wireframe = false);
+        bool wireframe = false, float mountainGrowth = 1.0F);
     void drawPondDecor(const Camera3D& camera);
     void drawPondShoreRocks(const Camera3D& camera);
     void drawPondSurfaceDecor(const Camera3D& camera);

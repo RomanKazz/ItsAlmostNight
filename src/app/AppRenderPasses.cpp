@@ -597,7 +597,7 @@ void App::drawSelectionPass(
         if (hasPlacementPreview || snapshot.aimedResource ||
             (!foundationBuildMode_ &&
              snapshot.aimedModularBuilding)) {
-            renderer_->drawTerrain(BLACK, camera.position, false);
+            renderer_->drawTerrain(BLACK, camera.position, false, playerArrival_.mountainGrowth());
         }
         for (const LootChestInstance& chest : snapshot.lootChests) {
             if (chest.looseLoot) continue;

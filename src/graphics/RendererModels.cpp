@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CrystalMineModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -736,6 +737,24 @@ bool Renderer::drawResourceProducer(
         }
     }
     position.y += 0.005F;
+    if (type == BuildingType::CrystalMine && model.meshCount == 2) {
+        const float uniformScale = modelScale * scale * 0.5F;
+        const Matrix transform = MatrixMultiply(
+            model.transform,
+            MatrixMultiply(MatrixScale(uniformScale, uniformScale, uniformScale),
+                MatrixMultiply(MatrixRotateY(yawRadians),
+                    MatrixTranslate(position.x, position.y, position.z))));
+        const double seconds = GetTime();
+        for (int index = 0; index < model.meshCount; ++index) {
+            Material& material = model.materials[model.meshMaterial[index]];
+            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+            DrawMesh(model.meshes[index], material,
+                MatrixMultiply(crystal_mine_model_detail::meshTransform(index, seconds), transform));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        }
+        return true;
+    }
     DrawModelEx(
         model, position, {0.0F, 1.0F, 0.0F},
         yawRadians * RAD2DEG,

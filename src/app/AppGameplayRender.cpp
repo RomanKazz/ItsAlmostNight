@@ -273,7 +273,7 @@ void App::renderGameplayFrame(
     renderer_->setWorldMaterial(terrainMaterial);
     renderer_->drawTerrain(
         ground, camera.position,
-        showTerrainWireframe_);
+        showTerrainWireframe_, playerArrival_.mountainGrowth());
     performanceStats_.terrainRender.sample(
         performanceMilliseconds(terrainStart));
 

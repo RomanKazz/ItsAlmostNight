@@ -1261,9 +1261,10 @@ void App::drawPresentationEffects(
                 float opacity;
                 float distanceSquared;
             };
-            std::array<Puff, 10> puffs{};
+            constexpr int PuffCount = 14;
+            std::array<Puff, PuffCount> puffs{};
             std::size_t count = 0;
-            for (int index = 0; index < 10; ++index) {
+            for (int index = 0; index < PuffCount; ++index) {
                 const float age = std::clamp(
                     (progress - effectUnit(index, 301) * 0.06F) / 0.94F,
                     0.0F, 1.0F);
@@ -1271,12 +1272,12 @@ void App::drawPresentationEffects(
                 const float pop = smoothstep(0.0F, 0.12F, age);
                 const float fade = 1.0F - smoothstep(0.30F, 1.0F, age);
                 const float travel = 1.0F - std::pow(1.0F - age, 2.0F);
-                const float angle = static_cast<float>(index) * 2.0F * PI / 10.0F +
+                const float angle = static_cast<float>(index) * 2.0F * PI / static_cast<float>(PuffCount) +
                     (effectUnit(index, 302) - 0.5F) * 0.35F;
                 const float distance = effect.scale *
-                    (0.48F + travel * (1.25F + effectUnit(index, 303) * 0.65F));
+                    (0.48F + travel * (1.45F + effectUnit(index, 303) * 0.65F));
                 const float radius = effect.scale *
-                    (0.20F + effectUnit(index, 304) * 0.14F) *
+                    (0.14F + effectUnit(index, 304) * 0.10F) *
                     (0.55F + pop * 0.45F + travel * 0.48F);
                 Vector3 center{
                     origin.x + std::cos(angle) * distance,
