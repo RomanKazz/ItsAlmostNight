@@ -228,10 +228,7 @@ void App::processPresentationEvents(
         }
         if (event.type == GameEventType::RunStarted ||
             event.type == GameEventType::RunRestarted) {
-            constexpr double SpawnDropHeight = 3.2;
-            playerSpawnDropActive_ = true;
-            playerSpawnDropHeight_ = SpawnDropHeight;
-            playerSpawnDropVelocity_ = -0.35;
+            playerArrival_.start();
         }
         audio_.playEvent(event, eventSnapshot);
         if (event.type == GameEventType::PlayerDashed) {

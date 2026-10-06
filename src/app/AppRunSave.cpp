@@ -976,6 +976,7 @@ bool App::loadSuspendedRun() {
         }
         selectedPlayerClass_ = saved.playerClass;
         fixedStep_.reset();
+        playerArrival_.reset();
         resetRunInputState();
         resetEquipmentActionMode(simulation_.snapshot());
         if (terrainGraphicsAlreadyMatch) {

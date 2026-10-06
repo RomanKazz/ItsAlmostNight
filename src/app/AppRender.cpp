@@ -251,10 +251,10 @@ void App::render() {
     drawSandboxCardMenu(snapshot);
     drawCoreDefenseMenu();
     drawObjectiveDebugMenu(snapshot);
-    if (!hudHidden_ && performanceOverlayVisible_) {
+    if (!hudHidden_ && !playerArrival_.active() && performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
     }
-    if (!hudHidden_ && userSettings_.accessibility.showFps) {
+    if (!hudHidden_ && !playerArrival_.active() && userSettings_.accessibility.showFps) {
         drawFpsCounter();
     }
     const bool uiCursorVisible =

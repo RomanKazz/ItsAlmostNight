@@ -1252,6 +1252,70 @@ void App::drawPresentationEffects(
                             atmosphereAlpha(flash * 0.85F)});
             }
             EndBlendMode();
+        } else if (effect.type == PresentationEffectType::PlayerArrivalDust) {
+            // Rounded cloud clusters, with no ring or small debris. Their
+            // alpha suppresses rear-world ink exactly like repair symbols.
+            struct Puff {
+                Vector3 center;
+                float radius;
+                float opacity;
+                float distanceSquared;
+            };
+            std::array<Puff, 10> puffs{};
+            std::size_t count = 0;
+            for (int index = 0; index < 10; ++index) {
+                const float age = std::clamp(
+                    (progress - effectUnit(index, 301) * 0.06F) / 0.94F,
+                    0.0F, 1.0F);
+                if (age <= 0.0F || age >= 1.0F) continue;
+                const float pop = smoothstep(0.0F, 0.12F, age);
+                const float fade = 1.0F - smoothstep(0.30F, 1.0F, age);
+                const float travel = 1.0F - std::pow(1.0F - age, 2.0F);
+                const float angle = static_cast<float>(index) * 2.0F * PI / 10.0F +
+                    (effectUnit(index, 302) - 0.5F) * 0.35F;
+                const float distance = effect.scale *
+                    (0.48F + travel * (1.25F + effectUnit(index, 303) * 0.65F));
+                const float radius = effect.scale *
+                    (0.20F + effectUnit(index, 304) * 0.14F) *
+                    (0.55F + pop * 0.45F + travel * 0.48F);
+                Vector3 center{
+                    origin.x + std::cos(angle) * distance,
+                    origin.y,
+                    origin.z + std::sin(angle) * distance,
+                };
+                center.y = static_cast<float>(simulation_.terrain().getHeight(
+                    center.x, center.z)) + radius * 0.72F +
+                    travel * (0.20F + effectUnit(index, 305) * 0.30F);
+                puffs[count++] = {center, radius, pop * fade * 0.86F,
+                    Vector3DistanceSqr(center, camera.position)};
+            }
+            std::sort(puffs.begin(), puffs.begin() + static_cast<std::ptrdiff_t>(count),
+                [](const Puff& left, const Puff& right) {
+                    return left.distanceSquared > right.distanceSquared;
+                });
+            renderer_->beginColorOnlyWorldEffects();
+            rlDrawRenderBatchActive();
+            rlSetBlendFactorsSeparate(
+                RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
+                RL_ZERO, RL_ONE_MINUS_SRC_ALPHA, RL_FUNC_ADD, RL_FUNC_ADD);
+            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+            rlDisableDepthMask();
+            for (std::size_t index = 0; index < count; ++index) {
+                const Puff& puff = puffs[index];
+                const auto alpha = atmosphereAlpha(puff.opacity);
+                DrawSphereEx(puff.center, puff.radius, 6, 6,
+                             {218, 206, 174, alpha});
+                DrawSphereEx(Vector3Add(puff.center,
+                    Vector3Scale(cameraRight, -puff.radius * 0.60F)),
+                    puff.radius * 0.68F, 6, 6, {230, 219, 190, alpha});
+                DrawSphereEx(Vector3Add(puff.center,
+                    Vector3Scale(billboardUp, puff.radius * 0.48F)),
+                    puff.radius * 0.70F, 6, 6, {240, 232, 206, alpha});
+            }
+            rlDrawRenderBatchActive();
+            rlEnableDepthMask();
+            EndBlendMode();
+            renderer_->endColorOnlyWorldEffects();
         } else if (effect.type == PresentationEffectType::LandingDust) {
             const float fade =
                 1.0F - smoothstep(0.38F, 1.0F, progress);

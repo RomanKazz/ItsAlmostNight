@@ -28,7 +28,9 @@ void App::renderGameplayFrame(
     PerformanceClock::time_point renderPreparationStart,
     RenderFrameTimings& timings) {
     const double visualYaw = snapshot.playerYaw;
-    const double visualPitch = snapshot.playerPitch;
+    const auto arrivalCamera = playerArrival_.cameraMotion();
+    const double visualPitch = snapshot.playerPitch +
+        arrivalCamera.pitch * motionLandingIntensity_;
     const double cosPitch = std::cos(visualPitch);
     Vector3 position = {
         static_cast<float>(snapshot.playerPosition.x),
@@ -38,7 +40,8 @@ void App::renderGameplayFrame(
                 : snapshot.playerPosition.y),
         static_cast<float>(snapshot.playerPosition.z),
     };
-    position.y += static_cast<float>(playerSpawnDropHeight_);
+    position.y += static_cast<float>(arrivalCamera.height +
+        arrivalCamera.compression * motionLandingIntensity_);
     Vector3 forward = {
         static_cast<float>(std::sin(visualYaw) * cosPitch),
         static_cast<float>(std::sin(visualPitch)),
@@ -146,11 +149,14 @@ void App::renderGameplayFrame(
         position.y += static_cast<float>(std::cos(visualTime * 97.0)) * shake * 0.7F;
         position.z += static_cast<float>(std::sin(visualTime * 71.0)) * shake * 0.5F;
     }
+    bobCameraUp = Vector3RotateByAxisAngle(
+        bobCameraUp, forward,
+        static_cast<float>(arrivalCamera.roll) * motionLandingIntensity_);
     const Camera3D camera = {
         .position = position,
         .target = Vector3Add(position, forward),
         .up = bobCameraUp,
-        .fovy = cameraFov_,
+        .fovy = cameraFov_ + arrivalCamera.fov * motionSwayIntensity_,
         .projection = CAMERA_PERSPECTIVE,
     };
     gameplayCamera_ = camera;

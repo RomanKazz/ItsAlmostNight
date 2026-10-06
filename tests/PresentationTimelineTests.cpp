@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
+#include "presentation/PlayerArrival.hpp"
 
 #include <limits>
 #include <optional>
@@ -16,6 +17,37 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    ian::presentation::PlayerArrival arrival;
+    require(!arrival.active(), "arrival is inactive when loading an existing run");
+    arrival.start();
+    require(arrival.active(), "new run hides HUD and locks actions during arrival");
+    double previousHeight = arrival.cameraMotion().height;
+    int impacts = 0;
+    for (int frame = 0; frame < 240; ++frame) {
+        impacts += arrival.advance(1.0 / 120.0) ? 1 : 0;
+        const auto camera = arrival.cameraMotion();
+        require(camera.height >= 0.0 && camera.height <= previousHeight,
+                "arrival falls monotonically without sinking below its spawn");
+        require(std::isfinite(camera.pitch) && std::isfinite(camera.roll),
+                "arrival camera stays finite throughout landing");
+        previousHeight = camera.height;
+    }
+    require(impacts == 1 && !arrival.active(),
+            "landing emits clouds once and always releases HUD and input");
+    requireNear(arrival.cameraMotion().compression, 0.0, 1e-9,
+                "landing restores camera height after its crouch");
+    requireNear(arrival.cameraMotion().pitch, 0.0, 1e-9,
+                "landing restores the player's aim");
+    arrival.start();
+    require(arrival.advance(3.0) && !arrival.advance(0.5),
+            "long frames cannot miss or repeat the landing effect");
+    arrival.start();
+    require(!arrival.advance(0.0), "paused arrival does not emit landing clouds");
+    requireNear(arrival.cameraMotion().height, 4.6, 1e-9,
+                "paused arrival retains its camera position");
+    arrival.reset();
+    require(!arrival.active(), "restart and loading reset stale arrival state");
+
     const auto basicBullet = ian::presentation::bulletAppearance(1.0);
     const auto doubleBullet = ian::presentation::bulletAppearance(2.0);
     const auto heavyBullet = ian::presentation::bulletAppearance(4.0);

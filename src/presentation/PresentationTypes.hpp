@@ -46,6 +46,7 @@ enum class PresentationEffectType {
     VolatileCharge,
     Debris,
     LandingDust,
+    PlayerArrivalDust,
     RamImpact,
     LootCollected,
     BuildingPlaced,

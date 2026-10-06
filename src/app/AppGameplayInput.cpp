@@ -52,6 +52,11 @@ bool keyReleased(const ControlSettings& settings,
 
 void App::processGameplayInput(bool controlDown,
                                bool primaryMouseDown) {
+    if (playerArrival_.active() &&
+        acceptsGameplayInput(simulation_.snapshot().state)) {
+        resetRunInputState();
+        return;
+    }
     if (acceptsGameplayInput(simulation_.snapshot().state)) {
         auto currentSnapshot = simulation_.snapshot();
         // The action-mode UI is authoritative. A building selection can

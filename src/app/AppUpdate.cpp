@@ -290,29 +290,24 @@ void App::update() {
     renderer_->setLowHealthEffect(
         lowHealthEffect_,
         userSettings_.accessibility.reduceFlashes);
-    if (playerSpawnDropActive_ &&
-        hotbarSnapshot.state != RunState::Paused) {
-        constexpr double SpawnGravity = 14.0;
-        playerSpawnDropVelocity_ -= SpawnGravity * frameSeconds;
-        playerSpawnDropHeight_ +=
-            playerSpawnDropVelocity_ * frameSeconds;
-        if (playerSpawnDropHeight_ <= 0.0) {
-            playerSpawnDropHeight_ = 0.0;
-            playerSpawnDropVelocity_ = 0.0;
-            playerSpawnDropActive_ = false;
-            Vec3 landingPosition = hotbarSnapshot.playerPosition;
-            landingPosition.y = simulation_.terrain().getHeight(
-                                    landingPosition.x,
-                                    landingPosition.z) +
-                0.04;
-            addEffect(PresentationEffectType::LandingDust,
-                      landingPosition, 0.62, 1.0F);
-            landingResponseDuration_ = 0.26;
-            landingResponseRemaining_ = landingResponseDuration_;
-            landingResponseStrength_ = 0.72;
-            addCameraShake(0.16, 0.045);
-            addCameraImpulse({0.0, -0.018, 0.0});
-        }
+    if (hotbarSnapshot.state == RunState::MainMenu) {
+        playerArrival_.reset();
+    }
+    if (playerArrival_.active() &&
+        hotbarSnapshot.state != RunState::MainMenu &&
+        hotbarSnapshot.state != RunState::Paused &&
+        !hotbarSnapshot.runUpgradeChoicePending &&
+        playerArrival_.advance(frameSeconds)) {
+        Vec3 landingPosition = hotbarSnapshot.playerPosition;
+        landingPosition.y = simulation_.terrain().getHeight(
+                                landingPosition.x,
+                                landingPosition.z) + 0.04;
+        addEffect(PresentationEffectType::PlayerArrivalDust,
+                  landingPosition, 0.95, 1.0F);
+        addCameraShake(0.18, 0.025);
+        audio_.playEvent({.type = GameEventType::PlayerLanded,
+                         .position = landingPosition,
+                         .intensity = 8.0}, hotbarSnapshot);
     }
     if (hotbarSnapshot.state != RunState::MainMenu &&
         hotbarSnapshot.state != RunState::Paused) {
@@ -893,7 +888,7 @@ void App::update() {
                 pendingPlacedBuildingRotation_;
             consumedTransientInput = true;
         }
-        if (playerSpawnDropActive_) {
+        if (playerArrival_.active()) {
             tickInput = {};
         }
         const auto tickStart = PerformanceClock::now();

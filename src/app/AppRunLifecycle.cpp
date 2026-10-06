@@ -40,6 +40,7 @@ void App::resetRunClientState(
     cameraStrafeLean_ = 0.0;
     cameraImpulseOffset_ = {};
     landingResponseRemaining_ = 0.0;
+    playerArrival_.reset();
     cameraInertiaInitialized_ = false;
     groundCameraSmoothingInitialized_ = false;
     groundCameraWasGrounded_ = false;

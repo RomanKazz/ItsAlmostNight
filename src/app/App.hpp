@@ -12,6 +12,7 @@
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "presentation/PresentationTypes.hpp"
+#include "presentation/PlayerArrival.hpp"
 #include "progression/MetaProgression.hpp"
 #include "ui/GameUi.hpp"
 #include "ui/QuestMenu.hpp"
@@ -530,9 +531,7 @@ class App {
     double landingResponseRemaining_{};
     double landingResponseDuration_{0.24};
     double landingResponseStrength_{};
-    bool playerSpawnDropActive_{};
-    double playerSpawnDropHeight_{};
-    double playerSpawnDropVelocity_{};
+    presentation::PlayerArrival playerArrival_;
     float motionBobIntensity_{1.0F};
     float motionShakeIntensity_{1.0F};
     float motionLandingIntensity_{1.0F};

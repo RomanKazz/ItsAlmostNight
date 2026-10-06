@@ -192,6 +192,7 @@ void App::renderGameplayUi(
     auto& minimapLabelsMilliseconds = timings.minimapLabelsMilliseconds;
     auto& uiOverlaysMilliseconds = timings.uiOverlaysMilliseconds;
 uiStart = PerformanceClock::now();
+const bool showGameplayHud = !hudHidden_ && !playerArrival_.active();
 
 const bool tuningPreview =
     renderer_->graphicsPanelVisible() &&
@@ -201,7 +202,7 @@ const bool showFirstPersonTool =
      displayedToolVisual_ != FirstPersonToolVisual::None) &&
     (tuningPreview || actionModeUsesEquipment(actionMode_) ||
      toolSwapRemaining_ > 0.0) &&
-    !hudHidden_ &&
+    showGameplayHud &&
     (tuningPreview || actionMode_ == ActionMode::Buildings ||
      toolSwapRemaining_ > 0.0 ||
      (!snapshot.selectedBuilding && !foundationBuildMode_)) &&
@@ -319,7 +320,7 @@ renderer_->beginGpuTimer(RendererGpuStage::Ui);
 // World-space UI is composited after post-processing so health bars,
 // levels and production rewards remain crisp above pixelization.
 const auto worldUiStart = PerformanceClock::now();
-if (!hudHidden_) {
+if (showGameplayHud) {
     BeginMode3D(camera);
     // These are overlays. Keeping them out of the depth buffer also
     // prevents the viewmodel's independent camera depth from affecting
@@ -362,7 +363,7 @@ if (iceImpactFlashRemaining_ > 0.0 &&
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(),
                   {142, 229, 255, alpha});
 }
-if (!hudHidden_) {
+if (showGameplayHud) {
     beginSdfUiTextBatch();
     drawFloatingDamageNumbers(camera);
     endSdfUiTextBatch();
@@ -417,7 +418,7 @@ if (showColliders_) {
 // Interaction prompts use a world anchor but are composited in
 // screen space after the 3D/post-process passes.
 const auto interactionPromptStart = PerformanceClock::now();
-if (!hudHidden_) {
+if (showGameplayHud) {
     auto interactionSnapshot = feedbackSnapshot;
     // Hovering is intentionally quiet. Ordinary buildings use the
     // pinned stats card, while modular pieces reuse their compact
@@ -450,7 +451,7 @@ if (showBuildingContextCard) {
         buildingContextCardStats_;
 }
 const auto hudCoreStart = PerformanceClock::now();
-if (!hudHidden_) {
+if (showGameplayHud) {
     beginSdfUiTextBatch();
     const auto targetHealthStart = PerformanceClock::now();
     targetHealthBar_.drawScreenOverlay();
@@ -622,7 +623,7 @@ if (!hudHidden_) {
 }
 hudCoreMilliseconds =
     performanceMilliseconds(hudCoreStart);
-if (!hudHidden_ && foundationBuildMode_) {
+if (showGameplayHud && foundationBuildMode_) {
     const float modularErrorShake =
         invalidActionRemaining_ > 0.0
             ? std::sin(static_cast<float>(GetTime()) * 105.0F) *
@@ -820,7 +821,7 @@ if (!hudHidden_ && foundationBuildMode_) {
         }
     }
 }
-if (!hudHidden_ && wallDragStart_ && wallDragEnd_ &&
+if (showGameplayHud && wallDragStart_ && wallDragEnd_ &&
     placementDragType_) {
     const auto cells =
         placementLine(
@@ -848,7 +849,7 @@ if (!hudHidden_ && wallDragStart_ && wallDragEnd_ &&
              snapshot.stone >= totalCost.stone &&
              snapshot.crystals >= totalCost.crystals));
 }
-if (!hudHidden_ && removalDragActive_) {
+if (showGameplayHud && removalDragActive_) {
     const std::string removalHint =
         "REMOVE x" +
         std::to_string(
@@ -860,7 +861,7 @@ if (!hudHidden_ && removalDragActive_) {
             GetScreenHeight() / 2 + 76),
         20.0F, {255, 104, 91, 255});
 }
-if (!hudHidden_ && removalDragActive_ &&
+if (showGameplayHud && removalDragActive_ &&
     !structuralRiskIds_.empty()) {
     drawCenteredUiText(
         "COLLAPSE RISK: " +
@@ -873,12 +874,12 @@ if (!hudHidden_ && removalDragActive_ &&
         17.0F, {255, 197, 82, 255});
 }
 const auto resourceGainStart = PerformanceClock::now();
-if (!hudHidden_) drawResourceGainVisuals(camera);
+if (showGameplayHud) drawResourceGainVisuals(camera);
 resourceGainMilliseconds =
     performanceMilliseconds(resourceGainStart);
 
 const auto minimapStart = PerformanceClock::now();
-if (!hudHidden_) {
+if (showGameplayHud) {
     drawMinimapHud(ui_, presentationSnapshot, minimapExpansion_);
     const auto& minimapTimings =
         minimapRenderPerformanceStats();
