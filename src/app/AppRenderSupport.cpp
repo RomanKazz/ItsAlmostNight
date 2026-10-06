@@ -593,10 +593,11 @@ std::optional<EntityId> preciseBuildingAim(
 
 std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
-    const SimulationSnapshot& snapshot) {
-    if (snapshot.selectedWeapon == PlayerWeapon::Rifle ||
-        snapshot.selectedWeapon == PlayerWeapon::IceWand ||
-        snapshot.selectedWeapon == PlayerWeapon::FireWand) {
+    const SimulationSnapshot& snapshot,
+    PlayerWeapon weapon) {
+    if (weapon == PlayerWeapon::Rifle ||
+        weapon == PlayerWeapon::IceWand ||
+        weapon == PlayerWeapon::FireWand) {
         return std::nullopt;
     }
     constexpr double MaximumDistance = 2.6;

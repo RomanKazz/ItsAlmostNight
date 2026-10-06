@@ -48,22 +48,29 @@ void App::resetMainMenuInput() {
 void App::processInput() {
     input_.jumpHeld = false;
     renderer_->processInput();
-    const auto snapshot = simulation_.snapshot();
+    // Keep only the input flags stable across commands that invalidate the
+    // simulation snapshot, without copying the building card vectors.
+    const auto& initialSnapshot = simulation_.snapshot();
+    const RunState runState = initialSnapshot.state;
+    const bool sandboxMode = initialSnapshot.sandboxMode;
+    const bool upgradeChoicePending = initialSnapshot.runUpgradeChoicePending;
+    const std::size_t upgradeChoiceCount = initialSnapshot.runUpgradeChoiceCount;
+    const int rerollTokens = initialSnapshot.runUpgradeRerollTokens;
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
     const int restartKey = controlKey(userSettings_.controls, ControlAction::Restart);
     const bool restartHeld = restartHold_.update(
         restartKey != KEY_NULL && IsKeyDown(restartKey),
-        snapshot.state != RunState::MainMenu && IsWindowFocused() &&
+        runState != RunState::MainMenu && IsWindowFocused() &&
             !graphicsPanelVisible && !pendingControlRebind_ &&
-            !snapshot.runUpgradeChoicePending &&
+            !upgradeChoicePending &&
             !enemySpawnMenuVisible_ && !itemGrantMenuVisible_ &&
             !sandboxCardMenuVisible_ && !coreDefenseMenuVisible_ &&
             !objectiveDebugMenuVisible_,
         static_cast<double>(GetFrameTime()));
     if (!coreDefenseMenuVisible_ && coreMenuPointerActive_) {
         coreMenuPointerActive_ = false;
-        if (acceptsGameplayInput(snapshot.state) &&
+        if (acceptsGameplayInput(runState) &&
             !graphicsPanelVisible && !enemySpawnMenuVisible_ &&
             !itemGrantMenuVisible_ && !sandboxCardMenuVisible_) {
             DisableCursor();
@@ -72,7 +79,7 @@ void App::processInput() {
     const bool primaryMouseDown =
         IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     if (primaryMouseDown &&
-        acceptsGameplayInput(snapshot.state) &&
+        acceptsGameplayInput(runState) &&
         !graphicsPanelVisible &&
         !enemySpawnMenuVisible_ &&
         !itemGrantMenuVisible_ &&
@@ -98,8 +105,8 @@ void App::processInput() {
         suspendGameplayInput();
         return;
     }
-    if (snapshot.state == RunState::StageClear &&
-        !snapshot.runUpgradeChoicePending && !restartHeld) {
+    if (runState == RunState::StageClear &&
+        !upgradeChoicePending && !restartHeld) {
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
             if (simulation_.enterFinalNight()) {
                 audio_.playUiConfirm();
@@ -112,7 +119,7 @@ void App::processInput() {
         suspendGameplayInput();
         return;
     }
-    if (snapshot.runUpgradeChoicePending) {
+    if (upgradeChoicePending) {
         if (!runUpgradeChoiceWasVisible_) {
             renderer_->setGraphicsPanelVisible(false);
             enemySpawnMenuVisible_ = false;
@@ -196,13 +203,13 @@ void App::processInput() {
         if (runUpgradeChoiceInputArmed_ &&
             IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             const auto hovered = hoveredRunUpgradeChoice(
-                snapshot, GetMousePosition());
+                simulation_.snapshot(), GetMousePosition());
             if (hovered && simulation_.lockRunUpgrade(*hovered)) {
                 audio_.playUiConfirm();
             }
         }
         for (std::size_t index = 0;
-             index < snapshot.runUpgradeChoiceCount; ++index) {
+             index < upgradeChoiceCount; ++index) {
             if (runUpgradeChoiceInputArmed_ &&
                 IsKeyPressed(static_cast<int>(KEY_ONE) +
                              static_cast<int>(index))) {
@@ -213,7 +220,7 @@ void App::processInput() {
         if (runUpgradeChoiceInputArmed_ && !choice &&
             IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             choice = hoveredRunUpgradeChoice(
-                snapshot, GetMousePosition());
+                simulation_.snapshot(), GetMousePosition());
         }
         if (choice && !runUpgradePendingChoice_) {
             runUpgradePendingChoice_ = *choice;
@@ -231,16 +238,16 @@ void App::processInput() {
         runUpgradeOverlayExitSeconds_ = 0.0;
         runUpgradePendingChoice_.reset();
         runUpgradeCardHoverAmounts_.fill(0.0F);
-        if (snapshot.state != RunState::Paused &&
-            snapshot.state != RunState::MainMenu) {
+        if (runState != RunState::Paused &&
+            runState != RunState::MainMenu) {
             DisableCursor();
         }
     }
     if (graphicsPanelVisible != graphicsPanelWasVisible_) {
         if (graphicsPanelVisible) {
             EnableCursor();
-        } else if (snapshot.state != RunState::MainMenu &&
-                   snapshot.state != RunState::Paused) {
+        } else if (runState != RunState::MainMenu &&
+                   runState != RunState::Paused) {
             DisableCursor();
         }
         graphicsPanelWasVisible_ = graphicsPanelVisible;
@@ -255,7 +262,7 @@ void App::processInput() {
     }
     if (pendingResumeFromUi_) {
         pendingResumeFromUi_ = false;
-        if (snapshot.state == RunState::Paused) {
+        if (runState == RunState::Paused) {
             simulation_.togglePause();
             fixedStep_.reset();
             DisableCursor();
@@ -269,7 +276,7 @@ void App::processInput() {
     }
     if (pendingReturnToMenuFromUi_) {
         pendingReturnToMenuFromUi_ = false;
-        if (!snapshot.sandboxMode && !saveSuspendedRun()) {
+        if (!sandboxMode && !saveSuspendedRun()) {
             audio_.playUiError();
             return;
         }
@@ -282,7 +289,7 @@ void App::processInput() {
     }
     const bool shiftHeld =
         IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
-    if (snapshot.state != RunState::MainMenu && shiftHeld &&
+    if (runState != RunState::MainMenu && shiftHeld &&
         IsKeyPressed(KEY_F5)) {
         sandboxCardMenuVisible_ = !sandboxCardMenuVisible_;
         itemGrantMenuVisible_ = false;
@@ -292,16 +299,16 @@ void App::processInput() {
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (snapshot.state != RunState::Paused) {
+        } else if (runState != RunState::Paused) {
             DisableCursor();
         }
         audio_.playUiConfirm();
     }
-    if (snapshot.state != RunState::MainMenu &&
+    if (runState != RunState::MainMenu &&
         !IsKeyDown(KEY_LEFT_SHIFT) &&
         !IsKeyDown(KEY_RIGHT_SHIFT) &&
         IsKeyPressed(KEY_F5)) {
-        if (snapshot.sandboxMode) {
+        if (sandboxMode) {
             sandboxCardMenuVisible_ = !sandboxCardMenuVisible_;
             itemGrantMenuVisible_ = false;
         } else {
@@ -314,7 +321,7 @@ void App::processInput() {
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (snapshot.state != RunState::Paused) {
+        } else if (runState != RunState::Paused) {
             DisableCursor();
         }
         audio_.playUiConfirm();
@@ -322,7 +329,7 @@ void App::processInput() {
     if (sandboxCardMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             sandboxCardMenuVisible_ = false;
-            if (snapshot.state != RunState::Paused) {
+            if (runState != RunState::Paused) {
                 DisableCursor();
             }
             audio_.playUiConfirm();
@@ -339,7 +346,7 @@ void App::processInput() {
     if (itemGrantMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             itemGrantMenuVisible_ = false;
-            if (snapshot.state != RunState::Paused) {
+            if (runState != RunState::Paused) {
                 DisableCursor();
             }
             audio_.playUiConfirm();
@@ -347,7 +354,7 @@ void App::processInput() {
         suspendGameplayInput();
         return;
     }
-    if (snapshot.state != RunState::MainMenu &&
+    if (runState != RunState::MainMenu &&
         IsKeyPressed(KEY_B)) {
         enemySpawnMenuVisible_ = !enemySpawnMenuVisible_;
         if (enemySpawnMenuVisible_) {
@@ -357,7 +364,7 @@ void App::processInput() {
             coreDefenseMenuClosing_ = false;
             coreDefenseMenuEntranceSeconds_ = 0.0;
             EnableCursor();
-        } else if (snapshot.state != RunState::Paused) {
+        } else if (runState != RunState::Paused) {
             DisableCursor();
         }
     }
@@ -367,13 +374,13 @@ void App::processInput() {
     const bool shiftDown =
         IsKeyDown(KEY_LEFT_SHIFT) ||
         IsKeyDown(KEY_RIGHT_SHIFT);
-    if (snapshot.state != RunState::MainMenu &&
+    if (runState != RunState::MainMenu &&
         controlDown &&
         IsKeyPressed(KEY_F10)) {
         simulation_.setStructuralCollapseEnabled(
             !simulation_.structuralCollapseEnabled());
     }
-    if (snapshot.state != RunState::MainMenu &&
+    if (runState != RunState::MainMenu &&
         controlDown &&
         IsKeyPressed(KEY_F11)) {
         static_cast<void>(
@@ -382,7 +389,7 @@ void App::processInput() {
     if (enemySpawnMenuVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             enemySpawnMenuVisible_ = false;
-            if (snapshot.state != RunState::Paused) {
+            if (runState != RunState::Paused) {
                 DisableCursor();
             }
             audio_.playUiConfirm();
@@ -390,7 +397,7 @@ void App::processInput() {
         suspendGameplayInput();
         return;
     }
-    if (snapshot.state == RunState::MainMenu &&
+    if (runState == RunState::MainMenu &&
         pendingContinueFromUi_) {
         pendingContinueFromUi_ = false;
         if (loadSuspendedRun()) {
@@ -409,7 +416,7 @@ void App::processInput() {
         }
         return;
     }
-    if (snapshot.state == RunState::MainMenu &&
+    if (runState == RunState::MainMenu &&
         mainMenuPage_ != MainMenuPage::None) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             mainMenuPage_ = MainMenuPage::None;
@@ -417,7 +424,7 @@ void App::processInput() {
         }
         return;
     }
-    if (snapshot.state == RunState::MainMenu &&
+    if (runState == RunState::MainMenu &&
         classSelectionVisible_) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             classSelectionVisible_ = false;
@@ -459,7 +466,7 @@ void App::processInput() {
             audio_.playUiConfirm();
         }
     }
-    if (snapshot.state == RunState::MainMenu &&
+    if (runState == RunState::MainMenu &&
         (IsKeyPressed(KEY_ENTER) || pendingStartFromUi_)) {
         if (!classSelectionVisible_) {
             pendingStartFromUi_ = false;
@@ -501,8 +508,8 @@ void App::processInput() {
         audio_.playUiConfirm();
         resetRunClientState(startedSnapshot);
     }
-    if (snapshot.state != RunState::Defeat &&
-        snapshot.state != RunState::Victory &&
+    if (runState != RunState::Defeat &&
+        runState != RunState::Victory &&
         (keyPressed(userSettings_.controls, ControlAction::Pause) ||
          IsKeyPressed(KEY_ESCAPE))) {
         simulation_.togglePause();
@@ -513,7 +520,7 @@ void App::processInput() {
             DisableCursor();
         }
     }
-    if (snapshot.state != RunState::MainMenu &&
+    if (runState != RunState::MainMenu &&
         (automaticRunRestartPending_ || restartHeld)) {
         automaticRunRestartPending_ = false;
         static_cast<void>(simulation_.configureNextRunBonuses(metaRunBonuses(metaProgression_)));
@@ -530,8 +537,8 @@ void App::processInput() {
         worldRevealElapsed_ = 0.0;
         resetRunClientState(restartedSnapshot);
     }
-    if ((snapshot.state == RunState::Defeat ||
-         snapshot.state == RunState::Victory) &&
+    if ((runState == RunState::Defeat ||
+         runState == RunState::Victory) &&
         IsKeyPressed(KEY_ESCAPE)) {
         simulation_.returnToMainMenu();
         resetMainMenuInput();
@@ -540,7 +547,7 @@ void App::processInput() {
         audio_.playUiConfirm();
         return;
     }
-    if (snapshot.state != RunState::MainMenu) {
+    if (runState != RunState::MainMenu) {
         if (!controlDown &&
             keyPressed(userSettings_.controls,
                        ControlAction::ToggleHud)) {

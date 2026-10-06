@@ -126,7 +126,6 @@ void App::render() {
             buildingContextCardStats_.reset();
         }
     }
-    structuralRiskIds_.clear();
     std::vector<EntityId> structuralRiskRoots;
     const auto addStructuralRiskRoot =
         [&structuralRiskRoots](EntityId support) {
@@ -163,10 +162,12 @@ void App::render() {
     if (!structuralRiskCacheValid_ ||
         structuralRevision != structuralRiskCacheRevision_ ||
         structuralRiskRoots != structuralRiskCacheRoots_) {
-        structuralRiskIds_ =
-            simulation_.structuralCollapseRisk(
-                structuralRiskRoots);
-        structuralRiskCacheRoots_ = structuralRiskRoots;
+        if (structuralRiskRoots.empty()) {
+            structuralRiskIds_.clear();
+        } else {
+            structuralRiskIds_ = simulation_.structuralCollapseRisk(structuralRiskRoots);
+        }
+        structuralRiskCacheRoots_ = std::move(structuralRiskRoots);
         structuralRiskCacheRevision_ = structuralRevision;
         structuralRiskCacheValid_ = true;
     }

@@ -98,7 +98,8 @@ void drawCentered(
         gateOpenAmount = {});
 [[nodiscard]] std::optional<ResourceAimHit> preciseResourceAim(
     Renderer& renderer,
-    const SimulationSnapshot& snapshot);
+    const SimulationSnapshot& snapshot,
+    PlayerWeapon weapon);
 [[nodiscard]] std::optional<EntityId>
 preciseModularBuildingAim(
     Renderer& renderer,

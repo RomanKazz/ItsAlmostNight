@@ -105,18 +105,14 @@ void App::processGameplayInput(bool controlDown,
         // simulation, while ranged weapons intentionally suppress resource
         // aim. Use the axe for this aim test in every mode that can switch back
         // to gathering from resource hover.
-        auto resourceAimSnapshot = currentSnapshot;
         const bool resourceAutoSwitchMode =
             actionMode_ == ActionMode::Buildings ||
             (actionMode_ == ActionMode::Equipment &&
              isPlayerCombatWeapon(
                  currentSnapshot.selectedWeapon));
-        if (resourceAutoSwitchMode) {
-            resourceAimSnapshot.selectedWeapon =
-                PlayerWeapon::Axe;
-        }
         const auto preciseResourceHit = preciseResourceAim(
-            *renderer_, resourceAimSnapshot);
+            *renderer_, currentSnapshot,
+            resourceAutoSwitchMode ? PlayerWeapon::Axe : currentSnapshot.selectedWeapon);
         currentSnapshot.aimedResource = preciseResourceHit
             ? std::optional<EntityId>{preciseResourceHit->id}
             : std::nullopt;
