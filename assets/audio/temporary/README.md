@@ -1,0 +1,52 @@
+# Temporary local audio bank
+
+User-provided **Mega Bonk (Linux, Steam, Windows) (gamerip) (2025) (OGG)**
+files are used as placeholders for local gameplay tests. These are not covered by
+the Kenney licenses of the original audio folder. Replace this bank with original
+audio before distributing a build.
+
+`manifest.json` records each cue's original filename, duration, rate and channels.
+The copies retain their original OGG encoding. Stable filenames are independent
+of the source's numbered track names.
+
+## Replacing the bank
+
+Replace any `.ogg` here with an original sound bearing the same filename. Rebuild
+to refresh the runtime asset copy. Audio volume uses the existing master, music
+and effects controls. Short, mono files are preferable for positional effects;
+music and ambience can be stereo. Keep the cue names and update the manifest's
+metadata when changing files so the audio smoke test remains accurate.
+
+`AudioSystem` prefers these files over the existing sounds. Removing this folder
+restores the original files as fallbacks; forest ambience then becomes silent.
+This folder does not alter resource costs, combat timing or drop probabilities.
+
+## Cue groups
+
+- `ui_hover`, `ui_confirm`, `ui_error`: pointer and keyboard focus, activation,
+  rejected actions. Focus sounds trigger on changes, not every rendered frame.
+- `purchase`, `achievement`, `challenge_complete`, `level_up`, `loot_take`:
+  shop purchases, completed quests/challenges, upgrade choices and collected loot.
+- `chest_open`, `chest_reroll`, `consume`, `heal`, `potion`: chests and consumables.
+- `build_place`, `structure_hit`, `structure_break`, `repair`, `upgrade`, `gate`:
+  buildings and gates. Placement remains synchronized with the placement pop.
+- `critical`, `rifle_shot`, `explosion`, `enemy_hit`, `turret_hit`,
+  `player_hit`, `enemy_death`, `ice_*`, `fire_*`, `lightning`, `bow_shot`,
+  `cannon_shot`, `catapult_shot`, `trap`: melee, weapons and defense combat.
+- `crystals`, `crystal_hit`, `crystal_break`, `coin_pickup`, `xp_pickup`: production,
+  mining, currency and experience. Existing wood/stone impacts remain available.
+- `jump`, `dash`, `landing`, `shield_break`, `shield_recharge`:
+  player movement and protection.
+- `run_start`, `defeat`, `victory`, `wave_warning`, `boss_spawn`, `boss_roar`,
+  `ground_slam`: run, wave and boss events.
+- `music_menu`, `music_day`, `music_night`, `music_boss`: looping contextual music
+  with a short crossfade; pauses/upgrade choices lower the music level.
+- `forest_ambience`: low-level forest ambience, controlled by effects volume.
+
+Original grass footsteps and weapon/tool sweeps are preserved, including their
+volume and playback speed.
+
+Dense repeated impacts/pickups are throttled; positional effects retain distance
+attenuation and stereo panning. Footsteps pause with gameplay. The pack is a first
+mix for testing: subjective volume and cue choices can be tuned after listening
+in an actual run.

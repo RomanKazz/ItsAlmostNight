@@ -8,3 +8,6 @@
   See `LICENSE-KENNEY-RPG.txt`.
 - `rifle_shot`, `upgrade`, `explosion`, `ui_error`, `ui_confirm`, and
   `wave_warning`: user-provided `400 Sounds Pack`.
+- `temporary/*.ogg`: user-provided Mega Bonk gamerip (2025), used temporarily
+  for local testing. These files are separate from the licensed original sounds;
+  see `temporary/README.md` and `temporary/manifest.json` for sources and replacement.

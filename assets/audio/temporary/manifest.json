@@ -1,0 +1,477 @@
+{
+  "purpose": "Temporary user-provided Mega Bonk gamerip audio for local testing; replace before release.",
+  "assets": [
+    {
+      "cue": "ui_confirm",
+      "file": "ui_confirm.ogg",
+      "source": "066. Enter5.ogg",
+      "duration": 0.100136,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "ui_hover",
+      "file": "ui_hover.ogg",
+      "source": "118. menu Move.ogg",
+      "duration": 0.047891,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "ui_error",
+      "file": "ui_error.ogg",
+      "source": "067. Error.ogg",
+      "duration": 0.193016,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "critical",
+      "file": "critical.ogg",
+      "source": "052. Crit.ogg",
+      "duration": 0.596463,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "rifle_shot",
+      "file": "rifle_shot.ogg",
+      "source": "239. Revolver.ogg",
+      "duration": 0.472,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "explosion",
+      "file": "explosion.ogg",
+      "source": "022. bomb Explosion.ogg",
+      "duration": 0.602268,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "build_place",
+      "file": "build_place.ogg",
+      "source": "103. Impact2.ogg",
+      "duration": 0.422667,
+      "sample_rate": 48000,
+      "channels": 1
+    },
+    {
+      "cue": "structure_hit",
+      "file": "structure_hit.ogg",
+      "source": "024. Bonk.ogg",
+      "duration": 0.515193,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "structure_break",
+      "file": "structure_break.ogg",
+      "source": "081. Generic Break.ogg",
+      "duration": 0.74,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "repair",
+      "file": "repair.ogg",
+      "source": "247. Shield Regen.ogg",
+      "duration": 1.166667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "upgrade",
+      "file": "upgrade.ogg",
+      "source": "112. Levelup After.ogg",
+      "duration": 0.53551,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "gate",
+      "file": "gate.ogg",
+      "source": "036. Cage Open.ogg",
+      "duration": 1.110667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "crystals",
+      "file": "crystals.ogg",
+      "source": "245. sfx sounds Blip7.ogg",
+      "duration": 0.065306,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "xp_pickup",
+      "file": "xp_pickup.ogg",
+      "source": "282. Xp2.ogg",
+      "duration": 0.355556,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "player_hit",
+      "file": "player_hit.ogg",
+      "source": "189. Player Damage.ogg",
+      "duration": 0.806667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "enemy_hit",
+      "file": "enemy_hit.ogg",
+      "source": "094. Hit1 0.ogg",
+      "duration": 0.422667,
+      "sample_rate": 48000,
+      "channels": 1
+    },
+    {
+      "cue": "turret_hit",
+      "file": "turret_hit.ogg",
+      "source": "096. Hit2 0.ogg",
+      "duration": 0.276,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "wave_warning",
+      "file": "wave_warning.ogg",
+      "source": "272. Swarm Approaching.ogg",
+      "duration": 2.382667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "coin_pickup",
+      "file": "coin_pickup.ogg",
+      "source": "085. gold.ogg",
+      "duration": 0.244,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "crystal_hit",
+      "file": "crystal_hit.ogg",
+      "source": "184. Pickup Orb Hit.ogg",
+      "duration": 0.294603,
+      "sample_rate": 44100,
+      "channels": 1
+    },
+    {
+      "cue": "crystal_break",
+      "file": "crystal_break.ogg",
+      "source": "185. Pickup Orb Spawn.ogg",
+      "duration": 0.549333,
+      "sample_rate": 48000,
+      "channels": 1
+    },
+    {
+      "cue": "ice_charge",
+      "file": "ice_charge.ogg",
+      "source": "127. Mirror Recharge.ogg",
+      "duration": 0.713333,
+      "sample_rate": 48000,
+      "channels": 1
+    },
+    {
+      "cue": "ice_shot",
+      "file": "ice_shot.ogg",
+      "source": "102. Ice Ring.ogg",
+      "duration": 0.617333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "ice_impact",
+      "file": "ice_impact.ogg",
+      "source": "217. retro explosion ice.ogg",
+      "duration": 1.161333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "fire_charge",
+      "file": "fire_charge.ogg",
+      "source": "077. Firelaser Start.ogg",
+      "duration": 1.073333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "fire_shot",
+      "file": "fire_shot.ogg",
+      "source": "231. retro shoot fireball3.ogg",
+      "duration": 0.484,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "fire_impact",
+      "file": "fire_impact.ogg",
+      "source": "214. retro explosion fireball1.ogg",
+      "duration": 0.513333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "lightning",
+      "file": "lightning.ogg",
+      "source": "283. Zap.ogg",
+      "duration": 1.078667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "cannon_shot",
+      "file": "cannon_shot.ogg",
+      "source": "248. Shotgun.ogg",
+      "duration": 0.81415,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "bow_shot",
+      "file": "bow_shot.ogg",
+      "source": "028. Bow.ogg",
+      "duration": 0.308,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "catapult_shot",
+      "file": "catapult_shot.ogg",
+      "source": "237. retro shoot stone.ogg",
+      "duration": 0.702667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "dash",
+      "file": "dash.ogg",
+      "source": "070. Evade.ogg",
+      "duration": 0.542667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "landing",
+      "file": "landing.ogg",
+      "source": "187. Player Landing.ogg",
+      "duration": 0.422667,
+      "sample_rate": 48000,
+      "channels": 1
+    },
+    {
+      "cue": "jump",
+      "file": "jump.ogg",
+      "source": "186. Player Jump.ogg",
+      "duration": 0.382667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "chest_open",
+      "file": "chest_open.ogg",
+      "source": "029. box open.ogg",
+      "duration": 1.134667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "loot_take",
+      "file": "loot_take.ogg",
+      "source": "048. Chest Take.ogg",
+      "duration": 0.66,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "chest_reroll",
+      "file": "chest_reroll.ogg",
+      "source": "047. Chest Shake.ogg",
+      "duration": 0.590667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "purchase",
+      "file": "purchase.ogg",
+      "source": "104. Item Purchased.ogg",
+      "duration": 3.846667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "heal",
+      "file": "heal.ogg",
+      "source": "091. Heart Pickup.ogg",
+      "duration": 0.849333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "consume",
+      "file": "consume.ogg",
+      "source": "062. Eat.ogg",
+      "duration": 0.276,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "potion",
+      "file": "potion.ogg",
+      "source": "020. Blood Magic.ogg",
+      "duration": 0.910667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "achievement",
+      "file": "achievement.ogg",
+      "source": "001. Achievement Popup.ogg",
+      "duration": 0.387483,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "challenge_complete",
+      "file": "challenge_complete.ogg",
+      "source": "039. Challenge Complete.ogg",
+      "duration": 3.745333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "level_up",
+      "file": "level_up.ogg",
+      "source": "110. Levelup3.ogg",
+      "duration": 2.025333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "enemy_death",
+      "file": "enemy_death.ogg",
+      "source": "228. retro poof2.ogg",
+      "duration": 0.812,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "boss_spawn",
+      "file": "boss_spawn.ogg",
+      "source": "026. Boss Spawned.ogg",
+      "duration": 2.382667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "boss_roar",
+      "file": "boss_roar.ogg",
+      "source": "273. Swarm Final.ogg",
+      "duration": 2.412,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "ground_slam",
+      "file": "ground_slam.ogg",
+      "source": "090. Ground Slam.ogg",
+      "duration": 1.601333,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "run_start",
+      "file": "run_start.ogg",
+      "source": "115. Map Start.ogg",
+      "duration": 4.316,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "defeat",
+      "file": "defeat.ogg",
+      "source": "055. Death Impact.ogg",
+      "duration": 7.918667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "victory",
+      "file": "victory.ogg",
+      "source": "074. Final Reward.ogg",
+      "duration": 5.174667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "shield_break",
+      "file": "shield_break.ogg",
+      "source": "246. Shield Break.ogg",
+      "duration": 1.1,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "shield_recharge",
+      "file": "shield_recharge.ogg",
+      "source": "247. Shield Regen.ogg",
+      "duration": 1.166667,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "trap",
+      "file": "trap.ogg",
+      "source": "240. Root Spikes.ogg",
+      "duration": 0.724,
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    {
+      "cue": "music_menu",
+      "file": "music_menu.ogg",
+      "source": "155. Music Menu.ogg",
+      "duration": 131.899501,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "music_day",
+      "file": "music_day.ogg",
+      "source": "144. Music Forest1 Loop.ogg",
+      "duration": 142.614059,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "music_night",
+      "file": "music_night.ogg",
+      "source": "148. Music Forest3 Loop.ogg",
+      "duration": 109.334059,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "music_boss",
+      "file": "music_boss.ogg",
+      "source": "152. Music Forest Boss Loop.ogg",
+      "duration": 120.616054,
+      "sample_rate": 44100,
+      "channels": 2
+    },
+    {
+      "cue": "forest_ambience",
+      "file": "forest_ambience.ogg",
+      "source": "007. Ambience Forest.ogg",
+      "duration": 42.489333,
+      "sample_rate": 48000,
+      "channels": 2
+    }
+  ]
+}
