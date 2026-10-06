@@ -471,7 +471,9 @@ void App::rebuildTerrainGraphics() {
         return;
     }
     const SimulationSnapshot& snapshot = simulation_.snapshot();
-    const auto exclusions = makeDecorationExclusions(snapshot);
+    auto exclusions = makeDecorationExclusions(snapshot);
+    exclusions.push_back({.shape = DecorationExclusionShape::Circle,
+        .centerX = simulation_.playerSpawn().x, .centerZ = simulation_.playerSpawn().z, .radius = 4.5});
     decorationExclusionFingerprint_ = decorationFingerprint(snapshot);
     renderer_->rebuildTerrain(simulation_.terrain(), exclusions);
 }
@@ -501,7 +503,9 @@ void App::refreshDecorationExclusions(
         return;
     }
     decorationExclusionFingerprint_ = fingerprint;
-    const auto exclusions = makeDecorationExclusions(snapshot);
+    auto exclusions = makeDecorationExclusions(snapshot);
+    exclusions.push_back({.shape = DecorationExclusionShape::Circle,
+        .centerX = simulation_.playerSpawn().x, .centerZ = simulation_.playerSpawn().z, .radius = 4.5});
     renderer_->rebuildDecorationExclusions(exclusions);
 }
 

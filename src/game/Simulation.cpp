@@ -238,6 +238,8 @@ std::uint32_t Simulation::nextRunTerrainSeed() {
 
 bool Simulation::resourceGroundPositionIsSafe(
     double x, double z, double radius) const {
+    if (map_.resources.size() >= 7U && std::hypot(x - map_.playerSpawn.x, z - map_.playerSpawn.z) <
+        radius + PlayerSpawnClearance) return false;
     if (terrain_.waterSignedDistance(x, z) < radius + 0.8) {
         return false;
     }

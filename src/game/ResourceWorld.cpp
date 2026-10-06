@@ -71,6 +71,14 @@ std::vector<ResourceNodeDefinition> scatterResources(
     std::uint32_t layoutSeed,
     std::optional<Vec3> playerSpawn) {
     std::vector<ResourceNodeDefinition> result = configured;
+    const auto clearSpawn = [&playerSpawn](std::vector<ResourceNodeDefinition>& definitions) {
+        if (!playerSpawn) return;
+        std::erase_if(definitions, [&playerSpawn](const ResourceNodeDefinition& node) {
+            return std::hypot(node.position.x - playerSpawn->x,
+                              node.position.z - playerSpawn->z) + 1e-6 <
+                node.radius + PlayerSpawnClearance;
+        });
+    };
     const auto placeOnDryTerrain = [&terrain](
         std::vector<ResourceNodeDefinition>& definitions) {
         for (auto& definition : definitions) {
@@ -126,6 +134,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
         }
     }
 
+    clearSpawn(result);
     if (playerSpawn) {
         const auto distanceToSpawn = [&playerSpawn](
                                          const ResourceNodeDefinition& node) {
@@ -566,6 +575,7 @@ std::vector<ResourceNodeDefinition> scatterResources(
             break;
         }
     }
+    clearSpawn(result);
     placeOnDryTerrain(result);
     return result;
 }

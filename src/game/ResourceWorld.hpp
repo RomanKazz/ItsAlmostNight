@@ -12,6 +12,9 @@ namespace ian {
 
 struct MapObstacle;
 
+// Clearance to the edge of a resource, not merely to its center.
+inline constexpr double PlayerSpawnClearance = 2.5;
+
 [[nodiscard]] bool resourceOverlapsRectangle(
     std::span<const ResourceNode> nodes,
     double minimumX, double maximumX,

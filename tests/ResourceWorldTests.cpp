@@ -92,6 +92,23 @@ void runResourceWorldTests() {
             1.0, 10.0, 10, 5.0,
         });
     }
+    {
+        const auto map = ian::MapDefinition::defaults();
+        for (std::uint32_t seed = 1; seed <= 64; ++seed) {
+            const auto definitions = ian::scatterResources(map.resources, 48, largeTerrain,
+                {}, seed, map.playerSpawn);
+            require(std::none_of(definitions.begin(), definitions.end(), [&](const auto& node) {
+                return std::hypot(node.position.x - map.playerSpawn.x,
+                                  node.position.z - map.playerSpawn.z) + 1e-6 <
+                    node.radius + ian::PlayerSpawnClearance;
+            }), "seeded resource rings and clutter leave a walkable clearing at the actual spawn");
+            require(std::any_of(definitions.begin(), definitions.end(), [&](const auto& node) {
+                return node.type == ian::ResourceType::Crystal &&
+                    std::hypot(node.position.x - map.playerSpawn.x,
+                               node.position.z - map.playerSpawn.z) <= 11;
+            }), "spawn clearing preserves the guaranteed nearby starter crystals");
+        }
+    }
     const auto clustered =
         ian::scatterResources(clusterInput, 48.0, largeTerrain);
     const auto repeated =

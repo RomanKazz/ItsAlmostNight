@@ -585,6 +585,7 @@ class Simulation {
         BuildingType type, GridPosition position,
         double preferredHeight) const;
     [[nodiscard]] const TerrainHeightfield& terrain() const;
+    [[nodiscard]] Vec3 playerSpawn() const { return map_.playerSpawn; }
     void regenerateTerrain(std::uint32_t seed);
     [[nodiscard]] PlatformFramePlacement
     previewFoundation(Vec3 terrainHit) const;
