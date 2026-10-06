@@ -27,15 +27,20 @@ void runPresentationTimelineTests() {
         }
         require(restart.progress() > 0.9, "restart indicator approaches full before activation");
         require(restart.update(true, true, dt), "one-second hold restarts the run");
-        for (int frame = 0; frame < fps * 3; ++frame) {
-            require(!restart.update(true, true, dt), "continuing to hold cannot restart the new run again");
+        for (int repeat = 0; repeat < 3; ++repeat) {
+            restart.resetProgress(); // The new run resets client presentation.
+            for (int frame = 0; frame < fps - 1; ++frame) {
+                require(!restart.update(true, true, dt), "repeated restarts still wait a full second");
+            }
+            require(restart.update(true, true, dt), "held R restarts successive worlds without release");
         }
         requireNear(restart.progress(), 0.0, 1e-9, "completed hold hides its indicator");
-        require(!restart.update(false, true, dt), "release only rearms restart");
+        require(!restart.update(false, true, dt), "release stops repeated restarts");
         require(!restart.update(true, true, 0.1), "a fresh hold starts from zero");
         require(!restart.update(false, true, dt), "early release cancels a partial hold");
         requireNear(restart.progress(), 0.0, 1e-9, "cancelled hold clears its indicator");
         require(!restart.update(true, false, dt), "settings and upgrade menus do not restart");
+        restart.resetProgress();
         for (int frame = 0; frame < fps * 2; ++frame) {
             require(!restart.update(true, true, dt), "a key held in a menu must be released before restarting");
         }

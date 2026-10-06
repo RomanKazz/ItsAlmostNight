@@ -5,13 +5,15 @@
 
 namespace ian {
 
-// Restart is a deliberate hold, and must rearm on release even across runs.
+// Holding continuously repeats restarts; menus still require a fresh press.
 class RestartHold {
 public:
     static constexpr double HoldSeconds = 1.0;
 
+    void resetProgress() { elapsed_ = 0.0; }
+
     void cancel(bool keyHeld) {
-        elapsed_ = 0.0;
+        resetProgress();
         awaitingRelease_ = keyHeld;
     }
 
@@ -26,7 +28,7 @@ public:
             elapsed_ += std::clamp(frameSeconds, 0.0, 0.1);
         }
         if (elapsed_ + 1e-9 < HoldSeconds) return false;
-        cancel(true);
+        resetProgress();
         return true;
     }
 

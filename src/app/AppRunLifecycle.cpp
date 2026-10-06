@@ -6,8 +6,7 @@ namespace ian {
 
 void App::resetRunClientState(
     const SimulationSnapshot& snapshot) {
-    const int restartKey = controlKey(userSettings_.controls, ControlAction::Restart);
-    restartHold_.cancel(restartKey != KEY_NULL && IsKeyDown(restartKey));
+    restartHold_.resetProgress();
     fixedStep_.reset();
     statusMessage_.clear();
     statusMessageRemaining_ = 0.0;
