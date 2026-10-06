@@ -76,6 +76,18 @@ vec4 visualBiomeWeights(vec2 position)
     return weights/dot(weights, vec4(1.0));
 }
 
+// Assign one palette to the entire plant, including crowns that cross a border.
+vec4 plantBiomeWeights(vec2 origin)
+{
+    vec4 weights = visualBiomeWeights(origin);
+    int biome = 0;
+    for (int i = 1; i < 4; ++i)
+        if (weights[i] > weights[biome]) biome = i;
+    vec4 selected = vec4(0.0);
+    selected[biome] = 1.0;
+    return selected;
+}
+
 void main()
 {
     mat4 skinMatrix = mat4(1.0);
@@ -120,9 +132,11 @@ void main()
     worldPosition = modelMatrix*localPosition;
 
     fragBiomeWeights = vec4(1.0, 0.0, 0.0, 0.0);
-    if (terrainAmount > 0.001 || vegetationAmount > 0.001 ||
-        treeAmount > 0.001 || bushAmount > 0.001 || coniferAmount > 0.001)
+    if (terrainAmount > 0.001)
         fragBiomeWeights = visualBiomeWeights(worldPosition.xz);
+    else if (vegetationAmount > 0.001 || treeAmount > 0.001 ||
+             bushAmount > 0.001 || coniferAmount > 0.001)
+        fragBiomeWeights = plantBiomeWeights(modelMatrix[3].xz);
     fragWorldPosition = worldPosition.xyz;
     vec3 localNormal = vertexNormal;
     if (skinningEnabled != 0 && skinWeight > 0.0001) {

@@ -15,14 +15,22 @@ void runTerrainHeightfieldTests() {
         const auto unchanged = shiftPalette(original, 0, 0, 0);
         for (std::size_t c = 0; c < 3; ++c) requireNear(unchanged[c], original[c], 1e-6,
             "zero palette variation preserves the original hue exactly");
-        for (std::uint32_t seed = 0; seed < 32; ++seed) {
+        std::array<int, Count> spawnBiomes{};
+        for (std::uint32_t seed = 0; seed < 128; ++seed) {
             const auto layout = generate(seed, 384);
             const auto restored = generate(seed, 384);
             require(layout.centers == restored.centers && layout.ground == restored.ground &&
                 layout.leaves == restored.leaves && layout.shape == restored.shape,
                 "restoring a seed reproduces both biome geography and its entire palette");
-            require(weights(layout, 0, 0)[0] > .99F,
-                "every world's spawn remains inside the green biome");
+            const auto spawn = weights(layout, 0, 0);
+            const auto spawnBiome = static_cast<std::size_t>(
+                std::max_element(spawn.begin(), spawn.end()) - spawn.begin());
+            ++spawnBiomes[spawnBiome];
+            require(spawn[spawnBiome] > .99F,
+                "spawn stays within one coherent region, whichever biome the seed selects");
+            require(layout.ground[3][2] > layout.ground[3][0] + .25F &&
+                layout.ground[3][2] < .70F,
+                "cold ground retains a saturated blue palette without pale white highlights");
             require(layout.leaves[1][0] > layout.leaves[1][1] + .2F &&
                 layout.leaves[2][0] > layout.leaves[2][1] + .2F &&
                 layout.leaves[3][2] > layout.leaves[3][0] + .15F,
@@ -40,7 +48,7 @@ void runTerrainHeightfieldTests() {
                     requireNear(total, 1, 1e-6, "blending never creates uncolored or overbright seams");
                     const auto dominant = static_cast<std::size_t>(std::max_element(blend.begin(), blend.end()) - blend.begin());
                     ++coverage[dominant];
-                    const auto neighbor = weights(layout, static_cast<float>(x) + .25F, static_cast<float>(z));
+                    const auto neighbor = weights(layout, static_cast<float>(x) + .025F, static_cast<float>(z));
                     for (std::size_t i = 0; i < Count; ++i)
                         require(std::abs(blend[i] - neighbor[i]) < .1F,
                             "biome boundaries fade continuously instead of following terrain cells");
@@ -55,6 +63,8 @@ void runTerrainHeightfieldTests() {
                     "seed variations keep foliage colors in their valid range");
             }
         }
+        for (int starts : spawnBiomes) require(starts > 16,
+            "every biome can host the player, without a privileged green starting zone");
         const auto first = generate(42, 384), second = generate(43, 384);
         require(first.centers != second.centers && first.leaves != second.leaves,
             "different runs vary both region placement and their coherent palettes");

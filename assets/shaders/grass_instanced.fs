@@ -38,7 +38,7 @@ vec3 visualBiomeColor(vec3 source, vec3 palette[4], vec3 greenReference)
     vec4 weights = max(fragBiomeWeights, vec4(0.0));
     weights /= max(dot(weights, vec4(1.0)), 0.0001);
     const vec3 luminance = vec3(0.2126, 0.7152, 0.0722);
-    float detail = clamp(dot(source, luminance)/dot(greenReference, luminance), 0.35, 1.55);
+    float detail = clamp(dot(source, luminance)/dot(greenReference, luminance), 0.35, 1.20);
     // Retain the approved green material and its shading; other zones replace
     // hue while preserving the same painted details and light/shadow ramp.
     return source*(palette[0]/greenReference)*weights.x + detail*(

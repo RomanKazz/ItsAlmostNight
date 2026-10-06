@@ -193,6 +193,126 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
         propColors[region] = GetImageColor(prop, 192, 144);
         UnloadImage(prop);
     }
+    // A large crown straddling a transition must match the same tree wholly
+    // inside the region selected by its trunk, in both rendering paths.
+    Vector2 border{};
+    std::size_t borderRegion = 0;
+    bool foundBorder = false;
+    for (int z = -150; z < 150 && !foundBorder; ++z) {
+        for (int x = -150; x < 150 && !foundBorder; ++x) {
+            const auto blend = ian::visual_biomes::weights(biomes, float(x), float(z));
+            const auto region = static_cast<std::size_t>(
+                std::max_element(blend.begin(), blend.end()) - blend.begin());
+            if (blend[region] > .55F && blend[region] < .80F) {
+                border = {float(x), float(z)};
+                borderRegion = region;
+                foundBorder = true;
+            }
+        }
+    }
+    const auto captureTree = [&](Vector2 position, bool instanced) {
+        const Camera3D camera{{position.x, 8, position.y + 28},
+            {position.x, 5, position.y}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        lighting.sunColor = {1, 1, 1};
+        lighting.cloudShadowStrength = 0;
+        lighting.fogStart = 500;
+        lighting.fogEnd = 700;
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.treeAmount = material.vegetationAmount = 1;
+        renderer.setWorldMaterial(material);
+        if (instanced) {
+            const std::array instances{ian::TreeDrawInstance{
+                .position = {position.x, 0, position.y}, .scale = 3}};
+            static_cast<void>(renderer.drawTreesInstanced(instances));
+        } else {
+            static_cast<void>(renderer.drawTree({position.x, 0, position.y}, WHITE, 3, 0));
+        }
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    bool discreteTrees = foundBorder;
+    for (const bool instanced : {false, true}) {
+        Image edgeTree = captureTree(border, instanced);
+        Image centerTree = captureTree(
+            {biomes.centers[borderRegion][0], biomes.centers[borderRegion][1]}, instanced);
+        const auto changes = changedPixels(edgeTree, centerTree);
+        discreteTrees = discreteTrees && changes < 50;
+        if (changes >= 50) std::cerr << "boundary crown changes " << changes << " instanced " << instanced << '\n';
+        if (const char* directory = std::getenv("IAN_CAPTURE_BIOMES"))
+            ExportImage(edgeTree, (std::filesystem::path{directory} /
+                (instanced ? "boundary-tree-instanced.png" : "boundary-tree.png")).string().c_str());
+        UnloadImage(edgeTree);
+        UnloadImage(centerTree);
+    }
+    // Probe the actual grass shader on a bright blade under daytime exposure:
+    // blue vegetation must keep color in its highlights rather than turn white.
+    ian::ShaderResource grassShader;
+    bool blueGrass = grassShader.load("assets/shaders/grass_instanced.vs", "assets/shaders/grass_instanced.fs");
+    if (blueGrass) {
+        Shader& shader = grassShader.get();
+        const auto uniform = [&](const char* name, const void* value, int type, int count = 1) {
+            SetShaderValueV(shader, GetShaderLocation(shader, name), value, type, count);
+        };
+        uniform("worldBiomeCenters[0]", biomes.centers.data(), SHADER_UNIFORM_VEC2, 4);
+        uniform("worldBiomeGround[0]", biomes.ground.data(), SHADER_UNIFORM_VEC3, 4);
+        uniform("worldBiomeShape", biomes.shape.data(), SHADER_UNIFORM_VEC4);
+        const Vector4 white{1, 1, 1, 1};
+        const Vector3 daylight{1, 1, 1}, sun{-1, -1, -1};
+        const float exposure = 1.01F, saturation = 1.03F, fogStart = 500, fogEnd = 700;
+        uniform("grassTint", &white, SHADER_UNIFORM_VEC4);
+        uniform("dayNightTint", &daylight, SHADER_UNIFORM_VEC3);
+        uniform("sunDirection", &sun, SHADER_UNIFORM_VEC3);
+        uniform("exposure", &exposure, SHADER_UNIFORM_FLOAT);
+        uniform("saturation", &saturation, SHADER_UNIFORM_FLOAT);
+        uniform("fogStart", &fogStart, SHADER_UNIFORM_FLOAT);
+        uniform("fogEnd", &fogEnd, SHADER_UNIFORM_FLOAT);
+        const auto cold = biomes.centers[3];
+        const Camera3D camera{{cold[0], 1, cold[1] + 4}, {cold[0], 0, cold[1]},
+            {0, 1, 0}, 40, CAMERA_PERSPECTIVE};
+        uniform("cameraPosition", &camera.position, SHADER_UNIFORM_VEC3);
+        Mesh blade = GenMeshCube(1, 1, .08F);
+        Material material = LoadMaterialDefault();
+        material.shader = shader;
+        const Matrix transform = MatrixTranslate(cold[0], 0, cold[1]);
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        // The shader's alpha is an ink tag; the game writes RGB opaquely.
+        rlDisableColorBlend();
+        DrawMeshInstanced(blade, material, &transform, 1);
+        rlEnableColorBlend();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        int coloredPixels = 0;
+        for (int y = 0; y < image.height; ++y) {
+            for (int x = 0; x < image.width; ++x) {
+                const Color color = GetImageColor(image, x, y);
+                if (color.b < 60) continue;
+                ++coloredPixels;
+                blueGrass = blueGrass && color.b > color.r + 50 && color.r < 150 && color.b < 235;
+            }
+        }
+        blueGrass = blueGrass && coloredPixels > 500;
+        if (const char* directory = std::getenv("IAN_CAPTURE_BIOMES"))
+            ExportImage(image, (std::filesystem::path{directory} / "cold-grass.png").string().c_str());
+        UnloadImage(image);
+        UnloadMesh(blade);
+        material.shader = {rlGetShaderIdDefault(), rlGetShaderLocsDefault()};
+        UnloadMaterial(material);
+        grassShader.unload();
+    }
     const bool distinct = groundColors[0].y > groundColors[0].x &&
         groundColors[1].x > groundColors[1].y + 12 &&
         groundColors[2].x > groundColors[2].z + 12 &&
@@ -207,7 +327,7 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
     UnloadRenderTexture(target);
     renderer.shutdown();
     renderer.initialize();
-    return distinct && unchangedProps;
+    return distinct && unchangedProps && discreteTrees && blueGrass;
 }
 
 bool checkCoreCrystalOrbit(ian::ModelResource& resource) {

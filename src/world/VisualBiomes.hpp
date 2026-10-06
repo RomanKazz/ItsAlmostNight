@@ -62,21 +62,35 @@ inline Rgb shiftPalette(Rgb color, float hueShift, float saturationShift, float 
     constexpr float Tau = 2 * std::numbers::pi_v<float>;
     const float rotation = randomUnit(seed, 1) * Tau;
     constexpr std::array<Rgb, Count> Ground{{GreenGround,
-        {0.64F, 0.39F, 0.47F}, {0.60F, 0.43F, 0.23F}, {0.63F, 0.71F, 0.75F}}};
+        {0.64F, 0.39F, 0.47F}, {0.60F, 0.43F, 0.23F}, {0.32F, 0.53F, 0.65F}}};
     constexpr std::array<Rgb, Count> Leaves{{GreenLeaves,
         {0.86F, 0.43F, 0.63F}, {0.82F, 0.39F, 0.13F}, {0.48F, 0.66F, 0.77F}}};
+    // Shuffle palette identities independently of the spatial anchors. The
+    // central region can be any biome; the other three have no fixed neighbors.
+    std::array<std::size_t, Count> regions{0, 1, 2, 3};
+    for (std::size_t remaining = Count; remaining > 1; --remaining) {
+        const auto picked = static_cast<std::size_t>(
+            randomUnit(seed, static_cast<std::uint32_t>(70 + remaining)) * static_cast<float>(remaining));
+        std::swap(regions[remaining - 1], regions[picked]);
+    }
+    for (std::size_t anchor = 0; anchor < Count; ++anchor) {
+        const auto i = regions[anchor];
+        const auto spatialSalt = static_cast<std::uint32_t>(80 + anchor * 2);
+        const float angle = rotation + static_cast<float>(anchor) * Tau / 4 +
+            (randomUnit(seed, spatialSalt) - .5F) * .35F;
+        const float radius = size * (anchor == 0 ? .12F :
+            .33F + (randomUnit(seed, spatialSalt + 1) - .5F) * .05F);
+        layout.centers[i] = {std::cos(angle) * radius, std::sin(angle) * radius};
+    }
     for (std::size_t i = 0; i < Count; ++i) {
         const auto salt = static_cast<std::uint32_t>(10 + i * 8);
-        const float angle = rotation + static_cast<float>(i) * Tau / 4 + (randomUnit(seed, salt) - .5F) * .20F;
-        const float radius = size * (i == 0 ? .12F : .33F + (randomUnit(seed, salt + 1) - .5F) * .035F);
-        layout.centers[i] = {std::cos(angle) * radius, std::sin(angle) * radius};
         const float hue = (randomUnit(seed, salt + 2) - .5F) * (i == 1 ? .070F : .030F);
         const float saturation = (randomUnit(seed, salt + 3) - .5F) * .065F;
         const float value = (randomUnit(seed, salt + 4) - .5F) * .045F;
         layout.ground[i] = shiftPalette(Ground[i], hue, saturation, value);
         layout.leaves[i] = shiftPalette(Leaves[i], hue, saturation, value);
     }
-    layout.shape = {size, size * .035F, randomUnit(seed, 60) * Tau, randomUnit(seed, 61) * Tau};
+    layout.shape = {size, size * .006F, randomUnit(seed, 60) * Tau, randomUnit(seed, 61) * Tau};
     return layout;
 }
 

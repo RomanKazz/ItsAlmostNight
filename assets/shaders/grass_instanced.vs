@@ -34,6 +34,18 @@ vec4 visualBiomeWeights(vec2 position)
     return weights/dot(weights, vec4(1.0));
 }
 
+// Assign one palette to the entire plant, including crowns that cross a border.
+vec4 plantBiomeWeights(vec2 origin)
+{
+    vec4 weights = visualBiomeWeights(origin);
+    int biome = 0;
+    for (int i = 1; i < 4; ++i)
+        if (weights[i] > weights[biome]) biome = i;
+    vec4 selected = vec4(0.0);
+    selected[biome] = 1.0;
+    return selected;
+}
+
 void main()
 {
     vec4 worldPosition =
@@ -51,7 +63,7 @@ void main()
 
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(mat3(instanceTransform)*vertexNormal);
-    fragBiomeWeights = visualBiomeWeights(worldPosition.xz);
+    fragBiomeWeights = plantBiomeWeights(instanceTransform[3].xz);
     fragWorldPosition = worldPosition.xyz;
     fragLocalHeight = vertexPosition.y;
     gl_Position = mvp*worldPosition;
