@@ -15,6 +15,7 @@
 #include "presentation/PlayerArrival.hpp"
 #include "progression/MetaProgression.hpp"
 #include "ui/GameUi.hpp"
+#include "ui/MenuInputBarrier.hpp"
 #include "ui/QuestMenu.hpp"
 #include "ui/UnlockMenu.hpp"
 #include "ui/ShopMenu.hpp"
@@ -259,6 +260,7 @@ class App {
         const WorldLighting& lighting);
     void drawGraphicsPanel();
     void drawMainMenu(const SimulationSnapshot& snapshot);
+    void resetMainMenuInput();
     void drawMainMenuWorld(const SimulationSnapshot& snapshot);
     void persistUserSettings(bool force = false);
     void persistMetaProgression();
@@ -346,6 +348,7 @@ class App {
     GameUi ui_;
     bool pendingStartFromUi_{};
     bool pendingContinueFromUi_{};
+    MenuInputBarrier mainMenuInputBarrier_;
     bool classSelectionVisible_{};
     bool sandboxClassSelection_{};
     bool classCollectionOnly_{};

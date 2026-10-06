@@ -2,6 +2,7 @@
 #include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
 #include "presentation/PlayerArrival.hpp"
+#include "ui/MenuInputBarrier.hpp"
 
 #include <limits>
 #include <optional>
@@ -17,6 +18,24 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    {
+        ian::MenuInputBarrier barrier;
+        require(barrier.allowsInput(false), "initial main menu accepts input immediately");
+        barrier.blockUntilRelease();
+        for (int frame = 0; frame < 120; ++frame) {
+            require(!barrier.allowsInput(true),
+                "holding Save and Main Menu never activates Play in the next screen");
+        }
+        require(!barrier.allowsInput(false),
+            "release of Save and Main Menu is consumed instead of opening class selection");
+        require(barrier.allowsInput(true) && barrier.allowsInput(false),
+            "a fresh click or keyboard activation works after returning to the menu");
+        barrier.blockUntilRelease();
+        require(!barrier.allowsInput(false),
+            "a quick click released before the transition is also consumed");
+        require(barrier.allowsInput(false),
+            "the menu rearms on the next frame without a delay or an extra click");
+    }
     ian::presentation::PlayerArrival arrival;
     require(!arrival.active(), "arrival is inactive when loading an existing run");
     requireNear(arrival.mountainGrowth(), 1.0, 1e-9, "existing runs show full-size mountains");

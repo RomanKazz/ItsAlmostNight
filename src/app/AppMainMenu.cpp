@@ -658,11 +658,13 @@ void App::drawMainMenu(const SimulationSnapshot&) {
         return;
     }
 
+    const bool acceptsInput = mainMenuInputBarrier_.allowsInput(
+        IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_ENTER) || IsKeyDown(KEY_SPACE));
     const bool canContinue = suspendedRunAvailable();
     for (std::size_t index = 0; index < featured.size(); ++index) {
         if (drawQuestSummaryCard(ui_, featured[index],
                 layout.topRect(30.0F, 30.0F + static_cast<float>(index) * 96.0F, 440.0F, 84.0F),
-                layout.scale, GetMousePosition(), IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
+                layout.scale, GetMousePosition(), acceptsInput && IsMouseButtonReleased(MOUSE_BUTTON_LEFT))) {
             questMenuState_ = {};
             questMenuState_.selectedId = featured[index].definition->id;
             mainMenuPage_ = MainMenuPage::Quests;
@@ -679,44 +681,44 @@ void App::drawMainMenu(const SimulationSnapshot&) {
 
     const Texture2D menuButton = ui_.mainMenuButtonTexture();
     if (canContinue) {
-        pendingContinueFromUi_ = drawMainMenuButton(menuButton,
+        pendingContinueFromUi_ = (drawMainMenuButton(menuButton,
             layout.rect(815.208F, 320.972F, 285.184F, 81.408F),
-            "CONTINUE RUN", layout, 34.0F) || pendingContinueFromUi_;
+            "CONTINUE RUN", layout, 34.0F) && acceptsInput) || pendingContinueFromUi_;
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 414.38F, 356.48F, 101.76F), "PLAY", layout)) {
+            layout.rect(781.56F, 414.38F, 356.48F, 101.76F), "PLAY", layout) && acceptsInput) {
         classSelectionVisible_ = true;
         classCollectionOnly_ = false;
         sandboxClassSelection_ = false;
         audio_.playUiConfirm();
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 528.14F, 356.48F, 101.76F), "UNLOCKS", layout)) {
+            layout.rect(781.56F, 528.14F, 356.48F, 101.76F), "UNLOCKS", layout) && acceptsInput) {
         mainMenuPage_ = MainMenuPage::Unlocks;
         audio_.playUiConfirm();
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 641.90F, 356.48F, 101.76F), "QUESTS", layout)) {
+            layout.rect(781.56F, 641.90F, 356.48F, 101.76F), "QUESTS", layout) && acceptsInput) {
         mainMenuPage_ = MainMenuPage::Quests;
         audio_.playUiConfirm();
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(781.56F, 755.66F, 356.48F, 101.76F), "SHOP", layout)) {
+            layout.rect(781.56F, 755.66F, 356.48F, 101.76F), "SHOP", layout) && acceptsInput) {
         mainMenuPage_ = MainMenuPage::Shop;
         audio_.playUiConfirm();
     }
 
     if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 785.0F, 285.184F, 81.408F), "SETTINGS", layout, 44.8F)) {
+            layout.rect(39.0F, 785.0F, 285.184F, 81.408F), "SETTINGS", layout, 44.8F) && acceptsInput) {
         renderer_->setGraphicsPanelVisible(true);
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 876.008F, 285.184F, 81.408F), "CREDITS", layout, 44.8F)) {
+            layout.rect(39.0F, 876.008F, 285.184F, 81.408F), "CREDITS", layout, 44.8F) && acceptsInput) {
         mainMenuPage_ = MainMenuPage::Credits;
         audio_.playUiConfirm();
     }
     if (drawMainMenuButton(menuButton,
-            layout.rect(39.0F, 967.016F, 285.184F, 81.408F), "EXIT", layout, 44.8F)) {
+            layout.rect(39.0F, 967.016F, 285.184F, 81.408F), "EXIT", layout, 44.8F) && acceptsInput) {
         exitRequested_ = true;
     }
 

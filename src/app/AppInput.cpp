@@ -35,6 +35,16 @@ bool keyPressed(const ControlSettings& settings,
 
 }
 
+void App::resetMainMenuInput() {
+    pendingStartFromUi_ = false;
+    pendingContinueFromUi_ = false;
+    classSelectionVisible_ = false;
+    classCollectionOnly_ = false;
+    sandboxClassSelection_ = false;
+    mainMenuPage_ = MainMenuPage::None;
+    mainMenuInputBarrier_.blockUntilRelease();
+}
+
 void App::processInput() {
     input_.jumpHeld = false;
     renderer_->processInput();
@@ -288,7 +298,7 @@ void App::processInput() {
             return;
         }
         simulation_.returnToMainMenu();
-        classSelectionVisible_ = false;
+        resetMainMenuInput();
         fixedStep_.reset();
         EnableCursor();
         audio_.playUiConfirm();
@@ -565,7 +575,7 @@ void App::processInput() {
          snapshot.state == RunState::Victory) &&
         IsKeyPressed(KEY_ESCAPE)) {
         simulation_.returnToMainMenu();
-        classSelectionVisible_ = false;
+        resetMainMenuInput();
         fixedStep_.reset();
         EnableCursor();
         audio_.playUiConfirm();
