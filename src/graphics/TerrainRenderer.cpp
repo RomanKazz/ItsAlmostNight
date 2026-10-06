@@ -178,6 +178,10 @@ Model TerrainRenderer::buildChunk(
             static_cast<unsigned int>(
                 vertexCount * 4 *
                 static_cast<int>(sizeof(unsigned char)))));
+    // The second UV channel carries each vertex's exact boundary rise so
+    // the shader can animate the lower mountains without rebuilding meshes.
+    mesh.texcoords2 = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(mesh.vertexCount * 2 * static_cast<int>(sizeof(float)))));
     mesh.indices = static_cast<unsigned short*>(
         MemAlloc(
             static_cast<unsigned int>(
@@ -186,7 +190,7 @@ Model TerrainRenderer::buildChunk(
                     sizeof(unsigned short)))));
     if (mesh.vertices == nullptr ||
         mesh.normals == nullptr ||
-        mesh.texcoords == nullptr ||
+        mesh.texcoords == nullptr || mesh.texcoords2 == nullptr ||
         mesh.colors == nullptr ||
         mesh.indices == nullptr) {
         if (mesh.vertices != nullptr) {
@@ -198,6 +202,7 @@ Model TerrainRenderer::buildChunk(
         if (mesh.texcoords != nullptr) {
             MemFree(mesh.texcoords);
         }
+        if (mesh.texcoords2 != nullptr) MemFree(mesh.texcoords2);
         if (mesh.colors != nullptr) {
             MemFree(mesh.colors);
         }
@@ -242,6 +247,8 @@ Model TerrainRenderer::buildChunk(
                 static_cast<float>(
                     (worldZ + halfSize) /
                     config.terrainWorldSize);
+            mesh.texcoords2[index * 2] = static_cast<float>(terrain_->getBoundaryRise(worldX, worldZ));
+            mesh.texcoords2[index * 2 + 1] = 0.0F;
             const double shoreDistance =
                 terrain_->waterSignedDistance(worldX, worldZ);
             const double wetShore = std::clamp(
@@ -821,9 +828,19 @@ void TerrainRenderer::buildChunks() {
 
 void TerrainRenderer::draw(
     Shader shader, Color tint,
-    Vector3 focusPosition, float mountainGrowth) {
+    Vector3 focusPosition, float mountainGrowth, float lowerMountainGrowth) {
     if (!ready_) {
         return;
+    }
+    if (growthShaderId_ != shader.id) {
+        growthShaderId_ = shader.id;
+        boundaryGrowthLocation_ = shader.id != 0U
+            ? GetShaderLocation(shader, "terrainBoundaryMissingGrowth") : -1;
+    }
+    const float missingGrowth = 1.0F - std::clamp(lowerMountainGrowth, 0.0F, 1.0F);
+    if (boundaryGrowthLocation_ >= 0) {
+        rlDrawRenderBatchActive();
+        SetShaderValue(shader, boundaryGrowthLocation_, &missingGrowth, SHADER_UNIFORM_FLOAT);
     }
     constexpr int PathMaskTextureSlot = 11;
     const float pathMaskEnabled =
@@ -900,6 +917,11 @@ void TerrainRenderer::draw(
             chunk.model, {0.0F, 0.0F, 0.0F},
             1.0F, tint);
     }
+    if (boundaryGrowthLocation_ >= 0) {
+        const float fullGrowth = 0.0F;
+        rlDrawRenderBatchActive();
+        SetShaderValue(shader, boundaryGrowthLocation_, &fullGrowth, SHADER_UNIFORM_FLOAT);
+    }
     if (IsModelValid(mountainBackdropModel_)) {
         for (int index = 0;
              index < mountainBackdropModel_.materialCount; ++index) {
@@ -948,6 +970,8 @@ void TerrainRenderer::drawWireframe(Color tint, float mountainGrowth) const {
 }
 
 void TerrainRenderer::shutdown() {
+    growthShaderId_ = 0U;
+    boundaryGrowthLocation_ = -1;
     for (auto& chunk : chunks_) {
         if (IsModelValid(chunk.model)) {
             UnloadModel(chunk.model);

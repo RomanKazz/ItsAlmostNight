@@ -59,6 +59,17 @@ void runPresentationTimelineTests() {
     requireNear(arrival.cameraMotion().pitch, 0.0, 1e-9,
                 "HUD fade does not restart the landing camera animation");
     arrival.start();
+    static_cast<void>(arrival.advance(ian::presentation::PlayerArrival::LowerMountainSeconds * .5));
+    requireNear(arrival.lowerMountainGrowth(), .5, 1e-6, "lower mountains rise first");
+    requireNear(arrival.mountainGrowth(), 0, 1e-9, "upper mountains wait for the lower layer");
+    static_cast<void>(arrival.advance(ian::presentation::PlayerArrival::LowerMountainSeconds * .5));
+    requireNear(arrival.lowerMountainGrowth(), 1, 1e-9, "lower mountains finish before the upper layer begins");
+    requireNear(arrival.mountainGrowth(), 0, 1e-9, "upper layer does not overlap the first growth stage");
+    static_cast<void>(arrival.advance((ian::presentation::PlayerArrival::MotionSeconds -
+        ian::presentation::PlayerArrival::LowerMountainSeconds) * .5));
+    requireNear(arrival.lowerMountainGrowth(), 1, 1e-9, "lower mountains remain settled during the second stage");
+    requireNear(arrival.mountainGrowth(), .5, 1e-6, "upper mountains rise after the lower layer");
+    arrival.start();
     require(arrival.advance(3.0) && !arrival.advance(0.5),
             "long frames cannot miss or repeat the landing effect");
     arrival.start();

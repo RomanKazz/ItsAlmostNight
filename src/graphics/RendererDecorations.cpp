@@ -1204,8 +1204,12 @@ void Renderer::drawBoundaryForest(const Camera3D& camera) {
         visibleTransforms.clear();
         visibleTransforms.reserve(
             boundaryForestTransforms_[variant].size());
-        for (const Matrix& transform :
+        for (Matrix transform :
              boundaryForestTransforms_[variant]) {
+            if (lowerMountainGrowth_ < 1.0F) {
+                transform.m13 -= static_cast<float>(terrain.getBoundaryRise(transform.m12, transform.m14)) *
+                    (1.0F - lowerMountainGrowth_);
+            }
             const float offsetX = transform.m12 - camera.position.x;
             const float offsetZ = transform.m14 - camera.position.z;
             const float distanceSquared =

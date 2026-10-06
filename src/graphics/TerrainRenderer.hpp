@@ -21,7 +21,7 @@ class TerrainRenderer {
     void rebuild(const TerrainHeightfield& terrain);
     void draw(
         Shader shader, Color tint,
-        Vector3 focusPosition, float mountainGrowth = 1.0F);
+        Vector3 focusPosition, float mountainGrowth = 1.0F, float lowerMountainGrowth = 1.0F);
     void drawWater(Shader shader) const;
     void drawWireframe(Color tint, float mountainGrowth = 1.0F) const;
     void shutdown();
@@ -51,6 +51,8 @@ class TerrainRenderer {
     int pathMaskLocation_{-1};
     int pathMaskEnabledLocation_{-1};
     bool pathMaskLocationsResolved_{};
+    unsigned int growthShaderId_{};
+    int boundaryGrowthLocation_{-1};
     bool ready_{};
 };
 

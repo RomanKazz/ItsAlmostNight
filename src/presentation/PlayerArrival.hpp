@@ -32,8 +32,16 @@ public:
         return static_cast<float>(progress * progress * (3.0 - 2.0 * progress));
     }
 
+    static constexpr double LowerMountainSeconds = MotionSeconds * 0.48;
+
+    [[nodiscard]] float lowerMountainGrowth() const {
+        const double progress = std::clamp(elapsed_ / LowerMountainSeconds, 0.0, 1.0);
+        return static_cast<float>(progress * progress * (3.0 - 2.0 * progress));
+    }
+
     [[nodiscard]] float mountainGrowth() const {
-        const double progress = std::clamp(elapsed_ / MotionSeconds, 0.0, 1.0);
+        const double progress = std::clamp(
+            (elapsed_ - LowerMountainSeconds) / (MotionSeconds - LowerMountainSeconds), 0.0, 1.0);
         return static_cast<float>(progress * progress * (3.0 - 2.0 * progress));
     }
 

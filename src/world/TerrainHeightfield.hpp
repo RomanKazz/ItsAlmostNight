@@ -58,6 +58,8 @@ class TerrainHeightfield {
     // it to keep structures level while the visible ground retains detail.
     [[nodiscard]] double getConstructionHeight(
         double worldX, double worldZ) const;
+    // Visual rise of the in-map mountain rim; arrival animation keeps gameplay heights unchanged.
+    [[nodiscard]] double getBoundaryRise(double worldX, double worldZ) const;
     // Height used by the visual mountain backdrop outside the playable
     // terrain. It is intentionally not part of collision or raycast space.
     [[nodiscard]] double getBackdropHeight(

@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -626,11 +627,28 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
     }
     constexpr float GroundOffset = 0.005F;
     position.y += GroundOffset;
-    DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
-                yawRadians * RAD2DEG,
-                {CoreModelScale * scale, CoreModelScale * scale,
-                 CoreModelScale * scale},
-                tint);
+    if (model.meshCount == 6) {
+        const float uniformScale = CoreModelScale * scale;
+        const Matrix transform = MatrixMultiply(
+            model.transform,
+            MatrixMultiply(MatrixScale(uniformScale, uniformScale, uniformScale),
+                MatrixMultiply(MatrixRotateY(yawRadians),
+                    MatrixTranslate(position.x, position.y, position.z))));
+        const double seconds = GetTime();
+        for (int index = 0; index < model.meshCount; ++index) {
+            Material& material = model.materials[model.meshMaterial[index]];
+            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+            DrawMesh(model.meshes[index], material,
+                MatrixMultiply(core_crystal_model_detail::meshTransform(index, seconds), transform));
+            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+        }
+    } else {
+        DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
+                    yawRadians * RAD2DEG,
+                    {CoreModelScale * scale, CoreModelScale * scale,
+                     CoreModelScale * scale}, tint);
+    }
     return true;
 }
 

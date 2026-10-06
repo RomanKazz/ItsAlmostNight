@@ -2,6 +2,7 @@
 
 in vec3 vertexPosition;
 in vec2 vertexTexCoord;
+in vec2 vertexTexCoord2;
 in vec3 vertexNormal;
 in vec4 vertexColor;
 // raylib uploads boneIndices with glVertexAttribPointer as unsigned bytes.
@@ -19,6 +20,7 @@ uniform float timeSeconds;
 uniform float windAmount;
 uniform float localWindHeight;
 uniform float terrainAmount;
+uniform float terrainBoundaryMissingGrowth;
 uniform mat4 boneMatrices[48];
 uniform int skinningEnabled;
 uniform int instancingEnabled;
@@ -66,6 +68,9 @@ void main()
     }
     vec4 localPosition =
         skinMatrix*vec4(vertexPosition, 1.0);
+    if (terrainAmount > 0.001) {
+        localPosition.y -= vertexTexCoord2.x * terrainBoundaryMissingGrowth;
+    }
     mat4 modelMatrix =
         instancingEnabled != 0 ? instanceTransform : matModel;
     vec4 worldPosition = modelMatrix*localPosition;
@@ -115,6 +120,9 @@ void main()
     else
     {
         worldNormal = (matNormal*vec4(localNormal, 0.0)).xyz;
+    }
+    if (terrainAmount > 0.001 && vertexTexCoord2.x > 0.001) {
+        worldNormal = mix(worldNormal, vec3(0.0, 1.0, 0.0), terrainBoundaryMissingGrowth);
     }
     fragWorldNormal = dot(worldNormal, worldNormal) < 0.000001
         ? vec3(0.0, 1.0, 0.0)

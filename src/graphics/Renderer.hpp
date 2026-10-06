@@ -353,7 +353,7 @@ class Renderer {
         std::span<const DecorationExclusion> exclusions);
     void drawTerrain(
         Color tint, Vector3 focusPosition,
-        bool wireframe = false, float mountainGrowth = 1.0F);
+        bool wireframe = false, float mountainGrowth = 1.0F, float lowerMountainGrowth = 1.0F);
     void drawPondDecor(const Camera3D& camera);
     void drawPondShoreRocks(const Camera3D& camera);
     void drawPondSurfaceDecor(const Camera3D& camera);
@@ -874,6 +874,7 @@ class Renderer {
     GraphicsResources resources_;
     InstanceBufferPool instanceBuffers_;
     TerrainRenderer terrainRenderer_;
+    float lowerMountainGrowth_{1.0F};
     DecorationExclusionMap decorationExclusionMap_;
     const TerrainHeightfield* terrainHeightfield_{};
     WorldShaderLocations worldShaderLocations_;

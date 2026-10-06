@@ -799,6 +799,10 @@ double TerrainHeightfield::getConstructionHeight(
         constructionHeights_, worldX, worldZ);
 }
 
+double TerrainHeightfield::getBoundaryRise(double worldX, double worldZ) const {
+    return boundaryRise(worldX, worldZ, config_, seed_);
+}
+
 double TerrainHeightfield::getBackdropHeight(
     double worldX, double worldZ) const {
     if (!std::isfinite(worldX) || !std::isfinite(worldZ)) {

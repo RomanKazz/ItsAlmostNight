@@ -432,7 +432,7 @@ void Renderer::rebuildPondDecorInstances() {
 
 void Renderer::drawTerrain(
     Color tint, Vector3 focusPosition,
-    bool wireframe, float mountainGrowth) {
+    bool wireframe, float mountainGrowth, float lowerMountainGrowth) {
     Shader shader{};
     if (selectionMaskPassOpen_ &&
         resources_.selectionMaskShader().valid()) {
@@ -445,7 +445,8 @@ void Renderer::drawTerrain(
         resources_.worldShader().valid()) {
         shader = resources_.worldShader().get();
     }
-    terrainRenderer_.draw(shader, tint, focusPosition, mountainGrowth);
+    lowerMountainGrowth_ = std::clamp(lowerMountainGrowth, 0.0F, 1.0F);
+    terrainRenderer_.draw(shader, tint, focusPosition, mountainGrowth, lowerMountainGrowth_);
     if (wireframe) {
         terrainRenderer_.drawWireframe(
             {245, 224, 154, 150}, mountainGrowth);

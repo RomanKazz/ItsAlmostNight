@@ -1,4 +1,5 @@
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
@@ -14,6 +15,141 @@
 #include <vector>
 
 namespace {
+
+std::size_t changedPixels(const Image& first, const Image& second) {
+    Color* a = LoadImageColors(first);
+    Color* b = LoadImageColors(second);
+    std::size_t changed = 0;
+    for (int pixel = 0; pixel < first.width * first.height; ++pixel) {
+        if (std::abs(static_cast<int>(a[pixel].r) - b[pixel].r) +
+            std::abs(static_cast<int>(a[pixel].g) - b[pixel].g) +
+            std::abs(static_cast<int>(a[pixel].b) - b[pixel].b) > 12) ++changed;
+    }
+    UnloadImageColors(a);
+    UnloadImageColors(b);
+    return changed;
+}
+
+bool checkCoreOrbitRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(384, 384);
+    const Camera3D camera{{0, 1.2F, 4}, {0, .75F, 0}, {0, 1, 0}, 36, CAMERA_PERSPECTIVE};
+    const auto capture = [&] {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawCore({0, 0, 0}));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image before = capture();
+    WaitTime(.35);
+    Image after = capture();
+    const bool changed = changedPixels(before, after) > 200;
+    if (const char* directory = std::getenv("IAN_CAPTURE_CORE_ORBIT")) {
+        std::filesystem::create_directories(directory);
+        ExportImage(before, (std::filesystem::path{directory} / "core-before.png").string().c_str());
+        ExportImage(after, (std::filesystem::path{directory} / "core-after.png").string().c_str());
+    }
+    UnloadImage(before);
+    UnloadImage(after);
+    UnloadRenderTexture(target);
+    return changed;
+}
+
+bool checkSequentialMountainRendering(ian::Renderer& renderer) {
+    ian::TerrainHeightfield terrain;
+    terrain.generate(42);
+    renderer.rebuildTerrain(terrain);
+    renderer.setWorldReveal({0, 0}, 1000);
+    const auto target = LoadRenderTexture(480, 270);
+    const Camera3D camera{{0, static_cast<float>(terrain.getHeight(0, 0)) + 2, 0},
+                          {0, 8, -100}, {0, 1, 0}, 65, CAMERA_PERSPECTIVE};
+    const auto capture = [&](float lower, float upper) {
+        BeginTextureMode(target);
+        ClearBackground({95, 160, 215, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.terrainAmount = 1;
+        material.distantFadeAmount = 1;
+        renderer.setWorldMaterial(material);
+        renderer.drawTerrain({66, 112, 67, 255}, camera.position, false, upper, lower);
+        material.terrainAmount = 0;
+        material.treeAmount = 1;
+        material.coniferAmount = 1;
+        renderer.setWorldMaterial(material);
+        renderer.drawBoundaryForest(camera);
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image flat = capture(0, 0);
+    Image lower = capture(1, 0);
+    Image both = capture(1, 1);
+    const bool valid = changedPixels(flat, lower) > 1000 && changedPixels(lower, both) > 1000;
+    if (const char* directory = std::getenv("IAN_CAPTURE_CORE_ORBIT")) {
+        ExportImage(flat, (std::filesystem::path{directory} / "mountains-start.png").string().c_str());
+        ExportImage(lower, (std::filesystem::path{directory} / "mountains-lower.png").string().c_str());
+        ExportImage(both, (std::filesystem::path{directory} / "mountains-both.png").string().c_str());
+    }
+    UnloadImage(flat);
+    UnloadImage(lower);
+    UnloadImage(both);
+    UnloadRenderTexture(target);
+    // Renderer borrows this terrain; detach it before the local field expires.
+    renderer.shutdown();
+    renderer.initialize();
+    return valid;
+}
+
+bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
+    if (!resource.valid() || resource.get().meshCount != 6) return false;
+    const Model& model = resource.get();
+    for (int part = 0; part < model.meshCount; ++part) {
+        const Mesh& mesh = model.meshes[part];
+        const Matrix pose = ian::core_crystal_model_detail::meshTransform(part, 2.0);
+        const bool satellite = part >= 1 && part <= 4;
+        const BoundingBox bounds = GetMeshBoundingBox(mesh);
+        const Vector3 center{(bounds.min.x + bounds.max.x) * .5F,
+                             (bounds.min.y + bounds.max.y) * .5F,
+                             (bounds.min.z + bounds.max.z) * .5F};
+        if (satellite) {
+            // Verify the loader baked the original node offsets: rotating an
+            // unbaked mesh would only spin it about itself.
+            const Vector3 orbitCenter = Vector3Transform(center, pose);
+            if (std::abs(std::hypot(center.x, center.z) - .25F) > .001F ||
+                std::abs(std::hypot(orbitCenter.x, orbitCenter.z) - .32F) > .001F ||
+                Vector3Distance(center, orbitCenter) < .15F) return false;
+        }
+        for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
+            const Vector3 point{mesh.vertices[vertex * 3], mesh.vertices[vertex * 3 + 1],
+                                mesh.vertices[vertex * 3 + 2]};
+            const Vector3 animated = Vector3Transform(point, pose);
+            if (!satellite && Vector3Distance(point, animated) > .00001F) return false;
+            const Vector3 spread = Vector3Transform(point,
+                ian::core_crystal_model_detail::meshTransform(part, 0));
+            if (std::abs(point.y - animated.y) > .00001F ||
+                std::abs(std::hypot(spread.x, spread.z) - std::hypot(animated.x, animated.z)) > .00001F ||
+                std::abs(Vector3Distance(point, center) -
+                    Vector3Distance(animated, Vector3Transform(center, pose))) > .00001F)
+                return false;
+        }
+    }
+    return true;
+}
 
 bool checkCrystalMineOrbit(ian::ModelResource& resource) {
     if (!resource.valid()) return false;
@@ -263,6 +399,10 @@ int main() {
         ian::GraphicsResources resources;
         std::cerr << "graphics smoke: initialize 1\n";
         resources.initialize(settings);
+        if (!checkCoreCrystalOrbit(resources.coreModel())) {
+            std::cerr << "core satellites fail to orbit the fixed central crystal/pedestal\n";
+            result = 1;
+        }
         if (!checkCrystalMineOrbit(resources.mineModel())) {
             std::cerr << "crystal mine orbit or fixed core/base failed\n";
             result = 1;
@@ -452,6 +592,14 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkCoreOrbitRendering(renderer)) {
+            std::cerr << "rendered core satellites remain static\n";
+            result = 1;
+        }
+        if (!checkSequentialMountainRendering(renderer)) {
+            std::cerr << "lower/upper mountain rendering stages fail\n";
+            result = 1;
+        }
         const ian::BuildingInstance core{
             .id = {1U, 0U},
             .type = ian::BuildingType::Core,
