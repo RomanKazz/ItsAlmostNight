@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "app/RestartHold.hpp"
 #include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
 #include "presentation/PlayerArrival.hpp"
@@ -18,6 +19,32 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    for (const int fps : {30, 60, 144, 240}) {
+        ian::RestartHold restart;
+        const double dt = 1.0 / fps;
+        for (int frame = 0; frame < fps - 1; ++frame) {
+            require(!restart.update(true, true, dt), "restart waits for a full second at every frame rate");
+        }
+        require(restart.progress() > 0.9, "restart indicator approaches full before activation");
+        require(restart.update(true, true, dt), "one-second hold restarts the run");
+        for (int frame = 0; frame < fps * 3; ++frame) {
+            require(!restart.update(true, true, dt), "continuing to hold cannot restart the new run again");
+        }
+        requireNear(restart.progress(), 0.0, 1e-9, "completed hold hides its indicator");
+        require(!restart.update(false, true, dt), "release only rearms restart");
+        require(!restart.update(true, true, 0.1), "a fresh hold starts from zero");
+        require(!restart.update(false, true, dt), "early release cancels a partial hold");
+        requireNear(restart.progress(), 0.0, 1e-9, "cancelled hold clears its indicator");
+        require(!restart.update(true, false, dt), "settings and upgrade menus do not restart");
+        for (int frame = 0; frame < fps * 2; ++frame) {
+            require(!restart.update(true, true, dt), "a key held in a menu must be released before restarting");
+        }
+        restart.cancel(false);
+        require(!restart.update(true, true, 5.0), "a stalled frame cannot instantly complete a hold");
+        requireNear(restart.progress(), 0.1, 1e-9, "frame stalls contribute at most a tenth of a second");
+        restart.cancel(true);
+        require(!restart.update(true, true, dt), "button restart cancels an ongoing keyboard hold");
+    }
     {
         ian::MenuInputBarrier barrier;
         require(barrier.allowsInput(false), "initial main menu accepts input immediately");

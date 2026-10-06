@@ -51,6 +51,16 @@ void App::processInput() {
     const auto snapshot = simulation_.snapshot();
     const bool graphicsPanelVisible =
         renderer_->graphicsPanelVisible();
+    const int restartKey = controlKey(userSettings_.controls, ControlAction::Restart);
+    const bool restartHeld = restartHold_.update(
+        restartKey != KEY_NULL && IsKeyDown(restartKey),
+        snapshot.state != RunState::MainMenu && IsWindowFocused() &&
+            !graphicsPanelVisible && !pendingControlRebind_ &&
+            !snapshot.runUpgradeChoicePending &&
+            !enemySpawnMenuVisible_ && !itemGrantMenuVisible_ &&
+            !sandboxCardMenuVisible_ && !coreDefenseMenuVisible_ &&
+            !objectiveDebugMenuVisible_,
+        static_cast<double>(GetFrameTime()));
     if (!coreDefenseMenuVisible_ && coreMenuPointerActive_) {
         coreMenuPointerActive_ = false;
         if (acceptsGameplayInput(snapshot.state) &&
@@ -99,7 +109,7 @@ void App::processInput() {
         return;
     }
     if (snapshot.state == RunState::StageClear &&
-        !snapshot.runUpgradeChoicePending) {
+        !snapshot.runUpgradeChoicePending && !restartHeld) {
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
             if (simulation_.enterFinalNight()) {
                 audio_.playUiConfirm();
@@ -550,12 +560,7 @@ void App::processInput() {
         }
     }
     if (snapshot.state != RunState::MainMenu &&
-        (automaticRunRestartPending_ ||
-         ((snapshot.state == RunState::Defeat ||
-           snapshot.state == RunState::Victory) &&
-          keyPressed(
-              userSettings_.controls,
-              ControlAction::Restart)))) {
+        (automaticRunRestartPending_ || restartHeld)) {
         automaticRunRestartPending_ = false;
         static_cast<void>(simulation_.configureNextRunBonuses(metaRunBonuses(metaProgression_)));
         simulation_.restartRun();

@@ -251,6 +251,21 @@ void App::render() {
     drawSandboxCardMenu(snapshot);
     drawCoreDefenseMenu();
     drawObjectiveDebugMenu(snapshot);
+    const float restartProgress = static_cast<float>(restartHold_.progress());
+    if (restartProgress > 0.15F && snapshot.state != RunState::MainMenu) {
+        const float width = 220.0F;
+        const float left = (static_cast<float>(GetScreenWidth()) - width) * 0.5F;
+        const float top = static_cast<float>(GetScreenHeight()) * 0.12F;
+        const float opacity = std::clamp((restartProgress - 0.15F) * 10.0F, 0.0F, 1.0F);
+        DrawRectangleRounded({left - 12, top - 8, width + 24, 54},
+            0.18F, 4, Fade({28, 35, 30, 240}, opacity));
+        drawCenteredUiText(
+            userSettings_.language == Language::Russian ? "ПЕРЕЗАПУСК" : "RESTART",
+            top, 20, Fade({254, 247, 229, 255}, opacity));
+        DrawRectangleRec({left, top + 30, width, 6}, Fade({70, 80, 73, 255}, opacity));
+        DrawRectangleRec({left, top + 30, width * restartProgress, 6},
+            Fade({255, 204, 0, 255}, opacity));
+    }
     if (!hudHidden_ && !playerArrival_.active() && performanceOverlayVisible_) {
         drawPerformanceOverlay(snapshot);
     }

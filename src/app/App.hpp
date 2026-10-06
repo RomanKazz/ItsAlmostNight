@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/UserSettings.hpp"
+#include "app/RestartHold.hpp"
 #include "audio/AudioSystem.hpp"
 #include "buildings/PlacementLine.hpp"
 #include "core/FixedStep.hpp"
@@ -361,6 +362,7 @@ class App {
     bool pendingRestartFromUi_{};
     bool pendingReturnToMenuFromUi_{};
     bool automaticRunRestartPending_{};
+    RestartHold restartHold_;
     bool exitRequested_{};
     mutable std::optional<bool> suspendedRunAvailabilityCache_;
     bool graphicsPanelWasVisible_{};
