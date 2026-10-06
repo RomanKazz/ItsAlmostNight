@@ -131,8 +131,9 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
             // unbaked mesh would only spin it about itself.
             const Vector3 orbitCenter = Vector3Transform(center, pose);
             if (std::abs(std::hypot(center.x, center.z) - .25F) > .001F ||
-                std::abs(std::hypot(orbitCenter.x, orbitCenter.z) - .32F) > .001F ||
-                Vector3Distance(center, orbitCenter) < .15F) return false;
+                std::abs(std::hypot(orbitCenter.x, orbitCenter.z) - .29F) > .001F ||
+                Vector3Distance(center, orbitCenter) < .15F ||
+                orbitCenter.y - center.y < .0349F || orbitCenter.y - center.y > .0651F) return false;
         }
         for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
             const Vector3 point{mesh.vertices[vertex * 3], mesh.vertices[vertex * 3 + 1],
@@ -141,11 +142,27 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
             if (!satellite && Vector3Distance(point, animated) > .00001F) return false;
             const Vector3 spread = Vector3Transform(point,
                 ian::core_crystal_model_detail::meshTransform(part, 0));
-            if (std::abs(point.y - animated.y) > .00001F ||
+            const float lift = Vector3Transform(center, pose).y - center.y;
+            if (std::abs(animated.y - point.y - lift) > .00001F ||
                 std::abs(std::hypot(spread.x, spread.z) - std::hypot(animated.x, animated.z)) > .00001F ||
                 std::abs(Vector3Distance(point, center) -
                     Vector3Distance(animated, Vector3Transform(center, pose))) > .00001F)
                 return false;
+        }
+    }
+    const Vector3 first = Vector3Transform({}, ian::core_crystal_model_detail::meshTransform(1, 0));
+    const Vector3 second = Vector3Transform({}, ian::core_crystal_model_detail::meshTransform(2, 0));
+    if (std::abs(first.y - second.y) < .01F) return false;
+    for (int part = 1; part <= 4; ++part) {
+        const Vector3 start = Vector3Transform({}, ian::core_crystal_model_detail::meshTransform(part, 0));
+        const Vector3 loop = Vector3Transform({}, ian::core_crystal_model_detail::meshTransform(part, 6));
+        if (std::abs(start.y - loop.y) > .00001F) return false;
+        for (int step = 0; step < 120; ++step) {
+            const auto before = ian::core_crystal_model_detail::meshTransform(part, step / 20.0);
+            const auto after = ian::core_crystal_model_detail::meshTransform(part, (step + 1) / 20.0);
+            const float y = Vector3Transform({}, before).y;
+            if (y < .0349F || y > .0651F ||
+                std::abs(y - Vector3Transform({}, after).y) > .0009F) return false;
         }
     }
     return true;

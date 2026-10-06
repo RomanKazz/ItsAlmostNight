@@ -13,13 +13,19 @@ namespace ian::core_crystal_model_detail {
 [[nodiscard]] inline Matrix meshTransform(int meshIndex, double seconds) {
     if (meshIndex < 1 || meshIndex > 4) return MatrixIdentity();
     constexpr double RadiansPerSecond = 0.28;
-    constexpr float ExtraRadius = 0.07F;
+    constexpr float ExtraRadius = 0.04F;
     constexpr std::array<Vector3, 4> Offsets{{
         {0, 0, -ExtraRadius}, {ExtraRadius, 0, 0},
         {0, 0, ExtraRadius}, {-ExtraRadius, 0, 0},
     }};
     const Vector3 offset = Offsets[static_cast<std::size_t>(meshIndex - 1)];
-    return MatrixMultiply(MatrixTranslate(offset.x, offset.y, offset.z),
+    constexpr float Lift = 0.05F;
+    constexpr float BobAmplitude = 0.015F;
+    constexpr double BobSeconds = 6.0;
+    const double phase = static_cast<double>(meshIndex - 1) * PI * 0.5;
+    const float height = Lift + BobAmplitude * static_cast<float>(
+        std::sin(seconds * (2.0 * PI / BobSeconds) + phase));
+    return MatrixMultiply(MatrixTranslate(offset.x, height, offset.z),
         MatrixRotateY(static_cast<float>(std::fmod(
             seconds * RadiansPerSecond, 2.0 * PI))));
 }
