@@ -95,17 +95,7 @@ void App::processInput() {
                 pressedKey);
             pendingControlRebind_.reset();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        pendingPickaxe_ = false;
-        pendingRifleShot_ = false;
-        pendingIceWandShot_ = false;
-        pendingFireWandShot_ = false;
+        suspendGameplayInput();
         return;
     }
     if (snapshot.state == RunState::StageClear &&
@@ -119,17 +109,7 @@ void App::processInput() {
                 audio_.playUiConfirm();
             }
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        pendingPickaxe_ = false;
-        pendingRifleShot_ = false;
-        pendingIceWandShot_ = false;
-        pendingFireWandShot_ = false;
+        suspendGameplayInput();
         return;
     }
     if (snapshot.runUpgradeChoicePending) {
@@ -241,17 +221,7 @@ void App::processInput() {
             runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
-        pendingJump_ = false;
-        pendingDash_ = false;
-        pendingPickaxe_ = false;
-        pendingRifleShot_ = false;
-        pendingIceWandShot_ = false;
-        pendingFireWandShot_ = false;
+        suspendGameplayInput();
         return;
     }
     if (runUpgradeChoiceWasVisible_) {
@@ -280,11 +250,7 @@ void App::processInput() {
             renderer_->setGraphicsPanelVisible(false);
             audio_.playUiConfirm();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
+        suspendGameplayInput();
         return;
     }
     if (pendingResumeFromUi_) {
@@ -361,11 +327,7 @@ void App::processInput() {
             }
             audio_.playUiConfirm();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
+        suspendGameplayInput();
         return;
     }
     if (coreDefenseMenuVisible_) {
@@ -382,11 +344,7 @@ void App::processInput() {
             }
             audio_.playUiConfirm();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
+        suspendGameplayInput();
         return;
     }
     if (snapshot.state != RunState::MainMenu &&
@@ -429,11 +387,7 @@ void App::processInput() {
             }
             audio_.playUiConfirm();
         }
-        input_.moveForward = 0.0;
-        input_.moveRight = 0.0;
-        input_.sprint = false;
-        pendingYaw_ = 0.0;
-        pendingPitch_ = 0.0;
+        suspendGameplayInput();
         return;
     }
     if (snapshot.state == RunState::MainMenu &&

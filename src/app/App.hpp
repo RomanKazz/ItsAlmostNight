@@ -304,6 +304,7 @@ class App {
     void selectConstructionHotbarItem(
         const SimulationSnapshot& snapshot,
         std::size_t index);
+    void suspendGameplayInput();
     void resetRunInputState();
     void resetRunClientState(const SimulationSnapshot& snapshot);
     void resetEquipmentActionMode(

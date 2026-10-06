@@ -8,8 +8,10 @@
 namespace ian {
 using namespace app_detail;
 
-void App::resetRunInputState() {
-    input_ = {};
+void App::suspendGameplayInput() {
+    input_.moveForward = 0.0;
+    input_.moveRight = 0.0;
+    input_.sprint = false;
     pendingYaw_ = 0.0;
     pendingPitch_ = 0.0;
     pendingJump_ = false;
@@ -18,6 +20,11 @@ void App::resetRunInputState() {
     pendingRifleShot_ = false;
     pendingIceWandShot_ = false;
     pendingFireWandShot_ = false;
+}
+
+void App::resetRunInputState() {
+    input_ = {};
+    suspendGameplayInput();
     pendingBuildingSelection_.reset();
     pendingBuildingCancel_ = false;
     pendingBuildingPlacement_.reset();
