@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "graphics/AtmosphereParticles.hpp"
 #include "app/RestartHold.hpp"
 #include "presentation/PresentationTypes.hpp"
 #include "presentation/PresentationTimeline.hpp"
@@ -19,6 +20,68 @@ struct TimedVisual {
 } // namespace
 
 void runPresentationTimelineTests() {
+    {
+        ian::atmosphere::Field field;
+        field.configure(421, 384);
+        const Vector3 center{120, 2, -90};
+        const auto first = field.leaf(0, 15, center);
+        field.configure(421, 384);
+        const auto same = field.leaf(0, 15, center);
+        requireNear(first.position.x, same.position.x, 1e-6, "unchanged worlds retain deterministic particle seeds");
+        for (const float time : {0.0F, 0.016F, 15.0F, 6000.0F}) {
+            for (std::size_t i = 0; i < ian::atmosphere::LeafCount + ian::atmosphere::DustCount; ++i) {
+                const bool leaf = i < ian::atmosphere::LeafCount;
+                const auto p = leaf ? field.leaf(i, time, center)
+                    : field.dust(i - ian::atmosphere::LeafCount, time, center);
+                const float range = leaf ? ian::atmosphere::LeafRange : ian::atmosphere::DustRange;
+                require(std::isfinite(p.position.y) && p.position.y > 0 &&
+                        std::abs(p.position.x - center.x) <= range + 1e-4F &&
+                        std::abs(p.position.z - center.z) <= range + 1e-4F,
+                        "particle field stays bounded around distant cameras during long runs");
+                require(p.opacity >= 0 && p.opacity <= 1, "particle opacity stays bounded");
+                const float dx = p.position.x - center.x, dz = p.position.z - center.z;
+                if (dx * dx + dz * dz >= range * range) {
+                    requireNear(p.opacity, 0, 1e-6, "particles disappear before their wrap boundary");
+                }
+            }
+        }
+        const auto nearby = field.leaf(0, 15, {center.x + .01F, 2, center.z});
+        requireNear(first.position.x, nearby.position.x, 1e-4, "camera motion does not drag visible leaves through the world");
+        field.configure(842, 384);
+        require(std::abs(first.position.x - field.leaf(0, 15, center).position.x) > 1e-3F,
+                "new world seeds change atmospheric particle placements");
+        const auto biomes = ian::visual_biomes::generate(842, 384);
+        for (std::size_t i = 0; i < ian::visual_biomes::Count; ++i) {
+            ian::atmosphere::Particle p;
+            p.position = {biomes.centers[i][0], 1, biomes.centers[i][1]};
+            p.opacity = .6F;
+            const Color color = field.leafColor(p);
+            const Color expected = ian::atmosphere::tint(
+                ian::visual_biomes::shiftPalette(biomes.leaves[i], 0, .05F, .10F), 1, .6F);
+            require(color.r == expected.r && color.g == expected.g && color.b == expected.b,
+                    "leaves use the discrete palette of their world-space biome");
+            require(color.a == expected.a && field.dustColor(p).a == expected.a,
+                    "biome tint preserves leaf and dust lifetime opacity");
+        }
+        ian::atmosphere::Particle p;
+        p.size = 1; p.opacity = 1;
+        const auto vertices = ian::atmosphere::leafVertices(p, {80, 160, 80, 255});
+        require(vertices.size() == 72, "leaf geometry has a fixed vertex budget including vein and stem");
+        for (std::size_t i = 0; i < 48; i += 6) {
+            const auto normal = [&](std::size_t offset) {
+                return Vector3CrossProduct(Vector3Subtract(vertices[offset+1].position, vertices[offset].position),
+                    Vector3Subtract(vertices[offset+2].position, vertices[offset].position));
+            };
+            require(normal(i).z > 0 && normal(i + 3).z < 0,
+                    "folded leaf faces keep correct opposite winding while tumbling");
+        }
+        const auto dust = ian::atmosphere::dustVertices(p, {200, 180, 160, 120}, {1,0,0}, {0,1,0});
+        for (std::size_t i = 0; i < dust.size(); i += 3) {
+            require(dust[i].color.a == 120 && dust[i+1].color.a == 0 && dust[i+2].color.a == 0,
+                    "dust discs fade to transparent edges without a square sprite silhouette");
+        }
+    }
+
     for (const int fps : {30, 60, 144, 240}) {
         ian::RestartHold restart;
         const double dt = 1.0 / fps;

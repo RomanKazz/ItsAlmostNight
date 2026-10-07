@@ -1,6 +1,7 @@
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "graphics/AtmosphereParticles.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -29,6 +30,59 @@ std::size_t changedPixels(const Image& first, const Image& second) {
     UnloadImageColors(a);
     UnloadImageColors(b);
     return changed;
+}
+
+bool checkAtmosphereRendering() {
+    ian::atmosphere::Field field;
+    field.configure(842, 384);
+    const auto biomes = ian::visual_biomes::generate(842, 384);
+    const auto target = LoadRenderTexture(640, 320);
+    const Camera3D camera{{0, 0, 4}, {0, 0, 0}, {0, 1, 0}, 2.4F, CAMERA_ORTHOGRAPHIC};
+    BeginTextureMode(target);
+    ClearBackground({20, 28, 30, 255});
+    BeginMode3D(camera);
+    rlBegin(RL_TRIANGLES);
+    for (std::size_t biome = 0; biome < 4; ++biome) {
+        ian::atmosphere::Particle p;
+        p.position = {biomes.centers[biome][0], 0, biomes.centers[biome][1]};
+        p.opacity = .85F; p.size = .95F;
+        const Color color = field.leafColor(p);
+        for (int face = 0; face < 2; ++face) {
+            p.position = {-1.8F + static_cast<float>(biome) * 1.2F, .6F - static_cast<float>(face) * 1.2F, 0};
+            p.yaw = static_cast<float>(face) * PI; p.tilt = .17F;
+            for (const auto& vertex : ian::atmosphere::leafVertices(p, color)) {
+                rlColor4ub(vertex.color.r, vertex.color.g, vertex.color.b, vertex.color.a);
+                rlVertex3f(vertex.position.x, vertex.position.y, vertex.position.z);
+            }
+        }
+    }
+    rlEnd();
+    EndMode3D();
+    EndTextureMode();
+    Image image = LoadImageFromTexture(target.texture);
+    ImageFlipVertical(&image);
+    Color* pixels = LoadImageColors(image);
+    bool visible = true;
+    for (int row = 0; row < 2; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            int painted = 0;
+            for (int y = row * 160; y < (row + 1) * 160; ++y) {
+                for (int x = column * 160; x < (column + 1) * 160; ++x) {
+                    const Color pixel = pixels[y * 640 + x];
+                    if (pixel.r + pixel.g + pixel.b > 110) ++painted;
+                }
+            }
+            visible = visible && painted > 600;
+        }
+    }
+    if (const char* directory = std::getenv("IAN_CAPTURE_ATMOSPHERE")) {
+        std::filesystem::create_directories(directory);
+        ExportImage(image, (std::filesystem::path{directory} / "leaves.png").string().c_str());
+    }
+    UnloadImageColors(pixels);
+    UnloadImage(image);
+    UnloadRenderTexture(target);
+    return visible;
 }
 
 bool checkCoreOrbitRendering(ian::Renderer& renderer) {
@@ -858,6 +912,10 @@ int main() {
                 std::cerr << "first-shot render " << frame << " ms " << (GetTime() - start) * 1000 << '\n';
             }
             UnloadRenderTexture(target);
+        }
+        if (!checkAtmosphereRendering()) {
+            std::cerr << "biome leaves disappear when viewed from either side\n";
+            result = 1;
         }
         if (!checkCoreOrbitRendering(renderer)) {
             std::cerr << "rendered core satellites remain static\n";

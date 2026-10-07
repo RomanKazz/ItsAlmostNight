@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "graphics/CameraCulling.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -17,16 +18,6 @@ namespace ian {
 using namespace app_detail;
 using namespace app_effect_drawing;
 namespace {
-
-float wrapAtmosphere(float value, float center, float halfExtent) {
-    const float extent = halfExtent * 2.0F;
-    float relative = std::fmod(
-        value - center + halfExtent, extent);
-    if (relative < 0.0F) {
-        relative += extent;
-    }
-    return center + relative - halfExtent;
-}
 
 std::optional<std::array<Vector2, 4>> projectedSurfaceQuad(
     Vector3 center, Vector3 right, Vector3 up, float worldSize,
@@ -139,176 +130,64 @@ void App::drawAtmosphereParticles(
         EndBlendMode();
     };
 
-    // Rare low-poly leaves. Positions loop around the camera, so the effect
-    // has fixed cost and never allocates or fills the world with entities.
-    constexpr int LeafCount = 11;
-    constexpr float LeafHalfExtent = 25.0F;
+    const auto& terrain = simulation_.terrain();
+    atmosphereParticles_.configure(terrain.seed(), terrain.config().terrainWorldSize);
+    const auto horizontalCone = camera_culling::horizontalView(camera);
+    const camera_culling::Frustum frustum{MatrixMultiply(
+        rlGetMatrixModelview(), rlGetMatrixProjection())};
+    const auto visible = [&](atmosphere::Particle& particle) {
+        particle.opacity *= daylight;
+        if (particle.opacity <= 0.01F) return false;
+        const float x = particle.position.x - camera.position.x;
+        const float z = particle.position.z - camera.position.z;
+        // A pitched view can see particles beyond the horizontal cone.
+        // Let the matrix frustum handle those views without premature rejection.
+        if (std::abs(cameraForward.y) < 0.2F &&
+            !camera_culling::visibleInHorizontalCone(x, z, x * x + z * z,
+                horizontalCone, particle.size, 2.0F)) return false;
+        particle.position.y += static_cast<float>(terrain.getHeight(
+            particle.position.x, particle.position.z));
+        const Vector3 padding{particle.size, particle.size, particle.size};
+        return frustum.intersects({Vector3Subtract(particle.position, padding),
+                                  Vector3Add(particle.position, padding)});
+    };
+    const auto emit = [](const auto& vertices) {
+        for (const auto& vertex : vertices) {
+            rlColor4ub(vertex.color.r, vertex.color.g, vertex.color.b, vertex.color.a);
+            rlVertex3f(vertex.position.x, vertex.position.y, vertex.position.z);
+        }
+    };
+
+    // One batch per material; no matrix stack or draw calls per leaf.
+    // Clear the scene-alpha tag so world ink cannot draw over the particles.
     rlDrawRenderBatchActive();
-    // Preserve regular alpha-blended RGB, but clear scene alpha wherever a
-    // leaf is visible. This tags it as a foreground overlay for the ink pass
-    // without making the leaf additive or changing its opacity.
-    rlSetBlendFactorsSeparate(
-        RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
-        RL_ZERO, RL_ZERO,
-        RL_FUNC_ADD, RL_FUNC_ADD);
+    rlSetBlendFactorsSeparate(RL_SRC_ALPHA, RL_ONE_MINUS_SRC_ALPHA,
+        RL_ZERO, RL_ZERO, RL_FUNC_ADD, RL_FUNC_ADD);
     BeginBlendMode(BLEND_CUSTOM_SEPARATE);
     rlDisableDepthMask();
-    for (int index = 0; index < LeafCount; ++index) {
-        const std::uint32_t seed =
-            0x6d2b79f5U + static_cast<std::uint32_t>(index) *
-                0x9e3779b9U;
-        const float speed = 2.1F + atmosphereUnit(seed + 1U) * 1.4F;
-        float x = wrapAtmosphere(
-            (atmosphereUnit(seed + 2U) * 2.0F - 1.0F) *
-                    LeafHalfExtent +
-                time * speed,
-            camera.position.x, LeafHalfExtent);
-        float z = wrapAtmosphere(
-            (atmosphereUnit(seed + 3U) * 2.0F - 1.0F) *
-                    LeafHalfExtent +
-                time * speed * 0.24F,
-            camera.position.z, LeafHalfExtent);
-        x += std::sin(time * 1.35F + atmosphereUnit(seed + 4U) * 17.0F) *
-            0.55F;
-        z += std::cos(time * 1.08F + atmosphereUnit(seed + 5U) * 19.0F) *
-            0.35F;
-
-        const float viewOffsetX = x - camera.position.x;
-        const float viewOffsetZ = z - camera.position.z;
-        const float viewDistanceSquared =
-            viewOffsetX * viewOffsetX + viewOffsetZ * viewOffsetZ;
-        if (viewDistanceSquared > 16.0F &&
-            viewOffsetX * horizontalView.x +
-                    viewOffsetZ * horizontalView.z <
-                -1.0F) {
-            continue;
-        }
-
-        const float cycle = std::fmod(
-            atmosphereUnit(seed + 6U) +
-                time * (0.035F + atmosphereUnit(seed + 7U) * 0.022F),
-            1.0F);
-        const float ground = static_cast<float>(
-            simulation_.terrain().getHeight(x, z));
-        const float y = ground + 0.65F + (1.0F - cycle) * 5.2F +
-            std::sin(time * 2.0F + atmosphereUnit(seed + 8U) * 13.0F) *
-                0.22F;
-        const float distance = Vector2Distance(
-            {x, z}, {camera.position.x, camera.position.z});
-        const float edgeFade = 1.0F -
-            smoothstep(18.0F, LeafHalfExtent, distance);
-        const float cycleFade =
-            smoothstep(0.0F, 0.08F, cycle) *
-            (1.0F - smoothstep(0.88F, 1.0F, cycle));
-        const float alpha = edgeFade * cycleFade * daylight * 0.88F;
-        if (alpha <= 0.01F) {
-            continue;
-        }
-
-        const Color palette[4] = {
-            {210, 143, 47, atmosphereAlpha(alpha)},
-            {229, 184, 67, atmosphereAlpha(alpha)},
-            {159, 174, 55, atmosphereAlpha(alpha)},
-            {191, 104, 39, atmosphereAlpha(alpha)},
-        };
-        const float size = 0.72F + atmosphereUnit(seed + 9U) * 0.55F;
-        const Vector3 axis = Vector3Normalize({
-            0.35F + atmosphereUnit(seed + 10U),
-            0.55F + atmosphereUnit(seed + 11U),
-            0.25F + atmosphereUnit(seed + 12U),
-        });
-        const float rotation =
-            time * (95.0F + atmosphereUnit(seed + 13U) * 120.0F) +
-            atmosphereUnit(seed + 14U) * 360.0F;
-        rlPushMatrix();
-        rlTranslatef(x, y, z);
-        rlRotatef(rotation, axis.x, axis.y, axis.z);
-        rlScalef(size, size, size);
-        const Color leafColor =
-            palette[static_cast<std::size_t>(index) % 4U];
-        const std::array<Vector3, 4> leafEdge{{
-            {-0.10F, 0.0F, 0.0F},
-            {0.0F, 0.0F, 0.045F},
-            {0.11F, 0.0F, 0.0F},
-            {0.0F, 0.0F, -0.045F},
-        }};
-        rlBegin(RL_TRIANGLES);
-        rlColor4ub(
-            leafColor.r, leafColor.g, leafColor.b, leafColor.a);
-        for (std::size_t edge = 0; edge < leafEdge.size(); ++edge) {
-            const Vector3& a = leafEdge[edge];
-            const Vector3& b = leafEdge[(edge + 1U) % leafEdge.size()];
-            rlVertex3f(0.0F, 0.018F, 0.0F);
-            rlVertex3f(a.x, a.y, a.z);
-            rlVertex3f(b.x, b.y, b.z);
-            rlVertex3f(0.0F, -0.018F, 0.0F);
-            rlVertex3f(b.x, b.y, b.z);
-            rlVertex3f(a.x, a.y, a.z);
-        }
-        rlEnd();
-        rlPopMatrix();
+    rlBegin(RL_TRIANGLES);
+    for (std::size_t i = 0; i < atmosphere::LeafCount; ++i) {
+        auto particle = atmosphereParticles_.leaf(i, time, camera.position);
+        if (!visible(particle)) continue;
+        emit(atmosphere::leafVertices(particle, atmosphereParticles_.leafColor(particle)));
     }
+    rlEnd();
     rlDrawRenderBatchActive();
     rlEnableDepthMask();
     EndBlendMode();
 
-    // Small pollen motes are additive and deliberately sparse. A soft
-    // camera-facing octagon avoids the square silhouette of a solid quad.
-    constexpr int PollenCount = 24;
-    constexpr float PollenHalfExtent = 19.0F;
     beginAdditiveParticlePass();
+    rlDisableDepthMask();
     rlBegin(RL_TRIANGLES);
-    for (int index = 0; index < PollenCount; ++index) {
-        const std::uint32_t seed =
-            0xa511e9b3U + static_cast<std::uint32_t>(index) *
-                0x85ebca6bU;
-        const float x = wrapAtmosphere(
-            (atmosphereUnit(seed + 1U) * 2.0F - 1.0F) *
-                    PollenHalfExtent +
-                time * (0.28F + atmosphereUnit(seed + 2U) * 0.22F),
-            camera.position.x, PollenHalfExtent);
-        const float z = wrapAtmosphere(
-            (atmosphereUnit(seed + 3U) * 2.0F - 1.0F) *
-                    PollenHalfExtent +
-                time * 0.12F,
-            camera.position.z, PollenHalfExtent);
-        const float viewOffsetX = x - camera.position.x;
-        const float viewOffsetZ = z - camera.position.z;
-        const float viewDistanceSquared =
-            viewOffsetX * viewOffsetX + viewOffsetZ * viewOffsetZ;
-        if (viewDistanceSquared > 9.0F &&
-            viewOffsetX * horizontalView.x +
-                    viewOffsetZ * horizontalView.z <
-                -0.5F) {
-            continue;
-        }
-        const float rise = std::fmod(
-            atmosphereUnit(seed + 4U) +
-                time * (0.022F + atmosphereUnit(seed + 5U) * 0.018F),
-            1.0F);
-        const float ground = static_cast<float>(
-            simulation_.terrain().getHeight(x, z));
-        const float y = ground + 0.35F + rise * 4.2F +
-            std::sin(time * 0.8F + atmosphereUnit(seed + 6U) * 21.0F) *
-                0.18F;
-        const float distance = Vector2Distance(
-            {x, z}, {camera.position.x, camera.position.z});
-        const float fade =
-            (1.0F - smoothstep(13.0F, PollenHalfExtent, distance)) *
-            smoothstep(0.0F, 0.12F, rise) *
-            (1.0F - smoothstep(0.82F, 1.0F, rise));
-        const float alpha = fade * daylight *
-            (0.32F + atmosphereUnit(seed + 7U) * 0.28F);
-        if (alpha <= 0.01F) {
-            continue;
-        }
-        const float radius =
-            0.025F + atmosphereUnit(seed + 8U) * 0.025F;
-        emitSoftBillboardDisc(
-            {x, y, z}, cameraRight, billboardUp, radius,
-            {255, 239, 170, atmosphereAlpha(alpha)}, 8);
+    for (std::size_t i = 0; i < atmosphere::DustCount; ++i) {
+        auto particle = atmosphereParticles_.dust(i, time, camera.position);
+        if (!visible(particle)) continue;
+        emit(atmosphere::dustVertices(particle, atmosphereParticles_.dustColor(particle),
+            cameraRight, billboardUp));
     }
     rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
     endAdditiveParticlePass();
 
     // Fireflies live in small world-anchored colonies around planted pond

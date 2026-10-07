@@ -9,6 +9,7 @@
 #include "game/Simulation.hpp"
 #include "game/QuestGameplayTracker.hpp"
 #include "graphics/EnvironmentSystem.hpp"
+#include "graphics/AtmosphereParticles.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
@@ -506,6 +507,7 @@ class App {
     double statusMessageRemaining_{};
     double statusMessageShakeRemaining_{};
     double lootDescriptionRemaining_{};
+    atmosphere::Field atmosphereParticles_;
     std::vector<PresentationEffect> effects_;
     std::vector<GameEvent> gameEventBuffer_;
     struct EnemyHitFlashState {
