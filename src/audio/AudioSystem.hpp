@@ -76,6 +76,7 @@ class AudioSystem {
                          const SimulationSnapshot& snapshot);
     [[nodiscard]] float variedPitch(float spread);
 
+    bool levelupChoiceWasPending_{};
     bool initialized_{};
     bool ownsAudioDevice_{};
     AudioSettings settings_;
@@ -94,6 +95,7 @@ class AudioSystem {
     Clip structureBreak_;
     Clip repair_;
     Clip upgrade_;
+    Clip levelupAfter_;
     Clip gate_;
     Clip crystals_;
     Clip playerHit_;

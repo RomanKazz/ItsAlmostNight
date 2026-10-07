@@ -84,6 +84,7 @@ void AudioSystem::initialize() {
     load(structureBreak_, "assets/audio/structure_break.ogg");
     load(repair_, "assets/audio/repair.ogg");
     load(upgrade_, "assets/audio/upgrade.wav");
+    load(levelupAfter_, "assets/audio/temporary/levelup_after.ogg");
     load(gate_, "assets/audio/gate.ogg");
     load(crystals_, "assets/audio/crystals.ogg");
     load(playerHit_, "assets/audio/player_hit.ogg");
@@ -125,6 +126,8 @@ void AudioSystem::shutdown() {
     unload(structureBreak_);
     unload(repair_);
     unload(upgrade_);
+    unload(levelupAfter_);
+    levelupChoiceWasPending_ = false;
     unload(gate_);
     unload(crystals_);
     unload(playerHit_);
@@ -160,6 +163,12 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
         !snapshot.playerRespawning &&
         snapshot.playerHealth > 0.0 &&
         snapshot.playerMaxHealth > 0.0;
+    // The choice is applied only after the panel's exit animation finishes.
+    // A run reset/menu transition must not produce a level-up closing sound.
+    if (levelupChoiceWasPending_ && !snapshot.runUpgradeChoicePending && activeRun) {
+        play(levelupAfter_, 0.62F, 1.0F, 0.5F, false);
+    }
+    levelupChoiceWasPending_ = activeRun && snapshot.runUpgradeChoicePending;
     const double healthRatio = activeRun
         ? snapshot.playerHealth / snapshot.playerMaxHealth
         : 1.0;

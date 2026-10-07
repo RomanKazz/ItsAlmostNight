@@ -37,7 +37,8 @@ This folder does not alter resource costs, combat timing or drop probabilities.
   `player_hit`, `enemy_death`, `ice_*`, `fire_*`, `lightning`, `bow_shot`,
   `cannon_shot`, `catapult_shot`, `trap`: melee, weapons and defense combat.
 - `crystals`, `crystal_hit`, `crystal_break`, `coin_pickup`, `xp_pickup`: production,
-  mining, currency and experience. Existing wood/stone impacts remain available.
+  mining, currency and experience. Wood, stone and crystal mining use the
+  original randomized impacts and breaks.
 - `jump`, `dash`, `landing`, `shield_break`, `shield_recharge`:
   player movement and protection.
 - `run_start`, `defeat`, `victory`, `wave_warning`, `boss_spawn`, `boss_roar`,
@@ -45,6 +46,8 @@ This folder does not alter resource costs, combat timing or drop probabilities.
 - `music_menu`, `music_day`, `music_night`, `music_boss`: looping contextual music
   with a short crossfade; pauses/upgrade choices lower the music level.
 - `forest_ambience`: low-level forest ambience, controlled by effects volume.
+- `levelup_after`: `112. Levelup After.ogg`, played once when the final upgrade
+  choice finishes closing the window and gameplay resumes.
 - `levelup_ambience`: `113. Levelup Ambience.ogg`, looping only while the upgrade
   window is visible. Its volume follows that window's appearance/disappearance
   and the effects volume slider; it stops on closing or leaving the run.

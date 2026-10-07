@@ -480,6 +480,14 @@
       "duration": 10.190667,
       "sample_rate": 48000,
       "channels": 2
+    },
+    {
+      "cue": "levelup_after",
+      "file": "levelup_after.ogg",
+      "source": "112. Levelup After.ogg",
+      "duration": 0.53551,
+      "sample_rate": 44100,
+      "channels": 1
     }
   ]
 }
