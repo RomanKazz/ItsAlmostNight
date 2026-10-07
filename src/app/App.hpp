@@ -516,6 +516,13 @@ class App {
         enemyHitFlashById_;
     std::unordered_map<std::uint64_t, float>
         enemyBurnAmountById_;
+    struct BurnVisualCandidate {
+        std::size_t enemyIndex{};
+        Vector3 position{};
+        float distanceSquared{};
+        float burnAmount{};
+    };
+    std::vector<BurnVisualCandidate> burnVisualCandidates_;
     std::vector<ArrowVisual> arrowVisuals_;
     double cameraShakeRemaining_{};
     double cameraShakeStrength_{};

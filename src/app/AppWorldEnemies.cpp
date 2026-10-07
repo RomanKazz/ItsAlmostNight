@@ -526,26 +526,21 @@ void App::drawWorldEnemies(
         flameRight = Vector3Normalize(flameRight);
     }
     const bool detailedFlames = renderer_->settings().particles;
-    // Chain explosions can ignite most of a wave at once. Keep cheap batched
-    // flame geometry on every burning enemy, but bound close-range detail so
-    // smoke draw calls do not grow with the whole crowd.
+    // Select once and reuse positions in both passes. Bound geometry and smoke
+    // independently of how many enemies a chain explosion ignites.
     constexpr std::size_t BurnEnemyVisualBudget = 72U;
     constexpr std::size_t DetailedBurnEnemyBudget = 24U;
-    struct BurnVisualCandidate {
-        std::uint64_t id{};
-        float distanceSquared{};
-    };
-    std::vector<BurnVisualCandidate> burnVisualCandidates;
+    auto& burnVisualCandidates = burnVisualCandidates_;
+    burnVisualCandidates.clear();
     burnVisualCandidates.reserve(std::min(
         snapshot.enemies.size(), BurnEnemyVisualBudget * 2U));
-    for (const EnemyInstance& enemy : snapshot.enemies) {
+    for (std::size_t index = 0; index < snapshot.enemies.size(); ++index) {
+        const EnemyInstance& enemy = snapshot.enemies[index];
         if (!enemy.active) {
             continue;
         }
-        const auto burn = enemyBurnAmountById_.find(
-            effectKey(enemy.id));
-        if (burn == enemyBurnAmountById_.end() ||
-            burn->second <= 0.01F) {
+        const auto burn = enemyBurnAmountById_.find(effectKey(enemy.id));
+        if (burn == enemyBurnAmountById_.end() || burn->second <= 0.01F) {
             continue;
         }
         const Vector3 position = enemyRenderPosition(enemy);
@@ -558,51 +553,42 @@ void App::drawWorldEnemies(
             continue;
         }
         burnVisualCandidates.push_back({
-            .id = effectKey(enemy.id),
+            .enemyIndex = index,
+            .position = position,
             .distanceSquared = distanceSquared,
+            .burnAmount = burn->second,
         });
     }
-    std::ranges::sort(
-        burnVisualCandidates, {},
-        &BurnVisualCandidate::distanceSquared);
-    if (burnVisualCandidates.size() > BurnEnemyVisualBudget) {
-        burnVisualCandidates.resize(BurnEnemyVisualBudget);
+    const std::size_t visualCount = std::min(
+        burnVisualCandidates.size(), BurnEnemyVisualBudget);
+    std::ranges::partial_sort(
+        burnVisualCandidates, burnVisualCandidates.begin() +
+            static_cast<std::ptrdiff_t>(visualCount),
+        [](const BurnVisualCandidate& left, const BurnVisualCandidate& right) {
+            return left.distanceSquared < right.distanceSquared ||
+                (left.distanceSquared == right.distanceSquared &&
+                 left.enemyIndex < right.enemyIndex);
+        });
+    burnVisualCandidates.resize(visualCount);
+    std::array<std::size_t, BurnEnemyVisualBudget> drawOrder{};
+    for (std::size_t rank = 0; rank < visualCount; ++rank) {
+        auto& candidate = burnVisualCandidates[rank];
+        const auto& enemy = snapshot.enemies[candidate.enemyIndex];
+        candidate.position.y += static_cast<float>(
+            simulation_.terrain().getHeight(enemy.position.x, enemy.position.z));
+        drawOrder[rank] = rank;
     }
-    const auto burnVisualRank =
-        [&burnVisualCandidates](std::uint64_t id) {
-            const auto match = std::ranges::find(
-                burnVisualCandidates, id,
-                &BurnVisualCandidate::id);
-            return match == burnVisualCandidates.end()
-                ? burnVisualCandidates.size()
-                : static_cast<std::size_t>(std::distance(
-                      burnVisualCandidates.begin(), match));
-        };
-    for (const EnemyInstance& enemy : snapshot.enemies) {
-        if (!enemy.active) {
-            continue;
-        }
-        const auto burn = enemyBurnAmountById_.find(
-            effectKey(enemy.id));
-        if (burn == enemyBurnAmountById_.end() ||
-            burn->second <= 0.01F) {
-            continue;
-        }
-        Vector3 position = enemyRenderPosition(enemy);
-        if (!enemyVisible(position, 4.0F)) {
-            continue;
-        }
-        position.y += static_cast<float>(
-            simulation_.terrain().getHeight(
-                enemy.position.x, enemy.position.z));
-        const float distanceSquared = Vector3DistanceSqr(
-            position, camera.position);
-        if (distanceSquared > 1600.0F) {
-            continue;
-        }
-        const std::size_t visualRank = burnVisualRank(
-            effectKey(enemy.id));
-        if (visualRank >= BurnEnemyVisualBudget) {
+    // Keep the previous enemy order, particularly for alpha-blended smoke.
+    std::ranges::sort(
+        std::span{drawOrder.data(), visualCount}, {},
+        [&burnVisualCandidates](std::size_t rank) {
+            return burnVisualCandidates[rank].enemyIndex;
+        });
+    for (const std::size_t visualRank : std::span{drawOrder.data(), visualCount}) {
+        const auto& candidate = burnVisualCandidates[visualRank];
+        const EnemyInstance& enemy = snapshot.enemies[candidate.enemyIndex];
+        const Vector3 position = candidate.position;
+        if (Vector3DistanceSqr(position, camera.position) > 1600.0F) {
             continue;
         }
         const float scale = enemyFlameScale(enemy.type);
@@ -641,7 +627,7 @@ void App::drawWorldEnemies(
             const float sway = scale * 0.20F * std::sin(phase);
             emitFlameLobe(
                 base, flameRight, width, height, sway,
-                burn->second * (1.0F - lobeIndex * 0.08F));
+                candidate.burnAmount * (1.0F - lobeIndex * 0.08F));
         }
         const int emberCount = detailedBurn ? 6 : 2;
         for (int ember = 0; ember < emberCount; ++ember) {
@@ -675,7 +661,7 @@ void App::drawWorldEnemies(
                 emberPosition, flameRight,
                 scale * (0.035F + 0.008F *
                     (0.5F + 0.5F * std::sin(orbit * 1.7F))),
-                burn->second * emberFade * 0.95F);
+                candidate.burnAmount * emberFade * 0.95F);
         }
     }
     rlEnd();
@@ -683,22 +669,13 @@ void App::drawWorldEnemies(
     rlEnableDepthMask();
     EndBlendMode();
     if (detailedFlames) {
-        for (const EnemyInstance& enemy : snapshot.enemies) {
-            if (!enemy.active) continue;
-            const auto burn = enemyBurnAmountById_.find(effectKey(enemy.id));
-            if (burn == enemyBurnAmountById_.end() || burn->second <= 0.01F) {
+        for (const std::size_t rank : std::span{drawOrder.data(), visualCount}) {
+            if (rank >= DetailedBurnEnemyBudget) {
                 continue;
             }
-            Vector3 position = enemyRenderPosition(enemy);
-            if (!enemyVisible(position, 4.0F)) {
-                continue;
-            }
-            position.y += static_cast<float>(simulation_.terrain().getHeight(
-                enemy.position.x, enemy.position.z));
-            if (burnVisualRank(effectKey(enemy.id)) >=
-                DetailedBurnEnemyBudget) {
-                continue;
-            }
+            const auto& candidate = burnVisualCandidates[rank];
+            const EnemyInstance& enemy = snapshot.enemies[candidate.enemyIndex];
+            const Vector3 position = candidate.position;
             const float scale = enemyFlameScale(enemy.type);
             for (int puff = 0; puff < 2; ++puff) {
                 const float phase = std::fmod(
@@ -710,7 +687,7 @@ void App::drawWorldEnemies(
                 const float angle = phase * 7.2F +
                     static_cast<float>(puff) * PI;
                 const float fade = (1.0F - phase) *
-                    std::min(1.0F, phase * 6.0F) * burn->second;
+                    std::min(1.0F, phase * 6.0F) * candidate.burnAmount;
                 DrawSphereEx(
                     {position.x + std::cos(angle) * scale * 0.15F,
                      position.y + scale * (1.0F + phase * 1.25F),
