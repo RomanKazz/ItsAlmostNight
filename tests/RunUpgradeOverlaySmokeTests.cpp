@@ -41,6 +41,15 @@ int main(int argc, char** argv) {
     ian::initializeUiText();
     ian::GameUi ui;
     ui.initialize();
+    const Texture2D upgradeArrow = ui.coreMenuTexture(ian::CoreMenuTexture::UpgradeGreen);
+    require(IsTextureValid(upgradeArrow) && upgradeArrow.width == 256 && upgradeArrow.height == 256,
+        "building upgrade arrow loads as a 256x256 icon");
+    Image arrowImage = LoadImageFromTexture(upgradeArrow);
+    const Color arrowCenter = GetImageColor(arrowImage, 128, 128);
+    require(GetImageColor(arrowImage, 0, 0).a == 0 && arrowCenter.a >= 250 &&
+        arrowCenter.g > arrowCenter.r * 2 && arrowCenter.g > arrowCenter.b,
+        "building upgrade arrow has a green face and transparent background");
+    UnloadImage(arrowImage);
     ian::SimulationSnapshot snapshot{};
     snapshot.runUpgradeChoicePending = true;
     snapshot.runUpgradeChoiceCount = 4;

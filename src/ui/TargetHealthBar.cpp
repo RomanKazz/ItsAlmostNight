@@ -113,7 +113,8 @@ Color enemyHealthColor(const EnemyInstance& enemy) {
 void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            const TerrainHeightfield& terrain,
-                           EnemyBoundsProvider enemyBoundsProvider) {
+                           EnemyBoundsProvider enemyBoundsProvider,
+                           std::optional<EntityId> upgradePromptTarget) {
     const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
     screenHealthText_.reset();
     screenLevelText_.reset();
@@ -350,6 +351,14 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 .fillColor = {82, 210, 103, 255},
                 .buildingLevel = static_cast<int>(building->level),
             };
+            if (upgradePromptTarget == building->id) {
+                const Vector3 forward = Vector3Normalize(
+                    Vector3Subtract(camera.target, camera.position));
+                const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, camera.up));
+                const Vector3 up = Vector3Normalize(Vector3CrossProduct(right, forward));
+                candidate->anchorPosition = Vector3Add(candidate->anchorPosition,
+                    Vector3Scale(up, BuildingHealthBarUpgradeLift));
+            }
         }
     } else if (snapshot.aimedModularBuilding) {
         const auto frame = std::find_if(

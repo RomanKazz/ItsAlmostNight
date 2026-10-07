@@ -322,6 +322,22 @@ viewModelMilliseconds =
     performanceMilliseconds(viewModelStart);
 renderer_->beginGpuTimer(RendererGpuStage::Ui);
 
+// Resolve once so the health bar and upgrade price share the same target.
+const auto interactionPromptBuildStart = PerformanceClock::now();
+auto interactionSnapshot = feedbackSnapshot;
+interactionSnapshot.aimedModularBuilding.reset();
+if (pinnedModularBuilding) {
+    interactionSnapshot.aimedEnemy.reset();
+    interactionSnapshot.aimedResource.reset();
+    interactionSnapshot.aimedModularBuilding = pinnedModularBuilding;
+}
+const auto interactionPrompt = showGameplayHud
+    ? buildInteractionPrompt(interactionSnapshot, camera) : std::nullopt;
+const auto upgradePromptTarget = interactionPrompt && !interactionPrompt->occluded &&
+    interactionPrompt->targetKind == InteractionPromptTargetKind::Building
+        ? std::optional<EntityId>{interactionPrompt->targetId} : std::nullopt;
+interactionPromptMilliseconds = performanceMilliseconds(interactionPromptBuildStart);
+
 // World-space UI is composited after post-processing so health bars,
 // levels and production rewards remain crisp above pixelization.
 const auto worldUiStart = PerformanceClock::now();
@@ -349,7 +365,7 @@ if (showWorldHud) {
             return world_transforms::finite(bounds)
                 ? std::optional<BoundingBox>{bounds}
                 : std::nullopt;
-        });
+        }, upgradePromptTarget);
     drawProductionVisuals(camera);
     // Submit every world-space overlay while depth testing is still disabled.
     // Individual bars and production rewards intentionally share this flush.
@@ -440,21 +456,11 @@ if (showColliders_) {
 // screen space after the 3D/post-process passes.
 const auto interactionPromptStart = PerformanceClock::now();
 if (showGameplayHud) {
-    auto interactionSnapshot = feedbackSnapshot;
-    // Ordinary buildings show a compact upgrade price on aim; modular
-    // pieces retain their existing health feedback without extra prompts.
-    interactionSnapshot.aimedModularBuilding.reset();
-    if (pinnedModularBuilding) {
-        interactionSnapshot.aimedEnemy.reset();
-        interactionSnapshot.aimedResource.reset();
-        interactionSnapshot.aimedModularBuilding =
-            pinnedModularBuilding;
-    }
     interactionPromptRenderer_.draw(
-        buildInteractionPrompt(interactionSnapshot, camera), camera,
+        interactionPrompt, camera,
         ui_, userSettings_.controls);
 }
-interactionPromptMilliseconds =
+interactionPromptMilliseconds +=
     performanceMilliseconds(interactionPromptStart);
 
 auto hudSnapshot = presentationSnapshot;

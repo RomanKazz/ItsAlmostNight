@@ -42,6 +42,7 @@ enum class CoreMenuTexture {
     Ballista,
     Cannon,
     Spikes,
+    UpgradeGreen,
 };
 
 class GameUi {
@@ -170,7 +171,7 @@ class GameUi {
     Texture2D levelUpRays_{};
     Texture2D mainMenuLogo_{};
     Texture2D mainMenuButton_{};
-    std::array<Texture2D, 14> coreMenuTextures_{};
+    std::array<Texture2D, 15> coreMenuTextures_{};
     SliceInsets panelInsets_{16, 16, 16, 18};
     SliceInsets insetInsets_{9, 9, 9, 9};
     SliceInsets buttonInsets_{12, 10, 12, 14};

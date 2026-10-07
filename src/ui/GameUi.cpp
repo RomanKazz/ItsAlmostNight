@@ -225,6 +225,7 @@ void GameUi::initialize() {
         "assets/ui/core_menu/core_menu_ballista.png",
         "assets/ui/core_menu/core_menu_cannon.png",
         "assets/ui/core_menu/core_menu_spikes.png",
+        "assets/ui/upgrade_arrow.png",
     };
     for (std::size_t index = 0;
          index < coreMenuTextures_.size(); ++index) {

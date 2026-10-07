@@ -1,0 +1,5 @@
+Built-in image_gen imagegen; transparent output.
+Reference: assets/ui/core_menu/core_menu_upgrade.png
+Final asset: assets/ui/upgrade_arrow.png, 256x256 RGBA PNG.
+
+Use case: precise-object-edit. Asset type: transparent PNG game HUD icon, shown at 30–45 pixels and exported to 256x256. Edit the supplied yellow upward upgrade arrow into a polished vivid GREEN upward upgrade arrow in the same cartoon game UI style. Keep one chunky, upright, centered arrow and its readable broad arrowhead and short thick shaft. Replace yellow/orange faces with bright emerald green (#00ED77), darker green bevels, and restrained pale mint highlights on the upper-left edges. Keep the thick near-black outline consistent around the entire silhouette, approximately 5–6 pixels at final 256x256. Use simple broad cel-shaded faces, slightly softened corners, playful chunky proportions, no small details. Nearly frontal, only subtle beveled depth. Preserve transparent background, no badge, no circle, no text, no sparkles, no floating effects, no cast shadow outside the silhouette. Fit the whole arrow centered on a square with a small even transparent margin; crisp edges.

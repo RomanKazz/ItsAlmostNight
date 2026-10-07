@@ -23,7 +23,8 @@ class TargetHealthBar {
     void draw(const SimulationSnapshot& snapshot,
               const Camera3D& camera,
               const TerrainHeightfield& terrain,
-              EnemyBoundsProvider enemyBoundsProvider = {});
+              EnemyBoundsProvider enemyBoundsProvider = {},
+              std::optional<EntityId> upgradePromptTarget = std::nullopt);
     void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id, double damage = 0.0);

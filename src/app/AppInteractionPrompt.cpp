@@ -265,7 +265,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .targetId = building->id,
                 .worldAnchor = {
                     static_cast<float>(anchor.x),
-                    static_cast<float>(anchor.y + 0.90),
+                    static_cast<float>(anchor.y),
                     static_cast<float>(anchor.z),
                 },
                 .input = ControlAction::Upgrade,
