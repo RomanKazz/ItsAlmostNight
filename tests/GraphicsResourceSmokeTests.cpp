@@ -182,17 +182,26 @@ bool checkGunTurretLevelRendering(ian::Renderer& renderer) {
     const auto oldTop = renderer.buildingRaycastDistance(turret, {}, topRay, 8);
     turret.level = 7;
     const auto armoredTop = renderer.buildingRaycastDistance(turret, {}, topRay, 8);
-    const Ray collarRay{{static_cast<float>(center.x) - 3, 0.685445F,
+    const Ray collarRay{{static_cast<float>(center.x) - 3, 0.805445F,
         static_cast<float>(center.z) + 0.140388F}, {1, 0, 0}};
     turret.level = 1;
     const auto oldCollar = renderer.buildingRaycastDistance(turret, {}, collarRay, 8, PI * 0.5F);
     turret.level = 6;
     const auto rotatedCollar = renderer.buildingRaycastDistance(turret, {}, collarRay, 8, PI * 0.5F);
-    if (oldTop || !armoredTop || !oldCollar || !rotatedCollar || *rotatedCollar >= *oldCollar - 0.02)
+    Ray hollowRay = collarRay;
+    hollowRay.position.y = 0.685445F;
+    turret.level = 1;
+    const auto oldHollow = renderer.buildingRaycastDistance(turret, {}, hollowRay, 8, PI * 0.5F);
+    turret.level = 6;
+    const auto hollow = renderer.buildingRaycastDistance(turret, {}, hollowRay, 8, PI * 0.5F);
+    // A hollow muzzle must not be selected as a solid box in front of the housing.
+    const bool hollowPreserved = oldHollow && hollow && std::abs(*oldHollow - *hollow) < 0.001;
+    if (oldTop || !armoredTop || !oldCollar || !rotatedCollar ||
+        *rotatedCollar >= *oldCollar - 0.02 || !hollowPreserved)
         std::cerr << "turret aiming: top " << oldTop.value_or(-1) << " -> " << armoredTop.value_or(-1)
                   << ", collar " << oldCollar.value_or(-1) << " -> " << rotatedCollar.value_or(-1) << '\n';
     return distinct && !oldTop && armoredTop && oldCollar && rotatedCollar &&
-        *rotatedCollar < *oldCollar - 0.02;
+        *rotatedCollar < *oldCollar - 0.02 && hollowPreserved;
 }
 
 bool checkCoreOrbitRendering(ian::Renderer& renderer) {

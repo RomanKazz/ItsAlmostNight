@@ -437,7 +437,7 @@ bool Renderer::drawGunTurret(Vector3 position, float baseYawRadians,
     // Keep the authored base/barrels and muzzle locations unchanged.
     for (int meshIndex = 0; meshIndex < std::min(model.meshCount, 2); ++meshIndex)
         drawPart(meshIndex, MatrixIdentity(), WHITE, meshIndex == 1);
-    if (model.meshCount >= 4)
+    if (model.meshCount >= gun_turret_model_detail::MeshCount)
         gun_turret_model_detail::forEachUpgradePart(level, drawPart);
     return true;
 }

@@ -286,17 +286,22 @@ std::optional<double> Renderer::buildingRaycastDistance(
                     baseTransform);
             return acceptCollision(GetRayCollisionBox(ray, bounds));
         }
-        if (building.type == BuildingType::GunTurret && model.meshCount >= 4) {
+        if (building.type == BuildingType::GunTurret &&
+            model.meshCount >= gun_turret_model_detail::MeshCount) {
             auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
             const Matrix barrelTransform = MatrixMultiply(model.transform,
                 MatrixMultiply(scale, MatrixMultiply(MatrixRotateY(defensiveYaw),
                     MatrixTranslate(position.x, position.y, position.z))));
             gun_turret_model_detail::forEachUpgradePart(building.level,
-                [&](int, Matrix pose, Color, bool rotating) {
+                [&](int meshIndex, Matrix pose, Color, bool rotating) {
                     const BoundingBox bounds = world_transforms::transformBounds(
-                        gun_turret_model_detail::UpgradePartBounds,
+                        gun_turret_model_detail::partBounds(meshIndex),
                         MatrixMultiply(pose, rotating ? barrelTransform : baseTransform));
-                    const auto distance = acceptCollision(GetRayCollisionBox(ray, bounds));
+                    const auto broadDistance = acceptCollision(GetRayCollisionBox(ray, bounds));
+                    if (!broadDistance || (closest && *broadDistance >= *closest)) return;
+                    const auto distance = acceptCollision(GetRayCollisionMesh(ray,
+                        model.meshes[meshIndex],
+                        MatrixMultiply(pose, rotating ? barrelTransform : baseTransform)));
                     if (distance && (!closest || *distance < *closest)) closest = distance;
                 });
             return closest;
