@@ -51,7 +51,7 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
         snapshot.state == RunState::StageClear ||
         snapshot.state == RunState::Victory ||
         snapshot.state == RunState::Defeat ||
-        snapshot.playerRespawning ||
+        snapshot.playerRespawning || snapshot.runUpgradeChoicePending ||
         snapshot.selectedBuilding || foundationBuildMode_) {
         return std::nullopt;
     }
@@ -248,58 +248,32 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
     }
 
     if (snapshot.aimedBuilding) {
-        const bool buildingManagementActive =
-            !snapshot.selectedBuilding;
         const auto building = std::find_if(
             snapshot.buildings.begin(), snapshot.buildings.end(),
             [&snapshot](const BuildingInstance& value) {
                 return value.id == *snapshot.aimedBuilding;
             });
         if (building != snapshot.buildings.end()) {
-            const bool gate = building->type == BuildingType::Gate;
-            const bool core = building->type == BuildingType::Core;
-            std::optional<std::string> managementHint;
-            if (buildingManagementActive) {
-                const auto keyName = [this](ControlAction action) {
-                    return keyboardKeyName(controlKey(
-                        userSettings_.controls, action));
-                };
-                managementHint = core
-                    ? keyName(ControlAction::Attack) + " REPAIR · " +
-                          keyName(ControlAction::Repair) + " REPAIR CORE · " +
-                          keyName(ControlAction::Upgrade) + " UPGRADE"
-                    : keyName(ControlAction::Copy) + " COPY · " +
-                          keyName(ControlAction::Upgrade) + " UPGRADE · " +
-                          keyName(ControlAction::Sell) + " SELL";
-                if (isDirectionalDefense(building->type)) {
-                    *managementHint += " · R ROTATE";
-                }
-                if (gate) {
-                    *managementHint += " · " +
-                        keyName(ControlAction::Interact) + " TOGGLE";
-                }
-            }
+            if (!snapshot.aimedBuildingUpgradeCost || building->level >= MaxBuildingLevel)
+                return std::nullopt;
+            const ResourceCost cost = *snapshot.aimedBuildingUpgradeCost;
+            const bool affordable = snapshot.unlimitedResources ||
+                canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals);
             const Vec3 anchor = buildingHealthBarWorldAnchor(*building);
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Building,
                 .targetId = building->id,
                 .worldAnchor = {
                     static_cast<float>(anchor.x),
-                    static_cast<float>(anchor.y + 0.42),
+                    static_cast<float>(anchor.y + 0.90),
                     static_cast<float>(anchor.z),
                 },
-                .actionText = core
-                    ? "Open Core"
-                    : std::string("Repair ") +
-                          std::string(buildingDisplayName(
-                              building->type)),
-                .input = core && buildingManagementActive
-                        ? ControlAction::Interact
-                        : ControlAction::Attack,
-                .state = InteractionState::Available,
-                .hint = managementHint,
-                .recentFailure = invalidActionRemaining_ > 0.0,
-                .accentColor = {238, 229, 207, 255},
+                .input = ControlAction::Upgrade,
+                .state = affordable ? InteractionState::Available : InteractionState::Warning,
+                .cost = cost,
+                .availableResources = snapshot.unlimitedResources
+                    ? cost : ResourceCost{snapshot.wood, snapshot.stone, snapshot.crystals},
+                .accentColor = {0, 241, 123, 255},
             });
         }
     }

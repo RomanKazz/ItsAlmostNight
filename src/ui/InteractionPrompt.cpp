@@ -7,6 +7,7 @@
 #include <raymath.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace ian {
@@ -248,6 +249,74 @@ void drawChallengeKeyPrompt(
         placement->angle, labelStyle);
 }
 
+void drawBuildingUpgradePrompt(
+    const InteractionPrompt& prompt, const Camera3D& camera,
+    const GameUi& ui, float opacity, float scale, float liftPixels) {
+    if (!prompt.cost) return;
+    const auto placement = worldPromptPlacement(prompt, camera);
+    if (!placement) return;
+
+    // Keep the row readable at range and bounded when the camera is close.
+    const float size = std::clamp(placement->pixelsPerWorldUnit * 0.35F,
+                                  28.0F, 42.0F) * scale;
+    const float iconSize = size * 0.76F;
+    const float fontSize = iconSize / 1.68F;
+    const float gap = size * 0.22F;
+    struct Price { UiResourceIcon icon; int amount; int available; };
+    const std::array prices{
+        Price{UiResourceIcon::Wood, prompt.cost->wood, prompt.availableResources.wood},
+        Price{UiResourceIcon::Stone, prompt.cost->stone, prompt.availableResources.stone},
+        Price{UiResourceIcon::Crystal, prompt.cost->crystals, prompt.availableResources.crystals},
+    };
+    float width = size;
+    for (const auto& price : prices) {
+        if (price.amount > 0)
+            width += gap + iconSize + gap * 0.5F +
+                measureUiText(std::to_string(price.amount), fontSize).x;
+    }
+    const float left = std::clamp(placement->center.x - width * 0.5F,
+        12.0F, std::max(12.0F, static_cast<float>(uiScreenWidth()) - width - 12.0F));
+    const float centerY = std::clamp(placement->center.y - liftPixels,
+        size * 0.55F + 12.0F, std::max(size * 0.55F + 12.0F,
+            static_cast<float>(uiScreenHeight()) - size * 0.55F - 12.0F));
+
+    // One upward arrow, using the HUD's green and black outline. Separate
+    // convex pieces keep the concave silhouette free of triangle-fan seams.
+    const float centerX = left + size * 0.5F;
+    const auto drawArrow = [&](float inset, Color color) {
+        DrawRectangleRec({centerX - size * 0.18F + inset,
+            centerY - size * 0.06F, size * 0.36F - inset * 2.0F,
+            size * 0.59F - inset}, withOpacity(color, opacity));
+        DrawTriangle({centerX, centerY - size * 0.55F + inset},
+            {centerX - size * 0.50F + inset * 1.5F, centerY + size * 0.04F - inset},
+            {centerX + size * 0.50F - inset * 1.5F, centerY + size * 0.04F - inset},
+            withOpacity(color, opacity));
+    };
+    drawArrow(0.0F, {14, 20, 15, 255});
+    drawArrow(size * 0.075F, prompt.accentColor);
+
+    float cursor = left + size;
+    SdfUiTextStyle style{};
+    style.outlineColor = withOpacity({20, 24, 20, 255}, opacity);
+    style.outlinePixels = size * 0.065F;
+    style.shadowColor = withOpacity({0, 0, 0, 140}, opacity);
+    style.shadowOffsetPixels = {0.0F, size * 0.055F};
+    for (const auto& price : prices) {
+        if (price.amount <= 0) continue;
+        cursor += gap;
+        ui.drawResourceIcon({cursor, centerY - iconSize * 0.5F,
+            iconSize, iconSize}, price.icon, withOpacity(WHITE, opacity));
+        cursor += iconSize + gap * 0.5F;
+        const std::string amount = std::to_string(price.amount);
+        const Vector2 measured = measureUiText(amount, fontSize);
+        style.fillColor = withOpacity(price.available >= price.amount
+            ? UiWhite : Color{255, 104, 90, 255}, opacity);
+        drawStyledSdfUiText(amount, {cursor, centerY - measured.y * 0.5F},
+            fontSize, style);
+        cursor += measured.x;
+    }
+}
+
 } // namespace
 
 InteractionPromptRenderer::TargetKey InteractionPromptRenderer::keyFor(
@@ -400,6 +469,11 @@ void InteractionPromptRenderer::drawPrompt(
     const InteractionPrompt& prompt, const Camera3D& camera,
     const GameUi& ui, const ControlSettings& controls,
     float opacity, float scale, float liftPixels) {
+    if (prompt.targetKind == InteractionPromptTargetKind::Building) {
+        if (projectable(prompt, camera))
+            drawBuildingUpgradePrompt(prompt, camera, ui, opacity, scale, liftPixels);
+        return;
+    }
     if (prompt.targetKind == InteractionPromptTargetKind::Chest) {
         drawChestCostPrompt(
             prompt, camera, ui, opacity, scale);

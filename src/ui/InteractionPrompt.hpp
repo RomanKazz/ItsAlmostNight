@@ -44,6 +44,7 @@ struct InteractionPrompt {
     ControlAction input{ControlAction::Interact};
     InteractionState state{InteractionState::Available};
     std::optional<ResourceCost> cost;
+    ResourceCost availableResources{};
     std::optional<int> availableCurrency;
     std::optional<std::string> hint;
     float progress{};

@@ -441,10 +441,8 @@ if (showColliders_) {
 const auto interactionPromptStart = PerformanceClock::now();
 if (showGameplayHud) {
     auto interactionSnapshot = feedbackSnapshot;
-    // Hovering is intentionally quiet. Ordinary buildings use the
-    // pinned stats card, while modular pieces reuse their compact
-    // management prompt only after an explicit click.
-    interactionSnapshot.aimedBuilding.reset();
+    // Ordinary buildings show a compact upgrade price on aim; modular
+    // pieces retain their existing health feedback without extra prompts.
     interactionSnapshot.aimedModularBuilding.reset();
     if (pinnedModularBuilding) {
         interactionSnapshot.aimedEnemy.reset();
