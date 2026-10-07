@@ -185,7 +185,7 @@ void App::drawSoldBuildingVisuals() {
         if (building.type == BuildingType::Core) {
             if (!renderer_->drawCore(
                     {x, baseY - sink, z},
-                    yaw, tint, scale)) {
+                    yaw, tint, scale, building.level)) {
                 drawCube(0.0F, 1.25F, 0.0F, 2.0F,
                          2.5F, 2.0F,
                          {219, 151, 60, alpha});

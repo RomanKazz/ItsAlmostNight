@@ -401,7 +401,7 @@ void App::drawShadowPass(
                         {x, groundY, z},
                         static_cast<float>(building.rotation) *
                             QuarterTurn,
-                        WHITE, spawnScale)) {
+                        WHITE, spawnScale, building.level)) {
                     DrawCube({x, groundY + 1.25F, z},
                              2.0F, 2.5F,
                              2.0F, WHITE);
@@ -986,7 +986,7 @@ void App::drawSelectionPass(
                             {x, groundY, z},
                             static_cast<float>(building->rotation) *
                                 QuarterTurn,
-                            WHITE, spawnScale)) {
+                            WHITE, spawnScale, building->level)) {
                         DrawCube({x, groundY + 1.25F, z},
                                  2.0F, 2.5F,
                                  2.0F, WHITE);

@@ -514,7 +514,7 @@ bool Renderer::drawTurretBullet(Vector3 position, Vector3 direction,
 }
 
 bool Renderer::drawCore(Vector3 position, float yawRadians,
-                        Color tint, float scale) {
+                        Color tint, float scale, int level) {
     auto& resource = resources_.coreModel();
     if (!resource.valid()) {
         return false;
@@ -523,7 +523,7 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
     prepareModelShader(model);
     constexpr float GroundOffset = 0.005F;
     position.y += GroundOffset;
-    if (model.meshCount == 6) {
+    if (model.meshCount == 7) {
         const float uniformScale = CoreModelScale * scale;
         const Matrix transform = MatrixMultiply(
             model.transform,
@@ -531,14 +531,19 @@ bool Renderer::drawCore(Vector3 position, float yawRadians,
                 MatrixMultiply(MatrixRotateY(yawRadians),
                     MatrixTranslate(position.x, position.y, position.z))));
         const double seconds = GetTime();
-        for (int index = 0; index < model.meshCount; ++index) {
-            Material& material = model.materials[model.meshMaterial[index]];
-            const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
-            material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
-            DrawMesh(model.meshes[index], material,
-                MatrixMultiply(core_crystal_model_detail::meshTransform(index, seconds), transform));
-            material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        }
+        core_crystal_model_detail::forEachLevelPart(level, seconds,
+            [&](int index, Matrix pose, Color partTint, bool solidColor) {
+                Material& material = model.materials[model.meshMaterial[index]];
+                MaterialMap& diffuse = material.maps[MATERIAL_MAP_DIFFUSE];
+                const Color original = diffuse.color;
+                const Texture2D originalTexture = diffuse.texture;
+                diffuse.color = ColorTint(
+                    solidColor ? partTint : ColorTint(original, partTint), tint);
+                if (solidColor) diffuse.texture.id = rlGetTextureIdDefault();
+                DrawMesh(model.meshes[index], material, MatrixMultiply(pose, transform));
+                diffuse.color = original;
+                diffuse.texture = originalTexture;
+            });
     } else {
         DrawModelEx(model, position, {0.0F, 1.0F, 0.0F},
                     yawRadians * RAD2DEG,

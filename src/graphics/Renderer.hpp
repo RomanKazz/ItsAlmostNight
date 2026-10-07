@@ -423,7 +423,7 @@ class Renderer {
         float pitchRadians) const;
     [[nodiscard]] bool drawCore(Vector3 position, float yawRadians = 0.0F,
                                 Color tint = WHITE,
-                                float scale = 1.0F);
+                                float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawChallengeColumn(
         Vector3 position, float yawRadians = 0.0F,
         Color tint = WHITE, float scale = 1.0F);

@@ -135,8 +135,8 @@ bool checkAtmosphereRendering() {
 
 bool checkCoreOrbitRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(384, 384);
-    const Camera3D camera{{0, 1.2F, 4}, {0, .75F, 0}, {0, 1, 0}, 36, CAMERA_PERSPECTIVE};
-    const auto capture = [&] {
+    const Camera3D camera{{0, 1.5F, 5}, {0, 1.0F, 0}, {0, 1, 0}, 36, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level = 1) {
         BeginTextureMode(target);
         ClearBackground({26, 30, 40, 255});
         BeginMode3D(camera);
@@ -144,7 +144,7 @@ bool checkCoreOrbitRendering(ian::Renderer& renderer) {
         lighting.cameraPosition = camera.position;
         renderer.beginWorldShader(lighting);
         renderer.setWorldMaterial({});
-        static_cast<void>(renderer.drawCore({0, 0, 0}));
+        static_cast<void>(renderer.drawCore({0, 0, 0}, 0, WHITE, 1, level));
         renderer.endWorldShader();
         EndMode3D();
         EndTextureMode();
@@ -155,7 +155,7 @@ bool checkCoreOrbitRendering(ian::Renderer& renderer) {
     Image before = capture();
     WaitTime(.35);
     Image after = capture();
-    const bool changed = changedPixels(before, after) > 200;
+    bool changed = changedPixels(before, after) > 200;
     if (const char* directory = std::getenv("IAN_CAPTURE_CORE_ORBIT")) {
         std::filesystem::create_directories(directory);
         ExportImage(before, (std::filesystem::path{directory} / "core-before.png").string().c_str());
@@ -163,6 +163,21 @@ bool checkCoreOrbitRendering(ian::Renderer& renderer) {
     }
     UnloadImage(before);
     UnloadImage(after);
+    Image previous = capture(1);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        changed = changed && changedPixels(previous, current) > 120;
+        if (const char* directory = std::getenv("IAN_CAPTURE_CORE_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            if (level == 2) ExportImage(previous,
+                (std::filesystem::path{directory} / "core-level-1.png").string().c_str());
+            ExportImage(current, (std::filesystem::path{directory} /
+                ("core-level-" + std::to_string(level) + ".png")).string().c_str());
+        }
+        UnloadImage(previous);
+        previous = current;
+    }
+    UnloadImage(previous);
     UnloadRenderTexture(target);
     return changed;
 }
@@ -433,7 +448,7 @@ bool checkVisualBiomeRendering(ian::Renderer& renderer) {
 }
 
 bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
-    if (!resource.valid() || resource.get().meshCount != 6) return false;
+    if (!resource.valid() || resource.get().meshCount != 7) return false;
     const Model& model = resource.get();
     for (int part = 0; part < model.meshCount; ++part) {
         const Mesh& mesh = model.meshes[part];
@@ -480,6 +495,28 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
             const float y = Vector3Transform({}, before).y;
             if (y < .0349F || y > .0651F ||
                 std::abs(y - Vector3Transform({}, after).y) > .0009F) return false;
+        }
+    }
+    // Bounds used by aiming and feedback must contain every upgraded part,
+    // including rotating satellite rings, without changing the build footprint.
+    for (int level = 1; level <= 8; ++level) {
+        const BoundingBox bounds = ian::core_crystal_model_detail::levelBounds(resource.visualBounds(), level);
+        for (int frame = 0; frame < 24; ++frame) {
+            bool contained = true;
+            ian::core_crystal_model_detail::forEachLevelPart(level, frame * 0.25,
+                [&](int meshIndex, Matrix pose, Color, bool) {
+                    const Mesh& mesh = model.meshes[meshIndex];
+                    for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
+                        const Vector3 point = Vector3Transform({mesh.vertices[vertex * 3],
+                            mesh.vertices[vertex * 3 + 1], mesh.vertices[vertex * 3 + 2]}, pose);
+                        constexpr float tolerance = 0.0001F;
+                        contained = contained && point.x >= bounds.min.x - tolerance &&
+                            point.x <= bounds.max.x + tolerance && point.y >= bounds.min.y - tolerance &&
+                            point.y <= bounds.max.y + tolerance && point.z >= bounds.min.z - tolerance &&
+                            point.z <= bounds.max.z + tolerance;
+                    }
+                });
+            if (!contained) return false;
         }
     }
     return true;
@@ -970,7 +1007,7 @@ int main() {
             result = 1;
         }
         if (!checkCoreOrbitRendering(renderer)) {
-            std::cerr << "rendered core satellites remain static\n";
+            std::cerr << "core orbit or distinct level appearances failed\n";
             result = 1;
         }
         if (!checkSequentialMountainRendering(renderer)) {

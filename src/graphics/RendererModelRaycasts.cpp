@@ -1,5 +1,6 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -280,7 +281,8 @@ std::optional<double> Renderer::buildingRaycastDistance(
         if (building.type == BuildingType::Core) {
             const BoundingBox bounds =
                 world_transforms::transformBounds(
-                    resource->visualBounds(), baseTransform);
+                    core_crystal_model_detail::levelBounds(resource->visualBounds(), building.level),
+                    baseTransform);
             return acceptCollision(GetRayCollisionBox(ray, bounds));
         }
         return modelColliderRaycastDistance(

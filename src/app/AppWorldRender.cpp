@@ -987,7 +987,7 @@ void App::drawWorldEntities(
                     {x, groundY, z},
                     static_cast<float>(building.rotation) *
                         QuarterTurn,
-                    WHITE, spawnScale)) {
+                    WHITE, spawnScale, building.level)) {
                 drawScaledCube(0.0F, 1.25F, 0.0F, 2.0F,
                                2.5F, 2.0F,
                                {219, 151, 60, 255});
