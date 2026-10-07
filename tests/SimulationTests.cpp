@@ -3739,6 +3739,14 @@ void runSimulationTests() {
                         shotDamage * (event.amount < 0 ? 0.45 : 1.0), 1e-9,
                         "main shots and shrapnel carry their outgoing damage for presentation");
                 }
+                if (event.type == ian::GameEventType::EnemyKilled &&
+                    event.buildingType == ian::BuildingType::GunTurret) {
+                    require(event.entityId && event.sourceId &&
+                                event.enemyType == ian::EnemyType::Basic &&
+                                (event.enemyEliteAffixes & ian::eliteAffixMask(
+                                    ian::EliteAffix::Berserker)) != 0,
+                        "direct and shrapnel kills retain enemy and defense attribution");
+                }
                 sawShard = sawShard ||
                     (event.type ==
                          ian::GameEventType::ProjectileHit &&

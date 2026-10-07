@@ -1,3 +1,4 @@
+#include "ui/UiMenuLayout.hpp"
 #include "ui/QuestMenu.hpp"
 
 #include "buildings/BuildingSystem.hpp"
@@ -24,18 +25,6 @@ constexpr Color Red{244, 102, 84, 255};
 constexpr float RowStep = 68.0F;
 constexpr float ListHeight = 472.0F;
 
-struct Layout {
-    float scale;
-    Vector2 origin;
-    Rectangle rect(float x, float y, float width, float height) const {
-        return {origin.x + x * scale, origin.y + y * scale, width * scale, height * scale};
-    }
-};
-
-Layout layoutFor(Vector2 viewport) {
-    const float scale = std::max(0.1F, std::min(viewport.x / 1920.0F, viewport.y / 1080.0F));
-    return {scale, {(viewport.x - 1920.0F * scale) * 0.5F, (viewport.y - 1080.0F * scale) * 0.5F}};
-}
 
 constexpr std::array<std::string_view, 9> TabNames{{
     "ALL", "CLASSES", "BUILDINGS", "WEAPONS", "UPGRADES", "ITEMS", "GENERAL", "CHALLENGES", "COSMETICS",
@@ -67,7 +56,7 @@ void text(std::string_view value, Rectangle bounds, float size, Color color,
     drawUiText(value, {x, bounds.y + (bounds.height - measured.y) * 0.5F}, fitted, color);
 }
 
-bool button(Rectangle bounds, std::string_view label, const Layout& layout,
+bool button(Rectangle bounds, std::string_view label, const UiMenuLayout& layout,
             const QuestMenuInput& input, bool enabled = true) {
     const bool hovered = enabled && CheckCollisionPointRec(input.pointer, bounds);
     panel(bounds, layout.scale, !enabled ? Color{46, 50, 51, 255}
@@ -129,13 +118,13 @@ void icon(const GameUi& ui, const QuestDefinition& definition, Rectangle bounds,
     }
 }
 
-void silver(const GameUi& ui, const Layout& layout, float x, float y, int amount, float size = 28) {
+void silver(const GameUi& ui, const UiMenuLayout& layout, float x, float y, int amount, float size = 28) {
     ui.drawResourceIcon(layout.rect(x, y, size, size), UiResourceIcon::Silver);
     text(std::to_string(amount), layout.rect(x + size + 7, y, 80, size), size * 0.64F * layout.scale,
         Cream, UiFontRole::BodyBold);
 }
 
-bool rewardButton(const GameUi& ui, Rectangle bounds, const Layout& layout,
+bool rewardButton(const GameUi& ui, Rectangle bounds, const UiMenuLayout& layout,
                   const QuestMenuInput& input, int amount) {
     const bool hovered = CheckCollisionPointRec(input.pointer, bounds);
     panel(bounds, layout.scale, hovered ? Color{230, 64, 127, 255} : Color{184, 36, 94, 255},
@@ -194,7 +183,7 @@ Vector2 rewardCoinPosition(const QuestRewardFlight& coin) {
             inverse * inverse * coin.burst.y + 2 * inverse * t * control.y + t * t * target.y};
 }
 
-void drawRewardFlights(const GameUi& ui, const Layout& layout, const QuestMenuState& state) {
+void drawRewardFlights(const GameUi& ui, const UiMenuLayout& layout, const QuestMenuState& state) {
     const auto texture = ui.resourceTexture(UiResourceIcon::Silver);
     if (texture.id == 0) return;
     for (const auto& coin : state.rewardFlights) {
@@ -242,7 +231,7 @@ std::string_view unlockName(std::string_view id) {
 } // namespace
 
 Rectangle questMenuPanelBounds(Vector2 viewport) {
-    return layoutFor(viewport).rect(180, 90, 1560, 890);
+    return UiMenuLayout::fromViewport(viewport).rect(180, 90, 1560, 890);
 }
 
 bool drawQuestSummaryCard(
@@ -294,7 +283,7 @@ bool drawQuestSummaryCard(
 QuestMenuResult drawQuestMenu(
     const GameUi& ui, const QuestSystem& quests, MetaProgression& profile,
     QuestMenuState& state, Vector2 viewport, const QuestMenuInput& input) {
-    const auto layout = layoutFor(viewport);
+    const auto layout = UiMenuLayout::fromViewport(viewport);
     updateRewardFlights(state, input.deltaTime);
     QuestMenuResult result{.close = input.close};
     if (input.categoryStep != 0) {

@@ -6,6 +6,7 @@
 
 #include <string>
 #include <string_view>
+#include <span>
 #include <vector>
 
 namespace ian {
@@ -14,6 +15,11 @@ struct MapObstacle {
     CollisionBox collision;
     double height;
 };
+
+// Horizontal clearance for procedural placement. Tangency is allowed;
+// obstacle height does not affect the reserved footprint.
+[[nodiscard]] bool mapObstacleNear(
+    Vec3 position, double radius, std::span<const MapObstacle> obstacles);
 
 struct MapDefinition {
     Vec3 playerSpawn;

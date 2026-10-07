@@ -194,19 +194,7 @@ bool Renderer::drawLootChest(
         : resources_.stoneChestModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr && model.materials != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index)
-            model.materials[index].shader = *shader;
-    }
+    prepareModelShader(model);
 
     const LootChestWorldTransform worldTransform =
         lootChestWorldTransform(

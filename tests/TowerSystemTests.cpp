@@ -312,6 +312,10 @@ void runTowerSystemTests() {
         gunTowers.towers().front().yaw, yawBeforeRotation,
         1e-9,
         "post-placement rotation does not snap visual yaw");
+    require(!gunTowers.towers().front().targetId,
+        "rotation invalidates the old gun target");
+    requireNear(gunTowers.towers().front().targetSearchCooldownRemaining,
+        0.25, 1e-9, "rotated hitscan defenses retain their search interval");
     requireNear(
         gunTowers.towers().front().baseYaw,
         baseYawBeforeRotation,

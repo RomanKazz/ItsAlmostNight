@@ -617,14 +617,9 @@ void Simulation::updateEliteEffects(double deltaSeconds) {
             });
             if (hit.killed) {
                 ++killedCount;
-                events_.push_back({
-                    .type = GameEventType::EnemyKilled,
-                    .entityId = hit.id,
-                    .sourceId = pending.sourceId,
-                    .enemyType = hit.type,
-                    .enemyEliteAffixes = hit.eliteAffixes,
-                    .position = hit.position,
-                });
+                events_.push_back(enemyKilledEvent(
+                    hit.id, hit.type, hit.eliteAffixes,
+                    hit.position, pending.sourceId));
             }
         }
 

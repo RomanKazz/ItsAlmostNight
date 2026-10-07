@@ -157,4 +157,22 @@ struct GameEvent {
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };
 
+// Keep kill attribution identical across direct hits, secondary attacks and
+// damage-over-time. Callers retain responsibility for detecting a new kill.
+[[nodiscard]] inline GameEvent enemyKilledEvent(
+    std::optional<EntityId> id, std::optional<EnemyType> type,
+    std::uint8_t eliteAffixes, Vec3 position,
+    std::optional<EntityId> source = {},
+    std::optional<BuildingType> buildingType = {}) {
+    return {
+        .type = GameEventType::EnemyKilled,
+        .entityId = id,
+        .sourceId = source,
+        .buildingType = buildingType,
+        .enemyType = type,
+        .enemyEliteAffixes = eliteAffixes,
+        .position = position,
+    };
+}
+
 } // namespace ian

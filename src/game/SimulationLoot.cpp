@@ -518,13 +518,9 @@ void Simulation::processRunUpgradeCombatEffects(
             .intensity = fraction,
         });
         if (result->killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = result->id,
-                .enemyType = result->type,
-                .enemyEliteAffixes = result->eliteAffixes,
-                .position = result->position,
-            });
+            events_.push_back(enemyKilledEvent(
+                result->id, result->type, result->eliteAffixes,
+                result->position));
             if (harvestStacks > 0) {
                 ++bloodHarvestKillProgress_;
                 if (bloodHarvestKillProgress_ >=

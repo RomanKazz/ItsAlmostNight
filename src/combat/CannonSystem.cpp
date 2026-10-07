@@ -1,4 +1,6 @@
 #include "combat/CannonSystem.hpp"
+#include "combat/DefenseRuntimeSupport.hpp"
+#include "buildings/BuildingModifiers.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -149,44 +151,13 @@ void CannonSystem::clearProjectiles() {
 }
 
 void CannonSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
-    std::erase_if(cannons_, [&buildings](const CannonRuntime& cannon) {
-        return std::none_of(buildings.begin(), buildings.end(),
-                            [&cannon](const BuildingInstance& building) {
-                                return building.id == cannon.buildingId &&
-                                       building.type == cannon.type &&
-                                       (building.type == BuildingType::Cannon ||
-                                        building.type == BuildingType::Catapult);
-                            });
-    });
-    for (const auto& building : buildings) {
-        if (building.type != BuildingType::Cannon &&
-            building.type != BuildingType::Catapult) {
-            continue;
-        }
-        const double restYaw = buildingRotationYaw(
-            building.type, building.rotation);
-        const auto runtime = std::find_if(
-            cannons_.begin(), cannons_.end(),
-            [&building](const CannonRuntime& cannon) {
-                return cannon.buildingId == building.id;
-            });
-        if (runtime == cannons_.end()) {
-            cannons_.push_back({
-                .buildingId = building.id,
-                .type = building.type,
-                .restYaw = restYaw,
-                .baseYaw = restYaw,
-                .yaw = restYaw,
-            });
-        } else if (
-            std::abs(wrapBuildingAngle(
-                runtime->restYaw - restYaw)) >
-            0.0001) {
-            runtime->restYaw = restYaw;
-            runtime->targetId.reset();
-            runtime->targetSearchCooldownRemaining = SearchInterval;
-        }
-    }
+    defense_runtime::syncBuildings(cannons_, buildings, SearchInterval,
+        [](BuildingType type) {
+            return type == BuildingType::Cannon || type == BuildingType::Catapult;
+        },
+        [](const BuildingInstance& building, const CannonRuntime& runtime) {
+            return building.type == runtime.type;
+        });
 }
 
 std::span<const CannonExplosion> CannonSystem::tick(
@@ -446,9 +417,7 @@ void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
     projectile->explosionRadius = explosionRadius(
         cannon.type, cannon.level) *
         radiusMultiplier_ * profile.radius;
-    const double towerBonus = cannon.anvilStacks > 0
-        ? 1.0 + 0.10 * cannon.anvilStacks
-        : cannon.anvilEnhanced ? 1.10 : 1.0;
+    const double towerBonus = buildingAnvilMultiplier(cannon);
     const double heightBonus = cannon.platformStorey > 0
         ? highGroundDamageMultiplier_ : 1.0;
     projectile->explosionDamage = explosionDamage(

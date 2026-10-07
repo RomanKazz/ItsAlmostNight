@@ -34,15 +34,9 @@ void Simulation::updateTrapCombat(double deltaSeconds) {
             .damage = hit.result.damage,
         });
         if (hit.result.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = hit.result.id,
-                .sourceId = hit.trapId,
-                .buildingType = hit.type,
-                .enemyType = hit.result.type,
-                .enemyEliteAffixes = hit.result.eliteAffixes,
-                .position = hit.result.position,
-            });
+            events_.push_back(enemyKilledEvent(
+                hit.result.id, hit.result.type, hit.result.eliteAffixes,
+                hit.result.position, hit.trapId, hit.type));
         }
     }
 }
@@ -82,15 +76,9 @@ void Simulation::updateCannonCombat(double deltaSeconds) {
             .damage = hit.result.damage,
         });
         if (hit.result.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = hit.result.id,
-                .sourceId = hit.cannonId,
-                .buildingType = hit.type,
-                .enemyType = hit.result.type,
-                .enemyEliteAffixes = hit.result.eliteAffixes,
-                .position = hit.result.position,
-            });
+            events_.push_back(enemyKilledEvent(
+                hit.result.id, hit.result.type, hit.result.eliteAffixes,
+                hit.result.position, hit.cannonId, hit.type));
         }
     }
 }

@@ -854,6 +854,8 @@ class Renderer {
                                 std::size_t endVariant);
     void drawPondShoreRockInstances(const Camera3D& camera);
     void setSkinningEnabled(Shader& shader, bool enabled);
+    Shader* activeModelShader(bool selectionEligible = true);
+    Shader* prepareModelShader(Model& model, bool selectionEligible = true);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
         const std::array<const char*, 23>& sourceBones);

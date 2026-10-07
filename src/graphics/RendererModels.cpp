@@ -230,6 +230,29 @@ renderer_model_detail::modelColliderRaycastDistance(
         resource, transform, ray, maxDistance);
 }
 
+Shader* Renderer::activeModelShader(bool selectionEligible) {
+    if (selectionEligible && selectionMaskPassOpen_ && resources_.selectionMaskShader().valid()) {
+        return &resources_.selectionMaskShader().get();
+    }
+    if (shadowPassOpen_ && resources_.shadowShader().valid()) {
+        return &resources_.shadowShader().get();
+    }
+    if (worldShaderActive_ && resources_.worldShader().valid()) {
+        return &resources_.worldShader().get();
+    }
+    return nullptr;
+}
+
+Shader* Renderer::prepareModelShader(Model& model, bool selectionEligible) {
+    Shader* shader = activeModelShader(selectionEligible);
+    if (shader != nullptr && model.materials != nullptr) {
+        for (int index = 0; index < model.materialCount; ++index) {
+            model.materials[index].shader = *shader;
+        }
+    }
+    return shader;
+}
+
 using namespace renderer_model_detail;
 
 void Renderer::shutdownPlatformTopPartMeshes() {
@@ -535,23 +558,7 @@ bool Renderer::drawPlatformFrameModel(
     if (model.meshCount <= PlatformTopMeshIndex) {
         return false;
     }
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount;
-             ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
     const auto drawSpecificMesh = [&model, tint](
                                       const Mesh& mesh,
                                       int materialIndex,
@@ -622,23 +629,7 @@ bool Renderer::drawRampModel(
         return false;
     }
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount;
-             ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
 
     DrawModelEx(
         model, footprintCenter,
@@ -661,17 +652,7 @@ bool Renderer::drawRampSupportBeam(
         ramp.materialCount <= 0) {
         return false;
     }
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
+    Shader* shader = activeModelShader();
     const int rampMeshIndex = ramp.meshCount - 1;
     const int materialIndex =
         ramp.meshMaterial[rampMeshIndex];
@@ -720,22 +701,7 @@ bool Renderer::drawResourceProducer(
         return false;
     }
     Model& model = resource->get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
     position.y += 0.005F;
     if (type == BuildingType::CrystalMine && model.meshCount == 2) {
         const float uniformScale = modelScale * scale * 0.5F;
@@ -772,22 +738,7 @@ bool Renderer::drawSpikeTrap(
         return false;
     }
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
 
     constexpr float ModelScale = 1.2F;
     constexpr float HiddenOffset = -0.15F;
@@ -931,22 +882,7 @@ bool Renderer::drawWall(Vector3 position,
         return false;
     }
     Model& model = resource->get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
 
     position.y += 0.005F;
     DrawModelEx(
@@ -968,17 +904,7 @@ bool Renderer::drawGate(
         return false;
     }
 
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (
-        shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (
-        worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
+    Shader* shader = activeModelShader();
 
     position.y += 0.005F;
     const Matrix baseTransform = MatrixMultiply(

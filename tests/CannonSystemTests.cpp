@@ -194,4 +194,25 @@ void runCannonSystemTests() {
                 !catapults.cannons().front().loaded &&
                 catapults.projectiles().front().targetPosition.z < -4.0,
             "catapult releases a ballistic ball beyond its dead zone");
+
+    for (const auto type : {ian::BuildingType::Cannon, ian::BuildingType::Catapult}) {
+        std::vector<ian::BuildingInstance> registry{{
+            .id = {91, 1}, .type = type, .rotation = 0,
+        }};
+        ian::CannonSystem defense;
+        defense.syncBuildings(registry);
+        defense.syncBuildings(registry);
+        require(defense.cannons().size() == 1,
+            "repeated defense synchronization does not duplicate runtimes");
+        registry.front().rotation = 1;
+        defense.syncBuildings(registry);
+        requireNear(defense.cannons().front().yaw, 0, 1e-9,
+            "rotating ballistic defenses preserves their current visual yaw");
+        requireNear(defense.cannons().front().targetSearchCooldownRemaining,
+            0.5, 1e-9, "ballistic defenses retain their own search interval");
+        registry.front().type = ian::BuildingType::Wall;
+        defense.syncBuildings(registry);
+        require(defense.cannons().empty(),
+            "unsupported buildings cannot retain ballistic defense runtimes");
+    }
 }

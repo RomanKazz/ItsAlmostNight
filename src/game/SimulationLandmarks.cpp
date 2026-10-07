@@ -38,24 +38,6 @@ double landmarkRadius(WorldLandmarkType type) {
         LandmarkVisualScale;
 }
 
-bool obstacleNear(
-    Vec3 position, double radius,
-    std::span<const MapObstacle> obstacles) {
-    return std::any_of(
-        obstacles.begin(), obstacles.end(),
-        [position, radius](const MapObstacle& obstacle) {
-            const double dx = std::max(
-                0.0, std::max(
-                    obstacle.collision.minX - position.x,
-                    position.x - obstacle.collision.maxX));
-            const double dz = std::max(
-                0.0, std::max(
-                    obstacle.collision.minZ - position.z,
-                    position.z - obstacle.collision.maxZ));
-            return dx * dx + dz * dz < radius * radius;
-        });
-}
-
 bool flatLandmarkSurface(
     const TerrainHeightfield& terrain, Vec3 center,
     double footprintRadius) {
@@ -144,7 +126,7 @@ void Simulation::resetWorldLandmarks() {
             }
             position.y = terrain_.getHeight(
                 position.x, position.z);
-            if (obstacleNear(
+            if (mapObstacleNear(
                     position, footprintRadius + 1.0,
                     map_.obstacles) ||
                 std::any_of(

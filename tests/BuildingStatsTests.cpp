@@ -4,6 +4,19 @@
 
 void runBuildingStatsTests() {
     ian::CrystalMineSystem producers;
+    for (const auto type : {ian::BuildingType::Turret, ian::BuildingType::GunTurret,
+                           ian::BuildingType::Cannon, ian::BuildingType::Catapult}) {
+        ian::BuildingInstance enhanced{.type = type, .level = 2};
+        const auto ordinary = ian::buildingStatsAtLevel(enhanced, 2, producers);
+        enhanced.anvilEnhanced = true;
+        const auto legacy = ian::buildingStatsAtLevel(enhanced, 2, producers);
+        requireNear(*legacy.attackDamage, *ordinary.attackDamage * 1.10, 1e-9,
+            "legacy anvil saves retain their damage bonus in building cards");
+        enhanced.anvilStacks = 3;
+        const auto stacked = ian::buildingStatsAtLevel(enhanced, 2, producers);
+        requireNear(*stacked.attackDamage, *ordinary.attackDamage * 1.30, 1e-9,
+            "anvil stacks replace the legacy flag instead of applying twice");
+    }
     const ian::BuildingInstance core{
         .id = ian::EntityId{9, 0},
         .type = ian::BuildingType::Core,

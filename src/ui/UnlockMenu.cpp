@@ -1,3 +1,4 @@
+#include "ui/UiMenuLayout.hpp"
 #include "ui/UnlockMenu.hpp"
 
 #include "buildings/BuildingSystem.hpp"
@@ -28,17 +29,6 @@ constexpr float GridHeight = 466;
 constexpr std::array<std::string_view, 6> TabNames{
     "CLASSES", "BUILDINGS", "WEAPONS", "UPGRADES", "ITEMS", "META"};
 
-struct Layout {
-    float scale;
-    Vector2 origin;
-    Rectangle rect(float x, float y, float w, float h) const {
-        return {origin.x + x * scale, origin.y + y * scale, w * scale, h * scale};
-    }
-};
-Layout layoutFor(Vector2 viewport) {
-    const float scale = std::max(0.1F, std::min(viewport.x / 1920.0F, viewport.y / 1080.0F));
-    return {scale, {(viewport.x - 1920 * scale) * 0.5F, (viewport.y - 1080 * scale) * 0.5F}};
-}
 void panel(Rectangle bounds, float scale, Color fill, Color border = {116, 79, 48, 255}) {
     DrawRectangleRounded(bounds, 0.06F, 8, fill);
     DrawRectangleRoundedLinesEx(bounds, 0.06F, 8, 2 * scale, border);
@@ -52,7 +42,7 @@ void text(std::string_view value, Rectangle bounds, float size, Color color,
         : align == 2 ? bounds.x + bounds.width - measured.x : bounds.x;
     drawUiText(value, {x, bounds.y + (bounds.height - measured.y) * 0.5F}, fitted, color);
 }
-bool button(Rectangle bounds, std::string_view label, const Layout& l,
+bool button(Rectangle bounds, std::string_view label, const UiMenuLayout& l,
             const UnlockMenuInput& input, bool enabled = true) {
     const bool hovered = enabled && CheckCollisionPointRec(input.pointer, bounds);
     panel(bounds, l.scale, !enabled ? Color{46, 50, 51, 255}
@@ -262,7 +252,7 @@ void icon(const GameUi& ui, const Entry& entry, Rectangle bounds, bool silhouett
         if (!silhouette) text(entry.title, bounds, bounds.height * 0.16F, Cream, UiFontRole::BodyBold, 1);
     }
 }
-void silver(const GameUi& ui, const Layout& l, float x, float y, int amount, bool enough = true) {
+void silver(const GameUi& ui, const UiMenuLayout& l, float x, float y, int amount, bool enough = true) {
     ui.drawResourceIcon(l.rect(x, y, 28, 28), UiResourceIcon::Silver);
     text(std::to_string(amount), l.rect(x + 34, y, 90, 28), 20 * l.scale,
         enough ? Cream : Red, UiFontRole::BodyBold);
@@ -274,11 +264,11 @@ void selectCategory(UnlockMenuState& state, std::size_t category) {
 
 } // namespace
 
-Rectangle unlockMenuPanelBounds(Vector2 viewport) { return layoutFor(viewport).rect(230, 110, 1460, 870); }
+Rectangle unlockMenuPanelBounds(Vector2 viewport) { return UiMenuLayout::fromViewport(viewport).rect(230, 110, 1460, 870); }
 
 UnlockMenuResult drawUnlockMenu(const GameUi& ui, const QuestSystem& quests, MetaProgression& profile,
                                UnlockMenuState& state, Vector2 viewport, const UnlockMenuInput& input) {
-    const Layout l = layoutFor(viewport);
+    const UiMenuLayout l = UiMenuLayout::fromViewport(viewport);
     UnlockMenuResult result{.close = input.close, .questId = {}};
     if (static_cast<std::size_t>(state.category) >= TabNames.size()) selectCategory(state, 0);
     if (input.categoryStep != 0) {

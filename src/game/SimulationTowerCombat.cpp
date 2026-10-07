@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "combat/DefenseTargeting.hpp"
 
 #include <algorithm>
 #include <array>
@@ -35,15 +36,9 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .secondaryImpact = true,
         });
         if (result->killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = result->id,
-                .sourceId = shot.towerId,
-                .buildingType = shot.type,
-                .enemyType = result->type,
-                .enemyEliteAffixes = result->eliteAffixes,
-                .position = result->position,
-            });
+            events_.push_back(enemyKilledEvent(
+                result->id, result->type, result->eliteAffixes,
+                result->position, shot.towerId, shot.type));
         }
         return result;
     };
@@ -56,9 +51,8 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
         const auto validSecondaryTarget = [&](const EnemyInstance& enemy) {
             if (!enemy.active) return false;
             if (shot.type != BuildingType::GunTurret) return true;
-            return sourceExists && enemy.type != EnemyType::Flying &&
-                std::abs(enemy.worldSurfaceHeight - source->baseHeight) <=
-                    1.25;
+            return sourceExists && hitscanDefenseCanTarget(
+                shot.type, enemy, source->baseHeight);
         };
         const auto fireShrapnel = [&](EntityId killedId,
                                       Vec3 impactPosition,
@@ -115,15 +109,9 @@ void Simulation::updateTowerCombat(double deltaSeconds) {
             .secondaryImpact = shot.secondaryImpact,
         });
         if (shot.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = shot.targetId,
-                .sourceId = shot.towerId,
-                .buildingType = shot.type,
-                .enemyType = shot.targetType,
-                .enemyEliteAffixes = shot.targetEliteAffixes,
-                .position = shot.hitPosition,
-            });
+            events_.push_back(enemyKilledEvent(
+                shot.targetId, shot.targetType, shot.targetEliteAffixes,
+                shot.hitPosition, shot.towerId, shot.type));
             fireShrapnel(
                 shot.targetId, shot.hitPosition,
                 shot.payloadDamage);

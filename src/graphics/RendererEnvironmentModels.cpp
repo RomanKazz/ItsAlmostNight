@@ -33,20 +33,7 @@ bool Renderer::drawRock(Vector3 position, Color tint,
         return false;
     }
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
     scale *= worldRevealScaleAt(
         {position.x, position.z});
     if (scale <= 0.001F) {
@@ -68,20 +55,7 @@ bool Renderer::drawCrystalResource(
     auto& resource = resources_.crystalResourceModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
     scale *= worldRevealScaleAt({position.x, position.z});
     if (scale <= 0.001F) return true;
     const float modelScale =
@@ -118,17 +92,7 @@ bool Renderer::drawDestructibleProp(
         propModelIndex(type));
     if (!resource.valid()) return false;
     Model& model = resource.get();
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ && resources_.selectionMaskShader().valid())
-        shader = &resources_.selectionMaskShader().get();
-    else if (shadowPassOpen_ && resources_.shadowShader().valid())
-        shader = &resources_.shadowShader().get();
-    else if (worldShaderActive_ && resources_.worldShader().valid())
-        shader = &resources_.worldShader().get();
-    if (shader != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index)
-            model.materials[index].shader = *shader;
-    }
+    prepareModelShader(model);
     scale *= worldRevealScaleAt({position.x, position.z});
     if (scale <= 0.001F) return true;
     drawTerrainAlignedModel(
@@ -245,20 +209,7 @@ bool Renderer::drawTree(Vector3 position, Color tint,
         model.meshMaterial == nullptr || model.materials == nullptr) {
         return false;
     }
-    Shader* shader = nullptr;
-    if (selectionMaskPassOpen_ &&
-        resources_.selectionMaskShader().valid()) {
-        shader = &resources_.selectionMaskShader().get();
-    } else if (shadowPassOpen_ && resources_.shadowShader().valid()) {
-        shader = &resources_.shadowShader().get();
-    } else if (worldShaderActive_ && resources_.worldShader().valid()) {
-        shader = &resources_.worldShader().get();
-    }
-    if (shader != nullptr && model.materials != nullptr) {
-        for (int index = 0; index < model.materialCount; ++index) {
-            model.materials[index].shader = *shader;
-        }
-    }
+    prepareModelShader(model);
     scale *= worldRevealScaleAt(
         {position.x, position.z});
     if (scale <= 0.001F) {

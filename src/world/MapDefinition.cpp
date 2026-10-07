@@ -2,12 +2,32 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
 #include <utility>
 
 namespace ian {
+
+bool mapObstacleNear(
+    Vec3 position, double radius,
+    std::span<const MapObstacle> obstacles) {
+    return std::any_of(
+        obstacles.begin(), obstacles.end(),
+        [position, radius](const MapObstacle& obstacle) {
+            const double dx = std::max(
+                0.0, std::max(
+                    obstacle.collision.minX - position.x,
+                    position.x - obstacle.collision.maxX));
+            const double dz = std::max(
+                0.0, std::max(
+                    obstacle.collision.minZ - position.z,
+                    position.z - obstacle.collision.maxZ));
+            return dx * dx + dz * dz < radius * radius;
+        });
+}
+
 namespace {
 
 using Json = nlohmann::json;

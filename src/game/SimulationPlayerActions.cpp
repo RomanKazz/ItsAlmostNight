@@ -302,13 +302,9 @@ void Simulation::updatePlayerActions(
                     *fire->targetId, fire->hitPosition,
                     fire->damage);
                 if (fire->killed) {
-                    events_.push_back({
-                        .type = GameEventType::EnemyKilled,
-                        .entityId = fire->targetId,
-                        .enemyType = fire->targetType,
-                        .enemyEliteAffixes = fire->targetEliteAffixes,
-                        .position = fire->hitPosition,
-                    });
+                    events_.push_back(enemyKilledEvent(
+                        fire->targetId, fire->targetType, fire->targetEliteAffixes,
+                        fire->hitPosition));
                     aimedEnemy_.reset();
                 }
             }
@@ -412,13 +408,9 @@ void Simulation::updatePlayerActions(
                     nailHitRegistered = true;
                 }
                 if (result.killed) {
-                    events_.push_back({
-                        .type = GameEventType::EnemyKilled,
-                        .entityId = result.id,
-                        .enemyType = result.type,
-                        .enemyEliteAffixes = result.eliteAffixes,
-                        .position = result.position,
-                    });
+                    events_.push_back(enemyKilledEvent(
+                        result.id, result.type, result.eliteAffixes,
+                        result.position));
                 }
                 if (aimedEnemy_ && result.id == *aimedEnemy_ &&
                     result.killed) {
@@ -445,13 +437,9 @@ void Simulation::updatePlayerActions(
                     result->damage);
             }
             if (result && result->killed) {
-                events_.push_back({
-                    .type = GameEventType::EnemyKilled,
-                    .entityId = result->id,
-                    .enemyType = result->type,
-                    .enemyEliteAffixes = result->eliteAffixes,
-                    .position = result->position,
-                });
+                events_.push_back(enemyKilledEvent(
+                    result->id, result->type, result->eliteAffixes,
+                    result->position));
                 aimedEnemy_.reset();
             }
         } else if (aimedResource_) {
@@ -634,14 +622,9 @@ void Simulation::updatePlayerActions(
         });
         registerNailHit(hit.enemyId, hit.position, hit.damage);
         if (hit.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = hit.enemyId,
-                .sourceId = hit.projectileId,
-                .enemyType = hit.enemyType,
-                .enemyEliteAffixes = hit.enemyEliteAffixes,
-                .position = hit.position,
-            });
+            events_.push_back(enemyKilledEvent(
+                hit.enemyId, hit.enemyType, hit.enemyEliteAffixes,
+                hit.position, hit.projectileId));
             if (aimedEnemy_ && *aimedEnemy_ == hit.enemyId) {
                 aimedEnemy_.reset();
             }
@@ -683,14 +666,9 @@ void Simulation::updatePlayerActions(
             registerNailHit(hit.enemyId, hit.position, hit.damage);
         }
         if (hit.killed) {
-            events_.push_back({
-                .type = GameEventType::EnemyKilled,
-                .entityId = hit.enemyId,
-                .sourceId = hit.projectileId,
-                .enemyType = hit.enemyType,
-                .enemyEliteAffixes = hit.enemyEliteAffixes,
-                .position = hit.position,
-            });
+            events_.push_back(enemyKilledEvent(
+                hit.enemyId, hit.enemyType, hit.enemyEliteAffixes,
+                hit.position, hit.projectileId));
             if (aimedEnemy_ && *aimedEnemy_ == hit.enemyId) {
                 aimedEnemy_.reset();
             }

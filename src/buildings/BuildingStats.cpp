@@ -1,4 +1,5 @@
 #include "buildings/BuildingStats.hpp"
+#include "buildings/BuildingModifiers.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
 #include "combat/CannonSystem.hpp"
@@ -36,9 +37,7 @@ BuildingStats buildingStatsAtLevel(
             coreResourceCapacity(ResourceCapacityType::Crystal, level));
     } else if (building.type == BuildingType::Turret ||
                building.type == BuildingType::GunTurret) {
-        const double towerBonus = building.anvilStacks > 0
-            ? 1.0 + 0.10 * building.anvilStacks
-            : building.anvilEnhanced ? 1.10 : 1.0;
+        const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = TowerSystem::attackDamage(
             building.type, level) *
             towerBonus * CombatDisplayScale;
@@ -53,9 +52,7 @@ BuildingStats buildingStatsAtLevel(
         }
     } else if (building.type == BuildingType::Cannon ||
                building.type == BuildingType::Catapult) {
-        const double towerBonus = building.anvilStacks > 0
-            ? 1.0 + 0.10 * building.anvilStacks
-            : building.anvilEnhanced ? 1.10 : 1.0;
+        const double towerBonus = buildingAnvilMultiplier(building);
         stats.attackDamage = CannonSystem::explosionDamage(
             building.type, level) *
             towerBonus * CombatDisplayScale;

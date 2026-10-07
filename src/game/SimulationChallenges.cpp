@@ -25,24 +25,6 @@ bool challengeActivationPhase(RunState state) {
            state == RunState::BuildPhase;
 }
 
-bool obstacleNear(
-    Vec3 position, double radius,
-    std::span<const MapObstacle> obstacles) {
-    return std::any_of(
-        obstacles.begin(), obstacles.end(),
-        [position, radius](const MapObstacle& obstacle) {
-            const double dx = std::max(
-                0.0, std::max(
-                    obstacle.collision.minX - position.x,
-                    position.x - obstacle.collision.maxX));
-            const double dz = std::max(
-                0.0, std::max(
-                    obstacle.collision.minZ - position.z,
-                    position.z - obstacle.collision.maxZ));
-            return dx * dx + dz * dz < radius * radius;
-        });
-}
-
 EliteAffixMask challengeEliteAffix(
     std::uint64_t seed) {
     constexpr std::array<EliteAffix, 3> Affixes{{
@@ -114,7 +96,7 @@ void Simulation::resetChallengeColumns() {
             continue;
         }
         position.y = terrain_.getHeight(position.x, position.z);
-        if (obstacleNear(position, 5.0, map_.obstacles) ||
+        if (mapObstacleNear(position, 5.0, map_.obstacles) ||
             std::any_of(
                 resources_.nodes().begin(), resources_.nodes().end(),
                 [position](const ResourceNode& resource) {

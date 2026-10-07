@@ -1,4 +1,5 @@
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/BuildingModifiers.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "buildings/ModularBuildingConstants.hpp"
 
@@ -604,9 +605,7 @@ void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
         const double levelMultiplier =
             1.0 + 0.15 * static_cast<double>(building.level - 1);
         const double towerMultiplier =
-            building.anvilStacks > 0
-                ? 1.0 + 0.10 * building.anvilStacks
-                : building.anvilEnhanced ? 1.10 : 1.0;
+            buildingAnvilMultiplier(building);
         building.maxHealth = definition(building.type).maxHealth *
             levelMultiplier * next * towerMultiplier;
         building.health += building.maxHealth - previous;
@@ -732,9 +731,7 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
     const double health = definition(type).maxHealth *
         (1.0 + 0.15 * static_cast<double>(level - 1)) *
         maxHealthMultiplier_ *
-        (anvilStacks > 0
-             ? 1.0 + 0.10 * anvilStacks
-             : 1.0);
+        buildingAnvilMultiplier(anvilStacks);
     BuildingInstance building{
         .id = {nextIndex_++, 1},
         .type = type,
@@ -976,9 +973,7 @@ UpgradeResult BuildingSystem::upgrade(EntityId id, int wood, int stone, int crys
         definition(iterator->type).maxHealth *
         (1.0 + 0.15 * static_cast<double>(iterator->level - 1)) *
         maxHealthMultiplier_ *
-        (iterator->anvilStacks > 0
-             ? 1.0 + 0.10 * iterator->anvilStacks
-             : iterator->anvilEnhanced ? 1.10 : 1.0);
+        (buildingAnvilMultiplier(*iterator));
     iterator->health += iterator->maxHealth - previousMaxHealth;
     return {
         .error = UpgradeError::None,

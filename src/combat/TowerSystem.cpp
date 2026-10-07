@@ -1,4 +1,7 @@
 #include "combat/TowerSystem.hpp"
+#include "combat/DefenseTargeting.hpp"
+#include "combat/DefenseRuntimeSupport.hpp"
+#include "buildings/BuildingModifiers.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
 #include <algorithm>
@@ -19,10 +22,6 @@ constexpr double PitchSpeed = 8.0;
 constexpr double AimTolerance = 0.08726646259971647;
 constexpr double CrossbowPiercingRadius = 0.72;
 constexpr double GunPiercingRadius = 0.42;
-// The gun turret has no pitch pivot. A small tolerance keeps it useful on
-// rolling terrain, while preventing a turret on a modular floor from firing
-// down through an entire storey.
-constexpr double GunTurretMaximumSurfaceHeightDifference = 1.25;
 constexpr std::size_t MaximumCrossbowTargets = 6;
 
 struct PiercingCandidate {
@@ -92,17 +91,6 @@ Vec3 enemyAimPosition(const EnemyInstance& enemy) {
     };
 }
 
-bool towerCanTarget(BuildingType towerType,
-                    const EnemyInstance& enemy,
-                    double towerSurfaceHeight) {
-    if (towerType != BuildingType::GunTurret) {
-        return true;
-    }
-    return enemy.type != EnemyType::Flying &&
-           std::abs(enemy.worldSurfaceHeight - towerSurfaceHeight) <=
-               GunTurretMaximumSurfaceHeightDifference;
-}
-
 bool withinRange(Vec3 origin, Vec3 target, double range) {
     const double deltaX = target.x - origin.x;
     const double deltaZ = target.z - origin.z;
@@ -134,7 +122,7 @@ std::size_t piercingTargets(
             std::max(1, maximumTargets)));
     std::size_t count = 0;
     for (const EnemyInstance& enemy : enemies.enemies()) {
-        if (!enemy.active || !towerCanTarget(
+        if (!enemy.active || !hitscanDefenseCanTarget(
                 towerType, enemy, towerSurfaceHeight)) {
             continue;
         }
@@ -253,42 +241,9 @@ void TowerSystem::setModifiers(
 }
 
 void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) {
-    std::erase_if(towers_, [&buildings](const TowerRuntime& tower) {
-        return std::none_of(buildings.begin(), buildings.end(),
-                            [&tower](const BuildingInstance& building) {
-                                return building.id == tower.buildingId &&
-                                       isHitscanTower(building.type);
-                            });
-    });
-
-    for (const auto& building : buildings) {
-        if (!isHitscanTower(building.type)) {
-            continue;
-        }
-        const double restYaw = buildingRotationYaw(
-            building.type, building.rotation);
-        const auto runtime = std::find_if(
-            towers_.begin(), towers_.end(),
-            [&building](const TowerRuntime& tower) {
-                return tower.buildingId == building.id;
-            });
-        if (runtime == towers_.end()) {
-            towers_.push_back({
-                .buildingId = building.id,
-                .type = building.type,
-                .restYaw = restYaw,
-                .baseYaw = restYaw,
-                .yaw = restYaw,
-            });
-        } else if (
-            std::abs(wrapBuildingAngle(
-                runtime->restYaw - restYaw)) >
-            0.0001) {
-            runtime->restYaw = restYaw;
-            runtime->targetId.reset();
-            runtime->targetSearchCooldownRemaining = SearchInterval;
-        }
-    }
+    defense_runtime::syncBuildings(towers_, buildings, SearchInterval,
+        isHitscanTower,
+        [](const BuildingInstance&, const TowerRuntime&) { return true; });
 }
 
 std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
@@ -310,9 +265,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const Vec3 origin = towerPosition(*building);
         const double range = attackRange(building->type, building->level) *
             rangeMultiplier_;
-        const double towerBonus = building->anvilStacks > 0
-            ? 1.0 + 0.10 * building->anvilStacks
-            : building->anvilEnhanced ? 1.10 : 1.0;
+        const double towerBonus = buildingAnvilMultiplier(*building);
         const double heightBonus = building->platformStorey > 0
             ? highGroundDamageMultiplier_ : 1.0;
         const double damage = attackDamage(building->type, building->level) *
@@ -325,7 +278,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
 
         if (tower.targetId) {
             const auto target = enemies.enemy(*tower.targetId);
-            if (!target || !towerCanTarget(
+            if (!target || !hitscanDefenseCanTarget(
                     building->type, *target, building->baseHeight) ||
                 !withinRange(origin, target->position, range) ||
                 !directionInsideDefenseArc(
@@ -440,7 +393,7 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         std::array<double, 3> extraDistances{
             range * range, range * range, range * range};
         for (const EnemyInstance& enemy : enemies.enemies()) {
-            if (!enemy.active || !towerCanTarget(
+            if (!enemy.active || !hitscanDefenseCanTarget(
                     building->type, enemy,
                     building->baseHeight) ||
                 !directionInsideDefenseArc(
