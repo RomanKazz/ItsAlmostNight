@@ -139,16 +139,13 @@ void App::processInput() {
             landingResponseRemaining_ = 0.0;
             EnableCursor();
             runUpgradeChoiceWasVisible_ = true;
-            runUpgradeChoiceInputDelayRemaining_ = 0.62;
+            runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runUpgradeChoiceInputArmed_ = false;
             runUpgradeOverlayEntranceSeconds_ = 0.0;
             runUpgradeOverlayExitSeconds_ = 0.0;
             runUpgradePendingChoice_.reset();
             runUpgradeCardHoverAmounts_.fill(0.0F);
         }
-        runUpgradeChoiceInputDelayRemaining_ = std::max(
-            0.0, runUpgradeChoiceInputDelayRemaining_ -
-                static_cast<double>(GetFrameTime()));
         if (runUpgradePendingChoice_) {
             runUpgradeChoiceInputArmed_ = false;
             runUpgradeOverlayExitSeconds_ = std::min(
@@ -165,16 +162,16 @@ void App::processInput() {
                     if (!simulation_.snapshot().runUpgradeChoicePending) {
                         runUpgradeChoiceWasVisible_ = false;
                         runUpgradeChoiceInputArmed_ = false;
-                        runUpgradeChoiceInputDelayRemaining_ = 0.58;
+                        runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
                         DisableCursor();
                     } else {
                         runUpgradeOverlayEntranceSeconds_ = 0.0;
                         runUpgradeCardHoverAmounts_.fill(0.0F);
-                        runUpgradeChoiceInputDelayRemaining_ = 0.58;
+                        runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
                         runUpgradeChoiceInputArmed_ = false;
                     }
                 } else {
-                    runUpgradeChoiceInputDelayRemaining_ = 0.12;
+                    runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
                 }
             }
         }
@@ -184,10 +181,12 @@ void App::processInput() {
             !IsKeyDown(KEY_R) && !IsKeyDown(KEY_ONE) &&
             !IsKeyDown(KEY_TWO) && !IsKeyDown(KEY_THREE) &&
             !IsKeyDown(KEY_FOUR) && !IsKeyDown(KEY_FIVE);
-        if (!runUpgradePendingChoice_ &&
-            runUpgradeChoiceInputDelayRemaining_ <= 0.0 &&
-            choiceInputsReleased) {
-            runUpgradeChoiceInputArmed_ = true;
+        if (!runUpgradePendingChoice_ && !runUpgradeChoiceInputArmed_) {
+            runUpgradeChoiceInputDelayRemaining_ = advanceRunUpgradeInputDelay(
+                runUpgradeChoiceInputDelayRemaining_, choiceInputsReleased,
+                static_cast<double>(GetFrameTime()));
+            if (choiceInputsReleased && runUpgradeChoiceInputDelayRemaining_ <= 0.0)
+                runUpgradeChoiceInputArmed_ = true;
         }
         std::optional<std::size_t> choice;
         if (runUpgradeChoiceInputArmed_ && IsKeyPressed(KEY_R) &&
@@ -196,7 +195,7 @@ void App::processInput() {
             runUpgradeOverlayExitSeconds_ = 0.0;
             runUpgradePendingChoice_.reset();
             runUpgradeCardHoverAmounts_.fill(0.0F);
-            runUpgradeChoiceInputDelayRemaining_ = 0.58;
+            runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
             runUpgradeChoiceInputArmed_ = false;
             audio_.playUiConfirm();
         }

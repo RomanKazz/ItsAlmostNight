@@ -3,12 +3,23 @@
 #include "game/Simulation.hpp"
 #include "ui/GameUi.hpp"
 
+#include <algorithm>
 #include <optional>
 #include <span>
 
 #include <raylib.h>
 
 namespace ian::app_detail {
+
+inline constexpr double RunUpgradeChoiceInputQuietDuration = 0.35;
+
+// Attack clicks must stop before a fresh press can select an upgrade. A long
+// opening frame must not consume the entire protection window at once.
+[[nodiscard]] inline double advanceRunUpgradeInputDelay(
+    double remaining, bool inputsReleased, double frameSeconds) {
+    if (!inputsReleased) return RunUpgradeChoiceInputQuietDuration;
+    return std::max(0.0, remaining - std::clamp(frameSeconds, 0.0, 0.05));
+}
 
 inline constexpr double RunUpgradeOverlayExitDuration = 0.34;
 

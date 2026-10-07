@@ -8,6 +8,31 @@
 #include <string>
 
 int main(int argc, char** argv) {
+    using ian::app_detail::advanceRunUpgradeInputDelay;
+    constexpr double quietDuration = ian::app_detail::RunUpgradeChoiceInputQuietDuration;
+    double inputDelay = quietDuration;
+    for (int frame = 0; frame < 180; ++frame) {
+        inputDelay = advanceRunUpgradeInputDelay(inputDelay, false, 1.0 / 60.0);
+        require(inputDelay > 0, "held attack never arms upgrade selection");
+    }
+    // Rapid attack clicks include release frames, so a release-only barrier
+    // cannot prevent them from accidentally selecting a newly opened card.
+    for (int frame = 0; frame < 180; ++frame) {
+        inputDelay = advanceRunUpgradeInputDelay(inputDelay, frame % 6 != 0, 1.0 / 60.0);
+        require(inputDelay > 0, "ongoing attack clicks never arm upgrade selection");
+    }
+    inputDelay = quietDuration;
+    inputDelay = advanceRunUpgradeInputDelay(inputDelay, true, 2.0);
+    require(inputDelay > 0, "a stalled opening frame cannot bypass the input guard");
+    requireNear(advanceRunUpgradeInputDelay(inputDelay, true, -1.0), inputDelay, 1e-9,
+        "negative frame time cannot affect the input guard");
+    for (int frame = 0; frame < 30; ++frame)
+        inputDelay = advanceRunUpgradeInputDelay(inputDelay, true, 1.0 / 60.0);
+    requireNear(inputDelay, 0, 1e-9, "a short quiet interval enables a fresh upgrade press");
+    inputDelay = advanceRunUpgradeInputDelay(quietDuration, true, 0.05);
+    requireNear(advanceRunUpgradeInputDelay(inputDelay, false, 0.05), quietDuration, 1e-9,
+        "another premature click restarts the quiet interval for queued upgrades and rerolls");
+
     SetTraceLogLevel(LOG_ERROR);
     SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_HIGHDPI);
     InitWindow(64, 64, "Upgrade overlay smoke");
