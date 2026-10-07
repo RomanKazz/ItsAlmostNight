@@ -1,5 +1,6 @@
 #pragma once
 
+#include <raylib.h>
 #include <raymath.h>
 #include <rlgl.h>
 
@@ -8,6 +9,34 @@
 #include <cstdint>
 
 namespace ian::app_effect_drawing {
+
+enum class EffectSurface { Geometry, Texture };
+
+// Preserve additive RGB while tagging the scene alpha for the world-ink pass.
+// Geometry and flipbooks must use the same blend factors and differ only in
+// texture coverage. If the shader is unavailable, ordinary additive blending
+// remains the fallback. Call between completed batches, outside rlBegin/rlEnd.
+inline void beginAdditiveEffectPass(
+    Shader shader, int textureCoverageLocation,
+    EffectSurface surface = EffectSurface::Geometry) {
+    if (!IsShaderValid(shader)) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        return;
+    }
+    rlDrawRenderBatchActive();
+    rlSetBlendFactorsSeparate(
+        RL_ONE, RL_ONE, RL_ONE, RL_ZERO,
+        RL_FUNC_ADD, RL_FUNC_ADD);
+    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+    const float useTexture = surface == EffectSurface::Texture ? 1.0F : 0.0F;
+    SetShaderValue(shader, textureCoverageLocation, &useTexture, SHADER_UNIFORM_FLOAT);
+    BeginShaderMode(shader);
+}
+
+inline void endAdditiveEffectPass(Shader shader) {
+    if (IsShaderValid(shader)) EndShaderMode();
+    EndBlendMode();
+}
 
 inline float atmosphereUnit(std::uint32_t value) {
     value ^= value >> 16U;

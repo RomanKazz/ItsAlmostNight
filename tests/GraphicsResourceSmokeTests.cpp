@@ -2,6 +2,7 @@
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
+#include "app/AppEffectDrawing.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -30,6 +31,53 @@ std::size_t changedPixels(const Image& first, const Image& second) {
     UnloadImageColors(a);
     UnloadImageColors(b);
     return changed;
+}
+
+bool checkAdditiveEffectPass() {
+    ian::ShaderResource resource;
+    if (!resource.load(nullptr, "assets/shaders/vfx_impact.fs")) return false;
+    const int textureLocation = GetShaderLocation(resource.get(), "useTexture");
+    Image source = GenImageColor(8, 8, {60, 200, 80, 128});
+    const Texture2D texture = LoadTextureFromImage(source);
+    UnloadImage(source);
+    const auto target = LoadRenderTexture(64, 32);
+    bool valid = true;
+    for (const bool tagged : {true, false}) {
+        const Shader shader = tagged ? resource.get() : Shader{};
+        BeginTextureMode(target);
+        ClearBackground({20, 30, 40, 255});
+        // Submit background geometry before switching the blend/shader state.
+        DrawRectangle(0, 0, 64, 32, {20, 30, 40, 255});
+        ian::app_effect_drawing::beginAdditiveEffectPass(shader, textureLocation);
+        DrawRectangle(2, 2, 12, 12, {240, 80, 40, 128});
+        ian::app_effect_drawing::endAdditiveEffectPass(shader);
+        ian::app_effect_drawing::beginAdditiveEffectPass(shader, textureLocation,
+            ian::app_effect_drawing::EffectSurface::Texture);
+        DrawTexture(texture, 20, 2, WHITE);
+        ian::app_effect_drawing::endAdditiveEffectPass(shader);
+        DrawRectangle(40, 2, 12, 12, {80, 120, 160, 255});
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        const auto nearColor = [](Color actual, Color expected) {
+            return std::abs(int(actual.r) - int(expected.r)) <= 2 &&
+                   std::abs(int(actual.g) - int(expected.g)) <= 2 &&
+                   std::abs(int(actual.b) - int(expected.b)) <= 2;
+        };
+        const Color geometry = GetImageColor(image, 6, 6);
+        const Color flipbook = GetImageColor(image, 23, 5);
+        valid = valid && nearColor(geometry, {140, 70, 60, 255}) &&
+            nearColor(flipbook, {50, 130, 80, 255}) &&
+            nearColor(GetImageColor(image, 44, 6), {80, 120, 160, 255});
+        if (tagged) {
+            valid = valid && std::abs(int(geometry.a) - 96) <= 1 &&
+                            std::abs(int(flipbook.a) - 96) <= 1;
+        }
+        UnloadImage(image);
+    }
+    UnloadRenderTexture(target);
+    UnloadTexture(texture);
+    return valid;
 }
 
 bool checkAtmosphereRendering() {
@@ -912,6 +960,10 @@ int main() {
                 std::cerr << "first-shot render " << frame << " ms " << (GetTime() - start) * 1000 << '\n';
             }
             UnloadRenderTexture(target);
+        }
+        if (!checkAdditiveEffectPass()) {
+            std::cerr << "additive effects lose coverage, foreground tags or render-state restoration\n";
+            result = 1;
         }
         if (!checkAtmosphereRendering()) {
             std::cerr << "biome leaves disappear when viewed from either side\n";

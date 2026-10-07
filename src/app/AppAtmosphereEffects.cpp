@@ -101,35 +101,6 @@ void App::drawAtmosphereParticles(
         ? Vector3Normalize(horizontalView)
         : Vector3{0.0F, 0.0F, -1.0F};
 
-    // Additive particles do not naturally change scene alpha, so the ink
-    // pass would otherwise composite the outlined surface behind them over
-    // their glow. The impact shader preserves the same premultiplied additive
-    // RGB while writing the post-process-only foreground tag to alpha.
-    const bool tagAdditiveParticles = vfxImpactShader_.valid();
-    const auto beginAdditiveParticlePass = [&]() {
-        if (!tagAdditiveParticles) {
-            BeginBlendMode(BLEND_ADDITIVE);
-            return;
-        }
-        rlDrawRenderBatchActive();
-        rlSetBlendFactorsSeparate(
-            RL_ONE, RL_ONE,
-            RL_ONE, RL_ZERO,
-            RL_FUNC_ADD, RL_FUNC_ADD);
-        BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-        constexpr float UseTexture = 0.0F;
-        SetShaderValue(
-            vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
-            &UseTexture, SHADER_UNIFORM_FLOAT);
-        BeginShaderMode(vfxImpactShader_.get());
-    };
-    const auto endAdditiveParticlePass = [&]() {
-        if (tagAdditiveParticles) {
-            EndShaderMode();
-        }
-        EndBlendMode();
-    };
-
     const auto& terrain = simulation_.terrain();
     atmosphereParticles_.configure(terrain.seed(), terrain.config().terrainWorldSize);
     const auto horizontalCone = camera_culling::horizontalView(camera);
@@ -176,7 +147,7 @@ void App::drawAtmosphereParticles(
     rlEnableDepthMask();
     EndBlendMode();
 
-    beginAdditiveParticlePass();
+    beginAdditiveEffectPass(vfxImpactShader_.get(), vfxImpactUseTextureLocation_);
     rlDisableDepthMask();
     rlBegin(RL_TRIANGLES);
     for (std::size_t i = 0; i < atmosphere::DustCount; ++i) {
@@ -188,7 +159,7 @@ void App::drawAtmosphereParticles(
     rlEnd();
     rlDrawRenderBatchActive();
     rlEnableDepthMask();
-    endAdditiveParticlePass();
+    endAdditiveEffectPass(vfxImpactShader_.get());
 
     // Fireflies live in small world-anchored colonies around planted pond
     // shores. They fade in during dusk instead of following the player as a
@@ -198,7 +169,7 @@ void App::drawAtmosphereParticles(
     if (fireflyVisibility <= 0.01F) {
         return;
     }
-    beginAdditiveParticlePass();
+    beginAdditiveEffectPass(vfxImpactShader_.get(), vfxImpactUseTextureLocation_);
     rlBegin(RL_TRIANGLES);
     std::size_t pondIndex = 0U;
     for (const PondDefinition& pond : simulation_.terrain().ponds()) {
@@ -303,7 +274,7 @@ void App::drawAtmosphereParticles(
         ++pondIndex;
     }
     rlEnd();
-    endAdditiveParticlePass();
+    endAdditiveEffectPass(vfxImpactShader_.get());
 }
 
 void App::drawChestLootGlow(

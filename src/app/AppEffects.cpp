@@ -285,22 +285,7 @@ void App::drawPresentationEffects(
     // Hits are the highest-volume effect during tower-heavy nights. Submit
     // every flash and spark as one camera-facing triangle batch rather than
     // issuing spheres and lines per hit.
-    const bool taggedImpactGeometryPass = vfxImpactShader_.valid();
-    if (taggedImpactGeometryPass) {
-        rlDrawRenderBatchActive();
-        rlSetBlendFactorsSeparate(
-            RL_ONE, RL_ONE,
-            RL_ONE, RL_ZERO,
-            RL_FUNC_ADD, RL_FUNC_ADD);
-        BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-        constexpr float UseTexture = 0.0F;
-        SetShaderValue(
-            vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
-            &UseTexture, SHADER_UNIFORM_FLOAT);
-        BeginShaderMode(vfxImpactShader_.get());
-    } else {
-        BeginBlendMode(BLEND_ADDITIVE);
-    }
+    beginAdditiveEffectPass(vfxImpactShader_.get(), vfxImpactUseTextureLocation_);
     rlDisableDepthMask();
     rlDisableBackfaceCulling();
     rlBegin(RL_TRIANGLES);
@@ -379,10 +364,7 @@ void App::drawPresentationEffects(
     rlDrawRenderBatchActive();
     rlEnableBackfaceCulling();
     rlEnableDepthMask();
-    if (taggedImpactGeometryPass) {
-        EndShaderMode();
-    }
-    EndBlendMode();
+    endAdditiveEffectPass(vfxImpactShader_.get());
 
     // Authored flipbooks add a readable silhouette without multiplying the
     // sphere/line count. Draw in two texture-coherent passes so dense tower
@@ -391,22 +373,8 @@ void App::drawPresentationEffects(
     if (renderer_->settings().particles &&
         (vfxImpactTexture_.valid() ||
          vfxElectricRingTexture_.valid())) {
-        const bool taggedImpactPass = vfxImpactShader_.valid();
-        if (taggedImpactPass) {
-            rlDrawRenderBatchActive();
-            rlSetBlendFactorsSeparate(
-                RL_ONE, RL_ONE,
-                RL_ONE, RL_ZERO,
-                RL_FUNC_ADD, RL_FUNC_ADD);
-            BeginBlendMode(BLEND_CUSTOM_SEPARATE);
-            constexpr float UseTexture = 1.0F;
-            SetShaderValue(
-                vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
-                &UseTexture, SHADER_UNIFORM_FLOAT);
-            BeginShaderMode(vfxImpactShader_.get());
-        } else {
-            BeginBlendMode(BLEND_ADDITIVE);
-        }
+        beginAdditiveEffectPass(vfxImpactShader_.get(), vfxImpactUseTextureLocation_,
+            EffectSurface::Texture);
         rlDisableDepthMask();
         for (int electricPass = 0; electricPass < 2; ++electricPass) {
             const TextureResource& resource = electricPass != 0
@@ -465,10 +433,7 @@ void App::drawPresentationEffects(
             }
         }
         rlEnableDepthMask();
-        if (taggedImpactPass) {
-            EndShaderMode();
-        }
-        EndBlendMode();
+        endAdditiveEffectPass(vfxImpactShader_.get());
     }
 
     const std::size_t activeExplosionCount =
