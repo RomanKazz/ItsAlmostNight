@@ -7,6 +7,7 @@
 #include "ui/UiText.hpp"
 #include "ui/WorldBillboard.hpp"
 #include "world/TerrainHeightfield.hpp"
+#include "world/VisualBiomes.hpp"
 
 #include <raymath.h>
 #include <algorithm>
@@ -66,10 +67,19 @@ bool visibleScreenPoint(Vector2 point) {
            point.y <= static_cast<float>(GetScreenHeight());
 }
 
-Color resourceHealthColor(ResourceType type) {
-    switch (type) {
-    case ResourceType::Wood:
-        return {221, 128, 49, 255};
+Color resourceHealthColor(const ResourceNode& resource, const visual_biomes::Layout& biomes) {
+    switch (resource.type) {
+    case ResourceType::Wood: {
+        const auto weights = visual_biomes::weights(biomes,
+            static_cast<float>(resource.position.x), static_cast<float>(resource.position.z));
+        const auto biome = static_cast<std::size_t>(
+            std::max_element(weights.begin(), weights.end()) - weights.begin());
+        // Use the same discrete region as foliage, with extra brightness for UI.
+        const auto color = visual_biomes::shiftPalette(biomes.leaves[biome], 0, 0.12F, 0.15F);
+        return {static_cast<unsigned char>(std::lround(color[0] * 255)),
+                static_cast<unsigned char>(std::lround(color[1] * 255)),
+                static_cast<unsigned char>(std::lround(color[2] * 255)), 255};
+    }
     case ResourceType::Stone:
         return {120, 161, 190, 255};
     case ResourceType::Crystal:
@@ -104,6 +114,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            const TerrainHeightfield& terrain,
                            EnemyBoundsProvider enemyBoundsProvider) {
+    const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
     screenHealthText_.reset();
     screenLevelText_.reset();
     ++healthAnimationFrame_;
@@ -228,7 +239,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             {TargetKind::Resource, resource.id},
             resourceAnchor(resource),
             resource.health, resource.maxHealth,
-            resourceHealthColor(resource.type),
+            resourceHealthColor(resource, biomes),
             camera, 0, opacity);
         if (++woundedResourceBars >= MaximumWoundedResourceBars) {
             break;
@@ -316,7 +327,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 .anchorPosition = resourceAnchor(*resource),
                 .health = resource->health,
                 .maxHealth = resource->maxHealth,
-                .fillColor = resourceHealthColor(resource->type),
+                .fillColor = resourceHealthColor(*resource, biomes),
             };
         }
     } else if (snapshot.aimedBuilding) {
