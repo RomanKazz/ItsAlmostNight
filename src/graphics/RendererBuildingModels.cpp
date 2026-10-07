@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GateModel.hpp"
+#include "graphics/GunTurretModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -400,7 +401,7 @@ Vec3 Renderer::crossbowMuzzlePosition(
 
 bool Renderer::drawGunTurret(Vector3 position, float baseYawRadians,
                              float barrelYawRadians, Color tint,
-                             float scale, Vec3 barrelRecoilOffset) {
+                             float scale, Vec3 barrelRecoilOffset, int level) {
     auto& resource = resources_.gunTurretModel();
     if (!resource.valid()) return false;
     Model& model = resource.get();
@@ -421,20 +422,23 @@ bool Renderer::drawGunTurret(Vector3 position, float baseYawRadians,
     const Matrix baseTransform = transformFor(baseYawRadians, {});
     const Matrix barrelTransform = transformFor(
         barrelYawRadians, barrelRecoilOffset);
-    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+    const auto drawPart = [&](int meshIndex, Matrix pose, Color partTint, bool rotating) {
         const int materialIndex = model.meshMaterial[meshIndex];
         Material& material = model.materials[materialIndex];
         const Color original =
             material.maps[MATERIAL_MAP_DIFFUSE].color;
         material.maps[MATERIAL_MAP_DIFFUSE].color =
-            ColorTint(original, tint);
-        // Collider is stripped while loading. Visible GLB order is base,
-        // then the barrel under yaw_pivot.
+            ColorTint(original, ColorTint(partTint, tint));
         DrawMesh(model.meshes[meshIndex], material,
-                 MatrixMultiply(model.transform,
-                     meshIndex == 1 ? barrelTransform : baseTransform));
+                 MatrixMultiply(pose, MatrixMultiply(model.transform,
+                     rotating ? barrelTransform : baseTransform)));
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-    }
+    };
+    // Keep the authored base/barrels and muzzle locations unchanged.
+    for (int meshIndex = 0; meshIndex < std::min(model.meshCount, 2); ++meshIndex)
+        drawPart(meshIndex, MatrixIdentity(), WHITE, meshIndex == 1);
+    if (model.meshCount >= 4)
+        gun_turret_model_detail::forEachUpgradePart(level, drawPart);
     return true;
 }
 

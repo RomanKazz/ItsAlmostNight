@@ -1037,7 +1037,7 @@ void App::drawWorldEntities(
                     {x, groundY, z},
                     towerBaseYaw(snapshot, building),
                     defensiveYaw, WHITE, spawnScale,
-                    shotRecoil)) {
+                    shotRecoil, building.level)) {
                 drawScaledCube(0.0F, 0.55F, 0.0F, 1.1F,
                                1.1F, 1.1F,
                                {81, 92, 101, 255});

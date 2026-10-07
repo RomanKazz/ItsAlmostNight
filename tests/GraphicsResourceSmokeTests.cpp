@@ -133,6 +133,68 @@ bool checkAtmosphereRendering() {
     return visible;
 }
 
+bool checkGunTurretLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(384, 384);
+    const Camera3D camera{{2.4F, 1.9F, -3.2F}, {0, 0.62F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawGunTurret({0, 0, 0}, 0, 0, WHITE, 1, {}, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_GUN_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("turret-level-" + std::to_string(level) + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool distinct = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        const auto difference = changedPixels(previous, current);
+        if (difference <= 80) std::cerr << "turret level " << level << " differs by only " << difference << " pixels\n";
+        distinct = distinct && difference > 80;
+        UnloadImage(previous);
+        previous = current;
+    }
+    UnloadImage(previous);
+    Image recovered = capture(1);
+    distinct = distinct && changedPixels(original, recovered) == 0;
+    UnloadImage(original);
+    UnloadImage(recovered);
+    UnloadRenderTexture(target);
+
+    ian::BuildingInstance turret{.type = ian::BuildingType::GunTurret, .level = 1};
+    const ian::Vec3 center = ian::buildingWorldPosition(turret);
+    const Ray topRay{{static_cast<float>(center.x), 1.16F,
+        static_cast<float>(center.z) - 4}, {0, 0, 1}};
+    const auto oldTop = renderer.buildingRaycastDistance(turret, {}, topRay, 8);
+    turret.level = 7;
+    const auto armoredTop = renderer.buildingRaycastDistance(turret, {}, topRay, 8);
+    const Ray collarRay{{static_cast<float>(center.x) - 3, 0.685445F,
+        static_cast<float>(center.z) + 0.140388F}, {1, 0, 0}};
+    turret.level = 1;
+    const auto oldCollar = renderer.buildingRaycastDistance(turret, {}, collarRay, 8, PI * 0.5F);
+    turret.level = 6;
+    const auto rotatedCollar = renderer.buildingRaycastDistance(turret, {}, collarRay, 8, PI * 0.5F);
+    if (oldTop || !armoredTop || !oldCollar || !rotatedCollar || *rotatedCollar >= *oldCollar - 0.02)
+        std::cerr << "turret aiming: top " << oldTop.value_or(-1) << " -> " << armoredTop.value_or(-1)
+                  << ", collar " << oldCollar.value_or(-1) << " -> " << rotatedCollar.value_or(-1) << '\n';
+    return distinct && !oldTop && armoredTop && oldCollar && rotatedCollar &&
+        *rotatedCollar < *oldCollar - 0.02;
+}
+
 bool checkCoreOrbitRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(384, 384);
     const Camera3D camera{{0, 1.5F, 5}, {0, 1.0F, 0}, {0, 1, 0}, 36, CAMERA_PERSPECTIVE};
@@ -1008,6 +1070,10 @@ int main() {
         }
         if (!checkCoreOrbitRendering(renderer)) {
             std::cerr << "core orbit or distinct level appearances failed\n";
+            result = 1;
+        }
+        if (!checkGunTurretLevelRendering(renderer)) {
+            std::cerr << "gun turret levels, material restoration or rotated armor aiming failed\n";
             result = 1;
         }
         if (!checkSequentialMountainRendering(renderer)) {

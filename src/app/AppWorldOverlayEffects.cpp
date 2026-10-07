@@ -205,7 +205,7 @@ void App::drawSoldBuildingVisuals() {
             }
         } else if (building.type == BuildingType::GunTurret) {
             static_cast<void>(renderer_->drawGunTurret(
-                {x, baseY - sink, z}, yaw, yaw, tint, scale));
+                {x, baseY - sink, z}, yaw, yaw, tint, scale, {}, building.level));
         } else if (
             building.type == BuildingType::CrystalMine ||
             building.type == BuildingType::LumberMill ||

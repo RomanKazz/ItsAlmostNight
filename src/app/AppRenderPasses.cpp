@@ -444,7 +444,7 @@ void App::drawShadowPass(
                 static_cast<void>(renderer_->drawGunTurret(
                     {x, groundY, z},
                     towerBaseYaw(snapshot, building),
-                    towerYaw(snapshot, building), WHITE, spawnScale));
+                    towerYaw(snapshot, building), WHITE, spawnScale, {}, building.level));
             } else if (
                 building.type == BuildingType::CrystalMine ||
                 building.type == BuildingType::LumberMill ||
@@ -1033,7 +1033,7 @@ void App::drawSelectionPass(
                         {x, groundY, z},
                         towerBaseYaw(snapshot, *building),
                         defensiveYaw, WHITE, spawnScale,
-                        shotRecoil));
+                        shotRecoil, building->level));
                 } else if (
                     building->type ==
                         BuildingType::CrystalMine ||

@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
+#include "graphics/GunTurretModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -284,6 +285,21 @@ std::optional<double> Renderer::buildingRaycastDistance(
                     core_crystal_model_detail::levelBounds(resource->visualBounds(), building.level),
                     baseTransform);
             return acceptCollision(GetRayCollisionBox(ray, bounds));
+        }
+        if (building.type == BuildingType::GunTurret && model.meshCount >= 4) {
+            auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
+            const Matrix barrelTransform = MatrixMultiply(model.transform,
+                MatrixMultiply(scale, MatrixMultiply(MatrixRotateY(defensiveYaw),
+                    MatrixTranslate(position.x, position.y, position.z))));
+            gun_turret_model_detail::forEachUpgradePart(building.level,
+                [&](int, Matrix pose, Color, bool rotating) {
+                    const BoundingBox bounds = world_transforms::transformBounds(
+                        gun_turret_model_detail::UpgradePartBounds,
+                        MatrixMultiply(pose, rotating ? barrelTransform : baseTransform));
+                    const auto distance = acceptCollision(GetRayCollisionBox(ray, bounds));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+            return closest;
         }
         return modelColliderRaycastDistance(
             *resource, baseTransform, ray, maxDistance);

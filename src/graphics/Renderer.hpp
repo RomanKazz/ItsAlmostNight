@@ -411,7 +411,7 @@ class Renderer {
         Vector3 position, float baseYawRadians,
         float barrelYawRadians, Color tint = WHITE,
         float scale = 1.0F,
-        Vec3 barrelRecoilOffset = {});
+        Vec3 barrelRecoilOffset = {}, int level = 1);
     [[nodiscard]] bool drawTurretBullet(
         Vector3 position, Vector3 direction,
         Color tint = WHITE, float scale = 1.0F);
