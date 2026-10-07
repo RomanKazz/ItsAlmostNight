@@ -261,7 +261,7 @@ void drawBuildingUpgradePrompt(
     const float size = placement->pixelsPerWorldUnit * BuildingUpgradePromptWorldHeight;
     const float iconSize = size * 0.76F;
     const float fontSize = iconSize / 1.68F;
-    const float gap = size * 0.22F;
+    const float gap = size * 0.10F;
     struct Price { UiResourceIcon icon; int amount; int available; };
     const std::array prices{
         Price{UiResourceIcon::Wood, prompt.cost->wood, prompt.availableResources.wood},

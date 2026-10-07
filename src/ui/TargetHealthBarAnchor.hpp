@@ -4,8 +4,8 @@
 
 namespace ian {
 
-inline constexpr float BuildingUpgradePromptWorldHeight = 0.30F;
-inline constexpr float BuildingHealthBarUpgradeLift = 0.38F;
+inline constexpr float BuildingUpgradePromptWorldHeight = 0.20F;
+inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;
 
 [[nodiscard]] inline double buildingHealthBarHeightOffset(
     BuildingType type) {
