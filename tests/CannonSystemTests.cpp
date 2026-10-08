@@ -52,9 +52,32 @@ void runCannonSystemTests() {
                 cannons.projectiles().front().explosionDamage == 2.85 &&
                 cannons.projectiles().front().explosionRadius == 2.62,
             "cannon reset preserves ID safety and upgraded shell stats");
+    require(cannons.projectiles().front().trailPointCount == 2U,
+            "new cannon shell starts its trail at the muzzle with no stale history");
+    bool observedCurvedTrail = false;
+    bool observedWrappedTrail = false;
     bool exploded = false;
     for (int tick = 0; tick < 179 && !exploded; ++tick) {
         const auto explosions = cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+        const auto& shell = cannons.projectiles().front();
+        if (shell.active) {
+            require(shell.trailPointCount <= ian::CannonProjectile::TrailCapacity,
+                    "cannon trail stays bounded during flight");
+            const auto point = [&shell](std::size_t age) {
+                return shell.trailPositions[
+                    (shell.trailHead + ian::CannonProjectile::TrailCapacity - age) %
+                    ian::CannonProjectile::TrailCapacity];
+            };
+            requireNear(point(0).y, shell.position.y, 1e-12,
+                        "cannon trail head follows the physical shell");
+            if (shell.trailPointCount >= 3U) {
+                const double curvature = point(0).y - 2.0 * point(1).y + point(2).y;
+                requireNear(curvature, -9.8 / (60.0 * 60.0), 1e-12,
+                            "trail records the gravity-driven arc rather than a straight line");
+                observedCurvedTrail = true;
+            }
+            observedWrappedTrail |= shell.trailPointCount == ian::CannonProjectile::TrailCapacity;
+        }
         if (!explosions.empty()) {
             exploded = true;
             require(explosions.front().hitCount == 3, "explosion damages clustered enemies");
@@ -63,6 +86,18 @@ void runCannonSystemTests() {
         }
     }
     require(exploded, "physical cannon projectile reaches target");
+    require(observedCurvedTrail && observedWrappedTrail,
+            "cannon flight keeps a curved trail after its history wraps");
+    bool reusedShell = false;
+    for (int tick = 0; tick < 360 && !reusedShell; ++tick) {
+        cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+        if (!cannons.shots().empty()) {
+            reusedShell = true;
+            require(cannons.projectiles().front().trailPointCount == 2U,
+                    "reused cannon shell clears the previous shot's trail");
+        }
+    }
+    require(reusedShell, "cannon trail fixture exercises projectile reuse");
     require(enemies.activeCount() == 4,
             "cannon targets dense group instead of closer isolated enemy");
 

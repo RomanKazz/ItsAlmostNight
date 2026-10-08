@@ -5,6 +5,8 @@
 #include "core/Types.hpp"
 #include "enemies/EnemySystem.hpp"
 
+#include <array>
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <vector>
@@ -34,6 +36,11 @@ struct CannonProjectile {
     Vec3 velocity;
     Vec3 targetPosition;
     double fuseRemaining{};
+    // Bounded history of actual positions: the trail follows the ballistic arc.
+    static constexpr std::size_t TrailCapacity = 16;
+    std::array<Vec3, TrailCapacity> trailPositions{};
+    std::size_t trailHead{};
+    std::size_t trailPointCount{};
     double explosionRadius{};
     double explosionDamage{};
     double explosionImpulse{};

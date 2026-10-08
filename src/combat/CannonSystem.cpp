@@ -328,6 +328,13 @@ std::span<const CannonExplosion> CannonSystem::tick(
         projectile.position.x += projectile.velocity.x * deltaSeconds;
         projectile.position.y += projectile.velocity.y * deltaSeconds;
         projectile.position.z += projectile.velocity.z * deltaSeconds;
+        if (projectile.type == BuildingType::Cannon) {
+            projectile.trailHead = (projectile.trailHead + 1U) %
+                CannonProjectile::TrailCapacity;
+            projectile.trailPositions[projectile.trailHead] = projectile.position;
+            projectile.trailPointCount = std::min(
+                projectile.trailPointCount + 1U, CannonProjectile::TrailCapacity);
+        }
         if (projectile.fuseRemaining <= 0.0) {
             projectile.position = projectile.targetPosition;
             explode(projectile, enemies);
@@ -406,6 +413,9 @@ void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
     projectile->cannonId = cannon.id;
     projectile->type = cannon.type;
     projectile->position = origin;
+    projectile->trailHead = 0;
+    projectile->trailPointCount = cannon.type == BuildingType::Cannon ? 1U : 0U;
+    projectile->trailPositions[0] = origin;
     projectile->targetPosition = targetPosition;
     projectile->velocity = {
         deltaX / flightTime,

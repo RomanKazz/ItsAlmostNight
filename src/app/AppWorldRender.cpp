@@ -98,6 +98,71 @@ void emitProjectileBillboard(
 }
 
 
+void emitProjectileVertex(Vector3 position, Color color) {
+    rlColor4ub(color.r, color.g, color.b, color.a);
+    rlVertex3f(position.x, position.y, position.z);
+}
+
+void emitProjectileQuad(
+    Vector3 farLeft, Vector3 nearLeft,
+    Vector3 nearRight, Vector3 farRight,
+    Color farLeftColor, Color nearLeftColor,
+    Color nearRightColor, Color farRightColor) {
+    emitProjectileVertex(farLeft, farLeftColor);
+    emitProjectileVertex(nearLeft, nearLeftColor);
+    emitProjectileVertex(nearRight, nearRightColor);
+    emitProjectileVertex(farLeft, farLeftColor);
+    emitProjectileVertex(nearRight, nearRightColor);
+    emitProjectileVertex(farRight, farRightColor);
+}
+
+void emitCannonballGeometry(
+    Vector3 center, Vector3 direction, Vector3 cameraPosition,
+    float radius, Color tint) {
+    // A round camera-facing body uses the turret's explicit color shading,
+    // so the bright core stays readable at night as well as in daylight.
+    Vector3 view = Vector3Subtract(center, cameraPosition);
+    view = Vector3LengthSqr(view) > 0.000001F
+        ? Vector3Normalize(view) : Vector3{0.0F, 0.0F, -1.0F};
+    Vector3 right = Vector3CrossProduct(view, {0.0F, 1.0F, 0.0F});
+    right = Vector3LengthSqr(right) > 0.000001F
+        ? Vector3Normalize(right) : Vector3{1.0F, 0.0F, 0.0F};
+    const Vector3 up = Vector3Normalize(Vector3CrossProduct(right, view));
+    Vector2 forward{Vector3DotProduct(direction, right),
+                    Vector3DotProduct(direction, up)};
+    const float forwardLength = Vector2Length(forward);
+    forward = forwardLength > 0.0001F
+        ? Vector2Scale(forward, 1.0F / forwardLength) : Vector2{0.0F, 1.0F};
+    const Vector3 highlight = Vector3Add(center, Vector3Add(
+        Vector3Scale(right, forward.x * radius * 0.28F),
+        Vector3Scale(up, (forward.y * 0.28F + 0.12F) * radius)));
+    const Color core = ColorLerp(tint, WHITE, 0.42F);
+    constexpr std::array<Vector2, 17> Circle{{
+        {1, 0}, {.9238795F, .3826834F}, {.7071068F, .7071068F},
+        {.3826834F, .9238795F}, {0, 1}, {-.3826834F, .9238795F},
+        {-.7071068F, .7071068F}, {-.9238795F, .3826834F}, {-1, 0},
+        {-.9238795F, -.3826834F}, {-.7071068F, -.7071068F},
+        {-.3826834F, -.9238795F}, {0, -1}, {.3826834F, -.9238795F},
+        {.7071068F, -.7071068F}, {.9238795F, -.3826834F}, {1, 0},
+    }};
+    const auto rimPoint = [center, right, up, radius](Vector2 unit) {
+        return Vector3Add(center, Vector3Add(
+            Vector3Scale(right, unit.x * radius),
+            Vector3Scale(up, unit.y * radius)));
+    };
+    const auto rimColor = [forward, tint](Vector2 unit) {
+        const float shade = -0.15F + 0.37F *
+            (0.5F + 0.5F * Vector2DotProduct(unit, forward));
+        return ColorLerp(tint, shade >= 0.0F ? WHITE : BLACK, std::abs(shade));
+    };
+    for (std::size_t index = 1; index < Circle.size(); ++index) {
+        emitProjectileVertex(highlight, core);
+        emitProjectileVertex(rimPoint(Circle[index - 1]), rimColor(Circle[index - 1]));
+        emitProjectileVertex(rimPoint(Circle[index]), rimColor(Circle[index]));
+    }
+}
+
+
 } // namespace
 
 std::span<const GrassClearArea>
@@ -1162,58 +1227,117 @@ void App::drawWorldEntities(
             projectile, camera.position, projectileTime,
             interpolationAlpha);
     }
+    // A bounded ribbon follows the shell's recorded trajectory. All cannon
+    // tails share a batch, with no particles or per-frame allocations.
+    WorldMaterialState cannonShotMaterial{};
+    cannonShotMaterial.unlitAmount = 1.0F;
+    cannonShotMaterial.screenAoAmount = 0.0F;
+    cannonShotMaterial.inkOutlineEligible = false;
+    renderer_->setWorldMaterial(cannonShotMaterial);
+    renderer_->beginColorOnlyWorldEffects();
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    rlBegin(RL_TRIANGLES);
     for (const auto& projectile : snapshot.cannonProjectiles) {
-        if (projectile.active) {
-            const Vector3 projectilePosition{
-                static_cast<float>(projectile.position.x),
-                static_cast<float>(projectile.position.y),
-                static_cast<float>(projectile.position.z),
-            };
-            const bool drawn = projectile.type == BuildingType::Catapult
-                ? renderer_->drawCatapultBall(projectilePosition)
-                : renderer_->drawCannonball(projectilePosition, WHITE,
-                    static_cast<float>(projectile.visualScale));
-            if (!drawn) {
-                DrawSphere(projectilePosition, 0.2F * static_cast<float>(projectile.visualScale),
-                           {36, 39, 43, 255});
-            }
-        }
-    }
-    // Bright projectile cores and short trails are deliberately rendered as
-    // simple fixed-cost primitives.  They remain legible against both the day
-    // sky and dark nights without bloom or the optional particle setting.
-    BeginBlendMode(BLEND_ADDITIVE);
-    for (const auto& projectile : snapshot.cannonProjectiles) {
-        if (!projectile.active ||
-            projectile.type == BuildingType::Catapult) {
+        if (!projectile.active || projectile.type != BuildingType::Cannon) {
             continue;
         }
-        const Vector3 position{
-            static_cast<float>(projectile.position.x),
-            static_cast<float>(projectile.position.y),
-            static_cast<float>(projectile.position.z),
+        const auto appearance = presentation::bulletAppearance(
+            projectile.explosionDamage);
+        const Color tint{appearance.color.r, appearance.color.g,
+                         appearance.color.b, 255};
+        const float scale = static_cast<float>(projectile.visualScale);
+        const auto trailPoint = [&projectile](std::size_t age) {
+            const auto& point = projectile.trailPositions[
+                (projectile.trailHead + CannonProjectile::TrailCapacity - age) %
+                CannonProjectile::TrailCapacity];
+            return Vector3{static_cast<float>(point.x),
+                           static_cast<float>(point.y),
+                           static_cast<float>(point.z)};
         };
-        const float shellScale = static_cast<float>(projectile.visualScale);
-        Vector3 velocity{
-            static_cast<float>(projectile.velocity.x),
-            static_cast<float>(projectile.velocity.y),
-            static_cast<float>(projectile.velocity.z),
+        const auto trailSide = [&trailPoint, &projectile, &camera](std::size_t age) {
+            const Vector3 point = trailPoint(age);
+            const Vector3 axis = Vector3Subtract(
+                trailPoint(age > 0U ? age - 1U : age),
+                trailPoint(std::min(age + 1U, projectile.trailPointCount - 1U)));
+            Vector3 side = Vector3CrossProduct(
+                axis, Vector3Subtract(camera.position, point));
+            if (Vector3LengthSqr(side) <= 0.000001F) {
+                side = Vector3CrossProduct(axis, {0.0F, 1.0F, 0.0F});
+            }
+            return Vector3LengthSqr(side) > 0.000001F
+                ? Vector3Normalize(side) : Vector3{1.0F, 0.0F, 0.0F};
         };
-        if (Vector3LengthSqr(velocity) > 0.0001F) {
-            velocity = Vector3Normalize(velocity);
-            const Vector3 tail = Vector3Subtract(
-                position, Vector3Scale(velocity, 1.15F * shellScale));
-            DrawCylinderEx(tail, position, 0.13F * shellScale, 0.20F * shellScale, 6,
-                           {255, 103, 20, 90});
-            DrawCylinderEx(tail, position, 0.042F * shellScale, 0.075F * shellScale, 6,
-                           {255, 226, 132, 230});
+        for (std::size_t age = 1; age < projectile.trailPointCount; ++age) {
+            const Vector3 near = trailPoint(age - 1U);
+            const Vector3 far = trailPoint(age);
+            if (Vector3DistanceSqr(near, far) <= 0.000001F) continue;
+            const float segments = static_cast<float>(projectile.trailPointCount - 1U);
+            const float nearWeight = 1.0F - static_cast<float>(age - 1U) / segments;
+            const float farWeight = 1.0F - static_cast<float>(age) / segments;
+            const auto trailColor = [tint](float weight) {
+                Color color = ColorLerp({112, 113, 112, 255}, tint, weight * weight);
+                color.a = static_cast<unsigned char>(160.0F * weight * weight);
+                return color;
+            };
+            const Vector3 nearSide = Vector3Scale(trailSide(age - 1U),
+                0.24F * scale * (0.72F + 0.28F * nearWeight));
+            const Vector3 farSide = Vector3Scale(trailSide(age),
+                0.24F * scale * (0.72F + 0.28F * farWeight));
+            const Color nearColor = trailColor(nearWeight);
+            const Color farColor = trailColor(farWeight);
+            emitProjectileQuad(
+                Vector3Add(far, farSide), Vector3Add(near, nearSide),
+                Vector3Subtract(near, nearSide), Vector3Subtract(far, farSide),
+                farColor, nearColor, nearColor, farColor);
         }
-        DrawSphereEx(position, 0.25F * shellScale, 7, 5,
-                     {255, 121, 25, 105});
-        DrawSphereEx(position, 0.115F * shellScale, 6, 4,
-                     {255, 244, 184, 245});
     }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
     EndBlendMode();
+    renderer_->endColorOnlyWorldEffects();
+
+    // The shaded round body masks outlines behind it, just like turret shots.
+    cannonShotMaterial.inkOccluder = true;
+    renderer_->setWorldMaterial(cannonShotMaterial);
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    rlBegin(RL_TRIANGLES);
+    for (const auto& projectile : snapshot.cannonProjectiles) {
+        if (!projectile.active || projectile.type != BuildingType::Cannon) continue;
+        const auto appearance = presentation::bulletAppearance(projectile.explosionDamage);
+        const Vector3 velocity{static_cast<float>(projectile.velocity.x),
+                               static_cast<float>(projectile.velocity.y),
+                               static_cast<float>(projectile.velocity.z)};
+        emitCannonballGeometry(
+            {static_cast<float>(projectile.position.x),
+             static_cast<float>(projectile.position.y),
+             static_cast<float>(projectile.position.z)},
+            Vector3LengthSqr(velocity) > 0.000001F
+                ? Vector3Normalize(velocity) : Vector3{0.0F, 1.0F, 0.0F},
+            camera.position, 0.24F * static_cast<float>(projectile.visualScale),
+            {appearance.color.r, appearance.color.g, appearance.color.b, 255});
+    }
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    EndBlendMode();
+    renderer_->setWorldMaterial({});
+    for (const auto& projectile : snapshot.cannonProjectiles) {
+        if (!projectile.active || projectile.type != BuildingType::Catapult) continue;
+        const Vector3 position{static_cast<float>(projectile.position.x),
+                               static_cast<float>(projectile.position.y),
+                               static_cast<float>(projectile.position.z)};
+        if (!renderer_->drawCatapultBall(position)) {
+            DrawSphere(position, 0.2F * static_cast<float>(projectile.visualScale),
+                       {36, 39, 43, 255});
+        }
+    }
 
     // Render the solid projectile with the world pass so its normal/ink mask
     // replaces the turret geometry behind it. Additive ribbons follow below.
