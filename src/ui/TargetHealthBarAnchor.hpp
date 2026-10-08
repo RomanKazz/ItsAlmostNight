@@ -11,7 +11,8 @@ inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;
     BuildingType type) {
     switch (type) {
     case BuildingType::Core:
-        return 2.08;
+        // The core's low pedestal needs the same compact HUD anchor as its bar.
+        return 1.45;
     case BuildingType::Turret:
         return 1.52;
     case BuildingType::GunTurret:

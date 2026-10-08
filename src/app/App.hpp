@@ -679,6 +679,8 @@ class App {
     double hoverGraceRemaining_{};
     double buildingHoverSeconds_{};
     std::optional<EntityId> buildingContextCardTarget_;
+    std::optional<EntityId> buildingContextCardAnimatedTarget_;
+    double buildingContextCardEntranceSeconds_{};
     std::optional<ResourceCost>
         buildingContextCardUpgradeCost_;
     std::optional<BuildingStatComparison>

@@ -121,10 +121,9 @@ void App::processGameplayInput(bool controlDown,
             preciseModularBuildingAim(
                 *renderer_, currentSnapshot);
         if (buildingContextCardTarget_ &&
-            currentSnapshot.aimedBuilding !=
-                buildingContextCardTarget_ &&
-            currentSnapshot.aimedModularBuilding !=
-                buildingContextCardTarget_) {
+            (!primaryMouseDown ||
+             (currentSnapshot.aimedBuilding != buildingContextCardTarget_ &&
+              currentSnapshot.aimedModularBuilding != buildingContextCardTarget_))) {
             buildingContextCardTarget_.reset();
             buildingContextCardUpgradeCost_.reset();
             buildingContextCardStats_.reset();
@@ -626,47 +625,6 @@ void App::processGameplayInput(bool controlDown,
             currentSnapshot.coreId &&
             currentSnapshot.aimedBuilding ==
                 currentSnapshot.coreId;
-        const auto openCoreDefenseMenu = [this] {
-            if (coreDefenseMenuVisible_) {
-                coreDefenseMenuClosing_ =
-                    !coreDefenseMenuClosing_;
-                coreMenuLostAimSeconds_ = 0.0;
-                coreMenuPointerAwaySeconds_ = 0.0;
-                audio_.playUiConfirm();
-                return;
-            }
-            buildingContextCardTarget_.reset();
-            buildingContextCardUpgradeCost_.reset();
-            buildingContextCardStats_.reset();
-            coreDefenseMenuVisible_ = true;
-            coreDefenseMenuClosing_ = false;
-            coreMenuPointerActive_ = true;
-            EnableCursor();
-            coreDefenseMenuEntranceSeconds_ = 0.0;
-            coreMenuLostAimSeconds_ = 0.0;
-            coreMenuPointerAwaySeconds_ = 0.0;
-            coreDefenseMenuAnimatedLevel_ = 0;
-            enemySpawnMenuVisible_ = false;
-            itemGrantMenuVisible_ = false;
-            sandboxCardMenuVisible_ = false;
-            audio_.playUiConfirm();
-        };
-        if (coreDefenseMenuVisible_ &&
-            coreMenuPointerActive_ &&
-            IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-            currentSnapshot.coreId) {
-            const auto core = std::ranges::find(
-                currentSnapshot.buildings,
-                *currentSnapshot.coreId,
-                &BuildingInstance::id);
-            if (core != currentSnapshot.buildings.end() &&
-                renderer_->buildingRaycastDistance(
-                    *core, currentSnapshot.buildings,
-                    GetMouseRay(GetMousePosition(), gameplayCamera_),
-                    5.0)) {
-                openCoreDefenseMenu();
-            }
-        }
         pendingWeaponUpgrade_ =
             pendingWeaponUpgrade_ ||
             (!aimingCore &&
@@ -885,8 +843,6 @@ void App::processGameplayInput(bool controlDown,
                 currentSnapshot.aimedChallengeColumn ||
                 currentSnapshot.aimedWorldLandmark) {
                 pendingInteract_ = true;
-            } else if (buildingManagementActive && aimingCore) {
-                openCoreDefenseMenu();
             } else if (!currentSnapshot.selectedBuilding &&
                        actionBuilding) {
                 const auto gate = std::ranges::find(
@@ -896,15 +852,7 @@ void App::processGameplayInput(bool controlDown,
                     gate->type == BuildingType::Gate) {
                     pendingGateToggle_ =
                         ToggleGateCommand{*actionBuilding};
-                } else if (buildingContextCardTarget_) {
-                    buildingContextCardTarget_.reset();
-                    buildingContextCardUpgradeCost_.reset();
-                    buildingContextCardStats_.reset();
                 }
-            } else if (buildingContextCardTarget_) {
-                buildingContextCardTarget_.reset();
-                buildingContextCardUpgradeCost_.reset();
-                buildingContextCardStats_.reset();
             }
         }
         const bool rotateKeyPressed = IsKeyPressed(KEY_R);
@@ -1324,28 +1272,7 @@ void App::processGameplayInput(bool controlDown,
                         ? *currentSnapshot.aimedBuilding
                         : *currentSnapshot
                                .aimedModularBuilding;
-                const bool clickedCore =
-                    currentSnapshot.aimedBuilding &&
-                    currentSnapshot.coreId &&
-                    target == *currentSnapshot.coreId;
-                if (clickedCore) {
-                    openCoreDefenseMenu();
-                } else if (buildingContextCardTarget_ == target) {
-                    buildingContextCardTarget_.reset();
-                    buildingContextCardUpgradeCost_.reset();
-                    buildingContextCardStats_.reset();
-                } else {
-                    buildingContextCardTarget_ = target;
-                    if (currentSnapshot.aimedBuilding) {
-                        buildingContextCardUpgradeCost_ =
-                            currentSnapshot.aimedBuildingUpgradeCost;
-                        buildingContextCardStats_ =
-                            currentSnapshot.aimedBuildingStats;
-                    } else {
-                        buildingContextCardUpgradeCost_.reset();
-                        buildingContextCardStats_.reset();
-                    }
-                }
+                buildingContextCardTarget_ = target;
             } else if (mousePrimaryPressed &&
                        buildingContextCardTarget_) {
                 buildingContextCardTarget_.reset();

@@ -95,7 +95,17 @@ void App::render() {
     const auto& snapshot = simulation_.snapshot();
     std::optional<EntityId> pinnedOrdinaryBuilding;
     std::optional<EntityId> pinnedModularBuilding;
+    if (buildingContextCardTarget_ && !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        buildingContextCardTarget_.reset();
+        buildingContextCardStats_.reset();
+        buildingContextCardUpgradeCost_.reset();
+    }
     if (buildingContextCardTarget_) {
+        // Refresh live values while holding, including upgrades made with U.
+        if (snapshot.aimedBuilding == buildingContextCardTarget_) {
+            buildingContextCardStats_ = snapshot.aimedBuildingStats;
+            buildingContextCardUpgradeCost_ = snapshot.aimedBuildingUpgradeCost;
+        }
         const EntityId target = *buildingContextCardTarget_;
         if (std::ranges::any_of(
                 snapshot.buildings,
@@ -125,6 +135,20 @@ void App::render() {
             buildingContextCardUpgradeCost_.reset();
             buildingContextCardStats_.reset();
         }
+    }
+    if (buildingContextCardTarget_) {
+        const double frameSeconds = static_cast<double>(
+            std::clamp(GetFrameTime(), 0.0F, 0.10F));
+        if (buildingContextCardAnimatedTarget_ != buildingContextCardTarget_) {
+            buildingContextCardAnimatedTarget_ = buildingContextCardTarget_;
+            buildingContextCardEntranceSeconds_ = frameSeconds;
+        } else {
+            buildingContextCardEntranceSeconds_ = std::min(
+                0.20, buildingContextCardEntranceSeconds_ + frameSeconds);
+        }
+    } else {
+        buildingContextCardAnimatedTarget_.reset();
+        buildingContextCardEntranceSeconds_ = 0.0;
     }
     std::vector<EntityId> structuralRiskRoots;
     const auto addStructuralRiskRoot =

@@ -43,6 +43,7 @@ struct HudViewState {
     double playerHealthTrail{};
     float playerDamagePulse{};
     bool showBuildingContextCard{};
+    float buildingContextCardEntranceSeconds{};
     bool repairSweepActive{};
     float woodResourcePop{};
     float stoneResourcePop{};

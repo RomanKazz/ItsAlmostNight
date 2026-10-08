@@ -18,4 +18,8 @@ void drawBuildingContextCard(
     const BuildingInstance& building, const HudViewState& view,
     const Camera3D& camera, const ControlSettings& controls);
 
+void drawModularBuildingContextCard(
+    const SimulationSnapshot& snapshot, const Camera3D& camera,
+    float entranceSeconds);
+
 } // namespace ian::hud_detail

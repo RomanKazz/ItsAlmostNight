@@ -1579,6 +1579,10 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         }
     }
 
+    if (snapshot.aimedModularBuilding && view.showBuildingContextCard)
+        drawModularBuildingContextCard(snapshot, camera,
+            view.buildingContextCardEntranceSeconds);
+
     hudPerformanceStats.feedbackMs =
         performanceMilliseconds(sectionStart);
 }

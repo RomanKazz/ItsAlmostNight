@@ -465,10 +465,8 @@ interactionPromptMilliseconds +=
 
 auto hudSnapshot = presentationSnapshot;
 bool showBuildingContextCard =
-    pinnedOrdinaryBuilding.has_value() &&
-    (!presentationSnapshot.coreId ||
-     pinnedOrdinaryBuilding != presentationSnapshot.coreId);
-if (showBuildingContextCard) {
+    pinnedOrdinaryBuilding.has_value() || pinnedModularBuilding.has_value();
+if (pinnedOrdinaryBuilding) {
     hudSnapshot.aimedBuilding = pinnedOrdinaryBuilding;
     hudSnapshot.aimedBuildingUpgradeCost =
         buildingContextCardUpgradeCost_;
@@ -535,6 +533,8 @@ if (showGameplayHud) {
                     0.0, 1.0)),
             .showBuildingContextCard =
                 showBuildingContextCard,
+            .buildingContextCardEntranceSeconds =
+                static_cast<float>(buildingContextCardEntranceSeconds_),
             .repairSweepActive =
                 repairSweepActive_,
             .woodResourcePop =
