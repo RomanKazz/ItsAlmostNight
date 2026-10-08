@@ -182,7 +182,6 @@ void CannonSystem::syncBuildings(const std::vector<BuildingInstance>& buildings)
         // Newly registered rotated defenses must not interpolate from zero.
         cannon.previousYaw = cannon.yaw;
         cannon.previousPitch = cannon.pitch;
-        cannon.previousBaseYaw = cannon.baseYaw;
     }
 }
 
@@ -202,7 +201,6 @@ std::span<const CannonExplosion> CannonSystem::tick(
 
         cannon.previousYaw = cannon.yaw;
         cannon.previousPitch = cannon.pitch;
-        cannon.previousBaseYaw = cannon.baseYaw;
         cannon.fireCooldownRemaining = std::max(
             0.0, cannon.fireCooldownRemaining - deltaSeconds);
         cannon.targetSearchCooldownRemaining =
@@ -216,9 +214,8 @@ std::span<const CannonExplosion> CannonSystem::tick(
         const double shotInterval = profile.interval * fireInterval(
             building->type, building->level) /
             (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
-        cannon.baseYaw = advanceAim(
-            cannon.baseYaw, cannon.restYaw, cannon.baseYawVelocity,
-            deltaSeconds, 12.0, TurnSpeed, true);
+        cannon.baseYaw = smoothBuildingAngle(
+            cannon.baseYaw, cannon.restYaw, deltaSeconds);
 
         if (building->type == BuildingType::Catapult &&
             cannon.firingAnimationRemaining > 0.0) {
@@ -307,9 +304,16 @@ std::span<const CannonExplosion> CannonSystem::tick(
                 cannon.targetId.reset();
             }
         }
-        cannon.yaw = advanceAim(
-            cannon.yaw, desiredYaw, cannon.yawVelocity,
-            deltaSeconds, 12.0, TurnSpeed, true);
+        if (cannon.targetId) {
+            cannon.yaw = advanceAim(
+                cannon.yaw, desiredYaw, cannon.yawVelocity,
+                deltaSeconds, 12.0, TurnSpeed, true);
+        } else {
+            // Keep the original manual/rest turn; inertia is only for aiming.
+            cannon.yaw = smoothBuildingAngle(
+                cannon.yaw, cannon.restYaw, deltaSeconds);
+            cannon.yawVelocity = 0.0;
+        }
         if (building->type == BuildingType::Cannon) {
             cannon.pitch = advanceAim(
                 cannon.pitch, desiredPitch, cannon.pitchVelocity,

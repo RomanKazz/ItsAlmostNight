@@ -75,7 +75,7 @@ void drawCentered(
     const BuildingInstance& building, float interpolationAlpha = 1.0F);
 [[nodiscard]] float cannonBaseYaw(
     const SimulationSnapshot& snapshot,
-    const BuildingInstance& building, float interpolationAlpha = 1.0F);
+    const BuildingInstance& building);
 [[nodiscard]] float towerYaw(
     const SimulationSnapshot& snapshot,
     const BuildingInstance& building);

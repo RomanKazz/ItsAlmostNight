@@ -204,7 +204,7 @@ void runCannonSystemTests() {
 
     // Large elevation changes previously moved the barrel by up to 7.6
     // degrees immediately. Acquisition, tracking, loss and rotation all retain
-    // motion instead of restarting a linear turn or snapping to rest.
+    // motion instead of snapping the barrel to rest.
     std::vector<ian::BuildingInstance> smoothRegistry{{
         .id = {902, 1}, .type = ian::BuildingType::Cannon,
     }};
@@ -254,21 +254,19 @@ void runCannonSystemTests() {
     requireNear(smoothCannons.cannons().front().yaw, oldYaw, 1e-12,
                 "manual rotation preserves the cannon's current pose");
     double turnedDistance = 0.0;
-    double firstTurn = 0.0;
-    double peakTurn = 0.0;
+    const double turnBlend = 1.0 - std::exp(-18.0 / 60.0);
     for (int tick = 0; tick < 120; ++tick) {
         const double before = smoothCannons.cannons().front().yaw;
         smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
         const auto& motion = smoothCannons.cannons().front();
         const double turn = ian::wrapBuildingAngle(motion.yaw - before);
-        require(turn >= -1e-8 && turn < 0.12,
-                "rest rotation takes the short smooth route across the angle seam");
+        require(turn >= -1e-8 && turn < 0.5,
+                "rest rotation takes the short route across the angle seam");
+        requireNear(turn,
+                    ian::wrapBuildingAngle(motion.restYaw - before) * turnBlend,
+                    1e-12, "manual cannon rotation keeps its original exponential easing");
         turnedDistance += turn;
-        if (tick == 0) firstTurn = turn;
-        peakTurn = std::max(peakTurn, turn);
     }
-    require(firstTurn < 0.04 && peakTurn > firstTurn * 3.0,
-            "manual cannon rotation also eases into motion");
     requireNear(turnedDistance, ian::PiRadians * 0.5, 1e-5,
                 "angle wrap cannot make a cannon turn the long way around");
 
