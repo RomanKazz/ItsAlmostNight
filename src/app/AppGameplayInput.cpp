@@ -733,7 +733,11 @@ void App::processGameplayInput(bool controlDown,
                 if (building != currentSnapshot.buildings.end() &&
                     !BuildingSystem::usesGlobalBlueprint(building->type)) {
                     pendingBuildingUpgrade_ =
-                        UpgradeBuildingCommand{*actionBuilding};
+                        UpgradeBuildingCommand{
+                            .buildingId = *actionBuilding,
+                            .maximumAffordable = IsKeyDown(KEY_LEFT_SHIFT) ||
+                                IsKeyDown(KEY_RIGHT_SHIFT),
+                        };
                 }
             }
         }

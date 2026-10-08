@@ -127,6 +127,7 @@ enum class UpgradeError {
 
 struct UpgradeBuildingCommand {
     EntityId buildingId;
+    bool maximumAffordable{};
 };
 
 struct UpgradeBuildingBlueprintCommand {

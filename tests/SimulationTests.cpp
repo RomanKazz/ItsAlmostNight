@@ -28,6 +28,95 @@ void resolveLevelUps(ian::Simulation& simulation) {
 
 void runSimulationTests() {
     {
+        auto map = ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        auto world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        auto balance = ian::GameBalance::defaults();
+        balance.economy.coreUpgradeCrystals = {2, 3, 4, 5, 6, 7, 8};
+        balance.buildings[static_cast<std::size_t>(ian::BuildingType::Wall)].stone = 10;
+        auto fixture = std::make_unique<ian::Simulation>(balance, map, world);
+        fixture->startSandboxRun(ian::PlayerClass::Vanguard);
+        ian::PlayerCommand place;
+        place.placeBuilding = ian::PlaceBuildingCommand{ian::BuildingType::Core, {0, 0}, 0};
+        fixture->tick(0, place);
+        resolveLevelUps(*fixture);
+        place.placeBuilding = ian::PlaceBuildingCommand{ian::BuildingType::Wall, {3, 0}, 0};
+        fixture->tick(0, place);
+        auto saved = fixture->saveSuspendedRunState();
+        require(saved.buildings.size() == 2, "bulk upgrade fixture places core and wall");
+        saved.wood = 100;
+        saved.stone = 60;
+        saved.crystals = 9;
+        const auto coreId = *fixture->snapshot().coreId;
+        const auto wallId = std::ranges::find(saved.buildings, ian::BuildingType::Wall,
+            &ian::BuildingInstance::type)->id;
+        auto run = std::make_unique<ian::Simulation>(balance, map, world);
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved), "bulk upgrade fixture resumes with finite resources");
+        ian::PlayerCommand upgrade;
+        upgrade.upgradeBuilding = ian::UpgradeBuildingCommand{coreId};
+        run->tick(0, upgrade);
+        require(run->snapshot().coreLevel == 2 && run->snapshot().crystals == 7,
+            "ordinary upgrade still purchases exactly one level");
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved), "bulk upgrade resets the core fixture");
+        run->takeEvents();
+        upgrade.upgradeBuilding = ian::UpgradeBuildingCommand{coreId, true};
+        run->tick(0, upgrade);
+        require(run->snapshot().coreLevel == 4 && run->snapshot().crystals == 0 &&
+                run->snapshot().wood == 100 && run->snapshot().stone == 60,
+            "bulk core upgrade pays each level and stops at available crystals");
+        const auto events = run->takeEvents();
+        require(std::ranges::count(events, ian::GameEventType::BuildingUpgraded,
+                    &ian::GameEvent::type) == 1 &&
+                std::ranges::count(events, ian::GameEventType::BuildingUpgradeRejected,
+                    &ian::GameEvent::type) == 0,
+            "successful bulk upgrade emits one effect without a final rejection");
+        auto coreFour = run->saveSuspendedRunState();
+        coreFour.stone = 15;
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(coreFour), "bulk wall fixture limits stone");
+        upgrade.upgradeBuilding = ian::UpgradeBuildingCommand{wallId, true};
+        run->tick(0, upgrade);
+        const auto limitedWall = std::ranges::find(run->snapshot().buildings, wallId,
+            &ian::BuildingInstance::id);
+        require(limitedWall->level == 3 && run->snapshot().wood == 85 && run->snapshot().stone == 0,
+            "bulk wall upgrade stops at insufficient stone without overspending wood");
+        coreFour.stone = 100;
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(coreFour), "bulk wall fixture restores resources");
+        run->tick(0, upgrade);
+        const auto cappedWall = std::ranges::find(run->snapshot().buildings, wallId,
+            &ian::BuildingInstance::id);
+        require(cappedWall->level == 4 && run->snapshot().wood == 65 && run->snapshot().stone == 65,
+            "bulk wall upgrade respects the core level despite remaining resources");
+        run->takeEvents();
+        run->tick(0, upgrade);
+        const auto blockedEvents = run->takeEvents();
+        require(std::ranges::any_of(blockedEvents, [](const auto& event) {
+            return event.type == ian::GameEventType::BuildingUpgradeRejected &&
+                event.upgradeError == ian::UpgradeError::CoreLevelRequired;
+        }), "bulk upgrade reports a restriction when no level can be purchased");
+        saved.crystals = 35;
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved), "bulk maximum-level fixture restores the core");
+        upgrade.upgradeBuilding = ian::UpgradeBuildingCommand{coreId, true};
+        run->tick(0, upgrade);
+        require(run->snapshot().coreLevel == ian::MaxBuildingLevel && run->snapshot().crystals == 0,
+            "bulk upgrade reaches level eight with the exact total cost");
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved), "bulk unlimited fixture resets the core");
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+        run->tick(0, unlimited);
+        run->tick(0, upgrade);
+        require(run->snapshot().coreLevel == ian::MaxBuildingLevel,
+            "unlimited resources bulk upgrade terminates at maximum level");
+    }
+    {
         ian::MapDefinition map = ian::MapDefinition::defaults();
         map.resources.clear();
         map.obstacles.clear();

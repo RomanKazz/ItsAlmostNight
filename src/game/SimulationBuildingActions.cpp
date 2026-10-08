@@ -201,34 +201,44 @@ void Simulation::processBuildingActions(
     }
 
     if (!selectedBuilding_ && command.upgradeBuilding) {
-        const int availableWood =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
-        const int availableStone =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
-        const int availableCurrency =
-            unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
-        const UpgradeResult result =
-            buildings_.upgrade(command.upgradeBuilding->buildingId, availableWood, availableStone,
-                               availableCurrency);
-        if (result.valid() && result.building) {
+        std::optional<BuildingInstance> upgraded;
+        UpgradeError error = UpgradeError::None;
+        const int attempts = command.upgradeBuilding->maximumAffordable
+            ? MaxBuildingLevel - 1 : 1;
+        for (int attempt = 0; attempt < attempts; ++attempt) {
+            const int availableWood = unlimitedResources_
+                ? std::numeric_limits<int>::max() : wood_;
+            const int availableStone = unlimitedResources_
+                ? std::numeric_limits<int>::max() : stone_;
+            const int availableCrystals = unlimitedResources_
+                ? std::numeric_limits<int>::max() : crystals_;
+            const UpgradeResult result = buildings_.upgrade(command.upgradeBuilding->buildingId,
+                    availableWood, availableStone, availableCrystals);
+            if (!result.valid() || !result.building) {
+                error = result.error;
+                break;
+            }
             if (!unlimitedResources_) {
                 wood_ -= result.cost.wood;
                 stone_ -= result.cost.stone;
                 crystals_ -= result.cost.crystals;
             }
+            upgraded = result.building;
+        }
+        if (upgraded) {
+            // A bulk upgrade produces one effect/sound and one runtime refresh.
             syncBuildingRuntimeSystems();
             events_.push_back({
                 .type = GameEventType::BuildingUpgraded,
-                .entityId = result.building->id,
-                .buildingType = result.building->type,
-                .position =
-                    buildingWorldPosition(*result.building),
+                .entityId = upgraded->id,
+                .buildingType = upgraded->type,
+                .position = buildingWorldPosition(*upgraded),
             });
         } else {
             events_.push_back({
                 .type = GameEventType::BuildingUpgradeRejected,
                 .entityId = command.upgradeBuilding->buildingId,
-                .upgradeError = result.error,
+                .upgradeError = error,
             });
         }
     }
