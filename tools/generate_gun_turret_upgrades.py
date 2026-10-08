@@ -43,8 +43,9 @@ for level in range(2, 9):
     if level >= 6:
         for x in (-.140388,.140388):
             # One steel sleeve and one bold golden muzzle lip per barrel.
-            head.ring(2,(x,.685445,-.557),.128,.105,.16,STEEL)
-            head.ring(2,(x,.685445,-.649),.134,.105,.032,GOLD)
+            # Facet midpoints must also clear the authored barrel radius.
+            head.ring(2,(x,.685445,-.557),.136,.105,.16,STEEL)
+            head.ring(2,(x,.685445,-.649),.140,.105,.032,GOLD)
     for part, suffix in ((base,'base'),(head,'head')):
         bounds.append(part.bounds())
         part.append(asset, f'upgrade_l{level}_{suffix}')
