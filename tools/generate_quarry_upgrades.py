@@ -27,18 +27,33 @@ def load_rock(variant):
         return struct.unpack_from('<' + component * width * accessor['count'], binary,
                                   view.get('byteOffset', 0) + accessor.get('byteOffset', 0))
     positions = read_accessor(primitive['attributes']['POSITION'])
+    normals = read_accessor(primitive['attributes']['NORMAL'])
     indices = read_accessor(primitive['indices'])
+    # The authored meshes split vertices at face/UV seams. Weld the shading
+    # normals by position, keeping the original silhouette and topology.
+    groups = {}
+    keys = [tuple(round(value, 6) for value in positions[index:index + 3])
+            for index in range(0, len(positions), 3)]
+    for index, key in enumerate(keys):
+        groups.setdefault(key, set()).add(tuple(normals[index * 3:index * 3 + 3]))
+    smooth_normals = {}
+    for key, values in groups.items():
+        normal = [sum(value[axis] for value in sorted(values)) for axis in range(3)]
+        length = math.sqrt(sum(value * value for value in normal))
+        smooth_normals[key] = tuple(value / length for value in normal)
+    normals = tuple(value for key in keys for value in smooth_normals[key])
     minimum = [min(positions[axis::3]) for axis in range(3)]
     maximum = [max(positions[axis::3]) for axis in range(3)]
-    return positions, indices, minimum, maximum
+    return positions, normals, indices, minimum, maximum
 
 
 rocks = [load_rock(variant) for variant in 'abcd']
 
 
 def boulder(part, center, size, yaw, color, variant=2):
-    rock_positions, rock_indices, rock_min, rock_max = rocks[variant]
+    rock_positions, rock_normals, rock_indices, rock_min, rock_max = rocks[variant]
     cosine, sine = math.cos(yaw), math.sin(yaw)
+    scale = [size[axis] / (rock_max[axis] - rock_min[axis]) for axis in range(3)]
     def vertex(index):
         value = rock_positions[index * 3:index * 3 + 3]
         x = ((value[0] - rock_min[0]) / (rock_max[0] - rock_min[0]) - .5) * size[0]
@@ -46,8 +61,15 @@ def boulder(part, center, size, yaw, color, variant=2):
         z = ((value[2] - rock_min[2]) / (rock_max[2] - rock_min[2]) - .5) * size[2]
         return (center[0] + x * cosine - z * sine,
                 center[1] + y - size[1] * .08, center[2] + x * sine + z * cosine)
-    for offset in range(0, len(rock_indices), 3):
-        part.face([vertex(index) for index in rock_indices[offset:offset + 3]], color)
+    # Preserve the welded smooth shading. Nonuniform scaling requires
+    # the inverse transpose before applying the same yaw as the positions.
+    for index in rock_indices:
+        nx, ny, nz = [rock_normals[index * 3 + axis] / scale[axis] for axis in range(3)]
+        normal = (nx * cosine - nz * sine, ny, nx * sine + nz * cosine)
+        length = math.sqrt(sum(value * value for value in normal))
+        part.positions.extend(vertex(index))
+        part.normals.extend(value / length for value in normal)
+        part.colors.extend((*color, 255))
 
 
 def outline(x, z):
@@ -108,23 +130,24 @@ for level in range(1, 9):
     profile(part, [(x - .14, z - .14, floor - .008),
                    (x - .14, z - .14, floor)], DARK_STEEL)
     # A dominant irregular boulder, rooted in the basin, with smaller satellites.
-    boulder(part, (-.025, floor - .015, .08),
+    boulder(part, (0, floor - .015, 0),
             (.60 + progress * .024, .66 + progress * .04, .56 + progress * .021), .20,
             (143, 160, 177))
-    boulder(part, (-.39, floor - .018, -.13),
-            (.30 + progress * .010, .31 + progress * .018, .28 + progress * .008), -.42,
-            (121, 143, 161), variant=0)
-    boulder(part, (.38, floor - .018, -.10),
-            (.31 + progress * .008, .36 + progress * .020, .29 + progress * .008), .73,
-            (158, 177, 190), variant=1)
-    if level >= 3:
-        boulder(part, (-.18, floor - .018, -.39), (.30, .27 + progress * .012, .26), 1.05,
-                (127, 147, 163), variant=3)
-    if level >= 5:
-        boulder(part, (.32, floor - .018, .30), (.29, .32 + progress * .012, .27), -.82,
-                (119, 140, 157), variant=0)
-    if level >= 7:
-        boulder(part, (.22, floor - .018, -.39), (.24, .25, .24), .42, (159, 176, 189), variant=1)
+    # Start with three evenly spaced stones, then fill the gaps at levels 3/5/7.
+    satellites = [
+        (1, 30, 0, (.30 + progress * .010, .31 + progress * .018, .28 + progress * .008), -.42, (121, 143, 161)),
+        (1, 150, 1, (.31 + progress * .008, .36 + progress * .020, .29 + progress * .008), .73, (158, 177, 190)),
+        (1, 270, 3, (.30, .28 + progress * .012, .26), 1.05, (127, 147, 163)),
+        (3, 90, 0, (.29, .32 + progress * .012, .27), -.82, (119, 140, 157)),
+        (5, 210, 1, (.26, .29, .25), .42, (159, 176, 189)),
+        (7, 330, 3, (.25, .27, .24), -.25, (132, 153, 169)),
+    ]
+    for minimum_level, angle, variant, size, yaw, color in satellites:
+        if level >= minimum_level:
+            radians = math.radians(angle)
+            center = ((.43 + progress * .004) * math.cos(radians), floor - .018,
+                      (.36 + progress * .005) * math.sin(radians))
+            boulder(part, center, size, yaw, color, variant)
     part.append(asset, f'upgrade_quarry_l{level}')
 
 print(f'Baked eight boulder quarry levels: {asset.write()} bytes; one draw per quarry.')
