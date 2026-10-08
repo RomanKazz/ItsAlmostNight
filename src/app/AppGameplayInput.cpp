@@ -855,6 +855,18 @@ void App::processGameplayInput(bool controlDown,
                 }
             }
         }
+        if (IsKeyPressed(KEY_E) && buildingManagementActive &&
+            currentSnapshot.aimedBuilding) {
+            const auto producer = std::ranges::find(
+                currentSnapshot.buildings, *currentSnapshot.aimedBuilding,
+                &BuildingInstance::id);
+            if (producer != currentSnapshot.buildings.end() &&
+                (producer->type == BuildingType::CrystalMine ||
+                 producer->type == BuildingType::LumberMill ||
+                 producer->type == BuildingType::Quarry)) {
+                pendingCollectProducer_ = CollectProducerCommand{producer->type};
+            }
+        }
         const bool rotateKeyPressed = IsKeyPressed(KEY_R);
         const bool reverseRotateKey =
             rotateKeyPressed &&

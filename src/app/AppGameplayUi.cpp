@@ -366,7 +366,6 @@ if (showWorldHud) {
                 ? std::optional<BoundingBox>{bounds}
                 : std::nullopt;
         }, upgradePromptTarget);
-    drawProductionVisuals(camera);
     // Submit every world-space overlay while depth testing is still disabled.
     // Individual bars and production rewards intentionally share this flush.
     rlDrawRenderBatchActive();

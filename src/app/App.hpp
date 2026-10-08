@@ -42,6 +42,7 @@ struct ResourceGainVisual {
     ResourceType type;
     Vec3 position;
     int amount;
+    bool showAmount{true};
     double remaining;
     double duration;
     float horizontalDrift{};
@@ -61,9 +62,6 @@ struct DestroyedResourceVisual {
 
 struct ProductionVisual {
     EntityId buildingId;
-    UiResourceIcon icon;
-    Vec3 position;
-    int amount;
     double remaining;
     double duration;
 };
@@ -232,8 +230,6 @@ class App {
         const Camera3D& camera);
     void drawFloatingDamageNumbers(const Camera3D& camera) const;
     void drawResourceGainVisuals(const Camera3D& camera) const;
-    void drawProductionVisuals(
-        const Camera3D& camera) const;
     void updateHoverTarget(const SimulationSnapshot& snapshot,
                            double frameSeconds);
     [[nodiscard]] std::optional<InteractionPrompt>
@@ -328,7 +324,7 @@ class App {
                                  bool critical,
                                  double startDelay = 0.0);
     void addResourceGainVisual(ResourceType type, Vec3 position,
-                               int amount);
+                               int amount, bool showAmount = true);
 
     FixedStep fixedStep_;
     Simulation simulation_;

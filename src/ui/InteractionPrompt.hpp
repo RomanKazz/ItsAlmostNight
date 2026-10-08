@@ -14,6 +14,13 @@
 namespace ian {
 
 class GameUi;
+enum class UiResourceIcon;
+
+struct ProducerStockPrompt {
+    UiResourceIcon icon;
+    int stored{};
+    int capacity{};
+};
 
 enum class InteractionPromptTargetKind : std::uint8_t {
     Resource,
@@ -44,6 +51,7 @@ struct InteractionPrompt {
     ControlAction input{ControlAction::Interact};
     InteractionState state{InteractionState::Available};
     std::optional<ResourceCost> cost;
+    std::optional<ProducerStockPrompt> producerStock;
     ResourceCost availableResources{};
     std::optional<int> availableCurrency;
     std::optional<std::string> hint;

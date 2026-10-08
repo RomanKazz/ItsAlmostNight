@@ -425,9 +425,6 @@ void AudioSystem::playEvent(
         play(upgrade_, 0.75F, 1.0F);
         break;
     case GameEventType::CrystalProduced:
-        playAt(
-            crystals_, event.position, snapshot, 0.34F,
-            variedPitch(0.04F), 16.0F);
         break;
     case GameEventType::CoinCollected:
         play(

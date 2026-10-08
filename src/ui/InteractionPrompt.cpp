@@ -253,7 +253,7 @@ void drawChallengeKeyPrompt(
 void drawBuildingUpgradePrompt(
     const InteractionPrompt& prompt, const Camera3D& camera,
     const GameUi& ui, float opacity) {
-    if (!prompt.cost) return;
+    if (!prompt.cost && !prompt.producerStock) return;
     const auto placement = worldPromptPlacement(prompt, camera);
     if (!placement) return;
 
@@ -262,6 +262,44 @@ void drawBuildingUpgradePrompt(
     const float iconSize = size * 0.76F;
     const float fontSize = iconSize / 1.68F;
     const float gap = size * 0.10F;
+    if (prompt.producerStock) {
+        const ProducerStockPrompt& stock = *prompt.producerStock;
+        const std::string amount = std::to_string(stock.stored) + "/" +
+            std::to_string(stock.capacity);
+        const float amountWidth = measureUiText(amount, fontSize).x;
+        const float keyWidth = size * 0.67F;
+        const float rowWidth = iconSize + gap + amountWidth +
+            gap * 1.6F + keyWidth;
+        const float rowLeft = placement->center.x - rowWidth * 0.5F;
+        const float rowY = placement->center.y - size * 1.16F;
+        ui.drawResourceIcon(
+            {rowLeft, rowY - iconSize * 0.5F, iconSize, iconSize},
+            stock.icon, withOpacity(WHITE, opacity));
+        SdfUiTextStyle stockStyle{};
+        stockStyle.fillColor = withOpacity(UiWhite, opacity);
+        stockStyle.outlineColor = withOpacity({20, 24, 20, 255}, opacity);
+        stockStyle.outlinePixels = size * 0.065F;
+        stockStyle.shadowColor = withOpacity({0, 0, 0, 140}, opacity);
+        stockStyle.shadowOffsetPixels = {0.0F, size * 0.055F};
+        const float amountX = rowLeft + iconSize + gap;
+        const Vector2 measured = measureUiText(amount, fontSize);
+        drawStyledSdfUiText(amount,
+            {amountX, rowY - measured.y * 0.5F}, fontSize, stockStyle);
+        const Rectangle keyBounds{
+            amountX + amountWidth + gap * 1.6F,
+            rowY - size * 0.32F, keyWidth, size * 0.64F};
+        DrawRectangleRounded(keyBounds, 0.23F, 6,
+            withOpacity({29, 42, 37, 220}, opacity));
+        DrawRectangleRoundedLinesEx(keyBounds, 0.23F, 6,
+            std::max(1.0F, size * 0.045F),
+            withOpacity({245, 231, 198, 255}, opacity));
+        const float keyFontSize = fontSize * 0.88F;
+        const Vector2 keyTextSize = measureUiText("E", keyFontSize);
+        drawStyledSdfUiText("E",
+            {keyBounds.x + (keyBounds.width - keyTextSize.x) * 0.5F,
+             rowY - keyTextSize.y * 0.5F}, keyFontSize, stockStyle);
+    }
+    if (!prompt.cost) return;
     struct Price { UiResourceIcon icon; int amount; int available; };
     const std::array prices{
         Price{UiResourceIcon::Wood, prompt.cost->wood, prompt.availableResources.wood},

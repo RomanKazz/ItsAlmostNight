@@ -296,7 +296,7 @@ void App::addFloatingDamageNumber(
 }
 
 void App::addResourceGainVisual(
-    ResourceType type, Vec3 position, int amount) {
+    ResourceType type, Vec3 position, int amount, bool showAmount) {
     constexpr std::size_t MaximumVisuals = 16;
     if (resourceGainVisuals_.size() >= MaximumVisuals) {
         resourceGainVisuals_.erase(resourceGainVisuals_.begin());
@@ -320,6 +320,7 @@ void App::addResourceGainVisual(
         .type = type,
         .position = position,
         .amount = amount,
+        .showAmount = showAmount,
         .remaining = Duration,
         .duration = Duration,
         .horizontalDrift =

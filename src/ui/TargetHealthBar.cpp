@@ -356,8 +356,13 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                     Vector3Subtract(camera.target, camera.position));
                 const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward, camera.up));
                 const Vector3 up = Vector3Normalize(Vector3CrossProduct(right, forward));
+                const bool producer =
+                    building->type == BuildingType::CrystalMine ||
+                    building->type == BuildingType::LumberMill ||
+                    building->type == BuildingType::Quarry;
                 candidate->anchorPosition = Vector3Add(candidate->anchorPosition,
-                    Vector3Scale(up, BuildingHealthBarUpgradeLift));
+                    Vector3Scale(up, BuildingHealthBarUpgradeLift +
+                        (producer ? 0.20F : 0.0F)));
             }
         }
     } else if (snapshot.aimedModularBuilding) {

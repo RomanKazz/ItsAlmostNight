@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 
 #include "buildings/BuildingOrientation.hpp"
+#include "ui/GameUi.hpp"
 #include "ui/InputKeycap.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
 #include "ui/UiLabels.hpp"
@@ -254,11 +255,40 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 return value.id == *snapshot.aimedBuilding;
             });
         if (building != snapshot.buildings.end()) {
-            if (!snapshot.aimedBuildingUpgradeCost || building->level >= MaxBuildingLevel)
+            const bool isProducer =
+                building->type == BuildingType::CrystalMine ||
+                building->type == BuildingType::LumberMill ||
+                building->type == BuildingType::Quarry;
+            if (!isProducer &&
+                (!snapshot.aimedBuildingUpgradeCost ||
+                 building->level >= MaxBuildingLevel))
                 return std::nullopt;
-            const ResourceCost cost = *snapshot.aimedBuildingUpgradeCost;
+            std::optional<ProducerStockPrompt> stock;
+            if (isProducer) {
+                stock = ProducerStockPrompt{
+                    .icon = building->type == BuildingType::LumberMill
+                        ? UiResourceIcon::Wood
+                        : building->type == BuildingType::Quarry
+                            ? UiResourceIcon::Stone
+                            : UiResourceIcon::Crystal,
+                };
+                for (const ProducerCardStatus& producer : snapshot.producerCards) {
+                    const auto source = std::ranges::find(
+                        snapshot.buildings, producer.buildingId,
+                        &BuildingInstance::id);
+                    if (source != snapshot.buildings.end() &&
+                        source->type == building->type) {
+                        stock->stored += producer.stored;
+                        stock->capacity += producer.capacity;
+                    }
+                }
+            }
+            const std::optional<ResourceCost> cost =
+                building->level < MaxBuildingLevel
+                    ? snapshot.aimedBuildingUpgradeCost
+                    : std::nullopt;
             const bool affordable = snapshot.unlimitedResources ||
-                canAfford(cost, snapshot.wood, snapshot.stone, snapshot.crystals);
+                !cost || canAfford(*cost, snapshot.wood, snapshot.stone, snapshot.crystals);
             const Vec3 anchor = buildingHealthBarWorldAnchor(*building);
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Building,
@@ -271,8 +301,10 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                 .input = ControlAction::Upgrade,
                 .state = affordable ? InteractionState::Available : InteractionState::Warning,
                 .cost = cost,
+                .producerStock = stock,
                 .availableResources = snapshot.unlimitedResources
-                    ? cost : ResourceCost{snapshot.wood, snapshot.stone, snapshot.crystals},
+                    ? cost.value_or(ResourceCost{})
+                    : ResourceCost{snapshot.wood, snapshot.stone, snapshot.crystals},
                 .accentColor = {0, 241, 123, 255},
             });
         }

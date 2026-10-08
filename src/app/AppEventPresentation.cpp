@@ -40,29 +40,7 @@ void App::processPresentationEvents(
             }
         };
     const auto addProductionVisual =
-        [this, &eventSnapshot](EntityId buildingId,
-                               UiResourceIcon icon,
-                               int amount) {
-            const auto building = std::find_if(
-                eventSnapshot.buildings.begin(),
-                eventSnapshot.buildings.end(),
-                [buildingId](const BuildingInstance& candidate) {
-                    return candidate.id == buildingId;
-                });
-            Vec3 position{};
-            if (building != eventSnapshot.buildings.end()) {
-                position = buildingProductionVisualWorldAnchor(*building);
-            } else {
-                const auto landmark = std::find_if(
-                    eventSnapshot.worldLandmarks.begin(),
-                    eventSnapshot.worldLandmarks.end(),
-                    [buildingId](const WorldLandmarkInstance& candidate) {
-                        return candidate.id == buildingId;
-                    });
-                if (landmark == eventSnapshot.worldLandmarks.end()) return;
-                position = landmark->position;
-                position.y += 5.2;
-            }
+        [this](EntityId buildingId) {
             constexpr std::size_t MaximumVisuals = 12;
             if (productionVisuals_.size() >= MaximumVisuals) {
                 productionVisuals_.erase(
@@ -71,9 +49,6 @@ void App::processPresentationEvents(
             constexpr double Duration = 0.95;
             productionVisuals_.push_back({
                 .buildingId = buildingId,
-                .icon = icon,
-                .position = position,
-                .amount = amount,
                 .remaining = Duration,
                 .duration = Duration,
             });
@@ -1171,19 +1146,31 @@ void App::processPresentationEvents(
                  *event.buildingType ==
                      BuildingType::Quarry) &&
                 event.amount > 0) {
-                addProductionVisual(
-                    *event.entityId,
-                    *event.resourceType == ResourceType::Wood
-                        ? UiResourceIcon::Wood
-                        : UiResourceIcon::Stone,
-                    event.amount);
+                const auto producer = std::ranges::find(
+                    eventSnapshot.buildings, *event.entityId,
+                    &BuildingInstance::id);
+                if (producer != eventSnapshot.buildings.end()) {
+                    addResourceGainVisual(
+                        *event.resourceType,
+                        buildingProductionVisualWorldAnchor(*producer),
+                        event.amount, false);
+                    addProductionVisual(*event.entityId);
+                }
             }
         } else if (
             event.type == GameEventType::CrystalProduced &&
             event.entityId && event.amount > 0) {
-            addProductionVisual(
-                *event.entityId, UiResourceIcon::Crystal,
-                event.amount);
+            const auto producer = std::ranges::find(
+                eventSnapshot.buildings, *event.entityId,
+                &BuildingInstance::id);
+            if (producer != eventSnapshot.buildings.end()) {
+                crystalHudBounceRemaining_ = 0.28;
+                addResourceGainVisual(
+                    ResourceType::Crystal,
+                    buildingProductionVisualWorldAnchor(*producer),
+                    event.amount, false);
+                addProductionVisual(*event.entityId);
+            }
         } else if (event.type == GameEventType::CoinCollected &&
                    event.amount > 0) {
             coinHudBounceRemaining_ = 0.32;

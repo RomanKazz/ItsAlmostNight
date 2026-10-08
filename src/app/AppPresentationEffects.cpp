@@ -251,7 +251,7 @@ void App::drawResourceGainVisuals(
 
         const float textFade = std::clamp(
             (0.7F - activeProgress) / 0.25F, 0.0F, 1.0F);
-        if (textFade > 0.0F) {
+        if (gain.showAmount && textFade > 0.0F) {
             const auto alpha = static_cast<unsigned char>(
                 std::lround(textFade * 255.0F));
             const std::string text =
@@ -277,98 +277,6 @@ void App::drawResourceGainVisuals(
                 rotationDegrees,
                 resourceNumberStyle(gain.type, alpha));
         }
-    }
-}
-
-void App::drawProductionVisuals(
-    const Camera3D& camera) const {
-    if (productionVisuals_.empty()) {
-        return;
-    }
-    const Vector3 cameraForward = Vector3Normalize(
-        Vector3Subtract(camera.target, camera.position));
-    const Vector3 cameraRight = Vector3Normalize(
-        Vector3CrossProduct(cameraForward, camera.up));
-    const Vector3 cameraUp = Vector3Normalize(
-        Vector3CrossProduct(cameraRight, cameraForward));
-    const Vector3 towardCamera =
-        Vector3Negate(cameraForward);
-    constexpr float FullyVisibleDistance = 15.0F;
-    constexpr float MaximumVisibleDistance = 22.0F;
-
-    for (const ProductionVisual& production :
-         productionVisuals_) {
-        Vector3 worldPosition{
-            static_cast<float>(production.position.x),
-            static_cast<float>(production.position.y),
-            static_cast<float>(production.position.z),
-        };
-        const Vector3 fromCamera =
-            Vector3Subtract(worldPosition, camera.position);
-        if (Vector3DotProduct(
-                fromCamera, cameraForward) <= 0.0F) {
-            continue;
-        }
-        const float distance =
-            Vector3Length(fromCamera);
-        if (distance >= MaximumVisibleDistance) {
-            continue;
-        }
-        const float progress = std::clamp(
-            static_cast<float>(
-                1.0 -
-                production.remaining /
-                    production.duration),
-            0.0F, 1.0F);
-        const float rise =
-            1.0F -
-            std::pow(1.0F - progress, 3.0F);
-        worldPosition = Vector3Add(
-            worldPosition,
-            Vector3Scale(cameraUp, rise * 0.95F));
-        const float lifetimeFade = std::clamp(
-            (1.0F - progress) / 0.32F,
-            0.0F, 1.0F);
-        const float distanceFade = 1.0F - std::clamp(
-            (distance - FullyVisibleDistance) /
-                (MaximumVisibleDistance -
-                 FullyVisibleDistance),
-            0.0F, 1.0F);
-        const float fade = lifetimeFade * distanceFade;
-        const auto alpha = static_cast<unsigned char>(
-            std::lround(fade * 255.0F));
-        constexpr float IconSize = 0.62F;
-        constexpr float TextSize = 0.48F;
-        constexpr float Gap = 0.1F;
-        const std::string text =
-            "+" + std::to_string(production.amount);
-        const float textWidth =
-            measureWorldBillboardText(text, TextSize);
-        const float totalWidth =
-            textWidth + Gap + IconSize;
-        const Vector3 textCenter = Vector3Add(
-            worldPosition,
-            Vector3Scale(
-                cameraRight,
-                -totalWidth * 0.5F +
-                    textWidth * 0.5F));
-        const Vector3 iconCenter = Vector3Add(
-            Vector3Add(
-                worldPosition,
-                Vector3Scale(
-                    cameraRight,
-                    totalWidth * 0.5F -
-                        IconSize * 0.5F)),
-            Vector3Scale(towardCamera, 0.006F));
-        drawWorldBillboardText(
-            text, textCenter, TextSize, camera,
-            cameraRight, cameraUp,
-            {224, 244, 255, alpha},
-            {17, 18, 34, alpha});
-        drawWorldBillboardTexture(
-            ui_.resourceTexture(production.icon), iconCenter,
-            {IconSize, IconSize}, camera, cameraUp,
-            {255, 255, 255, alpha});
     }
 }
 
