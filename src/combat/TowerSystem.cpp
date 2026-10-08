@@ -1,6 +1,7 @@
 #include "combat/TowerSystem.hpp"
 #include "combat/DefenseTargeting.hpp"
 #include "combat/DefenseRuntimeSupport.hpp"
+#include "combat/DefenseAiming.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
@@ -244,6 +245,10 @@ void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) 
     defense_runtime::syncBuildings(towers_, buildings, SearchInterval,
         isHitscanTower,
         [](const BuildingInstance&, const TowerRuntime&) { return true; });
+    for (auto& tower : towers_) {
+        tower.previousYaw = tower.yaw;
+        tower.previousPitch = tower.pitch;
+    }
 }
 
 std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
@@ -259,6 +264,8 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             continue;
         }
 
+        tower.previousYaw = tower.yaw;
+        tower.previousPitch = tower.pitch;
         tower.fireCooldownRemaining = std::max(0.0, tower.fireCooldownRemaining - deltaSeconds);
         tower.targetSearchCooldownRemaining =
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
@@ -301,11 +308,19 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             tower.targetSearchCooldownRemaining = SearchInterval;
         }
         if (!tower.targetId) {
-            tower.yaw = smoothBuildingAngle(
-                tower.yaw, tower.restYaw, deltaSeconds);
-            tower.pitch += std::clamp(
-                -tower.pitch, -PitchSpeed * deltaSeconds,
-                PitchSpeed * deltaSeconds);
+            if (std::abs(wrapBuildingAngle(tower.baseYaw - tower.restYaw)) > 0.0001) {
+                // Preserve the original manual turn while the base rotates.
+                tower.yaw = smoothBuildingAngle(
+                    tower.yaw, tower.restYaw, deltaSeconds);
+                tower.yawVelocity = 0.0;
+            } else {
+                tower.yaw = advanceDefenseAim(
+                    tower.yaw, tower.restYaw, tower.yawVelocity,
+                    deltaSeconds, 12.0, TurnSpeed, true);
+            }
+            tower.pitch = advanceDefenseAim(
+                tower.pitch, 0.0, tower.pitchVelocity,
+                deltaSeconds, 10.0, PitchSpeed, false);
             continue;
         }
 
@@ -322,16 +337,12 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         const double desiredPitch = building->type == BuildingType::Turret
             ? std::atan2(deltaY, std::hypot(deltaX, deltaZ))
             : 0.0;
-        const double yawDelta = wrapBuildingAngle(
-            desiredYaw - tower.yaw);
-        tower.yaw +=
-            std::clamp(yawDelta, -TurnSpeed * deltaSeconds,
-                       TurnSpeed * deltaSeconds);
-        tower.yaw = wrapBuildingAngle(tower.yaw);
-        const double pitchDelta = desiredPitch - tower.pitch;
-        tower.pitch += std::clamp(
-            pitchDelta, -PitchSpeed * deltaSeconds,
-            PitchSpeed * deltaSeconds);
+        tower.yaw = advanceDefenseAim(
+            tower.yaw, desiredYaw, tower.yawVelocity,
+            deltaSeconds, 12.0, TurnSpeed, true);
+        tower.pitch = advanceDefenseAim(
+            tower.pitch, desiredPitch, tower.pitchVelocity,
+            deltaSeconds, 10.0, PitchSpeed, false);
         if (std::abs(wrapBuildingAngle(
                 desiredYaw - tower.yaw)) >
                 AimTolerance ||

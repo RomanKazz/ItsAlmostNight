@@ -428,9 +428,9 @@ void App::drawShadowPass(
             } else if (building.type == BuildingType::Turret) {
                 if (!renderer_->drawCrossbow(
                         {x, groundY, z},
-                        towerYaw(snapshot, building), WHITE,
+                        towerYaw(snapshot, building, interpolationAlpha), WHITE,
                         spawnScale,
-                        towerPitch(snapshot, building), building.level)) {
+                        towerPitch(snapshot, building, interpolationAlpha), building.level)) {
                     DrawCube({x, groundY + 0.6F, z},
                              1.0F, 1.2F, 1.0F,
                              WHITE);
@@ -445,7 +445,7 @@ void App::drawShadowPass(
                 static_cast<void>(renderer_->drawGunTurret(
                     {x, groundY, z},
                     towerBaseYaw(snapshot, building),
-                    towerYaw(snapshot, building), WHITE, spawnScale, {}, building.level));
+                    towerYaw(snapshot, building, interpolationAlpha), WHITE, spawnScale, {}, building.level));
             } else if (
                 building.type == BuildingType::CrystalMine ||
                 building.type == BuildingType::LumberMill ||
@@ -947,7 +947,7 @@ void App::drawSelectionPass(
                 if (building->type == BuildingType::Turret ||
                     building->type == BuildingType::GunTurret) {
                     defensiveYaw =
-                        towerYaw(snapshot, *building);
+                        towerYaw(snapshot, *building, interpolationAlpha);
                 } else if (
                     building->type == BuildingType::Cannon ||
                     building->type == BuildingType::Catapult) {
@@ -1017,7 +1017,7 @@ void App::drawSelectionPass(
                             {x, groundY, z},
                             defensiveYaw,
                             WHITE, spawnScale,
-                            towerPitch(snapshot, *building), building->level)) {
+                            towerPitch(snapshot, *building, interpolationAlpha), building->level)) {
                         DrawCube({x, groundY + 0.6F, z},
                                  1.0F, 1.2F,
                                  1.0F, WHITE);

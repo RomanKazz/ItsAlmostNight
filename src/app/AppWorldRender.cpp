@@ -994,7 +994,7 @@ void App::drawWorldEntities(
         float defensiveYaw = 0.0F;
         if (building.type == BuildingType::Turret ||
             building.type == BuildingType::GunTurret) {
-            defensiveYaw = towerYaw(snapshot, building);
+            defensiveYaw = towerYaw(snapshot, building, interpolationAlpha);
         } else if (building.type == BuildingType::Cannon ||
                    building.type == BuildingType::Catapult) {
             defensiveYaw = cannonYaw(snapshot, building, interpolationAlpha);
@@ -1105,7 +1105,7 @@ void App::drawWorldEntities(
                     {x, groundY, z},
                     defensiveYaw, WHITE,
                     spawnScale,
-                    towerPitch(snapshot, building), building.level)) {
+                    towerPitch(snapshot, building, interpolationAlpha), building.level)) {
                 drawScaledCube(0.0F, 0.6F, 0.0F, 1.0F,
                                1.2F, 1.0F,
                                {68, 83, 96, 255});

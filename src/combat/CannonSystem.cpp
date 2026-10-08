@@ -1,5 +1,6 @@
 #include "combat/CannonSystem.hpp"
 #include "combat/DefenseRuntimeSupport.hpp"
+#include "combat/DefenseAiming.hpp"
 #include "buildings/BuildingModifiers.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
@@ -38,26 +39,6 @@ constexpr double CatapultFollowThroughTime = 0.43;
 constexpr double CatapultWindupPitch = 0.18;
 constexpr double CatapultFollowThroughPitch = -1.20;
 constexpr std::size_t MaxProjectiles = 300;
-
-// Critically damped aiming retains velocity across target changes. Its exact
-// update accelerates from rest and slows near the goal without oscillation.
-[[nodiscard]] double advanceAim(
-    double current, double target, double& velocity, double deltaSeconds,
-    double response, double maximumSpeed, bool wrapped) {
-    if (deltaSeconds <= 0.0) return current;
-    const double offset = wrapped ? wrapBuildingAngle(current - target)
-                                  : current - target;
-    const double decay = std::exp(-response * deltaSeconds);
-    const double tangent = velocity + response * offset;
-    const double nextOffset = (offset + tangent * deltaSeconds) * decay;
-    velocity = std::clamp(
-        (velocity - response * tangent * deltaSeconds) * decay,
-        -maximumSpeed, maximumSpeed);
-    const double next = current + std::clamp(
-        nextOffset - offset, -maximumSpeed * deltaSeconds,
-        maximumSpeed * deltaSeconds);
-    return wrapped ? wrapBuildingAngle(next) : next;
-}
 
 [[nodiscard]] double catapultArmPitch(double elapsed) {
     // Each phase joins at rest with zero acceleration. Release happens during
@@ -249,7 +230,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
                 const Vec3& target = *cannon.pendingTargetPosition;
                 const double desiredYaw = std::atan2(
                     targetingOrigin.x - target.x, targetingOrigin.z - target.z);
-                cannon.yaw = advanceAim(
+                cannon.yaw = advanceDefenseAim(
                     cannon.yaw, desiredYaw, cannon.yawVelocity,
                     deltaSeconds, 12.0, TurnSpeed, true);
             } else {
@@ -328,7 +309,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
             }
         }
         if (cannon.targetId) {
-            cannon.yaw = advanceAim(
+            cannon.yaw = advanceDefenseAim(
                 cannon.yaw, desiredYaw, cannon.yawVelocity,
                 deltaSeconds, 12.0, TurnSpeed, true);
         } else {
@@ -338,7 +319,7 @@ std::span<const CannonExplosion> CannonSystem::tick(
             cannon.yawVelocity = 0.0;
         }
         if (building->type == BuildingType::Cannon) {
-            cannon.pitch = advanceAim(
+            cannon.pitch = advanceDefenseAim(
                 cannon.pitch, desiredPitch, cannon.pitchVelocity,
                 deltaSeconds, 10.0, PitchSpeed, false);
             const double limitedPitch = std::clamp(cannon.pitch, MinimumPitch, MaximumPitch);

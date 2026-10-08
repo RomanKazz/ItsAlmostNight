@@ -6,6 +6,7 @@
 #include "navigation/FlowField.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 
 void runTowerSystemTests() {
@@ -149,10 +150,50 @@ void runTowerSystemTests() {
         .position = {0.0, 0.0, -8.0},
     }}};
     enemies.spawnWave(FlyingSpawn);
-    towers.tick(1.0 / 60.0, buildings.buildings(), enemies);
-    towers.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    for (int tick = 0; tick < 90 && towers.towers().front().pitch <= 0.05; ++tick) {
+        towers.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    }
     require(towers.towers().front().pitch > 0.05,
             "crossbow pitches upward to track flying enemies");
+
+    for (const auto type : {ian::BuildingType::Turret, ian::BuildingType::GunTurret}) {
+        std::vector<ian::BuildingInstance> registry{{.id = {901, 1}, .type = type}};
+        ian::EnemySystem targets;
+        constexpr std::array<ian::Vec3, 1> SideSpawn{{{4.0, 0.8, -7.0}}};
+        targets.spawnWave(SideSpawn);
+        ian::TowerSystem smoothTowers;
+        smoothTowers.setModifiers(0.05, 1.0, 1.0, 1.0);
+        smoothTowers.syncBuildings(registry);
+        double firstTurn = 0.0;
+        double peakTurn = 0.0;
+        double lastTurn = 0.0;
+        bool fired = false;
+        for (int tick = 0; tick < 90; ++tick) {
+            const double before = smoothTowers.towers().front().yaw;
+            fired |= !smoothTowers.tick(1.0 / 60.0, registry, targets).empty();
+            const auto& motion = smoothTowers.towers().front();
+            lastTurn = std::abs(ian::wrapBuildingAngle(motion.yaw - before));
+            if (tick == 0) firstTurn = lastTurn;
+            peakTurn = std::max(peakTurn, lastTurn);
+            requireNear(motion.previousYaw, before, 1e-12,
+                        "hitscan tower rendering retains its previous fixed-step pose");
+            require(lastTurn < 0.045,
+                    "hitscan acquisition cannot produce a sudden yaw step");
+        }
+        require(firstTurn > 0.0 && firstTurn < 0.02 &&
+                    peakTurn > firstTurn * 3.0 && lastTurn < firstTurn && fired,
+                "both hitscan towers ease into aim, settle and still fire");
+        targets.reset();
+        const double aimedYaw = smoothTowers.towers().front().yaw;
+        smoothTowers.tick(1.0 / 60.0, registry, targets);
+        require(std::abs(ian::wrapBuildingAngle(smoothTowers.towers().front().yaw - aimedYaw)) < 0.02,
+                "target loss cannot abruptly spin a hitscan tower back to rest");
+        for (int tick = 0; tick < 120; ++tick) {
+            smoothTowers.tick(1.0 / 60.0, registry, targets);
+        }
+        requireNear(smoothTowers.towers().front().yaw, 0.0, 1e-5,
+                    "hitscan tower settles back to its resting direction");
+    }
 
     ian::BuildingSystem gunBuildings;
     const auto gunCore = gunBuildings.place(

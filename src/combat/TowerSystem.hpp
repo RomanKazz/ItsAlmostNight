@@ -18,6 +18,10 @@ struct TowerRuntime {
     double baseYaw{};
     double yaw{};
     double pitch{};
+    double yawVelocity{};
+    double pitchVelocity{};
+    double previousYaw{};
+    double previousPitch{};
     double fireCooldownRemaining{};
     double targetSearchCooldownRemaining{};
     std::uint8_t nextMuzzle{};

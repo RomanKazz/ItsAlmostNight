@@ -470,14 +470,20 @@ float cannonBaseYaw(const SimulationSnapshot& snapshot,
 }
 
 float towerYaw(const SimulationSnapshot& snapshot,
-               const BuildingInstance& building) {
+               const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
         snapshot.towers.begin(), snapshot.towers.end(),
         [&building](const TowerRuntime& tower) {
             return tower.buildingId == building.id;
         });
     if (runtime != snapshot.towers.end()) {
-        return static_cast<float>(runtime->yaw);
+        if (!runtime->targetId &&
+            std::abs(wrapBuildingAngle(runtime->baseYaw - runtime->restYaw)) > 0.0001) {
+            return static_cast<float>(runtime->yaw);
+        }
+        return static_cast<float>(wrapBuildingAngle(runtime->previousYaw +
+            wrapBuildingAngle(runtime->yaw - runtime->previousYaw) *
+            std::clamp(interpolationAlpha, 0.0F, 1.0F)));
     }
     return static_cast<float>(buildingRotationYaw(
         building.type, building.rotation));
@@ -498,14 +504,16 @@ float towerBaseYaw(const SimulationSnapshot& snapshot,
 }
 
 float towerPitch(const SimulationSnapshot& snapshot,
-                 const BuildingInstance& building) {
+                 const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
         snapshot.towers.begin(), snapshot.towers.end(),
         [&building](const TowerRuntime& tower) {
             return tower.buildingId == building.id;
         });
-    return runtime != snapshot.towers.end()
-        ? static_cast<float>(runtime->pitch) : 0.0F;
+    if (runtime == snapshot.towers.end()) return 0.0F;
+    return static_cast<float>(runtime->previousPitch +
+        (runtime->pitch - runtime->previousPitch) *
+        std::clamp(interpolationAlpha, 0.0F, 1.0F));
 }
 
 float cannonPitch(const SimulationSnapshot& snapshot,
@@ -1285,9 +1293,12 @@ void drawTacticalGroundSector(
             static_cast<int>(std::ceil(
                 radius * 3.2F * arcDegrees / 90.0F)),
             24, 72);
-        constexpr std::array<float, 7> RadialScales{
-            0.0F, 0.08F, 0.24F, 0.52F,
-            0.76F, 0.90F, 1.0F};
+        constexpr float EdgeWidth = 0.90F;
+        const float radialSpan = radius - innerRadius;
+        const float edgeScale = std::min(0.24F, EdgeWidth / radialSpan);
+        const std::array<float, 7> RadialScales{
+            0.0F, edgeScale * 0.5F, edgeScale, 0.5F,
+            1.0F - edgeScale, 1.0F - edgeScale * 0.5F, 1.0F};
 
         const auto pointAt =
             [center, radius, yawRadians](
@@ -1299,20 +1310,20 @@ void drawTacticalGroundSector(
                     center.z - std::cos(angle) * radius * scale,
                 };
             };
-        const auto opacityAt = [innerRadius](float angleT, float radiusT) {
-            if (innerRadius <= 0.001F && radiusT <= 0.001F) {
-                return 0.82F;
-            }
-            const float angularDistance =
-                std::min(angleT, 1.0F - angleT) * 2.0F;
-            // Keep the tactical sector readable without turning its edges
-            // into bright white beams across the whole scene.
-            const float sideEdge = 1.0F - smoothstep(
-                0.0F, 0.12F, angularDistance);
-            const float outerEdge = smoothstep(
-                0.84F, 1.0F, radiusT);
+        const auto opacityAt = [innerRadius, radius, radialSpan, halfAngle](
+            float angleT, float radiusT) {
+            const float distance = innerRadius + radiusT * radialSpan;
+            const float edgeAngle = std::min(PI * 0.5F,
+                std::min(angleT, 1.0F - angleT) * halfAngle * 2.0F);
+            // Equal widths in world metres for every weapon, including the
+            // catapult's inner dead zone, regardless of range or attack arc.
+            const float sideEdge = halfAngle < PI - 0.001F
+                ? 1.0F - smoothstep(0.0F, EdgeWidth, distance * std::sin(edgeAngle))
+                : 0.0F;
+            const float outerEdge = 1.0F - smoothstep(
+                0.0F, EdgeWidth, radius - distance);
             const float innerEdge = innerRadius > 0.001F
-                ? 1.0F - smoothstep(0.0F, 0.24F, radiusT)
+                ? 1.0F - smoothstep(0.0F, EdgeWidth, distance - innerRadius)
                 : 0.0F;
             constexpr float ClearInterior = 0.012F;
             const float edge = std::max(
