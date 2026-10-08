@@ -39,7 +39,7 @@ for level in range(2, 9):
         # Keep carriage armor below the moving bow, including its pitch arc.
         cheek = [(.21, -.38), (.21, .30), (.70, .30),
                  (.83, .08), (.67, -.27), (.45, -.40)]
-        cheek = [(.21 + (y-.21)*.625, z) for y, z in cheek]
+        cheek = [(.21 + (y-.21)*.72, z) for y, z in cheek]
         for side in (-1, 1):
             lo, hi = sorted((side*.480, side*.615))
             base.prism(cheek, 0, lo, hi, ORANGE)
@@ -63,8 +63,8 @@ for level in range(2, 9):
                  (.745, .07), (.615, -.235), (.45, -.33)]
         inset = [(.335, -.27), (.335, .185), (.625, .185),
                  (.690, .07), (.580, -.185), (.45, -.28)]
-        cheek = [(.21 + (y-.21)*.625, z) for y, z in cheek]
-        inset = [(.21 + (y-.21)*.625, z) for y, z in inset]
+        cheek = [(.21 + (y-.21)*.72, z) for y, z in cheek]
+        inset = [(.21 + (y-.21)*.72, z) for y, z in inset]
         for side in (-1, 1):
             lo, hi = sorted((side*.616, side*.644))
             base.prism(cheek, 0, lo, hi, GOLD)
