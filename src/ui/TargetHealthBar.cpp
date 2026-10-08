@@ -114,7 +114,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                            const Camera3D& camera,
                            const TerrainHeightfield& terrain,
                            EnemyBoundsProvider enemyBoundsProvider,
-                           std::optional<EntityId> upgradePromptTarget) {
+                           std::optional<EntityId> upgradePromptTarget,
+                           BuildingHeightProvider buildingHeightProvider) {
     const auto biomes = visual_biomes::generate(terrain.seed(), terrain.config().terrainWorldSize);
     screenHealthText_.reset();
     screenLevelText_.reset();
@@ -339,7 +340,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
             });
         if (building != snapshot.buildings.end()) {
             const Vec3 anchor =
-                buildingHealthBarWorldAnchor(*building);
+                buildingHealthBarWorldAnchor(*building, buildingHeightProvider
+                    ? std::optional<double>{buildingHeightProvider(*building)} : std::nullopt);
             candidate = Visual{
                 .target = {TargetKind::Building, building->id},
                 .anchorPosition = {

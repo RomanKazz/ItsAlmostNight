@@ -2,6 +2,9 @@
 
 #include "buildings/BuildingSystem.hpp"
 
+#include <cmath>
+#include <optional>
+
 namespace ian {
 
 inline constexpr float BuildingUpgradePromptWorldHeight = 0.20F;
@@ -36,10 +39,11 @@ inline constexpr float BuildingHealthBarUpgradeLift = 0.28F;
 }
 
 [[nodiscard]] inline Vec3 buildingHealthBarWorldAnchor(
-    const BuildingInstance& building) {
+    const BuildingInstance& building,
+    std::optional<double> visualHeight = std::nullopt) {
     Vec3 anchor = buildingWorldPosition(building);
-    anchor.y += buildingHealthBarHeightOffset(
-        building.type) + 0.18;
+    anchor.y += (visualHeight && std::isfinite(*visualHeight) && *visualHeight > 0.0
+        ? *visualHeight : buildingHealthBarHeightOffset(building.type)) + 0.18;
     return anchor;
 }
 

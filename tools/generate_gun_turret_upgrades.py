@@ -5,6 +5,7 @@ nodes are preserved. Previously generated meshes are replaced, not appended.
 Each level uses two vertex-colored meshes: stationary base and rotating head.
 """
 from pathlib import Path
+import math
 
 from upgrade_mesh import Geometry, GlbAsset
 
@@ -14,16 +15,41 @@ STEEL = (151, 173, 183)
 ORANGE = (245, 92, 12)
 GOLD = (242, 188, 45)
 
+
+def collar(geometry, bottom, top, color, thickness=.024):
+    """Fit the tapered authored pedestal; separate bands never overlap."""
+    segments = 12
+    def radius(y):
+        if y <= .30:
+            return .40 + (.32 - .40) * (y - .15) / .15
+        return .32 + (.211761 - .32) * (y - .30) / .16
+    def point(y, angle, outer):
+        # Facet midpoints, not only vertices, must clear the original body.
+        r = (radius(y) + .004) / math.cos(math.pi / segments)
+        if outer:
+            r += thickness
+        return (math.cos(angle) * r, y, math.sin(angle) * r)
+    for index in range(segments):
+        a, b = index * math.tau / segments, (index + 1) * math.tau / segments
+        ob_a, ob_b = point(bottom, a, True), point(bottom, b, True)
+        ot_a, ot_b = point(top, a, True), point(top, b, True)
+        ib_a, ib_b = point(bottom, a, False), point(bottom, b, False)
+        it_a, it_b = point(top, a, False), point(top, b, False)
+        for face in ((ob_a, ot_a, ot_b, ob_b), (ib_b, it_b, it_a, ib_a),
+                     (it_a, it_b, ot_b, ot_a), (ib_b, ib_a, ob_a, ob_b)):
+            geometry.face(face, color)
+
+
 bounds = []
 for level in range(2, 9):
     base, head = Geometry(), Geometry()
     # Large simple layers echo the core pedestal. No studs, vents or fins.
-    base.ring(1,(0,.255,0),.335,.278,.068,STEEL)
+    collar(base, .218, .274, STEEL)
     if level >= 5:
-        base.ring(1,(0,.287,0),.345,.300,.040,GOLD)
+        collar(base, .278, .306, GOLD)
     if level == 8:
-        base.ring(1,(0,.160,0),.375,.285,.080,ORANGE)
-        base.ring(1,(0,.199,0),.382,.330,.030,GOLD)
+        collar(base, .160, .200, ORANGE)
+        collar(base, .203, .215, GOLD)
     cheek = [(.49,-.28),(.51,.39),(.86,.43),(.98,.28),(.94,-.17),(.77,-.34)]
     for side in (-1,1):
         lo, hi = sorted((side*.418,side*.458))

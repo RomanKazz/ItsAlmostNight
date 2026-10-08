@@ -46,7 +46,7 @@ bool terrainOccludesPrompt(
 
 std::optional<InteractionPrompt> App::buildInteractionPrompt(
     const SimulationSnapshot& snapshot,
-    const Camera3D& camera) const {
+    const Camera3D& camera) {
     if (snapshot.state == RunState::MainMenu ||
         snapshot.state == RunState::Paused ||
         snapshot.state == RunState::StageClear ||
@@ -289,7 +289,8 @@ std::optional<InteractionPrompt> App::buildInteractionPrompt(
                     : std::nullopt;
             const bool affordable = snapshot.unlimitedResources ||
                 !cost || canAfford(*cost, snapshot.wood, snapshot.stone, snapshot.crystals);
-            const Vec3 anchor = buildingHealthBarWorldAnchor(*building);
+            const Vec3 anchor = buildingHealthBarWorldAnchor(*building,
+                renderer_->buildingVisualHeight(building->type, building->level));
             return finalize(InteractionPrompt{
                 .targetKind = InteractionPromptTargetKind::Building,
                 .targetId = building->id,

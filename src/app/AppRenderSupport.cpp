@@ -1500,14 +1500,7 @@ void drawBuildingTacticalOverlay(
     if (target == snapshot.enemies.end()) {
         return;
     }
-    if (building->type == BuildingType::Cannon) {
-        drawTacticalGroundCircle(
-            {static_cast<float>(target->position.x), 0.09F,
-             static_cast<float>(target->position.z)},
-            static_cast<float>(
-                CannonSystem::explosionRadius(building->level)),
-            {255, 129, 62, 210}, true);
-    } else {
+    if (building->type != BuildingType::Cannon) {
         drawTacticalGroundCircle(
             {static_cast<float>(target->position.x), 0.09F,
              static_cast<float>(target->position.z)},

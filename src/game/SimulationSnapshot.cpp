@@ -53,7 +53,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
             ? std::numeric_limits<int>::max() : crystals_;
         UpgradeResult validation = buildings_.validateBlueprintUpgrade(
             type, availableWood, availableStone, availableCrystals);
-        if (!unlocked || state_ == RunState::Wave) {
+        if (!unlocked) {
             validation.error = UpgradeError::Unsupported;
         }
         const BuildingInstance preview = buildings_.blueprintPreview(type);

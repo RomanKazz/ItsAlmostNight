@@ -5,6 +5,9 @@
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
 #include "graphics/CatapultModel.hpp"
+#include "graphics/CrystalMineModel.hpp"
+#include "graphics/SpikeTrapModel.hpp"
+#include "graphics/WallUpgradeModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -527,6 +530,86 @@ bool Renderer::drawTurretBullet(Vector3 position, Vector3 direction,
     if (worldShaderActive_) setWorldMaterial(previousMaterial);
     return true;
 }
+
+float Renderer::buildingVisualHeight(BuildingType type, int level) {
+    ModelResource* model = nullptr;
+    float scale = 1.0F;
+    switch (type) {
+    case BuildingType::Core: model = &resources_.coreModel(); scale = CoreModelScale; break;
+    case BuildingType::Wall: model = &resources_.wallIsolatedModel(); break;
+    case BuildingType::Gate: model = &resources_.gateModel(); break;
+    case BuildingType::Turret: model = &resources_.crossbowModel(); break;
+    case BuildingType::GunTurret: model = &resources_.gunTurretModel(); break;
+    case BuildingType::Cannon: model = &resources_.cannonModel(); break;
+    case BuildingType::Catapult: model = &resources_.catapultModel(); break;
+    case BuildingType::CrystalMine: model = &resources_.mineModel(); scale = 1.05F; break;
+    case BuildingType::LumberMill: model = &resources_.lumberMillModel(); scale = .825F; break;
+    case BuildingType::Quarry: model = &resources_.quarryModel(); scale = .65F; break;
+    case BuildingType::SpikeTrap: model = &resources_.spikeTrapModel(); scale = 1.2F; break;
+    case BuildingType::SlowTrap: return .45F;
+    case BuildingType::WoodStorage:
+    case BuildingType::StoneStorage:
+    case BuildingType::CrystalStorage: return 1.8F;
+    }
+    if (model && model->valid()) {
+        // visualBounds includes every baked upgrade, even hidden levels.
+        // Measure only the meshes and poses actually selected for this level.
+        const auto bounds = model->meshBounds();
+        const int meshCount = model->get().meshCount;
+        float height = 0.2F;
+        const auto includeMesh = [&](int index, Matrix pose = MatrixIdentity()) {
+            if (index < 0 || static_cast<std::size_t>(index) >= bounds.size() ||
+                !model->meshValid(static_cast<std::size_t>(index))) return;
+            const BoundingBox transformed = world_transforms::transformBounds(
+                bounds[static_cast<std::size_t>(index)],
+                MatrixMultiply(pose, model->get().transform));
+            height = std::max(height, transformed.max.y * scale);
+        };
+        const auto includePair = [&](int index, bool) { includeMesh(index); };
+        if (type == BuildingType::Core && meshCount == 7) {
+            core_crystal_model_detail::forEachLevelPart(level, 0.0,
+                [&](int index, Matrix pose, Color, bool) { includeMesh(index, pose); });
+        } else if (type == BuildingType::CrystalMine &&
+                   meshCount >= crystal_mine_model_detail::MeshCount) {
+            crystal_mine_model_detail::forEachLevelPart(level, includeMesh);
+        } else if (type == BuildingType::Wall &&
+                   meshCount >= wall_upgrade_model_detail::MeshCount) {
+            includeMesh(0);
+            includeMesh(wall_upgrade_model_detail::upgradeMeshIndex(level));
+        } else if (type == BuildingType::SpikeTrap &&
+                   meshCount >= spike_trap_model_detail::MeshCount) {
+            includeMesh(0);
+            if (level > 1) {
+                const int base = spike_trap_model_detail::baseMeshIndex(level);
+                includeMesh(base);
+                includeMesh(base + 1);
+            } else {
+                includeMesh(1);
+            }
+        } else if ((type == BuildingType::Cannon || type == BuildingType::Catapult ||
+                    type == BuildingType::Turret || type == BuildingType::GunTurret ||
+                    type == BuildingType::Gate) && meshCount >= 16) {
+            includeMesh(0);
+            includeMesh(1);
+            switch (type) {
+            case BuildingType::Cannon: cannon_model_detail::forEachUpgradePart(level, includePair); break;
+            case BuildingType::Catapult: catapult_model_detail::forEachUpgradePart(level, includePair); break;
+            case BuildingType::Turret: crossbow_model_detail::forEachUpgradePart(level, includePair); break;
+            case BuildingType::Gate: gate_model_detail::forEachUpgradePart(level, includePair); break;
+            case BuildingType::GunTurret:
+                gun_turret_model_detail::forEachUpgradePart(level,
+                    [&](int index, Matrix pose, Color, bool) { includeMesh(index, pose); });
+                break;
+            default: break;
+            }
+        } else {
+            for (int index = 0; index < meshCount; ++index) includeMesh(index);
+        }
+        return height + 0.005F;
+    }
+    return type == BuildingType::Core ? 2.5F : 2.15F;
+}
+
 
 bool Renderer::drawCore(Vector3 position, float yawRadians,
                         Color tint, float scale, int level) {

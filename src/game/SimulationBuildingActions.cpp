@@ -154,7 +154,7 @@ void Simulation::processBuildingActions(
         }
 
         BlueprintUpgradeResult result;
-        if (state_ == RunState::Wave || !buildingUnlocked(type)) {
+        if (!buildingUnlocked(type)) {
             result = {
                 .error = UpgradeError::Unsupported,
                 .type = type,

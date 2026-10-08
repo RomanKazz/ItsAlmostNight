@@ -621,6 +621,11 @@ bool checkWallLevelRendering(ian::Renderer& renderer) {
 }
 
 bool checkGunTurretLevelRendering(ian::Renderer& renderer) {
+    const bool correctHeights =
+        renderer.buildingVisualHeight(ian::BuildingType::GunTurret, 1) < 1.10F &&
+        renderer.buildingVisualHeight(ian::BuildingType::GunTurret, 7) > 1.15F &&
+        renderer.buildingVisualHeight(ian::BuildingType::Core, 8) >
+            renderer.buildingVisualHeight(ian::BuildingType::Core, 1) + 0.30F;
     const auto target = LoadRenderTexture(384, 384);
     const Camera3D camera{{2.4F, 1.9F, -3.2F}, {0, 0.62F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
     const auto capture = [&](int level) {
@@ -644,7 +649,7 @@ bool checkGunTurretLevelRendering(ian::Renderer& renderer) {
         }
         return image;
     };
-    bool distinct = true;
+    bool distinct = correctHeights;
     Image original = capture(1);
     Image previous = ImageCopy(original);
     for (int level = 2; level <= 8; ++level) {

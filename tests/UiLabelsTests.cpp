@@ -66,4 +66,9 @@ void runUiLabelsTests() {
         ian::buildingProductionVisualWorldAnchor(compactQuarry).y,
         4.675, 1e-9,
         "one-cell producer output follows uniform half scale");
+    requireNear(ian::buildingHealthBarWorldAnchor(elevatedTurret, 2.3).y,
+        elevatedTurret.baseHeight + 2.48, 1e-9,
+        "upgraded building bar and upgrade prompt follow the rendered top");
+    requireNear(ian::buildingHealthBarWorldAnchor(compactQuarry, 0.0).y,
+        4.74, 1e-9, "unavailable model height retains the fallback anchor");
 }

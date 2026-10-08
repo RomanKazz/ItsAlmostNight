@@ -341,6 +341,7 @@ class Renderer {
 
     void beginWorldShader(const WorldLighting& lighting);
     void setWorldMaterial(const WorldMaterialState& material);
+    [[nodiscard]] float buildingVisualHeight(BuildingType type, int level = 1);
     void beginColorOnlyWorldEffects();
     void endColorOnlyWorldEffects();
     void beginGhostPreviewMaterial();

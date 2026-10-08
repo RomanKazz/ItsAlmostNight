@@ -13,10 +13,12 @@ namespace ian {
 
 struct SimulationSnapshot;
 struct EnemyInstance;
+struct BuildingInstance;
 class TerrainHeightfield;
 
 using EnemyBoundsProvider =
     std::function<std::optional<BoundingBox>(const EnemyInstance&)>;
+using BuildingHeightProvider = std::function<double(const BuildingInstance&)>;
 
 class TargetHealthBar {
   public:
@@ -24,7 +26,8 @@ class TargetHealthBar {
               const Camera3D& camera,
               const TerrainHeightfield& terrain,
               EnemyBoundsProvider enemyBoundsProvider = {},
-              std::optional<EntityId> upgradePromptTarget = std::nullopt);
+              std::optional<EntityId> upgradePromptTarget = std::nullopt,
+              BuildingHeightProvider buildingHeightProvider = {});
     void drawScreenOverlay() const;
     void notifyRepair(EntityId id);
     void notifyEnemyHit(EntityId id, double damage = 0.0);

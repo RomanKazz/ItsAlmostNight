@@ -365,7 +365,9 @@ if (showWorldHud) {
             return world_transforms::finite(bounds)
                 ? std::optional<BoundingBox>{bounds}
                 : std::nullopt;
-        }, upgradePromptTarget);
+        }, upgradePromptTarget, [this](const BuildingInstance& building) {
+            return renderer_->buildingVisualHeight(building.type, building.level);
+        });
     // Submit every world-space overlay while depth testing is still disabled.
     // Individual bars and production rewards intentionally share this flush.
     rlDrawRenderBatchActive();

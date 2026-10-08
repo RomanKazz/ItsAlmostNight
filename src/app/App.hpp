@@ -234,7 +234,7 @@ class App {
                            double frameSeconds);
     [[nodiscard]] std::optional<InteractionPrompt>
     buildInteractionPrompt(const SimulationSnapshot& snapshot,
-                           const Camera3D& camera) const;
+                           const Camera3D& camera);
     [[nodiscard]] float buildingAnimationScaleAt(
         BuildingType type, GridPosition position) const;
     [[nodiscard]] float buildingAnimationScaleAt(
