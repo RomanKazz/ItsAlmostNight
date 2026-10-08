@@ -4,81 +4,47 @@ Run from the repository root. Original base, housing, texture and muzzle
 nodes are preserved. Previously generated meshes are replaced, not appended.
 Each level uses two vertex-colored meshes: stationary base and rotating head.
 """
-import math
 from pathlib import Path
 
 from upgrade_mesh import Geometry, GlbAsset
 
 PATH = Path('assets/models/buildings/gun_turret.glb')
 asset = GlbAsset(PATH)
-STEEL = (150, 172, 181)
-DARK = (51, 65, 72)
+STEEL = (151, 173, 183)
 ORANGE = (245, 92, 12)
-BRASS = (228, 165, 51)
-
+GOLD = (242, 188, 45)
 
 bounds = []
 for level in range(2, 9):
     base, head = Geometry(), Geometry()
-    # A tapered octagonal bearing, not a square slab underneath the body.
+    # Large simple layers echo the core pedestal. No studs, vents or fins.
     base.ring(1,(0,.255,0),.335,.278,.068,STEEL)
-    if level >= 4:
-        for side in (-1,1):
-            base.box((side*.36,.135,0),(.12,.08,.38),STEEL)
     if level >= 5:
-        base.ring(1,(0,.285,0),.339,.305,.018,BRASS)
-    if level >= 8:
-        for side in (-1,1):
-            base.box((0,.095,side*.365),(.32,.035,.11),DARK)
-            base.box((0,.116,side*.365),(.12,.014,.095),BRASS)
-    # Shaped cheeks follow the curved original orange housing. The front
-    # slopes back towards the roof, leaving the silver muzzle face exposed.
+        base.ring(1,(0,.287,0),.345,.300,.040,GOLD)
+    if level == 8:
+        base.ring(1,(0,.160,0),.375,.285,.080,ORANGE)
+        base.ring(1,(0,.199,0),.382,.330,.030,GOLD)
     cheek = [(.49,-.28),(.51,.39),(.86,.43),(.98,.28),(.94,-.17),(.77,-.34)]
     for side in (-1,1):
         lo, hi = sorted((side*.418,side*.458))
-        head.prism(cheek,0,lo,hi,STEEL)
+        head.prism(cheek,0,lo,hi,GOLD if level == 8 else STEEL)
         if level >= 3:
             panel = [(.54,-.225),(.56,.35),(.83,.37),(.925,.255),(.895,-.135),(.755,-.285)]
             lo, hi = sorted((side*.4585,side*.474))
             head.prism(panel,0,lo,hi,ORANGE)
-            for z in (.15,.23,.31):
-                vent = [(.61,z-.018),(.78,z-.018),(.795,z+.013),(.625,z+.013)]
-                lo, hi = sorted((side*.475,side*.479))
-                head.prism(vent,0,lo,hi,DARK)
-        if level >= 5:
-            # Recessed orange panel, satin metal pivot and a small brass hub.
-            head.ring(0,(side*.485,.70,-.11),.093,.064,.024,DARK,10)
-            disk = [( .70+.061*math.cos(i*2*math.pi/10), -.11+.061*math.sin(i*2*math.pi/10)) for i in range(10)]
-            lo, hi = sorted((side*.488,side*.503))
-            head.prism(disk,0,lo,hi,STEEL)
-            bolt = [(.70,-.139),(.729,-.11),(.70,-.081),(.671,-.11)]
-            lo, hi = sorted((side*.504,side*.51))
-            head.prism(bolt,0,lo,hi,BRASS)
     if level >= 4:
-        # One sculpted roof spine with sloped front/rear ends, no stacked blocks.
-        roof = [(1.01,-.28),(1.01,.38),(1.065,.32),(1.10,.18),(1.10,-.10),(1.06,-.26)]
+        lift = .075 if level >= 7 else 0
+        roof = [(1.01,-.28),(1.01,.38),(1.065+lift,.32),
+                (1.10+lift,.18),(1.10+lift,-.10),(1.06+lift,-.26)]
         head.prism(roof,0,-.335,.335,STEEL)
-        insert = [(1.069,-.24),(1.069,.28),(1.106,.17),(1.106,-.10)]
+        insert = [(1.069+lift,-.24),(1.069+lift,.28),
+                  (1.106+lift,.17),(1.106+lift,-.10)]
         head.prism(insert,0,-.225,.225,ORANGE)
     if level >= 6:
         for x in (-.140388,.140388):
-            # Close-fitting gunmetal barrel jacket with a single narrow lip.
-            head.ring(2,(x,.685445,-.557),.128,.105,.16,DARK)
-            head.ring(2,(x,.685445,-.638),.133,.102,.022,STEEL)
-            head.ring(2,(x,.685445,-.651),.134,.105,.010,BRASS)
-    if level >= 7:
-        sight = [(1.103,-.16),(1.103,.21),(1.135,.19),(1.195,.09),(1.195,-.05),(1.16,-.12)]
-        head.prism(sight,0,-.072,.072,DARK)
-        crest = [(1.155,-.125),(1.201,-.055),(1.201,.085),(1.14,.185)]
-        head.prism(crest,0,-.075,.075,ORANGE)
-    if level >= 8:
-        for side in (-1,1):
-            shoulder = [(.87,-.19),(.92,.39),(1.02,.33),(1.105,.19),(1.08,-.08),(.995,-.20)]
-            lo, hi = sorted((side*.33,side*.47))
-            head.prism(shoulder,0,lo,hi,STEEL)
-            edge = [(.998,-.205),(1.088,-.083),(1.112,.19),(1.025,.337),(.992,.345),(1.074,.182),(1.050,-.069),(.972,-.18)]
-            lo, hi = sorted((side*.471,side*.48))
-            head.prism(edge,0,lo,hi,BRASS)
+            # One steel sleeve and one bold golden muzzle lip per barrel.
+            head.ring(2,(x,.685445,-.557),.128,.105,.16,STEEL)
+            head.ring(2,(x,.685445,-.649),.134,.105,.032,GOLD)
     for part, suffix in ((base,'base'),(head,'head')):
         bounds.append(part.bounds())
         part.append(asset, f'upgrade_l{level}_{suffix}')
