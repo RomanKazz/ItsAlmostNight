@@ -428,6 +428,7 @@ class App {
     double placementDragLookMovement_{};
     bool placementDragExtended_{};
     std::deque<PlaceBuildingCommand> pendingWallPlacements_;
+    std::vector<BuildingPreview> placementDragPreviews_;
     int pendingBuildingRotation_{};
     double buildingItemWheelAccumulator_{};
     double buildingItemWheelReleaseRemaining_{};

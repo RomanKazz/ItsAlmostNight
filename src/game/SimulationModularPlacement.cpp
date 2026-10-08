@@ -235,6 +235,11 @@ PlatformFramePlacement Simulation::previewFoundationAtHeight(
         foundations_.previewFoundationAtHeight(
             terrainHit, floorHeight,
             playerPosition_);
+    return validateFoundationAtHeight(placement);
+}
+
+PlatformFramePlacement Simulation::validateFoundationAtHeight(
+    PlatformFramePlacement placement) const {
     const double cellSize = worldConfig_.cellSize;
     if (placement.valid() &&
         !foundationInsideCoreBuildRadius(placement.anchor)) {

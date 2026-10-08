@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "buildings/FoundationPlacementError.hpp"
 #include "buildings/BuildingOrientation.hpp"
 
 #include <algorithm>
@@ -186,11 +187,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             !automaticFoundation->valid() &&
             previewPlacement.valid()) {
             previewPlacement.error =
-                automaticFoundation->error ==
-                        ModularPlacementError::
-                            ResourceBlocked
-                    ? PlacementError::ResourceBlocked
-                    : PlacementError::WorldCollision;
+                foundationPlacementError(automaticFoundation->error);
         }
         buildingPreview_ = BuildingPreview{
             .type = *selectedBuilding_,
@@ -201,32 +198,32 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             .platformStorey = surface.storey,
             .foundationBottomHeight =
                 surface.foundationBottomHeight,
+            .foundationPreview = automaticFoundation,
         };
     } else {
         buildingPreview_.reset();
     }
 
-    if (command.placeBuilding) {
+    const auto placeBuilding = [this](const PlaceBuildingCommand& build) {
         const BuildingPlatformSurface naturalSurface =
-            command.placeBuilding->lockHeight &&
-                    command.placeBuilding
-                            ->platformStorey >= 0
+            build.lockHeight &&
+                    build.platformStorey >= 0
                 ? placementSurfaceWithPreferredHeight(
-                      command.placeBuilding->type,
-                      command.placeBuilding->gridPosition,
-                      command.placeBuilding->baseHeight)
+                      build.type,
+                      build.gridPosition,
+                      build.baseHeight)
                 : placementSurface(
-                      command.placeBuilding->type,
-                      command.placeBuilding->gridPosition);
+                      build.type,
+                      build.gridPosition);
         BuildingPlatformSurface surface = naturalSurface;
-        if (command.placeBuilding->lockHeight &&
-            command.placeBuilding->platformStorey < 0) {
+        if (build.lockHeight &&
+            build.platformStorey < 0) {
             constexpr double LockedHeightTolerance = 0.05;
             const bool matchingFoundationWasCreated =
                 naturalSurface.storey >= 0 &&
                 std::abs(
                     naturalSurface.height -
-                    command.placeBuilding->baseHeight) <=
+                    build.baseHeight) <=
                     LockedHeightTolerance;
             if (!matchingFoundationWasCreated) {
                 // The click commits the exact construction plane shown by
@@ -236,10 +233,10 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 // reuse it instead of trying to overlap it with another
                 // automatic 2x2 foundation.
                 surface.height =
-                    command.placeBuilding->baseHeight;
+                    build.baseHeight;
                 surface.foundationBottomHeight = std::min(
                     surface.foundationBottomHeight,
-                    command.placeBuilding->baseHeight);
+                    build.baseHeight);
                 surface.storey = -1;
             }
         }
@@ -247,12 +244,13 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
         auto automaticFoundation =
             needsAutomaticFoundation
                 ? automaticFoundationPlacement(
-                      command.placeBuilding->type,
-                      command.placeBuilding->gridPosition,
-                      command.placeBuilding->lockHeight
+                      build.type,
+                      build.gridPosition,
+                      build.lockHeight
                           ? std::optional<double>{
-                                command.placeBuilding->baseHeight}
-                          : std::nullopt)
+                                build.baseHeight}
+                          : std::nullopt,
+                      nullptr, build.foundationAnchor)
                 : std::nullopt;
         if (automaticFoundation &&
             automaticFoundation->valid()) {
@@ -273,9 +271,8 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
         }
         PlacementResult placement =
             validatePlacement(
-                command.placeBuilding->type,
-                command.placeBuilding
-                    ->gridPosition,
+                build.type,
+                build.gridPosition,
                 surface);
         const bool foundationAddsCost =
             automaticFoundation &&
@@ -297,15 +294,13 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                     PlacementError::InsufficientResources;
             }
         }
-        if (command.placeBuilding->lockHeight &&
-            command.placeBuilding->platformStorey >= 0 &&
+        if (build.lockHeight &&
+            build.platformStorey >= 0 &&
             (naturalSurface.storey !=
-                 command.placeBuilding
-                     ->platformStorey ||
+                 build.platformStorey ||
              std::abs(
                  naturalSurface.height -
-                 command.placeBuilding
-                     ->baseHeight) > 0.05)) {
+                 build.baseHeight) > 0.05)) {
             placement.error =
                 PlacementError::WorldCollision;
         }
@@ -313,11 +308,7 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
             !automaticFoundation->valid() &&
             placement.valid()) {
             placement.error =
-                automaticFoundation->error ==
-                        ModularPlacementError::
-                            ResourceBlocked
-                    ? PlacementError::ResourceBlocked
-                    : PlacementError::WorldCollision;
+                foundationPlacementError(automaticFoundation->error);
         }
         if (placement.valid()) {
             std::optional<PlatformFrameInstance>
@@ -334,13 +325,11 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                     raisePlayerOntoGroundFrame(
                         *createdFoundation);
                     surface = placementSurface(
-                        command.placeBuilding->type,
-                        command.placeBuilding
-                            ->gridPosition);
+                        build.type,
+                        build.gridPosition);
                     placement = validatePlacement(
-                        command.placeBuilding->type,
-                        command.placeBuilding
-                            ->gridPosition,
+                        build.type,
+                        build.gridPosition,
                         surface);
                 }
             }
@@ -353,9 +342,9 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
                 }
             } else {
                 const auto placed = buildings_.place(
-                    command.placeBuilding->type,
-                    command.placeBuilding->gridPosition,
-                    command.placeBuilding->rotation,
+                    build.type,
+                    build.gridPosition,
+                    build.rotation,
                     unlimitedResources_
                         ? std::numeric_limits<int>::max()
                         : wood_,
@@ -408,18 +397,19 @@ void Simulation::processBuildingCommands(const PlayerCommand& command) {
         if (!placement.valid()) {
             Vec3 rejectedPosition =
                 buildingWorldPosition(
-                    command.placeBuilding->type,
-                    command.placeBuilding
-                        ->gridPosition);
+                    build.type,
+                    build.gridPosition);
             rejectedPosition.y = surface.height;
             events_.push_back({
                 .type = GameEventType::BuildingRejected,
-                .buildingType = command.placeBuilding->type,
+                .buildingType = build.type,
                 .placementError = placement.error,
                 .position = rejectedPosition,
             });
         }
-    }
+    };
+    if (command.placeBuilding) placeBuilding(*command.placeBuilding);
+    for (const auto& build : command.placeBuildingBatch) placeBuilding(build);
 
     processBuildingActions(command);
 }

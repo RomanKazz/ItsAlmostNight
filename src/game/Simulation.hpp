@@ -142,6 +142,7 @@ struct PlayerCommand {
     std::optional<BuildingType> selectBuilding;
     bool cancelBuilding{};
     std::optional<PlaceBuildingCommand> placeBuilding;
+    std::vector<PlaceBuildingCommand> placeBuildingBatch;
     int rotateBuilding{};
     std::optional<StartWaveEarlyCommand> startWaveEarly;
     std::optional<EnableUnlimitedResourcesCommand> enableUnlimitedResources;
@@ -577,6 +578,9 @@ class Simulation {
     [[nodiscard]] PlacementResult previewPlacement(
         BuildingType type, GridPosition position,
         double preferredHeight) const;
+    [[nodiscard]] std::vector<BuildingPreview> previewBuildingLine(
+        BuildingType type, std::span<const GridPosition> cells,
+        std::uint8_t rotation, double preferredHeight) const;
     [[nodiscard]] BuildingPlatformSurface
     previewPlacementSurface(
         BuildingType type, GridPosition position) const;
@@ -586,6 +590,9 @@ class Simulation {
         double preferredHeight) const;
     [[nodiscard]] const TerrainHeightfield& terrain() const;
     [[nodiscard]] Vec3 playerSpawn() const { return map_.playerSpawn; }
+    [[nodiscard]] std::optional<PlatformFramePlacement> previewBuildingFoundation(
+        BuildingType type, GridPosition position,
+        std::optional<double> preferredHeight = std::nullopt) const;
     void regenerateTerrain(std::uint32_t seed);
     [[nodiscard]] PlatformFramePlacement
     previewFoundation(Vec3 terrainHit) const;
@@ -701,7 +708,16 @@ class Simulation {
                                                     GridPosition position) const;
     [[nodiscard]] PlacementResult validatePlacement(
         BuildingType type, GridPosition position,
-        const BuildingPlatformSurface& surface) const;
+        const BuildingPlatformSurface& surface,
+        const FoundationSystem* foundations = nullptr,
+        const BuildingSystem* buildings = nullptr,
+        std::optional<ResourceCost> available = std::nullopt) const;
+    [[nodiscard]] BuildingPreview previewBuildingPlacement(
+        BuildingType type, GridPosition position, std::uint8_t rotation,
+        std::optional<double> preferredHeight,
+        const FoundationSystem& foundations, const BuildingSystem& buildings,
+        ResourceCost available,
+        std::optional<GridCoord> foundationAnchor = std::nullopt) const;
     [[nodiscard]] PlacementResult
     previewPlacementWithOptionalHeight(
         BuildingType type, GridPosition position,
@@ -713,17 +729,23 @@ class Simulation {
     [[nodiscard]] bool playerWeaponUnlocked(PlayerWeapon weapon) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,
-                     GridPosition position) const;
+                     GridPosition position,
+                     const FoundationSystem* foundations = nullptr) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurfaceWithPreferredHeight(
         BuildingType type, GridPosition position,
-        double preferredHeight) const;
+        double preferredHeight,
+        const FoundationSystem* foundations = nullptr) const;
     [[nodiscard]] std::optional<
         PlatformFramePlacement>
     automaticFoundationPlacement(
         BuildingType type, GridPosition position,
         std::optional<double> preferredHeight =
-            std::nullopt) const;
+            std::nullopt,
+        const FoundationSystem* foundations = nullptr,
+        std::optional<GridCoord> foundationAnchor = std::nullopt) const;
+    [[nodiscard]] PlatformFramePlacement validateFoundationAtHeight(
+        PlatformFramePlacement placement) const;
     [[nodiscard]] PlatformFramePlacement
     validateFloorPlatformPlacement(
         PlatformFramePlacement placement,

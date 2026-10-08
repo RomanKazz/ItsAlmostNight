@@ -709,12 +709,6 @@ void App::update() {
         buildingShotRecoilVisuals_, frameSeconds);
     presentation::advanceTimeline(
         cancelledPlacementPreview_, frameSeconds);
-    if (!pendingBuildingPlacement_ &&
-        !pendingWallPlacements_.empty()) {
-        pendingBuildingPlacement_ =
-            pendingWallPlacements_.front();
-        pendingWallPlacements_.pop_front();
-    }
     if (!pendingBuildingSale_ &&
         !queuedBuildingSales_.empty()) {
         pendingBuildingSale_ =
@@ -818,6 +812,7 @@ void App::update() {
             tickInput.selectBuilding = pendingBuildingSelection_;
             tickInput.cancelBuilding = pendingBuildingCancel_;
             tickInput.placeBuilding = pendingBuildingPlacement_;
+            tickInput.placeBuildingBatch.assign(pendingWallPlacements_.begin(), pendingWallPlacements_.end());
             tickInput.rotateBuilding = pendingBuildingRotation_;
             if (pendingStartWave_) {
                 tickInput.startWaveEarly = StartWaveEarlyCommand{};
@@ -910,6 +905,7 @@ void App::update() {
         pendingBuildingSelection_.reset();
         pendingBuildingCancel_ = false;
         pendingBuildingPlacement_.reset();
+        pendingWallPlacements_.clear();
         pendingBuildingRotation_ = 0;
         pendingStartWave_ = false;
         pendingUnlimitedResources_ = false;

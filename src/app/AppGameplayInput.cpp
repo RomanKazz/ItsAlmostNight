@@ -1021,69 +1021,38 @@ void App::processGameplayInput(bool controlDown,
                     placementDragAxis_,
                     AxisSwitchMarginCells);
         }
+        placementDragPreviews_.clear();
+        if (wallDragStart_ && placementDragType_ && placementDragSurface_) {
+            const auto cells = placementGestureLine(*placementDragType_, *wallDragStart_,
+                wallDragEnd_.value_or(*wallDragStart_), placementDragExtended_, placementDragAxis_);
+            const auto rotation = alignsWithPlacementLine(*placementDragType_) && cells.size() > 1U && placementDragAxis_
+                ? placementLineRotation(*placementDragAxis_)
+                : currentSnapshot.buildingPreview ? currentSnapshot.buildingPreview->rotation : std::uint8_t{0};
+            placementDragPreviews_ = simulation_.previewBuildingLine(*placementDragType_, cells,
+                rotation, placementDragSurface_->height);
+        }
         if (wallDragStart_ &&
             placementDragType_ &&
             IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-            const BuildingType dragType =
-                *placementDragType_;
-            const auto cells = placementGestureLine(
-                dragType, *wallDragStart_,
-                wallDragEnd_.value_or(*wallDragStart_),
-                placementDragExtended_,
-                placementDragAxis_);
-            const std::size_t count = cells.size();
-            std::uint8_t dragRotation =
-                static_cast<std::uint8_t>(
-                    currentSnapshot.buildingPreview
-                        ? currentSnapshot
-                              .buildingPreview->rotation
-                        : 0);
-            if (alignsWithPlacementLine(dragType) &&
-                cells.size() > 1U &&
-                placementDragAxis_) {
-                dragRotation = placementLineRotation(
-                    *placementDragAxis_);
-            }
-            const ResourceCost dragCost =
-                currentSnapshot.buildingCosts[
-                    static_cast<std::size_t>(dragType)];
-            int queuedCount = 0;
-            for (std::size_t index = 0;
-                 index < count; ++index) {
-                const BuildingPlatformSurface surface =
-                    placementDragSurface_
-                        ? *placementDragSurface_
-                        : simulation_
-                              .previewPlacementSurface(
-                                  dragType,
-                                  cells[index]);
-                const PlacementResult placement =
-                    simulation_.previewPlacement(
-                        dragType, cells[index],
-                        surface.height);
-                if (!placement.valid()) {
-                    continue;
-                }
-                const int nextCount = queuedCount + 1;
-                if (!currentSnapshot.unlimitedResources &&
-                    (currentSnapshot.wood <
-                         dragCost.wood * nextCount ||
-                     currentSnapshot.stone <
-                         dragCost.stone * nextCount ||
-                     currentSnapshot.crystals <
-                         dragCost.crystals * nextCount)) {
+            std::optional<PlacementError> rejected;
+            for (const auto& preview : placementDragPreviews_) {
+                if (!preview.placement.valid()) {
+                    if (!rejected) rejected = preview.placement.error;
                     continue;
                 }
                 pendingWallPlacements_.push_back({
-                    .type = dragType,
-                    .gridPosition = cells[index],
-                    .rotation = dragRotation,
-                    .baseHeight = surface.height,
-                    .platformStorey =
-                        surface.storey,
+                    .type = preview.type, .gridPosition = preview.gridPosition, .rotation = preview.rotation,
+                    .baseHeight = preview.baseHeight, .platformStorey = preview.platformStorey,
                     .lockHeight = true,
+                    .foundationAnchor = preview.foundationPreview
+                        ? std::optional<GridCoord>{preview.foundationPreview->anchor} : std::nullopt,
                 });
-                queuedCount = nextCount;
+            }
+            if (rejected) {
+                statusMessage_ = localizeText(std::string{placementErrorMessage(*rejected)});
+                statusMessageRemaining_ = 1.8;
+                statusMessageShakeRemaining_ = 0.22;
+                invalidActionRemaining_ = 0.22;
             }
             wallDragStart_.reset();
             wallDragEnd_.reset();

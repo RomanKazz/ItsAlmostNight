@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.hpp"
+#include "buildings/PlacementValidator.hpp"
 #include "economy/ResourceCost.hpp"
 #include "game/GameBalance.hpp"
 
@@ -197,6 +198,7 @@ struct BuildingPreview {
     double baseHeight{};
     int platformStorey{-1};
     double foundationBottomHeight{};
+    std::optional<PlatformFramePlacement> foundationPreview{};
 };
 
 struct PlaceBuildingCommand {
@@ -206,6 +208,7 @@ struct PlaceBuildingCommand {
     double baseHeight{};
     int platformStorey{-1};
     bool lockHeight{};
+    std::optional<GridCoord> foundationAnchor{};
 };
 
 class BuildingSystem {

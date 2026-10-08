@@ -1,6 +1,7 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "graphics/BuildingFoundationVisual.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -110,10 +111,18 @@ void drawTerrainTacticalRing(
 void App::drawWorldOverlays(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
+    const auto dragPreviewForCell = [this](BuildingType type, GridPosition position) -> const BuildingPreview* {
+        if (!wallDragStart_ || placementDragType_ != type) return nullptr;
+        const auto found = std::ranges::find(placementDragPreviews_, position, &BuildingPreview::gridPosition);
+        return found == placementDragPreviews_.end() ? nullptr : &*found;
+    };
     const auto dragPlacementSurface =
-        [this](
+        [this, &dragPreviewForCell](
             BuildingType type,
             GridPosition position) {
+            if (const auto* preview = dragPreviewForCell(type, position)) {
+                return BuildingPlatformSurface{preview->baseHeight, preview->foundationBottomHeight, preview->platformStorey};
+            }
             return placementDragSurface_
                        ? simulation_
                              .previewPlacementSurface(
@@ -125,9 +134,10 @@ void App::drawWorldOverlays(
                                  type, position);
         };
     const auto dragPlacement =
-        [this](
+        [this, &dragPreviewForCell](
             BuildingType type,
             GridPosition position) {
+            if (const auto* preview = dragPreviewForCell(type, position)) return preview->placement;
             return placementDragSurface_
                        ? simulation_.previewPlacement(
                              type, position,
@@ -833,6 +843,10 @@ void App::drawWorldOverlays(
             .platformStorey = surface.storey,
             .foundationBottomHeight =
                 surface.foundationBottomHeight,
+            .foundationPreview = dragPreviewForCell(*placementDragType_, cell)
+                ? dragPreviewForCell(*placementDragType_, cell)->foundationPreview
+                : simulation_.previewBuildingFoundation(*placementDragType_, cell,
+                    placementDragSurface_ ? std::optional<double>{placementDragSurface_->height} : std::nullopt),
         };
     }
     const BuildingPreview* activePreview = outgoingPreview
@@ -885,6 +899,10 @@ void App::drawWorldOverlays(
                     static_cast<float>(lineEnd.z),
                 };
                 visualPreview.gridPosition = cells.back();
+                visualPreview.foundationPreview = dragPreviewForCell(preview.type, cells.back())
+                    ? dragPreviewForCell(preview.type, cells.back())->foundationPreview
+                    : simulation_.previewBuildingFoundation(preview.type, cells.back(),
+                        placementDragSurface_ ? std::optional<double>{placementDragSurface_->height} : std::nullopt);
                 visualPreview.placement =
                     dragPlacement(
                         preview.type, cells.back());
@@ -897,23 +915,7 @@ void App::drawWorldOverlays(
                     surface.storey;
                 visualPreview.foundationBottomHeight =
                     surface.foundationBottomHeight;
-                const ResourceCost cost =
-                    snapshot.buildingCosts[
-                        static_cast<std::size_t>(
-                            preview.type)];
-                const int count =
-                    static_cast<int>(cells.size());
-                const bool affordable =
-                    snapshot.unlimitedResources ||
-                    (snapshot.wood >= cost.wood * count &&
-                     snapshot.stone >= cost.stone * count &&
-                     snapshot.crystals >= cost.crystals * count);
-                if (!affordable &&
-                    visualPreview.placement.valid()) {
-                    visualPreview.placement.error =
-                        PlacementError::
-                            InsufficientResources;
-                }
+                if (const auto* staged = dragPreviewForCell(preview.type, cells.back())) visualPreview = *staged;
             }
         }
         const Vector2 visualCenter = repelInvalidPreview(
@@ -1017,13 +1019,8 @@ void App::drawWorldOverlays(
                 visualPreview.gridPosition);
         if (const auto foundation =
                 !finalCellObstructed
-                    ? automaticBuildingFoundation(
-                          visualPreview.type,
-                          visualPreview.gridPosition,
-                          visualPreview.baseHeight,
-                          visualPreview.foundationBottomHeight,
-                          simulation_.terrain()
-                              .config().cellSize)
+                    ? makeBuildingFoundationPreviewVisual(visualPreview,
+                          simulation_.terrain().config().cellSize)
                     : std::nullopt) {
             rlPushMatrix();
             rlTranslatef(
@@ -1062,13 +1059,18 @@ void App::drawWorldOverlays(
                 const BuildingPlatformSurface surface =
                     dragPlacementSurface(
                         preview.type, cells[index]);
-                const auto foundation =
-                    automaticBuildingFoundation(
-                        preview.type, cells[index],
-                        surface.height,
-                        surface.foundationBottomHeight,
-                        simulation_.terrain()
-                            .config().cellSize);
+                BuildingPreview cellPreview{
+                    .type = preview.type, .gridPosition = cells[index], .rotation = preview.rotation,
+                    .placement = dragPlacement(preview.type, cells[index]),
+                    .baseHeight = surface.height, .platformStorey = surface.storey,
+                    .foundationBottomHeight = surface.foundationBottomHeight,
+                    .foundationPreview = dragPreviewForCell(preview.type, cells[index])
+                        ? dragPreviewForCell(preview.type, cells[index])->foundationPreview
+                        : simulation_.previewBuildingFoundation(preview.type, cells[index],
+                            placementDragSurface_ ? std::optional<double>{placementDragSurface_->height} : std::nullopt),
+                };
+                const auto foundation = makeBuildingFoundationPreviewVisual(cellPreview,
+                    simulation_.terrain().config().cellSize);
                 if (!foundation) {
                     continue;
                 }
@@ -1100,25 +1102,11 @@ void App::drawWorldOverlays(
             const auto cells = placementLine(
                 preview.type, *wallDragStart_,
                 *wallDragEnd_, placementDragAxis_);
-            const ResourceCost cost =
-                snapshot.buildingCosts[
-                    static_cast<std::size_t>(preview.type)];
             for (std::size_t index = 0;
                  index + 1U < cells.size(); ++index) {
                 PlacementResult placement =
                     dragPlacement(
                         preview.type, cells[index]);
-                const int count =
-                    static_cast<int>(index + 1U);
-                const bool affordable =
-                    snapshot.unlimitedResources ||
-                    (snapshot.wood >= cost.wood * count &&
-                     snapshot.stone >= cost.stone * count &&
-                     snapshot.crystals >= cost.crystals * count);
-                if (!affordable && placement.valid()) {
-                    placement.error =
-                        PlacementError::InsufficientResources;
-                }
                 if (placementPreviewObstructed(
                         placement.error)) {
                     continue;

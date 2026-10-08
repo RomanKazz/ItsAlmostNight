@@ -29,6 +29,214 @@ void resolveLevelUps(ian::Simulation& simulation) {
 void runSimulationTests() {
     {
         auto map = ian::MapDefinition::defaults();
+        map.resources.clear(); map.obstacles.clear();
+        auto world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        ian::Simulation simulation{ian::GameBalance::defaults(), map, world};
+        simulation.startSandboxRun();
+        ian::PlayerCommand placeCore;
+        placeCore.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::Core, .gridPosition = {0, 0},
+        };
+        simulation.tick(1.0/60.0, placeCore);
+        resolveLevelUps(simulation);
+        const auto existing = simulation.placeFoundation({.2, simulation.terrain().getHeight(.2, 4.2), 4.2});
+        require(existing.has_value(), "trap foundation fixture creates a neighbouring platform");
+        const ian::GridPosition trapCell{existing->anchor.x - 1, existing->anchor.z};
+        const auto ghost = simulation.previewBuildingFoundation(ian::BuildingType::SpikeTrap,
+            trapCell, existing->floorHeight);
+        require(ghost && ghost->valid(), "a compact trap can select an alternative 2x2 foundation at a platform edge");
+        require(ghost->anchor.x == existing->anchor.x - 2 && ghost->anchor.z == existing->anchor.z,
+            "trap support chooses a nonoverlapping anchor instead of covering the neighbouring platform");
+        requireNear(ghost->supports[3].top.x - ghost->supports[0].top.x, 2, 1e-9,
+            "actual foundation preview stays 2x2 for a 1x1 trap");
+        ian::PlayerCommand place;
+        place.placeBuilding = ian::PlaceBuildingCommand{
+            .type = ian::BuildingType::SpikeTrap, .gridPosition = trapCell, .rotation = 0,
+            .baseHeight = ghost->floorHeight, .platformStorey = -1, .lockHeight = true,
+        };
+        simulation.tick(1.0/60.0, place);
+        const auto built = std::ranges::find_if(simulation.snapshot().platformFrames,
+            [&](const auto& frame) { return frame.anchor == ghost->anchor; });
+        require(built != simulation.snapshot().platformFrames.end(),
+            "placement creates the same 2x2 platform shown in the trap ghost");
+        for (std::size_t i = 0; i < ghost->supports.size(); ++i) {
+            requireNear(built->supports[i].top.x, ghost->supports[i].top.x, 1e-9, "placed support matches preview X");
+            requireNear(built->supports[i].top.z, ghost->supports[i].top.z, 1e-9, "placed support matches preview Z");
+        }
+        require(!simulation.previewBuildingFoundation(ian::BuildingType::SpikeTrap, trapCell),
+            "a real platform is reused rather than previewing a second foundation");
+    }
+    {
+        auto map = ian::MapDefinition::defaults();
+        map.resources.clear(); map.obstacles.clear();
+        auto world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        const auto balance = ian::GameBalance::defaults();
+        auto simulation = std::make_unique<ian::Simulation>(balance, map, world);
+        simulation->startSandboxRun(ian::PlayerClass::Vanguard);
+        ian::PlayerCommand core;
+        core.placeBuilding = ian::PlaceBuildingCommand{.type = ian::BuildingType::Core, .gridPosition = {0, 0}};
+        simulation->tick(1.0/60.0, core);
+        resolveLevelUps(*simulation);
+        const auto platform = simulation->placeFoundation({.2, 0, 4.2});
+        require(platform.has_value(), "drag fixture creates its starting platform");
+        auto saved = simulation->saveSuspendedRunState();
+        const std::array cells{ian::GridPosition{1, 4}, ian::GridPosition{2, 4},
+            ian::GridPosition{3, 4}, ian::GridPosition{4, 4}};
+        const auto previews = simulation->previewBuildingLine(ian::BuildingType::SpikeTrap, cells, 0, platform->floorHeight);
+        require(std::ranges::all_of(previews, [](const auto& p) { return p.placement.valid(); }),
+            "dragging off an existing platform keeps supported cells and new foundations valid");
+        require(previews[0].platformStorey == platform->storey && previews[1].platformStorey < 0 &&
+                previews[2].platformStorey == platform->storey && !previews[2].foundationPreview,
+            "drag assigns each cell its own support and reuses the preceding 2x2 platform");
+        require(simulation->snapshot().platformFrames.size() == saved.platformFrames.size() &&
+                simulation->snapshot().buildings.size() == saved.buildings.size(),
+            "drag planning never modifies live construction state");
+        const auto commands = [](const std::vector<ian::BuildingPreview>& line) {
+            ian::PlayerCommand command;
+            for (const auto& p : line) if (p.placement.valid()) command.placeBuildingBatch.push_back({
+                .type = p.type, .gridPosition = p.gridPosition, .rotation = p.rotation,
+                .baseHeight = p.baseHeight, .platformStorey = p.platformStorey, .lockHeight = true,
+                .foundationAnchor = p.foundationPreview ? std::optional<ian::GridCoord>{p.foundationPreview->anchor} : std::nullopt});
+            return command;
+        };
+        simulation->tick(1.0/60.0, commands(previews));
+        require(std::ranges::count(simulation->snapshot().buildings, ian::BuildingType::SpikeTrap,
+                    &ian::BuildingInstance::type) == 4,
+            "all green trap cells commit in one tick across an existing platform edge");
+        require(simulation->snapshot().platformFrames.size() == saved.platformFrames.size() + 2,
+            "four trap cells need only the two new platforms shown in the staged preview");
+        for (const auto& event : simulation->takeEvents()) require(event.type != ian::GameEventType::BuildingRejected,
+            "green drag cells do not emit a failed placement event");
+
+        saved.runUpgradeStacks[ian::runUpgradeIndex(*ian::buildingRunUpgrade(ian::BuildingType::SpikeTrap))] = 1;
+        saved.runUpgradePower[ian::runUpgradeIndex(*ian::buildingRunUpgrade(ian::BuildingType::SpikeTrap))] = 1;
+        saved.wood = saved.stone = saved.crystals = 200;
+        auto limited = std::make_unique<ian::Simulation>(balance, map, world);
+        require(limited->loadSuspendedRunState(saved), "drag limit fixture restores a regular run");
+        const auto limitLine = limited->previewBuildingLine(ian::BuildingType::SpikeTrap, cells, 0, platform->floorHeight);
+        require(limitLine[0].placement.valid() && limitLine[1].placement.valid() && limitLine[2].placement.valid() &&
+                limitLine[3].placement.error == ian::PlacementError::LimitReached,
+            "drag preview reserves defense slots and marks the cell exceeding the Core limit");
+        limited->tick(1.0/60.0, commands(limitLine));
+        require(std::ranges::count(limited->snapshot().buildings, ian::BuildingType::SpikeTrap,
+                    &ian::BuildingInstance::type) == 3,
+            "the affordable supported prefix commits up to its previewed defense limit");
+
+        const std::array raisedCells{ian::GridPosition{2, 4}, ian::GridPosition{3, 4}, ian::GridPosition{4, 4}};
+        const double raisedHeight = platform->floorHeight + 1;
+        // Derive the exact combined budget from an empty, unlimited staging fixture.
+        auto reference = std::make_unique<ian::Simulation>(balance, map, world);
+        require(reference->loadSuspendedRunState(saved), "drag budget fixture restores construction");
+        ian::PlayerCommand unlimited;
+        unlimited.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+        reference->tick(1.0/60.0, unlimited);
+        const auto costLine = reference->previewBuildingLine(ian::BuildingType::SpikeTrap, raisedCells, 0, raisedHeight);
+        require(costLine[0].placement.valid() && costLine[1].placement.valid() && costLine[0].foundationPreview &&
+                !costLine[1].foundationPreview && costLine[0].placement.cost.wood > costLine[1].placement.cost.wood,
+            "an elevated drag charges a new platform once and reuses it for the next trap");
+        const std::array duplicateCells{ian::GridPosition{1, 4}, ian::GridPosition{1, 4}, ian::GridPosition{2, 4}};
+        const auto duplicateLine = reference->previewBuildingLine(ian::BuildingType::SpikeTrap,
+            duplicateCells, 0, platform->floorHeight);
+        require(duplicateLine[0].placement.valid() && duplicateLine[1].placement.error == ian::PlacementError::Occupied &&
+                duplicateLine[2].placement.valid(),
+            "rejected cells reserve neither a building slot nor resources for the rest of the drag");
+        const std::array turretCells{ian::GridPosition{1, 5}, ian::GridPosition{3, 5}, ian::GridPosition{5, 5}};
+        const auto turretLine = reference->previewBuildingLine(ian::BuildingType::GunTurret,
+            turretCells, 0, platform->floorHeight);
+        require(std::ranges::all_of(turretLine, [](const auto& p) { return p.placement.valid(); }),
+            "2x2 defense drag validates existing and newly created supports");
+        reference->tick(1.0/60.0, commands(turretLine));
+        require(std::ranges::count(reference->snapshot().buildings, ian::BuildingType::GunTurret,
+                    &ian::BuildingInstance::type) == 3,
+            "all green 2x2 defenses commit on their individual platforms");
+        auto blockedSaved = saved;
+        blockedSaved.coreBuildRadius = map.coreBuildRadius + 8;
+        blockedSaved.resourceNodes = {{
+            .id = {0, 1}, .type = ian::ResourceType::Stone, .position = {1.75, 0, 6.75},
+            .radius = .2, .groundOffset = 0, .health = 20, .maxHealth = 20,
+            .yield = 10, .yieldRemaining = 10, .respawnSeconds = 30, .respawnRemaining = 0,
+            .active = true,
+        }};
+        auto blockedMap = map;
+        blockedMap.resources = {{.type = ian::ResourceType::Stone, .position = {1.75, 0, 6.75},
+            .radius = .2, .health = 20, .yield = 10, .respawnSeconds = 30}};
+        auto aligned = std::make_unique<ian::Simulation>(balance, blockedMap, world);
+        require(aligned->loadSuspendedRunState(blockedSaved), "aligned wall drag fixture restores a stone near one side");
+        aligned->tick(1.0/60.0, unlimited);
+        const std::array wallCells{ian::GridPosition{0, 5}, ian::GridPosition{0, 6},
+            ian::GridPosition{0, 7}, ian::GridPosition{0, 8}, ian::GridPosition{0, 9}};
+        const auto isolatedSupport = aligned->previewBuildingFoundation(ian::BuildingType::Wall,
+            wallCells[1], platform->floorHeight);
+        require(isolatedSupport && isolatedSupport->valid() && isolatedSupport->anchor.x == -1,
+            "a single compact building can choose a valid alternative support containing its actual cell");
+        const auto wallLine = aligned->previewBuildingLine(ian::BuildingType::Wall, wallCells, 0, platform->floorHeight);
+        require(std::ranges::all_of(wallLine, [](const auto& p) { return p.placement.valid(); }),
+            "wall drag shifts its support row away from a resource blocking the original lattice");
+        require(wallLine[1].foundationPreview && wallLine[1].foundationPreview->anchor.x == -1 &&
+                wallLine[3].foundationPreview && wallLine[3].foundationPreview->anchor.x == -1 &&
+                !wallLine[2].foundationPreview && !wallLine[4].foundationPreview,
+            "the alternative wall plan stays straight and shares its 2x2 foundations");
+        aligned->tick(1.0/60.0, commands(wallLine));
+        require(std::ranges::count(aligned->snapshot().buildings, ian::BuildingType::Wall,
+                    &ian::BuildingInstance::type) == 5,
+            "the complete shifted wall drag commits with the previewed support anchors");
+        for (const bool alongX : {false, true}) {
+            for (const bool reverse : {false, true}) {
+                auto gap = std::make_unique<ian::Simulation>(balance, map, world);
+                gap->startSandboxRun(ian::PlayerClass::Vanguard);
+                gap->tick(1.0/60.0, core);
+                resolveLevelUps(*gap);
+                const int start = reverse ? 6 : 4;
+                const int neighbor = reverse ? 4 : 6;
+                const auto support = gap->placeFoundation(alongX
+                    ? ian::Vec3{start + .2, 0, .2} : ian::Vec3{.2, 0, start + .2});
+                require(support.has_value(), "gap fixture places the starting platform");
+                const auto adjacent = gap->placeFoundationAtHeight(alongX
+                    ? ian::Vec3{neighbor + .2, 0, 1.2} : ian::Vec3{1.2, 0, neighbor + .2},
+                    support->floorHeight);
+                require(adjacent.has_value(), "gap fixture places an offset neighboring platform");
+                const int first = reverse ? 6 : 5;
+                const int second = reverse ? 5 : 6;
+                const std::array gapCells{alongX ? ian::GridPosition{first, 0} : ian::GridPosition{0, first},
+                                         alongX ? ian::GridPosition{second, 0} : ian::GridPosition{0, second}};
+                const auto line = gap->previewBuildingLine(ian::BuildingType::Wall, gapCells, 0, support->floorHeight);
+                require(line.size() == 2 && line[0].placement.valid() && line[1].placement.valid(),
+                    "two fences fit against offset pallets in both axes and drag directions");
+                require(line[1].foundationPreview &&
+                        (alongX ? line[1].foundationPreview->anchor.z : line[1].foundationPreview->anchor.x) == -1,
+                    "the new platform moves one cell sideways to avoid an unfillable gap");
+                require(gap->snapshot().platformFrames.size() == 3,
+                    "alternative support planning never installs preview platforms in the live world");
+                gap->tick(1.0/60.0, commands(line));
+                require(std::ranges::count(gap->snapshot().buildings, ian::BuildingType::Wall,
+                            &ian::BuildingInstance::type) == 2 && gap->snapshot().platformFrames.size() == 4,
+                    "both previewed fences commit on exactly one new shifted platform");
+                for (const auto& event : gap->takeEvents()) require(event.type != ian::GameEventType::BuildingRejected,
+                    "shifted fence previews do not fail when committed");
+            }
+        }
+        saved.wood = costLine[0].placement.cost.wood + costLine[1].placement.cost.wood;
+        saved.stone = costLine[0].placement.cost.stone + costLine[1].placement.cost.stone;
+        saved.crystals = costLine[0].placement.cost.crystals + costLine[1].placement.cost.crystals;
+        auto budgeted = std::make_unique<ian::Simulation>(balance, map, world);
+        require(budgeted->loadSuspendedRunState(saved), "drag budget fixture restores exact resources");
+        const auto budgetLine = budgeted->previewBuildingLine(ian::BuildingType::SpikeTrap, raisedCells, 0, raisedHeight);
+        require(budgetLine[0].placement.valid() && budgetLine[1].placement.valid() &&
+                budgetLine[2].placement.error == ian::PlacementError::InsufficientResources,
+            "drag marks unaffordable cells before release including the cost of their foundations");
+        budgeted->tick(1.0/60.0, commands(budgetLine));
+        require(std::ranges::count(budgeted->snapshot().buildings, ian::BuildingType::SpikeTrap,
+                    &ian::BuildingInstance::type) == 2 && budgeted->snapshot().wood == 0 &&
+                budgeted->snapshot().stone == 0 && budgeted->snapshot().crystals == 0,
+            "committing a supported drag uses exactly the resources promised by its preview");
+    }
+
+    {
+        auto map = ian::MapDefinition::defaults();
         map.resources.clear();
         map.obstacles.clear();
         auto world = ian::WorldConfig::defaults();

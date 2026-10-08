@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "buildings/FoundationPlacementError.hpp"
 
 #include "buildings/CoreProgression.hpp"
 #include "core/SaturatingArithmetic.hpp"
@@ -39,21 +40,25 @@ PlacementResult Simulation::validatePlacement(
 
 PlacementResult Simulation::validatePlacement(
     BuildingType type, GridPosition position,
-    const BuildingPlatformSurface& surface) const {
+    const BuildingPlatformSurface& surface, const FoundationSystem* plannedFoundations,
+    const BuildingSystem* plannedBuildings, std::optional<ResourceCost> available) const {
+    const auto& foundations = plannedFoundations ? *plannedFoundations : foundations_;
+    const auto& buildings = plannedBuildings ? *plannedBuildings : buildings_;
+    const ResourceCost budget = available.value_or(ResourceCost{wood_, stone_, crystals_});
     if (!buildingUnlocked(type)) {
-        const bool corePlaced = buildings_.core().has_value();
+        const bool corePlaced = buildings.core().has_value();
         return {
             corePlaced ? PlacementError::BlueprintRequired
                        : PlacementError::CoreRequired,
-            buildings_.configuredCost(type),
+            buildings.configuredCost(type),
         };
     }
     const int availableWood =
-        unlimitedResources_ ? std::numeric_limits<int>::max() : wood_;
+        unlimitedResources_ ? std::numeric_limits<int>::max() : budget.wood;
     const int availableStone =
-        unlimitedResources_ ? std::numeric_limits<int>::max() : stone_;
+        unlimitedResources_ ? std::numeric_limits<int>::max() : budget.stone;
     const int availableCurrency =
-        unlimitedResources_ ? std::numeric_limits<int>::max() : crystals_;
+        unlimitedResources_ ? std::numeric_limits<int>::max() : budget.crystals;
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     const int footprintWidth = twoByTwo ? 2 : 1;
@@ -63,11 +68,11 @@ PlacementResult Simulation::validatePlacement(
         twoByTwo ? position.z - 1 : position.z;
     const bool partialPlatformSupport =
         surface.storey < 0 &&
-        foundations_.buildingFootprintIntersectsPlatform(
+        foundations.buildingFootprintIntersectsPlatform(
             footprintMinimumX, footprintMinimumZ,
             footprintWidth);
     const PlacementResult buildingValidation =
-        buildings_.validate(
+        buildings.validate(
             type, position, availableWood,
             availableStone, availableCurrency,
             surface.height);
@@ -171,13 +176,14 @@ bool Simulation::rectangleHasDeepWater(
 }
 
 BuildingPlatformSurface Simulation::placementSurface(
-    BuildingType type, GridPosition position) const {
+    BuildingType type, GridPosition position, const FoundationSystem* plannedFoundations) const {
+    const auto& foundations = plannedFoundations ? *plannedFoundations : foundations_;
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     const int widthCells = twoByTwo ? 2 : 1;
     const int minimumX = twoByTwo ? position.x - 1 : position.x;
     const int minimumZ = twoByTwo ? position.z - 1 : position.z;
-    if (const auto surface = foundations_.buildingSurface(
+    if (const auto surface = foundations.buildingSurface(
             minimumX, minimumZ, widthCells)) {
         return *surface;
     }
@@ -230,7 +236,8 @@ BuildingPlatformSurface Simulation::placementSurface(
 BuildingPlatformSurface
 Simulation::placementSurfaceWithPreferredHeight(
     BuildingType type, GridPosition position,
-    double preferredHeight) const {
+    double preferredHeight, const FoundationSystem* plannedFoundations) const {
+    const auto& foundations = plannedFoundations ? *plannedFoundations : foundations_;
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     const int widthCells = twoByTwo ? 2 : 1;
@@ -241,13 +248,13 @@ Simulation::placementSurfaceWithPreferredHeight(
         ? position.z - 1
         : position.z;
     if (const auto preferredSurface =
-            foundations_.buildingSurface(
+            foundations.buildingSurface(
                 minimumX, minimumZ, widthCells,
                 preferredHeight)) {
         return *preferredSurface;
     }
     BuildingPlatformSurface surface =
-        placementSurface(type, position);
+        placementSurface(type, position, &foundations);
     if (surface.storey >= 0) {
         return surface;
     }
@@ -263,7 +270,9 @@ Simulation::placementSurfaceWithPreferredHeight(
 std::optional<PlatformFramePlacement>
 Simulation::automaticFoundationPlacement(
     BuildingType type, GridPosition position,
-    std::optional<double> preferredHeight) const {
+    std::optional<double> preferredHeight, const FoundationSystem* plannedFoundations,
+    std::optional<GridCoord> foundationAnchor) const {
+    const auto& foundations = plannedFoundations ? *plannedFoundations : foundations_;
     const bool twoByTwo =
         buildingFootprintHalfExtent(type) > 0.75;
     GridCoord anchor{
@@ -273,22 +282,16 @@ Simulation::automaticFoundationPlacement(
     };
     // Preserve exact anchors on the one-cell grid. Compact buildings can
     // choose any of the four 2x2 supports containing their occupied cell.
-    const auto previewAtAnchor = [this, preferredHeight, twoByTwo](GridCoord candidate) {
+    const auto previewAtAnchor = [this, preferredHeight, twoByTwo, &foundations](GridCoord candidate) {
         PlatformFramePlacement placement;
         if (preferredHeight) {
-            if (twoByTwo) {
-                placement = foundations_.previewAutomaticBuildingFoundationAtHeight(
-                    candidate, *preferredHeight, playerPosition_);
-            } else {
-                const double cellSize = worldConfig_.cellSize;
-                placement = previewFoundationAtHeight(
-                    {(candidate.x + 0.5) * cellSize, *preferredHeight,
-                     (candidate.z + 0.5) * cellSize}, *preferredHeight);
-            }
+            placement = foundations.previewAutomaticBuildingFoundationAtHeight(
+                candidate, *preferredHeight, playerPosition_);
         } else {
-            placement = foundations_.previewAutomaticBuildingFoundation(
+            placement = foundations.previewAutomaticBuildingFoundation(
                 candidate, playerPosition_, GroundPlatformHeightStep);
         }
+        if (!twoByTwo) placement = validateFoundationAtHeight(placement);
         if (placement.error == ModularPlacementError::InsufficientResources ||
             placement.error == ModularPlacementError::CoreLevelRequired) {
             // Combined affordability is checked after adding building cost.
@@ -296,6 +299,25 @@ Simulation::automaticFoundationPlacement(
         }
         return placement;
     };
+    if (foundationAnchor) {
+        // A drag locks one 2x2 lattice. Do not search the opposite side of
+        // the row when its chosen support is blocked.
+        const int width = twoByTwo ? 2 : 1;
+        const int minimumX = twoByTwo ? position.x - 1 : position.x;
+        const int minimumZ = twoByTwo ? position.z - 1 : position.z;
+        if (foundationAnchor->x > minimumX || foundationAnchor->z > minimumZ ||
+            foundationAnchor->x + PlatformFrameWidthCells < minimumX + width ||
+            foundationAnchor->z + PlatformFrameWidthCells < minimumZ + width) {
+            return PlatformFramePlacement{.error = ModularPlacementError::Occupied, .anchor = *foundationAnchor};
+        }
+        auto exact = foundations.previewAutomaticBuildingFoundationAtHeight(
+            *foundationAnchor, preferredHeight.value_or(placementSurface(type, position, &foundations).height),
+            playerPosition_);
+        exact = validateFoundationAtHeight(exact);
+        if (exact.error == ModularPlacementError::InsufficientResources ||
+            exact.error == ModularPlacementError::CoreLevelRequired) exact.error = ModularPlacementError::None;
+        return exact;
+    }
     const auto placement = previewAtAnchor(anchor);
     if (placement.valid() || twoByTwo) return placement;
     constexpr std::array<GridCoord, 3> AlternativeAnchors{{
@@ -336,67 +358,167 @@ PlacementResult Simulation::previewPlacement(
         type, position, preferredHeight);
 }
 
-PlacementResult
-Simulation::previewPlacementWithOptionalHeight(
-    BuildingType type, GridPosition position,
-    std::optional<double> preferredHeight) const {
-    BuildingPlatformSurface surface =
-        preferredHeight
-            ? placementSurfaceWithPreferredHeight(
-                  type, position, *preferredHeight)
-            : placementSurface(type, position);
-    const bool needsAutomaticFoundation = surface.storey < 0;
-    if (!needsAutomaticFoundation) {
-        return validatePlacement(type, position, surface);
+BuildingPreview Simulation::previewBuildingPlacement(
+    BuildingType type, GridPosition position, std::uint8_t rotation,
+    std::optional<double> preferredHeight, const FoundationSystem& foundations,
+    const BuildingSystem& buildings, ResourceCost available,
+    std::optional<GridCoord> foundationAnchor) const {
+    auto surface = preferredHeight
+        ? placementSurfaceWithPreferredHeight(type, position, *preferredHeight, &foundations)
+        : placementSurface(type, position, &foundations);
+    const auto foundation = surface.storey < 0
+        ? automaticFoundationPlacement(type, position, preferredHeight, &foundations, foundationAnchor)
+        : std::nullopt;
+    if (foundation && foundation->valid()) {
+        surface.height = foundation->floorHeight;
+        surface.foundationBottomHeight = std::ranges::min_element(foundation->supports,
+            {}, [](const FoundationSupport& support) { return support.bottom.y; })->bottom.y;
     }
-    const auto automaticFoundation =
-        automaticFoundationPlacement(
-            type, position, preferredHeight);
-    PlacementResult placement =
-        validatePlacement(type, position, surface);
-    if (!automaticFoundation || !automaticFoundation->valid()) {
-        if (placement.valid() && automaticFoundation) {
-            placement.error =
-                automaticFoundation->error ==
-                        ModularPlacementError::ResourceBlocked
-                    ? PlacementError::ResourceBlocked
-                    : PlacementError::WorldCollision;
-        }
-        return placement;
+    auto placement = validatePlacement(type, position, surface, &foundations, &buildings, available);
+    if (foundation && !foundation->valid() && placement.valid()) {
+        placement.error = foundationPlacementError(foundation->error);
     }
-    surface.height = automaticFoundation->floorHeight;
-    surface.foundationBottomHeight =
-        std::min_element(
-            automaticFoundation->supports.begin(),
-            automaticFoundation->supports.end(),
-            [](const FoundationSupport& left,
-               const FoundationSupport& right) {
-                return left.bottom.y < right.bottom.y;
-            })
-            ->bottom.y;
-    placement = validatePlacement(type, position, surface);
-    if (foundationAddsPlacementCost(*automaticFoundation)) {
-        const ResourceCost foundationCost =
-            modularBuildingCosts_[static_cast<std::size_t>(
-                ModularBuildPiece::Foundation)];
-        placement.cost = {
-            saturatingAdd(placement.cost.wood, foundationCost.wood),
-            saturatingAdd(placement.cost.stone, foundationCost.stone),
-            saturatingAdd(placement.cost.crystals, foundationCost.crystals),
-        };
+    if (foundation && foundation->valid() && foundationAddsPlacementCost(*foundation)) {
+        const auto cost = modularBuildingCosts_[static_cast<std::size_t>(ModularBuildPiece::Foundation)];
+        placement.cost = {saturatingAdd(placement.cost.wood, cost.wood),
+            saturatingAdd(placement.cost.stone, cost.stone),
+            saturatingAdd(placement.cost.crystals, cost.crystals)};
     }
     if (placement.valid() && !unlimitedResources_ &&
-        (wood_ < placement.cost.wood ||
-         stone_ < placement.cost.stone ||
-         crystals_ < placement.cost.crystals)) {
+        !canAfford(placement.cost, available.wood, available.stone, available.crystals)) {
         placement.error = PlacementError::InsufficientResources;
     }
-    return placement;
+    return {.type = type, .gridPosition = position, .rotation = rotation, .placement = placement,
+        .baseHeight = surface.height, .platformStorey = surface.storey,
+        .foundationBottomHeight = surface.foundationBottomHeight, .foundationPreview = foundation};
+}
+
+PlacementResult Simulation::previewPlacementWithOptionalHeight(
+    BuildingType type, GridPosition position, std::optional<double> preferredHeight) const {
+    return previewBuildingPlacement(type, position, 0, preferredHeight,
+        foundations_, buildings_, {wood_, stone_, crystals_}).placement;
+}
+
+std::vector<BuildingPreview> Simulation::previewBuildingLine(
+    BuildingType type, std::span<const GridPosition> cells,
+    std::uint8_t rotation, double preferredHeight) const {
+    // Stage only construction state, never copy or tick the game world.
+    // Later cells reuse earlier 2x2 supports and consume the remaining budget/slots.
+    if (cells.empty()) return {};
+    if (cells.size() == 1U) {
+        return {previewBuildingPlacement(type, cells.front(), rotation, preferredHeight,
+            foundations_, buildings_, {wood_, stone_, crystals_})};
+    }
+    const bool compact = buildingFootprintHalfExtent(type) < 0.75;
+    const bool alongX = std::abs(cells.back().x - cells.front().x) >=
+                        std::abs(cells.back().z - cells.front().z);
+    std::optional<GridCoord> initialOrigin;
+    const auto plan = [&](std::optional<GridCoord> origin) {
+        auto foundations = foundations_;
+        auto buildings = buildings_;
+        ResourceCost available{wood_, stone_, crystals_};
+        std::vector<BuildingPreview> result;
+        result.reserve(cells.size());
+        std::optional<GridCoord> lineOrigin = origin;
+        for (const auto cell : cells) {
+            std::optional<GridCoord> alignedAnchor;
+            if (compact && lineOrigin) {
+                alignedAnchor = *lineOrigin;
+                const auto alignedAxis = [](int cellAxis, int originAxis) {
+                    return originAxis + static_cast<int>(std::floor(
+                        static_cast<double>(cellAxis - originAxis) / PlatformFrameWidthCells)) * PlatformFrameWidthCells;
+                };
+                if (alongX) alignedAnchor->x = alignedAxis(cell.x, lineOrigin->x);
+                else alignedAnchor->z = alignedAxis(cell.z, lineOrigin->z);
+            }
+            auto preview = previewBuildingPlacement(type, cell, rotation, preferredHeight,
+                foundations, buildings, available, alignedAnchor);
+            if (compact && !lineOrigin && preview.placement.valid()) {
+                if (preview.foundationPreview) lineOrigin = preview.foundationPreview->anchor;
+                else for (const auto& frame : foundations.platformFrames()) {
+                    if (frame.storey == preview.platformStorey && std::abs(frame.floorHeight - preview.baseHeight) < 0.05 &&
+                        frame.anchor.x <= cell.x && frame.anchor.x + PlatformFrameWidthCells > cell.x &&
+                        frame.anchor.z <= cell.z && frame.anchor.z + PlatformFrameWidthCells > cell.z) {
+                        lineOrigin = frame.anchor;
+                        break;
+                    }
+                }
+            }
+            if (preview.placement.valid()) {
+                std::optional<PlatformFrameInstance> created;
+                if (preview.foundationPreview) {
+                    created = foundations.placePlatformFrame(*preview.foundationPreview);
+                    if (!created) preview.placement.error = PlacementError::WorldCollision;
+                }
+                const auto surface = placementSurfaceWithPreferredHeight(type, cell,
+                    preview.baseHeight, &foundations);
+                if (preview.placement.valid()) {
+                    const auto placed = buildings.place(type, cell, rotation,
+                        unlimitedResources_ ? std::numeric_limits<int>::max() : available.wood,
+                        unlimitedResources_ ? std::numeric_limits<int>::max() : available.stone,
+                        unlimitedResources_ ? std::numeric_limits<int>::max() : available.crystals,
+                        surface.height, surface.storey, surface.foundationBottomHeight);
+                    if (!placed) preview.placement.error = PlacementError::WorldCollision;
+                }
+                if (preview.placement.valid() && !unlimitedResources_) {
+                    available.wood -= preview.placement.cost.wood;
+                    available.stone -= preview.placement.cost.stone;
+                    available.crystals -= preview.placement.cost.crystals;
+                } else if (!preview.placement.valid() && created) {
+                    static_cast<void>(foundations.remove(created->id));
+                }
+            }
+            result.push_back(std::move(preview));
+        }
+        if (!initialOrigin) initialOrigin = lineOrigin;
+        return result;
+    };
+    auto result = plan(std::nullopt);
+    if (!compact || std::ranges::all_of(result, [](const BuildingPreview& preview) {
+            return preview.placement.valid();
+        })) return result;
+    const GridCoord original = initialOrigin.value_or(GridCoord{cells.front().x, 0, cells.front().z});
+
+    // Compare the four consistent 2x2 lattices containing this row. Moving
+    // its foundations by one cell can close a gap against an existing pallet.
+    // Select one plan for the entire drag, rather than zigzagging each support.
+    const auto quality = [](const std::vector<BuildingPreview>& previews) {
+        int valid = 0;
+        int foundations = 0;
+        for (const auto& preview : previews) {
+            if (!preview.placement.valid()) continue;
+            ++valid;
+            if (preview.foundationPreview) ++foundations;
+        }
+        return std::pair{valid, -foundations};
+    };
+    for (int phase = 1; phase < 4; ++phase) {
+        auto origin = original;
+        if (phase & 1) {
+            if (alongX) ++origin.x;
+            else ++origin.z;
+        }
+        if (phase & 2) {
+            if (alongX) origin.z = original.z == cells.front().z ? cells.front().z - 1 : cells.front().z;
+            else origin.x = original.x == cells.front().x ? cells.front().x - 1 : cells.front().x;
+        }
+        auto alternative = plan(origin);
+        if (quality(alternative) > quality(result)) result = std::move(alternative);
+    }
+    return result;
 }
 
 BuildingPlatformSurface Simulation::previewPlacementSurface(
     BuildingType type, GridPosition position) const {
     return placementSurface(type, position);
+}
+
+std::optional<PlatformFramePlacement> Simulation::previewBuildingFoundation(
+    BuildingType type, GridPosition position, std::optional<double> preferredHeight) const {
+    const auto surface = preferredHeight ? placementSurfaceWithPreferredHeight(type, position, *preferredHeight)
+        : placementSurface(type, position);
+    if (surface.storey >= 0) return std::nullopt;
+    return automaticFoundationPlacement(type, position, preferredHeight);
 }
 
 BuildingPlatformSurface Simulation::previewPlacementSurface(
