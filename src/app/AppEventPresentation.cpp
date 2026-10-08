@@ -288,7 +288,7 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::FireWandImpact) {
             addEffect(
                 PresentationEffectType::FireImpact,
-                event.position, 0.62, 1.0F, event.entityId);
+                event.position, 0.72, 0.72F, event.entityId);
             const double distance = std::hypot(
                 event.position.x - eventSnapshot.playerPosition.x,
                 event.position.z - eventSnapshot.playerPosition.z);
@@ -818,7 +818,10 @@ void App::processPresentationEvents(
                 event.position.z - eventSnapshot.playerPosition.z);
             const double proximity = std::clamp(
                 1.0 - distance / 30.0, 0.0, 1.0);
-            addEffect(PresentationEffectType::Explosion, event.position, 1.25);
+            const float blastScale = static_cast<float>(std::clamp(
+                (event.intensity > 0.0 ? event.intensity : 2.5) / 2.5, 0.60, 1.65));
+            addEffect(PresentationEffectType::Explosion, event.position, 0.90,
+                      blastScale, event.entityId);
             const double burnRadius = event.intensity > 0.0
                 ? event.intensity
                 : 4.0;

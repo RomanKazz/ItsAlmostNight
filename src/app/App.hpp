@@ -341,7 +341,6 @@ class App {
     ShaderResource vfxImpactShader_;
     int vfxImpactUseTextureLocation_{-1};
     TextureResource vfxImpactTexture_;
-    TextureResource vfxExplosionTexture_;
     TextureResource vfxElectricRingTexture_;
     TextureResource resourceImpactTexture_;
     GameUi ui_;

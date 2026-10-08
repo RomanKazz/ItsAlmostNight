@@ -258,15 +258,12 @@ int App::run() {
     }
     static_cast<void>(vfxImpactTexture_.load(
         "assets/vfx/brackeys/impact_6x5.png"));
-    static_cast<void>(vfxExplosionTexture_.load(
-        "assets/vfx/brackeys/explosion_6x5.png"));
     static_cast<void>(vfxElectricRingTexture_.load(
         "assets/vfx/brackeys/electric_ring_6x5.png"));
     static_cast<void>(resourceImpactTexture_.load(
         "assets/vfx/stone_crack.png"));
     for (TextureResource* texture : {
              &vfxImpactTexture_,
-             &vfxExplosionTexture_,
              &vfxElectricRingTexture_, &resourceImpactTexture_}) {
         if (texture->valid()) {
             SetTextureFilter(texture->get(), TEXTURE_FILTER_BILINEAR);
@@ -456,7 +453,6 @@ int App::run() {
     audio_.shutdown();
     vfxImpactShader_.unload();
     vfxImpactTexture_.unload();
-    vfxExplosionTexture_.unload();
     vfxElectricRingTexture_.unload();
     resourceImpactTexture_.unload();
     modularBuildingRenderer_.setRenderer(nullptr);

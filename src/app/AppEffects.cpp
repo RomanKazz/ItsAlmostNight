@@ -158,6 +158,200 @@ void drawLightningArc(
     }
 }
 
+struct ExplosionSphereVertex {
+    Vector3 unit;
+    int shade;
+};
+
+const auto& explosionSphereVertices() {
+    // One shared low-poly sphere, reused by every cloud and ember. No mesh
+    // allocation, per-puff draw call, or per-vertex trigonometry during combat.
+    static const auto vertices = [] {
+        constexpr int Slices = 12;
+        constexpr int Rings = 6;
+        std::array<ExplosionSphereVertex, Slices * (Rings - 1) * 6> result{};
+        std::size_t count = 0;
+        const auto point = [](int ring, int slice) {
+            const float latitude = -PI * 0.5F + PI * static_cast<float>(ring) / Rings;
+            const float longitude = PI * 2.0F * static_cast<float>(slice) / Slices;
+            return Vector3{std::cos(latitude) * std::cos(longitude),
+                           std::sin(latitude),
+                           std::cos(latitude) * std::sin(longitude)};
+        };
+        const auto append = [&](Vector3 unit) {
+            const float light = Vector3DotProduct(unit, {-0.42F, 0.82F, 0.38F});
+            result[count++] = {unit, light > 0.58F ? 2 : light > -0.12F ? 1 : 0};
+        };
+        for (int ring = 0; ring < Rings; ++ring) {
+            for (int slice = 0; slice < Slices; ++slice) {
+                const Vector3 a = point(ring, slice);
+                const Vector3 b = point(ring + 1, slice);
+                const Vector3 c = point(ring + 1, slice + 1);
+                const Vector3 d = point(ring, slice + 1);
+                if (ring < Rings - 1) { append(a); append(b); append(c); }
+                if (ring > 0) { append(a); append(c); append(d); }
+            }
+        }
+        return result;
+    }();
+    return vertices;
+}
+
+struct ExplosionPuff {
+    Vector3 position;
+    Vector3 size;
+    std::array<Color, 3> palette;
+    float cameraDepth;
+};
+
+void emitExplosionPuff(const ExplosionPuff& puff) {
+    for (const auto& vertex : explosionSphereVertices()) {
+        const Color color = puff.palette[static_cast<std::size_t>(vertex.shade)];
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlNormal3f(vertex.unit.x, vertex.unit.y, vertex.unit.z);
+        rlVertex3f(puff.position.x + vertex.unit.x * puff.size.x,
+                   puff.position.y + vertex.unit.y * puff.size.y,
+                   puff.position.z + vertex.unit.z * puff.size.z);
+    }
+}
+
+void emitCartoonExplosion(
+    Vector3 origin, float groundHeight, float progress, float scale,
+    std::uint32_t seed, bool detailed, Vector3 cameraPosition,
+    Vector3 cameraForward, Vector3 cameraRight, Vector3 cameraUp) {
+    progress = std::clamp(progress, 0.0F, 1.0F);
+    if (progress >= 1.0F || scale <= 0.0F) return;
+    const auto random = [seed](int index, int channel) {
+        return atmosphereUnit(seed + static_cast<std::uint32_t>(index) * 0x9e3779b9U +
+                              static_cast<std::uint32_t>(channel) * 0x85ebca6bU);
+    };
+    const auto vertex = [](Vector3 point, Color color) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(point.x, point.y, point.z);
+    };
+
+    // A broad, short pressure ring, rather than several thin wire circles.
+    const float ringFade = 1.0F - smoothstep(0.12F, 0.38F, progress);
+    if (ringFade > 0.01F && origin.y - groundHeight < scale * 2.2F) {
+        constexpr int Segments = 32;
+        const float travel = 1.0F - std::pow(1.0F - std::min(progress / 0.38F, 1.0F), 3.0F);
+        const float radius = scale * (0.18F + travel * 2.3F);
+        const float width = scale * (0.04F + 0.13F * ringFade);
+        const Vector3 center{origin.x, groundHeight + 0.045F, origin.z};
+        const Color color{255, 226, 146, atmosphereAlpha(ringFade * 0.72F)};
+        rlNormal3f(0, 1, 0);
+        for (int index = 0; index < Segments; ++index) {
+            const float a = static_cast<float>(index) * 2.0F * PI / Segments;
+            const float b = static_cast<float>(index + 1) * 2.0F * PI / Segments;
+            const auto point = [center](float angle, float distance) {
+                return Vector3{center.x + std::cos(angle) * distance, center.y,
+                               center.z + std::sin(angle) * distance};
+            };
+            const Vector3 innerA = point(a, std::max(0.0F, radius - width));
+            const Vector3 innerB = point(b, std::max(0.0F, radius - width));
+            const Vector3 outerA = point(a, radius);
+            const Vector3 outerB = point(b, radius);
+            vertex(innerA, color); vertex(innerB, color); vertex(outerA, color);
+            vertex(outerA, color); vertex(innerB, color); vertex(outerB, color);
+        }
+    }
+
+    std::array<ExplosionPuff, 19> puffs{};
+    std::size_t puffCount = 0;
+    const auto addPuff = [&](Vector3 position, Vector3 size,
+                             std::array<Color, 3> palette, float opacity) {
+        if (opacity < 0.015F || size.x < 0.005F) return;
+        for (Color& color : palette) color.a = atmosphereAlpha(opacity);
+        puffs[puffCount++] = {position, size, palette,
+            Vector3DotProduct(Vector3Subtract(position, cameraPosition), cameraForward)};
+    };
+    constexpr std::array<Color, 3> Fire{{{236, 79, 28, 255},
+        {255, 159, 40, 255}, {255, 224, 117, 255}}};
+    constexpr std::array<Color, 3> Smoke{{{115, 104, 128, 255},
+        {174, 162, 181, 255}, {232, 221, 213, 255}}};
+    const int cloudCount = detailed ? 9 : 5;
+    for (int index = 0; index < cloudCount; ++index) {
+        const float delay = index == 0 ? 0.0F : random(index, 1) * 0.08F;
+        const float local = std::clamp((progress - delay) / (1.0F - delay), 0.0F, 1.0F);
+        const float pop = smoothstep(0.0F, 0.12F, local);
+        const float disappear = 1.0F - smoothstep(0.55F, 1.0F, local);
+        const float heatLoss = smoothstep(0.20F, 0.54F, local);
+        const float travel = 1.0F - std::pow(1.0F - local, 3.0F);
+        const float angle = static_cast<float>(index) * 2.399963F + random(index, 2) * 0.5F;
+        const float distance = index == 0 ? 0.0F : scale * travel *
+            (0.58F + random(index, 3) * 1.05F);
+        const float size = scale * (index == 0 ? 0.86F : 0.42F + random(index, 4) * 0.30F) *
+            (0.16F + pop * 0.84F) * (1.0F + local * 0.22F) * disappear;
+        std::array<Color, 3> palette{};
+        for (std::size_t shade = 0; shade < palette.size(); ++shade)
+            palette[shade] = ColorLerp(Fire[shade], Smoke[shade], heatLoss);
+        addPuff({origin.x + std::cos(angle) * distance,
+                 origin.y + scale * (0.26F + pop * 0.22F + local *
+                     (index == 0 ? 1.7F : 0.75F + random(index, 5) * 1.2F)),
+                 origin.z + std::sin(angle) * distance},
+                {size, size * (0.90F + local * 0.18F), size}, palette,
+                pop * (1.0F - smoothstep(0.70F, 1.0F, local)) * 0.98F);
+    }
+    if (detailed) {
+        for (int index = 0; index < 4; ++index) {
+            const float travel = 1.0F - std::pow(1.0F - progress, 4.0F);
+            const float angle = random(index, 12) * 2.0F * PI;
+            const float distance = scale * travel * (1.1F + random(index, 13) * 1.1F);
+            const float fade = 1.0F - smoothstep(0.30F, 0.78F, progress);
+            const float size = scale * (0.20F + random(index, 14) * 0.14F) *
+                smoothstep(0.0F, 0.09F, progress) * fade;
+            addPuff({origin.x + std::cos(angle) * distance,
+                     groundHeight + size * 0.50F + scale * progress * 0.30F,
+                     origin.z + std::sin(angle) * distance},
+                    {size * 1.25F, size * 0.7F, size}, Smoke, fade * 0.85F);
+        }
+        constexpr std::array<Color, 3> Ember{{{248, 127, 29, 255},
+            {255, 212, 70, 255}, {255, 245, 183, 255}}};
+        for (int index = 0; index < 6; ++index) {
+            const float angle = random(index, 20) * 2.0F * PI;
+            const float distance = scale * progress * (2.4F + random(index, 21) * 1.8F);
+            const float fade = 1.0F - smoothstep(0.25F, 0.62F, progress);
+            const float size = scale * (0.055F + random(index, 22) * 0.04F) * fade;
+            addPuff({origin.x + std::cos(angle) * distance,
+                     origin.y + scale * (0.18F + progress *
+                         (2.2F + random(index, 23) * 1.7F) - progress * progress * 3.1F),
+                     origin.z + std::sin(angle) * distance},
+                    {size, size * 1.5F, size}, Ember, fade);
+        }
+    }
+    // Far-to-near alpha clouds, with depth testing against the world but no
+    // depth writes: an almost vanished puff must never cut holes in another.
+    std::sort(puffs.begin(), puffs.begin() + static_cast<std::ptrdiff_t>(puffCount),
+        [](const ExplosionPuff& a, const ExplosionPuff& b) { return a.cameraDepth > b.cameraDepth; });
+    for (std::size_t index = 0; index < puffCount; ++index) emitExplosionPuff(puffs[index]);
+
+    const float flash = 1.0F - smoothstep(0.06F, 0.22F, progress);
+    if (flash > 0.01F) {
+        const float radius = scale * (0.22F + smoothstep(0.0F, 0.07F, progress) * 1.04F) * flash;
+        const Vector3 center = Vector3Subtract(
+            Vector3Add(origin, {0, scale * 0.45F, 0}), Vector3Scale(cameraForward, scale * 0.9F));
+        rlNormal3f(-cameraForward.x, -cameraForward.y, -cameraForward.z);
+        for (int layer = 0; layer < 2; ++layer) {
+            const Color color = layer == 0 ? Color{255, 139, 37, atmosphereAlpha(flash)}
+                                          : Color{255, 248, 206, atmosphereAlpha(flash)};
+            const Vector3 layerCenter = Vector3Subtract(center,
+                Vector3Scale(cameraForward, static_cast<float>(layer) * 0.01F));
+            for (int index = 0; index < 24; ++index) {
+                const auto point = [&](int corner) {
+                    const float angle = static_cast<float>(corner) * 2.0F * PI / 24.0F;
+                    const float length = radius * (layer == 0 ? 1.0F : 0.72F) *
+                        (corner % 2 == 0 ? 0.82F + random(corner % 24, 30) * 0.18F : 0.40F);
+                    return Vector3Add(layerCenter, Vector3Add(
+                        Vector3Scale(cameraRight, std::cos(angle) * length),
+                        Vector3Scale(cameraUp, std::sin(angle) * length)));
+                };
+                vertex(layerCenter, color); vertex(point(index), color); vertex(point(index + 1), color);
+            }
+        }
+    }
+}
+
+
 } // namespace
 
 void App::drawPresentationEffects(
@@ -436,13 +630,65 @@ void App::drawPresentationEffects(
         endAdditiveEffectPass(vfxImpactShader_.get());
     }
 
-    const std::size_t activeExplosionCount =
-        static_cast<std::size_t>(std::ranges::count_if(
-            effects_, [](const PresentationEffect& effect) {
-                return effect.startDelayRemaining <= 0.0 &&
-                    effect.type == PresentationEffectType::Explosion;
-            }));
-    std::size_t explosionOrdinal = 0U;
+    struct ExplosionDraw {
+        const PresentationEffect* effect{};
+        float distanceSquared{};
+        bool detailed{};
+    };
+    std::array<ExplosionDraw, 128> explosions{};
+    std::size_t explosionCount = 0;
+    const float maximumExplosionDistance = lighting.fogEnd + 6.0F;
+    for (auto it = effects_.rbegin(); it != effects_.rend(); ++it) {
+        if (it->startDelayRemaining > 0.0 ||
+            (it->type != PresentationEffectType::Explosion &&
+             it->type != PresentationEffectType::FireImpact)) continue;
+        const Vector3 delta{static_cast<float>(it->position.x) - camera.position.x,
+                            static_cast<float>(it->position.y) - camera.position.y,
+                            static_cast<float>(it->position.z) - camera.position.z};
+        const float distanceSquared = Vector3LengthSqr(delta);
+        if (distanceSquared > maximumExplosionDistance * maximumExplosionDistance ||
+            Vector3DotProduct(delta, cameraForward) < -it->scale * 3.0F) continue;
+        if (explosionCount == explosions.size()) break;
+        // Only the four newest visible blasts get the extra dust and embers.
+        explosions[explosionCount] = {&*it, distanceSquared,
+            renderer_->settings().particles && explosionCount < 4U};
+        ++explosionCount;
+    }
+    if (explosionCount > 0) {
+        std::sort(explosions.begin(), explosions.begin() + static_cast<std::ptrdiff_t>(explosionCount),
+            [](const ExplosionDraw& a, const ExplosionDraw& b) {
+                return a.distanceSquared > b.distanceSquared;
+            });
+        renderer_->beginWorldShader(lighting);
+        WorldMaterialState cloudMaterial{};
+        cloudMaterial.unlitAmount = 1.0F;
+        cloudMaterial.screenAoAmount = 0.0F;
+        cloudMaterial.inkOutlineEligible = false;
+        cloudMaterial.inkOccluder = true;
+        renderer_->setWorldMaterial(cloudMaterial);
+        BeginBlendMode(BLEND_ALPHA);
+        rlDisableDepthMask();
+        rlSetTexture(0);
+        rlBegin(RL_TRIANGLES);
+        for (std::size_t index = 0; index < explosionCount; ++index) {
+            const auto& draw = explosions[index];
+            const PresentationEffect& effect = *draw.effect;
+            const Vector3 origin{static_cast<float>(effect.position.x),
+                                 static_cast<float>(effect.position.y),
+                                 static_cast<float>(effect.position.z)};
+            const float progress = static_cast<float>(1.0 - effect.remaining / effect.duration);
+            const auto seed = effect.entityId ? effect.entityId->index :
+                static_cast<std::uint32_t>(effect.variant);
+            emitCartoonExplosion(origin, static_cast<float>(simulation_.terrain().getHeight(
+                origin.x, origin.z)), progress, effect.scale, seed, draw.detailed,
+                camera.position, cameraForward, cameraRight, billboardUp);
+        }
+        rlEnd();
+        rlDrawRenderBatchActive();
+        rlEnableDepthMask();
+        EndBlendMode();
+        renderer_->endWorldShader();
+    }
     for (const auto& effect : effects_) {
         if (effect.startDelayRemaining > 0.0) {
             continue;
@@ -864,67 +1110,6 @@ void App::drawPresentationEffects(
                     effect.scale *
                         (0.035F + fade * 0.045F),
                     {106, 255, 158, alpha});
-            }
-            EndBlendMode();
-            continue;
-        }
-        if (effect.type == PresentationEffectType::FireImpact) {
-            const float fade = 1.0F - smoothstep(0.42F, 1.0F, progress);
-            const float shock = 1.0F - smoothstep(0.05F, 0.62F, progress);
-            const float travel = smoothstep(0.0F, 0.34F, progress);
-            BeginBlendMode(BLEND_ADDITIVE);
-            for (int layer = 0; layer < 3; ++layer) {
-                const float layerIndex = static_cast<float>(layer);
-                DrawCircle3D(
-                    {origin.x, origin.y + 0.025F + layerIndex * 0.014F,
-                     origin.z},
-                    effect.scale * (0.18F + progress * 2.45F) -
-                        layerIndex * 0.065F,
-                    {1.0F, 0.0F, 0.0F}, 90.0F,
-                    {255,
-                     static_cast<unsigned char>(190 - layer * 42),
-                     static_cast<unsigned char>(55 - layer * 14),
-                     atmosphereAlpha(shock *
-                         (0.88F - layerIndex * 0.2F))});
-            }
-            constexpr int FlameRayCount = 8;
-            for (int index = 0; index < FlameRayCount; ++index) {
-                const float angle = effectUnit(index, 150) * 2.0F * PI;
-                const float length = effect.scale *
-                    (0.2F + travel *
-                        (0.65F + effectUnit(index, 151) * 1.5F));
-                const Vector3 direction{
-                    std::cos(angle),
-                    0.18F + effectUnit(index, 152) * 0.72F,
-                    std::sin(angle)};
-                const Vector3 tip = Vector3Add(
-                    origin, Vector3Scale(direction, length));
-                DrawCylinderEx(
-                    origin, tip, effect.scale * 0.026F * shock,
-                    0.0F, 4,
-                    index % 3 == 0
-                        ? Color{255, 244, 172,
-                                atmosphereAlpha(shock)}
-                        : Color{255, 91, 15,
-                                atmosphereAlpha(shock * 0.82F)});
-            }
-            if (renderer_->settings().particles) {
-                constexpr int EmberCount = 6;
-                for (int index = 0; index < EmberCount; ++index) {
-                    const float angle = effectUnit(index, 160) * 2.0F * PI;
-                    const float distance = effect.scale * progress *
-                        (0.8F + effectUnit(index, 161) * 2.4F);
-                    const Vector3 ember{
-                        origin.x + std::cos(angle) * distance,
-                        origin.y + 0.12F + progress *
-                            (0.4F + effectUnit(index, 162) * 1.1F),
-                        origin.z + std::sin(angle) * distance};
-                    DrawSphereEx(
-                        ember, effect.scale * 0.025F,
-                        4, 4,
-                        {255, 181, 52,
-                         atmosphereAlpha(fade * 0.82F)});
-                }
             }
             EndBlendMode();
             continue;
@@ -1369,185 +1554,6 @@ void App::drawPresentationEffects(
                      73,
                      atmosphereAlpha(fade * 0.92F)});
             }
-        } else if (effect.type == PresentationEffectType::Explosion) {
-            // Preserve full detail on newest explosions. Older overlapping
-            // blasts retain silhouette, flipbook and smoke, but stop
-            // multiplying dozens of individual sphere/cube submissions.
-            constexpr std::size_t DetailedExplosionBudget = 4U;
-            const bool detailedExplosion =
-                activeExplosionCount <= DetailedExplosionBudget ||
-                explosionOrdinal + DetailedExplosionBudget >=
-                    activeExplosionCount;
-            ++explosionOrdinal;
-            const float scale = effect.scale;
-            const float flash = 1.0F - smoothstep(0.02F, 0.2F, progress);
-            const float flame = 1.0F - smoothstep(0.12F, 0.58F, progress);
-            const float smoke = smoothstep(0.14F, 0.34F, progress) *
-                (1.0F - smoothstep(0.72F, 1.0F, progress));
-            const float shock = 1.0F - smoothstep(0.16F, 0.62F, progress);
-            const bool spriteExplosion =
-                renderer_->settings().particles &&
-                vfxExplosionTexture_.valid();
-
-            // Ground-hugging pressure wave and dust front.
-            const float shockRadius = scale * (0.35F + progress * 5.4F);
-            const int ShockRingCount = detailedExplosion ? 2 : 1;
-            for (int ring = 0; ring < ShockRingCount; ++ring) {
-                DrawCircle3D(
-                    {origin.x, origin.y + 0.025F + static_cast<float>(ring) * 0.012F,
-                     origin.z},
-                    shockRadius - static_cast<float>(ring) * 0.09F * scale,
-                    {1.0F, 0.0F, 0.0F}, 90.0F,
-                    {255, static_cast<unsigned char>(172 - ring * 24), 72,
-                     atmosphereAlpha(shock * (0.78F - static_cast<float>(ring) * 0.17F))});
-            }
-
-            const int DustCount = detailedExplosion
-                ? (spriteExplosion ? 6 : 12)
-                : 2;
-            for (int index = 0; index < DustCount; ++index) {
-                const float angle = effectUnit(index, 0) * 2.0F * PI;
-                const float speed = scale * (2.2F + effectUnit(index, 1) * 3.0F);
-                const float distance = progress * speed;
-                const float lift = std::sin(progress * PI) *
-                    (0.12F + effectUnit(index, 2) * 0.58F);
-                const float size = scale *
-                    (0.07F + effectUnit(index, 3) * 0.16F + progress * 0.13F);
-                DrawSphereEx(
-                    {origin.x + std::cos(angle) * distance,
-                     origin.y + 0.04F + lift,
-                     origin.z + std::sin(angle) * distance},
-                    size, 4, 4,
-                    {111, 83, 58, atmosphereAlpha(shock * 0.72F)});
-            }
-
-            // Dense dark smoke survives after the fireball disappears.
-            const int SmokeCount = detailedExplosion
-                ? (spriteExplosion ? 5 : 9)
-                : 2;
-            for (int index = 0; index < SmokeCount; ++index) {
-                const float delay = effectUnit(index, 4) * 0.22F;
-                const float local = std::clamp(
-                    (progress - delay) / std::max(1.0F - delay, 0.01F), 0.0F, 1.0F);
-                const float angle = effectUnit(index, 5) * 2.0F * PI;
-                const float spread = scale * local *
-                    (0.35F + effectUnit(index, 6) * 1.15F);
-                const float size = scale *
-                    (0.12F + effectUnit(index, 7) * 0.18F + local * 0.58F);
-                const unsigned char shade = static_cast<unsigned char>(
-                    43 + effectUnit(index, 8) * 32.0F);
-                DrawSphereEx(
-                    {origin.x + std::cos(angle) * spread,
-                     origin.y + 0.2F + local *
-                         (1.0F + effectUnit(index, 9) * 2.0F),
-                     origin.z + std::sin(angle) * spread},
-                    size, 5, 5,
-                    {shade, static_cast<unsigned char>(shade - 4),
-                     static_cast<unsigned char>(shade - 7),
-                     atmosphereAlpha(smoke * (0.42F + effectUnit(index, 10) * 0.28F))});
-            }
-
-            // Chunks retain weight: quick launch, gravity, rotation.
-            const int DebrisCount = detailedExplosion
-                ? (spriteExplosion ? 4 : 7)
-                : 0;
-            for (int index = 0; index < DebrisCount; ++index) {
-                const float angle = effectUnit(index, 11) * 2.0F * PI;
-                const float speed = scale * (1.7F + effectUnit(index, 12) * 3.3F);
-                const float lift = scale * (2.2F + effectUnit(index, 13) * 3.2F);
-                const Vector3 position{
-                    origin.x + std::cos(angle) * speed * progress,
-                    origin.y + 0.14F + lift * progress -
-                        4.6F * scale * progress * progress,
-                    origin.z + std::sin(angle) * speed * progress,
-                };
-                const float size = scale * (0.06F + effectUnit(index, 14) * 0.12F);
-                rlPushMatrix();
-                rlTranslatef(position.x, position.y, position.z);
-                rlRotatef(progress * (260.0F + effectUnit(index, 15) * 480.0F),
-                          0.4F, 0.8F, 0.25F);
-                DrawCube({}, size, size * 0.7F, size * 1.25F,
-                         {72, 58, 46, atmosphereAlpha(shock)});
-                rlPopMatrix();
-            }
-
-            BeginBlendMode(BLEND_ADDITIVE);
-            // White-hot core followed by layered orange fire blobs.
-            if (spriteExplosion) {
-                // The transparent flipbook is a visual overlay. Writing the
-                // billboard quad into the world depth buffer makes the ink
-                // post-process trace its rectangular left and right edges.
-                rlDisableDepthMask();
-                drawAtlasBillboard(
-                    vfxExplosionTexture_.get(), 6, 5,
-                    animationFrame(progress, 30),
-                    {origin.x,
-                     origin.y + scale * (0.82F + progress * 0.34F),
-                     origin.z},
-                    scale * 4.4F, camera, billboardUp,
-                    {255, 255, 255,
-                     atmosphereAlpha(std::max(flame, shock) * 0.96F)});
-                rlDrawRenderBatchActive();
-                rlEnableDepthMask();
-            } else {
-                DrawSphereEx(
-                    {origin.x, origin.y + 0.24F, origin.z},
-                    scale * (0.22F + progress * 1.55F), 8, 8,
-                    {255, 246, 202,
-                     atmosphereAlpha(flash * 0.95F)});
-                DrawSphereEx(
-                    {origin.x, origin.y + 0.28F, origin.z},
-                    scale * (0.38F + progress * 1.9F), 8, 8,
-                    {255, 91, 18,
-                     atmosphereAlpha(flame * 0.52F)});
-            }
-            const int FlameCount = detailedExplosion
-                ? (spriteExplosion ? 3 : 8)
-                : 0;
-            for (int index = 0; index < FlameCount; ++index) {
-                const float angle = effectUnit(index, 16) * 2.0F * PI;
-                const float radial = progress * scale *
-                    (0.4F + effectUnit(index, 17) * 2.5F);
-                const float rise = progress * scale *
-                    (0.45F + effectUnit(index, 18) * 2.2F);
-                const float size = scale *
-                    (0.11F + effectUnit(index, 19) * 0.3F) *
-                    std::sqrt(std::max(0.0F, flame));
-                const Color color = index % 3 == 0
-                    ? Color{255, 238, 142, atmosphereAlpha(flame * 0.9F)}
-                    : Color{255, 78, 12, atmosphereAlpha(flame * 0.72F)};
-                DrawSphereEx(
-                    {origin.x + std::cos(angle) * radial,
-                     origin.y + 0.2F + rise,
-                     origin.z + std::sin(angle) * radial},
-                    size, 5, 5, color);
-            }
-
-            // Legacy fallback only. Authored flipbook already contains its
-            // own sparks, so layering generated streaks over it adds clutter.
-            const int SparkCount = spriteExplosion ? 0 : 28;
-            for (int index = 0; index < SparkCount; ++index) {
-                const float angle = effectUnit(index, 20) * 2.0F * PI;
-                const float speed = scale * (3.0F + effectUnit(index, 21) * 5.5F);
-                const float height = scale * (1.2F + effectUnit(index, 22) * 4.0F);
-                const Vector3 tip{
-                    origin.x + std::cos(angle) * speed * progress,
-                    origin.y + 0.2F + height * progress -
-                        3.2F * scale * progress * progress,
-                    origin.z + std::sin(angle) * speed * progress,
-                };
-                const float tailLength = scale * (0.12F + effectUnit(index, 23) * 0.35F);
-                const Vector3 tail{
-                    tip.x - std::cos(angle) * tailLength,
-                    tip.y - tailLength * 0.35F,
-                    tip.z - std::sin(angle) * tailLength,
-                };
-                DrawLine3D(tail, tip,
-                           {255, 202, 65, atmosphereAlpha(shock * 0.94F)});
-                DrawSphereEx(tip, 0.025F * scale, 4, 4,
-                             {255, 244, 183, atmosphereAlpha(shock)});
-            }
-            EndBlendMode();
         } else if (effect.type == PresentationEffectType::RamImpact) {
             const float fade = 1.0F - smoothstep(0.35F, 1.0F, progress);
             const float impactScale = std::max(0.1F, effect.scale);
