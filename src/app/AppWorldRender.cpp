@@ -975,7 +975,7 @@ void App::drawWorldEntities(
             defensiveYaw = towerYaw(snapshot, building);
         } else if (building.type == BuildingType::Cannon ||
                    building.type == BuildingType::Catapult) {
-            defensiveYaw = cannonYaw(snapshot, building);
+            defensiveYaw = cannonYaw(snapshot, building, interpolationAlpha);
         }
         const Vec3 shotRecoil =
             buildingShotRecoilOffsetAt(
@@ -1127,7 +1127,7 @@ void App::drawWorldEntities(
         } else if (building.type == BuildingType::Cannon) {
             if (!renderer_->drawCannon({x, groundY, z},
                                        defensiveYaw,
-                                       cannonPitch(snapshot, building),
+                                       cannonPitch(snapshot, building, interpolationAlpha),
                                        WHITE, spawnScale, building.level)) {
                 drawScaledCube(0.0F, 0.6F, 0.0F, 1.0F,
                                1.2F, 1.0F,
@@ -1143,7 +1143,7 @@ void App::drawWorldEntities(
         } else if (building.type == BuildingType::Catapult) {
             if (!renderer_->drawCatapult(
                     {x, groundY, z}, defensiveYaw,
-                    cannonPitch(snapshot, building),
+                    cannonPitch(snapshot, building, interpolationAlpha),
                     cannonLoaded(snapshot, building), WHITE,
                     spawnScale, building.level)) {
                 drawScaledCube(0.0F, 0.45F, 0.0F, 1.2F,

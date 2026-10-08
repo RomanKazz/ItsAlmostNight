@@ -59,6 +59,7 @@ PropShadowBudget propShadowBudget(GraphicsQuality quality) {
 void App::drawShadowPass(
     const SimulationSnapshot& snapshot,
     const WorldLighting& lighting) {
+    const float interpolationAlpha = static_cast<float>(fixedStep_.interpolationAlpha());
     const Vector3 shadowFocus{
         static_cast<float>(snapshot.playerPosition.x),
         0.0F,
@@ -464,8 +465,8 @@ void App::drawShadowPass(
                 }
             } else if (building.type == BuildingType::Cannon) {
                 if (!renderer_->drawCannon({x, groundY, z},
-                                           cannonYaw(snapshot, building),
-                                           cannonPitch(snapshot, building),
+                                           cannonYaw(snapshot, building, interpolationAlpha),
+                                           cannonPitch(snapshot, building, interpolationAlpha),
                                            WHITE, spawnScale, building.level)) {
                     DrawCube({x, groundY + 0.6F, z},
                              1.0F, 1.2F, 1.0F,
@@ -478,8 +479,8 @@ void App::drawShadowPass(
                 }
             } else if (building.type == BuildingType::Catapult) {
                 if (!renderer_->drawCatapult(
-                        {x, groundY, z}, cannonYaw(snapshot, building),
-                        cannonPitch(snapshot, building),
+                        {x, groundY, z}, cannonYaw(snapshot, building, interpolationAlpha),
+                        cannonPitch(snapshot, building, interpolationAlpha),
                         cannonLoaded(snapshot, building), WHITE,
                         spawnScale, building.level)) {
                     DrawCube({x, groundY + 0.45F, z},
@@ -549,6 +550,7 @@ void App::drawShadowPass(
 
 void App::drawSelectionPass(
     const SimulationSnapshot& snapshot, const Camera3D& camera) {
+    const float interpolationAlpha = static_cast<float>(fixedStep_.interpolationAlpha());
     renderer_->clearSelectionOutline();
     const bool hasVisibleLoot = std::any_of(
         snapshot.lootChests.begin(), snapshot.lootChests.end(),
@@ -950,7 +952,7 @@ void App::drawSelectionPass(
                     building->type == BuildingType::Cannon ||
                     building->type == BuildingType::Catapult) {
                     defensiveYaw =
-                        cannonYaw(snapshot, *building);
+                        cannonYaw(snapshot, *building, interpolationAlpha);
                 }
                 const Vec3 shotRecoil =
                     buildingShotRecoilOffsetAt(
@@ -1061,7 +1063,7 @@ void App::drawSelectionPass(
                     if (!renderer_->drawCannon(
                             {x, groundY, z},
                             defensiveYaw,
-                            cannonPitch(snapshot, *building),
+                            cannonPitch(snapshot, *building, interpolationAlpha),
                             WHITE, spawnScale, building->level)) {
                         DrawCube({x, groundY + 0.6F, z},
                                  1.0F, 1.2F,
@@ -1078,7 +1080,7 @@ void App::drawSelectionPass(
                            BuildingType::Catapult) {
                     if (!renderer_->drawCatapult(
                             {x, groundY, z}, defensiveYaw,
-                            cannonPitch(snapshot, *building),
+                            cannonPitch(snapshot, *building, interpolationAlpha),
                             cannonLoaded(snapshot, *building), WHITE,
                             spawnScale, building->level)) {
                         DrawCube({x, groundY + 0.45F, z},

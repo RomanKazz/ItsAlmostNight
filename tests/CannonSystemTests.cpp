@@ -1,9 +1,24 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
+#include "buildings/BuildingOrientation.hpp"
 #include "combat/CannonSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 
 #include <array>
+#include <algorithm>
+#include <cmath>
+
+namespace {
+void tickUntilShot(ian::CannonSystem& cannons,
+                   const std::vector<ian::BuildingInstance>& buildings,
+                   ian::EnemySystem& enemies) {
+    for (int tick = 0; tick < 120; ++tick) {
+        cannons.tick(1.0 / 60.0, buildings, enemies);
+        if (!cannons.shots().empty()) return;
+    }
+    require(false, "ballistic defense acquires and smoothly aims before firing");
+}
+} // namespace
 
 void runCannonSystemTests() {
     ian::BuildingSystem buildings;
@@ -35,7 +50,7 @@ void runCannonSystemTests() {
     ian::CannonSystem cannons;
     cannons.setTypeBonuses(ian::BuildingType::Cannon, 1.3, 1.5);
     cannons.syncBuildings(buildings.buildings());
-    cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    tickUntilShot(cannons, buildings.buildings(), enemies);
     requireNear(cannons.projectiles().front().explosionDamage, 3.9, 1e-12,
         "starting cannon perk scales actual projectile damage");
     requireNear(cannons.cannons().front().fireCooldownRemaining,
@@ -45,7 +60,7 @@ void runCannonSystemTests() {
         cannons.projectiles().front().id;
     cannons.reset();
     cannons.syncBuildings(buildings.buildings());
-    cannons.tick(1.0 / 60.0, buildings.buildings(), enemies);
+    tickUntilShot(cannons, buildings.buildings(), enemies);
     require(!cannons.projectiles().empty() &&
                 cannons.projectiles().front().id !=
                     firstRunProjectile &&
@@ -130,7 +145,7 @@ void runCannonSystemTests() {
         specialized.setTypeBonuses(ian::BuildingType::Cannon, 1.3, 1.5);
         specialized.setModifiers(1.2, 1.1, 1.4, 1.0, 2);
         specialized.syncBuildings(buildings.buildings());
-        specialized.tick(1.0 / 60.0, buildings.buildings(), targets);
+        tickUntilShot(specialized, buildings.buildings(), targets);
         const auto profile = ian::cannonAttackProfile(style);
         require(specialized.projectiles().size() == static_cast<std::size_t>(profile.projectileCount),
             "specialization emits the expected shell volley");
@@ -166,7 +181,7 @@ void runCannonSystemTests() {
         specialized.syncBuildings(buildings.buildings());
         targets.reset();
         targets.spawnWave(Cluster);
-        specialized.tick(1.0 / 60.0, buildings.buildings(), targets);
+        tickUntilShot(specialized, buildings.buildings(), targets);
         require(specialized.projectiles().size() == 1 && specialized.projectiles()[0].visualScale == 1.0,
             "new run resets specialization to a standard single shell");
     }
@@ -186,6 +201,76 @@ void runCannonSystemTests() {
             "cannon turns toward positive X using raylib Y-axis convention");
     require(aimingCannons.cannons().front().pitch > 0.0,
             "cannon barrel raises for ballistic trajectory");
+
+    // Large elevation changes previously moved the barrel by up to 7.6
+    // degrees immediately. Acquisition, tracking, loss and rotation all retain
+    // motion instead of restarting a linear turn or snapping to rest.
+    std::vector<ian::BuildingInstance> smoothRegistry{{
+        .id = {902, 1}, .type = ian::BuildingType::Cannon,
+    }};
+    ian::EnemySystem elevatedEnemies;
+    constexpr std::array<ian::Vec3, 1> ElevatedTarget{{{0.5, 6.0, -8.0}}};
+    elevatedEnemies.spawnWave(ElevatedTarget);
+    ian::CannonSystem smoothCannons;
+    smoothCannons.syncBuildings(smoothRegistry);
+    double firstRise = 0.0;
+    double peakRise = 0.0;
+    double lastRise = 0.0;
+    for (int tick = 0; tick < 90; ++tick) {
+        const double before = smoothCannons.cannons().front().pitch;
+        smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
+        const auto& motion = smoothCannons.cannons().front();
+        lastRise = motion.pitch - before;
+        if (tick == 0) firstRise = lastRise;
+        peakRise = std::max(peakRise, lastRise);
+        requireNear(motion.previousPitch, before, 1e-12,
+                    "barrel rendering retains its previous fixed-step pose");
+        require(std::abs(lastRise) < 0.06,
+                "elevated target cannot produce a sudden barrel step");
+    }
+    require(firstRise > 0.0 && firstRise < 0.02 &&
+                peakRise > firstRise * 3.0 && std::abs(lastRise) < firstRise,
+            "barrel aim accelerates from rest and decelerates near its target");
+    require(smoothCannons.cannons().front().pitch > 0.4,
+            "smooth barrel still reaches a strongly elevated target");
+    elevatedEnemies.reset();
+    const double raisedPitch = smoothCannons.cannons().front().pitch;
+    smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
+    require(std::abs(smoothCannons.cannons().front().pitch - raisedPitch) < 0.02,
+            "losing a target does not snap the raised barrel down");
+    for (int tick = 0; tick < 120; ++tick) {
+        smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
+    }
+    requireNear(smoothCannons.cannons().front().pitch, 0.0, 1e-5,
+                "barrel smoothly settles back to its resting pitch");
+    smoothRegistry.front().rotation = 3;
+    smoothCannons.syncBuildings(smoothRegistry);
+    for (int tick = 0; tick < 120; ++tick) {
+        smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
+    }
+    smoothRegistry.front().rotation = 5;
+    const double oldYaw = smoothCannons.cannons().front().yaw;
+    smoothCannons.syncBuildings(smoothRegistry);
+    requireNear(smoothCannons.cannons().front().yaw, oldYaw, 1e-12,
+                "manual rotation preserves the cannon's current pose");
+    double turnedDistance = 0.0;
+    double firstTurn = 0.0;
+    double peakTurn = 0.0;
+    for (int tick = 0; tick < 120; ++tick) {
+        const double before = smoothCannons.cannons().front().yaw;
+        smoothCannons.tick(1.0 / 60.0, smoothRegistry, elevatedEnemies);
+        const auto& motion = smoothCannons.cannons().front();
+        const double turn = ian::wrapBuildingAngle(motion.yaw - before);
+        require(turn >= -1e-8 && turn < 0.12,
+                "rest rotation takes the short smooth route across the angle seam");
+        turnedDistance += turn;
+        if (tick == 0) firstTurn = turn;
+        peakTurn = std::max(peakTurn, turn);
+    }
+    require(firstTurn < 0.04 && peakTurn > firstTurn * 3.0,
+            "manual cannon rotation also eases into motion");
+    requireNear(turnedDistance, ian::PiRadians * 0.5, 1e-5,
+                "angle wrap cannot make a cannon turn the long way around");
 
     const std::vector<ian::BuildingInstance> catapultBuildings{{
         .id = {900, 1},

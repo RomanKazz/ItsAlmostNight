@@ -439,28 +439,32 @@ Vector2 repelInvalidPreview(
 }
 
 float cannonYaw(const SimulationSnapshot& snapshot,
-                const BuildingInstance& building) {
+                const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
         snapshot.cannons.begin(), snapshot.cannons.end(),
         [&building](const CannonRuntime& cannon) {
             return cannon.buildingId == building.id;
         });
     if (runtime != snapshot.cannons.end()) {
-        return static_cast<float>(runtime->yaw);
+        return static_cast<float>(wrapBuildingAngle(runtime->previousYaw +
+            wrapBuildingAngle(runtime->yaw - runtime->previousYaw) *
+            std::clamp(interpolationAlpha, 0.0F, 1.0F)));
     }
     return static_cast<float>(buildingRotationYaw(
         building.type, building.rotation));
 }
 
 float cannonBaseYaw(const SimulationSnapshot& snapshot,
-                    const BuildingInstance& building) {
+                    const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
         snapshot.cannons.begin(), snapshot.cannons.end(),
         [&building](const CannonRuntime& cannon) {
             return cannon.buildingId == building.id;
         });
     if (runtime != snapshot.cannons.end()) {
-        return static_cast<float>(runtime->baseYaw);
+        return static_cast<float>(wrapBuildingAngle(runtime->previousBaseYaw +
+            wrapBuildingAngle(runtime->baseYaw - runtime->previousBaseYaw) *
+            std::clamp(interpolationAlpha, 0.0F, 1.0F)));
     }
     return static_cast<float>(buildingRotationYaw(
         building.type, building.rotation));
@@ -506,15 +510,16 @@ float towerPitch(const SimulationSnapshot& snapshot,
 }
 
 float cannonPitch(const SimulationSnapshot& snapshot,
-                  const BuildingInstance& building) {
+                  const BuildingInstance& building, float interpolationAlpha) {
     const auto runtime = std::find_if(
         snapshot.cannons.begin(), snapshot.cannons.end(),
         [&building](const CannonRuntime& cannon) {
             return cannon.buildingId == building.id;
         });
-    return runtime != snapshot.cannons.end()
-               ? static_cast<float>(runtime->pitch)
-               : 0.0F;
+    if (runtime == snapshot.cannons.end()) return 0.0F;
+    return static_cast<float>(runtime->previousPitch +
+        (runtime->pitch - runtime->previousPitch) *
+        std::clamp(interpolationAlpha, 0.0F, 1.0F));
 }
 
 bool cannonLoaded(const SimulationSnapshot& snapshot,

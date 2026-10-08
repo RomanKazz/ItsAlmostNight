@@ -22,6 +22,12 @@ struct CannonRuntime {
     double baseYaw{};
     double yaw{};
     double pitch{};
+    double yawVelocity{};
+    double pitchVelocity{};
+    double baseYawVelocity{};
+    double previousYaw{};
+    double previousPitch{};
+    double previousBaseYaw{};
     double fireCooldownRemaining{};
     double targetSearchCooldownRemaining{};
     double firingAnimationRemaining{};

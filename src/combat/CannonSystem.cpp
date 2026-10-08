@@ -36,6 +36,26 @@ constexpr double CatapultReleaseTime = 0.34;
 constexpr double CatapultReleasePitch = -1.05;
 constexpr std::size_t MaxProjectiles = 300;
 
+// Critically damped aiming retains velocity across target changes. Its exact
+// update accelerates from rest and slows near the goal without oscillation.
+[[nodiscard]] double advanceAim(
+    double current, double target, double& velocity, double deltaSeconds,
+    double response, double maximumSpeed, bool wrapped) {
+    if (deltaSeconds <= 0.0) return current;
+    const double offset = wrapped ? wrapBuildingAngle(current - target)
+                                  : current - target;
+    const double decay = std::exp(-response * deltaSeconds);
+    const double tangent = velocity + response * offset;
+    const double nextOffset = (offset + tangent * deltaSeconds) * decay;
+    velocity = std::clamp(
+        (velocity - response * tangent * deltaSeconds) * decay,
+        -maximumSpeed, maximumSpeed);
+    const double next = current + std::clamp(
+        nextOffset - offset, -maximumSpeed * deltaSeconds,
+        maximumSpeed * deltaSeconds);
+    return wrapped ? wrapBuildingAngle(next) : next;
+}
+
 [[nodiscard]] double easeInOut(double value) {
     value = std::clamp(value, 0.0, 1.0);
     return value * value * (3.0 - 2.0 * value);
@@ -158,6 +178,12 @@ void CannonSystem::syncBuildings(const std::vector<BuildingInstance>& buildings)
         [](const BuildingInstance& building, const CannonRuntime& runtime) {
             return building.type == runtime.type;
         });
+    for (auto& cannon : cannons_) {
+        // Newly registered rotated defenses must not interpolate from zero.
+        cannon.previousYaw = cannon.yaw;
+        cannon.previousPitch = cannon.pitch;
+        cannon.previousBaseYaw = cannon.baseYaw;
+    }
 }
 
 std::span<const CannonExplosion> CannonSystem::tick(
@@ -174,6 +200,9 @@ std::span<const CannonExplosion> CannonSystem::tick(
             continue;
         }
 
+        cannon.previousYaw = cannon.yaw;
+        cannon.previousPitch = cannon.pitch;
+        cannon.previousBaseYaw = cannon.baseYaw;
         cannon.fireCooldownRemaining = std::max(
             0.0, cannon.fireCooldownRemaining - deltaSeconds);
         cannon.targetSearchCooldownRemaining =
@@ -187,8 +216,9 @@ std::span<const CannonExplosion> CannonSystem::tick(
         const double shotInterval = profile.interval * fireInterval(
             building->type, building->level) /
             (fireRateMultiplier_ * (building->type == bonusType_ ? typeFireRateMultiplier_ : 1.0));
-        cannon.baseYaw = smoothBuildingAngle(
-            cannon.baseYaw, cannon.restYaw, deltaSeconds);
+        cannon.baseYaw = advanceAim(
+            cannon.baseYaw, cannon.restYaw, cannon.baseYawVelocity,
+            deltaSeconds, 12.0, TurnSpeed, true);
 
         if (building->type == BuildingType::Catapult &&
             cannon.firingAnimationRemaining > 0.0) {
@@ -250,12 +280,8 @@ std::span<const CannonExplosion> CannonSystem::tick(
             cannon.targetSearchCooldownRemaining = SearchInterval;
         }
 
-        if (!cannon.targetId) {
-            cannon.yaw = smoothBuildingAngle(
-                cannon.yaw, cannon.restYaw, deltaSeconds);
-        }
-
-        bool aimedAtTarget = false;
+        double desiredYaw = cannon.restYaw;
+        double desiredPitch = 0.0;
         if (cannon.targetId) {
             const auto target = enemies.enemy(*cannon.targetId);
             if (target) {
@@ -265,43 +291,36 @@ std::span<const CannonExplosion> CannonSystem::tick(
                         targetingOrigin, cannon.yaw, cannon.pitch);
                 const double deltaX = target->position.x - origin.x;
                 const double deltaZ = target->position.z - origin.z;
-                const double desiredYaw = std::atan2(-deltaX, -deltaZ);
-                const double yawDelta = wrapBuildingAngle(
-                    desiredYaw - cannon.yaw);
-                cannon.yaw +=
-                    std::clamp(yawDelta, -TurnSpeed * deltaSeconds,
-                               TurnSpeed * deltaSeconds);
-                cannon.yaw = wrapBuildingAngle(cannon.yaw);
-
-                if (building->type == BuildingType::Catapult) {
-                    cannon.pitch = 0.0;
-                    aimedAtTarget = std::abs(wrapBuildingAngle(
-                        desiredYaw - cannon.yaw)) <= AimTolerance;
-                } else {
-                    const double horizontalDistance =
-                        std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+                desiredYaw = std::atan2(-deltaX, -deltaZ);
+                if (building->type == BuildingType::Cannon) {
+                    const double horizontalDistance = std::hypot(deltaX, deltaZ);
                     const double flightTime = std::max(
                         0.2, horizontalDistance / ProjectileSpeed);
                     const double verticalSpeed =
                         (target->position.y - origin.y +
-                         0.5 * Gravity * flightTime * flightTime) /
-                        flightTime;
-                    const double desiredPitch = std::clamp(
+                         0.5 * Gravity * flightTime * flightTime) / flightTime;
+                    desiredPitch = std::clamp(
                         std::atan2(verticalSpeed, ProjectileSpeed),
                         MinimumPitch, MaximumPitch);
-                    const double pitchDelta = desiredPitch - cannon.pitch;
-                    cannon.pitch += std::clamp(
-                        pitchDelta, -PitchSpeed * deltaSeconds,
-                        PitchSpeed * deltaSeconds);
-                    aimedAtTarget =
-                        std::abs(wrapBuildingAngle(
-                            desiredYaw - cannon.yaw)) <= AimTolerance &&
-                        std::abs(desiredPitch - cannon.pitch) <= AimTolerance;
                 }
             } else {
                 cannon.targetId.reset();
             }
         }
+        cannon.yaw = advanceAim(
+            cannon.yaw, desiredYaw, cannon.yawVelocity,
+            deltaSeconds, 12.0, TurnSpeed, true);
+        if (building->type == BuildingType::Cannon) {
+            cannon.pitch = advanceAim(
+                cannon.pitch, desiredPitch, cannon.pitchVelocity,
+                deltaSeconds, 10.0, PitchSpeed, false);
+            const double limitedPitch = std::clamp(cannon.pitch, MinimumPitch, MaximumPitch);
+            if (limitedPitch != cannon.pitch) cannon.pitchVelocity = 0.0;
+            cannon.pitch = limitedPitch;
+        }
+        const bool aimedAtTarget = cannon.targetId &&
+            std::abs(wrapBuildingAngle(desiredYaw - cannon.yaw)) <= AimTolerance &&
+            std::abs(desiredPitch - cannon.pitch) <= AimTolerance;
         if (aimedAtTarget && cannon.fireCooldownRemaining <= 0.0) {
             const auto target = enemies.enemy(*cannon.targetId);
             if (target) {
