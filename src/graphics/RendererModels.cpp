@@ -1,5 +1,6 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/QuarryModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
@@ -705,15 +706,15 @@ bool Renderer::drawResourceProducer(
     Model& model = resource->get();
     prepareModelShader(model);
     position.y += 0.005F;
-    if (type == BuildingType::CrystalMine && model.meshCount >= 2) {
+    if ((type == BuildingType::CrystalMine && model.meshCount >= 2) ||
+        (type == BuildingType::Quarry && model.meshCount >= quarry_model_detail::MeshCount)) {
         const float uniformScale = modelScale * scale * 0.5F;
         const Matrix transform = MatrixMultiply(
             model.transform,
             MatrixMultiply(MatrixScale(uniformScale, uniformScale, uniformScale),
                 MatrixMultiply(MatrixRotateY(yawRadians),
                     MatrixTranslate(position.x, position.y, position.z))));
-        crystal_mine_model_detail::forEachLevelPart(level,
-            [&](int index, Matrix pose) {
+        const auto drawPart = [&](int index, Matrix pose) {
             if (index >= model.meshCount) return;
             Material& material = model.materials[model.meshMaterial[index]];
             const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
@@ -721,7 +722,9 @@ bool Renderer::drawResourceProducer(
             DrawMesh(model.meshes[index], material,
                 MatrixMultiply(pose, transform));
             material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        });
+        };
+        if (type == BuildingType::Quarry) quarry_model_detail::forEachLevelPart(level, drawPart);
+        else crystal_mine_model_detail::forEachLevelPart(level, drawPart);
         return true;
     }
     DrawModelEx(

@@ -1,4 +1,5 @@
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/QuarryModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
@@ -264,6 +265,62 @@ bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
             const auto center = ian::buildingWorldPosition(mine);
             const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
                            .80F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
+            correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
+            mine.level = 8;
+            hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
+        }
+        correctAiming = correctAiming && hitRaisedCrystals;
+    }
+    return distinct && correctAiming;
+}
+
+bool checkQuarryLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 384);
+    const Camera3D camera{{1.25F, 1.1F, 1.8F}, {0, .32F, 0}, {0, 1, 0},
+                          36, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawResourceProducer(
+            ian::BuildingType::Quarry, {0, 0, 0}, 0, WHITE, 1, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_QUARRY_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("quarry-level-" + std::to_string(level) + ".png")).string().c_str());
+        }
+        return image;
+    };
+    Image previous = capture(1);
+    bool distinct = true;
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        distinct = distinct && changedPixels(previous, current) > 35;
+        UnloadImage(previous);
+        previous = current;
+    }
+    UnloadImage(previous);
+    UnloadRenderTexture(target);
+    const float lowHeight = renderer.buildingVisualHeight(ian::BuildingType::Quarry, 1);
+    const float highHeight = renderer.buildingVisualHeight(ian::BuildingType::Quarry, 8);
+    bool correctAiming = highHeight > lowHeight + .20F;
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        bool hitRaisedCrystals = false;
+        for (int x = -20; x <= 20; ++x) {
+            ian::BuildingInstance mine{.type = ian::BuildingType::Quarry,
+                                      .rotation = rotation, .level = 1};
+            const auto center = ian::buildingWorldPosition(mine);
+            const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
+                           .60F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
             correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
             mine.level = 8;
             hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
@@ -1609,6 +1666,10 @@ int main() {
         }
         if (!checkCrystalMineLevelRendering(renderer)) {
             std::cerr << "crystal mine levels fail to render distinctly\n";
+            result = 1;
+        }
+        if (!checkQuarryLevelRendering(renderer)) {
+            std::cerr << "quarry levels, visual height or raised stone aiming failed\n";
             result = 1;
         }
         if (!checkGateLevelRendering(renderer)) {

@@ -6,6 +6,7 @@
 #include "graphics/CrossbowModel.hpp"
 #include "graphics/CatapultModel.hpp"
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/QuarryModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
 #include "buildings/CannonRig.hpp"
@@ -572,6 +573,9 @@ float Renderer::buildingVisualHeight(BuildingType type, int level) {
         } else if (type == BuildingType::CrystalMine &&
                    meshCount >= crystal_mine_model_detail::MeshCount) {
             crystal_mine_model_detail::forEachLevelPart(level, includeMesh);
+        } else if (type == BuildingType::Quarry &&
+                   meshCount >= quarry_model_detail::MeshCount) {
+            quarry_model_detail::forEachLevelPart(level, includeMesh);
         } else if (type == BuildingType::Wall &&
                    meshCount >= wall_upgrade_model_detail::MeshCount) {
             includeMesh(0);

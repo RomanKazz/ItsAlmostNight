@@ -1,5 +1,6 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
+#include "graphics/QuarryModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
@@ -331,17 +332,19 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return closest;
         }
-        if (building.type == BuildingType::CrystalMine && model.meshCount >= 2) {
+        if ((building.type == BuildingType::CrystalMine && model.meshCount >= 2) ||
+            (building.type == BuildingType::Quarry && model.meshCount >= quarry_model_detail::MeshCount)) {
             std::optional<double> closest;
-            crystal_mine_model_detail::forEachLevelPart(building.level,
-                [&](int index, Matrix pose) {
+            const auto testPart = [&](int index, Matrix pose) {
                 if (index >= model.meshCount) return;
                 const Matrix transform = MatrixMultiply(
                     pose, baseTransform);
                 const auto distance = acceptCollision(
                     GetRayCollisionMesh(ray, model.meshes[index], transform));
                 if (distance && (!closest || *distance < *closest)) closest = distance;
-            });
+            };
+            if (building.type == BuildingType::Quarry) quarry_model_detail::forEachLevelPart(building.level, testPart);
+            else crystal_mine_model_detail::forEachLevelPart(building.level, testPart);
             return closest;
         }
         if (building.type == BuildingType::Core) {
