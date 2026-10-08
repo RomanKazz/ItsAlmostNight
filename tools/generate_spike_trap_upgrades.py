@@ -1,6 +1,6 @@
 """Bake simple orange/steel/gold spike trap upgrades, preserving authored data.
 
-Two meshes per level: frame accents and replacement spikes that retract together.
+Two meshes per level: socket plate and replacement spikes that retract together.
 """
 import math
 from pathlib import Path
@@ -11,6 +11,7 @@ asset = GlbAsset(Path('assets/models/traps/spike_trap.glb'))
 STEEL = (151, 173, 183)
 ORANGE = (245, 92, 12)
 GOLD = (242, 188, 45)
+DARK_STEEL = (54, 80, 94)
 
 
 def rim(g, outer, inner, bottom, top, color):
@@ -52,27 +53,38 @@ heights = [.28305, .28305, .300, .315, .315, .335, .350, .365]
 bounds = []
 for level in range(2, 9):
     base, spikes = Geometry(), Geometry()
-    outer = .401 if level < 4 else (.416 if level >= 7 else .409)
+    # Reinforced plate, individual sockets and broad corner blocks instead
+    # of stacking thin rectangular borders around the original four spikes.
+    rim(base, .405, .370, .020, .075, STEEL)
+    base.box((0, .098, 0), (.735, .015, .735), DARK_STEEL, bevel=.10)
+    cap_size = .11 + (level - 2) * .004
+    cap_height = .025 + (level - 2) * .004
+    for x in (-.349, .349):
+        for z in (-.349, .349):
+            base.box((x, .091 + cap_height / 2, z),
+                     (cap_size, cap_height, cap_size),
+                     GOLD if level >= 7 else ORANGE if level >= 3 else STEEL, bevel=.18)
+    if level >= 4:
+        for x in (-.391, .391):
+            base.box((x, .069, 0), (.044, .074, .53), ORANGE, bevel=.15)
     if level >= 6:
-        rim(base, outer, .370, .020, .025, STEEL)
-        rim(base, outer, .370, .044, .065, STEEL)
-    else:
-        rim(base, outer, .370, .020, .065, STEEL)
-    if level >= 3:
-        rim(base, outer, .360, .066, .112 if level < 4 else (.119 if level >= 5 else .128), ORANGE)
-    if level >= 5:
-        rim(base, outer+.0005, .360, .119, .133, GOLD)
-    if level >= 6:
-        rim(base, outer+.0005, .370, .025, .044, GOLD)
+        for z in (-.391, .391):
+            base.box((0, .069, z), (.53, .074, .044), ORANGE, bevel=.15)
     if level == 8:
-        # Four broad corner caps, no bolts or small mechanical detail.
-        for x in (-.350, .350):
-            for z in (-.350, .350):
-                base.box((x, .140, z), (.125, .025, .125), GOLD, bevel=.12)
-    radius = .112 if level < 4 else (.125 if level >= 7 else .118)
-    for x in (-.225, .225):
-        for z in (-.225, .225):
-            spike(spikes, x, z, radius, heights[level-1], level)
+        for x in (-.390, .390):
+            base.box((x, .11, 0), (.046, .018, .53), GOLD, bevel=.15)
+        for z in (-.390, .390):
+            base.box((0, .11, z), (.53, .018, .046), GOLD, bevel=.15)
+    radius = .090 if level < 5 else (.102 if level >= 7 else .095)
+    slots = [(x, z) for x in (-.225, .225) for z in (-.225, .225)]
+    if level >= 3:
+        slots.append((0, 0))
+    if level >= 5:
+        slots.extend([(-.225, 0), (.225, 0), (0, -.225), (0, .225)])
+    for x, z in slots:
+        base.ring(1, (x, .112, z), radius + .015, radius * .70,
+                  .016, GOLD if level >= 5 else STEEL, segments=8)
+        spike(spikes, x, z, radius, heights[level-1], level)
     for part, suffix in ((base, 'base'), (spikes, 'spikes')):
         bounds.append(part.bounds())
         part.append(asset, f'upgrade_spike_l{level}_{suffix}')
@@ -129,6 +141,13 @@ header += '''}};
 
 [[nodiscard]] inline BoundingBox partBounds(int meshIndex) {
     return UpgradeBounds[static_cast<std::size_t>(meshIndex - 2)];
+}
+
+[[nodiscard]] inline float spikeScale(int level, float seconds) {
+    constexpr float FootHeight = .09435F;
+    const float height = SpikeHeights[static_cast<std::size_t>(std::clamp(level, 1, 8) - 1)];
+    // Compress into the sockets rather than protruding below the floor.
+    return (height + spikeOffset(level, seconds) - FootHeight) / (height - FootHeight);
 }
 
 } // namespace ian::spike_trap_model_detail

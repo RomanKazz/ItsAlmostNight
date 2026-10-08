@@ -199,21 +199,37 @@ bool checkSpikeTrapLevelRendering(ian::Renderer& renderer) {
     UnloadImage(restored);
     UnloadRenderTexture(target);
 
-    for (const std::uint8_t rotation : {std::uint8_t{0}, std::uint8_t{1}}) {
-        ian::BuildingInstance trap{.type = ian::BuildingType::SpikeTrap, .rotation = rotation};
+    // The trap occupies a full cell, including empty corners and gaps.
+    // Aiming must stay stable across upgrades, rotations and spike animation.
+    for (const std::uint8_t rotation : {std::uint8_t{0}, std::uint8_t{1},
+                                      std::uint8_t{2}, std::uint8_t{3}}) {
+        ian::BuildingInstance trap{.type = ian::BuildingType::SpikeTrap,
+            .gridPosition = {4, -3}, .rotation = rotation, .baseHeight = 1.25};
         const auto center = ian::buildingWorldPosition(trap);
-        const Matrix yaw = MatrixRotateY(static_cast<float>(rotation)*PI*.5F);
-        Vector3 origin = Vector3Transform({.225F*1.2F, .30F*1.2F, -2}, yaw);
-        origin = Vector3Add(origin, {static_cast<float>(center.x), static_cast<float>(center.y) + .005F, static_cast<float>(center.z)});
-        const Ray ray{origin, Vector3Transform({0, 0, 1}, yaw)};
-        trap.level = 1;
-        const auto plain = renderer.buildingRaycastDistance(trap, {}, ray, 4, 0, 0, 1, .5F);
-        trap.level = 8;
-        const auto idle = renderer.buildingRaycastDistance(trap, {}, ray, 4);
-        const auto active = renderer.buildingRaycastDistance(trap, {}, ray, 4, 0, 0, 1, .5F);
-        const bool aligned = !plain && !idle && active;
-        if (!aligned) std::cerr << "spike aiming, rotation " << static_cast<int>(rotation) << ": " << plain.value_or(-1) << ", " << idle.value_or(-1) << ", " << active.value_or(-1) << '\n';
-        valid = valid && aligned;
+        const Vector3 position{static_cast<float>(center.x),
+            static_cast<float>(center.y), static_cast<float>(center.z)};
+        for (int level = 1; level <= 8; ++level) {
+            trap.level = static_cast<std::uint8_t>(level);
+            for (const float seconds : {-1.0F, .1F, .5F, 1.2F}) {
+                for (const float x : {-.49F, 0.0F, .49F}) {
+                    const Ray ray{Vector3Add(position, {x, .4F, -2}), {0, 0, 1}};
+                    const auto hit = renderer.buildingRaycastDistance(
+                        trap, {}, ray, 4, 0, 0, 1, seconds);
+                    valid = valid && hit && std::abs(*hit - 1.5) < .0001 &&
+                        !renderer.buildingRaycastDistance(trap, {}, ray, 1.49, 0, 0, 1, seconds);
+                }
+                for (const Vector3 offset : {Vector3{.51F, .4F, -2},
+                                             Vector3{0, .51F, -2}, Vector3{0, -.01F, -2}}) {
+                    valid = valid && !renderer.buildingRaycastDistance(
+                        trap, {}, {Vector3Add(position, offset), {0, 0, 1}},
+                        4, 0, 0, 1, seconds);
+                }
+                const auto top = renderer.buildingRaycastDistance(trap, {},
+                    {Vector3Add(position, {.49F, 2, .49F}), {0, -1, 0}},
+                    4, 0, 0, 1, seconds);
+                valid = valid && top && std::abs(*top - 1.5) < .0001;
+            }
+        }
     }
     return valid;
 }

@@ -7,13 +7,13 @@
 #include "graphics/CrossbowModel.hpp"
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
-#include "graphics/SpikeTrapModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "world/CollisionWorld.hpp"
 
 #include <raymath.h>
 
@@ -29,7 +29,7 @@ std::optional<double> Renderer::buildingRaycastDistance(
     std::span<const BuildingInstance> buildings, Ray ray,
     double maxDistance, float defensiveYaw,
     float cannonPitchRadians, float gateOpenAmount,
-    float spikeAnimationSeconds) {
+    float /*spikeAnimationSeconds*/) {
     const Vec3 worldCenter =
         buildingWorldPosition(building);
     Vector3 position{
@@ -207,6 +207,17 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return static_cast<double>(collision.distance);
         };
+    if (building.type == BuildingType::SpikeTrap) {
+        // Aim at the whole occupied cell, including gaps between retracted
+        // spikes. Use the same fixed volume as the simulation collider.
+        const CollisionBox box = buildingCollisionBox(
+            building.type, building.gridPosition, building.baseHeight);
+        return acceptCollision(GetRayCollisionBox(ray, {
+            {static_cast<float>(box.minX), static_cast<float>(box.minimumBlockingEyeY),
+             static_cast<float>(box.minZ)},
+            {static_cast<float>(box.maxX), static_cast<float>(box.maximumBlockingEyeY),
+             static_cast<float>(box.maxZ)}}));
+    }
     if (building.type == BuildingType::Gate &&
         resource != nullptr && resource->valid()) {
         position.y += groundOffset;
@@ -287,34 +298,6 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
-        if (building.type == BuildingType::SpikeTrap && model.meshCount >= 2) {
-            const bool upgraded = building.level > 1 &&
-                model.meshCount >= spike_trap_model_detail::MeshCount;
-            const float offset = spike_trap_model_detail::spikeOffset(
-                upgraded ? building.level : 1, spikeAnimationSeconds);
-            const Matrix spikeTransform = MatrixMultiply(
-                MatrixTranslate(0, offset, 0), baseTransform);
-            const auto bounds = resource->meshBounds();
-            std::optional<double> closest;
-            const auto testMesh = [&](int index, Matrix transform) {
-                const auto broad = acceptCollision(GetRayCollisionBox(ray,
-                    world_transforms::transformBounds(
-                        bounds[static_cast<std::size_t>(index)], transform)));
-                if (!broad || (closest && *broad >= *closest)) return;
-                const auto distance = acceptCollision(GetRayCollisionMesh(
-                    ray, model.meshes[index], transform));
-                if (distance && (!closest || *distance < *closest)) closest = distance;
-            };
-            testMesh(0, baseTransform);
-            if (upgraded) {
-                const int base = spike_trap_model_detail::baseMeshIndex(building.level);
-                testMesh(base, baseTransform);
-                testMesh(base + 1, spikeTransform);
-            } else {
-                testMesh(1, spikeTransform);
-            }
-            return closest;
-        }
         if (building.type == BuildingType::Wall &&
             model.meshCount >= wall_upgrade_model_detail::MeshCount) {
             const auto bounds = resource->meshBounds();

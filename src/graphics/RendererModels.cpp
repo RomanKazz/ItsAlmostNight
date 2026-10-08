@@ -748,7 +748,7 @@ bool Renderer::drawSpikeTrap(
 
     constexpr float ModelScale = 1.2F;
     const bool upgraded = level > 1 && model.meshCount >= spike_trap_model_detail::MeshCount;
-    // Drawing and aiming use the same authored show/hide translation.
+    // Preserve the authored show/hide cycle; upgraded spikes stay in sockets.
     const float spikeOffset = spike_trap_model_detail::spikeOffset(
         upgraded ? level : 1, animationSeconds);
     position.y += 0.005F;
@@ -783,7 +783,11 @@ bool Renderer::drawSpikeTrap(
     if (upgraded) {
         const int base = spike_trap_model_detail::baseMeshIndex(level);
         drawMesh(base, transformAt(position.y));
-        drawMesh(base + 1, transformAt(position.y + spikeOffset * scale));
+        const float exposureScale = spike_trap_model_detail::spikeScale(level, animationSeconds);
+        const Matrix spikePose = MatrixMultiply(
+            MatrixScale(1, exposureScale, 1),
+            MatrixTranslate(0, .09435F * (1 - exposureScale), 0));
+        drawMesh(base + 1, MatrixMultiply(spikePose, transformAt(position.y)));
     } else {
         drawMesh(1, transformAt(position.y + spikeOffset * scale));
         if (model.meshCount < spike_trap_model_detail::MeshCount) {
