@@ -219,7 +219,7 @@ bool checkSpikeTrapLevelRendering(ian::Renderer& renderer) {
 
 bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(512, 384);
-    const Camera3D camera{{1.1F, 1.1F, 2.0F}, {0, .28F, 0}, {0, 1, 0},
+    const Camera3D camera{{1.7F, 1.5F, 2.2F}, {0, .43F, 0}, {0, 1, 0},
                           36, CAMERA_PERSPECTIVE};
     const auto capture = [&](int level) {
         BeginTextureMode(target);
@@ -253,7 +253,24 @@ bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
     }
     UnloadImage(previous);
     UnloadRenderTexture(target);
-    return distinct;
+    const float lowHeight = renderer.buildingVisualHeight(ian::BuildingType::CrystalMine, 1);
+    const float highHeight = renderer.buildingVisualHeight(ian::BuildingType::CrystalMine, 8);
+    bool correctAiming = highHeight > lowHeight + .25F;
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        bool hitRaisedCrystals = false;
+        for (int x = -20; x <= 20; ++x) {
+            ian::BuildingInstance mine{.type = ian::BuildingType::CrystalMine,
+                                      .rotation = rotation, .level = 1};
+            const auto center = ian::buildingWorldPosition(mine);
+            const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
+                           .80F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
+            correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
+            mine.level = 8;
+            hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
+        }
+        correctAiming = correctAiming && hitRaisedCrystals;
+    }
+    return distinct && correctAiming;
 }
 
 bool checkGateLevelRendering(ian::Renderer& renderer) {
@@ -1098,12 +1115,14 @@ bool checkCrystalMineStaticShards(ian::ModelResource& resource) {
             [&](int meshIndex, Matrix pose) {
                 expected = expected && meshIndex < model.meshCount &&
                     model.meshes[meshIndex].triangleCount > 0 &&
-                    (meshIndex < 2 || meshIndex == level) &&
-                    Vector3Distance(Vector3Transform({.23F, .45F, .12F}, pose),
-                                    {.23F, .45F, .12F}) < .00001F;
+                    (meshIndex == 1 || meshIndex == 10 || meshIndex == level + 1);
+                const Vector3 posed = Vector3Transform({.23F, .45F, .12F}, pose);
+                expected = expected && (meshIndex == 1
+                    ? posed.y > .45F && posed.y < 1.0F
+                    : meshIndex == 10 || Vector3Distance(posed, {.23F, .45F, .12F}) < .00001F);
                 ++emitted;
             });
-        if (!expected || emitted != (level == 1 ? 2 : 3)) return false;
+        if (!expected || emitted != 2 + (level >= 3) + (level >= 5) + (level >= 7)) return false;
     }
     return true;
 }
