@@ -3,6 +3,7 @@
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/GateModel.hpp"
+#include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
@@ -267,6 +268,23 @@ std::optional<double> Renderer::buildingRaycastDistance(
             MatrixMultiply(
                 MatrixMultiply(scale, rotation),
                 translation));
+        if (building.type == BuildingType::Wall &&
+            model.meshCount >= wall_upgrade_model_detail::MeshCount) {
+            const auto bounds = resource->meshBounds();
+            auto closest = acceptCollision(GetRayCollisionBox(ray,
+                world_transforms::transformBounds(bounds[0], baseTransform)));
+            const int upgrade = wall_upgrade_model_detail::upgradeMeshIndex(building.level);
+            if (upgrade > 0) {
+                const auto broad = acceptCollision(GetRayCollisionBox(ray,
+                    world_transforms::transformBounds(bounds[static_cast<std::size_t>(upgrade)], baseTransform)));
+                if (broad && (!closest || *broad < *closest)) {
+                    const auto distance = acceptCollision(GetRayCollisionMesh(
+                        ray, model.meshes[upgrade], baseTransform));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                }
+            }
+            return closest;
+        }
         if (building.type == BuildingType::CrystalMine && model.meshCount == 2) {
             std::optional<double> closest;
             const double seconds = GetTime();

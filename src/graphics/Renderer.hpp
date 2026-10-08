@@ -543,7 +543,7 @@ class Renderer {
                                 std::uint8_t connectionMask,
                                 float yawRadians = 0.0F,
                                 Color tint = WHITE,
-                                float scale = 1.0F);
+                                float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawGate(
         Vector3 position, float yawRadians,
         float openAmount = 0.0F,

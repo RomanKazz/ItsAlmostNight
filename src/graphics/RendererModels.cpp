@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/GateModel.hpp"
+#include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 
@@ -813,7 +814,7 @@ bool Renderer::drawSpikeTrap(
 bool Renderer::drawWall(Vector3 position,
                         std::uint8_t connectionMask,
                         float yawRadians, Color tint,
-                        float scale) {
+                        float scale, int level) {
     constexpr std::uint8_t AllConnections =
         WallConnectionNorth | WallConnectionEast |
         WallConnectionSouth | WallConnectionWest;
@@ -885,9 +886,21 @@ bool Renderer::drawWall(Vector3 position,
     prepareModelShader(model);
 
     position.y += 0.005F;
-    DrawModelEx(
-        model, position, {0.0F, 1.0F, 0.0F},
-        modelYaw * RAD2DEG, {scale, scale, scale}, tint);
+    const Matrix transform = MatrixMultiply(model.transform,
+        MatrixMultiply(MatrixScale(scale, scale, scale),
+            MatrixMultiply(MatrixRotateY(modelYaw),
+                MatrixTranslate(position.x, position.y, position.z))));
+    const auto drawPart = [&](int index) {
+        Material& material = model.materials[model.meshMaterial[index]];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        DrawMesh(model.meshes[index], material, transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+    drawPart(0);
+    const int upgrade = wall_upgrade_model_detail::upgradeMeshIndex(level);
+    if (upgrade > 0 && model.meshCount >= wall_upgrade_model_detail::MeshCount)
+        drawPart(upgrade);
     return true;
 }
 

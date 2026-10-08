@@ -4,132 +4,18 @@ Run from the repository root. Original base, housing, texture and muzzle
 nodes are preserved. Previously generated meshes are replaced, not appended.
 Each level uses two vertex-colored meshes: stationary base and rotating head.
 """
-import json
 import math
-import struct
 from pathlib import Path
 
+from upgrade_mesh import Geometry, GlbAsset
+
 PATH = Path('assets/models/buildings/gun_turret.glb')
-data = PATH.read_bytes()
-json_size = struct.unpack_from('<I', data, 12)[0]
-doc = json.loads(data[20:20 + json_size])
-start = 20 + json_size
-binary_size = struct.unpack_from('<I', data, start)[0]
-binary = bytearray(data[start + 8:start + 8 + binary_size])
-# Authored asset has three meshes (including COL_BOX), 12 accessors, 13 views.
-doc['meshes'] = doc['meshes'][:3]
-doc['nodes'] = doc['nodes'][:9]
-doc['accessors'] = doc['accessors'][:12]
-doc['bufferViews'] = doc['bufferViews'][:13]
-doc['materials'] = doc['materials'][:1]
-doc['scenes'][doc.get('scene', 0)]['nodes'] = [8]
-binary = binary[:51804]
-doc['materials'].append({'name': 'upgrade_shell', 'pbrMetallicRoughness': {
-    'baseColorFactor': [1, 1, 1, 1], 'metallicFactor': 0, 'roughnessFactor': .4}})
+asset = GlbAsset(PATH)
 STEEL = (150, 172, 181)
 DARK = (51, 65, 72)
 ORANGE = (245, 92, 12)
 BRASS = (228, 165, 51)
 
-class Geometry:
-    def __init__(self):
-        self.positions, self.normals, self.colors = [], [], []
-
-    def face(self, points, color):
-        a, b, c = points[:3]
-        u, v = [b[i]-a[i] for i in range(3)], [c[i]-a[i] for i in range(3)]
-        normal = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
-        length = math.sqrt(sum(n*n for n in normal))
-        if length < 1e-9:
-            return
-        normal = [n/length for n in normal]
-        for i in range(1, len(points)-1):
-            for p in (points[0], points[i], points[i+1]):
-                self.positions.extend(p)
-                self.normals.extend(normal)
-                self.colors.extend((*color, 255))
-
-    def prism(self, polygon, axis, lo, hi, color):
-        # Polygon is counterclockwise in the other two axes. Orient every
-        # face outwards independently, including mirrored side panels.
-        axes = [i for i in range(3) if i != axis]
-        def point(p, height):
-            result = [0, 0, 0]
-            result[axis] = height
-            result[axes[0]], result[axes[1]] = p
-            return tuple(result)
-        center = [0, 0, 0]
-        center[axis] = (lo+hi)/2
-        for i, ax in enumerate(axes):
-            center[ax] = sum(p[i] for p in polygon)/len(polygon)
-        def outward(points):
-            a, b, c = points[:3]
-            u, v = [b[i]-a[i] for i in range(3)], [c[i]-a[i] for i in range(3)]
-            n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
-            if sum(n[i]*(a[i]-center[i]) for i in range(3)) < 0:
-                points = list(reversed(points))
-            self.face(points, color)
-        outward([point(p, lo) for p in polygon])
-        outward([point(p, hi) for p in polygon])
-        for i, p in enumerate(polygon):
-            q = polygon[(i+1)%len(polygon)]
-            outward([point(p, lo), point(q, lo), point(q, hi), point(p, hi)])
-
-    def box(self, center, size, color, bevel=.15):
-        x, y, z = center
-        w, h, d = size
-        b = min(w, d)*bevel
-        polygon = [(x-w/2+b,z-d/2),(x+w/2-b,z-d/2),(x+w/2,z-d/2+b),
-                   (x+w/2,z+d/2-b),(x+w/2-b,z+d/2),(x-w/2+b,z+d/2),
-                   (x-w/2,z+d/2-b),(x-w/2,z-d/2+b)]
-        self.prism(polygon, 1, y-h/2, y+h/2, color)
-
-    def ring(self, axis, center, outer, inner, length, color, segments=12):
-        axes = [i for i in range(3) if i != axis]
-        def p(r, h, t):
-            result = list(center)
-            result[axis] += h
-            result[axes[0]] += r*math.cos(t)
-            result[axes[1]] += r*math.sin(t)
-            return tuple(result)
-        for i in range(segments):
-            a, b = 2*math.pi*i/segments, 2*math.pi*(i+1)/segments
-            faces = [[p(outer,-length/2,a),p(outer,length/2,a),p(outer,length/2,b),p(outer,-length/2,b)],
-                     [p(inner,-length/2,b),p(inner,length/2,b),p(inner,length/2,a),p(inner,-length/2,a)],
-                     [p(inner,length/2,a),p(inner,length/2,b),p(outer,length/2,b),p(outer,length/2,a)],
-                     [p(inner,-length/2,b),p(inner,-length/2,a),p(outer,-length/2,a),p(outer,-length/2,b)]]
-            # Axis Y reverses the cyclic orientation of the other two axes.
-            for face in faces:
-                self.face(face if axis == 1 else list(reversed(face)), color)
-
-    def bounds(self):
-        return ([min(self.positions[i::3]) for i in range(3)],
-                [max(self.positions[i::3]) for i in range(3)])
-
-    def append(self, name):
-        def accessor(values, count, kind, component, fmt, bounds=None):
-            binary.extend(b'\0' * (-len(binary) % 4))
-            offset = len(binary)
-            binary.extend(struct.pack('<'+fmt*len(values), *values))
-            view = len(doc['bufferViews'])
-            doc['bufferViews'].append({'buffer': 0, 'byteOffset': offset,
-                                      'byteLength': len(binary)-offset, 'target': 34962})
-            entry = {'bufferView': view, 'componentType': component, 'count': count, 'type': kind}
-            if bounds:
-                entry.update(min=bounds[0], max=bounds[1])
-            if component == 5121:
-                entry['normalized'] = True
-            doc['accessors'].append(entry)
-            return len(doc['accessors'])-1
-        count = len(self.positions)//3
-        attributes = {'POSITION': accessor(self.positions,count,'VEC3',5126,'f',self.bounds()),
-                      'NORMAL': accessor(self.normals,count,'VEC3',5126,'f'),
-                      'COLOR_0': accessor(self.colors,count,'VEC4',5121,'B')}
-        mesh = len(doc['meshes'])
-        doc['meshes'].append({'name': name, 'primitives': [{'attributes': attributes, 'material': 1}]})
-        node = len(doc['nodes'])
-        doc['nodes'].append({'name': name, 'mesh': mesh})
-        doc['scenes'][doc.get('scene',0)]['nodes'].append(node)
 
 bounds = []
 for level in range(2, 9):
@@ -195,14 +81,9 @@ for level in range(2, 9):
             head.prism(edge,0,lo,hi,BRASS)
     for part, suffix in ((base,'base'),(head,'head')):
         bounds.append(part.bounds())
-        part.append(f'upgrade_l{level}_{suffix}')
+        part.append(asset, f'upgrade_l{level}_{suffix}')
 
-doc['buffers'][0]['byteLength'] = len(binary)
-encoded = json.dumps(doc,separators=(',',':')).encode()
-encoded += b' ' * (-len(encoded) % 4)
-binary += b'\0' * (-len(binary) % 4)
-total = 12+8+len(encoded)+8+len(binary)
-PATH.write_bytes(struct.pack('<III',0x46546c67,2,total)+struct.pack('<II',len(encoded),0x4e4f534a)+encoded+struct.pack('<II',len(binary),0x004e4942)+binary)
+total = asset.write()
 # Generated local bounds share the baked geometry used for drawing/aiming.
 def vec(v):
     return '{'+', '.join(f'{x:.6f}F' for x in v)+'}'

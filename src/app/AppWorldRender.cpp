@@ -1008,7 +1008,7 @@ void App::drawWorldEntities(
             if (!renderer_->drawWall(
                     {x, groundY, z}, connections,
                     fallbackYaw,
-                    WHITE, spawnScale)) {
+                    WHITE, spawnScale, building.level)) {
                 drawScaledCube(0.0F, 1.0F, 0.0F, 1.0F,
                                2.0F, 1.0F,
                                {126, 86, 54, 255});

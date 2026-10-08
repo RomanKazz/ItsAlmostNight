@@ -133,6 +133,68 @@ bool checkAtmosphereRendering() {
     return visible;
 }
 
+bool checkWallLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 384);
+    const Camera3D camera{{1.6F, 1.0F, -1.9F}, {0, .26F, 0}, {0, 1, 0}, 28, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level, std::uint8_t connections = 0U) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawWall({0, 0, 0}, connections, 0, WHITE, 1, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_WALL_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("wall-level-" + std::to_string(level) + "-mask-" +
+                 std::to_string(connections) + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool valid = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        const auto difference = changedPixels(previous, current);
+        if (difference <= 80) std::cerr << "wall level " << level << " differs by only " << difference << " pixels\n";
+        valid = valid && difference > 80;
+        UnloadImage(previous);
+        previous = current;
+    }
+    UnloadImage(previous);
+    Image restored = capture(1);
+    valid = valid && changedPixels(original, restored) == 0;
+    UnloadImage(original);
+    UnloadImage(restored);
+    // All junctions and their rotations must use the matching upgrade mesh.
+    for (std::uint8_t mask = 1; mask < 16; ++mask) {
+        Image plain = capture(1, mask);
+        Image upgraded = capture(8, mask);
+        valid = valid && changedPixels(plain, upgraded) > 80;
+        UnloadImage(plain);
+        UnloadImage(upgraded);
+    }
+    UnloadRenderTexture(target);
+    ian::BuildingInstance wall{.type = ian::BuildingType::Wall, .level = 1};
+    const ian::Vec3 center = ian::buildingWorldPosition(wall);
+    const Ray capRay{{static_cast<float>(center.x) + .436F, .545F,
+        static_cast<float>(center.z) - 2}, {0, 0, 1}};
+    const auto plainCap = renderer.buildingRaycastDistance(wall, {}, capRay, 4);
+    wall.level = 7;
+    const auto upgradedCap = renderer.buildingRaycastDistance(wall, {}, capRay, 4);
+    if (plainCap || !upgradedCap)
+        std::cerr << "wall cap aiming: " << plainCap.value_or(-1) << " -> " << upgradedCap.value_or(-1) << '\n';
+    return valid && !plainCap && upgradedCap;
+}
+
 bool checkGunTurretLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(384, 384);
     const Camera3D camera{{2.4F, 1.9F, -3.2F}, {0, 0.62F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
@@ -1079,6 +1141,10 @@ int main() {
         }
         if (!checkCoreOrbitRendering(renderer)) {
             std::cerr << "core orbit or distinct level appearances failed\n";
+            result = 1;
+        }
+        if (!checkWallLevelRendering(renderer)) {
+            std::cerr << "wall levels, junctions, cap aiming or material restoration failed\n";
             result = 1;
         }
         if (!checkGunTurretLevelRendering(renderer)) {

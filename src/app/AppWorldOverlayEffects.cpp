@@ -270,7 +270,7 @@ void App::drawSoldBuildingVisuals() {
             if (!renderer_->drawWall(
                     {x, baseY - sink, z},
                     visual.wallConnections, yaw,
-                    {255, 255, 255, alpha}, scale)) {
+                    {255, 255, 255, alpha}, scale, building.level)) {
                 drawCube(0.0F, 1.0F, 0.0F, 1.0F,
                          2.0F, 1.0F,
                          {126, 86, 54, alpha});

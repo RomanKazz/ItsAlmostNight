@@ -419,7 +419,7 @@ void App::drawShadowPass(
                                 snapshot.buildings,
                                 building)) *
                             PI * 0.5F,
-                        WHITE, spawnScale)) {
+                        WHITE, spawnScale, building.level)) {
                     DrawCube({x, groundY + 1.0F, z},
                              1.0F, 2.0F,
                              1.0F, WHITE);
@@ -1004,7 +1004,7 @@ void App::drawSelectionPass(
                                     snapshot.buildings,
                                     *building)) *
                                 PI * 0.5F,
-                            WHITE, spawnScale)) {
+                            WHITE, spawnScale, building->level)) {
                         DrawCube({x, groundY + 1.0F, z},
                                  1.0F, 2.0F,
                                  1.0F, WHITE);
