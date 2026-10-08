@@ -276,7 +276,7 @@ bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
 
 bool checkQuarryLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(512, 384);
-    const Camera3D camera{{1.25F, 1.1F, 1.8F}, {0, .32F, 0}, {0, 1, 0},
+    const Camera3D camera{{1.5F, 1.5F, 2.4F}, {0, .47F, 0}, {0, 1, 0},
                           36, CAMERA_PERSPECTIVE};
     const auto capture = [&](int level) {
         BeginTextureMode(target);
@@ -320,7 +320,7 @@ bool checkQuarryLevelRendering(ian::Renderer& renderer) {
                                       .rotation = rotation, .level = 1};
             const auto center = ian::buildingWorldPosition(mine);
             const Ray ray{{static_cast<float>(center.x) + static_cast<float>(x) * .02F,
-                           .60F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
+                           .75F, static_cast<float>(center.z) + 2}, {0, 0, -1}};
             correctAiming = correctAiming && !renderer.buildingRaycastDistance(mine, {}, ray, 4);
             mine.level = 8;
             hitRaisedCrystals |= renderer.buildingRaycastDistance(mine, {}, ray, 4).has_value();
