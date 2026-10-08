@@ -585,7 +585,10 @@ std::optional<EntityId> preciseBuildingAim(
                         gateOpenAmount
                     ? gateOpenAmount(
                           building.id, building.open)
-                    : building.open ? 1.0F : 0.0F);
+                    : building.open ? 1.0F : 0.0F,
+                building.type == BuildingType::SpikeTrap
+                    ? spikeTrapAnimationSeconds(snapshot, building.id)
+                    : -1.0F);
         if (distance && *distance < closestDistance) {
             closestDistance = *distance;
             result = building.id;

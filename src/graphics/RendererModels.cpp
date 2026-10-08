@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/GateModel.hpp"
+#include "graphics/SpikeTrapModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
@@ -733,7 +734,7 @@ bool Renderer::drawResourceProducer(
 
 bool Renderer::drawSpikeTrap(
     Vector3 position, float yawRadians, float animationSeconds,
-    Color tint, float scaleFactor) {
+    Color tint, float scaleFactor, int level) {
     auto& resource = resources_.spikeTrapModel();
     if (!resource.valid()) {
         return false;
@@ -742,36 +743,10 @@ bool Renderer::drawSpikeTrap(
     prepareModelShader(model);
 
     constexpr float ModelScale = 1.2F;
-    constexpr float HiddenOffset = -0.15F;
-    constexpr float AnimationDuration = 1.2F;
-    float exposure = 0.0F;
-    // This GLB animates an unskinned child node, which raylib does not expose
-    // through ModelAnimation. Reproduce its authored show-hide translation:
-    // 0.2 s rise, 0.8 s hold, 0.2 s retract.
-    if (animationSeconds >= 0.0F &&
-        animationSeconds < AnimationDuration) {
-        constexpr float ShowSeconds = 0.20F;
-        constexpr float HideStartSeconds = 1.0F;
-        const auto authoredEase = [](float t) {
-            const float rise = t * t * t;
-            const float fall =
-                (1.0F - t) * (1.0F - t) * (1.0F - t);
-            return rise / std::max(rise + fall, 0.0001F);
-        };
-        if (animationSeconds < ShowSeconds) {
-            const float t = animationSeconds / ShowSeconds;
-            exposure = authoredEase(t);
-        } else if (animationSeconds < HideStartSeconds) {
-            exposure = 1.0F;
-        } else {
-            const float t = std::clamp(
-                (animationSeconds - HideStartSeconds) /
-                    (AnimationDuration - HideStartSeconds),
-                0.0F, 1.0F);
-            exposure = 1.0F - authoredEase(t);
-        }
-    }
-    const float spikeOffset = HiddenOffset * (1.0F - exposure);
+    const bool upgraded = level > 1 && model.meshCount >= spike_trap_model_detail::MeshCount;
+    // Drawing and aiming use the same authored show/hide translation.
+    const float spikeOffset = spike_trap_model_detail::spikeOffset(
+        upgraded ? level : 1, animationSeconds);
     position.y += 0.005F;
     const float scale = ModelScale * scaleFactor;
     const Matrix scaleMatrix = MatrixScale(scale, scale, scale);
@@ -793,7 +768,6 @@ bool Renderer::drawSpikeTrap(
             ColorTint(original, tint);
         DrawMesh(model.meshes[meshIndex], material, transform);
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
     };
     if (model.meshCount < 2) {
         DrawModelEx(
@@ -802,11 +776,17 @@ bool Renderer::drawSpikeTrap(
         return true;
     }
     drawMesh(0, transformAt(position.y));
-    drawMesh(
-        1, transformAt(position.y + spikeOffset * scale));
-    for (int meshIndex = 2; meshIndex < model.meshCount;
-         ++meshIndex) {
-        drawMesh(meshIndex, transformAt(position.y));
+    if (upgraded) {
+        const int base = spike_trap_model_detail::baseMeshIndex(level);
+        drawMesh(base, transformAt(position.y));
+        drawMesh(base + 1, transformAt(position.y + spikeOffset * scale));
+    } else {
+        drawMesh(1, transformAt(position.y + spikeOffset * scale));
+        if (model.meshCount < spike_trap_model_detail::MeshCount) {
+            for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
+                drawMesh(meshIndex, transformAt(position.y));
+            }
+        }
     }
     return true;
 }

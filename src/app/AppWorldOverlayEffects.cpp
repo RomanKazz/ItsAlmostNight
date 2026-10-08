@@ -246,7 +246,7 @@ void App::drawSoldBuildingVisuals() {
         } else if (building.type == BuildingType::SpikeTrap) {
             if (!renderer_->drawSpikeTrap(
                     {x, baseY - sink, z}, yaw, -1.0F,
-                    tint, scale)) {
+                    tint, scale, building.level)) {
                 drawCube(0.0F, 0.08F, 0.0F, 1.0F,
                          0.16F, 1.0F,
                          {112, 96, 80, alpha});

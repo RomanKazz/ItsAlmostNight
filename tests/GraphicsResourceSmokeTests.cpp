@@ -4,6 +4,7 @@
 #include "graphics/CrossbowModel.hpp"
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
+#include "graphics/SpikeTrapModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
@@ -136,6 +137,84 @@ bool checkAtmosphereRendering() {
     UnloadImage(image);
     UnloadRenderTexture(target);
     return visible;
+}
+
+bool checkSpikeTrapLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 384);
+    const Camera3D camera{{1.2F, 1.25F, -1.6F}, {0, .10F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level, float seconds = -1.0F, Color tint = WHITE) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawSpikeTrap({0, 0, 0}, 0, seconds, tint, 1, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_SPIKE_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("spike-level-" + std::to_string(level) + "-time-" + std::to_string(seconds) +
+                 (tint.a == 255 ? "" : "-tinted") + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool valid = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 1; level <= 8; ++level) {
+        Image idle = capture(level);
+        if (level > 1) {
+            const auto difference = changedPixels(previous, idle);
+            if (difference <= 80) std::cerr << "spike level " << level << " differs by only " << difference << " pixels\n";
+            valid = valid && difference > 80;
+        }
+        Image raised = capture(level, .5F);
+        Image halfway = capture(level, .1F);
+        Image retracted = capture(level, 1.2F);
+        valid = valid && changedPixels(idle, raised) > 80 &&
+            changedPixels(idle, halfway) > 80 && changedPixels(raised, halfway) > 80 &&
+            changedPixels(idle, retracted) == 0;
+        UnloadImage(raised);
+        UnloadImage(halfway);
+        UnloadImage(retracted);
+        UnloadImage(previous);
+        previous = idle;
+    }
+    Image tinted = capture(8, -1, {140, 190, 220, 180});
+    UnloadImage(tinted);
+    Image restoredUpgrade = capture(8);
+    valid = valid && changedPixels(previous, restoredUpgrade) == 0;
+    UnloadImage(previous);
+    UnloadImage(restoredUpgrade);
+    Image restored = capture(1);
+    valid = valid && changedPixels(original, restored) == 0;
+    UnloadImage(original);
+    UnloadImage(restored);
+    UnloadRenderTexture(target);
+
+    for (const std::uint8_t rotation : {std::uint8_t{0}, std::uint8_t{1}}) {
+        ian::BuildingInstance trap{.type = ian::BuildingType::SpikeTrap, .rotation = rotation};
+        const auto center = ian::buildingWorldPosition(trap);
+        const Matrix yaw = MatrixRotateY(static_cast<float>(rotation)*PI*.5F);
+        Vector3 origin = Vector3Transform({.225F*1.2F, .30F*1.2F, -2}, yaw);
+        origin = Vector3Add(origin, {static_cast<float>(center.x), static_cast<float>(center.y) + .005F, static_cast<float>(center.z)});
+        const Ray ray{origin, Vector3Transform({0, 0, 1}, yaw)};
+        trap.level = 1;
+        const auto plain = renderer.buildingRaycastDistance(trap, {}, ray, 4, 0, 0, 1, .5F);
+        trap.level = 8;
+        const auto idle = renderer.buildingRaycastDistance(trap, {}, ray, 4);
+        const auto active = renderer.buildingRaycastDistance(trap, {}, ray, 4, 0, 0, 1, .5F);
+        const bool aligned = !plain && !idle && active;
+        if (!aligned) std::cerr << "spike aiming, rotation " << static_cast<int>(rotation) << ": " << plain.value_or(-1) << ", " << idle.value_or(-1) << ", " << active.value_or(-1) << '\n';
+        valid = valid && aligned;
+    }
+    return valid;
 }
 
 bool checkGateLevelRendering(ian::Renderer& renderer) {
@@ -1468,6 +1547,10 @@ int main() {
         }
         if (!checkCatapultLevelRendering(renderer)) {
             std::cerr << "catapult level rendering check failed\n";
+            result = 1;
+        }
+        if (!checkSpikeTrapLevelRendering(renderer)) {
+            std::cerr << "spike trap level rendering failed\n";
             result = 1;
         }
         if (!checkGateLevelRendering(renderer)) {

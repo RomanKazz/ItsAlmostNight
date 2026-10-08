@@ -366,7 +366,8 @@ class Renderer {
         Ray ray, double maxDistance,
         float defensiveYaw = 0.0F,
         float cannonPitch = 0.0F,
-        float gateOpenAmount = 1.0F);
+        float gateOpenAmount = 1.0F,
+        float spikeAnimationSeconds = -1.0F);
     [[nodiscard]] std::optional<double>
     resourceRaycastDistance(
         ResourceType type, Vector3 position,
@@ -520,7 +521,7 @@ class Renderer {
     [[nodiscard]] bool drawSpikeTrap(
         Vector3 position, float yawRadians = 0.0F,
         float animationSeconds = -1.0F,
-        Color tint = WHITE, float scale = 1.0F);
+        Color tint = WHITE, float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawRock(Vector3 position,
                                 Color tint = WHITE,
                                 float scale = 1.0F,

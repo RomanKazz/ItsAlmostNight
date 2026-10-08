@@ -497,7 +497,7 @@ void App::drawShadowPass(
                         QuarterTurn,
                     spikeTrapAnimationSeconds(
                         snapshot, building.id),
-                    WHITE, spawnScale));
+                    WHITE, spawnScale, building.level));
             } else if (
                 building.type == BuildingType::WoodStorage ||
                 building.type == BuildingType::StoneStorage ||
@@ -1098,7 +1098,7 @@ void App::drawSelectionPass(
                             QuarterTurn,
                         spikeTrapAnimationSeconds(
                             snapshot, building->id),
-                        WHITE, spawnScale));
+                        WHITE, spawnScale, building->level));
                 } else if (
                     building->type == BuildingType::WoodStorage ||
                     building->type == BuildingType::StoneStorage ||

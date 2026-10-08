@@ -1095,7 +1095,7 @@ void App::drawWorldEntities(
                         QuarterTurn,
                     spikeTrapAnimationSeconds(
                         snapshot, building.id),
-                    WHITE, spawnScale)) {
+                    WHITE, spawnScale, building.level)) {
                 drawScaledCube(
                     0.0F, 0.08F, 0.0F, 1.0F, 0.16F,
                     1.0F, {112, 96, 80, 255});
