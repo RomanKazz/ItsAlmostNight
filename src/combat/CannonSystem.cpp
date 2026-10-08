@@ -33,7 +33,10 @@ constexpr double CatapultExplosionRadius = 3.1;
 constexpr double CatapultExplosionDamage = 4.0;
 constexpr double CatapultAnimationDuration = 0.95;
 constexpr double CatapultReleaseTime = 0.34;
-constexpr double CatapultReleasePitch = -1.05;
+constexpr double CatapultWindupTime = 0.12;
+constexpr double CatapultFollowThroughTime = 0.43;
+constexpr double CatapultWindupPitch = 0.18;
+constexpr double CatapultFollowThroughPitch = -1.20;
 constexpr std::size_t MaxProjectiles = 300;
 
 // Critically damped aiming retains velocity across target changes. Its exact
@@ -56,9 +59,25 @@ constexpr std::size_t MaxProjectiles = 300;
     return wrapped ? wrapBuildingAngle(next) : next;
 }
 
-[[nodiscard]] double easeInOut(double value) {
-    value = std::clamp(value, 0.0, 1.0);
-    return value * value * (3.0 - 2.0 * value);
+[[nodiscard]] double catapultArmPitch(double elapsed) {
+    // Each phase joins at rest with zero acceleration. Release happens during
+    // the fast throw, before follow-through, rather than at a stopped arm.
+    const auto ease = [](double value) {
+        value = std::clamp(value, 0.0, 1.0);
+        return value * value * value * (value * (value * 6.0 - 15.0) + 10.0);
+    };
+    if (elapsed <= CatapultWindupTime) {
+        return CatapultWindupPitch * ease(elapsed / CatapultWindupTime);
+    }
+    if (elapsed <= CatapultFollowThroughTime) {
+        return CatapultWindupPitch +
+            (CatapultFollowThroughPitch - CatapultWindupPitch) * ease(
+                (elapsed - CatapultWindupTime) /
+                (CatapultFollowThroughTime - CatapultWindupTime));
+    }
+    return CatapultFollowThroughPitch * (1.0 - ease(
+        (elapsed - CatapultFollowThroughTime) /
+        (CatapultAnimationDuration - CatapultFollowThroughTime)));
 }
 
 } // namespace
@@ -225,27 +244,31 @@ std::span<const CannonExplosion> CannonSystem::tick(
                 0.0, cannon.firingAnimationRemaining - deltaSeconds);
             const double elapsed = CatapultAnimationDuration -
                 cannon.firingAnimationRemaining;
-            if (elapsed <= CatapultReleaseTime) {
-                cannon.pitch = CatapultReleasePitch * easeInOut(
-                    elapsed / CatapultReleaseTime);
+            cannon.pitch = catapultArmPitch(elapsed);
+            if (cannon.pendingTargetPosition && cannon.targetId) {
+                const Vec3& target = *cannon.pendingTargetPosition;
+                const double desiredYaw = std::atan2(
+                    targetingOrigin.x - target.x, targetingOrigin.z - target.z);
+                cannon.yaw = advanceAim(
+                    cannon.yaw, desiredYaw, cannon.yawVelocity,
+                    deltaSeconds, 12.0, TurnSpeed, true);
             } else {
-                const double recovery = easeInOut(
-                    (elapsed - CatapultReleaseTime) /
-                    (CatapultAnimationDuration - CatapultReleaseTime));
-                cannon.pitch = CatapultReleasePitch * (1.0 - recovery);
+                cannon.yaw = smoothBuildingAngle(
+                    cannon.yaw, cannon.restYaw, deltaSeconds);
+                cannon.yawVelocity = 0.0;
             }
             if (previousElapsed < CatapultReleaseTime &&
                 elapsed >= CatapultReleaseTime &&
                 cannon.pendingTargetPosition) {
                 launch(*building, *cannon.pendingTargetPosition,
-                       cannon.yaw, CatapultReleasePitch);
-                cannon.pendingTargetPosition.reset();
+                       cannon.yaw, catapultArmPitch(CatapultReleaseTime));
                 cannon.loaded = false;
                 cannon.fireCooldownRemaining = shotInterval;
             }
             if (cannon.firingAnimationRemaining <= 0.0) {
                 cannon.pitch = 0.0;
                 cannon.loaded = true;
+                cannon.pendingTargetPosition.reset();
             }
             continue;
         }
@@ -351,13 +374,11 @@ std::span<const CannonExplosion> CannonSystem::tick(
         projectile.position.x += projectile.velocity.x * deltaSeconds;
         projectile.position.y += projectile.velocity.y * deltaSeconds;
         projectile.position.z += projectile.velocity.z * deltaSeconds;
-        if (projectile.type == BuildingType::Cannon) {
-            projectile.trailHead = (projectile.trailHead + 1U) %
-                CannonProjectile::TrailCapacity;
-            projectile.trailPositions[projectile.trailHead] = projectile.position;
-            projectile.trailPointCount = std::min(
-                projectile.trailPointCount + 1U, CannonProjectile::TrailCapacity);
-        }
+        projectile.trailHead = (projectile.trailHead + 1U) %
+            CannonProjectile::TrailCapacity;
+        projectile.trailPositions[projectile.trailHead] = projectile.position;
+        projectile.trailPointCount = std::min(
+            projectile.trailPointCount + 1U, CannonProjectile::TrailCapacity);
         if (projectile.fuseRemaining <= 0.0) {
             projectile.position = projectile.targetPosition;
             explode(projectile, enemies);
@@ -437,7 +458,7 @@ void CannonSystem::launchProjectile(const BuildingInstance& cannon, Vec3 origin,
     projectile->type = cannon.type;
     projectile->position = origin;
     projectile->trailHead = 0;
-    projectile->trailPointCount = cannon.type == BuildingType::Cannon ? 1U : 0U;
+    projectile->trailPointCount = 1U;
     projectile->trailPositions[0] = origin;
     projectile->targetPosition = targetPosition;
     projectile->velocity = {

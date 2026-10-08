@@ -116,6 +116,26 @@ void emitProjectileQuad(
     emitProjectileVertex(farRight, farRightColor);
 }
 
+Vector3 ballisticTrailPoint(
+    const CannonProjectile& projectile, std::size_t age, float interpolationAlpha) {
+    if (projectile.trailPointCount == 0U) {
+        return {static_cast<float>(projectile.position.x),
+                static_cast<float>(projectile.position.y),
+                static_cast<float>(projectile.position.z)};
+    }
+    const auto point = [&projectile](std::size_t pointAge) {
+        const auto& position = projectile.trailPositions[
+            (projectile.trailHead + CannonProjectile::TrailCapacity - pointAge) %
+            CannonProjectile::TrailCapacity];
+        return Vector3{static_cast<float>(position.x),
+                       static_cast<float>(position.y),
+                       static_cast<float>(position.z)};
+    };
+    age = std::min(age, projectile.trailPointCount - 1U);
+    return Vector3Lerp(point(std::min(age + 1U, projectile.trailPointCount - 1U)),
+                       point(age), std::clamp(interpolationAlpha, 0.0F, 1.0F));
+}
+
 void emitCannonballGeometry(
     Vector3 center, Vector3 direction, Vector3 cameraPosition,
     float radius, Color tint) {
@@ -1227,7 +1247,7 @@ void App::drawWorldEntities(
             projectile, camera.position, projectileTime,
             interpolationAlpha);
     }
-    // A bounded ribbon follows the shell's recorded trajectory. All cannon
+    // A bounded ribbon follows the shell's recorded trajectory. All ballistic
     // tails share a batch, with no particles or per-frame allocations.
     WorldMaterialState cannonShotMaterial{};
     cannonShotMaterial.unlitAmount = 1.0F;
@@ -1240,7 +1260,7 @@ void App::drawWorldEntities(
     rlDisableBackfaceCulling();
     rlBegin(RL_TRIANGLES);
     for (const auto& projectile : snapshot.cannonProjectiles) {
-        if (!projectile.active || projectile.type != BuildingType::Cannon) {
+        if (!projectile.active) {
             continue;
         }
         const auto appearance = presentation::bulletAppearance(
@@ -1248,13 +1268,8 @@ void App::drawWorldEntities(
         const Color tint{appearance.color.r, appearance.color.g,
                          appearance.color.b, 255};
         const float scale = static_cast<float>(projectile.visualScale);
-        const auto trailPoint = [&projectile](std::size_t age) {
-            const auto& point = projectile.trailPositions[
-                (projectile.trailHead + CannonProjectile::TrailCapacity - age) %
-                CannonProjectile::TrailCapacity];
-            return Vector3{static_cast<float>(point.x),
-                           static_cast<float>(point.y),
-                           static_cast<float>(point.z)};
+        const auto trailPoint = [&projectile, interpolationAlpha](std::size_t age) {
+            return ballisticTrailPoint(projectile, age, interpolationAlpha);
         };
         const auto trailSide = [&trailPoint, &projectile, &camera](std::size_t age) {
             const Vector3 point = trailPoint(age);
@@ -1308,15 +1323,13 @@ void App::drawWorldEntities(
     rlDisableBackfaceCulling();
     rlBegin(RL_TRIANGLES);
     for (const auto& projectile : snapshot.cannonProjectiles) {
-        if (!projectile.active || projectile.type != BuildingType::Cannon) continue;
+        if (!projectile.active) continue;
         const auto appearance = presentation::bulletAppearance(projectile.explosionDamage);
         const Vector3 velocity{static_cast<float>(projectile.velocity.x),
                                static_cast<float>(projectile.velocity.y),
                                static_cast<float>(projectile.velocity.z)};
         emitCannonballGeometry(
-            {static_cast<float>(projectile.position.x),
-             static_cast<float>(projectile.position.y),
-             static_cast<float>(projectile.position.z)},
+            ballisticTrailPoint(projectile, 0U, interpolationAlpha),
             Vector3LengthSqr(velocity) > 0.000001F
                 ? Vector3Normalize(velocity) : Vector3{0.0F, 1.0F, 0.0F},
             camera.position, 0.24F * static_cast<float>(projectile.visualScale),
@@ -1328,17 +1341,6 @@ void App::drawWorldEntities(
     rlEnableDepthMask();
     EndBlendMode();
     renderer_->setWorldMaterial({});
-    for (const auto& projectile : snapshot.cannonProjectiles) {
-        if (!projectile.active || projectile.type != BuildingType::Catapult) continue;
-        const Vector3 position{static_cast<float>(projectile.position.x),
-                               static_cast<float>(projectile.position.y),
-                               static_cast<float>(projectile.position.z)};
-        if (!renderer_->drawCatapultBall(position)) {
-            DrawSphere(position, 0.2F * static_cast<float>(projectile.visualScale),
-                       {36, 39, 43, 255});
-        }
-    }
-
     // Render the solid projectile with the world pass so its normal/ink mask
     // replaces the turret geometry behind it. Additive ribbons follow below.
     for (const auto& arrow : arrowVisuals_) {

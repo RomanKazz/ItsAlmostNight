@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/CatapultRig.hpp"
 #include "combat/CannonSystem.hpp"
 #include "enemies/EnemySystem.hpp"
 
@@ -292,7 +293,11 @@ void runCannonSystemTests() {
     require(catapults.projectiles().empty() &&
                 catapults.cannons().front().loaded,
             "catapult keeps its ball in the cup during windup");
-    for (int tick = 0; tick < 12; ++tick) {
+    catapults.tick(1.0 / 60.0, catapultBuildings, catapultEnemies);
+    require(catapults.cannons().front().pitch > 0.0 &&
+                catapults.cannons().front().pitch < 0.01,
+            "catapult starts with a small smooth backward windup");
+    for (int tick = 0; tick < 16; ++tick) {
         catapults.tick(1.0 / 60.0, catapultBuildings,
                        catapultEnemies);
     }
@@ -312,6 +317,82 @@ void runCannonSystemTests() {
                 !catapults.cannons().front().loaded &&
                 catapults.projectiles().front().targetPosition.z < -4.0,
             "catapult releases a ballistic ball beyond its dead zone");
+    const auto& releasedBall = catapults.projectiles().front();
+    require(releasedBall.trailPointCount == 2U,
+            "catapult ball starts a clean trail at release");
+    const auto& releasePose = catapults.cannons().front();
+    const auto cup = ian::catapultMuzzleWorldPosition(
+        ian::buildingWorldPosition(catapultBuildings.front()),
+        releasePose.yaw, releasePose.pitch);
+    const auto& launchPoint = releasedBall.trailPositions[0];
+    require(std::hypot(cup.y - launchPoint.y, cup.z - launchPoint.z) < 0.08,
+            "catapult ball separates from the moving cup without jumping");
+    bool catapultCurvedTrail = false;
+    bool catapultWrappedTrail = false;
+    bool followedThrough = false;
+    bool recovered = false;
+    for (int tick = 0; tick < 120; ++tick) {
+        const double before = catapults.cannons().front().pitch;
+        catapults.tick(1.0 / 60.0, catapultBuildings, catapultEnemies);
+        const auto& motion = catapults.cannons().front();
+        requireNear(motion.previousPitch, before, 1e-12,
+                    "catapult render interpolation retains the previous arm pose");
+        require(std::abs(motion.pitch - before) < 0.15,
+                "catapult throw and recovery cannot snap the arm");
+        followedThrough |= motion.pitch < -1.15;
+        recovered |= motion.loaded && motion.firingAnimationRemaining == 0.0 &&
+                     std::abs(motion.pitch) < 1e-8 && !motion.pendingTargetPosition;
+        const auto& ball = catapults.projectiles().front();
+        if (!ball.active || ball.trailPointCount < 3U) continue;
+        const auto point = [&ball](std::size_t age) {
+            return ball.trailPositions[
+                (ball.trailHead + ian::CannonProjectile::TrailCapacity - age) %
+                ian::CannonProjectile::TrailCapacity];
+        };
+        requireNear(point(0).y, ball.position.y, 1e-12,
+                    "catapult trail head follows the physical ball");
+        requireNear(point(0).y - 2.0 * point(1).y + point(2).y,
+                    -9.8 / (60.0 * 60.0), 1e-12,
+                    "catapult trail follows gravity throughout the arc");
+        catapultCurvedTrail = true;
+        catapultWrappedTrail |= ball.trailPointCount == ian::CannonProjectile::TrailCapacity;
+    }
+    require(catapultCurvedTrail && catapultWrappedTrail && followedThrough && recovered,
+            "catapult follows through, settles and keeps a bounded curved trail");
+    bool reusedCatapultBall = false;
+    for (int tick = 0; tick < 240 && !reusedCatapultBall; ++tick) {
+        catapults.tick(1.0 / 60.0, catapultBuildings, catapultEnemies);
+        reusedCatapultBall = !catapults.shots().empty();
+    }
+    require(reusedCatapultBall && catapults.projectiles().front().trailPointCount == 2U,
+            "reused catapult ball clears its old trajectory");
+
+    ian::EnemySystem sideTargets;
+    constexpr std::array<ian::Vec3, 1> SideTarget{{{5.0, 0.8, -9.0}}};
+    sideTargets.spawnWave(SideTarget);
+    ian::CannonSystem turningCatapult;
+    turningCatapult.syncBuildings(catapultBuildings);
+    double firstTurn = 0.0;
+    double peakTurn = 0.0;
+    bool releasedWhileAiming = false;
+    for (int tick = 0; tick < 150; ++tick) {
+        const double before = turningCatapult.cannons().front().yaw;
+        turningCatapult.tick(1.0 / 60.0, catapultBuildings, sideTargets);
+        const auto& motion = turningCatapult.cannons().front();
+        const double turn = std::abs(ian::wrapBuildingAngle(motion.yaw - before));
+        if (tick == 0) firstTurn = turn;
+        peakTurn = std::max(peakTurn, turn);
+        require(turn < 0.04,
+                "catapult acquisition and throw keep yaw continuous");
+        if (!turningCatapult.shots().empty()) {
+            const double aimedYaw = std::atan2(-5.0, 9.0);
+            require(std::abs(ian::wrapBuildingAngle(motion.yaw - aimedYaw)) < 0.01,
+                    "catapult finishes aiming during windup instead of freezing early");
+            releasedWhileAiming = true;
+        }
+    }
+    require(firstTurn > 0.0 && peakTurn > firstTurn * 3.0 && releasedWhileAiming,
+            "catapult accelerates into aim and releases toward its target");
 
     for (const auto type : {ian::BuildingType::Cannon, ian::BuildingType::Catapult}) {
         std::vector<ian::BuildingInstance> registry{{
