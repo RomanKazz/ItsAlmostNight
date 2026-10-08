@@ -60,11 +60,8 @@ float easeOutBack(float value) {
 
 void drawStatsCard(std::string_view title, int level, Vector3 base,
                    double health, double maxHealth, std::span<const StatRow> rows,
-                   const SimulationSnapshot& snapshot, const Camera3D& camera,
+                   const Camera3D& camera,
                    float entranceSeconds, float buildingHalfWidth, bool isCore) {
-    const Vector3 observer{static_cast<float>(snapshot.playerPosition.x),
-        static_cast<float>(snapshot.playerPosition.y), static_cast<float>(snapshot.playerPosition.z)};
-    if (!buildingCardInRange(observer, base)) return;
     const Vector2 viewport{static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())};
     const auto projection = projectBuildingCard(
         Vector3Add(base, {0, isCore ? .95F : 1.15F, 0}), camera, viewport);
@@ -72,16 +69,20 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
     const float progress = smooth01(entranceSeconds / .12F);
     // Match the health bar's hover fade while preserving the old card pop.
     const float opacity = 1.0F - std::exp(-entranceSeconds / .035F);
-    const float panelHeight = 98 + static_cast<float>(rows.size()) * 29;
+    constexpr float CardSizeScale = 1.4F;
+    const float panelWidth = 460 * CardSizeScale;
+    const float panelHeight =
+        (98 + static_cast<float>(rows.size()) * 29) * CardSizeScale;
     const auto transform = buildingCardTransform(*projection, viewport,
-        easeOutBack(progress), (1.0F-progress)*18.0F, 460, panelHeight,
-        buildingHalfWidth, isCore);
-    const float scale = transform.scale;
+        easeOutBack(progress), (1.0F-progress)*18.0F,
+        panelWidth, panelHeight,
+        buildingHalfWidth, isCore, 0.55F);
+    const float scale = transform.scale * CardSizeScale;
     if (scale <= .001F || opacity <= .001F) return;
     const float width = 460 * scale;
-    const float height = panelHeight * scale;
-    const float x = transform.offsetX + 407 * scale;
-    const float y = transform.offsetY + 284 * scale;
+    const float height = panelHeight * transform.scale;
+    const float x = transform.offsetX + 407 * transform.scale;
+    const float y = transform.offsetY + 284 * transform.scale;
     const auto faded = [opacity](Color color) {
         color.a = static_cast<unsigned char>(
             std::lround(static_cast<float>(color.a) * opacity));
@@ -167,7 +168,7 @@ void drawBuildingContextCard(
     const Vec3 center=buildingWorldPosition(building);
     drawStatsCard(buildingDisplayName(building.type),building.level,
         {static_cast<float>(center.x),static_cast<float>(center.y),static_cast<float>(center.z)},
-        building.health,building.maxHealth,std::span{rows}.first(count),snapshot,camera,
+        building.health,building.maxHealth,std::span{rows}.first(count),camera,
         view.buildingContextCardEntranceSeconds,
         static_cast<float>(buildingFootprintHalfExtent(building.type)),
         building.type == BuildingType::Core);
@@ -180,7 +181,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
     const float cell=static_cast<float>(snapshot.worldCellSize);
     for (const auto& frame:snapshot.platformFrames) if (frame.id==id) {
         drawStatsCard("PLATFORM",0,{(frame.anchor.x+1)*cell,static_cast<float>(frame.floorHeight),
-            (frame.anchor.z+1)*cell},frame.health,frame.maxHealth,{},snapshot,camera,
+            (frame.anchor.z+1)*cell},frame.health,frame.maxHealth,{},camera,
             entranceSeconds,cell,false);
         return;
     }
@@ -188,7 +189,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
         const Vec3 center{(wall.anchor.x+.5)*snapshot.worldCellSize,
             wall.bottomHeight,(wall.anchor.z+.5)*snapshot.worldCellSize};
         drawStatsCard("WALL",0,{static_cast<float>(center.x),static_cast<float>(center.y),
-            static_cast<float>(center.z)},wall.health,wall.maxHealth,{},snapshot,camera,
+            static_cast<float>(center.z)},wall.health,wall.maxHealth,{},camera,
             entranceSeconds,cell*.5F,false);
         return;
     }
@@ -197,7 +198,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
         const float width=alongZ ? ModularRampWidthCells : ModularRampRunCells;
         const float depth=alongZ ? ModularRampRunCells : ModularRampWidthCells;
         drawStatsCard("RAMP",0,{(ramp.anchor.x+width*.5F)*cell,static_cast<float>(ramp.topHeight),
-            (ramp.anchor.z+depth*.5F)*cell},ramp.health,ramp.maxHealth,{},snapshot,camera,
+            (ramp.anchor.z+depth*.5F)*cell},ramp.health,ramp.maxHealth,{},camera,
             entranceSeconds,std::max(width,depth)*cell*.5F,false);
         return;
     }

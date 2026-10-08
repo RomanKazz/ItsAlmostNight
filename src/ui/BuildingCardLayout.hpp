@@ -60,10 +60,12 @@ struct BuildingCardTransform {
 
 [[nodiscard]] inline BuildingCardTransform buildingCardTransform(
     BuildingCardProjection projection, Vector2 viewport, float animatedScale,
-    float slideY, float panelWidth, float panelHeight, float buildingHalfWidth, bool isCore) {
+    float slideY, float panelWidth, float panelHeight, float buildingHalfWidth,
+    bool isCore, float minimumWorldScale = 0.0F) {
     constexpr float Margin = 18.0F;
     const float pixelsPerWorldUnit = projection.pixelsPerWorldUnit;
-    const float worldScale = pixelsPerWorldUnit * (isCore ? 3.12F / 1100.0F : 2.0F / 760.0F);
+    const float worldScale = std::max(minimumWorldScale,
+        pixelsPerWorldUnit * (isCore ? 3.12F / 1100.0F : 2.0F / 760.0F));
     const float attachmentOffset = pixelsPerWorldUnit * (buildingHalfWidth + 0.015F);
     const float rightX = projection.anchor.x + attachmentOffset;
     const float leftEdge = projection.anchor.x - attachmentOffset;
