@@ -234,7 +234,7 @@ void App::drawSoldBuildingVisuals() {
         } else if (building.type == BuildingType::Catapult) {
             if (!renderer_->drawCatapult(
                     {x, baseY - sink, z}, yaw, 0.0F,
-                    true, tint, scale)) {
+                    true, tint, scale, building.level)) {
                 drawCube(0.0F, 0.45F, 0.0F, 1.2F,
                          0.9F, 1.2F, {72, 66, 58, alpha});
             }

@@ -481,7 +481,7 @@ void App::drawShadowPass(
                         {x, groundY, z}, cannonYaw(snapshot, building),
                         cannonPitch(snapshot, building),
                         cannonLoaded(snapshot, building), WHITE,
-                        spawnScale)) {
+                        spawnScale, building.level)) {
                     DrawCube({x, groundY + 0.45F, z},
                              1.2F, 0.9F, 1.2F, WHITE);
                 }
@@ -1080,7 +1080,7 @@ void App::drawSelectionPass(
                             {x, groundY, z}, defensiveYaw,
                             cannonPitch(snapshot, *building),
                             cannonLoaded(snapshot, *building), WHITE,
-                            spawnScale)) {
+                            spawnScale, building->level)) {
                         DrawCube({x, groundY + 0.45F, z},
                                  1.2F, 0.9F, 1.2F, WHITE);
                     }

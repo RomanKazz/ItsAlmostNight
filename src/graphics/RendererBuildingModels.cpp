@@ -4,6 +4,7 @@
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
+#include "graphics/CatapultModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -230,7 +231,7 @@ bool Renderer::drawCannonball(Vector3 position, Color tint, float scale) {
 
 bool Renderer::drawCatapult(
     Vector3 position, float yawRadians, float armPitchRadians,
-    bool loaded, Color tint, float scaleFactor) {
+    bool loaded, Color tint, float scaleFactor, int level) {
     auto& resource = resources_.catapultModel();
     if (!resource.valid()) return false;
 
@@ -245,13 +246,8 @@ bool Renderer::drawCatapult(
         const Matrix scale =
             MatrixScale(scaleFactor, scaleFactor, scaleFactor);
         const Matrix yaw = MatrixRotateY(yawRadians);
-        const Matrix localPitch = MatrixMultiply(
-            MatrixMultiply(
-                MatrixTranslate(
-                    0.0F, -static_cast<float>(CatapultPitchPivotY), 0.0F),
-                MatrixRotateX(armPitchRadians)),
-            MatrixTranslate(
-                0.0F, static_cast<float>(CatapultPitchPivotY), 0.0F));
+        const Matrix localPitch =
+            catapult_model_detail::pitchTransform(armPitchRadians);
         const Matrix translation =
             MatrixTranslate(position.x, position.y, position.z);
         const Matrix bodyTransform =
@@ -275,8 +271,15 @@ bool Renderer::drawCatapult(
         // first, while the remaining body only follows yaw.
         drawMesh(0, armTransform);
         drawMesh(1, bodyTransform);
-        for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
-            drawMesh(meshIndex, bodyTransform);
+        if (model.meshCount >= catapult_model_detail::MeshCount) {
+            catapult_model_detail::forEachUpgradePart(level,
+                [&](int meshIndex, bool pitched) {
+                    drawMesh(meshIndex, pitched ? armTransform : bodyTransform);
+                });
+        } else {
+            for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
+                drawMesh(meshIndex, bodyTransform);
+            }
         }
     }
 

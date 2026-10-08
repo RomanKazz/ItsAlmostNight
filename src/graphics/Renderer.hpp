@@ -398,7 +398,7 @@ class Renderer {
     [[nodiscard]] bool drawCatapult(
         Vector3 position, float yawRadians, float armPitchRadians,
         bool loaded = true, Color tint = WHITE,
-        float scale = 1.0F);
+        float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCatapultBall(Vector3 position,
                                         Color tint = WHITE);
     [[nodiscard]] bool drawArrow(Vector3 position, Vector3 direction,

@@ -2,6 +2,7 @@
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
+#include "graphics/CatapultModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
@@ -134,6 +135,79 @@ bool checkAtmosphereRendering() {
     UnloadImage(image);
     UnloadRenderTexture(target);
     return visible;
+}
+
+bool checkCatapultLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(448, 384);
+    const Camera3D camera{{2.4F, 1.8F, 3.4F}, {0, .53F, .20F}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level, float pitch = 0.0F, bool loaded = false, Color tint = WHITE) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawCatapult({0, 0, 0}, 0, pitch, loaded, tint, 1, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_CATAPULT_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("catapult-level-" + std::to_string(level) + (pitch == 0 ? "" : "-pitched") +
+                 (loaded ? "-loaded" : "") + (tint.a == 255 ? "" : "-tinted") + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool valid = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        const auto difference = changedPixels(previous, current);
+        if (difference <= 80) std::cerr << "catapult level " << level << " differs by only " << difference << " pixels\n";
+        valid = valid && difference > 80;
+        UnloadImage(previous);
+        previous = current;
+    }
+    Image pitched = capture(8, -.35F);
+    valid = valid && changedPixels(previous, pitched) > 80;
+    UnloadImage(pitched);
+    Image loaded = capture(8, 0, true);
+    valid = valid && changedPixels(previous, loaded) > 80;
+    UnloadImage(loaded);
+    Image tinted = capture(8, 0, false, {140, 190, 220, 180});
+    UnloadImage(tinted);
+    Image restoredUpgrade = capture(8);
+    valid = valid && changedPixels(previous, restoredUpgrade) == 0;
+    UnloadImage(previous);
+    UnloadImage(restoredUpgrade);
+    Image restored = capture(1);
+    valid = valid && changedPixels(original, restored) == 0;
+    UnloadImage(original);
+    UnloadImage(restored);
+    UnloadRenderTexture(target);
+
+    ian::BuildingInstance catapult{.type = ian::BuildingType::Catapult, .level = 1};
+    const auto center = ian::buildingWorldPosition(catapult);
+    for (const float pitch : {0.0F, -.35F}) {
+        constexpr float Yaw = PI * .5F;
+        const Matrix pose = MatrixMultiply(ian::catapult_model_detail::pitchTransform(pitch), MatrixRotateY(Yaw));
+        Vector3 origin = Vector3Transform({0, .925F, 3}, pose);
+        origin = Vector3Add(origin, {static_cast<float>(center.x), static_cast<float>(center.y), static_cast<float>(center.z)});
+        const Ray ray{origin, Vector3Transform({0, 0, -1}, MatrixMultiply(MatrixRotateX(pitch), MatrixRotateY(Yaw)))};
+        catapult.level = 1;
+        const auto plain = renderer.buildingRaycastDistance(catapult, {}, ray, 8, Yaw, pitch);
+        catapult.level = 7;
+        const auto upgraded = renderer.buildingRaycastDistance(catapult, {}, ray, 8, Yaw, pitch);
+        const bool bucketAligned = upgraded && (!plain || *upgraded < *plain - .02);
+        if (!bucketAligned) std::cerr << "catapult raised rim aiming at pitch " << pitch << ": " << plain.value_or(-1) << " -> " << upgraded.value_or(-1) << '\n';
+        valid = valid && bucketAligned;
+    }
+    return valid;
 }
 
 bool checkCrossbowLevelRendering(ian::Renderer& renderer) {
@@ -1296,6 +1370,10 @@ int main() {
         }
         if (!checkCrossbowLevelRendering(renderer)) {
             std::cerr << "crossbow levels, pitched bow aiming or material restoration failed\n";
+            result = 1;
+        }
+        if (!checkCatapultLevelRendering(renderer)) {
+            std::cerr << "catapult level rendering check failed\n";
             result = 1;
         }
         if (!checkSequentialMountainRendering(renderer)) {
