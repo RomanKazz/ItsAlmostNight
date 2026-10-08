@@ -547,7 +547,7 @@ class Renderer {
     [[nodiscard]] bool drawGate(
         Vector3 position, float yawRadians,
         float openAmount = 0.0F,
-        Color tint = WHITE, float scale = 1.0F);
+        Color tint = WHITE, float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawEnemy(
         EnemyModelVisual modelVisual,
         EnemyAnimationVisual animationVisual,

@@ -906,7 +906,7 @@ bool Renderer::drawWall(Vector3 position,
 
 bool Renderer::drawGate(
     Vector3 position, float yawRadians, float openAmount,
-    Color tint, float scale) {
+    Color tint, float scale, int level) {
     ModelResource& resource = resources_.gateModel();
     if (!resource.valid()) {
         return false;
@@ -931,15 +931,15 @@ bool Renderer::drawGate(
         gate_model_detail::doorHingeTransform(openAmount),
         baseTransform);
 
-    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+    const auto drawPart = [&](int meshIndex, bool door) {
         if (!resource.meshValid(
                 static_cast<std::size_t>(meshIndex))) {
-            continue;
+            return;
         }
         const int materialIndex = model.meshMaterial[meshIndex];
         if (materialIndex < 0 ||
             materialIndex >= model.materialCount) {
-            continue;
+            return;
         }
         Material material = model.materials[materialIndex];
         if (shader != nullptr) {
@@ -951,13 +951,20 @@ bool Renderer::drawGate(
             ColorTint(original, tint);
         DrawMesh(
             model.meshes[meshIndex], material,
-            meshIndex == gate_model_detail::DoorMeshIndex
-                ? doorTransform
-                : baseTransform);
+            door ? doorTransform : baseTransform);
         // Material is a shallow copy: its map array still belongs to the
         // shared gate model. Restore the tint so translucent sale/preview
         // draws cannot leak into every subsequently rendered gate.
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+    if (model.meshCount >= gate_model_detail::MeshCount) {
+        drawPart(gate_model_detail::DoorMeshIndex, true);
+        drawPart(1, false);
+        gate_model_detail::forEachUpgradePart(level, drawPart);
+    } else {
+        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+            drawPart(meshIndex, meshIndex == gate_model_detail::DoorMeshIndex);
+        }
     }
     return true;
 }

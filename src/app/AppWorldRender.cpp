@@ -1121,7 +1121,7 @@ void App::drawWorldEntities(
                        static_cast<float>(building.rotation) *
                            PI * 0.5F,
                        gateOpenAmount(building.id, building.open),
-                       WHITE, spawnScale)) {
+                       WHITE, spawnScale, building.level)) {
             if ((building.rotation % 2U) == 0U) {
                 drawScaledCube(-0.38F, 1.0F, 0.0F, 0.22F,
                                2.0F, 1.0F,

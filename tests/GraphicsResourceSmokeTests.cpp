@@ -3,6 +3,7 @@
 #include "graphics/CannonModel.hpp"
 #include "graphics/CrossbowModel.hpp"
 #include "graphics/CatapultModel.hpp"
+#include "graphics/GateModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
@@ -135,6 +136,89 @@ bool checkAtmosphereRendering() {
     UnloadImage(image);
     UnloadRenderTexture(target);
     return visible;
+}
+
+bool checkGateLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 384);
+    const Camera3D camera{{1.6F, 1.0F, -1.9F}, {0, .26F, 0}, {0, 1, 0}, 28, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level, float open = 0.0F, Color tint = WHITE, bool neighbors = false) {
+        const Camera3D view = neighbors
+            ? Camera3D{{2, 1.6F, -3.4F}, {0, .26F, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE}
+            : camera;
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(view);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = view.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawGate({0, 0, 0}, 0, open, tint, 1, level));
+        if (neighbors) {
+            static_cast<void>(renderer.drawWall({-1, 0, 0}, 0, 0, WHITE, 1, level));
+            static_cast<void>(renderer.drawWall({1, 0, 0}, 0, 0, WHITE, 1, level));
+        }
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_GATE_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("gate-level-" + std::to_string(level) + "-open-" + std::to_string(open) +
+                 (neighbors ? "-neighbors" : "") + (tint.a == 255 ? "" : "-tinted") + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool valid = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        const auto difference = changedPixels(previous, current);
+        if (difference <= 80) std::cerr << "gate level " << level << " differs by only " << difference << " pixels\n";
+        valid = valid && difference > 80;
+        UnloadImage(previous);
+        previous = current;
+    }
+    for (const float open : {-1.0F, .5F, 1.0F}) {
+        Image opened = capture(8, open);
+        valid = valid && changedPixels(previous, opened) > 80;
+        UnloadImage(opened);
+    }
+    Image connected = capture(8, 0, WHITE, true);
+    UnloadImage(connected);
+    Image tinted = capture(8, 0, {140, 190, 220, 180});
+    UnloadImage(tinted);
+    Image restoredUpgrade = capture(8);
+    valid = valid && changedPixels(previous, restoredUpgrade) == 0;
+    UnloadImage(previous);
+    UnloadImage(restoredUpgrade);
+    Image restored = capture(1);
+    valid = valid && changedPixels(original, restored) == 0;
+    UnloadImage(original);
+    UnloadImage(restored);
+    UnloadRenderTexture(target);
+
+    for (const std::uint8_t rotation : {std::uint8_t{0}, std::uint8_t{1}}) {
+        ian::BuildingInstance gate{.type = ian::BuildingType::Gate, .rotation = rotation, .level = 1, .open = true};
+        const auto center = ian::buildingWorldPosition(gate);
+        const Matrix yaw = MatrixRotateY(static_cast<float>(rotation)*PI*.5F);
+        for (const float open : {-1.0F, 0.0F, 1.0F}) {
+            const Matrix pose = MatrixMultiply(ian::gate_model_detail::doorHingeTransform(open), yaw);
+            Vector3 origin = Vector3Transform({-.39F, .535F, .4F}, pose);
+            origin = Vector3Add(origin, {static_cast<float>(center.x), static_cast<float>(center.y) + .005F, static_cast<float>(center.z)});
+            const Ray ray{origin, Vector3Transform({0, 0, -1}, MatrixMultiply(MatrixRotateY(ian::gate_model_detail::OpenAngle*open), yaw))};
+            gate.level = 1;
+            const auto plain = renderer.buildingRaycastDistance(gate, {}, ray, 1, 0, 0, open);
+            gate.level = 7;
+            const auto upgraded = renderer.buildingRaycastDistance(gate, {}, ray, 1, 0, 0, open);
+            const bool hingeAligned = !plain && upgraded && std::abs(*upgraded - .315) < .002;
+            if (!hingeAligned) std::cerr << "gate cap aiming, rotation " << static_cast<int>(rotation) << ", open " << open << ": " << plain.value_or(-1) << " -> " << upgraded.value_or(-1) << '\n';
+            valid = valid && hingeAligned;
+        }
+    }
+    return valid;
 }
 
 bool checkCatapultLevelRendering(ian::Renderer& renderer) {
@@ -1374,6 +1458,10 @@ int main() {
         }
         if (!checkCatapultLevelRendering(renderer)) {
             std::cerr << "catapult level rendering check failed\n";
+            result = 1;
+        }
+        if (!checkGateLevelRendering(renderer)) {
+            std::cerr << "gate levels, moving reinforcement aiming or tint restoration failed\n";
             result = 1;
         }
         if (!checkSequentialMountainRendering(renderer)) {

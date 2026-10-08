@@ -253,6 +253,20 @@ std::optional<double> Renderer::buildingRaycastDistance(
                 }
             }
         }
+        Model& model = resource->get();
+        if (model.meshCount >= gate_model_detail::MeshCount) {
+            gate_model_detail::forEachUpgradePart(building.level,
+                [&](int meshIndex, bool door) {
+                    const Matrix transform = door ? doorTransform : baseTransform;
+                    const auto broad = acceptCollision(GetRayCollisionBox(ray,
+                        world_transforms::transformBounds(
+                            gate_model_detail::partBounds(meshIndex), transform)));
+                    if (!broad || (closest && *broad >= *closest)) return;
+                    const auto distance = acceptCollision(GetRayCollisionMesh(
+                        ray, model.meshes[meshIndex], transform));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+        }
         return closest;
     }
     if (resource != nullptr && resource->valid()) {

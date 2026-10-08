@@ -279,7 +279,7 @@ void App::drawSoldBuildingVisuals() {
                    renderer_->drawGate(
                        {x, baseY - sink, z}, yaw,
                        gateOpenAmount(building.id, building.open),
-                       {255, 255, 255, alpha}, scale)) {
+                       {255, 255, 255, alpha}, scale, building.level)) {
             // The imported door and stationary pillar were submitted.
         } else if ((building.rotation % 2U) == 0U) {
             drawCube(-0.38F, 1.0F, 0.0F, 0.22F,

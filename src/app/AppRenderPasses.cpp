@@ -515,7 +515,7 @@ void App::drawShadowPass(
                                PI * 0.5F,
                            gateOpenAmount(
                                building.id, building.open),
-                           WHITE, spawnScale)) {
+                           WHITE, spawnScale, building.level)) {
                 // The imported door and stationary pillar were submitted.
             } else if ((building.rotation % 2U) == 0U) {
                 DrawCube({x - 0.38F, groundY + 1.0F, z},
@@ -1118,7 +1118,7 @@ void App::drawSelectionPass(
                                    PI * 0.5F,
                                gateOpenAmount(
                                    building->id, building->open),
-                               WHITE, spawnScale)) {
+                               WHITE, spawnScale, building->level)) {
                     // The imported door and stationary pillar were submitted.
                 } else if ((building->rotation % 2U) == 0U) {
                     DrawCube({x - 0.38F, groundY + 1.0F, z},
