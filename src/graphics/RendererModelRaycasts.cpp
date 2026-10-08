@@ -3,6 +3,7 @@
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
+#include "graphics/CrossbowModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -335,6 +336,24 @@ std::optional<double> Renderer::buildingRaycastDistance(
                     const auto broad = acceptCollision(GetRayCollisionBox(ray,
                         world_transforms::transformBounds(
                             cannon_model_detail::partBounds(meshIndex), transform)));
+                    if (!broad || (closest && *broad >= *closest)) return;
+                    const auto distance = acceptCollision(GetRayCollisionMesh(
+                        ray, model.meshes[meshIndex], transform));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+            return closest;
+        }
+        if (building.type == BuildingType::Turret &&
+            model.meshCount >= crossbow_model_detail::MeshCount) {
+            auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
+            const Matrix bowTransform = MatrixMultiply(
+                crossbow_model_detail::pitchTransform(cannonPitchRadians), baseTransform);
+            crossbow_model_detail::forEachUpgradePart(building.level,
+                [&](int meshIndex, bool pitched) {
+                    const Matrix transform = pitched ? bowTransform : baseTransform;
+                    const auto broad = acceptCollision(GetRayCollisionBox(ray,
+                        world_transforms::transformBounds(
+                            crossbow_model_detail::partBounds(meshIndex), transform)));
                     if (!broad || (closest && *broad >= *closest)) return;
                     const auto distance = acceptCollision(GetRayCollisionMesh(
                         ray, model.meshes[meshIndex], transform));

@@ -1,6 +1,7 @@
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/CannonModel.hpp"
+#include "graphics/CrossbowModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
@@ -133,6 +134,76 @@ bool checkAtmosphereRendering() {
     UnloadImage(image);
     UnloadRenderTexture(target);
     return visible;
+}
+
+bool checkCrossbowLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(448, 384);
+    const Camera3D camera{{2.4F, 1.8F, -3.2F}, {0, .52F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level, float pitch = 0.0F, Color tint = WHITE) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawCrossbow({0, 0, 0}, 0, tint, 1, pitch, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_CROSSBOW_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("crossbow-level-" + std::to_string(level) + (pitch == 0 ? "" : "-pitched") +
+                 (tint.a == 255 ? "" : "-tinted") + ".png")).string().c_str());
+        }
+        return image;
+    };
+    bool valid = true;
+    Image original = capture(1);
+    Image previous = ImageCopy(original);
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        const auto difference = changedPixels(previous, current);
+        if (difference <= 80) std::cerr << "crossbow level " << level << " differs by only " << difference << " pixels\n";
+        valid = valid && difference > 80;
+        UnloadImage(previous);
+        previous = current;
+    }
+    Image pitched = capture(8, .30F);
+    valid = valid && changedPixels(previous, pitched) > 80;
+    UnloadImage(pitched);
+    Image tinted = capture(8, 0, {140, 190, 220, 180});
+    UnloadImage(tinted);
+    Image restoredUpgrade = capture(8);
+    valid = valid && changedPixels(previous, restoredUpgrade) == 0;
+    UnloadImage(previous);
+    UnloadImage(restoredUpgrade);
+    Image restored = capture(1);
+    valid = valid && changedPixels(original, restored) == 0;
+    UnloadImage(original);
+    UnloadImage(restored);
+    UnloadRenderTexture(target);
+
+    ian::BuildingInstance crossbow{.type = ian::BuildingType::Turret, .level = 1};
+    const auto center = ian::buildingWorldPosition(crossbow);
+    for (const float pitch : {0.0F, .30F}) {
+        constexpr float Yaw = PI * .5F;
+        const Matrix pose = MatrixMultiply(ian::crossbow_model_detail::pitchTransform(pitch), MatrixRotateY(Yaw));
+        Vector3 origin = Vector3Transform({0, 1.030F, -3}, pose);
+        origin = Vector3Add(origin, {static_cast<float>(center.x), static_cast<float>(center.y), static_cast<float>(center.z)});
+        const Ray ray{origin, Vector3Transform({0, 0, 1}, MatrixMultiply(MatrixRotateX(pitch), MatrixRotateY(Yaw)))};
+        crossbow.level = 1;
+        const auto plain = renderer.buildingRaycastDistance(crossbow, {}, ray, 8, Yaw, pitch);
+        crossbow.level = 7;
+        const auto upgraded = renderer.buildingRaycastDistance(crossbow, {}, ray, 8, Yaw, pitch);
+        const bool bowAligned = upgraded && (!plain || *upgraded < *plain - .02);
+        if (!bowAligned) std::cerr << "crossbow raised bow aiming at pitch " << pitch << ": " << plain.value_or(-1) << " -> " << upgraded.value_or(-1) << '\n';
+        valid = valid && bowAligned;
+    }
+    return valid;
 }
 
 bool checkCannonLevelRendering(ian::Renderer& renderer) {
@@ -1221,6 +1292,10 @@ int main() {
         }
         if (!checkCannonLevelRendering(renderer)) {
             std::cerr << "cannon levels, pitched collar aiming or material restoration failed\n";
+            result = 1;
+        }
+        if (!checkCrossbowLevelRendering(renderer)) {
+            std::cerr << "crossbow levels, pitched bow aiming or material restoration failed\n";
             result = 1;
         }
         if (!checkSequentialMountainRendering(renderer)) {

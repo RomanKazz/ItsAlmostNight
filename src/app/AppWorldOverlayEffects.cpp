@@ -193,7 +193,7 @@ void App::drawSoldBuildingVisuals() {
         } else if (building.type == BuildingType::Turret) {
             if (!renderer_->drawCrossbow(
                     {x, baseY - sink, z},
-                    yaw, tint, scale)) {
+                    yaw, tint, scale, 0.0F, building.level)) {
                 drawCube(0.0F, 0.6F, 0.0F, 1.0F,
                          1.2F, 1.0F,
                          {68, 83, 96, alpha});

@@ -568,6 +568,9 @@ std::optional<EntityId> preciseBuildingAim(
         if (building.type == BuildingType::Turret ||
             building.type == BuildingType::GunTurret) {
             yaw = towerYaw(snapshot, building);
+            if (building.type == BuildingType::Turret) {
+                pitch = towerPitch(snapshot, building);
+            }
         } else if (
             building.type == BuildingType::Cannon ||
             building.type == BuildingType::Catapult) {

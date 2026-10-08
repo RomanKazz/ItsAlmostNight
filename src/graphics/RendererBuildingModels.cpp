@@ -3,6 +3,7 @@
 #include "graphics/GateModel.hpp"
 #include "graphics/GunTurretModel.hpp"
 #include "graphics/CannonModel.hpp"
+#include "graphics/CrossbowModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -341,19 +342,14 @@ bool Renderer::drawArrow(Vector3 position, Vector3 direction, Color tint) {
 
 bool Renderer::drawCrossbow(Vector3 position, float yawRadians,
                             Color tint, float scale,
-                            float pitchRadians) {
+                            float pitchRadians, int level) {
     auto& resource = resources_.crossbowModel();
     if (!resource.valid()) {
         return false;
     }
     Model& model = resource.get();
     prepareModelShader(model);
-    constexpr float PitchPivotY = 0.14931101F;
-    const Matrix localPitch = MatrixMultiply(
-        MatrixMultiply(
-            MatrixTranslate(0.0F, -PitchPivotY, 0.0F),
-            MatrixRotateX(pitchRadians)),
-        MatrixTranslate(0.0F, PitchPivotY, 0.0F));
+    const Matrix localPitch = crossbow_model_detail::pitchTransform(pitchRadians);
     const Matrix yawTransform = MatrixMultiply(
         MatrixMultiply(
             MatrixScale(scale, scale, scale),
@@ -364,18 +360,26 @@ bool Renderer::drawCrossbow(Vector3 position, float yawRadians,
             MatrixMultiply(MatrixScale(scale, scale, scale), localPitch),
             MatrixRotateY(yawRadians)),
         MatrixTranslate(position.x, position.y, position.z));
-    for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+    const auto drawMesh = [&](int meshIndex, bool pitched) {
         const int materialIndex = model.meshMaterial[meshIndex];
         Material& material = model.materials[materialIndex];
         const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
         material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
-        // After the authored collider is stripped, mesh 0 is the complete
-        // upper assembly named "arrow" under pitch_pivot. Mesh 1 is the
-        // yaw-only lower weapon body.
         DrawMesh(model.meshes[meshIndex], material,
                  MatrixMultiply(model.transform,
-                     meshIndex == 0 ? pitchedTransform : yawTransform));
+                     pitched ? pitchedTransform : yawTransform));
         material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    };
+    if (model.meshCount >= crossbow_model_detail::MeshCount) {
+        // Collider removal leaves the complete pitched upper assembly at 0,
+        // and the yaw-only carriage at 1. Draw only the selected upgrade pair.
+        drawMesh(1, false);
+        drawMesh(0, true);
+        crossbow_model_detail::forEachUpgradePart(level, drawMesh);
+    } else {
+        for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+            drawMesh(meshIndex, meshIndex == 0);
+        }
     }
     return true;
 }

@@ -429,7 +429,7 @@ void App::drawShadowPass(
                         {x, groundY, z},
                         towerYaw(snapshot, building), WHITE,
                         spawnScale,
-                        towerPitch(snapshot, building))) {
+                        towerPitch(snapshot, building), building.level)) {
                     DrawCube({x, groundY + 0.6F, z},
                              1.0F, 1.2F, 1.0F,
                              WHITE);
@@ -1015,7 +1015,7 @@ void App::drawSelectionPass(
                             {x, groundY, z},
                             defensiveYaw,
                             WHITE, spawnScale,
-                            towerPitch(snapshot, *building))) {
+                            towerPitch(snapshot, *building), building->level)) {
                         DrawCube({x, groundY + 0.6F, z},
                                  1.0F, 1.2F,
                                  1.0F, WHITE);

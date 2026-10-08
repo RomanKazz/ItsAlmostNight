@@ -406,7 +406,7 @@ class Renderer {
     [[nodiscard]] bool drawCrossbow(Vector3 position, float yawRadians,
                                     Color tint = WHITE,
                                     float scale = 1.0F,
-                                    float pitchRadians = 0.0F);
+                                    float pitchRadians = 0.0F, int level = 1);
     [[nodiscard]] bool drawGunTurret(
         Vector3 position, float baseYawRadians,
         float barrelYawRadians, Color tint = WHITE,
