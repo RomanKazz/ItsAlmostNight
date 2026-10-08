@@ -1,6 +1,8 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
+#include "buildings/BuildingModifiers.hpp"
+#include "buildings/CatapultRig.hpp"
 #include "game/ChallengeArena.hpp"
 #include "graphics/CameraCulling.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
@@ -1164,10 +1166,41 @@ void App::drawWorldEntities(
             if (!renderer_->drawCatapult(
                     {x, groundY, z}, defensiveYaw,
                     cannonPitch(snapshot, building, interpolationAlpha),
-                    cannonLoaded(snapshot, building), WHITE,
+                    false, WHITE,
                     spawnScale, building.level)) {
                 drawScaledCube(0.0F, 0.45F, 0.0F, 1.2F,
                                0.9F, 1.2F, {72, 66, 58, 255});
+            }
+            if (cannonLoaded(snapshot, building)) {
+                const Vec3 socket = catapultMuzzleWorldPosition(
+                    {}, defensiveYaw, cannonPitch(snapshot, building, interpolationAlpha));
+                const auto* character = playerClassDefinition(snapshot.playerClass);
+                const double classDamage = character &&
+                    character->startingBuilding == BuildingType::Catapult
+                        ? character->startingBuildingDamageMultiplier : 1.0;
+                const auto appearance = presentation::bulletAppearance(
+                    CannonSystem::explosionDamage(BuildingType::Catapult, building.level) *
+                    buildingAnvilMultiplier(building) *
+                    std::max(0.05, snapshot.upgradeStats.defenseDamage) *
+                    std::max(0.05, classDamage));
+                WorldMaterialState ballMaterial{};
+                ballMaterial.unlitAmount = 1.0F;
+                ballMaterial.screenAoAmount = 0.0F;
+                ballMaterial.inkOutlineEligible = false;
+                ballMaterial.inkOccluder = true;
+                renderer_->setWorldMaterial(ballMaterial);
+                rlDisableBackfaceCulling();
+                rlBegin(RL_TRIANGLES);
+                emitCannonballGeometry(
+                    scaledPosition(static_cast<float>(socket.x),
+                                   static_cast<float>(socket.y), static_cast<float>(socket.z)),
+                    Vector3Normalize({-std::sin(defensiveYaw), 0.5F, -std::cos(defensiveYaw)}),
+                    camera.position, 0.24F * spawnScale,
+                    {appearance.color.r, appearance.color.g, appearance.color.b, 255});
+                rlEnd();
+                rlDrawRenderBatchActive();
+                rlEnableBackfaceCulling();
+                renderer_->setWorldMaterial(material);
             }
         } else if (building.type == BuildingType::SlowTrap) {
             drawScaledCube(0.0F, 0.08F, 0.0F, 1.0F, 0.16F,

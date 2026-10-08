@@ -1085,7 +1085,7 @@ void drawPlacementPreviewGeometry(
                      0.28F, 1.4F, WHITE);
         }
     } else if (type == BuildingType::Catapult) {
-        if (!renderer.drawCatapult(position, yawRadians, 0.0F)) {
+        if (!renderer.drawCatapult(position, yawRadians, 0.0F, false)) {
             DrawCube({x, y + 0.45F, z}, 1.2F, 0.9F, 1.2F, WHITE);
         }
     } else if (
@@ -1392,32 +1392,6 @@ void drawTacticalGroundSector(
     EndBlendMode();
 }
 
-void drawTacticalTargetLink(
-    Vector3 start, Vector3 end, Color color) {
-    const Vector3 delta = Vector3Subtract(end, start);
-    const float length = Vector3Length(delta);
-    if (length <= 0.001F) {
-        return;
-    }
-    const Vector3 direction =
-        Vector3Scale(delta, 1.0F / length);
-    constexpr float DashLength = 0.42F;
-    constexpr float GapLength = 0.24F;
-    for (float distance = 0.0F; distance < length;
-         distance += DashLength + GapLength) {
-        const float endDistance =
-            std::min(distance + DashLength, length);
-        DrawCylinderEx(
-            Vector3Add(
-                start, Vector3Scale(direction, distance)),
-            Vector3Add(
-                start,
-                Vector3Scale(direction, endDistance)),
-            0.018F, 0.018F, 5, color);
-    }
-    DrawSphere(end, 0.075F, color);
-}
-
 void drawBuildingTacticalOverlay(
     const SimulationSnapshot& snapshot) {
     if (snapshot.selectedBuilding || !snapshot.aimedBuilding) {
@@ -1515,16 +1489,6 @@ void drawBuildingTacticalOverlay(
     if (target == snapshot.enemies.end()) {
         return;
     }
-    Vec3 targetPosition = target->position;
-    targetPosition.y += 0.45;
-    drawTacticalTargetLink(
-        {static_cast<float>(center.x),
-         static_cast<float>(center.y),
-         static_cast<float>(center.z)},
-        {static_cast<float>(targetPosition.x),
-         static_cast<float>(targetPosition.y),
-         static_cast<float>(targetPosition.z)},
-        {255, 238, 184, 220});
     if (building->type == BuildingType::Cannon) {
         drawTacticalGroundCircle(
             {static_cast<float>(target->position.x), 0.09F,

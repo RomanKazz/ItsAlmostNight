@@ -290,9 +290,11 @@ bool Renderer::drawCatapult(
         socket.x = base.x + (socket.x - base.x) * scaleFactor;
         socket.y = base.y + (socket.y - base.y) * scaleFactor;
         socket.z = base.z + (socket.z - base.z) * scaleFactor;
-        static_cast<void>(drawCatapultBall(
+        // Shadow and selection passes use the same round silhouette and
+        // spawn scale as the shaded body rendered by the world pass.
+        DrawSphereEx(
             {static_cast<float>(socket.x), static_cast<float>(socket.y),
-             static_cast<float>(socket.z)}, tint));
+             static_cast<float>(socket.z)}, 0.24F * scaleFactor, 12, 16, tint);
     }
     return true;
 }
