@@ -245,10 +245,6 @@ void TowerSystem::syncBuildings(const std::vector<BuildingInstance>& buildings) 
     defense_runtime::syncBuildings(towers_, buildings, SearchInterval,
         isHitscanTower,
         [](const BuildingInstance&, const TowerRuntime&) { return true; });
-    for (auto& tower : towers_) {
-        tower.previousYaw = tower.yaw;
-        tower.previousPitch = tower.pitch;
-    }
 }
 
 std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
@@ -269,6 +265,10 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
         tower.fireCooldownRemaining = std::max(0.0, tower.fireCooldownRemaining - deltaSeconds);
         tower.targetSearchCooldownRemaining =
             std::max(0.0, tower.targetSearchCooldownRemaining - deltaSeconds);
+        const bool crossbow = building->type == BuildingType::Turret;
+        const double aimResponse = crossbow ? 10.0 : 12.0;
+        const double aimTurnSpeed = crossbow ? 4.0 : TurnSpeed;
+        const double aimPitchSpeed = crossbow ? 2.8 : PitchSpeed;
         const Vec3 origin = towerPosition(*building);
         const double range = attackRange(building->type, building->level) *
             rangeMultiplier_;
@@ -316,11 +316,11 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             } else {
                 tower.yaw = advanceDefenseAim(
                     tower.yaw, tower.restYaw, tower.yawVelocity,
-                    deltaSeconds, 12.0, TurnSpeed, true);
+                    deltaSeconds, aimResponse, aimTurnSpeed, true);
             }
             tower.pitch = advanceDefenseAim(
                 tower.pitch, 0.0, tower.pitchVelocity,
-                deltaSeconds, 10.0, PitchSpeed, false);
+                deltaSeconds, 10.0, aimPitchSpeed, false);
             continue;
         }
 
@@ -339,10 +339,10 @@ std::span<const TowerShot> TowerSystem::tick(double deltaSeconds,
             : 0.0;
         tower.yaw = advanceDefenseAim(
             tower.yaw, desiredYaw, tower.yawVelocity,
-            deltaSeconds, 12.0, TurnSpeed, true);
+            deltaSeconds, aimResponse, aimTurnSpeed, true);
         tower.pitch = advanceDefenseAim(
             tower.pitch, desiredPitch, tower.pitchVelocity,
-            deltaSeconds, 10.0, PitchSpeed, false);
+            deltaSeconds, 10.0, aimPitchSpeed, false);
         if (std::abs(wrapBuildingAngle(
                 desiredYaw - tower.yaw)) >
                 AimTolerance ||

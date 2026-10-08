@@ -36,6 +36,7 @@ void syncBuildings(
                 .restYaw = restYaw,
                 .baseYaw = restYaw,
                 .yaw = restYaw,
+                .previousYaw = restYaw,
             });
         } else if (std::abs(wrapBuildingAngle(runtime->restYaw - restYaw)) > 0.0001) {
             runtime->restYaw = restYaw;

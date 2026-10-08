@@ -195,6 +195,57 @@ void runTowerSystemTests() {
                     "hitscan tower settles back to its resting direction");
     }
 
+    {
+        std::vector<ian::BuildingInstance> registry{{
+            .id = {902, 1}, .type = ian::BuildingType::Turret, .rotation = 1}};
+        ian::TowerSystem crossbow;
+        crossbow.setModifiers(0.05, 1.0, 1.0, 1.0);
+        crossbow.syncBuildings(registry);
+        requireNear(crossbow.towers().front().previousYaw,
+                    crossbow.towers().front().yaw, 1e-12,
+                    "new rotated crossbow starts with a matching interpolation pose");
+        registry.front().rotation = 0;
+        crossbow.syncBuildings(registry);
+        ian::EnemySystem targets;
+        constexpr std::array<ian::EnemySpawn, 1> HighTarget{{{
+            .type = ian::EnemyType::Flying, .position = {-3.0, 4.0, -6.0}}}};
+        targets.spawnWave(HighTarget);
+        for (int frame = 0; frame < 180; ++frame) {
+            const auto before = crossbow.towers().front();
+            crossbow.tick(1.0 / 60.0, registry, targets);
+            const auto moving = crossbow.towers().front();
+            require(std::abs(moving.pitch - before.pitch) <= 2.8 / 60.0 + 1e-9,
+                    "crossbow elevation respects its speed limit during acquisition");
+            if (frame == 90) {
+                crossbow.syncBuildings(registry);
+                requireNear(crossbow.towers().front().previousPitch,
+                            moving.previousPitch, 1e-12,
+                            "building refresh preserves crossbow interpolation history");
+                requireNear(crossbow.towers().front().pitchVelocity,
+                            moving.pitchVelocity, 1e-12,
+                            "building refresh preserves crossbow aiming velocity");
+            }
+        }
+        require(crossbow.towers().front().pitch > 0.05,
+                "crossbow settles toward elevated targets");
+        targets.reset();
+        constexpr std::array<ian::Vec3, 1> LowTarget{{{3.0, 0.0, -6.0}}};
+        targets.spawnWave(LowTarget);
+        for (int frame = 0; frame < 180; ++frame) {
+            const auto before = crossbow.towers().front();
+            crossbow.tick(1.0 / 60.0, registry, targets);
+            const auto moving = crossbow.towers().front();
+            require(std::abs(moving.pitch - before.pitch) <= 2.8 / 60.0 + 1e-9 &&
+                    std::abs(ian::wrapBuildingAngle(moving.yaw - before.yaw)) <= 4.0 / 60.0 + 1e-9,
+                    "crossbow changes yaw and elevation smoothly between targets");
+        }
+        targets.reset();
+        for (int frame = 0; frame < 180; ++frame)
+            crossbow.tick(1.0 / 60.0, registry, targets);
+        requireNear(crossbow.towers().front().pitch, 0.0, 1e-6,
+                    "crossbow settles back to level after target loss");
+    }
+
     ian::BuildingSystem gunBuildings;
     const auto gunCore = gunBuildings.place(
         ian::BuildingType::Core, {0, 0}, 0, 30, 0);
