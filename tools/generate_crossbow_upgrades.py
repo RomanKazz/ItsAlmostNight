@@ -36,8 +36,10 @@ for level in range(2, 9):
     # One broad stock binding, no small fasteners or decorative fins.
     bow.box((0, .750, .360), (.225, .230, .135), STEEL, bevel=.12)
     if level >= 3:
+        # Keep carriage armor below the moving bow, including its pitch arc.
         cheek = [(.21, -.38), (.21, .30), (.70, .30),
                  (.83, .08), (.67, -.27), (.45, -.40)]
+        cheek = [(.21 + (y-.21)*.625, z) for y, z in cheek]
         for side in (-1, 1):
             lo, hi = sorted((side*.480, side*.615))
             base.prism(cheek, 0, lo, hi, ORANGE)
@@ -52,11 +54,8 @@ for level in range(2, 9):
         bow_band(bow, outline, width, .742, .785,
                  GOLD if level == 8 else STEEL)
         if level >= 5:
-            inset = [(-.679, -.087), (-.440, -.283), (-.232, -.400),
-                     (0, -.442), (.232, -.400), (.440, -.283), (.679, -.087),
-                     (.564, .053), (.334, -.132), (.179, -.219),
-                     (0, -.247), (-.179, -.219), (-.334, -.132), (-.564, .053)]
-            bow_band(bow, inset, width, .787, .998+lift, ORANGE, taper=.065)
+            # Shared contour and height make the lower band flush with the bow.
+            bow_band(bow, outline, width, .785, .998+lift, ORANGE, taper=.065)
     if level >= 6:
         base.ring(1, (0, .125, 0), .613, .568, .036, GOLD)
     if level == 8:
@@ -64,6 +63,8 @@ for level in range(2, 9):
                  (.745, .07), (.615, -.235), (.45, -.33)]
         inset = [(.335, -.27), (.335, .185), (.625, .185),
                  (.690, .07), (.580, -.185), (.45, -.28)]
+        cheek = [(.21 + (y-.21)*.625, z) for y, z in cheek]
+        inset = [(.21 + (y-.21)*.625, z) for y, z in inset]
         for side in (-1, 1):
             lo, hi = sorted((side*.616, side*.644))
             base.prism(cheek, 0, lo, hi, GOLD)

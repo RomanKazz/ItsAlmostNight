@@ -297,12 +297,15 @@ bool checkCatapultLevelRendering(ian::Renderer& renderer) {
 bool checkCrossbowLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(448, 384);
     const Camera3D camera{{2.4F, 1.8F, -3.2F}, {0, .52F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE};
-    const auto capture = [&](int level, float pitch = 0.0F, Color tint = WHITE) {
+    const auto capture = [&](int level, float pitch = 0.0F, Color tint = WHITE, bool rear = false) {
+        const Camera3D view = rear
+            ? Camera3D{{2.4F, 2.2F, 3.2F}, {0, .52F, 0}, {0, 1, 0}, 30, CAMERA_PERSPECTIVE}
+            : camera;
         BeginTextureMode(target);
         ClearBackground({26, 30, 40, 255});
-        BeginMode3D(camera);
+        BeginMode3D(view);
         ian::WorldLighting lighting{};
-        lighting.cameraPosition = camera.position;
+        lighting.cameraPosition = view.position;
         renderer.beginWorldShader(lighting);
         renderer.setWorldMaterial({});
         static_cast<void>(renderer.drawCrossbow({0, 0, 0}, 0, tint, 1, pitch, level));
@@ -315,7 +318,7 @@ bool checkCrossbowLevelRendering(ian::Renderer& renderer) {
             std::filesystem::create_directories(directory);
             ExportImage(image, (std::filesystem::path{directory} /
                 ("crossbow-level-" + std::to_string(level) + (pitch == 0 ? "" : "-pitched") +
-                 (tint.a == 255 ? "" : "-tinted") + ".png")).string().c_str());
+                 (tint.a == 255 ? "" : "-tinted") + (rear ? "-rear" : "") + ".png")).string().c_str());
         }
         return image;
     };
@@ -333,6 +336,13 @@ bool checkCrossbowLevelRendering(ian::Renderer& renderer) {
     Image pitched = capture(8, .30F);
     valid = valid && changedPixels(previous, pitched) > 80;
     UnloadImage(pitched);
+    Image rear = capture(8, 0, WHITE, true);
+    for (const float pitch : {-.3F, .3F}) {
+        Image rearPitched = capture(8, pitch, WHITE, true);
+        valid = valid && changedPixels(rear, rearPitched) > 80;
+        UnloadImage(rearPitched);
+    }
+    UnloadImage(rear);
     Image tinted = capture(8, 0, {140, 190, 220, 180});
     UnloadImage(tinted);
     Image restoredUpgrade = capture(8);
