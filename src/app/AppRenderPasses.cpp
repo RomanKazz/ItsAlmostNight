@@ -457,7 +457,7 @@ void App::drawShadowPass(
                         WHITE,
                         spawnScale *
                             productionScaleAt(
-                                building.id))) {
+                                building.id), building.level)) {
                     DrawCube({x, groundY + 0.275F, z},
                              1.0F, 0.55F,
                              1.0F, WHITE);
@@ -1051,7 +1051,7 @@ void App::drawSelectionPass(
                             WHITE,
                             spawnScale *
                                 productionScaleAt(
-                                    building->id))) {
+                                    building->id), building->level)) {
                         DrawCube({x, groundY + 0.275F, z},
                                  1.0F,
                                  0.55F, 1.0F, WHITE);

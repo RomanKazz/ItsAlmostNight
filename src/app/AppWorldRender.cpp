@@ -1054,7 +1054,7 @@ void App::drawWorldEntities(
                     WHITE,
                     spawnScale *
                         productionScaleAt(
-                            building.id))) {
+                            building.id), building.level)) {
                 drawScaledCube(0.0F, 0.275F, 0.0F, 1.0F,
                                0.55F, 1.0F,
                                {82, 101, 142, 255});

@@ -686,7 +686,7 @@ bool Renderer::drawRampSupportBeam(
 
 bool Renderer::drawResourceProducer(
     BuildingType type, Vector3 position, float yawRadians,
-    Color tint, float scale) {
+    Color tint, float scale, int level) {
     ModelResource* resource = nullptr;
     float modelScale = 1.0F;
     if (type == BuildingType::CrystalMine) {
@@ -705,22 +705,23 @@ bool Renderer::drawResourceProducer(
     Model& model = resource->get();
     prepareModelShader(model);
     position.y += 0.005F;
-    if (type == BuildingType::CrystalMine && model.meshCount == 2) {
+    if (type == BuildingType::CrystalMine && model.meshCount >= 2) {
         const float uniformScale = modelScale * scale * 0.5F;
         const Matrix transform = MatrixMultiply(
             model.transform,
             MatrixMultiply(MatrixScale(uniformScale, uniformScale, uniformScale),
                 MatrixMultiply(MatrixRotateY(yawRadians),
                     MatrixTranslate(position.x, position.y, position.z))));
-        const double seconds = GetTime();
-        for (int index = 0; index < model.meshCount; ++index) {
+        crystal_mine_model_detail::forEachLevelPart(level,
+            [&](int index, Matrix pose) {
+            if (index >= model.meshCount) return;
             Material& material = model.materials[model.meshMaterial[index]];
             const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
             material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
             DrawMesh(model.meshes[index], material,
-                MatrixMultiply(crystal_mine_model_detail::meshTransform(index, seconds), transform));
+                MatrixMultiply(pose, transform));
             material.maps[MATERIAL_MAP_DIFFUSE].color = original;
-        }
+        });
         return true;
     }
     DrawModelEx(

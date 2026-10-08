@@ -331,16 +331,17 @@ std::optional<double> Renderer::buildingRaycastDistance(
             }
             return closest;
         }
-        if (building.type == BuildingType::CrystalMine && model.meshCount == 2) {
+        if (building.type == BuildingType::CrystalMine && model.meshCount >= 2) {
             std::optional<double> closest;
-            const double seconds = GetTime();
-            for (int index = 0; index < model.meshCount; ++index) {
+            crystal_mine_model_detail::forEachLevelPart(building.level,
+                [&](int index, Matrix pose) {
+                if (index >= model.meshCount) return;
                 const Matrix transform = MatrixMultiply(
-                    crystal_mine_model_detail::meshTransform(index, seconds), baseTransform);
+                    pose, baseTransform);
                 const auto distance = acceptCollision(
                     GetRayCollisionMesh(ray, model.meshes[index], transform));
                 if (distance && (!closest || *distance < *closest)) closest = distance;
-            }
+            });
             return closest;
         }
         if (building.type == BuildingType::Core) {

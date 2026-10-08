@@ -217,6 +217,45 @@ bool checkSpikeTrapLevelRendering(ian::Renderer& renderer) {
     return valid;
 }
 
+bool checkCrystalMineLevelRendering(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(512, 384);
+    const Camera3D camera{{1.1F, 1.1F, 2.0F}, {0, .28F, 0}, {0, 1, 0},
+                          36, CAMERA_PERSPECTIVE};
+    const auto capture = [&](int level) {
+        BeginTextureMode(target);
+        ClearBackground({26, 30, 40, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        static_cast<void>(renderer.drawResourceProducer(
+            ian::BuildingType::CrystalMine, {0, 0, 0}, 0, WHITE, 1, level));
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        if (const char* directory = std::getenv("IAN_CAPTURE_MINE_LEVELS")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path{directory} /
+                ("mine-level-" + std::to_string(level) + ".png")).string().c_str());
+        }
+        return image;
+    };
+    Image previous = capture(1);
+    bool distinct = true;
+    for (int level = 2; level <= 8; ++level) {
+        Image current = capture(level);
+        distinct = distinct && changedPixels(previous, current) > 35;
+        UnloadImage(previous);
+        previous = current;
+    }
+    UnloadImage(previous);
+    UnloadRenderTexture(target);
+    return distinct;
+}
+
 bool checkGateLevelRendering(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(512, 384);
     const Camera3D camera{{1.6F, 1.0F, -1.9F}, {0, .26F, 0}, {0, 1, 0}, 28, CAMERA_PERSPECTIVE};
@@ -1041,37 +1080,28 @@ bool checkCoreCrystalOrbit(ian::ModelResource& resource) {
     return true;
 }
 
-bool checkCrystalMineOrbit(ian::ModelResource& resource) {
+bool checkCrystalMineStaticShards(ian::ModelResource& resource) {
     if (!resource.valid()) return false;
     Model& model = resource.get();
-    if (model.meshCount != 2 || model.meshes[0].triangleCount != 232 ||
+    if (model.meshCount != ian::crystal_mine_model_detail::MeshCount ||
+        model.meshes[0].triangleCount != 232 ||
         model.meshes[1].triangleCount != 204) return false;
-    const Vector3 center{0.07254255F, 0.0F, -0.00784531F};
-    const Matrix staticPose = ian::crystal_mine_model_detail::meshTransform(0, 2.0);
-    const Matrix orbit = ian::crystal_mine_model_detail::meshTransform(1, 2.0);
-    if (Vector3Distance(Vector3Transform(center, orbit), center) > 0.00001F) return false;
-    float largestMotion = 0.0F;
-    for (int part = 0; part < model.meshCount; ++part) {
-        const Mesh& mesh = model.meshes[part];
-        // Only indexed vertices belong to this part: the GLB primitives share
-        // attribute buffers, so unused vertices must not affect the test.
-        for (int index = 0; index < mesh.triangleCount * 3; ++index) {
-            const int vertex = mesh.indices ? mesh.indices[index] : index;
-            const Vector3 point{mesh.vertices[vertex * 3], mesh.vertices[vertex * 3 + 1],
-                                mesh.vertices[vertex * 3 + 2]};
-            const Vector3 animated = Vector3Transform(point, part == 0 ? staticPose : orbit);
-            if (part == 0 && Vector3Distance(point, animated) > 0.00001F) return false;
-            if (part == 1) {
-                if (std::abs(point.y - animated.y) > 0.00001F ||
-                    std::abs(Vector3Distance(point, center) - Vector3Distance(animated, center)) > 0.00001F)
-                    return false;
-                largestMotion = std::max(largestMotion, Vector3Distance(point, animated));
-            }
-        }
+    for (int level = 1; level <= 8; ++level) {
+        int emitted = 0;
+        bool expected = true;
+        ian::crystal_mine_model_detail::forEachLevelPart(level,
+            [&](int meshIndex, Matrix pose) {
+                expected = expected && meshIndex < model.meshCount &&
+                    model.meshes[meshIndex].triangleCount > 0 &&
+                    (meshIndex < 2 || meshIndex == level) &&
+                    Vector3Distance(Vector3Transform({.23F, .45F, .12F}, pose),
+                                    {.23F, .45F, .12F}) < .00001F;
+                ++emitted;
+            });
+        if (!expected || emitted != (level == 1 ? 2 : 3)) return false;
     }
-    return largestMotion > 0.20F;
+    return true;
 }
-
 
 bool checkMissingResources() {
     ian::ShaderResource shader;
@@ -1293,8 +1323,8 @@ int main() {
             std::cerr << "core satellites fail to orbit the fixed central crystal/pedestal\n";
             result = 1;
         }
-        if (!checkCrystalMineOrbit(resources.mineModel())) {
-            std::cerr << "crystal mine orbit or fixed core/base failed\n";
+        if (!checkCrystalMineStaticShards(resources.mineModel())) {
+            std::cerr << "crystal mine static shards or level meshes failed\n";
             result = 1;
         }
         if (!resources.sceneTargetValid() ||
@@ -1551,6 +1581,10 @@ int main() {
         }
         if (!checkSpikeTrapLevelRendering(renderer)) {
             std::cerr << "spike trap level rendering failed\n";
+            result = 1;
+        }
+        if (!checkCrystalMineLevelRendering(renderer)) {
+            std::cerr << "crystal mine levels fail to render distinctly\n";
             result = 1;
         }
         if (!checkGateLevelRendering(renderer)) {

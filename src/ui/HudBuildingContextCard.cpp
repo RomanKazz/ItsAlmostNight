@@ -11,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -59,7 +60,8 @@ float easeOutBack(float value) {
 }
 
 void drawStatsCard(std::string_view title, int level, Vector3 base,
-                   double health, double maxHealth, std::span<const StatRow> rows,
+                   double maxHealth, std::optional<double> nextMaxHealth,
+                   std::span<const StatRow> rows,
                    const Camera3D& camera,
                    float entranceSeconds, float buildingHalfWidth, bool isCore) {
     const Vector2 viewport{static_cast<float>(uiScreenWidth()), static_cast<float>(uiScreenHeight())};
@@ -109,9 +111,19 @@ void drawStatsCard(std::string_view title, int level, Vector3 base,
         drawSdfUiText(label, point(444-measureUiText(label,13).x,15),13*scale,
             faded({255,204,25,255}));
     }
-    drawSdfUiText("HEALTH", point(16,62), 13*scale, faded({202,211,202,255}));
-    const std::string hp = statValue(health,0,"") + " / " + statValue(maxHealth,0,"");
-    drawSdfUiText(hp, point(444-measureUiText(hp,13).x,62), 13*scale, faded(UiWhite));
+    drawSdfUiText("MAX HEALTH", point(16,62), 13*scale, faded({202,211,202,255}));
+    const std::string hp = statValue(maxHealth,0,"");
+    const bool healthChanges = nextMaxHealth && std::abs(*nextMaxHealth-maxHealth)>.0001;
+    const std::string nextHp = healthChanges ? statValue(*nextMaxHealth,0,"") : std::string{};
+    const float nextHpWidth = healthChanges ? measureUiText(nextHp,13).x : 0;
+    const float hpRight = healthChanges ? 444-nextHpWidth-26 : 444;
+    drawSdfUiText(hp, point(hpRight-measureUiText(hp,13).x,62), 13*scale, faded(UiWhite));
+    if (healthChanges) {
+        drawSdfUiText(">",point(444-nextHpWidth-20,62),13*scale,
+            faded({235,218,159,255}));
+        drawSdfUiText(nextHp,point(444-nextHpWidth,62),13*scale,
+            faded({71,236,123,255}));
+    }
     for (std::size_t i=0; i<rows.size(); ++i) {
         const auto& row=rows[i];
         const float rowY=91+static_cast<float>(i)*29;
@@ -140,8 +152,6 @@ void drawBuildingContextCard(
     std::size_t count=0;
     if (snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats) {
         const auto& comparison=*snapshot.aimedBuildingStats;
-        if (comparison.next && comparison.next->maxHealth != comparison.current.maxHealth)
-            rows[count++]={"MAX HEALTH", comparison.current.maxHealth, comparison.next->maxHealth};
         const auto add=[&](std::string_view label, std::optional<double> BuildingStats::* member,
                           int decimals=0, const char* suffix="") {
             if (const auto value=comparison.current.*member)
@@ -166,9 +176,14 @@ void drawBuildingContextCard(
         add("CRYSTAL CAPACITY", &BuildingStats::crystalCapacity);
     }
     const Vec3 center=buildingWorldPosition(building);
+    const std::optional<double> nextMaxHealth =
+        snapshot.aimedBuilding == building.id && snapshot.aimedBuildingStats &&
+        snapshot.aimedBuildingStats->next
+            ? std::optional<double>{snapshot.aimedBuildingStats->next->maxHealth}
+            : std::nullopt;
     drawStatsCard(buildingDisplayName(building.type),building.level,
         {static_cast<float>(center.x),static_cast<float>(center.y),static_cast<float>(center.z)},
-        building.health,building.maxHealth,std::span{rows}.first(count),camera,
+        building.maxHealth,nextMaxHealth,std::span{rows}.first(count),camera,
         view.buildingContextCardEntranceSeconds,
         static_cast<float>(buildingFootprintHalfExtent(building.type)),
         building.type == BuildingType::Core);
@@ -181,7 +196,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
     const float cell=static_cast<float>(snapshot.worldCellSize);
     for (const auto& frame:snapshot.platformFrames) if (frame.id==id) {
         drawStatsCard("PLATFORM",0,{(frame.anchor.x+1)*cell,static_cast<float>(frame.floorHeight),
-            (frame.anchor.z+1)*cell},frame.health,frame.maxHealth,{},camera,
+            (frame.anchor.z+1)*cell},frame.maxHealth,std::nullopt,{},camera,
             entranceSeconds,cell,false);
         return;
     }
@@ -189,7 +204,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
         const Vec3 center{(wall.anchor.x+.5)*snapshot.worldCellSize,
             wall.bottomHeight,(wall.anchor.z+.5)*snapshot.worldCellSize};
         drawStatsCard("WALL",0,{static_cast<float>(center.x),static_cast<float>(center.y),
-            static_cast<float>(center.z)},wall.health,wall.maxHealth,{},camera,
+            static_cast<float>(center.z)},wall.maxHealth,std::nullopt,{},camera,
             entranceSeconds,cell*.5F,false);
         return;
     }
@@ -198,7 +213,7 @@ void drawModularBuildingContextCard(const SimulationSnapshot& snapshot,
         const float width=alongZ ? ModularRampWidthCells : ModularRampRunCells;
         const float depth=alongZ ? ModularRampRunCells : ModularRampWidthCells;
         drawStatsCard("RAMP",0,{(ramp.anchor.x+width*.5F)*cell,static_cast<float>(ramp.topHeight),
-            (ramp.anchor.z+depth*.5F)*cell},ramp.health,ramp.maxHealth,{},camera,
+            (ramp.anchor.z+depth*.5F)*cell},ramp.maxHealth,std::nullopt,{},camera,
             entranceSeconds,std::max(width,depth)*cell*.5F,false);
         return;
     }

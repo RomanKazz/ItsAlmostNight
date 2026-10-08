@@ -213,7 +213,7 @@ void App::drawSoldBuildingVisuals() {
             if (!renderer_->drawResourceProducer(
                     building.type,
                     {x, baseY - sink, z},
-                    yaw, tint, scale)) {
+                    yaw, tint, scale, building.level)) {
                 drawCube(0.0F, 0.275F, 0.0F, 1.0F,
                          0.55F, 1.0F,
                          {82, 101, 142, alpha});
