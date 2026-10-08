@@ -2,6 +2,7 @@
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/GunTurretModel.hpp"
+#include "graphics/CannonModel.hpp"
 #include "buildings/CannonRig.hpp"
 #include "buildings/CatapultRig.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -151,7 +152,7 @@ using namespace renderer_model_detail;
 
 bool Renderer::drawCannon(Vector3 position, float yawRadians,
                           float pitchRadians, Color tint,
-                          float scaleFactor) {
+                          float scaleFactor, int level) {
     auto& resource = resources_.cannonModel();
     if (!resource.valid()) {
         return false;
@@ -171,13 +172,7 @@ bool Renderer::drawCannon(Vector3 position, float yawRadians,
     const Matrix scale =
         MatrixScale(scaleFactor, scaleFactor, scaleFactor);
     const Matrix yaw = MatrixRotateY(yawRadians);
-    const Matrix localPitch = MatrixMultiply(
-        MatrixMultiply(
-            MatrixTranslate(
-                0.0F, -static_cast<float>(CannonPitchPivotY), 0.0F),
-            MatrixRotateX(pitchRadians)),
-        MatrixTranslate(
-            0.0F, static_cast<float>(CannonPitchPivotY), 0.0F));
+    const Matrix localPitch = cannon_model_detail::pitchTransform(pitchRadians);
     const Matrix translation =
         MatrixTranslate(position.x, position.y, position.z);
     const Matrix baseTransform =
@@ -203,8 +198,15 @@ bool Renderer::drawCannon(Vector3 position, float yawRadians,
     // first and the yaw-only body second.
     drawMesh(1, baseTransform);
     drawMesh(0, barrelTransform);
-    for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
-        drawMesh(meshIndex, baseTransform);
+    if (model.meshCount >= cannon_model_detail::MeshCount) {
+        cannon_model_detail::forEachUpgradePart(level,
+            [&](int meshIndex, bool pitched) {
+                drawMesh(meshIndex, pitched ? barrelTransform : baseTransform);
+            });
+    } else {
+        for (int meshIndex = 2; meshIndex < model.meshCount; ++meshIndex) {
+            drawMesh(meshIndex, baseTransform);
+        }
     }
     return true;
 }

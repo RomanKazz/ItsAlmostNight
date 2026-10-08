@@ -1063,7 +1063,7 @@ void App::drawWorldEntities(
             if (!renderer_->drawCannon({x, groundY, z},
                                        defensiveYaw,
                                        cannonPitch(snapshot, building),
-                                       WHITE, spawnScale)) {
+                                       WHITE, spawnScale, building.level)) {
                 drawScaledCube(0.0F, 0.6F, 0.0F, 1.0F,
                                1.2F, 1.0F,
                                {62, 70, 78, 255});

@@ -222,7 +222,7 @@ void App::drawSoldBuildingVisuals() {
             if (!renderer_->drawCannon(
                     {x, baseY - sink, z},
                     yaw, 0.0F,
-                    tint, scale)) {
+                    tint, scale, building.level)) {
                 drawCube(0.0F, 0.6F, 0.0F, 1.0F,
                          1.2F, 1.0F,
                          {62, 70, 78, alpha});

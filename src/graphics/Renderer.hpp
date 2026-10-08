@@ -392,7 +392,7 @@ class Renderer {
     [[nodiscard]] bool drawCannon(Vector3 position, float yawRadians,
                                   float pitchRadians,
                                   Color tint = WHITE,
-                                  float scale = 1.0F);
+                                  float scale = 1.0F, int level = 1);
     [[nodiscard]] bool drawCannonball(Vector3 position,
                                       Color tint = WHITE, float scale = 1.0F);
     [[nodiscard]] bool drawCatapult(

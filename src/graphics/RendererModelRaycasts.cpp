@@ -2,6 +2,7 @@
 #include "graphics/CrystalMineModel.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GunTurretModel.hpp"
+#include "graphics/CannonModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/WallUpgradeModel.hpp"
 #include "graphics/RendererModelSupport.hpp"
@@ -35,7 +36,6 @@ std::optional<double> Renderer::buildingRaycastDistance(
     float horizontalScale = 1.0F;
     float yaw = 0.0F;
     float groundOffset = 0.0F;
-    static_cast<void>(cannonPitchRadians);
 
     constexpr float QuarterTurn = PI * 0.5F;
     switch (building.type) {
@@ -320,6 +320,24 @@ std::optional<double> Renderer::buildingRaycastDistance(
                     const auto distance = acceptCollision(GetRayCollisionMesh(ray,
                         model.meshes[meshIndex],
                         MatrixMultiply(pose, rotating ? barrelTransform : baseTransform)));
+                    if (distance && (!closest || *distance < *closest)) closest = distance;
+                });
+            return closest;
+        }
+        if (building.type == BuildingType::Cannon &&
+            model.meshCount >= cannon_model_detail::MeshCount) {
+            auto closest = modelColliderRaycastDistance(*resource, baseTransform, ray, maxDistance);
+            const Matrix barrelTransform = MatrixMultiply(
+                cannon_model_detail::pitchTransform(cannonPitchRadians), baseTransform);
+            cannon_model_detail::forEachUpgradePart(building.level,
+                [&](int meshIndex, bool pitched) {
+                    const Matrix transform = pitched ? barrelTransform : baseTransform;
+                    const auto broad = acceptCollision(GetRayCollisionBox(ray,
+                        world_transforms::transformBounds(
+                            cannon_model_detail::partBounds(meshIndex), transform)));
+                    if (!broad || (closest && *broad >= *closest)) return;
+                    const auto distance = acceptCollision(GetRayCollisionMesh(
+                        ray, model.meshes[meshIndex], transform));
                     if (distance && (!closest || *distance < *closest)) closest = distance;
                 });
             return closest;
