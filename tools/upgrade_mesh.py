@@ -122,6 +122,39 @@ class Geometry:
         return ([min(self.positions[i::3]) for i in range(3)],
                 [max(self.positions[i::3]) for i in range(3)])
 
+    def smoothed_normals(self, crease_degrees=60):
+        """Weld shading across triangle seams, retaining sharp/material edges.
+
+        Deduplicate incident face normals so triangulating a quad or cap does
+        not bias the average. Authored smooth rock normals already agree at
+        shared positions and pass through unchanged. Baking leaves topology,
+        colors, collision bounds and the number of runtime draws untouched.
+        """
+        groups, keys = {}, []
+        for vertex in range(len(self.positions)//3):
+            offset = vertex*3
+            key = (tuple(round(value, 6) for value in self.positions[offset:offset+3]),
+                   tuple(self.colors[vertex*4:vertex*4+4]))
+            keys.append(key)
+            groups.setdefault(key, set()).add(tuple(self.normals[offset:offset+3]))
+        threshold = math.cos(math.radians(crease_degrees))
+        result, cache = [], {}
+        for vertex, key in enumerate(keys):
+            normal = tuple(self.normals[vertex*3:vertex*3+3])
+            cache_key = (key, normal)
+            if cache_key not in cache:
+                incident = sorted(groups[key])
+                neighbors = [value for value in incident
+                             if sum(normal[i]*value[i] for i in range(3)) >= threshold - 1e-7]
+                if len(neighbors) <= 1:
+                    cache[cache_key] = normal
+                else:
+                    average = [sum(value[i] for value in neighbors) for i in range(3)]
+                    length = math.sqrt(sum(value*value for value in average))
+                    cache[cache_key] = tuple(value/length for value in average) if length > 1e-9 else normal
+            result.extend(cache[cache_key])
+        return result
+
     def append(self, asset, name):
         doc, binary = asset.doc, asset.binary
         def accessor(values, count, kind, component, fmt, bounds=None):
@@ -140,7 +173,7 @@ class Geometry:
             return len(doc['accessors'])-1
         count = len(self.positions)//3
         attributes = {'POSITION': accessor(self.positions,count,'VEC3',5126,'f',self.bounds()),
-                      'NORMAL': accessor(self.normals,count,'VEC3',5126,'f'),
+                      'NORMAL': accessor(self.smoothed_normals(),count,'VEC3',5126,'f'),
                       'COLOR_0': accessor(self.colors,count,'VEC4',5121,'B')}
         mesh = len(doc['meshes'])
         doc['meshes'].append({'name': name, 'primitives': [{'attributes': attributes, 'material': asset.upgrade_material}]})
