@@ -29,6 +29,64 @@ void resolveLevelUps(ian::Simulation& simulation) {
 void runSimulationTests() {
     {
         auto map = ian::MapDefinition::defaults();
+        map.resources.clear();
+        map.obstacles.clear();
+        auto world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        world.buildPreviewDistance = 100;
+        auto balance = ian::GameBalance::defaults();
+        balance.gameplay.maximumPlacementDistance = 100;
+        auto run = std::make_unique<ian::Simulation>(balance, map, world);
+        run->startSandboxRun();
+        ian::PlayerCommand place;
+        place.placeBuilding = ian::PlaceBuildingCommand{ian::BuildingType::Core, {0, 0}, 0};
+        run->tick(0, place);
+        resolveLevelUps(*run);
+        ian::PlayerCommand upgrade;
+        upgrade.upgradeBuilding = ian::UpgradeBuildingCommand{*run->snapshot().coreId};
+        run->tick(0, upgrade);
+        run->tick(0, upgrade);
+        resolveLevelUps(*run);
+        ian::PlayerCommand start;
+        start.startWaveEarly = ian::StartWaveEarlyCommand{};
+        run->tick(0, start);
+        ian::PlayerCommand spawn;
+        spawn.spawnEnemy = ian::SpawnEnemyCommand{.type = ian::EnemyType::Basic, .count = 24};
+        run->tick(0, spawn);
+        const auto target = std::ranges::find_if(run->snapshot().enemies, [](const auto& enemy) {
+            return enemy.active && std::hypot(
+                enemy.position.x - std::floor(enemy.position.x) - .5,
+                enemy.position.z - std::floor(enemy.position.z) - .5) < .35;
+        });
+        require(target != run->snapshot().enemies.end(), "dawn trap fixture finds an enemy near a cell center");
+        const ian::GridPosition cell{static_cast<int>(std::floor(target->position.x)),
+                                     static_cast<int>(std::floor(target->position.z))};
+        place.placeBuilding = ian::PlaceBuildingCommand{ian::BuildingType::SpikeTrap, cell, 0};
+        run->tick(0, place);
+        require(run->snapshot().traps.size() == 1 &&
+                run->snapshot().traps.front().activationRemaining > 1.1,
+            "dawn trap fixture starts an active spike cycle");
+        resolveLevelUps(*run);
+        ian::PlayerCommand clear;
+        clear.defeatAllEnemies = ian::DefeatAllEnemiesCommand{};
+        run->tick(0, clear);
+        resolveLevelUps(*run);
+        require(run->snapshot().state == ian::RunState::WaveComplete &&
+                run->snapshot().activeEnemyCount == 0,
+            "dawn trap fixture finishes combat during the active spike cycle");
+        const double remaining = run->snapshot().traps.front().activationRemaining;
+        run->tick(.4);
+        requireNear(run->snapshot().traps.front().activationRemaining,
+            remaining - .4, 1e-9, "spike animation continues after the last enemy and dawn");
+        run->tick(1.2);
+        requireNear(run->snapshot().traps.front().activationRemaining, 0, 1e-9,
+            "spikes finish retracting during daytime without another activation");
+        requireNear(run->snapshot().traps.front().cooldownRemaining, 0, 1e-9,
+            "trap cooldown also finishes outside combat");
+    }
+    {
+        auto map = ian::MapDefinition::defaults();
         map.resources.clear(); map.obstacles.clear();
         auto world = ian::WorldConfig::defaults();
         world.terrainAmplitude = 0;

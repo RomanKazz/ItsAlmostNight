@@ -546,6 +546,10 @@ void Simulation::updateCombat(double deltaSeconds) {
             crystalMines_.syncBuildings(buildings_.buildings());
         }
 
+    } else {
+        // Finish spike retraction and cooldowns after dawn or the last kill.
+        // With no active enemies this cannot trigger a new trap activation.
+        updateTrapCombat(deltaSeconds);
     }
     // These runtimes also own smoothed visual orientation, so they must tick
     // during building phases even when there are no enemies.
