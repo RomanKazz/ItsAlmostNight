@@ -1476,14 +1476,14 @@ void drawBuildingTacticalOverlay(
             {91, 209, 255, 190}, true);
         return;
     } else if (building->type == BuildingType::SpikeTrap) {
-        drawTacticalGroundCircle(
+        drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
             static_cast<float>(
                 TrapSystem::spikeTriggerRadius(
                     building->level)),
-            {255, 115, 82, 190}, true);
+            0.0F, 360.0F, {255, 252, 244, 190});
         return;
     } else {
         return;
