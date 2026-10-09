@@ -410,9 +410,12 @@ void Renderer::drawIceMagicSphere(
     Vector3 position, float radius, float timeSeconds,
     float intensity, Color tint) {
     if (!resources_.iceMagicShader().valid()) {
+        rlDrawRenderBatchActive();
+        rlDisableDepthMask();
         BeginBlendMode(BLEND_ADDITIVE);
         DrawSphereEx(position, radius, 10, 10, tint);
         EndBlendMode();
+        rlEnableDepthMask();
         return;
     }
     rlDrawRenderBatchActive();
@@ -426,11 +429,14 @@ void Renderer::drawIceMagicSphere(
                    SHADER_UNIFORM_VEC4);
     SetShaderValue(shader, iceMagicIntensityLocation_, &intensity,
                    SHADER_UNIFORM_FLOAT);
+    rlDisableDepthMask();
     BeginBlendMode(BLEND_ADDITIVE);
     BeginShaderMode(shader);
     DrawSphereEx(position, radius, 10, 10, WHITE);
     EndShaderMode();
     EndBlendMode();
+    rlEnableDepthMask();
+    if (worldShaderActive_) BeginShaderMode(resources_.worldShader().get());
 }
 
 void Renderer::drawIceWandProjectile(
@@ -473,6 +479,8 @@ void Renderer::drawIceWandProjectile(
     if (projectile.trailCount > 1U) {
         rlDrawRenderBatchActive();
         BeginBlendMode(BLEND_ADDITIVE);
+        rlDisableDepthMask();
+        rlDisableBackfaceCulling();
         rlBegin(RL_TRIANGLES);
         const std::size_t count = std::min(
             std::min(projectile.trailCount, IceWandTrailPointCount),
@@ -537,6 +545,9 @@ void Renderer::drawIceWandProjectile(
                 fadedColor(trailInnerTail, nextFade));
         }
         rlEnd();
+        rlDrawRenderBatchActive();
+        rlEnableBackfaceCulling();
+        rlEnableDepthMask();
         EndBlendMode();
     }
 
@@ -551,6 +562,8 @@ void Renderer::drawIceWandProjectile(
                        timeSeconds, 0.96F,
                        fire ? Color{255, 126, 28, 235}
                             : Color{142, 229, 255, 225});
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
     BeginBlendMode(BLEND_ADDITIVE);
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
@@ -612,6 +625,8 @@ void Renderer::drawIceWandProjectile(
         }
         EndBlendMode();
     }
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
 }
 
 } // namespace ian

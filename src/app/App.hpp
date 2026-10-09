@@ -205,6 +205,12 @@ class App {
                            float nightAmount,
                            const WorldLighting& lighting,
                            float interpolationAlpha);
+    void drawWorldLootItems(const SimulationSnapshot& snapshot,
+                            const Camera3D& camera);
+    void drawWorldProjectiles(const SimulationSnapshot& snapshot,
+                              const Camera3D& camera,
+                              const WorldLighting& lighting,
+                              float interpolationAlpha);
     void drawWorldEnemies(const SimulationSnapshot& snapshot,
                           const Camera3D& camera);
     void drawChallengeFence(

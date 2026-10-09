@@ -485,7 +485,8 @@ void App::drawWorldEnemies(
         }
     }
     rlDrawRenderBatchActive();
-    rlEnableDepthMask();
+    // Enemy projectile glow/trails are transparent too. Keep depth testing,
+    // but do not let their fading silhouette occlude subsequent objects.
     for (const EnemyProjectile& projectile : snapshot.enemyProjectiles) {
         if (!projectile.active) continue;
         const Vector3 head{
@@ -666,7 +667,6 @@ void App::drawWorldEnemies(
     }
     rlEnd();
     rlDrawRenderBatchActive();
-    rlEnableDepthMask();
     EndBlendMode();
     if (detailedFlames) {
         for (const std::size_t rank : std::span{drawOrder.data(), visualCount}) {
@@ -794,6 +794,8 @@ void App::drawWorldEnemies(
         }
     }
     EndBlendMode();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
     performanceStats_.enemyRender.sample(
         performanceMilliseconds(enemyRenderStart));
     destroyedEnemyDrawInstances_.clear();

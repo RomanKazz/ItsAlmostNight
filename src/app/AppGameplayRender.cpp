@@ -306,10 +306,6 @@ void App::renderGameplayFrame(
     renderer_->endWorldShader();
     double pondDecorMilliseconds =
         performanceMilliseconds(pondDecorStart);
-    const auto waterStart = PerformanceClock::now();
-    renderer_->drawWater(camera.position, lighting);
-    performanceStats_.waterRender.sample(
-        performanceMilliseconds(waterStart));
     const auto pondSurfaceStart = PerformanceClock::now();
     renderer_->beginWorldShader(lighting);
     WorldMaterialState pondSurfaceMaterial{};
@@ -323,6 +319,24 @@ void App::renderGameplayFrame(
         performanceMilliseconds(pondSurfaceStart);
     performanceStats_.pondDecorRender.sample(
         pondDecorMilliseconds);
+    // Complete every opaque occluder (including grass and pond props) before
+    // alpha trails. Solid projectile heads also seed depth for later effects.
+    {
+        WorldObjectProfiler objectProfiler(
+            performanceStats_.worldObjectTimings,
+            renderer_->settings().performanceLogging);
+        objectProfiler.next(WorldObjectStage::Enemies);
+        renderer_->beginWorldShader(lighting);
+        drawWorldEnemies(presentationSnapshot, camera);
+        renderer_->endWorldShader();
+    }
+    drawWorldLootItems(presentationSnapshot, camera);
+    drawWorldProjectiles(presentationSnapshot, camera, lighting,
+                         static_cast<float>(fixedStep_.interpolationAlpha()));
+    const auto waterStart = PerformanceClock::now();
+    renderer_->drawWater(camera.position, lighting);
+    performanceStats_.waterRender.sample(
+        performanceMilliseconds(waterStart));
     const auto cloudStart = PerformanceClock::now();
     renderer_->drawClouds(
         camera, nightAmount, lighting);

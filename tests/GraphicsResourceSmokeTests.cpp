@@ -9,6 +9,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
+#include "app/AppProjectileDrawing.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -85,6 +86,229 @@ bool checkAdditiveEffectPass() {
     UnloadRenderTexture(target);
     UnloadTexture(texture);
     return valid;
+}
+
+bool checkProjectileDepth(ian::Renderer& renderer) {
+    using namespace ian::app_projectile_drawing;
+    const auto target = LoadRenderTexture(256, 128);
+    const Camera3D camera{{0, 1, 8}, {0, 1, 0}, {0, 1, 0}, 4, CAMERA_ORTHOGRAPHIC};
+    ian::WorldLighting lighting{};
+    lighting.cameraPosition = camera.position;
+    ian::WorldMaterialState material{};
+    material.unlitAmount = 1;
+    material.screenAoAmount = 0;
+    material.inkOutlineEligible = false;
+    material.inkOccluder = true;
+    const auto begin = [&] {
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial(material);
+    };
+    const auto end = [&] {
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto obstacle = [](float z) {
+        // The same depth-writing surface used by grass, trees, enemies and
+        // buildings, drawn late to catch missing depth writes on solid heads.
+        DrawCube({0, 1, z}, 7, 3, .1F, GREEN);
+        rlDrawRenderBatchActive();
+    };
+    const auto shot = [&](int kind, bool tail) {
+        beginProjectileBatch(tail);
+        if (kind < 2 || tail) {
+            emitDefenseShotGeometry({.5F, 1, 0}, {1, 0, 0}, camera.position,
+                                    3, 1, 1, {255, 80, 30, 255}, tail, kind == 1);
+        } else {
+            emitCannonballGeometry({0, 1, 0}, {1, 0, 0}, camera.position,
+                                   .24F, {255, 80, 30, 255});
+        }
+        endProjectileBatch();
+    };
+    bool valid = true;
+    for (int kind = 0; kind < 4; ++kind) {
+        begin(); shot(kind, false); Image head = end();
+        begin(); shot(kind, false); obstacle(-1); Image behind = end();
+        int headPixels = 0;
+        int overwritten = 0;
+        for (int y = 0; y < head.height; ++y) {
+            for (int x = 0; x < head.width; ++x) {
+                const Color expected = GetImageColor(head, x, y);
+                if (expected.r < 30) continue;
+                ++headPixels;
+                const Color actual = GetImageColor(behind, x, y);
+                if (std::abs(int(expected.r) - int(actual.r)) +
+                    std::abs(int(expected.g) - int(actual.g)) +
+                    std::abs(int(expected.b) - int(actual.b)) > 6) ++overwritten;
+            }
+        }
+        begin(); obstacle(1); Image cover = end();
+        begin(); obstacle(1); shot(kind, false); Image hidden = end();
+        begin(); shot(kind, false); obstacle(1); Image coverAfter = end();
+        const bool solidValid = headPixels > 20 && overwritten == 0 &&
+            changedPixels(cover, hidden) == 0 && changedPixels(cover, coverAfter) == 0;
+        if (!solidValid) std::cerr << "projectile " << kind << " depth: "
+            << headPixels << " body pixels, " << overwritten << " overwritten\n";
+        valid = valid && solidValid;
+        if (const char* directory = std::getenv("IAN_CAPTURE_PROJECTILE_DEPTH")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(behind, (std::filesystem::path{directory} /
+                ("head-" + std::to_string(kind) + "-foreground.png")).string().c_str());
+        }
+        UnloadImage(head); UnloadImage(behind); UnloadImage(cover);
+        UnloadImage(hidden); UnloadImage(coverAfter);
+    }
+    // Ribbons respect opaque foreground depth, blend over the background,
+    // and cannot leave invisible depth that cuts out later transparent effects.
+    for (int kind = 0; kind < 2; ++kind) {
+        begin(); obstacle(1); Image cover = end();
+        begin(); obstacle(1); shot(kind, true); Image hidden = end();
+        begin(); obstacle(-1); Image backdrop = end();
+        begin(); obstacle(-1); shot(kind, true); Image visible = end();
+        begin(); shot(kind, true); obstacle(-1); Image noDepth = end();
+        const bool trailValid = changedPixels(cover, hidden) == 0 &&
+            changedPixels(backdrop, visible) > 20 && changedPixels(backdrop, noDepth) == 0;
+        if (!trailValid) std::cerr << "projectile ribbon depth failed: " << kind << '\n';
+        valid = valid && trailValid;
+        UnloadImage(cover); UnloadImage(hidden); UnloadImage(backdrop);
+        UnloadImage(visible); UnloadImage(noDepth);
+    }
+    const bool particles = renderer.settings().particles;
+    renderer.settings().particles = false;
+    for (const auto element : {ian::WandElement::Ice, ian::WandElement::Fire}) {
+        ian::IceWandProjectile projectile{};
+        projectile.active = true;
+        projectile.position = projectile.previousPosition = {2, 1, 0};
+        projectile.radius = .25;
+        projectile.element = element;
+        projectile.trailCount = 3;
+        projectile.trail[0] = projectile.position;
+        projectile.trail[1] = {0, 1, 0};
+        projectile.trail[2] = {-2, 1, 0};
+        begin(); obstacle(-1); Image backdrop = end();
+        begin();
+        renderer.drawIceWandProjectile(projectile, camera.position, 0, 1);
+        // Restore the world shader for the opaque object after the magic glow.
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial(material);
+        obstacle(-1);
+        Image noDepth = end();
+        // x=128 samples the ribbon; x=203 the glow outside the solid sphere.
+        for (const int x : {128, 203}) {
+            const Color expected = GetImageColor(backdrop, x, 64);
+            const Color actual = GetImageColor(noDepth, x, 64);
+            const bool matches = std::abs(int(expected.r) - int(actual.r)) +
+                std::abs(int(expected.g) - int(actual.g)) +
+                std::abs(int(expected.b) - int(actual.b)) <= 6;
+            if (!matches) std::cerr << "wand effect reserved depth at " << x << '\n';
+            valid = valid && matches;
+        }
+        UnloadImage(backdrop); UnloadImage(noDepth);
+    }
+    renderer.settings().particles = particles;
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkProjectileGrassDepth(ian::Renderer& renderer) {
+    using namespace ian::app_projectile_drawing;
+    auto config = ian::WorldConfig::defaults();
+    config.terrainWorldSize = 64;
+    config.terrainResolution = 33;
+    config.terrainAmplitude = 0;
+    config.terrainBoundaryRiseHeight = 0;
+    config.terrainSurfaceNoiseAmplitude = 0;
+    config.pondMinimumCount = config.pondMaximumCount = 0;
+    ian::TerrainHeightfield terrain{config};
+    terrain.generate(42);
+    renderer.rebuildTerrain(terrain);
+    renderer.setWorldReveal({0, 0}, 1000);
+    const auto target = LoadRenderTexture(256, 128);
+    const Camera3D camera{{0, .3F, 20}, {0, .3F, 0}, {0, 1, 0}, 1.5F, CAMERA_ORTHOGRAPHIC};
+    ian::WorldLighting lighting{};
+    lighting.cameraPosition = camera.position;
+    lighting.fogStart = 500;
+    lighting.fogEnd = 700;
+    const std::array<ian::GrassClearArea, 1> clear{{{{0, 20}, 3, 1}}};
+    const auto capture = [&](bool grass, bool heads, float z) {
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        BeginMode3D(camera);
+        if (heads) {
+            renderer.beginWorldShader(lighting);
+            ian::WorldMaterialState material{};
+            material.unlitAmount = 1;
+            material.inkOutlineEligible = false;
+            material.inkOccluder = true;
+            renderer.setWorldMaterial(material);
+            beginProjectileBatch(false);
+            for (const float x : {-.9F, 0.F, .9F}) {
+                emitDefenseShotGeometry({x + .4F, .3F, z}, {1, 0, 0}, camera.position,
+                    3, 1, 1, {255, 80, 30, 255}, false);
+            }
+            endProjectileBatch();
+            renderer.endWorldShader();
+        }
+        if (grass) renderer.drawGrassInstances(camera.position, 32, 0, lighting, clear);
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image heads = capture(false, true, 19);
+    Image grass = capture(true, false, 19);
+    Image front = capture(true, true, 19);
+    Image behind = capture(true, true, -40);
+    int overlap = 0;
+    int foregroundSamples = 0;
+    int failures = 0;
+    const auto difference = [](Color a, Color b) {
+        return std::abs(int(a.r) - int(b.r)) + std::abs(int(a.g) - int(b.g)) +
+            std::abs(int(a.b) - int(b.b));
+    };
+    for (int y = 0; y < heads.height; ++y) {
+        for (int x = 0; x < heads.width; ++x) {
+            const Color head = GetImageColor(heads, x, y);
+            const Color blade = GetImageColor(grass, x, y);
+            if (head.r < 30 || blade.r + blade.g + blade.b < 30) continue;
+            ++overlap;
+            if (difference(head, GetImageColor(front, x, y)) > 6) ++failures;
+            // Wind advances between captures. Test stable blade interiors for
+            // projectile leakage, allowing their lighting/normal to animate.
+            bool interior = x >= 2 && y >= 2 && x + 2 < grass.width && y + 2 < grass.height;
+            for (int dy = -2; interior && dy <= 2; ++dy) {
+                for (int dx = -2; dx <= 2; ++dx) {
+                    if (difference(blade, GetImageColor(grass, x + dx, y + dy)) > 12) {
+                        interior = false;
+                        break;
+                    }
+                }
+            }
+            if (interior && difference(blade, head) > 60) {
+                ++foregroundSamples;
+                if (difference(head, GetImageColor(behind, x, y)) <= 6) ++failures;
+            }
+        }
+    }
+    if (const char* directory = std::getenv("IAN_CAPTURE_PROJECTILE_DEPTH")) {
+        ExportImage(front, (std::filesystem::path{directory} / "grass-behind-bullets.png").string().c_str());
+        ExportImage(behind, (std::filesystem::path{directory} / "grass-in-front-of-bullets.png").string().c_str());
+    }
+    UnloadImage(heads); UnloadImage(grass); UnloadImage(front); UnloadImage(behind);
+    UnloadRenderTexture(target);
+    // Detach the borrowed terrain before leaving the fixture.
+    renderer.shutdown();
+    renderer.initialize();
+    if (overlap <= 20 || foregroundSamples <= 20 || failures != 0) std::cerr << "grass/projectile depth: "
+        << overlap << " overlapping pixels, " << failures << " wrong pixels\n";
+    return overlap > 20 && foregroundSamples > 20 && failures == 0;
 }
 
 bool checkAtmosphereRendering() {
@@ -1609,6 +1833,14 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkProjectileDepth(renderer)) {
+            std::cerr << "projectile heads, ribbons or glow depth occlusion failed\n";
+            result = 1;
+        }
+        if (!checkProjectileGrassDepth(renderer)) {
+            std::cerr << "instanced grass/projectile depth occlusion failed\n";
+            result = 1;
+        }
         if (std::getenv("IAN_PROFILE_FIRST_SHOT")) {
             const auto target = LoadRenderTexture(64, 64);
             const Camera3D camera{{0, 0, 5}, {0, 0, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
