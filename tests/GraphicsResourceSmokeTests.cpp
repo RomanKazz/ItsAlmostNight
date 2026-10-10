@@ -12,6 +12,7 @@
 #include "app/AppProjectileDrawing.hpp"
 #include "app/AppBurnDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
+#include "graphics/FireWandEffect.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -329,6 +330,132 @@ bool checkCartoonFreeze(ian::Renderer& renderer) {
     }
     for (Image image : {base, frozen, next, faded, cheap, coveredBase, covered,
                         impact, crack, finished, seamBefore, seamAfter}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkFireWandAttack(ian::Renderer& renderer) {
+    using namespace ian::fire_wand_effect;
+    const auto target = LoadRenderTexture(480, 320);
+    const Camera3D camera{{0, 1, 8}, {0, 1, 0}, {0, 1, 0}, 4, CAMERA_ORTHOGRAPHIC};
+    ian::IceWandProjectile projectile{};
+    projectile.active = true;
+    projectile.element = ian::WandElement::Fire;
+    projectile.radius = .3;
+    projectile.id = {6101, 4};
+    projectile.position = {1.3, 1.5, 0};
+    projectile.previousPosition = {1.1, 1.5, 0};
+    projectile.velocity = {18, 2, 0};
+    projectile.trailCount = projectile.trail.size();
+    for (std::size_t i = 0; i < projectile.trail.size(); ++i) {
+        const double t = static_cast<double>(i) * .13;
+        projectile.trail[i] = {1.3 - t, 1.5 - t * t * .18, 0};
+    }
+    const auto render = [&](int mode, double time, bool cover, bool detailed,
+                            float amount = 1, bool behindAfter = false) {
+        BeginTextureMode(target);
+        ClearBackground({24, 49, 65, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 1, 2}, 7, 6, .1F, GREEN);
+        if (mode == 1 || mode == 5) {
+            auto shot = projectile;
+            shot.active = mode == 1;
+            beginBatch();
+            emitProjectile(shot, camera.position, time, .5F, detailed, Pass::Trail);
+            endBatch();
+            beginBatch(true);
+            emitProjectile(shot, camera.position, time, .5F, detailed, Pass::Body);
+            endBatch();
+        } else if (mode == 2) {
+            beginBatch();
+            emitImpact({0, 1, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, amount, 1, detailed);
+            endBatch();
+        } else if (mode == 3 || mode == 4) {
+            rlPushMatrix(); rlScalef(6, 6, 6);
+            beginBatch();
+            emitStaff({0, .17F, 0}, time, amount, mode == 4 ? .9F : 0, detailed);
+            endBatch();
+            rlPopMatrix();
+        }
+        if (behindAfter) DrawCube({1.2F, 1.5F, -.5F}, .3F, .3F, .1F, MAGENTA);
+        renderer.endWorldShader(); EndMode3D(); EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image); return image;
+    };
+    Image base = render(0, .1, false, true);
+    Image fire = render(1, .1, false, true);
+    Image next = render(1, .35, false, true);
+    Image cheap = render(1, .1, false, false);
+    Image coverBase = render(0, .1, true, true);
+    Image covered = render(1, .1, true, true);
+    Image impact = render(2, .1, false, true, .12F);
+    Image finished = render(2, .1, false, true, 1);
+    Image idle = render(3, .1, false, true, 0);
+    Image charged = render(3, .1, false, true, 1);
+    Image flash = render(4, .1, false, true, 0);
+    Image inactive = render(5, .1, false, true);
+    Image withRear = render(1, .1, false, true, 1, true);
+    const auto difference = [](const Image& a, const Image& b) {
+        Color* ca = LoadImageColors(a); Color* cb = LoadImageColors(b);
+        std::size_t total = 0;
+        for (int i = 0; i < a.width * a.height; ++i)
+            total += static_cast<std::size_t>(std::abs(int(ca[i].r) - int(cb[i].r)) +
+                std::abs(int(ca[i].g) - int(cb[i].g)) + std::abs(int(ca[i].b) - int(cb[i].b)));
+        UnloadImageColors(ca); UnloadImageColors(cb); return total;
+    };
+    int orange = 0, gold = 0, white = 0;
+    for (int y = 0; y < fire.height; ++y) for (int x = 0; x < fire.width; ++x) {
+        const auto c = GetImageColor(fire, x, y);
+        if (c.r > 200 && c.g > 50 && c.g < 150 && c.b < 70) ++orange;
+        if (c.r > 220 && c.g > 160 && c.b < 145) ++gold;
+        if (c.r > 230 && c.g > 220 && c.b > 145) ++white;
+    }
+    const bool valid = orange > 80 && gold > 80 && white > 10 &&
+        difference(fire, next) > 10000 && difference(base, cheap) > 50000 &&
+        difference(coverBase, covered) == 0 && difference(base, finished) == 0 &&
+        difference(base, inactive) == 0 && difference(base, impact) > 50000 &&
+        difference(base, charged) > difference(base, idle) * 2 &&
+        difference(idle, flash) > 10000 && difference(fire, withRear) < 100;
+    if (!valid) std::cerr << "fire wand palette " << orange << '/' << gold << '/' << white
+        << " cover " << difference(coverBase, covered)
+        << " rear " << difference(fire, withRear)
+        << " charge " << difference(base, charged) << '/' << difference(base, idle) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_FIRE_WAND")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{fire, "fire-flight.png"},
+            std::pair{next, "fire-flight-next.png"}, std::pair{impact, "fire-impact.png"},
+            std::pair{charged, "fire-charge.png"}, std::pair{flash, "fire-release.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+        const auto preview = LoadRenderTexture(960, 540);
+        const auto visual = ian::FirstPersonToolVisual::FireWand;
+        const auto tuning = ian::defaultFirstPersonToolTuning(visual);
+        const auto view = ian::firstPersonToolCamera(visual);
+        if (renderer.beginFirstPersonToolPass()) renderer.endFirstPersonToolPass(tuning);
+        for (int phase = 0; phase < 3; ++phase) {
+            BeginTextureMode(preview);
+            ClearBackground({33, 67, 86, 255});
+            BeginMode3D(view);
+            static_cast<void>(renderer.drawFirstPersonTool(visual, 0, 0, 0,
+                tuning, phase == 1 ? 1.0F : 0.0F, phase == 2 ? .9F : 0.0F));
+            EndMode3D(); EndTextureMode();
+            Image capture = LoadImageFromTexture(preview.texture);
+            ImageFlipVertical(&capture);
+            const std::string name = "fire-staff-" + std::to_string(phase) + ".png";
+            ExportImage(capture, (std::filesystem::path(directory) / name).c_str());
+            UnloadImage(capture);
+        }
+        UnloadRenderTexture(preview);
+    }
+    for (Image image : {base, fire, next, cheap, coverBase, covered, impact,
+                        finished, idle, charged, flash, inactive, withRear}) UnloadImage(image);
     UnloadRenderTexture(target);
     return valid;
 }
@@ -2186,6 +2313,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkFireWandAttack(renderer)) {
+            std::cerr << "cartoon fire wand checks failed\n";
+            return 1;
+        }
         if (!checkCartoonFreeze(renderer)) {
             std::cerr << "cartoon freeze checks failed\n";
             return 1;

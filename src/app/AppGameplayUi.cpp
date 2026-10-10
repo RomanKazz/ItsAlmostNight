@@ -234,7 +234,7 @@ if (showFirstPersonTool) {
         ? snapshot.fireWandChargeRemaining
         : snapshot.iceWandChargeRemaining;
     const float iceChargeProgress =
-        elementalWand && wandChargeDuration > 0.0
+        elementalWand && (!fireWand || wandChargeRemaining > 0.0) && wandChargeDuration > 0.0
             ? std::clamp(static_cast<float>(
                   1.0 - wandChargeRemaining /
                       wandChargeDuration), 0.0F, 1.0F)

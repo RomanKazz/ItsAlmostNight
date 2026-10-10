@@ -1,5 +1,6 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
+#include "graphics/FireWandEffect.hpp"
 
 
 #include <raymath.h>
@@ -208,7 +209,21 @@ bool Renderer::drawFirstPersonTool(
                   fireWand ? Color{255, 193, 150, 255} : WHITE);
         model.transform = originalTransform;
     }
-    if (wand) {
+    if (fireWand) {
+        const Vector3 tip{0, .365F, 0};
+        const Matrix inverseTool = MatrixInvert(rlGetMatrixTransform());
+        const Vector3 localCamera = Vector3Transform({}, inverseTool);
+        const Vector3 right = fire_wand_effect::normalized(Vector3Subtract(
+            Vector3Transform({1, 0, 0}, inverseTool), localCamera), {1, 0, 0});
+        const Vector3 up = fire_wand_effect::normalized(Vector3Subtract(
+            Vector3Transform({0, 1, 0}, inverseTool), localCamera), {0, 1, 0});
+        const Vector3 front = fire_wand_effect::normalized(
+            Vector3Subtract(localCamera, tip), {0, 0, 1});
+        fire_wand_effect::beginBatch();
+        fire_wand_effect::emitStaff(tip, GetTime(), charge,
+            iceRecoilProgress, settings_.particles, right, up, front);
+        fire_wand_effect::endBatch();
+    } else if (iceWand) {
         constexpr float CrystalHeight = 0.365F;
         const float crystalPulse = 0.42F + charge * 0.28F +
             0.035F * std::sin(static_cast<float>(GetTime()) * 5.0F);
@@ -443,6 +458,30 @@ void Renderer::drawIceWandProjectile(
     const IceWandProjectile& projectile, Vector3 cameraPosition,
     float timeSeconds, float interpolationAlpha) {
     if (!projectile.active) {
+        return;
+    }
+    // Keep callers of the existing elemental-projectile entry point on the
+    // same fire presentation; the app batches the whole fire pool directly.
+    if (projectile.element == WandElement::Fire) {
+        const WorldMaterialState previousMaterial = worldMaterial_;
+        WorldMaterialState fireMaterial{};
+        fireMaterial.unlitAmount = 1;
+        fireMaterial.screenAoAmount = 0;
+        fireMaterial.inkOutlineEligible = false;
+        setWorldMaterial(fireMaterial);
+        beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch();
+        fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds,
+            interpolationAlpha, settings_.particles, fire_wand_effect::Pass::Trail);
+        fire_wand_effect::endBatch();
+        endColorOnlyWorldEffects();
+        fireMaterial.inkOccluder = true;
+        setWorldMaterial(fireMaterial);
+        fire_wand_effect::beginBatch(true);
+        fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds,
+            interpolationAlpha, settings_.particles, fire_wand_effect::Pass::Body);
+        fire_wand_effect::endBatch();
+        setWorldMaterial(previousMaterial);
         return;
     }
     const float alpha = std::clamp(interpolationAlpha, 0.0F, 1.0F);
