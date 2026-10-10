@@ -39,4 +39,13 @@ void drawRunUpgradeOverlay(
     std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts,
     std::optional<Vector2> pointerPosition = std::nullopt);
+struct RunShopLayout {
+    std::array<Rectangle, RunShopSlotCount> cards{}, buy{}, locks{};
+    Rectangle inventory{}, stats{}, header{}, reroll{}, proceed{};
+    float scale{1};
+};
+[[nodiscard]] RunShopLayout runShopLayout();
+void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
+    std::optional<int> keyboardFocus = std::nullopt,
+    std::optional<Vector2> pointerPosition = std::nullopt);
 } // namespace ian::app_detail

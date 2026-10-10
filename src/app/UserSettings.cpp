@@ -72,7 +72,7 @@ constexpr std::array<const char*, ControlActionCount>
         "upgrade",     "sell",           "upgradeWeapon",
         "buildMode",   "pause",
         "map",         "startWave",      "restart",
-        "revealChest", "toggleHud",
+        "revealChest", "toggleHud", "runShop",
     };
 
 bool validControlKey(int key) {
@@ -621,6 +621,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::Restart: return "RESTART RUN";
     case ControlAction::RevealChest: return "REVEAL CHEST";
     case ControlAction::ToggleHud: return "TOGGLE HUD";
+    case ControlAction::RunShop: return "WAVE SHOP";
     case ControlAction::Count: break;
     }
     return "UNKNOWN";

@@ -301,7 +301,7 @@ void App::render() {
         snapshot.state == RunState::MainMenu ||
         snapshot.state == RunState::Paused ||
         snapshot.state == RunState::StageClear ||
-        snapshot.state == RunState::Victory ||
+        snapshot.state == RunState::Victory || snapshot.runShop.pending || snapshot.runUpgradeChoicePending ||
         renderer_->graphicsPanelVisible() || enemySpawnMenuVisible_ ||
         itemGrantMenuVisible_ || sandboxCardMenuVisible_ ||
         (coreDefenseMenuVisible_ && coreMenuPointerActive_);

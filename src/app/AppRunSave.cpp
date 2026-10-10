@@ -624,6 +624,14 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"riskyInvestmentPending", saved.riskyInvestmentPending},
             {"bloodHarvestKillProgress", saved.bloodHarvestKillProgress},
         }},
+        {"runShop", [&saved] {
+            Json offers = Json::array();
+            for (const auto& offer : saved.runShop.offers) offers.push_back({
+                {"effect", static_cast<int>(offer.effect)}, {"rarity", static_cast<int>(offer.rarity)},
+                {"price", offer.price}, {"present", offer.present}, {"locked", offer.locked}});
+            return Json{{"pending", saved.runShop.pending}, {"wave", saved.runShop.wave},
+                {"rerolls", saved.runShop.rerolls}, {"generation", saved.runShop.generation}, {"offers", std::move(offers)}};
+        }()},
         {"runUpgradeOffer", {
             {"pending", saved.runUpgradeChoicePending},
             {"count", saved.runUpgradeChoiceCount},
@@ -769,6 +777,20 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.bonusSelectionsNextReward = runtime.at("bonusSelectionsNextReward");
     saved.riskyInvestmentPending = runtime.at("riskyInvestmentPending");
     saved.bloodHarvestKillProgress = runtime.at("bloodHarvestKillProgress");
+    if (document.contains("runShop")) {
+        const auto& shop = document.at("runShop");
+        saved.runShop.pending = shop.at("pending");
+        saved.runShop.wave = shop.at("wave");
+        saved.runShop.rerolls = shop.at("rerolls");
+        saved.runShop.generation = shop.at("generation");
+        const auto& offers = shop.at("offers");
+        if (!offers.is_array() || offers.size() != RunShopSlotCount)
+            throw Json::type_error::create(302, "invalid run shop offers", &shop);
+        for (std::size_t i = 0; i < offers.size(); ++i) saved.runShop.offers[i] = {
+            .effect = static_cast<RunUpgradeEffect>(offers[i].at("effect").get<int>()),
+            .rarity = static_cast<RunUpgradeRarity>(offers[i].at("rarity").get<int>()),
+            .price = offers[i].at("price"), .present = offers[i].at("present"), .locked = offers[i].at("locked")};
+    }
     const Json& upgradeOffer = document.at("runUpgradeOffer");
     saved.runUpgradeChoicePending = upgradeOffer.at("pending").get<bool>();
     saved.runUpgradeChoiceCount = upgradeOffer.at("count").get<std::size_t>();

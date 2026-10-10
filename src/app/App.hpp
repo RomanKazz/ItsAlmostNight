@@ -370,6 +370,9 @@ class App {
     bool exitRequested_{};
     mutable std::optional<bool> suspendedRunAvailabilityCache_;
     bool graphicsPanelWasVisible_{};
+    bool runShopWasVisible_{};
+    double runShopInputDelayRemaining_{};
+    std::optional<int> runShopKeyboardFocus_{};
     bool runUpgradeChoiceWasVisible_{};
     double runUpgradeChoiceInputDelayRemaining_{};
     bool runUpgradeChoiceInputArmed_{};

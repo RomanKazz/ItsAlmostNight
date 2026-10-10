@@ -105,6 +105,85 @@ void App::processInput() {
         suspendGameplayInput();
         return;
     }
+    const bool shopShortcut = IsKeyPressed(KEY_P) &&
+        (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL));
+    const bool shopVisible = simulation_.snapshot().runShop.pending && !upgradeChoicePending && runState != RunState::Paused;
+    if (shopVisible) {
+        if (!runShopWasVisible_) {
+            runShopWasVisible_ = true;
+            runShopInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
+            runShopKeyboardFocus_.reset();
+            coreDefenseMenuVisible_ = false; coreDefenseMenuClosing_ = false;
+            enemySpawnMenuVisible_ = false; itemGrantMenuVisible_ = false; sandboxCardMenuVisible_ = false;
+            EnableCursor();
+        }
+        const bool released = !IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_ENTER) &&
+            !IsKeyDown(KEY_SPACE) && !IsKeyDown(KEY_R) && !IsKeyDown(KEY_ONE) &&
+            !IsKeyDown(KEY_TWO) && !IsKeyDown(KEY_THREE) && !IsKeyDown(KEY_FOUR);
+        if (runShopInputDelayRemaining_ > 0)
+            runShopInputDelayRemaining_ = advanceRunUpgradeInputDelay(runShopInputDelayRemaining_,released,GetFrameTime());
+        if (runShopInputDelayRemaining_ <= 0) {
+            const auto l = runShopLayout();
+            const auto pointer = GetMousePosition();
+            const auto delta = GetMouseDelta();
+            if (delta.x != 0 || delta.y != 0) runShopKeyboardFocus_.reset();
+            const bool reverse = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+            const int step = IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_UP) || (IsKeyPressed(KEY_TAB) && reverse) ? -1 :
+                IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_TAB) ? 1 : 0;
+            if (step) {
+                const int old = runShopKeyboardFocus_.value_or(step > 0 ? -1 : 0);
+                runShopKeyboardFocus_ = (old + step + 10) % 10;
+                audio_.playUiSelect();
+            }
+            std::optional<int> action;
+            if ((IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) && runShopKeyboardFocus_) action = runShopKeyboardFocus_;
+            if (IsKeyPressed(KEY_R)) action = 8;
+            if (IsKeyPressed(KEY_ESCAPE) || shopShortcut) action = 9;
+            for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
+                if (IsKeyPressed(static_cast<int>(KEY_ONE) + static_cast<int>(i))) action = static_cast<int>(i);
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    if (CheckCollisionPointRec(pointer,l.buy[i])) action = static_cast<int>(i);
+                    if (CheckCollisionPointRec(pointer,l.locks[i])) action = static_cast<int>(i+4);
+                }
+            }
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                if (CheckCollisionPointRec(pointer,l.reroll)) action = 8;
+                if (CheckCollisionPointRec(pointer,l.proceed)) action = 9;
+            }
+            if (action) {
+                const bool success = *action < 4 ? simulation_.buyRunShopOffer(static_cast<std::size_t>(*action)) : *action < 8 ?
+                    simulation_.toggleRunShopLock(static_cast<std::size_t>(*action - 4)) : *action == 8 ? simulation_.rerollRunShop() : simulation_.closeRunShop();
+                if (success) audio_.playUiConfirm(); else audio_.playUiError();
+                if (*action == 8) runShopInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
+                if (*action == 9 && success) {
+                    runShopWasVisible_ = false;
+                    runShopKeyboardFocus_.reset();
+                    if (runState != RunState::StageClear) DisableCursor();
+                }
+            }
+        }
+        suspendGameplayInput();
+        return;
+    }
+    if (runShopWasVisible_ && !upgradeChoicePending) {
+        runShopWasVisible_ = false;
+        runShopKeyboardFocus_.reset();
+        if (runState != RunState::MainMenu && runState != RunState::Paused && runState != RunState::StageClear && !runFinished) DisableCursor();
+    }
+    if (!upgradeChoicePending && (shopShortcut || keyPressed(userSettings_.controls,ControlAction::RunShop))) {
+        if (shopShortcut && runState == RunState::Paused) simulation_.togglePause();
+        if (simulation_.openRunShop(shopShortcut)) {
+            EnableCursor();
+            audio_.playUiConfirm();
+            suspendGameplayInput();
+            return;
+        }
+        // Ctrl+P belongs to the shop; never let it trigger ordinary P pause.
+        if (shopShortcut) {
+            suspendGameplayInput();
+            return;
+        }
+    }
     if (runState == RunState::StageClear &&
         !upgradeChoicePending && !restartHeld) {
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_F)) {
@@ -163,7 +242,7 @@ void App::processInput() {
                         runUpgradeChoiceWasVisible_ = false;
                         runUpgradeChoiceInputArmed_ = false;
                         runUpgradeChoiceInputDelayRemaining_ = RunUpgradeChoiceInputQuietDuration;
-                        DisableCursor();
+                        if (!simulation_.snapshot().runShop.pending) DisableCursor();
                     } else {
                         runUpgradeOverlayEntranceSeconds_ = 0.0;
                         runUpgradeCardHoverAmounts_.fill(0.0F);

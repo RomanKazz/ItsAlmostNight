@@ -88,6 +88,49 @@ int main(int argc, char** argv) {
     snapshot.playerMoveSpeedMultiplier = 1.12;
     snapshot.coreBuildRadius = 24;
     snapshot.upgradeStats.luck = 0.2;
+    {
+        auto shop = snapshot;
+        shop.runUpgradeChoicePending = false;
+        shop.runShop.pending = true;
+        shop.runShop.wave = 3;
+        shop.coins = 35;
+        const std::array shopCards{ian::RunUpgradeEffect::Damage,ian::RunUpgradeEffect::MoveSpeed,
+            ian::RunUpgradeEffect::UnlockQuarry,ian::RunUpgradeEffect::PoisonChance};
+        for (std::size_t i=0;i<4;++i) {
+            shop.runShop.offers[i] = {.effect=shopCards[i],.rarity=static_cast<ian::RunUpgradeRarity>(i),
+                .price=12+static_cast<int>(i)*15,.present=true,.locked=i==1};
+            shop.runShopBuyable[i] = true;
+        }
+        for (const auto language : {ian::Language::English,ian::Language::Russian}) {
+            ian::setLanguage(language);
+            SetWindowSize(1920,1080); PollInputEvents();
+            const auto layout = ian::app_detail::runShopLayout();
+            for (std::size_t i=0;i<4;++i) {
+                require(layout.cards[i].width > 0 && layout.cards[i].x >= 0 &&
+                    layout.cards[i].x+layout.cards[i].width <= static_cast<float>(GetScreenWidth()),"all four shop cards fit the window");
+                require(CheckCollisionRecs(layout.cards[i],layout.buy[i]) &&
+                    !CheckCollisionRecs(layout.cards[i],layout.locks[i]),"price and lock hit areas match card layout");
+                for (std::size_t j=i+1;j<4;++j)
+                    require(!CheckCollisionRecs(layout.cards[i],layout.cards[j]),"shop cards never overlap");
+            }
+            const auto target = LoadRenderTexture(1920,1080);
+            for (int frame=0;frame<3;++frame) {
+                BeginTextureMode(target); ClearBackground({40,70,65,255});
+                ian::app_detail::drawRunShopOverlay(ui,shop,std::nullopt,Vector2{-100,-100});
+                EndTextureMode();
+            }
+            Image image = LoadImageFromTexture(target.texture);
+            ImageFlipVertical(&image);
+            if (argc > 1) {
+                const std::string path = std::string(argv[1]) +
+                    (language == ian::Language::English ? "/shop-en.png" : "/shop-ru.png");
+                require(ExportImage(image,path.c_str()),"shop capture exported");
+            }
+            UnloadImage(image);
+            UnloadRenderTexture(target);
+        }
+        ian::setLanguage(ian::Language::English);
+    }
     // Compare the readonly projection with real upgrade application, including
     // class bonuses, accumulated upgrades, rarity scaling and discrete caps.
     auto simulation = std::make_unique<ian::Simulation>();

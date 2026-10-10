@@ -1194,4 +1194,126 @@ void drawRunUpgradeOverlay(
     }
 }
 
+namespace {
+RunShopLayout shopLayout() {
+    const float s = std::min(static_cast<float>(uiScreenWidth()) / 1920.0F, static_cast<float>(uiScreenHeight()) / 1080.0F);
+    const float x = (static_cast<float>(uiScreenWidth()) - 1920 * s) * .5F;
+    const float y = (static_cast<float>(uiScreenHeight()) - 1080 * s) * .5F;
+    const auto rect = [=](float a, float b, float w, float h) { return Rectangle{x+a*s,y+b*s,w*s,h*s}; };
+    RunShopLayout l;
+    l.scale = s;
+    l.inventory = rect(32, 78, 260, 932);
+    l.stats = rect(1516, 78, 372, 932);
+    l.header = rect(316, 78, 1176, 104);
+    l.reroll = rect(1200, 100, 268, 62);
+    l.proceed = rect(1192, 946, 300, 64);
+    for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
+        const float left = 316.0F + static_cast<float>(i) * 300.0F;
+        l.cards[i] = rect(left, 208, 276, 620);
+        l.buy[i] = rect(left + 16, 742, 244, 64);
+        l.locks[i] = rect(left + 40, 850, 196, 52);
+    }
+    return l;
+}
+void shopText(std::string_view text, Rectangle r, float size, Color color, float s, int maxLines = 8) {
+    const ScopedUiFontRole font(UiFontRole::MenuBodyBold);
+    std::istringstream words{std::string{text}};
+    std::string word, line;
+    int n = 0;
+    const auto emit = [&] {
+        label(line, {r.x, r.y + n * (size + 7 * s), r.width, size + 7 * s},
+            size, color, 1, UiFontRole::BodyBold);
+        ++n; line.clear();
+    };
+    while (words >> word) {
+        if (!line.empty() && measureUiText(line + " " + word, size).x > r.width) emit();
+        if (n >= maxLines) break;
+        if (!line.empty()) line += " ";
+        line += word;
+    }
+    if (!line.empty() && n < maxLines) emit();
+}
+}
+RunShopLayout runShopLayout() {
+    const ScopedUiCoordinates coordinates;
+    auto l = shopLayout();
+    if (coordinates.owns()) {
+        for (auto& r : l.cards) r = coordinates.viewport().toScreen(r);
+        for (auto& r : l.buy) r = coordinates.viewport().toScreen(r);
+        for (auto& r : l.locks) r = coordinates.viewport().toScreen(r);
+        for (auto* r : {&l.inventory, &l.stats, &l.header, &l.reroll, &l.proceed})
+            *r = coordinates.viewport().toScreen(*r);
+    }
+    return l;
+}
+void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
+    std::optional<int> keyboardFocus, std::optional<Vector2> pointerPosition) {
+    if (!snapshot.runShop.pending || snapshot.runUpgradeChoicePending || snapshot.state == RunState::Paused) return;
+    const ScopedUiCanvas canvas;
+    if (pointerPosition && canvas.owns()) pointerPosition = canvas.viewport().toUi(*pointerPosition);
+    const auto pointer = pointerPosition.value_or(uiMousePosition());
+    const auto l = shopLayout(); const float s = l.scale;
+    DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(), {11, 19, 22, 210});
+    auto preview = snapshot;
+    preview.runUpgradeChoiceCount = RunShopSlotCount;
+    std::optional<std::size_t> hovered;
+    for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
+        preview.runUpgradeChoices[i] = snapshot.runShop.offers[i].effect;
+        preview.runUpgradeRarities[i] = snapshot.runShop.offers[i].rarity;
+        if (snapshot.runShopBuyable[i] && (CheckCollisionPointRec(pointer, l.cards[i]) ||
+            (keyboardFocus && *keyboardFocus == static_cast<int>(i)))) hovered = i;
+    }
+    drawUpgradeStats(preview, {{}, l.inventory, l.stats, s, 0}, 1, hovered);
+    const auto inventoryHover = drawUpgradeInventory(ui, snapshot, l.inventory, s, 1, pointer);
+    plate(l.header, s, menuStyle::Frame, 1);
+    label(localizeText("SHOP") + " - " + localizeText("WAVE") + " " + std::to_string(snapshot.runShop.wave),
+        {l.header.x+22*s,l.header.y+10*s,430*s,46*s},32*s,menuStyle::Gold,1,UiFontRole::Display);
+    label(localizeText("TOMES") + " " + std::to_string(snapshot.tomeCount) + "/" + std::to_string(snapshot.tomeSlotLimit),
+        {l.header.x+22*s,l.header.y+58*s,430*s,30*s},20*s,menuStyle::Muted,1,UiFontRole::BodyBold);
+    drawIcon(ui.resourceTexture(UiResourceIcon::Coin), {l.header.x+568*s,l.header.y+28*s,46*s,46*s},1);
+    label(std::to_string(snapshot.coins),{l.header.x+628*s,l.header.y+18*s,210*s,66*s},38*s,menuStyle::Gold,1,UiFontRole::Display);
+    const auto button = [&](Rectangle r, std::string_view text, bool enabled, int focus, Color color) {
+        const bool over = CheckCollisionPointRec(pointer,r) || (keyboardFocus && *keyboardFocus == focus);
+        plate(r,s*.65F,enabled ? (over ? menuStyle::Selected : menuStyle::Card) : menuStyle::Inset,1);
+        label(text,{r.x+8*s,r.y,r.width-16*s,r.height},23*s,(enabled || focus < 4) ? color : menuStyle::Muted,1,UiFontRole::Display,1);
+        if (over) drawSelectionCorners(r,s*.65F,1);
+    };
+    bool unlocked = false;
+    for (std::size_t i = 0; i < RunShopSlotCount; ++i)
+        unlocked |= !snapshot.runShop.offers[i].locked || !snapshot.runShopBuyable[i];
+    button(l.reroll,localizeText("REROLL") + "  " + std::to_string(runShopRerollPrice(snapshot.runShop)),
+        unlocked && snapshot.coins >= runShopRerollPrice(snapshot.runShop),8,menuStyle::Gold);
+    for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
+        const auto& offer = snapshot.runShop.offers[i]; const auto r = l.cards[i];
+        if (!offer.present) {
+            plate(r,s,menuStyle::Inset,1);
+            label("SOLD",{r.x,r.y+r.height*.4F,r.width,72*s},34*s,menuStyle::Muted,1,UiFontRole::Display,1);
+            continue;
+        }
+        const auto accent = rarityColor(offer.rarity);
+        plate(r,s,rarityFill(offer.rarity),1);
+        label(runUpgradeRarityName(offer.rarity),{r.x+16*s,r.y+14*s,r.width-32*s,30*s},20*s,accent,1,UiFontRole::BodyBold,1);
+        drawIcon(ui.runUpgradeTexture(offer.effect),{r.x+(r.width-116*s)*.5F,r.y+58*s,116*s,116*s},1);
+        shopText(localizeText(runUpgradeDefinition(offer.effect).name),
+            {r.x+18*s,r.y+194*s,r.width-36*s,112*s},28*s,menuStyle::Cream,s,3);
+        shopText(localizedUpgradeDescription(snapshot,offer.effect,offer.rarity),
+            {r.x+18*s,r.y+322*s,r.width-36*s,194*s},22*s,menuStyle::Cream,s,6);
+        const bool buyable = snapshot.runShopBuyable[i];
+        const std::string price = buyable ? std::to_string(offer.price) : localizeText("LIMIT REACHED");
+        button(l.buy[i],price,buyable && snapshot.coins >= offer.price,static_cast<int>(i),
+            snapshot.coins >= offer.price ? menuStyle::Cream : Color{255,100,95,255});
+        if (buyable) drawIcon(ui.resourceTexture(UiResourceIcon::Coin),
+            {l.buy[i].x+l.buy[i].width*.5F+36*s,l.buy[i].y+16*s,32*s,32*s},1);
+        button(l.locks[i],offer.locked ? "OFFER LOCKED" : "LOCK",buyable || offer.locked,
+            static_cast<int>(i+4),offer.locked ? menuStyle::Gold : menuStyle::Cream);
+        if (hovered == i) drawSelectionCorners(r,s,1);
+    }
+    button(l.proceed,"CONTINUE",true,9,menuStyle::Gold);
+    label("R: REROLL / 1-4: BUY / ESC: CONTINUE",{l.header.x, l.proceed.y,820*s,30*s},
+        19*s,menuStyle::Muted,1,UiFontRole::BodyBold);
+    label("Locked offers carry over. Buy all four for a free refresh.",
+        {l.header.x,l.proceed.y+35*s,850*s,28*s},18*s,menuStyle::Muted,1);
+    if (inventoryHover) drawItemTooltip(inventoryHover->title,inventoryHover->description,pointer,
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},s);
+}
 } // namespace ian::app_detail

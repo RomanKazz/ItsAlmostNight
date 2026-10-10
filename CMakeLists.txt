@@ -137,6 +137,7 @@ add_library(ian_simulation
     src/game/SimulationPlayerMovement.cpp
     src/game/SimulationPlacement.cpp
     src/game/SimulationProgression.cpp
+    src/game/SimulationRunShop.cpp
     src/game/SimulationSnapshot.cpp
     src/game/SimulationSuspendedRun.cpp
     src/game/SimulationWaves.cpp
@@ -350,6 +351,7 @@ if(BUILD_TESTING)
     set_tests_properties(ian_render_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
     add_executable(ian_tests
         tests/FixedStepTests.cpp
+        tests/RunShopTests.cpp
         tests/GeometryTests.cpp
         tests/ResourceCostTests.cpp
         tests/SaturatingArithmeticTests.cpp
@@ -406,6 +408,16 @@ if(BUILD_TESTING)
         target_compile_options(ian_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
         target_link_options(ian_tests PRIVATE -fsanitize=address,undefined)
     endif()
+    add_executable(ian_run_shop_tests tests/RunShopTests.cpp)
+    target_compile_definitions(ian_run_shop_tests PRIVATE IAN_RUN_SHOP_TEST_MAIN=1)
+    target_link_libraries(ian_run_shop_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_run_shop_tests)
+    if(IAN_ENABLE_SANITIZERS)
+        target_compile_options(ian_run_shop_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_run_shop_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_run_shop_tests COMMAND ian_run_shop_tests)
+    set_tests_properties(ian_run_shop_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
     add_test(NAME ian_tests COMMAND ian_tests)
 
     add_executable(ian_graphics_smoke

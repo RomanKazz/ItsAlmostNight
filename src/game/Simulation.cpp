@@ -389,6 +389,7 @@ void Simulation::resetRun(GameEventType eventType) {
     freeChestRerollsRemaining_ = 0;
     lootStacks_.fill(0);
     runUpgradeChoicePending_ = false;
+    runShop_ = {};
     runUpgradeChoiceCount_ = 0U;
     runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
     runUpgradeStacks_.fill(0);
@@ -541,7 +542,7 @@ void Simulation::togglePause() {
 }
 
 void Simulation::tick(double deltaSeconds, const PlayerCommand& command) {
-    if (runUpgradeChoicePending_ ||
+    if (runUpgradeChoicePending_ || runShop_.pending ||
         state_ == RunState::MainMenu || state_ == RunState::Paused ||
         state_ == RunState::StageClear || state_ == RunState::Victory ||
         state_ == RunState::Defeat || !std::isfinite(deltaSeconds) ||

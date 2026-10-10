@@ -21,6 +21,7 @@
 #include "progression/InsightSystem.hpp"
 #include "progression/ObjectiveSystem.hpp"
 #include "progression/RunUpgrade.hpp"
+#include "progression/RunShop.hpp"
 #include "progression/MetaShop.hpp"
 #include "world/CollisionWorld.hpp"
 #include "world/MapDefinition.hpp"
@@ -442,6 +443,8 @@ struct SimulationSnapshot {
     int tomeCount{};
     int tomeSlotLimit{BaseRunTomeSlots};
     bool runUpgradeChoicePending{};
+    RunShopState runShop{};
+    std::array<bool, RunShopSlotCount> runShopBuyable{};
     std::size_t runUpgradeChoiceCount{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
@@ -536,6 +539,7 @@ struct SuspendedRunState {
     InsightRunState insight;
     ObjectiveRunState objectives;
     bool runUpgradeChoicePending{};
+    RunShopState runShop{};
     std::size_t runUpgradeChoiceCount{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices{};
@@ -659,6 +663,11 @@ class Simulation {
         RunUpgradeEffect effect, RunUpgradeRarity rarity = RunUpgradeRarity::Common);
     [[nodiscard]] bool selectRunUpgrade(std::size_t choiceIndex);
     [[nodiscard]] bool rerollRunUpgrades();
+    [[nodiscard]] bool openRunShop(bool debugAccess = false);
+    [[nodiscard]] bool closeRunShop();
+    [[nodiscard]] bool buyRunShopOffer(std::size_t index);
+    [[nodiscard]] bool rerollRunShop();
+    [[nodiscard]] bool toggleRunShopLock(std::size_t index);
     [[nodiscard]] bool lockRunUpgrade(std::size_t choiceIndex);
     void grantLootUpgrade(
         LootUpgradeEffect effect,
@@ -851,6 +860,8 @@ class Simulation {
     void grantPlayerClassStartingNodes();
     void prepareRunUpgradeChoices(int selections = 1);
     void generateRunUpgradeChoices();
+    void prepareRunShop();
+    void generateRunShopOffers();
     [[nodiscard]] bool applyRunUpgradeEffect(
         RunUpgradeEffect effect, RunUpgradeRarity rarity);
     [[nodiscard]] double runUpgradePower(RunUpgradeEffect effect) const;
@@ -1047,6 +1058,7 @@ class Simulation {
     int freeChestRerollsRemaining_{};
     std::array<int, LootUpgradeEffectCount> lootStacks_{};
     bool runUpgradeChoicePending_{};
+    RunShopState runShop_{};
     std::size_t runUpgradeChoiceCount_{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>
         runUpgradeChoices_{};

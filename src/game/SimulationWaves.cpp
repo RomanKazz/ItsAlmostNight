@@ -472,6 +472,7 @@ void Simulation::completeWave() {
         wave_ == StageClearWave) {
         stageCleared_ = true;
         state_ = RunState::StageClear;
+        prepareRunShop();
         phaseTimeRemaining_ = 0.0;
         phaseDuration_ = 0.0;
         events_.push_back({
@@ -503,6 +504,7 @@ void Simulation::completeWave() {
         return;
     }
     state_ = RunState::WaveComplete;
+    if (!sandboxMode_) prepareRunShop();
     phaseTimeRemaining_ = gameplay_.dawnSeconds;
     phaseDuration_ = phaseTimeRemaining_;
 }

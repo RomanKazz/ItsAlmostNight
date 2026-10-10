@@ -415,6 +415,13 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .tomeCount = runTomeCount(runUpgradeStacks_),
         .tomeSlotLimit = runTomeSlotLimit(activeMetaBonuses_),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
+        .runShop = runShop_,
+        .runShopBuyable = [this] {
+            std::array<bool, RunShopSlotCount> buyable{};
+            for (std::size_t i = 0; i < buyable.size(); ++i)
+                buyable[i] = runShop_.offers[i].present && runUpgradeAvailable(runShop_.offers[i].effect);
+            return buyable;
+        }(),
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,
         .runUpgradeStacks = runUpgradeStacks_,

@@ -228,32 +228,7 @@ void Simulation::generateRunUpgradeChoices() {
          0x9e3779b97f4a7c15ULL) ^
         (static_cast<std::uint64_t>(++runUpgradeOfferGeneration_) *
          0xd1b54a32d192ed03ULL));
-    const auto cardWeight = [](RunUpgradeEffect effect) {
-        switch (effect) {
-        case RunUpgradeEffect::TwinBatteries:
-        case RunUpgradeEffect::ClusterPayload:
-        case RunUpgradeEffect::ReactiveTraps:
-        case RunUpgradeEffect::Ricochet:
-        case RunUpgradeEffect::GunPiercing:
-        case RunUpgradeEffect::GunShrapnel:
-            return 6;
-        case RunUpgradeEffect::BuildingHealth:
-        case RunUpgradeEffect::DefenseDamage:
-        case RunUpgradeEffect::DefenseFireRate:
-        case RunUpgradeEffect::ProductionSpeed:
-        case RunUpgradeEffect::LumberMillProduction:
-        case RunUpgradeEffect::QuarryProduction:
-        case RunUpgradeEffect::CrystalMineProduction:
-            return 4;
-        case RunUpgradeEffect::Damage:
-        case RunUpgradeEffect::AttackSpeed:
-        case RunUpgradeEffect::MoveSpeed:
-        case RunUpgradeEffect::Overkill:
-            return 1;
-        default:
-            return 2;
-        }
-    };
+    const auto cardWeight = runUpgradeOfferWeight;
     const auto chooseWeighted =
         [&randomState, &cardWeight](
             const std::vector<RunUpgradeEffect>& candidates) {
@@ -461,6 +436,10 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
     } else {
         runUpgradeChoicePending_ = false;
     }
+    if (!runUpgradeChoicePending_ && runShop_.pending &&
+        std::ranges::any_of(runShop_.offers, [this](const auto& offer) {
+            return offer.present && !runUpgradeAvailable(offer.effect);
+        })) generateRunShopOffers();
     return true;
 }
 

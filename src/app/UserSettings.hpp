@@ -48,6 +48,7 @@ enum class ControlAction : std::uint8_t {
     Restart,
     RevealChest,
     ToggleHud,
+    RunShop,
     Count,
 };
 
@@ -62,7 +63,7 @@ inline constexpr std::array<int, ControlActionCount>
         KEY_F,          KEY_Q,       KEY_U,       KEY_X,
         KEY_V,          KEY_TAB,     KEY_P,       KEY_M,
         KEY_N,          KEY_R,       KEY_L,
-        KEY_H,
+        KEY_H, KEY_J,
     };
 
 struct ControlSettings {

@@ -693,6 +693,7 @@ void App::drawGraphicsPanel() {
                 ControlAction::Map,
                 ControlAction::StartWave,
                 ControlAction::ToggleHud,
+                ControlAction::RunShop,
             };
         const std::size_t rowsPerColumn =
             (Actions.size() + 2U) / 3U;

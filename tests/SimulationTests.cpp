@@ -23,6 +23,8 @@ void resolveLevelUps(ian::Simulation& simulation) {
         require(simulation.selectRunUpgrade(choice),
                 "test fixture resolves queued level-up cards");
     }
+    if (simulation.snapshot().runShop.pending)
+        require(simulation.closeRunShop(), "wave fixture skips optional purchases before continuing");
 }
 }
 
@@ -3957,6 +3959,7 @@ void runSimulationTests() {
                 require(simulation.selectRunUpgrade(0U),
                         "each earned level accepts every queued card choice");
             }
+            require(simulation.closeRunShop(), "wave fixture leaves the optional shop");
             simulation.tick(
                 simulation.snapshot().phaseDuration);
             require(
@@ -3975,6 +3978,7 @@ void runSimulationTests() {
         require(simulation.selectRunUpgrade(0U),
                 "last pre-clear level accepts earned upgrades");
     }
+    require(simulation.closeRunShop(), "pre-clear fixture leaves the shop");
     simulation.tick(simulation.snapshot().phaseDuration);
     simulation.tick(1.0 / 60.0, startWaveEarly);
     require(
@@ -3991,6 +3995,7 @@ void runSimulationTests() {
         require(simulation.selectRunUpgrade(0U),
                 "stage-clear XP upgrades remain selectable");
     }
+    require(simulation.closeRunShop(), "stage-clear fixture leaves the shop");
     require(simulation.enterFinalNight(),
             "cleared stage can continue into final night");
     require(

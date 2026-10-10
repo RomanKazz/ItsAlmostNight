@@ -116,6 +116,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .insight = insight_.saveState(),
         .objectives = objectives_.saveState(),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
+        .runShop = runShop_,
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,
         .runUpgradeRarities = runUpgradeRarities_,
@@ -264,6 +265,19 @@ bool Simulation::loadSuspendedRunState(
     const int selectedWeapon = static_cast<int>(saved.selectedWeapon);
     const bool invalidLockedUpgrade = saved.lockedRunUpgrade &&
         !validRunUpgrade(*saved.lockedRunUpgrade);
+    const bool invalidShop = saved.runShop.wave < 0 || saved.runShop.wave > saved.wave ||
+        saved.runShop.rerolls < 0 || saved.runShop.rerolls > MaximumSavedCounter ||
+        (saved.runShop.pending && saved.runShop.wave != saved.wave) ||
+        std::ranges::any_of(saved.runShop.offers, [&](const auto& offer) {
+            return !validRunUpgrade(offer.effect) ||
+                static_cast<std::size_t>(offer.rarity) >= RunUpgradeRarityCount ||
+                offer.price < 0 || (offer.present && offer.price == 0) ||
+                (offer.locked && !offer.present);
+        });
+    if (invalidShop) return false;
+    std::unordered_set<RunUpgradeEffect> shopEffects;
+    for (const auto& offer : saved.runShop.offers)
+        if (offer.present && !shopEffects.insert(offer.effect).second) return false;
     const bool validResumeState =
         saved.resumeState == RunState::Gathering ||
         saved.resumeState == RunState::BuildPhase ||
@@ -591,6 +605,7 @@ bool Simulation::loadSuspendedRunState(
     activeChallengeColumn_.reset();
     aimedChallengeColumn_.reset();
     runUpgradeChoicePending_ = saved.runUpgradeChoicePending;
+    runShop_ = saved.runShop;
     runUpgradeChoiceCount_ = saved.runUpgradeChoiceCount;
     runUpgradeChoices_ = saved.runUpgradeChoices;
     runUpgradeRarities_ = saved.runUpgradeRarities;
