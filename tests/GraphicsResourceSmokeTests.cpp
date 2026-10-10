@@ -10,6 +10,7 @@
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppProjectileDrawing.hpp"
+#include "app/AppBurnDrawing.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -26,6 +27,152 @@
 #include <vector>
 
 namespace {
+
+bool checkCartoonBurn(ian::Renderer& renderer) {
+    using namespace ian::app_burn_drawing;
+    const auto target = LoadRenderTexture(384, 256);
+    const Camera3D camera{{0, 1.3F, 7}, {0, 1.3F, 0}, {0, 1, 0},
+                          3.4F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](double time, float amount, bool detailed,
+                            bool cover, float scale = 1.0F) {
+        BeginTextureMode(target);
+        ClearBackground({24, 49, 65, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = false;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 1.3F, 1}, 4, 4, .1F, GREEN);
+        for (const auto pass : {Pass::Glow, Pass::Smoke, Pass::Flame}) {
+            beginBatch(pass);
+            emit({0, 0, 0}, {1, 0, 0}, {0, 0, 1}, scale, 42,
+                 time, amount, detailed, pass);
+            endBatch();
+        }
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image base = render(0.31, 0, true, false);
+    Image fire = render(0.31, 1, true, false);
+    Image next = render(0.63, 1, true, false);
+    Image faded = render(0.31, .1F, true, false);
+    Image cheap = render(0.31, 1, false, false);
+    Image coveredBase = render(0.31, 0, true, true);
+    Image covered = render(0.31, 1, true, true);
+    Image small = render(0.31, 1, true, false, .6F);
+    Image large = render(0.31, 1, true, false, 1.65F);
+    const auto difference = [](const Image& a, const Image& b) {
+        Color* ca = LoadImageColors(a);
+        Color* cb = LoadImageColors(b);
+        std::size_t total = 0;
+        for (int i = 0; i < a.width * a.height; ++i) {
+            total += static_cast<std::size_t>(std::abs(int(ca[i].r) - int(cb[i].r)) +
+                std::abs(int(ca[i].g) - int(cb[i].g)) +
+                std::abs(int(ca[i].b) - int(cb[i].b)));
+        }
+        UnloadImageColors(ca); UnloadImageColors(cb);
+        return total;
+    };
+    int orange = 0, yellow = 0, hot = 0;
+    for (int y = 0; y < fire.height; ++y) {
+        for (int x = 0; x < fire.width; ++x) {
+            const auto c = GetImageColor(fire, x, y);
+            if (c.r > 200 && c.g > 50 && c.g < 170 && c.b < 60) ++orange;
+            if (c.r > 210 && c.g > 170 && c.b < 145) ++yellow;
+            if (c.r > 230 && c.g > 220 && c.b > 145) ++hot;
+        }
+    }
+    const bool valid = orange > 80 && yellow > 80 && hot > 10 &&
+        difference(fire, next) > 10000 &&
+        difference(base, faded) < difference(base, fire) / 2 &&
+        difference(base, cheap) > 50000 && difference(coveredBase, covered) < 100 &&
+        difference(base, large) > difference(base, small) * 2;
+    if (!valid) std::cerr << "burn palette " << orange << '/' << yellow << '/' << hot
+        << " occlusion " << difference(coveredBase, covered) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_BURN")) {
+        std::filesystem::create_directories(directory);
+        ExportImage(fire, (std::filesystem::path(directory) / "burn-detail.png").c_str());
+        ExportImage(cheap, (std::filesystem::path(directory) / "burn-low-detail.png").c_str());
+        const auto preview = LoadRenderTexture(960, 540);
+        const Camera3D view{{4.0F, 3.1F, 8.0F}, {0, .9F, 0}, {0, 1, 0},
+                            40, CAMERA_PERSPECTIVE};
+        Vector3 right = Vector3Normalize(Vector3CrossProduct(
+            Vector3Subtract(view.target, view.position), {0, 1, 0}));
+        for (const bool night : {false, true}) {
+            for (int frame = 0; frame < 4; ++frame) {
+                const double time = .25 + frame * .16;
+                renderer.beginFrame();
+                BeginTextureMode(preview);
+                ClearBackground(night ? Color{13, 29, 48, 255} : Color{111, 170, 187, 255});
+                BeginMode3D(view);
+                ian::WorldLighting lighting{};
+                lighting.cameraPosition = view.position;
+                lighting.sunDirection = {-0.4F, -0.8F, -0.3F};
+                lighting.sunColor = night ? Vector3{.2F, .3F, .55F} : Vector3{1, .86F, .65F};
+                lighting.skyAmbientColor = night ? Vector3{.12F, .18F, .3F} : Vector3{.4F, .5F, .5F};
+                renderer.beginWorldShader(lighting);
+                ian::WorldMaterialState material{};
+                renderer.setWorldMaterial(material);
+                DrawPlane({0, -.03F, 0}, {20, 20}, night ? Color{28, 57, 63, 255} : Color{68, 113, 83, 255});
+                constexpr std::array<Vector3, 3> positions{{{-1.9F, 0, 0}, {0, 0, 0}, {1.9F, 0, 0}}};
+                constexpr std::array<ian::EnemyModelVisual, 3> models{{
+                    ian::EnemyModelVisual::Minion, ian::EnemyModelVisual::Warrior,
+                    ian::EnemyModelVisual::Rogue}};
+                for (std::size_t index = 0; index < positions.size(); ++index) {
+                    static_cast<void>(renderer.drawEnemy(models[index],
+                        ian::EnemyAnimationVisual::Idle, 0, positions[index], 0,
+                        {255, 198, 132, 255}, index == 1 ? .67F : index == 2 ? .55F : .94F));
+                }
+                material.unlitAmount = 1;
+                material.screenAoAmount = 0;
+                material.inkOutlineEligible = false;
+                renderer.setWorldMaterial(material);
+                for (const auto pass : {Pass::Glow, Pass::Smoke, Pass::Flame}) {
+                    beginBatch(pass);
+                    for (std::size_t index = 0; index < positions.size(); ++index) {
+                        Vector3 front = Vector3Subtract(view.position, positions[index]);
+                        front.y = 0;
+                        front = Vector3Normalize(front);
+                        const float scale = index == 1 ? 1.25F : index == 2 ? .82F : 1.0F;
+                        const auto bounds = renderer.enemyWorldBounds(models[index], positions[index],
+                            0, index == 1 ? .67F : index == 2 ? .55F : .94F);
+                        const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
+                        const float radius = std::clamp(std::abs(front.x) * extent.x +
+                            std::abs(front.z) * extent.z, scale * .35F, scale * .95F);
+                        emit(positions[index], right, front, scale,
+                            static_cast<std::uint32_t>(index * 19 + 3), time, 1, true, pass, radius);
+                    }
+                    endBatch();
+                }
+                renderer.endWorldShader();
+                EndMode3D();
+                EndTextureMode();
+                Image capture = LoadImageFromTexture(preview.texture);
+                ImageFlipVertical(&capture);
+                const std::string filename = std::string(night ? "night-" : "day-") +
+                                             std::to_string(frame) + ".png";
+                ExportImage(capture, (std::filesystem::path(directory) / filename).c_str());
+                UnloadImage(capture);
+                renderer.endFrame();
+            }
+        }
+        UnloadRenderTexture(preview);
+    }
+    for (Image image : {base, fire, next, faded, cheap, coveredBase, covered, small, large})
+        UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
+
 
 std::size_t changedPixels(const Image& first, const Image& second) {
     Color* a = LoadImageColors(first);
@@ -1880,6 +2027,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkCartoonBurn(renderer)) {
+            std::cerr << "cartoon burn palette, animation, fade, LOD or occlusion failed\n";
+            result = 1;
+        }
         if (!checkTacticalSectorGradient(renderer)) {
             std::cerr << "tactical sector rim/interior gradient is uneven\n";
             result = 1;

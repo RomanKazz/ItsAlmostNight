@@ -1,5 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
+#include "app/AppBurnDrawing.hpp"
 #include "graphics/CameraCulling.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
@@ -17,85 +18,6 @@ namespace ian {
 using namespace app_detail;
 
 namespace {
-
-void emitFlameVertex(Vector3 position, Color color) {
-    rlColor4ub(color.r, color.g, color.b, color.a);
-    rlVertex3f(position.x, position.y, position.z);
-}
-
-void emitFlameTriangle(
-    Vector3 first, Color firstColor,
-    Vector3 second, Color secondColor,
-    Vector3 third, Color thirdColor) {
-    emitFlameVertex(first, firstColor);
-    emitFlameVertex(second, secondColor);
-    emitFlameVertex(third, thirdColor);
-}
-
-void emitFlameLobe(
-    Vector3 base, Vector3 cameraRight, float width,
-    float height, float sway, float amount) {
-    const Vector3 left = Vector3Add(
-        base, Vector3Scale(cameraRight, -width));
-    const Vector3 right = Vector3Add(
-        base, Vector3Scale(cameraRight, width));
-    Vector3 middle = base;
-    middle.y += height * 0.52F;
-    middle = Vector3Add(
-        middle, Vector3Scale(cameraRight, sway * 0.34F));
-    const Vector3 middleLeft = Vector3Add(
-        middle, Vector3Scale(cameraRight, -width * 0.58F));
-    const Vector3 middleRight = Vector3Add(
-        middle, Vector3Scale(cameraRight, width * 0.58F));
-    Vector3 tip = base;
-    tip.y += height;
-    tip = Vector3Add(tip, Vector3Scale(cameraRight, sway));
-    const auto alpha = [amount](float multiplier) {
-        return static_cast<unsigned char>(std::lround(
-            255.0F * std::clamp(amount * multiplier, 0.0F, 1.0F)));
-    };
-    const Color hot{255, 250, 194, alpha(1.0F)};
-    const Color orange{255, 116, 12, alpha(1.0F)};
-    const Color ember{255, 42, 3, alpha(0.72F)};
-    const Color clear{170, 20, 4, 0};
-    emitFlameTriangle(left, hot, right, hot, middleRight, orange);
-    emitFlameTriangle(left, hot, middleRight, orange, middleLeft, orange);
-    emitFlameTriangle(
-        middleLeft, orange, middleRight, ember, tip, clear);
-    const Vector3 innerLeft = Vector3Add(
-        base, Vector3Scale(cameraRight, -width * 0.43F));
-    const Vector3 innerRight = Vector3Add(
-        base, Vector3Scale(cameraRight, width * 0.43F));
-    Vector3 innerTip = base;
-    innerTip.y += height * 0.72F;
-    innerTip = Vector3Add(
-        innerTip, Vector3Scale(cameraRight, sway * 0.48F));
-    emitFlameTriangle(
-        innerLeft, {255, 255, 226, alpha(1.0F)},
-        innerRight, {255, 242, 128, alpha(1.0F)},
-        innerTip, {255, 142, 18, alpha(0.18F)});
-}
-
-void emitEmber(
-    Vector3 center, Vector3 cameraRight,
-    float size, float amount) {
-    const Vector3 left = Vector3Add(
-        center, Vector3Scale(cameraRight, -size));
-    const Vector3 right = Vector3Add(
-        center, Vector3Scale(cameraRight, size));
-    Vector3 bottom = center;
-    bottom.y -= size * 1.55F;
-    Vector3 top = center;
-    top.y += size * 1.55F;
-    const auto alpha = static_cast<unsigned char>(std::lround(
-        255.0F * std::clamp(amount, 0.0F, 1.0F)));
-    const Color core{255, 246, 183, alpha};
-    const Color edge{255, 94, 12,
-                     static_cast<unsigned char>(alpha * 0.72F)};
-    const Color clear{190, 24, 2, 0};
-    emitFlameTriangle(bottom, clear, right, edge, top, core);
-    emitFlameTriangle(bottom, clear, top, core, left, edge);
-}
 
 float enemyFlameScale(EnemyType type) {
     switch (type) {
@@ -249,7 +171,7 @@ void App::drawWorldEnemies(
         } else if (frozen) {
             modelTint = {151, 224, 255, 255};
         } else if (burning) {
-            modelTint = {255, 118, 42, 255};
+            modelTint = {255, 198, 132, 255};
         } else if (enemy.slowRemaining > 0.0) {
             modelTint = {184, 222, 255, 255};
         } else if (
@@ -515,10 +437,6 @@ void App::drawWorldEnemies(
         DrawSphere(head, 0.09F, {238, 221, 255, 255});
     }
     EndBlendMode();
-    BeginBlendMode(BLEND_ADDITIVE);
-    rlDrawRenderBatchActive();
-    rlDisableDepthMask();
-    rlBegin(RL_TRIANGLES);
     Vector3 flameRight = Vector3CrossProduct(
         cameraForward, {0.0F, 1.0F, 0.0F});
     if (Vector3LengthSqr(flameRight) < 0.001F) {
@@ -572,132 +490,71 @@ void App::drawWorldEnemies(
         });
     burnVisualCandidates.resize(visualCount);
     std::array<std::size_t, BurnEnemyVisualBudget> drawOrder{};
+    std::array<Vector3, BurnEnemyVisualBudget> burnDirections{};
+    std::array<float, BurnEnemyVisualBudget> burnScales{};
+    std::array<float, BurnEnemyVisualBudget> burnSurfaceRadii{};
     for (std::size_t rank = 0; rank < visualCount; ++rank) {
         auto& candidate = burnVisualCandidates[rank];
         const auto& enemy = snapshot.enemies[candidate.enemyIndex];
         candidate.position.y += static_cast<float>(
             simulation_.terrain().getHeight(enemy.position.x, enemy.position.z));
+        Vector3 toCamera = Vector3Subtract(camera.position, candidate.position);
+        toCamera.y = 0.0F;
+        burnDirections[rank] = Vector3LengthSqr(toCamera) < 0.001F
+            ? Vector3{0, 0, 1} : Vector3Normalize(toCamera);
+        const float appearance = enemyHitScale(enemy) *
+            (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
+        burnScales[rank] = enemyFlameScale(enemy.type) * appearance;
+        const BoundingBox bounds = renderer_->enemyWorldBounds(
+            enemyModelVisual(enemy.type), candidate.position,
+            static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
+        const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
+        // Fit to the authored body instead of burying flames inside wide models.
+        // Clamp weapon/wing extents so a protruding accessory cannot detach fire.
+        burnSurfaceRadii[rank] = std::clamp(
+            std::abs(burnDirections[rank].x) * extent.x +
+            std::abs(burnDirections[rank].z) * extent.z,
+            burnScales[rank] * .35F, burnScales[rank] * .95F);
         drawOrder[rank] = rank;
     }
-    // Keep the previous enemy order, particularly for alpha-blended smoke.
+    // Alpha silhouettes and smoke require back-to-front order. Distance rank
+    // still determines detail, independent of the draw order.
     std::ranges::sort(
         std::span{drawOrder.data(), visualCount}, {},
         [&burnVisualCandidates](std::size_t rank) {
-            return burnVisualCandidates[rank].enemyIndex;
+            return -burnVisualCandidates[rank].distanceSquared;
         });
-    for (const std::size_t visualRank : std::span{drawOrder.data(), visualCount}) {
-        const auto& candidate = burnVisualCandidates[visualRank];
-        const EnemyInstance& enemy = snapshot.enemies[candidate.enemyIndex];
-        const Vector3 position = candidate.position;
-        if (Vector3DistanceSqr(position, camera.position) > 1600.0F) {
-            continue;
-        }
-        const float scale = enemyFlameScale(enemy.type);
-        const bool detailedBurn = detailedFlames &&
-            visualRank < DetailedBurnEnemyBudget;
-        Vector3 toCamera = Vector3Subtract(camera.position, position);
-        toCamera.y = 0.0F;
-        if (Vector3LengthSqr(toCamera) < 0.001F) {
-            toCamera = Vector3Negate(cameraForward);
-            toCamera.y = 0.0F;
-        }
-        toCamera = Vector3Normalize(toCamera);
-        const Vector3 visibleFront = Vector3Add(
-            position, Vector3Scale(toCamera, scale * 0.42F));
-        const int lobeCount = detailedBurn ? 5 : 3;
-        for (int lobe = 0; lobe < lobeCount; ++lobe) {
-            const float lobeIndex = static_cast<float>(lobe);
-            const float phase = static_cast<float>(
-                snapshot.elapsedSeconds * (8.2 + lobe * 1.35)) +
-                static_cast<float>(enemy.id.index % 97U) * 0.37F +
-                lobeIndex * 2.1F;
-            Vector3 base = visibleFront;
-            base.y += scale * (0.12F + lobeIndex * 0.16F);
-            base = Vector3Add(
-                base,
-                Vector3Scale(
-                    flameRight,
-                    scale * (lobeIndex -
-                        static_cast<float>(lobeCount - 1) * 0.5F) *
-                        0.22F));
-            const float height = scale *
-                (1.02F + lobeIndex * 0.18F +
-                 (0.5F + 0.5F * std::sin(phase * 1.31F)) * 0.24F);
-            const float width = scale *
-                (0.21F + 0.03F * lobeIndex);
-            const float sway = scale * 0.20F * std::sin(phase);
-            emitFlameLobe(
-                base, flameRight, width, height, sway,
-                candidate.burnAmount * (1.0F - lobeIndex * 0.08F));
-        }
-        const int emberCount = detailedBurn ? 6 : 2;
-        for (int ember = 0; ember < emberCount; ++ember) {
-            const float emberIndex = static_cast<float>(ember);
-            const float seed = static_cast<float>(
-                (enemy.id.index * 17U +
-                 static_cast<std::uint32_t>(ember) * 29U) % 101U) /
-                101.0F;
-            const float rise = std::fmod(
-                static_cast<float>(snapshot.elapsedSeconds) *
-                    (0.62F + emberIndex * 0.035F) + seed,
-                1.0F);
-            const float orbit =
-                static_cast<float>(snapshot.elapsedSeconds) *
-                    (2.2F + emberIndex * 0.18F) +
-                seed * 2.0F * PI;
-            Vector3 emberPosition = visibleFront;
-            emberPosition = Vector3Add(
-                emberPosition,
-                Vector3Scale(
-                    flameRight,
-                    std::sin(orbit) * scale *
-                        (0.24F + emberIndex * 0.035F)));
-            emberPosition = Vector3Add(
-                emberPosition,
-                Vector3Scale(toCamera, std::cos(orbit) * scale * 0.08F));
-            emberPosition.y += scale * (0.48F + rise * 1.42F);
-            const float emberFade =
-                (1.0F - rise) * std::min(1.0F, rise * 7.0F);
-            emitEmber(
-                emberPosition, flameRight,
-                scale * (0.035F + 0.008F *
-                    (0.5F + 0.5F * std::sin(orbit * 1.7F))),
-                candidate.burnAmount * emberFade * 0.95F);
-        }
-    }
-    rlEnd();
-    rlDrawRenderBatchActive();
-    EndBlendMode();
-    if (detailedFlames) {
+    WorldMaterialState burnMaterial{};
+    burnMaterial.unlitAmount = 1.0F;
+    burnMaterial.screenAoAmount = 0.0F;
+    burnMaterial.inkOutlineEligible = false;
+    burnMaterial.inkOccluder = false;
+    renderer_->setWorldMaterial(burnMaterial);
+    // Transparent fire must preserve the world's normal/AO attachment. Scene
+    // alpha already masks rear ink under the foreground flame silhouettes.
+    renderer_->beginColorOnlyWorldEffects();
+    for (const auto pass : {app_burn_drawing::Pass::Glow,
+                            app_burn_drawing::Pass::Smoke,
+                            app_burn_drawing::Pass::Flame}) {
+        app_burn_drawing::beginBatch(pass);
         for (const std::size_t rank : std::span{drawOrder.data(), visualCount}) {
-            if (rank >= DetailedBurnEnemyBudget) {
-                continue;
-            }
             const auto& candidate = burnVisualCandidates[rank];
-            const EnemyInstance& enemy = snapshot.enemies[candidate.enemyIndex];
-            const Vector3 position = candidate.position;
-            const float scale = enemyFlameScale(enemy.type);
-            for (int puff = 0; puff < 2; ++puff) {
-                const float phase = std::fmod(
-                    static_cast<float>(snapshot.elapsedSeconds) *
-                        (0.34F + static_cast<float>(puff) * 0.07F) +
-                    static_cast<float>(enemy.id.index % 43U) * 0.11F +
-                    static_cast<float>(puff) * 0.47F,
-                    1.0F);
-                const float angle = phase * 7.2F +
-                    static_cast<float>(puff) * PI;
-                const float fade = (1.0F - phase) *
-                    std::min(1.0F, phase * 6.0F) * candidate.burnAmount;
-                DrawSphereEx(
-                    {position.x + std::cos(angle) * scale * 0.15F,
-                     position.y + scale * (1.0F + phase * 1.25F),
-                     position.z + std::sin(angle) * scale * 0.15F},
-                    scale * (0.07F + phase * 0.13F), 5, 5,
-                    {53, 45, 42, static_cast<unsigned char>(
-                        std::lround(78.0F * fade))});
-            }
+            const auto& enemy = snapshot.enemies[candidate.enemyIndex];
+            app_burn_drawing::emit(candidate.position, flameRight, burnDirections[rank],
+                burnScales[rank], enemy.id.index, snapshot.elapsedSeconds,
+                candidate.burnAmount,
+                detailedFlames && rank < DetailedBurnEnemyBudget, pass,
+                burnSurfaceRadii[rank]);
         }
+        app_burn_drawing::endBatch();
     }
+    renderer_->endColorOnlyWorldEffects();
+    // The following freeze pass shares the transparent-effects depth policy.
+    WorldMaterialState statusMaterial{};
+    statusMaterial.bakedAo = 0.82F;
+    renderer_->setWorldMaterial(statusMaterial);
+    rlDrawRenderBatchActive();
+    rlDisableDepthMask();
     BeginBlendMode(BLEND_ADDITIVE);
     for (const auto& enemy : snapshot.enemies) {
         if (!enemy.active) {
