@@ -138,6 +138,14 @@ const ShaderResource& GraphicsResources::selectionOutlineShader() const {
     return selectionOutlineShader_;
 }
 
+ShaderResource& GraphicsResources::tacticalSectorShader() {
+    return tacticalSectorShader_;
+}
+
+const ShaderResource& GraphicsResources::tacticalSectorShader() const {
+    return tacticalSectorShader_;
+}
+
 ShaderResource& GraphicsResources::postProcessShader() {
     return postProcessShader_;
 }

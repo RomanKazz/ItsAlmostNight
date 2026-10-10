@@ -342,6 +342,9 @@ class Renderer {
     void beginWorldShader(const WorldLighting& lighting);
     void setWorldMaterial(const WorldMaterialState& material);
     [[nodiscard]] float buildingVisualHeight(BuildingType type, int level = 1);
+    void drawTacticalGroundSector(
+        Vector3 center, float radius, float yawRadians,
+        float arcDegrees, Color color, float innerRadius = 0.0F);
     void beginColorOnlyWorldEffects();
     void endColorOnlyWorldEffects();
     void beginGhostPreviewMaterial();
@@ -888,6 +891,7 @@ class Renderer {
     WorldMaterialState worldMaterial_;
     std::optional<WorldMaterialState>
         ghostPreviewRestoreMaterial_;
+    int tacticalSectorShapeLocation_{-1};
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
     int selectionOutlineSceneDepthLocation_{-1};

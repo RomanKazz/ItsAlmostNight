@@ -690,7 +690,7 @@ void App::drawWorldOverlays(
                       CannonSystem::attackRange(type, 1))
                 : static_cast<float>(
                       TowerSystem::attackRange(type, 1));
-            drawTacticalGroundSector(
+            renderer_->drawTacticalGroundSector(
                 {visualCenter.x,
                  static_cast<float>(
                      snapshot.buildingPreview->baseHeight) + 0.085F,
@@ -708,7 +708,7 @@ void App::drawWorldOverlays(
     // Attack coverage is immediate hover feedback. Opening the building
     // context card pins the same target, but must not be required to reveal
     // its firing sector or trap trigger radius.
-    drawBuildingTacticalOverlay(snapshot);
+    drawBuildingTacticalOverlay(*renderer_, snapshot);
     for (const auto& enemy : snapshot.enemies) {
         if (!enemy.active) {
             continue;

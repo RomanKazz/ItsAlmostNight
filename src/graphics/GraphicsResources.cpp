@@ -1036,6 +1036,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
                               "assets/shaders/selection_mask.fs");
     selectionOutlineShader_.load(nullptr,
                                  "assets/shaders/selection_outline.fs");
+    tacticalSectorShader_.load(nullptr, "assets/shaders/tactical_sector.fs");
     postProcessShader_.load(
         nullptr, "assets/shaders/postprocess.fs");
     fxaaShader_.load(nullptr, "assets/shaders/fxaa.fs");
@@ -1609,6 +1610,7 @@ void GraphicsResources::shutdown() {
     postProcessShader_.unload();
     viewModelCompositeShader_.unload();
     viewModelShader_.unload();
+    tacticalSectorShader_.unload();
     selectionOutlineShader_.unload();
     selectionMaskShader_.unload();
     skyShader_.unload();

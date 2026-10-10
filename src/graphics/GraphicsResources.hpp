@@ -225,6 +225,8 @@ class GraphicsResources {
     [[nodiscard]] const ShaderResource& waterShader() const;
     [[nodiscard]] ShaderResource& selectionMaskShader();
     [[nodiscard]] const ShaderResource& selectionMaskShader() const;
+    [[nodiscard]] ShaderResource& tacticalSectorShader();
+    [[nodiscard]] const ShaderResource& tacticalSectorShader() const;
     [[nodiscard]] ShaderResource& selectionOutlineShader();
     [[nodiscard]] const ShaderResource& selectionOutlineShader() const;
     [[nodiscard]] ShaderResource& postProcessShader();
@@ -384,6 +386,7 @@ class GraphicsResources {
     ShaderResource waterShader_;
     ShaderResource selectionMaskShader_;
     ShaderResource selectionOutlineShader_;
+    ShaderResource tacticalSectorShader_;
     ShaderResource postProcessShader_;
     ShaderResource fxaaShader_;
     ShaderResource ssaoShader_;

@@ -216,6 +216,53 @@ bool checkProjectileDepth(ian::Renderer& renderer) {
     return valid;
 }
 
+bool checkTacticalSectorGradient(ian::Renderer& renderer) {
+    constexpr int Size = 384;
+    constexpr Color Background{24, 61, 73, 255};
+    const auto target = LoadRenderTexture(Size, Size);
+    bool valid = true;
+    for (const float radius : {3.0F, 10.0F, 24.0F}) {
+        for (const float arc : {90.0F, 160.0F, 360.0F}) {
+            const float inner = radius == 24.0F ? 3.0F : 0.0F;
+            const Camera3D camera{{0, 20, 0}, {0, 0, 0}, {0, 0, -1},
+                2.0F * (radius + 1), CAMERA_ORTHOGRAPHIC};
+            BeginTextureMode(target); ClearBackground(Background); BeginMode3D(camera);
+            renderer.drawTacticalGroundSector({0, .085F, 0}, radius, 0, arc,
+                {255, 252, 244, 190}, inner);
+            EndMode3D(); EndTextureMode();
+            Image image = LoadImageFromTexture(target.texture); ImageFlipVertical(&image);
+            const auto sample = [&](float x, float z) {
+                const Vector2 point = GetWorldToScreenEx({x, .085F, z}, camera, Size, Size);
+                return GetImageColor(image, int(point.x), int(point.y));
+            };
+            // The middle stays clear: coarse vertex interpolation used to
+            // smear white triangles/radial bands far beyond the 0.9 m rim.
+            for (float distance = inner + 1.2F; distance < radius - 1.2F; distance += .4F) {
+                for (const float angle : {-.15F, 0.0F, .15F}) {
+                    const float sideDistance = distance * std::sin(arc * DEG2RAD * .5F - std::abs(angle));
+                    if (arc < 360 && sideDistance < 1.1F) continue;
+                    const Color middle = sample(distance * std::sin(angle), -distance * std::cos(angle));
+                    valid = valid && std::abs(int(middle.r) - Background.r) <= 6;
+                }
+            }
+            const Color rim = sample(0, -(radius - .15F));
+            const Color interior = sample(0, -(radius - 1.2F));
+            const Color outside = sample(0, -(radius + .5F));
+            valid = valid && rim.r > interior.r + 35 && outside.r == Background.r;
+            if (inner > 0) valid = valid && sample(0, -1).r == Background.r;
+            if (arc < 360) valid = valid && sample(0, radius * .5F).r == Background.r;
+            if (const char* directory = std::getenv("IAN_CAPTURE_ATTACK_VISUALS")) {
+                std::filesystem::create_directories(directory);
+                ExportImage(image, (std::filesystem::path{directory} /
+                    ("sector-" + std::to_string(int(radius)) + "-" + std::to_string(int(arc)) + ".png")).string().c_str());
+            }
+            UnloadImage(image);
+        }
+    }
+    UnloadRenderTexture(target);
+    return valid;
+}
+
 bool checkProjectileGrassDepth(ian::Renderer& renderer) {
     using namespace ian::app_projectile_drawing;
     auto config = ian::WorldConfig::defaults();
@@ -1833,6 +1880,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkTacticalSectorGradient(renderer)) {
+            std::cerr << "tactical sector rim/interior gradient is uneven\n";
+            result = 1;
+        }
         if (!checkProjectileDepth(renderer)) {
             std::cerr << "projectile heads, ribbons or glow depth occlusion failed\n";
             result = 1;

@@ -126,16 +126,13 @@ void drawPlacementPreviewGeometry(
     Renderer& renderer, BuildingType type, Vector3 position,
     float yawRadians, std::uint8_t rotation,
     std::uint8_t wallConnections = 0U);
-void drawTacticalGroundSector(
-    Vector3 center, float radius, float yawRadians,
-    float arcDegrees, Color color, float innerRadius = 0.0F);
 [[nodiscard]] std::optional<PlatformFrameInstance>
 automaticBuildingFoundation(
     BuildingType type, GridPosition position,
     double topHeight, double bottomHeight,
     double cellSize, EntityId id = {});
 void drawBuildingTacticalOverlay(
-    const SimulationSnapshot& snapshot);
+    Renderer& renderer, const SimulationSnapshot& snapshot);
 [[nodiscard]] GameBalance loadAppBalance();
 [[nodiscard]] MapDefinition loadAppMap();
 [[nodiscard]] WorldConfig loadAppWorldConfig();

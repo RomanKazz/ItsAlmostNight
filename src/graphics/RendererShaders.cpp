@@ -181,6 +181,8 @@ void Renderer::resolveAuxiliaryShaderLocations() {
         waterQualityLocation_ =
             GetShaderLocation(shader, "qualityLevel");
     }
+    tacticalSectorShapeLocation_ = GetShaderLocation(
+        resources_.tacticalSectorShader().get(), "sectorShape");
     if (resources_.selectionOutlineShader().valid()) {
         selectionOutlineTexelSizeLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(), "texelSize");

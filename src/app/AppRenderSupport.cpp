@@ -20,39 +20,6 @@ namespace {
 
 constexpr float LootVisualScaleMultiplier = 1.20F;
 
-struct GroundSectorVertex {
-    Vector3 position{};
-    unsigned char opacity{};
-};
-
-struct GroundSectorCacheEntry {
-    Vector3 center{};
-    float radius{};
-    float innerRadius{};
-    float yawRadians{};
-    float arcDegrees{};
-    bool valid{};
-    std::vector<GroundSectorVertex> triangles;
-};
-
-[[nodiscard]] bool nearlyEqual(float left, float right) {
-    return std::abs(left - right) <= 0.0005F;
-}
-
-[[nodiscard]] bool matchesGroundSector(
-    const GroundSectorCacheEntry& entry, Vector3 center,
-    float radius, float yawRadians, float arcDegrees,
-    float innerRadius) {
-    return entry.valid &&
-        nearlyEqual(entry.center.x, center.x) &&
-        nearlyEqual(entry.center.y, center.y) &&
-        nearlyEqual(entry.center.z, center.z) &&
-        nearlyEqual(entry.radius, radius) &&
-        nearlyEqual(entry.innerRadius, innerRadius) &&
-        nearlyEqual(entry.yawRadians, yawRadians) &&
-        nearlyEqual(entry.arcDegrees, arcDegrees);
-}
-
 } // namespace
 
 float spikeTrapAnimationSeconds(
@@ -1254,157 +1221,8 @@ void drawTacticalGroundCircle(
     }
 }
 
-void drawTacticalGroundSector(
-    Vector3 center, float radius, float yawRadians,
-    float arcDegrees, Color color, float innerRadius) {
-    if (radius <= 0.0F || arcDegrees <= 0.0F) return;
-    arcDegrees = std::clamp(arcDegrees, 2.0F, 360.0F);
-    innerRadius = std::clamp(innerRadius, 0.0F, radius - 0.05F);
-
-    // Aiming at the same cell is the overwhelmingly common case. Cache this
-    // flat mesh so trigonometry and gradient work only run when placement,
-    // rotation, range or level changes.
-    static std::array<GroundSectorCacheEntry, 8> cache{};
-    static std::size_t nextCacheEntry{};
-    GroundSectorCacheEntry* cached = nullptr;
-    for (GroundSectorCacheEntry& candidate : cache) {
-        if (matchesGroundSector(
-                candidate, center, radius, yawRadians,
-                arcDegrees, innerRadius)) {
-            cached = &candidate;
-            break;
-        }
-    }
-
-    if (cached == nullptr) {
-        cached = &cache[nextCacheEntry];
-        nextCacheEntry = (nextCacheEntry + 1U) % cache.size();
-        cached->center = center;
-        cached->radius = radius;
-        cached->innerRadius = innerRadius;
-        cached->yawRadians = yawRadians;
-        cached->arcDegrees = arcDegrees;
-        cached->valid = true;
-        cached->triangles.clear();
-
-        const float halfAngle = std::clamp(
-            arcDegrees * DEG2RAD * 0.5F, 0.02F, PI);
-        const int segments = std::clamp(
-            static_cast<int>(std::ceil(
-                radius * 3.2F * arcDegrees / 90.0F)),
-            24, 72);
-        constexpr float EdgeWidth = 0.90F;
-        const float radialSpan = radius - innerRadius;
-        const float edgeScale = std::min(0.24F, EdgeWidth / radialSpan);
-        const std::array<float, 7> RadialScales{
-            0.0F, edgeScale * 0.5F, edgeScale, 0.5F,
-            1.0F - edgeScale, 1.0F - edgeScale * 0.5F, 1.0F};
-
-        const auto pointAt =
-            [center, radius, yawRadians](
-                float offset, float scale) {
-                const float angle = yawRadians + offset;
-                return Vector3{
-                    center.x - std::sin(angle) * radius * scale,
-                    center.y,
-                    center.z - std::cos(angle) * radius * scale,
-                };
-            };
-        const auto opacityAt = [innerRadius, radius, radialSpan, halfAngle](
-            float angleT, float radiusT) {
-            const float distance = innerRadius + radiusT * radialSpan;
-            const float edgeAngle = std::min(PI * 0.5F,
-                std::min(angleT, 1.0F - angleT) * halfAngle * 2.0F);
-            // Equal widths in world metres for every weapon, including the
-            // catapult's inner dead zone, regardless of range or attack arc.
-            const float sideEdge = halfAngle < PI - 0.001F
-                ? 1.0F - smoothstep(0.0F, EdgeWidth, distance * std::sin(edgeAngle))
-                : 0.0F;
-            const float outerEdge = 1.0F - smoothstep(
-                0.0F, EdgeWidth, radius - distance);
-            const float innerEdge = innerRadius > 0.001F
-                ? 1.0F - smoothstep(0.0F, EdgeWidth, distance - innerRadius)
-                : 0.0F;
-            constexpr float ClearInterior = 0.012F;
-            const float edge = std::max(
-                sideEdge, std::max(outerEdge, innerEdge));
-            return ClearInterior + edge * 0.58F;
-        };
-        const auto vertexAt = [&](float angleT, float radiusT) {
-            const float angle =
-                -halfAngle + angleT * halfAngle * 2.0F;
-            const float radiusScale =
-                (innerRadius / radius) + radiusT *
-                (1.0F - innerRadius / radius);
-            return GroundSectorVertex{
-                .position = radiusScale <= 0.001F
-                    ? center
-                    : pointAt(angle, radiusScale),
-                .opacity = static_cast<unsigned char>(std::lround(
-                    opacityAt(angleT, radiusT) * 255.0F)),
-            };
-        };
-        const auto appendTriangle =
-            [&cached](GroundSectorVertex first,
-                      GroundSectorVertex second,
-                      GroundSectorVertex third) {
-                cached->triangles.push_back(first);
-                cached->triangles.push_back(second);
-                cached->triangles.push_back(third);
-            };
-
-        cached->triangles.reserve(
-            static_cast<std::size_t>(segments) *
-            (RadialScales.size() - 1U) * 6U);
-        for (int index = 0; index < segments; ++index) {
-            const float angleT0 = static_cast<float>(index) /
-                static_cast<float>(segments);
-            const float angleT1 = static_cast<float>(index + 1) /
-                static_cast<float>(segments);
-            for (std::size_t band = 0;
-                 band + 1U < RadialScales.size(); ++band) {
-                const float radiusT0 = RadialScales[band];
-                const float radiusT1 = RadialScales[band + 1U];
-                const GroundSectorVertex p00 =
-                    vertexAt(angleT0, radiusT0);
-                const GroundSectorVertex p01 =
-                    vertexAt(angleT1, radiusT0);
-                const GroundSectorVertex p10 =
-                    vertexAt(angleT0, radiusT1);
-                const GroundSectorVertex p11 =
-                    vertexAt(angleT1, radiusT1);
-                appendTriangle(p00, p11, p10);
-                if (innerRadius > 0.001F || band > 0U) {
-                    appendTriangle(p00, p01, p11);
-                }
-            }
-        }
-    }
-
-    rlDrawRenderBatchActive();
-    BeginBlendMode(BLEND_ALPHA);
-    rlDisableDepthMask();
-    rlDisableBackfaceCulling();
-    rlSetTexture(0);
-    rlBegin(RL_TRIANGLES);
-    for (const GroundSectorVertex& vertex : cached->triangles) {
-        const auto alpha = static_cast<unsigned char>(std::lround(
-            static_cast<float>(color.a) *
-            static_cast<float>(vertex.opacity) / 255.0F));
-        rlColor4ub(color.r, color.g, color.b, alpha);
-        rlVertex3f(
-            vertex.position.x, vertex.position.y,
-            vertex.position.z);
-    }
-    rlEnd();
-    rlDrawRenderBatchActive();
-    rlEnableBackfaceCulling();
-    rlEnableDepthMask();
-    EndBlendMode();
-}
-
 void drawBuildingTacticalOverlay(
-    const SimulationSnapshot& snapshot) {
+    Renderer& renderer, const SimulationSnapshot& snapshot) {
     if (snapshot.selectedBuilding || !snapshot.aimedBuilding) {
         return;
     }
@@ -1421,7 +1239,7 @@ void drawBuildingTacticalOverlay(
     std::optional<EntityId> targetId;
     if (building->type == BuildingType::Turret ||
         building->type == BuildingType::GunTurret) {
-        drawTacticalGroundSector(
+        renderer.drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
@@ -1444,7 +1262,7 @@ void drawBuildingTacticalOverlay(
             ? 0.69 : 1.42;
     } else if (building->type == BuildingType::Cannon ||
                building->type == BuildingType::Catapult) {
-        drawTacticalGroundSector(
+        renderer.drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},
@@ -1476,7 +1294,7 @@ void drawBuildingTacticalOverlay(
             {91, 209, 255, 190}, true);
         return;
     } else if (building->type == BuildingType::SpikeTrap) {
-        drawTacticalGroundSector(
+        renderer.drawTacticalGroundSector(
             {static_cast<float>(center.x),
              static_cast<float>(center.y) + 0.085F,
              static_cast<float>(center.z)},

@@ -1119,6 +1119,48 @@ void Renderer::beginWorldShader(const WorldLighting& lighting) {
     bindShadowMap();
 }
 
+void Renderer::drawTacticalGroundSector(
+    Vector3 center, float radius, float yawRadians,
+    float arcDegrees, Color color, float innerRadius) {
+    if (radius <= 0.0F || arcDegrees <= 0.0F ||
+        !resources_.tacticalSectorShader().valid()) return;
+    arcDegrees = std::clamp(arcDegrees, 2.0F, 360.0F);
+    innerRadius = std::clamp(innerRadius, 0.0F, std::max(0.0F, radius - 0.05F));
+    constexpr float EdgeWidth = 0.90F;
+    const Vector4 shape{radius, innerRadius, arcDegrees * DEG2RAD * 0.5F, EdgeWidth};
+    const Shader& shader = resources_.tacticalSectorShader().get();
+
+    // Per-fragment distances keep the white rim smooth at every range and
+    // angle. A vertex gradient stretched across a fan produces white bands.
+    // This overlay affects color only, leaving world normals/AO and depth intact.
+    endWorldShader();
+    beginColorOnlyWorldEffects();
+    BeginShaderMode(shader);
+    SetShaderValue(shader, tacticalSectorShapeLocation_, &shape, SHADER_UNIFORM_VEC4);
+    BeginBlendMode(BLEND_ALPHA);
+    rlDisableDepthMask();
+    rlDisableBackfaceCulling();
+    const float sine = std::sin(yawRadians);
+    const float cosine = std::cos(yawRadians);
+    const auto emit = [&](float sideways, float forward) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlTexCoord2f(sideways, forward);
+        rlVertex3f(center.x + cosine * sideways - sine * forward,
+                   center.y, center.z - sine * sideways - cosine * forward);
+    };
+    rlSetTexture(0);
+    rlBegin(RL_TRIANGLES);
+    emit(-radius, -radius); emit(radius, -radius); emit(radius, radius);
+    emit(-radius, -radius); emit(radius, radius); emit(-radius, radius);
+    rlEnd();
+    rlDrawRenderBatchActive();
+    rlEnableBackfaceCulling();
+    rlEnableDepthMask();
+    EndBlendMode();
+    EndShaderMode();
+    endColorOnlyWorldEffects();
+}
+
 void Renderer::beginColorOnlyWorldEffects() {
     if (!usingOffscreenTarget_ ||
         !resources_.sceneScreenSpaceBuffers()) return;
