@@ -14,8 +14,9 @@ Existing denominations and collection logic stay unchanged:
 
 Base radius is 0.215 world units. The coin material is 90% unlit, with no world
 ink outline or screen AO, and still writes opaque depth and occludes ink behind
-it. Hearts keep their existing material and spin. Ground clearance remains
-inside the existing pickup clearance.
+it. Hearts use their own red material and idle animation; see
+`HEART_PRESENTATION.md`. Ground clearance remains inside the existing pickup
+clearance.
 
 Coin idle spin is 3.2 radians/second. Spawn bounce and collection anticipation
 remain; magnetized coins shrink smoothly as they approach the camera so they

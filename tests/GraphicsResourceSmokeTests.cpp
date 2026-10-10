@@ -34,6 +34,85 @@ namespace {
 bool checkCartoonCoins(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(640, 360);
     const Camera3D camera{{0, .7F, 6}, {0, 0, 0}, {0, 1, 0},
+
+bool checkCartoonHearts(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(640, 360);
+    const Camera3D camera{{0, .35F, 6}, {0, 0, 0}, {0, 1, 0},
+                          2.3F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](float yaw, bool night = false, bool cover = false,
+                            bool crowd = false) {
+        BeginTextureMode(target);
+        ClearBackground(night ? Color{18, 35, 57, 255} : Color{70, 98, 72, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        if (night) { lighting.sunIntensity = .05F; lighting.ambientIntensity = .2F; }
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = .86F;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = true;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 0, 1}, 2.5F, 2.5F, .1F, {80, 65, 110, 255});
+        if (crowd) {
+            for (int row = 0; row < 3; ++row) for (int col = 0; col < 8; ++col) {
+                const Vector3 position{-1.8F + float(col) * .5F,
+                    -.5F + float(row) * .5F, 0};
+                if (row == 1 && (col == 2 || col == 5))
+                    renderer.drawHeart(position, yaw, .9F);
+                else if ((row + col) % 3 == 0)
+                    renderer.drawCoin(static_cast<ian::CoinType>(col % 3), position,
+                                      yaw + float(col) * .47F, .8F);
+                else renderer.drawExperienceOctahedron(position, yaw + float(col) * .47F,
+                    .8F, col == 6 && row == 1 ? 8 : col == 3 ? 4 : 1);
+            }
+        } else renderer.drawHeart({}, yaw, 3.0F);
+        renderer.endWorldShader(); EndMode3D(); EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image front = render(.15F), angled = render(.55F), back = render(PI + .15F),
+          night = render(.15F, true), edge = render(PI * .5F), covered = render(.15F, false, true);
+    const auto count = [](Image image, auto predicate) {
+        int result = 0;
+        for (int y = 0; y < image.height; ++y) for (int x = 0; x < image.width; ++x)
+            if (predicate(GetImageColor(image, x, y))) ++result;
+        return result;
+    };
+    const auto red = [](Color c) { return c.r > 145 && c.r > c.g + 55 && c.r > c.b + 40; };
+    const auto shine = [](Color c) { return c.r > 225 && c.g > 195 && c.b > 185; };
+    // Rendered contour must retain two distinct lobes and a notch. Compare
+    // their topmost filled rows after removing the model's fixed roll.
+    const auto topAt = [&](int x) {
+        for (int y = 0; y < front.height; ++y) {
+            const Color c = GetImageColor(front, x, y);
+            if (red(c) || shine(c)) return y;
+        }
+        return front.height;
+    };
+    const bool valid = count(front, red) > 5000 && count(angled, red) > 5000 &&
+        count(back, red) > 5000 && count(night, red) > 5000 &&
+        count(front, shine) > 10 && count(back, shine) > 10 &&
+        count(edge, red) > count(front, red) * .2 &&
+        count(covered, red) == 0 && topAt(320) > std::max(topAt(270), topAt(370)) + 8;
+    if (!valid) std::cerr << "hearts red/shine/back/edge/notch " << count(front, red)
+        << '/' << count(front, shine) << '/' << count(back, shine) << '/' << count(edge, red)
+        << '/' << topAt(270) << '/' << topAt(320) << '/' << topAt(370) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_HEARTS")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{front, "heart-front.png"}, std::pair{angled, "heart-angled.png"},
+             std::pair{night, "heart-night.png"}, std::pair{edge, "heart-side.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+        Image crowd = render(.15F, false, false, true);
+        ExportImage(crowd, (std::filesystem::path(directory) / "pickups.png").c_str());
+        UnloadImage(crowd);
+    }
+    for (Image image : {front, angled, back, night, edge, covered}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
                           2.3F, CAMERA_ORTHOGRAPHIC};
     const auto render = [&](ian::CoinType type, float yaw, bool cover = false,
                             bool night = false, bool crowd = false) {
@@ -2978,3 +3057,7 @@ int main() {
     CloseWindow();
     return result;
 }
+        if (!checkCartoonHearts(renderer)) {
+            std::cerr << "cartoon heart silhouette, highlights or depth failed\n";
+            return 1;
+        }

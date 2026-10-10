@@ -645,49 +645,106 @@ void Renderer::drawExperienceOctahedron(
 
 void Renderer::drawHeart(
     Vector3 position, float rotationRadians, float scale) {
-    ModelResource& resource = resources_.heartLootModel();
+    if (scale <= 0.0F) return;
+    // A pillow-shaped heart: the rounded contour, convex faces and glossy
+    // strokes are opaque geometry with smooth normals, not crossing spheres.
+    constexpr std::size_t Segments = 48;
+    static const auto contour = [] {
+        std::array<Vector2, Segments> points{};
+        for (std::size_t i = 0; i < Segments; ++i) {
+            const float angle = float(i) * 2.0F * PI / float(Segments);
+            const float sine = std::sin(angle);
+            const float tipRoundness = std::max(0.0F, -std::cos(angle) - .45F) / .55F;
+            points[i] = {16.0F * sine * sine * sine * .015F + sine * .030F * tipRoundness,
+                (13.0F * std::cos(angle) - 5.0F * std::cos(2.0F * angle) -
+                 2.0F * std::cos(3.0F * angle) - std::cos(4.0F * angle)) * .015F + .035F};
+        }
+        return points;
+    }();
+    static const auto contourNormals = [] {
+        std::array<Vector2, Segments> normals{};
+        for (std::size_t i = 0; i < Segments; ++i) {
+            const Vector2 before = contour[(i + Segments - 1U) % Segments];
+            const Vector2 after = contour[(i + 1U) % Segments];
+            normals[i] = Vector2Normalize({before.y - after.y, after.x - before.x});
+        }
+        return normals;
+    }();
+    constexpr std::array<float, 5> Rings{{0, .40F, .75F, .94F, 1.0F}};
+    const auto point = [&](std::size_t index, float radius, float side) {
+        return Vector3{contour[index].x * radius, contour[index].y * radius,
+            side * .11F * std::sqrt(std::max(0.0F, 1.0F - radius * radius))};
+    };
+    const auto normal = [&](std::size_t index, float radius, float side) {
+        const Vector2 outward = contourNormals[index];
+        return Vector3{outward.x * radius, outward.y * radius,
+            side * std::sqrt(std::max(0.0F, 1.0F - radius * radius))};
+    };
+    const auto painted = [](Vector3 p, float radius) {
+        const float top = std::clamp((p.y + .22F) / .43F, 0.0F, 1.0F);
+        const float rim = radius * radius * .25F;
+        const auto channel = [top, rim](float low, float high, float edge) {
+            const float face = low + (high - low) * top;
+            return static_cast<unsigned char>(std::lround(face + (edge - face) * rim));
+        };
+        return Color{channel(226, 255, 179), channel(23, 106, 12),
+                     channel(59, 132, 46), 255};
+    };
+    const auto vertex = [](Vector3 p, Vector3 n, Color color) {
+        rlNormal3f(n.x, n.y, n.z);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(p.x, p.y, p.z);
+    };
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
-    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-    rlRotatef(8.0F, 0.0F, 0.0F, 1.0F);
-    constexpr float PickupScale = 0.98F;
-    rlScalef(scale * 0.86F * PickupScale,
-             scale * 0.86F * PickupScale,
-             scale * 0.86F * PickupScale);
-    if (resource.valid()) {
-        Model& model = resource.get();
-        Shader shader{
-            .id = rlGetShaderIdDefault(),
-            .locs = rlGetShaderLocsDefault(),
-        };
-        if (worldShaderActive_ && resources_.worldShader().valid()) {
-            shader = resources_.worldShader().get();
-        }
-        if (model.materials != nullptr) {
-            if (resources_.heartOutlineShader().valid()) {
-                const Shader outlineShader =
-                    resources_.heartOutlineShader().get();
-                for (int index = 0; index < model.materialCount; ++index) {
-                    model.materials[index].shader = outlineShader;
+    rlRotatef(rotationRadians * RAD2DEG, 0, 1, 0);
+    rlRotatef(8.0F, 0, 0, 1);
+    rlScalef(scale, scale, scale);
+    rlBegin(RL_TRIANGLES);
+    for (const float side : {1.0F, -1.0F}) {
+        for (std::size_t ring = 1; ring < Rings.size(); ++ring) {
+            for (std::size_t i = 0; i < Segments; ++i) {
+                const std::size_t next = (i + 1U) % Segments;
+                const float inner = Rings[ring - 1U], outer = Rings[ring];
+                const auto emit = [&](std::size_t index, float radius) {
+                    const Vector3 p = point(index, radius, side);
+                    vertex(p, normal(index, radius, side), painted(p, radius));
+                };
+                // The analytic contour runs clockwise on its front face.
+                if (side > 0) {
+                    emit(i, inner); emit(next, inner); emit(i, outer);
+                    emit(next, inner); emit(next, outer); emit(i, outer);
+                } else {
+                    emit(i, inner); emit(i, outer); emit(next, inner);
+                    emit(next, inner); emit(i, outer); emit(next, outer);
                 }
-                rlDrawRenderBatchActive();
-                rlEnableBackfaceCulling();
-                rlSetCullFace(RL_CULL_FACE_FRONT);
-                drawFittedLootModel(resource, WHITE);
-                rlDrawRenderBatchActive();
-                rlSetCullFace(RL_CULL_FACE_BACK);
-            }
-            for (int index = 0; index < model.materialCount; ++index) {
-                model.materials[index].shader = shader;
             }
         }
-        drawFittedLootModel(resource, {255, 105, 112, 255});
-    } else {
-        DrawSphereEx({-0.08F, 0.05F, 0.0F}, 0.13F, 8, 8,
-                     {235, 62, 72, 255});
-        DrawSphereEx({0.08F, 0.05F, 0.0F}, 0.13F, 8, 8,
-                     {235, 62, 72, 255});
+        const auto gloss = [&](std::size_t index, float start, float end,
+                               float width, Color color) {
+            const std::size_t next = (index + 1U) % Segments;
+            const Vector3 a = point(index, .75F, side), b = point(next, .75F, side);
+            const Vector3 c = point(next, .94F, side), d = point(index, .94F, side);
+            const Vector3 n = Vector3Scale(Vector3Normalize(Vector3CrossProduct(
+                Vector3Subtract(b, a), Vector3Subtract(d, a))), side);
+            const Vector3 outward = Vector3Scale(n, .0015F);
+            const auto surface = [&](float u, float v) {
+                return Vector3Add(Vector3Lerp(Vector3Lerp(a, b, u),
+                                             Vector3Lerp(d, c, u), v), outward);
+            };
+            const Vector3 top = surface(.5F, end), right = surface(.5F + width, .5F),
+                          bottom = surface(.5F, start), left = surface(.5F - width, .5F);
+            const auto triangle = [&](Vector3 p, Vector3 q, Vector3 r) {
+                if (side > 0) { vertex(p, n, color); vertex(r, n, color); vertex(q, n, color); }
+                else { vertex(p, n, color); vertex(q, n, color); vertex(r, n, color); }
+            };
+            triangle(top, right, left); triangle(right, bottom, left);
+        };
+        gloss(38U, .08F, .94F, .40F, {255, 239, 228, 255});
+        gloss(39U, .18F, .85F, .32F, {255, 225, 219, 255});
+        gloss(9U, .32F, .68F, .20F, {255, 176, 189, 255});
     }
+    rlEnd();
     rlPopMatrix();
 }
 
