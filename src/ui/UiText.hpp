@@ -25,6 +25,18 @@ private:
     UiFontRole previous_;
 };
 
+// Scissored text must stay on the atlas path: building a local cache texture
+// while the screen-space scissor is active clips that texture to empty pixels.
+class ScopedSdfUiTextCache {
+public:
+    explicit ScopedSdfUiTextCache(bool enabled) noexcept;
+    ~ScopedSdfUiTextCache();
+    ScopedSdfUiTextCache(const ScopedSdfUiTextCache&) = delete;
+    ScopedSdfUiTextCache& operator=(const ScopedSdfUiTextCache&) = delete;
+private:
+    bool previous_;
+};
+
 struct SdfUiTextStyle {
     Color fillColor{UiWhite};
     Color outlineColor{48, 50, 56, 255};

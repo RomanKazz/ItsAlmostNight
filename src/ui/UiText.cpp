@@ -52,6 +52,7 @@ struct QueuedSdfText {
 };
 std::vector<QueuedSdfText> sdfTextBatch;
 bool sdfTextBatchActive{};
+bool sdfTextCacheEnabled{true};
 
 struct CachedGlyphQuad {
     Rectangle source{};
@@ -486,7 +487,7 @@ bool queueSdfText(std::string_view text, Vector2 position,
         .fontRole = currentFontRole,
         .rotationRadians = rotationRadians,
         .rotationCenter = rotationCenter,
-        .cacheable = cacheable,
+        .cacheable = cacheable && sdfTextCacheEnabled,
     });
     return true;
 }
@@ -1026,6 +1027,7 @@ void drawSdfTextValue(const char* value, Vector2 position,
         .scaledSize = scaledSize,
         .style = style,
         .fontRole = currentFontRole,
+        .cacheable = sdfTextCacheEnabled,
     });
     drawSdfTextBatch();
     sdfTextBatch.clear();
@@ -1202,6 +1204,10 @@ void beginUiTextPerformanceFrame() noexcept {
 UiTextPerformanceStats uiTextPerformanceStats() noexcept {
     return textPerformanceStats;
 }
+
+ScopedSdfUiTextCache::ScopedSdfUiTextCache(bool enabled) noexcept
+    : previous_(sdfTextCacheEnabled) { sdfTextCacheEnabled = enabled; }
+ScopedSdfUiTextCache::~ScopedSdfUiTextCache() { sdfTextCacheEnabled = previous_; }
 
 void beginSdfUiTextBatch() {
     if (sdfTextBatchActive) return;
