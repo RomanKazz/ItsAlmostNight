@@ -126,6 +126,25 @@ int main(int argc, char** argv) {
                     (language == ian::Language::English ? "/shop-en.png" : "/shop-ru.png");
                 require(ExportImage(image,path.c_str()),"shop capture exported");
             }
+            const auto buy = layout.buy[3];
+            const int sampleX = static_cast<int>(buy.x+12*layout.scale);
+            const int sampleY = static_cast<int>(buy.y+buy.height*.5F);
+            const Color disabledFill = GetImageColor(image,sampleX,sampleY);
+            auto godShop = shop;
+            godShop.unlimitedResources = true; godShop.coins = 0;
+            BeginTextureMode(target); ClearBackground({40,70,65,255});
+            ian::app_detail::drawRunShopOverlay(ui,godShop,std::nullopt,Vector2{-100,-100});
+            EndTextureMode();
+            Image godImage = LoadImageFromTexture(target.texture); ImageFlipVertical(&godImage);
+            const Color enabledFill = GetImageColor(godImage,sampleX,sampleY);
+            require(enabledFill.r != disabledFill.r || enabledFill.g != disabledFill.g || enabledFill.b != disabledFill.b,
+                "godmode displays purchasable cards as enabled even with zero coins");
+            if (argc > 1) {
+                const std::string path = std::string(argv[1]) +
+                    (language == ian::Language::English ? "/shop-god-en.png" : "/shop-god-ru.png");
+                require(ExportImage(godImage,path.c_str()),"godmode shop capture exported");
+            }
+            UnloadImage(godImage);
             UnloadImage(image);
             UnloadRenderTexture(target);
         }

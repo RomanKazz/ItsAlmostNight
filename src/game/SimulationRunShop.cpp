@@ -88,10 +88,10 @@ bool Simulation::closeRunShop() {
 bool Simulation::buyRunShopOffer(std::size_t index) {
     if (!runShop_.pending || runUpgradeChoicePending_ || index >= RunShopSlotCount) return false;
     auto& offer = runShop_.offers[index];
-    if (!offer.present || offer.price > coins_ || !runUpgradeAvailable(offer.effect)) return false;
+    if (!offer.present || (!unlimitedResources_ && offer.price > coins_) || !runUpgradeAvailable(offer.effect)) return false;
     invalidateSnapshotCache();
     if (!applyRunUpgradeEffect(offer.effect, offer.rarity)) return false;
-    coins_ -= offer.price;
+    if (!unlimitedResources_) coins_ -= offer.price;
     offer.present = false;
     offer.locked = false;
     if (std::ranges::none_of(runShop_.offers, [](const auto& slot) { return slot.present; }))
@@ -104,8 +104,8 @@ bool Simulation::rerollRunShop() {
             return slot.present && slot.locked && runUpgradeAvailable(slot.effect);
         })) return false;
     const int price = runShopRerollPrice(runShop_);
-    if (coins_ < price) return false;
-    coins_ -= price;
+    if (!unlimitedResources_ && coins_ < price) return false;
+    if (!unlimitedResources_) coins_ -= price;
     ++runShop_.rerolls;
     generateRunShopOffers();
     invalidateSnapshotCache();

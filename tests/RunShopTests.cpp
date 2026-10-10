@@ -125,6 +125,37 @@ void runRunShopTests() {
         "large shop counters do not overflow price arithmetic");
     run->returnToMainMenu(); run->startRunFromSeed(ian::PlayerClass::Vanguard,12345);
     require(run->snapshot().runShop.wave == 0 && !run->snapshot().runShop.pending,"new run resets shop and locked inventory");
+    ian::PlayerCommand godMode; godMode.enableUnlimitedResources = ian::EnableUnlimitedResourcesCommand{};
+    run->tick(0,godMode);
+    require(run->snapshot().unlimitedResources && run->snapshot().coins == 0,
+        "godmode shop fixture has unlimited resources and no coins");
+    require(run->openRunShop(true), "godmode can open the debug shop");
+    const auto godOffer = run->snapshot().runShop.offers[0];
+    const auto godStacks = run->snapshot().runUpgradeStacks;
+    require(run->buyRunShopOffer(0) && run->snapshot().coins == 0 &&
+        !run->snapshot().runShop.offers[0].present &&
+        run->snapshot().runUpgradeStacks[ian::runUpgradeIndex(godOffer.effect)] > godStacks[ian::runUpgradeIndex(godOffer.effect)],
+        "godmode purchases apply upgrades once without requiring or spending coins");
+    const auto godGeneration = run->snapshot().runShop.generation;
+    require(run->rerollRunShop() && run->snapshot().coins == 0 &&
+        run->snapshot().runShop.generation == godGeneration+1,
+        "godmode rerolls refresh offers without requiring or spending coins");
+    require(run->closeRunShop(), "godmode shop closes before toggling off");
+    run->tick(0,godMode);
+    require(!run->snapshot().unlimitedResources && run->openRunShop(true),
+        "godmode can be disabled without resetting the shop");
+    const auto pricedShop = run->snapshot().runShop;
+    require(!run->buyRunShopOffer(0) && !run->rerollRunShop() &&
+        run->snapshot().coins == 0 && run->snapshot().runShop == pricedShop,
+        "disabling godmode immediately restores normal costs and atomic rejection");
+    auto fundedGodShop = run->saveSuspendedRunState();
+    fundedGodShop.runShop.pending = false; fundedGodShop.coins = 50;
+    run->returnToMainMenu();
+    require(run->loadSuspendedRunState(fundedGodShop), "funded godmode fixture restores coins");
+    run->tick(0,godMode);
+    require(run->openRunShop(true) && run->buyRunShopOffer(0) &&
+        run->rerollRunShop() && run->snapshot().coins == 50,
+        "godmode does not spend existing coins on purchases or rerolls");
 }
 
 #ifdef IAN_RUN_SHOP_TEST_MAIN

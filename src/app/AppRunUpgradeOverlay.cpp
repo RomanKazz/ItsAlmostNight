@@ -1281,8 +1281,8 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     bool unlocked = false;
     for (std::size_t i = 0; i < RunShopSlotCount; ++i)
         unlocked |= !snapshot.runShop.offers[i].locked || !snapshot.runShopBuyable[i];
-    button(l.reroll,localizeText("REROLL") + "  " + std::to_string(runShopRerollPrice(snapshot.runShop)),
-        unlocked && snapshot.coins >= runShopRerollPrice(snapshot.runShop),8,menuStyle::Gold);
+    button(l.reroll,localizeText("REROLL") + "  " + std::to_string(snapshot.unlimitedResources ? 0 : runShopRerollPrice(snapshot.runShop)),
+        unlocked && (snapshot.unlimitedResources || snapshot.coins >= runShopRerollPrice(snapshot.runShop)),8,menuStyle::Gold);
     for (std::size_t i = 0; i < RunShopSlotCount; ++i) {
         const auto& offer = snapshot.runShop.offers[i]; const auto r = l.cards[i];
         if (!offer.present) {
@@ -1299,9 +1299,10 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
         shopText(localizedUpgradeDescription(snapshot,offer.effect,offer.rarity),
             {r.x+18*s,r.y+322*s,r.width-36*s,194*s},22*s,menuStyle::Cream,s,6);
         const bool buyable = snapshot.runShopBuyable[i];
-        const std::string price = buyable ? std::to_string(offer.price) : localizeText("LIMIT REACHED");
-        button(l.buy[i],price,buyable && snapshot.coins >= offer.price,static_cast<int>(i),
-            snapshot.coins >= offer.price ? menuStyle::Cream : Color{255,100,95,255});
+        const bool affordable = snapshot.unlimitedResources || snapshot.coins >= offer.price;
+        const std::string price = buyable ? std::to_string(snapshot.unlimitedResources ? 0 : offer.price) : localizeText("LIMIT REACHED");
+        button(l.buy[i],price,buyable && affordable,static_cast<int>(i),
+            affordable ? menuStyle::Cream : Color{255,100,95,255});
         if (buyable) drawIcon(ui.resourceTexture(UiResourceIcon::Coin),
             {l.buy[i].x+l.buy[i].width*.5F+36*s,l.buy[i].y+16*s,32*s,32*s},1);
         button(l.locks[i],offer.locked ? "OFFER LOCKED" : "LOCK",buyable || offer.locked,
