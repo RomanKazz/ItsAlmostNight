@@ -103,6 +103,7 @@ struct AppPerformanceStats {
     PerformanceMetric hudTextFlushRender;
     PerformanceMetric resourceGainRender;
     PerformanceMetric minimapRender;
+    PerformanceMetric minimapPreparation;
     PerformanceMetric minimapSetupRender;
     PerformanceMetric minimapTargetRefreshRender;
     PerformanceMetric minimapFrameRender;

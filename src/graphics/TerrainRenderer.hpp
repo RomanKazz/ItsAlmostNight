@@ -27,12 +27,15 @@ class TerrainRenderer {
     void shutdown();
 
     [[nodiscard]] bool ready() const;
+    [[nodiscard]] std::size_t submittedChunks() const { return submittedChunks_; }
+    [[nodiscard]] std::size_t culledChunks() const { return culledChunks_; }
 
   private:
     struct TerrainChunk {
         int x{};
         int z{};
         Model model{};
+        BoundingBox bounds{};
     };
 
     [[nodiscard]] Model buildChunk(
@@ -54,6 +57,8 @@ class TerrainRenderer {
     unsigned int growthShaderId_{};
     int boundaryGrowthLocation_{-1};
     bool ready_{};
+    std::size_t submittedChunks_{};
+    std::size_t culledChunks_{};
 };
 
 } // namespace ian

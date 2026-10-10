@@ -461,6 +461,8 @@ void Renderer::drawTerrain(
     }
     lowerMountainGrowth_ = std::clamp(lowerMountainGrowth, 0.0F, 1.0F);
     terrainRenderer_.draw(shader, tint, focusPosition, mountainGrowth, lowerMountainGrowth_);
+    performanceStats_.terrainChunksSubmitted = terrainRenderer_.submittedChunks();
+    performanceStats_.terrainChunksCulled = terrainRenderer_.culledChunks();
     if (wireframe) {
         terrainRenderer_.drawWireframe(
             {245, 224, 154, 150}, mountainGrowth);

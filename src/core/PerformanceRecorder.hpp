@@ -76,6 +76,15 @@ struct PerformanceFrameRecord {
     double enemyCollisionMs{};
     double enemyDrawMs{};
     double blobShadowsMs{};
+    std::uint64_t gpuViewModelTargetSamples{};
+    std::uint64_t gpuViewModelCompositeSamples{};
+    std::size_t gpuQueriesIssued{};
+    int outputWidth{};
+    int outputHeight{};
+    bool runStateChanged{};
+    double minimapPreparationMs{};
+    std::size_t terrainChunksSubmitted{};
+    std::size_t terrainChunksCulled{};
 };
 
 class PerformanceRecorder {

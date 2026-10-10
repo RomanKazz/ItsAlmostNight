@@ -338,6 +338,16 @@ if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(ian_render_performance_smoke tests/RenderPerformanceSmokeTests.cpp)
+    target_link_libraries(ian_render_performance_smoke PRIVATE ian_graphics ian_simulation)
+    target_include_directories(ian_render_performance_smoke SYSTEM PRIVATE "${raylib_SOURCE_DIR}/src")
+    ian_set_warnings(ian_render_performance_smoke)
+    if(IAN_ENABLE_SANITIZERS)
+        target_compile_options(ian_render_performance_smoke PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_render_performance_smoke PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_render_performance_smoke COMMAND ian_render_performance_smoke)
+    set_tests_properties(ian_render_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
     add_executable(ian_tests
         tests/FixedStepTests.cpp
         tests/GeometryTests.cpp

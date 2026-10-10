@@ -572,6 +572,7 @@ void Renderer::drawSsaoPass() {
 bool Renderer::beginFirstPersonToolPass(
     const WorldLighting* lighting,
     const Camera3D* worldCamera) {
+    firstPersonCompositeBounds_.reset();
     resources_.updateViewModelTarget(settings_);
     if (!resources_.viewModelTargetValid()) {
         return false;
@@ -676,8 +677,20 @@ void Renderer::endFirstPersonToolPass(
                        &tuning.brightness, SHADER_UNIFORM_FLOAT);
         SetShaderValue(shader, viewModelSaturationLocation_,
                        &tuning.saturation, SHADER_UNIFORM_FLOAT);
+        Rectangle compositeSource = source;
+        Rectangle compositeDestination = destination;
+        if (firstPersonCompositeBounds_) {
+            const Rectangle bounds = *firstPersonCompositeBounds_;
+            if (bounds.width <= 0.0F || bounds.height <= 0.0F) return;
+            const float scaleX = source.width / destination.width;
+            const float scaleY = -source.height / destination.height;
+            compositeSource = {bounds.x * scaleX,
+                (destination.height - bounds.y - bounds.height) * scaleY,
+                bounds.width * scaleX, -bounds.height * scaleY};
+            compositeDestination = bounds;
+        }
         BeginShaderMode(shader);
-        DrawTexturePro(target.texture, source, destination,
+        DrawTexturePro(target.texture, compositeSource, compositeDestination,
                        {}, 0.0F, WHITE);
         EndShaderMode();
         return;

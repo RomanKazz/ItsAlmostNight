@@ -129,6 +129,9 @@ struct RendererPerformanceStats {
     PerformanceMetric gpuViewModelComposite;
     PerformanceMetric gpuUi;
     bool gpuTimersSupported{};
+    std::size_t gpuQueriesIssued{};
+    std::size_t terrainChunksSubmitted{};
+    std::size_t terrainChunksCulled{};
     std::size_t instancedEnemyCount{};
     std::size_t enemyBatchCount{};
     std::size_t lowDetailEnemyCount{};
@@ -996,6 +999,7 @@ class Renderer {
     Vector3 blobShadowCamera_{};
     Camera3D selectionMaskCamera_{};
     std::optional<Rectangle> selectionOutlineBounds_;
+    std::optional<Rectangle> firstPersonCompositeBounds_;
     Color selectionOutlineTint_{WHITE};
     float selectionOutlineRadiusPixels_{6.0F};
     bool selectionOutlineDepthOcclusion_{true};
@@ -1101,6 +1105,8 @@ class Renderer {
         gpuQueryWriteIndices_{};
     std::optional<RendererGpuStage> activeGpuStage_;
     std::size_t activeGpuQueryIndex_{};
+    std::optional<RendererGpuStage> sampledGpuStage_;
+    std::uint64_t gpuProfilingFrameCount_{};
     bool gpuProfilingEnabled_{};
     bool gpuTimersInitialized_{};
     void warmCombatRendering();

@@ -50,7 +50,10 @@ bool PerformanceRecorder::start(std::string_view directory) {
                "gpu_postprocess_ms,gpu_viewmodel_ms,"
                "gpu_viewmodel_target_ms,gpu_viewmodel_composite_ms,"
                "gpu_ui_ms,enemy_ai_ms,"
-               "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms\n";
+               "enemy_collision_ms,enemy_draw_ms,blob_shadows_ms";
+    stream_ << ",gpu_viewmodel_target_samples,gpu_viewmodel_composite_samples,"
+               "gpu_queries_issued,output_width,output_height,run_state_changed,"
+               "minimap_prewarm_ms,terrain_chunks_submitted,terrain_chunks_culled\n";
     return true;
 }
 
@@ -98,7 +101,15 @@ void PerformanceRecorder::record(
             << value.gpuViewModelCompositeMs << ','
             << value.gpuUiMs << ','
             << value.enemyAiMs << ',' << value.enemyCollisionMs << ','
-            << value.enemyDrawMs << ',' << value.blobShadowsMs << '\n';
+            << value.enemyDrawMs << ',' << value.blobShadowsMs;
+    stream_ << ',' << value.gpuViewModelTargetSamples
+            << ',' << value.gpuViewModelCompositeSamples
+            << ',' << value.gpuQueriesIssued
+            << ',' << value.outputWidth << ',' << value.outputHeight
+            << ',' << static_cast<int>(value.runStateChanged)
+            << ',' << value.minimapPreparationMs
+            << ',' << value.terrainChunksSubmitted << ',' << value.terrainChunksCulled
+            << '\n';
     ++framesSinceFlush_;
     constexpr std::uint32_t FlushIntervalFrames = 300U;
     if (framesSinceFlush_ >= FlushIntervalFrames) {

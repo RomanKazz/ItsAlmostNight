@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/FireWandEffect.hpp"
+#include "graphics/ViewModelCompositeBounds.hpp"
 
 
 #include <raymath.h>
@@ -204,6 +205,20 @@ bool Renderer::drawFirstPersonTool(
                                 AuthoredChildScale),
                     animated);
             }
+        }
+        // Animated rigid tools use their current authored transform, not a
+        // static right-hand region: the crop follows the complete swing.
+        // Wand particles extend beyond the mesh and retain the full pass.
+        if (!wand) {
+            const Matrix modelViewProjection = MatrixMultiply(
+                MatrixMultiply(model.transform, rlGetMatrixTransform()),
+                MatrixMultiply(rlGetMatrixModelview(), rlGetMatrixProjection()));
+            const float padding = 4.0F + std::max(tuning.outlineWidth, 0.0F) *
+                static_cast<float>(GetScreenWidth()) /
+                static_cast<float>(std::max(GetRenderWidth(), 1));
+            firstPersonCompositeBounds_ = viewModelCompositeBounds(
+                resource->visualBounds(), modelViewProjection,
+                GetScreenWidth(), GetScreenHeight(), padding);
         }
         DrawModel(model, {}, 1.0F,
                   fireWand ? Color{255, 193, 150, 255} : WHITE);

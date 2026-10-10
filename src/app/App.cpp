@@ -282,6 +282,8 @@ int App::run() {
 
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
+        const RunState stateBeforeInput = simulation_.snapshot().state;
+        performanceStats_.minimapPreparation.sample(0.0);
         const auto inputStart = PerformanceClock::now();
         processInput();
         performanceStats_.input.sample(
@@ -439,6 +441,15 @@ int App::run() {
                     performanceStats_.enemyRender.lastMilliseconds,
                 .blobShadowsMs =
                     performanceStats_.blobShadows.lastMilliseconds,
+                .gpuViewModelTargetSamples = rendererStats.gpuViewModelTarget.sampleCount,
+                .gpuViewModelCompositeSamples = rendererStats.gpuViewModelComposite.sampleCount,
+                .gpuQueriesIssued = rendererStats.gpuQueriesIssued,
+                .outputWidth = GetRenderWidth(),
+                .outputHeight = GetRenderHeight(),
+                .runStateChanged = stateBeforeInput != performanceSnapshot.state,
+                .minimapPreparationMs = performanceStats_.minimapPreparation.lastMilliseconds,
+                .terrainChunksSubmitted = rendererStats.terrainChunksSubmitted,
+                .terrainChunksCulled = rendererStats.terrainChunksCulled,
             });
         }
         persistUserSettings();

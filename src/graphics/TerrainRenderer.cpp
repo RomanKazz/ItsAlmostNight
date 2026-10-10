@@ -1,4 +1,7 @@
 #include "graphics/TerrainRenderer.hpp"
+#include "graphics/CameraCulling.hpp"
+
+#include <raymath.h>
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -820,7 +823,18 @@ void TerrainRenderer::buildChunks() {
         for (int x = 0; x < chunkCount; ++x) {
             Model model = buildChunk(x, z);
             if (IsModelValid(model)) {
-                chunks_.push_back({x, z, model});
+                BoundingBox bounds = GetModelBoundingBox(model);
+                // Boundary vertices lower during the arrival reveal. Keep
+                // both authored and lowered heights inside the culling box.
+                for (int meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+                    const Mesh& mesh = model.meshes[meshIndex];
+                    if (mesh.texcoords2 == nullptr) continue;
+                    for (int vertex = 0; vertex < mesh.vertexCount; ++vertex) {
+                        bounds.min.y = std::min(bounds.min.y,
+                            mesh.vertices[vertex * 3 + 1] - mesh.texcoords2[vertex * 2]);
+                    }
+                }
+                chunks_.push_back({x, z, model, bounds});
             }
         }
     }
@@ -829,6 +843,7 @@ void TerrainRenderer::buildChunks() {
 void TerrainRenderer::draw(
     Shader shader, Color tint,
     Vector3 focusPosition, float mountainGrowth, float lowerMountainGrowth) {
+    submittedChunks_ = culledChunks_ = 0U;
     if (!ready_) {
         return;
     }
@@ -887,7 +902,16 @@ void TerrainRenderer::draw(
         halfSize - config.terrainBoundaryRiseWidth);
     const float boundaryKeepDistance = std::max(
         boundaryStart - chunkRadius, 0.0F);
+    const camera_culling::Frustum frustum(MatrixMultiply(
+        rlGetMatrixModelview(), rlGetMatrixProjection()));
     for (auto& chunk : chunks_) {
+        // Includes the active shadow camera and render target aspect ratio.
+        // Distance-kept boundary chunks still need not be submitted behind
+        // the camera; their visible ground remains unchanged.
+        if (!frustum.intersects(chunk.bounds, 0.1F)) {
+            ++culledChunks_;
+            continue;
+        }
         const float centerX =
             -halfSize +
             (static_cast<float>(chunk.x) + 0.5F) * chunkSize;
@@ -905,6 +929,7 @@ void TerrainRenderer::draw(
         if (!boundaryChunk &&
             offsetX * offsetX + offsetZ * offsetZ >
                 renderDistanceSquared) {
+            ++culledChunks_;
             continue;
         }
         if (shader.id != 0U) {
@@ -913,6 +938,7 @@ void TerrainRenderer::draw(
                 chunk.model.materials[index].shader = shader;
             }
         }
+        ++submittedChunks_;
         DrawModel(
             chunk.model, {0.0F, 0.0F, 0.0F},
             1.0F, tint);

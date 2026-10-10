@@ -192,7 +192,20 @@ void Renderer::warmCombatRendering() {
 }
 
 void Renderer::beginFrame() {
+    performanceStats_.gpuQueriesIssued = 0U;
     pollGpuTimers();
+    sampledGpuStage_.reset();
+    if (gpuProfilingEnabled_) {
+        // One non-nested elapsed query every eight frames. CPU timings still
+        // record every frame, without forcing extra batch submissions.
+        constexpr std::uint64_t SampleInterval = 8U;
+        const std::uint64_t frame = gpuProfilingFrameCount_++;
+        if (frame % SampleInterval == 0U) {
+            sampledGpuStage_ = static_cast<RendererGpuStage>(
+                (frame / SampleInterval) %
+                static_cast<std::uint64_t>(RendererGpuStage::Count));
+        }
+    }
     instanceBuffers_.beginFrame();
 }
 
@@ -341,6 +354,8 @@ void Renderer::shutdownGpuTimers() {
     gpuQueryWriteIndices_ = {};
     activeGpuStage_.reset();
     activeGpuQueryIndex_ = 0U;
+    sampledGpuStage_.reset();
+    gpuProfilingFrameCount_ = 0U;
     gpuProfilingEnabled_ = false;
     gpuTimersInitialized_ = false;
     performanceStats_.gpuTimersSupported = false;
@@ -352,7 +367,8 @@ void Renderer::setGpuProfilingEnabled(bool enabled) {
 
 void Renderer::beginGpuTimer(RendererGpuStage stage) {
 #if defined(__APPLE__)
-    if (!gpuProfilingEnabled_ || activeGpuStage_ ||
+    if (!gpuProfilingEnabled_ || sampledGpuStage_ != stage || activeGpuStage_ ||
+        performanceStats_.gpuQueriesIssued != 0U ||
         stage == RendererGpuStage::Count) {
         return;
     }
@@ -373,6 +389,7 @@ void Renderer::beginGpuTimer(RendererGpuStage stage) {
     rlDrawRenderBatchActive();
     glBeginQuery(
         GL_TIME_ELAPSED, gpuQueries_[stageIndex][slotIndex].id);
+    ++performanceStats_.gpuQueriesIssued;
     activeGpuStage_ = stage;
     activeGpuQueryIndex_ = slotIndex;
 #else
