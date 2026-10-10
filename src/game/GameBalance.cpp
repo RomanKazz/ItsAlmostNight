@@ -314,7 +314,7 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
     const GameplayBalanceDefinition definition{
         .eyeHeight = value.at("eyeHeight").get<double>(),
         .walkSpeed = value.at("walkSpeed").get<double>(),
-        .sprintSpeed = value.at("sprintSpeed").get<double>(),
+        .sprintSpeed = value.value("sprintSpeed", value.at("walkSpeed").get<double>()),
         .playerAcceleration =
             value.value("playerAcceleration", 36.0),
         .playerDeceleration =
@@ -364,7 +364,7 @@ GameplayBalanceDefinition parseGameplay(const Json& value) {
         .maximumPlacementDistance = value.at("maximumPlacementDistance").get<double>(),
     };
     if (definition.eyeHeight <= 0.0 || definition.walkSpeed <= 0.0 ||
-        definition.sprintSpeed < definition.walkSpeed ||
+        definition.sprintSpeed <= 0.0 ||
         definition.playerAcceleration <= 0.0 ||
         definition.playerDeceleration <= 0.0 ||
         definition.jumpSpeed <= 0.0 ||
@@ -476,7 +476,7 @@ GameBalance GameBalance::defaults() {
             .buildingUpgradeCrystalBonus = {5, 10, 15, 20, 30, 40, 55},
             .coreUpgradeCrystals = {30, 50, 75, 110, 150, 200, 260},
         },
-        .gameplay = {1.7, 5.0, 8.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
+        .gameplay = {1.7, 6.0, 6.0, 36.0, 48.0, 6.5, 18.0, 100.0, 5.0, 0.25,
                      12.0, 3.5, 0.45, 4.0, 4.0,
                      1.0, 0.65, 0.2, 0.15, 0.45, 0.25, 0.30,
                      75.0, 75.0, 15.0, 60.0, 60.0, 0.0, 5.0, 1.0, 10.0},

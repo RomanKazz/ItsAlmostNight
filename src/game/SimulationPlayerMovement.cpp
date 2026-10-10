@@ -96,8 +96,7 @@ void Simulation::updatePlayer(double deltaSeconds,
     const double directionX = (sinYaw * forward) + (cosYaw * right);
     const double directionZ = (-cosYaw * forward) + (sinYaw * right);
     const double speed =
-        ((!playerFlying_ && command.sprint)
-             ? gameplay_.sprintSpeed : gameplay_.walkSpeed) *
+        gameplay_.walkSpeed *
         playerMoveSpeedMultiplier_ * runPlayerMoveSpeedMultiplier_ *
         (battlePotionBerserkRemaining_ > 0.0 ? 1.25 : 1.0) *
         (playerFlying_ ? 1.0 : terrain_.waterMovementMultiplier(

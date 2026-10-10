@@ -603,7 +603,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::MoveBackward: return "MOVE BACKWARD";
     case ControlAction::MoveRight: return "MOVE RIGHT";
     case ControlAction::Jump: return "JUMP";
-    case ControlAction::Sprint: return "SPRINT";
+    case ControlAction::Sprint: return "FLY DOWN (SANDBOX)";
     case ControlAction::Dash: return "DASH";
     case ControlAction::Attack: return "ATTACK";
     case ControlAction::ToggleTool: return "NEXT EQUIPMENT";

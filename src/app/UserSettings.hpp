@@ -30,7 +30,7 @@ enum class ControlAction : std::uint8_t {
     MoveBackward,
     MoveRight,
     Jump,
-    Sprint,
+    Sprint, // Stable saved action ID, now sandbox flight descent.
     Dash,
     Attack,
     ToggleTool,

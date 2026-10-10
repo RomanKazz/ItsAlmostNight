@@ -19,6 +19,8 @@ void settingsRoundTrip() {
     std::error_code error;
     std::filesystem::remove(path, error);
 
+    require(std::string(ian::controlActionName(ian::ControlAction::Sprint)) == "FLY DOWN (SANDBOX)",
+            "settings no longer advertises a ground sprint action");
     ian::UserSettings written;
     written.graphics.fullscreen = true;
     written.graphics.renderWidth = 2560;

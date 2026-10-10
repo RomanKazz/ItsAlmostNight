@@ -383,6 +383,46 @@ void runSimulationTests() {
             "unlimited resources bulk upgrade terminates at maximum level");
     }
     {
+        auto map = ian::MapDefinition::defaults();
+        map.resources.clear(); map.obstacles.clear();
+        auto world = ian::WorldConfig::defaults();
+        world.terrainAmplitude = 0.0;
+        world.pondMinimumCount = world.pondMaximumCount = 0;
+        const auto balance = ian::GameBalance::defaults();
+        auto walking = std::make_unique<ian::Simulation>(balance, map, world);
+        auto shiftHeld = std::make_unique<ian::Simulation>(balance, map, world);
+        walking->startRunFromSeed(ian::PlayerClass::Vanguard, 12345);
+        shiftHeld->startRunFromSeed(ian::PlayerClass::Vanguard, 12345);
+        ian::PlayerCommand forward; forward.moveForward = 1;
+        auto withShift = forward; withShift.sprint = true;
+        for (int frame = 0; frame < 60; ++frame) {
+            walking->tick(1.0 / 60.0, forward);
+            shiftHeld->tick(1.0 / 60.0, withShift);
+        }
+        requireNear(std::hypot(walking->snapshot().playerHorizontalVelocity.x,
+                walking->snapshot().playerHorizontalVelocity.z), 6.0, 1e-9,
+            "ordinary movement reaches the new six meter per second base speed");
+        requireNear(walking->snapshot().playerPosition.z, shiftHeld->snapshot().playerPosition.z, 1e-12,
+            "holding former sprint input cannot increase movement speed");
+        require(walking->grantDebugRunUpgrade(ian::RunUpgradeEffect::MoveSpeed),
+            "movement tome remains available without sprint");
+        for (int frame = 0; frame < 30; ++frame) walking->tick(1.0 / 60.0, forward);
+        requireNear(std::hypot(walking->snapshot().playerHorizontalVelocity.x,
+                walking->snapshot().playerHorizontalVelocity.z), 6.0 * 1.07, 1e-9,
+            "movement tome scales the faster base speed");
+        ian::PlayerCommand dash = forward; dash.dash = true;
+        walking->tick(1.0 / 60.0, dash);
+        require(walking->snapshot().dashing &&
+            std::hypot(walking->snapshot().playerHorizontalVelocity.x,
+                walking->snapshot().playerHorizontalVelocity.z) > 15.0,
+            "dash retains its separate burst speed");
+        ian::PlayerCommand diagonal; diagonal.moveForward = diagonal.moveRight = 1;
+        for (int frame = 0; frame < 60; ++frame) shiftHeld->tick(1.0 / 60.0, diagonal);
+        requireNear(std::hypot(shiftHeld->snapshot().playerHorizontalVelocity.x,
+                shiftHeld->snapshot().playerHorizontalVelocity.z), 6.0, 1e-9,
+            "diagonal input cannot exceed the constant movement speed");
+    }
+    {
         ian::MapDefinition map = ian::MapDefinition::defaults();
         map.resources.clear();
         map.obstacles.clear();
@@ -425,7 +465,7 @@ void runSimulationTests() {
         require(
             sandbox.snapshot().playerPosition.y <
                 raisedHeight - 1.0,
-            "sprint key descends during sandbox flight");
+            "legacy Shift binding still descends during sandbox flight");
         sandbox.tick(1.0 / 60.0, tap);
         sandbox.tick(1.0 / 60.0);
         sandbox.tick(1.0 / 60.0, tap);

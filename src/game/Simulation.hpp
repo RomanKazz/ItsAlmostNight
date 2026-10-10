@@ -133,7 +133,7 @@ struct PlayerCommand {
     std::optional<EntityId> aimedWorldLandmarkOverride;
     bool jump{};
     bool jumpHeld{};
-    bool sprint{};
+    bool sprint{}; // Stable legacy input field: descend during sandbox flight only.
     bool dash{};
     bool usePickaxe{};
     bool fireRifle{};

@@ -139,7 +139,7 @@ struct EconomyBalanceDefinition {
 struct GameplayBalanceDefinition {
     double eyeHeight;
     double walkSpeed;
-    double sprintSpeed;
+    double sprintSpeed; // Legacy config field, ignored by movement.
     double playerAcceleration;
     double playerDeceleration;
     double jumpSpeed;
