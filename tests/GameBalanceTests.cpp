@@ -61,6 +61,9 @@ void runGameBalanceTests() {
         constexpr std::array CannonPrices{15, 25, 40, 55, 80, 110, 145};
         constexpr std::array CatapultPrices{20, 35, 55, 80, 115, 150, 200};
         constexpr std::array BasicPrices{5, 10, 15, 20, 30, 40, 55};
+        constexpr std::array CrossbowPrices{10, 15, 25, 35, 50, 65, 85};
+        require(economyBuildings.configuredCost(ian::BuildingType::Turret) == ian::ResourceCost{25, 15, 5},
+                "crossbow construction requires wood, stone and crystals");
         for (std::uint8_t level = 1; level < ian::MaxBuildingLevel; ++level) {
             const auto priceAt = [&](ian::BuildingType type) {
                 return economyBuildings.upgradeCost({.type = type, .level = level});
@@ -73,8 +76,9 @@ void runGameBalanceTests() {
             require(priceAt(ian::BuildingType::Cannon).crystals == CannonPrices[level - 1] &&
                         priceAt(ian::BuildingType::Catapult).crystals == CatapultPrices[level - 1],
                     "heavy weapon upgrades retain progressively higher crystal prices");
-            for (const auto type : {ian::BuildingType::Turret,
-                                    ian::BuildingType::CrystalMine,
+            require(priceAt(ian::BuildingType::Turret).crystals == CrossbowPrices[level - 1],
+                    "crossbow upgrade prices include its crystal construction cost");
+            for (const auto type : {ian::BuildingType::CrystalMine,
                                     ian::BuildingType::Quarry,
                                     ian::BuildingType::LumberMill}) {
                 require(priceAt(type).crystals == BasicPrices[level - 1],

@@ -62,6 +62,38 @@ void lifetimeAndRunProgress() {
             profile.silver == 3, "completed quest cannot pay twice");
 }
 
+void rewardNotificationCounts() {
+    auto building = goal("building", QuestMetric::EnemiesDefeated, 1, QuestScope::Lifetime, 4);
+    building.category = QuestCategory::Buildings;
+    auto immediateUnlock = goal("unlock_only", QuestMetric::EnemiesDefeated, 1, QuestScope::Lifetime, 0);
+    immediateUnlock.category = QuestCategory::Weapons;
+    immediateUnlock.reward.unlockId = "meta.notification";
+    QuestSystem system({goal("general", QuestMetric::EnemiesDefeated, 1), building,
+                        immediateUnlock, goal("unfinished", QuestMetric::EnemiesDefeated, 3)});
+    MetaProgression profile;
+    system.beginRun(profile);
+    require(system.categoryProgress(profile).unclaimedRewards == 0,
+            "new profile has no quest reward notification");
+    static_cast<void>(send(system, profile, {{QuestMetric::EnemiesDefeated, 1}}));
+    profile.quests.progress["removed_catalog_quest"].completed = true;
+    const auto all = system.categoryProgress(profile);
+    require(all.total == 4 && all.completed == 3 && all.unclaimedRewards == 2,
+            "notifications count only completed, unclaimed silver rewards from the current catalog");
+    require(system.categoryProgress(profile, QuestCategory::Buildings).unclaimedRewards == 1 &&
+                system.categoryProgress(profile, QuestCategory::General).unclaimedRewards == 1 &&
+                system.categoryProgress(profile, QuestCategory::Weapons).unclaimedRewards == 0 &&
+                system.categoryProgress(profile, QuestCategory::Cosmetics).total == 0,
+            "category notifications exclude immediate unlocks and empty categories");
+    require(system.claimReward(profile, "building").silverGranted == 4 &&
+                system.categoryProgress(profile).unclaimedRewards == 1 &&
+                system.categoryProgress(profile, QuestCategory::Buildings).unclaimedRewards == 0 &&
+                system.categoryProgress(profile, QuestCategory::Buildings).completed == 1,
+            "claim removes the notification while retaining completion progress");
+    require(!system.claimReward(profile, "building").claimed &&
+                system.categoryProgress(profile).unclaimedRewards == 1,
+            "repeated claims cannot remove another quest notification");
+}
+
 void filtersAndMaximums() {
     auto defense = goal("gun", QuestMetric::EnemiesDefeated, 2);
     defense.conditions[0].subject = "gun_turret";
@@ -402,6 +434,7 @@ void closestQuestRecommendations() {
 
 void runQuestSystemTests() {
     lifetimeAndRunProgress();
+    rewardNotificationCounts();
     filtersAndMaximums();
     combinedConditionsAndDependencies();
     purchasesAreSeparate();

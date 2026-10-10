@@ -110,6 +110,32 @@ void runBuildingSystemTests() {
             ian::BuildingType::WoodStorage, {0, 0}, 0,
             1000, 1000, 1000),
         "removed storage cannot be placed through the building system");
+    {
+        ian::BuildingSystem perimeter;
+        perimeter.setSandboxMode(true);
+        require(perimeter.place(ian::BuildingType::Core, {0, 0}, 0, 1000, 1000, 1000).has_value(),
+                "wall pricing fixture creates core");
+        std::optional<ian::PlacedBuilding> lastWall;
+        for (int existing = 0; existing < 40; ++existing) {
+            const ian::ResourceCost expected{10 + existing / 10, 0, 0};
+            const ian::GridPosition site{4 + existing * 2, 0};
+            require(perimeter.configuredCost(ian::BuildingType::Wall) == expected,
+                    "long perimeter accumulates one wood per ten existing walls");
+            require(perimeter.validate(ian::BuildingType::Wall, site, expected.wood - 1, 0, 0).error ==
+                        ian::PlacementError::InsufficientResources,
+                    "wall preview rejects resources below its current price");
+            lastWall = perimeter.place(ian::BuildingType::Wall, site, 0, expected.wood, 0, 0);
+            require(lastWall && lastWall->cost == expected,
+                    "wall placement charges exactly its preview price");
+        }
+        require(perimeter.configuredCost(ian::BuildingType::Wall).wood == 14 &&
+                    perimeter.configuredCost(ian::BuildingType::GunTurret) ==
+                        ian::buildingCost(ian::BuildingType::GunTurret),
+                "forty walls cost fourteen wood without affecting other building types");
+        require(perimeter.damage(lastWall->building.id, lastWall->building.maxHealth)->destroyed &&
+                    perimeter.configuredCost(ian::BuildingType::Wall).wood == 13,
+                "destroyed walls no longer count toward perimeter inflation");
+    }
     std::array<std::uint8_t, ian::GameBalance::BuildingTypeCount>
         legacyBlueprintLevels{};
     legacyBlueprintLevels.fill(1U);
@@ -197,8 +223,16 @@ void runBuildingSystemTests() {
                 35, 25, 10).valid() &&
             starterDefense.validate(
                 ian::BuildingType::Turret, {4, 0},
-                25, 15).valid(),
+                25, 15, 5).valid(),
         "low-level placement does not enforce run arsenal ownership");
+    require(starterDefense.validate(ian::BuildingType::Turret, {4, 0}, 25, 15, 4).error ==
+                ian::PlacementError::InsufficientResources &&
+            !starterDefense.place(ian::BuildingType::Turret, {4, 0}, 0, 25, 15, 4) &&
+            starterDefense.buildings().size() == 1,
+            "crossbow cannot be built without its five crystals");
+    const auto crossbow = starterDefense.place(ian::BuildingType::Turret, {4, 0}, 0, 25, 15, 5);
+    require(crossbow && crossbow->cost == ian::ResourceCost{25, 15, 5},
+            "successful crossbow placement charges the displayed crystal price");
 
     auto buildingFixtureBalance = ian::GameBalance::defaults();
     buildingFixtureBalance.buildings[static_cast<std::size_t>(

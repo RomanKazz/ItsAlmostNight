@@ -312,13 +312,16 @@ std::vector<QuestStatus> QuestSystem::recommendedStatuses(
     return result;
 }
 
-QuestCategoryProgress QuestSystem::categoryProgress(const MetaProgression& progression, QuestCategory category) const {
+QuestCategoryProgress QuestSystem::categoryProgress(
+    const MetaProgression& progression, std::optional<QuestCategory> category) const {
     QuestCategoryProgress result;
     for (const auto& definition : definitions_) {
-        if (definition.category != category) continue;
+        if (category && definition.category != *category) continue;
         ++result.total;
         const auto found = progression.quests.progress.find(definition.id);
-        if (found != progression.quests.progress.end() && found->second.completed) ++result.completed;
+        if (found == progression.quests.progress.end() || !found->second.completed) continue;
+        ++result.completed;
+        if (!found->second.rewardClaimed && definition.reward.silver > 0) ++result.unclaimedRewards;
     }
     return result;
 }

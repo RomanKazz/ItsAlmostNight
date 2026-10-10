@@ -6,6 +6,7 @@
 #include "progression/MetaProgression.hpp"
 #include "progression/RunUpgrade.hpp"
 #include "ui/UiText.hpp"
+#include "ui/UiNotificationBadge.hpp"
 
 #include <algorithm>
 #include <array>
@@ -325,16 +326,18 @@ QuestMenuResult drawQuestMenu(
             selectTab(state, i);
             result.interaction = true;
         }
-        const auto category = i == 0 ? QuestCategoryProgress{done, total}
-            : quests.categoryProgress(profile, static_cast<QuestCategory>(i - 1));
+        const auto category = quests.categoryProgress(profile,
+            i == 0 ? std::nullopt : std::optional{static_cast<QuestCategory>(i - 1)});
         const bool selected = tabIndex(state) == i;
         panel(tab, layout.scale, selected ? Color{61, 86, 75, 255} : Color{39, 44, 47, 255},
             selected ? Gold : Color{77, 82, 76, 255});
-        text(TabNames[i], layout.rect(x + 8, 209, 144, 27), 13 * layout.scale,
+        text(TabNames[i], layout.rect(x + 8, 209, category.unclaimedRewards > 0 ? 122 : 144, 27), 13 * layout.scale,
             category.total == 0 ? Muted : selected ? Gold : Cream, UiFontRole::BodyBold, 1);
         text(std::to_string(category.completed) + " / " + std::to_string(category.total),
             layout.rect(x + 8, 238, 144, 19), 11 * layout.scale, category.completed > 0 ? Green : Muted,
             UiFontRole::Body, 1);
+        const auto badge = layout.rect(x + 148, 205, 0, 0);
+        drawUiNotificationBadge({badge.x, badge.y}, 13 * layout.scale, category.unclaimedRewards);
     }
     const auto sortBounds = layout.rect(204, 278, 300, 24);
     if (CheckCollisionPointRec(input.pointer, sortBounds) && input.click) {

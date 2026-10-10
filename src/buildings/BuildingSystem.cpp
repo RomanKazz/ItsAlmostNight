@@ -562,14 +562,38 @@ ResourceCost BuildingSystem::cost(BuildingType type) const {
 
 ResourceCost BuildingSystem::configuredCost(BuildingType type) const {
     const ResourceCost base = cost(type);
-    if (!usesGlobalBlueprint(type)) return base;
-    const double multiplier = 1.0 +
-        0.12 * static_cast<double>(blueprintLevel(type) - 1);
-    return {
-        scaledCostComponent(base.wood, multiplier),
-        scaledCostComponent(base.stone, multiplier),
-        scaledCostComponent(base.crystals, multiplier),
-    };
+    ResourceCost result = base;
+    if (type == BuildingType::Core) return result;
+
+    const int existingCount = static_cast<int>(std::count_if(
+        buildings_.begin(), buildings_.end(),
+        [type](const BuildingInstance& building) {
+            return building.type == type;
+        }));
+    if (existingCount == 0) return result;
+
+    // Walls are built in long perimeter lines: accumulate a one-percent
+    // surcharge before rounding, rather than charging at least one resource
+    // per copy (which made a ten-wood wall grow by ten percent per copy).
+    // Other buildings retain their four-percent, per-copy increase. Put the
+    // increment in the primary resource to keep the hotbar costs readable.
+    const int baseTotal = addCostComponents(
+        addCostComponents(base.wood, base.stone), base.crystals);
+    const int incrementPerCopy = std::max(
+        1, static_cast<int>(std::lround(baseTotal * 0.04)));
+    const int increment = static_cast<int>(std::min<long long>(
+        std::numeric_limits<int>::max(),
+        type == BuildingType::Wall
+            ? static_cast<long long>(baseTotal) * existingCount / 100
+            : static_cast<long long>(incrementPerCopy) * existingCount));
+    if (base.wood > 0) {
+        result.wood = addCostComponents(result.wood, increment);
+    } else if (base.stone > 0) {
+        result.stone = addCostComponents(result.stone, increment);
+    } else if (base.crystals > 0) {
+        result.crystals = addCostComponents(result.crystals, increment);
+    }
+    return result;
 }
 
 ResourceCost BuildingSystem::repairCost(const BuildingInstance& building) const {

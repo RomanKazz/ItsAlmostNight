@@ -4,6 +4,7 @@
 
 #include <array>
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -49,6 +50,7 @@ struct QuestStatus {
 struct QuestCategoryProgress {
     std::size_t completed{};
     std::size_t total{};
+    std::size_t unclaimedRewards{};
 };
 
 enum class QuestPurchaseResult { Purchased, UnknownUnlock, RequirementsNotMet, AlreadyOwned, InsufficientSilver };
@@ -81,7 +83,8 @@ class QuestSystem {
     [[nodiscard]] std::vector<QuestStatus> recommendedStatuses(
         const MetaProgression& progression, std::size_t limit = 4) const;
     [[nodiscard]] QuestCategoryProgress categoryProgress(
-        const MetaProgression& progression, QuestCategory category) const;
+        const MetaProgression& progression,
+        std::optional<QuestCategory> category = std::nullopt) const;
     [[nodiscard]] std::span<const QuestDefinition> definitions() const;
 
   private:

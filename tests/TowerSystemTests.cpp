@@ -35,7 +35,7 @@ void runTowerSystemTests() {
                 buildings.upgrade(
                     placedCore->building.id, 0, 0, 100).valid(),
             "tower fixture unlocks crossbow");
-    const auto turret = buildings.place(ian::BuildingType::Turret, {0, -4}, 0, 25, 15);
+    const auto turret = buildings.place(ian::BuildingType::Turret, {0, -4}, 0, 25, 15, 5);
     require(turret.has_value(), "tower fixture creates turret");
     const ian::ResourceCost turretBlueprintCost =
         buildings.blueprintUpgradeCost(ian::BuildingType::Turret);
@@ -114,7 +114,7 @@ void runTowerSystemTests() {
             "piercing fixture unlocks crossbow");
     require(piercingBuildings.place(
                 ian::BuildingType::Turret, {0, -4}, 0,
-                25, 15).has_value(),
+                25, 15, 5).has_value(),
             "piercing fixture creates crossbow");
     constexpr std::array<ian::EnemySpawn, 3> PiercingSpawn{{
         {.type = ian::EnemyType::Basic,

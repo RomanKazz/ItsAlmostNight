@@ -8,7 +8,7 @@
     "maxHealth": 100, "unlockCoreLevel": 1, "maxCount": 256
   },
   "turret": {
-    "wood": 25, "stone": 15, "crystals": 0,
+    "wood": 25, "stone": 15, "crystals": 5,
     "maxHealth": 120, "unlockCoreLevel": 1, "maxCount": 64
   },
   "crystalMine": {
