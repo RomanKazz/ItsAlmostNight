@@ -46,6 +46,17 @@ int main(int argc,char** argv) {
             require(!result.purchase&&profile.silver==46,"capped upgrade never charges again");
             result=drawShopMenu(ui,profile,state,viewport,{.selectionStep=5});
             require(state.selected==MetaShopUpgrade::BuildingHealth,"keyboard moves between grid rows");
+            result=drawShopMenu(ui,profile,state,viewport,{.pointer=point(1190,620),.click=true});
+            require(state.selected==MetaShopUpgrade::TomeSlots,"ninth shop tile selects tome slots");
+            profile.silver=50;
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(result.purchase&&profile.silver==40&&metaRunBonuses(profile).additionalTomeSlots==1,
+                "first tome slot costs ten silver");
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(result.purchase&&profile.silver==25&&metaRunBonuses(profile).additionalTomeSlots==2,
+                "second tome slot costs fifteen silver");
+            result=drawShopMenu(ui,profile,state,viewport,{.confirm=true});
+            require(!result.purchase&&profile.silver==25,"tome slot shop purchase stops at six total slots");
             result=drawShopMenu(ui,profile,state,viewport,{.close=true});require(result.close,"close input works");
             profile.shopLevels={4,2,3,1,0,0,0,0};profile.silver=38;state.selected=MetaShopUpgrade::SilverGain;
             ClearBackground({61,82,66,255});

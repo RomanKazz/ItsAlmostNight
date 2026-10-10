@@ -286,11 +286,14 @@ void runRunUpgradeTests() {
     xp.grantInsight = GrantInsightCommand{1000.0};
     simulation->tick(1.0 / 60.0, xp);
     require(simulation->snapshot().runUpgradeChoicePending, "XP produces upgrade offers");
-    const auto saved = simulation->saveSuspendedRunState();
+    auto saved = simulation->saveSuspendedRunState();
+    saved.runUpgradeChoiceCount = 4;
+    saved.runUpgradeChoices = {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
+        RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::MoveSpeed};
     auto restored = std::make_unique<Simulation>();
     require(restored->loadSuspendedRunState(saved), "rarity checkpoint restores");
-    require(restored->snapshot().runUpgradeRarities == simulation->snapshot().runUpgradeRarities &&
-        restored->snapshot().runUpgradeChoices == simulation->snapshot().runUpgradeChoices &&
+    require(restored->snapshot().runUpgradeRarities == saved.runUpgradeRarities &&
+        restored->snapshot().runUpgradeChoices == saved.runUpgradeChoices &&
         restored->snapshot().runUpgradePower == simulation->snapshot().runUpgradePower,
         "reload preserves offered rarities and all accumulated power");
     requireNear(restored->snapshot().playerDamageMultiplier,
@@ -587,34 +590,175 @@ void runRunUpgradeTests() {
         }
     }
 
+    {
+        auto run = std::make_unique<Simulation>();
+        run->startRunFromSeed(PlayerClass::Engineer, 12345);
+        require(run->snapshot().tomeCount == 0 && run->snapshot().tomeSlotLimit == 4,
+            "fresh run has four empty tome slots");
+        const std::array choices{RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::CriticalChance,
+            RunUpgradeEffect::Ricochet, RunUpgradeEffect::GunPiercing};
+        for (std::size_t index = 0; index < choices.size(); ++index) {
+            auto checkpoint = run->saveSuspendedRunState();
+            checkpoint.runUpgradeChoicePending = true;
+            checkpoint.runUpgradeChoiceCount = 4;
+            checkpoint.runUpgradeSelectionsRemaining = 1;
+            std::copy(choices.begin(), choices.end(), checkpoint.runUpgradeChoices.begin());
+            checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+            run->returnToMainMenu();
+            require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(index),
+                "normal card selection acquires universal stat tomes");
+            require(run->snapshot().tomeCount == static_cast<int>(index + 1), "different tomes occupy slots");
+        }
+        auto checkpoint = run->saveSuspendedRunState();
+        checkpoint.runUpgradeChoicePending = true;
+        checkpoint.runUpgradeChoiceCount = 4;
+        checkpoint.runUpgradeSelectionsRemaining = 1;
+        std::copy(choices.begin(), choices.end(), checkpoint.runUpgradeChoices.begin());
+        checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(0),
+            "full inventory still offers and levels an owned tome");
+        require(run->snapshot().tomeCount == 4 &&
+            run->snapshot().runUpgradeStacks[runUpgradeIndex(choices[0])] == 2,
+            "repeat upgrade uses no additional slot");
+        // Migrating a suspended offer must drop new tomes that no longer fit.
+        checkpoint = run->saveSuspendedRunState();
+        checkpoint.runUpgradeChoicePending = true;
+        checkpoint.runUpgradeChoiceCount = 4;
+        checkpoint.runUpgradeSelectionsRemaining = 1;
+        checkpoint.runUpgradeChoices = {RunUpgradeEffect::Luck, RunUpgradeEffect::Damage,
+            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::MoveSpeed};
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(checkpoint), "full tome inventory resumes");
+        for (int reroll = 0; reroll < 4; ++reroll) {
+            const auto offered = run->snapshot();
+            require(offered.runUpgradeChoicePending, "remaining repeat tomes and blueprints offer choices");
+            for (std::size_t index = 0; index < offered.runUpgradeChoiceCount; ++index) {
+                const auto tomeEffect = offered.runUpgradeChoices[index];
+                require(!runTomeDefinition(tomeEffect) || offered.runUpgradeStacks[runUpgradeIndex(tomeEffect)] > 0,
+                    "full slots never offer a new tome, including after resume and rerolls");
+            }
+            require(rerollWithSavedToken(*run), "tome-filtered offers reroll");
+        }
+        require(run->grantDebugRunUpgrade(RunUpgradeEffect::Luck), "debug can exceed distinct tome slots");
+        checkpoint = run->saveSuspendedRunState();
+        const auto power = checkpoint.runUpgradePower;
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(checkpoint) && run->snapshot().tomeCount == 5 &&
+            run->snapshot().runUpgradePower == power,
+            "legacy or debug inventory over the cap preserves every bonus exactly once");
+        run->restartRun();
+        require(run->snapshot().tomeCount == 0, "restart clears tome ownership");
+        run->returnToMainMenu();
+        run->startRunFromSeed(PlayerClass::Engineer, 12345);
+
+        checkpoint = run->saveSuspendedRunState();
+        checkpoint.runUpgradeChoicePending = true;
+        checkpoint.runUpgradeChoiceCount = 4;
+        checkpoint.runUpgradeSelectionsRemaining = 1;
+        checkpoint.runUpgradeChoices = {RunUpgradeEffect::Luck, RunUpgradeEffect::Damage,
+            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::MoveSpeed};
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(checkpoint), "stale offer fixture loads");
+        for (const auto tomeEffect : choices) require(run->grantDebugRunUpgrade(tomeEffect), "debug fills slots behind open offers");
+        require(!run->selectRunUpgrade(0) && run->snapshot().tomeCount == 4,
+            "selection revalidates a stale fifth tome before applying its bonus");
+    }
+
+    {
+        auto run = std::make_unique<Simulation>();
+        for (int extraSlots : {1, 2}) {
+            MetaRunBonuses bonuses;
+            bonuses.additionalTomeSlots = extraSlots;
+            require(run->configureNextRunBonuses(bonuses), "slot bonus configures the next run");
+            run->startRunFromSeed(PlayerClass::Engineer, 12345);
+            for (const auto owned : {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
+                    RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::MaximumHealth})
+                require(run->grantDebugRunUpgrade(owned), "expanded inventory fixture owns four tomes");
+            auto checkpoint = run->saveSuspendedRunState();
+            checkpoint.runUpgradeChoicePending = true;
+            checkpoint.runUpgradeChoiceCount = 1;
+            checkpoint.runUpgradeSelectionsRemaining = 1;
+            checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::CriticalChance;
+            checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+            run->returnToMainMenu();
+            require(run->loadSuspendedRunState(checkpoint) && run->snapshot().runUpgradeChoiceCount == 1 &&
+                run->selectRunUpgrade(0) && run->snapshot().tomeCount == 5,
+                "fifth tome fits a purchased slot and single-card offers survive resume");
+            if (extraSlots == 2) {
+                checkpoint = run->saveSuspendedRunState();
+                checkpoint.runUpgradeChoicePending = true;
+                checkpoint.runUpgradeChoiceCount = 1;
+                checkpoint.runUpgradeSelectionsRemaining = 1;
+                checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::Ricochet;
+                run->returnToMainMenu();
+                require(run->loadSuspendedRunState(checkpoint) && run->selectRunUpgrade(0) &&
+                    run->snapshot().tomeCount == 6, "second meta rank allows a sixth distinct tome");
+            }
+            run->returnToMainMenu();
+        }
+    }
+    {
+        auto exhausted = std::make_unique<Simulation>();
+        exhausted->startRunFromSeed(PlayerClass::Engineer, 12345);
+        for (const auto owned : {RunUpgradeEffect::Damage, RunUpgradeEffect::Luck,
+                RunUpgradeEffect::MoveSpeed, RunUpgradeEffect::MaximumHealth})
+            require(exhausted->grantDebugRunUpgradeBatch(owned, 5, RunUpgradeRarity::Legendary),
+                "exhaustion fixture maximizes four owned tomes");
+        for (const auto acquiredEffect : {RunUpgradeEffect::UnlockTurret, RunUpgradeEffect::UnlockGunTurret,
+                RunUpgradeEffect::UnlockSpikeTrap, RunUpgradeEffect::UnlockLumberMill,
+                RunUpgradeEffect::UnlockQuarry, RunUpgradeEffect::UnlockCrystalMine,
+                RunUpgradeEffect::UnlockClub, RunUpgradeEffect::UnlockRifle,
+                RunUpgradeEffect::UnlockIceWand, RunUpgradeEffect::UnlockFireWand,
+                RunUpgradeEffect::CannonHeavyShell})
+            require(exhausted->grantDebugRunUpgrade(acquiredEffect), "exhaustion fixture fills arsenals and specialization");
+        require(exhausted->grantDebugRunUpgradeBatch(RunUpgradeEffect::RiskyInvestment, 2),
+            "one high stakes level remains");
+        auto checkpoint = exhausted->saveSuspendedRunState();
+        checkpoint.runUpgradeChoicePending = true;
+        checkpoint.runUpgradeChoiceCount = 1;
+        checkpoint.runUpgradeSelectionsRemaining = 2;
+        checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::RiskyInvestment;
+        checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
+        exhausted->returnToMainMenu();
+        require(exhausted->loadSuspendedRunState(checkpoint) && exhausted->selectRunUpgrade(0),
+            "last available perk can be selected");
+        require(!exhausted->snapshot().runUpgradeChoicePending && exhausted->snapshot().runUpgradeChoiceCount == 0 &&
+            exhausted->snapshot().runUpgradeSelectionsRemaining == 0,
+            "exhausted reward pool closes instead of trapping the run behind an empty chooser");
+        checkpoint = exhausted->saveSuspendedRunState();
+        exhausted->returnToMainMenu();
+        require(exhausted->loadSuspendedRunState(checkpoint), "exhausted reward state remains resumable");
+    }
+
     auto hammers = std::make_unique<Simulation>();
     hammers->startRunFromSeed(PlayerClass::Engineer, 12345);
-    for (std::size_t index = 0; index < RunHammerDefinitions.size(); ++index) {
-        const auto& hammer = RunHammerDefinitions[index];
-        require(runHammerDefinition(hammer.effect) == &hammer &&
+    for (std::size_t index = 0; index < RunTomeDefinitions.size(); ++index) {
+        const auto& hammer = RunTomeDefinitions[index];
+        require(runTomeDefinition(hammer.effect) == &hammer &&
             runUpgradeDefinition(hammer.effect).name == hammer.name,
             "hammer cards share the persistent stat item definition");
-        for (std::size_t other = index + 1; other < RunHammerDefinitions.size(); ++other)
-            require(hammer.effect != RunHammerDefinitions[other].effect,
+        for (std::size_t other = index + 1; other < RunTomeDefinitions.size(); ++other)
+            require(hammer.effect != RunTomeDefinitions[other].effect,
                 "each hammer owns one stable effect rather than a duplicate bonus");
     }
     for (auto numericEffect : {RunUpgradeEffect::Salvager, RunUpgradeEffect::LongerDay,
             RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction,
             RunUpgradeEffect::CrystalMineProduction})
-        require(runHammerDefinition(numericEffect), "remaining numeric bonuses use hammer cards");
+        require(runTomeDefinition(numericEffect), "remaining numeric bonuses use hammer cards");
     for (auto mechanic : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::CannonHeavyShell,
-            RunUpgradeEffect::Ricochet, RunUpgradeEffect::TwinBatteries, RunUpgradeEffect::BloodHarvest})
-        require(!runHammerDefinition(mechanic), "blueprints and mechanical perks stay separate from hammers");
+            RunUpgradeEffect::RiskyInvestment, RunUpgradeEffect::UnlockRifle, RunUpgradeEffect::CannonScattershot})
+        require(!runTomeDefinition(mechanic), "blueprints and mechanical perks stay separate from hammers");
     require(retiredRunUpgrade(RunUpgradeEffect::GatheringSpeed), "retired quick tools does not duplicate haste offers");
     std::size_t activeCount = 0;
     std::size_t activeHammers = 0;
     for (const auto& card : RunUpgradeDefinitions) {
         if (!retiredRunUpgrade(card.effect)) {
             ++activeCount;
-            if (runHammerDefinition(card.effect)) ++activeHammers;
+            if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 47 && activeHammers == 13, "rotation retains original cards, six universal attack stats and venom");
+    require(activeCount == 47 && activeHammers == 29, "rotation retains original cards, six universal attack stats and venom");
     require(!retiredRunUpgrade(RunUpgradeEffect::LongerDay) &&
             !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and high stakes remain available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
@@ -665,7 +809,7 @@ void runRunUpgradeTests() {
         "regen clamps to maximum health");
     hammers->returnToMainMenu();
     hammers->startRunFromSeed(PlayerClass::Engineer, 12345);
-    for (const auto& hammer : RunHammerDefinitions)
+    for (const auto& hammer : RunTomeDefinitions)
         require(hammers->snapshot().runUpgradeStacks[runUpgradeIndex(hammer.effect)] == 0,
             "new run clears owned hammers");
     requireNear(hammers->snapshot().upgradeStats.healthRegeneration, 0.0, 1e-12,

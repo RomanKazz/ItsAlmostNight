@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
     require(IsTextureValid(venomIcon), "venom has its own inventory icon");
     Image venomImage = LoadImageFromTexture(venomIcon);
     require(GetImageColor(venomImage, 0, 0).a == 0 &&
-        GetImageColor(venomImage, 58, 90).g > GetImageColor(venomImage, 58, 90).r,
-        "venom icon has transparent padding and green liquid");
+        GetImageColor(venomImage, 55, 90).g > GetImageColor(venomImage, 55, 90).r,
+        "venom tome has transparent padding and green cover");
     UnloadImage(venomImage);
     ian::SimulationSnapshot venomPreview{};
     venomPreview.runUpgradeChoiceCount = 1;
@@ -64,6 +64,14 @@ int main(int argc, char** argv) {
         arrowCenter.g > arrowCenter.r * 2 && arrowCenter.g > arrowCenter.b,
         "building upgrade arrow has a green face and transparent background");
     UnloadImage(arrowImage);
+    for (const auto& tome : ian::RunTomeDefinitions) {
+        const auto icon = ui.runUpgradeTexture(tome.effect);
+        require(icon.width == 256 && icon.height == 256, "tomes share cached book artwork dimensions");
+        Image image = LoadImageFromTexture(icon);
+        require(GetImageColor(image, 0, 0).a == 0 && GetImageColor(image, 100, 55).a == 255,
+            "book covers render with transparent outer padding");
+        UnloadImage(image);
+    }
     ian::SimulationSnapshot snapshot{};
     snapshot.runUpgradeChoicePending = true;
     snapshot.runUpgradeChoiceCount = 4;

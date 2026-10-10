@@ -29,6 +29,7 @@ int main() {
         const int balance=profile.silver;
         require(purchaseMetaShopUpgrade(profile,d.upgrade)==MetaShopPurchaseResult::MaximumLevel && profile.silver==balance,"level cap cannot charge again");
     }
+    require(metaRunBonuses(profile).additionalTomeSlots == 2, "two purchased ranks expand tome capacity to six");
     require(validMetaRunBonuses(metaRunBonuses(profile)),"catalog caps yield valid runtime bonuses");
     profile.silver=0;
     profile.shopLevels[0]=1;
@@ -47,6 +48,13 @@ int main() {
     require(loadMetaProgression(path.string(),loaded) && loaded==profile,"shop levels wallet ownership and fractional rewards survive reload");
     nlohmann::json saved;
     {std::ifstream input(path);input>>saved;}
+    auto oldShop = saved;
+    oldShop["shop"]["levels"].erase("tome_slots");
+    {std::ofstream output(path);output << oldShop;}
+    require(loadMetaProgression(path.string(), loaded) && metaRunBonuses(loaded).additionalTomeSlots == 0,
+        "pre-tome shop profiles default to four slots without disturbing other purchases");
+    {std::ofstream output(path);output << saved;}
+    require(loadMetaProgression(path.string(), loaded) && loaded == profile, "new slot purchases reload by stable string ID");
     saved["shop"]["levels"]["silver_gain"]=21;
     {std::ofstream output(path);output<<saved;}
     const auto unchanged=loaded;
@@ -77,8 +85,10 @@ int main() {
     const double oldDamage=sim->snapshot().upgradeStats.defenseDamage;
     require(sim->configureNextRunBonuses(bonuses),"valid bonuses configure next run");
     requireNear(sim->snapshot().upgradeStats.defenseDamage,oldDamage,1e-9,"buying does not alter an ongoing run");
+    require(sim->snapshot().tomeSlotLimit == 4, "shop slots do not alter an ongoing run");
     sim->restartRun();
     const auto boosted=sim->snapshot();
+    require(boosted.tomeSlotLimit == 6, "shop slot ranks activate on the next run");
     requireNear(boosted.upgradeStats.defenseDamage,1.25*1.1,1e-9,"defense bonus combines with class");
     requireNear(boosted.upgradeStats.buildingHealth,1.35*1.1,1e-9,"building health bonus combines with class");
     requireNear(boosted.upgradeStats.defenseFireRate,1.06,1e-9,"fire rate bonus is active");
@@ -95,10 +105,15 @@ int main() {
     auto resumed=std::make_unique<Simulation>(balance,map,world);
     require(resumed->loadSuspendedRunState(checkpoint),"boosted run checkpoint restores");
     const auto restored=resumed->snapshot();
+    require(restored.tomeSlotLimit == 6, "resume retains active tome slot purchases");
     requireNear(restored.upgradeStats.resourceYield,1.1,1e-9,"resume retains resource bonus");
     requireNear(restored.upgradeStats.luck,.04,1e-9,"resume retains luck");
     requireNear(restored.upgradeStats.defenseDamage,boosted.upgradeStats.defenseDamage,1e-9,"resume does not apply permanent damage twice");
     require(restored.runUpgradeRerollTokens==1,"resume does not replenish spent rerolls");
+    auto invalidSlots=bonuses; invalidSlots.additionalTomeSlots=3;
+    require(!sim->configureNextRunBonuses(invalidSlots), "invalid slot bonus rejects safely");
+    invalidSlots.additionalTomeSlots=-1;
+    require(!validMetaRunBonuses(invalidSlots), "negative tome capacity rejects safely");
     auto invalid=bonuses;invalid.luck=std::numeric_limits<double>::quiet_NaN();
     require(!sim->configureNextRunBonuses(invalid),"invalid bonuses reject safely");
     return 0;

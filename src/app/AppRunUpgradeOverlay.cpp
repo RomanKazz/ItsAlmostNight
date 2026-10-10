@@ -650,6 +650,7 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     if (gain <= 0.0) return projected;
     projected.runUpgradePower[index] += gain;
     ++projected.runUpgradeStacks[index];
+    projected.tomeCount = runTomeCount(projected.runUpgradeStacks);
     const auto* character = playerClassDefinition(snapshot.playerClass);
     const auto ratio = [&](double base, double step) {
         return (base + step * (current + gain)) / (base + step * current);
@@ -712,7 +713,7 @@ void drawRunUpgradeOverlay(
                   {30, 30, 30, static_cast<unsigned char>(
                       std::lround(170.0F * screenFade))});
     const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
-    drawRunHammerInventory(snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F}, overlayFade, mouse);
+    drawRunHammerInventory(ui, snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F}, overlayFade, mouse);
     const auto hoveredChoice = exitSeconds > 0.0 ? std::nullopt : hoveredRunUpgradeChoice(snapshot, mouse);
     drawUpgradeStats(snapshot, smoothUnit(static_cast<float>(entranceSeconds / 0.28)) * overlayFade, hoveredChoice);
     const float headingEntrance = std::clamp(static_cast<float>(
@@ -924,7 +925,7 @@ void drawRunUpgradeOverlay(
         const bool drawUpgradeIcon = IsTextureValid(cardIcon);
         if (const auto* hammer = runHammerDefinition(effect)) {
             const float iconSize = 235.0F * scale;
-            drawRunHammerIcon({centerX - iconSize * 0.5F, bounds.y + 16.0F * scale,
+            drawRunHammerIcon(ui, {centerX - iconSize * 0.5F, bounds.y + 16.0F * scale,
                 iconSize, iconSize}, *hammer, cardFade);
         } else if (drawUpgradeIcon) {
             const float iconSize = 256.0F * scale;

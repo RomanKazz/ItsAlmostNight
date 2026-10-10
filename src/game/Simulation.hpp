@@ -438,6 +438,8 @@ struct SimulationSnapshot {
     std::span<const ObjectiveStatus> objectives;
     std::array<int, 3> recommendedObjectives;
     std::size_t buildingArsenalCount{};
+    int tomeCount{};
+    int tomeSlotLimit{BaseRunTomeSlots};
     bool runUpgradeChoicePending{};
     std::size_t runUpgradeChoiceCount{};
     std::array<RunUpgradeEffect, MaximumRunUpgradeChoices>

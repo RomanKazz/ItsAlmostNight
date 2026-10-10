@@ -282,7 +282,7 @@ bool Simulation::loadSuspendedRunState(
     }
     if (saved.runUpgradeChoicePending) {
         invalidChoices = invalidChoices ||
-            saved.runUpgradeChoiceCount < MinimumRunUpgradeChoices ||
+            saved.runUpgradeChoiceCount == 0 ||
             saved.runUpgradeSelectionsRemaining <= 0;
     } else if (saved.runUpgradeSelectionsRemaining != 0) {
         invalidChoices = true;
@@ -601,7 +601,7 @@ bool Simulation::loadSuspendedRunState(
                 static_cast<std::ptrdiff_t>(runUpgradeChoiceCount_),
             [this, &saved](RunUpgradeEffect effect) {
                 return retiredRunUpgrade(effect) ||
-                    ((saved.buildingArsenalVersion < 2 || runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) &&
+                    ((saved.buildingArsenalVersion < 2 || runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect) || runTomeDefinition(effect)) &&
                      !runUpgradeAvailable(effect));
             })) {
         generateRunUpgradeChoices();

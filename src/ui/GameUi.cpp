@@ -1,5 +1,6 @@
 #include "ui/UiRenderLayer.hpp"
 #include "ui/GameUi.hpp"
+#include "ui/UiTomeIcon.hpp"
 
 #include "combat/PlayerWeaponSystem.hpp"
 #include "buildings/BuildingSystem.hpp"
@@ -256,6 +257,11 @@ void GameUi::initialize() {
             loadTexture(CoreMenuTexturePaths[index]);
         smoothHudIcon(coreMenuTextures_[index]);
     }
+    for (const auto& tome : RunTomeDefinitions) {
+        auto& icon = tomeIcons_[runUpgradeIndex(tome.effect)];
+        icon = createRunTomeIcon(runUpgradeSymbolTexture(tome.effect), tome.colorRgb);
+        smoothHudIcon(icon);
+    }
     minimapTarget_ = LoadRenderTexture(
         MinimapTargetSize, MinimapTargetSize);
     minimapFrameTarget_ = LoadRenderTexture(
@@ -337,6 +343,7 @@ void GameUi::shutdown() {
     }
     unloadTexture(xpGainUpgradeIcon_);
     unloadTexture(ricochetUpgradeIcon_);
+    for (auto& icon : tomeIcons_) unloadTexture(icon);
     unloadTexture(poisonUpgradeIcon_);
     unloadTexture(pierceUpgradeIcon_);
     unloadTexture(moveUpgradeIcon_);
@@ -673,6 +680,12 @@ Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
 }
 
 Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
+    if (runTomeDefinition(effect) && IsTextureValid(tomeIcons_[runUpgradeIndex(effect)]))
+        return tomeIcons_[runUpgradeIndex(effect)];
+    return runUpgradeSymbolTexture(effect);
+}
+
+Texture2D GameUi::runUpgradeSymbolTexture(RunUpgradeEffect effect) const {
     if (const auto weapon = runUpgradeWeapon(effect)) return weaponTexture(*weapon);
     switch (effect) {
     case RunUpgradeEffect::PoisonChance: return poisonUpgradeIcon_;

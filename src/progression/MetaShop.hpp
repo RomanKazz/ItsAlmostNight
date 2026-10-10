@@ -7,7 +7,7 @@
 namespace ian {
 struct MetaProgression;
 
-enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, Count };
+enum class MetaShopUpgrade { SilverGain, Rerolls, Luck, DefenseDamage, DefenseFireRate, BuildingHealth, ProductionSpeed, ResourceYield, TomeSlots, Count };
 inline constexpr std::size_t MetaShopUpgradeCount = static_cast<std::size_t>(MetaShopUpgrade::Count);
 
 struct MetaShopDefinition {
@@ -29,7 +29,11 @@ inline constexpr std::array<MetaShopDefinition, MetaShopUpgradeCount> MetaShopDe
     {MetaShopUpgrade::BuildingHealth, "building_health", "FORTIFY", "Increase the maximum health of your structures.", 10, 3, 5, {}},
     {MetaShopUpgrade::ProductionSpeed, "production_speed", "PRODUCTION", "Make mines, lumber mills and quarries produce faster.", 10, 3, 5, {}},
     {MetaShopUpgrade::ResourceYield, "resource_yield", "RESOURCE YIELD", "Gather more wood, stone and crystals from resource nodes.", 10, 3, 5, {}},
+    {MetaShopUpgrade::TomeSlots, "tome_slots", "TOME SLOTS", "Start with 4 different tomes. Each rank adds one slot, up to 6.", 2, 10, 1, {}},
 }};
+
+inline constexpr int BaseRunTomeSlots = 4;
+inline constexpr int MaximumRunTomeSlots = 6;
 
 struct MetaRunBonuses {
     double luck{};
@@ -39,6 +43,7 @@ struct MetaRunBonuses {
     double productionSpeed{1.0};
     double resourceYield{1.0};
     int rerolls{};
+    int additionalTomeSlots{};
     bool operator==(const MetaRunBonuses&) const = default;
 };
 

@@ -412,6 +412,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
         .objectives = objectives_.statuses(),
         .recommendedObjectives = recommendedObjectives,
         .buildingArsenalCount = runBuildingArsenalCount(),
+        .tomeCount = runTomeCount(runUpgradeStacks_),
+        .tomeSlotLimit = runTomeSlotLimit(activeMetaBonuses_),
         .runUpgradeChoicePending = runUpgradeChoicePending_,
         .runUpgradeChoiceCount = runUpgradeChoiceCount_,
         .runUpgradeChoices = runUpgradeChoices_,

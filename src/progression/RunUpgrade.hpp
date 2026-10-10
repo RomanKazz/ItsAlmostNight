@@ -1,6 +1,7 @@
 #pragma once
 
 #include "buildings/BuildingSystem.hpp"
+#include "progression/MetaShop.hpp"
 #include "combat/CannonAttack.hpp"
 #include "combat/PlayerWeaponSystem.hpp"
 
@@ -93,73 +94,107 @@ struct RunUpgradeDefinition {
     std::string_view description;
 };
 
-// A hammer is a persistent run stat item. Its level/power use the existing
+// A tome is a persistent run stat item. Its level/power use the existing
 // stable upgrade ID, so a renamed card never applies the bonus a second time.
-struct RunHammerDefinition {
+struct RunTomeDefinition {
     RunUpgradeEffect effect;
     std::string_view name;
     std::string_view mark;
     std::uint32_t colorRgb;
 };
 
-inline constexpr std::array<RunHammerDefinition, 18> RunHammerDefinitions{{
-    {RunUpgradeEffect::DefenseDamage, "MIGHT HAMMER", "DMG", 0xFFAD43},
-    {RunUpgradeEffect::DefenseFireRate, "RAPID HAMMER", "RATE", 0x4DDCF2},
-    {RunUpgradeEffect::BuildingHealth, "FORTITUDE HAMMER", "DEF", 0x78A7FF},
-    {RunUpgradeEffect::ProductionSpeed, "INDUSTRY HAMMER", "PROD", 0x72DA92},
-    {RunUpgradeEffect::Luck, "FORTUNE HAMMER", "LUCK", 0xA36CEF},
-    {RunUpgradeEffect::BuildRadius, "REACH HAMMER", "AREA", 0x58C2BB},
-    {RunUpgradeEffect::RichResources, "HARVEST HAMMER", "YIELD", 0xD3B061},
-    {RunUpgradeEffect::MaximumHealth, "VITALITY HAMMER", "HP", 0xFF647F},
-    {RunUpgradeEffect::RecoverableArmor, "GUARD HAMMER", "SHLD", 0x68DBFF},
-    {RunUpgradeEffect::MoveSpeed, "SWIFT HAMMER", "MOVE", 0x73D1CC},
-    {RunUpgradeEffect::AttackSpeed, "HASTE HAMMER", "SPD", 0xF69ED6},
-    {RunUpgradeEffect::Damage, "POWER HAMMER", "ATK", 0xF77E56},
-    {RunUpgradeEffect::Regeneration, "REGEN HAMMER", "REGEN", 0x8BDA66},
-    {RunUpgradeEffect::Salvager, "SALVAGE HAMMER", "SCRAP", 0xD8B072},
-    {RunUpgradeEffect::LongerDay, "DAYLIGHT HAMMER", "DAY", 0xFFE078},
-    {RunUpgradeEffect::LumberMillProduction, "SAWMILL HAMMER", "WOOD", 0xA9D96D},
-    {RunUpgradeEffect::QuarryProduction, "QUARRY HAMMER", "ROCK", 0x9DB7D6},
-    {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL HAMMER", "GEM", 0xCD87F6},
+inline constexpr std::array<RunTomeDefinition, 35> RunTomeDefinitions{{
+    {RunUpgradeEffect::DefenseDamage, "MIGHT TOME", "DMG", 0xFFAD43},
+    {RunUpgradeEffect::DefenseFireRate, "RAPID TOME", "RATE", 0x4DDCF2},
+    {RunUpgradeEffect::BuildingHealth, "FORTITUDE TOME", "DEF", 0x78A7FF},
+    {RunUpgradeEffect::ProductionSpeed, "INDUSTRY TOME", "PROD", 0x72DA92},
+    {RunUpgradeEffect::Luck, "FORTUNE TOME", "LUCK", 0xA36CEF},
+    {RunUpgradeEffect::BuildRadius, "REACH TOME", "AREA", 0x58C2BB},
+    {RunUpgradeEffect::RichResources, "HARVEST TOME", "YIELD", 0xD3B061},
+    {RunUpgradeEffect::MaximumHealth, "VITALITY TOME", "HP", 0xFF647F},
+    {RunUpgradeEffect::RecoverableArmor, "GUARD TOME", "SHLD", 0x68DBFF},
+    {RunUpgradeEffect::MoveSpeed, "SWIFT TOME", "MOVE", 0x73D1CC},
+    {RunUpgradeEffect::AttackSpeed, "HASTE TOME", "SPD", 0xF69ED6},
+    {RunUpgradeEffect::Damage, "POWER TOME", "ATK", 0xF77E56},
+    {RunUpgradeEffect::Regeneration, "REGEN TOME", "REGEN", 0x8BDA66},
+    {RunUpgradeEffect::Salvager, "SALVAGE TOME", "SCRAP", 0xD8B072},
+    {RunUpgradeEffect::LongerDay, "DAYLIGHT TOME", "DAY", 0xFFE078},
+    {RunUpgradeEffect::LumberMillProduction, "SAWMILL TOME", "WOOD", 0xA9D96D},
+    {RunUpgradeEffect::QuarryProduction, "QUARRY TOME", "ROCK", 0x9DB7D6},
+    {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL TOME", "GEM", 0xCD87F6},
+    {RunUpgradeEffect::NightlyBomb, "BOMB TOME", "BOMB", 0xFFB552},
+    {RunUpgradeEffect::BloodHarvest, "VAMPIRIC TOME", "HEAL", 0xF56891},
+    {RunUpgradeEffect::Overkill, "OVERKILL TOME", "DMG", 0xF77E56},
+    {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name, "BOUNCE", 0x75C9FF},
+    {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name, "MULTI", 0xFFE078},
+    {RunUpgradeEffect::ClusterPayload, "CLUSTER TOME", "BLAST", 0xFF9D64},
+    {RunUpgradeEffect::ReactiveTraps, "PULSE TOME", "PULSE", 0xC69CFF},
+    {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name, "PIERCE", 0x73D1CC},
+    {RunUpgradeEffect::GunShrapnel, "SHRAPNEL TOME", "SHARD", 0xFFCA6D},
+    {RunUpgradeEffect::GatheringSpeed, "GATHERING TOME", "TOOL", 0xA9D96D},
+    {RunUpgradeEffect::ProjectileSpeed, "VELOCITY TOME", "VEL", 0x4DDCF2},
+    {RunUpgradeEffect::AttackDuration, "DURATION TOME", "TIME", 0x8DAFFF},
+    {RunUpgradeEffect::AttackSize, "SIZE TOME", "SIZE", 0xF69ED6},
+    {RunUpgradeEffect::CriticalChance, "PRECISION TOME", "CRIT", 0xFFCF65},
+    {RunUpgradeEffect::CriticalDamage, "FEROCITY TOME", "CRIT", 0xFF805D},
+    {RunUpgradeEffect::AttackKnockback, "IMPACT TOME", "PUSH", 0x9DB7D6},
+    {RunUpgradeEffect::PoisonChance, "VENOM TOME", "TOXIC", 0x8BDA66},
 }};
 
-[[nodiscard]] constexpr const RunHammerDefinition* runHammerDefinition(RunUpgradeEffect effect) {
-    for (const auto& hammer : RunHammerDefinitions) if (hammer.effect == effect) return &hammer;
+[[nodiscard]] constexpr const RunTomeDefinition* runTomeDefinition(RunUpgradeEffect effect) {
+    for (const auto& hammer : RunTomeDefinitions) if (hammer.effect == effect) return &hammer;
     return nullptr;
+}
+
+// Ownership derives from stable upgrade stacks; old saves retain every bonus.
+[[nodiscard]] inline int runTomeCount(const std::array<int, RunUpgradeEffectCount>& stacks) {
+    return static_cast<int>(std::ranges::count_if(RunTomeDefinitions, [&stacks](const auto& tome) {
+        return stacks[static_cast<std::size_t>(tome.effect)] > 0;
+    }));
+}
+[[nodiscard]] inline int runTomeSlotLimit(const MetaRunBonuses& bonuses) {
+    return BaseRunTomeSlots + std::clamp(bonuses.additionalTomeSlots, 0,
+        MaximumRunTomeSlots - BaseRunTomeSlots);
+}
+// Source compatibility for existing HUD integrations; these resolve tome metadata.
+using RunHammerDefinition = RunTomeDefinition;
+inline constexpr const auto& RunHammerDefinitions = RunTomeDefinitions;
+[[nodiscard]] constexpr const RunTomeDefinition* runHammerDefinition(RunUpgradeEffect effect) {
+    return runTomeDefinition(effect);
 }
 
 inline constexpr std::array<RunUpgradeDefinition,
                             RunUpgradeEffectCount>
     RunUpgradeDefinitions{{
-        {RunUpgradeEffect::Damage, runHammerDefinition(RunUpgradeEffect::Damage)->name,
+        {RunUpgradeEffect::Damage, runTomeDefinition(RunUpgradeEffect::Damage)->name,
          "+10% attack damage"},
-        {RunUpgradeEffect::AttackSpeed, runHammerDefinition(RunUpgradeEffect::AttackSpeed)->name,
+        {RunUpgradeEffect::AttackSpeed, runTomeDefinition(RunUpgradeEffect::AttackSpeed)->name,
          "+15% weapon and tool speed"},
-        {RunUpgradeEffect::MoveSpeed, runHammerDefinition(RunUpgradeEffect::MoveSpeed)->name,
+        {RunUpgradeEffect::MoveSpeed, runTomeDefinition(RunUpgradeEffect::MoveSpeed)->name,
          "+7% move speed"},
-        {RunUpgradeEffect::MaximumHealth, runHammerDefinition(RunUpgradeEffect::MaximumHealth)->name,
+        {RunUpgradeEffect::MaximumHealth, runTomeDefinition(RunUpgradeEffect::MaximumHealth)->name,
          "+12 max HP"},
-        {RunUpgradeEffect::RecoverableArmor, runHammerDefinition(RunUpgradeEffect::RecoverableArmor)->name,
+        {RunUpgradeEffect::RecoverableArmor, runTomeDefinition(RunUpgradeEffect::RecoverableArmor)->name,
          "+8 armor"},
-        {RunUpgradeEffect::BuildingHealth, runHammerDefinition(RunUpgradeEffect::BuildingHealth)->name,
+        {RunUpgradeEffect::BuildingHealth, runTomeDefinition(RunUpgradeEffect::BuildingHealth)->name,
          "+12% building HP"},
-        {RunUpgradeEffect::BuildRadius, runHammerDefinition(RunUpgradeEffect::BuildRadius)->name,
+        {RunUpgradeEffect::BuildRadius, runTomeDefinition(RunUpgradeEffect::BuildRadius)->name,
          "+3m build range"},
-        {RunUpgradeEffect::DefenseDamage, runHammerDefinition(RunUpgradeEffect::DefenseDamage)->name,
+        {RunUpgradeEffect::DefenseDamage, runTomeDefinition(RunUpgradeEffect::DefenseDamage)->name,
          "+12% defense damage"},
-        {RunUpgradeEffect::DefenseFireRate, runHammerDefinition(RunUpgradeEffect::DefenseFireRate)->name,
+        {RunUpgradeEffect::DefenseFireRate, runTomeDefinition(RunUpgradeEffect::DefenseFireRate)->name,
          "+10% defense speed"},
-        {RunUpgradeEffect::ProductionSpeed, runHammerDefinition(RunUpgradeEffect::ProductionSpeed)->name,
+        {RunUpgradeEffect::ProductionSpeed, runTomeDefinition(RunUpgradeEffect::ProductionSpeed)->name,
          "+15% production speed"},
-        {RunUpgradeEffect::NightlyBomb, "BOMBS",
+        {RunUpgradeEffect::NightlyBomb, runTomeDefinition(RunUpgradeEffect::NightlyBomb)->name,
          "+1 bomb each night"},
         {RunUpgradeEffect::WiderChoice, "MORE CHOICES",
          "+1 card choice"},
-        {RunUpgradeEffect::BloodHarvest, "LIFESTEAL",
+        {RunUpgradeEffect::BloodHarvest, runTomeDefinition(RunUpgradeEffect::BloodHarvest)->name,
          "+8 HP per 10 kills"},
-        {RunUpgradeEffect::Overkill, "OVERKILL",
+        {RunUpgradeEffect::Overkill, runTomeDefinition(RunUpgradeEffect::Overkill)->name,
          "+1 damage transfer"},
-        {RunUpgradeEffect::Ricochet, "RICOCHET",
+        {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name,
          "+1 shot bounce"},
         {RunUpgradeEffect::DoubleDown, "DOUBLE DOWN",
          "+2 next-level picks"},
@@ -169,25 +204,25 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+1 free reroll"},
         {RunUpgradeEffect::RiskyInvestment, "HIGH STAKES",
          "+2 picks, stronger enemies"},
-        {RunUpgradeEffect::Salvager, runHammerDefinition(RunUpgradeEffect::Salvager)->name,
+        {RunUpgradeEffect::Salvager, runTomeDefinition(RunUpgradeEffect::Salvager)->name,
          "+30% sold or destroyed refund"},
-        {RunUpgradeEffect::TwinBatteries, "TWIN SHOT",
+        {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name,
          "+1 side shot"},
-        {RunUpgradeEffect::ClusterPayload, "CLUSTER",
+        {RunUpgradeEffect::ClusterPayload, runTomeDefinition(RunUpgradeEffect::ClusterPayload)->name,
          "+2 mini explosions"},
-        {RunUpgradeEffect::ReactiveTraps, "PULSE",
+        {RunUpgradeEffect::ReactiveTraps, runTomeDefinition(RunUpgradeEffect::ReactiveTraps)->name,
          "+6 shockwave damage"},
-        {RunUpgradeEffect::GunPiercing, "ARMOR PIERCER",
+        {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name,
          "+1 gun turret pierce target"},
-        {RunUpgradeEffect::GunShrapnel, "SHRAPNEL",
+        {RunUpgradeEffect::GunShrapnel, runTomeDefinition(RunUpgradeEffect::GunShrapnel)->name,
          "+3 gun turret kill shards"},
-        {RunUpgradeEffect::GatheringSpeed, "QUICK TOOLS",
+        {RunUpgradeEffect::GatheringSpeed, runTomeDefinition(RunUpgradeEffect::GatheringSpeed)->name,
          "+15% gathering speed"},
-        {RunUpgradeEffect::LongerDay, runHammerDefinition(RunUpgradeEffect::LongerDay)->name,
+        {RunUpgradeEffect::LongerDay, runTomeDefinition(RunUpgradeEffect::LongerDay)->name,
          "+5s build phase"},
-        {RunUpgradeEffect::RichResources, runHammerDefinition(RunUpgradeEffect::RichResources)->name,
+        {RunUpgradeEffect::RichResources, runTomeDefinition(RunUpgradeEffect::RichResources)->name,
          "+15% resource node yield"},
-        {RunUpgradeEffect::Luck, runHammerDefinition(RunUpgradeEffect::Luck)->name,
+        {RunUpgradeEffect::Luck, runTomeDefinition(RunUpgradeEffect::Luck)->name,
          "+10% upgrade luck"},
         {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Unlock gun turret construction"},
         {RunUpgradeEffect::UnlockTurret, "CROSSBOW", "Unlock crossbow construction"},
@@ -201,22 +236,22 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockLumberMill, "LUMBER MILL", "Unlock lumber mill construction"},
         {RunUpgradeEffect::UnlockQuarry, "QUARRY", "Unlock quarry construction"},
         {RunUpgradeEffect::UnlockCrystalMine, "CRYSTAL MINE", "Unlock crystal mine construction"},
-        {RunUpgradeEffect::LumberMillProduction, runHammerDefinition(RunUpgradeEffect::LumberMillProduction)->name, "+20% lumber mill production speed"},
-        {RunUpgradeEffect::QuarryProduction, runHammerDefinition(RunUpgradeEffect::QuarryProduction)->name, "+20% quarry production speed"},
-        {RunUpgradeEffect::CrystalMineProduction, runHammerDefinition(RunUpgradeEffect::CrystalMineProduction)->name, "+20% crystal mine production speed"},
-        {RunUpgradeEffect::Regeneration, runHammerDefinition(RunUpgradeEffect::Regeneration)->name, "+0.5 HP per second"},
+        {RunUpgradeEffect::LumberMillProduction, runTomeDefinition(RunUpgradeEffect::LumberMillProduction)->name, "+20% lumber mill production speed"},
+        {RunUpgradeEffect::QuarryProduction, runTomeDefinition(RunUpgradeEffect::QuarryProduction)->name, "+20% quarry production speed"},
+        {RunUpgradeEffect::CrystalMineProduction, runTomeDefinition(RunUpgradeEffect::CrystalMineProduction)->name, "+20% crystal mine production speed"},
+        {RunUpgradeEffect::Regeneration, runTomeDefinition(RunUpgradeEffect::Regeneration)->name, "+0.5 HP per second"},
         {RunUpgradeEffect::UnlockClub, "CLUB", "Unlock club for this run"},
         {RunUpgradeEffect::UnlockRifle, "RIFLE", "Unlock rifle for this run"},
         {RunUpgradeEffect::UnlockBomb, "BOMBS", "Unlock bombs for this run"},
         {RunUpgradeEffect::UnlockIceWand, "ICE WAND", "Unlock ice wand for this run"},
         {RunUpgradeEffect::UnlockFireWand, "FIRE WAND", "Unlock fire wand for this run"},
-        {RunUpgradeEffect::ProjectileSpeed, "PROJECTILE SPEED", "+20% defense projectile speed"},
-        {RunUpgradeEffect::AttackDuration, "DURATION", "+20% defense attack duration"},
-        {RunUpgradeEffect::AttackSize, "SIZE", "+15% defense attack size"},
-        {RunUpgradeEffect::CriticalChance, "CRIT CHANCE", "+5% defense critical chance"},
-        {RunUpgradeEffect::CriticalDamage, "CRIT DAMAGE", "+25% defense critical damage"},
-        {RunUpgradeEffect::AttackKnockback, "KNOCKBACK", "+20% defense knockback"},
-        {RunUpgradeEffect::PoisonChance, "VENOM", "+10% chance to poison on hit (25% hit damage/s, 4s)"},
+        {RunUpgradeEffect::ProjectileSpeed, runTomeDefinition(RunUpgradeEffect::ProjectileSpeed)->name, "+20% defense projectile speed"},
+        {RunUpgradeEffect::AttackDuration, runTomeDefinition(RunUpgradeEffect::AttackDuration)->name, "+20% defense attack duration"},
+        {RunUpgradeEffect::AttackSize, runTomeDefinition(RunUpgradeEffect::AttackSize)->name, "+15% defense attack size"},
+        {RunUpgradeEffect::CriticalChance, runTomeDefinition(RunUpgradeEffect::CriticalChance)->name, "+5% defense critical chance"},
+        {RunUpgradeEffect::CriticalDamage, runTomeDefinition(RunUpgradeEffect::CriticalDamage)->name, "+25% defense critical damage"},
+        {RunUpgradeEffect::AttackKnockback, runTomeDefinition(RunUpgradeEffect::AttackKnockback)->name, "+20% defense knockback"},
+        {RunUpgradeEffect::PoisonChance, runTomeDefinition(RunUpgradeEffect::PoisonChance)->name, "+10% chance to poison on hit (25% hit damage/s, 4s)"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(

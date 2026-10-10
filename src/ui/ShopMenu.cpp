@@ -43,6 +43,7 @@ void icon(const GameUi& ui, MetaShopUpgrade upgrade, Rectangle r, bool locked) {
     case MetaShopUpgrade::DefenseFireRate: texture=ui.runUpgradeTexture(RunUpgradeEffect::TwinBatteries);break;
     case MetaShopUpgrade::BuildingHealth: texture=ui.coreMenuTexture(CoreMenuTexture::Shield);break;
     case MetaShopUpgrade::ProductionSpeed: texture=ui.coreMenuTexture(CoreMenuTexture::Gear);break;
+    case MetaShopUpgrade::TomeSlots: texture=ui.runUpgradeTexture(RunUpgradeEffect::Luck);break;
     case MetaShopUpgrade::ResourceYield: texture=ui.weaponTexture(PlayerWeapon::Pickaxe);break;
     case MetaShopUpgrade::Rerolls: {
         const Vector2 c{r.x+r.width*.5F,r.y+r.height*.5F};
@@ -72,7 +73,7 @@ void levels(Rectangle r, int current, int max) {
         i<current?Blue:Color{76,87,89,255});
 }
 std::string bonusLabel(const MetaShopDefinition& d, int level) {
-    return "+"+std::to_string(level*d.bonusPerLevel)+(d.upgrade==MetaShopUpgrade::Rerolls?"":"%");
+    return "+"+std::to_string(level*d.bonusPerLevel)+((d.upgrade==MetaShopUpgrade::Rerolls || d.upgrade==MetaShopUpgrade::TomeSlots)?"":"%");
 }
 }
 Rectangle shopMenuPanelBounds(Vector2 viewport) { return UiMenuLayout::fromViewport(viewport).rect(340,130,1240,820); }

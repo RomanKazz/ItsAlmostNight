@@ -140,7 +140,7 @@ void Simulation::prepareRunUpgradeChoices(int selections) {
         bonusSelectionsNextReward_;
     bonusSelectionsNextReward_ = 0;
     generateRunUpgradeChoices();
-    runUpgradeChoicePending_ = true;
+    runUpgradeChoicePending_ = runUpgradeChoiceCount_ > 0;
     invalidateSnapshotCache();
 }
 
@@ -148,6 +148,9 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     if (retiredRunUpgrade(effect) ||
         runUpgradeStacks_[runUpgradeIndex(effect)] >= runUpgradeMaximumLevel(effect) ||
         runUpgradePower(effect) >= runUpgradePowerLimit(effect)) return false;
+    if (!sandboxMode_ && !unlimitedResources_ && runTomeDefinition(effect) &&
+        runUpgradeStacks_[runUpgradeIndex(effect)] == 0 &&
+        runTomeCount(runUpgradeStacks_) >= runTomeSlotLimit(activeMetaBonuses_)) return false;
     if (const auto weapon = runUpgradeWeapon(effect)) {
         return !sandboxMode_ && !unlimitedResources_ && !playerWeaponUnlocked(*weapon);
     }
@@ -205,6 +208,12 @@ void Simulation::generateRunUpgradeChoices() {
             runUpgradeChoiceCount_ >= MaximumRunUpgradeChoices) continue;
         if (lockedRunUpgrade_ && definition.effect == *lockedRunUpgrade_) continue;
         pool.push_back(definition.effect);
+    }
+    if (pool.empty()) {
+        runUpgradeChoiceCount_ = 0;
+        runUpgradeChoicePending_ = false;
+        runUpgradeSelectionsRemaining_ = 0;
+        return;
     }
     std::uint64_t randomState = mixBits64(
         static_cast<std::uint64_t>(terrain_.seed()) ^
@@ -432,7 +441,8 @@ bool Simulation::selectRunUpgrade(std::size_t choiceIndex) {
     invalidateSnapshotCache();
     const RunUpgradeEffect effect = runUpgradeChoices_[choiceIndex];
     if (lockedRunUpgrade_ == effect) lockedRunUpgrade_.reset();
-    if (!applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex])) return false;
+    if (!runUpgradeAvailable(effect) ||
+        !applyRunUpgradeEffect(effect, runUpgradeRarities_[choiceIndex])) return false;
     --runUpgradeSelectionsRemaining_;
     if (runUpgradeSelectionsRemaining_ > 0) {
         generateRunUpgradeChoices();

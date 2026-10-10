@@ -1,6 +1,7 @@
 #pragma once
 
 #include <raylib.h>
+#include "progression/RunUpgrade.hpp"
 
 #include <string_view>
 #include <array>
@@ -166,6 +167,8 @@ class GameUi {
     Texture2D moveUpgradeIcon_{};
     Texture2D pierceUpgradeIcon_{};
     Texture2D ricochetUpgradeIcon_{};
+    [[nodiscard]] Texture2D runUpgradeSymbolTexture(RunUpgradeEffect effect) const;
+    std::array<Texture2D, RunUpgradeEffectCount> tomeIcons_{};
     Texture2D poisonUpgradeIcon_{};
     Texture2D xpGainUpgradeIcon_{};
     Texture2D levelUpBanner_{};
