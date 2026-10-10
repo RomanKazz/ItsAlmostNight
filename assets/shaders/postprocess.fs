@@ -193,6 +193,15 @@ float inkDifference(
             directionWeight;
     }
 
+    // Ordinary object ink belongs to the front surface. A same-depth or
+    // nearer object neighbor produces neither depth nor class ink here.
+    // Effect fragments keep their explicit class-boundary exception.
+    if (neighborIsObject > 0.5 && centerMaterialClass < 3.5 &&
+        neighborDepth <= centerDepth)
+    {
+        return 0.0;
+    }
+
     float neighborHasDepth = 1.0 - step(0.999999, neighborDepth);
     vec2 bufferSize = vec2(depthSize);
     vec3 neighborPosition = reconstructViewPosition(
@@ -522,23 +531,28 @@ void main()
     float luminance = dot(color, LuminanceWeights);
     color = mix(vec3(luminance), color, saturation);
 
-    float shadowWeight =
-        1.0 - smoothstep(0.08, 0.52, luminance);
-    float highlightWeight =
-        smoothstep(0.48, 0.92, luminance);
-    float midtoneWeight =
-        clamp(1.0 - shadowWeight - highlightWeight, 0.0, 1.0);
-    float curveExposure =
-        curveShadows*shadowWeight +
-        curveMidtones*midtoneWeight +
-        curveHighlights*highlightWeight;
-    color *= exp2(curveExposure*0.85);
-    color = pow(
-        max(color, vec3(0.0)),
-        vec3(1.0/max(gammaValue, 0.01)));
+    // Uniform neutral settings have the same result without per-pixel
+    // curve weights/exponentials. Edited curves retain the original path.
+    if (curveShadows != 0.0 || curveMidtones != 0.0 || curveHighlights != 0.0)
+    {
+        float shadowWeight = 1.0 - smoothstep(0.08, 0.52, luminance);
+        float highlightWeight = smoothstep(0.48, 0.92, luminance);
+        float midtoneWeight = clamp(1.0 - shadowWeight - highlightWeight, 0.0, 1.0);
+        float curveExposure = curveShadows*shadowWeight +
+            curveMidtones*midtoneWeight + curveHighlights*highlightWeight;
+        color *= exp2(curveExposure*0.85);
+    }
+    color = max(color, vec3(0.0));
+    if (gammaValue != 1.0)
+    {
+        color = pow(color, vec3(1.0/max(gammaValue, 0.01)));
+    }
 
-    float dither = bayer4(stylePixel)*
-        ditherStrength*(ditherEnabled > 0.5 ? 1.0 : 0.0);
+    float dither = 0.0;
+    if (ditherEnabled > 0.5)
+    {
+        dither = bayer4(stylePixel)*ditherStrength;
+    }
     if (paletteEnabled > 0.5)
     {
         float levels = max(round(paletteLevels), 2.0);
@@ -641,40 +655,45 @@ void main()
                 0.0, 1.0);
             edge = max(edge, ringEdge * ringCoverage);
         }
-        // A steeper response restores the chunky foreground silhouette.
-        // Distance still removes it from the background independently.
-        float nearBoost = mix(1.0, 1.24,
-            1.0 - smoothstep(18.0, 32.0, viewDistance));
-        float ink = smoothstep(0.10, 0.52, edge)*
-            sqrt(clamp(outlineStrength, 0.0, 1.0))*1.3*
-            outlineDistance*nearBoost;
-        // A sub-texel stroke cannot shrink geometrically in a low-resolution
-        // target, so reduce its coverage before the image is enlarged.
-        ink *= min(effectiveWidth, 1.0);
-        // Keep one stable near-black ink colour for every world material.
-        // Vegetation already receives its own distance/width treatment, so
-        // tinting its contour only makes the style inconsistent at night.
-        const vec3 inkColor = vec3(0.006, 0.008, 0.010);
-        // Match the world shader's atmospheric curve using view distance
-        // reconstructed from the same scene depth. Near ink is untouched;
-        // distant ink approaches haze colour without a hard disappearance.
-        float outlineFogRange = max(
-            outlineFogEnd - outlineFogStart, 0.01);
-        float outlineFogDistance = clamp(
-            (viewDistance - outlineFogStart)/outlineFogRange,
-            0.0, 1.0);
-        float outlineHazeCurve = pow(
-            smoothstep(0.0, 1.0, outlineFogDistance), 1.45);
-        float outlineDistanceFog =
-            (1.0 - exp(
-                -2.45*outlineHazeCurve*outlineHazeCurve))*0.82;
-        float outlineFogFade = clamp(
-            outlineDistanceFog*outlineFogFadeStrength,
-            0.0, 1.0);
-        // Atmosphere fades distant ink instead of recolouring it with the
-        // current fog. This keeps contours black through the day/night cycle.
-        ink *= 1.0 - outlineFogFade*0.65;
-        color = mix(color, inkColor, clamp(ink, 0.0, 0.985));
+        // An interior pixel with no edge has zero ink. Skip the atmospheric
+        // exponentials for it without changing silhouette width or fading.
+        if (edge > 0.0)
+        {
+            // A steeper response restores the chunky foreground silhouette.
+            // Distance still removes it from the background independently.
+            float nearBoost = mix(1.0, 1.24,
+                1.0 - smoothstep(18.0, 32.0, viewDistance));
+            float ink = smoothstep(0.10, 0.52, edge)*
+                sqrt(clamp(outlineStrength, 0.0, 1.0))*1.3*
+                outlineDistance*nearBoost;
+            // A sub-texel stroke cannot shrink geometrically in a low-resolution
+            // target, so reduce its coverage before the image is enlarged.
+            ink *= min(effectiveWidth, 1.0);
+            // Keep one stable near-black ink colour for every world material.
+            // Vegetation already receives its own distance/width treatment, so
+            // tinting its contour only makes the style inconsistent at night.
+            const vec3 inkColor = vec3(0.006, 0.008, 0.010);
+            // Match the world shader's atmospheric curve using view distance
+            // reconstructed from the same scene depth. Near ink is untouched;
+            // distant ink approaches haze colour without a hard disappearance.
+            float outlineFogRange = max(
+                outlineFogEnd - outlineFogStart, 0.01);
+            float outlineFogDistance = clamp(
+                (viewDistance - outlineFogStart)/outlineFogRange,
+                0.0, 1.0);
+            float outlineHazeCurve = pow(
+                smoothstep(0.0, 1.0, outlineFogDistance), 1.45);
+            float outlineDistanceFog =
+                (1.0 - exp(
+                    -2.45*outlineHazeCurve*outlineHazeCurve))*0.82;
+            float outlineFogFade = clamp(
+                outlineDistanceFog*outlineFogFadeStrength,
+                0.0, 1.0);
+            // Atmosphere fades distant ink instead of recolouring it with the
+            // current fog. This keeps contours black through the day/night cycle.
+            ink *= 1.0 - outlineFogFade*0.65;
+            color = mix(color, inkColor, clamp(ink, 0.0, 0.985));
+        }
     }
 
     if (paperGrainEnabled > 0.5)
