@@ -399,9 +399,13 @@ void AudioSystem::playEvent(
     case GameEventType::BuildingDamaged:
     case GameEventType::ModularBuildingDamaged:
     case GameEventType::CoreDamaged:
-        playAt(
-            structureHit_, event.position, snapshot, 0.34F,
-            variedPitch(0.09F));
+        // Enemy attacks already have visual damage feedback. Keep the
+        // generic impact only for damage without an attacker (e.g. debug).
+        if (!event.sourceId) {
+            playAt(
+                structureHit_, event.position, snapshot, 0.34F,
+                variedPitch(0.09F));
+        }
         break;
     case GameEventType::BuildingDestroyed:
     case GameEventType::ModularBuildingDestroyed:
@@ -444,8 +448,12 @@ void AudioSystem::playEvent(
     case GameEventType::ResourceGranted:
         break;
     case GameEventType::PlayerDamaged:
+        // Preserve fall damage feedback; enemy hits remain silent.
+        if (!event.sourceId) {
+            play(playerHit_, 0.72F, variedPitch(0.06F));
+        }
+        break;
     case GameEventType::BossRamImpact:
-        play(playerHit_, 0.72F, variedPitch(0.06F));
         break;
     case GameEventType::BossGroundSlam:
         playAt(
