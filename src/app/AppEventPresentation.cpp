@@ -122,6 +122,7 @@ void App::processPresentationEvents(
             event.type == GameEventType::PickaxeHit ||
             event.type == GameEventType::IceWandHit ||
             event.type == GameEventType::FireWandHit ||
+            event.type == GameEventType::PoisonHit ||
             event.type == GameEventType::ChainLightningHit ||
             event.type == GameEventType::OverkillHit;
         if (enemyHit && event.entityId) {
@@ -298,6 +299,10 @@ void App::processPresentationEvents(
                     0.11, 0.022 *
                         (1.0 - std::min(distance / 9.0, 1.0)));
             }
+        } else if (event.type == GameEventType::PoisonHit) {
+            const Vec3 numberPosition = event.entityId
+                ? enemyDamageAnchor(*event.entityId, event.position) : event.position;
+            addFloatingDamageNumber(numberPosition, event.damage, false, 0.0, event.entityId);
         } else if (event.type == GameEventType::FireWandHit) {
             const Vec3 numberPosition = event.entityId
                 ? enemyDamageAnchor(*event.entityId, event.position)

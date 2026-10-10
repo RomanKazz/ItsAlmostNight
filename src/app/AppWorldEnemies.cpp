@@ -2,6 +2,7 @@
 #include "app/AppRenderSupport.hpp"
 #include "app/AppBurnDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
+#include "app/AppPoisonDrawing.hpp"
 #include "graphics/CameraCulling.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
@@ -628,6 +629,58 @@ void App::drawWorldEnemies(
             }
             app_freeze_drawing::endBatch();
         }
+        renderer_->endColorOnlyWorldEffects();
+    }
+    struct PoisonDraw { std::size_t index{}; Vector3 position{}; float distance{}, amount{}; };
+    constexpr std::size_t PoisonBudget = 64;
+    std::array<PoisonDraw, PoisonBudget> poisonDraws{};
+    std::size_t poisonCount = 0;
+    const auto poisonNearer = [](const PoisonDraw& a, const PoisonDraw& b) {
+        return a.distance < b.distance || (a.distance == b.distance && a.index < b.index);
+    };
+    for (std::size_t i = 0; i < snapshot.enemies.size(); ++i) {
+        const auto& enemy = snapshot.enemies[i];
+        const auto& status = enemyStatusEffect(enemy, StatusEffectType::Poison);
+        if (!enemy.active || status.visualParameter <= .01) continue;
+        const Vector3 position = enemyRenderPosition(enemy);
+        const float distance = Vector3DistanceSqr(position, camera.position);
+        if (distance > 1600 || !enemyVisible(position, 4)) continue;
+        PoisonDraw candidate{i, position, distance, static_cast<float>(status.visualParameter)};
+        if (poisonCount < PoisonBudget) {
+            poisonDraws[poisonCount++] = candidate;
+            std::push_heap(poisonDraws.begin(), poisonDraws.begin() +
+                static_cast<std::ptrdiff_t>(poisonCount), poisonNearer);
+        } else if (poisonNearer(candidate, poisonDraws.front())) {
+            std::pop_heap(poisonDraws.begin(), poisonDraws.end(), poisonNearer);
+            poisonDraws.back() = candidate;
+            std::push_heap(poisonDraws.begin(), poisonDraws.end(), poisonNearer);
+        }
+    }
+    std::sort(poisonDraws.begin(), poisonDraws.begin() +
+        static_cast<std::ptrdiff_t>(poisonCount), poisonNearer);
+    if (poisonCount > 0) {
+        renderer_->setWorldMaterial(burnMaterial);
+        renderer_->beginColorOnlyWorldEffects();
+        app_freeze_drawing::beginBatch();
+        const Vector3 up = Vector3Normalize(Vector3CrossProduct(flameRight, cameraForward));
+        for (std::size_t reverse = poisonCount; reverse > 0; --reverse) {
+            const std::size_t rank = reverse - 1;
+            auto draw = poisonDraws[rank];
+            const auto& enemy = snapshot.enemies[draw.index];
+            draw.position.y += static_cast<float>(simulation_.terrain().getHeight(enemy.position.x, enemy.position.z));
+            const float appearance = enemyAppearanceScale(enemy) * (enemy.eliteAffixes != 0 ? 1.08F : 1.0F);
+            const float scale = enemyFlameScale(enemy.type) * appearance;
+            const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy.type),
+                draw.position, static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
+            const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
+            const float radius = std::clamp(std::max(extent.x, extent.z), scale * .35F, scale * .95F);
+            const float height = std::clamp(bounds.max.y - bounds.min.y, scale * .8F, scale * 2.5F);
+            draw.position.y = bounds.min.y;
+            app_poison_drawing::emitPoison(draw.position, flameRight, up, Vector3Negate(cameraForward),
+                radius, height, enemy.id.index, snapshot.elapsedSeconds, draw.amount,
+                renderer_->settings().particles && rank < 24);
+        }
+        app_freeze_drawing::endBatch();
         renderer_->endColorOnlyWorldEffects();
     }
     WorldMaterialState statusMaterial{};

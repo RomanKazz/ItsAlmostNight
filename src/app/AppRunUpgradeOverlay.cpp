@@ -509,6 +509,11 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     row("Build range", std::to_string(snapshot.coreBuildRadius) + "m", std::to_string(projected.coreBuildRadius) + "m");
     row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
+    if (snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)] > 0 ||
+        projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)] > 0) {
+        row("Poison chance", statNumber(runPoisonChance(snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]) * 100) + "%",
+            statNumber(runPoisonChance(projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::PoisonChance)]) * 100) + "%");
+    }
     row("Max HP", statNumber(snapshot.playerMaxHealth), statNumber(projected.playerMaxHealth));
     row("HP regen", statNumber(stats.healthRegeneration, 2) + "/s", statNumber(next.healthRegeneration, 2) + "/s");
     row("Shield", statNumber(snapshot.playerMaxRecoverableArmor), statNumber(projected.playerMaxRecoverableArmor));

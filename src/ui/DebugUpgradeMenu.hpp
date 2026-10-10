@@ -66,7 +66,8 @@ inline DebugUpgradeCategory debugUpgradeCategory(RunUpgradeEffect effect) {
     case RunUpgradeEffect::Damage: case RunUpgradeEffect::AttackSpeed:
     case RunUpgradeEffect::MoveSpeed: case RunUpgradeEffect::MaximumHealth:
     case RunUpgradeEffect::RecoverableArmor: case RunUpgradeEffect::BloodHarvest:
-    case RunUpgradeEffect::Regeneration: return DebugUpgradeCategory::Player;
+    case RunUpgradeEffect::Regeneration:
+    case RunUpgradeEffect::PoisonChance: return DebugUpgradeCategory::Player;
     default: return DebugUpgradeCategory::Utility;
     }
 }

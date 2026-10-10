@@ -29,6 +29,27 @@ private:
     Font previous_;
 };
 
+Texture2D createPoisonUpgradeIcon() {
+    Image image = GenImageColor(128, 128, BLANK);
+    constexpr Color Ink{17, 28, 24, 255};
+    // A squat glass vial, matching the inventory's chunky outlined artwork.
+    ImageDrawCircle(&image, 64, 79, 43, Ink);
+    ImageDrawRectangle(&image, 43, 25, 42, 48, Ink);
+    ImageDrawCircle(&image, 64, 79, 37, {96, 157, 63, 255});
+    ImageDrawRectangle(&image, 49, 30, 30, 35, {184, 231, 137, 255});
+    ImageDrawCircle(&image, 64, 84, 31, {111, 210, 42, 255});
+    ImageDrawCircle(&image, 58, 76, 26, {172, 237, 60, 255});
+    ImageDrawCircle(&image, 49, 68, 9, {239, 255, 181, 255});
+    ImageDrawCircle(&image, 77, 87, 5, {61, 124, 39, 255});
+    ImageDrawCircle(&image, 58, 96, 4, {61, 124, 39, 255});
+    ImageDrawRectangle(&image, 40, 14, 48, 25, Ink);
+    ImageDrawRectangle(&image, 46, 19, 36, 14, {181, 114, 213, 255});
+    ImageDrawRectangle(&image, 46, 19, 36, 5, {224, 164, 247, 255});
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+    return texture;
+}
+
 constexpr float UiTextScale = 1.68F;
 constexpr int MinimapTargetSize = 512;
 constexpr int MaximumMinimapTargetSize = 768;
@@ -197,6 +218,8 @@ void GameUi::initialize() {
     ricochetUpgradeIcon_ = loadTexture(
         "assets/ui/upgrade_ricochet.png");
     xpGainUpgradeIcon_ = loadTexture("assets/ui/upgrade_xp_gain.png");
+    poisonUpgradeIcon_ = createPoisonUpgradeIcon();
+    smoothHudIcon(poisonUpgradeIcon_);
     smoothHudIcon(armorUpgradeIcon_);
     smoothHudIcon(extraUpgradeIcon_);
     smoothHudIcon(heartUpgradeIcon_);
@@ -314,6 +337,7 @@ void GameUi::shutdown() {
     }
     unloadTexture(xpGainUpgradeIcon_);
     unloadTexture(ricochetUpgradeIcon_);
+    unloadTexture(poisonUpgradeIcon_);
     unloadTexture(pierceUpgradeIcon_);
     unloadTexture(moveUpgradeIcon_);
     unloadTexture(magnetUpgradeIcon_);
@@ -651,6 +675,7 @@ Texture2D GameUi::weaponTexture(PlayerWeapon weapon) const {
 Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
     if (const auto weapon = runUpgradeWeapon(effect)) return weaponTexture(*weapon);
     switch (effect) {
+    case RunUpgradeEffect::PoisonChance: return poisonUpgradeIcon_;
     case RunUpgradeEffect::CannonHeavyShell:
     case RunUpgradeEffect::CannonScattershot:
     case RunUpgradeEffect::CannonClusterShell:

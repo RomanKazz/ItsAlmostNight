@@ -14,6 +14,53 @@
 #include <vector>
 
 void runEnemySystemTests() {
+    {
+        using namespace ian;
+        EnemySystem enemies;
+        constexpr std::array<EnemySpawn, 1> spawns{{{EnemyType::Heavy, {0, 1, 0}}}};
+        enemies.spawnGroup(spawns);
+        const auto id = enemies.enemies().front().id;
+        const auto health = enemies.enemies().front().health;
+        const EntityId source{123, 1};
+        require(!enemies.applyPoison(id, source, 4, 0) &&
+            !enemies.applyPoison(id, source, 4, std::numeric_limits<double>::infinity()),
+            "poison rejects zero and nonfinite doses");
+        require(enemies.applyPoison(id, source, 1.25, 8, BuildingType::GunTurret),
+            "poison applies to heavy enemies without control immunity");
+        require(enemies.tickPoison(.25).empty(), "poison groups small ticks into half-second pulses");
+        auto hits = enemies.tickPoison(.25);
+        require(hits.size() == 1 && hits.front().source == source &&
+            hits.front().buildingType == BuildingType::GunTurret,
+            "poison retains tower attribution");
+        requireNear(hits.front().result.damage, 4, 1e-10, "poison pulse uses DPS and elapsed time");
+        static_cast<void>(enemies.tickPoison(1));
+        requireNear(enemies.enemies().front().health, health - 10, 1e-9,
+            "poison flushes its last partial pulse without extending duration");
+        require(enemies.tickPoison(10).empty(), "expired poison cannot damage again");
+        require(enemies.applyStatus(id, StatusEffectType::Poison, source, 4, 5),
+            "shared status application handles poison without clamping DPS to one");
+        require(enemies.applyPoison(id, EntityId{456, 1}, 4, 2), "weaker hit refreshes poison");
+        requireNear(enemyStatusEffect(enemies.enemies().front(), StatusEffectType::Poison).intensity,
+            5, 1e-10, "poison refresh retains strongest dose rather than stacking");
+        require(enemies.applyStatus(id, StatusEffectType::Freeze, {}, 1, 1),
+            "freeze coexists with poison");
+        FlowField flow;
+        static_cast<void>(enemies.tick(.5, {}, flow, Vec3{0, 1, 5}, {}, nullptr, {}, true));
+        requireNear(enemyStatusEffect(enemies.enemies().front(), StatusEffectType::Poison).remaining,
+            4, 1e-10, "movement timers never decrement poison a second time");
+        require(enemies.tickPoison(.5).size() == 1, "frozen enemies still take poison damage");
+        require(enemies.clearStatus(id, StatusEffectType::Poison) && enemies.tickPoison(1).empty(),
+            "clearing poison discards pending ticks");
+        require(enemies.applyPoison(id, source, 4, 10000, BuildingType::Turret), "lethal poison applies");
+        hits = enemies.tickPoison(.5);
+        require(hits.size() == 1 && hits.front().result.killed && enemies.tickPoison(1).empty(),
+            "poison kills once through shared damage flow");
+        enemies.reset();
+        enemies.spawnGroup(spawns);
+        require(enemies.tickPoison(1).empty() &&
+            !enemyHasStatus(enemies.enemies().front(), StatusEffectType::Poison),
+            "reset and recycled enemies retain no poison state");
+    }
     require(
         ian::enemyUsesForwardSurfaceProbe(
             ian::EnemyState::MoveToCore) &&

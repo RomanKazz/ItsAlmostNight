@@ -1,4 +1,5 @@
 #include "game/Simulation.hpp"
+#include "core/DeterministicRandom.hpp"
 
 #include "core/SaturatingArithmetic.hpp"
 
@@ -235,6 +236,41 @@ void Simulation::grantLootUpgrade(
 
 void Simulation::updateLootEffects(
     double deltaSeconds, std::size_t firstGameplayEvent) {
+    // Tick established doses before this frame's attacks can refresh them.
+    // Dedicated events prevent DoT from recursively proccing on-hit upgrades.
+    for (const auto& hit : enemies_.tickPoison(deltaSeconds)) {
+        events_.push_back({.type = GameEventType::PoisonHit,
+            .entityId = hit.result.id, .sourceId = hit.source,
+            .buildingType = hit.buildingType, .position = hit.result.position,
+            .damage = hit.result.damage});
+        if (hit.result.killed) {
+            events_.push_back(enemyKilledEvent(hit.result.id, hit.result.type,
+                hit.result.eliteAffixes, hit.result.position, hit.source, hit.buildingType));
+            if (aimedEnemy_ == hit.result.id) aimedEnemy_.reset();
+        }
+    }
+    if (!playerRespawning_) processRunUpgradeCombatEffects(firstGameplayEvent);
+    const double poisonChance = runPoisonChance(runUpgradePower(RunUpgradeEffect::PoisonChance));
+    const std::size_t poisonEventLimit = events_.size();
+    for (std::size_t index = firstGameplayEvent; poisonChance > 0 && index < poisonEventLimit; ++index) {
+        const auto& event = events_[index];
+        const bool directHit = event.type == GameEventType::PickaxeHit ||
+            event.type == GameEventType::IceWandHit ||
+            (event.type == GameEventType::FireWandHit && event.intensity > 0) ||
+            event.type == GameEventType::ChainLightningHit ||
+            event.type == GameEventType::CannonHit || event.type == GameEventType::TrapHit ||
+            event.type == GameEventType::OverkillHit ||
+            (event.type == GameEventType::ProjectileHit &&
+                (event.buildingType || !event.sourceId));
+        if (!directHit || !event.entityId || event.damage <= 0) continue;
+        const auto seed = tick_ ^ (static_cast<std::uint64_t>(event.entityId->index) << 32U) ^
+            mixBits64(static_cast<std::uint64_t>(index));
+        const double roll = static_cast<double>(mixBits64(seed) >> 11U) / 9007199254740992.0;
+        if (roll < poisonChance) {
+            enemies_.applyPoison(*event.entityId, event.sourceId, PoisonDuration,
+                event.damage * PoisonDamageFraction, event.buildingType);
+        }
+    }
     if (playerRespawning_) {
         const bool hadBreadBuff = breadWellFed_;
         breadWellFed_ = false;
@@ -246,8 +282,6 @@ void Simulation::updateLootEffects(
         if (hadBreadBuff) refreshRunUpgradeRuntimeEffects();
         return;
     }
-
-    processRunUpgradeCombatEffects(firstGameplayEvent);
 
     const int healthAidStacks = lootStacks_[
         lootUpgradeIndex(LootUpgradeEffect::HealthAid)];

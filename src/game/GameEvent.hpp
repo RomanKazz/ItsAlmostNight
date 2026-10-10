@@ -112,6 +112,8 @@ enum class GameEventType {
     CrystalStorageFull,
     LootCollected,
     ChallengeCompleted,
+    TowerFired,
+    PoisonHit,
 };
 
 struct GameEvent {

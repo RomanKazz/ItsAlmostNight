@@ -12,6 +12,7 @@
 #include "app/AppProjectileDrawing.hpp"
 #include "app/AppBurnDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
+#include "app/AppPoisonDrawing.hpp"
 #include "graphics/FireWandEffect.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
@@ -173,6 +174,61 @@ bool checkCartoonBurn(ian::Renderer& renderer) {
         UnloadImage(image);
     UnloadRenderTexture(target);
     return valid;
+}
+
+bool checkCartoonPoison(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(384, 256);
+    const Camera3D camera{{0, 1.3F, 7}, {0, 1.3F, 0}, {0, 1, 0}, 3.4F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](double seconds, float amount, bool detailed, bool covered) {
+        BeginTextureMode(target);
+        ClearBackground({24, 49, 65, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        renderer.setWorldMaterial(material);
+        if (covered) DrawCube({0, 1.3F, 2}, 5, 5, .1F, BLUE);
+        ian::app_freeze_drawing::beginBatch();
+        ian::app_poison_drawing::emitPoison({}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1},
+            .8F, 2.2F, 42, seconds, amount, detailed);
+        ian::app_freeze_drawing::endBatch();
+        renderer.endWorldShader();
+        EndMode3D(); EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    const auto difference = [](Image a, Image b) {
+        std::size_t sum = 0;
+        const auto* ca = static_cast<Color*>(a.data);
+        const auto* cb = static_cast<Color*>(b.data);
+        for (int i = 0; i < a.width * a.height; ++i)
+            sum += static_cast<std::size_t>(std::abs(int(ca[i].r) - int(cb[i].r)) +
+                std::abs(int(ca[i].g) - int(cb[i].g)) + std::abs(int(ca[i].b) - int(cb[i].b)));
+        return sum;
+    };
+    Image base = render(.31, 0, true, false), poison = render(.31, 1, true, false);
+    Image next = render(.73, 1, true, false), faded = render(.31, .1F, true, false);
+    Image cheap = render(.31, 1, false, false), coverBase = render(.31, 0, true, true);
+    Image covered = render(.31, 1, true, true);
+    int green = 0, highlights = 0;
+    for (int y = 0; y < poison.height; ++y) for (int x = 0; x < poison.width; ++x) {
+        const auto c = GetImageColor(poison, x, y);
+        if (c.g > 120 && c.g > c.r + 25 && c.g > c.b + 30) ++green;
+        if (c.r > 170 && c.g > 190 && c.b > 110 && c.b < c.g - 10) ++highlights;
+    }
+    const bool result = green > 100 && highlights > 3 && difference(base, poison) > 10000 &&
+        difference(poison, next) > 3000 && difference(base, faded) < difference(base, poison) &&
+        difference(base, cheap) > 1000 && difference(coverBase, covered) == 0;
+    if (const char* path = std::getenv("IAN_CAPTURE_POISON")) ExportImage(poison, path);
+    for (Image image : {base, poison, next, faded, cheap, coverBase, covered}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    if (!result) std::cerr << "poison visual: green=" << green << " highlights=" << highlights << '\n';
+    return result;
 }
 
 
@@ -2442,6 +2498,10 @@ int main() {
         if (!checkFireWandAttack(renderer)) {
             std::cerr << "cartoon fire wand checks failed\n";
             return 1;
+        }
+        if (!checkCartoonPoison(renderer)) {
+            std::cerr << "cartoon poison presentation failed\n";
+            result = 1;
         }
         if (!checkCartoonFreeze(renderer)) {
             std::cerr << "cartoon freeze checks failed\n";

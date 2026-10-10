@@ -753,6 +753,7 @@ EnemySystem::EnemySystem(
     playerAttackBuffer_.reserve(MaxEnemies);
     projectiles_.reserve(256);
     areaDamageBuffer_.reserve(MaxEnemies);
+    poisonHitBuffer_.reserve(MaxEnemies);
     statusTargetBuffer_.reserve(MaxEnemies);
     eliteSpawnEventBuffer_.reserve(64);
     eliteDeathEventBuffer_.reserve(64);
@@ -781,6 +782,7 @@ void EnemySystem::reset() {
     performanceStats_.fullAiUpdates = 0U;
     performanceStats_.throttledAiMoves = 0U;
     areaDamageBuffer_.clear();
+    poisonHitBuffer_.clear();
     statusTargetBuffer_.clear();
     splitEventBuffer_.clear();
     eliteSpawnEventBuffer_.clear();
@@ -960,6 +962,7 @@ void EnemySystem::updateEnemyTimers(
     for (EnemyStatusEffect& status : enemy.statusEffects) {
         status.immunityRemaining = std::max(
             0.0, status.immunityRemaining - deltaSeconds);
+        if (status.type == StatusEffectType::Poison && status.remaining > 0.0) continue;
         if (status.remaining > 0.0) {
             status.remaining = std::max(
                 0.0, status.remaining - deltaSeconds);

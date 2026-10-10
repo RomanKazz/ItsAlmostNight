@@ -764,6 +764,10 @@ void Simulation::recordRunStatistics(
             runStatistics_.defenseDamageDealt +=
                 std::max(0.0, event.damage);
             break;
+        case GameEventType::PoisonHit:
+            if (event.buildingType) runStatistics_.defenseDamageDealt += std::max(0.0, event.damage);
+            else runStatistics_.playerDamageDealt += std::max(0.0, event.damage);
+            break;
         case GameEventType::ProjectileHit:
             // Tower projectiles identify their source building. Player rifle
             // and dash hits do not. Enemy-on-enemy volatile explosions carry

@@ -352,6 +352,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         break;
     case RunUpgradeEffect::WiderChoice:
         break;
+    case RunUpgradeEffect::PoisonChance:
     case RunUpgradeEffect::BloodHarvest:
     case RunUpgradeEffect::Overkill:
     case RunUpgradeEffect::Ricochet:

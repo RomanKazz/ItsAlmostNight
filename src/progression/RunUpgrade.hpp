@@ -66,9 +66,24 @@ enum class RunUpgradeEffect {
     UnlockBomb,
     UnlockIceWand,
     UnlockFireWand,
+    ProjectileSpeed,
+    AttackDuration,
+    AttackSize,
+    CriticalChance,
+    CriticalDamage,
+    AttackKnockback,
+    PoisonChance,
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 50U;
+inline constexpr std::size_t RunUpgradeEffectCount = 57U;
+// Poison deals 25% of the triggering hit per second for four seconds.
+// Reapplication refreshes duration and retains the strongest dose.
+inline constexpr double PoisonDuration = 4.0;
+inline constexpr double PoisonDamageFraction = 0.25;
+[[nodiscard]] inline double runPoisonChance(double power) {
+    return std::clamp(0.10 * power, 0.0, 1.0);
+}
+
 inline constexpr std::size_t MinimumRunUpgradeChoices = 3U;
 inline constexpr std::size_t MaximumRunUpgradeChoices = 5U;
 
@@ -195,6 +210,13 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::UnlockBomb, "BOMBS", "Unlock bombs for this run"},
         {RunUpgradeEffect::UnlockIceWand, "ICE WAND", "Unlock ice wand for this run"},
         {RunUpgradeEffect::UnlockFireWand, "FIRE WAND", "Unlock fire wand for this run"},
+        {RunUpgradeEffect::ProjectileSpeed, "PROJECTILE SPEED", "+20% defense projectile speed"},
+        {RunUpgradeEffect::AttackDuration, "DURATION", "+20% defense attack duration"},
+        {RunUpgradeEffect::AttackSize, "SIZE", "+15% defense attack size"},
+        {RunUpgradeEffect::CriticalChance, "CRIT CHANCE", "+5% defense critical chance"},
+        {RunUpgradeEffect::CriticalDamage, "CRIT DAMAGE", "+25% defense critical damage"},
+        {RunUpgradeEffect::AttackKnockback, "KNOCKBACK", "+20% defense knockback"},
+        {RunUpgradeEffect::PoisonChance, "VENOM", "+10% chance to poison on hit (25% hit damage/s, 4s)"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -412,6 +434,7 @@ runUpgradeRarityProbabilities(double luck) {
 }
 
 [[nodiscard]] constexpr double runUpgradePowerLimit(RunUpgradeEffect effect) {
+    if (effect == RunUpgradeEffect::PoisonChance) return 10.0;
     if (effect == RunUpgradeEffect::Salvager) return 3.0;
     const double maximum = static_cast<double>(runUpgradeMaximumLevel(effect));
     return discreteRunUpgradePower(effect) || fixedRunUpgradePower(effect)

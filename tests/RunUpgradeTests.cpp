@@ -13,6 +13,69 @@ void runRunUpgradeTests() {
         run.returnToMainMenu();
         return run.loadSuspendedRunState(checkpoint) && run.rerollRunUpgrades();
     };
+    {
+        require(runUpgradeIndex(RunUpgradeEffect::AttackKnockback) == 55 &&
+            runUpgradeIndex(RunUpgradeEffect::PoisonChance) == 56,
+            "poison appends a stable save ID without reordering previous upgrades");
+        requireNear(runPoisonChance(1), .10, 1e-12, "common venom gives ten percent proc chance");
+        requireNear(runPoisonChance(3), .30, 1e-12, "legendary venom scales chance");
+        requireNear(runPoisonChance(10000), 1, 1e-12, "debug venom cannot exceed guaranteed chance");
+        auto run = std::make_unique<Simulation>();
+        run->startRunFromSeed(PlayerClass::Vanguard, 12345);
+        auto saved = run->saveSuspendedRunState();
+        saved.runUpgradeChoicePending = true;
+        saved.runUpgradeChoiceCount = 4;
+        saved.runUpgradeSelectionsRemaining = 1;
+        saved.runUpgradeChoices = {RunUpgradeEffect::PoisonChance, RunUpgradeEffect::Damage,
+            RunUpgradeEffect::MaximumHealth, RunUpgradeEffect::Luck};
+        saved.runUpgradeRarities.fill(RunUpgradeRarity::Legendary);
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved) && run->selectRunUpgrade(0),
+            "normal reward selection grants venom");
+        const auto index = runUpgradeIndex(RunUpgradeEffect::PoisonChance);
+        requireNear(run->snapshot().runUpgradePower[index], 3, 1e-12, "venom applies rarity power");
+        saved = run->saveSuspendedRunState();
+        run->returnToMainMenu();
+        require(run->loadSuspendedRunState(saved), "venom upgrade survives save/load");
+        requireNear(run->snapshot().runUpgradePower[index], 3, 1e-12, "load preserves venom chance once");
+        run->returnToMainMenu();
+        run->startRunFromSeed(PlayerClass::Vanguard, 12345);
+        require(run->snapshot().runUpgradePower[index] == 0, "new runs clear venom");
+        PlayerCommand build;
+        build.enableUnlimitedResources = EnableUnlimitedResourcesCommand{};
+        build.placeBuilding = PlaceBuildingCommand{BuildingType::Core, {0, 0}, 0};
+        run->tick(0, build);
+        require(run->snapshot().coreId.has_value(), "poison fixture places its core");
+        while (run->snapshot().runUpgradeChoicePending) {
+            const auto& offer = run->snapshot();
+            std::size_t choice = 0;
+            while (choice < offer.runUpgradeChoiceCount && offer.runUpgradeChoices[choice] == RunUpgradeEffect::PoisonChance) ++choice;
+            require(choice < offer.runUpgradeChoiceCount && run->selectRunUpgrade(choice),
+                "core fixture resolves unrelated progression rewards");
+        }
+        PlayerCommand spawn;
+        spawn.spawnEnemy = SpawnEnemyCommand{.type = EnemyType::Heavy, .count = 1};
+        run->tick(0, spawn);
+        require(!run->snapshot().enemies.empty(), "poison integration gets an enemy fixture");
+        const auto id = run->snapshot().enemies.front().id;
+        PlayerCommand attack;
+        attack.castChainLightning = CastChainLightningCommand{.firstTarget = id, .damage = 10, .maximumTargets = 1};
+        run->tick(0, attack);
+        require(!enemyHasStatus(run->snapshot().enemies.front(), StatusEffectType::Poison),
+            "without venom direct hits never poison");
+        require(run->grantDebugRunUpgradeBatch(RunUpgradeEffect::PoisonChance, 10),
+            "debug menu supports stacked venom grants");
+        attack.castChainLightning->damage = run->snapshot().enemies.front().health * .6;
+        run->tick(0, attack);
+        require(enemyHasStatus(run->snapshot().enemies.front(), StatusEffectType::Poison),
+            "guaranteed venom procs from a real player attack");
+        const double dps = enemyStatusEffect(run->snapshot().enemies.front(), StatusEffectType::Poison).intensity;
+        run->tick(.5, {});
+        requireNear(enemyStatusEffect(run->snapshot().enemies.front(), StatusEffectType::Poison).intensity,
+            dps, 1e-9, "poison tick cannot proc or multiply its own dose");
+        for (int i = 0; i < 8; ++i) run->tick(.5, {});
+        require(!run->snapshot().enemies.front().active, "poison kills through gameplay updates");
+    }
     const auto base = runUpgradeRarityProbabilities(0.0);
     requireNear(base[0], 0.60, 1e-12, "common base chance");
     requireNear(base[4], 0.01, 1e-12, "legendary base chance");
@@ -551,7 +614,7 @@ void runRunUpgradeTests() {
             if (runHammerDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 40 && activeHammers == 13, "trimmed rotation retains 40 types and 13 hammers");
+    require(activeCount == 47 && activeHammers == 13, "rotation retains original cards, six universal attack stats and venom");
     require(!retiredRunUpgrade(RunUpgradeEffect::LongerDay) &&
             !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and high stakes remain available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;

@@ -166,6 +166,7 @@ class GameUi {
     Texture2D moveUpgradeIcon_{};
     Texture2D pierceUpgradeIcon_{};
     Texture2D ricochetUpgradeIcon_{};
+    Texture2D poisonUpgradeIcon_{};
     Texture2D xpGainUpgradeIcon_{};
     Texture2D levelUpBanner_{};
     Texture2D levelUpRays_{};

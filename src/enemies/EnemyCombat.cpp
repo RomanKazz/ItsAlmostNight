@@ -12,7 +12,7 @@ namespace ian {
 namespace {
 
 std::size_t statusEffectIndex(StatusEffectType type) {
-    return type == StatusEffectType::Freeze ? 0U : 1U;
+    return static_cast<std::size_t>(type);
 }
 
 double knockbackMultiplier(EnemyType type) {
@@ -479,6 +479,8 @@ bool EnemySystem::applyStatus(
     EntityId id, StatusEffectType requestedType,
     std::optional<EntityId> source, double duration,
     double intensity, StatusEffectRules rules) {
+    if (requestedType == StatusEffectType::Poison)
+        return applyPoison(id, source, duration, intensity);
     EnemyInstance* enemy = findEnemy(id);
     if (enemy == nullptr || !enemy->active || duration <= 0.0) {
         return false;
@@ -532,6 +534,50 @@ bool EnemySystem::applyStatus(
     return true;
 }
 
+bool EnemySystem::applyPoison(EntityId id, std::optional<EntityId> source,
+    double duration, double damagePerSecond, std::optional<BuildingType> buildingType) {
+    EnemyInstance* enemy = findEnemy(id);
+    if (!enemy || !enemy->active || !std::isfinite(duration) ||
+        !std::isfinite(damagePerSecond) || duration <= 0 || damagePerSecond <= 0) return false;
+    auto& status = enemy->statusEffects[statusEffectIndex(StatusEffectType::Poison)];
+    if (status.remaining <= 0) {
+        status = EnemyStatusEffect{.type = StatusEffectType::Poison};
+    }
+    if (damagePerSecond >= status.intensity) {
+        status.intensity = damagePerSecond;
+        status.source = source;
+        status.sourceBuildingType = buildingType;
+    }
+    status.remaining = std::max(status.remaining, duration);
+    status.visualParameter = 1.0;
+    return true;
+}
+
+std::span<const EnemyPoisonHit> EnemySystem::tickPoison(double deltaSeconds) {
+    poisonHitBuffer_.clear();
+    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0) return poisonHitBuffer_;
+    for (auto& enemy : enemies_) {
+        auto& status = enemy.statusEffects[statusEffectIndex(StatusEffectType::Poison)];
+        if (!enemy.active || status.remaining <= 0) continue;
+        const double elapsed = std::min(deltaSeconds, status.remaining);
+        status.pendingDamage += status.intensity * elapsed;
+        status.remaining = std::max(0.0, status.remaining - elapsed);
+        status.tickRemaining -= elapsed;
+        if (status.tickRemaining > 1e-9 && status.remaining > 1e-9) continue;
+        const auto source = status.source;
+        const auto buildingType = status.sourceBuildingType;
+        const double amount = std::exchange(status.pendingDamage, 0.0);
+        status.tickRemaining = 0.5;
+        if (status.remaining <= 1e-9) {
+            status.remaining = 0;
+            status.visualParameter = 0.92;
+        }
+        if (auto hit = damage(enemy.id, amount))
+            poisonHitBuffer_.push_back({*hit, source, buildingType});
+    }
+    return poisonHitBuffer_;
+}
+
 bool EnemySystem::clearStatus(
     EntityId id, StatusEffectType type) {
     EnemyInstance* enemy = findEnemy(id);
@@ -542,6 +588,8 @@ bool EnemySystem::clearStatus(
     status.remaining = 0.0;
     status.immunityRemaining = 0.0;
     status.visualParameter = 0.0;
+    status.pendingDamage = 0.0;
+    status.tickRemaining = 0.5;
     return active;
 }
 

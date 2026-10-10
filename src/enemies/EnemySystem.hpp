@@ -86,6 +86,7 @@ using EliteAffixMask = std::uint8_t;
 enum class StatusEffectType {
     Freeze,
     Slow,
+    Poison,
 };
 
 struct EnemyStatusEffect {
@@ -95,6 +96,10 @@ struct EnemyStatusEffect {
     double intensity{};
     double immunityRemaining{};
     double visualParameter{};
+    // Poison intensity is DPS, unlike the normalized control intensities.
+    double tickRemaining{0.5};
+    double pendingDamage{};
+    std::optional<BuildingType> sourceBuildingType;
 };
 
 struct StatusEffectRules {
@@ -144,9 +149,10 @@ struct EnemyInstance {
     // from authored model/capsule Y so existing combat dimensions stay valid.
     double surfaceHeightOffset{};
     double worldSurfaceHeight{};
-    std::array<EnemyStatusEffect, 2> statusEffects{{
+    std::array<EnemyStatusEffect, 3> statusEffects{{
         EnemyStatusEffect{.type = StatusEffectType::Freeze},
         EnemyStatusEffect{.type = StatusEffectType::Slow},
+        EnemyStatusEffect{.type = StatusEffectType::Poison},
     }};
 };
 
@@ -212,6 +218,12 @@ struct EnemyDamageResult {
     double damage;
     double remainingHealth;
     bool killed;
+};
+
+struct EnemyPoisonHit {
+    EnemyDamageResult result;
+    std::optional<EntityId> source;
+    std::optional<BuildingType> buildingType;
 };
 
 struct EnemyRaycastHit {
@@ -304,6 +316,12 @@ class EnemySystem {
         Vec3 origin, Vec3 direction, double maxDistance,
         const TerrainHeightfield* terrain = nullptr) const;
     std::optional<EnemyDamageResult> damage(EntityId id, double amount);
+    bool applyPoison(EntityId id, std::optional<EntityId> source,
+        double duration, double damagePerSecond,
+        std::optional<BuildingType> buildingType = {});
+    // Tick once per gameplay step, including frozen enemies. Poison owns
+    // its timer; movement/control updates must not decrement it again.
+    std::span<const EnemyPoisonHit> tickPoison(double deltaSeconds);
     [[nodiscard]] std::optional<EntityId> nearestEnemy(Vec3 position, double radius) const;
     [[nodiscard]] std::optional<EntityId> nearestEnemyInArc(
         Vec3 position, double radius, double yaw,
@@ -399,6 +417,7 @@ class EnemySystem {
     std::vector<EnemyPlayerAttack> playerAttackBuffer_;
     std::vector<EnemyProjectile> projectiles_;
     std::vector<EnemyDamageResult> areaDamageBuffer_;
+    std::vector<EnemyPoisonHit> poisonHitBuffer_;
     std::vector<EntityId> statusTargetBuffer_;
     std::vector<EnemySplitResult> splitEventBuffer_;
     std::vector<EliteEnemyEvent> eliteSpawnEventBuffer_;

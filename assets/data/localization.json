@@ -3,6 +3,10 @@
   "languages": {
     "en": {},
     "ru": {
+      "VENOM": "ЯД",
+      "+10% chance to poison on hit (25% hit damage/s, 4s)": "+10% к шансу отравить (25% урона удара/с, 4с)",
+      "Chance to poison on hit (25% hit damage/s, 4s)": "К шансу отравить (25% урона удара/с, 4с)",
+      "Poison chance": "Шанс отравить",
       "MORE RANGE": "РАДИУС +",
       "Player weapon": "Оружие игрока",
       "NEW WEAPON": "НОВОЕ ОРУЖИЕ",

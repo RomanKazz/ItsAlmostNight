@@ -41,6 +41,20 @@ int main(int argc, char** argv) {
     ian::initializeUiText();
     ian::GameUi ui;
     ui.initialize();
+    const Texture2D venomIcon = ui.runUpgradeTexture(ian::RunUpgradeEffect::PoisonChance);
+    require(IsTextureValid(venomIcon), "venom has its own inventory icon");
+    Image venomImage = LoadImageFromTexture(venomIcon);
+    require(GetImageColor(venomImage, 0, 0).a == 0 &&
+        GetImageColor(venomImage, 58, 90).g > GetImageColor(venomImage, 58, 90).r,
+        "venom icon has transparent padding and green liquid");
+    UnloadImage(venomImage);
+    ian::SimulationSnapshot venomPreview{};
+    venomPreview.runUpgradeChoiceCount = 1;
+    venomPreview.runUpgradeChoices[0] = ian::RunUpgradeEffect::PoisonChance;
+    venomPreview.runUpgradeRarities[0] = ian::RunUpgradeRarity::Legendary;
+    const auto venomProjected = ian::app_detail::previewRunUpgrade(venomPreview, 0);
+    requireNear(ian::runPoisonChance(venomProjected.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::PoisonChance)]),
+        .3, 1e-12, "legendary venom preview shows its thirty percent chance");
     const Texture2D upgradeArrow = ui.coreMenuTexture(ian::CoreMenuTexture::UpgradeGreen);
     require(IsTextureValid(upgradeArrow) && upgradeArrow.width == 256 && upgradeArrow.height == 256,
         "building upgrade arrow loads as a 256x256 icon");
