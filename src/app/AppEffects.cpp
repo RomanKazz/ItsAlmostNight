@@ -690,7 +690,9 @@ void App::drawPresentationEffects(
         renderer_->endWorldShader();
     }
     for (const auto& effect : effects_) {
-        if (effect.startDelayRemaining > 0.0) {
+        // Burning is drawn on the enemy in drawWorldEnemies, not as debris.
+        if (effect.startDelayRemaining > 0.0 ||
+            effect.type == PresentationEffectType::EnemyBurn) {
             continue;
         }
         const float progress =
