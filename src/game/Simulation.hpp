@@ -265,6 +265,7 @@ struct RunUpgradeStats {
     double productionSpeed{1.0};
     double resourceYield{1.0};
     double playerAttackSpeed{1.0};
+    double toolAttackSpeed{1.0};
     double luck{};
     double healthRegeneration{};
     int sideShots{};
@@ -503,6 +504,7 @@ struct SuspendedRunState {
     double playerDamageMultiplier{1.0};
     double runPlayerDamageMultiplier{1.0};
     double playerAttackSpeedMultiplier{1.0};
+    double toolAttackSpeedMultiplier{1.0};
     double playerMoveSpeedMultiplier{1.0};
     double runPlayerMoveSpeedMultiplier{1.0};
     double playerArmorMultiplier{1.0};
@@ -1015,6 +1017,7 @@ class Simulation {
     double playerDamageMultiplier_{1.0};
     double runPlayerDamageMultiplier_{1.0};
     double playerAttackSpeedMultiplier_{1.0};
+    double toolAttackSpeedMultiplier_{1.0};
     double playerMoveSpeedMultiplier_{1.0};
     double runPlayerMoveSpeedMultiplier_{1.0};
     double playerArmorMultiplier_{1.0};

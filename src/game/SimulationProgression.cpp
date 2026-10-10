@@ -97,6 +97,12 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     foundations_.setMaxHealthMultiplier(
         buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_);
 
+    const auto* defenseClass = playerClassDefinition(playerClass_);
+    const double classDamage = defenseClass ? defenseClass->defenseDamageMultiplier : 1.0;
+    defenseDamageMultiplier_ = activeMetaBonuses_.defenseDamage * classDamage *
+        (1.0 + 0.12 * runUpgradePower(RunUpgradeEffect::DefenseDamage));
+    defenseFireRateMultiplier_ = activeMetaBonuses_.defenseFireRate *
+        (1.0 + 0.10 * runUpgradePower(RunUpgradeEffect::DefenseFireRate));
     const double defenseDamage = defenseDamageMultiplier_;
     towers_.setModifiers(
         defenseDamage, 1.0, defenseFireRateMultiplier_, 1.0,
@@ -146,10 +152,11 @@ void Simulation::prepareRunUpgradeChoices(int selections) {
 
 bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
     if (retiredRunUpgrade(effect) ||
-        runUpgradeStacks_[runUpgradeIndex(effect)] >= runUpgradeMaximumLevel(effect) ||
+        (runTomeDefinition(effect) ? runTomeLevel(effect, runUpgradeStacks_) :
+            runUpgradeStacks_[runUpgradeIndex(effect)]) >= runUpgradeMaximumLevel(effect) ||
         runUpgradePower(effect) >= runUpgradePowerLimit(effect)) return false;
     if (!sandboxMode_ && !unlimitedResources_ && runTomeDefinition(effect) &&
-        runUpgradeStacks_[runUpgradeIndex(effect)] == 0 &&
+        runTomeLevel(effect, runUpgradeStacks_) == 0 &&
         runTomeCount(runUpgradeStacks_) >= runTomeSlotLimit(activeMetaBonuses_)) return false;
     if (const auto weapon = runUpgradeWeapon(effect)) {
         return !sandboxMode_ && !unlimitedResources_ && !playerWeaponUnlocked(*weapon);
@@ -318,6 +325,12 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
     if (stacks >= runUpgradeMaximumLevel(effect) || power <= 0.0) return false;
+    if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
+        const auto defenseHalf = effect == RunUpgradeEffect::Damage ? RunUpgradeEffect::DefenseDamage : RunUpgradeEffect::DefenseFireRate;
+        double& defensePower = runUpgradePower_[runUpgradeIndex(defenseHalf)];
+        if (defensePower + power > static_cast<double>(std::numeric_limits<int>::max()) / 16.0) return false;
+        defensePower += power;
+    }
     ++stacks;
     runUpgradePower_[runUpgradeIndex(effect)] += power;
     switch (effect) {
@@ -348,10 +361,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
             buildings_.coreBuildRadius() + static_cast<int>(std::round(3.0 * power)));
         break;
     case RunUpgradeEffect::DefenseDamage:
-        defenseDamageMultiplier_ += 0.12 * power;
         break;
     case RunUpgradeEffect::DefenseFireRate:
-        defenseFireRateMultiplier_ += 0.10 * power;
         break;
     case RunUpgradeEffect::ProductionSpeed:
         runProductionSpeedMultiplier_ += 0.15 * power;
@@ -426,6 +437,7 @@ bool Simulation::grantDebugRunUpgrade(
     const int rawEffect = static_cast<int>(effect);
     if (rawEffect < 0 ||
         rawEffect >= static_cast<int>(RunUpgradeEffectCount) ||
+        (retiredRunUpgrade(effect) && !legacyRunTomeUpgrade(effect)) ||
         static_cast<std::size_t>(rarity) >= RunUpgradeRarityCount) {
         return false;
     }

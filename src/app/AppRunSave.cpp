@@ -590,6 +590,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
             {"playerDamage", saved.playerDamageMultiplier},
             {"runPlayerDamage", saved.runPlayerDamageMultiplier},
             {"playerAttackSpeed", saved.playerAttackSpeedMultiplier},
+            {"toolAttackSpeed", saved.toolAttackSpeedMultiplier},
             {"playerMoveSpeed", saved.playerMoveSpeedMultiplier},
             {"runPlayerMoveSpeed", saved.runPlayerMoveSpeedMultiplier},
             {"playerArmor", saved.playerArmorMultiplier},
@@ -735,6 +736,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.playerDamageMultiplier = multipliers.at("playerDamage");
     saved.runPlayerDamageMultiplier = multipliers.at("runPlayerDamage");
     saved.playerAttackSpeedMultiplier = multipliers.at("playerAttackSpeed");
+    saved.toolAttackSpeedMultiplier = multipliers.value("toolAttackSpeed", saved.playerAttackSpeedMultiplier);
     saved.playerMoveSpeedMultiplier = multipliers.at("playerMoveSpeed");
     saved.runPlayerMoveSpeedMultiplier = multipliers.at("runPlayerMoveSpeed");
     saved.playerArmorMultiplier = multipliers.at("playerArmor");

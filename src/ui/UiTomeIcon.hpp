@@ -21,7 +21,7 @@ inline Texture2D createRunTomeIcon(Texture2D symbol, std::uint32_t rgb) {
     quad({39, 39}, {184, 19}, {220, 207}, {65, 234}, {20, 25, 31, 255});
     quad({64, 70}, {199, 49}, {210, 202}, {81, 222}, {255, 241, 188, 255});
     for (int line = 0; line < 4; ++line) {
-        const float y = 184.0F + line * 7.0F;
+        const float y = 184.0F + static_cast<float>(line) * 7.0F;
         DrawLineEx({80, y + 22}, {210, y}, 2, {200, 170, 119, 255});
     }
     quad({137, 200}, {159, 197}, {162, 238}, {141, 231}, {229, 76, 97, 255});

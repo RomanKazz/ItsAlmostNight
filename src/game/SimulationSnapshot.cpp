@@ -429,6 +429,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
                 (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)),
             .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
                 (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
+            .toolAttackSpeed = toolAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() * classLevelBonuses().meleeSpeed *
+                (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::GatheringSpeed)) *
+                (playerClass_ == PlayerClass::Berserker ? playerClassDamageMultiplier() : 1.0),
             .luck = activeMetaBonuses_.luck + 0.10 * runUpgradePower(RunUpgradeEffect::Luck),
             .healthRegeneration = 0.5 * runUpgradePower(RunUpgradeEffect::Regeneration),
             .sideShots = runUpgradeCount(RunUpgradeEffect::TwinBatteries),

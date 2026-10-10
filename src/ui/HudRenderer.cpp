@@ -650,7 +650,7 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
         1U, snapshot.stoneCapacity > 0 &&
                 snapshot.stone >= snapshot.stoneCapacity);
     drawFullResourceGlint(2U, snapshot.crystalStorageFull);
-    drawRunHammerInventory(ui, snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F});
+    drawRunHammerInventory(ui, snapshot, {20.0F, 82.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 52.8F});
     if (!snapshot.unlimitedResources &&
         snapshot.coins >= snapshot.chestRevealCoinCost &&
         !snapshot.nearestChestPosition) {

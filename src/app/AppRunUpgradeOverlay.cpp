@@ -381,6 +381,14 @@ std::string statNumber(double value, int precision = 1) {
 
 std::string upgradeDescription(const SimulationSnapshot& snapshot,
     RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+    if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
+        const double gain = runUpgradeAppliedPowerGain(effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
+        const bool damage = effect == RunUpgradeEffect::Damage;
+        return "+" + statNumber((damage ? 10.0 : 15.0) * gain) + "% " +
+            localizeText(damage ? "Player damage" : "Attack speed") + " / +" +
+            statNumber((damage ? 12.0 : 10.0) * gain) + "% " +
+            localizeText(damage ? "Defense damage" : "Fire rate");
+    }
     std::string description{runUpgradeDefinition(effect).description};
     if (fixedRunUpgradePower(effect)) return description;
     const std::size_t numberEnd = description.find_first_not_of("0123456789.", 1);
@@ -519,6 +527,9 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     row("Shield", statNumber(snapshot.playerMaxRecoverableArmor), statNumber(projected.playerMaxRecoverableArmor));
     row("Player damage", multiplier(snapshot.playerDamageMultiplier), multiplier(projected.playerDamageMultiplier));
     row("Attack speed", multiplier(stats.playerAttackSpeed), multiplier(next.playerAttackSpeed));
+    if (snapshot.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)] > 0 ||
+        projected.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)] > 0)
+        row("Tool speed", multiplier(stats.toolAttackSpeed), multiplier(next.toolAttackSpeed));
     row("Move speed", multiplier(snapshot.playerMoveSpeedMultiplier), multiplier(projected.playerMoveSpeedMultiplier));
     if (cannonPreview) {
         const auto before = cannonAttackProfile(stats.cannonAttackStyle);
@@ -650,6 +661,15 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     if (gain <= 0.0) return projected;
     projected.runUpgradePower[index] += gain;
     ++projected.runUpgradeStacks[index];
+    if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
+        const auto defenseHalf = effect == RunUpgradeEffect::Damage ? RunUpgradeEffect::DefenseDamage : RunUpgradeEffect::DefenseFireRate;
+        const double oldPower = snapshot.runUpgradePower[runUpgradeIndex(defenseHalf)];
+        projected.runUpgradePower[runUpgradeIndex(defenseHalf)] += gain;
+        if (effect == RunUpgradeEffect::Damage)
+            projected.upgradeStats.defenseDamage *= (1.0 + 0.12 * (oldPower + gain)) / (1.0 + 0.12 * oldPower);
+        else
+            projected.upgradeStats.defenseFireRate *= (1.0 + 0.10 * (oldPower + gain)) / (1.0 + 0.10 * oldPower);
+    }
     projected.tomeCount = runTomeCount(projected.runUpgradeStacks);
     const auto* character = playerClassDefinition(snapshot.playerClass);
     const auto ratio = [&](double base, double step) {
@@ -663,8 +683,8 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     }
     if (const auto style = runUpgradeCannonStyle(effect)) projected.upgradeStats.cannonAttackStyle = *style;
     switch (effect) {
-    case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage += 0.12 * gain; break;
-    case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate += 0.10 * gain; break;
+    case RunUpgradeEffect::DefenseDamage: projected.upgradeStats.defenseDamage *= (1.0 + 0.12 * (current + gain)) / (1.0 + 0.12 * current); break;
+    case RunUpgradeEffect::DefenseFireRate: projected.upgradeStats.defenseFireRate *= (1.0 + 0.10 * (current + gain)) / (1.0 + 0.10 * current); break;
     case RunUpgradeEffect::BuildingHealth:
         projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.12); break;
     case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.15); break;
@@ -677,6 +697,7 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     case RunUpgradeEffect::MaximumHealth: projected.playerMaxHealth += 12.0 * gain; break;
     case RunUpgradeEffect::RecoverableArmor: projected.playerMaxRecoverableArmor += 8.0 * gain; break;
     case RunUpgradeEffect::BuildRadius: projected.coreBuildRadius += static_cast<int>(std::round(3.0 * gain)); break;
+    case RunUpgradeEffect::GatheringSpeed: projected.upgradeStats.toolAttackSpeed *= ratio(1.0, 0.15); break;
     case RunUpgradeEffect::Luck: projected.upgradeStats.luck += 0.10 * gain; break;
     case RunUpgradeEffect::Regeneration: projected.upgradeStats.healthRegeneration += 0.5 * gain; break;
     case RunUpgradeEffect::TwinBatteries:
@@ -1087,7 +1108,7 @@ void drawRunUpgradeOverlay(
                 labelSize, style);
         }
         const int currentLevel =
-            snapshot.runUpgradeStacks[runUpgradeIndex(effect)];
+            runTomeLevel(effect, snapshot.runUpgradeStacks);
         const int maximumLevel = runUpgradeMaximumLevel(effect);
         const Rectangle levelBadge{
             centerX - 100.0F * scale,

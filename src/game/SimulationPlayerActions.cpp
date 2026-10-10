@@ -340,12 +340,11 @@ void Simulation::updatePlayerActions(
         const bool quickTool = heldTool == PlayerWeapon::Axe ||
             heldTool == PlayerWeapon::Pickaxe;
         const double toolSpeed = quickTool
-            ? runGatheringSpeedMultiplier(runUpgradeStacks_[
-                  runUpgradeIndex(RunUpgradeEffect::GatheringSpeed)])
+            ? (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::GatheringSpeed))
             : 1.0;
         pickaxeCooldownRemaining_ = gameplay_.pickaxeCooldown /
             std::max(
-                0.05, playerAttackSpeedMultiplier_ *
+                0.05, (quickTool ? toolAttackSpeedMultiplier_ : playerAttackSpeedMultiplier_) *
                     temporaryAttackSpeedMultiplier() * toolSpeed *
                     (playerClass_ == PlayerClass::Berserker
                          ? playerClassDamageMultiplier() : 1.0));

@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
          ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::BuildingHealth,
          ian::RunUpgradeEffect::DefenseDamage, ian::RunUpgradeEffect::DefenseFireRate,
          ian::RunUpgradeEffect::ProductionSpeed, ian::RunUpgradeEffect::RichResources,
-         ian::RunUpgradeEffect::Luck,
+         ian::RunUpgradeEffect::Luck, ian::RunUpgradeEffect::GatheringSpeed,
          ian::RunUpgradeEffect::TwinBatteries, ian::RunUpgradeEffect::GunPiercing,
          ian::RunUpgradeEffect::Ricochet, ian::RunUpgradeEffect::ClusterPayload,
          ian::RunUpgradeEffect::Damage, ian::RunUpgradeEffect::BuildingHealth,
@@ -119,6 +119,7 @@ int main(int argc, char** argv) {
         requireNear(projected.playerMaxRecoverableArmor, actual.playerMaxRecoverableArmor, 1e-9, "shield preview matches simulation");
         requireNear(projected.upgradeStats.buildingHealth, actual.upgradeStats.buildingHealth, 1e-9, "class building HP preview matches simulation");
         requireNear(projected.upgradeStats.productionSpeed, actual.upgradeStats.productionSpeed, 1e-9, "production preview matches simulation");
+        requireNear(projected.upgradeStats.toolAttackSpeed, actual.upgradeStats.toolAttackSpeed, 1e-9, "tool speed preview matches simulation");
         requireNear(projected.upgradeStats.playerAttackSpeed, actual.upgradeStats.playerAttackSpeed, 1e-9, "attack speed preview matches simulation");
         requireNear(projected.upgradeStats.resourceYield, actual.upgradeStats.resourceYield, 1e-9, "yield preview matches simulation");
         requireNear(projected.upgradeStats.defenseDamage, actual.upgradeStats.defenseDamage, 1e-9, "defense damage preview matches simulation");
@@ -188,8 +189,8 @@ int main(int argc, char** argv) {
                 }
                 if (scene == 5) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::AttackSpeed,
-                        ian::RunUpgradeEffect::Luck, ian::RunUpgradeEffect::LongerDay,
-                        ian::RunUpgradeEffect::Overkill};
+                        ian::RunUpgradeEffect::Luck, ian::RunUpgradeEffect::GatheringSpeed,
+                        ian::RunUpgradeEffect::Damage};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Uncommon, ian::RunUpgradeRarity::Rare, ian::RunUpgradeRarity::Epic};
                 }

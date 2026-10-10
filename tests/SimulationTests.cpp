@@ -4020,9 +4020,11 @@ void runSimulationTests() {
         ian::Simulation hastyGathering;
         baseGathering.startRun();
         hastyGathering.startRun();
+        require(hastyGathering.grantDebugRunUpgrade(ian::RunUpgradeEffect::AttackSpeed),
+                "combat haste coexists without multiplying tool speed");
         require(hastyGathering.grantDebugRunUpgrade(
-                    ian::RunUpgradeEffect::AttackSpeed),
-                "haste card can be granted");
+                    ian::RunUpgradeEffect::GatheringSpeed),
+                "gathering tome can be granted");
         ian::PlayerCommand selectAxe;
         selectAxe.selectWeapon =
             ian::SelectWeaponCommand{ian::PlayerWeapon::Axe};
@@ -4038,7 +4040,7 @@ void runSimulationTests() {
             hastyGathering.snapshot().pickaxeCooldownRemaining * 1.15,
             baseGathering.snapshot().pickaxeCooldownRemaining,
             1e-9,
-            "haste card accelerates the axe itself by 15 percent");
+            "gathering tome accelerates the axe itself by 15 percent");
     }
 
     {

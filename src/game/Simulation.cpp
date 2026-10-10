@@ -491,6 +491,7 @@ void Simulation::resetRun(GameEventType eventType) {
         }
         playerHealth_ = playerPermanentMaxHealth();
     }
+    toolAttackSpeedMultiplier_ = playerAttackSpeedMultiplier_;
     refreshRunUpgradeRuntimeEffects();
     phaseTimeRemaining_ = gameplay_.firstBuildPhaseSeconds;
     phaseDuration_ = phaseTimeRemaining_;

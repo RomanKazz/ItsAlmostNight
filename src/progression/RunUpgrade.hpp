@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <string_view>
 #include <optional>
+#include <limits>
 
 namespace ian {
 
@@ -103,9 +104,7 @@ struct RunTomeDefinition {
     std::uint32_t colorRgb;
 };
 
-inline constexpr std::array<RunTomeDefinition, 35> RunTomeDefinitions{{
-    {RunUpgradeEffect::DefenseDamage, "MIGHT TOME", "DMG", 0xFFAD43},
-    {RunUpgradeEffect::DefenseFireRate, "RAPID TOME", "RATE", 0x4DDCF2},
+inline constexpr std::array<RunTomeDefinition, 27> RunTomeDefinitions{{
     {RunUpgradeEffect::BuildingHealth, "FORTITUDE TOME", "DEF", 0x78A7FF},
     {RunUpgradeEffect::ProductionSpeed, "INDUSTRY TOME", "PROD", 0x72DA92},
     {RunUpgradeEffect::Luck, "FORTUNE TOME", "LUCK", 0xA36CEF},
@@ -114,23 +113,17 @@ inline constexpr std::array<RunTomeDefinition, 35> RunTomeDefinitions{{
     {RunUpgradeEffect::MaximumHealth, "VITALITY TOME", "HP", 0xFF647F},
     {RunUpgradeEffect::RecoverableArmor, "GUARD TOME", "SHLD", 0x68DBFF},
     {RunUpgradeEffect::MoveSpeed, "SWIFT TOME", "MOVE", 0x73D1CC},
-    {RunUpgradeEffect::AttackSpeed, "HASTE TOME", "SPD", 0xF69ED6},
-    {RunUpgradeEffect::Damage, "POWER TOME", "ATK", 0xF77E56},
+    {RunUpgradeEffect::AttackSpeed, "RAPID TOME", "SPD", 0x4DDCF2},
+    {RunUpgradeEffect::Damage, "MIGHT TOME", "ATK", 0xFFAD43},
     {RunUpgradeEffect::Regeneration, "REGEN TOME", "REGEN", 0x8BDA66},
     {RunUpgradeEffect::Salvager, "SALVAGE TOME", "SCRAP", 0xD8B072},
-    {RunUpgradeEffect::LongerDay, "DAYLIGHT TOME", "DAY", 0xFFE078},
     {RunUpgradeEffect::LumberMillProduction, "SAWMILL TOME", "WOOD", 0xA9D96D},
     {RunUpgradeEffect::QuarryProduction, "QUARRY TOME", "ROCK", 0x9DB7D6},
     {RunUpgradeEffect::CrystalMineProduction, "CRYSTAL TOME", "GEM", 0xCD87F6},
-    {RunUpgradeEffect::NightlyBomb, "BOMB TOME", "BOMB", 0xFFB552},
     {RunUpgradeEffect::BloodHarvest, "VAMPIRIC TOME", "HEAL", 0xF56891},
-    {RunUpgradeEffect::Overkill, "OVERKILL TOME", "DMG", 0xF77E56},
     {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name, "BOUNCE", 0x75C9FF},
     {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name, "MULTI", 0xFFE078},
-    {RunUpgradeEffect::ClusterPayload, "CLUSTER TOME", "BLAST", 0xFF9D64},
-    {RunUpgradeEffect::ReactiveTraps, "PULSE TOME", "PULSE", 0xC69CFF},
     {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name, "PIERCE", 0x73D1CC},
-    {RunUpgradeEffect::GunShrapnel, "SHRAPNEL TOME", "SHARD", 0xFFCA6D},
     {RunUpgradeEffect::GatheringSpeed, "GATHERING TOME", "TOOL", 0xA9D96D},
     {RunUpgradeEffect::ProjectileSpeed, "VELOCITY TOME", "VEL", 0x4DDCF2},
     {RunUpgradeEffect::AttackDuration, "DURATION TOME", "TIME", 0x8DAFFF},
@@ -146,10 +139,23 @@ inline constexpr std::array<RunTomeDefinition, 35> RunTomeDefinitions{{
     return nullptr;
 }
 
+// Reserved effects retain saved bonuses and explicit debug access, but no normal offers.
+[[nodiscard]] constexpr bool legacyRunTomeUpgrade(RunUpgradeEffect effect) {
+    return effect == RunUpgradeEffect::DefenseDamage || effect == RunUpgradeEffect::DefenseFireRate ||
+        effect == RunUpgradeEffect::LongerDay || effect == RunUpgradeEffect::Overkill;
+}
+[[nodiscard]] constexpr bool retiredRunUpgrade(RunUpgradeEffect effect);
+[[nodiscard]] inline int runTomeLevel(RunUpgradeEffect effect, const std::array<int, RunUpgradeEffectCount>& stacks) {
+    std::int64_t level = stacks[static_cast<std::size_t>(effect)];
+    if (effect == RunUpgradeEffect::Damage) level += stacks[static_cast<std::size_t>(RunUpgradeEffect::DefenseDamage)];
+    if (effect == RunUpgradeEffect::AttackSpeed) level += stacks[static_cast<std::size_t>(RunUpgradeEffect::DefenseFireRate)];
+    return static_cast<int>(std::min(level, static_cast<std::int64_t>(std::numeric_limits<int>::max())));
+}
+
 // Ownership derives from stable upgrade stacks; old saves retain every bonus.
 [[nodiscard]] inline int runTomeCount(const std::array<int, RunUpgradeEffectCount>& stacks) {
     return static_cast<int>(std::ranges::count_if(RunTomeDefinitions, [&stacks](const auto& tome) {
-        return stacks[static_cast<std::size_t>(tome.effect)] > 0;
+        return !retiredRunUpgrade(tome.effect) && runTomeLevel(tome.effect, stacks) > 0;
     }));
 }
 [[nodiscard]] inline int runTomeSlotLimit(const MetaRunBonuses& bonuses) {
@@ -167,9 +173,9 @@ inline constexpr std::array<RunUpgradeDefinition,
                             RunUpgradeEffectCount>
     RunUpgradeDefinitions{{
         {RunUpgradeEffect::Damage, runTomeDefinition(RunUpgradeEffect::Damage)->name,
-         "+10% attack damage"},
+         "+10% player damage and +12% defense damage"},
         {RunUpgradeEffect::AttackSpeed, runTomeDefinition(RunUpgradeEffect::AttackSpeed)->name,
-         "+15% weapon and tool speed"},
+         "+15% weapon attack speed and +10% defense speed"},
         {RunUpgradeEffect::MoveSpeed, runTomeDefinition(RunUpgradeEffect::MoveSpeed)->name,
          "+7% move speed"},
         {RunUpgradeEffect::MaximumHealth, runTomeDefinition(RunUpgradeEffect::MaximumHealth)->name,
@@ -180,19 +186,19 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+12% building HP"},
         {RunUpgradeEffect::BuildRadius, runTomeDefinition(RunUpgradeEffect::BuildRadius)->name,
          "+3m build range"},
-        {RunUpgradeEffect::DefenseDamage, runTomeDefinition(RunUpgradeEffect::DefenseDamage)->name,
+        {RunUpgradeEffect::DefenseDamage, "LEGACY DEFENSE DAMAGE",
          "+12% defense damage"},
-        {RunUpgradeEffect::DefenseFireRate, runTomeDefinition(RunUpgradeEffect::DefenseFireRate)->name,
+        {RunUpgradeEffect::DefenseFireRate, "LEGACY DEFENSE SPEED",
          "+10% defense speed"},
         {RunUpgradeEffect::ProductionSpeed, runTomeDefinition(RunUpgradeEffect::ProductionSpeed)->name,
          "+15% production speed"},
-        {RunUpgradeEffect::NightlyBomb, runTomeDefinition(RunUpgradeEffect::NightlyBomb)->name,
+        {RunUpgradeEffect::NightlyBomb, "BOMB SUPPLY",
          "+1 bomb each night"},
         {RunUpgradeEffect::WiderChoice, "MORE CHOICES",
          "+1 card choice"},
         {RunUpgradeEffect::BloodHarvest, runTomeDefinition(RunUpgradeEffect::BloodHarvest)->name,
          "+8 HP per 10 kills"},
-        {RunUpgradeEffect::Overkill, runTomeDefinition(RunUpgradeEffect::Overkill)->name,
+        {RunUpgradeEffect::Overkill, "LEGACY OVERKILL",
          "+1 damage transfer"},
         {RunUpgradeEffect::Ricochet, runTomeDefinition(RunUpgradeEffect::Ricochet)->name,
          "+1 shot bounce"},
@@ -208,17 +214,17 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+30% sold or destroyed refund"},
         {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name,
          "+1 side shot"},
-        {RunUpgradeEffect::ClusterPayload, runTomeDefinition(RunUpgradeEffect::ClusterPayload)->name,
+        {RunUpgradeEffect::ClusterPayload, "CLUSTER PAYLOAD",
          "+2 mini explosions"},
-        {RunUpgradeEffect::ReactiveTraps, runTomeDefinition(RunUpgradeEffect::ReactiveTraps)->name,
+        {RunUpgradeEffect::ReactiveTraps, "TRAP PULSE",
          "+6 shockwave damage"},
         {RunUpgradeEffect::GunPiercing, runTomeDefinition(RunUpgradeEffect::GunPiercing)->name,
          "+1 gun turret pierce target"},
-        {RunUpgradeEffect::GunShrapnel, runTomeDefinition(RunUpgradeEffect::GunShrapnel)->name,
+        {RunUpgradeEffect::GunShrapnel, "TURRET SHRAPNEL",
          "+3 gun turret kill shards"},
         {RunUpgradeEffect::GatheringSpeed, runTomeDefinition(RunUpgradeEffect::GatheringSpeed)->name,
          "+15% gathering speed"},
-        {RunUpgradeEffect::LongerDay, runTomeDefinition(RunUpgradeEffect::LongerDay)->name,
+        {RunUpgradeEffect::LongerDay, "LEGACY DAYLIGHT",
          "+5s build phase"},
         {RunUpgradeEffect::RichResources, runTomeDefinition(RunUpgradeEffect::RichResources)->name,
          "+15% resource node yield"},
@@ -343,10 +349,9 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
 // These IDs remain reserved so suspended runs keep their card indices.
 [[nodiscard]] constexpr bool retiredRunUpgrade(
     RunUpgradeEffect effect) {
-    return effect == RunUpgradeEffect::BuildRadius ||
+    return legacyRunTomeUpgrade(effect) || effect == RunUpgradeEffect::BuildRadius ||
            effect == RunUpgradeEffect::Salvager ||
            effect == RunUpgradeEffect::LockChoice ||
-           effect == RunUpgradeEffect::GatheringSpeed ||
            effect == RunUpgradeEffect::LumberMillProduction ||
            effect == RunUpgradeEffect::QuarryProduction ||
            effect == RunUpgradeEffect::CrystalMineProduction ||

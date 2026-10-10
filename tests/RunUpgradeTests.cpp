@@ -240,7 +240,7 @@ void runRunUpgradeTests() {
         requireNear(actual.playerMaxHealth - initial.playerMaxHealth,
             expectedHealthBonus[tierIndex], 1e-12, "each rarity grants the expected max HP");
         requireNear(actual.upgradeStats.defenseDamage - initial.upgradeStats.defenseDamage,
-            expectedDamageBonus[tierIndex] * 1.2, 1e-12,
+            expectedDamageBonus[tierIndex] * 2.4, 1e-12,
             "defense damage follows the same rarity scale");
         require(actual.coreBuildRadius == initial.coreBuildRadius &&
             !tierSimulation->grantDebugRunUpgrade(RunUpgradeEffect::BuildRadius, tier),
@@ -712,6 +712,10 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::UnlockIceWand, RunUpgradeEffect::UnlockFireWand,
                 RunUpgradeEffect::CannonHeavyShell})
             require(exhausted->grantDebugRunUpgrade(acquiredEffect), "exhaustion fixture fills arsenals and specialization");
+        for (const auto perk : {RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload,
+                RunUpgradeEffect::ReactiveTraps, RunUpgradeEffect::GunShrapnel})
+            require(exhausted->grantDebugRunUpgradeBatch(perk, runUpgradeMaximumLevel(perk)),
+                "exhaustion fixture also maximizes weapon perks outside tome slots");
         require(exhausted->grantDebugRunUpgradeBatch(RunUpgradeEffect::RiskyInvestment, 2),
             "one high stakes level remains");
         auto checkpoint = exhausted->saveSuspendedRunState();
@@ -731,6 +735,71 @@ void runRunUpgradeTests() {
         require(exhausted->loadSuspendedRunState(checkpoint), "exhausted reward state remains resumable");
     }
 
+    {
+        auto shared = std::make_unique<Simulation>();
+        shared->startRunFromSeed(PlayerClass::Engineer, 12345);
+        const auto baseStats = shared->snapshot();
+        require(shared->grantDebugRunUpgrade(RunUpgradeEffect::Damage, RunUpgradeRarity::Rare),
+            "shared might tome grants both halves");
+        requireNear(shared->snapshot().playerDamageMultiplier, baseStats.playerDamageMultiplier * 1.20, 1e-12,
+            "might retains original player damage scaling");
+        requireNear(shared->snapshot().upgradeStats.defenseDamage, baseStats.upgradeStats.defenseDamage * 1.24, 1e-12,
+            "might adds defense damage at the same rarity");
+        require(shared->grantDebugRunUpgrade(RunUpgradeEffect::AttackSpeed, RunUpgradeRarity::Rare),
+            "shared rapid tome grants both halves");
+        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed + 0.30, 1e-12,
+            "rapid retains original player weapon speed scaling");
+        requireNear(shared->snapshot().upgradeStats.defenseFireRate, baseStats.upgradeStats.defenseFireRate * 1.20, 1e-12,
+            "rapid speeds up defenses too");
+        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed, 1e-12,
+            "combat speed no longer accelerates gathering tools");
+        require(shared->grantDebugRunUpgrade(RunUpgradeEffect::GatheringSpeed, RunUpgradeRarity::Rare),
+            "separate gathering tome is grantable");
+        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed * 1.30, 1e-12,
+            "gathering speed uses rarity power rather than copy count");
+        requireNear(shared->snapshot().upgradeStats.playerAttackSpeed, baseStats.upgradeStats.playerAttackSpeed + 0.30, 1e-12,
+            "gathering speed leaves combat unchanged");
+        const auto beforePerks = shared->snapshot();
+        for (auto perk : {RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload,
+                RunUpgradeEffect::ReactiveTraps, RunUpgradeEffect::GunShrapnel})
+            require(shared->grantDebugRunUpgrade(perk), "weapon perk grants without a tome slot");
+        require(shared->snapshot().tomeCount == beforePerks.tomeCount,
+            "weapon perks never consume tome capacity");
+        auto checkpoint = shared->saveSuspendedRunState();
+        shared->returnToMainMenu();
+        require(shared->loadSuspendedRunState(checkpoint), "shared power and separate tool baseline resume");
+        requireNear(shared->snapshot().upgradeStats.defenseDamage, beforePerks.upgradeStats.defenseDamage, 1e-12,
+            "defense half survives save/load without duplicate application");
+        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, beforePerks.upgradeStats.toolAttackSpeed, 1e-12,
+            "tool speed survives save/load exactly");
+        // Emulate a pre-merge save: old player and defense stats remain independent.
+        checkpoint.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)] = 1;
+        checkpoint.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::DefenseDamage)] = 1;
+        checkpoint.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::DefenseFireRate)] = 1;
+        checkpoint.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::DefenseFireRate)] = 1;
+        shared->returnToMainMenu();
+        require(shared->loadSuspendedRunState(checkpoint), "legacy separate defense tomes remain resumable");
+        requireNear(shared->snapshot().upgradeStats.defenseDamage, baseStats.upgradeStats.defenseDamage * 1.12, 1e-12,
+            "legacy player damage is not retroactively counted as defense damage");
+        require(shared->snapshot().tomeCount == 3 &&
+            runTomeLevel(RunUpgradeEffect::Damage, shared->snapshot().runUpgradeStacks) == 2,
+            "legacy player and defense variants share one displayed slot and level");
+        checkpoint.runUpgradeChoicePending = true;
+        checkpoint.runUpgradeChoiceCount = 4;
+        checkpoint.runUpgradeSelectionsRemaining = 1;
+        checkpoint.runUpgradeChoices = {RunUpgradeEffect::DefenseDamage, RunUpgradeEffect::DefenseFireRate,
+            RunUpgradeEffect::LongerDay, RunUpgradeEffect::Overkill};
+        shared->returnToMainMenu();
+        require(shared->loadSuspendedRunState(checkpoint), "legacy pending offers regenerate on resume");
+        for (std::size_t i = 0; i < shared->snapshot().runUpgradeChoiceCount; ++i)
+            require(!legacyRunTomeUpgrade(shared->snapshot().runUpgradeChoices[i]),
+                "retired duplicate, daylight and overkill cards do not return to normal offers");
+        shared->returnToMainMenu();
+        shared->startRunFromSeed(PlayerClass::Engineer, 12345);
+        requireNear(shared->snapshot().upgradeStats.toolAttackSpeed, baseStats.upgradeStats.toolAttackSpeed, 1e-12,
+            "new runs clear previous gathering power and tool baseline");
+    }
+
     auto hammers = std::make_unique<Simulation>();
     hammers->startRunFromSeed(PlayerClass::Engineer, 12345);
     for (std::size_t index = 0; index < RunTomeDefinitions.size(); ++index) {
@@ -742,14 +811,17 @@ void runRunUpgradeTests() {
             require(hammer.effect != RunTomeDefinitions[other].effect,
                 "each hammer owns one stable effect rather than a duplicate bonus");
     }
-    for (auto numericEffect : {RunUpgradeEffect::Salvager, RunUpgradeEffect::LongerDay,
+    for (auto numericEffect : {RunUpgradeEffect::Salvager, RunUpgradeEffect::GatheringSpeed,
             RunUpgradeEffect::LumberMillProduction, RunUpgradeEffect::QuarryProduction,
             RunUpgradeEffect::CrystalMineProduction})
         require(runTomeDefinition(numericEffect), "remaining numeric bonuses use hammer cards");
     for (auto mechanic : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::CannonHeavyShell,
-            RunUpgradeEffect::RiskyInvestment, RunUpgradeEffect::UnlockRifle, RunUpgradeEffect::CannonScattershot})
+            RunUpgradeEffect::RiskyInvestment, RunUpgradeEffect::UnlockRifle, RunUpgradeEffect::CannonScattershot,
+            RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload, RunUpgradeEffect::ReactiveTraps,
+            RunUpgradeEffect::GunShrapnel, RunUpgradeEffect::Overkill, RunUpgradeEffect::LongerDay,
+            RunUpgradeEffect::DefenseDamage, RunUpgradeEffect::DefenseFireRate})
         require(!runTomeDefinition(mechanic), "blueprints and mechanical perks stay separate from hammers");
-    require(retiredRunUpgrade(RunUpgradeEffect::GatheringSpeed), "retired quick tools does not duplicate haste offers");
+    require(!retiredRunUpgrade(RunUpgradeEffect::GatheringSpeed), "gathering is a separate tool-speed tome");
     std::size_t activeCount = 0;
     std::size_t activeHammers = 0;
     for (const auto& card : RunUpgradeDefinitions) {
@@ -758,9 +830,9 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 47 && activeHammers == 29, "rotation retains original cards, six universal attack stats and venom");
-    require(!retiredRunUpgrade(RunUpgradeEffect::LongerDay) &&
-            !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and high stakes remain available");
+    require(activeCount == 44 && activeHammers == 22, "streamlined pool contains 22 tomes and 22 blueprint or weapon perks");
+    require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
+            !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and overkill retire while high stakes remains available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::LongerDay, RunUpgradeRarity::Rare),
         "daylight hammer grants the existing day bonus");

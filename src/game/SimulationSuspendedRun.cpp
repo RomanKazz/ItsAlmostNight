@@ -84,6 +84,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .playerDamageMultiplier = playerDamageMultiplier_,
         .runPlayerDamageMultiplier = runPlayerDamageMultiplier_,
         .playerAttackSpeedMultiplier = playerAttackSpeedMultiplier_,
+        .toolAttackSpeedMultiplier = toolAttackSpeedMultiplier_,
         .playerMoveSpeedMultiplier = playerMoveSpeedMultiplier_,
         .runPlayerMoveSpeedMultiplier = runPlayerMoveSpeedMultiplier_,
         .playerArmorMultiplier = playerArmorMultiplier_,
@@ -172,6 +173,7 @@ bool Simulation::loadSuspendedRunState(
         saved.playerDamageMultiplier,
         saved.runPlayerDamageMultiplier,
         saved.playerAttackSpeedMultiplier,
+        saved.toolAttackSpeedMultiplier,
         saved.playerMoveSpeedMultiplier,
         saved.runPlayerMoveSpeedMultiplier,
         saved.playerArmorMultiplier,
@@ -447,6 +449,7 @@ bool Simulation::loadSuspendedRunState(
         0.05, saved.runPlayerDamageMultiplier);
     playerAttackSpeedMultiplier_ = std::max(
         0.05, saved.playerAttackSpeedMultiplier);
+    toolAttackSpeedMultiplier_ = saved.toolAttackSpeedMultiplier;
     playerMoveSpeedMultiplier_ = std::max(
         0.05, saved.playerMoveSpeedMultiplier);
     runPlayerMoveSpeedMultiplier_ = std::max(
