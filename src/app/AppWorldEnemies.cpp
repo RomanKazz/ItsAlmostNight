@@ -232,6 +232,7 @@ void App::drawWorldEnemies(
                 .whiteFlashAmount = batchedHitFlash,
                 .scale = enemyScale,
                 .lowDetail = lowDetail,
+                .eliteAffixes = enemy.eliteAffixes,
             });
             continue;
         }
@@ -302,7 +303,7 @@ void App::drawWorldEnemies(
                 frozen ? 0.0F : enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                modelTint, enemyScale)) {
+                modelTint, enemyScale, true, true, false, enemy.eliteAffixes)) {
             const float hitScale = enemyHitScale(enemy);
             DrawCube(enemyPosition, width * hitScale,
                      height * hitScale, width * hitScale,
@@ -333,7 +334,7 @@ void App::drawWorldEnemies(
                     instance.yawRadians,
                     instance.tint, instance.scale,
                     instance.loop,
-                    instance.inkOutlineEligible));
+                    instance.inkOutlineEligible, false, instance.eliteAffixes));
             }
         }
     }
@@ -750,6 +751,7 @@ void App::drawWorldEnemies(
             .lowDetail = distanceSquared >
                 EnemyFullDetailDistanceSquared &&
                 visual.type != EnemyType::Boss,
+            .eliteAffixes = visual.eliteAffixes,
         });
     }
     if (!destroyedEnemyDrawInstances_.empty()) {
@@ -768,7 +770,7 @@ void App::drawWorldEnemies(
                     instance.yawRadians,
                     instance.tint, instance.scale,
                     instance.loop,
-                    instance.inkOutlineEligible));
+                    instance.inkOutlineEligible, false, instance.eliteAffixes));
             }
         }
     }

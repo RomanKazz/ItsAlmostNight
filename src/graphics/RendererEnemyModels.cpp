@@ -2,6 +2,7 @@
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
 #include "graphics/EnemyPresentation.hpp"
+#include "graphics/EliteEnemyDetails.hpp"
 
 
 #include <raymath.h>
@@ -393,7 +394,8 @@ bool Renderer::drawEnemy(
     EnemyAnimationVisual animationVisual,
     float animationSeconds, Vector3 position,
     float yawRadians, Color tint, float scale, bool loop,
-    bool inkOutlineEligible, bool quantizeCrowdPose) {
+    bool inkOutlineEligible, bool quantizeCrowdPose,
+    std::uint8_t eliteAffixes) {
     ModelResource* modelResource =
         enemyModelFor(resources_, modelVisual);
     if (modelResource == nullptr || !modelResource->valid()) {
@@ -513,13 +515,48 @@ bool Renderer::drawEnemy(
     if (shader != nullptr) {
         setSkinningEnabled(*shader, false);
     }
+    drawEliteEnemyDetails({.modelVisual = modelVisual, .animationVisual = animationVisual,
+        .animationSeconds = motionTime, .position = position, .yawRadians = yawRadians,
+        .tint = tint, .whiteFlashAmount = worldMaterial_.enemyWhiteFlashAmount, .scale = scale,
+        .loop = loop, .inkOutlineEligible = inkOutlineEligible, .eliteAffixes = eliteAffixes});
     if (worldShaderActive_) setWorldMaterial(originalMaterial);
     return true;
 }
 
+void Renderer::drawEliteEnemyDetails(const EnemyDrawInstance& instance) {
+    if (!instance.eliteAffixes) return;
+    ModelResource* resource = enemyModelFor(resources_, instance.modelVisual);
+    if (!resource || !resource->valid()) return;
+    const Model& model = resource->get();
+    Matrix head = MatrixIdentity();
+    if (model.skeleton.bones && model.boneMatrices && resource->runtimeBoneMatricesFinite()) {
+        for (int bone = 0; bone < model.skeleton.boneCount; ++bone) {
+            if (std::strcmp(model.skeleton.bones[bone].name, "head") == 0 ||
+                std::strcmp(model.skeleton.bones[bone].name, "Head") == 0) {
+                head = model.boneMatrices[bone];
+                break;
+            }
+        }
+    }
+    const Matrix world = MatrixMultiply(model.transform,
+        enemyPresentationTransform(instance.modelVisual, instance.animationVisual, instance.animationSeconds,
+            instance.position, instance.yawRadians, EnemyImportScale * instance.scale));
+    const WorldMaterialState original = worldMaterial_;
+    if (worldShaderActive_) {
+        WorldMaterialState material = original;
+        material.enemyPresentationAmount = 1;
+        material.enemyWhiteFlashAmount = instance.whiteFlashAmount;
+        material.inkOutlineEligible = instance.inkOutlineEligible;
+        setWorldMaterial(material);
+    }
+    elite_details::draw(resource->visualBounds(), MatrixMultiply(head, world),
+        instance.eliteAffixes, instance.tint.a);
+    if (worldShaderActive_) setWorldMaterial(original);
+}
+
 BoundingBox Renderer::enemyWorldBounds(
     EnemyModelVisual modelVisual, Vector3 position,
-    float yawRadians, float scale) const {
+    float yawRadians, float scale, bool eliteDetails) const {
     const ModelResource* resource =
         enemyModelFor(resources_, modelVisual);
     if (resource == nullptr || !resource->valid() ||
@@ -536,8 +573,19 @@ BoundingBox Renderer::enemyWorldBounds(
                 MatrixScale(modelScale, modelScale, modelScale),
                 MatrixRotateY(yawRadians)),
             MatrixTranslate(position.x, position.y, position.z)));
-    return world_transforms::transformBounds(
-        resource->visualBounds(), transform);
+    BoundingBox bounds = resource->visualBounds();
+    if (eliteDetails) {
+        const float radius = std::max(.15F, std::min(bounds.max.x - bounds.min.x,
+            bounds.max.z - bounds.min.z) * .34F);
+        const float centerX = (bounds.min.x + bounds.max.x) * .5F;
+        const float centerZ = (bounds.min.z + bounds.max.z) * .5F;
+        bounds.max.y += radius * 1.3F;
+        bounds.min.x = std::min(bounds.min.x, centerX - radius * 1.8F);
+        bounds.max.x = std::max(bounds.max.x, centerX + radius * 1.8F);
+        bounds.min.z = std::min(bounds.min.z, centerZ - radius * 1.5F);
+        bounds.max.z = std::max(bounds.max.z, centerZ + radius * 1.5F);
+    }
+    return world_transforms::transformBounds(bounds, transform);
 }
 
 bool Renderer::drawEnemiesInstanced(
@@ -572,6 +620,9 @@ bool Renderer::drawEnemiesInstanced(
     }
     activeEnemyBatches_.clear();
     for (const EnemyDrawInstance& instance : instances) {
+        // Elites are rare; draw the full model once with its exact head pose
+        // instead of putting animated accessories into ordinary crowd batches.
+        if (instance.eliteAffixes) continue;
         const bool lowDetail = instance.lowDetail && lodAvailable;
         ModelResource* resource = lowDetail
             ? nullptr
@@ -860,6 +911,17 @@ bool Renderer::drawEnemiesInstanced(
 
     setInstancing(false);
     setSkinningEnabled(shader, false);
+    setWorldMaterial(originalMaterial);
+    for (const auto& instance : instances) {
+        if (!instance.eliteAffixes) continue;
+        WorldMaterialState material = originalMaterial;
+        material.enemyWhiteFlashAmount = instance.whiteFlashAmount;
+        setWorldMaterial(material);
+        static_cast<void>(drawEnemy(instance.modelVisual, instance.animationVisual,
+            instance.animationSeconds, instance.position, instance.yawRadians, instance.tint,
+            instance.scale, instance.loop, instance.inkOutlineEligible,
+            false, instance.eliteAffixes));
+    }
     setWorldMaterial(originalMaterial);
     instancedEnemyMillisecondsThisFrame_ +=
         performanceMilliseconds(drawStart);

@@ -149,6 +149,77 @@ bool checkEnemyPresentation(ian::Renderer& renderer) {
     return valid;
 }
 
+bool checkElitePresentation(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(960, 600);
+    const Camera3D camera{{0, 3.5F, 10}, {0, 2.1F, 0}, {0, 1, 0}, 5.4F, CAMERA_ORTHOGRAPHIC};
+    const Color background{18, 35, 57, 255};
+    const auto render = [&](ian::EnemyModelVisual model, bool batched, bool cover,
+                            bool elite = true, float time = .35F) {
+        renderer.beginFrame(); BeginTextureMode(target); ClearBackground(background); BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        lighting.sunIntensity = .04F; lighting.ambientIntensity = .18F;
+        lighting.dayNightTint = {.48F, .59F, .8F};
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        if (cover) DrawCube({0, 2, 3}, 12, 9, .1F, background);
+        std::array<ian::EnemyDrawInstance, 3> enemies{};
+        for (std::size_t i = 0; i < enemies.size(); ++i) {
+            enemies[i] = {.modelVisual = model, .animationVisual = ian::EnemyAnimationVisual::Walk,
+                .animationSeconds = time, .position = {-2.4F + float(i) * 2.4F, 0, 0},
+                .yawRadians = .25F, .eliteAffixes = static_cast<std::uint8_t>(elite ? 1U << i : 0U)};
+        }
+        if (batched) static_cast<void>(renderer.drawEnemiesInstanced(enemies));
+        else for (const auto& enemy : enemies) static_cast<void>(renderer.drawEnemy(
+            enemy.modelVisual, enemy.animationVisual, enemy.animationSeconds, enemy.position,
+            enemy.yawRadians, WHITE, 1, true, true, false, enemy.eliteAffixes));
+        renderer.endWorldShader(); EndMode3D(); EndTextureMode();
+        Image result = LoadImageFromTexture(target.texture); ImageFlipVertical(&result); return result;
+    };
+    const auto goldPixels = [](Image image) {
+        int count = 0;
+        for (int y = 0; y < image.height; ++y) for (int x = 0; x < image.width; ++x) {
+            const Color c = GetImageColor(image, x, y);
+            if (c.r > 140 && c.g > 95 && c.b < c.g * .7F) ++count;
+        }
+        return count;
+    };
+    bool valid = true;
+    for (int type = 0; type < 9; ++type) {
+        Image image = render(static_cast<ian::EnemyModelVisual>(type), true, false);
+        const auto model = static_cast<ian::EnemyModelVisual>(type);
+        const auto ordinaryBounds = renderer.enemyWorldBounds(model, {}, .25F, 1);
+        const auto eliteBounds = renderer.enemyWorldBounds(model, {}, .25F, 1, true);
+        valid = valid && eliteBounds.max.y > ordinaryBounds.max.y;
+        const int gold = goldPixels(image);
+        valid = valid && gold > 100;
+        if (gold <= 100) std::cerr << "elite crown missing for type " << type << ": " << gold << '\n';
+        if (const char* directory = std::getenv("IAN_CAPTURE_ENEMIES")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(image, (std::filesystem::path(directory) /
+                ("elite-type-" + std::to_string(type) + ".png")).c_str());
+        }
+        UnloadImage(image);
+    }
+    Image single = render(ian::EnemyModelVisual::Minion, false, false);
+    Image crowd = render(ian::EnemyModelVisual::Minion, true, false);
+    Image cover = render(ian::EnemyModelVisual::Minion, true, true);
+    Image normal = render(ian::EnemyModelVisual::Minion, true, false, false);
+    Image later = render(ian::EnemyModelVisual::Minion, true, false, true, .69F);
+    int differences = 0;
+    for (int y = 0; y < single.height; ++y) for (int x = 0; x < single.width; ++x) {
+        const Color a = GetImageColor(single, x, y), b = GetImageColor(crowd, x, y);
+        if (std::max({std::abs(int(a.r)-int(b.r)), std::abs(int(a.g)-int(b.g)),
+                std::abs(int(a.b)-int(b.b))}) > 8) ++differences;
+    }
+    valid = valid && differences < 500 && goldPixels(cover) == 0 && goldPixels(normal) == 0 && goldPixels(later) > 100;
+    if (!valid) std::cerr << "elite batch difference/covered/normal: " << differences << '/' << goldPixels(cover)
+        << '/' << goldPixels(normal) << '\n';
+    for (Image image : {single, crowd, cover, normal, later}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
+
 bool checkCartoonHearts(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(640, 360);
     const Camera3D camera{{0, .35F, 6}, {0, 0, 0}, {0, 1, 0},
@@ -3173,6 +3244,10 @@ int main() {
 }
         if (!checkEnemyPresentation(renderer)) {
             std::cerr << "cartoon enemy presentation failed\n";
+            result = 1;
+        }
+        if (!checkElitePresentation(renderer)) {
+            std::cerr << "elite geometry, animation, batch parity or depth failed\n";
             result = 1;
         }
         if (!checkCartoonHearts(renderer)) {

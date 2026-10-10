@@ -735,14 +735,14 @@ void App::drawSelectionPass(
             renderer_->setSelectionOutlineBounds(
                 renderer_->enemyWorldBounds(
                     enemyModelVisual(enemy.type), enemyPosition,
-                    static_cast<float>(enemy.yaw), scale));
+                    static_cast<float>(enemy.yaw), scale, true));
             static_cast<void>(renderer_->drawEnemy(
                 enemyModelVisual(enemy.type),
                 enemyAnimationVisual(enemy),
                 enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                WHITE, scale, true, true, true));
+                WHITE, scale, true, true, false, enemy.eliteAffixes));
         }
         renderer_->setSelectionMaskColor(WHITE);
         if (snapshot.aimedLoot) {
@@ -1177,7 +1177,7 @@ void App::drawSelectionPass(
                 renderer_->setSelectionOutlineBounds(
                     renderer_->enemyWorldBounds(
                         enemyModelVisual(enemy->type), enemyPosition,
-                        static_cast<float>(enemy->yaw), scale));
+                        static_cast<float>(enemy->yaw), scale, enemy->eliteAffixes != 0));
                 static_cast<void>(renderer_->drawEnemy(
                     enemyModelVisual(enemy->type),
                     enemyAnimationVisual(*enemy),
@@ -1185,7 +1185,7 @@ void App::drawSelectionPass(
                         *enemy, snapshot.elapsedSeconds),
                     enemyPosition,
                     static_cast<float>(enemy->yaw), WHITE,
-                    scale));
+                    scale, true, true, false, enemy->eliteAffixes));
             }
         } else if (
             !foundationBuildMode_ &&

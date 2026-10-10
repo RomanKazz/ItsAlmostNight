@@ -38,7 +38,8 @@ void drawHotbarSlots(
     std::string_view categoryLabel = {},
     float verticalOffset = 0.0F,
     double invalidActionRemaining = 0.0,
-    bool showSwitchLabel = false) {
+    bool showSwitchLabel = false,
+    const ResourceCost* availableResources = nullptr) {
     if (slots.empty()) return;
 
     const bool iconLayout = std::ranges::any_of(
@@ -310,9 +311,7 @@ void drawHotbarSlots(
             {infoX + (infoWidth - costWidth) * 0.5F,
              infoY + 32.0F},
             14.0F, 22.0F,
-            selected->available
-                ? Color{226, 218, 197, 245}
-                : Color{242, 103, 83, 255});
+            Color{245, 238, 220, 255}, availableResources);
     }
 
     if (showSwitchLabel && selected != slots.end()) {
@@ -407,13 +406,15 @@ void drawConstructionHotbar(
             });
         }
     }
+    const ResourceCost stock{snapshot.wood, snapshot.stone, snapshot.crystals};
     drawHotbarSlots(
         ui, slots,
         view.foundationHotbarSelectionPosition,
         view.foundationHotbarSelectionAlpha,
         false, true,
         {},
-        transitionOffset, view.invalidActionRemaining);
+        transitionOffset, view.invalidActionRemaining, false,
+        snapshot.unlimitedResources ? nullptr : &stock);
 }
 
 void drawBuildHotbar(
@@ -459,12 +460,14 @@ void drawBuildHotbar(
             .icon = ui.buildingTexture(type),
         });
     }
+    const ResourceCost stock{snapshot.wood, snapshot.stone, snapshot.crystals};
     drawHotbarSlots(
         ui, slots,
         view.buildHotbarSelectionPosition,
         view.buildHotbarSelectionAlpha,
         false, true, {},
-        transitionOffset, view.invalidActionRemaining);
+        transitionOffset, view.invalidActionRemaining, false,
+        snapshot.unlimitedResources ? nullptr : &stock);
 }
 
 void drawLootInventory(

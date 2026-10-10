@@ -254,6 +254,7 @@ struct EnemyDrawInstance {
     bool loop{true};
     bool lowDetail{};
     bool inkOutlineEligible{true};
+    std::uint8_t eliteAffixes{};
 };
 
 struct LootChestWorldTransform {
@@ -503,7 +504,7 @@ class Renderer {
         float yawRadians);
     [[nodiscard]] BoundingBox enemyWorldBounds(
         EnemyModelVisual modelVisual, Vector3 position,
-        float yawRadians, float scale) const;
+        float yawRadians, float scale, bool eliteDetails = false) const;
     [[nodiscard]] bool drawPlatformFrameModel(
         Vector3 topCenter, Color tint = WHITE,
         float scale = 1.0F,
@@ -564,7 +565,8 @@ class Renderer {
         float yawRadians, Color tint = WHITE,
         float scale = 1.0F, bool loop = true,
         bool inkOutlineEligible = true,
-        bool quantizeCrowdPose = false);
+        bool quantizeCrowdPose = false,
+        std::uint8_t eliteAffixes = 0);
     [[nodiscard]] bool drawEnemiesInstanced(
         std::span<const EnemyDrawInstance> instances);
     void drawGrassInstances(Vector3 cameraPosition,
@@ -866,6 +868,7 @@ class Renderer {
     void setSkinningEnabled(Shader& shader, bool enabled);
     Shader* activeModelShader(bool selectionEligible = true);
     Shader* prepareModelShader(Model& model, bool selectionEligible = true);
+    void drawEliteEnemyDetails(const EnemyDrawInstance& instance);
     [[nodiscard]] const std::vector<int>& enemyBoneMapping(
         EnemyModelVisual visual, const Model& model,
         const std::array<const char*, 23>& sourceBones);

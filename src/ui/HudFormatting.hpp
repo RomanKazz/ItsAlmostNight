@@ -52,7 +52,8 @@ namespace ian::hud_detail {
 inline void drawResourceCostRow(
     GameUi& ui, const ResourceCost& cost, Vector2 position,
     float fontSize = 14.0F, float iconSize = 22.0F,
-    Color textColor = Color{226, 218, 197, 245}) {
+    Color textColor = Color{226, 218, 197, 245},
+    const ResourceCost* availableResources = nullptr) {
     constexpr float IconTextGap = 4.0F;
     constexpr float GroupGap = 13.0F;
     const std::array<std::pair<UiResourceIcon, int>, 3> entries{{
@@ -68,10 +69,20 @@ inline void drawResourceCostRow(
     style.shadowOffsetPixels = {0.0F, 2.0F};
     style.outlinePixels = 1.5F;
 
+    const std::array<int, 3> stock{
+        availableResources ? availableResources->wood : 0,
+        availableResources ? availableResources->stone : 0,
+        availableResources ? availableResources->crystals : 0};
+    std::size_t resourceIndex = 0;
     float x = position.x;
     bool hasEntry = false;
     for (const auto& [icon, amount] : entries) {
+        const int available = stock[resourceIndex++];
         if (amount <= 0) continue;
+        if (availableResources) {
+            style.fillColor = available >= amount
+                ? Color{245, 238, 220, 255} : Color{242, 103, 83, 255};
+        }
         if (hasEntry) x += GroupGap;
         ui.drawResourceIcon(
             {x, position.y - 2.0F, iconSize, iconSize}, icon);
