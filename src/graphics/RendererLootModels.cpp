@@ -384,59 +384,116 @@ void Renderer::drawLootItem(
 
 void Renderer::drawCoin(
     CoinType type, Vector3 position, float rotationRadians, float scale) {
-    ModelResource& resource = resources_.coinModel(
-        static_cast<std::size_t>(type));
+    if (scale <= 0.0F) return;
+    // A bevelled, minted coin instead of tinting the authored red texture.
+    // Both faces carry the same relief so rotation never reveals a blank back.
+    constexpr std::array<Vector2, 16> Ring{{
+        {1, 0}, {.92388F, .38268F}, {.70711F, .70711F}, {.38268F, .92388F},
+        {0, 1}, {-.38268F, .92388F}, {-.70711F, .70711F}, {-.92388F, .38268F},
+        {-1, 0}, {-.92388F, -.38268F}, {-.70711F, -.70711F}, {-.38268F, -.92388F},
+        {0, -1}, {.38268F, -.92388F}, {.70711F, -.70711F}, {.92388F, -.38268F},
+    }};
+    const bool silver = type == CoinType::Silver;
+    const bool valuable = type == CoinType::HighValue;
+    scale *= valuable ? 1.20F : silver ? 1.10F : 1.0F;
+    const Color face = silver ? Color{175, 210, 233, 255} :
+        valuable ? Color{255, 211, 49, 255} : Color{255, 194, 65, 255};
+    const Color rim = silver ? Color{227, 247, 255, 255} :
+        valuable ? Color{255, 241, 125, 255} : Color{255, 225, 103, 255};
+    const Color edge = silver ? Color{84, 117, 147, 255} : Color{181, 94, 22, 255};
+    const Color shine = silver ? Color{250, 255, 255, 255} : Color{255, 250, 207, 255};
+    const auto tint = [](Color a, Color b, float amount) {
+        const auto mix = [amount](unsigned char first, unsigned char second) {
+            return static_cast<unsigned char>(std::lround(
+                float(first) + (float(second) - float(first)) * amount));
+        };
+        return Color{mix(a.r, b.r), mix(a.g, b.g), mix(a.b, b.b), 255};
+    };
+    const auto vertex = [](Vector3 point, Color color, Vector3 normal) {
+        rlNormal3f(normal.x, normal.y, normal.z);
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(point.x, point.y, point.z);
+    };
+    const auto triangle = [&vertex](Vector3 a, Vector3 b, Vector3 c,
+                                   Color ca, Color cb, Color cc) {
+        const Vector3 normal = Vector3Normalize(Vector3CrossProduct(
+            Vector3Subtract(b, a), Vector3Subtract(c, a)));
+        vertex(a, ca, normal); vertex(b, cb, normal); vertex(c, cc, normal);
+    };
+    const auto point = [](Vector2 p, float radius, float z) {
+        return Vector3{p.x * radius, p.y * radius, z};
+    };
+    const auto painted = [&tint, edge, shine](Color color, Vector2 p) {
+        return p.y > 0 ? tint(color, shine, p.y * .20F)
+                       : tint(color, edge, -p.y * .25F);
+    };
     rlPushMatrix();
     rlTranslatef(position.x, position.y, position.z);
-    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
-    rlRotatef(8.0F, 0.0F, 0.0F, 1.0F);
-    // 30% smaller than the previous 1.40 import multiplier.
-    constexpr float NewCoinScale = 0.98F;
-    rlScalef(scale * 0.86F * NewCoinScale,
-             scale * 0.86F * NewCoinScale,
-             scale * 0.86F * NewCoinScale);
-    if (resource.valid()) {
-        Model& model = resource.get();
-        Shader shader{
-            .id = rlGetShaderIdDefault(),
-            .locs = rlGetShaderLocsDefault(),
-        };
-        if (worldShaderActive_ && resources_.worldShader().valid()) {
-            shader = resources_.worldShader().get();
+    rlRotatef(rotationRadians * RAD2DEG, 0, 1, 0);
+    rlRotatef(8.0F, 0, 0, 1);
+    rlScalef(scale, scale, scale);
+    rlBegin(RL_TRIANGLES);
+    for (std::size_t i = 0; i < Ring.size(); ++i) {
+        const Vector2 a = Ring[i], b = Ring[(i + 1U) % Ring.size()];
+        const Vector3 frontA = point(a, .215F, .025F), frontB = point(b, .215F, .025F);
+        const Vector3 backA = point(a, .215F, -.025F), backB = point(b, .215F, -.025F);
+        const Vector3 na{a.x, a.y, 0}, nb{b.x, b.y, 0};
+        const Color ea = painted(edge, a), eb = painted(edge, b);
+        // Shared radial normals keep the barrel smooth while the face is flat.
+        vertex(frontA, ea, na); vertex(backA, ea, na); vertex(frontB, eb, nb);
+        vertex(frontB, eb, nb); vertex(backA, ea, na); vertex(backB, eb, nb);
+        for (const float side : {1.0F, -1.0F}) {
+            const Vector3 outerA = point(a, .215F, side * .025F);
+            const Vector3 outerB = point(b, .215F, side * .025F);
+            const Vector3 bevelA = point(a, .19F, side * .044F);
+            const Vector3 bevelB = point(b, .19F, side * .044F);
+            const Vector3 innerA = point(a, .161F, side * .044F);
+            const Vector3 innerB = point(b, .161F, side * .044F);
+            const Color ra = painted(rim, a), rb = painted(rim, b);
+            const Color fa = painted(face, a), fb = painted(face, b);
+            const auto faceTriangle = [&](Vector3 p, Vector3 q, Vector3 r,
+                                          Color cp, Color cq, Color cr) {
+                if (side > 0) triangle(p, q, r, cp, cq, cr);
+                else triangle(p, r, q, cp, cr, cq);
+            };
+            faceTriangle(outerA, outerB, bevelA, ea, eb, ra);
+            faceTriangle(outerB, bevelB, bevelA, eb, rb, ra);
+            faceTriangle(bevelA, bevelB, innerA, ra, rb, ra);
+            faceTriangle(bevelB, innerB, innerA, rb, rb, ra);
+            faceTriangle({0, 0, side * .044F}, innerA, innerB, face, fa, fb);
         }
-        if (model.materials != nullptr) {
-            if (resources_.coinOutlineShader().valid()) {
-                const Shader outlineShader =
-                    resources_.coinOutlineShader().get();
-                for (int index = 0; index < model.materialCount; ++index) {
-                    model.materials[index].shader = outlineShader;
-                }
-                // Inverted hull: draw only expanded back faces. This leaves
-                // a clean outer silhouette without a screen-space pass.
-                rlDrawRenderBatchActive();
-                rlEnableBackfaceCulling();
-                rlSetCullFace(RL_CULL_FACE_FRONT);
-                drawFittedLootModel(resource, WHITE);
-                rlDrawRenderBatchActive();
-                rlSetCullFace(RL_CULL_FACE_BACK);
-            }
-            for (int index = 0; index < model.materialCount; ++index) {
-                model.materials[index].shader = shader;
-            }
-        }
-        const Color tint = type == CoinType::Bronze
-            ? Color{225, 145, 84, 255}
-            : type == CoinType::Silver
-                ? Color{226, 238, 246, 255}
-                : Color{255, 226, 92, 255};
-        drawFittedLootModel(resource, tint);
-    } else {
-        DrawCylinder(
-            {0.0F, 0.0F, 0.0F}, 0.18F, 0.18F, 0.055F,
-            16, {255, 202, 55, 255});
     }
+    // Raised four-point mint mark and a small off-centre glossy stroke.
+    constexpr std::array<Vector2, 8> Stamp{{
+        {0, .080F}, {-.023F, .023F}, {-.062F, 0}, {-.023F, -.023F},
+        {0, -.080F}, {.023F, -.023F}, {.062F, 0}, {.023F, .023F},
+    }};
+    for (const float side : {1.0F, -1.0F}) {
+        const auto faceTriangle = [&](Vector3 a, Vector3 b, Vector3 c,
+                                      Color ca, Color cb, Color cc) {
+            if (side > 0) triangle(a, b, c, ca, cb, cc);
+            else triangle(a, c, b, ca, cc, cb);
+        };
+        for (std::size_t i = 0; i < Stamp.size(); ++i) {
+            const Vector2 a = Stamp[i], b = Stamp[(i + 1U) % Stamp.size()];
+            const Vector3 raisedA = point(a, 1, side * .050F);
+            const Vector3 raisedB = point(b, 1, side * .050F);
+            const Vector3 baseA = point(a, 1.15F, side * .045F);
+            const Vector3 baseB = point(b, 1.15F, side * .045F);
+            faceTriangle(baseA, baseB, raisedA, edge, edge, rim);
+            faceTriangle(baseB, raisedB, raisedA, edge, rim, rim);
+            faceTriangle({0, 0, side * .056F}, raisedA, raisedB,
+                         shine, painted(rim, a), painted(rim, b));
+        }
+        faceTriangle({-.132F, .048F, side * .047F}, {-.120F, .056F, side * .047F},
+                     {-.069F, .127F, side * .047F}, shine, shine, shine);
+        faceTriangle({-.132F, .048F, side * .047F}, {-.069F, .127F, side * .047F},
+                     {-.081F, .131F, side * .047F}, shine, shine, shine);
+    }
+    rlEnd();
     rlPopMatrix();
 }
+
 
 void Renderer::drawSawBladeProjectile(
     Vector3 position, Vector3 direction,

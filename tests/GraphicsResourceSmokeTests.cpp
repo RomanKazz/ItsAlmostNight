@@ -31,6 +31,81 @@
 
 namespace {
 
+bool checkCartoonCoins(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(640, 360);
+    const Camera3D camera{{0, .7F, 6}, {0, 0, 0}, {0, 1, 0},
+                          2.3F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](ian::CoinType type, float yaw, bool cover = false,
+                            bool night = false, bool crowd = false) {
+        BeginTextureMode(target);
+        ClearBackground(night ? Color{18, 35, 57, 255} : Color{70, 98, 72, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        if (night) { lighting.sunIntensity = .05F; lighting.ambientIntensity = .2F; }
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = .9F;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = true;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 0, 1}, 2.5F, 2.5F, .1F, {80, 65, 110, 255});
+        if (crowd) {
+            for (int row = 0; row < 3; ++row) for (int col = 0; col < 8; ++col) {
+                const Vector3 position{-1.8F + float(col) * .5F,
+                    -.5F + float(row) * .5F, 0};
+                const float angle = yaw + float(row + col) * .47F;
+                if ((row + col) % 3 == 0)
+                    renderer.drawCoin(static_cast<ian::CoinType>(col % 3), position, angle, .8F);
+                else renderer.drawExperienceOctahedron(position, angle, .8F,
+                    col == 6 && row == 1 ? 8 : col == 3 ? 4 : 1);
+            }
+        } else renderer.drawCoin(type, {}, yaw, 3.0F);
+        renderer.endWorldShader(); EndMode3D(); EndTextureMode();
+        Image result = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&result);
+        return result;
+    };
+    Image common = render(ian::CoinType::Bronze, .35F);
+    Image silver = render(ian::CoinType::Silver, .35F);
+    Image gold = render(ian::CoinType::HighValue, .35F);
+    Image back = render(ian::CoinType::Bronze, .35F + PI);
+    Image edge = render(ian::CoinType::Bronze, PI * .5F);
+    Image night = render(ian::CoinType::HighValue, .35F, false, true);
+    Image covered = render(ian::CoinType::Bronze, .35F, true);
+    Image goldCovered = render(ian::CoinType::HighValue, .35F, true);
+    const auto count = [](Image image, auto predicate) {
+        int total = 0;
+        for (int y = 0; y < image.height; ++y) for (int x = 0; x < image.width; ++x)
+            if (predicate(GetImageColor(image, x, y))) ++total;
+        return total;
+    };
+    const auto warm = [](Color c) { return c.r > 170 && c.g > 100 && c.b < 155; };
+    const auto cool = [](Color c) { return c.b > 170 && c.r > 100 && c.b > c.r + 10; };
+    const auto pale = [](Color c) { return c.r > 220 && c.g > 220 && c.b > 170; };
+    const bool valid = count(common, warm) > 1500 && count(back, warm) > 1500 &&
+        count(silver, cool) > 1500 && count(gold, warm) > count(common, warm) * 1.2 &&
+        count(gold, pale) > 100 && count(night, warm) > 1500 &&
+        count(edge, warm) > 100 && count(edge, warm) < count(common, warm) * .35 &&
+        count(covered, warm) == 0 && count(goldCovered, warm) == 0;
+    if (!valid) std::cerr << "coins warm/back/silver/gold/pale/edge " << count(common, warm)
+        << '/' << count(back, warm) << '/' << count(silver, cool) << '/' << count(gold, warm)
+        << '/' << count(gold, pale) << '/' << count(edge, warm) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_COINS")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{common, "coin-1.png"}, std::pair{silver, "coin-5.png"},
+             std::pair{gold, "coin-10.png"}, std::pair{night, "coin-night.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+        Image crowd = render(ian::CoinType::Bronze, .3F, false, false, true);
+        ExportImage(crowd, (std::filesystem::path(directory) / "coins-and-xp.png").c_str());
+        UnloadImage(crowd);
+    }
+    for (Image image : {common, silver, gold, back, edge, night, covered, goldCovered}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
+
 bool checkExperienceCrystals(ian::Renderer& renderer) {
     const auto oldSettings = renderer.settings();
     const int oldWidth = GetScreenWidth(), oldHeight = GetScreenHeight();
@@ -2627,6 +2702,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkCartoonCoins(renderer)) {
+            std::cerr << "cartoon coin palette, relief, rotation or depth failed\n";
+            return 1;
+        }
         if (!checkExperienceCrystals(renderer)) {
             std::cerr << "experience crystal palette, ink or depth checks failed\n";
             return 1;

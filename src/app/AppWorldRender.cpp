@@ -586,6 +586,73 @@ void App::drawWorldEntities(
     renderer_->endWorldShader();
     drawChestLootGlow(snapshot, camera);
     renderer_->beginWorldShader(lighting);
+    WorldMaterialState pickupMaterial{};
+    pickupMaterial.unlitAmount = 1.0F;
+    pickupMaterial.screenAoAmount = 0.0F;
+    pickupMaterial.outlineMaterialClassOverride = 2.0F;
+    WorldMaterialState coinMaterial = pickupMaterial;
+    coinMaterial.unlitAmount = 0.90F;
+    coinMaterial.inkOutlineEligible = false;
+    coinMaterial.inkOccluder = true;
+    renderer_->setWorldMaterial(coinMaterial);
+    for (const CoinPickup& coin : snapshot.coinPickups) {
+        if (coin.kind == PickupKind::Experience) continue;
+        if (!worldObjectVisible(coin.position, 1.0F, 60.0F)) {
+            continue;
+        }
+        const float spawn = std::clamp(
+            static_cast<float>(coin.age / 0.14), 0.0F, 1.0F);
+        const float pop =
+            spawn < 1.0F
+                ? spawn + std::sin(spawn * PI) * 0.22F
+                : 1.0F;
+        const float magnetStretch = coin.magnetized
+            ? 1.0F + std::min(
+                  0.18F,
+                  static_cast<float>(std::max(
+                      0.0,
+                      coin.magnetTime -
+                          CoinPickupSystem::MagnetAnticipationDuration)) *
+                      0.55F)
+            : 1.0F;
+        const float anticipationProgress =
+            coin.magnetized && coin.kind != PickupKind::Heart
+                ? std::clamp(
+                      static_cast<float>(
+                          coin.magnetTime /
+                          CoinPickupSystem::MagnetAnticipationDuration),
+                      0.0F, 1.0F)
+                : 1.0F;
+        const float anticipationPop =
+            1.0F + std::sin(anticipationProgress * PI) * 0.12F;
+        const Vector3 pickupPosition{
+            static_cast<float>(coin.position.x),
+            static_cast<float>(coin.position.y),
+            static_cast<float>(coin.position.z)};
+        const float rotation = static_cast<float>(
+            coin.spinPhase + coin.age *
+                (coin.kind == PickupKind::Heart ? 8.5 : 3.2) +
+            (coin.magnetized && coin.kind != PickupKind::Heart
+                 ? coin.magnetTime * 17.0
+                 : 0.0));
+        renderer_->setWorldMaterial(
+            coin.kind == PickupKind::Heart ? pickupMaterial : coinMaterial);
+        if (coin.kind == PickupKind::Heart) {
+            renderer_->drawHeart(
+                pickupPosition, rotation, pop * magnetStretch);
+        } else {
+            const float pullProgress = std::clamp(static_cast<float>(
+                (coin.magnetTime - CoinPickupSystem::MagnetAnticipationDuration) / .12),
+                0.0F, 1.0F);
+            const float nearCamera = smoothstep(.35F, 1.5F,
+                Vector3Distance(pickupPosition, camera.position));
+            const float collectionScale = coin.magnetized
+                ? 1.0F + (nearCamera - 1.0F) * pullProgress : 1.0F;
+            renderer_->drawCoin(
+                coin.type, pickupPosition, rotation,
+                pop * magnetStretch * anticipationPop * collectionScale);
+        }
+    }
     WorldMaterialState experienceMaterial{};
     experienceMaterial.unlitAmount = 0.82F;
     experienceMaterial.screenAoAmount = 0.0F;
