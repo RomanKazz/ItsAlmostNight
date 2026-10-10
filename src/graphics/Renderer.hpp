@@ -471,7 +471,8 @@ class Renderer {
     void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
     void drawExperienceOctahedron(
-        Vector3 position, float rotationRadians, float scale = 1.0F);
+        Vector3 position, float rotationRadians, float scale = 1.0F,
+        int experienceValue = 1);
     void drawHeart(Vector3 position, float rotationRadians,
                    float scale = 1.0F);
     void drawSawBladeProjectile(

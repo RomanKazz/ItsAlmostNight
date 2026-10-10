@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/ExperienceCrystalStyle.hpp"
 #include "graphics/WorldTransforms.hpp"
 
 #include <raymath.h>
@@ -476,8 +477,10 @@ void Renderer::drawSawBladeProjectile(
 }
 
 void Renderer::drawExperienceOctahedron(
-    Vector3 position, float rotationRadians, float scale) {
+    Vector3 position, float rotationRadians, float scale, int experienceValue) {
     if (scale <= 0.0F) return;
+    const auto style = experienceCrystalStyle(experienceValue);
+    scale *= style.scale;
     // Keep the pickup API, but give the old eight-triangle diamond a chunky
     // gemstone body: broad faces, narrow bevels and two short pointed caps.
     // Opaque geometry and inset highlights share the regular world depth.
@@ -487,12 +490,36 @@ void Renderer::drawExperienceOctahedron(
         {-1.0F, 0.0F, -0.42F}, {-0.42F, 0.0F, -1.0F},
         {0.42F, 0.0F, -1.0F}, {1.0F, 0.0F, -0.42F},
     }};
-    constexpr std::array<Color, 8> FaceColors{{
+    constexpr std::array<Color, 8> TurquoiseColors{{
         {32, 199, 206, 255}, {24, 180, 198, 255},
         {12, 147, 176, 255}, {27, 183, 196, 255},
         {44, 211, 208, 255}, {74, 226, 216, 255},
         {40, 198, 209, 255}, {100, 238, 223, 255},
     }};
+    constexpr std::array<Color, 8> BlueColors{{
+        {37, 143, 247, 255}, {28, 116, 226, 255},
+        {24, 86, 196, 255}, {35, 128, 237, 255},
+        {55, 165, 255, 255}, {86, 190, 255, 255},
+        {41, 142, 246, 255}, {121, 212, 255, 255},
+    }};
+    constexpr std::array<Color, 8> GoldColors{{
+        {255, 181, 35, 255}, {244, 148, 24, 255},
+        {206, 105, 20, 255}, {248, 163, 29, 255},
+        {255, 202, 54, 255}, {255, 221, 88, 255},
+        {251, 179, 33, 255}, {255, 234, 128, 255},
+    }};
+    const bool gold = style.tier == ExperienceCrystalTier::Gold;
+    const auto& faceColors = gold ? GoldColors :
+        style.tier == ExperienceCrystalTier::Blue ? BlueColors : TurquoiseColors;
+    const Color highlight = gold ? Color{255, 249, 211, 255} :
+        style.tier == ExperienceCrystalTier::Blue ? Color{209, 241, 255, 255} :
+        Color{205, 255, 239, 255};
+    const Color shadow = gold ? Color{139, 60, 16, 255} :
+        style.tier == ExperienceCrystalTier::Blue ? Color{14, 40, 127, 255} :
+        Color{6, 85, 128, 255};
+    const Color tip = gold ? Color{255, 253, 225, 255} :
+        style.tier == ExperienceCrystalTier::Blue ? Color{227, 248, 255, 255} :
+        Color{224, 255, 243, 255};
     const auto tint = [](Color color, Color target, float amount) {
         const auto mix = [amount](unsigned char a, unsigned char b) {
             return static_cast<unsigned char>(std::lround(
@@ -527,11 +554,11 @@ void Renderer::drawExperienceOctahedron(
         const Vector3 b = ringPoint(Ring[next], 0.18F, 0.10F);
         const Vector3 c = ringPoint(Ring[next], 0.16F, -0.105F);
         const Vector3 d = ringPoint(Ring[side], 0.16F, -0.105F);
-        const Color face = FaceColors[side];
-        const Color upper = tint(face, {205, 255, 239, 255}, 0.36F);
-        const Color lower = tint(face, {6, 85, 128, 255}, 0.34F);
+        const Color face = faceColors[side];
+        const Color upper = tint(face, highlight, 0.36F);
+        const Color lower = tint(face, shadow, 0.34F);
         triangle({0, 0.265F, 0}, b, a,
-                 {224, 255, 243, 255}, upper, upper);
+                 tip, upper, upper);
         triangle(a, b, d, upper, upper, face);
         triangle(b, c, d, upper, face, face);
         triangle({0, -0.25F, 0}, d, c, lower, face, face);
@@ -550,7 +577,7 @@ void Renderer::drawExperienceOctahedron(
             const Vector3 right = surface(0.41F, 0.19F);
             const Vector3 bottom = surface(0.33F, 0.48F);
             const Vector3 left = surface(0.19F, 0.36F);
-            constexpr Color Shine{225, 255, 242, 255};
+            const Color Shine = tip;
             triangle(top, right, left, Shine, Shine, Shine);
             triangle(right, bottom, left, Shine, Shine, Shine);
         }

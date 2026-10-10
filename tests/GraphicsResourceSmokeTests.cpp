@@ -45,7 +45,8 @@ bool checkExperienceCrystals(ian::Renderer& renderer) {
     const Camera3D camera{{0, 1.1F, 6}, {0, 0, 0}, {0, 1, 0},
                           2.3F, CAMERA_ORTHOGRAPHIC};
     const auto render = [&](bool ink, bool night, bool covered,
-                            float yaw, bool crowd = false, bool worldPass = false) {
+                            float yaw, bool crowd = false, bool worldPass = false,
+                            int experienceValue = 1) {
         renderer.settings().inkOutlines = ink;
         const Color background = night ? Color{18, 35, 57, 255}
                                        : Color{70, 98, 72, 255};
@@ -72,8 +73,9 @@ bool checkExperienceCrystals(ian::Renderer& renderer) {
             for (int row = 0; row < 4; ++row) for (int col = 0; col < 8; ++col)
                 renderer.drawExperienceOctahedron(
                     {-1.8F + float(col) * .5F, -.55F + float(row) * .36F,
-                     -float(row) * .18F}, yaw + float(col + row) * .73F, .75F);
-        } else renderer.drawExperienceOctahedron({}, yaw, 2.6F);
+                     -float(row) * .18F}, yaw + float(col + row) * .73F, .75F,
+                    col == 6 && row == 2 ? 8 : col == 3 ? 4 : 1);
+        } else renderer.drawExperienceOctahedron({}, yaw, 2.6F, experienceValue);
         renderer.endWorldShader(); EndMode3D();
         if (worldPass) {
             renderer.endWorldPass();
@@ -94,6 +96,10 @@ bool checkExperienceCrystals(ian::Renderer& renderer) {
     Image turned = render(true, false, false, 1.25F);
     Image covered = render(true, false, true, .3F);
     Image coverTurned = render(true, false, true, 1.25F);
+    Image blue = render(true, false, false, .3F, false, false, 4);
+    Image gold = render(true, false, false, .3F, false, false, 8);
+    Image goldNight = render(true, true, false, .3F, false, false, 8);
+    Image goldCovered = render(true, false, true, .3F, false, false, 8);
     const auto difference = [](Image a, Image b) {
         std::size_t changed = 0;
         for (int y = 0; y < a.height; ++y) for (int x = 0; x < a.width; ++x) {
@@ -110,7 +116,33 @@ bool checkExperienceCrystals(ian::Renderer& renderer) {
         if (c.r > 170 && c.g > 210 && c.b > 190) ++mint;
         if (n.g > 110 && n.b > 120 && n.r + 40 < n.g) ++nightCyan;
     }
-    const bool valid = cyan > 1500 && mint > 100 && nightCyan > 1000 &&
+    int bluePixels = 0, goldPixels = 0, nightGoldPixels = 0;
+    const auto bodyArea = [](Image image) {
+        const Color background = GetImageColor(image, 0, 0);
+        int area = 0;
+        for (int y = 0; y < image.height; ++y) for (int x = 0; x < image.width; ++x) {
+            const Color c = GetImageColor(image, x, y);
+            if (std::abs(int(c.r) - int(background.r)) +
+                std::abs(int(c.g) - int(background.g)) +
+                std::abs(int(c.b) - int(background.b)) > 35) ++area;
+        }
+        return area;
+    };
+    for (int y = 0; y < blue.height; ++y) for (int x = 0; x < blue.width; ++x) {
+        const Color b = GetImageColor(blue, x, y), g = GetImageColor(gold, x, y),
+                    n = GetImageColor(goldNight, x, y);
+        if (b.b > 160 && b.b > b.g + 20 && b.b > b.r + 60) ++bluePixels;
+        if (g.r > 180 && g.g > 90 && g.b < 150) ++goldPixels;
+        if (n.r > 180 && n.g > 90 && n.b < 150) ++nightGoldPixels;
+    }
+    const bool tiersValid = bluePixels > 1000 && goldPixels > 1000 &&
+        nightGoldPixels > 1000 && bodyArea(blue) > bodyArea(ink) * 1.2 &&
+        bodyArea(gold) > bodyArea(blue) * 1.1 &&
+        difference(covered, goldCovered) < 20;
+    if (!tiersValid) std::cerr << "XP blue/gold/night " << bluePixels << '/'
+        << goldPixels << '/' << nightGoldPixels << " areas " << bodyArea(ink)
+        << '/' << bodyArea(blue) << '/' << bodyArea(gold) << '\n';
+    const bool valid = tiersValid && cyan > 1500 && mint > 100 && nightCyan > 1000 &&
         difference(plain, worldInk) < 20 && difference(ink, turned) > 1000 &&
         difference(covered, coverTurned) < 20;
     if (!valid) std::cerr << "XP cyan/mint/night " << cyan << '/' << mint << '/'
@@ -120,11 +152,15 @@ bool checkExperienceCrystals(ian::Renderer& renderer) {
         std::filesystem::create_directories(directory);
         ExportImage(ink, (std::filesystem::path(directory) / "xp-day.png").c_str());
         ExportImage(night, (std::filesystem::path(directory) / "xp-night.png").c_str());
+        ExportImage(blue, (std::filesystem::path(directory) / "xp-blue.png").c_str());
+        ExportImage(gold, (std::filesystem::path(directory) / "xp-gold.png").c_str());
+        ExportImage(goldNight, (std::filesystem::path(directory) / "xp-gold-night.png").c_str());
         Image field = render(true, false, false, .3F, true);
         ExportImage(field, (std::filesystem::path(directory) / "xp-field.png").c_str());
         UnloadImage(field);
     }
-    for (Image image : {plain, worldInk, ink, night, turned, covered, coverTurned}) UnloadImage(image);
+    for (Image image : {plain, worldInk, ink, night, turned, covered, coverTurned,
+                        blue, gold, goldNight, goldCovered}) UnloadImage(image);
     UnloadRenderTexture(preview);
     renderer.settings() = oldSettings;
     SetWindowSize(oldWidth, oldHeight); PollInputEvents();

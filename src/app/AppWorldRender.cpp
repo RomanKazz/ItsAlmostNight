@@ -6,6 +6,7 @@
 #include "buildings/CatapultRig.hpp"
 #include "game/ChallengeArena.hpp"
 #include "graphics/CameraCulling.hpp"
+#include "graphics/ExperienceCrystalStyle.hpp"
 #include "graphics/FireWandEffect.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
@@ -662,6 +663,7 @@ void App::drawWorldEntities(
         }
         const float visualScale = pop * pulse * magnetStretch *
             collectionScale;
+        const float valueScale = experienceCrystalStyle(pickup.value).scale;
         const float ground = static_cast<float>(
             simulation_.terrain().getHeight(
                 pickup.position.x, pickup.position.z));
@@ -671,13 +673,13 @@ void App::drawWorldEntities(
                 static_cast<float>(pickup.position.y) +
                     (std::sin(age * 2.25F + phase) * 0.02F + 0.03F) *
                         bobWeight,
-                ground + 0.285F * visualScale + 0.025F),
+                ground + 0.285F * visualScale * valueScale + 0.025F),
             static_cast<float>(pickup.position.z),
         };
         renderer_->drawExperienceOctahedron(
             position,
             crystalFacingYaw + phase + age * 0.55F,
-            visualScale);
+            visualScale, pickup.value);
     }
     renderer_->setWorldMaterial({});
     WorldMaterialState challengeMaterial{};
