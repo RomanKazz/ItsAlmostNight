@@ -54,7 +54,9 @@ bool PerformanceRecorder::start(std::string_view directory) {
     stream_ << ",gpu_viewmodel_target_samples,gpu_viewmodel_composite_samples,"
                "gpu_queries_issued,output_width,output_height,run_state_changed,"
                "minimap_prewarm_ms,terrain_chunks_submitted,terrain_chunks_culled,"
-               "window_focused,window_minimized,window_focus_changed\n";
+               "window_focused,window_minimized,window_focus_changed,"
+               "final_batch_submission_ms,present_thread_cpu_ms,"
+               "present_not_running_ms,present_thread_cpu_valid\n";
     return true;
 }
 
@@ -113,6 +115,10 @@ void PerformanceRecorder::record(
             << ',' << static_cast<int>(value.windowFocused)
             << ',' << static_cast<int>(value.windowMinimized)
             << ',' << static_cast<int>(value.windowFocusChanged)
+            << ',' << value.finalBatchSubmissionMs
+            << ',' << value.presentThreadCpuMs
+            << ',' << value.presentNotRunningMs
+            << ',' << static_cast<int>(value.presentThreadCpuValid)
             << '\n';
     ++framesSinceFlush_;
     constexpr std::uint32_t FlushIntervalFrames = 300U;

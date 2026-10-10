@@ -137,6 +137,11 @@ struct RendererPerformanceStats {
     std::size_t lowDetailEnemyCount{};
     std::size_t blobShadowCount{};
     std::size_t blobShadowTriangles{};
+    // Per-frame diagnostics, sampled only while performance logging is on.
+    double finalBatchSubmissionMs{};
+    double presentThreadCpuMs{};
+    double presentNotRunningMs{};
+    bool presentThreadCpuValid{};
 };
 
 enum class RendererGpuStage : std::size_t {

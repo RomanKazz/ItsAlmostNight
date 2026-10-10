@@ -5,9 +5,53 @@
 #include <rlgl.h>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 
 namespace {
+bool presentWaitDiagnostics(ian::Renderer& renderer) {
+    const auto savedSettings = renderer.settings();
+    renderer.settings().performanceLogging = true;
+    // Exercise a long EndDrawing using raylib's limiter. Depending on build
+    // flags it sleeps or spins; the diagnostics must account for either.
+    SetTargetFPS(25);
+    const Camera3D camera{{0, 2, 5}, {0, 1, 0}, {0, 1, 0}, 65, CAMERA_PERSPECTIVE};
+    const auto frame = [&] {
+        renderer.beginFrame();
+        renderer.beginWorldPass(BLACK, camera);
+        renderer.endWorldPass();
+        DrawRectangle(0, 0, 32, 32, WHITE);
+        renderer.endFrame();
+    };
+    frame(); frame();
+    const auto stats = renderer.performanceStats();
+    bool valid = std::isfinite(stats.finalBatchSubmissionMs) &&
+        stats.finalBatchSubmissionMs >= 0.0;
+#if defined(__APPLE__) || defined(__linux__)
+    valid = valid && stats.presentThreadCpuValid;
+#endif
+    if (stats.presentThreadCpuValid) {
+        valid = valid && std::isfinite(stats.presentThreadCpuMs) &&
+            stats.presentThreadCpuMs >= 0.0 && stats.presentNotRunningMs >= 0.0 &&
+            std::isfinite(stats.presentNotRunningMs) &&
+            std::abs(stats.presentThreadCpuMs + stats.presentNotRunningMs -
+                renderer.frameSwapMilliseconds()) < 0.1;
+    }
+    SetTargetFPS(0);
+    renderer.settings().performanceLogging = false;
+    frame();
+    const auto& disabled = renderer.performanceStats();
+    valid = valid && !disabled.presentThreadCpuValid &&
+        disabled.presentThreadCpuMs == 0.0 && disabled.presentNotRunningMs == 0.0 &&
+        disabled.finalBatchSubmissionMs == 0.0;
+    renderer.settings() = savedSettings;
+    if (!valid) std::cerr << "EndDrawing thread CPU/wait diagnostics failed: valid="
+        << stats.presentThreadCpuValid << " cpu=" << stats.presentThreadCpuMs
+        << " not-running=" << stats.presentNotRunningMs
+        << " batch=" << stats.finalBatchSubmissionMs << '\n';
+    return valid;
+}
+
 bool skyDepthParity(ian::Renderer& renderer) {
     using namespace ian;
     const auto savedSettings = renderer.settings();
@@ -130,6 +174,7 @@ int main() {
     }
     UnloadRenderTexture(raw); UnloadShader(shader);
     valid = skyDepthParity(renderer) && valid;
+    valid = presentWaitDiagnostics(renderer) && valid;
     renderer.shutdown(); CloseWindow();
     std::cout << "GPU sparse queries and complete viewmodel pixel parity: " << valid << '\n';
     return valid ? 0 : 1;

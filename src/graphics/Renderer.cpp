@@ -193,6 +193,10 @@ void Renderer::warmCombatRendering() {
 
 void Renderer::beginFrame() {
     performanceStats_.gpuQueriesIssued = 0U;
+    performanceStats_.finalBatchSubmissionMs = 0.0;
+    performanceStats_.presentThreadCpuMs = 0.0;
+    performanceStats_.presentNotRunningMs = 0.0;
+    performanceStats_.presentThreadCpuValid = false;
     pollGpuTimers();
     sampledGpuStage_.reset();
     if (gpuProfilingEnabled_) {

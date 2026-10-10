@@ -454,6 +454,10 @@ int App::run() {
                 .windowFocused = IsWindowFocused(),
                 .windowMinimized = IsWindowMinimized(),
                 .windowFocusChanged = windowFocusedAtFrameStart != IsWindowFocused(),
+                .finalBatchSubmissionMs = rendererStats.finalBatchSubmissionMs,
+                .presentThreadCpuMs = rendererStats.presentThreadCpuMs,
+                .presentNotRunningMs = rendererStats.presentNotRunningMs,
+                .presentThreadCpuValid = rendererStats.presentThreadCpuValid,
             });
         }
         persistUserSettings();

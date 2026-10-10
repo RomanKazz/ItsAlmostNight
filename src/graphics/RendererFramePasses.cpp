@@ -15,9 +15,25 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#if defined(__APPLE__) || defined(__unix__)
+#include <time.h>
+#endif
 
 namespace ian {
 namespace {
+
+// Thread CPU time excludes sleep/descheduling. A low reading during a long
+// EndDrawing identifies waiting, but cannot distinguish GPU from OS waits.
+double currentThreadCpuMilliseconds() noexcept {
+#if defined(CLOCK_THREAD_CPUTIME_ID)
+    timespec value{};
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &value) == 0) {
+        return static_cast<double>(value.tv_sec) * 1000.0 +
+            static_cast<double>(value.tv_nsec) / 1000000.0;
+    }
+#endif
+    return -1.0;
+}
 
 // OpenGL 3.3 supports sparse MRT routing. Preserve the normal/AO attachment
 // while writing transparent-effect coverage into the third color attachment.
@@ -759,14 +775,31 @@ void Renderer::endFrame() {
         instancedEnemyMillisecondsThisFrame_);
     // Submit the final UI batch before waiting so the GPU can finish it while
     // the CPU approaches the presentation deadline.
+    const bool diagnosePresent = settings_.performanceLogging;
+    const auto submissionStart = diagnosePresent
+        ? PerformanceClock::now() : PerformanceClock::time_point{};
     rlDrawRenderBatchActive();
+    if (diagnosePresent) {
+        performanceStats_.finalBatchSubmissionMs =
+            performanceMilliseconds(submissionStart);
+    }
     // Pace immediately before presenting. Waiting after EndDrawing() keeps
     // frame starts regular but still exposes render-time variance as visible
     // presentation jitter.
     paceFrame();
     const auto swapStart = PerformanceClock::now();
+    const double cpuStart = diagnosePresent
+        ? currentThreadCpuMilliseconds() : -1.0;
     EndDrawing();
+    const double cpuEnd = diagnosePresent
+        ? currentThreadCpuMilliseconds() : -1.0;
     frameSwapMilliseconds_ = performanceMilliseconds(swapStart);
+    if (cpuStart >= 0.0 && cpuEnd >= cpuStart) {
+        performanceStats_.presentThreadCpuValid = true;
+        performanceStats_.presentThreadCpuMs = cpuEnd - cpuStart;
+        performanceStats_.presentNotRunningMs = std::max(
+            0.0, frameSwapMilliseconds_ - performanceStats_.presentThreadCpuMs);
+    }
     frameOpen_ = false;
 }
 

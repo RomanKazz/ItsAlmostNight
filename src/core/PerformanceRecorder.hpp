@@ -88,6 +88,10 @@ struct PerformanceFrameRecord {
     bool windowFocused{};
     bool windowMinimized{};
     bool windowFocusChanged{};
+    double finalBatchSubmissionMs{};
+    double presentThreadCpuMs{};
+    double presentNotRunningMs{};
+    bool presentThreadCpuValid{};
 };
 
 class PerformanceRecorder {
