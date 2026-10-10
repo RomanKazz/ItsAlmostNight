@@ -282,6 +282,7 @@ int App::run() {
 
     while (!WindowShouldClose() && !exitRequested_) {
         const auto frameStart = PerformanceClock::now();
+        const bool windowFocusedAtFrameStart = IsWindowFocused();
         const RunState stateBeforeInput = simulation_.snapshot().state;
         performanceStats_.minimapPreparation.sample(0.0);
         const auto inputStart = PerformanceClock::now();
@@ -450,6 +451,9 @@ int App::run() {
                 .minimapPreparationMs = performanceStats_.minimapPreparation.lastMilliseconds,
                 .terrainChunksSubmitted = rendererStats.terrainChunksSubmitted,
                 .terrainChunksCulled = rendererStats.terrainChunksCulled,
+                .windowFocused = IsWindowFocused(),
+                .windowMinimized = IsWindowMinimized(),
+                .windowFocusChanged = windowFocusedAtFrameStart != IsWindowFocused(),
             });
         }
         persistUserSettings();

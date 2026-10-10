@@ -168,10 +168,14 @@ void Renderer::drawSky(const SkyState& sky) {
 
     BeginShaderMode(shader);
     rlDrawRenderBatchActive();
+    rlEnableDepthTest();
+    rlDisableDepthMask();
     rlDisableColorBlend();
     DrawRectangle(0, 0, std::max(width, 1), std::max(height, 1), WHITE);
     rlDrawRenderBatchActive();
     rlEnableColorBlend();
+    rlEnableDepthMask();
+    rlDisableDepthTest();
     EndShaderMode();
     if (skyboxesReady) {
         rlActiveTextureSlot(DaySkyboxSlot);

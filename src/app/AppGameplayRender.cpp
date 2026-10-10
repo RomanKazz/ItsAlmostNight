@@ -263,7 +263,6 @@ void App::renderGameplayFrame(
 
     const auto terrainStart = PerformanceClock::now();
     renderer_->beginWorldPass(environment.skyHorizon, camera);
-    renderer_->drawSky(skyState);
     BeginMode3D(camera);
     renderer_->beginWorldShader(lighting);
     WorldMaterialState terrainMaterial{};
@@ -274,6 +273,13 @@ void App::renderGameplayFrame(
     renderer_->drawTerrain(
         ground, camera.position,
         showTerrainWireframe_, playerArrival_.mountainGrowth(), playerArrival_.lowerMountainGrowth());
+    // Ground seeds depth first, so hidden sky pixels skip procedural noise.
+    // Keep sky before translucent world objects and particle effects.
+    renderer_->endWorldShader();
+    EndMode3D();
+    renderer_->drawSky(skyState);
+    BeginMode3D(camera);
+    renderer_->beginWorldShader(lighting);
     performanceStats_.terrainRender.sample(
         performanceMilliseconds(terrainStart));
 

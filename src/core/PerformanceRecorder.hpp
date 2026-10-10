@@ -85,6 +85,9 @@ struct PerformanceFrameRecord {
     double minimapPreparationMs{};
     std::size_t terrainChunksSubmitted{};
     std::size_t terrainChunksCulled{};
+    bool windowFocused{};
+    bool windowMinimized{};
+    bool windowFocusChanged{};
 };
 
 class PerformanceRecorder {

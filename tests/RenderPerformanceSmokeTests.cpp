@@ -7,6 +7,52 @@
 #include <array>
 #include <iostream>
 
+namespace {
+bool skyDepthParity(ian::Renderer& renderer) {
+    using namespace ian;
+    const auto savedSettings = renderer.settings();
+    renderer.settings().renderWidth = GetScreenWidth();
+    renderer.settings().renderHeight = GetScreenHeight();
+    renderer.settings().pixelSize = 1;
+    bool valid = true;
+    for (const bool post : {false, true}) for (const float night : {0.0F, .3F, .7F, 1.0F}) {
+        renderer.settings().postProcessing = post;
+        const Camera3D camera{{0, 2, 5}, {0, 1, 0}, {0, 1, 0}, 65, CAMERA_PERSPECTIVE};
+        WorldLighting lighting{}; lighting.cameraPosition = camera.position;
+        SkyState sky{}; sky.nightAmount = night; sky.timeSeconds = 17;
+        const auto capture = [&](bool late) {
+            renderer.beginFrame(); renderer.beginWorldPass(BLACK, camera);
+            if (!late) renderer.drawSky(sky);
+            BeginMode3D(camera); renderer.beginWorldShader(lighting);
+            WorldMaterialState material{}; material.terrainAmount = 1;
+            renderer.setWorldMaterial(material);
+            DrawCube({0, -.3F, 0}, 100, .6F, 100, GREEN);
+            material.terrainAmount = 0; renderer.setWorldMaterial(material);
+            DrawCube({-.9F, 1, 0}, 1, 2, 1, RED);
+            DrawSphere({1.1F, 1, 0}, .8F, BLUE);
+            renderer.endWorldShader(); EndMode3D();
+            if (late) renderer.drawSky(sky);
+            // Transparent geometry must still blend over the preserved sky.
+            BeginMode3D(camera); DrawCube({0, 3, -2}, 3, 1, 1, {255, 200, 100, 90}); EndMode3D();
+            renderer.endWorldPass(); rlDrawRenderBatchActive();
+            Image result = LoadImageFromScreen(); renderer.endFrame(); return result;
+        };
+        const Image before = capture(false), after = capture(true);
+        Color* a = LoadImageColors(before); Color* b = LoadImageColors(after);
+        int changed = 0;
+        for (int i = 0; i < before.width * before.height; ++i) {
+            if (std::max({std::abs(int(a[i].r)-int(b[i].r)), std::abs(int(a[i].g)-int(b[i].g)),
+                          std::abs(int(a[i].b)-int(b[i].b))}) > 2) ++changed;
+        }
+        if (changed) std::cerr << "late sky pixel mismatch: post=" << post << " night=" << night << " count=" << changed << '\n';
+        valid = valid && changed == 0;
+        UnloadImageColors(a); UnloadImageColors(b); UnloadImage(before); UnloadImage(after);
+    }
+    renderer.settings() = savedSettings;
+    return valid;
+}
+}
+
 int main() {
     using namespace ian;
     SetTraceLogLevel(LOG_ERROR); SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -82,7 +128,9 @@ int main() {
             UnloadImageColors(a); UnloadImageColors(b); UnloadImage(actual); UnloadImage(expected);
         }
     }
-    UnloadRenderTexture(raw); UnloadShader(shader); renderer.shutdown(); CloseWindow();
+    UnloadRenderTexture(raw); UnloadShader(shader);
+    valid = skyDepthParity(renderer) && valid;
+    renderer.shutdown(); CloseWindow();
     std::cout << "GPU sparse queries and complete viewmodel pixel parity: " << valid << '\n';
     return valid ? 0 : 1;
 }

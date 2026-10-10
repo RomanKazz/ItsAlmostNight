@@ -1027,7 +1027,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     worldShader_.load("assets/shaders/world.vs", "assets/shaders/world.fs");
     shadowShader_.load("assets/shaders/shadow.vs", "assets/shaders/shadow.fs");
     shadowDebugShader_.load(nullptr, "assets/shaders/shadow_debug.fs");
-    skyShader_.load(nullptr, "assets/shaders/sky.fs");
+    skyShader_.load("assets/shaders/sky.vs", "assets/shaders/sky.fs");
     cloudShader_.load(
         "assets/shaders/cloud.vs", "assets/shaders/cloud.fs");
     waterShader_.load(
