@@ -400,15 +400,15 @@ void runSimulationTests() {
             shiftHeld->tick(1.0 / 60.0, withShift);
         }
         requireNear(std::hypot(walking->snapshot().playerHorizontalVelocity.x,
-                walking->snapshot().playerHorizontalVelocity.z), 6.0, 1e-9,
-            "ordinary movement reaches the new six meter per second base speed");
+                walking->snapshot().playerHorizontalVelocity.z), 6.5, 1e-9,
+            "ordinary movement reaches the new six and a half meter per second base speed");
         requireNear(walking->snapshot().playerPosition.z, shiftHeld->snapshot().playerPosition.z, 1e-12,
             "holding former sprint input cannot increase movement speed");
         require(walking->grantDebugRunUpgrade(ian::RunUpgradeEffect::MoveSpeed),
             "movement tome remains available without sprint");
         for (int frame = 0; frame < 30; ++frame) walking->tick(1.0 / 60.0, forward);
         requireNear(std::hypot(walking->snapshot().playerHorizontalVelocity.x,
-                walking->snapshot().playerHorizontalVelocity.z), 6.0 * 1.07, 1e-9,
+                walking->snapshot().playerHorizontalVelocity.z), 6.5 * 1.07, 1e-9,
             "movement tome scales the faster base speed");
         ian::PlayerCommand dash = forward; dash.dash = true;
         walking->tick(1.0 / 60.0, dash);
@@ -419,7 +419,7 @@ void runSimulationTests() {
         ian::PlayerCommand diagonal; diagonal.moveForward = diagonal.moveRight = 1;
         for (int frame = 0; frame < 60; ++frame) shiftHeld->tick(1.0 / 60.0, diagonal);
         requireNear(std::hypot(shiftHeld->snapshot().playerHorizontalVelocity.x,
-                shiftHeld->snapshot().playerHorizontalVelocity.z), 6.0, 1e-9,
+                shiftHeld->snapshot().playerHorizontalVelocity.z), 6.5, 1e-9,
             "diagonal input cannot exceed the constant movement speed");
     }
     {

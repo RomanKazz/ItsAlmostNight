@@ -51,7 +51,6 @@ void App::renderGameplayFrame(
         snapshot.runUpgradeChoicePending ? 0.0F : 1.0F;
     const float bobAmount =
         static_cast<float>(cameraBobAmount_) *
-        (input_.sprint ? 1.12F : 1.0F) *
         motionBobIntensity_ * cameraMotionScale;
     const float bobSide =
         static_cast<float>(

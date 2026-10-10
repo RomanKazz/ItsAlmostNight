@@ -312,9 +312,9 @@ void runGameBalanceTests() {
     require(loaded.balance.waves[0].groupSize == 1 &&
                 loaded.balance.waves[0].groupInterval == 0.5,
             "wave group schedule comes from JSON");
-    requireNear(ian::GameBalance::defaults().gameplay.walkSpeed, 6.0, 1e-12,
-                "default movement speed increases twenty percent without sprint");
-    requireNear(assetBalance.balance.gameplay.walkSpeed, 6.0, 1e-12,
+    requireNear(ian::GameBalance::defaults().gameplay.walkSpeed, 6.5, 1e-12,
+                "default movement speed uses the tuned constant speed without sprint");
+    requireNear(assetBalance.balance.gameplay.walkSpeed, 6.5, 1e-12,
                 "runtime gameplay asset uses the same faster movement speed");
     require(loaded.balance.gameplay.playerMaxHealth == 125.0 &&
                 loaded.balance.gameplay.playerAcceleration == 30.0 &&

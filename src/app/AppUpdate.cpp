@@ -597,16 +597,7 @@ void App::update() {
     }
     const SimulationSnapshot& movementSnapshot =
         simulation_.snapshot();
-    const bool sprinting =
-        !movementSnapshot.runUpgradeChoicePending &&
-        acceptsGameplayInput(
-            movementSnapshot.state) &&
-        input_.sprint &&
-        (std::abs(input_.moveForward) > 0.01 ||
-         std::abs(input_.moveRight) > 0.01);
-    const float targetFov = movementSnapshot.dashing
-        ? 88.0F
-        : sprinting ? 79.0F : 75.0F;
+    const float targetFov = movementSnapshot.dashing ? 88.0F : 75.0F;
     const float fovBlend =
         1.0F -
         std::exp(
@@ -1227,8 +1218,7 @@ void App::update() {
         bobAmountBlend;
     if (canBob) {
         cameraBobPhase_ +=
-            cameraBobSpeed_ * frameSeconds *
-            (sprinting ? 2.15 : 2.35);
+            cameraBobSpeed_ * frameSeconds * 2.35;
     }
     audio_.update(eventSnapshot);
     updateHoverTarget(eventSnapshot, frameSeconds);
