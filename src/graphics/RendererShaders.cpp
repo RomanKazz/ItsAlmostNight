@@ -191,6 +191,10 @@ void Renderer::resolveAuxiliaryShaderLocations() {
             "outlineRadius");
         selectionOutlineSceneDepthLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(), "sceneDepth");
+        selectionOutlineEffectCoverageLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "effectCoverage");
+        selectionOutlineEffectCoverageEnabledLocation_ = GetShaderLocation(
+            resources_.selectionOutlineShader().get(), "effectCoverageEnabled");
         selectionOutlineInverseProjectionLocation_ = GetShaderLocation(
             resources_.selectionOutlineShader().get(),
             "inverseProjection");

@@ -1,32 +1,35 @@
-# Fire wand attack presentation
+# Fire wand presentation
 
-Fire uses a dedicated cartoon comet instead of recoloring the ice magic sphere.
-The projectile has an orange round silhouette, a gold interior, a cream hot core,
-three animated flame lobes, a layered tapering wake and optional small embers.
-The wake follows the recorded projectile path and interpolates every trail node.
-A fresh/reused projectile uses only its current trail count.
+The projectile keeps the original layered cartoon core: an orange/red edge,
+gold interior, cream hot center and its original restrained pulse. Its palette,
+size, highlight offset and per-projectile phase are unchanged. It interpolates
+its real position and writes world depth/ink occlusion. There is no wake, halo, flying flame petal or ember around
+the projectile. The existing elemental-projectile entry point and the app pool
+batch use the same core renderer.
 
-The staff carries a small idle flame. Charging grows the core and draws embers
-inward; release gives a short larger flash driven by the existing recoil timer.
-Idle charge progress is explicitly zero for fire when no cast is charging.
-Impacts scatter curling flame lobes with a hot core and soft warm glow, then fade
-out. Existing cartoon explosions remain the bomb/cannon presentation.
+Fire impacts once again use the existing `emitCartoonExplosion` path: a hot
+flash followed by rounded expanding smoke puffs, dust and embers. The same
+bounded 128-event explosion batch handles fire, bombs and artillery. Extra
+detail remains limited to the four newest visible blasts and respects particles.
+The fire-specific radial petals have been removed.
 
-## State and performance
+The staff retains its small idle flame, charge fire and recoil flash. Enemy
+burning retains its existing animated flames. Gameplay damage, charge timing,
+velocity, physical radius, burn rules, pooling, save IDs and audio are unchanged.
 
-`graphics/FireWandEffect.hpp` owns only procedural geometry. No textures,
-allocations, random state, extra projectiles or lifetime bookkeeping. The app
-batches all fire trails together, then all solid heads. Alpha wakes test world
-depth without writing it; solid heads write depth and mask background ink.
-Transparent passes preserve normal/AO attachments. Impact rendering is bounded
-at 32 recent visible events within 40 world units. Extra embers respect the
-particles setting. The existing `Renderer::drawIceWandProjectile` entry point
-also dispatches fire to this appearance for other callers.
+## Selection occlusion
 
-Damage, charge/cooldown timing, speed, collision radius, burn rules, pooling,
-save IDs and audio remain governed by the existing elemental weapon system.
+While selection is active, world effects write coverage and coverage-weighted
+inverse depth into a separate color attachment. Sparse OpenGL 3.3 MRT routing
+preserves normals/AO for transparent color-only effects. Explosion clouds keep
+their authored ink-occluder normal output, also recording selection coverage.
+The mask is cleared each selected frame, resized with the scene and unloaded
+at Renderer shutdown. The white selection contour fades under foreground
+coverage and remains visible if an effect is behind the selected object. Sky
+alpha is not used as effect coverage. Tactical sectors retain color-only routing.
+
+Graphics regressions cover original cartoon core palette/motion, foreground occlusion,
+opaque depth, inactive pool slots and staff charge/release. Selection captures
+cover front/back effect depth, burning, sky, cleared/reselected frames,
+resolution changes and SSAO disabled. `IAN_CAPTURE_FIRE_WAND` exports previews.
 There are no new public Renderer signatures.
-
-`ian_graphics_smoke` checks warm palette layers, movement, low detail,
-foreground occlusion, head depth writes, charge/release size, inactive pool
-slots and impact expiry. Set `IAN_CAPTURE_FIRE_WAND` to export previews.

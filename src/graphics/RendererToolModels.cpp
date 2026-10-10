@@ -468,18 +468,10 @@ void Renderer::drawIceWandProjectile(
         fireMaterial.unlitAmount = 1;
         fireMaterial.screenAoAmount = 0;
         fireMaterial.inkOutlineEligible = false;
-        setWorldMaterial(fireMaterial);
-        beginColorOnlyWorldEffects();
-        fire_wand_effect::beginBatch();
-        fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds,
-            interpolationAlpha, settings_.particles, fire_wand_effect::Pass::Trail);
-        fire_wand_effect::endBatch();
-        endColorOnlyWorldEffects();
         fireMaterial.inkOccluder = true;
         setWorldMaterial(fireMaterial);
         fire_wand_effect::beginBatch(true);
-        fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds,
-            interpolationAlpha, settings_.particles, fire_wand_effect::Pass::Body);
+        fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds, interpolationAlpha);
         fire_wand_effect::endBatch();
         setWorldMaterial(previousMaterial);
         return;

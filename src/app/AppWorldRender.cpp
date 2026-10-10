@@ -1173,21 +1173,11 @@ void App::drawWorldProjectiles(
     fireShotMaterial.unlitAmount = 1;
     fireShotMaterial.screenAoAmount = 0;
     fireShotMaterial.inkOutlineEligible = false;
-    renderer_->setWorldMaterial(fireShotMaterial);
-    renderer_->beginColorOnlyWorldEffects();
-    fire_wand_effect::beginBatch();
-    for (const auto& projectile : snapshot.fireWandProjectiles) {
-        fire_wand_effect::emitProjectile(projectile, camera.position, fireTime,
-            interpolationAlpha, renderer_->settings().particles, fire_wand_effect::Pass::Trail);
-    }
-    fire_wand_effect::endBatch();
-    renderer_->endColorOnlyWorldEffects();
     fireShotMaterial.inkOccluder = true;
     renderer_->setWorldMaterial(fireShotMaterial);
     fire_wand_effect::beginBatch(true);
     for (const auto& projectile : snapshot.fireWandProjectiles) {
-        fire_wand_effect::emitProjectile(projectile, camera.position, fireTime,
-            interpolationAlpha, renderer_->settings().particles, fire_wand_effect::Pass::Body);
+        fire_wand_effect::emitProjectile(projectile, camera.position, fireTime, interpolationAlpha);
     }
     fire_wand_effect::endBatch();
     // A bounded ribbon follows the shell's recorded trajectory. All ballistic

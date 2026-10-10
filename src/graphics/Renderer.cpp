@@ -291,6 +291,8 @@ void Renderer::shutdown() {
     shutdownPlatformTopPartMeshes();
     instanceBuffers_.shutdown();
     terrainRenderer_.shutdown();
+    selectionEffectCoverage_.unload();
+    selectionEffectCoverageReady_ = false;
     resources_.shutdown();
 }
 

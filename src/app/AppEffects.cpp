@@ -1,7 +1,6 @@
 #include "app/App.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppFreezeDrawing.hpp"
-#include "graphics/FireWandEffect.hpp"
 #include "app/AppRenderSupport.hpp"
 
 #include <raylib.h>
@@ -642,7 +641,8 @@ void App::drawPresentationEffects(
     const float maximumExplosionDistance = lighting.fogEnd + 6.0F;
     for (auto it = effects_.rbegin(); it != effects_.rend(); ++it) {
         if (it->startDelayRemaining > 0.0 ||
-            it->type != PresentationEffectType::Explosion) continue;
+            (it->type != PresentationEffectType::Explosion &&
+             it->type != PresentationEffectType::FireImpact)) continue;
         const Vector3 delta{static_cast<float>(it->position.x) - camera.position.x,
                             static_cast<float>(it->position.y) - camera.position.y,
                             static_cast<float>(it->position.z) - camera.position.z};
@@ -667,6 +667,7 @@ void App::drawPresentationEffects(
         cloudMaterial.inkOutlineEligible = false;
         cloudMaterial.inkOccluder = true;
         renderer_->setWorldMaterial(cloudMaterial);
+        renderer_->beginColorOnlyWorldEffects();
         BeginBlendMode(BLEND_ALPHA);
         rlDisableDepthMask();
         rlSetTexture(0);
@@ -688,48 +689,6 @@ void App::drawPresentationEffects(
         rlDrawRenderBatchActive();
         rlEnableDepthMask();
         EndBlendMode();
-        renderer_->endWorldShader();
-    }
-    struct FireImpactDraw {
-        const PresentationEffect* effect{};
-        float distanceSquared{};
-    };
-    std::array<FireImpactDraw, 32> fireImpacts{};
-    std::size_t fireCount = 0;
-    for (auto it = effects_.rbegin(); it != effects_.rend(); ++it) {
-        if (it->type != PresentationEffectType::FireImpact ||
-            it->startDelayRemaining > 0 || it->duration <= 0) continue;
-        const Vector3 origin{static_cast<float>(it->position.x),
-            static_cast<float>(it->position.y), static_cast<float>(it->position.z)};
-        const Vector3 delta = Vector3Subtract(origin, camera.position);
-        const float distance = Vector3LengthSqr(delta);
-        if (distance > 1600 || Vector3DotProduct(delta, cameraForward) < -it->scale * 3) continue;
-        if (fireCount == fireImpacts.size()) break;
-        fireImpacts[fireCount++] = {&*it, distance};
-    }
-    if (fireCount > 0) {
-        std::sort(fireImpacts.begin(), fireImpacts.begin() + static_cast<std::ptrdiff_t>(fireCount),
-            [](const FireImpactDraw& a, const FireImpactDraw& b) {
-                return a.distanceSquared > b.distanceSquared;
-            });
-        renderer_->beginWorldShader(lighting);
-        WorldMaterialState material{};
-        material.unlitAmount = 1;
-        material.screenAoAmount = 0;
-        material.inkOutlineEligible = false;
-        material.inkOccluder = false;
-        renderer_->setWorldMaterial(material);
-        renderer_->beginColorOnlyWorldEffects();
-        fire_wand_effect::beginBatch();
-        for (std::size_t i = 0; i < fireCount; ++i) {
-            const auto& effect = *fireImpacts[i].effect;
-            const Vector3 origin{static_cast<float>(effect.position.x),
-                static_cast<float>(effect.position.y), static_cast<float>(effect.position.z)};
-            fire_wand_effect::emitImpact(origin, cameraRight, billboardUp,
-                Vector3Negate(cameraForward), static_cast<float>(1 - effect.remaining / effect.duration),
-                effect.scale, renderer_->settings().particles);
-        }
-        fire_wand_effect::endBatch();
         renderer_->endColorOnlyWorldEffects();
         renderer_->endWorldShader();
     }

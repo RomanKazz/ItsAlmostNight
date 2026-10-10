@@ -895,6 +895,10 @@ class Renderer {
     int selectionOutlineTexelSizeLocation_{-1};
     int selectionOutlineRadiusLocation_{-1};
     int selectionOutlineSceneDepthLocation_{-1};
+    int selectionOutlineEffectCoverageLocation_{-1};
+    int selectionOutlineEffectCoverageEnabledLocation_{-1};
+    RenderTextureResource selectionEffectCoverage_;
+    bool selectionEffectCoverageReady_{};
     int selectionOutlineInverseProjectionLocation_{-1};
     int selectionOutlineDepthOcclusionEnabledLocation_{-1};
     int selectionMaskTimeLocation_{-1};

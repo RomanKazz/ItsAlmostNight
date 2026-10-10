@@ -19,6 +19,22 @@
 namespace ian {
 namespace {
 
+// OpenGL 3.3 supports sparse MRT routing. Preserve the normal/AO attachment
+// while writing transparent-effect coverage into the third color attachment.
+bool routeEffectCoverage(bool color) {
+#if defined(_WIN32)
+    using DrawBuffers = void (__stdcall *)(int, const unsigned int*);
+#else
+    using DrawBuffers = void (*)(int, const unsigned int*);
+#endif
+    static const auto drawBuffers = reinterpret_cast<DrawBuffers>(rlGetProcAddress("glDrawBuffers"));
+    if (!drawBuffers) return false;
+    constexpr unsigned int Color0 = 0x8CE0, Color2 = 0x8CE2;
+    const unsigned int buffers[]{color ? Color0 : 0U, 0U, Color2};
+    drawBuffers(3, buffers);
+    return true;
+}
+
 } // namespace
 
 void Renderer::beginWorldPass(
@@ -40,7 +56,27 @@ void Renderer::beginWorldPass(
     ssaoInverseProjection_ = MatrixInvert(ssaoProjection_);
     ssaoViewMatrix_ = GetCameraMatrix(camera);
     ssaoFrameReady_ = false;
+    selectionEffectCoverageReady_ = false;
     usingOffscreenTarget_ = resources_.sceneTargetValid();
+    if (usingOffscreenTarget_ && selectionMaskReady_) {
+        const auto& scene = resources_.sceneTarget();
+        const auto& coverage = selectionEffectCoverage_.get();
+        if (!selectionEffectCoverage_.valid() ||
+            coverage.texture.width != scene.texture.width ||
+            coverage.texture.height != scene.texture.height) {
+            selectionEffectCoverage_.load(scene.texture.width, scene.texture.height);
+        }
+        if (selectionEffectCoverage_.valid()) {
+            rlFramebufferAttach(scene.id, selectionEffectCoverage_.get().texture.id,
+                RL_ATTACHMENT_COLOR_CHANNEL2, RL_ATTACHMENT_TEXTURE2D, 0);
+            rlEnableFramebuffer(scene.id);
+            if (routeEffectCoverage(false)) {
+                ClearBackground(BLANK);
+                selectionEffectCoverageReady_ = true;
+            }
+            rlDisableFramebuffer();
+        }
+    }
     if (usingOffscreenTarget_) {
         BeginTextureMode(resources_.sceneTarget());
         rlActiveDrawBuffers(
@@ -1029,11 +1065,15 @@ void Renderer::drawSelectionOutline() {
                    &outlineRadius, SHADER_UNIFORM_INT);
     const float depthOcclusionEnabled =
         selectionOutlineDepthOcclusion_ && usingOffscreenTarget_ &&
+                resources_.sceneScreenSpaceBuffers() &&
                 resources_.sceneTargetValid()
             ? 1.0F : 0.0F;
     SetShaderValue(
         shader, selectionOutlineDepthOcclusionEnabledLocation_,
         &depthOcclusionEnabled, SHADER_UNIFORM_FLOAT);
+    const float effectCoverageEnabled = selectionEffectCoverageReady_ ? 1.0F : 0.0F;
+    SetShaderValue(shader, selectionOutlineEffectCoverageEnabledLocation_,
+        &effectCoverageEnabled, SHADER_UNIFORM_FLOAT);
     SetShaderValueMatrix(
         shader, selectionOutlineInverseProjectionLocation_,
         ssaoInverseProjection_);
@@ -1067,6 +1107,10 @@ void Renderer::drawSelectionOutline() {
         SetShaderValueTexture(
             shader, selectionOutlineSceneDepthLocation_,
             resources_.sceneTarget().depth);
+    }
+    if (selectionEffectCoverageReady_) {
+        SetShaderValueTexture(shader, selectionOutlineEffectCoverageLocation_,
+            selectionEffectCoverage_.get().texture);
     }
     const auto brightness =
         static_cast<unsigned char>(
@@ -1162,17 +1206,22 @@ void Renderer::drawTacticalGroundSector(
 }
 
 void Renderer::beginColorOnlyWorldEffects() {
-    if (!usingOffscreenTarget_ ||
-        !resources_.sceneScreenSpaceBuffers()) return;
+    if (!usingOffscreenTarget_ || !worldPassOpen_) return;
     rlDrawRenderBatchActive();
+    // Explosion clouds explicitly replace rear ink; preserve that authored
+    // normal/occluder output while also recording coverage for selection.
+    if (worldShaderActive_ && worldMaterial_.inkOccluder && resources_.sceneScreenSpaceBuffers()) {
+        rlActiveDrawBuffers(selectionEffectCoverageReady_ ? 3 : 2);
+        return;
+    }
+    if (selectionEffectCoverageReady_ && worldShaderActive_ && routeEffectCoverage(true)) return;
     rlActiveDrawBuffers(1);
 }
 
 void Renderer::endColorOnlyWorldEffects() {
-    if (!usingOffscreenTarget_ ||
-        !resources_.sceneScreenSpaceBuffers()) return;
+    if (!usingOffscreenTarget_ || !worldPassOpen_) return;
     rlDrawRenderBatchActive();
-    rlActiveDrawBuffers(2);
+    rlActiveDrawBuffers(resources_.sceneScreenSpaceBuffers() ? 2 : 1);
 }
 
 void Renderer::setWorldMaterial(const WorldMaterialState& material) {

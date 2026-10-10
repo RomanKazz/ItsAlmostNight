@@ -105,6 +105,7 @@ uniform int shadowSampleCount;
 
 layout(location = 0) out vec4 finalColor;
 layout(location = 1) out vec4 normalAo;
+layout(location = 2) out vec4 effectCoverage;
 
 in vec4 fragBiomeWeights;
 uniform vec4 worldBiomeShape;
@@ -1112,6 +1113,11 @@ void main()
     // This prevents old geometry tags from bleeding through their silhouette.
     litColor = mix(litColor, albedo.rgb, clamp(unlitAmount, 0.0, 1.0));
     finalColor = vec4(litColor, outputAlpha);
+    // Enabled only for transparent color-only effects. The same depth test
+    // and alpha blend accumulate real coverage without touching normals or
+    // opaque depth. This also works against sky (whose scene alpha is zero).
+    effectCoverage = vec4(1.0, clamp(gl_FragCoord.w*0.5, 1.0/255.0, 1.0),
+                          0.0, outputAlpha);
     // Pack the outline material class and the SSAO mask together.  Keeping
     // the class separate from scene color alpha is important: alpha is also
     // used by transparent ghosts and blending, while the ink pass needs a

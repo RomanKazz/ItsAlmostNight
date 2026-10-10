@@ -12,8 +12,6 @@
 
 namespace ian::fire_wand_effect {
 
-enum class Pass { Trail, Body };
-
 inline float ease(float t) {
     t = std::clamp(t, 0.0F, 1.0F);
     return t * t * (3 - 2 * t);
@@ -93,86 +91,22 @@ inline void orb(Vector3 center, Vector3 right, Vector3 up, Vector3 front,
          opacity({255, 237, 142, 255}, amount));
 }
 
-inline Vector3 trailPoint(const IceWandProjectile& projectile, std::size_t index, float alpha) {
+// Keep the original layered cartoon core. The wake and radial impact petals
+// are gone; hits use the existing explosion cloud instead.
+inline void emitProjectile(const IceWandProjectile& projectile, Vector3 camera,
+                           double time, float interpolation) {
+    if (!projectile.active || projectile.element != WandElement::Fire || projectile.radius <= 0) return;
     const auto point = [](Vec3 p) {
         return Vector3{static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z)};
     };
-    if (index == 0) return Vector3Lerp(point(projectile.previousPosition), point(projectile.position), alpha);
-    return Vector3Lerp(point(projectile.trail[index]), point(projectile.trail[index - 1]), alpha);
-}
-
-inline void emitProjectile(const IceWandProjectile& projectile, Vector3 camera,
-                           double time, float interpolation, bool detailed, Pass pass) {
-    if (!projectile.active || projectile.element != WandElement::Fire || projectile.radius <= 0) return;
-    const float alpha = std::clamp(interpolation, 0.0F, 1.0F);
-    const Vector3 head = trailPoint(projectile, 0, alpha);
+    const Vector3 head = Vector3Lerp(point(projectile.previousPosition), point(projectile.position),
+        std::clamp(interpolation, 0.0F, 1.0F));
     const Vector3 front = normalized(Vector3Subtract(camera, head), {0, 0, 1});
     const Vector3 right = normalized(Vector3CrossProduct({0, 1, 0}, front), {1, 0, 0});
     const Vector3 up = normalized(Vector3CrossProduct(front, right), {0, 1, 0});
     const float radius = static_cast<float>(projectile.radius) * 1.18F;
     const double clock = time + static_cast<double>(projectile.id.index % 97U) * .13;
-    if (pass == Pass::Body) {
-        orb(head, right, up, front, radius, clock);
-        return;
-    }
-    disc(head, right, up, radius * 2.1F, {255, 141, 22, 46}, {255, 91, 11, 0});
-    const std::size_t count = std::min(projectile.trailCount, projectile.trail.size());
-    std::array<Vector3, IceWandTrailPointCount> points{}, sides{};
-    std::array<float, IceWandTrailPointCount> widths{};
-    for (std::size_t i = 0; i < count; ++i) {
-        points[i] = trailPoint(projectile, i, alpha);
-        const Vector3 tangent = Vector3Subtract(trailPoint(projectile, i > 0 ? i - 1 : i, alpha),
-            trailPoint(projectile, std::min(i + 1, count - 1), alpha));
-        sides[i] = normalized(Vector3CrossProduct(tangent, Vector3Subtract(camera, points[i])), right);
-        const float age = static_cast<float>(i) / static_cast<float>(std::max<std::size_t>(1, count - 1));
-        const float wave = static_cast<float>(std::sin(clock * 13 - age * 17));
-        points[i] = Vector3Add(points[i], Vector3Scale(sides[i], wave * radius * age * .18F));
-        widths[i] = radius * (1 - age) * (1 - age * .25F) * (1 + age * .18F * wave);
-    }
-    for (int layer = 0; layer < 3; ++layer) {
-        const float scale = layer == 0 ? 1 : layer == 1 ? .65F : .27F;
-        const Color hot = layer == 0 ? Color{246, 73, 16, 235} :
-            layer == 1 ? Color{255, 177, 28, 245} : Color{255, 249, 170, 255};
-        const Color cool = layer == 0 ? Color{198, 39, 23, 0} :
-            layer == 1 ? Color{246, 103, 21, 0} : Color{255, 174, 45, 0};
-        for (std::size_t i = 1; i < count; ++i) {
-            if (Vector3DistanceSqr(points[i - 1], points[i]) < .000001F) continue;
-            const float a = static_cast<float>(i - 1) / static_cast<float>(count - 1);
-            const float b = static_cast<float>(i) / static_cast<float>(count - 1);
-            const Color ca = ColorLerp(hot, cool, ease(a)), cb = ColorLerp(hot, cool, ease(b));
-            const Vector3 offset = Vector3Scale(front, radius * .006F * static_cast<float>(layer));
-            const Vector3 leftA = Vector3Add(Vector3Subtract(points[i - 1], Vector3Scale(sides[i - 1], widths[i - 1] * scale)), offset);
-            const Vector3 rightA = Vector3Add(Vector3Add(points[i - 1], Vector3Scale(sides[i - 1], widths[i - 1] * scale)), offset);
-            const Vector3 leftB = Vector3Add(Vector3Subtract(points[i], Vector3Scale(sides[i], widths[i] * scale)), offset);
-            const Vector3 rightB = Vector3Add(Vector3Add(points[i], Vector3Scale(sides[i], widths[i] * scale)), offset);
-            vertex(leftA, ca); vertex(rightA, ca); vertex(rightB, cb);
-            vertex(leftA, ca); vertex(rightB, cb); vertex(leftB, cb);
-        }
-    }
-    const Vector3 velocity{static_cast<float>(projectile.velocity.x),
-        static_cast<float>(projectile.velocity.y), static_cast<float>(projectile.velocity.z)};
-    const Vector3 wake = normalized(Vector3Negate(velocity), up);
-    const Vector3 flameSide = normalized(Vector3CrossProduct(wake, front), right);
-    for (int lobe = 0; lobe < 3; ++lobe) {
-        const float f = static_cast<float>(lobe - 1);
-        Vector3 base = Vector3Add(head, Vector3Scale(flameSide, radius * f * .55F));
-        base = Vector3Add(base, Vector3Scale(wake, radius * .25F));
-        const float curl = .35F * static_cast<float>(std::sin(clock * 11 + f * 2));
-        const float length = radius * (1.7F + .25F * static_cast<float>(std::sin(clock * 8 + f)));
-        flame(base, flameSide, wake, radius * .46F, length, curl, {245, 82, 18, 245});
-        flame(base, flameSide, wake, radius * .27F, length * .75F, curl, {255, 199, 55, 250});
-    }
-    if (detailed && count > 3) {
-        for (std::size_t ember = 0; ember < 4; ++ember) {
-            const float cycle = static_cast<float>(std::fmod(clock * 2.5 + static_cast<double>(ember) * .25, 1.0));
-            const std::size_t i = std::min(count - 1, 2 + ember * 3);
-            Vector3 center = Vector3Add(points[i], Vector3Scale(sides[i], radius * (.6F + cycle) * (ember % 2 == 0 ? 1 : -1)));
-            center = Vector3Add(center, Vector3Scale(up, radius * cycle * .5F));
-            const float fade = std::sin(cycle * PI);
-            disc(center, right, up, radius * .12F * fade,
-                opacity({255, 247, 161, 245}, fade), opacity({255, 156, 24, 170}, fade), 8);
-        }
-    }
+    orb(head, right, up, front, radius, clock);
 }
 
 inline void emitStaff(Vector3 tip, double time, float charge, float recoil, bool detailed,
@@ -206,32 +140,6 @@ inline void emitStaff(Vector3 tip, double time, float charge, float recoil, bool
                 {255, 246, 159, 230}, {255, 171, 36, 150}, 8);
         }
     }
-}
-
-inline void emitImpact(Vector3 origin, Vector3 right, Vector3 up, Vector3 front,
-                       float progress, float scale, bool detailed) {
-    progress = std::clamp(progress, 0.0F, 1.0F);
-    const float fade = 1 - ease((progress - .35F) / .65F);
-    if (fade < .001F || scale <= 0) return;
-    const float travel = 1 - (1 - progress) * (1 - progress);
-    disc(origin, right, up, scale * (.25F + travel * 1.6F),
-         opacity({255, 149, 26, 75}, fade), {255, 75, 14, 0});
-    for (int i = 0; i < (detailed ? 9 : 5); ++i) {
-        const float f = static_cast<float>(i);
-        const float angle = f * 2.39996F;
-        const Vector3 direction = Vector3Add(Vector3Scale(right, std::cos(angle)), Vector3Scale(up, std::sin(angle)));
-        const Vector3 side = Vector3Add(Vector3Scale(right, -std::sin(angle)), Vector3Scale(up, std::cos(angle)));
-        Vector3 center = Vector3Add(origin, Vector3Scale(direction, scale * travel * .8F));
-        center = Vector3Add(center, {0, progress * scale * .7F, 0});
-        const float curl = .4F * std::sin(f * 2 + progress * 7);
-        const float length = scale * (.45F + .15F * std::sin(f)) * (1 + travel) * fade;
-        flame(center, side, direction, scale * .24F * fade, length, curl, opacity({247, 78, 18, 250}, fade));
-        flame(Vector3Add(center, Vector3Scale(front, .005F)), side, direction,
-            scale * .14F * fade, length * .72F, curl, opacity({255, 201, 58, 255}, fade));
-    }
-    Vector3 core = Vector3Add(origin, Vector3Scale(front, .01F));
-    core.y += progress * scale * .5F;
-    orb(core, right, up, front, scale * (.3F + travel * .5F) * fade, progress, fade);
 }
 
 } // namespace ian::fire_wand_effect

@@ -365,18 +365,12 @@ bool checkFireWandAttack(ian::Renderer& renderer) {
         material.inkOutlineEligible = false;
         renderer.setWorldMaterial(material);
         if (cover) DrawCube({0, 1, 2}, 7, 6, .1F, GREEN);
-        if (mode == 1 || mode == 5) {
+        if (mode == 1 || mode == 5 || mode == 6) {
             auto shot = projectile;
-            shot.active = mode == 1;
-            beginBatch();
-            emitProjectile(shot, camera.position, time, .5F, detailed, Pass::Trail);
-            endBatch();
+            shot.active = mode != 5;
+            if (mode == 6) shot.trailCount = 0;
             beginBatch(true);
-            emitProjectile(shot, camera.position, time, .5F, detailed, Pass::Body);
-            endBatch();
-        } else if (mode == 2) {
-            beginBatch();
-            emitImpact({0, 1, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, amount, 1, detailed);
+            emitProjectile(shot, camera.position, time, .5F);
             endBatch();
         } else if (mode == 3 || mode == 4) {
             rlPushMatrix(); rlScalef(6, 6, 6);
@@ -396,13 +390,12 @@ bool checkFireWandAttack(ian::Renderer& renderer) {
     Image cheap = render(1, .1, false, false);
     Image coverBase = render(0, .1, true, true);
     Image covered = render(1, .1, true, true);
-    Image impact = render(2, .1, false, true, .12F);
-    Image finished = render(2, .1, false, true, 1);
     Image idle = render(3, .1, false, true, 0);
     Image charged = render(3, .1, false, true, 1);
     Image flash = render(4, .1, false, true, 0);
     Image inactive = render(5, .1, false, true);
     Image withRear = render(1, .1, false, true, 1, true);
+    Image noTrail = render(6, .1, false, true);
     const auto difference = [](const Image& a, const Image& b) {
         Color* ca = LoadImageColors(a); Color* cb = LoadImageColors(b);
         std::size_t total = 0;
@@ -411,27 +404,30 @@ bool checkFireWandAttack(ian::Renderer& renderer) {
                 std::abs(int(ca[i].g) - int(cb[i].g)) + std::abs(int(ca[i].b) - int(cb[i].b)));
         UnloadImageColors(ca); UnloadImageColors(cb); return total;
     };
-    int orange = 0, gold = 0, white = 0;
+    int orange = 0, gold = 0, hot = 0, outside = 0;
     for (int y = 0; y < fire.height; ++y) for (int x = 0; x < fire.width; ++x) {
         const auto c = GetImageColor(fire, x, y);
         if (c.r > 200 && c.g > 50 && c.g < 150 && c.b < 70) ++orange;
         if (c.r > 220 && c.g > 160 && c.b < 145) ++gold;
-        if (c.r > 230 && c.g > 220 && c.b > 145) ++white;
+        if (c.r > 230 && c.g > 220 && c.b > 145) ++hot;
+        const float dx = static_cast<float>(x) - 336, dy = static_cast<float>(y) - 120;
+        if (dx * dx + dy * dy > 32 * 32 && c.r > 90) ++outside;
     }
-    const bool valid = orange > 80 && gold > 80 && white > 10 &&
+    const bool valid = orange > 80 && gold > 80 && hot > 10 && outside == 0 &&
+        difference(fire, noTrail) == 0 &&
         difference(fire, next) > 10000 && difference(base, cheap) > 50000 &&
-        difference(coverBase, covered) == 0 && difference(base, finished) == 0 &&
-        difference(base, inactive) == 0 && difference(base, impact) > 50000 &&
+        difference(coverBase, covered) == 0 && difference(base, inactive) == 0 &&
         difference(base, charged) > difference(base, idle) * 2 &&
         difference(idle, flash) > 10000 && difference(fire, withRear) < 100;
-    if (!valid) std::cerr << "fire wand palette " << orange << '/' << gold << '/' << white
+    if (!valid) std::cerr << "fire wand palette " << orange << '/' << gold << '/' << hot
+        << " outside " << outside << " trail " << difference(fire, noTrail)
         << " cover " << difference(coverBase, covered)
         << " rear " << difference(fire, withRear)
         << " charge " << difference(base, charged) << '/' << difference(base, idle) << '\n';
     if (const char* directory = std::getenv("IAN_CAPTURE_FIRE_WAND")) {
         std::filesystem::create_directories(directory);
         for (const auto& pair : {std::pair{fire, "fire-flight.png"},
-            std::pair{next, "fire-flight-next.png"}, std::pair{impact, "fire-impact.png"},
+            std::pair{next, "fire-flight-next.png"},
             std::pair{charged, "fire-charge.png"}, std::pair{flash, "fire-release.png"}})
             ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
         const auto preview = LoadRenderTexture(960, 540);
@@ -454,9 +450,135 @@ bool checkFireWandAttack(ian::Renderer& renderer) {
         }
         UnloadRenderTexture(preview);
     }
-    for (Image image : {base, fire, next, cheap, coverBase, covered, impact,
-                        finished, idle, charged, flash, inactive, withRear}) UnloadImage(image);
+    for (Image image : {base, fire, next, cheap, coverBase, covered,
+                        idle, charged, flash, inactive, withRear, noTrail}) UnloadImage(image);
     UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkFireSelection(ian::Renderer& renderer) {
+    using namespace ian::fire_wand_effect;
+    const int oldWidth = GetScreenWidth(), oldHeight = GetScreenHeight();
+    const auto oldSettings = renderer.settings();
+    SetWindowSize(480, 320);
+    PollInputEvents();
+    BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+    renderer.settings().pixelSize = 1;
+    renderer.settings().renderWidth = 480;
+    renderer.settings().renderHeight = 320;
+    renderer.settings().ssao = true;
+    renderer.settings().postProcessing = true;
+    renderer.settings().inkOutlines = false;
+    const Camera3D camera{{0, 0, 8}, {0, 0, 0}, {0, 1, 0}, 45, CAMERA_PERSPECTIVE};
+    const auto render = [&](int mode, bool outline, bool sky = false) {
+        renderer.beginFrame();
+        if (renderer.beginSelectionMaskPass(camera)) {
+            renderer.setSelectionMaskColor(WHITE);
+            DrawCube({0, 0, 0}, 1, 1, 1, WHITE);
+            renderer.endSelectionMaskPass();
+        }
+        renderer.beginWorldPass({25, 49, 65, 255}, camera);
+        if (sky) renderer.drawSky(ian::SkyState{});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        renderer.setWorldMaterial(material);
+        DrawCube({0, 0, 0}, 1, 1, 1, {66, 52, 81, 255});
+        if (mode != 0) {
+            if (mode == 4) {
+                material.inkOccluder = true;
+                renderer.setWorldMaterial(material);
+            }
+            renderer.beginColorOnlyWorldEffects();
+            if (mode == 3) {
+                for (auto pass : {ian::app_burn_drawing::Pass::Glow,
+                    ian::app_burn_drawing::Pass::Smoke, ian::app_burn_drawing::Pass::Flame}) {
+                    ian::app_burn_drawing::beginBatch(pass);
+                    ian::app_burn_drawing::emit({0, -.5F, .6F}, {1, 0, 0}, {0, 0, 1},
+                        1, 42, .3, 1, true, pass, .5F);
+                    ian::app_burn_drawing::endBatch();
+                }
+            } else {
+                beginBatch();
+                // A foreground/behind translucent effect with a solid core,
+                // using the same world fragment output as explosion clouds.
+                disc({0, 0, mode != 2 ? 1.0F : -2.0F}, {1, 0, 0}, {0, 1, 0},
+                    1.3F, {255, 97, 18, 255}, {249, 76, 16, 255});
+                endBatch();
+            }
+            renderer.endColorOnlyWorldEffects();
+        }
+        renderer.endWorldShader(); EndMode3D(); renderer.endWorldPass();
+        if (outline) renderer.drawSelectionOutline();
+        rlDrawRenderBatchActive();
+        Image result = LoadImageFromScreen();
+        renderer.endFrame();
+        return result;
+    };
+    const auto contourPixels = [](Image a, Image b) {
+        if (a.width != b.width || a.height != b.height) return -1;
+        int count = 0;
+        for (int y = 0; y < a.height; ++y) for (int x = 0; x < a.width; ++x) {
+            const Color ca = GetImageColor(a, x, y), cb = GetImageColor(b, x, y);
+            if (std::abs(int(ca.r) - int(cb.r)) + std::abs(int(ca.g) - int(cb.g)) +
+                std::abs(int(ca.b) - int(cb.b)) > 60) ++count;
+        }
+        return count;
+    };
+    Image plain = render(0, false), selected = render(0, true);
+    Image front = render(1, false), frontSelected = render(1, true);
+    Image back = render(2, false), backSelected = render(2, true);
+    Image burn = render(3, false), burnSelected = render(3, true);
+    Image cloud = render(4, false), cloudSelected = render(4, true);
+    Image sky = render(0, false, true), skySelected = render(0, true, true);
+    // Coverage must be cleared between frames, including after deselection.
+    renderer.clearSelectionOutline();
+    Image cleared = render(0, true);
+    renderer.settings().pixelSize = 2;
+    Image resizedFront = render(1, false), resizedSelected = render(1, true);
+    renderer.settings().pixelSize = 1;
+    renderer.settings().ssao = false;
+    Image noAoFront = render(1, false), noAoSelected = render(1, true);
+    renderer.settings().ssao = true;
+    const int baseline = contourPixels(selected, plain);
+    const int foreground = contourPixels(frontSelected, front);
+    const int background = contourPixels(backSelected, back);
+    const int againstSky = contourPixels(skySelected, sky);
+    const int burning = contourPixels(burnSelected, burn);
+    const int afterClear = contourPixels(cleared, plain);
+    bool valid = baseline > 100 && foreground < baseline / 3 &&
+        background > baseline * .8 && againstSky > baseline * .8 &&
+        afterClear > baseline * .8 && burning < baseline * .8 &&
+        contourPixels(resizedSelected, resizedFront) < baseline / 3 &&
+        contourPixels(noAoSelected, noAoFront) < baseline / 3 &&
+        contourPixels(cloudSelected, cloud) < baseline / 3;
+    if (!valid) std::cerr << "fire selection contours baseline/front/back/sky/reset "
+        << baseline << '/' << foreground << '/' << background << '/'
+        << againstSky << '/' << afterClear << " burn " << burning << '\n';
+
+    if (const char* directory = std::getenv("IAN_CAPTURE_FIRE_WAND")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{frontSelected, "fire-selection-front.png"},
+            std::pair{burnSelected, "fire-selection-burning.png"},
+            std::pair{backSelected, "fire-selection-behind.png"},
+            std::pair{skySelected, "fire-selection-sky.png"},
+            std::pair{sky, "fire-selection-sky-plain.png"},
+            std::pair{selected, "fire-selection-plain.png"},
+            std::pair{plain, "fire-selection-none.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+    }
+    for (Image image : {plain, selected, front, frontSelected, back, backSelected,
+        sky, skySelected, burn, burnSelected, cloud, cloudSelected, cleared, resizedFront, resizedSelected,
+        noAoFront, noAoSelected}) UnloadImage(image);
+    renderer.clearSelectionOutline();
+    renderer.settings() = oldSettings;
+    SetWindowSize(oldWidth, oldHeight);
+    PollInputEvents();
     return valid;
 }
 
@@ -2313,6 +2435,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkFireSelection(renderer)) {
+            std::cerr << "fire foreground selection checks failed\n";
+            return 1;
+        }
         if (!checkFireWandAttack(renderer)) {
             std::cerr << "cartoon fire wand checks failed\n";
             return 1;

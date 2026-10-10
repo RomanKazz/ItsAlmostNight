@@ -5,6 +5,8 @@ in vec4 fragColor;
 
 uniform sampler2D texture0;
 uniform sampler2D sceneDepth;
+uniform sampler2D effectCoverage;
+uniform float effectCoverageEnabled;
 uniform vec2 texelSize;
 uniform int outlineRadius;
 uniform mat4 inverseProjection;
@@ -95,6 +97,14 @@ void main()
     if (alpha <= 0.001)
     {
         discard;
+    }
+    if (effectCoverageEnabled > 0.5)
+    {
+        vec2 effect = texture(effectCoverage, fragTexCoord).rg;
+        float effectInverseDepth = effect.y/max(effect.x, 0.001);
+        // A wake behind the selected object must not erase its silhouette.
+        float inFront = step(outsideInverseDepth - 1.0/255.0, effectInverseDepth);
+        alpha *= 1.0 - effect.x*inFront;
     }
     finalColor = vec4(outsideColor, alpha)*fragColor;
 }
