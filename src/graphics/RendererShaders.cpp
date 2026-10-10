@@ -450,6 +450,8 @@ void Renderer::resolveWorldShaderLocations() {
         .hitFlashAmount = GetShaderLocation(shader, "hitFlashAmount"),
         .enemyWhiteFlashAmount =
             GetShaderLocation(shader, "enemyWhiteFlashAmount"),
+        .enemyPresentationAmount =
+            GetShaderLocation(shader, "enemyPresentationAmount"),
         .hitFlashPosition = GetShaderLocation(shader, "hitFlashPosition"),
         .hitFlashRadius = GetShaderLocation(shader, "hitFlashRadius"),
         .selectionAmount = GetShaderLocation(shader, "selectionAmount"),
@@ -973,6 +975,8 @@ void Renderer::uploadWorldMaterial(const WorldMaterialState& material) {
                    &material.hitFlashAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.enemyWhiteFlashAmount,
                    &material.enemyWhiteFlashAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shader, worldShaderLocations_.enemyPresentationAmount,
+                   &material.enemyPresentationAmount, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shader, worldShaderLocations_.hitFlashPosition,
                    &material.hitFlashPosition, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, worldShaderLocations_.hitFlashRadius,

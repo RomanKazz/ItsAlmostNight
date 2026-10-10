@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/WorldTransforms.hpp"
+#include "graphics/EnemyPresentation.hpp"
 
 
 #include <raymath.h>
@@ -413,6 +414,7 @@ bool Renderer::drawEnemy(
         model.skeleton.boneCount > 0 &&
         model.skeleton.bones != nullptr &&
         model.skeleton.bindPose != nullptr;
+    float motionTime = animationSeconds;
     if (clip != nullptr && clip->keyframeCount > 0 &&
         skeletonUsable) {
         const float frameValue =
@@ -429,6 +431,7 @@ bool Renderer::drawEnemy(
             frame = pose * clip->keyframeCount /
                 CrowdPoseCount;
         }
+        if (quantizeCrowdPose) motionTime = static_cast<float>(frame) / 30.0F;
         if (animation.nativeSkeleton) {
             UpdateModelAnimation(
                 model, *clip,
@@ -463,29 +466,19 @@ bool Renderer::drawEnemy(
 
     Shader* shader = prepareModelShader(model);
 
-    const bool originalInkOutlineEligible =
-        worldMaterial_.inkOutlineEligible;
-    const bool worldInkChanged = worldShaderActive_ &&
-        worldMaterial_.inkOutlineEligible != inkOutlineEligible;
-    if (worldInkChanged) {
+    const WorldMaterialState originalMaterial = worldMaterial_;
+    if (worldShaderActive_) {
         WorldMaterialState material = worldMaterial_;
         material.inkOutlineEligible = inkOutlineEligible;
+        material.enemyPresentationAmount = 1.0F;
         setWorldMaterial(material);
     }
     const bool skinningEnabled =
         modelResource->gpuSkinningCompatible() &&
         modelResource->runtimeBoneMatricesFinite();
-    const Matrix transform = MatrixMultiply(
-        model.transform,
-        MatrixMultiply(
-            MatrixScale(
-                EnemyImportScale * scale,
-                EnemyImportScale * scale,
-                EnemyImportScale * scale),
-            MatrixMultiply(
-                MatrixRotateY(yawRadians),
-                MatrixTranslate(
-                    position.x, position.y, position.z))));
+    const Matrix transform = MatrixMultiply(model.transform,
+        enemyPresentationTransform(modelVisual, animationVisual, motionTime,
+            position, yawRadians, EnemyImportScale * scale));
     bool bonesUploaded = false;
     for (int meshIndex = 0; meshIndex < model.meshCount;
          ++meshIndex) {
@@ -520,11 +513,7 @@ bool Renderer::drawEnemy(
     if (shader != nullptr) {
         setSkinningEnabled(*shader, false);
     }
-    if (worldInkChanged) {
-        WorldMaterialState material = worldMaterial_;
-        material.inkOutlineEligible = originalInkOutlineEligible;
-        setWorldMaterial(material);
-    }
+    if (worldShaderActive_) setWorldMaterial(originalMaterial);
     return true;
 }
 
@@ -672,17 +661,10 @@ bool Renderer::drawEnemiesInstanced(
                         proxyPosition.x, proxyPosition.y,
                         proxyPosition.z)));
         } else {
-            transform = MatrixMultiply(
-                resource->get().transform,
-                MatrixMultiply(
-                    MatrixMultiply(
-                        MatrixScale(
-                            uniformScale, uniformScale,
-                            uniformScale),
-                        MatrixRotateY(instance.yawRadians)),
-                    MatrixTranslate(
-                        instance.position.x, instance.position.y,
-                        instance.position.z)));
+            const float motionTime = static_cast<float>(frame) / SourceAnimationFps;
+            transform = MatrixMultiply(resource->get().transform,
+                enemyPresentationTransform(instance.modelVisual, instance.animationVisual,
+                    motionTime, instance.position, instance.yawRadians, uniformScale));
         }
         batch.transforms.push_back(transform);
     }
@@ -725,6 +707,7 @@ bool Renderer::drawEnemiesInstanced(
                 ? instanceBuffers_.upload(batch.transforms)
                 : InstanceBatch{};
             WorldMaterialState batchMaterial = worldMaterial_;
+            batchMaterial.enemyPresentationAmount = 1.0F;
             batchMaterial.inkOutlineEligible =
                 representative.inkOutlineEligible;
             batchMaterial.enemyWhiteFlashAmount =

@@ -16,6 +16,7 @@
 #include "graphics/FireWandEffect.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
+#include "graphics/EnemyPresentation.hpp"
 #include "world/VisualBiomes.hpp"
 
 #include <raylib.h>
@@ -34,6 +35,119 @@ namespace {
 bool checkCartoonCoins(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(640, 360);
     const Camera3D camera{{0, .7F, 6}, {0, 0, 0}, {0, 1, 0},
+
+bool checkEnemyPresentation(ian::Renderer& renderer) {
+    const auto target = LoadRenderTexture(960, 600);
+    const Camera3D camera{{0, 3.0F, 10}, {0, 1.7F, 0}, {0, 1, 0},
+        5.0F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](bool night, bool batched, bool flash, bool cover = false,
+                            ian::EnemyModelVisual model = ian::EnemyModelVisual::Minion) {
+        renderer.beginFrame();
+        BeginTextureMode(target);
+        const Color background{18, 35, 57, 255};
+        ClearBackground(background);
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        if (night) {
+            lighting.sunIntensity = .04F;
+            lighting.ambientIntensity = .18F;
+            lighting.dayNightTint = {.48F, .59F, .8F};
+        }
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.bakedAo = .82F;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 1.7F, 3}, 12, 8, .1F, background);
+        std::array<ian::EnemyDrawInstance, 3> enemies{};
+        for (std::size_t index = 0; index < enemies.size(); ++index) {
+            enemies[index] = {.modelVisual = model,
+                .animationVisual = ian::EnemyAnimationVisual::Walk,
+                .animationSeconds = .35F + float(index) * .17F,
+                .position = {-2.4F + float(index)*2.4F, 0, 0}, .yawRadians = .2F,
+                .whiteFlashAmount = flash ? .9F : 0};
+        }
+        if (batched) static_cast<void>(renderer.drawEnemiesInstanced(enemies));
+        else for (const auto& enemy : enemies) {
+            material.enemyWhiteFlashAmount = enemy.whiteFlashAmount;
+            renderer.setWorldMaterial(material);
+            static_cast<void>(renderer.drawEnemy(enemy.modelVisual, enemy.animationVisual,
+                enemy.animationSeconds, enemy.position, enemy.yawRadians, WHITE, 1, true, true, true));
+        }
+        // Drawing enemies must not brighten unrelated geometry afterward.
+        material.enemyWhiteFlashAmount = 0;
+        renderer.setWorldMaterial(material);
+        DrawCube({3.7F, .15F, 0}, .3F, .3F, .3F, {200, 150, 100, 255});
+        renderer.endWorldShader(); EndMode3D(); EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image day = render(false, false, false), night = render(true, false, false),
+          crowd = render(true, true, false), flash = render(true, true, true),
+          covered = render(true, true, false, true);
+    int pigmentPixels = 0, darkPigmentPixels = 0, brightFlashPixels = 0, difference = 0;
+    int coveredPigmentPixels = 0;
+    for (int y = 0; y < night.height; ++y) for (int x = 0; x < night.width; ++x) {
+        const Color n = GetImageColor(night, x, y);
+        const Color c = GetImageColor(crowd, x, y);
+        const Color f = GetImageColor(flash, x, y);
+        const Color hidden = GetImageColor(covered, x, y);
+        if (hidden.r > hidden.g + 16 && hidden.b > hidden.g + 8) ++coveredPigmentPixels;
+        if (n.r > n.g + 16 && n.b > n.g + 8) {
+            ++pigmentPixels;
+            if (std::max(n.r, n.b) < 55) ++darkPigmentPixels;
+        }
+        if (f.r > 200 && f.g > 180 && f.b > 150) ++brightFlashPixels;
+        if (std::max({std::abs(int(n.r)-int(c.r)), std::abs(int(n.g)-int(c.g)),
+                      std::abs(int(n.b)-int(c.b))}) > 8) ++difference;
+    }
+    bool valid = pigmentPixels > 3000 && darkPigmentPixels < pigmentPixels / 5 &&
+        brightFlashPixels > 3000 && difference < 400 && coveredPigmentPixels == 0;
+    if (!valid) std::cerr << "enemy night pigment/dark/flash/batch difference: "
+        << pigmentPixels << '/' << darkPigmentPixels << '/' << brightFlashPixels
+        << '/' << difference << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_ENEMIES")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{day, "enemies-day.png"},
+                std::pair{night, "enemies-night.png"}, std::pair{flash, "enemies-hit.png"},
+                std::pair{covered, "enemies-covered.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+    }
+    for (int index = 0; index < 9; ++index) {
+        const auto model = static_cast<ian::EnemyModelVisual>(index);
+        Image archetype = render(true, true, false, false, model);
+        int visiblePixels = 0;
+        for (int y = 0; y < archetype.height; ++y) for (int x = 0; x < archetype.width; ++x) {
+            const Color c = GetImageColor(archetype, x, y);
+            if (std::max({c.r, c.g, c.b}) > 65) ++visiblePixels;
+        }
+        valid = valid && visiblePixels > 1000;
+        if (const char* directory = std::getenv("IAN_CAPTURE_ENEMIES"))
+            ExportImage(archetype, (std::filesystem::path(directory) /
+                ("enemy-type-" + std::to_string(index) + ".png")).c_str());
+        UnloadImage(archetype);
+        for (const auto animation : {ian::EnemyAnimationVisual::Walk,
+                ian::EnemyAnimationVisual::Run, ian::EnemyAnimationVisual::MeleeAttack}) {
+            Matrix previous{};
+            for (int frame = 0; frame <= 120; ++frame) {
+                const Matrix transform = ian::enemyPresentationTransform(model,
+                    animation, float(frame) / 120, {}, 0, 1);
+                valid = valid && std::isfinite(MatrixDeterminant(transform)) &&
+                    std::abs(MatrixDeterminant(transform) - 1) < .001F &&
+                    transform.m13 >= 0 && transform.m13 < .05F;
+                if (frame > 0) valid = valid && std::abs(transform.m5 - previous.m5) < .015F;
+                previous = transform;
+            }
+        }
+        const Matrix frozen = ian::enemyPresentationTransform(model,
+            ian::EnemyAnimationVisual::Idle, 0, {1, 2, 3}, .2F, 1);
+        valid = valid && frozen.m12 == 1 && frozen.m13 == 2 && frozen.m14 == 3;
+    }
+    for (Image image : {day, night, crowd, flash, covered}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
 
 bool checkCartoonHearts(ian::Renderer& renderer) {
     const auto target = LoadRenderTexture(640, 360);
@@ -3057,6 +3171,10 @@ int main() {
     CloseWindow();
     return result;
 }
+        if (!checkEnemyPresentation(renderer)) {
+            std::cerr << "cartoon enemy presentation failed\n";
+            result = 1;
+        }
         if (!checkCartoonHearts(renderer)) {
             std::cerr << "cartoon heart silhouette, highlights or depth failed\n";
             return 1;

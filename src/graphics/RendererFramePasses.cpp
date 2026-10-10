@@ -1323,6 +1323,8 @@ void Renderer::setWorldMaterial(const WorldMaterialState& material) {
         material.hitFlashAmount == worldMaterial_.hitFlashAmount &&
         material.enemyWhiteFlashAmount ==
             worldMaterial_.enemyWhiteFlashAmount &&
+        material.enemyPresentationAmount ==
+            worldMaterial_.enemyPresentationAmount &&
         sameVector3(material.hitFlashPosition,
                     worldMaterial_.hitFlashPosition) &&
         material.hitFlashRadius == worldMaterial_.hitFlashRadius &&

@@ -100,6 +100,7 @@ struct WorldMaterialState {
     float coniferFacetBlend{0.58F};
     float hitFlashAmount{};
     float enemyWhiteFlashAmount{};
+    float enemyPresentationAmount{};
     Vector3 hitFlashPosition{};
     float hitFlashRadius{};
     float selectionAmount{};
@@ -737,6 +738,7 @@ class Renderer {
         int coniferFacetBlend{-1};
         int hitFlashAmount{-1};
         int enemyWhiteFlashAmount{-1};
+        int enemyPresentationAmount{-1};
         int hitFlashPosition{-1};
         int hitFlashRadius{-1};
         int selectionAmount{-1};

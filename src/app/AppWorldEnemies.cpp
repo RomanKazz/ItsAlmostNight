@@ -725,6 +725,11 @@ void App::drawWorldEnemies(
             Vector3Subtract(position, camera.position);
         const float distanceSquared =
             Vector3LengthSqr(toEnemy);
+        const float popProgress = std::clamp(elapsed / 0.17F, 0.0F, 1.0F);
+        const float popScale = visual.flashOnDeath
+            ? (1.0F + std::sin(popProgress * PI) * 0.15F) *
+                (0.75F + opacity * 0.25F)
+            : 1.0F;
         destroyedEnemyDrawInstances_.push_back({
             .modelVisual =
                 enemyModelVisual(visual.type),
@@ -739,7 +744,7 @@ void App::drawWorldEnemies(
             .tint = visual.eliteAffixes != 0U
                 ? Color{255, 176, 122, alpha}
                 : Color{255, 255, 255, alpha},
-            .scale = enemyVisualScale(visual.type) *
+            .scale = enemyVisualScale(visual.type) * popScale *
                 (visual.eliteAffixes != 0U ? 1.08F : 1.0F),
             .loop = false,
             .lowDetail = distanceSquared >

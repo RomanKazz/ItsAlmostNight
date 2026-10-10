@@ -84,6 +84,7 @@ uniform float coniferHighlightStrength;
 uniform float coniferFacetBlend;
 uniform float hitFlashAmount;
 uniform float enemyWhiteFlashAmount;
+uniform float enemyPresentationAmount;
 uniform vec3 hitFlashPosition;
 uniform float hitFlashRadius;
 uniform float selectionAmount;
@@ -1023,6 +1024,32 @@ void main()
     litColor = mix(
         litColor, vec3(1.0, 0.95, 0.78), localHitFlash);
 
+    if (enemyPresentationAmount > 0.001)
+    {
+        // A soft character fill keeps authored hues readable in moonlight.
+        // Lift midtone pigment, preserving black pupils and pale eyes. Keep
+        // real cast shadows, fog and status tint rather than making blobs emissive.
+        float pigment = max(albedo.r, max(albedo.g, albedo.b));
+        float midtone = smoothstep(0.035, 0.15, pigment)*
+            (1.0 - smoothstep(0.65, 0.95, pigment));
+        vec3 characterAlbedo = mix(albedo.rgb,
+            pow(max(albedo.rgb, vec3(0.0)), vec3(0.60)), midtone*0.80);
+        float softKey = smoothstep(-0.35, 0.80,
+            dot(normal, normalize(vec3(-0.35, 0.85, 0.45))));
+        float fill = 0.60 + hemisphere*0.18 + softKey*0.22;
+        fill *= mix(0.82, 1.0, shadowVisibility);
+        vec3 characterColor = characterAlbedo*fill;
+        characterColor = mix(characterColor, litColor, 0.20);
+        vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
+        float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)*
+            smoothstep(-0.25, 0.65, normal.y);
+        // Broad cool reflected light, not a second outline or a neon shell.
+        characterColor += vec3(0.24, 0.55, 0.68)*rim*0.24*
+            smoothstep(0.035, 0.18, pigment);
+        litColor = mix(litColor, characterColor,
+            clamp(enemyPresentationAmount, 0.0, 1.0));
+    }
+
     // Cheap height shaping lets distant bases settle into haze while peaks
     // remain clearer. Both terms are smooth, avoiding a horizontal fog band.
     float lowerWorld =
@@ -1072,7 +1099,7 @@ void main()
     float luminance = dot(litColor, vec3(0.2126, 0.7152, 0.0722));
     litColor = mix(vec3(luminance), litColor, saturation);
     litColor = mix(
-        litColor, vec3(1.0),
+        litColor, vec3(1.0, 0.96, 0.84),
         clamp(enemyWhiteFlashAmount, 0.0, 1.0));
 
     float ghost = clamp(ghostAmount, 0.0, 1.0);
