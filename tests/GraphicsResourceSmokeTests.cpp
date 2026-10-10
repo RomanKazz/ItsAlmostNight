@@ -11,6 +11,7 @@
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppProjectileDrawing.hpp"
 #include "app/AppBurnDrawing.hpp"
+#include "app/AppFreezeDrawing.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "world/VisualBiomes.hpp"
@@ -173,6 +174,164 @@ bool checkCartoonBurn(ian::Renderer& renderer) {
     return valid;
 }
 
+
+bool checkCartoonFreeze(ian::Renderer& renderer) {
+    using namespace ian::app_freeze_drawing;
+    const auto target = LoadRenderTexture(384, 256);
+    const Camera3D camera{{0, 1.3F, 7}, {0, 1.3F, 0}, {0, 1, 0},
+                          3.4F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](double time, float amount, bool detailed, bool cover,
+                            int impact = 0, float progress = .12F) {
+        BeginTextureMode(target);
+        ClearBackground({24, 49, 65, 255});
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = 1;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = false;
+        renderer.setWorldMaterial(material);
+        if (cover) DrawCube({0, 1.3F, 2}, 5, 5, .1F, GREEN);
+        for (const auto pass : {Pass::Ice, Pass::Atmosphere}) {
+            beginBatch();
+            if (impact != 0) {
+                emitImpact({0, 1, 0}, {1, 0, 0}, {0, 1, 0}, progress,
+                    amount, 42, impact == 2, detailed, pass);
+            } else {
+                emitFrozen({}, {1, 0, 0}, {0, 0, 1}, .8F, 2.2F, 42,
+                    time, amount, amount < 1, detailed, pass);
+            }
+            endBatch();
+        }
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    Image base = render(.31, 0, true, false);
+    Image frozen = render(.31, 1, true, false);
+    Image next = render(.73, 1, true, false);
+    Image faded = render(.31, .1F, true, false);
+    Image cheap = render(.31, 1, false, false);
+    Image coveredBase = render(.31, 0, true, true);
+    Image covered = render(.31, 1, true, true);
+    Image impact = render(.31, 1, true, false, 1);
+    Image crack = render(.31, 1, true, false, 2);
+    Image finished = render(.31, 1, true, false, 1, 1);
+    Image seamBefore = render(99.999, 1, true, false);
+    Image seamAfter = render(100.001, 1, true, false);
+    const auto difference = [](const Image& a, const Image& b) {
+        Color* ca = LoadImageColors(a);
+        Color* cb = LoadImageColors(b);
+        std::size_t total = 0;
+        for (int i = 0; i < a.width * a.height; ++i) {
+            total += static_cast<std::size_t>(std::abs(int(ca[i].r) - int(cb[i].r)) +
+                std::abs(int(ca[i].g) - int(cb[i].g)) +
+                std::abs(int(ca[i].b) - int(cb[i].b)));
+        }
+        UnloadImageColors(ca); UnloadImageColors(cb);
+        return total;
+    };
+    int cyan = 0, white = 0;
+    for (int y = 0; y < frozen.height; ++y) {
+        for (int x = 0; x < frozen.width; ++x) {
+            const auto c = GetImageColor(frozen, x, y);
+            if (c.b > 180 && c.g > 125 && c.b > c.r + 30) ++cyan;
+            if (c.r > 180 && c.g > 210 && c.b > 220) ++white;
+        }
+    }
+    const bool valid = cyan > 80 && white > 10 &&
+        difference(frozen, next) > 1000 &&
+        difference(base, faded) < difference(base, frozen) / 2 &&
+        difference(base, cheap) > 50000 && difference(coveredBase, covered) < 100 &&
+        difference(base, impact) > 10000 && difference(impact, crack) > 1000 &&
+        difference(base, finished) == 0 && difference(seamBefore, seamAfter) < difference(frozen, next) / 10;
+    if (!valid) std::cerr << "freeze palette " << cyan << '/' << white
+        << " occlusion " << difference(coveredBase, covered)
+        << " motion " << difference(frozen, next)
+        << " seam " << difference(seamBefore, seamAfter) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_FREEZE")) {
+        std::filesystem::create_directories(directory);
+        for (const auto& pair : {std::pair{frozen, "freeze-detail.png"},
+                                 std::pair{cheap, "freeze-low-detail.png"},
+                                 std::pair{impact, "ice-impact.png"},
+                                 std::pair{faded, "thaw.png"}})
+            ExportImage(pair.first, (std::filesystem::path(directory) / pair.second).c_str());
+        const auto preview = LoadRenderTexture(960, 540);
+        const Camera3D view{{4, 3.1F, 8}, {0, .9F, 0}, {0, 1, 0}, 40, CAMERA_PERSPECTIVE};
+        const Vector3 right = Vector3Normalize(Vector3CrossProduct(
+            Vector3Subtract(view.target, view.position), {0, 1, 0}));
+        constexpr std::array<Vector3, 3> positions{{{-1.9F, 0, 0}, {0, 0, 0}, {1.9F, 0, 0}}};
+        constexpr std::array<ian::EnemyModelVisual, 3> models{{
+            ian::EnemyModelVisual::Minion, ian::EnemyModelVisual::Warrior, ian::EnemyModelVisual::Rogue}};
+        constexpr std::array<float, 3> modelScales{{.94F, .67F, .55F}};
+        constexpr std::array<float, 3> effectScales{{1, 1.25F, .82F}};
+        for (const bool night : {false, true}) {
+            for (int frame = 0; frame < 4; ++frame) {
+                renderer.beginFrame();
+                BeginTextureMode(preview);
+                ClearBackground(night ? Color{13, 29, 48, 255} : Color{111, 170, 187, 255});
+                BeginMode3D(view);
+                ian::WorldLighting lighting{};
+                lighting.cameraPosition = view.position;
+                lighting.sunDirection = {-.4F, -.8F, -.3F};
+                lighting.sunColor = night ? Vector3{.2F, .3F, .55F} : Vector3{1, .86F, .65F};
+                lighting.skyAmbientColor = night ? Vector3{.12F, .18F, .3F} : Vector3{.4F, .5F, .5F};
+                renderer.beginWorldShader(lighting);
+                ian::WorldMaterialState material{};
+                renderer.setWorldMaterial(material);
+                DrawPlane({0, -.03F, 0}, {20, 20}, night ? Color{28, 57, 63, 255} : Color{68, 113, 83, 255});
+                const float amount = frame == 3 ? .45F : 1;
+                for (std::size_t index = 0; index < positions.size(); ++index) {
+                    static_cast<void>(renderer.drawEnemy(models[index], ian::EnemyAnimationVisual::Idle,
+                        0, positions[index], 0, {151, 224, 255, 255}, modelScales[index]));
+                }
+                material.unlitAmount = 1;
+                material.screenAoAmount = 0;
+                material.inkOutlineEligible = false;
+                material.inkOccluder = false;
+                renderer.setWorldMaterial(material);
+                for (const auto pass : {Pass::Ice, Pass::Atmosphere}) {
+                    beginBatch();
+                    for (std::size_t reverse = positions.size(); reverse > 0; --reverse) {
+                        const std::size_t index = reverse - 1;
+                        Vector3 front = Vector3Subtract(view.position, positions[index]);
+                        front.y = 0; front = Vector3Normalize(front);
+                        const auto bounds = renderer.enemyWorldBounds(models[index], positions[index],
+                            0, modelScales[index]);
+                        const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
+                        const float radius = std::clamp(std::max(extent.x, extent.z),
+                            effectScales[index] * .35F, effectScales[index] * .95F);
+                        const float height = std::clamp(bounds.max.y - bounds.min.y,
+                            effectScales[index] * .8F, effectScales[index] * 2.5F);
+                        emitFrozen(positions[index], right, front, radius, height,
+                            static_cast<std::uint32_t>(index * 19 + 3), .25 + frame * .16,
+                            amount, frame == 3, true, pass);
+                    }
+                    endBatch();
+                }
+                renderer.endWorldShader();
+                EndMode3D(); EndTextureMode();
+                Image capture = LoadImageFromTexture(preview.texture);
+                ImageFlipVertical(&capture);
+                const std::string name = std::string(night ? "night-" : "day-") + std::to_string(frame) + ".png";
+                ExportImage(capture, (std::filesystem::path(directory) / name).c_str());
+                UnloadImage(capture);
+                renderer.endFrame();
+            }
+        }
+        UnloadRenderTexture(preview);
+    }
+    for (Image image : {base, frozen, next, faded, cheap, coveredBase, covered,
+                        impact, crack, finished, seamBefore, seamAfter}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
 
 std::size_t changedPixels(const Image& first, const Image& second) {
     Color* a = LoadImageColors(first);
@@ -2027,6 +2186,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkCartoonFreeze(renderer)) {
+            std::cerr << "cartoon freeze checks failed\n";
+            return 1;
+        }
         if (!checkCartoonBurn(renderer)) {
             std::cerr << "cartoon burn palette, animation, fade, LOD or occlusion failed\n";
             result = 1;
