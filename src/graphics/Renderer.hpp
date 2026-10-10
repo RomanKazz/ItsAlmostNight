@@ -470,6 +470,8 @@ class Renderer {
         float scale = 1.0F);
     void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
+    void drawExperienceOctahedron(
+        Vector3 position, float rotationRadians, float scale = 1.0F);
     void drawHeart(Vector3 position, float rotationRadians,
                    float scale = 1.0F);
     void drawSawBladeProjectile(

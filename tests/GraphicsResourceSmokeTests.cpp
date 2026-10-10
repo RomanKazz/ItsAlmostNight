@@ -31,6 +31,106 @@
 
 namespace {
 
+bool checkExperienceCrystals(ian::Renderer& renderer) {
+    const auto oldSettings = renderer.settings();
+    const int oldWidth = GetScreenWidth(), oldHeight = GetScreenHeight();
+    SetWindowSize(640, 360); PollInputEvents();
+    BeginDrawing(); ClearBackground(BLACK); EndDrawing();
+    renderer.settings().pixelSize = 1;
+    renderer.settings().renderWidth = 640;
+    renderer.settings().renderHeight = 360;
+    renderer.settings().postProcessing = true;
+    renderer.settings().ssao = true;
+    const auto preview = LoadRenderTexture(640, 360);
+    const Camera3D camera{{0, 1.1F, 6}, {0, 0, 0}, {0, 1, 0},
+                          2.3F, CAMERA_ORTHOGRAPHIC};
+    const auto render = [&](bool ink, bool night, bool covered,
+                            float yaw, bool crowd = false, bool worldPass = false) {
+        renderer.settings().inkOutlines = ink;
+        const Color background = night ? Color{18, 35, 57, 255}
+                                       : Color{70, 98, 72, 255};
+        if (worldPass) {
+            renderer.beginFrame();
+            renderer.beginWorldPass(background, camera);
+        } else {
+            BeginTextureMode(preview);
+            ClearBackground(background);
+        }
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        if (night) { lighting.sunIntensity = .05F; lighting.ambientIntensity = .2F; }
+        renderer.beginWorldShader(lighting);
+        ian::WorldMaterialState material{};
+        material.unlitAmount = .82F;
+        material.screenAoAmount = 0;
+        material.inkOutlineEligible = false;
+        material.inkOccluder = true;
+        renderer.setWorldMaterial(material);
+        if (covered) DrawCube({0, 0, 1}, 2.5F, 2.5F, .1F, {80, 65, 110, 255});
+        if (crowd) {
+            for (int row = 0; row < 4; ++row) for (int col = 0; col < 8; ++col)
+                renderer.drawExperienceOctahedron(
+                    {-1.8F + float(col) * .5F, -.55F + float(row) * .36F,
+                     -float(row) * .18F}, yaw + float(col + row) * .73F, .75F);
+        } else renderer.drawExperienceOctahedron({}, yaw, 2.6F);
+        renderer.endWorldShader(); EndMode3D();
+        if (worldPass) {
+            renderer.endWorldPass();
+            rlDrawRenderBatchActive();
+            Image result = LoadImageFromScreen();
+            renderer.endFrame();
+            return result;
+        }
+        EndTextureMode();
+        Image result = LoadImageFromTexture(preview.texture);
+        ImageFlipVertical(&result);
+        return result;
+    };
+    Image plain = render(false, false, false, .3F, false, true);
+    Image worldInk = render(true, false, false, .3F, false, true);
+    Image ink = render(true, false, false, .3F);
+    Image night = render(true, true, false, .3F);
+    Image turned = render(true, false, false, 1.25F);
+    Image covered = render(true, false, true, .3F);
+    Image coverTurned = render(true, false, true, 1.25F);
+    const auto difference = [](Image a, Image b) {
+        std::size_t changed = 0;
+        for (int y = 0; y < a.height; ++y) for (int x = 0; x < a.width; ++x) {
+            const auto ca = GetImageColor(a, x, y), cb = GetImageColor(b, x, y);
+            if (std::abs(int(ca.r) - int(cb.r)) + std::abs(int(ca.g) - int(cb.g)) +
+                std::abs(int(ca.b) - int(cb.b)) > 15) ++changed;
+        }
+        return changed;
+    };
+    int cyan = 0, mint = 0, nightCyan = 0;
+    for (int y = 0; y < ink.height; ++y) for (int x = 0; x < ink.width; ++x) {
+        const auto c = GetImageColor(ink, x, y), n = GetImageColor(night, x, y);
+        if (c.g > 130 && c.b > 135 && c.r + 40 < c.g) ++cyan;
+        if (c.r > 170 && c.g > 210 && c.b > 190) ++mint;
+        if (n.g > 110 && n.b > 120 && n.r + 40 < n.g) ++nightCyan;
+    }
+    const bool valid = cyan > 1500 && mint > 100 && nightCyan > 1000 &&
+        difference(plain, worldInk) < 20 && difference(ink, turned) > 1000 &&
+        difference(covered, coverTurned) < 20;
+    if (!valid) std::cerr << "XP cyan/mint/night " << cyan << '/' << mint << '/'
+        << nightCyan << " ink " << difference(plain, worldInk) << " turn "
+        << difference(ink, turned) << " cover " << difference(covered, coverTurned) << '\n';
+    if (const char* directory = std::getenv("IAN_CAPTURE_XP")) {
+        std::filesystem::create_directories(directory);
+        ExportImage(ink, (std::filesystem::path(directory) / "xp-day.png").c_str());
+        ExportImage(night, (std::filesystem::path(directory) / "xp-night.png").c_str());
+        Image field = render(true, false, false, .3F, true);
+        ExportImage(field, (std::filesystem::path(directory) / "xp-field.png").c_str());
+        UnloadImage(field);
+    }
+    for (Image image : {plain, worldInk, ink, night, turned, covered, coverTurned}) UnloadImage(image);
+    UnloadRenderTexture(preview);
+    renderer.settings() = oldSettings;
+    SetWindowSize(oldWidth, oldHeight); PollInputEvents();
+    return valid;
+}
+
 bool checkCartoonBurn(ian::Renderer& renderer) {
     using namespace ian::app_burn_drawing;
     const auto target = LoadRenderTexture(384, 256);
@@ -2491,6 +2591,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkExperienceCrystals(renderer)) {
+            std::cerr << "experience crystal palette, ink or depth checks failed\n";
+            return 1;
+        }
         if (!checkFireSelection(renderer)) {
             std::cerr << "fire foreground selection checks failed\n";
             return 1;

@@ -475,6 +475,90 @@ void Renderer::drawSawBladeProjectile(
     rlPopMatrix();
 }
 
+void Renderer::drawExperienceOctahedron(
+    Vector3 position, float rotationRadians, float scale) {
+    if (scale <= 0.0F) return;
+    // Keep the pickup API, but give the old eight-triangle diamond a chunky
+    // gemstone body: broad faces, narrow bevels and two short pointed caps.
+    // Opaque geometry and inset highlights share the regular world depth.
+    constexpr std::array<Vector3, 8> Ring{{
+        {1.0F, 0.0F, 0.42F}, {0.42F, 0.0F, 1.0F},
+        {-0.42F, 0.0F, 1.0F}, {-1.0F, 0.0F, 0.42F},
+        {-1.0F, 0.0F, -0.42F}, {-0.42F, 0.0F, -1.0F},
+        {0.42F, 0.0F, -1.0F}, {1.0F, 0.0F, -0.42F},
+    }};
+    constexpr std::array<Color, 8> FaceColors{{
+        {32, 199, 206, 255}, {24, 180, 198, 255},
+        {12, 147, 176, 255}, {27, 183, 196, 255},
+        {44, 211, 208, 255}, {74, 226, 216, 255},
+        {40, 198, 209, 255}, {100, 238, 223, 255},
+    }};
+    const auto tint = [](Color color, Color target, float amount) {
+        const auto mix = [amount](unsigned char a, unsigned char b) {
+            return static_cast<unsigned char>(std::lround(
+                float(a) + (float(b) - float(a)) * amount));
+        };
+        return Color{mix(color.r, target.r), mix(color.g, target.g),
+                     mix(color.b, target.b), 255};
+    };
+    const auto vertex = [](Vector3 point, Color color) {
+        rlColor4ub(color.r, color.g, color.b, color.a);
+        rlVertex3f(point.x, point.y, point.z);
+    };
+    const auto triangle = [&vertex](Vector3 a, Vector3 b, Vector3 c,
+                                   Color ca, Color cb, Color cc) {
+        const Vector3 normal = Vector3Normalize(Vector3CrossProduct(
+            Vector3Subtract(b, a), Vector3Subtract(c, a)));
+        rlNormal3f(normal.x, normal.y, normal.z);
+        vertex(a, ca); vertex(b, cb); vertex(c, cc);
+    };
+    const auto ringPoint = [](Vector3 point, float radius, float height) {
+        return Vector3{point.x * radius, height, point.z * radius};
+    };
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationRadians * RAD2DEG, 0.0F, 1.0F, 0.0F);
+    rlRotatef(9.0F, 0.0F, 0.0F, 1.0F);
+    rlScalef(scale, scale, scale);
+    rlBegin(RL_TRIANGLES);
+    for (std::size_t side = 0; side < Ring.size(); ++side) {
+        const auto next = (side + 1U) % Ring.size();
+        const Vector3 a = ringPoint(Ring[side], 0.18F, 0.10F);
+        const Vector3 b = ringPoint(Ring[next], 0.18F, 0.10F);
+        const Vector3 c = ringPoint(Ring[next], 0.16F, -0.105F);
+        const Vector3 d = ringPoint(Ring[side], 0.16F, -0.105F);
+        const Color face = FaceColors[side];
+        const Color upper = tint(face, {205, 255, 239, 255}, 0.36F);
+        const Color lower = tint(face, {6, 85, 128, 255}, 0.34F);
+        triangle({0, 0.265F, 0}, b, a,
+                 {224, 255, 243, 255}, upper, upper);
+        triangle(a, b, d, upper, upper, face);
+        triangle(b, c, d, upper, face, face);
+        triangle({0, -0.25F, 0}, d, c, lower, face, face);
+
+        // Small glossy lozenges sit on alternating broad faces, never a
+        // billboard. They remain attached when the crystal turns or flies.
+        if (side == 1U || side == 3U || side == 5U || side == 7U) {
+            const Vector3 outward = Vector3Scale(Vector3Normalize(
+                Vector3{a.x + b.x, 0, a.z + b.z}), 0.0015F);
+            const auto surface = [&](float u, float v) {
+                return Vector3Add(Vector3Lerp(
+                    Vector3Lerp(a, b, u), Vector3Lerp(d, c, u), v),
+                    outward);
+            };
+            const Vector3 top = surface(0.28F, 0.08F);
+            const Vector3 right = surface(0.41F, 0.19F);
+            const Vector3 bottom = surface(0.33F, 0.48F);
+            const Vector3 left = surface(0.19F, 0.36F);
+            constexpr Color Shine{225, 255, 242, 255};
+            triangle(top, right, left, Shine, Shine, Shine);
+            triangle(right, bottom, left, Shine, Shine, Shine);
+        }
+    }
+    rlEnd();
+    rlPopMatrix();
+}
+
 void Renderer::drawHeart(
     Vector3 position, float rotationRadians, float scale) {
     ModelResource& resource = resources_.heartLootModel();

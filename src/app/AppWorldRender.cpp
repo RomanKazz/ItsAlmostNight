@@ -585,6 +585,101 @@ void App::drawWorldEntities(
     renderer_->endWorldShader();
     drawChestLootGlow(snapshot, camera);
     renderer_->beginWorldShader(lighting);
+    WorldMaterialState experienceMaterial{};
+    experienceMaterial.unlitAmount = 0.82F;
+    experienceMaterial.screenAoAmount = 0.0F;
+    // XP stays crisp through its mint highlights and teal facets, without
+    // the world ink that turned dense pickup fields into black wire diamonds.
+    experienceMaterial.inkOutlineEligible = false;
+    experienceMaterial.inkOccluder = true;
+    renderer_->setWorldMaterial(experienceMaterial);
+    const float crystalFacingYaw = std::atan2(
+        camera.target.x - camera.position.x,
+        camera.target.z - camera.position.z);
+    for (const CoinPickup& pickup : snapshot.coinPickups) {
+        if (pickup.kind != PickupKind::Experience ||
+            !worldObjectVisible(pickup.position, 1.0F, 60.0F)) {
+            continue;
+        }
+        const float spawn = std::clamp(
+            static_cast<float>(pickup.age / 0.14), 0.0F, 1.0F);
+        const float pop = spawn < 1.0F
+            ? spawn + std::sin(spawn * PI) * 0.22F
+            : 1.0F;
+        const float bobWeight = pickup.magnetized
+            ? 1.0F - std::clamp(
+                  static_cast<float>(pickup.magnetTime / 0.18),
+                  0.0F, 1.0F)
+            : 1.0F;
+        const float phase = static_cast<float>(pickup.spinPhase);
+        const float age = static_cast<float>(pickup.age);
+        const float pulse = 1.025F +
+            0.025F * std::sin(age * 2.6F + phase);
+        const float magnetStretch = pickup.magnetized
+            ? 1.0F + std::min(
+                  0.18F,
+                  static_cast<float>(std::max(
+                      0.0, pickup.magnetTime -
+                          CoinPickupSystem::MagnetAnticipationDuration)) *
+                      0.55F)
+            : 1.0F;
+        float collectionScale = 1.0F;
+        if (pickup.magnetized) {
+            const float dx = static_cast<float>(
+                pickup.position.x - snapshot.playerPosition.x);
+            const float dy = static_cast<float>(
+                pickup.position.y -
+                (snapshot.playerPosition.y - 0.72));
+            const float dz = static_cast<float>(
+                pickup.position.z - snapshot.playerPosition.z);
+            const float distance = std::sqrt(
+                dx * dx + dy * dy + dz * dz);
+            const float nearPlayer = std::clamp(
+                (distance - 0.4F) / 1.5F, 0.0F, 1.0F);
+            const float smoothDistance = nearPlayer * nearPlayer *
+                (3.0F - 2.0F * nearPlayer);
+            const float cameraX = static_cast<float>(
+                pickup.position.x) - lighting.cameraPosition.x;
+            const float cameraY = static_cast<float>(
+                pickup.position.y) - lighting.cameraPosition.y;
+            const float cameraZ = static_cast<float>(
+                pickup.position.z) - lighting.cameraPosition.z;
+            const float cameraDistance = std::sqrt(
+                cameraX * cameraX + cameraY * cameraY +
+                cameraZ * cameraZ);
+            const float nearCamera = std::clamp(
+                (cameraDistance - 0.35F) / 1.35F, 0.0F, 1.0F);
+            const float smoothCamera = nearCamera * nearCamera *
+                (3.0F - 2.0F * nearCamera);
+            const float pullProgress = std::clamp(
+                static_cast<float>(
+                    (pickup.magnetTime -
+                     CoinPickupSystem::MagnetAnticipationDuration) / 0.12),
+                0.0F, 1.0F);
+            collectionScale = 1.0F +
+                (std::min(0.18F + 0.82F * smoothDistance,
+                          smoothCamera) - 1.0F) * pullProgress;
+        }
+        const float visualScale = pop * pulse * magnetStretch *
+            collectionScale;
+        const float ground = static_cast<float>(
+            simulation_.terrain().getHeight(
+                pickup.position.x, pickup.position.z));
+        const Vector3 position{
+            static_cast<float>(pickup.position.x),
+            std::max(
+                static_cast<float>(pickup.position.y) +
+                    (std::sin(age * 2.25F + phase) * 0.02F + 0.03F) *
+                        bobWeight,
+                ground + 0.285F * visualScale + 0.025F),
+            static_cast<float>(pickup.position.z),
+        };
+        renderer_->drawExperienceOctahedron(
+            position,
+            crystalFacingYaw + phase + age * 0.55F,
+            visualScale);
+    }
+    renderer_->setWorldMaterial({});
     WorldMaterialState challengeMaterial{};
     challengeMaterial.bakedAo = 0.76F;
     renderer_->setWorldMaterial(challengeMaterial);
