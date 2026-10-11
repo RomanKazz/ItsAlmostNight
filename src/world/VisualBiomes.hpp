@@ -11,6 +11,7 @@ namespace ian::visual_biomes {
 // Visual composition only: terrain heights, collisions and resources stay independent.
 inline constexpr std::size_t Count = 4;
 using Rgb = std::array<float, 3>;
+// Authored material references shared with GLSL; these normalize value, not the output palette.
 inline constexpr Rgb GreenGround{0.44F, 0.50F, 0.24F};
 inline constexpr Rgb GreenLeaves{0.400F, 0.553F, 0.243F};
 
@@ -61,10 +62,11 @@ inline Rgb shiftPalette(Rgb color, float hueShift, float saturationShift, float 
         ? static_cast<float>(worldSize) : 384.0F;
     constexpr float Tau = 2 * std::numbers::pi_v<float>;
     const float rotation = randomUnit(seed, 1) * Tau;
-    constexpr std::array<Rgb, Count> Ground{{GreenGround,
-        {0.64F, 0.39F, 0.47F}, {0.60F, 0.43F, 0.23F}, {0.32F, 0.53F, 0.65F}}};
-    constexpr std::array<Rgb, Count> Leaves{{GreenLeaves,
-        {0.86F, 0.43F, 0.63F}, {0.82F, 0.39F, 0.13F}, {0.48F, 0.66F, 0.77F}}};
+    // Earth stays quieter than the canopy, leaving bright colors for gameplay.
+    constexpr std::array<Rgb, Count> Ground{{{0.33F, 0.43F, 0.30F},
+        {0.51F, 0.37F, 0.44F}, {0.49F, 0.40F, 0.29F}, {0.29F, 0.47F, 0.59F}}};
+    constexpr std::array<Rgb, Count> Leaves{{{0.38F, 0.58F, 0.43F},
+        {0.74F, 0.46F, 0.61F}, {0.76F, 0.50F, 0.32F}, {0.50F, 0.66F, 0.74F}}};
     // Shuffle palette identities independently of the spatial anchors. The
     // central region can be any biome; the other three have no fixed neighbors.
     std::array<std::size_t, Count> regions{0, 1, 2, 3};
@@ -126,8 +128,7 @@ inline Rgb shiftPalette(Rgb color, float hueShift, float saturationShift, float 
     const float detail = std::clamp(value / reference, .35F, 1.55F);
     Rgb color{};
     for (std::size_t c = 0; c < 3; ++c) {
-        color[c] = source[c] * layout.ground[0][c] / GreenGround[c] * blend[0];
-        for (std::size_t i = 1; i < Count; ++i) color[c] += layout.ground[i][c] * blend[i] * detail;
+        for (std::size_t i = 0; i < Count; ++i) color[c] += layout.ground[i][c] * blend[i] * detail;
     }
     return color;
 }
