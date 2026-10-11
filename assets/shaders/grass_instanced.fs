@@ -39,10 +39,10 @@ vec3 visualBiomeColor(vec3 source, vec3 palette[4], vec3 greenReference)
     weights /= max(dot(weights, vec4(1.0)), 0.0001);
     const vec3 luminance = vec3(0.2126, 0.7152, 0.0722);
     float detail = clamp(dot(source, luminance)/dot(greenReference, luminance), 0.35, 1.20);
-    // All zones use the palette hue, including forest. Authored texture and
-    // lighting still supply value variation without reintroducing neon green.
-    return detail*(palette[0]*weights.x + palette[1]*weights.y +
-        palette[2]*weights.z + palette[3]*weights.w);
+    // Retain the approved green material and its shading; other zones replace
+    // hue while preserving the same painted details and light/shadow ramp.
+    return source*(palette[0]/greenReference)*weights.x + detail*(
+        palette[1]*weights.y + palette[2]*weights.z + palette[3]*weights.w);
 }
 
 float hash21(vec2 position)
