@@ -8,6 +8,7 @@
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "BombGraphicsChecks.hpp"
+#include "IceProjectileGraphicsChecks.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppProjectileDrawing.hpp"
@@ -3054,6 +3055,10 @@ int main() {
         renderer.initialize();
         if (!checkCartoonBombs(renderer)) {
             std::cerr << "cartoon bomb visibility, fuse motion or depth failed\n";
+            result = 1;
+        }
+        if (!checkCartoonIceProjectile(renderer)) {
+            std::cerr << "cartoon ice projectile presentation failed\n";
             result = 1;
         }
         if (!checkSplitterPresentation(renderer)) {

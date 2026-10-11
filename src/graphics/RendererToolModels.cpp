@@ -2,6 +2,7 @@
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/FireWandEffect.hpp"
 #include "graphics/BombDrawing.hpp"
+#include "graphics/IceWandEffect.hpp"
 #include "graphics/ViewModelCompositeBounds.hpp"
 
 
@@ -476,207 +477,22 @@ void Renderer::drawIceMagicSphere(
 void Renderer::drawIceWandProjectile(
     const IceWandProjectile& projectile, Vector3 cameraPosition,
     float timeSeconds, float interpolationAlpha) {
-    if (!projectile.active) {
-        return;
-    }
-    // Keep callers of the existing elemental-projectile entry point on the
-    // same fire presentation; the app batches the whole fire pool directly.
+    if (!projectile.active) return;
+    const WorldMaterialState previousMaterial = worldMaterial_;
+    WorldMaterialState material{};
+    material.unlitAmount = 1;
+    material.screenAoAmount = 0;
+    material.inkOutlineEligible = false;
+    material.inkOccluder = true;
+    setWorldMaterial(material);
+    fire_wand_effect::beginBatch(true);
     if (projectile.element == WandElement::Fire) {
-        const WorldMaterialState previousMaterial = worldMaterial_;
-        WorldMaterialState fireMaterial{};
-        fireMaterial.unlitAmount = 1;
-        fireMaterial.screenAoAmount = 0;
-        fireMaterial.inkOutlineEligible = false;
-        fireMaterial.inkOccluder = true;
-        setWorldMaterial(fireMaterial);
-        fire_wand_effect::beginBatch(true);
         fire_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds, interpolationAlpha);
-        fire_wand_effect::endBatch();
-        setWorldMaterial(previousMaterial);
-        return;
+    } else {
+        ice_wand_effect::emitProjectile(projectile, cameraPosition, timeSeconds, interpolationAlpha);
     }
-    const float alpha = std::clamp(interpolationAlpha, 0.0F, 1.0F);
-    const Vector3 previous{
-        static_cast<float>(projectile.previousPosition.x),
-        static_cast<float>(projectile.previousPosition.y),
-        static_cast<float>(projectile.previousPosition.z)};
-    const Vector3 current{
-        static_cast<float>(projectile.position.x),
-        static_cast<float>(projectile.position.y),
-        static_cast<float>(projectile.position.z)};
-    const Vector3 position = Vector3Lerp(previous, current, alpha);
-    const float radius = static_cast<float>(projectile.radius);
-    const bool fire = projectile.element == WandElement::Fire;
-    const Color trailOuterHead = fire
-        ? Color{255, 92, 12, 170}
-        : Color{52, 175, 255, 145};
-    const Color trailOuterTail = fire
-        ? Color{188, 28, 4, 125}
-        : Color{24, 105, 235, 120};
-    const Color trailInnerHead = fire
-        ? Color{255, 244, 174, 245}
-        : Color{223, 248, 255, 235};
-    const Color trailInnerTail = fire
-        ? Color{255, 146, 34, 215}
-        : Color{142, 229, 255, 205};
-    const auto fadedColor = [](Color color, float amount) {
-        color.a = static_cast<unsigned char>(std::lround(
-            static_cast<float>(color.a) *
-            std::clamp(amount, 0.0F, 1.0F)));
-        return color;
-    };
-
-    if (projectile.trailCount > 1U) {
-        rlDrawRenderBatchActive();
-        BeginBlendMode(BLEND_ADDITIVE);
-        rlDisableDepthMask();
-        rlDisableBackfaceCulling();
-        rlBegin(RL_TRIANGLES);
-        const std::size_t count = std::min(
-            std::min(projectile.trailCount, IceWandTrailPointCount),
-            std::size_t{12});
-        const auto trailPoint = [&projectile, position](std::size_t index) {
-            if (index == 0U) {
-                return position;
-            }
-            const Vec3& value = projectile.trail[index];
-            return Vector3{
-                static_cast<float>(value.x),
-                static_cast<float>(value.y),
-                static_cast<float>(value.z)};
-        };
-        const auto emitVertex = [](Vector3 vertex, Color color) {
-            rlColor4ub(color.r, color.g, color.b, color.a);
-            rlVertex3f(vertex.x, vertex.y, vertex.z);
-        };
-        for (std::size_t index = 0; index + 1 < count; ++index) {
-            const Vector3 point = trailPoint(index);
-            const Vector3 next = trailPoint(index + 1U);
-            Vector3 tangent = Vector3Normalize(Vector3Subtract(point, next));
-            Vector3 toCamera = Vector3Normalize(Vector3Subtract(cameraPosition, point));
-            Vector3 side = Vector3Normalize(Vector3CrossProduct(tangent, toCamera));
-            if (Vector3LengthSqr(side) < 0.0001F) {
-                side = {1.0F, 0.0F, 0.0F};
-            }
-            const float fade = std::pow(
-                1.0F - static_cast<float>(index) /
-                    static_cast<float>(std::max<std::size_t>(count - 1, 1U)),
-                1.15F);
-            const float nextFade = std::pow(
-                1.0F - static_cast<float>(index + 1U) /
-                    static_cast<float>(std::max<std::size_t>(count - 1, 1U)),
-                1.15F);
-            const auto emitRibbon = [&](float width, float nextWidth,
-                                        Color headColor, Color tailColor) {
-                const Vector3 left = Vector3Subtract(
-                    point, Vector3Scale(side, width));
-                const Vector3 right = Vector3Add(
-                    point, Vector3Scale(side, width));
-                const Vector3 nextLeft = Vector3Subtract(
-                    next, Vector3Scale(side, nextWidth));
-                const Vector3 nextRight = Vector3Add(
-                    next, Vector3Scale(side, nextWidth));
-                emitVertex(left, headColor);
-                emitVertex(right, headColor);
-                emitVertex(nextRight, tailColor);
-                emitVertex(left, headColor);
-                emitVertex(nextRight, tailColor);
-                emitVertex(nextLeft, tailColor);
-            };
-            emitRibbon(
-                radius * (0.92F * fade + 0.05F),
-                radius * (0.92F * nextFade + 0.025F),
-                fadedColor(trailOuterHead, fade),
-                fadedColor(trailOuterTail, nextFade));
-            emitRibbon(
-                radius * (0.28F * fade + 0.018F),
-                radius * (0.28F * nextFade + 0.008F),
-                fadedColor(trailInnerHead, fade),
-                fadedColor(trailInnerTail, nextFade));
-        }
-        rlEnd();
-        rlDrawRenderBatchActive();
-        rlEnableBackfaceCulling();
-        rlEnableDepthMask();
-        EndBlendMode();
-    }
-
-    const float pulse = 0.94F + 0.12F * std::sin(
-        timeSeconds * 4.6F + static_cast<float>(projectile.id.index) * 0.41F);
-    BeginBlendMode(BLEND_ALPHA);
-    DrawSphereEx(position, radius * (0.94F + pulse * 0.025F), 12, 12,
-                 fire ? Color{232, 61, 12, 255}
-                      : Color{48, 145, 232, 255});
-    EndBlendMode();
-    drawIceMagicSphere(position, radius * (1.48F + pulse * 0.04F),
-                       timeSeconds, 0.96F,
-                       fire ? Color{255, 126, 28, 235}
-                            : Color{142, 229, 255, 225});
-    rlDrawRenderBatchActive();
-    rlDisableDepthMask();
-    BeginBlendMode(BLEND_ADDITIVE);
-    rlPushMatrix();
-    rlTranslatef(position.x, position.y, position.z);
-    rlRotatef(timeSeconds * 72.0F, 0.0F, 1.0F, 0.0F);
-    DrawCircle3D({}, radius * 1.42F,
-                 {1.0F, 0.0F, 0.0F}, 63.0F,
-                 fire ? Color{255, 212, 91, 165}
-                      : Color{191, 246, 255, 145});
-    rlRotatef(117.0F, 0.45F, 0.72F, 0.53F);
-    DrawCircle3D({}, radius * 1.27F,
-                 {0.0F, 0.0F, 1.0F}, 47.0F,
-                 fire ? Color{255, 76, 12, 135}
-                      : Color{85, 207, 255, 112});
-    rlPopMatrix();
-    EndBlendMode();
-    if (settings_.particles) {
-        BeginBlendMode(BLEND_ADDITIVE);
-        for (int spark = 0; spark < 4; ++spark) {
-            const float phase = timeSeconds *
-                (2.1F + static_cast<float>(spark) * 0.31F) +
-                static_cast<float>(projectile.id.index % 17U) * 0.13F +
-                static_cast<float>(spark) * 0.897F;
-            const float distance = radius * (1.30F + 0.38F *
-                std::sin(timeSeconds * 3.0F + static_cast<float>(spark) * 1.4F));
-            const float sparkSize = radius *
-                (0.075F + 0.035F * (0.5F + 0.5F * std::sin(
-                    timeSeconds * 7.0F + static_cast<float>(spark))));
-            DrawSphereEx(
-                {position.x + std::cos(phase) * distance,
-                 position.y + std::sin(phase * 1.7F) * distance,
-                 position.z + std::sin(phase) * distance},
-                sparkSize, 4, 4,
-                spark % 3 == 0
-                    ? (fire ? Color{255, 245, 181, 225}
-                            : Color{223, 248, 255, 215})
-                    : (fire ? Color{255, 113, 24, 185}
-                            : Color{142, 229, 255, 172}));
-            if (projectile.trailCount > 2U) {
-                const std::size_t trailIndex = std::min<std::size_t>(
-                    projectile.trailCount - 1U,
-                    1U + static_cast<std::size_t>(spark) * 2U);
-                const Vec3& trailPoint = projectile.trail[trailIndex];
-                const Vector3 trailPosition{
-                    static_cast<float>(trailPoint.x),
-                    static_cast<float>(trailPoint.y),
-                    static_cast<float>(trailPoint.z)};
-                const Vector3 streakEnd{
-                    trailPosition.x + std::cos(phase) * radius * 0.28F,
-                    trailPosition.y + std::sin(phase * 1.3F) * radius * 0.18F,
-                    trailPosition.z + std::sin(phase) * radius * 0.28F};
-                DrawLine3D(
-                    trailPosition, streakEnd,
-                    fire
-                        ? Color{255, 112, 18,
-                              static_cast<unsigned char>(105.0F * pulse)}
-                        : Color{142, 229, 255,
-                              static_cast<unsigned char>(95.0F * pulse)});
-            }
-        }
-        EndBlendMode();
-    }
-    rlDrawRenderBatchActive();
-    rlEnableDepthMask();
+    fire_wand_effect::endBatch();
+    setWorldMaterial(previousMaterial);
 }
 
 } // namespace ian

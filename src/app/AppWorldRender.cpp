@@ -9,6 +9,7 @@
 #include "graphics/ExperienceCrystalStyle.hpp"
 #include "graphics/FireWandEffect.hpp"
 #include "graphics/BombDrawing.hpp"
+#include "graphics/IceWandEffect.hpp"
 #include "presentation/PresentationEffectQueries.hpp"
 
 #include <raylib.h>
@@ -1332,12 +1333,6 @@ void App::drawWorldProjectiles(
     objectProfiler.next(WorldObjectStage::ProjectilesPortals);
     renderer_->beginWorldShader(lighting);
     renderer_->setWorldMaterial({});
-    const float projectileTime = static_cast<float>(GetTime());
-    for (const auto& projectile : snapshot.iceWandProjectiles) {
-        renderer_->drawIceWandProjectile(
-            projectile, camera.position, projectileTime,
-            interpolationAlpha);
-    }
     const double fireTime = GetTime();
     WorldMaterialState fireShotMaterial{};
     fireShotMaterial.unlitAmount = 1;
@@ -1345,6 +1340,12 @@ void App::drawWorldProjectiles(
     fireShotMaterial.inkOutlineEligible = false;
     fireShotMaterial.inkOccluder = true;
     renderer_->setWorldMaterial(fireShotMaterial);
+    fire_wand_effect::beginBatch(true);
+    for (const auto& projectile : snapshot.iceWandProjectiles) {
+        ice_wand_effect::emitProjectile(projectile, camera.position,
+            snapshot.elapsedSeconds, interpolationAlpha);
+    }
+    fire_wand_effect::endBatch();
     fire_wand_effect::beginBatch(true);
     for (const auto& projectile : snapshot.fireWandProjectiles) {
         fire_wand_effect::emitProjectile(projectile, camera.position, fireTime, interpolationAlpha);
