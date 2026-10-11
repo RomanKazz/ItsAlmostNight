@@ -47,7 +47,21 @@ void runPowerupTests() {
     require(!system.loadState(bad),"invalid powerup enum rejected");
 
     auto run=std::make_unique<Simulation>();
+    require(!run->grantDebugPowerup(PowerupType::Fury), "main menu cannot activate gameplay powerups");
     run->startRunFromSeed(PlayerClass::Vanguard,12345);
+    const double baselineDamage=run->snapshot().upgradeStats.defenseDamage;
+    for (std::size_t i=0;i<PowerupTypeCount;++i) {
+        const auto type=static_cast<PowerupType>(i);
+        require(run->grantDebugPowerup(type), "debug activation accepts every powerup type");
+        requireNear(run->snapshot().powerups.remaining[i],PowerupDefinitions[i].duration,1e-12,
+            "debug grant activates immediately without requiring world pickup");
+    }
+    requireNear(run->snapshot().upgradeStats.defenseDamage,baselineDamage*1.5,1e-12,
+        "debug fury immediately refreshes attack modifiers and snapshot");
+    require(run->grantDebugPowerup(PowerupType::Fury), "debug powerup supports repeated grants");
+    requireNear(run->snapshot().upgradeStats.defenseDamage,baselineDamage*1.5,1e-12,
+        "repeated debug fury does not compound damage");
+    require(!run->grantDebugPowerup(static_cast<PowerupType>(255)), "debug grant rejects invalid enum");
     auto saved=run->saveSuspendedRunState();
     saved.runUpgradeChoicePending=false; saved.runUpgradeSelectionsRemaining=0;
     saved.powerups.remaining={6,15,20};

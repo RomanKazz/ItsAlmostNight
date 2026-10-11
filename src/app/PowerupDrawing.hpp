@@ -3,6 +3,7 @@
 #include "graphics/Renderer.hpp"
 #include "ui/UiMenuStyle.hpp"
 #include "ui/WorldBillboard.hpp"
+#include "ui/PowerupIcon.hpp"
 #include <raymath.h>
 #include <rlgl.h>
 #include <cmath>
@@ -12,26 +13,6 @@ inline Color color(PowerupType type) {
     if (type == PowerupType::Fury) return {192, 85, 255, 255};
     if (type == PowerupType::GoldRush) return {255, 203, 36, 255};
     return {66, 222, 255, 255};
-}
-// Shared geometric emblems, equally readable in world space and in HUD.
-template<class Triangle> void icon(PowerupType type, Triangle triangle) {
-    const auto quad = [&](Vector2 a, Vector2 b, Vector2 c, Vector2 d) {
-        triangle(a,b,c); triangle(a,c,d);
-    };
-    if (type == PowerupType::Fury) {
-        triangle({.12F,-.9F},{-.65F,.12F},{.05F,.02F});
-        triangle({-.05F,-.08F},{.62F,-.12F},{-.15F,.95F});
-    } else if (type == PowerupType::GoldRush) {
-        // Three-point cartoon crown.
-        quad({-.8F,-.35F},{-.4F,.12F},{0,-.65F},{.4F,.12F});
-        triangle({0,-.65F},{.4F,.12F},{.8F,-.35F});
-        quad({-.65F,.1F},{.65F,.1F},{.55F,.65F},{-.55F,.65F});
-    } else {
-        // Horseshoe magnet, broad pole caps.
-        quad({-.75F,-.55F},{-.3F,-.55F},{-.3F,.5F},{-.75F,.5F});
-        quad({.3F,-.55F},{.75F,-.55F},{.75F,.5F},{.3F,.5F});
-        quad({-.75F,.25F},{.75F,.25F},{.6F,.75F},{-.6F,.75F});
-    }
 }
 inline void star(Vector3 center, float size, Vector3 right, Vector3 up, Color tint) {
     constexpr std::array<Vector2,8> points{{{0,-1},{.18F,-.18F},{1,0},{.18F,.18F},
@@ -82,7 +63,7 @@ inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera
         drawWorldBillboardRoundedRectangle(p,size*1.35F,size*1.35F,size*.2F,Fade({20,25,33,255},fade),right,up);
         drawWorldBillboardRoundedRectangle(Vector3Add(p,Vector3Scale(forward,-.004F)),size*1.17F,size*1.17F,size*.16F,tint,right,up);
         const Vector3 iconCenter = Vector3Add(p,Vector3Scale(forward,-.012F));
-        icon(pickup.type,[&](Vector2 a, Vector2 b, Vector2 c) {
+        drawPowerupIconGeometry(pickup.type,[&](Vector2 a, Vector2 b, Vector2 c) {
             const auto v = [&](Vector2 point) { return Vector3Add(iconCenter,Vector3Add(Vector3Scale(right,point.x*size*.43F),Vector3Scale(up,-point.y*size*.43F))); };
             DrawTriangle3D(v(a),v(b),v(c),Fade({255,252,222,255},fade));
             DrawTriangle3D(v(c),v(b),v(a),Fade({255,252,222,255},fade));
@@ -133,7 +114,7 @@ inline void drawHud(const PowerupRunState& state, float time, int width, int hei
         DrawRectangleGradientH(0,0,70,height,{tint.r,tint.g,tint.b,alpha},{tint.r,tint.g,tint.b,0});
         DrawRectangleGradientH(width-70,0,70,height,{tint.r,tint.g,tint.b,0},{tint.r,tint.g,tint.b,alpha});
         menuStyle::panel({x,y,w,57}, 1.0F, {24,35,32,235});
-        icon(type,[&](Vector2 a,Vector2 b,Vector2 c) {
+        drawPowerupIconGeometry(type,[&](Vector2 a,Vector2 b,Vector2 c) {
             const auto v = [&](Vector2 p) { return Vector2{x+26+p.x*13,y+24+p.y*13}; };
             DrawTriangle(v(c),v(b),v(a),tint); DrawTriangle(v(a),v(b),v(c),tint);
         });
