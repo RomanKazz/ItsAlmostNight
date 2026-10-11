@@ -9,6 +9,7 @@
 #include "graphics/GraphicsResources.hpp"
 #include "BombGraphicsChecks.hpp"
 #include "IceProjectileGraphicsChecks.hpp"
+#include "WeaponBaseNormalChecks.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppProjectileDrawing.hpp"
@@ -2860,6 +2861,10 @@ int main() {
         ian::GraphicsResources resources;
         std::cerr << "graphics smoke: initialize 1\n";
         resources.initialize(settings);
+        if (!checkWeaponBaseNormals(resources)) {
+            std::cerr << "weapon pedestal cap/side normal seam failed\n";
+            result = 1;
+        }
         if (!checkCoreCrystalOrbit(resources.coreModel())) {
             std::cerr << "core satellites fail to orbit the fixed central crystal/pedestal\n";
             result = 1;
