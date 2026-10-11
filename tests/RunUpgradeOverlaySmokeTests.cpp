@@ -199,6 +199,26 @@ int main(int argc, char** argv) {
             ian::runUpgradeAppliedPowerGain(effect, ian::RunUpgradeRarity::Rare, before.runUpgradePower[ian::runUpgradeIndex(effect)]) ==
             projected.runUpgradePower[ian::runUpgradeIndex(effect)], "preview preserves its input snapshot");
     }
+    {
+        auto defense = snapshot;
+        defense.runUpgradeChoiceCount = 1;
+        defense.runUpgradeRarities.fill(ian::RunUpgradeRarity::Common);
+        defense.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockGunTurret)] = 2;
+        defense.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockGunTurret)] = 2;
+        defense.buildingArsenalCount = 1;
+        defense.runUpgradeChoices[0] = ian::RunUpgradeEffect::UnlockGunTurret;
+        auto projected = ian::app_detail::previewRunUpgrade(defense, 0);
+        require(projected.buildingArsenalCount == 1 &&
+            projected.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockGunTurret)] == 3,
+            "repeated defense preview raises level without consuming another slot");
+        defense.runUpgradeChoices[0] = ian::RunUpgradeEffect::UnlockCatapult;
+        defense.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCatapult)] = 0;
+        defense.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCatapult)] = 0;
+        projected = ian::app_detail::previewRunUpgrade(defense, 0);
+        require(projected.buildingArsenalCount == 2 &&
+            projected.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCatapult)] == 1,
+            "new defense preview adds one type slot at level one");
+    }
     for (const ian::Language language : {ian::Language::English, ian::Language::Russian}) {
         ian::setLanguage(language);
         for (const Vector2 resolution : {Vector2{1920, 1080}, Vector2{1280, 720}}) {
@@ -260,6 +280,24 @@ int main(int argc, char** argv) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::UnlockRifle,
                         ian::RunUpgradeEffect::UnlockBomb, ian::RunUpgradeEffect::UnlockIceWand,
                         ian::RunUpgradeEffect::UnlockFireWand};
+                    display.runUpgradeRarities.fill(ian::RunUpgradeRarity::Common);
+                }
+                if (scene == 8) {
+                    display.playerClass = ian::PlayerClass::Vanguard;
+                    display.sandboxMode = display.unlimitedResources = false;
+                    display.runUpgradeStacks.fill(0);
+                    display.runUpgradePower.fill(0);
+                    display.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockGunTurret)] = 2;
+                    display.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockGunTurret)] = 2;
+                    display.runUpgradeStacks[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCannon)] = 5;
+                    display.runUpgradePower[ian::runUpgradeIndex(ian::RunUpgradeEffect::UnlockCannon)] = 5;
+                    display.buildingArsenalCount = 2;
+                    display.unlockedBuildings.fill(false);
+                    display.unlockedBuildings[static_cast<std::size_t>(ian::BuildingType::GunTurret)] = true;
+                    display.unlockedBuildings[static_cast<std::size_t>(ian::BuildingType::Cannon)] = true;
+                    display.runUpgradeChoices = {ian::RunUpgradeEffect::UnlockGunTurret,
+                        ian::RunUpgradeEffect::UnlockCannon, ian::RunUpgradeEffect::UnlockCatapult,
+                        ian::RunUpgradeEffect::UnlockSlowTrap};
                     display.runUpgradeRarities.fill(ian::RunUpgradeRarity::Common);
                 }
                 if (scene > 0) {

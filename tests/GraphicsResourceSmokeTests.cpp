@@ -7,6 +7,7 @@
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "DefenseInventoryGraphicsChecks.hpp"
 #include "BombGraphicsChecks.hpp"
 #include "IceProjectileGraphicsChecks.hpp"
 #include "WeaponBaseNormalChecks.hpp"
@@ -2844,6 +2845,10 @@ int main() {
     }
 
     int result = 0;
+    if (!checkDefenseInventoryGraphics()) {
+        std::cerr << "defense inventory icons or row spacing failed\n";
+        result = 1;
+    }
     {
         if (!checkPlatformVisibilityMasks()) {
             std::cerr << "platform visibility masks failed\n";

@@ -124,6 +124,7 @@ enum class UpgradeError {
     Unsupported,
     CoreLevelRequired,
     InsufficientResources,
+    CardRequired,
 };
 
 struct UpgradeBuildingCommand {
@@ -221,6 +222,9 @@ class BuildingSystem {
 
     void reset();
     void setSandboxMode(bool enabled);
+    void setCombatCardProgressionEnabled(bool enabled);
+    // Returns true if any existing instance changes level. Preserves damage taken.
+    bool setCombatBlueprintLevel(BuildingType type, std::uint8_t level);
     void setMaxHealthMultiplier(double multiplier);
     double restoreHealthFraction(double fraction);
     void setNewTowerBonusEnabled(bool enabled);
@@ -289,6 +293,7 @@ class BuildingSystem {
     bool newTowerBonusEnabled_{};
     bool sandboxMode_{};
     std::uint8_t newTowerBonusStacks_{};
+    bool combatCardProgressionEnabled_{};
     std::array<std::uint8_t, GameBalance::BuildingTypeCount>
         blueprintLevels_{};
 };

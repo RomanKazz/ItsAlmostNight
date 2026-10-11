@@ -5,8 +5,8 @@
 
 namespace ian {
 // Pool is already filtered for eligibility, slot limits and duplicates.
-// Pick a card category with existing weights; if it is a tome, split its pool
-// into owned/new. Either group gets 50% regardless of how many tomes it holds.
+// Keep category weights. Within tomes or combat cards, split owned/new 50/50
+// whenever both groups remain eligible, independent of group size or levels.
 [[nodiscard]] inline std::size_t chooseRunUpgradeOffer(
     std::span<const RunUpgradeEffect> pool,
     const std::array<int, RunUpgradeEffectCount>& stacks,
@@ -21,16 +21,20 @@ namespace ian {
         roll -= runUpgradeOfferWeight(pool[i]);
         if (roll < 0) { selected=i; break; }
     }
-    if (!runTomeDefinition(pool[selected])) return selected;
+    const bool defense = runDefenseCard(pool[selected]);
+    if (!defense && !runTomeDefinition(pool[selected])) return selected;
+    const auto sameCategory = [defense](RunUpgradeEffect effect) {
+        return defense ? runDefenseCard(effect) : runTomeDefinition(effect) != nullptr;
+    };
     std::array<std::size_t,2> counts{};
-    for (const auto effect : pool) if (runTomeDefinition(effect))
+    for (const auto effect : pool) if (sameCategory(effect))
         ++counts[runTomeLevel(effect,stacks)>0 ? 1U : 0U];
     random = mixBits64(random + 0xd1b54a32d192ed03ULL);
     const std::size_t group = !counts[0] ? 1U : !counts[1] ? 0U : random % 2U;
     random = mixBits64(random + 0xa0761d6478bd642fULL);
     std::size_t offset = random % counts[group];
     for (std::size_t i=0;i<pool.size();++i) {
-        if (!runTomeDefinition(pool[i]) || (runTomeLevel(pool[i],stacks)>0 ? 1U : 0U)!=group) continue;
+        if (!sameCategory(pool[i]) || (runTomeLevel(pool[i],stacks)>0 ? 1U : 0U)!=group) continue;
         if (offset-- == 0) return i;
     }
     return selected;

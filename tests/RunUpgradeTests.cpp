@@ -1,4 +1,5 @@
 #include "TestHarness.hpp"
+#include "DefenseCardProgressionChecks.hpp"
 #include "game/Simulation.hpp"
 
 #include <limits>
@@ -6,6 +7,7 @@
 #include <numeric>
 
 void runRunUpgradeTests() {
+    checkDefenseCardProgression();
     using namespace ian;
     const auto rerollWithSavedToken = [](Simulation& run) {
         auto checkpoint = run.saveSuspendedRunState();
@@ -332,8 +334,10 @@ void runRunUpgradeTests() {
         arsenal->returnToMainMenu();
         arsenal->startRunFromSeed(character.type, 4321);
         require(arsenal->snapshot().buildingArsenalCount == 1 &&
-            !arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)),
-            "every character owns its starter once, without spending another slot");
+            arsenal->grantDebugRunUpgrade(*buildingRunUpgrade(character.startingBuilding)) &&
+            arsenal->snapshot().buildingArsenalCount == 1 &&
+            arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(*buildingRunUpgrade(character.startingBuilding))] == 2,
+            "every character upgrades its level-one starter without spending another slot");
     }
     arsenal->returnToMainMenu();
     arsenal->startRunFromSeed(PlayerClass::Vanguard, 4321);
@@ -342,21 +346,22 @@ void runRunUpgradeTests() {
         arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockSpikeTrap) &&
         arsenal->snapshot().buildingArsenalCount == RunBuildingSlotCount &&
         !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCatapult) &&
-        !arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon),
-        "acquisition is unique and stops at four types, regardless of rarity");
+        arsenal->grantDebugRunUpgrade(RunUpgradeEffect::UnlockCannon) &&
+        arsenal->snapshot().runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] == 2,
+        "four types block new acquisitions but allow shared upgrades regardless of rarity");
     const auto arsenalSave = arsenal->saveSuspendedRunState();
     restored->returnToMainMenu();
-    require(arsenalSave.buildingArsenalVersion == 2 && restored->loadSuspendedRunState(arsenalSave) &&
+    require(arsenalSave.buildingArsenalVersion == 3 && restored->loadSuspendedRunState(arsenalSave) &&
         restored->snapshot().buildingArsenalCount == 4 &&
         restored->snapshot().runUpgradeStacks == arsenal->snapshot().runUpgradeStacks,
         "unbuilt blueprints survive save and resume");
     auto invalidArsenal = arsenalSave;
-    invalidArsenal.buildingArsenalVersion = 3;
+    invalidArsenal.buildingArsenalVersion = 4;
     restored->returnToMainMenu();
     require(!restored->loadSuspendedRunState(invalidArsenal), "future arsenal formats rejected");
     invalidArsenal = arsenalSave;
-    invalidArsenal.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 2;
-    require(!restored->loadSuspendedRunState(invalidArsenal), "duplicate blueprint counts rejected");
+    invalidArsenal.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 9;
+    require(!restored->loadSuspendedRunState(invalidArsenal), "defense levels above eight rejected");
 
     auto balance = GameBalance::defaults();
     balance.buildings[static_cast<std::size_t>(BuildingType::Core)].wood = 0;
@@ -393,8 +398,8 @@ void runRunUpgradeTests() {
             offeredEffect != RunUpgradeEffect::TwinBatteries && offeredEffect != RunUpgradeEffect::ReactiveTraps,
             "family-specific cards require a compatible owned building");
         if (const auto building = runUpgradeBuilding(offeredEffect)) {
-            require(*building != BuildingType::Cannon && offer.runUpgradeRarities[index] == RunUpgradeRarity::Common,
-                "starter is absent from acquisition offers and acquisition has fixed power");
+            require(offer.runUpgradeRarities[index] == RunUpgradeRarity::Common,
+                "defense acquisitions and shared upgrades have fixed one-level power");
         }
     }
     require(runUpgradeBuilding(offer.runUpgradeChoices[1]).has_value() &&
@@ -411,8 +416,9 @@ void runRunUpgradeTests() {
     require(normalRestored->loadSuspendedRunState(pendingArsenal) &&
         normalRestored->snapshot().runUpgradeChoices == offer.runUpgradeChoices &&
         normalRestored->snapshot().runUpgradeRarities == offer.runUpgradeRarities &&
-        normalRestored->selectRunUpgrade(0) && normalRestored->snapshot().buildingArsenalCount == 2,
-        "resume preserves exact normal offers and selection acquires a second type");
+        normalRestored->selectRunUpgrade(0) && normalRestored->snapshot().buildingArsenalCount ==
+            (offer.runUpgradeChoices[0] == RunUpgradeEffect::UnlockCannon ? 1 : 2),
+        "resume preserves exact offers and selection acquires or upgrades a type");
     require(normal->selectRunUpgrade(0), "normal acquisition selected");
     for (auto blueprintEffect : {RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockTurret,
                         RunUpgradeEffect::UnlockSpikeTrap, RunUpgradeEffect::UnlockSlowTrap,
@@ -423,8 +429,9 @@ void runRunUpgradeTests() {
         "full arsenal offer regenerated");
     for (std::size_t index = 0; index < normal->snapshot().runUpgradeChoiceCount; ++index) {
         const auto building = runUpgradeBuilding(normal->snapshot().runUpgradeChoices[index]);
-        require(!building || !runCombatBuilding(*building),
-            "full combat arsenal still allows economic acquisitions");
+        require(!building || !runCombatBuilding(*building) ||
+            normal->snapshot().runUpgradeStacks[runUpgradeIndex(normal->snapshot().runUpgradeChoices[index])] > 0,
+            "full combat arsenal allows only owned combat upgrades and economic acquisitions");
     }
 
     for (auto type : RunEconomyBuildingTypes) {
@@ -503,6 +510,8 @@ void runRunUpgradeTests() {
 
     auto legacyEconomy = arsenalSave;
     legacyEconomy.buildingArsenalVersion = 1;
+    legacyEconomy.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 1;
+    legacyEconomy.runUpgradePower[runUpgradeIndex(RunUpgradeEffect::UnlockCannon)] = 1;
     legacyEconomy.buildings = {
         {.id = {1000, 1}, .type = BuildingType::Core, .gridPosition = {0, 0}, .health = 500, .maxHealth = 500},
         {.id = {1001, 1}, .type = BuildingType::Quarry, .gridPosition = {4, 0}, .health = 210, .maxHealth = 210},
@@ -712,6 +721,10 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::UnlockIceWand, RunUpgradeEffect::UnlockFireWand,
                 RunUpgradeEffect::CannonHeavyShell})
             require(exhausted->grantDebugRunUpgrade(acquiredEffect), "exhaustion fixture fills arsenals and specialization");
+        for (const auto card : {RunUpgradeEffect::UnlockCannon, RunUpgradeEffect::UnlockTurret,
+                RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockSpikeTrap})
+            require(exhausted->grantDebugRunUpgradeBatch(card, MaxBuildingLevel),
+                "exhaustion fixture maximizes the four owned combat types");
         for (const auto perk : {RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload,
                 RunUpgradeEffect::ReactiveTraps, RunUpgradeEffect::GunShrapnel})
             require(exhausted->grantDebugRunUpgradeBatch(perk, runUpgradeMaximumLevel(perk)),

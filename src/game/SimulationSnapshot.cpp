@@ -26,7 +26,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
                          });
         if (aimed != buildings_.buildings().end() &&
             !BuildingSystem::usesGlobalBlueprint(aimed->type) &&
-            aimed->level < MaxBuildingLevel) {
+            aimed->level < MaxBuildingLevel &&
+            (sandboxMode_ || unlimitedResources_ || !runCombatBuilding(aimed->type))) {
             aimedUpgradeCost = buildings_.upgradeCost(*aimed);
         }
         if (aimed != buildings_.buildings().end()) {

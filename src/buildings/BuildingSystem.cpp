@@ -606,6 +606,8 @@ ResourceCost BuildingSystem::sellRefund(const BuildingInstance& building) const 
 }
 
 ResourceCost BuildingSystem::upgradeCost(const BuildingInstance& building) const {
+    if (combatCardProgressionEnabled_ &&
+        buildingLimitCategory(building.type) == BuildingLimitCategory::Defense) return {};
     return upgradeCostFor(
         building, cost(building.type), economy_);
 }
@@ -617,6 +619,28 @@ void BuildingSystem::reset() {
 
 void BuildingSystem::setSandboxMode(bool enabled) {
     sandboxMode_ = enabled;
+}
+
+void BuildingSystem::setCombatCardProgressionEnabled(bool enabled) {
+    combatCardProgressionEnabled_ = enabled;
+}
+
+bool BuildingSystem::setCombatBlueprintLevel(BuildingType type, std::uint8_t level) {
+    if (buildingLimitCategory(type) != BuildingLimitCategory::Defense ||
+        level < 1U || level > MaxBuildingLevel) return false;
+    blueprintLevels_[static_cast<std::size_t>(type)] = level;
+    bool changed = false;
+    for (auto& building : buildings_) {
+        if (building.type != type || building.level == level) continue;
+        const double damageTaken = building.maxHealth - building.health;
+        building.level = level;
+        building.maxHealth = definition(type).maxHealth *
+            (1.0 + 0.15 * static_cast<double>(level - 1)) *
+            maxHealthMultiplier_ * buildingAnvilMultiplier(building);
+        building.health = std::clamp(building.maxHealth - damageTaken, 0.0, building.maxHealth);
+        changed = true;
+    }
+    return changed;
 }
 
 void BuildingSystem::setMaxHealthMultiplier(double multiplier) {
@@ -751,7 +775,9 @@ std::optional<PlacedBuilding> BuildingSystem::place(BuildingType type, GridPosit
         newTowerBonusEnabled_ && isTowerType(type);
     const std::uint8_t anvilStacks = anvilEnhanced
         ? newTowerBonusStacks_ : 0U;
-    const std::uint8_t level = blueprintLevel(type);
+    const std::uint8_t level = combatCardProgressionEnabled_ &&
+        buildingLimitCategory(type) == BuildingLimitCategory::Defense
+        ? blueprintLevels_[static_cast<std::size_t>(type)] : blueprintLevel(type);
     const double health = definition(type).maxHealth *
         (1.0 + 0.15 * static_cast<double>(level - 1)) *
         maxHealthMultiplier_ *
@@ -954,6 +980,10 @@ UpgradeResult BuildingSystem::validateUpgrade(EntityId id, int wood, int stone, 
     }
     if (iterator->level >= MaxBuildingLevel) {
         return {.error = UpgradeError::MaxLevel, .building = *iterator};
+    }
+    if (combatCardProgressionEnabled_ &&
+        buildingLimitCategory(iterator->type) == BuildingLimitCategory::Defense) {
+        return {.error = UpgradeError::CardRequired, .building = *iterator};
     }
     if (iterator->type != BuildingType::Core) {
         const auto coreBuilding = core();

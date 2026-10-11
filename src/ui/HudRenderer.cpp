@@ -12,6 +12,7 @@
 #include "ui/UiLabels.hpp"
 #include "ui/UiText.hpp"
 #include "ui/RunHammerUi.hpp"
+#include "ui/RunDefenseInventory.hpp"
 
 #include <raylib.h>
 #include <raymath.h>
@@ -664,6 +665,9 @@ void drawHud(GameUi& ui, const SimulationSnapshot& snapshot,
             9.0F, {231, 213, 172, 215});
     }
 
+    if (!snapshot.sandboxMode && !snapshot.unlimitedResources)
+        drawRunDefenseInventory(ui, snapshot, {20.0F, 142.0F,
+            std::min(600.0F, uiScreenWidth() * 0.4F), 52.8F});
     hudPerformanceStats.resourcesMs =
         performanceMilliseconds(sectionStart);
     sectionStart = PerformanceClock::now();

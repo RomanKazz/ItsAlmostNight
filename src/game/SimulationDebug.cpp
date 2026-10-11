@@ -211,6 +211,7 @@ void Simulation::processDebugCommands(
         }
         buildings_.setSandboxMode(
             sandboxMode_ || unlimitedResources_);
+        refreshRunUpgradeRuntimeEffects();
     }
     if (command.toggleInvulnerability &&
         !unlimitedResources_) {

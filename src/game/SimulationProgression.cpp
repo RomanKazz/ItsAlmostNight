@@ -80,6 +80,17 @@ bool Simulation::loadProgressionState(const ProgressionRunState& state) {
 }
 
 void Simulation::refreshRunUpgradeRuntimeEffects() {
+    const bool cardProgression = !sandboxMode_ && !unlimitedResources_;
+    buildings_.setCombatCardProgressionEnabled(cardProgression);
+    bool defenseLevelsChanged = false;
+    if (cardProgression) {
+        for (const auto type : RunBuildingTypes) {
+            const auto card = buildingRunUpgrade(type);
+            const auto level = static_cast<std::uint8_t>(std::clamp(
+                runUpgradeStacks_[runUpgradeIndex(*card)], 1, static_cast<int>(MaxBuildingLevel)));
+            defenseLevelsChanged = buildings_.setCombatBlueprintLevel(type, level) || defenseLevelsChanged;
+        }
+    }
     resources_.setGatheringYieldMultiplier(
         activeMetaBonuses_.resourceYield *
         (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
@@ -138,6 +149,7 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
              : 1.0);
     iceWand_.setCastSpeedMultiplier(castSpeed);
     fireWand_.setCastSpeedMultiplier(castSpeed);
+    if (defenseLevelsChanged) syncBuildingRuntimeSystems();
 }
 
 void Simulation::prepareRunUpgradeChoices(int selections) {
@@ -162,8 +174,10 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
         return !sandboxMode_ && !unlimitedResources_ && !playerWeaponUnlocked(*weapon);
     }
     if (const auto building = runUpgradeBuilding(effect)) {
-        return !sandboxMode_ && !unlimitedResources_ && !ownsRunBuilding(*building) &&
-            (!runCombatBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount);
+        if (sandboxMode_ || unlimitedResources_) return false;
+        return runCombatBuilding(*building)
+            ? ownsRunBuilding(*building) || runBuildingArsenalCount() < RunBuildingSlotCount
+            : !ownsRunBuilding(*building);
     }
     if (runUpgradeCannonStyle(effect)) {
         return runCannonAttackStyle(runUpgradeStacks_) == CannonAttackStyle::Standard &&
@@ -292,8 +306,10 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
     if (const auto building = runUpgradeBuilding(effect)) {
-        if (ownsRunBuilding(*building) ||
-            (runCombatBuilding(*building) && runBuildingArsenalCount() >= RunBuildingSlotCount)) return false;
+        if (runCombatBuilding(*building)) {
+            if (!ownsRunBuilding(*building) &&
+                runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
+        } else if (ownsRunBuilding(*building)) return false;
     }
     if (const auto weapon = runUpgradeWeapon(effect); weapon && playerWeaponUnlocked(*weapon)) return false;
     if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
@@ -404,6 +420,17 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         break;
     }
     refreshRunUpgradeRuntimeEffects();
+    if (runDefenseCard(effect)) {
+        const auto type = *runUpgradeBuilding(effect);
+        for (const auto& building : buildings_.buildings()) {
+            if (building.type == type) events_.push_back({
+                .type = GameEventType::BuildingUpgraded,
+                .entityId = building.id,
+                .buildingType = type,
+                .position = buildingWorldPosition(building),
+            });
+        }
+    }
     return true;
 }
 

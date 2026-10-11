@@ -3,6 +3,17 @@
   "languages": {
     "en": {},
     "ru": {
+      "GUN TURRET": "ПУЛЕМЁТ",
+      "CROSSBOW": "АРБАЛЕТ",
+      "CANNON": "ПУШКА",
+      "CATAPULT": "КАТАПУЛЬТА",
+      "SLOW TRAP": "ЗАМЕДЛЯЮЩАЯ ЛОВУШКА",
+      "UPGRADE WITH CARDS": "УЛУЧШАЕТСЯ КАРТОЧКАМИ",
+      "Upgrade this defense with cards": "Улучшай этот тип обороны карточками",
+      "Acquire defense / upgrade all copies": "Открыть оборону / улучшить все экземпляры",
+      "Upgrade every copy by one level; new copies inherit it": "Все экземпляры получают +1 уровень. Новые строятся того же уровня",
+      "Unlock level 1 construction; uses one defense slot": "Открывает строительство уровня 1. Занимает слот обороны",
+      "Tomes have no level limit. Defenses reach level 8. Unlocks remain unique.": "У томов нет предела уровня. Оборона улучшается до 8. Открытия уникальны.",
       "DEBUG SPAWNER · B": "ПРИЗЫВ ВРАГОВ · B",
       "THE HORDE": "ОРДА",
       "QUICK FEET": "БЫСТРЫЕ НОГИ",

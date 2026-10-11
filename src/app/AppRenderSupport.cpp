@@ -286,6 +286,8 @@ const char* upgradeErrorMessage(UpgradeError error) {
         return "Building no longer exists";
     case UpgradeError::MaxLevel:
         return "Building is already at max level";
+    case UpgradeError::CardRequired:
+        return "Upgrade this defense with cards";
     case UpgradeError::Unsupported:
         return "Building cannot be upgraded";
     case UpgradeError::CoreLevelRequired:

@@ -230,12 +230,12 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+15% resource node yield"},
         {RunUpgradeEffect::Luck, runTomeDefinition(RunUpgradeEffect::Luck)->name,
          "+10% upgrade luck"},
-        {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Unlock gun turret construction"},
-        {RunUpgradeEffect::UnlockTurret, "CROSSBOW", "Unlock crossbow construction"},
-        {RunUpgradeEffect::UnlockCannon, "CANNON", "Unlock cannon construction"},
-        {RunUpgradeEffect::UnlockCatapult, "CATAPULT", "Unlock catapult construction"},
-        {RunUpgradeEffect::UnlockSpikeTrap, "SPIKES", "Unlock spike trap construction"},
-        {RunUpgradeEffect::UnlockSlowTrap, "SLOW TRAP", "Unlock slow trap construction"},
+        {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Acquire defense / upgrade all copies"},
+        {RunUpgradeEffect::UnlockTurret, "CROSSBOW", "Acquire defense / upgrade all copies"},
+        {RunUpgradeEffect::UnlockCannon, "CANNON", "Acquire defense / upgrade all copies"},
+        {RunUpgradeEffect::UnlockCatapult, "CATAPULT", "Acquire defense / upgrade all copies"},
+        {RunUpgradeEffect::UnlockSpikeTrap, "SPIKES", "Acquire defense / upgrade all copies"},
+        {RunUpgradeEffect::UnlockSlowTrap, "SLOW TRAP", "Acquire defense / upgrade all copies"},
         {RunUpgradeEffect::CannonHeavyShell, "HEAVY SHELL", "Cannon: x5 damage, fires 3x slower"},
         {RunUpgradeEffect::CannonScattershot, "SCATTERSHOT", "Cannon: 5 shells at 40% damage, smaller blasts"},
         {RunUpgradeEffect::CannonClusterShell, "CLUSTER SHELL", "Cannon: 80% damage, +3 mini explosions"},
@@ -299,6 +299,12 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     case RunUpgradeEffect::UnlockCrystalMine: return BuildingType::CrystalMine;
     default: return std::nullopt;
     }
+}
+
+// Combat cards acquire a type at level one, then raise its shared level.
+[[nodiscard]] constexpr bool runDefenseCard(RunUpgradeEffect effect) {
+    const auto building = runUpgradeBuilding(effect);
+    return building && runCombatBuilding(*building);
 }
 
 [[nodiscard]] constexpr std::optional<RunUpgradeEffect> buildingRunUpgrade(BuildingType type) {
@@ -452,6 +458,7 @@ runUpgradeRarityProbabilities(double luck) {
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
+    if (runDefenseCard(effect)) return MaxBuildingLevel;
     if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:

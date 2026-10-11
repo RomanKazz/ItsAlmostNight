@@ -381,6 +381,11 @@ std::string statNumber(double value, int precision = 1) {
 
 std::string upgradeDescription(const SimulationSnapshot& snapshot,
     RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+    if (runDefenseCard(effect)) {
+        return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] > 0
+            ? "Upgrade every copy by one level; new copies inherit it"
+            : "Unlock level 1 construction; uses one defense slot";
+    }
     if (effect == RunUpgradeEffect::Damage || effect == RunUpgradeEffect::AttackSpeed) {
         const double gain = runUpgradeAppliedPowerGain(effect, rarity, snapshot.runUpgradePower[runUpgradeIndex(effect)]);
         const bool damage = effect == RunUpgradeEffect::Damage;
@@ -675,7 +680,7 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     const auto ratio = [&](double base, double step) {
         return (base + step * (current + gain)) / (base + step * current);
     };
-    if (const auto building = runUpgradeBuilding(effect); building && runCombatBuilding(*building))
+    if (runDefenseCard(effect) && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0)
         ++projected.buildingArsenalCount;
     if (const auto weapon = runUpgradeWeapon(effect)) {
         projected.unlockedWeapons[static_cast<std::size_t>(*weapon)] = true;
@@ -1125,11 +1130,9 @@ void drawRunUpgradeOverlay(
                 levelFontSize, LevelText, cardFade, scale, LevelOutline, 2.0F, false);
         } else {
             const std::string currentLevelText =
-                runUpgradeBuilding(effect) ? std::to_string(snapshot.buildingArsenalCount) + "/4"
+                runDefenseCard(effect) && currentLevel == 0 ? "NEW"
                     : runHammerDefinition(effect) && currentLevel == 0 ? "NEW" : "LVL " + std::to_string(currentLevel);
-            const std::string nextLevelText = runUpgradeBuilding(effect)
-                ? std::to_string(snapshot.buildingArsenalCount + 1U) + "/4"
-                : std::to_string(std::min(currentLevel + 1, maximumLevel));
+            const std::string nextLevelText = std::to_string(std::min(currentLevel + 1, maximumLevel));
             const Vector2 currentLevelSize = measureUiText(
                 currentLevelText, levelFontSize);
             const Vector2 nextLevelSize = measureUiText(

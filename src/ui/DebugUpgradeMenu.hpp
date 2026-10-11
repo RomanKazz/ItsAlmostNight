@@ -44,11 +44,12 @@ struct DebugUpgradeMenuResult {
 };
 
 inline bool debugUpgradeUnique(RunUpgradeEffect effect) {
-    return runUpgradeBuilding(effect).has_value() || runUpgradeWeapon(effect).has_value()
+    return (runUpgradeBuilding(effect).has_value() && !runDefenseCard(effect)) || runUpgradeWeapon(effect).has_value()
         || runUpgradeCannonStyle(effect).has_value();
 }
 inline DebugUpgradeCategory debugUpgradeCategory(RunUpgradeEffect effect) {
     if (debugUpgradeUnique(effect)) return DebugUpgradeCategory::Unlocks;
+    if (runDefenseCard(effect)) return DebugUpgradeCategory::Defense;
     switch (effect) {
     case RunUpgradeEffect::BuildingHealth: case RunUpgradeEffect::BuildRadius:
     case RunUpgradeEffect::DefenseDamage: case RunUpgradeEffect::DefenseFireRate:
@@ -111,6 +112,8 @@ inline void debugUpgradeBackspace(std::string& value) {
 }
 inline bool debugUpgradeGrantable(RunUpgradeEffect effect, const SimulationSnapshot& snapshot) {
     if (const auto building = runUpgradeBuilding(effect)) {
+        if (runCombatBuilding(*building))
+            return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] < MaxBuildingLevel;
         const auto* character = playerClassDefinition(snapshot.playerClass);
         const auto starting = character ? character->startingBuilding : BuildingType::GunTurret;
         return *building != starting && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0;
@@ -326,7 +329,7 @@ inline DebugUpgradeMenuResult drawDebugUpgradeMenu(GameUi& ui, const SimulationS
     for(std::size_t i=0;i<4;++i) if(button(l.presets[i],std::to_string(Presets[i]))) state.countText=std::to_string(Presets[i]);
     count=debugUpgradeCount(state.countText);
     if(!l.portrait) {
-        const auto notes=itemTooltipLines(localizeText("No level or blueprint limits. Unlocks remain unique."),(dw-40)*s,17*s);
+        const auto notes=itemTooltipLines(localizeText("Tomes have no level limit. Defenses reach level 8. Unlocks remain unique."),(dw-40)*s,17*s);
         for(std::size_t i=0;i<notes.size();++i) label(notes[i],d(20,controlsY+268+23*static_cast<float>(i),dw-40,23),17,ms::Muted,UiFontRole::Body);
 
     }

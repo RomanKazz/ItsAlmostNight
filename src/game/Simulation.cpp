@@ -394,6 +394,12 @@ void Simulation::resetRun(GameEventType eventType) {
     runUpgradeChoices_.fill(RunUpgradeEffect::Damage);
     runUpgradeStacks_.fill(0);
     runUpgradePower_.fill(0.0);
+    const auto* startingClass = playerClassDefinition(playerClass_);
+    const auto startingDefense = startingClass ? startingClass->startingBuilding : BuildingType::GunTurret;
+    if (const auto card = buildingRunUpgrade(startingDefense)) {
+        runUpgradeStacks_[runUpgradeIndex(*card)] = 1;
+        runUpgradePower_[runUpgradeIndex(*card)] = 1.0;
+    }
     runUpgradeRarities_.fill(RunUpgradeRarity::Common);
     runNightlyBombBonus_ = 0;
     runUpgradeSelectionsRemaining_ = 0;
