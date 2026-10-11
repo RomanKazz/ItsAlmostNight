@@ -66,7 +66,7 @@ inline bool checkFuryAnimation(ian::Renderer& renderer) {
             renderer.endWorldShader();
         }
         if(blocked) DrawCube({2,2,3.5F},16,12,.5F,{18,30,49,255});
-        powerup_drawing::drawFury(snapshot,camera,renderer,reduced);
+        powerup_drawing::drawWorld(snapshot,camera,renderer,reduced);
         EndMode3D(); EndTextureMode();
         Image image=LoadImageFromTexture(target.get().texture); ImageFlipVertical(&image); return image;
     };
@@ -84,7 +84,7 @@ inline bool checkFuryAnimation(ian::Renderer& renderer) {
     Image reduced=capture(2,10,true,false,false),reducedLater=capture(5,10,true,false,false);
     const int visible=difference(idle,first),motion=difference(first,next),occluded=difference(idle,hidden);
     const bool valid=visible>150 && motion>100 && occluded<5 && difference(idle,expired)==0 &&
-        difference(idle,fading)<visible*.65 && difference(reduced,reducedLater)==0;
+        difference(idle,fading)<visible*.65 && difference(reduced,reducedLater)>100;
     if(!valid) std::cerr<<"Fury animation/depth/fade: "<<visible<<' '<<motion<<' '<<occluded<<'\n';
     for(Image image:{idle,first,next,expired,hidden,fading,reduced,reducedLater}) UnloadImage(image);
     if(const char* directory=std::getenv("IAN_CAPTURE_FURY")) {

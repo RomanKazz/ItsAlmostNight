@@ -78,12 +78,13 @@ inline void energyRibbon(Vector3 base, float radius, float height, float angle,
     }
 }
 inline void drawFury(const SimulationSnapshot& snapshot, const Camera3D& camera,
-                     Renderer& renderer, bool reducedMotion) {
+                     Renderer& renderer, bool reduceFlashes) {
     const float remaining=float(snapshot.powerups.remaining[static_cast<std::size_t>(PowerupType::Fury)]);
     if(remaining<=0) return;
     const float arrival=std::clamp((float(PowerupDefinitions[static_cast<std::size_t>(PowerupType::Fury)].duration)-remaining)/.4F,0.0F,1.0F);
     const float strength=std::clamp(remaining,0.0F,1.0F)*arrival*arrival*(3-2*arrival);
-    const float time=reducedMotion ? 0 : float(snapshot.elapsedSeconds);
+    // Reduce flashes suppresses brightness modulation, never continuous motion.
+    const float time=float(snapshot.elapsedSeconds);
     const Vector3 forward=Vector3Normalize(Vector3Subtract(camera.target,camera.position));
     const Vector3 right=Vector3Normalize(Vector3CrossProduct(forward,camera.up));
     const Vector3 up=Vector3Normalize(Vector3CrossProduct(right,forward));
@@ -101,7 +102,7 @@ inline void drawFury(const SimulationSnapshot& snapshot, const Camera3D& camera,
         const float height=std::clamp(renderer.buildingVisualHeight(building.type,building.level),.35F,3.0F);
         const float seed=float(building.id.index%97U)*2.39996F;
         const float radius=std::clamp(.52F+height*.12F,.58F,.95F);
-        const float pulse=reducedMotion ? .85F : .83F+.17F*std::sin(time*2.8F+seed);
+        const float pulse=reduceFlashes ? .85F : .83F+.17F*std::sin(time*2.8F+seed);
         rlBegin(RL_TRIANGLES);
         // A quiet haze connects the flowing filaments without hiding the silhouette.
         energyGlow(Vector3Add(base,{0,height*.48F,0}),right,up,radius*1.35F,
@@ -134,7 +135,7 @@ inline void drawFury(const SimulationSnapshot& snapshot, const Camera3D& camera,
         for(int i=0;i<2;++i) {
             const float phase=seed+float(i)*2.1F;
             const float a=phase-time*1.8F;
-            const float glint=reducedMotion ? .2F : std::pow(.5F+.5F*std::sin(time*3.7F+phase),6.0F);
+            const float glint=reduceFlashes ? .2F : std::pow(.5F+.5F*std::sin(time*3.7F+phase),6.0F);
             const Vector3 center=Vector3Add(base,{std::cos(a)*radius,height*(.45F+float(i)*.3F),std::sin(a)*radius});
             star(center,.045F+.02F*glint,right,up,Fade({255,219,255,255},fade*glint*.8F));
         }
@@ -142,7 +143,7 @@ inline void drawFury(const SimulationSnapshot& snapshot, const Camera3D& camera,
     rlDrawRenderBatchActive(); rlEnableBackfaceCulling(); rlEnableDepthMask(); EndBlendMode();
 }
 inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera,
-                      Renderer& renderer, bool reducedMotion) {
+                      Renderer& renderer, bool reduceFlashes) {
     const Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target,camera.position));
     const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward,camera.up));
     const Vector3 up = Vector3Normalize(Vector3CrossProduct(right,forward));
@@ -156,7 +157,7 @@ inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera
         Vector3 p{float(pickup.position.x),float(pickup.position.y)+.85F,float(pickup.position.z)};
         if (!visible(p)) continue;
         const float phase = float(pickup.age)*2.8F;
-        if (!reducedMotion) p.y += std::sin(phase)*.1F;
+        if (!reduceFlashes) p.y += std::sin(phase)*.1F;
         const float pop = std::clamp(float(pickup.age/.28),0.0F,1.0F);
         const float size = .64F*pop;
         Color tint = color(pickup.type);
@@ -178,7 +179,7 @@ inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera
         }
     }
     rlDrawRenderBatchActive(); EndBlendMode(); rlEnableDepthMask();
-    drawFury(snapshot,camera,renderer,reducedMotion);
+    drawFury(snapshot,camera,renderer,reduceFlashes);
 }
 inline void drawHud(const PowerupRunState& state, float time, int width, int height, bool reduceFlashes) {
     int count = 0;
