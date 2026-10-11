@@ -951,12 +951,6 @@ drawRunUpgradeOverlay(
     runUpgradePendingChoice_,
     runUpgradeCardHoverAmounts_);
 drawRunShopOverlay(ui_, snapshot, runShopKeyboardFocus_);
-if (!snapshot.runShop.pending && !snapshot.runUpgradeChoicePending && snapshot.runShop.wave > 0 &&
-    snapshot.runShop.wave == snapshot.wave && (snapshot.state == RunState::BuildPhase || snapshot.state == RunState::WaveComplete)) {
-    const ScopedUiCoordinates shopCoordinates;
-    drawUiText(localizeText("SHOP") + " [" + keyboardKeyName(controlKey(userSettings_.controls, ControlAction::RunShop)) + " / Ctrl+P]",
-        {24, static_cast<float>(uiScreenHeight() - 176)}, 22, {255, 215, 60, 255});
-}
 endSdfUiTextBatch();
 if (snapshot.state == RunState::Paused &&
     !renderer_->graphicsPanelVisible()) {
