@@ -200,42 +200,35 @@ float enemyHitScale(const EnemyInstance& enemy) {
         0.0F, 1.0F);
     const float pulse = std::sin(progress * Pi);
     const float hitScale = 1.0F - BounceAmplitude * pulse;
-    if (enemy.type == EnemyType::Splitter &&
-        enemy.splitAnimationRemaining > 0.0) {
-        constexpr double SplitDuration = 0.38;
-        const float splitProgress = std::clamp(
-            static_cast<float>(
-                1.0 - enemy.splitAnimationRemaining / SplitDuration),
-            0.0F, 1.0F);
-        const float eased = splitProgress * splitProgress *
-            (3.0F - 2.0F * splitProgress);
-        const float anticipation =
-            std::sin(splitProgress * Pi * 3.0F) *
-            (1.0F - splitProgress) * 0.035F;
-        return 1.0F + eased * 0.34F + anticipation;
-    }
-    if (enemy.type != EnemyType::Splitling ||
-        enemy.spawnAnimationRemaining <= 0.0) {
-        return hitScale;
-    }
-    constexpr double SpawnDuration = 0.72;
-    const float spawnProgress = std::clamp(
-        static_cast<float>(
-            1.0 - enemy.spawnAnimationRemaining / SpawnDuration),
-        0.0F, 1.0F);
-    const float eased = 1.0F -
-        std::pow(1.0F - spawnProgress, 3.0F);
-    const float overshoot =
-        std::sin(spawnProgress * PI) * 0.18F;
-    return hitScale * (0.28F + eased * 0.72F + overshoot);
+    return hitScale;
 }
 
-Vector3 enemyRenderPosition(const EnemyInstance& enemy) {
+SplitterPose enemySplitPose(const EnemyInstance& enemy, double subTickSeconds) {
+    if (enemy.type == EnemyType::Splitter && enemy.splitAnimationRemaining > 0.0) {
+        return splitterPose(true, static_cast<float>(
+            1.0 - (enemy.splitAnimationRemaining - subTickSeconds) / 0.38));
+    }
+    if (enemy.type == EnemyType::Splitling && enemy.spawnAnimationRemaining > 0.0) {
+        auto pose = splitterPose(false, static_cast<float>(
+            1.0 - (enemy.spawnAnimationRemaining - subTickSeconds) / 0.72));
+        if (enemy.id.index % 2U == 0U) pose.roll = -pose.roll;
+        return pose;
+    }
+    return {};
+}
+
+double enemySplitSubTickSeconds(const SimulationSnapshot& snapshot, double interpolationAlpha) {
+    return acceptsGameplayInput(snapshot.state) && !snapshot.runUpgradeChoicePending
+        ? std::clamp(interpolationAlpha, 0.0, 1.0) * FixedStep::TickSeconds : 0.0;
+}
+
+Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
     return {
         static_cast<float>(enemy.position.x),
         enemy.type == EnemyType::Flying
             ? 1.25F
-            : static_cast<float>(0.02 + enemy.surfaceHeightOffset),
+            : static_cast<float>(0.02 + enemy.surfaceHeightOffset) +
+                enemySplitPose(enemy, subTickSeconds).hop,
         static_cast<float>(enemy.position.z),
     };
 }

@@ -263,6 +263,8 @@ struct EnemyDrawInstance {
     bool lowDetail{};
     bool inkOutlineEligible{true};
     std::uint8_t eliteAffixes{};
+    Vector3 bodyStretch{1, 1, 1};
+    float bodyRoll{};
 };
 
 struct LootChestWorldTransform {
@@ -574,7 +576,8 @@ class Renderer {
         float scale = 1.0F, bool loop = true,
         bool inkOutlineEligible = true,
         bool quantizeCrowdPose = false,
-        std::uint8_t eliteAffixes = 0);
+        std::uint8_t eliteAffixes = 0,
+        Vector3 bodyStretch = {1, 1, 1}, float bodyRoll = 0);
     [[nodiscard]] bool drawEnemiesInstanced(
         std::span<const EnemyDrawInstance> instances);
     void drawGrassInstances(Vector3 cameraPosition,

@@ -17,6 +17,7 @@
 #include "graphics/ModularBuildingRenderer.hpp"
 #include "graphics/Renderer.hpp"
 #include "graphics/EnemyPresentation.hpp"
+#include "graphics/SplitterPresentation.hpp"
 #include "world/VisualBiomes.hpp"
 
 #include <raylib.h>
@@ -145,6 +146,90 @@ bool checkEnemyPresentation(ian::Renderer& renderer) {
         valid = valid && frozen.m12 == 1 && frozen.m13 == 2 && frozen.m14 == 3;
     }
     for (Image image : {day, night, crowd, flash, covered}) UnloadImage(image);
+    UnloadRenderTexture(target);
+    return valid;
+}
+
+bool checkSplitterPresentation(ian::Renderer& renderer) {
+    bool valid = true;
+    for (const bool parent : {true, false}) {
+        auto previous = ian::splitterPose(parent, 0);
+        for (int frame = 0; frame <= 240; ++frame) {
+            const auto pose = ian::splitterPose(parent, static_cast<float>(frame) / 240);
+            const Matrix transform = ian::enemyPresentationTransform(
+                parent ? ian::EnemyModelVisual::Splitter : ian::EnemyModelVisual::Splitling,
+                ian::EnemyAnimationVisual::Idle, 0, {0, pose.hop, 0}, .4F, 1,
+                pose.stretch, pose.roll);
+            valid = valid && std::isfinite(MatrixDeterminant(transform)) &&
+                MatrixDeterminant(transform) > .05F && pose.hop >= 0 && pose.hop < .7F &&
+                Vector3Distance(pose.stretch, previous.stretch) < .08F;
+            previous = pose;
+        }
+    }
+    const auto landed = ian::splitterPose(false, 1);
+    valid = valid && landed.stretch.x == 1 && landed.stretch.y == 1 &&
+        landed.stretch.z == 1 && landed.hop == 0 && landed.roll == 0;
+    const auto squash = ian::splitterPose(true, .28F);
+    const auto stretch = ian::splitterPose(true, .62F);
+    valid = valid && squash.stretch.y < .75F && squash.stretch.x > 1.1F &&
+        stretch.stretch.y > 1.3F && ian::splitterPose(false, .34F).hop > .6F;
+
+    const auto target = LoadRenderTexture(512, 384);
+    if (!IsRenderTextureValid(target)) return false;
+    const Camera3D camera{{0, 2.2F, 7}, {0, 1.35F, 0}, {0, 1, 0}, 3.7F, CAMERA_ORTHOGRAPHIC};
+    const Color background{18, 35, 57, 255};
+    const auto capture = [&](bool parent, float progress, bool batched) {
+        renderer.beginFrame();
+        BeginTextureMode(target);
+        ClearBackground(background);
+        BeginMode3D(camera);
+        ian::WorldLighting lighting{};
+        lighting.cameraPosition = camera.position;
+        renderer.beginWorldShader(lighting);
+        renderer.setWorldMaterial({});
+        std::array<ian::EnemyDrawInstance, 2> enemies{};
+        for (std::size_t i = 0; i < enemies.size(); ++i) {
+            const auto pose = ian::splitterPose(parent, i == 0 ? progress : 1 - progress);
+            enemies[i] = {
+                .modelVisual = parent ? ian::EnemyModelVisual::Splitter : ian::EnemyModelVisual::Splitling,
+                .animationVisual = ian::EnemyAnimationVisual::Idle,
+                .position = {-1.15F + static_cast<float>(i) * 2.3F, pose.hop, 0},
+                .yawRadians = .15F, .scale = parent ? .58F : .60F,
+                .bodyStretch = pose.stretch, .bodyRoll = pose.roll,
+            };
+        }
+        if (batched) valid = renderer.drawEnemiesInstanced(enemies) && valid;
+        else for (const auto& enemy : enemies) valid = renderer.drawEnemy(
+            enemy.modelVisual, enemy.animationVisual, 0, enemy.position, enemy.yawRadians,
+            WHITE, enemy.scale, true, true, false, 0, enemy.bodyStretch, enemy.bodyRoll) && valid;
+        renderer.endWorldShader();
+        EndMode3D();
+        EndTextureMode();
+        Image image = LoadImageFromTexture(target.texture);
+        ImageFlipVertical(&image);
+        return image;
+    };
+    for (const bool parent : {true, false}) for (int frame = 0; frame < 5; ++frame) {
+        const float progress = static_cast<float>(frame) / 4;
+        Image direct = capture(parent, progress, false), batch = capture(parent, progress, true);
+        int visible = 0, different = 0;
+        for (int y = 0; y < direct.height; ++y) for (int x = 0; x < direct.width; ++x) {
+            const Color a = GetImageColor(direct, x, y), b = GetImageColor(batch, x, y);
+            if (std::max({a.r, a.g, a.b}) > 80) ++visible;
+            if (std::max({std::abs(int(a.r) - int(b.r)), std::abs(int(a.g) - int(b.g)),
+                std::abs(int(a.b) - int(b.b))}) > 8) ++different;
+        }
+        valid = valid && visible > 500 && different < 250;
+        if (const char* directory = std::getenv("IAN_CAPTURE_SPLITTER")) {
+            std::filesystem::create_directories(directory);
+            ExportImage(batch, (std::filesystem::path(directory) /
+                (std::string(parent ? "splitter-" : "splitling-") + std::to_string(frame) + ".png")).c_str());
+        }
+        if (different >= 250 || visible <= 500)
+            std::cerr << "splitter pose visible/batch differences: " << visible << '/' << different << '\n';
+        UnloadImage(direct);
+        UnloadImage(batch);
+    }
     UnloadRenderTexture(target);
     return valid;
 }
@@ -2966,6 +3051,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkSplitterPresentation(renderer)) {
+            std::cerr << "splitter squash, hop and instanced pose mismatch\n";
+            return 1;
+        }
         if (!checkCartoonCoins(renderer)) {
             std::cerr << "cartoon coin palette, relief, rotation or depth failed\n";
             return 1;

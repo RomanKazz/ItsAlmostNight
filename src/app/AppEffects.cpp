@@ -1412,59 +1412,33 @@ void App::drawPresentationEffects(
                      atmosphereAlpha(fade * 0.72F)});
             }
         } else if (effect.type == PresentationEffectType::SplitBurst) {
-            const float fade =
-                1.0F - smoothstep(0.48F, 1.0F, progress);
-            const float flash =
-                1.0F - smoothstep(0.0F, 0.22F, progress);
-            const float ringRadius = effect.scale *
-                (0.22F + progress * 2.15F);
-            BeginBlendMode(BLEND_ADDITIVE);
-            for (int ring = 0; ring < 3; ++ring) {
-                DrawCircle3D(
-                    {origin.x,
-                     origin.y + 0.08F +
-                         static_cast<float>(ring) * 0.035F,
-                     origin.z},
-                    ringRadius - static_cast<float>(ring) * 0.07F,
-                    {1.0F, 0.0F, 0.0F}, 90.0F,
-                    {121, 255, 116,
-                     atmosphereAlpha(
-                         fade * (0.72F -
-                             static_cast<float>(ring) * 0.16F))});
-            }
-            DrawSphereEx(
-                {origin.x, origin.y + 0.62F, origin.z},
-                effect.scale * (0.18F + flash * 0.42F),
-                8, 8,
-                {178, 255, 142,
-                 atmosphereAlpha(flash * 0.78F)});
-            EndBlendMode();
-
-            constexpr int GlobCount = 18;
+            // A compact, opaque slime pop: no ground rings, glowing orb or
+            // additive wash. Shrinking fragments leave the babies readable.
+            constexpr int GlobCount = 7;
+            const float flight = progress * (2.0F - progress);
+            const float shrink = 1.0F - smoothstep(.28F, 1.0F, progress);
             for (int index = 0; index < GlobCount; ++index) {
-                const float angle =
-                    effectUnit(index, 91) * 2.0F * PI;
-                const float speed = effect.scale *
-                    (0.8F + effectUnit(index, 92) * 2.35F);
-                const float distance =
-                    0.12F + progress * speed;
-                const float arc =
-                    std::sin(progress * PI) *
-                    (0.35F + effectUnit(index, 93) * 1.25F);
-                const float size = effect.scale *
-                    (0.035F + effectUnit(index, 94) * 0.095F) *
-                    (1.0F - progress * 0.48F);
-                DrawSphereEx(
-                    {origin.x + std::cos(angle) * distance,
-                     origin.y + 0.22F + arc,
-                     origin.z + std::sin(angle) * distance},
-                    size, 5, 5,
-                    {static_cast<unsigned char>(72 +
-                         effectUnit(index, 95) * 54.0F),
-                     static_cast<unsigned char>(174 +
-                         effectUnit(index, 96) * 62.0F),
-                     73,
-                     atmosphereAlpha(fade * 0.92F)});
+                const float angle = (static_cast<float>(index) + effectUnit(index, 91) * .4F) *
+                    (2.0F * PI / static_cast<float>(GlobCount));
+                const float distance = effect.scale * flight *
+                    (.45F + effectUnit(index, 92) * .55F);
+                const float arc = std::sin(progress * PI) *
+                    (.22F + effectUnit(index, 93) * .38F);
+                const float size = effect.scale * shrink *
+                    (.055F + effectUnit(index, 94) * .07F);
+                if (size < .002F) continue;
+                const Vector3 center{origin.x + std::cos(angle) * distance,
+                    origin.y + .32F + arc, origin.z + std::sin(angle) * distance};
+                const Color slime{100, 202, 90, 255};
+                rlPushMatrix();
+                rlTranslatef(center.x, center.y, center.z);
+                rlRotatef(angle * RAD2DEG, 0, 1, 0);
+                rlRotatef(-30 + progress * 95, 0, 0, 1);
+                rlScalef(.82F, 1.35F - progress * .4F, .82F);
+                DrawSphereEx({}, size, 6, 8, slime);
+                DrawSphereEx({-size * .24F, size * .30F, size * .72F},
+                    size * .23F, 4, 6, {211, 246, 169, 255});
+                rlPopMatrix();
             }
         } else if (effect.type == PresentationEffectType::RamImpact) {
             const float fade = 1.0F - smoothstep(0.35F, 1.0F, progress);

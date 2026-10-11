@@ -724,7 +724,10 @@ void App::drawSelectionPass(
                 // matching the non-instanced visible render path.
                 continue;
             }
-            Vector3 enemyPosition = enemyRenderPosition(enemy);
+            const auto splitPose = enemySplitPose(enemy,
+                enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha()));
+            Vector3 enemyPosition = enemyRenderPosition(enemy,
+                enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha()));
             enemyPosition.y += static_cast<float>(
                 simulation_.terrain().getHeight(
                     enemy.position.x, enemy.position.z));
@@ -735,14 +738,17 @@ void App::drawSelectionPass(
             renderer_->setSelectionOutlineBounds(
                 renderer_->enemyWorldBounds(
                     enemyModelVisual(enemy.type), enemyPosition,
-                    static_cast<float>(enemy.yaw), scale, true));
+                    static_cast<float>(enemy.yaw), scale * std::max({1.0F,
+                        splitPose.stretch.x, splitPose.stretch.y, splitPose.stretch.z}) *
+                        (1 + std::abs(splitPose.roll)), true));
             static_cast<void>(renderer_->drawEnemy(
                 enemyModelVisual(enemy.type),
                 enemyAnimationVisual(enemy),
                 enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                WHITE, scale, true, true, false, enemy.eliteAffixes));
+                WHITE, scale, true, true, false, enemy.eliteAffixes,
+                splitPose.stretch, splitPose.roll));
         }
         renderer_->setSelectionMaskColor(WHITE);
         if (snapshot.aimedLoot) {
@@ -1158,8 +1164,10 @@ void App::drawSelectionPass(
                                *snapshot.aimedEnemy;
                 });
             if (enemy != snapshot.enemies.end()) {
-                Vector3 enemyPosition =
-                    enemyRenderPosition(*enemy);
+                const auto splitPose = enemySplitPose(*enemy,
+                    enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha()));
+                Vector3 enemyPosition = enemyRenderPosition(*enemy,
+                    enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha()));
                 enemyPosition.y += static_cast<float>(
                     simulation_.terrain().getHeight(
                         enemy->position.x,
@@ -1177,7 +1185,9 @@ void App::drawSelectionPass(
                 renderer_->setSelectionOutlineBounds(
                     renderer_->enemyWorldBounds(
                         enemyModelVisual(enemy->type), enemyPosition,
-                        static_cast<float>(enemy->yaw), scale, enemy->eliteAffixes != 0));
+                        static_cast<float>(enemy->yaw), scale * std::max({1.0F,
+                            splitPose.stretch.x, splitPose.stretch.y, splitPose.stretch.z}) *
+                            (1 + std::abs(splitPose.roll)), enemy->eliteAffixes != 0));
                 static_cast<void>(renderer_->drawEnemy(
                     enemyModelVisual(enemy->type),
                     enemyAnimationVisual(*enemy),
@@ -1185,7 +1195,8 @@ void App::drawSelectionPass(
                         *enemy, snapshot.elapsedSeconds),
                     enemyPosition,
                     static_cast<float>(enemy->yaw), WHITE,
-                    scale, true, true, false, enemy->eliteAffixes));
+                    scale, true, true, false, enemy->eliteAffixes,
+                    splitPose.stretch, splitPose.roll));
             }
         } else if (
             !foundationBuildMode_ &&

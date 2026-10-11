@@ -395,7 +395,7 @@ bool Renderer::drawEnemy(
     float animationSeconds, Vector3 position,
     float yawRadians, Color tint, float scale, bool loop,
     bool inkOutlineEligible, bool quantizeCrowdPose,
-    std::uint8_t eliteAffixes) {
+    std::uint8_t eliteAffixes, Vector3 bodyStretch, float bodyRoll) {
     ModelResource* modelResource =
         enemyModelFor(resources_, modelVisual);
     if (modelResource == nullptr || !modelResource->valid()) {
@@ -480,7 +480,7 @@ bool Renderer::drawEnemy(
         modelResource->runtimeBoneMatricesFinite();
     const Matrix transform = MatrixMultiply(model.transform,
         enemyPresentationTransform(modelVisual, animationVisual, motionTime,
-            position, yawRadians, EnemyImportScale * scale));
+            position, yawRadians, EnemyImportScale * scale, bodyStretch, bodyRoll));
     bool bonesUploaded = false;
     for (int meshIndex = 0; meshIndex < model.meshCount;
          ++meshIndex) {
@@ -518,7 +518,8 @@ bool Renderer::drawEnemy(
     drawEliteEnemyDetails({.modelVisual = modelVisual, .animationVisual = animationVisual,
         .animationSeconds = motionTime, .position = position, .yawRadians = yawRadians,
         .tint = tint, .whiteFlashAmount = worldMaterial_.enemyWhiteFlashAmount, .scale = scale,
-        .loop = loop, .inkOutlineEligible = inkOutlineEligible, .eliteAffixes = eliteAffixes});
+        .loop = loop, .inkOutlineEligible = inkOutlineEligible, .eliteAffixes = eliteAffixes,
+        .bodyStretch = bodyStretch, .bodyRoll = bodyRoll});
     if (worldShaderActive_) setWorldMaterial(originalMaterial);
     return true;
 }
@@ -540,7 +541,8 @@ void Renderer::drawEliteEnemyDetails(const EnemyDrawInstance& instance) {
     }
     const Matrix world = MatrixMultiply(model.transform,
         enemyPresentationTransform(instance.modelVisual, instance.animationVisual, instance.animationSeconds,
-            instance.position, instance.yawRadians, EnemyImportScale * instance.scale));
+            instance.position, instance.yawRadians, EnemyImportScale * instance.scale,
+            instance.bodyStretch, instance.bodyRoll));
     const WorldMaterialState original = worldMaterial_;
     if (worldShaderActive_) {
         WorldMaterialState material = original;
@@ -700,14 +702,14 @@ bool Renderer::drawEnemiesInstanced(
         Matrix transform{};
         if (lowDetail) {
             Vector3 proxyPosition = instance.position;
-            proxyPosition.y += uniformScale;
+            proxyPosition.y += uniformScale * instance.bodyStretch.y;
             transform = MatrixMultiply(
                 MatrixScale(
-                    uniformScale * 0.9F,
-                    uniformScale * 2.0F,
-                    uniformScale * 0.9F),
+                    uniformScale * 0.9F * instance.bodyStretch.x,
+                    uniformScale * 2.0F * instance.bodyStretch.y,
+                    uniformScale * 0.9F * instance.bodyStretch.z),
                 MatrixMultiply(
-                    MatrixRotateY(instance.yawRadians),
+                    MatrixMultiply(MatrixRotateZ(instance.bodyRoll), MatrixRotateY(instance.yawRadians)),
                     MatrixTranslate(
                         proxyPosition.x, proxyPosition.y,
                         proxyPosition.z)));
@@ -715,7 +717,8 @@ bool Renderer::drawEnemiesInstanced(
             const float motionTime = static_cast<float>(frame) / SourceAnimationFps;
             transform = MatrixMultiply(resource->get().transform,
                 enemyPresentationTransform(instance.modelVisual, instance.animationVisual,
-                    motionTime, instance.position, instance.yawRadians, uniformScale));
+                    motionTime, instance.position, instance.yawRadians, uniformScale,
+                    instance.bodyStretch, instance.bodyRoll));
         }
         batch.transforms.push_back(transform);
     }
@@ -920,7 +923,7 @@ bool Renderer::drawEnemiesInstanced(
         static_cast<void>(drawEnemy(instance.modelVisual, instance.animationVisual,
             instance.animationSeconds, instance.position, instance.yawRadians, instance.tint,
             instance.scale, instance.loop, instance.inkOutlineEligible,
-            false, instance.eliteAffixes));
+            false, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
     }
     setWorldMaterial(originalMaterial);
     instancedEnemyMillisecondsThisFrame_ +=

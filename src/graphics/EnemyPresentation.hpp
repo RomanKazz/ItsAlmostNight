@@ -13,7 +13,8 @@ namespace ian {
 // shadows and selection masks. Foot pivot and gameplay positions stay intact.
 inline Matrix enemyPresentationTransform(
     EnemyModelVisual visual, EnemyAnimationVisual animation, float seconds,
-    Vector3 position, float yaw, float scale) {
+    Vector3 position, float yaw, float scale,
+    Vector3 bodyStretch = {1, 1, 1}, float bodyRoll = 0) {
     const float time = std::isfinite(seconds) ? std::max(0.0F, seconds) : 0.0F;
     const bool heavy = visual == EnemyModelVisual::Warrior ||
         visual == EnemyModelVisual::Boss || visual == EnemyModelVisual::Splitter;
@@ -46,8 +47,9 @@ inline Matrix enemyPresentationTransform(
     const float tall = 1.0F + spring;
     const float wide = 1.0F / std::sqrt(tall);
     const Matrix deform = MatrixMultiply(
-        MatrixScale(scale * wide, scale * tall, scale * wide),
-        MatrixMultiply(MatrixRotateX(pitch), MatrixRotateZ(roll)));
+        MatrixScale(scale * wide * bodyStretch.x, scale * tall * bodyStretch.y,
+            scale * wide * bodyStretch.z),
+        MatrixMultiply(MatrixRotateX(pitch), MatrixRotateZ(roll + bodyRoll)));
     position.y += hop * scale;
     return MatrixMultiply(deform, MatrixMultiply(MatrixRotateY(yaw),
         MatrixTranslate(position.x, position.y, position.z)));

@@ -807,7 +807,7 @@ void App::processPresentationEvents(
         } else if (event.type == GameEventType::EnemySplit) {
             addEffect(
                 PresentationEffectType::SplitBurst,
-                event.position, 1.05,
+                event.position, 0.56,
                 0.9F + static_cast<float>(event.amount) * 0.08F,
                 event.entityId);
             const double distance = std::hypot(
@@ -815,8 +815,8 @@ void App::processPresentationEvents(
                 event.position.z - eventSnapshot.playerPosition.z);
             const double proximity = std::clamp(
                 1.0 - distance / 22.0, 0.0, 1.0);
-            addCameraShake(0.16, 0.035 + 0.045 * proximity);
-            addCameraImpulse({0.0, 0.018 * proximity, 0.0});
+            addCameraShake(0.10, 0.012 * proximity);
+            addCameraImpulse({0.0, 0.012 * proximity, 0.0});
         } else if (event.type == GameEventType::Explosion) {
             const double distance = std::hypot(
                 event.position.x - eventSnapshot.playerPosition.x,
@@ -1206,7 +1206,12 @@ void App::processPresentationEvents(
                 [&event](const EnemyInstance& candidate) {
                     return candidate.id == *event.entityId;
                 });
-            if (enemy != eventSnapshot.enemies.end()) {
+            // A splitter's retained parent already performs its own collapse.
+            // A generic corpse would sit inside it and hide squash/stretch.
+            const bool splittingDeath = event.type == GameEventType::EnemyKilled &&
+                ((enemy != eventSnapshot.enemies.end() && enemy->splitAnimationRemaining > 0.0) ||
+                 event.enemyType == EnemyType::Splitter);
+            if (!splittingDeath && enemy != eventSnapshot.enemies.end()) {
                 constexpr double DeathDuration = 0.9;
                 destroyedEnemyVisuals_.push_back({
                     .type = enemy->type,
@@ -1218,7 +1223,7 @@ void App::processPresentationEvents(
                     .remaining = DeathDuration,
                     .duration = DeathDuration,
                 });
-            } else if (event.enemyType) {
+            } else if (!splittingDeath && event.enemyType) {
                 constexpr double DeathDuration = 0.9;
                 destroyedEnemyVisuals_.push_back({
                     .type = *event.enemyType,

@@ -65,6 +65,7 @@ void App::drawWorldEnemies(
     constexpr float EnemyFullDetailDistanceSquared =
         EnemyFullDetailDistance * EnemyFullDetailDistance;
     const double presentationSeconds = GetTime();
+    const double splitSubTickSeconds = enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha());
     for (auto flash = enemyHitFlashById_.begin();
          flash != enemyHitFlashById_.end();) {
         if (presentationSeconds >
@@ -107,7 +108,8 @@ void App::drawWorldEnemies(
         if (!enemy.active && !splitting) {
             continue;
         }
-        const Vector3 cullPosition = enemyRenderPosition(enemy);
+        const auto splitPose = enemySplitPose(enemy, splitSubTickSeconds);
+        const Vector3 cullPosition = enemyRenderPosition(enemy, splitSubTickSeconds);
         const float cullRadius =
             enemy.type == EnemyType::Boss ? 6.0F : 3.5F;
         if (!enemyVisible(cullPosition, cullRadius)) {
@@ -127,7 +129,8 @@ void App::drawWorldEnemies(
             snapshot.aimedEnemy &&
             *snapshot.aimedEnemy == enemy.id;
         const bool lowDetail =
-            !aimed && enemy.type != EnemyType::Boss &&
+            !aimed && !splitting && enemy.spawnAnimationRemaining <= 0.0 &&
+            enemy.type != EnemyType::Boss &&
             enemy.eliteAffixes == 0U &&
             enemyDistanceSquared > EnemyFullDetailDistanceSquared;
         const auto flash = enemyHitFlashById_.find(
@@ -158,18 +161,9 @@ void App::drawWorldEnemies(
             effectKey(enemy.id));
         Color modelTint = WHITE;
         if (splitting) {
-            const float progress = std::clamp(
-                static_cast<float>(
-                    1.0 - enemy.splitAnimationRemaining / 0.38),
-                0.0F, 1.0F);
-            modelTint = {
-                255,
-                static_cast<unsigned char>(
-                    std::lround(238.0F - progress * 72.0F)),
-                static_cast<unsigned char>(
-                    std::lround(184.0F - progress * 86.0F)),
-                255,
-            };
+            // Keep the authored slime pigment; a brief mint flash marks release.
+            hitFlash = std::max(hitFlash, .38F * smoothstep(.72F, 1.0F,
+                static_cast<float>(1.0 - (enemy.splitAnimationRemaining - splitSubTickSeconds) / .38)));
         } else if (freezeStatus.visualParameter > 0.01) {
             const float cold = static_cast<float>(std::clamp(freezeStatus.visualParameter, 0.0, 1.0));
             modelTint = {static_cast<unsigned char>(255 - 104 * cold),
@@ -229,10 +223,11 @@ void App::drawWorldEnemies(
                 .yawRadians =
                     static_cast<float>(enemy.yaw),
                 .tint = modelTint,
-                .whiteFlashAmount = batchedHitFlash,
+                .whiteFlashAmount = splitting ? hitFlash : batchedHitFlash,
                 .scale = enemyScale,
                 .lowDetail = lowDetail,
                 .eliteAffixes = enemy.eliteAffixes,
+                .bodyStretch = splitPose.stretch, .bodyRoll = splitPose.roll,
             });
             continue;
         }
@@ -303,7 +298,8 @@ void App::drawWorldEnemies(
                 frozen ? 0.0F : enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
                 enemyPosition, static_cast<float>(enemy.yaw),
-                modelTint, enemyScale, true, true, false, enemy.eliteAffixes)) {
+                modelTint, enemyScale, true, true, false, enemy.eliteAffixes,
+                splitPose.stretch, splitPose.roll)) {
             const float hitScale = enemyHitScale(enemy);
             DrawCube(enemyPosition, width * hitScale,
                      height * hitScale, width * hitScale,
@@ -334,7 +330,7 @@ void App::drawWorldEnemies(
                     instance.yawRadians,
                     instance.tint, instance.scale,
                     instance.loop,
-                    instance.inkOutlineEligible, false, instance.eliteAffixes));
+                    instance.inkOutlineEligible, false, instance.eliteAffixes, instance.bodyStretch, instance.bodyRoll));
             }
         }
     }

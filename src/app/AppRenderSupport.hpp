@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/App.hpp"
+#include "graphics/SplitterPresentation.hpp"
 #include "buildings/PlacementLine.hpp"
 #include "world/WorldConfig.hpp"
 
@@ -38,8 +39,12 @@ rerollTargetLootItemVisual(
 [[nodiscard]] float enemyVisualScale(EnemyType type);
 [[nodiscard]] float enemyHitScale(
     const EnemyInstance& enemy);
+[[nodiscard]] SplitterPose enemySplitPose(
+    const EnemyInstance& enemy, double subTickSeconds = 0.0);
+[[nodiscard]] double enemySplitSubTickSeconds(
+    const SimulationSnapshot& snapshot, double interpolationAlpha);
 [[nodiscard]] Vector3 enemyRenderPosition(
-    const EnemyInstance& enemy);
+    const EnemyInstance& enemy, double subTickSeconds = 0.0);
 [[nodiscard]] float enemyAnimationSeconds(
     const EnemyInstance& enemy, double elapsedSeconds);
 [[nodiscard]] float spikeTrapAnimationSeconds(
