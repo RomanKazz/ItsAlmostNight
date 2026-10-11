@@ -7,6 +7,7 @@
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/GraphicsResources.hpp"
+#include "BombGraphicsChecks.hpp"
 #include "graphics/AtmosphereParticles.hpp"
 #include "app/AppEffectDrawing.hpp"
 #include "app/AppProjectileDrawing.hpp"
@@ -3051,6 +3052,10 @@ int main() {
 
         ian::Renderer renderer;
         renderer.initialize();
+        if (!checkCartoonBombs(renderer)) {
+            std::cerr << "cartoon bomb visibility, fuse motion or depth failed\n";
+            result = 1;
+        }
         if (!checkSplitterPresentation(renderer)) {
             std::cerr << "splitter squash, hop and instanced pose mismatch\n";
             return 1;

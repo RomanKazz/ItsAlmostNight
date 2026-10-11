@@ -1,6 +1,7 @@
 #include "graphics/Renderer.hpp"
 #include "graphics/RendererModelSupport.hpp"
 #include "graphics/FireWandEffect.hpp"
+#include "graphics/BombDrawing.hpp"
 #include "graphics/ViewModelCompositeBounds.hpp"
 
 
@@ -165,11 +166,14 @@ bool Renderer::drawFirstPersonTool(
         if (viewModelShader != nullptr) {
             BeginShaderMode(*viewModelShader);
         }
-        DrawSphereEx({}, 0.27F, 12, 12, {49, 55, 63, 255});
-        DrawCylinder({0.0F, 0.29F, 0.0F}, 0.055F, 0.04F,
-                     0.16F, 8, {124, 80, 39, 255});
-        DrawSphere({0.0F, 0.39F, 0.0F}, 0.035F,
-                   {255, 152, 38, 255});
+        const float time = static_cast<float>(GetTime());
+        const Vector3 fuse = bomb_drawing::drawBody(time);
+        const Matrix inverseTool = MatrixInvert(rlGetMatrixTransform());
+        const Vector3 localCamera = Vector3Transform({}, inverseTool);
+        const Vector3 localUp = Vector3Normalize(Vector3Subtract(
+            Vector3Transform({0, 1, 0}, inverseTool), localCamera));
+        bomb_drawing::drawFuse(fuse, localCamera, localUp, time, 0,
+                              settings_.particles);
         if (viewModelShader != nullptr) {
             EndShaderMode();
         }
