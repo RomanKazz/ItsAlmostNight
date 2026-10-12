@@ -951,6 +951,7 @@ void EnemySystem::updateEnemyTimers(
     enemy.spawnAnimationRemaining = std::max(
         0.0,
         enemy.spawnAnimationRemaining - deltaSeconds);
+    enemy.portalArrivalRemaining=std::max(0.0,enemy.portalArrivalRemaining-deltaSeconds);
     enemy.ramCooldownRemaining =
         std::max(0.0, enemy.ramCooldownRemaining - deltaSeconds);
     enemy.bossAbilityCooldownRemaining = std::max(
@@ -1082,6 +1083,13 @@ std::span<const EnemyAttack> EnemySystem::tick(
             (berserkerActive(enemy) ? 1.28 : 1.0) *
             bossPhaseSpeed;
 
+        if(enemy.arrivalPortal && enemy.portalArrivalRemaining>0 && enemy.type!=EnemyType::Boss) {
+            enemy.yaw=enemy.portalExitYaw;
+            enemy.state=EnemyState::MoveToCore;
+            moveEnemyHorizontally(enemy,{std::sin(enemy.portalExitYaw)*movementSpeed*deltaSeconds,0,
+                std::cos(enemy.portalExitYaw)*movementSpeed*deltaSeconds},navigation);
+            continue;
+        }
         if (advanceBossAbility(enemy, deltaSeconds, playerPosition, coreWorldPosition, terrain, navigation)) {
             continue;
         }
@@ -1637,6 +1645,8 @@ std::span<const EnemyAttack> EnemySystem::tick(
         structureNextBuffer_, structureGridHeads_);
     for (EnemyInstance& enemy : enemies_) {
         if (enemy.active) {
+            if(enemy.arrivalPortal && enemy.portalArrivalRemaining<=0)
+                enemy.arrivalPortal.reset();
             updateEnemySurface(
                 enemy, terrain, navigation, deltaSeconds,
                 lockedAttackSurfaceHeight(
@@ -1758,6 +1768,9 @@ void EnemySystem::appendEnemy(
         .active = true,
         .eliteAffixes = spawn.eliteAffixes,
         .summonerId = spawn.summonerId,
+        .arrivalPortal = spawn.arrivalPortal,
+        .portalArrivalRemaining = spawn.arrivalPortal ? EnemyPortalArrivalDuration : 0,
+        .portalExitYaw = spawn.portalExitYaw,
     };
     if (reusable == enemies_.end()) {
         enemies_.push_back(instance);

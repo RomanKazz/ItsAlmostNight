@@ -1,4 +1,5 @@
 #include "graphics/Renderer.hpp"
+#include "graphics/PortalArrivalEffect.hpp"
 #include "graphics/CoreCrystalModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/GunTurretModel.hpp"
@@ -695,7 +696,7 @@ bool Renderer::drawChallengeArenaPeg(
 bool Renderer::drawEnemyPortal(
     Vector3 position, float yawRadians,
     float matterRotationRadians, const WorldLighting& lighting,
-    float scale) {
+    float scale, float arrivalProgress, float openingProgress, bool detailedArrival) {
     ModelResource& portal = resources_.enemyPortalModel();
     TextureResource& matter = resources_.portalMatterTexture();
     if (!portal.valid() || !matter.valid() || scale <= 0.001F) {
@@ -705,6 +706,9 @@ bool Renderer::drawEnemyPortal(
     constexpr float PortalCenterHeight = 1.74F;
     constexpr float PortalGroundLift = -0.24F;
     constexpr float MatterRadius = 2.13F;
+    const float open=fire_wand_effect::ease(std::clamp(openingProgress,0.0F,1.0F));
+    const float pulse=arrivalProgress>=0 && arrivalProgress<1 ? std::sin(arrivalProgress*PI)*(1-arrivalProgress) : 0;
+    const float aperture=.12F+.88F*open;
     Model& frame = portal.get();
     beginWorldShader(lighting);
     WorldMaterialState stoneMaterial{};
@@ -739,8 +743,8 @@ bool Renderer::drawEnemyPortal(
     }
     drawPortalMatterPlane(
         matter.get(), matterCenter, yawRadians,
-        MatterRadius * scale, matterRotationRadians,
-        WHITE);
+        MatterRadius * scale * aperture * (1-pulse*.08F), matterRotationRadians+pulse*.28F,
+        {255,static_cast<unsigned char>(255-55*pulse),255,255});
     if (masksBackgroundInk) {
         EndShaderMode();
     }
@@ -749,12 +753,23 @@ bool Renderer::drawEnemyPortal(
     rlDisableDepthMask();
     BeginBlendMode(BLEND_ADDITIVE);
     drawPortalGlowRing(
-        matterCenter, yawRadians, MatterRadius * scale,
-        {194, 72, 255, 72});
+        matterCenter, yawRadians, MatterRadius * scale * aperture * (1+pulse*.08F),
+        {194, 72, 255, static_cast<unsigned char>(72+100*pulse)});
     EndBlendMode();
     rlDrawRenderBatchActive();
     rlEnableBackfaceCulling();
     rlEnableDepthMask();
+    const Vector3 forward{std::cos(yawRadians),0,-std::sin(yawRadians)};
+    if(arrivalProgress>=0 && arrivalProgress<1 && Vector3DotProduct(Vector3Subtract(lighting.cameraPosition,matterCenter),forward)>=0) {
+        beginWorldShader(lighting);
+        WorldMaterialState energy{};energy.unlitAmount=1;energy.screenAoAmount=0;
+        energy.inkOutlineEligible=false;energy.inkOccluder=false;
+        setWorldMaterial(energy);beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch(false);
+        portal_arrival::gate(matterCenter,{std::cos(yawRadians),0,-std::sin(yawRadians)},
+            lighting.cameraPosition,arrivalProgress,settings_.particles && detailedArrival);
+        fire_wand_effect::endBatch();endColorOnlyWorldEffects();endWorldShader();
+    }
     return true;
 }
 

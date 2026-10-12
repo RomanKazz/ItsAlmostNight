@@ -1,6 +1,7 @@
 #include "ui/TargetHealthBar.hpp"
 
 #include "combat/CombatDisplayUnits.hpp"
+#include "presentation/PortalArrivalVisibility.hpp"
 
 #include "game/Simulation.hpp"
 #include "ui/TargetHealthBarAnchor.hpp"
@@ -160,6 +161,7 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
 
     const auto drawEnemyBar = [&](const EnemyInstance& enemy,
                                   float opacity = 1.0F) {
+        if(!presentation::portalArrivalVisible(enemy,{camera.position.x,camera.position.y,camera.position.z})) return;
         const Vector3 anchor = enemyAnchor(enemy);
         drawBillboard(
             {TargetKind::Enemy, enemy.id},
@@ -460,7 +462,8 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
                 return candidate.active &&
                        candidate.id == *snapshot.aimedEnemy;
         });
-        if (enemy != snapshot.enemies.end()) {
+        if (enemy != snapshot.enemies.end() && presentation::portalArrivalVisible(*enemy,
+            {camera.position.x,camera.position.y,camera.position.z})) {
             const bool showExactHealth =
                 enemy->type == EnemyType::Boss ||
                 enemy->eliteAffixes != 0U;

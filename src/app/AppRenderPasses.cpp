@@ -1,3 +1,4 @@
+#include "presentation/PortalArrivalVisibility.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
@@ -715,7 +716,8 @@ void App::drawSelectionPass(
         // stores each enemy's own color, allowing all three variants to
         // share one outline pass and one texture.
         for (const EnemyInstance& enemy : snapshot.enemies) {
-            if (!enemy.active || enemy.eliteAffixes == 0U) {
+            if (!enemy.active || enemy.eliteAffixes == 0U || !presentation::portalArrivalVisible(enemy,
+                {camera.position.x,camera.position.y,camera.position.z})) {
                 continue;
             }
             if (snapshot.aimedEnemy &&
@@ -1163,7 +1165,8 @@ void App::drawSelectionPass(
                            candidate.id ==
                                *snapshot.aimedEnemy;
                 });
-            if (enemy != snapshot.enemies.end()) {
+            if (enemy != snapshot.enemies.end() && presentation::portalArrivalVisible(*enemy,
+                {camera.position.x,camera.position.y,camera.position.z})) {
                 const auto splitPose = enemySplitPose(*enemy,
                     enemySplitSubTickSeconds(snapshot, fixedStep_.interpolationAlpha()));
                 Vector3 enemyPosition = enemyRenderPosition(*enemy,

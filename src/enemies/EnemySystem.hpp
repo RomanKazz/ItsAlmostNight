@@ -22,6 +22,7 @@ namespace ian {
 class TerrainHeightfield;
 class CollisionWorld;
 class MultiLevelNavigation;
+inline constexpr double EnemyPortalArrivalDuration=.70;
 
 enum class EnemyType : std::uint8_t {
     Basic,
@@ -160,6 +161,9 @@ struct EnemyInstance {
     int bossStrikesRemaining{};
     double bossStrikeTimer{};
     std::array<Vec3, 3> bossStrikeTargets{};
+    std::optional<Vec3> arrivalPortal{};
+    double portalArrivalRemaining{};
+    double portalExitYaw{};
     double aiUpdateRemaining{};
     // Height above terrain supplied by modular floors/ramps. Kept separate
     // from authored model/capsule Y so existing combat dimensions stay valid.
@@ -180,6 +184,8 @@ struct EnemySpawn {
     Vec3 initialKnockbackVelocity{};
     EliteAffixMask eliteAffixes{};
     std::optional<EntityId> summonerId{};
+    std::optional<Vec3> arrivalPortal{};
+    double portalExitYaw{};
 };
 
 struct EliteEnemyEvent {

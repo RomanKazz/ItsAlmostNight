@@ -1,6 +1,7 @@
 #include "app/AppRenderSupport.hpp"
 #include "buildings/BuildingOrientation.hpp"
 #include "graphics/ModularBuildingRenderer.hpp"
+#include "graphics/PortalArrivalEffect.hpp"
 
 #include "ui/UiText.hpp"
 
@@ -213,6 +214,8 @@ float enemyHitScale(const EnemyInstance& enemy) {
 }
 
 SplitterPose enemySplitPose(const EnemyInstance& enemy, double subTickSeconds) {
+    if(enemy.portalArrivalRemaining>0) return portal_arrival::pose(static_cast<float>(
+        1-std::max(0.0,enemy.portalArrivalRemaining-subTickSeconds)/EnemyPortalArrivalDuration),enemy.type==EnemyType::Boss);
     if (enemy.type == EnemyType::Splitter && enemy.splitAnimationRemaining > 0.0) {
         return splitterPose(true, static_cast<float>(
             1.0 - (enemy.splitAnimationRemaining - subTickSeconds) / 0.38));
@@ -232,15 +235,17 @@ double enemySplitSubTickSeconds(const SimulationSnapshot& snapshot, double inter
 }
 
 Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
+    const double arrival=std::clamp((enemy.portalArrivalRemaining-subTickSeconds)/EnemyPortalArrivalDuration,0.0,1.0);
+    const double slip=.65*arrival*arrival;
     return {
-        static_cast<float>(enemy.position.x),
+        static_cast<float>(enemy.position.x-std::sin(enemy.portalExitYaw)*slip),
         enemy.type == EnemyType::Boss
             ? static_cast<float>(enemy.bossHoverOffset)
             : enemy.type == EnemyType::Flying
             ? 1.25F
             : static_cast<float>(0.02 + enemy.surfaceHeightOffset) +
                 enemySplitPose(enemy, subTickSeconds).hop,
-        static_cast<float>(enemy.position.z),
+        static_cast<float>(enemy.position.z-std::cos(enemy.portalExitYaw)*slip),
     };
 }
 

@@ -809,6 +809,9 @@ void runSimulationTests() {
             bossNight.tick(bossNight.snapshot().phaseDuration);
         }
         bossNight.tick(0.0, startNight);
+        require(std::ranges::all_of(bossNight.snapshot().enemies,[](const ian::EnemyInstance& enemy){
+                    return !enemy.active || (enemy.arrivalPortal && enemy.portalArrivalRemaining>0);}),
+                "wave groups carry actual portal birth metadata");
         const auto hasActiveBoss = [&bossNight] {
             return std::ranges::any_of(
                 bossNight.snapshot().enemies,
@@ -3806,11 +3809,10 @@ void runSimulationTests() {
             simulation.snapshot().enemies,
             [southPortal](const ian::EnemyInstance& enemy) {
                 return !enemy.active ||
-                    std::hypot(
-                        enemy.position.x - southPortal.x,
-                        enemy.position.z - southPortal.z) <= 1.25;
+                    (std::abs(enemy.position.x-southPortal.x)<=1.25 &&
+                     enemy.position.z<=southPortal.z && enemy.position.z>=southPortal.z-2.0);
             }),
-        "opening enemy group emerges inside portal aperture");
+        "opening enemy group retains aperture width and emerges on the forward side");
     auto phaseEvents = simulation.takeEvents();
     bool directionWarningFound = false;
     bool waveEventFound = false;

@@ -1,4 +1,5 @@
 #include "BossBattleChecks.hpp"
+#include "presentation/PortalArrivalVisibility.hpp"
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "enemies/EnemyCollision.hpp"
@@ -15,6 +16,44 @@
 #include <vector>
 
 void runEnemySystemTests() {
+    {
+        using namespace ian;
+        EnemySystem arrivals;
+        BuildingSystem buildings;buildings.setSandboxMode(true);
+        require(buildings.place(BuildingType::Core,{0,0},0,30,0).has_value(),"arrival fixture has active core");
+        FlowField flow;flow.rebuild({0,0},buildings.buildings());
+        constexpr std::array<EnemySpawn,1> tagged{{{.type=EnemyType::Heavy,.position={-8,1,0},
+            .arrivalPortal=Vec3{-9,0,0},.portalExitYaw=1.57}}};
+        arrivals.spawnGroup(tagged);
+        const auto id=arrivals.enemies().front().id;
+        const auto initialCylinder=enemyCollisionCylinder(arrivals.enemies().front());
+        require(arrivals.enemies().front().arrivalPortal.has_value(),"portal origin survives spawn");
+        require(presentation::portalArrivalVisible(arrivals.enemies().front(),{0,2,0}) &&
+            !presentation::portalArrivalVisible(arrivals.enemies().front(),{-12,2,0}),
+            "portal arrival is visible from the front and hidden from its rear");
+        auto behind=arrivals.enemies().front();behind.position.x=-10;
+        require(!presentation::portalArrivalVisible(behind,{0,2,0}),"formation behind the portal is hidden until crossing");
+        auto emerged=arrivals.enemies().front();emerged.portalArrivalRemaining=0;
+        require(presentation::portalArrivalVisible(emerged,{-12,2,0}),"completed forward exit is visible normally");
+        requireNear(arrivals.enemies().front().portalArrivalRemaining,EnemyPortalArrivalDuration,1e-12,
+            "portal birth starts once at the shared duration");
+        arrivals.tick(.2,buildings.buildings(),flow,Vec3{-12,1.7,0});
+        require(arrivals.enemies().front().position.x>-8 && arrivals.playerAttacks().empty(),
+            "rear observer cannot lure a new actor backwards through the gate");
+        requireNear(arrivals.enemies().front().portalArrivalRemaining,.5,1e-12,
+            "portal arrival advances in simulation seconds");
+        requireNear(enemyCollisionCylinder(arrivals.enemies().front()).radius,initialCylinder.radius,1e-12,
+            "visual arrival does not shrink physical collision");
+        arrivals.tick(1,buildings.buildings(),flow);
+        require(arrivals.enemies().front().portalArrivalRemaining==0,"coarse tick settles arrival without negative age");
+        require(!arrivals.enemies().front().arrivalPortal,"expired arrival cannot hide an actor indefinitely");
+        arrivals.damage(id,10000);
+        const std::array<EnemySpawn,1> ordinary{{{.type=EnemyType::Basic,.position={0,1,0}}}};
+        arrivals.spawnGroup(ordinary);
+        require(!arrivals.enemies().front().arrivalPortal && arrivals.enemies().front().portalArrivalRemaining==0,
+            "reused actor cannot retain a previous portal emergence");
+        arrivals.reset();require(arrivals.enemies().empty(),"reset removes portal arrivals");
+    }
     {
         using namespace ian;
         const EnemyCylinder cylinder{{0,1,0},1,1};

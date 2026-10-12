@@ -117,7 +117,7 @@ std::array<std::optional<Vec3>, 4> portalPositions(
 }
 
 std::pair<double, double> portalSpawnOffset(std::span<const EnemySpawn> group, std::size_t index) {
-    if (group.size() < 2U) return {0, 0};
+    if (group.size() < 2U) return {0, -.15};
     double maximumRadius = 0;
     for (const auto& spawn : group) {
         EnemyInstance body{};
@@ -126,13 +126,18 @@ std::pair<double, double> portalSpawnOffset(std::span<const EnemySpawn> group, s
         maximumRadius = std::max(maximumRadius, enemyCollisionCylinder(body).radius);
     }
     const double spacing = maximumRadius * 2 + 0.06;
-    if (group.size() == 2U) return {(static_cast<double>(index) - 0.5) * spacing, 0};
+    if (group.size() == 2U) return {(static_cast<double>(index) - 0.5) * spacing, -.15};
     // Three ordinary bodies fit a triangle inside the aperture; a straight
     // line cannot fit without overlap. Larger groups get a wider exit ring.
     constexpr double Pi = 3.14159265358979323846;
     const double radius = spacing / (2 * std::sin(Pi / static_cast<double>(group.size())));
     const double angle = static_cast<double>(index) * 2 * Pi / static_cast<double>(group.size()) - Pi * 0.5;
-    return {std::cos(angle) * radius, std::sin(angle) * radius};
+    double frontShift=0;
+    for(std::size_t i=0;i<group.size();++i) frontShift=std::max(frontShift,std::sin(
+        static_cast<double>(i)*2*Pi/static_cast<double>(group.size())-Pi*.5)*radius);
+    // Translate the intact formation onto the forward side. Do not mirror
+    // individual offsets: that collapses pair spacing and overlaps bodies.
+    return {std::cos(angle) * radius, std::sin(angle) * radius-frontShift-.15};
 }
 
 void routeSpawnsThroughPortals(
@@ -163,6 +168,8 @@ void routeSpawnsThroughPortals(
                 std::min(normalizedGroupSize, spawns.size() - first)), indexInGroup);
         spawn.position.x = portal.x + tangentX * lane + outwardX / length * depth;
         spawn.position.z = portal.z + tangentZ * lane + outwardZ / length * depth;
+        spawn.arrivalPortal=portal;
+        spawn.portalExitYaw=std::atan2(-outwardX,-outwardZ);
     }
 }
 
@@ -194,6 +201,8 @@ void moveGroupToPortal(
         const auto [lane, depth] = portalSpawnOffset(spawns, index);
         spawns[index].position.x = portal.x + tangentX * lane + outwardX / length * depth;
         spawns[index].position.z = portal.z + tangentZ * lane + outwardZ / length * depth;
+        spawns[index].arrivalPortal=portal;
+        spawns[index].portalExitYaw=std::atan2(-outwardX,-outwardZ);
     }
 }
 

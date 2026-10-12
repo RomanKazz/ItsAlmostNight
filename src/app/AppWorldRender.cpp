@@ -1263,10 +1263,19 @@ void App::drawWorldEntities(
                 static_cast<float>(portalTarget.z - portal->z)) -
                 PI * 0.5F;
             constexpr float PortalScale = 0.72F;
+            double newestBirth=0;
+            for(const auto& enemy:snapshot.enemies) {
+                if(enemy.active && enemy.arrivalPortal &&
+                    std::hypot(enemy.arrivalPortal->x-portal->x,enemy.arrivalPortal->z-portal->z)<.1)
+                    newestBirth=std::max(newestBirth,enemy.portalArrivalRemaining);
+            }
+            const float emergence=newestBirth>0 ? static_cast<float>(1-newestBirth/EnemyPortalArrivalDuration) : -1;
+            const float opening=snapshot.finalNight ? 1.0F : static_cast<float>(std::clamp(
+                (snapshot.phaseDuration-snapshot.phaseTimeRemaining)/.65,0.0,1.0));
             static_cast<void>(renderer_->drawEnemyPortal(
                 position, yaw,
                 portalTime * 0.32F + static_cast<float>(index) * 0.83F,
-                lighting, PortalScale));
+                lighting, PortalScale,emergence,opening,!userSettings_.accessibility.reduceFlashes));
         }
         renderer_->beginWorldShader(lighting);
         renderer_->setWorldMaterial({});

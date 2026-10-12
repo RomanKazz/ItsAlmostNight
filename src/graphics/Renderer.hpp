@@ -453,7 +453,8 @@ class Renderer {
     [[nodiscard]] bool drawEnemyPortal(
         Vector3 position, float yawRadians,
         float matterRotationRadians, const WorldLighting& lighting,
-        float scale = 1.0F);
+        float scale = 1.0F, float arrivalProgress = -1.0F,
+        float openingProgress = 1.0F, bool detailedArrival = true);
     [[nodiscard]] bool drawWorldLandmark(
         std::size_t variant, Vector3 position,
         float yawRadians = 0.0F, Color tint = WHITE,

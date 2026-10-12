@@ -1,4 +1,6 @@
 #include "graphics/RoyalBossEffect.hpp"
+#include "graphics/PortalArrivalEffect.hpp"
+#include "presentation/PortalArrivalVisibility.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppBurnDrawing.hpp"
@@ -107,7 +109,8 @@ void App::drawWorldEnemies(
         const bool splitting =
             enemy.type == EnemyType::Splitter &&
             enemy.splitAnimationRemaining > 0.0;
-        if (!enemy.active && !splitting) {
+        if ((!enemy.active && !splitting) || !presentation::portalArrivalVisible(enemy,
+            {camera.position.x,camera.position.y,camera.position.z})) {
             continue;
         }
         const auto splitPose = enemySplitPose(enemy, splitSubTickSeconds);
@@ -131,7 +134,7 @@ void App::drawWorldEnemies(
             snapshot.aimedEnemy &&
             *snapshot.aimedEnemy == enemy.id;
         const bool lowDetail =
-            !aimed && !splitting && enemy.spawnAnimationRemaining <= 0.0 &&
+            !aimed && !splitting && enemy.spawnAnimationRemaining <= 0.0 && enemy.portalArrivalRemaining<=0 &&
             enemy.type != EnemyType::Boss &&
             enemy.eliteAffixes == 0U &&
             enemyDistanceSquared > EnemyFullDetailDistanceSquared;
@@ -342,7 +345,8 @@ void App::drawWorldEnemies(
     rlDrawRenderBatchActive();
     rlDisableDepthMask();
     for (const EnemyInstance& elite : snapshot.enemies) {
-        if (!elite.active || elite.eliteAffixes == 0U) {
+        if (!elite.active || elite.eliteAffixes == 0U || !presentation::portalArrivalVisible(elite,
+            {camera.position.x,camera.position.y,camera.position.z})) {
             continue;
         }
         Vector3 center = enemyRenderPosition(elite);
@@ -386,7 +390,8 @@ void App::drawWorldEnemies(
         for (const EnemyInstance& protectedEnemy :
              snapshot.enemies) {
             if (!protectedEnemy.active ||
-                protectedEnemy.id == elite.id || linked >= 8) {
+                protectedEnemy.id == elite.id || linked >= 8 || !presentation::portalArrivalVisible(protectedEnemy,
+                {camera.position.x,camera.position.y,camera.position.z})) {
                 continue;
             }
             const double x =
@@ -434,6 +439,23 @@ void App::drawWorldEnemies(
         }
         renderer_->setWorldMaterial({});
     }
+    if(std::ranges::any_of(snapshot.enemies,[](const EnemyInstance& enemy){return enemy.active && enemy.portalArrivalRemaining>0;})) {
+        WorldMaterialState energy{};energy.unlitAmount=1;energy.screenAoAmount=0;
+        energy.inkOutlineEligible=false;energy.inkOccluder=false;
+        renderer_->setWorldMaterial(energy);renderer_->beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch(false);
+        for(const auto& enemy:snapshot.enemies) if(enemy.active && enemy.portalArrivalRemaining>0 &&
+            presentation::portalArrivalVisible(enemy,{camera.position.x,camera.position.y,camera.position.z})) {
+            Vector3 root=enemyRenderPosition(enemy,subTickSeconds);
+            root.y+=static_cast<float>(simulation_.terrain().getHeight(enemy.position.x,enemy.position.z));
+            if(!enemyVisible(root,3)) continue;
+            portal_arrival::exit(root,camera.position,static_cast<float>(1-
+                std::max(0.0,enemy.portalArrivalRemaining-subTickSeconds)/EnemyPortalArrivalDuration),
+                enemy.type==EnemyType::Boss?1.7F:enemy.type==EnemyType::Heavy?1.3F:.85F,
+                renderer_->settings().particles && !userSettings_.accessibility.reduceFlashes,enemy.id.index);
+        }
+        fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->setWorldMaterial({});
+    }
     if(std::ranges::any_of(snapshot.enemies,[](const EnemyInstance& enemy){return enemy.active && enemy.type==EnemyType::Boss;})) {
         WorldMaterialState royalMaterial{};
         royalMaterial.unlitAmount=1;royalMaterial.screenAoAmount=0;
@@ -441,7 +463,8 @@ void App::drawWorldEnemies(
         renderer_->setWorldMaterial(royalMaterial);renderer_->beginColorOnlyWorldEffects();
         fire_wand_effect::beginBatch();
         const bool detailed=renderer_->settings().particles && !userSettings_.accessibility.reduceFlashes;
-        for(const auto& enemy:snapshot.enemies) if(enemy.active && enemy.type==EnemyType::Boss) {
+        for(const auto& enemy:snapshot.enemies) if(enemy.active && enemy.type==EnemyType::Boss &&
+            presentation::portalArrivalVisible(enemy,{camera.position.x,camera.position.y,camera.position.z})) {
             const Vector3 center{static_cast<float>(enemy.position.x),
                 static_cast<float>(enemy.worldSurfaceHeight+enemy.position.y),static_cast<float>(enemy.position.z)};
             if(!enemyVisible(center,8)) continue;
@@ -491,7 +514,8 @@ void App::drawWorldEnemies(
         snapshot.enemies.size(), BurnEnemyVisualBudget * 2U));
     for (std::size_t index = 0; index < snapshot.enemies.size(); ++index) {
         const EnemyInstance& enemy = snapshot.enemies[index];
-        if (!enemy.active) {
+        if (!enemy.active || !presentation::portalArrivalVisible(enemy,
+            {camera.position.x,camera.position.y,camera.position.z})) {
             continue;
         }
         const auto burn = enemyBurnAmountById_.find(effectKey(enemy.id));
@@ -605,7 +629,8 @@ void App::drawWorldEnemies(
     for (std::size_t index = 0; index < snapshot.enemies.size(); ++index) {
         const auto& enemy = snapshot.enemies[index];
         const auto& status = enemyStatusEffect(enemy, StatusEffectType::Freeze);
-        if (!enemy.active || status.visualParameter <= .01) continue;
+        if (!enemy.active || status.visualParameter <= .01 || !presentation::portalArrivalVisible(enemy,
+            {camera.position.x,camera.position.y,camera.position.z})) continue;
         const Vector3 position = enemyRenderPosition(enemy);
         const float distance = Vector3DistanceSqr(position, camera.position);
         if (distance > 1600 || !enemyVisible(position, 4)) continue;
@@ -673,7 +698,8 @@ void App::drawWorldEnemies(
     for (std::size_t i = 0; i < snapshot.enemies.size(); ++i) {
         const auto& enemy = snapshot.enemies[i];
         const auto& status = enemyStatusEffect(enemy, StatusEffectType::Poison);
-        if (!enemy.active || status.visualParameter <= .01) continue;
+        if (!enemy.active || status.visualParameter <= .01 || !presentation::portalArrivalVisible(enemy,
+            {camera.position.x,camera.position.y,camera.position.z})) continue;
         const Vector3 position = enemyRenderPosition(enemy);
         const float distance = Vector3DistanceSqr(position, camera.position);
         if (distance > 1600 || !enemyVisible(position, 4)) continue;
