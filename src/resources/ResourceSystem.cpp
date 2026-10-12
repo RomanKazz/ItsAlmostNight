@@ -11,6 +11,13 @@
 namespace ian {
 namespace {
 
+// Match the existing checkpoint bounds; avoid overflow in debug bulk grants.
+constexpr double MaximumNodeCapacity = 1'000'000.0;
+int boundedNodeYield(double value) {
+    return value <= 0.0 ? 0 : std::max(1, static_cast<int>(
+        std::lround(std::min(value, MaximumNodeCapacity))));
+}
+
 constexpr double BuildingClearance = 2.5;
 constexpr double ActiveResourceBuildingClearance = 0.08;
 constexpr double PlayerClearance = 3.0;
@@ -174,6 +181,7 @@ void ResourceSystem::reset() {
     }
     woodYieldMultiplier_ = 1.0;
     gatheringYieldMultiplier_ = 1.0;
+    nodeCapacityMultiplier_ = 1.0;
     nodes_ = makeNodes();
     collisionGeometryDirty_ = true;
 }
@@ -181,13 +189,15 @@ void ResourceSystem::reset() {
 bool ResourceSystem::restoreNodes(
     std::span<const ResourceNode> nodes,
     double woodYieldMultiplier,
-    double gatheringYieldMultiplier) {
+    double gatheringYieldMultiplier,
+    double nodeCapacityMultiplier) {
     if (nodes.size() != definitions_.size() ||
         !std::isfinite(woodYieldMultiplier) ||
         woodYieldMultiplier < 0.0 || woodYieldMultiplier > 1000.0 ||
         !std::isfinite(gatheringYieldMultiplier) ||
         gatheringYieldMultiplier < 0.0 ||
-        gatheringYieldMultiplier > 1000.0) {
+        gatheringYieldMultiplier > 1000.0 ||
+        !std::isfinite(nodeCapacityMultiplier) || nodeCapacityMultiplier < 1.0) {
         return false;
     }
     std::uint32_t generation = 0U;
@@ -231,6 +241,7 @@ bool ResourceSystem::restoreNodes(
     }
     woodYieldMultiplier_ = woodYieldMultiplier;
     gatheringYieldMultiplier_ = gatheringYieldMultiplier;
+    nodeCapacityMultiplier_ = nodeCapacityMultiplier;
     collisionGeometryDirty_ = true;
     return true;
 }
@@ -284,6 +295,28 @@ void ResourceSystem::setGatheringYieldMultiplier(double multiplier) {
     gatheringYieldMultiplier_ = next;
 }
 
+void ResourceSystem::setNodeCapacityMultiplier(double multiplier) {
+    if (!std::isfinite(multiplier)) return;
+    const double next = std::max(1.0, multiplier);
+    if (std::abs(next - nodeCapacityMultiplier_) <= 1e-9) return;
+    for (ResourceNode& node : nodes_) {
+        if (!isHarvestableResource(node.type)) continue;
+        const auto& definition = definitions_[node.id.index];
+        const auto base = variedCapacity(node.type, definition.health, definition.yield,
+            node.id, node.respawnGeneration);
+        const double previousHealth = node.maxHealth;
+        const int previousYield = node.yield;
+        node.maxHealth = std::min(MaximumNodeCapacity, base.health * next);
+        node.yield = boundedNodeYield(base.yield * next * gatheringYieldMultiplier_ *
+            (node.type == ResourceType::Wood ? woodYieldMultiplier_ : 1.0));
+        if (node.active) {
+            node.health = std::clamp(node.health + node.maxHealth - previousHealth, 0.0, node.maxHealth);
+            node.yieldRemaining = std::clamp(node.yieldRemaining + node.yield - previousYield, 0, node.yield);
+        }
+    }
+    nodeCapacityMultiplier_ = next;
+}
+
 void ResourceSystem::tick(
     double deltaSeconds,
     std::span<const BuildingInstance> buildings,
@@ -332,7 +365,8 @@ void ResourceSystem::tick(
                         definition.type, definition.health,
                         definition.yield, node.id,
                         node.respawnGeneration);
-                node.maxHealth = capacity.health;
+                const double nodeCapacity = isHarvestableResource(node.type) ? nodeCapacityMultiplier_ : 1.0;
+                node.maxHealth = std::min(MaximumNodeCapacity, capacity.health * nodeCapacity);
                 const double woodMultiplier =
                     node.type == ResourceType::Wood
                         ? woodYieldMultiplier_ : 1.0;
@@ -341,10 +375,9 @@ void ResourceSystem::tick(
                             node.type == ResourceType::Stone ||
                             node.type == ResourceType::Crystal
                         ? gatheringYieldMultiplier_ : 1.0;
-                node.yield = std::max(
-                    1, static_cast<int>(std::lround(
-                        static_cast<double>(capacity.yield) *
-                        woodMultiplier * gatheringMultiplier)));
+                node.yield = std::max(1, boundedNodeYield(
+                    static_cast<double>(capacity.yield) *
+                    woodMultiplier * gatheringMultiplier * nodeCapacity));
             }
             node.health = node.maxHealth;
             node.yieldRemaining = node.yield;

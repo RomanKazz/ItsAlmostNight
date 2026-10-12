@@ -503,6 +503,7 @@ struct SuspendedRunState {
     int coreBuildRadius{};
     int coreBuildRadiusLevel{1};
     int playerWeaponArsenalVersion{};
+    int resourceNodeCapacityVersion{};
     double playerDamageMultiplier{1.0};
     double runPlayerDamageMultiplier{1.0};
     double playerAttackSpeedMultiplier{1.0};

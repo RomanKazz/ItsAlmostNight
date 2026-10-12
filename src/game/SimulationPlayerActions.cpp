@@ -39,9 +39,7 @@ int Simulation::resourceCapacity(ResourceCapacityType resource) const {
     if (playerClass_ == PlayerClass::Prospector) {
         capacity += (capacity + 3) / 4;
     }
-    return static_cast<int>(std::min(static_cast<double>(std::numeric_limits<int>::max()),
-        std::ceil(static_cast<double>(static_cast<long double>(capacity) *
-            (100.0L + 20.0L * runUpgradePower(RunUpgradeEffect::ResourceCapacity)) / 100.0L))));
+    return capacity;
 }
 
 void Simulation::clampResourcesToCapacity() {

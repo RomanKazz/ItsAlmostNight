@@ -81,6 +81,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .coreBuildRadius = buildings_.coreBuildRadius(),
         .coreBuildRadiusLevel = buildings_.core() ? buildings_.core()->level : 1,
         .playerWeaponArsenalVersion = 2,
+        .resourceNodeCapacityVersion = 1,
         .playerDamageMultiplier = playerDamageMultiplier_,
         .runPlayerDamageMultiplier = runPlayerDamageMultiplier_,
         .playerAttackSpeedMultiplier = playerAttackSpeedMultiplier_,
@@ -206,7 +207,8 @@ bool Simulation::loadSuspendedRunState(
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
         });
-    const bool invalidWeapons = saved.playerWeaponArsenalVersion < 0 || saved.playerWeaponArsenalVersion > 2 ||
+    const bool invalidWeapons = saved.resourceNodeCapacityVersion < 0 || saved.resourceNodeCapacityVersion > 1 ||
+        saved.playerWeaponArsenalVersion < 0 || saved.playerWeaponArsenalVersion > 2 ||
         std::ranges::any_of(RunUpgradeDefinitions, [&](const RunUpgradeDefinition& definition) {
             if (!runUpgradeWeapon(definition.effect)) return false;
             const auto index = runUpgradeIndex(definition.effect);
@@ -550,7 +552,9 @@ bool Simulation::loadSuspendedRunState(
         !resources_.restoreNodes(
             saved.resourceNodes, saved.woodYieldMultiplier,
             saved.playerWeaponArsenalVersion < 2 ?
-                1.0 + .15 * runUpgradePower(RunUpgradeEffect::ResourceCapacity) : 1.0) ||
+                1.0 + .15 * runUpgradePower(RunUpgradeEffect::ResourceCapacity) : 1.0,
+            saved.resourceNodeCapacityVersion > 0
+                ? 1.0 + .20 * runUpgradePower(RunUpgradeEffect::ResourceCapacity) : 1.0) ||
         !lootChests_.restoreChests(saved.lootChests)) {
         return failLoad();
     }

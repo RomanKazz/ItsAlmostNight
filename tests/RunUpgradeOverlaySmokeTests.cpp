@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
         requireNear(projected.upgradeStats.resourceYield, actual.upgradeStats.resourceYield, 1e-9, "meta/class yield preview matches simulation");
         requireNear(projected.upgradeStats.resourceCapacity, actual.upgradeStats.resourceCapacity, 1e-9,"capacity tome preview matches simulation");
         require(projected.woodCapacity==actual.woodCapacity && projected.stoneCapacity==actual.stoneCapacity &&
-            projected.crystalCapacity==actual.crystalCapacity,"storage preview matches rounded actual capacities");
+            projected.crystalCapacity==actual.crystalCapacity,"world capacity preview leaves carrying capacity unchanged");
         requireNear(projected.upgradeStats.defenseDamage, actual.upgradeStats.defenseDamage, 1e-9, "defense damage preview matches simulation");
         requireNear(projected.upgradeStats.defenseFireRate, actual.upgradeStats.defenseFireRate, 1e-9, "defense rate preview matches simulation");
         requireNear(projected.upgradeStats.luck, actual.upgradeStats.luck, 1e-9, "luck preview matches simulation");

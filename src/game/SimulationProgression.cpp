@@ -101,6 +101,8 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     resources_.setGatheringYieldMultiplier(
         activeMetaBonuses_.resourceYield *
         (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0));
+    resources_.setNodeCapacityMultiplier(
+        1.0 + .20 * runUpgradePower(RunUpgradeEffect::ResourceCapacity));
     crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
     crystalMines_.setTypeProductionSpeedMultipliers(

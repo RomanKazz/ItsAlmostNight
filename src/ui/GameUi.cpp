@@ -688,7 +688,7 @@ Texture2D GameUi::runUpgradeTexture(RunUpgradeEffect effect) const {
 Texture2D GameUi::runUpgradeSymbolTexture(RunUpgradeEffect effect) const {
     if (const auto weapon = runUpgradeWeapon(effect)) return weaponTexture(*weapon);
     switch (effect) {
-    case RunUpgradeEffect::ResourceCapacity: return buildingTexture(BuildingType::Core);
+    case RunUpgradeEffect::ResourceCapacity: return resourceCrystal_;
     case RunUpgradeEffect::PoisonChance: return poisonUpgradeIcon_;
     case RunUpgradeEffect::CannonHeavyShell:
     case RunUpgradeEffect::CannonScattershot:

@@ -111,9 +111,12 @@ class ResourceSystem {
     [[nodiscard]] bool restoreNodes(
         std::span<const ResourceNode> nodes,
         double woodYieldMultiplier,
-        double gatheringYieldMultiplier = 1.0);
+        double gatheringYieldMultiplier = 1.0,
+        double nodeCapacityMultiplier = 1.0);
     void setWoodYieldMultiplier(double multiplier);
     void setGatheringYieldMultiplier(double multiplier);
+    // More harvestable stock and durability; preserve resources already extracted.
+    void setNodeCapacityMultiplier(double multiplier);
     void tick(
         double deltaSeconds,
         std::span<const BuildingInstance> buildings = {},
@@ -155,6 +158,7 @@ class ResourceSystem {
     bool collisionGeometryDirty_{true};
     double woodYieldMultiplier_{1.0};
     double gatheringYieldMultiplier_{1.0};
+    double nodeCapacityMultiplier_{1.0};
 };
 
 } // namespace ian

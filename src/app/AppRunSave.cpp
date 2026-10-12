@@ -586,6 +586,7 @@ Json suspendedRunJson(const SuspendedRunState& saved) {
         {"coreBuildRadius", saved.coreBuildRadius},
         {"coreBuildRadiusLevel", saved.coreBuildRadiusLevel},
         {"playerWeaponArsenalVersion", saved.playerWeaponArsenalVersion},
+        {"resourceNodeCapacityVersion", saved.resourceNodeCapacityVersion},
         {"multipliers", {
             {"playerDamage", saved.playerDamageMultiplier},
             {"runPlayerDamage", saved.runPlayerDamageMultiplier},
@@ -740,6 +741,7 @@ SuspendedRunState readSuspendedRun(const Json& document) {
     saved.coreBuildRadius = document.at("coreBuildRadius").get<int>();
     saved.coreBuildRadiusLevel = document.value("coreBuildRadiusLevel", 1);
     saved.playerWeaponArsenalVersion = document.value("playerWeaponArsenalVersion", 0);
+    saved.resourceNodeCapacityVersion = document.value("resourceNodeCapacityVersion", 0);
     const Json& multipliers = document.at("multipliers");
     saved.playerDamageMultiplier = multipliers.at("playerDamage");
     saved.runPlayerDamageMultiplier = multipliers.at("runPlayerDamage");

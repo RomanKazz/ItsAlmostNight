@@ -12,7 +12,6 @@
 #include <cctype>
 #include <cmath>
 #include <iomanip>
-#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -580,7 +579,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
     row("Cannon attack", cannonStyleName(stats.cannonAttackStyle), cannonStyleName(next.cannonAttackStyle));
     section("ECONOMY");
     row("Production", multiplier(stats.productionSpeed), multiplier(next.productionSpeed));
-    row("Resource capacity", multiplier(stats.resourceCapacity), multiplier(next.resourceCapacity));
+    row("Resource node capacity", multiplier(stats.resourceCapacity), multiplier(next.resourceCapacity));
     row("Build range", std::to_string(snapshot.coreBuildRadius) + "m", std::to_string(projected.coreBuildRadius) + "m");
     row("Luck", statNumber(stats.luck * 100.0) + "%", statNumber(next.luck * 100.0) + "%");
     section("PLAYER");
@@ -758,21 +757,9 @@ SimulationSnapshot previewRunUpgrade(const SimulationSnapshot& snapshot, std::si
     case RunUpgradeEffect::BuildingHealth:
         projected.upgradeStats.buildingHealth *= ratio(character ? character->buildingHealthMultiplier : 1.0, 0.12); break;
     case RunUpgradeEffect::ProductionSpeed: projected.upgradeStats.productionSpeed *= ratio(1.0, 0.15); break;
-    case RunUpgradeEffect::ResourceCapacity: {
-        const double increase=ratio(1.0,.20);
-        projected.upgradeStats.resourceCapacity *= increase;
-        const auto capacityAfter=[&](int capacity) {
-            if(capacity==std::numeric_limits<int>::max()) return capacity;
-            // Recover the integer carrying capacity before the tome's ceiling.
-            const double base=std::floor(capacity/std::max(1.0,snapshot.upgradeStats.resourceCapacity)+1e-7);
-            const long double value=base*(100.0L+20.0L*(current+gain))/100.0L;
-            return static_cast<int>(std::min(static_cast<long double>(std::numeric_limits<int>::max()),std::ceil(value)));
-        };
-        projected.woodCapacity=capacityAfter(snapshot.woodCapacity);
-        projected.stoneCapacity=capacityAfter(snapshot.stoneCapacity);
-        projected.crystalCapacity=capacityAfter(snapshot.crystalCapacity);
+    case RunUpgradeEffect::ResourceCapacity:
+        projected.upgradeStats.resourceCapacity *= ratio(1.0, .20);
         break;
-    }
     case RunUpgradeEffect::AttackSpeed:
         projected.upgradeStats.playerAttackSpeed *= ratio(character ? character->attackSpeedMultiplier : 1.0, 0.15); break;
     case RunUpgradeEffect::Damage: projected.playerDamageMultiplier *= ratio(1.0, 0.10); break;

@@ -28,13 +28,22 @@ Hotbar/inventory and card previews show owned levels. V is no longer a paid
 weapon-upgrade action and emits no upgrade hint. Its modular-part action is
 restricted to Buildings mode; its bomb-restock action remains available.
 
-The former Resource Yield tome is now **Storage Tome**, +20% base capacity per
-common unit of power (30/40/50/60% for higher rarities). It multiplies wood,
-stone and crystal storage, including pre-Core capacity and class carrying
-bonuses. It no longer increases harvesting yield. The existing stat ID 27 is
-retained, with ResourceCapacity as an alias of the former RichResources ID.
-Existing owned copies become storage bonuses; the old tome yield is removed
-from checkpoint node capacities once. Meta/class yield stays intact.
+The former Resource Yield tome is now **Capacity Tome**, +20% world-node
+stock and durability per common unit of power (30/40/50/60% for higher rarities).
+It affects trees, stones and crystal deposits, including their respawns.
+Yield density per point of harvesting damage stays approximately unchanged;
+the node takes more work and contains more total resources. Existing extraction
+is retained when upgrading a partially mined node. Dead nodes are not revived;
+loot containers, carrying capacity and Core storage are unaffected. Meta/class
+yield bonuses stay intact. The existing stat ID 27 is retained, with
+ResourceCapacity as an alias of RichResources.
+
+Checkpoint resourceNodeCapacityVersion is 1 (missing/zero means no node-capacity
+bonus yet). Loading preserves an already-applied bonus and partial extraction;
+older yield/storage tome saves migrate once to world stock and durability.
+ResourceSystem::setNodeCapacityMultiplier and the optional fourth argument to
+restoreNodes expose this modifier without changing existing callers. Existing
+checkpoint bounds saturate individual nodes at one million stock/durability.
 
 Persistence uses the existing upgrade count/power arrays, expanded by two
 appended IDs. playerWeaponArsenalVersion is 2. Old ownership-only checkpoints
@@ -45,7 +54,7 @@ upgradeStats.resourceCapacity, PlayerWeaponSystem::setRifleLevel, and shared
 level multiplier/card classification helpers.
 
 Checks cover per-weapon power growth, single-level rarity semantics, Core caps,
-shop filtering, ownership/upgrade weights, storage without yield changes,
+shop filtering, ownership/upgrade weights, world stock and durability,
 save/load/reset, old checkpoint migration, positive eight-level reload and
 repeat-refresh ammo stability. High-level musket DPS and Core siege damage are
 balance starting points to assess together in a full run.
