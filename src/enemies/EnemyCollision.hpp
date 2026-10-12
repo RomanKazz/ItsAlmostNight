@@ -12,6 +12,18 @@ struct EnemyCapsule {
     double segmentHalfHeight;
 };
 
+// Upright finite cylinder in world coordinates; dimensions are independent of
+// the forgiving ray-hit capsule. Surface height includes terrain and platforms.
+struct EnemyCylinder {
+    Vec3 center;
+    double radius;
+    double halfHeight;
+};
+
+[[nodiscard]] EnemyCylinder enemyCollisionCylinder(const EnemyInstance& enemy);
+[[nodiscard]] double enemyCylinderPenetration(
+    const EnemyCylinder& left, const EnemyCylinder& right);
+
 [[nodiscard]] EnemyCapsule enemyCapsule(EnemyType type);
 [[nodiscard]] EnemyCapsule enemyPhysicalCapsule(EnemyType type);
 [[nodiscard]] double maximumGroundStructureInteractionHeight(

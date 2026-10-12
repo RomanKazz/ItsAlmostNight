@@ -1,0 +1,65 @@
+{
+  "basic": {
+    "asset": "pink_blob.gltf",
+    "gameplay_scale": 0.94,
+    "radius": 0.7427727962232433,
+    "bottom": -0.05711628203988075,
+    "height": 1.563634192329645
+  },
+  "fast": {
+    "asset": "ultimate/ninja.gltf",
+    "gameplay_scale": 0.55,
+    "radius": 0.7888765104860919,
+    "bottom": -0.11602513128519058,
+    "height": 1.361446094095707
+  },
+  "heavy": {
+    "asset": "ultimate/mushnub_evolved.gltf",
+    "gameplay_scale": 0.67,
+    "radius": 1.0234057976677133,
+    "bottom": -0.03374784693941474,
+    "height": 2.4474059400103982
+  },
+  "boss": {
+    "asset": "ultimate/boss.gltf",
+    "gameplay_scale": 0.85,
+    "radius": 1.2983506388321735,
+    "bottom": -0.04281443268433213,
+    "height": 3.1049179835952816
+  },
+  "ranged": {
+    "asset": "ultimate/wizard.gltf",
+    "gameplay_scale": 0.94,
+    "radius": 0.9816829831400135,
+    "bottom": 0.011150625943392514,
+    "height": 2.0010101686961947
+  },
+  "sapper": {
+    "asset": "ultimate/sapper.gltf",
+    "gameplay_scale": 0.52,
+    "radius": 1.0970961488426039,
+    "bottom": -0.02132009562551975,
+    "height": 1.7671087884813548
+  },
+  "flying": {
+    "asset": "ultimate/flying.gltf",
+    "gameplay_scale": 0.52,
+    "radius": 1.1843477569454088,
+    "bottom": 0.5496379508972168,
+    "height": 0.7187837759017944
+  },
+  "splitter": {
+    "asset": "ultimate/green_spiky_blob.gltf",
+    "gameplay_scale": 0.58,
+    "radius": 1.2236841660167501,
+    "bottom": -0.023780106659233566,
+    "height": 1.971005956383049
+  },
+  "splitling": {
+    "asset": "ultimate/green_blob.gltf",
+    "gameplay_scale": 0.6,
+    "radius": 0.6025072072483485,
+    "bottom": -0.004979736361652612,
+    "height": 0.9158051433898508
+  }
+}

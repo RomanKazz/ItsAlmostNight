@@ -16,6 +16,69 @@
 void runEnemySystemTests() {
     {
         using namespace ian;
+        const EnemyCylinder cylinder{{0,1,0},1,1};
+        requireNear(enemyCylinderPenetration(cylinder, {{1.5,1,0},1,1}), .5, 1e-12,
+                    "finite cylinder detects exact radial penetration");
+        requireNear(enemyCylinderPenetration(cylinder, {{2,1,0},1,1}), 0, 1e-12,
+                    "tangent cylinder sides do not overlap");
+        requireNear(enemyCylinderPenetration(cylinder, {{0,3,0},1,1}), 0, 1e-12,
+                    "touching cylinder caps do not overlap");
+        requireNear(enemyCylinderPenetration(cylinder, {{0,3.1,0},1,1}), 0, 1e-12,
+                    "cylinders on different floors do not collide");
+        requireNear(enemyCylinderPenetration(cylinder, {{0,1,0},1,1}), 2, 1e-12,
+                    "coincident cylinders preserve full penetration");
+        require(enemyCylinderPenetration(cylinder, {{0,1,0},-1,1}) == 0,
+                "invalid cylinder is ignored");
+        for (int type=0;type<9;++type) {
+            std::array<EnemyInstance,2> pair{};
+            pair[0].active=pair[1].active=true;
+            pair[0].id={11,1};pair[1].id={12,1};
+            pair[0].type=pair[1].type=static_cast<EnemyType>(type);
+            const auto shape=enemyCollisionCylinder(pair[0]);
+            require(shape.radius>0 && shape.halfHeight>0, "every archetype has a physical cylinder");
+            const auto original=pair;
+            resolveEnemyCapsuleCollisions(pair,{});
+            require(enemyCylinderPenetration(enemyCollisionCylinder(pair[0]),
+                                             enemyCollisionCylinder(pair[1])) < 1e-8,
+                    "every coincident archetype pair separates in one solve");
+            auto repeat=original;resolveEnemyCapsuleCollisions(repeat,{});
+            requireNear(pair[0].position.x,repeat[0].position.x,1e-12,"crowd separation deterministic X");
+            requireNear(pair[0].position.z,repeat[0].position.z,1e-12,"crowd separation deterministic Z");
+            auto elite=original[0];elite.eliteAffixes=eliteAffixMask(EliteAffix::Warden);
+            requireNear(enemyCollisionCylinder(elite).radius,shape.radius*1.08,1e-12,
+                        "elite physical cylinder follows visual scale");
+            pair=original;pair[1].worldSurfaceHeight=6;
+            resolveEnemyCapsuleCollisions(pair,{});
+            requireNear(pair[0].position.x,0,1e-12,"stacked mobs do not repel across floors");
+        }
+        // Larger radii require a wider broadphase than the former 3x3 search.
+        std::array<EnemyInstance,2> wide{};
+        for(int i=0;i<2;++i) {wide[i].active=true;wide[i].id={static_cast<std::uint32_t>(i+50),1};
+            wide[i].type=EnemyType::Boss;wide[i].eliteAffixes=eliteAffixMask(EliteAffix::Warden);}
+        wide[0].position.x=1.99;wide[1].position.x=4.01;
+        resolveEnemyCapsuleCollisions(wide,{});
+        require(enemyCylinderPenetration(enemyCollisionCylinder(wide[0]),enemyCollisionCylinder(wide[1]))<1e-8,
+                "broadphase finds large cylinders two cells apart");
+        std::vector<EnemyInstance> crowd(400);
+        for(std::size_t i=0;i<crowd.size();++i) {
+            crowd[i].active=true;crowd[i].id={static_cast<std::uint32_t>(i+100),1};
+            crowd[i].type=EnemyType::Basic;crowd[i].position={double(i%20)*1.65,0,double(i/20)*1.65};
+        }
+        for(int tick=0;tick<20;++tick) resolveEnemyCapsuleCollisions(crowd,{});
+        double maximum=0;
+        for(std::size_t i=0;i<crowd.size();++i) for(std::size_t j=i+1;j<crowd.size();++j)
+            maximum=std::max(maximum,enemyCylinderPenetration(enemyCollisionCylinder(crowd[i]),enemyCollisionCylinder(crowd[j])));
+        require(maximum<.002,"large crowd converges without physical body overlap");
+        std::array<EnemyInstance,1> embedded{};
+        embedded[0].active=true;embedded[0].id={1,1};embedded[0].type=EnemyType::Splitling;
+        std::array<EnemyStructureTarget,1> support{{{.id={9,1},.position={},.radius=.1}}};
+        resolveEnemyCapsuleCollisions(embedded,support);
+        require(std::hypot(embedded[0].position.x,embedded[0].position.z)>=.74-1e-9,
+                "small collider centered inside support is expelled fully");
+    }
+
+    {
+        using namespace ian;
         EnemySystem enemies;
         constexpr std::array<EnemySpawn, 1> spawns{{{EnemyType::Heavy, {0, 1, 0}}}};
         enemies.spawnGroup(spawns);

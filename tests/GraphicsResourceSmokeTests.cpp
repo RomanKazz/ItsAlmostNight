@@ -6,6 +6,7 @@
 #include "graphics/CatapultModel.hpp"
 #include "graphics/GateModel.hpp"
 #include "graphics/SpikeTrapModel.hpp"
+#include "EnemyCylinderGraphicsChecks.hpp"
 #include "WizardGraphicsChecks.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
@@ -3123,6 +3124,7 @@ int main() {
             std::cerr << "cartoon ice projectile presentation failed\n";
             result = 1;
         }
+        if (!checkEnemyCylinderModels(renderer)) return 1;
         if (!checkWizardMagic(renderer)) return 1;
         if (!checkPowerupPickupModels(renderer)) {
             std::cerr << "Powerup pickup models failed visibility or depth checks\n";

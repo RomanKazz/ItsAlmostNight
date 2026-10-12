@@ -1,6 +1,7 @@
 #include "game/Simulation.hpp"
 
 #include "core/SaturatingArithmetic.hpp"
+#include "enemies/EnemyCollision.hpp"
 
 #include <algorithm>
 #include <array>
@@ -115,17 +116,31 @@ std::array<std::optional<Vec3>, 4> portalPositions(
     return result;
 }
 
+std::pair<double, double> portalSpawnOffset(std::span<const EnemySpawn> group, std::size_t index) {
+    if (group.size() < 2U) return {0, 0};
+    double maximumRadius = 0;
+    for (const auto& spawn : group) {
+        EnemyInstance body{};
+        body.type = spawn.type;
+        body.eliteAffixes = spawn.eliteAffixes;
+        maximumRadius = std::max(maximumRadius, enemyCollisionCylinder(body).radius);
+    }
+    const double spacing = maximumRadius * 2 + 0.06;
+    if (group.size() == 2U) return {(static_cast<double>(index) - 0.5) * spacing, 0};
+    // Three ordinary bodies fit a triangle inside the aperture; a straight
+    // line cannot fit without overlap. Larger groups get a wider exit ring.
+    constexpr double Pi = 3.14159265358979323846;
+    const double radius = spacing / (2 * std::sin(Pi / static_cast<double>(group.size())));
+    const double angle = static_cast<double>(index) * 2 * Pi / static_cast<double>(group.size()) - Pi * 0.5;
+    return {std::cos(angle) * radius, std::sin(angle) * radius};
+}
+
 void routeSpawnsThroughPortals(
     std::vector<EnemySpawn>& spawns,
     const std::array<std::optional<Vec3>, 4>& portals,
     GridPosition corePosition, int groupSize) {
     const std::size_t normalizedGroupSize =
         static_cast<std::size_t>(std::max(1, groupSize));
-    const double laneSpacing = normalizedGroupSize > 1U
-        ? std::min(
-              1.0,
-              2.6 / static_cast<double>(normalizedGroupSize - 1U))
-        : 0.0;
     for (std::size_t index = 0; index < spawns.size(); ++index) {
         EnemySpawn& spawn = spawns[index];
         const std::size_t directionIndex = attackDirectionIndex(
@@ -142,12 +157,12 @@ void routeSpawnsThroughPortals(
         const double tangentX = -outwardZ / length;
         const double tangentZ = outwardX / length;
         const std::size_t indexInGroup = index % normalizedGroupSize;
-        const double lane =
-            (static_cast<double>(indexInGroup) -
-             static_cast<double>(normalizedGroupSize - 1U) * 0.5) *
-            laneSpacing;
-        spawn.position.x = portal.x + tangentX * lane;
-        spawn.position.z = portal.z + tangentZ * lane;
+        const std::size_t first = index - indexInGroup;
+        const auto [lane, depth] = portalSpawnOffset(
+            std::span<const EnemySpawn>{spawns}.subspan(first,
+                std::min(normalizedGroupSize, spawns.size() - first)), indexInGroup);
+        spawn.position.x = portal.x + tangentX * lane + outwardX / length * depth;
+        spawn.position.z = portal.z + tangentZ * lane + outwardZ / length * depth;
     }
 }
 
@@ -175,16 +190,10 @@ void moveGroupToPortal(
         0.001, std::hypot(outwardX, outwardZ));
     const double tangentX = -outwardZ / length;
     const double tangentZ = outwardX / length;
-    const double laneSpacing = spawns.size() > 1U
-        ? std::min(1.0, 2.6 / static_cast<double>(spawns.size() - 1U))
-        : 0.0;
     for (std::size_t index = 0; index < spawns.size(); ++index) {
-        const double lane =
-            (static_cast<double>(index) -
-             static_cast<double>(spawns.size() - 1U) * 0.5) *
-            laneSpacing;
-        spawns[index].position.x = portal.x + tangentX * lane;
-        spawns[index].position.z = portal.z + tangentZ * lane;
+        const auto [lane, depth] = portalSpawnOffset(spawns, index);
+        spawns[index].position.x = portal.x + tangentX * lane + outwardX / length * depth;
+        spawns[index].position.z = portal.z + tangentZ * lane + outwardZ / length * depth;
     }
 }
 
