@@ -122,6 +122,13 @@ void runPlayerWeaponSystemTests() {
     require(upgradedWeapon.validateUpgrade(3, 0).error == ian::WeaponUpgradeError::MaxLevel,
             "rifle cannot exceed level three");
 
+    ian::PlayerWeaponSystem cardWeapon;
+    cardWeapon.setRifleLevel(8);
+    require(cardWeapon.rifleLevel()==8 && cardWeapon.reloadDuration()>=.45 && cardWeapon.magazineSize()>8,
+        "card levels extend to eight without a negative reload duration");
+    const int rounds=cardWeapon.ammunition();cardWeapon.setRifleLevel(8);
+    require(cardWeapon.ammunition()==rounds,"runtime level refresh does not refill the magazine");
+
     ian::EnemySystem boostedTargets;
     boostedTargets.spawnWave(Spawn);
     ian::PlayerWeaponSystem boostedWeapon;

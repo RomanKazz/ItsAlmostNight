@@ -22,9 +22,10 @@ namespace ian {
         if (roll < 0) { selected=i; break; }
     }
     const bool defense = runDefenseCard(pool[selected]);
-    if (!defense && !runTomeDefinition(pool[selected])) return selected;
-    const auto sameCategory = [defense](RunUpgradeEffect effect) {
-        return defense ? runDefenseCard(effect) : runTomeDefinition(effect) != nullptr;
+    const bool weapon = runUpgradeWeapon(pool[selected]).has_value();
+    if (!defense && !weapon && !runTomeDefinition(pool[selected])) return selected;
+    const auto sameCategory = [defense,weapon](RunUpgradeEffect effect) {
+        return defense ? runDefenseCard(effect) : weapon ? runUpgradeWeapon(effect).has_value() : runTomeDefinition(effect) != nullptr;
     };
     std::array<std::size_t,2> counts{};
     for (const auto effect : pool) if (sameCategory(effect))

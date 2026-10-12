@@ -24,7 +24,13 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
     enemy.knockbackVelocity.z*=impulseDecay;
     const double ratio = enemy.maxHealth>0 ? enemy.health/enemy.maxHealth : 0;
     const int phase = ratio<=config.phaseThree ? 3 : ratio<=config.phaseTwo ? 2 : 1;
-    const bool targetPlayer = playerPosition && horizontalDistance(*playerPosition,enemy.position)<22;
+    const auto core=std::find_if(structureBuffer_.begin(),structureBuffer_.end(),[](const EnemyStructureTarget& s) {
+        return s.attackable && s.buildingType==BuildingType::Core;
+    });
+    const bool hasCore=core!=structureBuffer_.end();
+    const int sequence=enemy.bossAttackIndex%6;
+    const bool siege=hasCore && (sequence==2 || sequence==4 || sequence==5);
+    const bool targetPlayer = !siege && playerPosition && horizontalDistance(*playerPosition,enemy.position)<config.attackRange;
     Vec3 target = targetPlayer ? *playerPosition : corePosition;
     target.y = terrain ? terrain->getHeight(target.x,target.z) : corePosition.y;
     if(navigation.collisionWorld) {
@@ -111,11 +117,7 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
             const double slope=(enemy.bossAttackTarget.y-origin.y)/distance;
             const int count=5+(enemy.bossPhase-1)*2;
             std::optional<EntityId> targetId;
-            if(!enemy.bossAttackPlayer) {
-                const auto core=std::find_if(structureBuffer_.begin(),structureBuffer_.end(),[](const EnemyStructureTarget& s){
-                    return s.buildingType==BuildingType::Core;});
-                if(core!=structureBuffer_.end()) targetId=core->id;
-            }
+            if(!enemy.bossAttackPlayer && hasCore) targetId=core->id;
             for(int bullet=0;bullet<count;++bullet) {
                 const double a=angle+(bullet-(count-1)*.5)*.16;
                 const double normalize=1/std::sqrt(1+slope*slope);
@@ -123,7 +125,7 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
                     .position=origin,.targetPosition=enemy.bossAttackTarget,.previousPosition=origin,
                     .velocity={std::sin(a)*normalize*config.projectileSpeed,slope*normalize*config.projectileSpeed,
                                std::cos(a)*normalize*config.projectileSpeed},
-                    .damage=enemy.damage*config.volleyDamageScale,.radius=.22,.targetRadius=1.2,.lifetimeRemaining=4.2,
+                    .damage=enemy.damage*config.volleyDamageScale*(enemy.bossAttackPlayer?1.0:config.structureDamageScale),.radius=.22,.targetRadius=1.2,.lifetimeRemaining=4.2,
                     .targetsPlayer=enemy.bossAttackPlayer,.royal=true,.duration=4.2});
             }
             magicEventBuffer_.push_back({enemy.id,origin,false,false,true});
@@ -150,11 +152,11 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
         enemy.bossAbilityCooldownRemaining=config.recoverySeconds/(1+(enemy.bossPhase-1)*.32);
         return true;
     }
-    if(enemy.bossAbilityCooldownRemaining<=0 && horizontalDistance(target,enemy.position)<19) {
-        constexpr std::array pattern{RoyalAttack::Summon,RoyalAttack::Volley,RoyalAttack::Dive,
-                                     RoyalAttack::Volley,RoyalAttack::Storm};
+    if(enemy.bossAbilityCooldownRemaining<=0 && horizontalDistance(target,enemy.position)<config.attackRange) {
+        constexpr std::array pattern{RoyalAttack::Summon,RoyalAttack::Volley,RoyalAttack::Storm,
+                                     RoyalAttack::Dive,RoyalAttack::Volley,RoyalAttack::Storm};
         RoyalAttack attack=pattern[static_cast<std::size_t>(enemy.bossAttackIndex++)%pattern.size()];
-        if(attack==RoyalAttack::Storm && enemy.bossPhase==1) attack=RoyalAttack::Volley;
+        if(attack==RoyalAttack::Dive && !targetPlayer && hasCore) attack=RoyalAttack::Storm;
         const auto livingSummons=std::count_if(enemies_.begin(),enemies_.end(),[&](const EnemyInstance& unit){
             return unit.active && unit.summonerId==enemy.id;});
         if(attack==RoyalAttack::Summon && livingSummons>=config.summonLimit) attack=RoyalAttack::Volley;
@@ -163,15 +165,25 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
         enemy.bossAttackPlayer=targetPlayer;
         if(attack==RoyalAttack::Volley) {
             enemy.state=EnemyState::BossVolleyWindup;
-            enemy.bossWindupDuration=config.volleyWindup;
+            enemy.bossWindupDuration=config.volleyWindup*(1-.12*(enemy.bossPhase-1));
             enemy.bossAttackTarget.y=targetPlayer ? playerPosition->y-.62 : corePosition.y+1.0;
+            if(targetPlayer) {
+                const double lead=std::min(1.35,enemy.bossWindupDuration+
+                    horizontalDistance(target,enemy.position)/config.projectileSpeed*.65);
+                enemy.bossAttackTarget.x+=estimatedPlayerVelocity_.x*lead;
+                enemy.bossAttackTarget.z+=estimatedPlayerVelocity_.z*lead;
+            }
         } else if(attack==RoyalAttack::Dive) {
             enemy.state=EnemyState::BossSlamWindup;
-            enemy.bossWindupDuration=config.diveWindup;
+            enemy.bossWindupDuration=config.diveWindup*(1-.12*(enemy.bossPhase-1));
             enemy.bossAttackRadius=config.diveRadius;
             // The king needs room for his wide wings at touchdown. Choose the
             // landing point before warning it, rather than clipping a building
             // or letting the contact solver move the attack after telegraphing.
+            if(targetPlayer) {
+                target.x+=estimatedPlayerVelocity_.x*enemy.bossWindupDuration*.8;
+                target.z+=estimatedPlayerVelocity_.z*enemy.bossWindupDuration*.8;
+            }
             const double bodyRadius=enemyCollisionCylinder(enemy).radius;
             for(int pass=0;pass<4;++pass) for(const auto& structure:structureBuffer_) {
                 if(structure.traversable || std::abs(structure.position.y-target.y)>2.5) continue;
@@ -191,29 +203,52 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
                 if(floor) target.y=std::max(target.y,*floor);
             }
             enemy.bossAttackTarget=target;
-            warning(target,config.diveRadius,config.diveWindup,attack);
+            warning(target,config.diveRadius,enemy.bossWindupDuration,attack);
         } else if(attack==RoyalAttack::Storm) {
             enemy.state=EnemyState::BossStormWindup;
-            enemy.bossWindupDuration=config.stormWindup;
+            enemy.bossWindupDuration=config.stormWindup*(1-.12*(enemy.bossPhase-1));
             enemy.bossAttackRadius=config.stormRadius+(enemy.bossPhase-1)*.15;
             const double dx=target.x-enemy.position.x,dz=target.z-enemy.position.z;
             const double length=std::max(.1,std::hypot(dx,dz));
             for(int i=0;i<3;++i) {
-                const double side=(i-1)*4.5;
+                const double side=(i-1)*3.5;
                 enemy.bossStrikeTargets[static_cast<std::size_t>(i)]={target.x-dz/length*side,target.y,
                     target.z+dx/length*side};
                 auto& strike=enemy.bossStrikeTargets[static_cast<std::size_t>(i)];
+                if(hasCore && !targetPlayer) {
+                    if(i==0) strike=corePosition;
+                    else {
+                        strike={target.x+(i==1?6.5:-6.5),target.y,target.z};
+                        if(i==1 && playerPosition && horizontalDistance(*playerPosition,corePosition)>6 &&
+                            horizontalDistance(*playerPosition,enemy.position)<config.attackRange) {
+                            strike={playerPosition->x+estimatedPlayerVelocity_.x*enemy.bossWindupDuration*.8,
+                                target.y,playerPosition->z+estimatedPlayerVelocity_.z*enemy.bossWindupDuration*.8};
+                        }
+                        if(i==2) {
+                            double nearest=16;
+                            for(const auto& structure:structureBuffer_) {
+                                const double range=horizontalDistance(structure.position,corePosition);
+                                if(structure.attackable && structure.id!=core->id && range>6 && range<nearest) {
+                                    nearest=range;strike=structure.position;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    strike.x+=estimatedPlayerVelocity_.x*enemy.bossWindupDuration*.8;
+                    strike.z+=estimatedPlayerVelocity_.z*enemy.bossWindupDuration*.8;
+                }
                 if(terrain) strike.y=terrain->getHeight(strike.x,strike.z);
                 if(navigation.collisionWorld) {
                     const auto floor=navigation.collisionWorld->modularSurfaceHeight(strike.x,strike.z,target.y+.15);
                     if(floor) strike.y=std::max(strike.y,*floor);
                 }
                 warning(enemy.bossStrikeTargets[static_cast<std::size_t>(i)],
-                    config.stormRadius+(enemy.bossPhase-1)*.15,config.stormWindup+i*.3,attack);
+                    config.stormRadius+(enemy.bossPhase-1)*.15,enemy.bossWindupDuration+i*.3,attack);
             }
         } else {
             enemy.state=EnemyState::BossWarCryWindup;
-            enemy.bossWindupDuration=config.summonWindup;
+            enemy.bossWindupDuration=config.summonWindup*(1-.12*(enemy.bossPhase-1));
         }
         enemy.bossAbilityWindupRemaining=enemy.bossWindupDuration;
         return true;
@@ -222,11 +257,12 @@ bool EnemySystem::advanceBossAbility(EnemyInstance& enemy,double deltaSeconds,
     // stationary melee/instant ram. Attacks lock targets only at windup start.
     enemy.position.x+=impulse.x*deltaSeconds;
     enemy.position.z+=impulse.z*deltaSeconds;
-    const double dx=target.x-enemy.position.x,dz=target.z-enemy.position.z;
+    const Vec3 pursuit=hasCore?corePosition:target;
+    const double dx=pursuit.x-enemy.position.x,dz=pursuit.z-enemy.position.z;
     const double distance=std::max(.1,std::hypot(dx,dz));
-    const double radial=distance>10 ? 1.0 : distance<6 ? -.55 : 0.0;
+    const double radial=distance>11 ? 1.0 : distance<7 ? -.55 : 0.0;
     const double side=(enemy.id.index%2 ? 1.0 : -1.0)*.45;
-    const double speed=enemy.speed*enemy.movementMultiplier*(1+(enemy.bossPhase-1)*.15);
+    const double speed=enemy.speed*enemy.movementMultiplier*1.35*(1+(enemy.bossPhase-1)*.15);
     enemy.position.x+=(dx/distance*radial-dz/distance*side)*speed*deltaSeconds;
     enemy.position.z+=(dz/distance*radial+dx/distance*side)*speed*deltaSeconds;
     enemy.state=EnemyState::MoveToCore;

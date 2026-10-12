@@ -29,7 +29,7 @@ inline void checkAlpakingBattle() {
             if(event.type==BossActionType::Volley) {volley=true;require(event.count==5,"phase one volley emits five physical shots");}
             if(event.type==BossActionType::Telegraph && event.attack==RoyalAttack::Dive) {
                 locked=true;lockedTarget=event.position;
-                require(event.warningSeconds>=1.2 && event.radius==2.7,"dive has a readable warning and exact radius");
+                require(event.warningSeconds>=.70 && event.radius==3.3,"dive has a readable warning and exact radius");
             }
             if(event.type==BossActionType::RoyalImpact && event.attack==RoyalAttack::Dive) {
                 impact=true;requireNear(event.position.x,lockedTarget.x,1e-8,"dive cannot home after warning");
@@ -85,4 +85,27 @@ inline void checkAlpakingBattle() {
             "king death removes remaining royal shots");
     king.reset();require(king.takeBossActionEvents().empty() && king.projectiles().empty(),"reset clears royal sequences");
     BossBattleConfig invalid;invalid.phaseThree=.8;require(!invalid.valid(),"invalid phase order is rejected");
+
+    EnemySystem siege;
+    siege.spawnWave(spawn);
+    const auto coreId=buildings.core()->id;
+    int casts=0,coreHits=0,coreWarnings=0;double firstCoreHit=100;
+    for(int step=0;step<1800;++step) {
+        const double time=step/60.0;
+        const Vec3 runner{16*std::cos(time*.35),1.7,16*std::sin(time*.35)};
+        const auto hits=siege.tick(1.0/60.0,buildings.buildings(),flow,runner);
+        for(const auto& hit:hits) if(hit.targetId==coreId) {++coreHits;firstCoreHit=std::min(firstCoreHit,time);}
+        for(const auto& event:siege.takeBossActionEvents()) {
+            if(event.type==BossActionType::Volley || event.type==BossActionType::WarCry ||
+                (event.type==BossActionType::Telegraph && (event.attack==RoyalAttack::Dive ||
+                 (event.attack==RoyalAttack::Storm && std::abs(event.warningSeconds-1.1)<1e-8)))) ++casts;
+            if(event.type==BossActionType::Telegraph && event.attack==RoyalAttack::Storm &&
+                std::hypot(event.position.x-buildings.core()->gridPosition.x-1,
+                           event.position.z-buildings.core()->gridPosition.z-1)<2) ++coreWarnings;
+        }
+    }
+    if(!(casts>=12 && coreHits>=5 && coreWarnings>=4 && firstCoreHit<10))
+        std::cerr<<"Siege casts/core hits/warnings/first hit: "<<casts<<' '<<coreHits<<' '<<coreWarnings<<' '<<firstCoreHit<<'\n';
+    require(casts>=12 && coreHits>=5 && coreWarnings>=4 && firstCoreHit<10,
+        "kiting the king cannot prevent frequent attacks and early core damage in phase one");
 }

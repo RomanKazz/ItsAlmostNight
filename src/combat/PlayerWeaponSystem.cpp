@@ -40,11 +40,17 @@ void PlayerWeaponSystem::restoreState(
     PlayerWeapon selectedWeapon, int rifleLevel) {
     rifleLevel_ = std::clamp(
         rifleLevel, 1,
-        static_cast<int>(definition_.upgradeCrystal.size()) + 1);
+        MaximumPlayerWeaponLevel);
     ammunition_ = magazineSize();
     fireCooldownRemaining_ = 0.0;
     reloadRemaining_ = 0.0;
     selectWeapon(selectedWeapon);
+}
+
+void PlayerWeaponSystem::setRifleLevel(int level) {
+    const int previousMagazine = magazineSize();
+    rifleLevel_ = std::clamp(level, 1, MaximumPlayerWeaponLevel);
+    ammunition_ = std::clamp(ammunition_ + magazineSize() - previousMagazine, 0, magazineSize());
 }
 
 void PlayerWeaponSystem::tick(double deltaSeconds) {
@@ -167,8 +173,8 @@ double PlayerWeaponSystem::fireInterval() const {
 }
 
 double PlayerWeaponSystem::reloadDuration() const {
-    return definition_.reloadDuration -
-           definition_.reloadReductionPerLevel * static_cast<double>(rifleLevel_ - 1);
+    return std::max(.45, definition_.reloadDuration -
+           definition_.reloadReductionPerLevel * static_cast<double>(rifleLevel_ - 1));
 }
 
 int PlayerWeaponSystem::magazineSize() const {

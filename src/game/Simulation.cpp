@@ -395,6 +395,13 @@ void Simulation::resetRun(GameEventType eventType) {
     runUpgradeStacks_.fill(0);
     runUpgradePower_.fill(0.0);
     const auto* startingClass = playerClassDefinition(playerClass_);
+    for (const auto weapon : {PlayerWeapon::Axe, PlayerWeapon::Pickaxe,
+            startingClass ? startingClass->startingWeapon : PlayerWeapon::Axe}) {
+        if (const auto card = weaponRunUpgrade(weapon); card && runWeaponLevelCard(*card)) {
+            runUpgradeStacks_[runUpgradeIndex(*card)] = 1;
+            runUpgradePower_[runUpgradeIndex(*card)] = 1.0;
+        }
+    }
     const auto startingDefense = startingClass ? startingClass->startingBuilding : BuildingType::GunTurret;
     if (const auto card = buildingRunUpgrade(startingDefense)) {
         runUpgradeStacks_[runUpgradeIndex(*card)] = 1;

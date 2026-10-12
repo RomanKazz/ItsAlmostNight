@@ -39,7 +39,9 @@ int Simulation::resourceCapacity(ResourceCapacityType resource) const {
     if (playerClass_ == PlayerClass::Prospector) {
         capacity += (capacity + 3) / 4;
     }
-    return capacity;
+    return static_cast<int>(std::min(static_cast<double>(std::numeric_limits<int>::max()),
+        std::ceil(static_cast<double>(static_cast<long double>(capacity) *
+            (100.0L + 20.0L * runUpgradePower(RunUpgradeEffect::ResourceCapacity)) / 100.0L))));
 }
 
 void Simulation::clampResourcesToCapacity() {
@@ -394,6 +396,7 @@ void Simulation::updatePlayerActions(
             std::max(
                 0.05, (quickTool ? toolAttackSpeedMultiplier_ : playerAttackSpeedMultiplier_) *
                     temporaryAttackSpeedMultiplier() * toolSpeed *
+                    (heldTool == PlayerWeapon::Club ? playerWeaponLevelSpeed(playerWeaponLevel(heldTool)) : 1.0) *
                     (playerClass_ == PlayerClass::Berserker
                          ? playerClassDamageMultiplier() : 1.0));
         const std::uint64_t attackSeed = mixBits64(
@@ -407,9 +410,9 @@ void Simulation::updatePlayerActions(
                 attackSeed ^ 0xd1b54a32d192ed03ULL) <
             gameplay_.pickaxeCriticalChance;
         const bool clubAttack = heldTool == PlayerWeapon::Club;
-        double toolMultiplier = 1.0;
+        double toolMultiplier = playerWeaponLevelDamage(heldTool,playerWeaponLevel(heldTool));
         if (heldTool == PlayerWeapon::LegacyBareHands) toolMultiplier = 0.0;
-        else if (clubAttack) toolMultiplier = club_.damageMultiplier;
+        else if (clubAttack) toolMultiplier *= club_.damageMultiplier;
         else if (heldTool == PlayerWeapon::Hammer) toolMultiplier = 0.75;
         const double damage = playerDamageMultiplier_ *
             runPlayerDamageMultiplier_ *

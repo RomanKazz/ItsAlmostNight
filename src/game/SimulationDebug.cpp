@@ -375,28 +375,7 @@ void Simulation::processDebugCommands(
             }
             return;
         }
-        const auto core = buildings_.core();
-        const int coreLevel =
-            core ? static_cast<int>(core->level) : 0;
-        const int availableCurrency = unlimitedResources_
-            ? std::numeric_limits<int>::max()
-            : crystals_;
-        const WeaponUpgradeResult result =
-            playerWeapons_.upgrade(coreLevel, availableCurrency);
-        if (result.valid()) {
-            if (!unlimitedResources_) {
-                crystals_ -= result.crystalCost;
-            }
-            events_.push_back({
-                .type = GameEventType::WeaponUpgraded,
-                .amount = result.level,
-            });
-        } else {
-            events_.push_back({
-                .type = GameEventType::WeaponUpgradeRejected,
-                .weaponUpgradeError = result.error,
-            });
-        }
+
     }
     if (command.defeatAllEnemies &&
         enemies_.activeCount() > 0) {

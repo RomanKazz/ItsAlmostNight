@@ -5,6 +5,7 @@
 #include "game/GameBalance.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 
@@ -25,6 +26,14 @@ enum class PlayerWeapon {
 };
 
 inline constexpr std::size_t PlayerWeaponCount = 9;
+inline constexpr int MaximumPlayerWeaponLevel = 8;
+[[nodiscard]] inline double playerWeaponLevelDamage(PlayerWeapon weapon, int level) {
+    return 1.0 + (weapon == PlayerWeapon::Axe || weapon == PlayerWeapon::Pickaxe ? .35 : .25) *
+        (std::clamp(level, 1, MaximumPlayerWeaponLevel) - 1);
+}
+[[nodiscard]] inline double playerWeaponLevelSpeed(int level) {
+    return 1.0 + .06 * (std::clamp(level, 1, MaximumPlayerWeaponLevel) - 1);
+}
 
 // Canonical order shared by input, HUD layout and selection animation.
 inline constexpr std::array<PlayerWeapon, PlayerWeaponCount - 2U>
@@ -112,6 +121,7 @@ class PlayerWeaponSystem {
                                 double fireRate, int magazineBonus);
     void selectWeapon(PlayerWeapon weapon);
     void restoreState(PlayerWeapon selectedWeapon, int rifleLevel);
+    void setRifleLevel(int level);
     void tick(double deltaSeconds);
     std::optional<WeaponFireResult> fireRifle(
         Vec3 origin, Vec3 direction, EnemySystem& enemies,

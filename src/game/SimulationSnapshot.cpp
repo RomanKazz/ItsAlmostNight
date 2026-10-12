@@ -98,7 +98,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
     double heldDamage = gameplay_.pickaxeDamage;
     switch (playerWeapons_.selectedWeapon()) {
     case PlayerWeapon::LegacyBareHands: heldDamage = 0.0; break;
-    case PlayerWeapon::Club: heldDamage *= club_.damageMultiplier; break;
+    case PlayerWeapon::Club: heldDamage *= club_.damageMultiplier * playerWeaponLevelDamage(PlayerWeapon::Club,playerWeaponLevel(PlayerWeapon::Club)); break;
     case PlayerWeapon::IceWand: heldDamage = iceWand_.directDamage(); break;
     case PlayerWeapon::FireWand: heldDamage = fireWand_.directDamage(); break;
     case PlayerWeapon::Hammer: heldDamage *= 0.75; break;
@@ -109,7 +109,7 @@ const SimulationSnapshot& Simulation::snapshot() const {
     case PlayerWeapon::Axe:
     case PlayerWeapon::Pickaxe:
         heldDamage *= meleeEnemyDamageMultiplier(
-            playerWeapons_.selectedWeapon());
+            playerWeapons_.selectedWeapon()) * playerWeaponLevelDamage(playerWeapons_.selectedWeapon(),playerWeaponLevel(playerWeapons_.selectedWeapon()));
         break;
     }
     heldDamage *= playerDamageMultiplier_ * runPlayerDamageMultiplier_ *
@@ -362,6 +362,9 @@ const SimulationSnapshot& Simulation::snapshot() const {
             playerWeaponUnlocked(PlayerWeapon::Rifle),
             playerWeaponUnlocked(PlayerWeapon::Bomb),
         },
+        .weaponLevels = {0,playerWeaponLevel(PlayerWeapon::Axe),playerWeaponLevel(PlayerWeapon::Pickaxe),
+            playerWeaponLevel(PlayerWeapon::Club),playerWeaponLevel(PlayerWeapon::IceWand),
+            playerWeaponLevel(PlayerWeapon::FireWand),0,playerWeaponLevel(PlayerWeapon::Rifle),playerWeaponLevel(PlayerWeapon::Bomb)},
         .selectedWeapon = playerWeapons_.selectedWeapon(),
         .selectedWeaponDamage = combatDisplayScalar(heldDamage),
         .rifleLevel = playerWeapons_.rifleLevel(),
@@ -429,8 +432,8 @@ const SimulationSnapshot& Simulation::snapshot() const {
             .defenseFireRate = defenseFireRateMultiplier_,
             .buildingHealth = buildingMaxHealthMultiplier_ * runBuildingMaxHealthMultiplier_,
             .productionSpeed = productionSpeedMultiplier_ * runProductionSpeedMultiplier_,
-            .resourceYield = activeMetaBonuses_.resourceYield * (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
-                (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)),
+            .resourceYield = activeMetaBonuses_.resourceYield * (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0),
+            .resourceCapacity = 1.0 + .20 * runUpgradePower(RunUpgradeEffect::ResourceCapacity),
             .playerAttackSpeed = playerAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() *
                 (battlePotionBerserkRemaining_ > 0.0 ? 1.35 : 1.0),
             .toolAttackSpeed = toolAttackSpeedMultiplier_ * temporaryAttackSpeedMultiplier() * classLevelBonuses().meleeSpeed *

@@ -44,12 +44,13 @@ struct DebugUpgradeMenuResult {
 };
 
 inline bool debugUpgradeUnique(RunUpgradeEffect effect) {
-    return (runUpgradeBuilding(effect).has_value() && !runDefenseCard(effect)) || runUpgradeWeapon(effect).has_value()
+    return (runUpgradeBuilding(effect).has_value() && !runDefenseCard(effect)) || (runUpgradeWeapon(effect).has_value() && !runWeaponLevelCard(effect))
         || runUpgradeCannonStyle(effect).has_value();
 }
 inline DebugUpgradeCategory debugUpgradeCategory(RunUpgradeEffect effect) {
     if (debugUpgradeUnique(effect)) return DebugUpgradeCategory::Unlocks;
     if (runDefenseCard(effect)) return DebugUpgradeCategory::Defense;
+    if (runWeaponLevelCard(effect)) return DebugUpgradeCategory::Player;
     switch (effect) {
     case RunUpgradeEffect::BuildingHealth: case RunUpgradeEffect::BuildRadius:
     case RunUpgradeEffect::DefenseDamage: case RunUpgradeEffect::DefenseFireRate:
@@ -119,6 +120,8 @@ inline bool debugUpgradeGrantable(RunUpgradeEffect effect, const SimulationSnaps
         return *building != starting && snapshot.runUpgradeStacks[runUpgradeIndex(effect)] == 0;
     }
     if (const auto weapon = runUpgradeWeapon(effect)) {
+        if (runWeaponLevelCard(effect))
+            return snapshot.runUpgradeStacks[runUpgradeIndex(effect)] < MaximumPlayerWeaponLevel;
         const auto* character = playerClassDefinition(snapshot.playerClass);
         return !snapshot.unlockedWeapons[static_cast<std::size_t>(*weapon)]
             && (!character || *weapon != character->startingWeapon)

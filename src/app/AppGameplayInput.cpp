@@ -468,7 +468,7 @@ void App::processGameplayInput(bool controlDown,
                     hotbarWheel > 0.0F ? -1 : 1);
             }
         }
-        if (buildingHotbarCategory_ ==
+        if (actionMode_ == ActionMode::Buildings && buildingHotbarCategory_ ==
                 BuildingHotbarCategory::Modular &&
             keyPressed(userSettings_.controls,
                        ControlAction::UpgradeWeapon)) {
@@ -625,14 +625,10 @@ void App::processGameplayInput(bool controlDown,
             currentSnapshot.coreId &&
             currentSnapshot.aimedBuilding ==
                 currentSnapshot.coreId;
-        pendingWeaponUpgrade_ =
-            pendingWeaponUpgrade_ ||
-            (!aimingCore &&
-             actionMode_ == ActionMode::Equipment &&
-             isPlayerCombatWeapon(
-                 currentSnapshot.selectedWeapon) &&
-             keyPressed(userSettings_.controls,
-                        ControlAction::UpgradeWeapon));
+        pendingWeaponUpgrade_ = pendingWeaponUpgrade_ ||
+            (!aimingCore && actionMode_ == ActionMode::Equipment &&
+             currentSnapshot.selectedWeapon == PlayerWeapon::Bomb &&
+             keyPressed(userSettings_.controls,ControlAction::UpgradeWeapon));
         pendingRevealChest_ = pendingRevealChest_ ||
             keyPressed(userSettings_.controls,
                        ControlAction::RevealChest);

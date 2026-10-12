@@ -3717,15 +3717,9 @@ void runSimulationTests() {
     require(simulation.snapshot().rifleLevel == 1,
             "rifle stays locked at core level one");
     auto weaponEvents = simulation.takeEvents();
-    bool coreRequirementEventFound = false;
-    for (const auto& event : weaponEvents) {
-        if (event.type == ian::GameEventType::WeaponUpgradeRejected &&
-            event.weaponUpgradeError == ian::WeaponUpgradeError::CoreLevelRequired) {
-            coreRequirementEventFound = true;
-        }
-    }
-    require(coreRequirementEventFound,
-            "rifle upgrade rejection reports core-level requirement");
+    require(std::ranges::none_of(weaponEvents,[](const auto& event) {
+        return event.type==ian::GameEventType::WeaponUpgradeRejected || event.type==ian::GameEventType::WeaponUpgraded;
+    }),"legacy V command is silent and cannot buy weapon levels");
 
     const auto coreId = *simulation.snapshot().coreId;
     ian::PlayerCommand placementUpgradeConflict;
@@ -3747,6 +3741,8 @@ void runSimulationTests() {
     ian::PlayerCommand upgradeWeapon;
     upgradeWeapon.upgradeWeapon = ian::UpgradeWeaponCommand{};
     simulation.tick(1.0 / 60.0, upgradeWeapon);
+    require(simulation.snapshot().rifleLevel==1,"V no longer upgrades weapons");
+    require(simulation.grantDebugRunUpgradeBatch(ian::RunUpgradeEffect::UnlockRifle,2),"rifle card reaches the godmode fixture level");
     require(simulation.snapshot().rifleLevel == 2 &&
                 simulation.snapshot().rifleMagazineSize == 10,
             "simulation upgrades rifle after core unlock");

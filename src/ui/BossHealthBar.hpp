@@ -82,9 +82,9 @@ inline void drawBossHealthBar(std::span<const EnemyInstance> enemies,int width) 
     bossHud::crown({x+24*scale,barY+16*scale},scale);
     const char* action=nullptr;
     if(boss->state==EnemyState::BossPhaseTransition) action="CROWN SHIELD";
-    else if(boss->state==EnemyState::BossVolleyWindup) action="ROYAL VOLLEY";
+    else if(boss->state==EnemyState::BossVolleyWindup) action=boss->bossAttackPlayer?"ROYAL VOLLEY":"CORE VOLLEY";
     else if(boss->state==EnemyState::BossSlamWindup) action="DIVE - MOVE!";
-    else if(boss->state==EnemyState::BossStormWindup || boss->bossStrikesRemaining>0) action="FEATHER STORM";
+    else if(boss->state==EnemyState::BossStormWindup || boss->bossStrikesRemaining>0) action=boss->bossAttackPlayer?"FEATHER STORM":"CORE SIEGE";
     else if(boss->state==EnemyState::BossWarCryWindup) action="CALLING THE COURT";
     if(action) menuStyle::text(action,{left,barY+38*scale,barW,21*scale},14*scale,
         cream,UiFontRole::Display,1);

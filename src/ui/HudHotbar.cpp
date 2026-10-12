@@ -873,20 +873,15 @@ void drawWeaponHotbar(
                                "/" +
                                std::to_string(snapshot.bombPurchaseCoinCost)
                          : "")
-                : weaponLabel(weapon);
+                : localizeText(weaponLabel(weapon)) + " · " + localizeText("LVL") + " " +
+                    std::to_string(std::max(1,snapshot.weaponLevels[static_cast<std::size_t>(weapon)]));
         slots[slotCount] = {
             .key = keys[slotCount],
             .label = labels[slotCount],
             .cost = {},
             .selected = snapshot.selectedWeapon == weapon,
             .available = true,
-            .upgradeAvailable =
-                weapon == PlayerWeapon::Rifle &&
-                snapshot.rifleLevel < 3 &&
-                snapshot.coreLevel > snapshot.rifleLevel &&
-                (snapshot.unlimitedResources ||
-                 snapshot.crystals >=
-                     snapshot.rifleUpgradeCrystalCost),
+            .upgradeAvailable = false,
             .icon = ui.weaponTexture(weapon),
         };
         ++slotCount;

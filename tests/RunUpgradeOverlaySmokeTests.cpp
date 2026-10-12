@@ -2,6 +2,7 @@
 #include "RewardBackdropChecks.hpp"
 #include "app/AppRunUpgradeOverlay.hpp"
 #include "ui/UiText.hpp"
+#include "ui/DebugUpgradeMenu.hpp"
 #include "localization/Localization.hpp"
 
 #include <array>
@@ -9,6 +10,19 @@
 #include <string>
 
 int main(int argc, char** argv) {
+    ian::SimulationSnapshot debugSnapshot{};
+    for (const auto effect : {ian::RunUpgradeEffect::UpgradeAxe, ian::RunUpgradeEffect::UpgradePickaxe,
+            ian::RunUpgradeEffect::UnlockRifle, ian::RunUpgradeEffect::UnlockClub,
+            ian::RunUpgradeEffect::UnlockIceWand, ian::RunUpgradeEffect::UnlockFireWand}) {
+        debugSnapshot.runUpgradeStacks[ian::runUpgradeIndex(effect)] = 1;
+        require(!ian::debugUpgradeUnique(effect) && ian::debugUpgradeGrantable(effect, debugSnapshot),
+            "debug catalog can grant another level of owned weapons and tools");
+        debugSnapshot.runUpgradeStacks[ian::runUpgradeIndex(effect)] = ian::MaximumPlayerWeaponLevel;
+        require(!ian::debugUpgradeGrantable(effect, debugSnapshot),
+            "debug catalog respects the eight-level weapon limit");
+    }
+    require(ian::debugUpgradeUnique(ian::RunUpgradeEffect::UnlockBomb),
+        "bomb acquisition remains unique in the debug catalog");
     using ian::app_detail::advanceRunUpgradeInputDelay;
     constexpr double quietDuration = ian::app_detail::RunUpgradeChoiceInputQuietDuration;
     double inputDelay = quietDuration;
@@ -185,7 +199,10 @@ int main(int argc, char** argv) {
         requireNear(projected.upgradeStats.productionSpeed, actual.upgradeStats.productionSpeed, 1e-9, "production preview matches simulation");
         requireNear(projected.upgradeStats.toolAttackSpeed, actual.upgradeStats.toolAttackSpeed, 1e-9, "tool speed preview matches simulation");
         requireNear(projected.upgradeStats.playerAttackSpeed, actual.upgradeStats.playerAttackSpeed, 1e-9, "attack speed preview matches simulation");
-        requireNear(projected.upgradeStats.resourceYield, actual.upgradeStats.resourceYield, 1e-9, "yield preview matches simulation");
+        requireNear(projected.upgradeStats.resourceYield, actual.upgradeStats.resourceYield, 1e-9, "meta/class yield preview matches simulation");
+        requireNear(projected.upgradeStats.resourceCapacity, actual.upgradeStats.resourceCapacity, 1e-9,"capacity tome preview matches simulation");
+        require(projected.woodCapacity==actual.woodCapacity && projected.stoneCapacity==actual.stoneCapacity &&
+            projected.crystalCapacity==actual.crystalCapacity,"storage preview matches rounded actual capacities");
         requireNear(projected.upgradeStats.defenseDamage, actual.upgradeStats.defenseDamage, 1e-9, "defense damage preview matches simulation");
         requireNear(projected.upgradeStats.defenseFireRate, actual.upgradeStats.defenseFireRate, 1e-9, "defense rate preview matches simulation");
         requireNear(projected.upgradeStats.luck, actual.upgradeStats.luck, 1e-9, "luck preview matches simulation");

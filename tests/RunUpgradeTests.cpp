@@ -1,5 +1,6 @@
 #include "TestHarness.hpp"
 #include "DefenseCardProgressionChecks.hpp"
+#include "WeaponCardProgressionChecks.hpp"
 #include "CoreDefenseGateChecks.hpp"
 #include "game/Simulation.hpp"
 
@@ -9,6 +10,7 @@
 
 void runRunUpgradeTests() {
     checkDefenseCardProgression();
+    checkWeaponCardProgression();
     checkCoreDefenseGateAndRepairs();
     using namespace ian;
     const auto rerollWithSavedToken = [](Simulation& run) {
@@ -150,9 +152,9 @@ void runRunUpgradeTests() {
             require(!weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)],
                 "combat weapons start locked until their acquisition card");
             const auto effect = *weaponRunUpgrade(weapon);
-            require(runUpgradeMaximumLevel(effect) == 1 && fixedRunUpgradePower(effect) &&
+            require(runUpgradeMaximumLevel(effect) == (weapon==PlayerWeapon::Bomb?1:MaxBuildingLevel) && fixedRunUpgradePower(effect) &&
                 fixedRunUpgradeRarity(effect) == RunUpgradeRarity::Common,
-                "weapon blueprints are one-time acquisitions with fixed power");
+                "weapon cards have fixed power and leveled weapons extend to eight");
             // Exercise the normal selection command through a saved pending offer.
             auto offer = weaponRun->saveSuspendedRunState();
             offer.runUpgradeChoicePending = true;
@@ -177,7 +179,7 @@ void runRunUpgradeTests() {
         require(weaponRun->snapshot().bombsRemaining > 0,
             "bomb blueprint provides its first usable bundle");
         auto acquired = weaponRun->saveSuspendedRunState();
-        require(acquired.playerWeaponArsenalVersion == 1, "weapon ownership uses the new save version");
+        require(acquired.playerWeaponArsenalVersion == 2, "weapon ownership uses the new save version");
         weaponRun->returnToMainMenu();
         require(weaponRun->loadSuspendedRunState(acquired), "acquired player weapons resume");
         for (const auto weapon : {PlayerWeapon::Club, PlayerWeapon::Rifle, PlayerWeapon::Bomb,
@@ -185,7 +187,7 @@ void runRunUpgradeTests() {
             require(weaponRun->snapshot().unlockedWeapons[static_cast<std::size_t>(weapon)],
                 "all acquired weapons survive saving");
         auto invalid = acquired;
-        invalid.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockRifle)] = 2;
+        invalid.runUpgradeStacks[runUpgradeIndex(RunUpgradeEffect::UnlockRifle)] = 9;
         weaponRun->returnToMainMenu();
         require(!weaponRun->loadSuspendedRunState(invalid), "duplicate saved weapon acquisition is rejected");
         weaponRun->startRunFromSeed(PlayerClass::Alchemist, 13579);
@@ -734,6 +736,10 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::UnlockGunTurret, RunUpgradeEffect::UnlockSpikeTrap})
             require(exhausted->grantDebugRunUpgradeBatch(card, MaxBuildingLevel),
                 "exhaustion fixture maximizes the four owned combat types");
+        for (const auto weapon : {PlayerWeapon::Axe,PlayerWeapon::Pickaxe,PlayerWeapon::Club,
+                PlayerWeapon::Rifle,PlayerWeapon::IceWand,PlayerWeapon::FireWand})
+            require(exhausted->grantDebugRunUpgradeBatch(*weaponRunUpgrade(weapon),MaxBuildingLevel),
+                "exhaustion fixture maximizes owned weapons and tools");
         for (const auto perk : {RunUpgradeEffect::NightlyBomb, RunUpgradeEffect::ClusterPayload,
                 RunUpgradeEffect::ReactiveTraps, RunUpgradeEffect::GunShrapnel})
             require(exhausted->grantDebugRunUpgradeBatch(perk, runUpgradeMaximumLevel(perk)),
@@ -852,7 +858,7 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 44 && activeHammers == 22, "streamlined pool contains 22 tomes and 22 blueprint or weapon perks");
+    require(activeCount == 46 && activeHammers == 22, "streamlined pool contains 22 tomes and 24 blueprint, weapon or tool cards");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
             !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and overkill retire while high stakes remains available");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;

@@ -53,6 +53,13 @@ std::uint64_t insightStringEvent(std::uint64_t tag, std::string_view text, int c
 
 } // namespace
 
+int Simulation::playerWeaponLevel(PlayerWeapon weapon) const {
+    if (!playerWeaponUnlocked(weapon)) return 0;
+    const auto card=weaponRunUpgrade(weapon);
+    return card && runWeaponLevelCard(*card)
+        ? std::clamp(runUpgradeStacks_[runUpgradeIndex(*card)],1,MaximumPlayerWeaponLevel) : 1;
+}
+
 const InsightSystem& Simulation::insightSystem() const { return insight_; }
 const ObjectiveSystem& Simulation::objectiveSystem() const { return objectives_; }
 
@@ -93,8 +100,7 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     }
     resources_.setGatheringYieldMultiplier(
         activeMetaBonuses_.resourceYield *
-        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0) *
-        (1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)));
+        (playerClass_ == PlayerClass::Prospector ? 1.35 : 1.0));
     crystalMines_.setProductionSpeedMultiplier(
         productionSpeedMultiplier_ * runProductionSpeedMultiplier_);
     crystalMines_.setTypeProductionSpeedMultipliers(
@@ -133,22 +139,25 @@ void Simulation::refreshRunUpgradeRuntimeEffects() {
     towers_.setTypeBonuses(starting, startingDamage, startingRate);
     cannons_.setTypeBonuses(starting, startingDamage, startingRate);
     traps_.setTypeBonuses(starting, startingDamage, startingRate);
+    playerWeapons_.setRifleLevel(playerWeaponLevel(PlayerWeapon::Rifle));
     playerWeapons_.setRifleModifiers(
         1.0, 1.0,
         playerAttackSpeedMultiplier_ *
             temporaryAttackSpeedMultiplier(),
         0);
     iceWand_.setModifiers(
-        1.0, 1.0, 1.0, 1.0, 0.0);
+        playerWeaponLevelDamage(PlayerWeapon::IceWand, playerWeaponLevel(PlayerWeapon::IceWand)),
+        1.0, 1.0, 1.0, 0.0);
     fireWand_.setModifiers(
-        1.0, 1.0, 1.0, 1.0, 0.0);
+        playerWeaponLevelDamage(PlayerWeapon::FireWand, playerWeaponLevel(PlayerWeapon::FireWand)),
+        1.0, 1.0, playerWeaponLevelDamage(PlayerWeapon::FireWand, playerWeaponLevel(PlayerWeapon::FireWand)), 0.0);
     const double castSpeed = playerAttackSpeedMultiplier_ *
         temporaryAttackSpeedMultiplier() *
         (battlePotionBerserkRemaining_ > 0.0
              ? BattlePotionAttackSpeedMultiplier
              : 1.0);
-    iceWand_.setCastSpeedMultiplier(castSpeed);
-    fireWand_.setCastSpeedMultiplier(castSpeed);
+    iceWand_.setCastSpeedMultiplier(castSpeed * playerWeaponLevelSpeed(playerWeaponLevel(PlayerWeapon::IceWand)));
+    fireWand_.setCastSpeedMultiplier(castSpeed * playerWeaponLevelSpeed(playerWeaponLevel(PlayerWeapon::FireWand)));
     if (defenseLevelsChanged) syncBuildingRuntimeSystems();
 }
 
@@ -171,7 +180,11 @@ bool Simulation::runUpgradeAvailable(RunUpgradeEffect effect) const {
         runTomeLevel(effect, runUpgradeStacks_) == 0 &&
         runTomeCount(runUpgradeStacks_) >= runTomeSlotLimit(activeMetaBonuses_)) return false;
     if (const auto weapon = runUpgradeWeapon(effect)) {
-        return !sandboxMode_ && !unlimitedResources_ && !playerWeaponUnlocked(*weapon);
+        if (sandboxMode_ || unlimitedResources_) return false;
+        const auto core=buildings_.core();
+        return runWeaponLevelCard(effect)
+            ? playerWeaponLevel(*weapon) < runDefenseLevelLimit(core?core->level:0U)
+            : !playerWeaponUnlocked(*weapon);
     }
     if (const auto building = runUpgradeBuilding(effect)) {
         if (sandboxMode_ || unlimitedResources_) return false;
@@ -317,7 +330,12 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
                 runBuildingArsenalCount() >= RunBuildingSlotCount) return false;
         } else if (ownsRunBuilding(*building)) return false;
     }
-    if (const auto weapon = runUpgradeWeapon(effect); weapon && playerWeaponUnlocked(*weapon)) return false;
+    if (const auto weapon=runUpgradeWeapon(effect)) {
+        if (!runWeaponLevelCard(effect) && playerWeaponUnlocked(*weapon)) return false;
+        const auto core=buildings_.core();
+        if (runWeaponLevelCard(effect) &&
+            playerWeaponLevel(*weapon)>=runDefenseLevelLimit(core?core->level:0U)) return false;
+    }
     if (runUpgradeCannonStyle(effect) && !runUpgradeAvailable(effect)) return false;
     int& stacks = runUpgradeStacks_[runUpgradeIndex(effect)];
     const double power = runUpgradeAppliedPowerGain(effect, rarity, runUpgradePower(effect));
@@ -402,6 +420,8 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
     case RunUpgradeEffect::UnlockRifle:
     case RunUpgradeEffect::UnlockIceWand:
     case RunUpgradeEffect::UnlockFireWand:
+    case RunUpgradeEffect::UpgradeAxe:
+    case RunUpgradeEffect::UpgradePickaxe:
         break;
     case RunUpgradeEffect::UnlockBomb:
         bombs_.addBombs(economy_.bombPurchaseAmount);
@@ -426,6 +446,9 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         break;
     }
     refreshRunUpgradeRuntimeEffects();
+    if (const auto weapon=runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect) && playerWeaponLevel(*weapon)>1) {
+        events_.push_back({.type=GameEventType::WeaponUpgraded,.position=playerPosition_,.amount=playerWeaponLevel(*weapon)});
+    }
     if (runDefenseCard(effect)) {
         const auto type = *runUpgradeBuilding(effect);
         for (const auto& building : buildings_.buildings()) {

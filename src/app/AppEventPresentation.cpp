@@ -1343,7 +1343,7 @@ void App::processPresentationEvents(
                     *event.buildingType)) +
                 " sold";
         } else if (event.type == GameEventType::WeaponUpgraded) {
-            message = "Rifle upgraded to level " + std::to_string(event.amount);
+            message = localizeText("Weapon upgraded to level ") + std::to_string(event.amount);
         } else if (event.type == GameEventType::WeaponUpgradeRejected &&
                    event.weaponUpgradeError) {
             message = weaponUpgradeErrorMessage(*event.weaponUpgradeError);

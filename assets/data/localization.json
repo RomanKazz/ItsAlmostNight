@@ -3,6 +3,18 @@
   "languages": {
     "en": {},
     "ru": {
+      "Weapon upgraded to level ": "Оружие улучшено до уровня ",
+      "CYCLE BUILD PART / RESTOCK BOMBS": "СМЕНИТЬ МОДУЛЬ / КУПИТЬ БОМБЫ",
+      "CORE VOLLEY": "ОБСТРЕЛ ЯДРА",
+      "CORE SIEGE": "ОСАДА ЯДРА",
+      "STORAGE TOME": "ТОМ ВМЕСТИМОСТИ",
+      "Resource capacity": "Вместимость ресурсов",
+      "Weapon level": "Уровень оружия",
+      "Unlock level 1 weapon": "Открыть оружие 1 уровня",
+      "Upgrade weapon by one level": "Улучшить оружие на один уровень",
+      "Upgrade axe power by one level": "Повысить мощность топора на один уровень",
+      "Upgrade pickaxe power by one level": "Повысить мощность кирки на один уровень",
+      "+20% resource capacity": "+20% вместимости ресурсов",
       "Break open": "Разбить",
       "UPGRADE CORE FIRST": "СНАЧАЛА УЛУЧШИ ЯДРО",
       "GUN TURRET": "ПУЛЕМЁТ",

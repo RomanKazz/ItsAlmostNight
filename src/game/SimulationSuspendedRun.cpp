@@ -80,7 +80,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .buildingBlueprintLevels = buildings_.blueprintLevels(),
         .coreBuildRadius = buildings_.coreBuildRadius(),
         .coreBuildRadiusLevel = buildings_.core() ? buildings_.core()->level : 1,
-        .playerWeaponArsenalVersion = 1,
+        .playerWeaponArsenalVersion = 2,
         .playerDamageMultiplier = playerDamageMultiplier_,
         .runPlayerDamageMultiplier = runPlayerDamageMultiplier_,
         .playerAttackSpeedMultiplier = playerAttackSpeedMultiplier_,
@@ -206,11 +206,12 @@ bool Simulation::loadSuspendedRunState(
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
         });
-    const bool invalidWeapons = saved.playerWeaponArsenalVersion < 0 || saved.playerWeaponArsenalVersion > 1 ||
+    const bool invalidWeapons = saved.playerWeaponArsenalVersion < 0 || saved.playerWeaponArsenalVersion > 2 ||
         std::ranges::any_of(RunUpgradeDefinitions, [&](const RunUpgradeDefinition& definition) {
             if (!runUpgradeWeapon(definition.effect)) return false;
             const auto index = runUpgradeIndex(definition.effect);
-            return saved.runUpgradeStacks[index] > 1 || saved.runUpgradePower[index] > 1.0 ||
+            const int maximum=saved.playerWeaponArsenalVersion>=2 && runWeaponLevelCard(definition.effect) ? MaximumPlayerWeaponLevel : 1;
+            return saved.runUpgradeStacks[index] > maximum || saved.runUpgradePower[index] > maximum ||
                 (saved.runUpgradePower[index] != 0.0 &&
                  saved.runUpgradePower[index] != static_cast<double>(saved.runUpgradeStacks[index]));
         });
@@ -439,6 +440,20 @@ bool Simulation::loadSuspendedRunState(
             }
         }
     }
+    if (saved.playerWeaponArsenalVersion < 2) {
+        const auto* character=playerClassDefinition(saved.playerClass);
+        for (const auto& definition:RunUpgradeDefinitions) {
+            const auto weapon=runUpgradeWeapon(definition.effect);
+            if (!weapon || !runWeaponLevelCard(definition.effect)) continue;
+            const auto index=runUpgradeIndex(definition.effect);
+            const bool owned=isPlayerTool(*weapon) || runUpgradeStacks_[index]>0 ||
+                (character && character->startingWeapon==*weapon);
+            if (owned) {
+                const int level=*weapon==PlayerWeapon::Rifle ? std::clamp(saved.rifleLevel,1,MaximumPlayerWeaponLevel) : 1;
+                runUpgradeStacks_[index]=level;runUpgradePower_[index]=level;
+            }
+        }
+    }
     // Checkpoints from before rarities contain only selection counts.
     for (std::size_t index = 0; index < runUpgradePower_.size(); ++index) {
         if (runUpgradePower_[index] == 0.0 && runUpgradeStacks_[index] > 0) {
@@ -534,7 +549,8 @@ bool Simulation::loadSuspendedRunState(
             saved.platformFrames, saved.modularWalls, saved.ramps) ||
         !resources_.restoreNodes(
             saved.resourceNodes, saved.woodYieldMultiplier,
-            1.0 + 0.15 * runUpgradePower(RunUpgradeEffect::RichResources)) ||
+            saved.playerWeaponArsenalVersion < 2 ?
+                1.0 + .15 * runUpgradePower(RunUpgradeEffect::ResourceCapacity) : 1.0) ||
         !lootChests_.restoreChests(saved.lootChests)) {
         return failLoad();
     }
@@ -597,7 +613,7 @@ bool Simulation::loadSuspendedRunState(
 
     bombs_.reset();
     bombs_.addBombs(saved.bombs);
-    playerWeapons_.restoreState(saved.selectedWeapon, saved.rifleLevel);
+    playerWeapons_.restoreState(saved.selectedWeapon, playerWeaponLevel(PlayerWeapon::Rifle));
     playerHealth_ = std::clamp(
         saved.playerHealth, 1.0,
         playerPermanentMaxHealth() + playerTemporaryHealth_);

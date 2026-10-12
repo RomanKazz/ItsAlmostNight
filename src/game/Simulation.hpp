@@ -263,6 +263,7 @@ struct RunUpgradeStats {
     double buildingHealth{1.0};
     double productionSpeed{1.0};
     double resourceYield{1.0};
+    double resourceCapacity{1.0};
     double playerAttackSpeed{1.0};
     double toolAttackSpeed{1.0};
     double luck{};
@@ -413,6 +414,7 @@ struct SimulationSnapshot {
     bool automaticToolSwitch;
     bool holdToGather;
     std::array<bool, PlayerWeaponCount> unlockedWeapons;
+    std::array<int, PlayerWeaponCount> weaponLevels{};
     PlayerWeapon selectedWeapon;
     double selectedWeaponDamage;
     int rifleLevel;
@@ -737,6 +739,7 @@ class Simulation {
     [[nodiscard]] std::size_t runBuildingArsenalCount() const;
     [[nodiscard]] bool runUpgradeAvailable(RunUpgradeEffect effect) const;
     [[nodiscard]] bool playerWeaponUnlocked(PlayerWeapon weapon) const;
+    [[nodiscard]] int playerWeaponLevel(PlayerWeapon weapon) const;
     [[nodiscard]] BuildingPlatformSurface
     placementSurface(BuildingType type,
                      GridPosition position,

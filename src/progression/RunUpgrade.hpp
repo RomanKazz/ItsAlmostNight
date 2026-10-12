@@ -75,9 +75,12 @@ enum class RunUpgradeEffect {
     CriticalDamage,
     AttackKnockback,
     PoisonChance,
+    UpgradeAxe,
+    UpgradePickaxe,
+    ResourceCapacity = RichResources, // Stable former yield-tome save ID.
 };
 
-inline constexpr std::size_t RunUpgradeEffectCount = 57U;
+inline constexpr std::size_t RunUpgradeEffectCount = 59U;
 // Poison deals 25% of the triggering hit per second for four seconds.
 // Reapplication refreshes duration and retains the strongest dose.
 inline constexpr double PoisonDuration = 4.0;
@@ -109,7 +112,7 @@ inline constexpr std::array<RunTomeDefinition, 27> RunTomeDefinitions{{
     {RunUpgradeEffect::ProductionSpeed, "INDUSTRY TOME", "PROD", 0x72DA92},
     {RunUpgradeEffect::Luck, "FORTUNE TOME", "LUCK", 0xA36CEF},
     {RunUpgradeEffect::BuildRadius, "REACH TOME", "AREA", 0x58C2BB},
-    {RunUpgradeEffect::RichResources, "HARVEST TOME", "YIELD", 0xD3B061},
+    {RunUpgradeEffect::ResourceCapacity, "STORAGE TOME", "BAG", 0xD3B061},
     {RunUpgradeEffect::MaximumHealth, "VITALITY TOME", "HP", 0xFF647F},
     {RunUpgradeEffect::RecoverableArmor, "GUARD TOME", "SHLD", 0x68DBFF},
     {RunUpgradeEffect::MoveSpeed, "SWIFT TOME", "MOVE", 0x73D1CC},
@@ -227,7 +230,7 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::LongerDay, "LEGACY DAYLIGHT",
          "+5s build phase"},
         {RunUpgradeEffect::RichResources, runTomeDefinition(RunUpgradeEffect::RichResources)->name,
-         "+15% resource node yield"},
+         "+20% resource capacity"},
         {RunUpgradeEffect::Luck, runTomeDefinition(RunUpgradeEffect::Luck)->name,
          "+10% upgrade luck"},
         {RunUpgradeEffect::UnlockGunTurret, "GUN TURRET", "Acquire defense / upgrade all copies"},
@@ -258,6 +261,8 @@ inline constexpr std::array<RunUpgradeDefinition,
         {RunUpgradeEffect::CriticalDamage, runTomeDefinition(RunUpgradeEffect::CriticalDamage)->name, "+25% defense critical damage"},
         {RunUpgradeEffect::AttackKnockback, runTomeDefinition(RunUpgradeEffect::AttackKnockback)->name, "+20% defense knockback"},
         {RunUpgradeEffect::PoisonChance, runTomeDefinition(RunUpgradeEffect::PoisonChance)->name, "+10% chance to poison on hit (25% hit damage/s, 4s)"},
+        {RunUpgradeEffect::UpgradeAxe, "AXE", "Upgrade axe power by one level"},
+        {RunUpgradeEffect::UpgradePickaxe, "PICKAXE", "Upgrade pickaxe power by one level"},
     }};
 
 [[nodiscard]] constexpr std::size_t runUpgradeIndex(
@@ -327,8 +332,15 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
     case RunUpgradeEffect::UnlockBomb: return PlayerWeapon::Bomb;
     case RunUpgradeEffect::UnlockIceWand: return PlayerWeapon::IceWand;
     case RunUpgradeEffect::UnlockFireWand: return PlayerWeapon::FireWand;
+    case RunUpgradeEffect::UpgradeAxe: return PlayerWeapon::Axe;
+    case RunUpgradeEffect::UpgradePickaxe: return PlayerWeapon::Pickaxe;
     default: return std::nullopt;
     }
+}
+
+[[nodiscard]] constexpr bool runWeaponLevelCard(RunUpgradeEffect effect) {
+    const auto weapon = runUpgradeWeapon(effect);
+    return weapon && *weapon != PlayerWeapon::Bomb;
 }
 
 [[nodiscard]] constexpr std::optional<RunUpgradeEffect> weaponRunUpgrade(PlayerWeapon weapon) {
@@ -462,7 +474,7 @@ runUpgradeRarityProbabilities(double luck) {
 
 [[nodiscard]] constexpr int runUpgradeMaximumLevel(
     RunUpgradeEffect effect) {
-    if (runDefenseCard(effect)) return MaxBuildingLevel;
+    if (runDefenseCard(effect) || runWeaponLevelCard(effect)) return MaxBuildingLevel;
     if (runUpgradeBuilding(effect) || runUpgradeWeapon(effect) || runUpgradeCannonStyle(effect)) return 1;
     switch (effect) {
     case RunUpgradeEffect::WiderChoice:

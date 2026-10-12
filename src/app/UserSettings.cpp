@@ -613,7 +613,7 @@ const char* controlActionName(ControlAction action) {
     case ControlAction::Copy: return "COPY";
     case ControlAction::Upgrade: return "UPGRADE BUILDING";
     case ControlAction::Sell: return "SELL / REMOVE";
-    case ControlAction::UpgradeWeapon: return "UPGRADE WEAPON";
+    case ControlAction::UpgradeWeapon: return "CYCLE BUILD PART / RESTOCK BOMBS";
     case ControlAction::BuildMode: return "SWITCH HOTBAR";
     case ControlAction::Pause: return "PAUSE";
     case ControlAction::Map: return "MAP";
