@@ -4,7 +4,7 @@ Implemented over the current attack/progression refactors; existing attack IDs a
 
 ## Gameplay
 
-Enemy kill rewards can drop one of three equally likely powerup types. Drop chance: ordinary enemies 1%, elites 5%, bosses 20%. Debug mass-defeat does not produce drops. Tokens are collected within 1.4 world units, disappear after 45 seconds, and land on terrain or a supporting platform. At most 32 tokens exist; exhausted slots reject a new token rather than allocating.
+Enemy kill rewards can drop one of three equally likely powerup types. Drop chance: ordinary enemies 0.5%, elites 2.5%, bosses 10%. Debug mass-defeat does not produce drops. Tokens are collected within 1.4 world units, disappear after 45 seconds, and land on terrain or a supporting platform. At most 32 tokens exist; exhausted slots reject a new token rather than allocating.
 
 | Powerup | Duration | Effect |
 | --- | --- | --- |
@@ -18,13 +18,13 @@ Initial balance requires a real run: Fury gives approximately ×2.25 raw DPS whe
 
 ## Presentation
 
-Floating colored cartoon tokens share geometric emblems with HUD timer chips. Fury surrounds living defenses with two flowing violet/lavender energy filaments, a soft haze, rising orbiting sparks with curved wakes, and sparse glints. Vertex alpha gives the ribbons and glow soft edges without particle textures or square billboards. Each building has an independent phase; aura height follows its upgraded model. Activation eases in over 0.4 seconds, expiry fades over the final second. No large flame silhouettes or ground circles remain. Active buffs retain the low-opacity HUD edge tint.
+Floating authored 3D pickups replace flat icon cards: a cyan horseshoe magnet, a violet lightning bolt and a golden pouch with coins. See [pickup models](POWERUP_PICKUP_MODELS.md) for assets and the generator. HUD timer chips retain their geometric emblems. Fury surrounds living defenses with two flowing violet/lavender energy filaments, a soft haze, rising orbiting sparks with curved wakes, and sparse glints. Vertex alpha gives the ribbons and glow soft edges without particle textures or square billboards. Each building has an independent phase; aura height follows its upgraded model. Activation eases in over 0.4 seconds, expiry fades over the final second. No large flame silhouettes or ground circles remain. Active buffs retain the low-opacity HUD edge tint.
 
-Effects respect world depth, disable depth writes while drawing, and cull beyond 65 units with a distance fade and fewer sparks at long range. Reduce-flashes settings disable glow/glint pulsing while preserving continuous ribbon and spark motion. Animation uses simulation time so pause freezes it. The drawing uses fixed loops and stack values, with no per-frame particle allocations or persistent effect state. No public gameplay interfaces or balance values change.
+Solid pickups write depth. Energy effects test world depth without writing it, and cull beyond 65 units with a distance fade and fewer sparks at long range. Reduce-flashes settings disable glow/glint pulsing while preserving continuous ribbon and spark motion. Animation uses simulation time so pause freezes it. The drawing uses fixed loops and stack values, with no per-frame particle allocations or persistent effect state. Buff strengths and durations remain unchanged.
 
 ## Debug grants
 
-Open **Shift + F5 → POWERUPS**, select Magnet/Fury/Gold Rush, then press **ACTIVATE POWERUP** or Enter. Activation is immediate, requires no pickup, and refreshes duration on repeated grants. The pane uses the same icons as the world/HUD, supports localized search, and displays active time. Copies/rarity and hidden permanent-upgrade selections do not affect powerup activation.
+Open **Shift + F5 → POWERUPS**, select Magnet/Fury/Gold Rush, then press **ACTIVATE POWERUP** or Enter. Activation is immediate, requires no pickup, and refreshes duration on repeated grants. The pane uses the HUD icons, supports localized search, and displays active time. Copies/rarity and hidden permanent-upgrade selections do not affect powerup activation.
 
 `Simulation::grantDebugPowerup(PowerupType)` validates the type/run state, refreshes Fury modifiers immediately, and invalidates the snapshot. `DebugUpgradeGrant::powerup` carries the request through the existing App grant queue. No RunUpgrade IDs or powerup save fields change. Menu/API integration lives in `src/ui/DebugUpgradeMenu.hpp`, `src/app/AppUpdate.cpp`, `src/game/Simulation.hpp`, `src/game/SimulationProgression.cpp` and localization; these mixed files remain in the working tree alongside earlier refactors.
 

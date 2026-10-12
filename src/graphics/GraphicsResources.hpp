@@ -287,6 +287,7 @@ class GraphicsResources {
     [[nodiscard]] ModelResource& worldLandmarkModel(
         std::size_t variant);
     [[nodiscard]] ModelResource& coinModel(std::size_t variant = 0U);
+    [[nodiscard]] ModelResource& powerupPickupModel(std::size_t type);
     [[nodiscard]] ModelResource& destructiblePropModel(
         std::size_t variant);
     [[nodiscard]] ModelResource& appleLootModel();
@@ -428,6 +429,7 @@ class GraphicsResources {
     ModelResource enemyPortalModel_;
     std::array<ModelResource, 2> worldLandmarkModels_;
     std::array<ModelResource, 3> coinModels_;
+    std::array<ModelResource, 3> powerupPickupModels_;
     std::array<ModelResource, 3> destructiblePropModels_;
     ModelResource appleLootModel_;
     ModelResource breadLootModel_;

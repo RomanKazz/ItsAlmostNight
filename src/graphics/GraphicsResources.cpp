@@ -1137,6 +1137,9 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     coinModels_[0].load("assets/models/coins/coin-bronze.glb");
     coinModels_[1].load("assets/models/coins/coin-silver.glb");
     coinModels_[2].load("assets/models/coins/coin-high-value.glb");
+    powerupPickupModels_[0].load("assets/models/powerups/magnet.glb");
+    powerupPickupModels_[1].load("assets/models/powerups/fury.glb");
+    powerupPickupModels_[2].load("assets/models/powerups/gold-rush.glb");
     destructiblePropModels_[0].load(
         "assets/models/destructibles/barrel/barrel.glb");
     destructiblePropModels_[1].load(
@@ -1561,6 +1564,7 @@ void GraphicsResources::shutdown() {
     for (auto& model : worldLandmarkModels_) model.unload();
     for (auto& model : destructiblePropModels_) model.unload();
     for (auto& model : coinModels_) model.unload();
+    for (auto& model : powerupPickupModels_) model.unload();
     woodenChestModel_.unload();
     heartLootModel_.unload();
     healthAidLootModel_.unload();

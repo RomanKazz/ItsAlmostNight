@@ -438,6 +438,10 @@ ModelResource& GraphicsResources::magnetLootModel() {
     return magnetLootModel_;
 }
 
+ModelResource& GraphicsResources::powerupPickupModel(std::size_t type) {
+    return powerupPickupModels_[std::min(type, powerupPickupModels_.size() - 1U)];
+}
+
 ModelResource& GraphicsResources::healthAidLootModel() {
     return healthAidLootModel_;
 }

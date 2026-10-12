@@ -147,38 +147,47 @@ inline void drawWorld(const SimulationSnapshot& snapshot, const Camera3D& camera
     const Vector3 forward = Vector3Normalize(Vector3Subtract(camera.target,camera.position));
     const Vector3 right = Vector3Normalize(Vector3CrossProduct(forward,camera.up));
     const Vector3 up = Vector3Normalize(Vector3CrossProduct(right,forward));
-    rlDrawRenderBatchActive(); rlDisableDepthMask(); BeginBlendMode(BLEND_ALPHA);
     const auto visible = [&](Vector3 p) {
         const auto offset = Vector3Subtract(p,camera.position);
         return Vector3DotProduct(offset,forward) > 0 && Vector3LengthSqr(offset) < 65*65;
     };
+    const auto pickupPose = [&](const PowerupPickup& pickup) {
+        const float phase = float(pickup.age)*2.3F;
+        // Accessibility suppresses bright flashes; continuous float/spin remain.
+        return Vector3{float(pickup.position.x),float(pickup.position.y)+.72F+
+            std::sin(phase)*.075F,float(pickup.position.z)};
+    };
     for (const auto& pickup : snapshot.powerups.pickups) {
         if (!pickup.active) continue;
-        Vector3 p{float(pickup.position.x),float(pickup.position.y)+.85F,float(pickup.position.z)};
+        const Vector3 p = pickupPose(pickup);
         if (!visible(p)) continue;
-        const float phase = float(pickup.age)*2.8F;
-        if (!reduceFlashes) p.y += std::sin(phase)*.1F;
-        const float pop = std::clamp(float(pickup.age/.28),0.0F,1.0F);
-        const float size = .64F*pop;
-        Color tint = color(pickup.type);
+        const float arrival = std::clamp(float(pickup.age/.28),0.0F,1.0F);
+        const float pop = arrival*arrival*(3-2*arrival);
         const float fade = std::clamp(float((PowerupSystem::PickupLifetime-pickup.age)/3),0.0F,1.0F);
-        tint = Fade(tint,fade);
-        drawWorldBillboardRoundedRectangle(p,size*1.8F,size*1.8F,size*.35F,Fade(tint,.12F),right,up);
-        drawWorldBillboardRoundedRectangle(p,size*1.35F,size*1.35F,size*.2F,Fade({20,25,33,255},fade),right,up);
-        drawWorldBillboardRoundedRectangle(Vector3Add(p,Vector3Scale(forward,-.004F)),size*1.17F,size*1.17F,size*.16F,tint,right,up);
-        const Vector3 iconCenter = Vector3Add(p,Vector3Scale(forward,-.012F));
-        drawPowerupIconGeometry(pickup.type,[&](Vector2 a, Vector2 b, Vector2 c) {
-            const auto v = [&](Vector2 point) { return Vector3Add(iconCenter,Vector3Add(Vector3Scale(right,point.x*size*.43F),Vector3Scale(up,-point.y*size*.43F))); };
-            DrawTriangle3D(v(a),v(b),v(c),Fade({255,252,222,255},fade));
-            DrawTriangle3D(v(c),v(b),v(a),Fade({255,252,222,255},fade));
-        });
-        for (int i=0;i<3;++i) {
-            const float angle = float(i)*2.1F+phase*.5F;
-            const auto spark = Vector3Add(p,Vector3Add(Vector3Scale(right,std::cos(angle)*size),Vector3Scale(up,std::sin(angle)*size)));
-            star(spark,size*.16F,right,up,Fade({255,248,206,255},fade*.75F));
+        static_cast<void>(renderer.drawPowerupPickup(static_cast<std::size_t>(pickup.type),
+            p,float(pickup.age)*.85F,pop,Fade(WHITE,fade)));
+    }
+    // Small soft glows have no rectangular backing and never cover scenery.
+    rlDrawRenderBatchActive(); rlDisableDepthMask(); BeginBlendMode(BLEND_ADDITIVE);
+    rlDisableBackfaceCulling(); rlSetTexture(0);
+    for (const auto& pickup : snapshot.powerups.pickups) {
+        if (!pickup.active) continue;
+        const Vector3 p = pickupPose(pickup);
+        if (!visible(p)) continue;
+        const float fade = std::clamp(float((PowerupSystem::PickupLifetime-pickup.age)/3),0.0F,1.0F)*
+            std::clamp(float(pickup.age/.28),0.0F,1.0F);
+        const Color tint = color(pickup.type);
+        rlBegin(RL_TRIANGLES);
+        energyGlow(Vector3Add(p,{0,-.36F,0}),right,up,.34F,.12F,tint,fade*.16F);
+        rlEnd();
+        for (int i=0;i<2;++i) {
+            const float angle = float(i)*PI+float(pickup.age)*1.4F;
+            const auto spark = Vector3Add(p,Vector3Add(Vector3Scale(right,std::cos(angle)*.53F),
+                Vector3Scale(up,std::sin(angle)*.37F)));
+            star(spark,.038F,right,up,Fade({255,248,222,255},fade*(reduceFlashes ? .4F : .65F)));
         }
     }
-    rlDrawRenderBatchActive(); EndBlendMode(); rlEnableDepthMask();
+    rlDrawRenderBatchActive(); rlEnableBackfaceCulling(); EndBlendMode(); rlEnableDepthMask();
     drawFury(snapshot,camera,renderer,reduceFlashes);
 }
 inline void drawHud(const PowerupRunState& state, float time, int width, int height, bool reduceFlashes) {

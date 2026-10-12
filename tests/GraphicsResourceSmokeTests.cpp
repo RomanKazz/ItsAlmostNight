@@ -8,6 +8,7 @@
 #include "graphics/SpikeTrapModel.hpp"
 #include "graphics/GraphicsResources.hpp"
 #include "DefenseInventoryGraphicsChecks.hpp"
+#include "PowerupPickupModelChecks.hpp"
 #include "BombGraphicsChecks.hpp"
 #include "IceProjectileGraphicsChecks.hpp"
 #include "WeaponBaseNormalChecks.hpp"
@@ -3113,6 +3114,10 @@ int main() {
         }
         if (!checkCartoonIceProjectile(renderer)) {
             std::cerr << "cartoon ice projectile presentation failed\n";
+            result = 1;
+        }
+        if (!checkPowerupPickupModels(renderer)) {
+            std::cerr << "Powerup pickup models failed visibility or depth checks\n";
             result = 1;
         }
         if (!checkSplitterPresentation(renderer)) {

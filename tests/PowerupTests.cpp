@@ -17,8 +17,8 @@ void runPowerupTests() {
         if (PowerupSystem::rollDrop(i,true,false)) ++drops[1];
         if (PowerupSystem::rollDrop(i,false,true)) ++drops[2];
     }
-    require(drops[0]>850 && drops[0]<1150 && drops[1]>4700 && drops[1]<5300 &&
-        drops[2]>19000 && drops[2]<21000,"rare, elite and boss drop balance");
+    require(drops[0]>400 && drops[0]<600 && drops[1]>2200 && drops[1]<2800 &&
+        drops[2]>9500 && drops[2]<10500,"rare, elite and boss drop balance");
     require(system.spawn(PowerupType::Fury,{0,0,0}),"fury spawns");
     static_cast<void>(system.tick(.3,{10,0,0}));
     require(!system.active(PowerupType::Fury),"drop is not activated from afar");

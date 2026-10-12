@@ -484,6 +484,9 @@ class Renderer {
         float scale = 1.0F);
     void drawCoin(CoinType type, Vector3 position, float rotationRadians,
                   float scale = 1.0F);
+    [[nodiscard]] bool drawPowerupPickup(std::size_t type, Vector3 position,
+                                        float rotationRadians, float scale = 1.0F,
+                                        Color tint = WHITE);
     void drawExperienceOctahedron(
         Vector3 position, float rotationRadians, float scale = 1.0F,
         int experienceValue = 1);

@@ -1,0 +1,14 @@
+{
+  "magnet": {
+    "triangles": 1284,
+    "parts": 9
+  },
+  "fury": {
+    "triangles": 712,
+    "parts": 4
+  },
+  "gold-rush": {
+    "triangles": 3980,
+    "parts": 19
+  }
+}

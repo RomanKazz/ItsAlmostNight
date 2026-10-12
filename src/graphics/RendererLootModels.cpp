@@ -382,6 +382,55 @@ void Renderer::drawLootItem(
     }
 }
 
+bool Renderer::drawPowerupPickup(
+    std::size_t type, Vector3 position, float rotationRadians,
+    float scale, Color tint) {
+    if (type >= 3U || !std::isfinite(scale) || scale <= 0.0F ||
+        !std::isfinite(rotationRadians) || tint.a == 0) return false;
+    ModelResource& resource = resources_.powerupPickupModel(type);
+    if (!resource.valid()) return false;
+    Model& model = resource.get();
+    if (!model.materials || !model.meshMaterial) return false;
+    // The baked palette makes these important pickups readable at night.
+    // Solid geometry writes depth; glows and sparkles are drawn afterwards.
+    const Shader shader{.id = rlGetShaderIdDefault(), .locs = rlGetShaderLocsDefault()};
+    for (int i = 0; i < model.materialCount; ++i) model.materials[i].shader = shader;
+    const BoundingBox bounds = resource.visualBounds();
+    const Vector3 center{(bounds.min.x + bounds.max.x) * .5F,
+                         (bounds.min.y + bounds.max.y) * .5F,
+                         (bounds.min.z + bounds.max.z) * .5F};
+    const float extent = std::max({bounds.max.x - bounds.min.x,
+                                   bounds.max.y - bounds.min.y,
+                                   bounds.max.z - bounds.min.z});
+    if (extent <= .0001F) return false;
+    rlDrawRenderBatchActive();
+    if (tint.a == 255) {
+        rlEnableDepthMask();
+        rlDisableColorBlend();
+    } else rlDisableDepthMask();
+    rlPushMatrix();
+    rlTranslatef(position.x, position.y, position.z);
+    rlRotatef(rotationRadians * RAD2DEG, 0, 1, 0);
+    const float fittedScale = .85F * scale / extent;
+    rlScalef(fittedScale, fittedScale, fittedScale);
+    rlTranslatef(-center.x, -center.y, -center.z);
+    for (int i = 0; i < model.meshCount; ++i) {
+        if (!resource.meshValid(static_cast<std::size_t>(i))) continue;
+        const int materialIndex = model.meshMaterial[i];
+        if (materialIndex < 0 || materialIndex >= model.materialCount) continue;
+        Material& material = model.materials[materialIndex];
+        const Color original = material.maps[MATERIAL_MAP_DIFFUSE].color;
+        material.maps[MATERIAL_MAP_DIFFUSE].color = ColorTint(original, tint);
+        DrawMesh(model.meshes[i], material, model.transform);
+        material.maps[MATERIAL_MAP_DIFFUSE].color = original;
+    }
+    rlPopMatrix();
+    rlDrawRenderBatchActive();
+    rlEnableDepthMask();
+    rlEnableColorBlend();
+    return true;
+}
+
 void Renderer::drawCoin(
     CoinType type, Vector3 position, float rotationRadians, float scale) {
     if (scale <= 0.0F) return;

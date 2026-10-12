@@ -2,6 +2,7 @@
 
 #include "core/DeterministicRandom.hpp"
 #include "core/Types.hpp"
+#include "economy/PowerupDropBalance.hpp"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +41,7 @@ class PowerupSystem {
     static constexpr double PickupLifetime = 45.0;
     static constexpr double CollectionRadius = 1.4;
     [[nodiscard]] static std::optional<PowerupType> rollDrop(std::uint64_t seed, bool elite, bool boss) {
-        const double chance = boss ? 0.20 : elite ? 0.05 : 0.01;
+        const double chance = powerupDropChance(elite, boss);
         if (unitRandom(seed ^ 0xa8e77a492e871d61ULL) >= chance) return std::nullopt;
         return static_cast<PowerupType>(mixBits64(seed ^ 0x434152544f4f4eULL) % PowerupTypeCount);
     }
