@@ -34,6 +34,7 @@ rerollTargetLootItemVisual(
 
 [[nodiscard]] EnemyModelVisual enemyModelVisual(
     EnemyType type);
+[[nodiscard]] EnemyModelVisual enemyModelVisual(const EnemyInstance& enemy);
 [[nodiscard]] EnemyAnimationVisual enemyAnimationVisual(
     const EnemyInstance& enemy);
 [[nodiscard]] float enemyVisualScale(EnemyType type);

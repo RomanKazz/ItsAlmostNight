@@ -141,7 +141,7 @@ void runIceWandSystemTests() {
         {ian::EnemyType::Boss, {0.0, 1.2, -2.0}},
     }});
     ian::IceWandSystem bossWand{balance};
-    require(bossWand.requestFire({0.0, 1.2, 0.0}, {0.0, 0.0, -1.0}),
+    require(bossWand.requestFire({0.0, bossEnemies.enemies().front().position.y, 0.0}, {0.0, 0.0, -1.0}),
             "boss fixture accepts a second wand charge");
     bossWand.tick(0.12, bossEnemies, nullptr, {});
     const auto& boss = bossEnemies.enemies().front();

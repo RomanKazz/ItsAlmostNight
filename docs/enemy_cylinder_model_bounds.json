@@ -21,11 +21,18 @@
     "height": 2.4474059400103982
   },
   "boss": {
-    "asset": "ultimate/boss.gltf",
-    "gameplay_scale": 0.85,
-    "radius": 1.2983506388321735,
-    "bottom": -0.04281443268433213,
-    "height": 3.1049179835952816
+    "asset": "ultimate/alpaking-boss.gltf",
+    "gameplay_scale": 1.35,
+    "radius": 2.9939533317435827,
+    "bottom": 0.6006872057318687,
+    "height": 3.4495184918046
+  },
+  "boss_summon": {
+    "asset": "ultimate/alpaking-summon.gltf",
+    "gameplay_scale": 0.52,
+    "radius": 1.140671165938351,
+    "bottom": 0.4670558282852173,
+    "height": 0.9106106271743775
   },
   "ranged": {
     "asset": "ultimate/wizard.gltf",

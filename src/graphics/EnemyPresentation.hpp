@@ -28,7 +28,8 @@ inline Matrix enemyPresentationTransform(
         spring = std::sin(phase * 2.0F) * 0.055F * weight;
         roll = std::sin(phase) * 0.045F * weight;
         pitch = animation == EnemyAnimationVisual::Run ? -0.08F : -0.025F;
-        if (visual != EnemyModelVisual::Flying)
+        if (visual != EnemyModelVisual::Flying && visual != EnemyModelVisual::Boss &&
+            visual != EnemyModelVisual::BossSummon)
             hop = std::pow(std::max(0.0F, std::sin(phase * 2.0F)), 2.0F) * 0.045F * weight;
     } else if (animation == EnemyAnimationVisual::MeleeAttack ||
                animation == EnemyAnimationVisual::RangedAttack ||

@@ -4,14 +4,15 @@ Crowd collision uses upright finite cylinders for every archetype, independently
 of the forgiving attack/raycast capsule. Radius encloses the native model at
 its runtime scale, including wide mushroom caps, Wizard's brim and dragon wings.
 The final envelope also covers animated walking, biting and hit reactions;
-GPU silhouette tests check all nine models at four points in each clip. Dimensions live in one
+GPU silhouette tests check all nine archetypes plus the Alpaking familiar at four points in each clip. Dimensions live in one
 EnemyType-indexed table in `EnemyCollision.cpp`; elites multiply radius/height
 by their existing 1.08 visual scale.
 
 `enemyCollisionCylinder(enemy)` returns world center, radius and half height.
 The base follows `worldSurfaceHeight` (terrain plus reached platform height),
 not the old spawn Y or only a platform offset. Flying bodies use their actual
-rendered hover envelope. Ground and flying enemies can share X/Z when their
+rendered hover envelope. Alpaking follows its animated dive hover; his familiar
+has its own Flying visual envelope selected by summonerId. Ground and flying enemies can share X/Z when their
 vertical intervals do not intersect; a dragon still avoids a tall overlapping
 mushroom.
 

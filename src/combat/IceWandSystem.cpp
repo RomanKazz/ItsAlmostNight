@@ -27,6 +27,9 @@ std::optional<double> segmentCircleTime(
     const double oz = start.z - center.z;
     const double a = dx * dx + dz * dz;
     const double c = ox * ox + oz * oz - radius * radius;
+    // A muzzle can start inside a large boss's footprint. That is an
+    // immediate contact, even when the segment never exits the circle.
+    if (c <= 0.0) return 0.0;
     if (a <= MinimumDistanceSquared) {
         return c <= 0.0 ? std::optional<double>{0.0} : std::nullopt;
     }

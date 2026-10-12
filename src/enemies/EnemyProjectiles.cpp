@@ -85,7 +85,7 @@ void EnemySystem::updateProjectiles(
         if (projectile.lifetimeRemaining <= 0.0) {
             projectile.active = false;
             magicEventBuffer_.push_back(
-                {projectile.ownerId, projectile.position, true, true});
+                {projectile.ownerId, projectile.position, true, true, projectile.royal});
             continue;
         }
         if (projectile.targetsPlayer) {
@@ -103,7 +103,7 @@ void EnemySystem::updateProjectiles(
                     playerAttackBuffer_.push_back(
                         {projectile.ownerId, projectile.damage});
                     magicEventBuffer_.push_back(
-                        {projectile.ownerId, projectile.position, true});
+                        {projectile.ownerId, projectile.position, true, false, projectile.royal});
                     projectile.active = false;
                 }
             }
@@ -131,7 +131,7 @@ void EnemySystem::updateProjectiles(
                         projectile.ownerId, *projectile.targetId,
                         projectile.damage, false});
                     magicEventBuffer_.push_back(
-                        {projectile.ownerId, projectile.position, true});
+                        {projectile.ownerId, projectile.position, true, false, projectile.royal});
                     projectile.active = false;
                 }
             }
@@ -144,7 +144,7 @@ void EnemySystem::updateProjectiles(
             projectile.position.y = terrain->getHeight(
                 projectile.position.x, projectile.position.z) + 0.12;
             magicEventBuffer_.push_back(
-                {projectile.ownerId, projectile.position, true});
+                {projectile.ownerId, projectile.position, true, false, projectile.royal});
             projectile.active = false;
         }
     }

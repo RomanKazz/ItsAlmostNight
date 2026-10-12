@@ -34,18 +34,18 @@ inline void star(Vector3 center, Basis b, float size, float angle, Color color) 
         vertex(planePoint(center,b.right,b.up,std::cos(next)*second,std::sin(next)*second),color);
     }
 }
-inline void orb(Vector3 center, Basis b, float radius, double time, float fade=1) {
+inline void orb(Vector3 center, Basis b, float radius, double time, float fade=1, bool royal=false) {
     rlNormal3f(b.front.x,b.front.y,b.front.z);
     radius*=1+.06F*static_cast<float>(std::sin(time*10));
-    disc(center,b.right,b.up,radius,opacity({135,55,215,255},fade),
-         opacity({65,24,119,255},fade));
+    disc(center,b.right,b.up,radius,opacity(royal ? Color{187,208,68,255} : Color{135,55,215,255},fade),
+         opacity(royal ? Color{98,119,33,255} : Color{65,24,119,255},fade));
     Vector3 inner=Vector3Add(center,Vector3Scale(b.front,radius*.05F));
     inner=planePoint(inner,b.right,b.up,-radius*.1F,radius*.12F);
-    disc(inner,b.right,b.up,radius*.81F,opacity({238,178,255,255},fade),
-         opacity({178,95,250,255},fade));
+    disc(inner,b.right,b.up,radius*.81F,opacity(royal ? Color{255,246,164,255} : Color{238,178,255,255},fade),
+         opacity(royal ? Color{255,191,38,255} : Color{178,95,250,255},fade));
     inner=Vector3Add(inner,Vector3Scale(b.front,radius*.05F));
     disc(inner,b.right,b.up,radius*.43F,opacity({255,250,218,255},fade),
-         opacity({250,222,255,255},fade));
+         opacity(royal ? Color{255,233,142,255} : Color{250,222,255,255},fade));
     star(planePoint(Vector3Add(inner,Vector3Scale(b.front,radius*.02F)),b.right,b.up,
         -radius*.28F,radius*.26F),b,radius*.28F,0,opacity(WHITE,fade));
 }
@@ -60,8 +60,8 @@ inline void projectile(const EnemyProjectile& shot,Vector3 camera,double time,
     const Basis b=basis(head,camera);
     const double clock=time+static_cast<double>(shot.id.index%97U)*.13;
     const float radius=static_cast<float>(shot.radius);
-    if(headPass) { orb(head,b,radius,clock); return; }
-    const float age=static_cast<float>(std::max(0.0,3.0-shot.lifetimeRemaining));
+    if(headPass) { orb(head,b,radius,clock,1,shot.royal); return; }
+    const float age=static_cast<float>(std::max(0.0,shot.duration-shot.lifetimeRemaining));
     const Vector3 backward=Vector3Negate(fire_wand_effect::normalized(point(shot.velocity),{0,0,1}));
     // Distance behind the head is bounded by actual age: no instant full wake.
     const float length=std::min(.95F,age*static_cast<float>(Vector3Length(point(shot.velocity))));
@@ -71,15 +71,15 @@ inline void projectile(const EnemyProjectile& shot,Vector3 camera,double time,
         Vector3 tail=Vector3Add(head,Vector3Scale(backward,length*p));
         tail=Vector3Add(tail,Vector3Scale(b.up,std::sin(static_cast<float>(clock*14)-p*7)*radius*.28F*p));
         const float size=radius*(1-p*.85F);
-        disc(tail,b.right,b.up,size,opacity({193,97,250,190},1-p*.75F),
-             opacity({105,44,197,120},1-p));
+        disc(tail,b.right,b.up,size,opacity(shot.royal ? Color{237,218,84,190} : Color{193,97,250,190},1-p*.75F),
+             opacity(shot.royal ? Color{164,205,51,120} : Color{105,44,197,120},1-p));
         if(detailed && i%2==0) star(planePoint(tail,b.right,b.up,
             std::sin(static_cast<float>(clock*8)+p*9)*radius*1.4F,radius*.8F),b,
             .035F*(1-p*.5F),static_cast<float>(clock*2),{255,218,135,220});
     }
 }
 inline void burst(Vector3 center,Vector3 camera,float progress,float scale,
-                  bool impact,bool detailed,std::uint32_t seed) {
+                  bool impact,bool detailed,std::uint32_t seed,bool royal=false) {
     if(progress<0 || progress>=1 || scale<=0) return;
     const Basis b=basis(center,camera);
     const float ease=1-std::pow(1-progress,3.0F);
@@ -92,10 +92,10 @@ inline void burst(Vector3 center,Vector3 camera,float progress,float scale,
         const Vector3 puff=planePoint(center,b.right,b.up,
             std::cos(a)*radius*.75F*ease,std::sin(a)*radius*.75F*ease+progress*.12F*scale);
         disc(puff,b.right,b.up,radius*(.7F-progress*.38F),
-            opacity({226,176,255,255},fade),opacity({125,61,190,255},fade));
+            opacity(royal ? Color{255,236,159,255} : Color{226,176,255,255},fade),opacity(royal ? Color{159,192,66,255} : Color{125,61,190,255},fade));
     }
     const Vector3 front=Vector3Add(center,Vector3Scale(b.front,.025F));
-    orb(front,b,radius*(1-progress)*.8F,progress*2,fade);
+    orb(front,b,radius*(1-progress)*.8F,progress*2,fade,royal);
     if(detailed) for(int i=0;i<5;++i) {
         const float a=static_cast<float>(i)*2.39996F+static_cast<float>(seed%7U);
         const float travel=(impact?.8F:.4F)*scale*ease;

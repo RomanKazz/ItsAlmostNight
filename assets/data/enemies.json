@@ -8,11 +8,33 @@
   "splitter": { "health": 12.0, "speed": 1.55, "damage": 18.0 },
   "splitling": { "health": 3.0, "speed": 2.8, "damage": 7.0 },
   "boss": {
-    "health": 70.0,
-    "speed": 0.9,
-    "damage": 65.0,
+    "health": 2400,
+    "speed": 2.2,
+    "damage": 30.0,
     "ramWindup": 1.5,
     "ramDamageMultiplier": 3.0,
-    "ramCooldown": 6.0
+    "ramCooldown": 6.0,
+    "battle": {
+      "phaseTwo": 0.6,
+      "phaseThree": 0.3,
+      "introSeconds": 1.6,
+      "transitionSeconds": 1.0,
+      "volleyWindup": 0.85,
+      "diveWindup": 1.35,
+      "stormWindup": 1.45,
+      "summonWindup": 1.15,
+      "recoverySeconds": 2.6,
+      "projectileSpeed": 8.5,
+      "volleyDamageScale": 0.55,
+      "diveRadius": 2.7,
+      "diveDamageScale": 1.2,
+      "stormRadius": 1.9,
+      "stormDamageScale": 0.85,
+      "structureDamageScale": 0.35,
+      "summonHealthMultiplier": 7.0,
+      "summonDamageMultiplier": 1.4,
+      "summonLimit": 12,
+      "transitionDamageMultiplier": 0.35
+    }
   }
 }

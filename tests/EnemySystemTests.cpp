@@ -1,3 +1,4 @@
+#include "BossBattleChecks.hpp"
 #include "TestHarness.hpp"
 #include "buildings/BuildingSystem.hpp"
 #include "enemies/EnemyCollision.hpp"
@@ -939,7 +940,7 @@ void runEnemySystemTests() {
             "fast enemy uses fast low-health stats");
     require(typed[1].speed < 2.0 && typed[1].health == 16.0,
             "heavy enemy uses slow high-health stats");
-    require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 70.0,
+    require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 2400.0,
             "boss uses final-wave stats");
 
     // Elite multipliers belong to the parent, not to its ordinary children.
@@ -1153,95 +1154,7 @@ void runEnemySystemTests() {
     require(flyerAttackedCore && !flyerAttackedWall,
             "flying enemy bypasses walls and attacks core");
 
-    ian::BuildingSystem ramBuildings;
-    ramBuildings.setSandboxMode(true);
-    require(ramBuildings.place(ian::BuildingType::Core, {0, 0}, 0, 30, 0).has_value(),
-            "boss ram fixture creates core");
-    ian::FlowField ramFlowField;
-    ramFlowField.rebuild({0, 0}, ramBuildings.buildings());
-    ian::EnemySystem ramBoss;
-    constexpr std::array<ian::EnemySpawn, 1> BossSpawn{{
-        {ian::EnemyType::Boss, {0.0, 1.6, -3.0}},
-    }};
-    ramBoss.spawnWave(BossSpawn);
-    require(ramBoss.tick(1.0 / 60.0, ramBuildings.buildings(), ramFlowField).empty() &&
-                ramBoss.enemies()[0].state == ian::EnemyState::BossRamWindup,
-            "boss telegraphs ram before attacking");
-    const auto ramAttack =
-        ramBoss.tick(1.5, ramBuildings.buildings(), ramFlowField);
-    require(ramAttack.size() == 1 && ramAttack[0].ram &&
-                ramAttack[0].damage == 150.0,
-            "boss ram deals configured amplified damage");
-    const auto cooldownAttack =
-        ramBoss.tick(1.0, ramBuildings.buildings(), ramFlowField);
-    require(cooldownAttack.size() == 1 && !cooldownAttack[0].ram &&
-                cooldownAttack[0].damage == 50.0,
-            "boss uses regular attack while ram is on cooldown");
-
-    const auto phaseTwoDamage = ramBoss.damage(
-        ramBoss.enemies()[0].id, 25.0);
-    require(phaseTwoDamage && phaseTwoDamage->remainingHealth == 45.0,
-            "boss phase fixture crosses phase two threshold");
-    ramBoss.tick(
-        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    auto bossActions = ramBoss.takeBossActionEvents();
-    require(
-        bossActions.size() == 1 &&
-            bossActions[0].type == ian::BossActionType::PhaseChanged &&
-            bossActions[0].phase == 2 &&
-            ramBoss.enemies()[0].state ==
-                ian::EnemyState::BossPhaseTransition,
-        "boss visibly enters phase two at two thirds health");
-    ramBoss.tick(
-        1.05, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    ramBoss.tick(
-        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    require(
-        ramBoss.enemies()[0].state ==
-            ian::EnemyState::BossSlamWindup,
-        "phase two boss telegraphs an anti-player ground slam");
-    ramBoss.tick(
-        1.25, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    bossActions = ramBoss.takeBossActionEvents();
-    require(
-        bossActions.size() == 1 &&
-            bossActions[0].type == ian::BossActionType::GroundSlam &&
-            bossActions[0].radius == 5.25 &&
-            bossActions[0].damage == 28.0,
-        "phase two slam reports its telegraphed radius and damage");
-
-    const auto phaseThreeDamage = ramBoss.damage(
-        ramBoss.enemies()[0].id, 25.0);
-    require(phaseThreeDamage && phaseThreeDamage->remainingHealth == 20.0,
-            "boss phase fixture crosses phase three threshold");
-    ramBoss.tick(
-        1.0 / 60.0, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    bossActions = ramBoss.takeBossActionEvents();
-    require(
-        bossActions.size() == 1 &&
-            bossActions[0].type == ian::BossActionType::PhaseChanged &&
-            bossActions[0].phase == 3,
-        "boss visibly enters phase three at one third health");
-    ramBoss.tick(
-        1.05, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    require(
-        ramBoss.enemies()[0].state ==
-            ian::EnemyState::BossWarCryWindup,
-        "phase three transition chains into a war cry telegraph");
-    ramBoss.tick(
-        1.35, ramBuildings.buildings(), ramFlowField,
-        ian::Vec3{0.0, 1.7, -3.0});
-    bossActions = ramBoss.takeBossActionEvents();
-    require(
-        bossActions.size() == 1 &&
-            bossActions[0].type == ian::BossActionType::WarCry,
-        "phase three boss calls reinforcements after the telegraph");
+    checkAlpakingBattle();
 
     ian::EnemySystem contactEnemies;
     constexpr std::array<ian::Vec3, 1> ContactSpawn{{{4.0, 0.8, 4.0}}};
@@ -1273,13 +1186,17 @@ void runEnemySystemTests() {
                 ian::EnemyState::AttackPlayer,
         "enemy cannot attack or aggro a player on another storey");
 
+    ian::BuildingSystem chaseBuildings;
+    chaseBuildings.setSandboxMode(true);
+    require(chaseBuildings.place(ian::BuildingType::Core,{0,0},0,30,0).has_value(),"chase fixture creates core");
+    ian::FlowField chaseFlow;chaseFlow.rebuild({0,0},chaseBuildings.buildings());
     ian::EnemySystem chasingEnemies;
     constexpr std::array<ian::Vec3, 1> ChasingSpawn{{
         {4.0, 0.8, 4.0},
     }};
     chasingEnemies.spawnWave(ChasingSpawn);
     chasingEnemies.tick(
-        1.0, ramBuildings.buildings(), ramFlowField,
+        1.0, chaseBuildings.buildings(), chaseFlow,
         ian::Vec3{8.0, 1.7, 4.0});
     require(
         chasingEnemies.enemies()[0].state ==

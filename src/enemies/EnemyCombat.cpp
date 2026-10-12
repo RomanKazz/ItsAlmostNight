@@ -129,6 +129,8 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
 
 double EnemySystem::incomingDamageMultiplier(
     const EnemyInstance& target) const {
+    const double shield = target.type==EnemyType::Boss && target.state==EnemyState::BossPhaseTransition
+        ? definitions_[static_cast<std::size_t>(EnemyType::Boss)].bossBattle.transitionDamageMultiplier : 1.0;
     constexpr double WardenRadiusSquared = 5.5 * 5.5;
     for (const EnemyInstance& candidate : enemies_) {
         if (!candidate.active || candidate.id == target.id ||
@@ -139,10 +141,10 @@ double EnemySystem::incomingDamageMultiplier(
         const double x = candidate.position.x - target.position.x;
         const double z = candidate.position.z - target.position.z;
         if (x * x + z * z <= WardenRadiusSquared) {
-            return 0.75;
+            return shield * 0.75;
         }
     }
-    return 1.0;
+    return shield;
 }
 
 std::optional<EntityId> EnemySystem::nearestEnemy(Vec3 position, double radius) const {
@@ -659,6 +661,13 @@ std::span<const EnemyMagicEvent> EnemySystem::magicEvents() const {
 void EnemySystem::clearProjectiles() {
     projectiles_.clear();
     magicEventBuffer_.clear();
+    bossActionEventBuffer_.clear();
+    for(auto& enemy:enemies_) if(enemy.type==EnemyType::Boss) {
+        enemy.bossStrikesRemaining=0;
+        enemy.bossAbilityWindupRemaining=0;
+        enemy.bossAbilityCooldownRemaining=1.0;
+        if(enemy.active) enemy.state=EnemyState::MoveToCore;
+    }
 }
 
 std::span<const EnemyPlayerAttack> EnemySystem::playerAttacks() const {
@@ -682,7 +691,9 @@ std::vector<EliteEnemyEvent> EnemySystem::takeEliteDeathEvents() {
 }
 
 std::vector<BossActionEvent> EnemySystem::takeBossActionEvents() {
-    return std::exchange(bossActionEventBuffer_, {});
+    std::vector<BossActionEvent> result(bossActionEventBuffer_.begin(), bossActionEventBuffer_.end());
+    bossActionEventBuffer_.clear();
+    return result;
 }
 
 const EnemyStatusEffect& enemyStatusEffect(

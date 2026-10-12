@@ -1,5 +1,7 @@
 #pragma once
 
+#include "enemies/BossBattleConfig.hpp"
+
 #include <array>
 #include <cstddef>
 #include <string>
@@ -15,6 +17,7 @@ struct EnemyDefinition {
     double ramWindup;
     double ramDamageMultiplier;
     double ramCooldown;
+    BossBattleConfig bossBattle{};
 };
 
 struct WaveDefinition {

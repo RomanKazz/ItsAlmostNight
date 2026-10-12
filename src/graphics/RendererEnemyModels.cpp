@@ -68,6 +68,8 @@ ModelResource* enemyModelFor(
         return &resources.enemySapperModel();
     case EnemyModelVisual::Flying:
         return &resources.enemyFlyingModel();
+    case EnemyModelVisual::BossSummon:
+        return &resources.enemyBossSummonModel();
     case EnemyModelVisual::Boss:
         return &resources.enemyBossModel();
     case EnemyModelVisual::Splitter:
@@ -93,6 +95,8 @@ const ModelResource* enemyModelFor(
         return &resources.enemySapperModel();
     case EnemyModelVisual::Flying:
         return &resources.enemyFlyingModel();
+    case EnemyModelVisual::BossSummon:
+        return &resources.enemyBossSummonModel();
     case EnemyModelVisual::Boss:
         return &resources.enemyBossModel();
     case EnemyModelVisual::Splitter:
@@ -200,16 +204,21 @@ EnemyAnimationSource enemyAnimationFor(
             clip = "Idle";
             break;
         }
-    } else if (modelVisual == EnemyModelVisual::Flying) {
-        animations = &resources.enemyFlyingAnimations();
+    } else if (modelVisual == EnemyModelVisual::Flying || modelVisual == EnemyModelVisual::Boss ||
+               modelVisual == EnemyModelVisual::BossSummon) {
+        animations = modelVisual == EnemyModelVisual::Boss ? &resources.enemyBossAnimations() :
+            modelVisual == EnemyModelVisual::BossSummon ? &resources.enemyBossSummonAnimations() :
+            &resources.enemyFlyingAnimations();
         native = true;
         switch (animationVisual) {
         case EnemyAnimationVisual::Walk:
         case EnemyAnimationVisual::Run:
             clip = "Fast_Flying";
             break;
-        case EnemyAnimationVisual::MeleeAttack:
         case EnemyAnimationVisual::RangedAttack:
+            clip = "Punch";
+            break;
+        case EnemyAnimationVisual::MeleeAttack:
         case EnemyAnimationVisual::SapperAttack:
             clip = "Headbutt";
             break;
@@ -222,32 +231,6 @@ EnemyAnimationSource enemyAnimationFor(
         case EnemyAnimationVisual::Idle:
         case EnemyAnimationVisual::Spawn:
             clip = "Flying_Idle";
-            break;
-        }
-    } else if (modelVisual == EnemyModelVisual::Boss) {
-        animations = &resources.enemyBossAnimations();
-        native = true;
-        switch (animationVisual) {
-        case EnemyAnimationVisual::Walk:
-            clip = "Walk";
-            break;
-        case EnemyAnimationVisual::Run:
-            clip = "Walk";
-            break;
-        case EnemyAnimationVisual::MeleeAttack:
-        case EnemyAnimationVisual::RangedAttack:
-        case EnemyAnimationVisual::SapperAttack:
-            clip = "Bite_Front";
-            break;
-        case EnemyAnimationVisual::Hit:
-            clip = "HitRecieve";
-            break;
-        case EnemyAnimationVisual::Death:
-            clip = "Death";
-            break;
-        case EnemyAnimationVisual::Idle:
-        case EnemyAnimationVisual::Spawn:
-            clip = "Idle";
             break;
         }
     } else {
@@ -348,8 +331,10 @@ Color crowdLodTint(EnemyModelVisual visual, Color tint) {
         return {170, 118, 43, tint.a};
     case EnemyModelVisual::Flying:
         return {102, 71, 167, tint.a};
+    case EnemyModelVisual::BossSummon:
+        return {155, 197, 74, tint.a};
     case EnemyModelVisual::Boss:
-        return {74, 35, 45, tint.a};
+        return {185, 207, 66, tint.a};
     case EnemyModelVisual::Splitter:
         return {67, 154, 73, tint.a};
     case EnemyModelVisual::Splitling:

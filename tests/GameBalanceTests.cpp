@@ -142,7 +142,7 @@ void runGameBalanceTests() {
             assetBalance.balance.enemies[static_cast<std::size_t>(
                 ian::EnemyType::Heavy)].damage == 36.0 &&
             assetBalance.balance.enemies[static_cast<std::size_t>(
-                ian::EnemyType::Boss)].damage == 65.0,
+                ian::EnemyType::Boss)].damage == 30.0,
         "asset enemy damage keeps increased difficulty tuning");
     require(
         assetBalance.balance.gameplay.resourceGatherRange == 2.6 &&

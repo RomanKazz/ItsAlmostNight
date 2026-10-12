@@ -469,6 +469,7 @@ void AudioSystem::playEvent(
         break;
     case GameEventType::BossRamImpact:
         break;
+    case GameEventType::BossRoyalImpact:
     case GameEventType::BossGroundSlam:
         playAt(
             structureHit_, event.position, snapshot, 0.92F,

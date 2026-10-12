@@ -100,7 +100,7 @@ constexpr int CollisionCellCount =
 [[nodiscard]] bool resolveStructure(
     EnemyInstance& enemy,
     const EnemyStructureTarget& structure) {
-    if (!enemy.active || structure.traversable ||
+    if (!enemy.active || (enemy.type==EnemyType::Boss && enemy.bossHoverOffset>-.4) || structure.traversable ||
         enemy.worldSurfaceHeight + 1e-6 <
             structure.minimumEnemySurfaceHeight ||
         enemy.worldSurfaceHeight - 1e-6 >
@@ -157,7 +157,7 @@ EnemyCapsule enemyCapsule(EnemyType type) {
         // Heavy model: enlarge both capsule dimensions by exactly 50%.
         return {.radius = 0.84, .segmentHalfHeight = 0.63};
     case EnemyType::Boss:
-        return {.radius = 0.92, .segmentHalfHeight = 0.62};
+        return {.radius = 1.35, .segmentHalfHeight = 0.65};
     case EnemyType::Ranged:
         return {.radius = 0.42, .segmentHalfHeight = 0.32};
     case EnemyType::Sapper:
@@ -185,7 +185,7 @@ constexpr std::array<CylinderDimensions, 9> PhysicalCylinders{{
     {0.86, 1.62, 0.0}, // Pink Blob
     {1.06, 1.60, 0.0}, // Ninja
     {1.34, 2.65, 0.0}, // Mushnub
-    {1.70, 3.36, 0.0}, // boss Mushnub
+    {3.18, 3.65, 0.50}, // flying Alpaking Evolved, including crown/wings
     {1.20, 2.24, 0.0}, // Wizard, including hat brim
     {1.14, 1.82, 0.0}, // spiky sapper
     {1.27, 0.92, 1.74}, // Dragon, wing envelope and rendered hover offset
@@ -199,7 +199,9 @@ CylinderDimensions cylinderDimensions(EnemyType type) {
 } // namespace
 
 EnemyCylinder enemyCollisionCylinder(const EnemyInstance& enemy) {
-    const auto dimensions = cylinderDimensions(enemy.type);
+    auto dimensions = cylinderDimensions(enemy.type);
+    if(enemy.type==EnemyType::Boss) dimensions.bottom += enemy.bossHoverOffset;
+    if(enemy.summonerId && enemy.type==EnemyType::Flying) dimensions = {1.20,1.06,1.68};
     const double scale = enemy.eliteAffixes ? 1.08 : 1.0;
     const double halfHeight = dimensions.height * scale * 0.5;
     return {{enemy.position.x, enemy.worldSurfaceHeight + dimensions.bottom + halfHeight,

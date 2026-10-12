@@ -47,12 +47,17 @@ enum class EnemyState {
     BossSlamWindup,
     BossWarCryWindup,
     Dead,
+    BossVolleyWindup,
+    BossStormWindup,
 };
 
 enum class BossActionType {
     PhaseChanged,
     GroundSlam,
     WarCry,
+    Telegraph,
+    RoyalImpact,
+    Volley,
 };
 
 enum class EnemyApproachRole : std::uint8_t {
@@ -144,6 +149,17 @@ struct EnemyInstance {
     std::optional<EntityId> target;
     bool active;
     EliteAffixMask eliteAffixes{};
+    std::optional<EntityId> summonerId{};
+    double bossHoverOffset{AlpakingHover};
+    Vec3 bossAttackOrigin{};
+    Vec3 bossAttackTarget{};
+    double bossWindupDuration{};
+    double bossAttackRadius{};
+    int bossAttackIndex{};
+    bool bossAttackPlayer{};
+    int bossStrikesRemaining{};
+    double bossStrikeTimer{};
+    std::array<Vec3, 3> bossStrikeTargets{};
     double aiUpdateRemaining{};
     // Height above terrain supplied by modular floors/ramps. Kept separate
     // from authored model/capsule Y so existing combat dimensions stay valid.
@@ -163,6 +179,7 @@ struct EnemySpawn {
     double damageMultiplier{1.0};
     Vec3 initialKnockbackVelocity{};
     EliteAffixMask eliteAffixes{};
+    std::optional<EntityId> summonerId{};
 };
 
 struct EliteEnemyEvent {
@@ -244,6 +261,11 @@ struct BossActionEvent {
     int phase{};
     double radius{};
     double damage{};
+    RoyalAttack attack{RoyalAttack::Dive};
+    double warningSeconds{};
+    int count{};
+    double healthScale{1.0};
+    double damageScale{1.0};
 };
 
 struct EnemyMagicEvent {
@@ -251,6 +273,7 @@ struct EnemyMagicEvent {
     Vec3 position;
     bool impact{};
     bool dissipating{};
+    bool royal{};
 };
 
 struct EnemyProjectile {
@@ -267,6 +290,8 @@ struct EnemyProjectile {
     double lifetimeRemaining{};
     bool targetsPlayer{true};
     bool active{true};
+    bool royal{};
+    double duration{3.0};
 };
 
 struct EnemyPerformanceStats {
@@ -405,7 +430,8 @@ class EnemySystem {
     void updateEnemyTimers(EnemyInstance& enemy, double deltaSeconds);
     [[nodiscard]] bool advanceBossAbility(
         EnemyInstance& enemy, double deltaSeconds,
-        std::optional<Vec3> playerPosition);
+        std::optional<Vec3> playerPosition, Vec3 corePosition,
+        const TerrainHeightfield* terrain, EnemyNavigationView navigation);
     void appendEnemy(const EnemySpawn& spawn,
                      bool allowActiveOverflow = false);
     void spawnSplitlings(

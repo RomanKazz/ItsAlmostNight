@@ -116,6 +116,9 @@ enum class GameEventType {
     PoisonHit,
     EnemyMagicFired,
     EnemyMagicImpact,
+    BossAttackTelegraph,
+    BossRoyalImpact,
+    BossSummonAppeared,
 };
 
 struct GameEvent {
@@ -157,6 +160,7 @@ struct GameEvent {
     double insightRequirement{};
     double insightDiminishingMultiplier{1.0};
     int levelsGranted{};
+    double duration{};
     std::optional<LootRarity> lootRarity;
     std::optional<LootUpgradeEffect> lootUpgradeEffect;
 };

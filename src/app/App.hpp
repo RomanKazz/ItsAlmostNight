@@ -572,6 +572,8 @@ class App {
         double yaw;
         double remaining;
         double duration;
+        std::optional<EntityId> summonerId{};
+        double bossHoverOffset{AlpakingHover};
     };
     std::vector<DestroyedEnemyVisual>
         destroyedEnemyVisuals_;

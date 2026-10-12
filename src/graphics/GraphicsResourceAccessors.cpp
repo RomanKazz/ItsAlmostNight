@@ -605,6 +605,10 @@ const ModelResource& GraphicsResources::enemyFlyingModel() const {
     return enemyFlyingModel_;
 }
 
+ModelResource& GraphicsResources::enemyBossSummonModel() { return enemyBossSummonModel_; }
+const ModelResource& GraphicsResources::enemyBossSummonModel() const { return enemyBossSummonModel_; }
+const ModelAnimationsResource& GraphicsResources::enemyBossSummonAnimations() const { return enemyBossSummonAnimations_; }
+
 ModelResource& GraphicsResources::enemyBossModel() {
     return enemyBossModel_;
 }

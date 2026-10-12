@@ -72,7 +72,7 @@ void App::processPresentationEvents(
             position.y += static_cast<float>(simulation_.terrain().getHeight(
                 enemy->position.x, enemy->position.z));
             const BoundingBox bounds = renderer_->enemyWorldBounds(
-                enemyModelVisual(enemy->type), position,
+                enemyModelVisual(*enemy), position,
                 static_cast<float>(enemy->yaw),
                 enemyVisualScale(enemy->type) *
                     (enemy->eliteAffixes != 0U
@@ -214,6 +214,7 @@ void App::processPresentationEvents(
                              : PresentationEffectType::EnemyMagicCast,
                       event.position, impact ? 0.48 : 0.24,
                       static_cast<float>(event.intensity), event.sourceId);
+            if(!effects_.empty()) effects_.back().variant=event.enemyType==EnemyType::Boss ? 1 : 0;
         }
         if (event.type == GameEventType::PlayerDashed) {
             Vec3 dustPosition = event.position;
@@ -374,31 +375,18 @@ void App::processPresentationEvents(
                 PresentationEffectType::EliteSpawn,
                 event.position, 0.72, 1.0F,
                 event.entityId);
+        } else if(event.type==GameEventType::BossRoyalImpact) {
+            addEffect(PresentationEffectType::RoyalImpact,event.position,.65,
+                static_cast<float>(event.intensity)*.55F,event.entityId);
+            addCameraShake(.22,.045);
+        } else if(event.type==GameEventType::BossSummonAppeared) {
+            addEffect(PresentationEffectType::RoyalImpact,event.position,.6,.65F,event.entityId);
         } else if (event.type == GameEventType::BossPhaseChanged) {
-            addEffect(
-                PresentationEffectType::VolatileCharge,
-                event.position, 1.05, 1.7F,
-                event.entityId);
-            addCameraShake(0.7, 0.1);
-            setStatusMessage(
-                event.amount >= 3
-                    ? "BOSS PHASE 3: WARLORD"
-                    : "BOSS PHASE 2: EARTHBREAKER",
-                2.2);
-        } else if (event.type == GameEventType::BossGroundSlam) {
-            addEffect(
-                PresentationEffectType::RamImpact,
-                event.position, 0.85, 1.65F,
-                event.entityId);
-            addCameraShake(0.55, 0.28);
-            setStatusMessage("GROUND SLAM", 1.0);
+            setStatusMessage(event.amount==1 ? "ALPAKING ARRIVES" :
+                event.amount==2 ? "ALPAKING: FEATHER STORM" : "ALPAKING: ROYAL FURY",2.0);
+            addCameraShake(.3,.025);
         } else if (event.type == GameEventType::BossWarCry) {
-            addEffect(
-                PresentationEffectType::EliteSpawn,
-                event.position, 1.0, 1.8F,
-                event.entityId);
-            addCameraShake(0.45, 0.12);
-            setStatusMessage("WAR CRY: REINFORCEMENTS", 1.6);
+            setStatusMessage("THE KING CALLS HIS COURT",1.6);
         } else if (
             event.type == GameEventType::EliteVolatilePrimed) {
             addEffect(
@@ -1230,6 +1218,8 @@ void App::processPresentationEvents(
                     .yaw = enemy->yaw,
                     .remaining = DeathDuration,
                     .duration = DeathDuration,
+                    .summonerId = enemy->summonerId,
+                    .bossHoverOffset = enemy->bossHoverOffset,
                 });
             } else if (!splittingDeath && event.enemyType) {
                 constexpr double DeathDuration = 0.9;

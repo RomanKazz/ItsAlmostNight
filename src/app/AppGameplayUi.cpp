@@ -1,3 +1,4 @@
+#include "ui/BossHealthBar.hpp"
 #include "ui/UiRenderLayer.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
@@ -357,7 +358,7 @@ if (showWorldHud) {
                 simulation_.terrain().getHeight(
                     enemy.position.x, enemy.position.z));
             const BoundingBox bounds = renderer_->enemyWorldBounds(
-                enemyModelVisual(enemy.type), position,
+                enemyModelVisual(enemy), position,
                 static_cast<float>(enemy.yaw),
                 enemyVisualScale(enemy.type) *
                     (enemy.eliteAffixes != 0U
@@ -633,6 +634,7 @@ if (showGameplayHud) {
                 buildingStatsUpgradeDuration_,
     },
         camera, userSettings_.controls);
+    drawBossHealthBar(snapshot.enemies,uiScreenWidth());
     const auto& hudTimings = hudRenderPerformanceStats();
     hudResourcesMilliseconds = hudTimings.resourcesMs;
     hudVitalityMilliseconds = hudTimings.vitalityMs;

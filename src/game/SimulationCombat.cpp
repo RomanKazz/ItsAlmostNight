@@ -218,7 +218,11 @@ void Simulation::updateCombat(double deltaSeconds) {
             if (!finalNight_) {
                 phaseTimeRemaining_ = std::max(
                     0.0, phaseTimeRemaining_ - deltaSeconds);
-                if (phaseTimeRemaining_ <= 0.0) {
+                const bool bossPendingOrAlive = waveBossSpawn_.has_value() ||
+                    std::ranges::any_of(enemies_.enemies(), [](const EnemyInstance& enemy) {
+                        return enemy.active && enemy.type==EnemyType::Boss;
+                    });
+                if (phaseTimeRemaining_ <= 0.0 && !bossPendingOrAlive) {
                     // Dawn banishes the remaining horde. Resetting actors
                     // deliberately produces no kill XP, Coins, loot, splits,
                     // or volatile elite explosions.
@@ -238,7 +242,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                     return;
                 }
             }
-            tickWaveSpawning(deltaSeconds);
+            if(phaseTimeRemaining_>0 || waveBossSpawn_) tickWaveSpawning(deltaSeconds);
         }
         updateTrapCombat(deltaSeconds);
 
@@ -265,7 +269,7 @@ void Simulation::updateCombat(double deltaSeconds) {
                 .type = magic.impact ? GameEventType::EnemyMagicImpact
                                      : GameEventType::EnemyMagicFired,
                 .sourceId = magic.ownerId,
-                .enemyType = EnemyType::Ranged,
+                .enemyType = magic.royal ? EnemyType::Boss : EnemyType::Ranged,
                 .position = magic.position,
                 .intensity = magic.dissipating ? 0.55 : 1.0,
             });
@@ -289,60 +293,43 @@ void Simulation::updateCombat(double deltaSeconds) {
                 });
                 continue;
             }
-            if (action.type == BossActionType::WarCry) {
-                events_.push_back({
-                    .type = GameEventType::BossWarCry,
-                    .entityId = action.bossId,
-                    .position = action.position,
-                    .amount = action.phase,
-                    .intensity = action.radius,
-                    .critical = true,
-                });
-                constexpr std::array<Vec3, 5> ReinforcementOffsets{{
-                    {2.4, 0.0, 0.0},
-                    {-2.4, 0.0, 0.0},
-                    {0.75, 0.0, 2.3},
-                    {-0.75, 0.0, -2.3},
-                    {2.0, 0.0, -1.65},
-                }};
-                std::array<EnemySpawn, ReinforcementOffsets.size()>
-                    reinforcements{};
-                for (std::size_t index = 0;
-                     index < reinforcements.size(); ++index) {
-                    Vec3 position{
-                        action.position.x +
-                            ReinforcementOffsets[index].x,
-                        0.8,
-                        action.position.z +
-                            ReinforcementOffsets[index].z,
-                    };
-                    reinforcements[index] = {
-                        .type = index < 2
-                            ? EnemyType::Fast
-                            : EnemyType::Basic,
-                        .position = position,
-                        .healthMultiplier = 1.35,
-                        .damageMultiplier = 1.15,
-                    };
-                }
-                enemies_.spawnGroup(reinforcements);
+            if (action.type == BossActionType::Telegraph) {
+                events_.push_back({.type=GameEventType::BossAttackTelegraph,.entityId=action.bossId,
+                    .position=action.position,.amount=static_cast<int>(action.attack),.intensity=action.radius,
+                    .duration=action.warningSeconds});
                 continue;
             }
-
-            events_.push_back({
-                .type = GameEventType::BossGroundSlam,
-                .entityId = action.bossId,
-                .position = action.position,
-                .amount = static_cast<int>(action.damage),
-                .intensity = action.radius,
-                .critical = true,
-            });
+            if (action.type == BossActionType::Volley) continue;
+            if (action.type == BossActionType::WarCry) {
+                events_.push_back({.type=GameEventType::BossWarCry,.entityId=action.bossId,
+                    .position=action.position,.amount=action.phase,.intensity=action.radius});
+                const int count=std::clamp(action.count,0,5);
+                std::array<EnemySpawn, 5> summons{};
+                for(int index=0;index<count && index<5;++index) {
+                    const double angle=static_cast<double>(index)*2*3.14159265358979323846/std::max(1,count);
+                    const Vec3 position{action.position.x+std::cos(angle)*5.2,2.22,
+                                        action.position.z+std::sin(angle)*5.2};
+                    summons[static_cast<std::size_t>(index)]={.type=EnemyType::Flying,.position=position,
+                        .healthMultiplier=action.healthScale,.damageMultiplier=action.damageScale,.summonerId=action.bossId};
+                    events_.push_back({.type=GameEventType::BossSummonAppeared,.entityId=action.bossId,
+                        .position={position.x,terrain_.getHeight(position.x,position.z)+2.22,position.z}});
+                }
+                enemies_.spawnGroup(std::span<const EnemySpawn>{summons}.first(static_cast<std::size_t>(std::min(5,count))));
+                continue;
+            }
+            if(action.type!=BossActionType::RoyalImpact) continue;
+            events_.push_back({.type=GameEventType::BossRoyalImpact,.entityId=action.bossId,
+                .position=action.position,.amount=static_cast<int>(action.attack),.damage=action.damage,
+                .intensity=action.radius});
             const double offsetX =
                 playerPosition_.x - action.position.x;
             const double offsetZ =
                 playerPosition_.z - action.position.z;
             const double distance = std::hypot(offsetX, offsetZ);
-            if (!playerRespawning_ && distance <= action.radius) {
+            const double feet=playerPosition_.y-1.7;
+            const double verticalReach=action.attack==RoyalAttack::Dive ? .75 : 2.0;
+            if (!playerRespawning_ && !unlimitedResources_ && !playerInvulnerable_ &&
+                distance <= action.radius && std::abs(feet-action.position.y)<=verticalReach) {
                 damagePlayer(
                     action.damage, action.bossId,
                     action.position);

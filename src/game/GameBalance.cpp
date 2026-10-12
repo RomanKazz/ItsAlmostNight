@@ -22,7 +22,7 @@ std::string readTextFile(std::string_view path) {
 }
 
 EnemyDefinition parseEnemy(const Json& value, bool boss) {
-    const EnemyDefinition definition{
+    EnemyDefinition definition{
         .health = value.at("health").get<double>(),
         .speed = value.at("speed").get<double>(),
         .damage = value.at("damage").get<double>(),
@@ -30,6 +30,31 @@ EnemyDefinition parseEnemy(const Json& value, bool boss) {
         .ramDamageMultiplier = value.value("ramDamageMultiplier", 1.0),
         .ramCooldown = value.value("ramCooldown", 0.0),
     };
+    if (boss && value.contains("battle")) {
+        const auto& data = value.at("battle");
+        auto& battle = definition.bossBattle;
+        battle.phaseTwo = data.value("phaseTwo", battle.phaseTwo);
+        battle.phaseThree = data.value("phaseThree", battle.phaseThree);
+        battle.introSeconds = data.value("introSeconds", battle.introSeconds);
+        battle.transitionSeconds = data.value("transitionSeconds", battle.transitionSeconds);
+        battle.transitionDamageMultiplier = data.value("transitionDamageMultiplier", battle.transitionDamageMultiplier);
+        battle.volleyWindup = data.value("volleyWindup", battle.volleyWindup);
+        battle.diveWindup = data.value("diveWindup", battle.diveWindup);
+        battle.stormWindup = data.value("stormWindup", battle.stormWindup);
+        battle.summonWindup = data.value("summonWindup", battle.summonWindup);
+        battle.recoverySeconds = data.value("recoverySeconds", battle.recoverySeconds);
+        battle.projectileSpeed = data.value("projectileSpeed", battle.projectileSpeed);
+        battle.volleyDamageScale = data.value("volleyDamageScale", battle.volleyDamageScale);
+        battle.diveRadius = data.value("diveRadius", battle.diveRadius);
+        battle.diveDamageScale = data.value("diveDamageScale", battle.diveDamageScale);
+        battle.stormRadius = data.value("stormRadius", battle.stormRadius);
+        battle.stormDamageScale = data.value("stormDamageScale", battle.stormDamageScale);
+        battle.structureDamageScale = data.value("structureDamageScale", battle.structureDamageScale);
+        battle.summonHealthMultiplier = data.value("summonHealthMultiplier", battle.summonHealthMultiplier);
+        battle.summonDamageMultiplier = data.value("summonDamageMultiplier", battle.summonDamageMultiplier);
+        battle.summonLimit = data.value("summonLimit", battle.summonLimit);
+    }
+    if (boss && !definition.bossBattle.valid()) throw std::runtime_error("invalid boss battle configuration");
     if (definition.health <= 0.0 || definition.speed <= 0.0 ||
         definition.damage <= 0.0 || definition.ramWindup < 0.0 ||
         definition.ramDamageMultiplier < 1.0 || definition.ramCooldown < 0.0 ||
@@ -410,7 +435,7 @@ GameBalance GameBalance::defaults() {
             {5.0, 2.2, 10.0, 0.0, 1.0, 0.0},
             {4.0, 3.4, 7.0, 0.0, 1.0, 0.0},
             {16.0, 1.5, 25.0, 0.0, 1.0, 0.0},
-            {70.0, 0.9, 50.0, 1.5, 3.0, 6.0},
+            {2400.0, 2.2, 30.0, 1.35, 1.2, 2.6},
             {7.0, 1.5, 8.0, 0.0, 1.0, 0.0},
             {10.0, 1.8, 12.0, 0.0, 1.0, 0.0},
             {5.0, 3.2, 8.0, 0.0, 1.0, 0.0},

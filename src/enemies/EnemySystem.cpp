@@ -78,7 +78,7 @@ void updateEnemySurface(
     if (terrain == nullptr) {
         return;
     }
-    if (enemy.type == EnemyType::Flying) {
+    if (enemy.type == EnemyType::Flying || enemy.type == EnemyType::Boss) {
         // Flying visuals hover above the terrain. Keep their terrain base in
         // simulation state so defenses can aim at the same world-space
         // height that presentation uses.
@@ -1082,7 +1082,7 @@ std::span<const EnemyAttack> EnemySystem::tick(
             (berserkerActive(enemy) ? 1.28 : 1.0) *
             bossPhaseSpeed;
 
-        if (advanceBossAbility(enemy, deltaSeconds, playerPosition)) {
+        if (advanceBossAbility(enemy, deltaSeconds, playerPosition, coreWorldPosition, terrain, navigation)) {
             continue;
         }
         const double knockbackSpeed = std::hypot(
@@ -1657,7 +1657,9 @@ void EnemySystem::appendEnemy(
         return;
     }
     const EnemyType type = spawn.type;
-    const Vec3 position = spawn.position;
+    Vec3 position = spawn.position;
+    if (type == EnemyType::Boss) position.y = AlpakingHover + AlpakingBodyCenter;
+    if (spawn.summonerId) position.y = 2.22;
     const EnemyDefinition stats =
         definitions_[static_cast<std::size_t>(type)];
     const bool elite = spawn.eliteAffixes != 0U;
@@ -1724,7 +1726,7 @@ void EnemySystem::appendEnemy(
         .position = position,
         .health = maximumHealth,
         .maxHealth = maximumHealth,
-        .speed = stats.speed,
+        .speed = stats.speed * (spawn.summonerId ? 1.12 : 1.0),
         .damage = stats.damage * damageMultiplier,
         .attackCooldownRemaining = 0.0,
         .hitAnimationRemaining = 0.0,
@@ -1755,6 +1757,7 @@ void EnemySystem::appendEnemy(
         .target = std::nullopt,
         .active = true,
         .eliteAffixes = spawn.eliteAffixes,
+        .summonerId = spawn.summonerId,
     };
     if (reusable == enemies_.end()) {
         enemies_.push_back(instance);
@@ -1863,6 +1866,14 @@ void EnemySystem::spawnSplitlings(
 void EnemySystem::markEnemyDead(EnemyInstance& enemy) {
     if (!enemy.active) {
         return;
+    }
+    if(enemy.type==EnemyType::Boss) {
+        for(auto& unit:enemies_) if(unit.active && unit.summonerId==enemy.id) {
+            unit.active=false;unit.state=EnemyState::Dead;unit.health=0;
+            if(activeCount_>0) --activeCount_;
+        }
+        std::erase_if(projectiles_,[&](const EnemyProjectile& projectile){return projectile.ownerId==enemy.id;});
+        enemy.bossStrikesRemaining=0;
     }
     enemy.active = false;
     enemy.state = EnemyState::Dead;

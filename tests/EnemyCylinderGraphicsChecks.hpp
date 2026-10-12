@@ -8,15 +8,16 @@
 
 inline bool checkEnemyCylinderModels(ian::Renderer& renderer) {
     using namespace ian;
-    constexpr std::array<EnemyModelVisual,9> models{EnemyModelVisual::Minion,EnemyModelVisual::Rogue,
+    constexpr std::array<EnemyModelVisual,10> models{EnemyModelVisual::Minion,EnemyModelVisual::Rogue,
         EnemyModelVisual::Warrior,EnemyModelVisual::Boss,EnemyModelVisual::Mage,EnemyModelVisual::Sapper,
-        EnemyModelVisual::Flying,EnemyModelVisual::Splitter,EnemyModelVisual::Splitling};
-    constexpr std::array<float,9> scales{.94F,.55F,.67F,.85F,.94F,.52F,.52F,.58F,.60F};
+        EnemyModelVisual::Flying,EnemyModelVisual::Splitter,EnemyModelVisual::Splitling,EnemyModelVisual::BossSummon};
+    constexpr std::array<float,10> scales{.94F,.55F,.67F,1.35F,.94F,.52F,.52F,.58F,.60F,.52F};
     const auto target=LoadRenderTexture(256,256);
-    const Camera3D camera{{5,2.3F,7},{0,1.5F,0},{0,1,0},4.2F,CAMERA_ORTHOGRAPHIC};
+    const Camera3D camera{{5,3.2F,7},{0,2.2F,0},{0,1,0},6.5F,CAMERA_ORTHOGRAPHIC};
     bool valid=true;
     for(std::size_t type=0;type<models.size();++type) {
-        EnemyInstance enemy{};enemy.type=static_cast<EnemyType>(type);
+        EnemyInstance enemy{};enemy.type=type==9 ? EnemyType::Flying : static_cast<EnemyType>(type);
+        if(type==9) enemy.summonerId=EntityId{1,1};
         const auto shape=enemyCollisionCylinder(enemy);
         const auto capture=[&](bool cylinder,EnemyAnimationVisual animation,float time) {
             BeginTextureMode(target);ClearBackground(BLACK);BeginMode3D(camera);
@@ -27,7 +28,7 @@ inline bool checkEnemyCylinderModels(ian::Renderer& renderer) {
                 WorldLighting lighting{};lighting.cameraPosition=camera.position;
                 renderer.beginWorldShader(lighting);
                 valid &= renderer.drawEnemy(models[type],animation,time,
-                    {0,type==6?1.25F:.02F,0},0,WHITE,scales[type]);
+                    {0,type==3?static_cast<float>(AlpakingHover):(type==6 || type==9)?1.25F:.02F,0},0,WHITE,scales[type]);
                 renderer.endWorldShader();
             }
             // Hide authored foot triangles below the actual walkable surface.

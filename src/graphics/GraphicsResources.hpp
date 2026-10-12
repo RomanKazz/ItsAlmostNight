@@ -349,6 +349,9 @@ class GraphicsResources {
     [[nodiscard]] const ModelResource& enemySapperModel() const;
     [[nodiscard]] ModelResource& enemyFlyingModel();
     [[nodiscard]] const ModelResource& enemyFlyingModel() const;
+    [[nodiscard]] ModelResource& enemyBossSummonModel();
+    [[nodiscard]] const ModelResource& enemyBossSummonModel() const;
+    [[nodiscard]] const ModelAnimationsResource& enemyBossSummonAnimations() const;
     [[nodiscard]] ModelResource& enemyBossModel();
     [[nodiscard]] const ModelResource& enemyBossModel() const;
     [[nodiscard]] ModelResource& enemySplitterModel();
@@ -482,6 +485,7 @@ class GraphicsResources {
     ModelResource enemySapperModel_;
     ModelResource enemyFlyingModel_;
     ModelResource enemyBossModel_;
+    ModelResource enemyBossSummonModel_;
     ModelResource enemySplitterModel_;
     ModelResource enemySplitlingModel_;
     ModelAnimationsResource enemyGeneralAnimations_;
@@ -495,6 +499,7 @@ class GraphicsResources {
     ModelAnimationsResource enemySapperAnimations_;
     ModelAnimationsResource enemyFlyingAnimations_;
     ModelAnimationsResource enemyBossAnimations_;
+    ModelAnimationsResource enemyBossSummonAnimations_;
     RenderTextureResource sceneTarget_;
     RenderTextureResource postProcessTarget_;
     RenderTextureResource ssaoTarget_;

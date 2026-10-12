@@ -131,6 +131,11 @@ EnemyModelVisual enemyModelVisual(EnemyType type) {
     return EnemyModelVisual::Minion;
 }
 
+EnemyModelVisual enemyModelVisual(const EnemyInstance& enemy) {
+    return enemy.type==EnemyType::Flying && enemy.summonerId
+        ? EnemyModelVisual::BossSummon : enemyModelVisual(enemy.type);
+}
+
 EnemyAnimationVisual enemyAnimationVisual(
     const EnemyInstance& enemy) {
     if (enemy.hitAnimationRemaining > 0.0 &&
@@ -151,6 +156,10 @@ EnemyAnimationVisual enemyAnimationVisual(
     case EnemyState::BossSlamWindup:
     case EnemyState::BossWarCryWindup:
     case EnemyState::BossPhaseTransition:
+    case EnemyState::BossVolleyWindup:
+    case EnemyState::BossStormWindup:
+        if (enemy.type==EnemyType::Boss && enemy.state!=EnemyState::BossSlamWindup)
+            return EnemyAnimationVisual::RangedAttack;
         if (enemy.type == EnemyType::Ranged) {
             return EnemyAnimationVisual::RangedAttack;
         }
@@ -175,7 +184,7 @@ float enemyVisualScale(EnemyType type) {
     case EnemyType::Heavy:
         return 0.67F;
     case EnemyType::Boss:
-        return 0.85F;
+        return 1.35F;
     case EnemyType::Ranged:
         return 0.94F;
     case EnemyType::Sapper:
@@ -225,7 +234,9 @@ double enemySplitSubTickSeconds(const SimulationSnapshot& snapshot, double inter
 Vector3 enemyRenderPosition(const EnemyInstance& enemy, double subTickSeconds) {
     return {
         static_cast<float>(enemy.position.x),
-        enemy.type == EnemyType::Flying
+        enemy.type == EnemyType::Boss
+            ? static_cast<float>(enemy.bossHoverOffset)
+            : enemy.type == EnemyType::Flying
             ? 1.25F
             : static_cast<float>(0.02 + enemy.surfaceHeightOffset) +
                 enemySplitPose(enemy, subTickSeconds).hop,
@@ -246,7 +257,9 @@ float enemyAnimationSeconds(
                 enemy.ramWindup -
                     enemy.ramWindupRemaining));
     }
-    if (enemy.state == EnemyState::BossSlamWindup ||
+    if (enemy.state == EnemyState::BossVolleyWindup ||
+        enemy.state == EnemyState::BossStormWindup ||
+        enemy.state == EnemyState::BossSlamWindup ||
         enemy.state == EnemyState::BossWarCryWindup ||
         enemy.state == EnemyState::BossPhaseTransition) {
         return static_cast<float>(std::max(

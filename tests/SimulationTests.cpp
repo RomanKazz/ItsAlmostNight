@@ -824,6 +824,9 @@ void runSimulationTests() {
         bossNight.tick(0.02);
         require(hasActiveBoss(),
                 "boss joins the final pressure peak");
+        bossNight.tick(.5);
+        require(hasActiveBoss() && bossNight.snapshot().state==ian::RunState::Wave,
+                "dawn timer cannot banish the living royal boss");
     }
     {
         ian::Simulation defenseProgression;

@@ -1271,8 +1271,10 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
         "assets/models/enemies/ultimate/sapper.gltf");
     enemyFlyingModel_.load(
         "assets/models/enemies/ultimate/flying.gltf");
+    enemyBossSummonModel_.load("assets/models/enemies/ultimate/alpaking-summon.gltf");
+    enemyBossSummonAnimations_.load("assets/models/enemies/ultimate/alpaking-summon.gltf");
     enemyBossModel_.load(
-        "assets/models/enemies/ultimate/boss.gltf");
+        "assets/models/enemies/ultimate/alpaking-boss.gltf");
     enemySplitterModel_.load(
         "assets/models/enemies/ultimate/green_spiky_blob.gltf");
     enemySplitlingModel_.load(
@@ -1297,7 +1299,7 @@ void GraphicsResources::initialize(const GraphicsSettings& settings) {
     enemyFlyingAnimations_.load(
         "assets/models/enemies/ultimate/flying.gltf");
     enemyBossAnimations_.load(
-        "assets/models/enemies/ultimate/boss.gltf");
+        "assets/models/enemies/ultimate/alpaking-boss.gltf");
     updateFramebuffer(settings);
     updateViewModelTarget(settings);
     updateSelectionMask(settings);
@@ -1497,6 +1499,8 @@ void GraphicsResources::shutdown() {
     viewModelTarget_.unload();
     ssaoTarget_.unload();
     shadowMap_.unload();
+    enemyBossSummonAnimations_.unload();
+    enemyBossSummonModel_.unload();
     enemyBossAnimations_.unload();
     enemySplitlingAnimations_.unload();
     enemySplitterAnimations_.unload();

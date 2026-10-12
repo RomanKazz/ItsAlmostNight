@@ -737,12 +737,12 @@ void App::drawSelectionPass(
                 eliteOutlineColor(enemy));
             renderer_->setSelectionOutlineBounds(
                 renderer_->enemyWorldBounds(
-                    enemyModelVisual(enemy.type), enemyPosition,
+                    enemyModelVisual(enemy), enemyPosition,
                     static_cast<float>(enemy.yaw), scale * std::max({1.0F,
                         splitPose.stretch.x, splitPose.stretch.y, splitPose.stretch.z}) *
                         (1 + std::abs(splitPose.roll)), true));
             static_cast<void>(renderer_->drawEnemy(
-                enemyModelVisual(enemy.type),
+                enemyModelVisual(enemy),
                 enemyAnimationVisual(enemy),
                 enemyAnimationSeconds(
                     enemy, snapshot.elapsedSeconds),
@@ -1184,12 +1184,12 @@ void App::drawSelectionPass(
                         : WHITE);
                 renderer_->setSelectionOutlineBounds(
                     renderer_->enemyWorldBounds(
-                        enemyModelVisual(enemy->type), enemyPosition,
+                        enemyModelVisual(*enemy), enemyPosition,
                         static_cast<float>(enemy->yaw), scale * std::max({1.0F,
                             splitPose.stretch.x, splitPose.stretch.y, splitPose.stretch.z}) *
                             (1 + std::abs(splitPose.roll)), enemy->eliteAffixes != 0));
                 static_cast<void>(renderer_->drawEnemy(
-                    enemyModelVisual(enemy->type),
+                    enemyModelVisual(*enemy),
                     enemyAnimationVisual(*enemy),
                     enemyAnimationSeconds(
                         *enemy, snapshot.elapsedSeconds),

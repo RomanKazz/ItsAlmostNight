@@ -1,3 +1,4 @@
+#include "graphics/RoyalBossEffect.hpp"
 #include "app/App.hpp"
 #include "app/AppRenderSupport.hpp"
 #include "app/AppBurnDrawing.hpp"
@@ -177,9 +178,11 @@ void App::drawWorldEnemies(
             enemy.state == EnemyState::BossRamWindup) {
             modelTint = {255, 178, 150, 255};
         } else if (enemy.state == EnemyState::BossSlamWindup) {
-            modelTint = {255, 112, 64, 255};
+            modelTint = {255, 216, 162, 255};
         } else if (enemy.state == EnemyState::BossWarCryWindup) {
-            modelTint = {197, 103, 255, 255};
+            modelTint = {244, 248, 169, 255};
+        } else if (enemy.state == EnemyState::BossVolleyWindup || enemy.state == EnemyState::BossStormWindup) {
+            modelTint = {255, 239, 175, 255};
         } else if (enemy.state == EnemyState::BossPhaseTransition) {
             modelTint = {255, 220, 116, 255};
         } else if (hasEliteAffix(
@@ -214,7 +217,7 @@ void App::drawWorldEnemies(
                     snapshot.elapsedSeconds);
             }
             enemyDrawInstances_.push_back({
-                .modelVisual = enemyModelVisual(enemy.type),
+                .modelVisual = enemyModelVisual(enemy),
                 .animationVisual =
                     frozen || splitting
                         ? EnemyAnimationVisual::Idle
@@ -292,7 +295,7 @@ void App::drawWorldEnemies(
             body = {238, 174, 55, 255};
         }
         if (!renderer_->drawEnemy(
-                enemyModelVisual(enemy.type),
+                enemyModelVisual(enemy),
                 frozen || splitting
                     ? EnemyAnimationVisual::Idle
                        : enemyAnimationVisual(enemy),
@@ -431,6 +434,45 @@ void App::drawWorldEnemies(
         }
         renderer_->setWorldMaterial({});
     }
+    if(std::ranges::any_of(snapshot.enemies,[](const EnemyInstance& enemy){return enemy.active && enemy.type==EnemyType::Boss;})) {
+        WorldMaterialState royalMaterial{};
+        royalMaterial.unlitAmount=1;royalMaterial.screenAoAmount=0;
+        royalMaterial.inkOutlineEligible=false;royalMaterial.inkOccluder=false;
+        renderer_->setWorldMaterial(royalMaterial);renderer_->beginColorOnlyWorldEffects();
+        fire_wand_effect::beginBatch();
+        const bool detailed=renderer_->settings().particles && !userSettings_.accessibility.reduceFlashes;
+        for(const auto& enemy:snapshot.enemies) if(enemy.active && enemy.type==EnemyType::Boss) {
+            const Vector3 center{static_cast<float>(enemy.position.x),
+                static_cast<float>(enemy.worldSurfaceHeight+enemy.position.y),static_cast<float>(enemy.position.z)};
+            if(!enemyVisible(center,8)) continue;
+            const float charge=enemy.bossAbilityWindupRemaining>0 && enemy.bossWindupDuration>0 ? static_cast<float>(
+                std::clamp(1-enemy.bossAbilityWindupRemaining/enemy.bossWindupDuration,0.0,1.0)) : 0;
+            royal_boss_effect::aura(center,camera.position,snapshot.elapsedSeconds,enemy.bossPhase,charge,
+                enemy.state==EnemyState::BossPhaseTransition,detailed);
+        }
+        // Telegraphs follow authoritative attack timers. Freeze/phase changes
+        // cannot leave an invisible delayed hit or a stale warning on the floor.
+        for(const auto& enemy:snapshot.enemies) if(enemy.active && enemy.type==EnemyType::Boss) {
+            const auto drawWarning=[&](Vec3 position,float radius,double eta,double duration) {
+                const Vector3 center=enemy_magic_effect::point(position);
+                if(enemyVisible(center,radius+1)) royal_boss_effect::marker(center,radius,
+                    static_cast<float>(std::clamp(1-eta/std::max(.01,duration),0.0,.98)),
+                    snapshot.elapsedSeconds,detailed);
+            };
+            if(enemy.state==EnemyState::BossSlamWindup)
+                drawWarning(enemy.bossAttackTarget,static_cast<float>(enemy.bossAttackRadius),enemy.bossAbilityWindupRemaining,enemy.bossWindupDuration);
+            if(enemy.state==EnemyState::BossStormWindup || enemy.bossStrikesRemaining>0) {
+                const int first=enemy.bossStrikesRemaining>0 ? 3-enemy.bossStrikesRemaining : 0;
+                for(int index=first;index<3;++index) {
+                    const double eta=enemy.bossStrikesRemaining>0
+                        ? enemy.bossStrikeTimer+(index-first)*.3 : enemy.bossAbilityWindupRemaining+index*.3;
+                    drawWarning(enemy.bossStrikeTargets[static_cast<std::size_t>(index)],
+                        static_cast<float>(enemy.bossAttackRadius),eta,enemy.bossWindupDuration+index*.3);
+                }
+            }
+        }
+        fire_wand_effect::endBatch();renderer_->endColorOnlyWorldEffects();renderer_->setWorldMaterial({});
+    }
     Vector3 flameRight = Vector3CrossProduct(
         cameraForward, {0.0F, 1.0F, 0.0F});
     if (Vector3LengthSqr(flameRight) < 0.001F) {
@@ -500,7 +542,7 @@ void App::drawWorldEnemies(
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         burnScales[rank] = enemyFlameScale(enemy.type) * appearance;
         const BoundingBox bounds = renderer_->enemyWorldBounds(
-            enemyModelVisual(enemy.type), candidate.position,
+            enemyModelVisual(enemy), candidate.position,
             static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
         const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
         // Fit to the authored body instead of burying flames inside wide models.
@@ -597,7 +639,7 @@ void App::drawWorldEnemies(
         const float appearance = enemyHitScale(enemy) *
             (enemy.eliteAffixes != 0U ? 1.08F : 1.0F);
         const float scale = enemyFlameScale(enemy.type) * appearance;
-        const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy.type),
+        const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy),
             draw.position, static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
         const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
         draw.radius = std::clamp(std::max(extent.x, extent.z), scale * .35F, scale * .95F);
@@ -660,7 +702,7 @@ void App::drawWorldEnemies(
             draw.position.y += static_cast<float>(simulation_.terrain().getHeight(enemy.position.x, enemy.position.z));
             const float appearance = enemyAppearanceScale(enemy) * (enemy.eliteAffixes != 0 ? 1.08F : 1.0F);
             const float scale = enemyFlameScale(enemy.type) * appearance;
-            const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy.type),
+            const auto bounds = renderer_->enemyWorldBounds(enemyModelVisual(enemy),
                 draw.position, static_cast<float>(enemy.yaw), enemyVisualScale(enemy.type) * appearance);
             const Vector3 extent = Vector3Scale(Vector3Subtract(bounds.max, bounds.min), .5F);
             const float radius = std::clamp(std::max(extent.x, extent.z), scale * .35F, scale * .95F);
@@ -697,6 +739,8 @@ void App::drawWorldEnemies(
             .type = visual.type,
             .position = visual.position,
             .eliteAffixes = visual.eliteAffixes,
+            .summonerId = visual.summonerId,
+            .bossHoverOffset = visual.bossHoverOffset,
             .surfaceHeightOffset =
                 visual.surfaceHeightOffset,
         };
@@ -722,7 +766,7 @@ void App::drawWorldEnemies(
             : 1.0F;
         destroyedEnemyDrawInstances_.push_back({
             .modelVisual =
-                enemyModelVisual(visual.type),
+                enemyModelVisual(visualEnemy),
             .animationVisual =
                 EnemyAnimationVisual::Death,
             .animationSeconds =
