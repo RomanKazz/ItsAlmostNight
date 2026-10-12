@@ -464,16 +464,13 @@ void TargetHealthBar::draw(const SimulationSnapshot& snapshot,
         });
         if (enemy != snapshot.enemies.end() && presentation::portalArrivalVisible(*enemy,
             {camera.position.x,camera.position.y,camera.position.z})) {
-            const bool showExactHealth =
-                enemy->type == EnemyType::Boss ||
-                enemy->eliteAffixes != 0U;
             candidate = Visual{
                 .target = {TargetKind::Enemy, enemy->id},
                 .anchorPosition = enemyAnchor(*enemy),
                 .health = enemy->health,
                 .maxHealth = enemy->maxHealth,
                 .fillColor = enemyHealthColor(*enemy),
-                .showHealthText = showExactHealth,
+                .showHealthText = false,
             };
         }
     }
