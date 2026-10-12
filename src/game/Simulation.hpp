@@ -534,7 +534,7 @@ struct SuspendedRunState {
     bool runUpgradeLockUnlocked{};
     std::optional<RunUpgradeEffect> lockedRunUpgrade;
     int bonusSelectionsNextReward{};
-    int riskyInvestmentPending{};
+    int riskyInvestmentPending{}; // Legacy checkpoint field; ignored and saved as zero.
     int bloodHarvestKillProgress{};
     InsightRunState insight;
     ObjectiveRunState objectives;
@@ -1073,8 +1073,6 @@ class Simulation {
     bool runUpgradeLockUnlocked_{};
     std::optional<RunUpgradeEffect> lockedRunUpgrade_;
     int bonusSelectionsNextReward_{};
-    int riskyInvestmentPending_{};
-    int riskyInvestmentActive_{};
     int bloodHarvestKillProgress_{};
     std::uint32_t runUpgradeOfferGeneration_{};
     struct ActiveFortification { EntityId id; double remaining; };

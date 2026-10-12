@@ -58,3 +58,9 @@ shop filtering, ownership/upgrade weights, world stock and durability,
 save/load/reset, old checkpoint migration, positive eight-level reload and
 repeat-refresh ammo stability. High-level musket DPS and Core siege damage are
 balance starting points to assess together in a full run.
+
+High Stakes is retired: absent from level/shop/debug pools, with no wave
+strength or additional-selection effect. Stable RiskyInvestment ID and the old
+riskyInvestmentPending checkpoint key remain reserved for compatibility. Resume
+clears old copies, pending activation and offers; existing earned generic rewards
+are preserved. Public gameplay APIs are unchanged by this retirement.

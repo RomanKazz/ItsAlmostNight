@@ -233,18 +233,6 @@ void Simulation::prepareWave(const WavePlan& plan, GridPosition corePosition,
         spawn.healthMultiplier *= healthScale;
         spawn.damageMultiplier *= damageScale;
     }
-    riskyInvestmentActive_ = riskyInvestmentPending_;
-    riskyInvestmentPending_ = 0;
-    if (riskyInvestmentActive_ > 0) {
-        const double healthMultiplier =
-            1.0 + 0.25 * static_cast<double>(riskyInvestmentActive_);
-        const double damageMultiplier =
-            1.0 + 0.15 * static_cast<double>(riskyInvestmentActive_);
-        for (EnemySpawn& spawn : waveSpawnQueue_) {
-            spawn.healthMultiplier *= healthMultiplier;
-            spawn.damageMultiplier *= damageMultiplier;
-        }
-    }
     if (!finalNight_) {
         const auto boss = std::ranges::find_if(
             waveSpawnQueue_, [](const EnemySpawn& spawn) {
@@ -300,16 +288,12 @@ void Simulation::refillWaveSpawnQueue() {
         wave_, core->gridPosition, waveFirstAnchorIndex_);
     waveSpawnQueue_.clear();
     waveSpawnQueue_.reserve(plan.spawns.size());
-    const double riskyHealth = 1.0 +
-        0.25 * static_cast<double>(riskyInvestmentActive_);
-    const double riskyDamage = 1.0 +
-        0.15 * static_cast<double>(riskyInvestmentActive_);
     for (EnemySpawn spawn : plan.spawns) {
         // Bosses appear once per night. Later batches remain endless but use
         // regular and elite enemies only.
         if (spawn.type == EnemyType::Boss) continue;
-        spawn.healthMultiplier *= waveHealthScale_ * riskyHealth;
-        spawn.damageMultiplier *= waveDamageScale_ * riskyDamage;
+        spawn.healthMultiplier *= waveHealthScale_;
+        spawn.damageMultiplier *= waveDamageScale_;
         waveSpawnQueue_.push_back(spawn);
     }
     routeSpawnsThroughPortals(
@@ -514,7 +498,6 @@ void Simulation::completeWave() {
         checkpoint.finalNight = false;
         checkpoint.phaseTimeRemaining = 0.0;
         checkpoint.phaseDuration = 0.0;
-        checkpoint.riskyInvestmentPending = riskyInvestmentPending_;
         waveStartCheckpoint_ =
             std::make_unique<SuspendedRunState>(
                 std::move(checkpoint));

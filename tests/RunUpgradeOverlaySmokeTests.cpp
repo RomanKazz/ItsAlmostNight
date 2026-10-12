@@ -10,6 +10,9 @@
 #include <string>
 
 int main(int argc, char** argv) {
+    require(!ian::debugUpgradeMatches(
+        ian::RunUpgradeDefinitions[ian::runUpgradeIndex(ian::RunUpgradeEffect::RiskyInvestment)], {}),
+        "high stakes is absent from the debug catalog");
     ian::SimulationSnapshot debugSnapshot{};
     for (const auto effect : {ian::RunUpgradeEffect::UpgradeAxe, ian::RunUpgradeEffect::UpgradePickaxe,
             ian::RunUpgradeEffect::UnlockRifle, ian::RunUpgradeEffect::UnlockClub,
@@ -261,7 +264,7 @@ int main(int argc, char** argv) {
                 Vector2 pointer{-100, -100};
                 if (scene < 2) {
                     display.runUpgradeChoices = {ian::RunUpgradeEffect::ReactiveTraps,
-                        ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::RiskyInvestment,
+                        ian::RunUpgradeEffect::RecoverableArmor, ian::RunUpgradeEffect::UnlockClub,
                         ian::RunUpgradeEffect::Luck};
                     display.runUpgradeRarities = {ian::RunUpgradeRarity::Common,
                         ian::RunUpgradeRarity::Common, ian::RunUpgradeRarity::Epic, ian::RunUpgradeRarity::Uncommon};

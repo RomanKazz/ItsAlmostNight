@@ -211,8 +211,8 @@ inline constexpr std::array<RunUpgradeDefinition,
          "+1 lock ability"},
         {RunUpgradeEffect::RerollToken, "REROLL",
          "+1 free reroll"},
-        {RunUpgradeEffect::RiskyInvestment, "HIGH STAKES",
-         "+2 picks, stronger enemies"},
+        {RunUpgradeEffect::RiskyInvestment, "LEGACY HIGH STAKES",
+         "Retired"},
         {RunUpgradeEffect::Salvager, runTomeDefinition(RunUpgradeEffect::Salvager)->name,
          "+30% sold or destroyed refund"},
         {RunUpgradeEffect::TwinBatteries, runTomeDefinition(RunUpgradeEffect::TwinBatteries)->name,
@@ -378,7 +378,8 @@ inline constexpr std::array<BuildingType, 3> RunEconomyBuildingTypes{
            effect == RunUpgradeEffect::QuarryProduction ||
            effect == RunUpgradeEffect::CrystalMineProduction ||
            effect == RunUpgradeEffect::RerollToken ||
-           effect == RunUpgradeEffect::DoubleDown;
+           effect == RunUpgradeEffect::DoubleDown ||
+           effect == RunUpgradeEffect::RiskyInvestment;
 }
 
 [[nodiscard]] constexpr double runGatheringSpeedMultiplier(int stacks) {

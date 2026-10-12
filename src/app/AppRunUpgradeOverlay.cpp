@@ -489,7 +489,7 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
         hoveredEffect == RunUpgradeEffect::BloodHarvest || hoveredEffect == RunUpgradeEffect::Overkill ||
         hoveredEffect == RunUpgradeEffect::Salvager || hoveredEffect == RunUpgradeEffect::NightlyBomb ||
         hoveredEffect == RunUpgradeEffect::LongerDay || hoveredEffect == RunUpgradeEffect::DoubleDown ||
-        hoveredEffect == RunUpgradeEffect::RiskyInvestment || hoveredEffect == RunUpgradeEffect::RerollToken);
+        hoveredEffect == RunUpgradeEffect::RerollToken);
     const Rectangle bounds = runUpgradeStatsPanelBounds(snapshot.runUpgradeChoiceCount);
     DrawRectangleRounded(bounds, 0.08F, 8, fadedColor({24, 28, 27, 245}, fade));
     DrawRectangleRoundedLinesEx(bounds, 0.08F, 8, 2.0F,
@@ -638,7 +638,6 @@ void drawUpgradeStats(const SimulationSnapshot& snapshot, float fade,
         case RunUpgradeEffect::NightlyBomb: bonus("Bombs per night", 1.0); break;
         case RunUpgradeEffect::LongerDay: bonus("Day extension", 5.0, "s"); break;
         case RunUpgradeEffect::DoubleDown: row("Next-level bonus", "-", "+2"); break;
-        case RunUpgradeEffect::RiskyInvestment: row("Enemy difficulty", "-", "INCREASED", false); break;
         case RunUpgradeEffect::RerollToken: row("Rerolls", std::to_string(snapshot.runUpgradeRerollTokens),
             std::to_string(snapshot.runUpgradeRerollTokens + 1)); break;
         default: break;

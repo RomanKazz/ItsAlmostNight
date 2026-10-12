@@ -414,8 +414,6 @@ void Simulation::resetRun(GameEventType eventType) {
     runUpgradeLockUnlocked_ = true;
     lockedRunUpgrade_.reset();
     bonusSelectionsNextReward_ = 0;
-    riskyInvestmentPending_ = 0;
-    riskyInvestmentActive_ = 0;
     bloodHarvestKillProgress_ = 0;
     runUpgradeOfferGeneration_ = 0U;
     selectedBuilding_.reset();

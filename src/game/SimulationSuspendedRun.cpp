@@ -112,7 +112,7 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         .runUpgradeLockUnlocked = runUpgradeLockUnlocked_,
         .lockedRunUpgrade = lockedRunUpgrade_,
         .bonusSelectionsNextReward = bonusSelectionsNextReward_,
-        .riskyInvestmentPending = riskyInvestmentPending_,
+        .riskyInvestmentPending = 0,
         .bloodHarvestKillProgress = bloodHarvestKillProgress_,
         .insight = insight_.saveState(),
         .objectives = objectives_.saveState(),
@@ -143,11 +143,6 @@ SuspendedRunState Simulation::saveSuspendedRunState() const {
         saved.phaseTimeRemaining = 0.0;
         saved.phaseDuration = 0.0;
     } else if (activeState == RunState::Wave) {
-        if (riskyInvestmentActive_ > 0 &&
-            saved.riskyInvestmentPending <=
-                MaximumSavedCounter - riskyInvestmentActive_) {
-            saved.riskyInvestmentPending += riskyInvestmentActive_;
-        }
         if (finalNight_) {
             saved.resumeState = RunState::StageClear;
             saved.wave = std::max(StageClearWave, wave_ - 1);
@@ -431,7 +426,9 @@ bool Simulation::loadSuspendedRunState(
     coins_ = saved.coins;
     lootStacks_ = saved.lootStacks;
     runUpgradeStacks_ = saved.runUpgradeStacks;
+    runUpgradeStacks_[runUpgradeIndex(RunUpgradeEffect::RiskyInvestment)] = 0;
     runUpgradePower_ = saved.runUpgradePower;
+    runUpgradePower_[runUpgradeIndex(RunUpgradeEffect::RiskyInvestment)] = 0;
     if (saved.playerWeaponArsenalVersion == 0) {
         for (const auto& definition : RunUpgradeDefinitions) {
             const auto weapon = runUpgradeWeapon(definition.effect);
@@ -537,8 +534,6 @@ bool Simulation::loadSuspendedRunState(
     lockedRunUpgrade_ = saved.lockedRunUpgrade;
     bonusSelectionsNextReward_ = std::max(
         0, saved.bonusSelectionsNextReward);
-    riskyInvestmentPending_ = std::max(0, saved.riskyInvestmentPending);
-    riskyInvestmentActive_ = 0;
     bloodHarvestKillProgress_ = std::max(
         0, saved.bloodHarvestKillProgress);
     runStatistics_ = saved.runStatistics;
@@ -644,6 +639,8 @@ bool Simulation::loadSuspendedRunState(
     aimedChallengeColumn_.reset();
     runUpgradeChoicePending_ = saved.runUpgradeChoicePending;
     runShop_ = saved.runShop;
+    for (auto& offer : runShop_.offers)
+        if (offer.effect == RunUpgradeEffect::RiskyInvestment) offer = {};
     runUpgradeChoiceCount_ = saved.runUpgradeChoiceCount;
     runUpgradeChoices_ = saved.runUpgradeChoices;
     runUpgradeRarities_ = saved.runUpgradeRarities;

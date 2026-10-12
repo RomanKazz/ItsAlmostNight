@@ -323,6 +323,7 @@ int Simulation::runUpgradeCount(RunUpgradeEffect effect) const {
 }
 
 bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity rarity) {
+    if (effect == RunUpgradeEffect::RiskyInvestment) return false;
     if (const auto building = runUpgradeBuilding(effect)) {
         if (runCombatBuilding(*building)) {
             const auto core = buildings_.core();
@@ -444,8 +445,7 @@ bool Simulation::applyRunUpgradeEffect(RunUpgradeEffect effect, RunUpgradeRarity
         ++runUpgradeRerollTokens_;
         break;
     case RunUpgradeEffect::RiskyInvestment:
-        ++riskyInvestmentPending_;
-        break;
+        break; // Reserved save ID; this card is retired.
     }
     refreshRunUpgradeRuntimeEffects();
     if (const auto weapon=runUpgradeWeapon(effect); weapon && runWeaponLevelCard(effect) && playerWeaponLevel(*weapon)>1) {
@@ -592,20 +592,8 @@ void Simulation::grantConfiguredInsight(
         amount, source, category, context);
     if (!result.accepted) return;
     invalidateSnapshotCache();
-    int riskySelections = 0;
-    if (source == InsightSource::WaveCompleted &&
-        riskyInvestmentActive_ > 0) {
-        if (result.levelsGranted > 0) {
-            riskySelections = riskyInvestmentActive_ * 2;
-        } else {
-            bonusSelectionsNextReward_ +=
-                riskyInvestmentActive_ * 2;
-        }
-        riskyInvestmentActive_ = 0;
-    }
     if (result.levelsGranted > 0) {
-        const int selections = result.levelsGranted + riskySelections;
-        prepareRunUpgradeChoices(selections);
+        prepareRunUpgradeChoices(result.levelsGranted);
     }
     events_.push_back({
         .type = GameEventType::InsightGranted,

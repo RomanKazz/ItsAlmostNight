@@ -1,6 +1,7 @@
 #include "TestHarness.hpp"
 #include "DefenseCardProgressionChecks.hpp"
 #include "WeaponCardProgressionChecks.hpp"
+#include "RunUpgradeRetirementChecks.hpp"
 #include "CoreDefenseGateChecks.hpp"
 #include "game/Simulation.hpp"
 
@@ -11,6 +12,7 @@
 void runRunUpgradeTests() {
     checkDefenseCardProgression();
     checkWeaponCardProgression();
+    checkRetiredHighStakes();
     checkCoreDefenseGateAndRepairs();
     using namespace ian;
     const auto rerollWithSavedToken = [](Simulation& run) {
@@ -744,8 +746,8 @@ void runRunUpgradeTests() {
                 RunUpgradeEffect::ReactiveTraps, RunUpgradeEffect::GunShrapnel})
             require(exhausted->grantDebugRunUpgradeBatch(perk, runUpgradeMaximumLevel(perk)),
                 "exhaustion fixture also maximizes weapon perks outside tome slots");
-        require(exhausted->grantDebugRunUpgradeBatch(RunUpgradeEffect::RiskyInvestment, 2),
-            "one high stakes level remains");
+        require(!exhausted->grantDebugRunUpgradeBatch(RunUpgradeEffect::RiskyInvestment, 2),
+            "high stakes cannot be granted even by debug");
         auto checkpoint = exhausted->saveSuspendedRunState();
         checkpoint.runUpgradeChoicePending = true;
         checkpoint.runUpgradeChoiceCount = 1;
@@ -753,8 +755,8 @@ void runRunUpgradeTests() {
         checkpoint.runUpgradeChoices[0] = RunUpgradeEffect::RiskyInvestment;
         checkpoint.runUpgradeRarities.fill(RunUpgradeRarity::Common);
         exhausted->returnToMainMenu();
-        require(exhausted->loadSuspendedRunState(checkpoint) && exhausted->selectRunUpgrade(0),
-            "last available perk can be selected");
+        require(exhausted->loadSuspendedRunState(checkpoint) && !exhausted->selectRunUpgrade(0),
+            "a retired offer in an exhausted pool disappears on resume");
         require(!exhausted->snapshot().runUpgradeChoicePending && exhausted->snapshot().runUpgradeChoiceCount == 0 &&
             exhausted->snapshot().runUpgradeSelectionsRemaining == 0,
             "exhausted reward pool closes instead of trapping the run behind an empty chooser");
@@ -858,9 +860,9 @@ void runRunUpgradeTests() {
             if (runTomeDefinition(card.effect)) ++activeHammers;
         }
     }
-    require(activeCount == 46 && activeHammers == 22, "streamlined pool contains 22 tomes and 24 blueprint, weapon or tool cards");
+    require(activeCount == 45 && activeHammers == 22, "streamlined pool contains 22 tomes and 23 blueprint, weapon or tool cards");
     require(retiredRunUpgrade(RunUpgradeEffect::LongerDay) && retiredRunUpgrade(RunUpgradeEffect::Overkill) &&
-            !retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight and overkill retire while high stakes remains available");
+            retiredRunUpgrade(RunUpgradeEffect::RiskyInvestment), "daylight, overkill and high stakes are retired");
     const double phaseBeforeHammer = hammers->snapshot().phaseTimeRemaining;
     require(hammers->grantDebugRunUpgrade(RunUpgradeEffect::LongerDay, RunUpgradeRarity::Rare),
         "daylight hammer grants the existing day bonus");
