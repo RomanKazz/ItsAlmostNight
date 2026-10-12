@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/Simulation.hpp"
+#include "audio/ExplosionSoundBudget.hpp"
 
 #include <raylib.h>
 
@@ -74,6 +75,9 @@ class AudioSystem {
                 float maximumDistance = 38.0F);
     void playResourceHit(ResourceType type, Vec3 position,
                          const SimulationSnapshot& snapshot);
+    void playExplosion(const Clip& clip, Vec3 position,
+                       const SimulationSnapshot& snapshot,
+                       float volume, float maximumDistance);
     [[nodiscard]] float variedPitch(float spread);
 
     bool levelupChoiceWasPending_{};
@@ -90,6 +94,8 @@ class AudioSystem {
     Clip critical_;
     Clip rifleShot_;
     Clip explosion_;
+    std::array<Clip, ExplosionSoundBudget::MaximumVoices - 1U> explosionAliases_;
+    ExplosionSoundBudget explosionSoundBudget_;
     Clip buildPlace_;
     Clip structureHit_;
     Clip structureBreak_;

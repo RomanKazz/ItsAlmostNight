@@ -1,12 +1,24 @@
 #include "TestHarness.hpp"
 #include "waves/WaveDirector.hpp"
+#include "enemies/EnemyDifficulty.hpp"
 
 #include <array>
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
+#include <limits>
 
 void runWaveDirectorTests() {
     ian::WaveDirector director;
+    requireNear(ian::enemyWaveHealthGrowth(1), 1.0, 1e-12,
+                "opening wave health remains unchanged");
+    requireNear(ian::enemyWaveHealthGrowth(6), 3.075, 1e-12,
+                "first boss wave has substantially stronger health growth");
+    requireNear(ian::enemyWaveHealthGrowth(12), 7.875, 1e-12,
+                "strong builds face accelerating late-wave health");
+    require(std::isfinite(ian::enemyWaveHealthGrowth(std::numeric_limits<int>::max())) &&
+                ian::enemyWaveHealthGrowth(-10) == 1.0,
+            "endless health growth stays finite and invalid waves normalize");
     constexpr std::array<int, 6> ExpectedBudgets{15, 25, 40, 55, 75, 100};
 
     for (int wave = 1;

@@ -1,3 +1,4 @@
+#include "enemies/EnemyDifficulty.hpp"
 #include "enemies/EnemySystem.hpp"
 
 #include "core/Geometry.hpp"
@@ -97,9 +98,9 @@ std::optional<EnemyDamageResult> EnemySystem::damage(EntityId id, double amount)
     const std::uint8_t killedAffixes = enemy->eliteAffixes;
     const Vec3 killedPosition = enemy->position;
     const double eliteHealthMultiplier =
-        enemy->eliteAffixes != 0U ? 1.6 : 1.0;
+        enemy->eliteAffixes != 0U ? EliteHealthMultiplier : 1.0;
     const double eliteDamageMultiplier =
-        enemy->eliteAffixes != 0U ? 1.1 : 1.0;
+        enemy->eliteAffixes != 0U ? EliteDamageMultiplier : 1.0;
     const double healthMultiplier = enemy->maxHealth /
         definitions_[static_cast<std::size_t>(enemy->type)].health /
         eliteHealthMultiplier;
@@ -355,10 +356,10 @@ std::span<const EnemyDamageResult> EnemySystem::damageInRadius(Vec3 position, do
         const std::uint8_t killedAffixes = enemy->eliteAffixes;
         const double childHealthMultiplier = enemy->maxHealth /
             definitions_[static_cast<std::size_t>(enemy->type)].health /
-            (enemy->eliteAffixes != 0U ? 1.6 : 1.0);
+            (enemy->eliteAffixes != 0U ? EliteHealthMultiplier : 1.0);
         const double childDamageMultiplier = enemy->damage /
             definitions_[static_cast<std::size_t>(enemy->type)].damage /
-            (enemy->eliteAffixes != 0U ? 1.1 : 1.0);
+            (enemy->eliteAffixes != 0U ? EliteDamageMultiplier : 1.0);
         if (killed) {
             markEnemyDead(*enemy);
         }

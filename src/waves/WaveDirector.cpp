@@ -1,3 +1,4 @@
+#include "enemies/EnemyDifficulty.hpp"
 #include "waves/WaveDirector.hpp"
 
 #include <algorithm>
@@ -98,7 +99,7 @@ WavePlan WaveDirector::buildWave(int wave, GridPosition corePosition,
     const double waveIndex =
         static_cast<double>(normalizedWave - 1);
     const double healthMultiplier =
-        MainWaveDifficultyScale * (1.0 + waveIndex * 0.10);
+        MainWaveDifficultyScale * enemyWaveHealthGrowth(normalizedWave);
     const double damageMultiplier =
         MainWaveDifficultyScale * (1.0 + waveIndex * 0.06);
     firstAnchorIndex_ = firstAnchorIndex % spawnAnchors_.size();

@@ -349,6 +349,16 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME ian_render_performance_smoke COMMAND ian_render_performance_smoke)
     set_tests_properties(ian_render_performance_smoke PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE)
+    add_executable(ian_enemy_pressure_tests tests/EnemyPressureTests.cpp)
+    target_link_libraries(ian_enemy_pressure_tests PRIVATE ian_simulation)
+    ian_set_warnings(ian_enemy_pressure_tests)
+    if(IAN_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(ian_enemy_pressure_tests PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ian_enemy_pressure_tests PRIVATE -fsanitize=address,undefined)
+    endif()
+    add_test(NAME ian_enemy_pressure_tests COMMAND ian_enemy_pressure_tests)
+    set_tests_properties(ian_enemy_pressure_tests PROPERTIES TIMEOUT 60)
+
     add_executable(ian_tests
         tests/FixedStepTests.cpp
         tests/RunShopTests.cpp

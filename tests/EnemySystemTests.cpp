@@ -136,6 +136,12 @@ void runEnemySystemTests() {
                 eliteEnemies.enemies()[0].maxHealth >
                     eliteEnemies.enemies()[1].maxHealth,
             "elite spawns carry affixes and increased health");
+        requireNear(eliteEnemies.enemies()[0].maxHealth,
+                    eliteEnemies.enemies()[1].maxHealth * 4.0, 1e-9,
+                    "elite baseline has four times normal health");
+        requireNear(eliteEnemies.enemies()[0].damage,
+                    eliteEnemies.enemies()[1].damage * 1.5, 1e-9,
+                    "elite baseline has fifty percent more damage");
         const auto protectedHit = eliteEnemies.damage(
             eliteEnemies.enemies()[1].id, 1.0);
         const auto wardenHit = eliteEnemies.damage(
@@ -873,6 +879,31 @@ void runEnemySystemTests() {
     require(typed[2].type == ian::EnemyType::Boss && typed[2].health == 70.0,
             "boss uses final-wave stats");
 
+    // Elite multipliers belong to the parent, not to its ordinary children.
+    // Both direct/projectile hits and explosive area kills must remove them.
+    for (const bool areaKill : {false, true}) {
+        ian::EnemySystem eliteSplitter;
+        const std::array<ian::EnemySpawn, 1> spawn{{{
+            .type = ian::EnemyType::Splitter,
+            .position = {0.0, 1.05, -5.0},
+            .healthMultiplier = 2.5,
+            .damageMultiplier = 1.25,
+            .eliteAffixes = ian::eliteAffixMask(ian::EliteAffix::Volatile),
+        }}};
+        eliteSplitter.spawnWave(spawn);
+        if (areaKill)
+            static_cast<void>(eliteSplitter.damageInRadius(spawn.front().position, 3.0, 1000.0));
+        else
+            static_cast<void>(eliteSplitter.damage(eliteSplitter.enemies().front().id, 1000.0));
+        eliteSplitter.tick(.4, buildings.buildings(), flowField);
+        require(eliteSplitter.activeCount() == 3, "elite splitter produces three ordinary children");
+        for (const auto& child : eliteSplitter.enemies()) {
+            if (!child.active) continue;
+            require(child.eliteAffixes == 0, "children do not inherit elite status");
+            requireNear(child.maxHealth, 8.0, 1e-9, "elite children retain wave HP scaling without elite HP");
+            requireNear(child.damage, 8.75, 1e-9, "elite children retain wave damage without elite bonus");
+        }
+    }
     ian::EnemySystem splitterEnemies;
     constexpr std::array<ian::EnemySpawn, 1> SplitterSpawn{{{
         .type = ian::EnemyType::Splitter,

@@ -79,6 +79,16 @@ void AudioSystem::initialize() {
     load(critical_, "assets/audio/critical.ogg");
     load(rifleShot_, "assets/audio/rifle_shot.wav");
     load(explosion_, "assets/audio/explosion.wav");
+    if (explosion_.loaded) {
+        for (Clip& alias : explosionAliases_) {
+            alias.sound = LoadSoundAlias(explosion_.sound);
+            alias.loaded = IsSoundValid(alias.sound);
+            if (!alias.loaded) {
+                UnloadSoundAlias(alias.sound);
+                alias.sound = {};
+            }
+        }
+    }
     load(buildPlace_, "assets/audio/build_place.ogg");
     load(structureHit_, "assets/audio/structure_hit.ogg");
     load(structureBreak_, "assets/audio/structure_break.ogg");
@@ -120,7 +130,12 @@ void AudioSystem::shutdown() {
     unload(stoneBreak_);
     unload(critical_);
     unload(rifleShot_);
+    for (Clip& alias : explosionAliases_) {
+        if (alias.loaded) UnloadSoundAlias(alias.sound);
+        alias = {};
+    }
     unload(explosion_);
+    explosionSoundBudget_.reset();
     unload(buildPlace_);
     unload(structureHit_);
     unload(structureBreak_);
@@ -175,6 +190,7 @@ void AudioSystem::update(const SimulationSnapshot& snapshot) {
     const float lowHealthTarget = static_cast<float>(
         std::clamp((0.35 - healthRatio) / 0.25, 0.0, 1.0));
     const float frameSeconds = std::max(GetFrameTime(), 0.0F);
+    explosionSoundBudget_.tick(frameSeconds);
     const float lowHealthBlend = 1.0F - std::exp(
         -(lowHealthTarget > lowHealthAmount_ ? 7.5F : 4.0F) *
         frameSeconds);
@@ -365,9 +381,7 @@ void AudioSystem::playEvent(
             variedPitch(0.06F));
         break;
     case GameEventType::Explosion:
-        playAt(
-            explosion_, event.position, snapshot, 0.92F,
-            variedPitch(0.035F), 55.0F);
+        playExplosion(explosion_, event.position, snapshot, 0.40F, 55.0F);
         break;
     case GameEventType::AnvilRepairShockwave:
     case GameEventType::IronArmorBroken:
@@ -755,6 +769,41 @@ void AudioSystem::playNextMusicTrack() {
     SetMusicVolume(
         music, std::clamp(settings_.musicVolume, 0.0F, 1.0F));
     PlayMusicStream(music);
+}
+
+void AudioSystem::playExplosion(
+    const Clip& clip, Vec3 position,
+    const SimulationSnapshot& snapshot,
+    float volume, float maximumDistance) {
+    if (!initialized_ || !clip.loaded || settings_.muted ||
+        settings_.sfxVolume <= 0.0F ||
+        std::hypot(position.x - snapshot.playerPosition.x,
+                   position.z - snapshot.playerPosition.z) >= maximumDistance)
+        return;
+
+    const auto playing = [](const Clip& voice) {
+        return voice.loaded && IsSoundPlaying(voice.sound);
+    };
+    std::size_t active = playing(explosion_) ? 1U : 0U;
+    for (const Clip& alias : explosionAliases_) active += playing(alias) ? 1U : 0U;
+
+    const Clip* voice = &clip;
+    if (playing(*voice)) {
+        if (&clip != &explosion_) return;
+        voice = nullptr;
+        for (const Clip& alias : explosionAliases_) {
+            if (alias.loaded && !playing(alias)) {
+                voice = &alias;
+                break;
+            }
+        }
+        if (!voice) return;
+    }
+    const auto gain = explosionSoundBudget_.reserve(active);
+    if (!gain) return;
+    playAt(*voice, position, snapshot,
+           *gain * std::clamp(volume / ExplosionSoundBudget::MaximumVolume, 0.0F, 1.0F),
+           variedPitch(0.035F), maximumDistance);
 }
 
 void AudioSystem::play(

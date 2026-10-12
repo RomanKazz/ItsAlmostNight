@@ -1,3 +1,4 @@
+#include "enemies/EnemyDifficulty.hpp"
 #include "enemies/EnemySystem.hpp"
 #include "enemies/EnemyNavigation.hpp"
 
@@ -1649,10 +1650,10 @@ void EnemySystem::appendEnemy(
     const bool elite = spawn.eliteAffixes != 0U;
     const double healthMultiplier =
         std::max(0.01, spawn.healthMultiplier) *
-        (elite ? 1.6 : 1.0);
+        (elite ? EliteHealthMultiplier : 1.0);
     const double damageMultiplier =
         std::max(0.01, spawn.damageMultiplier) *
-        (elite ? 1.1 : 1.0);
+        (elite ? EliteDamageMultiplier : 1.0);
     const double maximumHealth = roundedEnemyHealth(
         stats.health * healthMultiplier);
     const auto reusable = std::find_if(
