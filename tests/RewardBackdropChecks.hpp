@@ -21,19 +21,25 @@ inline void checkRewardBackdrops(ian::GameUi& ui,const ian::SimulationSnapshot& 
     };
     Image hidden=capture(0,0),early=capture(0,.07),ready=capture(0,1),coins=capture(1,1),
         coinsNext=capture(1,4),xp=capture(2,1),xpNext=capture(2,4),quiet=capture(2,1,true),
-        quietNext=capture(2,4,true),transparent=capture(3,4);
+        quietNext=capture(2,4,true),transparent=capture(3,4),quietCoins=capture(1,1,true),
+        quietCoinsNext=capture(1,4,true),quietShop=capture(0,1,true),quietShopNext=capture(0,4,true);
     require(difference(hidden,early)>10000 && difference(early,ready)>10000,
         "shop entrance visibly fades and grows before settling");
     require(difference(hidden,coins)>500 && difference(coins,coinsNext)>500 &&
         difference(hidden,xp)>500 && difference(xp,xpNext)>500,
         "coin and XP backgrounds remain visible and animated");
-    require(difference(quiet,quietNext)==0 && difference(hidden,transparent)==0,
-        "reduced motion keeps rewards static and zero opacity draws nothing");
+    require(difference(quiet,quietNext)>500 && difference(quietCoins,quietCoinsNext)>500 &&
+        difference(quietShop,quietShopNext)>500,
+        "reduce flashes retains continuous XP rain, coin rain and settled shop animation");
+    require(difference(xp,quiet)>500 && difference(hidden,transparent)==0,
+        "reduce flashes dims decorations and zero opacity draws nothing");
     if(output) {
         for(auto view:{std::pair{"shop-entering",early},std::pair{"shop-settled",ready},
-                       std::pair{"xp-background",xp},std::pair{"coin-background",coins}})
+                       std::pair{"xp-background",xp},std::pair{"coin-background",coins},
+                       std::pair{"shop-reduced-flashes",quietShop},std::pair{"shop-reduced-flashes-next",quietShopNext}})
             require(ExportImage(view.second,(std::string(output)+"/"+view.first+".png").c_str()),"reward overlay capture exported");
     }
-    for(Image image:{hidden,early,ready,coins,coinsNext,xp,xpNext,quiet,quietNext,transparent}) UnloadImage(image);
+    for(Image image:{hidden,early,ready,coins,coinsNext,xp,xpNext,quiet,quietNext,transparent,
+                    quietCoins,quietCoinsNext,quietShop,quietShopNext}) UnloadImage(image);
     UnloadRenderTexture(target);
 }

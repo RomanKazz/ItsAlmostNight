@@ -267,7 +267,7 @@ float rayRandom(std::uint32_t index, std::uint32_t salt) {
 // Each slot respawns a stationary rectangular beam after its fade/shrink
 // finishes. Hashes provide reproducible randomness without mutable RNG state
 // or frame-rate-dependent births; neighbouring slots may overlap freely.
-void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=false) {
+void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=false, bool reduceFlashes=false) {
     if (fade <= 0) return;
     const Vector2 center{offers.x + offers.width * 0.5F, offers.y + offers.height * 0.52F};
     const float screenRadius = std::hypot(static_cast<float>(uiScreenWidth()),
@@ -275,7 +275,8 @@ void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=fal
     const float scale = std::min(1.0F,static_cast<float>(uiScreenHeight())/1080.0F);
     constexpr std::uint32_t rayCount = 28;
     for (std::uint32_t slot = 0; slot < rayCount; ++slot) {
-        const double lifetime = (2.4 + rayRandom(slot, 0xbb67aeU) * 2.2) * (2.0 / 3.0);
+        const double lifetime = (2.4 + rayRandom(slot, 0xbb67aeU) * 2.2) * (2.0 / 3.0) *
+            (reduceFlashes ? 2.0 : 1.0);
         const double elapsed = std::max(0.0, seconds) + rayRandom(slot, 0x6a09e6U) * lifetime;
         const auto cycle = static_cast<std::uint32_t>(std::fmod(std::floor(elapsed / lifetime), 4294967296.0));
         const float age = static_cast<float>(std::fmod(elapsed, lifetime) / lifetime);
@@ -301,7 +302,7 @@ void drawUpgradeRays(Rectangle offers, double seconds, float fade, bool shop=fal
         const bool bright=rayRandom(seed, 0x510e52U)<0.4F;
         const Color color=shop ? (bright?Color{255,212,105,255}:Color{255,168,51,255}) :
             (bright?Color{255,249,184,255}:Color{255,235,142,255});
-        drawSolidTriangleFan(points.data(), static_cast<int>(points.size()), fadedColor(color, fade * opacity * (shop?.30F:.90F)));
+        drawSolidTriangleFan(points.data(), static_cast<int>(points.size()), fadedColor(color, fade * opacity * (shop?.30F:.90F) * (reduceFlashes?.5F:1.0F)));
     }
 }
 
@@ -780,7 +781,7 @@ void drawRunUpgradeOverlay(
     double entranceSeconds,
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
-    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition, bool reducedMotion) {
+    std::span<const float> hoverAmounts, std::optional<Vector2> pointerPosition, bool reduceFlashes) {
     if (!snapshot.runUpgradeChoicePending ||
         snapshot.runUpgradeChoiceCount == 0U) return;
     const float exitProgress = std::clamp(static_cast<float>(
@@ -795,7 +796,7 @@ void drawRunUpgradeOverlay(
                   {30, 30, 30, static_cast<unsigned char>(
                       std::lround(170.0F * screenFade))});
     reward_backdrop::draw(ui,reward_backdrop::Kind::Experience,entranceSeconds+exitSeconds,
-        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},screenFade,reducedMotion);
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},screenFade,reduceFlashes);
     const Vector2 mouse = pointerPosition.value_or(GetMousePosition());
     drawRunHammerInventory(ui, snapshot, {20.0F, 64.0F, std::min(600.0F, GetScreenWidth() * 0.4F), 44.0F}, overlayFade, mouse);
     const auto hoveredChoice = exitSeconds > 0.0 ? std::nullopt : hoveredRunUpgradeChoice(snapshot, mouse);
@@ -1318,7 +1319,7 @@ RunShopLayout runShopLayout() {
     return l;
 }
 void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
-    std::optional<int> keyboardFocus, std::optional<Vector2> pointerPosition,double entranceSeconds,bool reducedMotion) {
+    std::optional<int> keyboardFocus, std::optional<Vector2> pointerPosition,double entranceSeconds,bool reduceFlashes) {
     if (!snapshot.runShop.pending || snapshot.runUpgradeChoicePending || snapshot.state == RunState::Paused) return;
     const ScopedUiCanvas canvas;
     if (pointerPosition && canvas.owns()) pointerPosition = canvas.viewport().toUi(*pointerPosition);
@@ -1328,14 +1329,14 @@ void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     const bool interactive=entranceSeconds>=RunShopOverlayEntranceDuration;
     const auto pointer=interactive?pointerPosition.value_or(uiMousePosition()):Vector2{-10000,-10000};
     if(!interactive) keyboardFocus.reset();
-    const auto l=scaledShopLayout(shopLayout(),.4F+.6F*fade+(reducedMotion?0:.025F*std::sin(progress*PI)));
+    const auto l=scaledShopLayout(shopLayout(),.4F+.6F*fade+(reduceFlashes?0:.025F*std::sin(progress*PI)));
     const float s=l.scale;
     DrawRectangle(0, 0, uiScreenWidth(), uiScreenHeight(), fadedColor({11, 19, 22, 190},fade));
     const auto base=shopLayout();
     drawUpgradeRays({base.header.x,base.cards[0].y,base.header.width,base.cards[0].height},
-        reducedMotion?0:entranceSeconds,fade,true);
+        entranceSeconds,fade,true,reduceFlashes);
     reward_backdrop::draw(ui,reward_backdrop::Kind::Coins,entranceSeconds,
-        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},fade,reducedMotion);
+        {static_cast<float>(uiScreenWidth()),static_cast<float>(uiScreenHeight())},fade,reduceFlashes);
     auto preview = snapshot;
     preview.runUpgradeChoiceCount = RunShopSlotCount;
     std::optional<std::size_t> hovered;

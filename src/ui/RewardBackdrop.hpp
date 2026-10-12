@@ -28,9 +28,10 @@ inline void crystal(Vector2 center,float size,float tilt,Color tint) {
     triangle(bottomLeft,bottom,middle,{0,155,203,255});triangle(middle,bottom,bottomRight,{9,198,227,255});
     triangle(point(-.17F,-.28F),point(-.13F,.04F),point(-.07F,-.27F),{238,255,255,255});
 }
-inline void draw(const GameUi& ui,Kind kind,double seconds,Vector2 viewport,float opacity,bool reduced=false) {
+inline void draw(const GameUi& ui,Kind kind,double seconds,Vector2 viewport,float opacity,bool reduceFlashes=false) {
     const float scale=std::min(viewport.x/1920.0F,viewport.y/1080.0F);
-    const double time=reduced?0:seconds;
+    // Reduced flashes dims decorations; it must not disable continuous motion.
+    const double time=seconds;
     const auto texture=ui.resourceTexture(UiResourceIcon::Coin);
     for(int i=0;i<36;++i) {
         const float depth=.45F+.55F*unit(i,0);
@@ -41,7 +42,7 @@ inline void draw(const GameUi& ui,Kind kind,double seconds,Vector2 viewport,floa
         const float travel=static_cast<float>(std::fmod(unit(i,2)+time*(.16+depth*.12),1.0));
         const float y=viewport.y*travel;
         const float edge=std::min(1.0F,std::min(travel,1-travel)*12);
-        const auto alpha=static_cast<unsigned char>(std::clamp(opacity*edge*(.25F+.35F*depth),0.0F,1.0F)*255);
+        const auto alpha=static_cast<unsigned char>(std::clamp(opacity*edge*(.25F+.35F*depth)*(reduceFlashes?.7F:1.0F),0.0F,1.0F)*255);
         if(kind==Kind::Coins && IsTextureValid(texture)) {
             const float face=std::max(.10F,std::abs(static_cast<float>(std::cos(phase))));
             DrawTexturePro(texture,{0,0,static_cast<float>(texture.width),static_cast<float>(texture.height)},

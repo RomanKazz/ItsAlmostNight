@@ -38,7 +38,7 @@ void drawRunUpgradeOverlay(
     double exitSeconds,
     std::optional<std::size_t> selectedChoice,
     std::span<const float> hoverAmounts,
-    std::optional<Vector2> pointerPosition = std::nullopt, bool reducedMotion = false);
+    std::optional<Vector2> pointerPosition = std::nullopt, bool reduceFlashes = false);
 struct RunShopLayout {
     std::array<Rectangle, RunShopSlotCount> cards{}, buy{}, locks{};
     Rectangle inventory{}, stats{}, header{}, reroll{}, proceed{};
@@ -49,5 +49,5 @@ inline constexpr double RunShopOverlayEntranceDuration=.18;
 void drawRunShopOverlay(GameUi& ui, const SimulationSnapshot& snapshot,
     std::optional<int> keyboardFocus = std::nullopt,
     std::optional<Vector2> pointerPosition = std::nullopt,
-    double entranceSeconds = RunShopOverlayEntranceDuration, bool reducedMotion = false);
+    double entranceSeconds = RunShopOverlayEntranceDuration, bool reduceFlashes = false);
 } // namespace ian::app_detail

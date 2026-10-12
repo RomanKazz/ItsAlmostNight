@@ -18,18 +18,19 @@ wraparound pops. See SHOP_WAVE_PRICING.md for the updated economy.
 
 The shop's presentation clock advances while the game is paused for shopping,
 resets on each opening and clears on run reset/close. Level-up decorations use
-its existing entrance/exit clock. Reduced-flash accessibility freezes decoration
-motion and omits the shop overshoot. Background decorations never capture input.
+its existing entrance/exit clock. Reduced-flash accessibility dims rain by 30%, dims rays by 50% and doubles
+their fade/shrink lifetime. Continuous animation remains active; the shop overshoot
+is omitted. Background decorations never capture input.
 
 Geometry uses the dedicated solid white texture for procedural crystal facets,
 avoiding font-atlas sampling artefacts. There are no particle allocations,
 new bitmap assets, shaders or simulation/save changes.
 
-Public additions: optional entrance-time/reduced-motion arguments to
-`drawRunShopOverlay`, optional reduced-motion argument to `drawRunUpgradeOverlay`,
+Public additions: optional entrance-time/reduced-flash arguments to
+`drawRunShopOverlay`, optional reduced-flash argument to `drawRunUpgradeOverlay`,
 `RunShopOverlayEntranceDuration`, and the code-native `reward_backdrop::draw`.
 Default shop arguments keep existing callers fully visible.
 
 Visual smoke checks cover hidden/intermediate/settled shop frames, moving coin
-and crystal backgrounds, reduced-motion stability, zero-opacity output, existing
+and crystal backgrounds, continued animation with reduced flashes, zero-opacity output, existing
 English/Russian labels, viewport fitting, prices and godmode card state.
